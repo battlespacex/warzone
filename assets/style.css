@@ -269,10 +269,9 @@ body.nav--drawer-open { overflow: hidden; touch-action: none; }
 
 /* #region =========== Quote =========== */
 .quote-section { width: var(--sec-width); margin: 2rem auto; height: auto; position: relative; }
-    .quote-section .section__inner { flex-direction: column }
+    .quote-section .section__inner { flex-direction: column; gap: 0; }
     .quote-section h3 { margin: 35vh 0 2rem; text-shadow: 0 0.5rem 1rem rgba(1, 1, 1, 0.4); }
-    .quote-section h3,
-    .quote-section p { text-align: center; }
+    .quote-section h3, .quote-section p { text-align: center; }
 .quote-bg { background-image: url(/assets/images/web/quote-bg-3.jpg); }
 /* #endregion */
 
@@ -499,6 +498,8 @@ body.audio-consent-open .audio-fab { opacity: 0; pointer-events: none; }
 /* Tablet portrait only */
 @media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
 
+    .quote-bg { background-image: url(/assets/images/web/quote-mob-bg.jpg); }
+
     .section__inner { display: flex; width: var(--min-width); }
     .section__image { margin: 0 auto; justify-content: center; }
 
@@ -609,8 +610,10 @@ body.audio-consent-open .audio-fab { opacity: 0; pointer-events: none; }
     .xfolio__content { margin: 7rem auto 4rem; }
     .xfolioMore { margin: 5rem 0 0; }
 
-    .about-section .section__image .section__image-bg, .contact-section .section__image .section__image-bg { width: 100%; max-width: clamp(24rem, 80vw, 32rem); height: inherit; max-height: inherit; }
 
+    .quote-bg { background-image: url(/assets/images/web/quote-mob-bg.jpg); }
+
+    .about-section .section__image .section__image-bg, .contact-section .section__image .section__image-bg { width: 100%; max-width: clamp(24rem, 80vw, 32rem); height: inherit; max-height: inherit; }
 
     .about-section .section__inner { flex-direction: column; }
     .contact-section .section__inner { flex-direction: column-reverse; }
