@@ -1,0 +1,39 @@
+{
+  "name": "aerocism-landing",
+  "version": "1.0.0",
+  "description": "Aerocism air force photography landing site",
+  "main": "index.js",
+  "scripts": {
+    "dev": "webpack serve --mode development",
+    "build": "webpack --mode production"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "babel-loader": "^9.2.1",
+    "css-loader": "^7.1.2",
+    "css-minimizer-webpack-plugin": "^7.0.2",
+    "eslint": "^9.39.1",
+    "memfs": "^4.51.0",
+    "mini-css-extract-plugin": "^2.9.4",
+    "terser-webpack-plugin": "^5.3.16",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-middleware": "^7.4.5",
+    "webpack-dev-server": "^5.2.2"
+  },
+  "browserslist": [
+    ">0.5%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "dependencies": {
+    "@pixi/filter-glitch": "^5.1.1",
+    "@pixi/filter-rgb-split": "^5.1.1",
+    "gsap": "^3.13.0",
+    "pixi.js": "^8.14.3",
+    "three": "^0.182.0"
+  }
+}

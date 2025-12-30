@@ -1,0 +1,9 @@
+User-agent: *
+Disallow:
+
+Disallow: /server.js
+Disallow: /webpack.config.js
+Disallow: /package.json
+Disallow: /node_modules/
+
+Sitemap: https://www.aerocism.com/sitemap.xml

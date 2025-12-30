@@ -1,5 +1,10 @@
+# VS / VS Code junk
+.vs/
+.vscode/
+
+# Node
 node_modules/
-dist/
-.DS_Store
-.env
+
+# logs
 *.log
+.DS_Store
