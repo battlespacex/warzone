@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
     <!-- Essentials -->
-    <meta charset="utf-8" />
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
     <title>Aerocism · The Skies, Frozen</title>
-    <meta name="description" content="Military and aviation photographer delivering cinematic, brand-ready imagery of airpower and warbirds." />
+    <meta name="description" content="Aerocism by Waleed. Toronto-based military and aviation photographer capturing fighters, bombers, tankers, and warbirds." />
 
     <link rel="canonical" href="https://aerocism.com/" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
@@ -29,7 +29,7 @@
     <meta property="og:site_name" content="Aerocism" />
     <meta property="og:url" content="https://aerocism.com/" />
     <meta property="og:title" content="Aerocism · The Skies, Frozen" />
-    <meta property="og:description" content="Military and aviation photographer delivering cinematic, brand-ready imagery of airpower and warbirds." />
+    <meta property="og:description" content="Aerocism by Waleed. Toronto-based military and aviation photographer capturing fighters, bombers, tankers, and warbirds." />
     <meta property="og:image" content="https://aerocism.com/assets/images/web/aerocism-og-preview.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -39,7 +39,7 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Aerocism · The Skies, Frozen" />
-    <meta name="twitter:description" content="Toronto-based military and aviation photographer capturing fighters, bombers, tankers, and warbirds" />
+    <meta name="twitter:description" content="Aerocism by Waleed. Toronto-based military and aviation photographer capturing fighters, bombers, tankers, and warbirds." />
     <meta name="twitter:image" content="https://aerocism.com/assets/images/web/aerocism-og-preview.jpg" />
     <meta name="twitter:image:alt" content="Aerocism · The Skies, Frozen" />
     <meta name="twitter:site" content="@aerocism" />
@@ -67,7 +67,7 @@
         gtag("config", "G-2ST06777HY");
     </script>
 
-    <!-- Structured Data (keeps your meaning, improves coverage) -->
+    <!-- Structured Data -->
     <script type="application/ld+json">
         {
           "@context": "https://schema.org",
@@ -90,7 +90,7 @@
                 "https://www.linkedin.com/in/xarctix",
                 "https://behance.net/xarctix"
               ],
-              "description": "Toronto-Based military and aviation photographer delivering cinematic, brand-ready imagery of airpower and warbirds."
+              "description": "Aerocism by Waleed. Toronto-based military and aviation photographer capturing fighters, bombers, tankers, and warbirds."
             },
             {
               "@type": "Person",
@@ -98,7 +98,7 @@
               "name": "Waleed Irfan",
               "jobTitle": "Photographer",
               "url": "https://aerocism.com/",
-              "image": "https://aerocism.com/assets/images/web/photography-waleed-irfan-portrait.jpg",
+              "image": "https://aerocism.com/assets/images/web/photography-waleed-irfan-portrait-1.png",
               "worksFor": { "@id": "https://aerocism.com/#org" },
               "sameAs": [
                 "https://www.instagram.com/aerocism",
@@ -156,10 +156,14 @@
     </script>
 
     <!-- Styles -->
+    <link rel="preload" href="/dist/style.min.css" as="style">
     <link rel="stylesheet" href="/dist/style.min.css">
 </head>
 
 <body class="is-booting">
+    <!-- LCP background image -->
+    <div class="body-bg"></div>
+
     <div id="site-loader" class="site-loader is-visible" aria-hidden="false">
         <div class="loader">
             <div class="loader__container">
@@ -232,8 +236,8 @@
                     <img src="assets/images/web/logo-aerocism-2.svg"
                          alt="Aerocism logo"
                          class="nav__logo"
-                         width="220"
-                         height="60"
+                         width="380"
+                         height="100"
                          fetchpriority="high"
                          decoding="async" />
                 </a>
@@ -263,8 +267,8 @@
                 <img src="assets/images/web/logo-aerocism-2.svg"
                      alt="Aerocism logo"
                      class="nav__logo"
-                     width="220"
-                     height="60"
+                     width="380"
+                     height="100"
                      loading="lazy"
                      decoding="async" />
             </div>
@@ -329,7 +333,7 @@
                           aria-label="Waleed Irfan, Toronto-based photographer specializing in military, aviation, and motorsports visuals."></span>
 
                     <img class="sr-only"
-                         src="/assets/images/web/photography-waleed-irfan-portrait-1.png"
+                         src="/assets/images/web/photography-waleed-irfan-portrait-1.webp"
                          width="720"
                          height="960"
                          loading="lazy"
@@ -491,13 +495,17 @@
                         <p id="contact-status" class="form__status" role="status" aria-live="polite"></p>
                     </form>
 
-                    <div class="modal" id="contact-modal" aria-hidden="true">
+                    <div class="modal contact-modal" id="contact-modal" aria-hidden="true">
                         <div class="modal__overlay" data-modal-close>
                             <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" aria-describedby="contact-modal-message" tabindex="-1">
                                 <button type="button" class="modal__close x-icon" data-modal-close aria-label="Close">
                                     <span aria-hidden="true">close</span>
                                 </button>
-                                <h3 id="contact-modal-title" class="h2">Request Sent</h3>
+
+                                <div class="x-icon">
+                                    <span aria-hidden="true">plane_contrails</span>
+                                </div>
+                                <h3 id="contact-modal-title">Request Sent</h3>
                                 <p id="contact-modal-message">Thanks for reaching out. Your request is in and I’ll reply as soon as possible.</p>
                             </div>
                         </div>
@@ -507,7 +515,7 @@
                 <div class="section__image">
                     <span class="section__image-bg" role="img" aria-label=""></span>
                     <img class="sr-only"
-                         src="/assets/images/web/aerocism-bag-1.png"
+                         src="/assets/images/web/aerocism-bag-1.webp"
                          width="720"
                          height="960"
                          loading="lazy"
@@ -526,17 +534,17 @@
     <footer class="site-footer" role="contentinfo">
         <div class="site-footer__inner">
             <p class="tagline">
-                ☠️Bone just airborne and on a horizon course.<span class="stack"></span>
+                ☠️<abbr title="BONE is the call sign of the B-1B Lancer strategic bomber of U.S. airforce">Bone</abbr> just airborne and on a horizon course.<span class="stack"></span>
                 When you hear the thunder, <span class="stack"></span>
                 wave and smile!
             </p>
             <div class="footer-main">
                 <a href="/" aria-label="Aerocism home">
                     <img src="assets/images/web/logo-aerocism-1.svg"
-                         alt="Aerocism"
+                         alt="Aerocism logo"
                          class="nav__logo"
-                         width="220"
-                         height="60"
+                         width="380"
+                         height="100"
                          loading="lazy"
                          decoding="async" />
                 </a>
@@ -611,8 +619,10 @@
                    class="footer-credits"
                    target="_blank"
                    rel="noopener noreferrer">
-                    <img src="/assets/images/web/xarctix-logo.png"
-                         alt="Xarctix"
+                    <img src="/assets/images/web/xarctix-logo.webp"
+                         alt="Xarctix logo"
+                         width="400"
+                         height="70"
                          loading="lazy"
                          decoding="async" />
                     <small class="sr-only">
@@ -646,9 +656,6 @@
             </div>
         </div>
     </div>
-
-    <div class="body-bg"></div>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="/dist/bundle.min.js" defer></script>
 </body>
 </html>

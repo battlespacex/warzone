@@ -216,7 +216,7 @@ function initNav() {
             if (!href || !href.startsWith("#")) return null;
             const section = document.querySelector(href);
             if (!section) return null;
-            return { link, section };
+            return { link, section, id: href };
         })
         .filter(Boolean);
 
@@ -226,6 +226,7 @@ function initNav() {
     }
 
     function moveUnderline(link) {
+        if (!link) return;
         const linkRect = link.getBoundingClientRect();
         const navRect = menu.getBoundingClientRect();
         underline.style.width = linkRect.width + "px";
@@ -233,6 +234,7 @@ function initNav() {
     }
 
     function setActiveLink(link) {
+        if (!link) return;
         links.forEach((l) => l.classList.remove("active"));
         link.classList.add("active");
         moveUnderline(link);
@@ -245,9 +247,7 @@ function initNav() {
         if (toggle) toggle.setAttribute("aria-expanded", "true");
 
         const firstLink = links[0];
-        if (firstLink instanceof HTMLElement) {
-            setTimeout(() => firstLink.focus(), 0);
-        }
+        if (firstLink instanceof HTMLElement) setTimeout(() => firstLink.focus(), 0);
     }
 
     function closeMenu({ restoreFocus = true } = {}) {
@@ -281,22 +281,27 @@ function initNav() {
         if (window.matchMedia("(min-width: 900px)").matches && isMenuOpen()) {
             closeMenu({ restoreFocus: false });
         }
+        // keep underline aligned after resize
+        const active = menu.querySelector("a.active");
+        if (active) moveUnderline(active);
     });
+
+    // Safer scroll target calc (doesn't depend on offsetTop)
+    function scrollToSection(targetEl) {
+        const headerOffset = getHeaderOffset();
+        const y = targetEl.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+        window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    }
 
     links.forEach((link) => {
         link.addEventListener("click", (event) => {
             const href = link.getAttribute("href");
 
             if (href && href.startsWith("#")) {
-                event.preventDefault();
                 const target = document.querySelector(href);
-
                 if (target) {
-                    const headerOffset = getHeaderOffset();
-                    window.scrollTo({
-                        top: target.offsetTop - headerOffset,
-                        behavior: "smooth",
-                    });
+                    event.preventDefault();
+                    scrollToSection(target);
                 }
             }
 
@@ -306,24 +311,88 @@ function initNav() {
         });
     });
 
-    function onScroll() {
-        const headerOffset = getHeaderOffset();
-        const scrollPos = window.scrollY + headerOffset + 1;
-        let current = sectionMap[0];
+    // ---------- Scroll spy (IntersectionObserver first, fallback to scroll math) ----------
+    let io = null;
 
-        for (const item of sectionMap) {
-            if (item.section.offsetTop <= scrollPos) current = item;
-            else break;
+    function setupScrollSpy() {
+        if (!sectionMap.length) return;
+
+        const headerOffset = getHeaderOffset();
+
+        // IntersectionObserver = what is actually on screen
+        if ("IntersectionObserver" in window) {
+            const visible = new Map(); // id -> intersectionRatio
+
+            io = new IntersectionObserver(
+                (entries) => {
+                    for (const entry of entries) {
+                        const id = "#" + entry.target.id;
+                        if (!entry.isIntersecting) {
+                            visible.delete(id);
+                            continue;
+                        }
+                        // keep the best ratio for each target
+                        visible.set(id, entry.intersectionRatio);
+                    }
+
+                    if (!visible.size) return;
+
+                    // pick the most visible section (stable + matches what you see)
+                    let bestId = null;
+                    let bestRatio = -1;
+
+                    for (const [id, ratio] of visible.entries()) {
+                        if (ratio > bestRatio) {
+                            bestRatio = ratio;
+                            bestId = id;
+                        }
+                    }
+
+                    if (!bestId) return;
+
+                    const item = sectionMap.find((x) => x.id === bestId);
+                    if (item) setActiveLink(item.link);
+                },
+                {
+                    root: null,
+                    // push the "top" down by header height so header doesn't steal the viewport
+                    rootMargin: `-${headerOffset}px 0px -40% 0px`,
+                    threshold: [0.15, 0.25, 0.35, 0.5, 0.65, 0.8],
+                }
+            );
+
+            sectionMap.forEach(({ section }) => {
+                if (section && section.id) io.observe(section);
+            });
+
+            return;
         }
 
-        if (current) setActiveLink(current.link);
+        // Fallback: use bounding rect instead of offsetTop
+        const onScrollFallback = () => {
+            const header = getHeaderOffset();
+            const line = header + 8; // "active line" under the header
+
+            let current = sectionMap[0];
+
+            for (const item of sectionMap) {
+                const rect = item.section.getBoundingClientRect();
+                if (rect.top <= line) current = item;
+            }
+
+            if (current) setActiveLink(current.link);
+        };
+
+        window.addEventListener("scroll", onScrollFallback, { passive: true });
+        onScrollFallback();
     }
 
-    window.addEventListener("scroll", onScroll, { passive: true });
+    setupScrollSpy();
 
-    if (sectionMap.length) onScroll();
-    else if (links.length) setActiveLink(links[0]);
+    // Initial underline state
+    if (links.length) setActiveLink(links[0]);
 }
+
 
 /* -------- SCROLL TO CONTACT -------- */
 function initScrollToContact() {
@@ -435,12 +504,12 @@ export function initBackgroundAudio() {
             // Mobile behavior:
             // - Playing: hide icon (CSS), show rotating GENRE
             // - Paused: show play_arrow
-            if (iconEl) iconEl.textContent = isPlaying ? "pause" : "play_arrow";
+            if (iconEl) iconEl.textContent = isPlaying ? "play_pause" : "play_arrow";
             // Note: pause icon won't be visible while playing because we hide .x-icon on mobile via CSS,
             // but we keep it accurate for accessibility + future tweaks.
         } else {
             // Desktop behavior unchanged:
-            if (iconEl) iconEl.textContent = isPlaying ? "pause" : "play_arrow";
+            if (iconEl) iconEl.textContent = isPlaying ? "play_pause" : "play_arrow";
         }
 
         fab.classList.toggle("is-playing", isPlaying);

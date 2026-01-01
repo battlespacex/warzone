@@ -86,6 +86,7 @@ module.exports = (env, argv) => {
                     compress: true,
                     client: {
                         overlay: true,
+                        logging: 'none',
                     },
                     watchFiles: [
                         "index.html",

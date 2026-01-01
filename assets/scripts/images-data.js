@@ -27,6 +27,7 @@ const PATHS = {
 export const LOCATIONS = {
     LDN_ON_CA: "London, Ontario, Canada",
     TOR_ON_CA: "Toronto, Ontario, Canada",
+    ISB_PK: "Islamabad, Pakistan",
 };
 
 function buildGalleryPaths(imageKey) {
@@ -439,6 +440,13 @@ const XFOLIO_META = [
         aircraft: "CF-18 Hornet",
         alt: "CF-18 Hornet banking in bright haze at London Airshow 2025",
         tags: "london airshow 2025, london ontario, canada, cf-18 hornet, rcaf, fighter jet, banking turn, airshow pass, military aviation, jet photography, fast jet, aerocism"
+    },
+    {
+        image: "aerocism-81",
+        locationKey: "ISB_PK",
+        aircraft: "AH1 Cobra Gunship",
+        alt: "Pakistan Army Aviation Cobra Gunships",
+        tags: "cobra gunship, cobra, ah1, pakistan, army aviation, aerocism"
     }
 ];
 
@@ -451,9 +459,9 @@ const XFOLIO_SORT = [
     { image: "aerocism-5", sortOrder: 18 },
     { image: "aerocism-6", sortOrder: 33 },
     { image: "aerocism-7", sortOrder: 32 },
-    { image: "aerocism-8", sortOrder: 17 },
+    { image: "aerocism-8", sortOrder: 6 },
     { image: "aerocism-9", sortOrder: 16 },
-    { image: "aerocism-10", sortOrder: 15 },
+    { image: "aerocism-10", sortOrder: 10 },
     { image: "aerocism-12", sortOrder: 11 },
     { image: "aerocism-13", sortOrder: 27 },
     { image: "aerocism-14", sortOrder: 26 },
@@ -480,11 +488,11 @@ const XFOLIO_SORT = [
     { image: "aerocism-38", sortOrder: 30 },
     { image: "aerocism-39", sortOrder: 19 },
     { image: "aerocism-40", sortOrder: 20 },
-    { image: "aerocism-41", sortOrder: 8 },
+    { image: "aerocism-41", sortOrder: 50 },
     { image: "aerocism-42", sortOrder: 21 },
     { image: "aerocism-43", sortOrder: 37 },
     { image: "aerocism-44", sortOrder: 31 },
-    { image: "aerocism-45", sortOrder: 10 },
+    { image: "aerocism-45", sortOrder: 15 },
     { image: "aerocism-46", sortOrder: 47 },
     { image: "aerocism-47", sortOrder: 36 },
     { image: "aerocism-48", sortOrder: 24 },
@@ -492,8 +500,9 @@ const XFOLIO_SORT = [
     { image: "aerocism-50", sortOrder: 49 },
     { image: "aerocism-51", sortOrder: 5 },
     { image: "aerocism-52", sortOrder: 7 },
-    { image: "aerocism-53", sortOrder: 6 },
-    { image: "aerocism-54", sortOrder: 25 }
+    { image: "aerocism-53", sortOrder: 17 },
+    { image: "aerocism-54", sortOrder: 25 },
+    { image: "aerocism-81", sortOrder: 8 }
 ];
 
 

@@ -19,11 +19,69 @@ let lightboxPrevBtn = null;
 let lightboxNextBtn = null;
 let lightboxCloseBtn = null;
 
+// Download button (now inside xfolioLightboxInner)
+let lightboxDownloadBtn = null;
+
 let currentLightboxIndex = -1;
 let lightboxFadeTimeoutId = null;
 
 const sizePattern = ["Type3", "Type4", "Type3", "Type3", "Type4", "Type3", "Type3", "Type3", "Type4"];
 const IMAGE_FADE_DURATION = 400;
+
+// Cancel token for rapid next/prev clicks
+let lightboxSwapToken = 0;
+
+function waitMs(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function preloadImage(src) {
+    return new Promise((resolve) => {
+        if (!src) return resolve(false);
+
+        const im = new Image();
+        let settled = false;
+
+        const done = (ok) => {
+            if (settled) return;
+            settled = true;
+            resolve(ok);
+        };
+
+        im.onload = () => done(true);
+        im.onerror = () => done(false);
+        im.src = src;
+
+        // Decode helps prevent pop-in
+        if (typeof im.decode === "function") {
+            im.decode().then(() => done(true)).catch(() => done(true));
+        }
+    });
+}
+
+async function decodeOrLoadImg(img, timeout = 1500) {
+    if (!img) return;
+
+    if (typeof img.decode === "function") {
+        try {
+            await Promise.race([img.decode(), waitMs(timeout)]);
+            return;
+        } catch (_) {
+            // fall through
+        }
+    }
+
+    if (img.complete) return;
+
+    await Promise.race([
+        new Promise((resolve) => {
+            const finish = () => resolve();
+            img.addEventListener("load", finish, { once: true });
+            img.addEventListener("error", finish, { once: true });
+        }),
+        waitMs(timeout),
+    ]);
+}
 
 function safeArray(value) {
     return Array.isArray(value) ? value : [];
@@ -34,7 +92,6 @@ function getSizeForIndex(index) {
     return sizePattern[patternIndex];
 }
 
-// Only active items, sorted by `sort` (from sortOrder)
 function sortAndFilterItems(list) {
     const activeItems = (list || []).filter((item) => {
         if (!item) return false;
@@ -51,13 +108,6 @@ function sortAndFilterItems(list) {
         });
 }
 
-/**
- * Build gallery items from xfolioSlides
- * - NO boxee
- * - NO manual IDs
- * - uses sortOrder
- * - generates stable IDs after sorting (folio-1, folio-2, ...)
- */
 function mapGalleryToxfolioItems() {
     const src = Array.isArray(xfolioSlides) ? xfolioSlides : [];
 
@@ -72,7 +122,6 @@ function mapGalleryToxfolioItems() {
         return {
             active: isActive,
             sort,
-            // temporary id placeholder; final folio ids are assigned after sorting
             id: `tmp-${index + 1}`,
             imageKey: img && img.image ? String(img.image) : "",
             thumb: img && img.thumbnail ? img.thumbnail : img.imageLarge || "",
@@ -87,10 +136,6 @@ function mapGalleryToxfolioItems() {
     });
 }
 
-/**
- * After sorting, assign folio IDs in the exact visual order.
- * This guarantees: folio-1..N always match your displayed sorted gallery.
- */
 function assignFolioIds(sortedItems) {
     const used = new Set();
     return (sortedItems || []).map((it, i) => {
@@ -125,7 +170,6 @@ function createCard(item, index) {
 
     article.style.setProperty("--stagger-index", String(index));
 
-    // --- MEDIA WRAPPER ---
     const media = doc.createElement("div");
     media.className = "xfolioItemMedia";
 
@@ -142,20 +186,16 @@ function createCard(item, index) {
 
     media.appendChild(img);
 
-    // --- OPEN BUTTON ---
     const button = doc.createElement("button");
     button.type = "button";
     button.className = "xfolioItemOpen x-icon";
     button.setAttribute("aria-label", "Open image");
     button.innerHTML = "<span aria-hidden='true'>arrow_outward</span>";
 
-    // --- SR-ONLY TEXT ---
     const body = doc.createElement("div");
     body.className = "xfolioItemBody sr-only";
 
     const title = doc.createElement("h3");
-
-    // If you want richer SR content, use aircraft/location if title is empty.
     const srTitle = item.title || item.aircraft || "Gallery image";
     title.textContent = srTitle;
 
@@ -211,11 +251,8 @@ function renderNextBatch(count) {
         const card = createCard(items[i] || {}, i);
         frag.appendChild(card);
 
-        if (cardObserver) {
-            cardObserver.observe(card);
-        } else {
-            card.classList.add("is-visible");
-        }
+        if (cardObserver) cardObserver.observe(card);
+        else card.classList.add("is-visible");
     }
 
     grid.appendChild(frag);
@@ -239,7 +276,7 @@ function setupCardObserver() {
                 }
             });
         },
-        { threshold: 0.3 }
+        { threshold: 0.01, rootMargin: "200px 0px" }
     );
 }
 
@@ -286,7 +323,6 @@ function setupShowMore() {
         SL?.start();
 
         const startIndex = renderedCount;
-
         renderNextBatch(batchSize);
 
         const newCards = Array.from(grid.querySelectorAll(".xfolioItem")).filter((card) => {
@@ -346,9 +382,23 @@ function createLightbox() {
     lightboxNextBtn.setAttribute("aria-label", "Next image");
     lightboxNextBtn.innerHTML = "<span aria-hidden='true'>chevron_right</span>";
 
+ 
+    lightboxDownloadBtn = doc.createElement("button");
+    lightboxDownloadBtn.type = "button";
+    lightboxDownloadBtn.className = "xfolioLightboxDownload x-icon";
+    lightboxDownloadBtn.setAttribute("aria-label", "Download full HD image");
+    lightboxDownloadBtn.setAttribute("title", "Download full HD image");
+    lightboxDownloadBtn.innerHTML = `
+        <span aria-hidden="true">download</span>
+        <span class="sr-only">Download full HD</span>
+    `;
+
     inner.appendChild(mediaWrapper);
     inner.appendChild(lightboxCaption);
+
+    // order: close + download + prev/next
     inner.appendChild(lightboxCloseBtn);
+    inner.appendChild(lightboxDownloadBtn);
     inner.appendChild(lightboxPrevBtn);
     inner.appendChild(lightboxNextBtn);
 
@@ -363,6 +413,23 @@ function createLightbox() {
     lightboxPrevBtn.addEventListener("click", () => showAdjacent(-1));
     lightboxNextBtn.addEventListener("click", () => showAdjacent(1));
 
+    // Download current image
+    lightboxDownloadBtn.addEventListener("click", () => {
+        if (currentLightboxIndex < 0 || currentLightboxIndex >= items.length) return;
+
+        const it = items[currentLightboxIndex];
+        const url = it?.full || it?.thumb;
+        if (!url) return;
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = ""; // browser chooses filename
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    });
+
     doc.addEventListener("keydown", (evt) => {
         if (!lightboxEl || !lightboxEl.classList.contains("is-open")) return;
 
@@ -372,7 +439,7 @@ function createLightbox() {
     });
 }
 
-function setLightboxContent(index, { useTransition = false } = {}) {
+async function setLightboxContent(index, { useTransition = false } = {}) {
     if (!items[index] || !lightboxImg) return;
 
     const item = items[index];
@@ -380,19 +447,27 @@ function setLightboxContent(index, { useTransition = false } = {}) {
     const altText = item.alt || item.title || item.aircraft || "";
     const captionText = item.title || item.description || item.aircraft || "";
 
+    lightboxSwapToken += 1;
+    const token = lightboxSwapToken;
+
     if (lightboxFadeTimeoutId !== null) {
         clearTimeout(lightboxFadeTimeoutId);
         lightboxFadeTimeoutId = null;
     }
+
+    if (lightboxCaption) lightboxCaption.textContent = captionText;
 
     if (!useTransition || !lightboxImg.src) {
         lightboxImg.classList.remove("is-visible");
 
         lightboxImg.src = src;
         lightboxImg.alt = altText;
-        if (lightboxCaption) lightboxCaption.textContent = captionText;
+
+        await decodeOrLoadImg(lightboxImg, 1500);
+        if (token !== lightboxSwapToken) return;
 
         requestAnimationFrame(() => {
+            if (token !== lightboxSwapToken) return;
             lightboxImg.classList.add("is-visible");
         });
 
@@ -401,17 +476,19 @@ function setLightboxContent(index, { useTransition = false } = {}) {
 
     lightboxImg.classList.remove("is-visible");
 
-    lightboxFadeTimeoutId = window.setTimeout(() => {
-        lightboxImg.src = src;
-        lightboxImg.alt = altText;
-        if (lightboxCaption) lightboxCaption.textContent = captionText;
+    await Promise.all([waitMs(IMAGE_FADE_DURATION), preloadImage(src)]);
+    if (token !== lightboxSwapToken) return;
 
-        requestAnimationFrame(() => {
-            lightboxImg.classList.add("is-visible");
-        });
+    lightboxImg.src = src;
+    lightboxImg.alt = altText;
 
-        lightboxFadeTimeoutId = null;
-    }, IMAGE_FADE_DURATION);
+    await decodeOrLoadImg(lightboxImg, 1500);
+    if (token !== lightboxSwapToken) return;
+
+    requestAnimationFrame(() => {
+        if (token !== lightboxSwapToken) return;
+        lightboxImg.classList.add("is-visible");
+    });
 }
 
 function showLightbox(index) {
@@ -429,6 +506,8 @@ function showLightbox(index) {
 
 function hideLightbox() {
     if (!lightboxEl) return;
+
+    lightboxSwapToken += 1;
 
     if (lightboxFadeTimeoutId !== null) {
         clearTimeout(lightboxFadeTimeoutId);
@@ -487,7 +566,6 @@ function setupLightbox() {
     });
 }
 
-// Public init, called from index.js
 export function initXFolio(options = {}) {
     grid = document.getElementById("xfolio-grid");
     showMoreBtn = document.getElementById("xfolio-show-more");
@@ -511,11 +589,7 @@ export function initXFolio(options = {}) {
     }
 
     const rawItems = mapGalleryToxfolioItems();
-
-    // Filter + sort
     const sorted = sortAndFilterItems(rawItems);
-
-    // Assign folio-1..N ids AFTER sorting (no manual id work ever)
     items = assignFolioIds(sorted);
 
     if (!items.length) {

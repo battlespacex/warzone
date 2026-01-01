@@ -39,7 +39,8 @@ export function initXSwiper(rootSelector) {
     const TEXT_DELAY = 0.2;
     const AUTO_DELAY = 5000;
 
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const reduceMotion =
+        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
     root.classList.add("xswiper");
 
@@ -153,34 +154,27 @@ export function initXSwiper(rootSelector) {
         }
     }
 
-    function createSlideEl(slide) {
+    function createSlideEl(slide, isFirstReal = false) {
         const slideEl = document.createElement("article");
         slideEl.className = "xswiper__slide";
         slideEl.id = slide.id;
 
         slideEl.innerHTML = `
       <picture>
-        <!-- Mobile -->
         <source media="(max-width: 768px)" srcset="${slide.mobImage}">
-        <!-- Desktop -->
         <source media="(min-width: 769px)" srcset="${slide.deskImage}">
         <img
           class="xswiper__image"
           src="${slide.deskImage}"
           alt="${slide.alt || slide.title || ""}"
           draggable="false"
+          decoding="async"
+          ${isFirstReal ? `fetchpriority="high" loading="eager"` : `loading="lazy"`}
         />
       </picture>
-
-      <div class="xswiper__content sr-only">
-        <h2 class="xswiper__title">${slide.title || ""}</h2>
-        <h3 class="xswiper__subtitle">${slide.subtitle || ""}</h3>
-        <p>${slide.description || ""}</p>
-      </div>
     `;
         return slideEl;
     }
-
 
     track.innerHTML = "";
 
@@ -191,8 +185,8 @@ export function initXSwiper(rootSelector) {
     track.appendChild(lastClone);
     slidesEls.push(lastClone);
 
-    sortedSlides.forEach((slide) => {
-        const el = createSlideEl(slide);
+    sortedSlides.forEach((slide, i) => {
+        const el = createSlideEl(slide, i === 0);
         track.appendChild(el);
         slidesEls.push(el);
     });
@@ -433,15 +427,13 @@ export function initXSwiper(rootSelector) {
     };
 
     const onTransitionEnd = (e) => {
+        if (e.target !== track) return;
         if (e.propertyName !== "transform") return;
-
-        const target = e.target;
-        if (!target.classList.contains("xswiper__title") && !target.classList.contains("xswiper__subtitle")) return;
         if (!isAnimating) return;
 
         const lastRealIndex = slidesEls.length - 2;
 
-        if (slidesEls[currentIndex].dataset.clone === "last") {
+        if (slidesEls[currentIndex]?.dataset.clone === "last") {
             track.style.transition = "none";
             images.forEach((img) => img && (img.style.transition = "none"));
             contents.forEach((el) => el && (el.style.transition = "none"));
@@ -452,7 +444,7 @@ export function initXSwiper(rootSelector) {
             track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
             applyParallax(0);
             updateIndicator();
-        } else if (slidesEls[currentIndex].dataset.clone === "first") {
+        } else if (slidesEls[currentIndex]?.dataset.clone === "first") {
             track.style.transition = "none";
             images.forEach((img) => img && (img.style.transition = "none"));
             contents.forEach((el) => el && (el.style.transition = "none"));
@@ -465,6 +457,7 @@ export function initXSwiper(rootSelector) {
             updateIndicator();
         }
 
+        // unlock
         isAnimating = false;
         scheduleAutoplay();
     };
@@ -482,7 +475,9 @@ export function initXSwiper(rootSelector) {
     track.addEventListener("touchend", onTouchEnd);
 
     track.addEventListener("dragstart", onDragStart);
-    root.addEventListener("transitionend", onTransitionEnd);
+
+    track.addEventListener("transitionend", onTransitionEnd);
+
     root.addEventListener("keydown", onKeyDown);
 
     root.__xswiperCleanup = () => {
@@ -501,7 +496,8 @@ export function initXSwiper(rootSelector) {
         track.removeEventListener("touchend", onTouchEnd);
 
         track.removeEventListener("dragstart", onDragStart);
-        root.removeEventListener("transitionend", onTransitionEnd);
+        track.removeEventListener("transitionend", onTransitionEnd);
+
         root.removeEventListener("keydown", onKeyDown);
     };
 
