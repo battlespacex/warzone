@@ -1,6 +1,5 @@
 ﻿// assets/scripts/essential.js
 
-// Handle header/body scroll state
 document.addEventListener("DOMContentLoaded", () => {
     const body = document.body;
     const main = document.querySelector("main");
@@ -49,16 +48,11 @@ document.addEventListener("click", (e) => {
     const el = document.querySelector(btn.dataset.target);
     if (el) el.scrollIntoView({ behavior: "smooth" });
 });
+
 /* -------- INIT ROOT -------- */
 export function initGlobal() {
-    // Ensure booting class exists (helps loader + prevents early visual flicker)
-    document.body.classList.add("is-booting");
-
-    // Always start at the top on refresh/reload
-    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-    window.scrollTo(0, 0);
-    setTimeout(() => window.scrollTo(0, 0), 0);
-
+    // NOTE: index.js owns boot timing now.
+    // Here we just initialize utilities.
     initSiteLoader();
 
     const yearEl = document.getElementById("year");
@@ -67,14 +61,34 @@ export function initGlobal() {
     initNav();
     initScrollToContact();
     initParallax();
+
+    function handleScrollIntent() {
+        const url = new URL(window.location.href);
+        const targetId = url.searchParams.get("scroll");
+        if (!targetId) return;
+
+        // clean URL first (removes ?scroll=contact)
+        url.searchParams.delete("scroll");
+        window.history.replaceState({}, "", url.pathname + url.hash);
+
+        requestAnimationFrame(() => {
+            const el = document.getElementById(targetId);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            else window.location.replace("/404");
+        });
+    }
+
+    handleScrollIntent();
 }
 
 /* -------- LOADER -------- */
 function initSiteLoader() {
+    const body = document.body;
     const loader = document.getElementById("site-loader");
     if (!loader) return;
 
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const reduceMotion =
+        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
     const params = new URLSearchParams(window.location.search);
     const hold =
@@ -86,6 +100,10 @@ function initSiteLoader() {
 
     const show = () => {
         clearTimeout(hideTimer);
+
+        // ✅ align with CSS: loader only blocks when show-loader is present
+        body.classList.add("show-loader");
+
         loader.setAttribute("aria-hidden", "false");
         loader.classList.remove("is-hidden");
         requestAnimationFrame(() => loader.classList.add("is-visible"));
@@ -95,6 +113,11 @@ function initSiteLoader() {
         loader.classList.remove("is-visible");
         loader.classList.add("is-hidden");
         loader.setAttribute("aria-hidden", "true");
+
+        body.classList.remove("show-loader");
+
+        // ✅ fail-open: boot should never be sticky
+        body.classList.remove("is-booting");
     };
 
     window.SiteLoader = {
@@ -102,18 +125,33 @@ function initSiteLoader() {
             activeCount += 1;
             show();
         },
-        stop({ delay = 1000 } = {}) {
+
+        async stop({ delay = 250, until = null } = {}) {
+            if (until && typeof until.then === "function") {
+                try {
+                    await until;
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+
             activeCount = Math.max(0, activeCount - 1);
+
             if (activeCount === 0) {
                 clearTimeout(hideTimer);
                 hideTimer = setTimeout(hide, delay);
             }
         },
+
+        forceHide() {
+            activeCount = 0;
+            hide();
+        },
     };
 
     const SiteLoader = window.SiteLoader;
 
-    // Reduce motion: keep loader functional, just avoid heavy animations
+    // Animated loader text (your existing logic, kept)
     if (!reduceMotion) {
         (function setupLoaderText() {
             const windowEl = loader.querySelector(".loader__window");
@@ -160,27 +198,22 @@ function initSiteLoader() {
         })();
     }
 
-    // Start loader now; it will remain until you call SiteLoader.stop() from index.js
-    SiteLoader.start();
-
-    // Safety fallback: avoid infinite lock if something fails
-    const MAX_LOADER_MS = 30000;
-    window.setTimeout(() => {
-        activeCount = 0;
-        hide();
-        document.body.classList.remove("is-booting");
-    }, MAX_LOADER_MS);
-
+    // If hold is enabled (debug), allow click to stop
     if (hold) {
         loader.addEventListener("click", () => SiteLoader.stop({ delay: 0 }));
-        return;
     }
 
-    // If user navigates back/forward cache, ensure loader is not stuck visible
+    // BFCache restore safety
     window.addEventListener("pageshow", () => {
         activeCount = 0;
         hide();
     });
+
+    // ✅ Hard fail-open: never allow loader to trap users for long
+    const MAX_LOADER_MS = 2500;
+    window.setTimeout(() => {
+        SiteLoader.forceHide();
+    }, MAX_LOADER_MS);
 }
 
 /* -------- NAV (drawer + smooth scroll + scroll spy) -------- */
@@ -191,12 +224,10 @@ function initNav() {
 
     const links = Array.from(menu.querySelectorAll("a[href^='#']"));
 
-    // underline (desktop only; hidden on mobile via CSS)
     const underline = document.createElement("span");
     underline.className = "nav__underline";
     menu.appendChild(underline);
 
-    // backdrop for drawer
     let backdrop = document.querySelector(".nav__backdrop");
     if (!backdrop) {
         backdrop = document.createElement("div");
@@ -204,10 +235,11 @@ function initNav() {
         document.body.appendChild(backdrop);
     }
 
-    // ARIA wiring
     if (toggle) {
-        if (!toggle.getAttribute("aria-controls")) toggle.setAttribute("aria-controls", "nav-menu");
-        if (!toggle.getAttribute("aria-expanded")) toggle.setAttribute("aria-expanded", "false");
+        if (!toggle.getAttribute("aria-controls"))
+            toggle.setAttribute("aria-controls", "nav-menu");
+        if (!toggle.getAttribute("aria-expanded"))
+            toggle.setAttribute("aria-expanded", "false");
     }
 
     const sectionMap = links
@@ -281,12 +313,10 @@ function initNav() {
         if (window.matchMedia("(min-width: 900px)").matches && isMenuOpen()) {
             closeMenu({ restoreFocus: false });
         }
-        // keep underline aligned after resize
         const active = menu.querySelector("a.active");
         if (active) moveUnderline(active);
     });
 
-    // Safer scroll target calc (doesn't depend on offsetTop)
     function scrollToSection(targetEl) {
         const headerOffset = getHeaderOffset();
         const y = targetEl.getBoundingClientRect().top + window.pageYOffset - headerOffset;
@@ -311,7 +341,6 @@ function initNav() {
         });
     });
 
-    // ---------- Scroll spy (IntersectionObserver first, fallback to scroll math) ----------
     let io = null;
 
     function setupScrollSpy() {
@@ -319,9 +348,8 @@ function initNav() {
 
         const headerOffset = getHeaderOffset();
 
-        // IntersectionObserver = what is actually on screen
         if ("IntersectionObserver" in window) {
-            const visible = new Map(); // id -> intersectionRatio
+            const visible = new Map();
 
             io = new IntersectionObserver(
                 (entries) => {
@@ -331,13 +359,11 @@ function initNav() {
                             visible.delete(id);
                             continue;
                         }
-                        // keep the best ratio for each target
                         visible.set(id, entry.intersectionRatio);
                     }
 
                     if (!visible.size) return;
 
-                    // pick the most visible section (stable + matches what you see)
                     let bestId = null;
                     let bestRatio = -1;
 
@@ -355,7 +381,6 @@ function initNav() {
                 },
                 {
                     root: null,
-                    // push the "top" down by header height so header doesn't steal the viewport
                     rootMargin: `-${headerOffset}px 0px -40% 0px`,
                     threshold: [0.15, 0.25, 0.35, 0.5, 0.65, 0.8],
                 }
@@ -368,10 +393,9 @@ function initNav() {
             return;
         }
 
-        // Fallback: use bounding rect instead of offsetTop
         const onScrollFallback = () => {
             const header = getHeaderOffset();
-            const line = header + 8; // "active line" under the header
+            const line = header + 8;
 
             let current = sectionMap[0];
 
@@ -389,10 +413,8 @@ function initNav() {
 
     setupScrollSpy();
 
-    // Initial underline state
     if (links.length) setActiveLink(links[0]);
 }
-
 
 /* -------- SCROLL TO CONTACT -------- */
 function initScrollToContact() {
@@ -424,12 +446,8 @@ function initParallax() {
 
             const computed = window.getComputedStyle(section);
 
-            const mediaSpeedVar = parseFloat(
-                computed.getPropertyValue("--parallax-media-speed")
-            );
-            const contentSpeedVar = parseFloat(
-                computed.getPropertyValue("--parallax-content-speed")
-            );
+            const mediaSpeedVar = parseFloat(computed.getPropertyValue("--parallax-media-speed"));
+            const contentSpeedVar = parseFloat(computed.getPropertyValue("--parallax-content-speed"));
 
             return {
                 section,
@@ -446,8 +464,7 @@ function initParallax() {
     let ticking = false;
 
     function update() {
-        const viewportHeight =
-            window.innerHeight || document.documentElement.clientHeight;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
 
         instances.forEach((item) => {
             const rect = item.section.getBoundingClientRect();
@@ -483,7 +500,7 @@ function initParallax() {
     update();
 }
 
-/* -------- BACKGROUND AUDIO (popup only if autoplay is blocked) -------- */
+/* -------- BACKGROUND AUDIO -------- */
 export function initBackgroundAudio() {
     const audio = document.getElementById("bg-audio");
     const fab = document.getElementById("audio-fab");
@@ -491,30 +508,59 @@ export function initBackgroundAudio() {
     const allowBtn = document.getElementById("audio-allow");
     const denyBtn = document.getElementById("audio-deny");
 
-    // If you didn't add the audio HTML yet, do nothing (no break)
     if (!audio || !fab || !modal || !allowBtn || !denyBtn) return;
 
+    // ---- Persistence ----
+    // We keep a small "deny TTL" so you don't nag forever, but also don't permanently block.
+    const PREF_KEY = "AEROCISM_AUDIO_PREF_V1"; // localStorage
+    const SESSION_PROMPT_KEY = "AEROCISM_AUDIO_PROMPTED_V1"; // sessionStorage
+    const DENY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    const now = () => Date.now();
+
+    const safeJSONParse = (raw) => {
+        try { return JSON.parse(raw); } catch (_) { return null; }
+    };
+
+    const getPref = () => {
+        try {
+            const raw = localStorage.getItem(PREF_KEY);
+            if (!raw) return null;
+            const obj = safeJSONParse(raw);
+            if (!obj || !obj.val) return null;
+
+            // expire deny
+            if (obj.val === "deny" && obj.ts && now() - obj.ts > DENY_TTL_MS) return null;
+
+            return obj.val; // "allow" | "deny"
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const setPref = (val) => {
+        try {
+            localStorage.setItem(PREF_KEY, JSON.stringify({ val, ts: now() }));
+        } catch (_) { }
+    };
+
+    const hasPromptedThisSession = () => {
+        try { return sessionStorage.getItem(SESSION_PROMPT_KEY) === "1"; } catch (_) { return false; }
+    };
+
+    const markPromptedThisSession = () => {
+        try { sessionStorage.setItem(SESSION_PROMPT_KEY, "1"); } catch (_) { }
+    };
+
+    // ---- UI helpers ----
     const setFabUI = (isPlaying) => {
         fab.setAttribute("aria-label", isPlaying ? "Pause audio" : "Play audio");
 
         const iconEl = fab.querySelector(".x-icon span");
-        const isMobile = window.matchMedia("(max-width: 768px)").matches;
-
-        if (isMobile) {
-            // Mobile behavior:
-            // - Playing: hide icon (CSS), show rotating GENRE
-            // - Paused: show play_arrow
-            if (iconEl) iconEl.textContent = isPlaying ? "play_pause" : "play_arrow";
-            // Note: pause icon won't be visible while playing because we hide .x-icon on mobile via CSS,
-            // but we keep it accurate for accessibility + future tweaks.
-        } else {
-            // Desktop behavior unchanged:
-            if (iconEl) iconEl.textContent = isPlaying ? "play_pause" : "play_arrow";
-        }
+        if (iconEl) iconEl.textContent = isPlaying ? "pause" : "play_arrow";
 
         fab.classList.toggle("is-playing", isPlaying);
     };
-
 
     const play = async () => {
         try {
@@ -532,121 +578,197 @@ export function initBackgroundAudio() {
         setFabUI(false);
     };
 
-    const openModal = () => {
+    // ---- Modal accessibility (focus trap + inert background + restore focus) ----
+    let lastFocusedEl = null;
+    let trapHandler = null;
+
+    function getFocusable(container) {
+        return Array.from(
+            container.querySelectorAll(
+                'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+            )
+        ).filter((el) => el instanceof HTMLElement && !el.hasAttribute("disabled"));
+    }
+
+    function setBackgroundInert(isInert) {
+        const mainEl = document.querySelector("main");
+        const headerEl = document.getElementById("header");
+        const footerEl = document.querySelector("footer");
+        [mainEl, headerEl, footerEl].forEach((n) => {
+            if (!n) return;
+            if (isInert) {
+                n.setAttribute("aria-hidden", "true");
+                if ("inert" in n) n.inert = true;
+            } else {
+                n.removeAttribute("aria-hidden");
+                if ("inert" in n) n.inert = false;
+            }
+        });
+    }
+
+    function openModal() {
+        if (modal.classList.contains("is-open")) return;
+
+        lastFocusedEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
         modal.classList.add("is-open");
         modal.setAttribute("aria-hidden", "false");
         document.body.classList.add("audio-consent-open");
+        document.body.style.overflow = "hidden";
+        setBackgroundInert(true);
 
         const panel = modal.querySelector(".modal__panel");
-        if (panel instanceof HTMLElement) panel.focus();
-    };
+        const focusables = panel ? getFocusable(panel) : [];
+        const first = focusables[0] || panel;
+        const last = focusables[focusables.length - 1] || panel;
 
-    const closeModal = () => {
+        trapHandler = (e) => {
+            if (e.key !== "Tab" || !panel) return;
+            if (!focusables.length) {
+                e.preventDefault();
+                panel.focus();
+                return;
+            }
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+
+        if (panel instanceof HTMLElement) {
+            panel.setAttribute("tabindex", "-1");
+            panel.focus();
+            panel.addEventListener("keydown", trapHandler);
+        }
+    }
+
+    function closeModal({ restoreFocus = true } = {}) {
+        if (!modal.classList.contains("is-open")) return;
+
+        const panel = modal.querySelector(".modal__panel");
+        if (panel && trapHandler) panel.removeEventListener("keydown", trapHandler);
+        trapHandler = null;
+
         modal.classList.remove("is-open");
         modal.setAttribute("aria-hidden", "true");
         document.body.classList.remove("audio-consent-open");
-    };
+        document.body.style.overflow = "";
+        setBackgroundInert(false);
 
-    // Wait until loader/booting is done, then show popup
-    const openModalWhenReady = () => {
-        if (!document.body.classList.contains("is-booting")) {
-            openModal();
-            return;
+        if (restoreFocus && lastFocusedEl) lastFocusedEl.focus();
+    }
+
+    // Overlay click closes
+    modal.addEventListener("click", (e) => {
+        const overlay = modal.querySelector(".modal__overlay");
+        if (e.target === overlay) closeModal();
+    });
+
+    // Escape closes (important for WCAG)
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modal.classList.contains("is-open")) {
+            e.preventDefault();
+            closeModal();
         }
+    });
 
-        const obs = new MutationObserver(() => {
-            if (!document.body.classList.contains("is-booting")) {
-                obs.disconnect();
-                openModal();
-            }
-        });
+    // Prevent clicks inside panel from bubbling to overlay
+    const panel = modal.querySelector(".modal__panel");
+    if (panel) panel.addEventListener("click", (e) => e.stopPropagation());
 
-        obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-    };
-
-    // Fixed button toggle (always available)
+    // ---- FAB behavior (user intent always wins) ----
     fab.addEventListener("click", async () => {
         if (audio.paused) {
             const ok = await play();
-            // If blocked even from FAB (rare), show popup
-            if (!ok) openModalWhenReady();
+            if (!ok) openModal();
         } else {
             pause();
         }
     });
 
-    // Overlay click: just close and stay muted
-    /*modal.addEventListener("click", (e) => {
-        const overlay = modal.querySelector(".modal__overlay");
-        if (e.target === overlay) {
-            closeModal();
-            pause();
-        }
-    });*/
-
-    // Do NOT close when user clicks outside.
-    // Prevent clicks inside the panel from bubbling to overlay.
-    const panel = modal.querySelector(".modal__panel");
-    if (panel) {
-        panel.addEventListener("click", (e) => e.stopPropagation());
-    }
-
-    // Block overlay clicks completely (no close)
-    modal.addEventListener("click", (e) => {
-        const overlay = modal.querySelector(".modal__overlay");
-        if (e.target === overlay) {
-            // do nothing on outside click
-            e.preventDefault();
-        }
-    });
-
-
-    // Modal buttons
     allowBtn.addEventListener("click", async () => {
+        setPref("allow");
         closeModal();
-        // Must be inside click for Safari/Chrome
-        await play();
+        await play(); // user action here, so should succeed unless something else blocks it
     });
 
     denyBtn.addEventListener("click", () => {
+        setPref("deny");
         closeModal();
         pause();
     });
 
-    // ESC closes modal and stays muted
-    /*document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && modal.classList.contains("is-open")) {
-            closeModal();
-            pause();
-        }
-    });*/
-
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && modal.classList.contains("is-open")) {
-            e.preventDefault();
-        }
-    });
-
-    // Keep UI synced
     audio.addEventListener("play", () => setFabUI(true));
     audio.addEventListener("pause", () => setFabUI(false));
 
     // Initial state
     setFabUI(false);
-    closeModal();
+    closeModal({ restoreFocus: false });
 
-    // Try autoplay on page load:
-    // - If allowed: audio plays, NO popup.
-    // - If blocked: show popup (every refresh where browser blocks it).
-    (async () => {
-        const ok = await play();
-        if (!ok) {
-            pause();
-            openModalWhenReady();
-        }
-    })();
+    // ---- Session-first prompt (polite) ----
+    // Shows only once per session, and ONLY if user hasn't started interacting.
+    // Also never shows if they recently denied (deny TTL still active).
+    const pref = getPref();
 
-    // Mobile-only "GENRE" overlay (shown/hidden via .is-playing)
+    const canPrompt = () => {
+        if (hasPromptedThisSession()) return false;
+        if (pref === "deny") return false; // respect deny (until TTL expires)
+        return true;
+    };
+
+    const scheduleFirstPrompt = () => {
+        if (!canPrompt()) return;
+
+        let cancelled = false;
+
+        const cancel = () => { cancelled = true; cleanup(); };
+        const cleanup = () => {
+            window.removeEventListener("scroll", cancel, { passive: true });
+            window.removeEventListener("pointerdown", cancel);
+            window.removeEventListener("keydown", cancel);
+            window.removeEventListener("touchstart", cancel, { passive: true });
+        };
+
+        window.addEventListener("scroll", cancel, { passive: true });
+        window.addEventListener("pointerdown", cancel);
+        window.addEventListener("keydown", cancel);
+        window.addEventListener("touchstart", cancel, { passive: true });
+
+        // Wait until boot is done + small delay, then prompt if still no interaction
+        const waitForBoot = () =>
+            new Promise((resolve) => {
+                if (!document.body.classList.contains("is-booting")) return resolve();
+                const obs = new MutationObserver(() => {
+                    if (!document.body.classList.contains("is-booting")) {
+                        obs.disconnect();
+                        resolve();
+                    }
+                });
+                obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+            });
+
+        (async () => {
+            await waitForBoot();
+            await new Promise((r) => setTimeout(r, 600)); // small grace period
+            if (cancelled) return;
+
+            // mark session prompted so we don't show again
+            markPromptedThisSession();
+
+            // If they previously allowed, we still don't autoplay. We just skip prompting.
+            if (pref === "allow") return;
+
+            openModal();
+            cleanup();
+        })();
+    };
+
+    scheduleFirstPrompt();
+
+    // Keep your genres wrapper creation exactly as-is
     let genreWrap = fab.querySelector(".x-icon.audio-fab__genres");
 
     if (!genreWrap) {
@@ -661,7 +783,6 @@ export function initBackgroundAudio() {
         genreWrap.appendChild(inner);
         fab.appendChild(genreWrap);
     } else {
-        // Ensure inner span exists (in case markup was partially there)
         let inner = genreWrap.querySelector("span");
         if (!inner) {
             inner = document.createElement("span");
@@ -670,8 +791,9 @@ export function initBackgroundAudio() {
         }
         if (!inner.textContent.trim()) inner.textContent = "genres";
     }
-
 }
+
+
 
 /* -------- CONTACT FORM + SIMPLE CAPTCHA -------- */
 export function initContactForm() {
@@ -689,17 +811,14 @@ export function initContactForm() {
     const modal = document.getElementById("contact-modal");
     const modalMsg = document.getElementById("contact-modal-message");
 
-    // Ensure modal isn't trapped inside <main>
     if (modal && modal.parentElement !== document.body) {
         document.body.appendChild(modal);
     }
 
-    // Ensure each error element has an id for aria-errormessage
     form.querySelectorAll(".form__error[data-error-for]").forEach((el) => {
         if (!el.id) el.id = `${el.getAttribute("data-error-for")}-error`;
     });
 
-    // Captcha should be readable by screen readers
     if (captchaQuestionEl) {
         captchaQuestionEl.removeAttribute("aria-hidden");
         captchaQuestionEl.setAttribute("aria-live", "polite");
@@ -791,14 +910,15 @@ export function initContactForm() {
 
     if (modal) {
         modal.addEventListener("click", (e) => {
-            const t = e.target;
-            if (t instanceof HTMLElement && t.hasAttribute("data-modal-close")) closeModal();
+            const hit = e.target.closest("[data-modal-close]");
+            if (hit) closeModal();
         });
 
         document.addEventListener("keydown", (e) => {
             if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal();
         });
     }
+
 
     function setError(id, message) {
         const errorEl = form.querySelector(`[data-error-for="${id}"]`);
@@ -810,7 +930,10 @@ export function initContactForm() {
         const group = errorEl.closest(".form__group");
         if (group) group.classList.toggle("has-error", Boolean(message));
 
-        const input = document.getElementById(id);
+        // ✅ map "captcha" to the real input id
+        const inputId = id === "captcha" ? "captcha-answer" : id;
+        const input = document.getElementById(inputId);
+
         if (
             input instanceof HTMLInputElement ||
             input instanceof HTMLTextAreaElement ||
@@ -820,6 +943,7 @@ export function initContactForm() {
             if (errorEl.id) input.setAttribute("aria-errormessage", errorEl.id);
         }
     }
+
 
     function clearAllErrors() {
         const allErrors = Array.from(form.querySelectorAll(".form__error"));

@@ -9,7 +9,6 @@ module.exports = (env, argv) => {
 
     return {
         mode: isDev ? "development" : "production",
-
         entry: "./assets/scripts/index.js",
 
         output: {
@@ -58,10 +57,12 @@ module.exports = (env, argv) => {
             ],
         },
 
-        // ONLY attach devServer in dev
         ...(isDev
             ? {
                 devServer: {
+                    port: 4173,
+                    compress: true,
+                    hot: false,
                     open: {
                         target: ["http://localhost:4173/"],
                         app: { name: "chrome" },
@@ -75,15 +76,13 @@ module.exports = (env, argv) => {
                             { from: /^\/about$/, to: "/about.html" },
                             { from: /^\/gear$/, to: "/gear.html" },
                             { from: /^\/contact$/, to: "/contact.html" },
+                            { from: /^\/404$/, to: "/404.html" },
+                            { from: /./, to: "/404.html" },
                         ],
                     },
-                    // IMPORTANT: don't write dev output to disk
                     devMiddleware: {
                         writeToDisk: false,
                     },
-                    port: 4173,
-                    hot: false,
-                    compress: true,
                     client: {
                         overlay: true,
                         logging: 'none',
@@ -93,6 +92,7 @@ module.exports = (env, argv) => {
                         "about.html",
                         "gear.html",
                         "contact.html",
+                        "404.html",
                         "assets/**/*.css",
                         "assets/**/*.js",
                         "assets/images/**/*",

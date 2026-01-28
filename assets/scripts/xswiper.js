@@ -1,9 +1,11 @@
 ﻿// assets/scripts/xswiper.js
 /*!
- * XSwiper Slider — updated to match new data model
- * - No swiper / swiperOrder flags
- * - Uses sortOrder + active
- * - Auto IDs assigned after sorting: slide-1..N
+ * XSwiper Slider — SEO + Accessibility tuned + TRUE seamless loop (triple-set)
+ * - Keeps original Title + Subtitle for desktop
+ * - Adds xswiper__seo INSIDE xswiper__content (renders raw HTML from slide.description)
+ * - You control visibility via CSS:
+ *   Desktop: .xswiper__seo { display:none }
+ *   Mobile:  hide .xswiper__title/.xswiper__subtitle and show .xswiper__seo
  */
 
 import { xswiperSlides } from "./images-data.js";
@@ -24,7 +26,6 @@ export function initXSwiper(rootSelector) {
         root.__xswiperCleanup = null;
     }
 
-    // Use new rules: active + sortOrder
     const slideData = (Array.isArray(xswiperSlides) ? xswiperSlides : []).filter(
         (s) => s && s.active !== false
     );
@@ -43,7 +44,6 @@ export function initXSwiper(rootSelector) {
         window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
     root.classList.add("xswiper");
-
     root.setAttribute("tabindex", "0");
     root.setAttribute("role", "region");
     root.setAttribute("aria-roledescription", "carousel");
@@ -88,18 +88,6 @@ export function initXSwiper(rootSelector) {
             root.appendChild(nextBtn);
         }
 
-        let pauseBtn = root.querySelector(":scope > .xswiper__pause");
-        if (!pauseBtn) {
-            pauseBtn = document.createElement("button");
-            pauseBtn.className = "xswiper__nav xswiper__nav--pause x-icon sr-only";
-            pauseBtn.type = "button";
-            pauseBtn.setAttribute("aria-pressed", "false");
-            pauseBtn.setAttribute("aria-label", "Pause slideshow");
-            pauseBtn.dataset.xswiperUi = "1";
-            pauseBtn.innerHTML = `<span aria-hidden="true">pause</span>`;
-            root.appendChild(pauseBtn);
-        }
-
         let indicator = root.querySelector(":scope > .xswiper__indicator");
         if (!indicator) {
             indicator = document.createElement("div");
@@ -116,10 +104,10 @@ export function initXSwiper(rootSelector) {
             root.appendChild(indicator);
         }
 
-        return { viewport, track, prevBtn, nextBtn, pauseBtn, indicator };
+        return { viewport, track, prevBtn, nextBtn, indicator };
     }
 
-    const { viewport, track, prevBtn, nextBtn, pauseBtn, indicator } = ensureUI();
+    const { viewport, track, prevBtn, nextBtn, indicator } = ensureUI();
 
     const indicatorCurrent = indicator.querySelector(".xswiper__indicator-current");
     const indicatorTotal = indicator.querySelector(".xswiper__indicator-total");
@@ -129,14 +117,13 @@ export function initXSwiper(rootSelector) {
     const sortedSlides = slideData
         .slice()
         .sort((a, b) => {
-            const aOrder = typeof a.sortOrder === "number" ? a.sortOrder : Number.MAX_SAFE_INTEGER;
-            const bOrder = typeof b.sortOrder === "number" ? b.sortOrder : Number.MAX_SAFE_INTEGER;
+            const aOrder =
+                typeof a.sortOrder === "number" ? a.sortOrder : Number.MAX_SAFE_INTEGER;
+            const bOrder =
+                typeof b.sortOrder === "number" ? b.sortOrder : Number.MAX_SAFE_INTEGER;
             return aOrder - bOrder;
         })
-        .map((s, i) => {
-            // Auto ID after sorting (stable visual order)
-            return { ...s, id: `slide-${i + 1}` };
-        });
+        .map((s, i) => ({ ...s, id: `slide-${i + 1}` }));
 
     const realSlidesCount = sortedSlides.length;
 
@@ -154,61 +141,111 @@ export function initXSwiper(rootSelector) {
         }
     }
 
+    function escapeHtml(str = "") {
+        return String(str)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function joinTitleSubtitle(title, subtitle) {
+        const t = String(title || "").trim();
+        const s = String(subtitle || "").trim();
+        if (t && s) return `${t} ${s}`;
+        return t || s || "";
+    }
+
+    function logicalIndexFromPhysical(physicalIndex) {
+        const m = physicalIndex % realSlidesCount;
+        return m < 0 ? m + realSlidesCount : m;
+    }
+
     function createSlideEl(slide, isFirstReal = false) {
         const slideEl = document.createElement("article");
         slideEl.className = "xswiper__slide";
         slideEl.id = slide.id;
 
+        slideEl.setAttribute("role", "group");
+        slideEl.setAttribute("aria-roledescription", "slide");
+
+        const title = String(slide.title || "");
+        const subtitle = String(slide.subtitle || "");
+        const combined = joinTitleSubtitle(title, subtitle);
+
+        const titleEsc = escapeHtml(title);
+        const subtitleEsc = escapeHtml(subtitle);
+
+        // IMPORTANT:
+        // description is rendered as RAW HTML inside .xswiper__seo
+        // You control it in your data: `<span class="h2">..</span> ...`
+        const descriptionHtml = String(slide.description || "").trim();
+
+        const alt = escapeHtml(slide.alt || combined || "Carousel image");
+
+        const mobImage = slide.mobImage || slide.deskImage || "";
+        const deskImage = slide.deskImage || slide.mobImage || "";
+
         slideEl.innerHTML = `
       <picture>
-        <source media="(max-width: 768px)" srcset="${slide.mobImage}">
-        <source media="(min-width: 769px)" srcset="${slide.deskImage}">
+        ${mobImage ? `<source media="(max-width: 768px)" srcset="${mobImage}">` : ``}
+        ${deskImage ? `<source media="(min-width: 769px)" srcset="${deskImage}">` : ``}
         <img
           class="xswiper__image"
-          src="${slide.deskImage}"
-          alt="${slide.alt || slide.title || ""}"
+          src="${deskImage || mobImage}"
+          alt="${alt}"
           draggable="false"
           decoding="async"
           ${isFirstReal ? `fetchpriority="high" loading="eager"` : `loading="lazy"`}
         />
       </picture>
-    `;
+
+        <div class="xswiper__content">
+          ${titleEsc ? `<span class="xswiper__title h2" aria-hidden="true" data-nosnippet="true">${titleEsc}</span>` : ``}
+          ${subtitleEsc ? `<span class="xswiper__subtitle h1" aria-hidden="true" data-nosnippet="true">${subtitleEsc}</span>` : ``}
+          ${descriptionHtml ? `<div class="xswiper__seo" data-nosnippet="false">${descriptionHtml}</div>` : ``}
+        </div>`;
+
+        slideEl.dataset.seoTitle = combined;
         return slideEl;
     }
 
+    // ----------------------------
+    // Build DOM: 3 full sets
+    // ----------------------------
     track.innerHTML = "";
-
     const slidesEls = [];
 
-    const lastClone = createSlideEl(sortedSlides[sortedSlides.length - 1]);
-    lastClone.dataset.clone = "last";
-    track.appendChild(lastClone);
-    slidesEls.push(lastClone);
+    for (let set = 0; set < 3; set++) {
+        sortedSlides.forEach((slide, i) => {
+            const isMiddleFirst = set === 1 && i === 0;
+            const el = createSlideEl(slide, isMiddleFirst);
+            el.dataset.set = String(set);
+            el.dataset.logical = String(i);
+            track.appendChild(el);
+            slidesEls.push(el);
+        });
+    }
 
-    sortedSlides.forEach((slide, i) => {
-        const el = createSlideEl(slide, i === 0);
-        track.appendChild(el);
-        slidesEls.push(el);
+    // Aria-labels like "3 of 7: ..."
+    slidesEls.forEach((el, physicalIndex) => {
+        const li = logicalIndexFromPhysical(physicalIndex);
+        const n = li + 1;
+        const t = el.dataset.seoTitle || "";
+        el.setAttribute(
+            "aria-label",
+            t ? `${n} of ${realSlidesCount}: ${t}` : `${n} of ${realSlidesCount}`
+        );
     });
-
-    const firstClone = createSlideEl(sortedSlides[0]);
-    firstClone.dataset.clone = "first";
-    track.appendChild(firstClone);
-    slidesEls.push(firstClone);
 
     const images = slidesEls.map((s) => s.querySelector(".xswiper__image"));
     const contents = slidesEls.map((s) => s.querySelector(".xswiper__content"));
     const titles = slidesEls.map((s) => s.querySelector(".xswiper__title"));
     const subtitles = slidesEls.map((s) => s.querySelector(".xswiper__subtitle"));
 
-    function getLogicalIndex(physicalIndex) {
-        const lastPhysical = slidesEls.length - 1;
-        if (physicalIndex === 0) return realSlidesCount - 1;
-        if (physicalIndex === lastPhysical) return 0;
-        return physicalIndex - 1;
-    }
-
-    let currentIndex = 1;
+    // Start in the middle set (set B)
+    let currentIndex = realSlidesCount;
     let isAnimating = false;
 
     let autoplayEnabled = !reduceMotion;
@@ -216,7 +253,7 @@ export function initXSwiper(rootSelector) {
 
     function updateIndicator() {
         if (!realSlidesCount) return;
-        const logicalIndex = getLogicalIndex(currentIndex);
+        const logicalIndex = logicalIndexFromPhysical(currentIndex);
         const currentNumber = logicalIndex + 1;
 
         if (indicatorCurrent) indicatorCurrent.textContent = String(currentNumber);
@@ -230,13 +267,19 @@ export function initXSwiper(rootSelector) {
     function applyParallax(progress) {
         const baseGapImage = -90;
 
+        // Mobile: end centered at 0 / 0
+        // Desktop: end centered at -2 / +2 (your original feel)
+        const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
         const maxTitleOffsetRight = 40;
         const maxSubtitleOffsetRight = 80;
 
         const maxTitleOffsetLeft = 40;
         const maxSubtitleOffsetLeft = 80;
 
-        const TITLE_CENTER_OFFSET = -10;
+        const TITLE_CENTER_OFFSET = isMobile ? -4 : -2;
+        const SUBTITLE_CENTER_OFFSET = isMobile ? 4 : 2;
+
         const virtualIndex = currentIndex + progress;
 
         images.forEach((img, i) => {
@@ -245,36 +288,55 @@ export function initXSwiper(rootSelector) {
             img.style.setProperty("--x-offset", `${relative * baseGapImage}vh`);
         });
 
-        titles.forEach((el, i) => {
-            if (!el) return;
+        slidesEls.forEach((slideEl, i) => {
+            const titleEl = slideEl.querySelector(".xswiper__title");
+            const subtitleEl = slideEl.querySelector(".xswiper__subtitle");
+            if (!titleEl && !subtitleEl) return;
 
             const relative = i - virtualIndex;
             const distance = Math.min(Math.abs(relative), 1);
 
-            let offset;
+            let titleOffset;
+            let subtitleOffset;
+
             if (relative > 0) {
-                offset = TITLE_CENTER_OFFSET + distance * (maxTitleOffsetRight - TITLE_CENTER_OFFSET);
+                titleOffset =
+                    TITLE_CENTER_OFFSET + distance * (maxTitleOffsetRight - TITLE_CENTER_OFFSET);
+
+                subtitleOffset =
+                    SUBTITLE_CENTER_OFFSET +
+                    distance * (maxSubtitleOffsetRight - SUBTITLE_CENTER_OFFSET);
             } else if (relative < 0) {
-                offset = TITLE_CENTER_OFFSET + distance * (-maxTitleOffsetLeft - TITLE_CENTER_OFFSET);
+                titleOffset =
+                    TITLE_CENTER_OFFSET + distance * (-maxTitleOffsetLeft - TITLE_CENTER_OFFSET);
+
+                subtitleOffset =
+                    SUBTITLE_CENTER_OFFSET +
+                    distance * (-maxSubtitleOffsetLeft - SUBTITLE_CENTER_OFFSET);
             } else {
-                offset = TITLE_CENTER_OFFSET;
+                titleOffset = TITLE_CENTER_OFFSET;
+                subtitleOffset = SUBTITLE_CENTER_OFFSET;
             }
 
-            el.style.setProperty("--title-offset", `${offset}vw`);
+            if (titleEl) titleEl.style.setProperty("--title-offset", `${titleOffset}vw`);
+            if (subtitleEl) subtitleEl.style.setProperty("--subtitle-offset", `${subtitleOffset}vw`);
         });
+    }
 
-        subtitles.forEach((el, i) => {
-            if (!el) return;
-
-            const relative = i - virtualIndex;
-            const clamped = Math.min(Math.abs(relative), 1);
-
-            let offset = 0;
-            if (relative > 0) offset = maxSubtitleOffsetRight * clamped;
-            else if (relative < 0) offset = -maxSubtitleOffsetLeft * clamped;
-
-            el.style.setProperty("--subtitle-offset", `${offset}vw`);
-        });
+    function setTransitions(on) {
+        if (on) {
+            track.style.transition = `transform ${TRACK_DURATION}s ease-in-out`;
+            images.forEach((img) => img && (img.style.transition = `transform ${TRACK_DURATION}s ease-in-out`));
+            contents.forEach((el) => el && (el.style.transition = `transform ${TRACK_DURATION}s ease-in-out`));
+            titles.forEach((el) => el && (el.style.transition = `transform ${TEXT_DURATION}s ease-in-out ${TEXT_DELAY}s`));
+            subtitles.forEach((el) => el && (el.style.transition = `transform ${TEXT_DURATION}s ease-in-out ${TEXT_DELAY}s`));
+        } else {
+            track.style.transition = "none";
+            images.forEach((img) => img && (img.style.transition = "none"));
+            contents.forEach((el) => el && (el.style.transition = "none"));
+            titles.forEach((el) => el && (el.style.transition = "none"));
+            subtitles.forEach((el) => el && (el.style.transition = "none"));
+        }
     }
 
     function goToSlide(index) {
@@ -288,15 +350,19 @@ export function initXSwiper(rootSelector) {
         currentIndex = index;
         isAnimating = true;
 
-        const offsetPercent = -currentIndex * 100;
+        setTransitions(true);
 
-        track.style.transition = `transform ${TRACK_DURATION}s ease-in-out`;
-        images.forEach((img) => img && (img.style.transition = `transform ${TRACK_DURATION}s ease-in-out`));
-        contents.forEach((el) => el && (el.style.transition = `transform ${TRACK_DURATION}s ease-in-out`));
-        titles.forEach((el) => el && (el.style.transition = `transform ${TEXT_DURATION}s ease-in-out ${TEXT_DELAY}s`));
-        subtitles.forEach((el) => el && (el.style.transition = `transform ${TEXT_DURATION}s ease-in-out ${TEXT_DELAY}s`));
+        track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
 
-        track.style.transform = `translate3d(${offsetPercent}%, 0, 0)`;
+        applyParallax(0);
+        updateIndicator();
+    }
+
+    function teleportBy(delta) {
+        setTransitions(false);
+
+        currentIndex = currentIndex + delta;
+        track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
 
         applyParallax(0);
         updateIndicator();
@@ -321,11 +387,7 @@ export function initXSwiper(rootSelector) {
         startX = clientX;
         currentOffset = 0;
 
-        track.style.transition = "none";
-        images.forEach((img) => img && (img.style.transition = "none"));
-        contents.forEach((el) => el && (el.style.transition = "none"));
-        titles.forEach((el) => el && (el.style.transition = "none"));
-        subtitles.forEach((el) => el && (el.style.transition = "none"));
+        setTransitions(false);
 
         root.classList.add("xswiper--grabbing");
         clearTimeout(autoplayTimer);
@@ -358,7 +420,7 @@ export function initXSwiper(rootSelector) {
         root.classList.remove("xswiper--grabbing");
 
         if (!hasDragged) {
-            track.style.transition = "none";
+            setTransitions(false);
             track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
             applyParallax(0);
             return;
@@ -387,26 +449,9 @@ export function initXSwiper(rootSelector) {
         }, AUTO_DELAY);
     }
 
-    function syncPauseBtnUI() {
-        if (!pauseBtn) return;
-
-        const isPaused = !autoplayEnabled;
-        pauseBtn.setAttribute("aria-pressed", String(isPaused));
-        pauseBtn.setAttribute("aria-label", isPaused ? "Resume slideshow" : "Pause slideshow");
-        pauseBtn.innerHTML = `<span aria-hidden="true">${isPaused ? "play_arrow" : "play_pause"}</span>`;
-    }
-
-    function setAutoplay(on) {
-        autoplayEnabled = Boolean(on);
-        syncPauseBtnUI();
-        clearTimeout(autoplayTimer);
-        if (autoplayEnabled) scheduleAutoplay();
-    }
-
-    // ---------- Events (with cleanup) ----------
+    // ---------- Events ----------
     const onPrev = () => { if (!isAnimating) goToSlide(currentIndex - 1); };
     const onNext = () => { if (!isAnimating) goToSlide(currentIndex + 1); };
-    const onPauseToggle = () => setAutoplay(!autoplayEnabled);
 
     const onMouseDown = (e) => { if (!e.target.closest("button")) pointerDown(e.clientX); };
     const onMouseMove = (e) => { if (isDragging) pointerMove(e.clientX); };
@@ -423,7 +468,6 @@ export function initXSwiper(rootSelector) {
 
         if (e.key === "ArrowLeft") { e.preventDefault(); onPrev(); }
         else if (e.key === "ArrowRight") { e.preventDefault(); onNext(); }
-        else if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); onPauseToggle(); }
     };
 
     const onTransitionEnd = (e) => {
@@ -431,40 +475,18 @@ export function initXSwiper(rootSelector) {
         if (e.propertyName !== "transform") return;
         if (!isAnimating) return;
 
-        const lastRealIndex = slidesEls.length - 2;
-
-        if (slidesEls[currentIndex]?.dataset.clone === "last") {
-            track.style.transition = "none";
-            images.forEach((img) => img && (img.style.transition = "none"));
-            contents.forEach((el) => el && (el.style.transition = "none"));
-            titles.forEach((el) => el && (el.style.transition = "none"));
-            subtitles.forEach((el) => el && (el.style.transition = "none"));
-
-            currentIndex = lastRealIndex;
-            track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
-            applyParallax(0);
-            updateIndicator();
-        } else if (slidesEls[currentIndex]?.dataset.clone === "first") {
-            track.style.transition = "none";
-            images.forEach((img) => img && (img.style.transition = "none"));
-            contents.forEach((el) => el && (el.style.transition = "none"));
-            titles.forEach((el) => el && (el.style.transition = "none"));
-            subtitles.forEach((el) => el && (el.style.transition = "none"));
-
-            currentIndex = 1;
-            track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
-            applyParallax(0);
-            updateIndicator();
+        if (currentIndex < realSlidesCount) {
+            teleportBy(realSlidesCount);
+        } else if (currentIndex >= realSlidesCount * 2) {
+            teleportBy(-realSlidesCount);
         }
 
-        // unlock
         isAnimating = false;
         scheduleAutoplay();
     };
 
     prevBtn.addEventListener("click", onPrev);
     nextBtn.addEventListener("click", onNext);
-    pauseBtn?.addEventListener("click", onPauseToggle);
 
     track.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
@@ -475,9 +497,7 @@ export function initXSwiper(rootSelector) {
     track.addEventListener("touchend", onTouchEnd);
 
     track.addEventListener("dragstart", onDragStart);
-
     track.addEventListener("transitionend", onTransitionEnd);
-
     root.addEventListener("keydown", onKeyDown);
 
     root.__xswiperCleanup = () => {
@@ -485,7 +505,6 @@ export function initXSwiper(rootSelector) {
 
         prevBtn.removeEventListener("click", onPrev);
         nextBtn.removeEventListener("click", onNext);
-        pauseBtn?.removeEventListener("click", onPauseToggle);
 
         track.removeEventListener("mousedown", onMouseDown);
         window.removeEventListener("mousemove", onMouseMove);
@@ -502,16 +521,10 @@ export function initXSwiper(rootSelector) {
     };
 
     // ---------- Initial state ----------
-    track.style.transition = "none";
-    images.forEach((img) => img && (img.style.transition = "none"));
-    contents.forEach((el) => el && (el.style.transition = "none"));
-    titles.forEach((el) => el && (el.style.transition = "none"));
-    subtitles.forEach((el) => el && (el.style.transition = "none"));
-
+    setTransitions(false);
     track.style.transform = `translate3d(${-currentIndex * 100}%, 0, 0)`;
     applyParallax(0);
     updateIndicator();
 
-    syncPauseBtnUI();
     scheduleAutoplay();
 }

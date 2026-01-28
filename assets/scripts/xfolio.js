@@ -14,12 +14,18 @@ let cardObserver = null;
 
 let lightboxEl = null;
 let lightboxImg = null;
+
 let lightboxCaption = null;
+
+let lightboxTitle = null;
+
 let lightboxPrevBtn = null;
 let lightboxNextBtn = null;
 let lightboxCloseBtn = null;
 
-// Download button (now inside xfolioLightboxInner)
+let lightboxReturnFocusEl = null;
+let lightboxPreviouslyFocusedEl = null;
+
 let lightboxDownloadBtn = null;
 
 let currentLightboxIndex = -1;
@@ -27,6 +33,7 @@ let lightboxFadeTimeoutId = null;
 
 const sizePattern = ["Type3", "Type4", "Type3", "Type3", "Type4", "Type3", "Type3", "Type3", "Type4"];
 const IMAGE_FADE_DURATION = 400;
+const UI_FADE_DELAY_MS = 200;
 
 // Cancel token for rapid next/prev clicks
 let lightboxSwapToken = 0;
@@ -67,7 +74,6 @@ async function decodeOrLoadImg(img, timeout = 1500) {
             await Promise.race([img.decode(), waitMs(timeout)]);
             return;
         } catch (_) {
-            // fall through
         }
     }
 
@@ -81,6 +87,29 @@ async function decodeOrLoadImg(img, timeout = 1500) {
         }),
         waitMs(timeout),
     ]);
+}
+
+// Hard guarantee: wait for actual load/error event (best for loader “stay up”)
+function waitForImgLoadEvent(img, timeout = 12000) {
+    if (!img) return Promise.resolve();
+    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+
+    return new Promise((resolve) => {
+        let done = false;
+
+        const finish = () => {
+            if (done) return;
+            done = true;
+            clearTimeout(t);
+            img.removeEventListener("load", finish);
+            img.removeEventListener("error", finish);
+            resolve();
+        };
+
+        const t = setTimeout(finish, timeout);
+        img.addEventListener("load", finish, { once: true });
+        img.addEventListener("error", finish, { once: true });
+    });
 }
 
 function safeArray(value) {
@@ -146,7 +175,7 @@ function assignFolioIds(sortedItems) {
     });
 }
 
-function createCard(item, index) {
+function createCard(item, index, { eager = false } = {}) {
     const doc = document;
 
     const article = doc.createElement("article");
@@ -180,7 +209,14 @@ function createCard(item, index) {
     const img = doc.createElement("img");
     if (item.thumb) {
         img.src = item.thumb;
-        img.loading = "lazy";
+
+        // KEY: for newly appended batch, force eager start
+        img.loading = eager ? "eager" : "lazy";
+        img.decoding = "async";
+
+        if (eager) {
+            try { img.fetchPriority = "high"; } catch (_) { /* ignore */ }
+        }
     }
     img.alt = typeof item.alt === "string" ? item.alt : "";
 
@@ -240,7 +276,7 @@ function afterRenderUpdateUI() {
     }
 }
 
-function renderNextBatch(count) {
+function renderNextBatch(count, { eager = false } = {}) {
     if (!grid) return;
     if (renderedCount >= items.length) return;
 
@@ -248,7 +284,7 @@ function renderNextBatch(count) {
     const frag = document.createDocumentFragment();
 
     for (let i = renderedCount; i < end; i += 1) {
-        const card = createCard(items[i] || {}, i);
+        const card = createCard(items[i] || {}, i, { eager });
         frag.appendChild(card);
 
         if (cardObserver) cardObserver.observe(card);
@@ -287,54 +323,169 @@ function getSiteLoader() {
     return sl;
 }
 
-function waitForImg(img, timeout = 1200) {
-    if (!img) return Promise.resolve();
-    if (img.complete) return Promise.resolve();
-
-    return new Promise((resolve) => {
-        let done = false;
-
-        const finish = () => {
-            if (done) return;
-            done = true;
-            clearTimeout(t);
-            img.removeEventListener("load", finish);
-            img.removeEventListener("error", finish);
-            resolve();
-        };
-
-        const t = setTimeout(finish, timeout);
-        img.addEventListener("load", finish, { once: true });
-        img.addEventListener("error", finish, { once: true });
-    });
-}
-
-async function waitForImagesInCards(cards, timeout = 1200) {
-    const imgs = cards.flatMap((c) => Array.from(c.querySelectorAll("img")));
-    if (!imgs.length) return;
-    await Promise.all(imgs.map((img) => waitForImg(img, timeout)));
-}
-
 function setupShowMore() {
     if (!showMoreBtn) return;
 
     showMoreBtn.addEventListener("click", async () => {
+        if (showMoreBtn.disabled) return;
+
+        showMoreBtn.disabled = true;
+        showMoreBtn.classList.add("is-loading");
+        showMoreBtn.setAttribute("aria-busy", "true");
+
         const SL = getSiteLoader();
         SL?.start();
 
+        // Let loader paint immediately
+        await new Promise((r) => requestAnimationFrame(r));
+
         const startIndex = renderedCount;
-        renderNextBatch(batchSize);
+        const endIndex = Math.min(startIndex + batchSize, items.length);
 
-        const newCards = Array.from(grid.querySelectorAll(".xfolioItem")).filter((card) => {
-            const i = parseInt(card.dataset.index || "-1", 10);
-            return i >= startIndex;
-        });
+        // 1) FORCE NETWORK: preload the next batch thumbs NOW (independent of DOM / lazy)
+        const urlsToPreload = [];
+        for (let i = startIndex; i < endIndex; i += 1) {
+            const it = items[i];
+            const url = it?.thumb || it?.full;
+            if (url) urlsToPreload.push(url);
+        }
 
-        await waitForImagesInCards(newCards, 1200);
+        // Safety timeout so you never get stuck
+        const PRELOAD_TIMEOUT_MS = 15000;
 
-        SL?.stop({ delay: 200 });
+        const preloadAll = Promise.race([
+            Promise.all(urlsToPreload.map((u) => preloadImage(u))),
+            waitMs(PRELOAD_TIMEOUT_MS),
+        ]);
+
+        // 2) Render the batch immediately (so layout changes right away)
+        renderNextBatch(batchSize, { eager: true });
+
+        // Optional UX: bring the first new card into view a bit (so user sees change)
+        const firstNewCard = grid.querySelector(`.xfolioItem[data-index="${startIndex}"]`);
+        if (firstNewCard) {
+            firstNewCard.scrollIntoView({ block: "nearest" });
+        }
+
+        // 3) Keep loader visible until preload completes (or timeout)
+        await preloadAll;
+
+        // 4) Stop loader (keep a tiny delay for smoother exit)
+        if (SL) {
+            await SL.stop({ delay: 250 });
+        }
+
+        showMoreBtn.classList.remove("is-loading");
+        showMoreBtn.removeAttribute("aria-busy");
+        showMoreBtn.disabled = false;
     });
 }
+
+// ------------------------------
+// Auto caption + icon contrast (Lightbox)
+// ------------------------------
+function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+}
+
+function isMobileViewport() {
+    // matches your CSS breakpoint (<=768px)
+    return window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
+}
+
+function getAvgLuminanceFromImageRegion(imgEl, region = { x: 0.30, y: 0.05, w: 0.40, h: 0.14 }) {
+    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) return null;
+
+    const rect = imgEl.getBoundingClientRect();
+    const drawW = Math.max(1, Math.floor(rect.width));
+    const drawH = Math.max(1, Math.floor(rect.height));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = drawW;
+    canvas.height = drawH;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+
+    ctx.drawImage(imgEl, 0, 0, drawW, drawH);
+
+    const sx = clamp(Math.floor(region.x * drawW), 0, drawW - 1);
+    const sy = clamp(Math.floor(region.y * drawH), 0, drawH - 1);
+    const sw = clamp(Math.floor(region.w * drawW), 1, drawW - sx);
+    const sh = clamp(Math.floor(region.h * drawH), 1, drawH - sy);
+
+    let data;
+    try {
+        data = ctx.getImageData(sx, sy, sw, sh).data;
+    } catch (_) {
+        // likely tainted canvas (cross-origin)
+        return null;
+    }
+
+    const stride = 16;
+    let sum = 0;
+    let count = 0;
+
+    for (let i = 0; i < data.length; i += 4 * stride) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b; // 0..255
+        sum += lum;
+        count += 1;
+    }
+
+    return count ? sum / count : null;
+}
+
+function applyAutoThemeClasses() {
+    if (!lightboxEl || !lightboxImg) return;
+
+    const inner = lightboxEl.querySelector(".xfolioLightboxInner");
+    if (!inner) return;
+
+    inner.classList.remove("caption--dark", "caption--light");
+
+    // MOBILE: do not auto-change icon colors (you asked)
+    if (isMobileViewport()) {
+        inner.classList.add("caption--light");
+        return;
+    }
+
+    const avgLum = getAvgLuminanceFromImageRegion(lightboxImg, {
+        x: 0.30,
+        y: 0.05,
+        w: 0.40,
+        h: 0.14
+    });
+
+    if (avgLum == null) {
+        inner.classList.add("caption--light");
+        return;
+    }
+
+    if (avgLum > 140) inner.classList.add("caption--dark");
+    else inner.classList.add("caption--light");
+}
+
+function setUiVisible(isVisible) {
+    if (lightboxTitle) lightboxTitle.classList.toggle("is-visible", !!isVisible);
+    if (lightboxDownloadBtn) lightboxDownloadBtn.classList.toggle("is-visible", !!isVisible);
+}
+
+function lockUiHiddenInstant() {
+    const els = [lightboxTitle, lightboxDownloadBtn].filter(Boolean);
+
+    els.forEach((el) => {
+        el.classList.remove("is-visible");
+        el.classList.add("is-lock-hidden");
+    });
+
+    if (els[0]) void els[0].offsetHeight;
+
+    els.forEach((el) => el.classList.remove("is-lock-hidden"));
+}
+
 
 // ---------- Lightbox ----------
 
@@ -348,9 +499,16 @@ function createLightbox() {
     lightboxEl.setAttribute("role", "dialog");
     lightboxEl.setAttribute("aria-modal", "true");
     lightboxEl.setAttribute("aria-hidden", "true");
+    lightboxEl.setAttribute("inert", "");
 
     const inner = doc.createElement("div");
     inner.className = "xfolioLightboxInner";
+
+
+    lightboxTitle = doc.createElement("div");
+    lightboxTitle.className = "xfolioLightboxTitle h5";
+    lightboxTitle.setAttribute("aria-hidden", "true");
+    lightboxTitle.textContent = "";
 
     const mediaWrapper = doc.createElement("div");
     mediaWrapper.className = "xfolioLightboxMedia";
@@ -382,21 +540,21 @@ function createLightbox() {
     lightboxNextBtn.setAttribute("aria-label", "Next image");
     lightboxNextBtn.innerHTML = "<span aria-hidden='true'>chevron_right</span>";
 
- 
     lightboxDownloadBtn = doc.createElement("button");
     lightboxDownloadBtn.type = "button";
     lightboxDownloadBtn.className = "xfolioLightboxDownload x-icon";
     lightboxDownloadBtn.setAttribute("aria-label", "Download full HD image");
     lightboxDownloadBtn.setAttribute("title", "Download full HD image");
     lightboxDownloadBtn.innerHTML = `
+        <span aria-hidden="true">hd</span>
         <span aria-hidden="true">download</span>
         <span class="sr-only">Download full HD</span>
     `;
 
+    inner.appendChild(lightboxTitle);
     inner.appendChild(mediaWrapper);
     inner.appendChild(lightboxCaption);
 
-    // order: close + download + prev/next
     inner.appendChild(lightboxCloseBtn);
     inner.appendChild(lightboxDownloadBtn);
     inner.appendChild(lightboxPrevBtn);
@@ -423,7 +581,7 @@ function createLightbox() {
 
         const a = document.createElement("a");
         a.href = url;
-        a.download = ""; // browser chooses filename
+        a.download = "";
         a.rel = "noopener";
         document.body.appendChild(a);
         a.click();
@@ -437,6 +595,12 @@ function createLightbox() {
         else if (evt.key === "ArrowLeft") showAdjacent(-1);
         else if (evt.key === "ArrowRight") showAdjacent(1);
     });
+
+    // Handle resize: if user rotates / changes breakpoint while open
+    window.addEventListener("resize", () => {
+        if (!lightboxEl || !lightboxEl.classList.contains("is-open")) return;
+        applyAutoThemeClasses();
+    });
 }
 
 async function setLightboxContent(index, { useTransition = false } = {}) {
@@ -445,7 +609,8 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
     const item = items[index];
     const src = item.full || item.thumb || "";
     const altText = item.alt || item.title || item.aircraft || "";
-    const captionText = item.title || item.description || item.aircraft || "";
+    const visibleTitleText = item.title || item.aircraft || "";
+    const srCaptionText = item.title || item.description || item.aircraft || "";
 
     lightboxSwapToken += 1;
     const token = lightboxSwapToken;
@@ -455,7 +620,10 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
         lightboxFadeTimeoutId = null;
     }
 
-    if (lightboxCaption) lightboxCaption.textContent = captionText;
+    lockUiHiddenInstant();
+
+    if (lightboxTitle) lightboxTitle.textContent = visibleTitleText;
+    if (lightboxCaption) lightboxCaption.textContent = srCaptionText;
 
     if (!useTransition || !lightboxImg.src) {
         lightboxImg.classList.remove("is-visible");
@@ -468,12 +636,24 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
 
         requestAnimationFrame(() => {
             if (token !== lightboxSwapToken) return;
+
+            // decide theme based on background (web/tablet only)
+            applyAutoThemeClasses();
+
+            // fade image in
             lightboxImg.classList.add("is-visible");
+
+            // fade UI in after delay
+            window.setTimeout(() => {
+                if (token !== lightboxSwapToken) return;
+                setUiVisible(true);
+            }, UI_FADE_DELAY_MS);
         });
 
         return;
     }
 
+    // transition swap
     lightboxImg.classList.remove("is-visible");
 
     await Promise.all([waitMs(IMAGE_FADE_DURATION), preloadImage(src)]);
@@ -487,21 +667,39 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
 
     requestAnimationFrame(() => {
         if (token !== lightboxSwapToken) return;
+
+        applyAutoThemeClasses();
+
         lightboxImg.classList.add("is-visible");
+
+        window.setTimeout(() => {
+            if (token !== lightboxSwapToken) return;
+            setUiVisible(true);
+        }, UI_FADE_DELAY_MS);
     });
 }
 
-function showLightbox(index) {
+function showLightbox(index, returnFocusEl = null) {
     if (!lightboxEl || !lightboxImg) return;
     if (index < 0 || index >= items.length) return;
+
+    lightboxPreviouslyFocusedEl = document.activeElement;
+    lightboxReturnFocusEl = returnFocusEl || lightboxPreviouslyFocusedEl;
 
     currentLightboxIndex = index;
 
     lightboxEl.classList.remove("is-closing");
     lightboxEl.classList.add("is-open");
+
+    lightboxEl.removeAttribute("inert");
     lightboxEl.setAttribute("aria-hidden", "false");
 
+    setUiVisible(false);
     setLightboxContent(index, { useTransition: false });
+
+    requestAnimationFrame(() => {
+        lightboxCloseBtn?.focus({ preventScroll: true });
+    });
 }
 
 function hideLightbox() {
@@ -514,12 +712,24 @@ function hideLightbox() {
         lightboxFadeTimeoutId = null;
     }
 
+    // fade UI out with image
+    setUiVisible(false);
+
     if (lightboxImg) {
         lightboxImg.classList.remove("is-visible");
     }
 
+    const returnTo = lightboxReturnFocusEl || lightboxPreviouslyFocusedEl;
+    if (returnTo && typeof returnTo.focus === "function" && document.contains(returnTo)) {
+        returnTo.focus({ preventScroll: true });
+    } else {
+        document.body.focus?.({ preventScroll: true });
+    }
+
     lightboxEl.classList.add("is-closing");
     lightboxEl.setAttribute("aria-hidden", "true");
+    lightboxEl.setAttribute("inert", "");
+
     currentLightboxIndex = -1;
 
     const onTransitionEnd = (evt) => {
@@ -528,6 +738,9 @@ function hideLightbox() {
         lightboxEl.classList.remove("is-open");
         lightboxEl.classList.remove("is-closing");
         lightboxEl.removeEventListener("transitionend", onTransitionEnd);
+
+        lightboxReturnFocusEl = null;
+        lightboxPreviouslyFocusedEl = null;
     };
 
     lightboxEl.addEventListener("transitionend", onTransitionEnd);
@@ -560,8 +773,13 @@ function setupLightbox() {
         const indexAttr = card.dataset.index;
         const index = typeof indexAttr === "string" ? parseInt(indexAttr, 10) : -1;
 
+        const returnFocusEl =
+            trigger.classList.contains("xfolioItemOpen")
+                ? trigger
+                : card.querySelector(".xfolioItemOpen");
+
         if (!Number.isNaN(index) && index >= 0 && index < items.length) {
-            showLightbox(index);
+            showLightbox(index, returnFocusEl);
         }
     });
 }
