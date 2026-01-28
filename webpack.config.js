@@ -44,10 +44,8 @@ module.exports = (env, argv) => {
         },
 
         plugins: [
-            new MiniCssExtractPlugin({
-                filename: "style.min.css",
-            }),
-        ],
+            new MiniCssExtractPlugin({ filename: "style.min.css" }),
+        ].filter(Boolean),
 
         optimization: {
             minimize: !isDev,
@@ -85,7 +83,7 @@ module.exports = (env, argv) => {
                     },
                     client: {
                         overlay: true,
-                        logging: 'none',
+                        logging: "none",
                     },
                     watchFiles: [
                         "index.html",

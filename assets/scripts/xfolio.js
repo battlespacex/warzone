@@ -73,8 +73,7 @@ async function decodeOrLoadImg(img, timeout = 1500) {
         try {
             await Promise.race([img.decode(), waitMs(timeout)]);
             return;
-        } catch (_) {
-        }
+        } catch (_) { }
     }
 
     if (img.complete) return;
@@ -89,27 +88,54 @@ async function decodeOrLoadImg(img, timeout = 1500) {
     ]);
 }
 
-// Hard guarantee: wait for actual load/error event (best for loader “stay up”)
-function waitForImgLoadEvent(img, timeout = 12000) {
-    if (!img) return Promise.resolve();
-    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+// ------------------------------
+// Background prefetch (next batch) — keeps "Load more" feeling instant
+// ------------------------------
+const preloadCache = new Map(); // url -> Promise<boolean>
 
-    return new Promise((resolve) => {
-        let done = false;
+function preloadOnce(url) {
+    if (!url) return Promise.resolve(false);
+    if (preloadCache.has(url)) return preloadCache.get(url);
 
-        const finish = () => {
-            if (done) return;
-            done = true;
-            clearTimeout(t);
-            img.removeEventListener("load", finish);
-            img.removeEventListener("error", finish);
-            resolve();
-        };
+    const p = preloadImage(url).catch(() => false);
+    preloadCache.set(url, p);
+    return p;
+}
 
-        const t = setTimeout(finish, timeout);
-        img.addEventListener("load", finish, { once: true });
-        img.addEventListener("error", finish, { once: true });
-    });
+function idle(fn) {
+    if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(() => fn(), { timeout: 1500 });
+    } else {
+        window.setTimeout(fn, 600);
+    }
+}
+
+function prefetchNextBatch() {
+    if (!items?.length) return;
+
+    const start = renderedCount; // next batch start
+    const end = Math.min(start + batchSize, items.length);
+
+    const urls = [];
+    for (let i = start; i < end; i += 1) {
+        const u = items[i]?.thumb || items[i]?.full;
+        if (u) urls.push(u);
+    }
+    if (!urls.length) return;
+
+    // keep it gentle (mobile friendly)
+    const CONCURRENCY = 3;
+    let idx = 0;
+
+    const run = () => {
+        const slice = urls.slice(idx, idx + CONCURRENCY);
+        idx += CONCURRENCY;
+        if (!slice.length) return;
+
+        Promise.allSettled(slice.map(preloadOnce)).finally(() => idle(run));
+    };
+
+    idle(run);
 }
 
 function safeArray(value) {
@@ -210,7 +236,7 @@ function createCard(item, index, { eager = false } = {}) {
     if (item.thumb) {
         img.src = item.thumb;
 
-        // KEY: for newly appended batch, force eager start
+        // for newly appended batch, force eager start
         img.loading = eager ? "eager" : "lazy";
         img.decoding = "async";
 
@@ -342,7 +368,7 @@ function setupShowMore() {
         const startIndex = renderedCount;
         const endIndex = Math.min(startIndex + batchSize, items.length);
 
-        // 1) FORCE NETWORK: preload the next batch thumbs NOW (independent of DOM / lazy)
+        // 1) Preload next batch URLs (network hint)
         const urlsToPreload = [];
         for (let i = startIndex; i < endIndex; i += 1) {
             const it = items[i];
@@ -350,34 +376,48 @@ function setupShowMore() {
             if (url) urlsToPreload.push(url);
         }
 
-        // Safety timeout so you never get stuck
         const PRELOAD_TIMEOUT_MS = 15000;
-
         const preloadAll = Promise.race([
-            Promise.all(urlsToPreload.map((u) => preloadImage(u))),
+            Promise.allSettled(urlsToPreload.map((u) => preloadOnce(u))),
             waitMs(PRELOAD_TIMEOUT_MS),
         ]);
 
-        // 2) Render the batch immediately (so layout changes right away)
+        // 2) Render batch immediately (so user sees change)
         renderNextBatch(batchSize, { eager: true });
 
-        // Optional UX: bring the first new card into view a bit (so user sees change)
+        // Collect the NEW DOM imgs we just inserted
+        const newImgs = [];
+        for (let i = startIndex; i < endIndex; i += 1) {
+            const card = grid.querySelector(`.xfolioItem[data-index="${i}"]`);
+            const img = card?.querySelector("img");
+            if (img) newImgs.push(img);
+        }
+
+        // Optional UX: bring the first new card into view a bit
         const firstNewCard = grid.querySelector(`.xfolioItem[data-index="${startIndex}"]`);
-        if (firstNewCard) {
-            firstNewCard.scrollIntoView({ block: "nearest" });
-        }
+        if (firstNewCard) firstNewCard.scrollIntoView({ block: "nearest" });
 
-        // 3) Keep loader visible until preload completes (or timeout)
+        // 3) Keep loader until BOTH:
+        //    - preloads complete (or timeout)
+        //    - AND the actual DOM images have loaded/decoded enough (or timeout)
+        const DOM_WAIT_MS = 8000;
+        const waitDomImgs = Promise.race([
+            Promise.allSettled(newImgs.map((img) => decodeOrLoadImg(img, 2500))),
+            waitMs(DOM_WAIT_MS),
+        ]);
+
         await preloadAll;
+        await waitDomImgs;
 
-        // 4) Stop loader (keep a tiny delay for smoother exit)
-        if (SL) {
-            await SL.stop({ delay: 250 });
-        }
+        // 4) Stop loader
+        if (SL) await SL.stop({ delay: 150 });
 
         showMoreBtn.classList.remove("is-loading");
         showMoreBtn.removeAttribute("aria-busy");
         showMoreBtn.disabled = false;
+
+        // 5) Prefetch the NEXT batch quietly, so next click feels instant
+        prefetchNextBatch();
     });
 }
 
@@ -446,7 +486,7 @@ function applyAutoThemeClasses() {
 
     inner.classList.remove("caption--dark", "caption--light");
 
-    // MOBILE: do not auto-change icon colors (you asked)
+    // MOBILE: do not auto-change icon colors
     if (isMobileViewport()) {
         inner.classList.add("caption--light");
         return;
@@ -486,9 +526,7 @@ function lockUiHiddenInstant() {
     els.forEach((el) => el.classList.remove("is-lock-hidden"));
 }
 
-
 // ---------- Lightbox ----------
-
 function createLightbox() {
     if (lightboxEl) return;
 
@@ -503,7 +541,6 @@ function createLightbox() {
 
     const inner = doc.createElement("div");
     inner.className = "xfolioLightboxInner";
-
 
     lightboxTitle = doc.createElement("div");
     lightboxTitle.className = "xfolioLightboxTitle h5";
@@ -596,7 +633,6 @@ function createLightbox() {
         else if (evt.key === "ArrowRight") showAdjacent(1);
     });
 
-    // Handle resize: if user rotates / changes breakpoint while open
     window.addEventListener("resize", () => {
         if (!lightboxEl || !lightboxEl.classList.contains("is-open")) return;
         applyAutoThemeClasses();
@@ -637,13 +673,9 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
         requestAnimationFrame(() => {
             if (token !== lightboxSwapToken) return;
 
-            // decide theme based on background (web/tablet only)
             applyAutoThemeClasses();
-
-            // fade image in
             lightboxImg.classList.add("is-visible");
 
-            // fade UI in after delay
             window.setTimeout(() => {
                 if (token !== lightboxSwapToken) return;
                 setUiVisible(true);
@@ -656,7 +688,7 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
     // transition swap
     lightboxImg.classList.remove("is-visible");
 
-    await Promise.all([waitMs(IMAGE_FADE_DURATION), preloadImage(src)]);
+    await Promise.all([waitMs(IMAGE_FADE_DURATION), preloadOnce(src)]);
     if (token !== lightboxSwapToken) return;
 
     lightboxImg.src = src;
@@ -669,7 +701,6 @@ async function setLightboxContent(index, { useTransition = false } = {}) {
         if (token !== lightboxSwapToken) return;
 
         applyAutoThemeClasses();
-
         lightboxImg.classList.add("is-visible");
 
         window.setTimeout(() => {
@@ -712,7 +743,6 @@ function hideLightbox() {
         lightboxFadeTimeoutId = null;
     }
 
-    // fade UI out with image
     setUiVisible(false);
 
     if (lightboxImg) {
@@ -830,5 +860,9 @@ export function initXFolio(options = {}) {
     setupShowMore();
     setupLightbox();
 
+    // Initial render
     renderNextBatch(batchSize);
+
+    // Quietly preload the next batch so first "Load more" feels instant
+    prefetchNextBatch();
 }

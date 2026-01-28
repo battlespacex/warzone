@@ -251,10 +251,7 @@
 
     <!-- Swiper / Hero Banner -->
     <section id="xswiper" class="xswiper-section" aria-label="Featured aviation photography">
-            <div class="xswiper__viewport" data-xswiper-ui="1">
-                <div class="xswiper__track" data-xswiper-ui="1"></div>
-            </div>
-
+        <div class="xswiper__viewport" data-xswiper-ui="1">
             <div class="brand_header">
                 <!-- Logo -->
                 <a href="/" aria-label="Aerocism home">
@@ -283,16 +280,16 @@
                         Book a Shoot
                     </button>
                 </div>
-
-
             </div>
+            <div class="xswiper__track" data-xswiper-ui="1"></div>
+        </div>
     </section>
 
     <!-- Header -->
     <header id="header" class="site-header">
         <nav class="nav" aria-label="Main navigation">
             <div class="header--content">
-                <h2 class="h5">You won't see them, You'll feel them</h2>
+                <div class="h5 color-white">You won't see them, You'll feel them</div>
                 <button type="button" class="x-icon" aria-label="Scroll to gallery" data-target="#quote">
                     <span aria-hidden="true">double_arrow</span>
                 </button>
@@ -362,7 +359,7 @@
                     </span>
                 </p>
                 <button type="button" class="x-icon" id="xfolio-show-more" aria-label="Show more images">
-                    <span aria-hidden="true">arrow_downward</span>
+                    <span aria-hidden="true">double_arrow</span>
                 </button>
             </div>
         </section>
@@ -485,7 +482,7 @@
                                 <label for="project-type">Type of project</label>
                                 <div class="field">
                                     <select id="project-type" name="projectType" required aria-describedby="project-type-error">
-                                        <option value="">Select a project type</option>
+                                        <option value="">Select project type</option>
                                         <option value="airshow">Air Show</option>
                                         <option value="exclusive">Exclusive</option>
                                         <option value="portraits">Portraits</option>
