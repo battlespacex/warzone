@@ -1,0 +1,72 @@
+@font-face {
+  font-family: 'aerocism-font';
+  src:  url('/assets/fonts/aerocism-font.eot?cjzhk6');
+  src:  url('/assets/fonts/aerocism-font.eot?cjzhk6#iefix') format('embedded-opentype'),
+    url('/assets/fonts/aerocism-font.ttf?cjzhk6') format('truetype'),
+    url('/assets/fonts/aerocism-font.woff?cjzhk6') format('woff'),
+    url('/assets/fonts/aerocism-font.svg?cjzhk6#aerocism-font') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+[class^="aerocism-ico-"], [class*=" aerocism-ico-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'aerocism-font' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.aerocism-ico-plane-1:before {
+  content: "\e900";
+}
+.aerocism-ico-penta-1:before {
+  content: "\e901";
+}
+.aerocism-ico-grid-1:before {
+  content: "\e902";
+}
+.aerocism-ico-about-1:before {
+  content: "\e903";
+}
+.aerocism-ico-contact-1:before {
+  content: "\e904";
+}
+.aerocism-ico-close-1:before {
+  content: "\e905";
+}
+.aerocism-ico-open-1:before {
+  content: "\e906";
+}
+.aerocism-ico-more-1:before {
+  content: "\e907";
+}
+.aerocism-ico-previous-1:before {
+  content: "\e908";
+}
+.aerocism-ico-next-1:before {
+  content: "\e909";
+}
+.aerocism-ico-pause-2:before {
+  content: "\e90a";
+}
+.aerocism-ico-play-1:before {
+  content: "\e90b";
+}
+.aerocism-ico-genres-1:before {
+  content: "\e90c";
+}
+.aerocism-ico-pause-1:before {
+  content: "\e90d";
+}
+.aerocism-ico-download-1:before {
+  content: "\e90e";
+}
