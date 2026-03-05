@@ -1,11 +1,27 @@
-@"
+# dependencies
 node_modules/
-.DS_Store
-Thumbs.db
+
+# build outputs (keep only if you want these tracked)
+dist/
+build/
+
+# environment / secrets
 .env
 .env.*
+*.key
+*.pem
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 *.log
 
-# build output (optional - we’ll decide later)
-production/assets/js/*.map
-"@ | Out-File -Encoding utf8 .gitignore
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# misc
+*.map
