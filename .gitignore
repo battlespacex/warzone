@@ -1,10 +1,11 @@
-# VS / VS Code junk
-.vs/
-.vscode/
-
-# Node
+@"
 node_modules/
-
-# logs
-*.log
 .DS_Store
+Thumbs.db
+.env
+.env.*
+*.log
+
+# build output (optional - we’ll decide later)
+production/assets/js/*.map
+"@ | Out-File -Encoding utf8 .gitignore

@@ -1,5 +1,11 @@
 ﻿// webpack.config.js
+const fs = require("fs");
 const path = require("path");
+
+const SITE = require("./seo/site");
+const pageMeta = require("./seo/pages");
+const { buildJsonLd } = require("./seo/schema");
+
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
 const TerserPlugin = require("terser-webpack-plugin");
@@ -12,54 +18,61 @@ module.exports = (env, argv) => {
     const PROD_DIR = path.resolve(__dirname, "production");
     const DEV_DIR = path.resolve(__dirname, "dev");
 
-    const pages = ["index", "contact", "404"];
+    const pages = Object.keys(pageMeta);
+
+    // -----------------------------
+    // helpers
+    // -----------------------------
+    const stripSlashEnd = (s) => String(s || "").replace(/\/+$/, "");
+    const ensureSlashStart = (s) => (String(s || "").startsWith("/") ? String(s) : `/${s}`);
+    const joinUrl = (base, p) => {
+        const b = stripSlashEnd(base);
+        const pathPart = String(p || "/");
+        return pathPart === "/" ? `${b}/` : `${b}${ensureSlashStart(pathPart)}`;
+    };
+
+    const readPartial = (relPath, fallback = "") => {
+        try {
+            return fs.readFileSync(path.resolve(DEV_DIR, relPath), "utf8").replace(/^\uFEFF/, "");
+        } catch {
+            return fallback;
+        }
+    };
+
+    const partials = (name) => readPartial(`partials/${name}.html`);
+
+    const defaultOg = SITE.defaultOg || SITE.defaultOgImage || "/assets/images/web/warzone-og-preview.jpg";
 
     return {
         mode: isDev ? "development" : "production",
 
-        entry: path.resolve(DEV_DIR, "assets/scripts/index.js"),
+        entry: path.resolve(DEV_DIR, "assets/js/index.js"),
 
         output: {
             path: PROD_DIR,
+            filename: isDev ? "assets/js/bundle.js" : "assets/js/bundle.[contenthash:8].js",
 
-            // ✅ NO build/ folder. Bundles go directly into production/assets
-            filename: isDev
-                ? "assets/bundle.js"
-                : "assets/bundle.[contenthash:8].js",
-
+            // IMPORTANT: local dev serves from root
             publicPath: "/",
 
-            // ✅ Clean old bundles, but NEVER delete images/mp3/fonts
-            // This also removes old leftover bundles like assets/bundle.*.js and assets/style.*.css
             clean: {
                 keep: (assetPath) => {
-                    // normalize for Windows + case
                     const p = assetPath.replace(/\\/g, "/").toLowerCase();
 
-                    // keep your static folders
                     if (p.startsWith("assets/images/")) return true;
-                    if (p.startsWith("assets/mp3/")) return true;   // (even if unused)
                     if (p.startsWith("assets/fonts/")) return true;
+                    if (p.startsWith("assets/mp3/")) return true;
+                    if (p.startsWith("assets/others/")) return true;
 
-                    // ✅ keep mp3 directly inside /assets (your exact use-case)
-                    // e.g. assets/aerocism-aud.mp3
                     if (p === "assets/aerocism-aud.mp3") return true;
 
-                    // OR if you want to protect ANY mp3 in assets root:
-                    // if (p.startsWith("assets/") && p.endsWith(".mp3") && !p.includes("/")) return true;
-
-                    // keep root public files copied by CopyWebpackPlugin
-                    if (
-                        p === "robots.txt" ||
-                        p === "sitemap.xml" ||
-                        p === "web.config" ||
-                        p === "favicon.ico"
-                    ) return true;
+                    if (p === "robots.txt" || p === "sitemap.xml" || p === "web.config" || p === "favicon.ico") {
+                        return true;
+                    }
 
                     return false;
                 },
             },
-
         },
 
         devtool: false,
@@ -81,8 +94,6 @@ module.exports = (env, argv) => {
                         {
                             loader: "css-loader",
                             options: {
-                                // ✅ you use absolute URLs like /assets/fonts/.. and /assets/images/..
-                                // keep them as-is
                                 url: false,
                                 import: true,
                             },
@@ -94,57 +105,94 @@ module.exports = (env, argv) => {
 
         plugins: [
             new MiniCssExtractPlugin({
-                // ✅ NO build/ folder. CSS goes directly into production/assets
-                filename: isDev
-                    ? "assets/style.css"
-                    : "assets/style.[contenthash:8].css",
+                filename: isDev ? "assets/css/style.css" : "assets/css/style.[contenthash:8].css",
             }),
 
-            // ✅ IMPORTANT:
-            // HtmlWebpackPlugin will inject the correct hashed filenames into each HTML output.
-            // Make sure your dev/*.html templates DO NOT hardcode /assets/bundle.js or /assets/style.css.
             ...pages.map((name) => {
-                return new HtmlWebpackPlugin({
-                    filename: `${name}.html`,
-                    template: path.resolve(DEV_DIR, `${name}.html`),
-                    inject: "body",
-                    scriptLoading: "defer",
+                const m = pageMeta[name] || {};
+                const canonical = joinUrl(SITE.baseUrl, m.path || "/");
 
-                    // Helps ensure the <link> tag is injected too (even if template head is custom)
-                    // If your template has a </head>, it will place CSS link inside it.
-                    // JS will go before </body> because inject:"body".
+                const robots = m.robots || "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
+
+                const ogCandidate = m.ogImage || defaultOg;
+                const ogImageAbs = String(ogCandidate).startsWith("http")
+                    ? ogCandidate
+                    : joinUrl(SITE.baseUrl, ensureSlashStart(ogCandidate));
+
+                const meta = {
+                    title: m.title || "Warzone",
+                    description: m.description || "",
+
+                    canonical,
+                    robots,
+                    hreflang: canonical,
+
+                    ogUrl: canonical,
+                    ogTitle: m.title || "Warzone",
+                    ogDescription: m.description || "",
+                    ogImage: ogImageAbs,
+                    ogAlt: m.ogAlt || "Warzone",
+
+                    twTitle: m.title || "Warzone",
+                    twDescription: m.description || "",
+                    twImage: ogImageAbs,
+                    twAlt: m.ogAlt || "Warzone",
+
+                    preload: m.preload || [],
+
+                    jsonLd: buildJsonLd({
+                        site: SITE,
+                        page: m,
+                        ogImageAbs,
+                    }),
+                };
+
+                const preloadLinks = (meta.preload || [])
+                    .map((p) => {
+                        const href = p && p.href ? String(p.href) : "";
+                        if (!href) return "";
+                        const mediaAttr = p.media ? ` media="${String(p.media)}"` : "";
+                        return `<link rel="preload" as="image" href="${href}"${mediaAttr} fetchpriority="high" />`;
+                    })
+                    .filter(Boolean)
+                    .join("\n");
+
+                return new HtmlWebpackPlugin({
+                    filename: `pages/${name}.html`,
+                    template: path.resolve(DEV_DIR, "pages", `${name}.html`),
+                    inject: "head",
+                    scriptLoading: "defer",
+                    templateParameters: {
+                        meta,
+                        partials,
+                        preloadLinks,
+                    },
                 });
             }),
 
-            new CopyWebpackPlugin({
-                patterns: [
-                    // ✅ root deploy files (robots.txt, sitemap.xml, favicon, web.config, etc.)
-                    {
-                        from: path.resolve(DEV_DIR, "public"),
-                        to: PROD_DIR,
-                        noErrorOnMissing: true,
-                    },
-
-                    // ✅ copy ONLY font files into production/assets/fonts
-                    // (do NOT copy dev/assets/fonts/style.css or selection.json)
-                    {
-                        from: path.resolve(DEV_DIR, "assets/fonts"),
-                        to: path.resolve(PROD_DIR, "assets/fonts"),
-                        noErrorOnMissing: true,
-                        globOptions: {
-                            ignore: ["**/*.css", "**/*.json"],
-                        },
-                    },
-                ],
-            }),
+            ...(isDev
+                ? []
+                : [
+                    new CopyWebpackPlugin({
+                        patterns: [
+                            { from: path.resolve(DEV_DIR, "public"), to: PROD_DIR, noErrorOnMissing: true },
+                            { from: path.resolve(DEV_DIR, "partials"), to: path.resolve(PROD_DIR, "partials"), noErrorOnMissing: true },
+                            { from: path.resolve(DEV_DIR, "assets/others"), to: path.resolve(PROD_DIR, "assets/others"), noErrorOnMissing: true },
+                            { from: path.resolve(DEV_DIR, "assets/images"), to: path.resolve(PROD_DIR, "assets/images"), noErrorOnMissing: true },
+                            {
+                                from: path.resolve(DEV_DIR, "assets/fonts"),
+                                to: path.resolve(PROD_DIR, "assets/fonts"),
+                                noErrorOnMissing: true,
+                                globOptions: { ignore: ["**/*.css", "**/*.json"] },
+                            },
+                        ],
+                    }),
+                ]),
         ],
 
         optimization: {
             minimize: !isDev,
-            minimizer: [
-                new TerserPlugin({ extractComments: false }),
-                new CssMinimizerPlugin(),
-            ],
+            minimizer: [new TerserPlugin({ extractComments: false }), new CssMinimizerPlugin()],
         },
 
         ...(isDev
@@ -152,28 +200,50 @@ module.exports = (env, argv) => {
                 devServer: {
                     port: 4173,
                     compress: true,
-                    hot: false,
-                    open: true,
+                    hot: true,
+                    liveReload: true,
 
-                    // ✅ Serve production folder (real deploy structure)
-                    static: [
-                        {
-                            directory: PROD_DIR,
-                            publicPath: "/",
-                            watch: true,
-                        },
-                    ],
-
-                    // Clean URLs
-                    historyApiFallback: {
-                        rewrites: [
-                            { from: /^\/$/, to: "/index.html" },
-                            { from: /^\/contact\/?$/, to: "/contact.html" },
-                            { from: /^\/404\/?$/, to: "/404.html" },
-                            { from: /./, to: "/404.html" },
-                        ],
+                    open: {
+                        target: ["http://localhost:4173/"],
+                        app: { name: "chrome" },
                     },
 
+                    client: { overlay: true },
+
+                    static: [
+                        { directory: path.resolve(DEV_DIR, "public"), publicPath: "/", watch: true },
+                        { directory: path.resolve(DEV_DIR, "assets"), publicPath: "/assets", watch: true },
+                        { directory: path.resolve(DEV_DIR, "partials"), publicPath: "/partials", watch: true },
+                    ],
+
+                    watchFiles: {
+                        paths: [
+                            path.resolve(DEV_DIR, "pages/**/*.html"),
+                            path.resolve(DEV_DIR, "partials/**/*.html"),
+                            path.resolve(DEV_DIR, "assets/css/**/*.css"),
+                            path.resolve(DEV_DIR, "assets/js/**/*.js"),
+                            path.resolve(DEV_DIR, "assets/images/**/*"),
+                            path.resolve(DEV_DIR, "assets/others/**/*"),
+                            path.resolve(DEV_DIR, "public/**/*"),
+                        ],
+                        options: {
+                            usePolling: true,
+                            interval: 250,
+                            ignored: /node_modules/,
+                        },
+                    },
+
+                    // Clean URLs for your multi-page setup:
+                    historyApiFallback: {
+                        rewrites: [
+                            { from: /^\/$/, to: "/pages/index.html" },
+                            { from: /^\/sources\/?$/, to: "/pages/sources.html" },
+                            { from: /^\/about\/?$/, to: "/pages/about.html" },
+                            { from: /^\/report\/?$/, to: "/pages/report.html" },
+                            { from: /^\/404\/?$/, to: "/pages/404.html" },
+                            { from: /./, to: "/pages/404.html" },
+                        ],
+                    },
                 },
             }
             : {}),

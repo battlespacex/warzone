@@ -1,11 +1,14 @@
 User-agent: *
-Disallow:
+Allow: /
 
 Disallow: /404
 Disallow: /404.html
+
+# Block dev-only / build-only stuff (not needed on live)
 Disallow: /server.js
 Disallow: /webpack.config.js
 Disallow: /package.json
+Disallow: /package-lock.json
 Disallow: /node_modules/
 
-Sitemap: https://aerocism.com/sitemap.xml
+Sitemap: https://battlespacex.com/warzone/sitemap.xml

@@ -1,26 +1,25 @@
-﻿// server.js
-const express = require("express");
+﻿const express = require("express");
 const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 4173;
-
 const ROOT = path.join(__dirname, "production");
+const BASE = "/warzone";
 
-app.use(
-    express.static(ROOT, {
-        extensions: ["html"],
-    })
-);
+app.disable("x-powered-by");
+app.use(express.static(ROOT));
 
-app.get("/404", (req, res) => {
-    res.status(404).sendFile(path.join(ROOT, "404.html"));
-});
+function sendPage(res, name, status = 200) {
+    return res.status(status).sendFile(path.join(ROOT, "pages", `${name}.html`));
+}
 
-app.use((req, res) => {
-    res.status(404).sendFile(path.join(ROOT, "404.html"));
-});
+app.get(`${BASE}/`, (req, res) => sendPage(res, "index"));
+app.get(`${BASE}/about`, (req, res) => sendPage(res, "about"));
+app.get(`${BASE}/report`, (req, res) => sendPage(res, "report"));
+app.get(`${BASE}/sources`, (req, res) => sendPage(res, "sources"));
+app.get(`${BASE}/404`, (req, res) => sendPage(res, "404", 404));
+app.use((req, res) => sendPage(res, "404", 404));
 
 app.listen(PORT, () => {
-    console.log(`Aerocism server running at http://localhost:${PORT}`);
+    console.log(`Warzone server running at http://localhost:${PORT}${BASE}/`);
 });
