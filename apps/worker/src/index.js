@@ -1,6 +1,6 @@
 import http from "http";
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
     res.end("warzone worker running");
