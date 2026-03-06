@@ -1,9 +1,18 @@
+import http from "http";
+
+const PORT = process.env.PORT || 10000;
+
+http.createServer((req, res) => {
+    res.end("warzone worker running");
+}).listen(PORT);
+
 import cron from "node-cron";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { supabase } from "./supabase.js";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
