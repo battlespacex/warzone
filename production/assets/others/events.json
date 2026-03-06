@@ -2,9 +2,7 @@
   "events": [
     {
       "title": "Sample strike cluster near central region",
-      "summary": "Starter sample event used to seed the interface before live,,
-      "feeds" "are",
-      "connected.\",": null,
+      "summary": "Starter sample event used to seed the interface before live feeds are connected",
       "occurred_at": "2026-03-05T18:30:00Z",
       "lat": 35.6892,
       "lon": 51.389,
@@ -15,11 +13,10 @@
     },
     {
       "title": "Sample strike event near southern corridor",
-      "summary": "A second seed event for testing feed rendering and map,,
-      "markers.\",": null,
+      "summary": "A second seed event for testing feed rendering and map",
       "occurred_at": "2026-03-05T18:45:00Z",
       "lat": 29.5918,
-      "lon": 52.5837,
+      "lon": 52.587,
       "location_label": "Shiraz, Iran",
       "confidence": 58,
       "category": "strike",

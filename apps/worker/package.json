@@ -1,12 +1,16 @@
 {
   "name": "warzone-worker",
   "version": "1.0.0",
+  "description": "Warzone BattlespaceX ingestion worker",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/worker.js"
+    "start": "node src/index.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.7",
-    "pg": "^8.13.1"
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
   }
 }
