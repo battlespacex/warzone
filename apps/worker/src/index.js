@@ -114,9 +114,11 @@ async function processFeed(feed) {
 
 async function runWorker() {
     console.log("Worker cycle started");
-    console.log("Feeds loaded:", sources.feeds.length);
 
-    for (const feed of sources.feeds) {
+    const activeFeeds = sources.feeds.filter((feed) => feed.enabled !== false);
+    console.log("Feeds loaded:", activeFeeds.length);
+
+    for (const feed of activeFeeds) {
         try {
             await processFeed(feed);
         } catch (err) {
