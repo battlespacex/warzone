@@ -1,0 +1,10 @@
+﻿.brand_header { position: absolute; top: 2rem; left: 0; right: 0; z-index: 5; }
+.site-header { position: sticky; top: 1.6rem; margin: 0 auto 2rem; width: var(--min-width); z-index: 30; transition: 0.4s ease; }
+.on--scroll .site-header { backdrop-filter: blur(0.5rem); }
+.nav { display: flex; justify-content: space-between; align-items: center; margin-inline: auto; width: 100%; min-height: 7.2rem; padding: 0 1.6rem; position: relative; overflow: hidden; background: rgba(10, 12, 16, 0.88); border: 1px solid var(--color-panel-line); border-radius: 1.2rem; box-shadow: var(--box-shadow); }
+.nav__brand { display: flex; align-items: center; gap: 1rem; }
+.nav__logo { width: auto; height: 4rem; }
+.nav__menu { display: flex; align-items: center; gap: 2rem; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.12em; padding: 0; position: relative; }
+    .nav__menu a { line-height: 2rem; position: relative; transition: 0.3s ease; }
+        .nav__menu a.active { color: var(--color-white); }
+.nav__underline { position: absolute; bottom: -0.5rem; height: 0.3rem; background: var(--color-teal); border-radius: 0.5em; transition: left 0.3s ease, width 0.3s ease; pointer-events: none; }

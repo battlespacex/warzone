@@ -1,0 +1,56 @@
+﻿*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; font-size: 62.5%; -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: var(--font-heading); font-size: var(--default-text); color: var(--color-text); line-height: normal; background: var(--color-bg-dark); overflow-x: clip; padding-bottom: env(safe-area-inset-bottom); font-style: normal; letter-spacing: 0.03rem; }
+main { position: relative; z-index: 1; }
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--color-text); text-decoration: none; cursor: pointer; }
+    a:hover, a:focus-visible { text-decoration: none; }
+:focus-visible { outline: 0.3rem solid var(--color-teal); outline-offset: 0.35rem; }
+button { font: inherit; cursor: pointer; }
+input, select, textarea { font: inherit; }
+.body-bg { background: radial-gradient(circle at top center, rgba(255,255,255,0.05), transparent 35%), linear-gradient(180deg, #0a0d12 0%, #050608 100%); position: fixed; inset: 0; z-index: 0; }
+.site-loader { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: var(--color-bg-overlay); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .32s ease, visibility 0s linear .32s; will-change: opacity; }
+body.show-loader .site-loader { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .18s ease, visibility 0s; }
+.site-loader.is-gone { display: none; }
+@font-face { font-family: "Bebas Neue"; src: url("/warzone/assets/fonts/google-font.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "aerocism-font"; src: url("/warzone/assets/fonts/aerocism-font.ttf") format("truetype"); font-display: block; }
+h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 { font-family: var(--font-heading); margin: 0; font-weight: 400; color: var(--color-heading); }
+h1, .h1 { font-size: 8rem; line-height: 7rem; }
+h2, .h2 { font-size: 5rem; line-height: 4.4rem; }
+h3, .h3 { font-size: 3rem; line-height: 2.8rem; }
+h4, .h4 { font-size: 2.2rem; line-height: 2rem; }
+p, label { font-size: var(--default-text); line-height: 1.5; margin: 0; }
+small { font-size: var(--small-text); line-height: 1.4; }
+.x-icon { display: inline-flex; align-items: center; justify-content: center; padding: 0; overflow: hidden; color: #fff; font-family: var(--font-icon); font-style: normal; background: transparent; border: none; }
+.warzone-shell { position: relative; width: var(--min-width); margin: 0 auto 4rem; z-index: 2; }
+.warzone-grid { display: grid; grid-template-columns: 28rem 1fr 34rem; gap: 1.6rem; align-items: start; }
+.warzone-panel { background: rgba(14, 17, 24, 0.82); border: 1px solid var(--color-panel-line); border-radius: 1.2rem; box-shadow: var(--box-shadow); backdrop-filter: blur(8px); }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.3rem 1.4rem; border-bottom: 1px solid var(--color-panel-line); }
+    .panel-head h2,
+    .panel-head h3 { font-size: 2rem; line-height: 1; letter-spacing: 0.06em; }
+.panel-body { padding: 1.4rem; }
+.stats-stack { display: grid; gap: 1.2rem; }
+.stat-card { padding: 1.3rem 1.4rem; border: 1px solid var(--color-panel-line); border-radius: 1rem; background: rgba(255, 255, 255, 0.02); }
+.stat-label { display: block; font-size: 1.1rem; text-transform: uppercase; color: #8f98a8; letter-spacing: 0.12em; }
+.stat-value { display: block; margin-top: 0.6rem; color: var(--color-white); font-size: 3rem; line-height: 1; }
+.warzone-map-card { min-height: 72rem; overflow: hidden; }
+.warzone-toolbar { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; }
+.toolbar-chip { border: 1px solid var(--color-panel-line); background: rgba(255,255,255,0.04); color: var(--color-white); border-radius: 999rem; padding: 0.8rem 1.2rem; font-size: 1.2rem; line-height: 1; text-transform: uppercase; }
+.warzone-map-wrap { position: relative; min-height: 64rem; padding: 1.4rem; }
+.warzone-map { position: relative; min-height: 61rem; border-radius: 1.2rem; overflow: hidden; background: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px), radial-gradient(circle at center, rgba(53, 63, 83, 0.7), rgba(8, 10, 13, 1)); background-size: 4rem 4rem, 4rem 4rem, cover; border: 1px solid rgba(255,255,255,0.06); }
+    .warzone-map::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 20% 25%, rgba(255,255,255,0.05), transparent 12%), radial-gradient(circle at 45% 35%, rgba(255,255,255,0.04), transparent 16%), radial-gradient(circle at 70% 58%, rgba(255,255,255,0.035), transparent 18%), radial-gradient(circle at 85% 20%, rgba(255,255,255,0.025), transparent 14%); pointer-events: none; }
+.warzone-marker { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; justify-content: center; border-radius: 999rem; border: 0; color: #fff; font-weight: 700; font-size: 1.3rem; box-shadow: 0 0 0 3px rgba(0,0,0,0.25); }
+.warzone-marker.is-sm { width: 3.2rem; height: 3.2rem; background: #d14d3f; }
+.warzone-marker.is-md { width: 4.4rem; height: 4.4rem; background: #de8d27; }
+.warzone-marker.is-lg { width: 5.8rem; height: 5.8rem; background: #d2ab18; }
+.warzone-marker.is-xl { width: 7rem; height: 7rem; background: #cc9c10; }
+.feed-list { display: grid; gap: 1rem; max-height: 72rem; overflow: auto; padding: 1rem; }
+.feed-card { border: 1px solid var(--color-panel-line); background: rgba(255,255,255,0.03); border-radius: 1rem; padding: 1.2rem; transition: background var(--transition-fast), border-color var(--transitionfast), transform var(--transition-fast); }
+    .feed-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.16); }
+    .feed-card.is-flash { border-color: var(--color-teal); background: rgba(25, 216, 179, 0.08); }
+.feed-card__meta,
+.feed-card__foot { display: flex; justify-content: space-between; gap: 1rem; align-items: center; font-size: 1.1rem; color: #95a0b2; }
+.feed-card__title { margin-top: 0.8rem; color: var(--color-white); font-size: 2rem; line-height: 1; }
+.feed-card__summary { margin-top: 0.8rem; color: var(--color-text); font-size: 1.35rem; line-height: 1.45; }
+.feed-pill { display: inline-flex; align-items: center; border-radius: 999rem; border: 1px solid rgba(255,255,255,0.12); padding: 0.5rem 0.8rem; color: #ffd16f; text-transform: uppercase; letter-spacing: 0.08em; }
+.feed-empty { padding: 1.4rem; border: 1px dashed rgba(255,255,255,0.12); border-radius: 1rem; color: #98a4b8; font-size: 1.4rem; }

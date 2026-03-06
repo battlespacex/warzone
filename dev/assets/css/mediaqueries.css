@@ -1,0 +1,16 @@
+﻿@media (max-width: 1280px) {
+    .warzone-grid { grid-template-columns: 1fr; }
+    .warzone-map-card { order: 1; }
+}
+
+@media (max-width: 768px) {
+    :root { --sec-width: calc(100% - 2rem); --min-width: calc(100% - 2rem); }
+    .site-header { top: 0.8rem; }
+    .nav { min-height: 6.4rem; padding: 0 1rem; }
+    .nav__menu { gap: 1rem; font-size: 1.1rem; }
+    .hero-banner { margin-top: 8rem; }
+    hero-banner__box { padding: 2rem; }
+    .warzone-map-wrap,
+    .warzone-map { min-height: 48rem; }
+    .feed-list { max-height: none; }
+}

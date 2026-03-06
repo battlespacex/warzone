@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewportfit=cover" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title><%= meta.title %></title>
+    <meta name="description" content="<%= meta.description %>" />
+    <link rel="canonical" href="<%= meta.canonical %>" />
+    <meta name="robots" content="<%= meta.robots %>" />
+    <link rel="alternate" hreflang="en-ca" href="<%= meta.hreflang %>" />
+    <link rel="alternate" hreflang="x-default" href="<%= meta.hreflang %>" />
+    <%= partials("head-base") %>
+    <%= partials("head-verifications") %>
+    <meta property="og:url" content="<%= meta.ogUrl %>" />
+    <meta property="og:title" content="<%= meta.ogTitle %>" />
+    <meta property="og:description" content="<%= meta.ogDescription %>" />
+    <meta property="og:image" content="<%= meta.ogImage %>" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="<%= meta.ogAlt %>" />
+    <meta name="twitter:title" content="<%= meta.twTitle %>" />
+    <meta name="twitter:description" content="<%= meta.twDescription %>" />
+    <meta name="twitter:image" content="<%= meta.twImage %>" />
+    <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
+    <%= preloadLinks %>
+    <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
+</head>
+<body class="home__page">
+    <a class="skip-link sr-only" href="#main">Skip to main content</a>
+    <div class="body-bg" aria-hidden="true"></div>
+    <%= partials("site-loader") %>
+    <%= partials("header") %>
+    <main id="main">
+        <section class="hero-banner" aria-label="Warzone intro">
+            <div class="hero-banner__box">
+                <div class="hero-banner__eyebrow">BattleSpaceX</div>
+                <h1 class="hero-banner__title">Warzone Live</h1>
+                <p class="hero-banner__desc">
+                    Real-time event mapping, clustered strike activity, and live publicsource tracking.
+                    This starter version is built so you can keep your Aerocism-style
+                    workflow while scaling into a StrikeMap-like interface.
+                </p>
+                <div class="hero-banner__actions">
+                    <a class="btn btn--primary" href="/warzone/report">View Report</a>
+                    <a class="btn btn--secondary" href="/warzone/sources">Sources</a>
+                </div>
+            </div>
+        </section>
+        <section class="warzone-shell">
+            <div id="warzone-app" class="warzone-grid" data-api-base="https://api.battlespacex.com">
+                <aside class="warzone-panel">
+                    <div class="panel-head">
+                        <h2>Live Stats</h2>
+                    </div>
+                    <div class="panel-body stats-stack">
+                        <div class="stat-card">
+                            <span class="stat-label">Total Events</span>
+                            <strong id="stat-total" class="stat-value">--</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Mapped Events</span>
+                            <strong id="stat-mapped" class="stat-value">--</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Latest Update</span>
+                            <strong id="stat-latest" class="stat-value">--</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Countries</span>
+                            <strong id="stat-countries" class="stat-value">--</strong>
+                        </div>
+                    </div>
+                </aside>
+                <section class="warzone-panel warzone-map-card" aria-label="Live map">
+                    <div class="panel-head">
+                        <h2>Live Map</h2>
+                        <div class="warzone-toolbar">
+                            <span class="toolbar-chip">Strikes</span>
+                            <span class="toolbar-chip">Recon</span>
+                            <span class="toolbar-chip">Military</span>
+                        </div>
+                    </div>
+                    <div class="warzone-map-wrap">
+                        <div id="warzone-map" class="warzone-map" aria-label="Warzone map visual"></div>
+                    </div>
+                </section>
+                <aside class="warzone-panel">
+                    <div class="panel-head">
+                        <h2>Live Feed</h2>
+                    </div>
+                    <div id="live-feed-list" class="feed-list"></div>
+                </aside>
+            </div>
+        </section>
+    </main>
+    <%= partials("footer") %>
+</body>
+</html>

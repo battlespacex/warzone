@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewportfit=cover" />
+    <title><%= meta.title %></title>
+    <meta name="description" content="<%= meta.description %>" />
+    <meta name="robots" content="<%= meta.robots %>" />
+    <%= partials("head-base") %>
+</head>
+<body class="other-pages">
+    <div class="body-bg" aria-hidden="true"></div>
+    <%= partials("header") %>
+    <main id="main" class="warzone-shell">
+        <section class="hero-banner">
+            <div class="hero-banner__box">
+                <div class="hero-banner__eyebrow">404</div>
+                <h1 class="hero-banner__title">Page Not Found</h1>
+                <p class="hero-banner__desc">The page you requested does not exist.</p>
+                <div class="hero-banner__actions">
+                    <a class="btn btn--primary" href="/warzone/">Return Home</a>
+                </div>
+            </div>
+        </section>
+    </main>
+    <%= partials("footer") %>
+</body>
+</html>

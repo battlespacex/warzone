@@ -1,0 +1,589 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\Dropbox\\aerocism\\Code\\aerocism\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\nav.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\nav.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\index.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\index.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\licensing.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\licensing.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\inner-header.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\inner-header.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\header.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\header.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\required.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\required.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\sections.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\sections.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\military-aviation.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\military-aviation.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\404.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\404.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\contact.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\contact.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\airshows.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\airshows.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\about.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\pages\\about.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\modal-consent-audio.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\modal-consent-audio.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\footer.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\footer.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\essential.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\js\\essential.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\home-anchors.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\js\\home-anchors.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\index.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\js\\index.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\images-data.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\js\\images-data.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\webpack.config.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:webpack.config.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\site.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:seo\\site.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\pages.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:seo\\pages.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\schema.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:seo\\schema.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\site-loader.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\site-loader.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\modal-contact-success.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\modal-contact-success.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\mob-components.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\mob-components.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\head-verifications.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\head-verifications.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\head-base.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\partials\\head-base.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\mediaqueries.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\mediaqueries.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\root.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\root.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\style.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\style.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\xswiper.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\js\\xswiper.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\a11y.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:dev\\assets\\css\\a11y.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 17,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "inner-header.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\inner-header.html",
+              "RelativeDocumentMoniker": "dev\\partials\\inner-header.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\inner-header.html",
+              "RelativeToolTip": "dev\\partials\\inner-header.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAuAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-27T19:38:33.411Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "index.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\index.js",
+              "RelativeDocumentMoniker": "dev\\assets\\js\\index.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\index.js",
+              "RelativeToolTip": "dev\\assets\\js\\index.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAADAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-27T07:21:54.729Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "essential.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\essential.js",
+              "RelativeDocumentMoniker": "dev\\assets\\js\\essential.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\essential.js",
+              "RelativeToolTip": "dev\\assets\\js\\essential.js",
+              "ViewState": "AgIAACUCAAAAAAAAAAApwBYBAAA4AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-27T07:11:20.816Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "home-anchors.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\home-anchors.js",
+              "RelativeDocumentMoniker": "dev\\assets\\js\\home-anchors.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\home-anchors.js",
+              "RelativeToolTip": "dev\\assets\\js\\home-anchors.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAA0AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-27T07:11:10.57Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 24,
+              "Title": "mob-components.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\mob-components.html",
+              "RelativeDocumentMoniker": "dev\\partials\\mob-components.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\mob-components.html",
+              "RelativeToolTip": "dev\\partials\\mob-components.html",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAcwCYAAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-27T06:39:57.476Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "header.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\header.html",
+              "RelativeDocumentMoniker": "dev\\partials\\header.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\header.html",
+              "RelativeToolTip": "dev\\partials\\header.html",
+              "ViewState": "AgIAAAIAAAAAAAAAAAAcwB8AAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-27T06:39:45.776Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 27,
+              "Title": "server.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\server.js",
+              "RelativeDocumentMoniker": "server.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\server.js",
+              "RelativeToolTip": "server.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-27T06:14:55.212Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "webpack.config.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\webpack.config.js",
+              "RelativeDocumentMoniker": "webpack.config.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\webpack.config.js",
+              "RelativeToolTip": "webpack.config.js",
+              "ViewState": "AgIAAJwAAAAAAAAAAAAqwKwAAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-27T06:14:34.294Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "site-loader.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\site-loader.html",
+              "RelativeDocumentMoniker": "dev\\partials\\site-loader.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\site-loader.html",
+              "RelativeToolTip": "dev\\partials\\site-loader.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-27T06:02:54.142Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "modal-contact-success.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\modal-contact-success.html",
+              "RelativeDocumentMoniker": "dev\\partials\\modal-contact-success.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\modal-contact-success.html",
+              "RelativeToolTip": "dev\\partials\\modal-contact-success.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-27T05:31:42.976Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "modal-consent-audio.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\modal-consent-audio.html",
+              "RelativeDocumentMoniker": "dev\\partials\\modal-consent-audio.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\modal-consent-audio.html",
+              "RelativeToolTip": "dev\\partials\\modal-consent-audio.html",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAABwAAAA1AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-27T05:31:40.93Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 30,
+              "Title": "style.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\style.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\style.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\style.css",
+              "RelativeToolTip": "dev\\assets\\css\\style.css",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T13:04:03.141Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "images-data.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\images-data.js",
+              "RelativeDocumentMoniker": "dev\\assets\\js\\images-data.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\images-data.js",
+              "RelativeToolTip": "dev\\assets\\js\\images-data.js",
+              "ViewState": "AgIAAGwAAAAAAAAAAAAAAHoAAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-26T01:34:17.094Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 32,
+              "Title": "a11y.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\a11y.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\a11y.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\a11y.css",
+              "RelativeToolTip": "dev\\assets\\css\\a11y.css",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T01:30:00.606Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 28,
+              "Title": "mediaqueries.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\mediaqueries.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\mediaqueries.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\mediaqueries.css",
+              "RelativeToolTip": "dev\\assets\\css\\mediaqueries.css",
+              "ViewState": "AgIAAEsAAAAAAAAAAAAAAFYAAABDAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T01:29:56.563Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "nav.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\nav.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\nav.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\nav.css",
+              "RelativeToolTip": "dev\\assets\\css\\nav.css",
+              "ViewState": "AgIAAB4AAAAAAAAAAAAcwCkAAADpAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T01:29:53.657Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "required.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\required.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\required.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\required.css",
+              "RelativeToolTip": "dev\\assets\\css\\required.css",
+              "ViewState": "AgIAAJUAAAAAAAAAAAAqwKcAAADXAQAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T01:29:50.475Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 29,
+              "Title": "root.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\root.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\root.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\root.css",
+              "RelativeToolTip": "dev\\assets\\css\\root.css",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T01:29:47.817Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "sections.css",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\sections.css",
+              "RelativeDocumentMoniker": "dev\\assets\\css\\sections.css",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\css\\sections.css",
+              "RelativeToolTip": "dev\\assets\\css\\sections.css",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAJsAAAAbAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2026-02-26T01:29:44.579Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 25,
+              "Title": "head-verifications.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\head-verifications.html",
+              "RelativeDocumentMoniker": "dev\\partials\\head-verifications.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\head-verifications.html",
+              "RelativeToolTip": "dev\\partials\\head-verifications.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-25T19:25:09.396Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 26,
+              "Title": "head-base.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\head-base.html",
+              "RelativeDocumentMoniker": "dev\\partials\\head-base.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\head-base.html",
+              "RelativeToolTip": "dev\\partials\\head-base.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-25T19:25:03.319Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 31,
+              "Title": "xswiper.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\xswiper.js",
+              "RelativeDocumentMoniker": "dev\\assets\\js\\xswiper.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\assets\\js\\xswiper.js",
+              "RelativeToolTip": "dev\\assets\\js\\xswiper.js",
+              "ViewState": "AgIAAMYCAAAAAAAAAAAmwNwCAAA3AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-24T22:32:13.989Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "schema.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\schema.js",
+              "RelativeDocumentMoniker": "seo\\schema.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\schema.js",
+              "RelativeToolTip": "seo\\schema.js",
+              "ViewState": "AgIAADkAAAAAAAAAAAAmwFUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-18T12:35:02.995Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "footer.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\footer.html",
+              "RelativeDocumentMoniker": "dev\\partials\\footer.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\partials\\footer.html",
+              "RelativeToolTip": "dev\\partials\\footer.html",
+              "ViewState": "AgIAAEoAAAAAAAAAAAAAAE0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T12:23:54.445Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "pages.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\pages.js",
+              "RelativeDocumentMoniker": "seo\\pages.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\pages.js",
+              "RelativeToolTip": "seo\\pages.js",
+              "ViewState": "AgIAADoAAAAAAAAAAAAmwFYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-18T12:21:39.988Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "site.js",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\site.js",
+              "RelativeDocumentMoniker": "seo\\site.js",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\seo\\site.js",
+              "RelativeToolTip": "seo\\site.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2026-02-18T12:21:09.907Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "404.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\404.html",
+              "RelativeDocumentMoniker": "dev\\pages\\404.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\404.html",
+              "RelativeToolTip": "dev\\pages\\404.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAADUAAAAlAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T12:06:46.999Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "military-aviation.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\military-aviation.html",
+              "RelativeDocumentMoniker": "dev\\pages\\military-aviation.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\military-aviation.html",
+              "RelativeToolTip": "dev\\pages\\military-aviation.html",
+              "ViewState": "AgIAADQAAAAAAAAAAAAAAEsAAAAXAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T12:06:30.905Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "licensing.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\licensing.html",
+              "RelativeDocumentMoniker": "dev\\pages\\licensing.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\licensing.html",
+              "RelativeToolTip": "dev\\pages\\licensing.html",
+              "ViewState": "AgIAACcAAAAAAAAAAAAAADoAAAAUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T12:06:21.162Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "contact.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\contact.html",
+              "RelativeDocumentMoniker": "dev\\pages\\contact.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\contact.html",
+              "RelativeToolTip": "dev\\pages\\contact.html",
+              "ViewState": "AgIAAC0AAAAAAAAAAAAAANcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T11:59:41.038Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "airshows.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\airshows.html",
+              "RelativeDocumentMoniker": "dev\\pages\\airshows.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\airshows.html",
+              "RelativeToolTip": "dev\\pages\\airshows.html",
+              "ViewState": "AgIAAFEAAAAAAAAAAAAAAGMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T11:59:34.76Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "about.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\about.html",
+              "RelativeDocumentMoniker": "dev\\pages\\about.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\about.html",
+              "RelativeToolTip": "dev\\pages\\about.html",
+              "ViewState": "AgIAAIkBAAAAAAAAAAAAAJsBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T11:59:22.812Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "index.html",
+              "DocumentMoniker": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\index.html",
+              "RelativeDocumentMoniker": "dev\\pages\\index.html",
+              "ToolTip": "D:\\Dropbox\\aerocism\\Code\\aerocism\\dev\\pages\\index.html",
+              "RelativeToolTip": "dev\\pages\\index.html",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAADIAAAAfAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
+              "WhenOpened": "2026-02-18T11:43:35.356Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

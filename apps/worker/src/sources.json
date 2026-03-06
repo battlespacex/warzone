@@ -1,0 +1,10 @@
+{
+  "feeds": [
+    {
+      "name": "Warzone Seed",
+      "type": "manual-json",
+      "url": "https://battlespacex.com/warzone/assets/others/events.json",
+      "category": "strike"
+    }
+  ]
+}
