@@ -2,7 +2,9 @@
   "feeds": [
     {
       "name": "Warzone Seed",
+      "enabled": true,
       "type": "manual-json",
+      "parser": "events-array",
       "url": "${SEED_FEED_URL}",
       "category": "strike"
     }
