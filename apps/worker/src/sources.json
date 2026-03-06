@@ -7,6 +7,14 @@
       "parser": "events-array",
       "url": "${SEED_FEED_URL}",
       "category": "strike"
+    },
+    {
+      "name": "ACLED Conflict Feed",
+      "enabled": false,
+      "type": "acled-api",
+      "parser": "acled",
+      "url": "https://api.acleddata.com/acled/read",
+      "category": "conflict"
     }
   ]
 }
