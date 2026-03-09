@@ -1,4 +1,5 @@
-﻿{
+﻿//assets/others/events.json
+{
   "events": [
     {
       "id": "evt-001",

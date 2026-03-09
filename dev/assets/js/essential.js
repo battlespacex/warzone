@@ -1,4 +1,5 @@
-﻿import { initSmoothHomeAnchors } from "./home-anchors.js";
+﻿// assets/js/essential.js
+import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase } from "./supabase.js";
 
 let __eventsCache = [];

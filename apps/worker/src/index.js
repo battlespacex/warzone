@@ -1,3 +1,5 @@
+// apps/worker/src/index.js
+import "dotenv/config";
 import http from "http";
 import cron from "node-cron";
 import axios from "axios";
@@ -664,15 +666,7 @@ function extractLocationCandidates(text) {
         }
     }
 
-    const titleCaseChunks = normalized.match(/\b[A-Z][a-z]+(?:[\s-][A-Z][a-z]+){0,3}\b/g) || [];
-    for (const chunk of titleCaseChunks) {
-        const cleaned = cleanLocationCandidate(chunk);
-        if (isGoodLocationCandidate(cleaned)) {
-            candidates.push(cleaned);
-        }
-    }
-
-    return [...new Set(candidates)].slice(0, 8);
+    return [...new Set(candidates)].slice(0, 5);
 }
 
 async function geocodeLocation(query) {

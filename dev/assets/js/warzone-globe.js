@@ -1292,6 +1292,7 @@ function animateMissileTrack(viewer, event) {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
+            show: false,
             text: event.origin_label || "Launch",
             font: "bold 14px sans-serif",
             pixelOffset: new Cesium.Cartesian2(0, -34),
@@ -1315,6 +1316,7 @@ function animateMissileTrack(viewer, event) {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
+            show: false,
             text: event.impact_label || event.location_label || "Impact",
             font: "bold 14px sans-serif",
             pixelOffset: new Cesium.Cartesian2(0, -40),
