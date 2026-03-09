@@ -1,4 +1,3 @@
-// apps/worker/src/sources.json
 {
   "feeds": [
     {
@@ -40,9 +39,15 @@
       "parser": "telegram",
       "category": "military",
       "channels": [
+        "strikemap",
         "OSINTLive",
+        "wor_mil_news",
         "ClashReport",
-        "ourwarstoday"
+        "mmirlb",
+        "war_translated",
+        "U_S_CENTCOM",
+        "ourwarstoday",
+        "irannotam"
       ],
       "limit": 25,
       "tags": [ "telegram", "osint", "military" ]
