@@ -1,4 +1,5 @@
-﻿import * as Cesium from "cesium";
+﻿// assets/js/warzone-globe.js
+import * as Cesium from "cesium";
 
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {

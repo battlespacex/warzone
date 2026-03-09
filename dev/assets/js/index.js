@@ -3,7 +3,7 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 
 import { initBoot, initWarzoneApp } from "./essential.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
-import { subscribeToLiveEvents } from "./warzone-realtime.js";
+import { subscribeToLiveEvents, subscribeToActiveAlerts } from "./warzone-realtime.js";
 import { bindWarzoneUi } from "./warzone-ui.js";
 
 initBoot();
@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         await initWarzoneApp();
         await subscribeToLiveEvents();
+        await subscribeToActiveAlerts();
     } catch (error) {
         console.error("App init failed:", error);
     }

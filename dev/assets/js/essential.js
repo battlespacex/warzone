@@ -1,4 +1,5 @@
-﻿import { initSmoothHomeAnchors } from "./home-anchors.js";
+﻿// assets/js/essential.js
+import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase } from "./supabase.js";
 
 let __eventsCache = [];
@@ -264,8 +265,28 @@ function renderAirspaceStatus(events) {
 function renderEscalation(events) {
     const critical = events.filter((e) => e.severity === "critical").length;
     const high = events.filter((e) => e.severity === "high").length;
-    const score = Math.min(100, critical * 8 + high * 4 + Math.floor(events.length / 4));
-    const label = score >= 80 ? "Critical" : score >= 55 ? "High" : score >= 30 ? "Elevated" : "Moderate";
+    const alerts = events.filter((e) => e.category === "alert").length;
+    const strikes = events.filter((e) => e.category === "strike").length;
+    const military = events.filter((e) => e.category === "military").length;
+    const recon = events.filter((e) => e.category === "recon").length;
+    const closedAirspace = events.filter((e) => e.airspace_status === "closed").length;
+
+    const rawScore =
+        critical * 12 +
+        high * 6 +
+        alerts * 5 +
+        strikes * 4 +
+        military * 3 +
+        recon * 2 +
+        closedAirspace * 8;
+
+    const score = Math.min(200, rawScore);
+
+    let label = "Moderate";
+    if (score >= 160) label = "Extreme";
+    else if (score >= 120) label = "Critical";
+    else if (score >= 80) label = "High";
+    else if (score >= 45) label = "Elevated";
 
     setText("escalation-score", score);
     setText("escalation-label", label);
@@ -276,6 +297,8 @@ function renderEscalation(events) {
     list.innerHTML = `
         <li>${critical} critical incidents</li>
         <li>${high} high severity incidents</li>
+        <li>${alerts} active alerts / sirens</li>
+        <li>${closedAirspace} airspace closures</li>
         <li>${events.length} total incidents in window</li>
     `;
 }
@@ -546,12 +569,21 @@ export function handleIncomingEvent(event) {
     window.__warzoneViewer?.__warzone?.addEvent?.(normalized);
     window.__warzoneViewer?.__warzone?.highlightAlertRegion?.(normalized);
 
-    triggerWarzoneAlert({
-        title: normalized.title,
-        location: normalized.location_label,
-        level: normalized.severity === "critical" ? "critical" : "high",
-        playSound: false,
-    });
+    const isSirenLike =
+        normalized.category === "alert" ||
+        String(normalized.weapon_type || "").toLowerCase().includes("siren") ||
+        String(normalized.title || "").toLowerCase().includes("siren") ||
+        String(normalized.title || "").toLowerCase().includes("air raid") ||
+        String(normalized.title || "").toLowerCase().includes("red alert");
+
+    if (!isSirenLike) {
+        triggerWarzoneAlert({
+            title: normalized.title,
+            location: normalized.location_label,
+            level: normalized.severity === "critical" ? "critical" : "high",
+            playSound: false,
+        });
+    }
 }
 
 function initFloatingPanels() {

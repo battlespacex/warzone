@@ -51,6 +51,30 @@
       ],
       "limit": 25,
       "tags": [ "telegram", "osint", "military" ]
+    },
+    {
+      "name": "Airspace Status Feed",
+      "enabled": true,
+      "type": "airspace",
+      "parser": "airspace",
+      "url": "YOUR_AIRSPACE_SOURCE_URL",
+      "category": "airspace"
+    },
+    {
+      "name": "Cyber Status Feed",
+      "enabled": true,
+      "type": "cyber",
+      "parser": "cyber",
+      "url": "YOUR_CYBER_SOURCE_URL",
+      "category": "cyber"
+    },
+    {
+      "name": "Curated Warzone Feed",
+      "enabled": true,
+      "type": "manual-json",
+      "parser": "events-array",
+      "url": "https://warzone.battlespacex.com/assets/others/warzone-live-events.json",
+      "category": "strike"
     }
   ]
 }

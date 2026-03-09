@@ -76,7 +76,19 @@ const TELEGRAM_RELEVANT_KEYWORDS = [
     "f-35",
     "b-1",
     "b-2",
-    "b-52"
+    "b-52",
+    "siren",
+    "sirens",
+    "alert",
+    "red alert",
+    "air raid",
+    "air raid alert",
+    "warning",
+    "interception",
+    "intercepted",
+    "air defense",
+    "air-defence",
+    "interceptor"
 ];
 
 const STOP_LOCATION_WORDS = new Set([
@@ -191,6 +203,45 @@ async function insertEvent(event) {
 
     console.log("Event inserted:", event.title);
     return true;
+}
+
+async function upsertActiveAlert(alert) {
+    const { error } = await supabase
+        .from("active_alerts")
+        .upsert(
+            {
+                alert_key: alert.alert_key,
+                category: alert.category,
+                region: alert.region,
+                title: alert.title,
+                summary: alert.summary || "",
+                status: "active",
+                source_name: alert.source_name || "",
+                source_url: alert.source_url || "",
+                updated_at: new Date().toISOString(),
+                expires_at: alert.expires_at || null
+            },
+            { onConflict: "alert_key" }
+        );
+
+    if (error) {
+        console.error("Active alert upsert error:", error.message);
+    }
+}
+
+async function clearExpiredAlerts() {
+    const { error } = await supabase
+        .from("active_alerts")
+        .update({
+            status: "cleared",
+            cleared_at: new Date().toISOString()
+        })
+        .eq("status", "active")
+        .lt("expires_at", new Date().toISOString());
+
+    if (error) {
+        console.error("Active alert cleanup error:", error.message);
+    }
 }
 
 function makeDedupeKey(item, feed) {
@@ -580,7 +631,64 @@ function isRelevantTelegramText(text, feed) {
     const customKeywords = toArray(feed?.keywords).map((x) => String(x).toLowerCase());
     const allKeywords = [...new Set([...TELEGRAM_RELEVANT_KEYWORDS, ...customKeywords])];
 
-    return allKeywords.some((keyword) => lower.includes(keyword));
+    const hasRelevantKeyword = allKeywords.some((keyword) => lower.includes(keyword));
+    if (!hasRelevantKeyword) return false;
+
+    const strongTacticalSignals = [
+        "missile",
+        "ballistic missile",
+        "cruise missile",
+        "rocket",
+        "drone",
+        "uav",
+        "shahed",
+        "airstrike",
+        "air strike",
+        "bombardment",
+        "shelling",
+        "artillery",
+        "sirens",
+        "siren",
+        "air raid",
+        "red alert",
+        "intercepted",
+        "interception",
+        "air defense",
+        "warship",
+        "frigate",
+        "destroyer",
+        "submarine",
+        "fighter jet",
+        "f-18",
+        "f-35",
+        "b-1",
+        "b-2",
+        "b-52"
+    ];
+
+    const isTactical = strongTacticalSignals.some((keyword) => lower.includes(keyword));
+    if (!isTactical) return false;
+
+    const noisePatterns = [
+        "opinion",
+        "analysis",
+        "thread",
+        "podcast",
+        "interview",
+        "editorial",
+        "market",
+        "geopolitics weekly",
+        "subscribe",
+        "follow us",
+        "breaking news:",
+        "live now"
+    ];
+
+    if (noisePatterns.some((pattern) => lower.includes(pattern))) {
+        return false;
+    }
+
+    return true;
 }
 
 function getTelegramChannels(feed) {
@@ -593,7 +701,7 @@ function getTelegramChannels(feed) {
 }
 
 function extractTelegramText(msg) {
-    return normalizeText(msg?.message || msg?.rawText || msg?.text || "");
+    return String(msg?.message || msg?.rawText || msg?.text || "").trim();
 }
 
 function extractCoordinatesFromText(text) {
@@ -873,24 +981,25 @@ async function resolveTelegramLocation(text) {
 }
 
 async function normalizeTelegramEvent(msg, feed, channelKey) {
-    const text = extractTelegramText(msg);
-    if (!text) return null;
-    if (!isRelevantTelegramText(text, feed)) return null;
+    const rawText = extractTelegramText(msg);
+    if (!rawText) return null;
+    if (!isRelevantTelegramText(rawText, feed)) return null;
 
-    const location = await resolveTelegramLocation(text);
+    const location = await resolveTelegramLocation(rawText);
     if (!location) return null;
 
-    const category = detectTelegramCategory(text);
-    const severity = detectTelegramSeverity(text);
-    const weaponType = detectTelegramWeaponType(text);
-    const targetType = detectTelegramTargetType(text);
+    const normalizedText = normalizeText(rawText);
+    const category = detectTelegramCategory(rawText);
+    const severity = detectTelegramSeverity(rawText);
+    const weaponType = detectTelegramWeaponType(rawText);
+    const targetType = detectTelegramTargetType(rawText);
     const impactType = detectTelegramImpactType(targetType);
-    const actorSide = detectTelegramActorSide(text);
-    const confidence = detectTelegramConfidence(text);
+    const actorSide = detectTelegramActorSide(rawText);
+    const confidence = detectTelegramConfidence(rawText);
 
-    const firstLine = text.split("\n").map((line) => line.trim()).find(Boolean) || text;
+    const firstLine = rawText.split("\n").map((line) => line.trim()).find(Boolean) || normalizedText;
     const title = firstLine.slice(0, 160) || "Telegram OSINT event";
-    const summary = text.slice(0, 1500);
+    const summary = normalizedText.slice(0, 1500);
 
     return {
         category,
@@ -911,7 +1020,7 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         report_type: "osint",
         severity,
         country_code: "",
-        tags: extractTelegramTags(text, channelKey, toArray(feed.tags)),
+        tags: extractTelegramTags(rawText, channelKey, toArray(feed.tags)),
         airspace_status: "unknown",
         cyber_status: "unknown",
         fir_code: "",
@@ -964,6 +1073,36 @@ async function processTelegramFeed(feed) {
                 try {
                     const event = await normalizeTelegramEvent(msg, feed, channelKey);
 
+                    if (!event) {
+                        console.log("Skipped message: normalize returned null", channelKey, msg.id);
+                        continue;
+                    }
+
+                    if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) {
+                        console.log("Skipped message: invalid coordinates", channelKey, msg.id);
+                        continue;
+                    }
+
+                    const exists = await eventExists(event.dedupe_key);
+                    if (exists) {
+                        console.log("Skipped duplicate:", channelKey, msg.id, event.title);
+                        continue;
+                    }
+
+                    const similarExists = await similarEventExists(event);
+                    if (similarExists) {
+                        console.log("Skipped similar event:", channelKey, msg.id, event.title);
+                        continue;
+                    }
+
+                    const inserted = await insertEvent(event);
+                    if (!inserted) {
+                        console.log("Insert failed:", channelKey, msg.id, event.title);
+                        continue;
+                    }
+
+                    console.log("Telegram event accepted:", channelKey, msg.id, event.title, event.location_label);
+
                     if (!event) continue;
                     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) continue;
 
@@ -973,7 +1112,21 @@ async function processTelegramFeed(feed) {
                     const similarExists = await similarEventExists(event);
                     if (similarExists) continue;
 
-                    await insertEvent(event);
+                    const inserted = await insertEvent(event);
+                    if (!inserted) continue;
+
+                    if (event.category === "alert") {
+                        await upsertActiveAlert({
+                            alert_key: `siren:${sanitizeTag(event.location_label || "unknown")}`,
+                            category: "alert",
+                            region: event.location_label || "Unknown region",
+                            title: event.title,
+                            summary: event.summary,
+                            source_name: event.source_name,
+                            source_url: event.source_url,
+                            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+                        });
+                    }
                 } catch (error) {
                     console.error("Telegram message parse error:", channelKey, msg.id, error.message);
                 }
@@ -1119,12 +1272,18 @@ async function runWorker() {
                 console.error("Feed error:", feed.name, err.message);
             }
         }
+
+        try {
+            await clearExpiredAlerts();
+        } catch (err) {
+            console.error("Alert cleanup error:", err.message);
+        }
     } finally {
         isWorkerRunning = false;
     }
 }
 
-cron.schedule("*/5 * * * *", () => {
+cron.schedule("* * * * *", () => {
     runWorker();
 });
 

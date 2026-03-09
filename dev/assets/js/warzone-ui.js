@@ -1,4 +1,5 @@
-﻿export function bindWarzoneUi() {
+﻿// assets/js/warzone-ui.js
+export function bindWarzoneUi() {
     bindTopViews();
     bindMilitaryViews();
     bindAlertDismiss();
@@ -55,6 +56,8 @@ function bindAlertDismiss() {
     if (!closeBtn || !alert) return;
 
     closeBtn.addEventListener("click", () => {
+        const isSticky = alert.dataset.sticky === "true";
+        if (isSticky) return;
         alert.classList.remove("is-active");
     });
 }
