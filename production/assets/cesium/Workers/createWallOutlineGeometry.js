@@ -1,0 +1,25 @@
+/**
+ * @license
+ * Cesium - https://github.com/CesiumGS/cesium
+ * Version 1.139.1
+ *
+ * Copyright 2011-2022 Cesium Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Columbus View (Pat. Pend.)
+ *
+ * Portions licensed separately.
+ * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
+ */
+import{a as z}from"./chunk-2RBHF2AB.js";import"./chunk-ZSYYF6UE.js";import"./chunk-M43OJTIT.js";import"./chunk-QWRZXNH3.js";import"./chunk-B4VO3QSH.js";import"./chunk-5U3HZZCI.js";import"./chunk-QITOM3FA.js";import{a as W}from"./chunk-74XTGJKF.js";import{a as N}from"./chunk-EJPD5BNO.js";import{b as R,c as S,d as M}from"./chunk-AD7XFG6M.js";import{c as D}from"./chunk-WQ5ZC6ME.js";import"./chunk-XVAXSA53.js";import"./chunk-V6RJRUKY.js";import"./chunk-R6PWD5CA.js";import{a as q}from"./chunk-BDF6MEVU.js";import"./chunk-XB2TPQAQ.js";import"./chunk-OEIACSKL.js";import{c as l}from"./chunk-F2ZMVLJV.js";import{a as p,c as O}from"./chunk-VGILZD7B.js";import{a as b}from"./chunk-RXYBLNW3.js";import{a as H}from"./chunk-TXOEXY5C.js";import{e as m}from"./chunk-VIMSDF2W.js";var B=new p,U=new p;function _(i){let t=(i=i??O.EMPTY_OBJECT).positions,e=i.maximumHeights,o=i.minimumHeights;if(!m(t))throw new H("options.positions is required.");if(m(e)&&e.length!==t.length)throw new H("options.positions and options.maximumHeights must have the same length.");if(m(o)&&o.length!==t.length)throw new H("options.positions and options.minimumHeights must have the same length.");let n=i.granularity??b.RADIANS_PER_DEGREE,r=i.ellipsoid??l.default;this._positions=t,this._minimumHeights=o,this._maximumHeights=e,this._granularity=n,this._ellipsoid=l.clone(r),this._workerName="createWallOutlineGeometry";let s=1+t.length*p.packedLength+2;m(o)&&(s+=o.length),m(e)&&(s+=e.length),this.packedLength=s+l.packedLength+1}_.pack=function(i,t,e){if(!m(i))throw new H("value is required");if(!m(t))throw new H("array is required");e=e??0;let o,n=i._positions,r=n.length;for(t[e++]=r,o=0;o<r;++o,e+=p.packedLength)p.pack(n[o],t,e);let s=i._minimumHeights;if(r=m(s)?s.length:0,t[e++]=r,m(s))for(o=0;o<r;++o)t[e++]=s[o];let a=i._maximumHeights;if(r=m(a)?a.length:0,t[e++]=r,m(a))for(o=0;o<r;++o)t[e++]=a[o];return l.pack(i._ellipsoid,t,e),t[e+=l.packedLength]=i._granularity,t};var G=l.clone(l.UNIT_SPHERE),L={positions:void 0,minimumHeights:void 0,maximumHeights:void 0,ellipsoid:G,granularity:void 0};_.unpack=function(i,t,e){if(!m(i))throw new H("array is required");t=t??0;let o,n,r,s=i[t++],a=new Array(s);for(o=0;o<s;++o,t+=p.packedLength)a[o]=p.unpack(i,t);if(s=i[t++],s>0)for(n=new Array(s),o=0;o<s;++o)n[o]=i[t++];if(s=i[t++],s>0)for(r=new Array(s),o=0;o<s;++o)r[o]=i[t++];let h=l.unpack(i,t,G),u=i[t+=l.packedLength];return m(e)?(e._positions=a,e._minimumHeights=n,e._maximumHeights=r,e._ellipsoid=l.clone(h,e._ellipsoid),e._granularity=u,e):(L.positions=a,L.minimumHeights=n,L.maximumHeights=r,L.granularity=u,new _(L))},_.fromConstantHeights=function(i){let t=(i=i??O.EMPTY_OBJECT).positions;if(!m(t))throw new H("options.positions is required.");let e,o,n=i.minimumHeight,r=i.maximumHeight,s=m(n),a=m(r);if(s||a){let i=t.length;e=s?new Array(i):void 0,o=a?new Array(i):void 0;for(let t=0;t<i;++t)s&&(e[t]=n),a&&(o[t]=r)}return new _({positions:t,maximumHeights:o,minimumHeights:e,ellipsoid:i.ellipsoid})},_.createGeometry=function(i){let t=i._positions,e=i._minimumHeights,o=i._maximumHeights,n=i._granularity,r=i._ellipsoid,s=z.computePositions(r,t,o,e,n,!1);if(!m(s))return;let a,l=s.bottomPositions,h=s.topPositions,u=h.length,c=2*u,g=new Float64Array(c),f=0;for(u/=3,a=0;a<u;++a){let i=3*a,t=p.fromArray(h,i,B),e=p.fromArray(l,i,U);g[f++]=e.x,g[f++]=e.y,g[f++]=e.z,g[f++]=t.x,g[f++]=t.y,g[f++]=t.z}let d=new N({position:new M({componentDatatype:q.DOUBLE,componentsPerAttribute:3,values:g})}),k=c/3;c=2*k-4+k;let _=W.createTypedArray(k,c),H=0;for(a=0;a<k-2;a+=2){let i=a,t=a+2,e=p.fromArray(g,3*i,B),o=p.fromArray(g,3*t,U);if(p.equalsEpsilon(e,o,b.EPSILON10))continue;let n=a+1,r=a+3;_[H++]=n,_[H++]=i,_[H++]=n,_[H++]=r,_[H++]=i,_[H++]=t}return _[H++]=k-2,_[H++]=k-1,new S({attributes:d,indices:_,primitiveType:R.LINES,boundingSphere:new D.fromVertices(g)})};var C=_;function J(i,t){return m(t)&&(i=C.unpack(i,t)),i._ellipsoid=l.clone(i._ellipsoid),C.createGeometry(i)}var pi=J;export{pi as default};

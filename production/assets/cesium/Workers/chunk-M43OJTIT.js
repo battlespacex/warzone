@@ -1,0 +1,25 @@
+/**
+ * @license
+ * Cesium - https://github.com/CesiumGS/cesium
+ * Version 1.139.1
+ *
+ * Copyright 2011-2022 Cesium Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Columbus View (Pat. Pend.)
+ *
+ * Portions licensed separately.
+ * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
+ */
+import{a as P,c as B}from"./chunk-F2ZMVLJV.js";import{a as y}from"./chunk-VGILZD7B.js";import{a as L}from"./chunk-RXYBLNW3.js";import{b as q}from"./chunk-TXOEXY5C.js";import{e as T}from"./chunk-VIMSDF2W.js";function X(t){let a=t._uSquared,i=t._ellipsoid.maximumRadius,n=t._ellipsoid.minimumRadius,e=(i-n)/i,s=Math.cos(t._startHeading),h=Math.sin(t._startHeading),r=(1-e)*Math.tan(t._start.latitude),o=1/Math.sqrt(1+r*r),d=o*r,u=Math.atan2(r,s),c=o*h,l=c*c,M=1-l,_=Math.sqrt(M),g=a/4,f=g*g,p=f*g,m=f*f,q=1+g-3*f/4+5*p/4-175*m/64,v=1-g+15*f/8-35*p/8,H=1-3*g+35*f/4,O=1-5*g,y=q*u-v*Math.sin(2*u)*g/2-H*Math.sin(4*u)*f/16-O*Math.sin(6*u)*p/48-5*Math.sin(8*u)*m/512,P=t._constants;P.a=i,P.b=n,P.f=e,P.cosineHeading=s,P.sineHeading=h,P.tanU=r,P.cosineU=o,P.sineU=d,P.sigma=u,P.sineAlpha=c,P.sineSquaredAlpha=l,P.cosineSquaredAlpha=M,P.cosineAlpha=_,P.u2Over4=g,P.u4Over16=f,P.u6Over64=p,P.u8Over256=m,P.a0=q,P.a1=v,P.a2=H,P.a3=O,P.distanceRatio=y}function Y(t,a){return t*a*(4+t*(4-3*a))/16}function k(t,a,i,n,e,s,h){let r=Y(t,i);return(1-r)*t*a*(n+r*e*(h+r*s*(2*h*h-1)))}function Z(t,a,i,n,e,s,h){let r,o,d,u,c,l=(a-i)/a,M=s-n,_=Math.atan((1-l)*Math.tan(e)),g=Math.atan((1-l)*Math.tan(h)),f=Math.cos(_),p=Math.sin(_),m=Math.cos(g),q=Math.sin(g),v=f*m,H=f*q,O=p*q,y=p*m,P=M,E=L.TWO_PI,S=Math.cos(P),b=Math.sin(P);do{S=Math.cos(P),b=Math.sin(P);let t,a=H-y*S;d=Math.sqrt(m*m*b*b+a*a),o=O+v*S,r=Math.atan2(d,o),0===d?(t=0,u=1):(t=v*b/d,u=1-t*t),E=P,c=o-2*O/u,isFinite(c)||(c=0),P=M+k(l,t,u,r,d,o,c)}while(Math.abs(P-E)>L.EPSILON12);let T=u*(a*a-i*i)/(i*i),U=T*(256+T*(T*(74-47*T)-128))/1024,w=c*c,x=i*(1+T*(4096+T*(T*(320-175*T)-768))/16384)*(r-U*d*(c+U*(o*(2*w-1)-U*c*(4*d*d-3)*(4*w-3)/6)/4)),A=Math.atan2(m*b,H-y*S),R=Math.atan2(f*b,H*S-y);t._distance=x,t._startHeading=A,t._endHeading=R,t._uSquared=T}var $=new y,x=new y;function N(t,a,i,n){let e=y.normalize(n.cartographicToCartesian(a,x),$),s=y.normalize(n.cartographicToCartesian(i,x),x);q.typeOf.number.greaterThanOrEquals("value",Math.abs(Math.abs(y.angleBetween(e,s))-Math.PI),.0125),Z(t,n.maximumRadius,n.minimumRadius,a.longitude,a.latitude,i.longitude,i.latitude),t._start=P.clone(a,t._start),t._end=P.clone(i,t._end),t._start.height=0,t._end.height=0,X(t)}function E(t,a,i){let n=i??B.default;this._ellipsoid=n,this._start=new P,this._end=new P,this._constants={},this._startHeading=void 0,this._endHeading=void 0,this._distance=void 0,this._uSquared=void 0,T(t)&&T(a)&&N(this,t,a,n)}Object.defineProperties(E.prototype,{ellipsoid:{get:function(){return this._ellipsoid}},surfaceDistance:{get:function(){return q.defined("distance",this._distance),this._distance}},start:{get:function(){return this._start}},end:{get:function(){return this._end}},startHeading:{get:function(){return q.defined("distance",this._distance),this._startHeading}},endHeading:{get:function(){return q.defined("distance",this._distance),this._endHeading}}}),E.prototype.setEndPoints=function(t,a){q.defined("start",t),q.defined("end",a),N(this,t,a,this._ellipsoid)},E.prototype.interpolateUsingFraction=function(t,a){return this.interpolateUsingSurfaceDistance(this._distance*t,a)},E.prototype.interpolateUsingSurfaceDistance=function(t,a){q.defined("distance",this._distance);let i=this._constants,n=i.distanceRatio+t/i.b,e=Math.cos(2*n),s=Math.cos(4*n),h=Math.cos(6*n),r=Math.sin(2*n),o=Math.sin(4*n),d=Math.sin(6*n),u=Math.sin(8*n),c=n*n,l=n*c,M=i.u8Over256,_=i.u2Over4,g=i.u6Over64,f=i.u4Over16,p=2*l*M*e/3+n*(1-_+7*f/4-15*g/4+579*M/64-(f-15*g/4+187*M/16)*e-(5*g/4-115*M/16)*s-29*M*h/16)+(_/2-f+71*g/32-85*M/16)*r+(5*f/16-5*g/4+383*M/96)*o-c*((g-11*M/2)*r+5*M*o/2)+(29*g/96-29*M/16)*d+539*M*u/1536,m=Math.asin(Math.sin(p)*i.cosineAlpha),v=Math.atan(i.a/i.b*Math.tan(m));p-=i.sigma;let H=Math.cos(2*i.sigma+p),O=Math.sin(p),y=Math.cos(p),E=i.cosineU*y,S=i.sineU*O,b=Math.atan2(O*i.sineHeading,E-S*i.cosineHeading)-k(i.f,i.sineAlpha,i.cosineSquaredAlpha,p,O,y,H);return T(a)?(a.longitude=this._start.longitude+b,a.latitude=v,a.height=0,a):new P(this._start.longitude+b,v,0)};var et=E;export{et as a};
