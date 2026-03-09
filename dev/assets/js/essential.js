@@ -1,5 +1,4 @@
-﻿// assets/js/essential.js
-import { initSmoothHomeAnchors } from "./home-anchors.js";
+﻿import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase } from "./supabase.js";
 
 let __eventsCache = [];
@@ -108,16 +107,23 @@ function formatTime(value) {
 }
 
 function normalizeEvent(event) {
+    const lat = Number(event.lat);
+    const lon = Number(event.lon);
+    const impactLat = Number(event.impact_lat ?? event.lat);
+    const impactLon = Number(event.impact_lon ?? event.lon);
+    const originLat = Number(event.origin_lat);
+    const originLon = Number(event.origin_lon);
+
     return {
         ...event,
         category: event.category || "strike",
-        lat: Number(event.lat),
-        lon: Number(event.lon),
-        impact_lat: Number(event.impact_lat ?? event.lat),
-        impact_lon: Number(event.impact_lon ?? event.lon),
+        lat,
+        lon,
+        impact_lat: impactLat,
+        impact_lon: impactLon,
         impact_label: event.impact_label || event.location_label || "",
-        origin_lat: Number(event.origin_lat),
-        origin_lon: Number(event.origin_lon),
+        origin_lat: Number.isFinite(originLat) ? originLat : null,
+        origin_lon: Number.isFinite(originLon) ? originLon : null,
         origin_label: event.origin_label || "",
         confidence: Number(event.confidence ?? 0),
         actor_side: event.actor_side || "unknown",
@@ -281,10 +287,9 @@ function renderSummary(events) {
 
     const iran = events.filter((e) => e.actor_side === "iran").length;
     const usisr = events.filter((e) => e.actor_side === "us_israel").length;
-    const closedAirspace = events.filter((e) => e.airspace_status === "closed").length;
     const topWeapons = countBy(events, "weapon_type").slice(0, 3).map(([k]) => k).join(", ");
 
-    p.textContent = `Over the current reporting window, the event stream indicates an elevated and highly fluid regional conflict picture. Iranian-attributed events total ${iran}, while US/Israel-attributed events total ${usisr}. A number of reports indicate airspace disruption and active strike clustering across the Gulf and Levant. Most frequently observed weapon categories in the current stream are ${topWeapons || "unknown systems"}. This summary is automatically derived from your current event dataset and should be treated as an OSINT-style operational overview rather than a verified intelligence product.`;
+    p.textContent = `Over the current reporting window, the event stream indicates an elevated and highly fluid regional conflict picture. Iranian-attributed events total ${iran}, while US/Israel-attributed events total ${usisr}. Most frequently observed weapon categories in the current stream are ${topWeapons || "unknown systems"}. This summary is automatically derived from your current event dataset and should be treated as an OSINT-style operational overview rather than a verified intelligence product.`;
 
     meta.textContent = `Generated: ${new Date().toLocaleString()} | Incidents analyzed: ${events.length} | Coverage: live rolling dataset`;
 }
@@ -505,14 +510,6 @@ function syncInitialEventsToGlobe(events) {
 
     events.forEach((event) => {
         globe.addEvent?.(event);
-
-        if (
-            event.category === "strike" &&
-            Number.isFinite(Number(event.origin_lat)) &&
-            Number.isFinite(Number(event.origin_lon))
-        ) {
-            globe.animateMissileTrack?.(event);
-        }
     });
 }
 
@@ -548,16 +545,6 @@ export function handleIncomingEvent(event) {
 
     window.__warzoneViewer?.__warzone?.addEvent?.(normalized);
     window.__warzoneViewer?.__warzone?.highlightAlertRegion?.(normalized);
-
-    if (
-        normalized.category === "strike" &&
-        Number.isFinite(normalized.origin_lat) &&
-        Number.isFinite(normalized.origin_lon) &&
-        Number.isFinite(normalized.impact_lat) &&
-        Number.isFinite(normalized.impact_lon)
-    ) {
-        window.__warzoneViewer?.__warzone?.animateMissileTrack(normalized);
-    }
 
     triggerWarzoneAlert({
         title: normalized.title,
