@@ -60,37 +60,23 @@ const TELEGRAM_RELEVANT_KEYWORDS = [
     "loitering munition",
     "airstrike",
     "air strike",
-    "strike",
     "bombardment",
-    "siren",
-    "sirens",
-    "air raid",
-    "red alert",
-    "interception",
-    "intercepted",
-    "interceptor",
-    "air defense",
-    "air defence",
-    "anti-air",
-    "naval",
+    "artillery",
+    "shelling",
+    "barrage",
+    "naval strike",
     "warship",
     "frigate",
     "destroyer",
     "submarine",
     "carrier",
     "fleet",
-    "sortie",
     "fighter jet",
-    "fighter",
-    "military alert",
-    "military activity",
-    "explosion",
-    "explosions",
-    "blast",
-    "artillery",
-    "shelling",
-    "barrage",
-    "raid"
+    "f-18",
+    "f-35",
+    "b-1",
+    "b-2",
+    "b-52"
 ];
 
 const STOP_LOCATION_WORDS = new Set([
@@ -649,10 +635,9 @@ function extractLocationCandidates(text) {
     const normalized = String(text || "").replace(/\n/g, " ");
 
     const patterns = [
-        /\b(?:in|near|over|around|at|off|outside)\s+([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,4}(?:,\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3})?)/g,
-        /\b(?:north of|south of|east of|west of)\s+([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,4}(?:,\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3})?)/g,
-        /\b([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3},\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3})\b/g,
-        /#([A-Z][A-Za-z0-9_-]{2,})/g
+        /\b(?:in|near|over|around|at)\s+([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3}(?:,\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2})?)/g,
+        /\b(?:north of|south of|east of|west of)\s+([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3}(?:,\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2})?)/g,
+        /\b([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2},\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2})\b/g
     ];
 
     for (const pattern of patterns) {
@@ -660,13 +645,16 @@ function extractLocationCandidates(text) {
         while ((match = pattern.exec(normalized)) !== null) {
             const raw = match[1];
             const cleaned = cleanLocationCandidate(raw);
-            if (isGoodLocationCandidate(cleaned)) {
-                candidates.push(cleaned.replace(/_/g, " "));
-            }
+
+            if (!isGoodLocationCandidate(cleaned)) continue;
+            if (cleaned.length > 40) continue;
+            if (/\b(road|street|avenue|county|council|partnership|brigade|command|division|battalion|launcher|facility|damage)\b/i.test(cleaned)) continue;
+
+            candidates.push(cleaned);
         }
     }
 
-    return [...new Set(candidates)].slice(0, 5);
+    return [...new Set(candidates)].slice(0, 3);
 }
 
 async function geocodeLocation(query) {
@@ -860,6 +848,7 @@ function extractTelegramTags(text, channelKey, extraTags = []) {
 async function resolveTelegramLocation(text) {
     const coordinateMatch = extractCoordinatesFromText(text);
     if (coordinateMatch) {
+        if (coordinateMatch.lat < -60 || coordinateMatch.lat > 75) return null;
         return {
             lat: coordinateMatch.lat,
             lon: coordinateMatch.lon,
@@ -868,11 +857,16 @@ async function resolveTelegramLocation(text) {
     }
 
     const candidates = extractLocationCandidates(text);
+
     for (const candidate of candidates) {
         const geocoded = await geocodeLocation(candidate);
-        if (geocoded) {
-            return geocoded;
-        }
+        if (!geocoded) continue;
+
+        if (!Number.isFinite(geocoded.lat) || !Number.isFinite(geocoded.lon)) continue;
+        if (geocoded.lat < -60 || geocoded.lat > 75) continue;
+        if (/atlantic ocean|ocean|sea/i.test(geocoded.label || "")) continue;
+
+        return geocoded;
     }
 
     return null;
