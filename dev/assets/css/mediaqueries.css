@@ -1,16 +1,81 @@
-﻿@media (max-width: 1280px) {
-    .warzone-grid { grid-template-columns: 1fr; }
-    .warzone-map-card { order: 1; }
+﻿/* --- assets/cs/mediaqueries.css --- */
+
+/* #region =========== Large / Tablet =========== */
+@media (max-width: 1280px) {
+    .warzone-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .warzone-map-card {
+        order: 1;
+    }
 }
 
-@media (max-width: 768px) {
-    :root { --sec-width: calc(100% - 2rem); --min-width: calc(100% - 2rem); }
-    .site-header { top: 0.8rem; }
-    .nav { min-height: 6.4rem; padding: 0 1rem; }
-    .nav__menu { gap: 1rem; font-size: 1.1rem; }
-    .hero-banner { margin-top: 8rem; }
-    hero-banner__box { padding: 2rem; }
-    .warzone-map-wrap,
-    .warzone-map { min-height: 48rem; }
-    .feed-list { max-height: none; }
+@media (max-width: 980px) {
+    .warzone-panel--stats,
+    .warzone-panel--feed {
+        width: 26rem;
+    }
+
+    .warzone-alert {
+        min-width: calc(100% - 3.2rem);
+    }
 }
+/* #endregion */
+
+/* #region =========== Mobile =========== */
+@media (max-width: 768px) {
+    :root {
+        --sec-width: calc(100% - 2rem);
+        --min-width: calc(100% - 2rem);
+    }
+
+    .site-header {
+        top: 0.8rem;
+    }
+
+    .nav {
+        min-height: 6.4rem;
+        padding: 0 1rem;
+    }
+
+    .nav__menu {
+        gap: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .hero-banner {
+        margin-top: 8rem;
+    }
+
+    .hero-banner__box {
+        padding: 2rem;
+    }
+
+    .warzone-map-wrap,
+    .warzone-map {
+        min-height: 48rem;
+    }
+
+    .warzone-panel--floating {
+        position: absolute;
+        left: 1rem !important;
+        right: 1rem !important;
+        width: auto;
+        max-width: none;
+    }
+
+    .warzone-panel--stats {
+        top: 1rem !important;
+    }
+
+    .warzone-panel--feed {
+        top: auto !important;
+        bottom: 1rem !important;
+    }
+
+    .feed-list {
+        max-height: 28rem;
+    }
+}
+/* #endregion */

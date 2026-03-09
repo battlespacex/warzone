@@ -1,33 +1,27 @@
 ﻿import "../css/style.css";
-import { initBoot } from "./essential.js";
-import { supabase } from "./supabase.js";
+import "cesium/Build/Cesium/Widgets/widgets.css";
+
+import { initBoot, initWarzoneApp } from "./essential.js";
+import { initWarzoneGlobe } from "./warzone-globe.js";
+import { subscribeToLiveEvents } from "./warzone-realtime.js";
+import { bindWarzoneUi } from "./warzone-ui.js";
+import { bindMissileDemoButton } from "./warzone-demo.js";
 
 initBoot();
 
-async function loadEvents() {
-    const { data, error } = await supabase
-        .from("events")
-        .select("*")
-        .order("occurred_at", { ascending: false });
+document.addEventListener("DOMContentLoaded", async () => {
+    try {
 
-    if (error) {
-        console.error("Error loading events:", error);
-        return;
+        bindWarzoneUi();
+        bindMissileDemoButton();
+
+        const viewer = await initWarzoneGlobe();
+        window.__warzoneViewer = viewer;
+
+        await initWarzoneApp();
+        await subscribeToLiveEvents();
+
+    } catch (error) {
+        console.error("App init failed:", error);
     }
-
-    console.log("Events from Supabase:", data);
-}
-
-loadEvents();
-
-supabase
-    .channel("events-live")
-    .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "events" },
-        payload => {
-            console.log("New event:", payload.new);
-            location.reload();
-        }
-    )
-    .subscribe();
+});

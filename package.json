@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
+    "cesium": "^1.139.1",
     "express": "^4.21.2"
   },
   "browserslist": [

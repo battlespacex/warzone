@@ -1,6 +1,7 @@
 ﻿// webpack.config.js
 const fs = require("fs");
 const path = require("path");
+const webpack = require("webpack");
 
 const SITE = require("./seo/site");
 const pageMeta = require("./seo/pages");
@@ -15,8 +16,9 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 module.exports = (env, argv) => {
     const isDev = argv.mode === "development";
 
-    const PROD_DIR = path.resolve(__dirname, "production");
-    const DEV_DIR = path.resolve(__dirname, "dev");
+    const ROOT_DIR = __dirname;
+    const PROD_DIR = path.resolve(ROOT_DIR, "production");
+    const DEV_DIR = path.resolve(ROOT_DIR, "dev");
 
     const pages = Object.keys(pageMeta);
 
@@ -51,10 +53,7 @@ module.exports = (env, argv) => {
         output: {
             path: PROD_DIR,
             filename: isDev ? "assets/js/bundle.js" : "assets/js/bundle.[contenthash:8].js",
-
-            // IMPORTANT: local dev serves from root
             publicPath: "/",
-
             clean: {
                 keep: (assetPath) => {
                     const p = assetPath.replace(/\\/g, "/").toLowerCase();
@@ -62,11 +61,16 @@ module.exports = (env, argv) => {
                     if (p.startsWith("assets/images/")) return true;
                     if (p.startsWith("assets/fonts/")) return true;
                     if (p.startsWith("assets/mp3/")) return true;
+                    if (p.startsWith("assets/audio/")) return true;
                     if (p.startsWith("assets/others/")) return true;
+                    if (p.startsWith("assets/cesium/")) return true;
 
-                    if (p === "assets/aerocism-aud.mp3") return true;
-
-                    if (p === "robots.txt" || p === "sitemap.xml" || p === "web.config" || p === "favicon.ico") {
+                    if (
+                        p === "robots.txt" ||
+                        p === "sitemap.xml" ||
+                        p === "web.config" ||
+                        p === "favicon.ico"
+                    ) {
                         return true;
                     }
 
@@ -84,7 +88,9 @@ module.exports = (env, argv) => {
                     exclude: /node_modules/,
                     use: {
                         loader: "babel-loader",
-                        options: { presets: ["@babel/preset-env"] },
+                        options: {
+                            presets: ["@babel/preset-env"],
+                        },
                     },
                 },
                 {
@@ -104,15 +110,64 @@ module.exports = (env, argv) => {
         },
 
         plugins: [
+            new webpack.DefinePlugin({
+                CESIUM_BASE_URL: JSON.stringify("/assets/cesium"),
+            }),
+
             new MiniCssExtractPlugin({
                 filename: isDev ? "assets/css/style.css" : "assets/css/style.[contenthash:8].css",
+            }),
+
+            new CopyWebpackPlugin({
+                patterns: [
+                    {
+                        from: path.resolve(ROOT_DIR, "node_modules/cesium/Build/Cesium"),
+                        to: path.resolve(PROD_DIR, "assets/cesium"),
+                        noErrorOnMissing: false,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "public"),
+                        to: PROD_DIR,
+                        noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "partials"),
+                        to: path.resolve(PROD_DIR, "partials"),
+                        noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "assets/others"),
+                        to: path.resolve(PROD_DIR, "assets/others"),
+                        noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "assets/audio"),
+                        to: path.resolve(PROD_DIR, "assets/audio"),
+                        noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "assets/images"),
+                        to: path.resolve(PROD_DIR, "assets/images"),
+                        noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "assets/fonts"),
+                        to: path.resolve(PROD_DIR, "assets/fonts"),
+                        noErrorOnMissing: true,
+                        globOptions: {
+                            ignore: ["**/*.css", "**/*.json"],
+                        },
+                    },
+                ],
             }),
 
             ...pages.map((name) => {
                 const m = pageMeta[name] || {};
                 const canonical = joinUrl(SITE.baseUrl, m.path || "/");
 
-                const robots = m.robots || "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
+                const robots =
+                    m.robots ||
+                    "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
 
                 const ogCandidate = m.ogImage || defaultOg;
                 const ogImageAbs = String(ogCandidate).startsWith("http")
@@ -169,30 +224,16 @@ module.exports = (env, argv) => {
                     },
                 });
             }),
-
-            ...(isDev
-                ? []
-                : [
-                    new CopyWebpackPlugin({
-                        patterns: [
-                            { from: path.resolve(DEV_DIR, "public"), to: PROD_DIR, noErrorOnMissing: true },
-                            { from: path.resolve(DEV_DIR, "partials"), to: path.resolve(PROD_DIR, "partials"), noErrorOnMissing: true },
-                            { from: path.resolve(DEV_DIR, "assets/others"), to: path.resolve(PROD_DIR, "assets/others"), noErrorOnMissing: true },
-                            { from: path.resolve(DEV_DIR, "assets/images"), to: path.resolve(PROD_DIR, "assets/images"), noErrorOnMissing: true },
-                            {
-                                from: path.resolve(DEV_DIR, "assets/fonts"),
-                                to: path.resolve(PROD_DIR, "assets/fonts"),
-                                noErrorOnMissing: true,
-                                globOptions: { ignore: ["**/*.css", "**/*.json"] },
-                            },
-                        ],
-                    }),
-                ]),
         ],
 
         optimization: {
             minimize: !isDev,
-            minimizer: [new TerserPlugin({ extractComments: false }), new CssMinimizerPlugin()],
+            minimizer: [
+                new TerserPlugin({
+                    extractComments: false,
+                }),
+                new CssMinimizerPlugin(),
+            ],
         },
 
         ...(isDev
@@ -208,12 +249,31 @@ module.exports = (env, argv) => {
                         app: { name: "chrome" },
                     },
 
-                    client: { overlay: true },
+                    client: {
+                        overlay: true,
+                    },
 
                     static: [
-                        { directory: path.resolve(DEV_DIR, "public"), publicPath: "/", watch: true },
-                        { directory: path.resolve(DEV_DIR, "assets"), publicPath: "/assets", watch: true },
-                        { directory: path.resolve(DEV_DIR, "partials"), publicPath: "/partials", watch: true },
+                        {
+                            directory: path.resolve(DEV_DIR, "public"),
+                            publicPath: "/",
+                            watch: true,
+                        },
+                        {
+                            directory: path.resolve(DEV_DIR, "assets"),
+                            publicPath: "/assets",
+                            watch: true,
+                        },
+                        {
+                            directory: path.resolve(DEV_DIR, "partials"),
+                            publicPath: "/partials",
+                            watch: true,
+                        },
+                        {
+                            directory: path.resolve(PROD_DIR, "assets/cesium"),
+                            publicPath: "/assets/cesium",
+                            watch: false,
+                        },
                     ],
 
                     watchFiles: {
@@ -223,6 +283,7 @@ module.exports = (env, argv) => {
                             path.resolve(DEV_DIR, "assets/css/**/*.css"),
                             path.resolve(DEV_DIR, "assets/js/**/*.js"),
                             path.resolve(DEV_DIR, "assets/images/**/*"),
+                            path.resolve(DEV_DIR, "assets/audio/**/*"),
                             path.resolve(DEV_DIR, "assets/others/**/*"),
                             path.resolve(DEV_DIR, "public/**/*"),
                         ],
@@ -233,7 +294,6 @@ module.exports = (env, argv) => {
                         },
                     },
 
-                    // Clean URLs for your multi-page setup:
                     historyApiFallback: {
                         rewrites: [
                             { from: /^\/$/, to: "/pages/index.html" },
@@ -248,6 +308,8 @@ module.exports = (env, argv) => {
             }
             : {}),
 
-        performance: { hints: false },
+        performance: {
+            hints: false,
+        },
     };
 };

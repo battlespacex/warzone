@@ -1,11 +1,1105 @@
-﻿.hero-banner { width: var(--min-width); margin: 10rem auto 2rem; position: relative; z-index: 2; }
-.hero-banner__box { position: relative; overflow: hidden; border-radius: 1.2rem; border: 1px solid var(--color-panel-line); background: radial-gradient(circle at left center, rgba(255,255,255,0.05), transparent 30%), linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); box-shadow: var(--box-shadow); padding: 3rem; }
-.hero-banner__eyebrow { font-size: 1.2rem; text-transform: uppercase; color: #f9c860; letter-spacing: 0.14em; }
-.hero-banner__title { margin-top: 1rem; font-size: clamp(5rem, 7vw, 10rem); line-height: 0.9; }
-.hero-banner__desc { margin-top: 1.4rem; max-width: 90rem; color: var(--color-text); font-size: 1.6rem; line-height: 1.55; }
-.hero-banner__actions { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2rem; }
-.btn { border: 1px solid transparent; border-radius: 0.8rem; min-height: 4.8rem; padding: 0 1.5rem; text-decoration: none; transition: background-color var(--transition-fast), color var(--transitionfast), transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast); display: inline-flex; align-items: center; justify-content: center; font-size: 1.3rem; line-height: 1; text-transform: uppercase; letter-spacing: 0.08em; }
-.btn--primary { background: var(--color-teal); color: #031110; }
-.btn--secondary { border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: var(--color-white); }
+﻿/* --- assets/css/sections.css --- */
+
+/* #region =========== Hero Banner =========== */
+.hero-banner {
+    position: relative;
+    z-index: 2;
+    width: var(--min-width);
+    margin: 10rem auto 2rem;
+}
+
+.hero-banner__box {
+    position: relative;
+    overflow: hidden;
+    padding: 3rem;
+    border: 0.2rem solid var(--color-panel-line);
+    background: radial-gradient(circle at left center, rgba(255, 255, 255, 0.05), transparent 30%), linear-gradient(135deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+    box-shadow: var(--box-shadow);
+}
+
+.hero-banner__eyebrow {
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    color: #f9c860;
+    letter-spacing: 0.14em;
+}
+
+.hero-banner__title {
+    margin-top: 1rem;
+    font-size: clamp(5rem, 7vw, 10rem);
+    line-height: 0.9;
+}
+
+.hero-banner__desc {
+    margin-top: 1.4rem;
+    max-width: 90rem;
+    color: var(--color-text);
+    font-size: 1.6rem;
+    line-height: 1.55;
+}
+
+.hero-banner__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 4.8rem;
+    padding: 0 1.5rem;
+    border: 0.2rem solid transparent;
+    text-decoration: none;
+    font-size: 1.3rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.btn--primary {
+    background: var(--color-teal);
+    color: #031110;
+}
+
+.btn--secondary {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-white);
+}
+
 .btn:hover,
-.btn:focus-visible { border-color: var(--color-teal); }
+.btn:focus-visible {
+    border-color: var(--color-teal);
+}
+/* #endregion */
+
+/* #region =========== Legacy Live Map Shell =========== */
+.live-map {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 0.2rem solid rgba(120, 160, 255, 0.12);
+    background: #02060d;
+    box-shadow: inset 0 0 6rem rgba(0, 140, 255, 0.08);
+}
+
+.live-map__globe {
+    position: absolute;
+    inset: 0;
+}
+
+.live-map .cesium-widget,
+.live-map canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.live-map .cesium-viewer-bottom {
+    display: none;
+}
+/* #endregion */
+
+/* #region =========== Warzone Shell / App Layout =========== */
+.warzone-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    position: relative;
+    z-index: 2;
+    width: var(--max-width);
+    display: flex;
+}
+
+.warzone-app {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 1.6rem;
+}
+
+.warzone-view {
+    display: none;
+    min-height: 0;
+}
+
+    .warzone-view.is-active {
+        display: block;
+        height: 100%;
+        min-height: 0;
+    }
+/* #endregion */
+
+/* #region =========== Warzone Map Card =========== */
+.warzone-map-card {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(14, 17, 24, 0.82);
+    box-shadow: var(--box-shadow);
+    backdrop-filter: blur(8px);
+}
+
+.warzone-map-card__head {
+    position: relative;
+    z-index: 5;
+}
+
+.warzone-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.toolbar-chip {
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-white);
+    padding: 0.8rem 1.2rem;
+    font-size: 1.2rem;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.warzone-map-wrap {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    overflow: visible;
+    border-top: 0.2rem solid rgba(120, 160, 255, 0.08);
+    background: radial-gradient(circle at center, rgba(10, 20, 32, 0.75) 0%, rgba(2, 5, 11, 1) 100%);
+}
+
+.warzone-globe {
+    position: absolute;
+    inset: 0;
+}
+
+    .warzone-globe .cesium-widget,
+    .warzone-globe canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    .warzone-globe .cesium-viewer-toolbar,
+    .warzone-globe .cesium-viewer-animationContainer,
+    .warzone-globe .cesium-viewer-timelineContainer,
+    .warzone-globe .cesium-viewer-bottom {
+        display: none !important;
+    }
+
+.warzone-map-credits {
+    position: absolute;
+    right: 1.2rem;
+    bottom: 1rem;
+    z-index: 10;
+    max-width: 40%;
+    font-size: 1.1rem;
+    line-height: 1.35;
+    color: rgba(240, 244, 255, 0.75);
+    text-align: right;
+    pointer-events: none;
+}
+
+    .warzone-map-credits a,
+    .warzone-map-credits button,
+    .warzone-map-credits img {
+        pointer-events: auto;
+    }
+
+.warzone-commandbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    padding: 1.2rem 1.4rem;
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(10, 12, 16, 0.92);
+    box-shadow: var(--box-shadow);
+}
+
+.warzone-brand {
+    display: flex;
+    align-items: center;
+    gap: 1.6rem;
+}
+
+    .warzone-brand h1 {
+        font-size: 3.2rem;
+        line-height: 1;
+        letter-spacing: 0.06em;
+    }
+
+        .warzone-brand h1 span {
+            color: #ff4f4f;
+        }
+
+.warzone-brand-actions,
+.warzone-top-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.icon-chip,
+.support-chip,
+.top-tab,
+.toolbar-select,
+.dock-chip {
+    border: 0.2rem solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    min-height: 3.8rem;
+    padding: 0 1.2rem;
+}
+
+.support-chip {
+    background: rgba(255, 215, 0, 0.12);
+    color: #ffd84d;
+}
+
+.top-tab.is-active,
+.toolbar-chip.is-active {
+    background: rgba(25, 216, 179, 0.12);
+    border-color: rgba(25, 216, 179, 0.35);
+    color: #19d8b3;
+}
+
+.warzone-widget .panel-head h2 {
+    font-size: 1.8rem;
+}
+
+.compact-stats {
+    display: grid;
+    gap: 1rem;
+}
+
+.mini-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1rem 1.2rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+    .mini-stat strong {
+        color: #fff;
+        font-size: 2.2rem;
+    }
+
+.status-list {
+    display: grid;
+    gap: 0.8rem;
+    padding: 1rem;
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    border: 0.2rem solid rgba(255, 255, 255, 0.06);
+    padding: 0.9rem 1rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 8rem;
+    padding: 0.4rem 0.8rem;
+    text-transform: uppercase;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+}
+
+.status-pill--closed,
+.status-pill--critical {
+    color: #ff6c6c;
+    border: 0.2rem solid rgba(255, 88, 88, 0.3);
+    background: rgba(255, 88, 88, 0.08);
+}
+
+.status-pill--restricted,
+.status-pill--warning,
+.status-pill--high {
+    color: #ffbe45;
+    border: 0.2rem solid rgba(255, 190, 69, 0.3);
+    background: rgba(255, 190, 69, 0.08);
+}
+
+.status-pill--normal,
+.status-pill--minor,
+.status-pill--low {
+    color: #30d17f;
+    border: 0.2rem solid rgba(48, 209, 127, 0.3);
+    background: rgba(48, 209, 127, 0.08);
+}
+
+.status-pill--unknown,
+.status-pill--medium {
+    color: #8fa3b8;
+    border: 0.2rem solid rgba(143, 163, 184, 0.25);
+    background: rgba(143, 163, 184, 0.06);
+}
+
+.escalation-box {
+    padding: 1.2rem;
+}
+
+.escalation-meter {
+    display: grid;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+    .escalation-meter span {
+        color: #ff4f4f;
+        font-size: 4rem;
+        line-height: 1;
+    }
+
+.escalation-list {
+    margin: 0;
+    padding-left: 1.6rem;
+    color: var(--color-text);
+}
+
+.warzone-bottom-dock {
+    position: absolute;
+    left: 50%;
+    bottom: 2rem;
+    z-index: 22;
+    display: flex;
+    gap: 1rem;
+    transform: translateX(-50%);
+}
+
+.dock-chip.is-live {
+    color: #ff5a4f;
+}
+/* #endregion */
+
+/* #region =========== Intel / Analytics Pages =========== */
+.intel-page {
+    display: grid;
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+.intel-banner,
+.warning-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 5.4rem;
+    border: 0.2rem solid rgba(255, 165, 0, 0.2);
+    background: rgba(255, 165, 0, 0.08);
+    color: #ffb020;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 1.2rem;
+}
+
+.intel-card,
+.analytics-panel {
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(14, 17, 24, 0.82);
+    box-shadow: var(--box-shadow);
+    padding: 1.6rem;
+}
+
+.intel-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+}
+
+    .intel-card__head h2 {
+        font-size: 3rem;
+        line-height: 1;
+    }
+
+.intel-meta {
+    margin-top: 1rem;
+    color: #8fa3b8;
+    font-size: 1.2rem;
+}
+
+.period-tabs {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.period-tab {
+    border: 0.2rem solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    min-height: 3.6rem;
+    padding: 0 1rem;
+}
+
+    .period-tab.is-active {
+        color: #ffcf57;
+        border-color: rgba(255, 207, 87, 0.3);
+        background: rgba(255, 207, 87, 0.08);
+    }
+
+.analytics-grid {
+    display: grid;
+    gap: 1.6rem;
+}
+
+.analytics-grid--top {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.analytics-grid--charts {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.analytics-card {
+    padding: 1.6rem;
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(14, 17, 24, 0.82);
+}
+
+    .analytics-card span {
+        display: block;
+        color: #95a0b2;
+        text-transform: uppercase;
+        font-size: 1.2rem;
+    }
+
+    .analytics-card strong {
+        display: block;
+        margin-top: 0.8rem;
+        color: #fff;
+        font-size: 4rem;
+        line-height: 1;
+    }
+
+.ring-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+}
+
+.ring-stat-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1.4rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+    .ring-stat-card strong {
+        display: block;
+        color: #fff;
+        font-size: 3rem;
+    }
+
+    .ring-stat-card span {
+        color: #8fa3b8;
+        text-transform: uppercase;
+        font-size: 1.1rem;
+    }
+
+.bars-list {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.bar-row {
+    display: grid;
+    grid-template-columns: 20rem 1fr 5rem;
+    gap: 1rem;
+    align-items: center;
+}
+
+.bar-track {
+    height: 1.2rem;
+    border-radius: 999rem;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+
+    .bar-track i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #ff7a45, #ffb020);
+    }
+
+.timeline-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.timeline-item {
+    display: grid;
+    grid-template-columns: 20rem 1fr;
+    gap: 1.4rem;
+    padding: 1rem 0;
+    border-top: 0.2rem solid rgba(255, 255, 255, 0.06);
+}
+
+    .timeline-item:first-child {
+        border-top: 0;
+    }
+
+.timeline-time {
+    color: #ffb020;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+}
+
+.timeline-body strong {
+    display: block;
+    color: #fff;
+    margin-bottom: 0.4rem;
+}
+
+.page-title {
+    font-size: 4.4rem;
+    line-height: 1;
+}
+
+.recon-title {
+    color: #57b8ff;
+}
+
+.page-subtitle {
+    color: #8fa3b8;
+    max-width: 80rem;
+}
+
+.recon-region-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1.2rem;
+}
+
+.region-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.4rem;
+}
+
+    .region-card h4 {
+        font-size: 2rem;
+        line-height: 1;
+        margin-bottom: 0.6rem;
+    }
+
+.recon-alert-list,
+.correlation-list,
+.killchain-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.recon-alert-row,
+.correlation-row {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1.2rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.weapons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
+    gap: 1.4rem;
+}
+
+.weapon-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.6rem;
+}
+
+.weapon-card__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+}
+
+    .weapon-card__top h3 {
+        font-size: 2.2rem;
+        line-height: 1;
+    }
+
+    .weapon-card__top span {
+        color: #ff5a4f;
+        font-size: 1.1rem;
+        text-transform: uppercase;
+    }
+
+.weapon-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 1rem 0;
+}
+
+.weapon-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999rem;
+    border: 0.2rem solid rgba(87, 184, 255, 0.25);
+    background: rgba(87, 184, 255, 0.08);
+    color: #57b8ff;
+    padding: 0.5rem 0.8rem;
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+.military-switcher {
+    display: flex;
+    gap: 1rem;
+}
+
+.military-panel {
+    display: none;
+}
+
+    .military-panel.is-active {
+        display: block;
+    }
+
+.killchain-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1.6rem;
+}
+
+.killchain-card--iran {
+    background: rgba(120, 0, 0, 0.18);
+    border-color: rgba(255, 80, 80, 0.18);
+}
+
+.killchain-card--us_israel {
+    background: rgba(0, 70, 90, 0.18);
+    border-color: rgba(87, 184, 255, 0.18);
+}
+
+.killchain-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.killchain-flow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+    .killchain-flow > div {
+        border: 0.2rem solid rgba(255, 255, 255, 0.08);
+        padding: 1rem;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.03);
+    }
+/* #endregion */
+
+/* #region =========== Warzone UI Layer =========== */
+.warzone-ui-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+}
+
+    .warzone-ui-layer .warzone-panel--floating,
+    .warzone-ui-layer .warzone-alert {
+        pointer-events: auto;
+    }
+/* #endregion */
+
+/* #region =========== Floating Panels =========== */
+.warzone-panel--floating {
+    position: absolute;
+    z-index: 20;
+    width: 28rem;
+    max-width: calc(100vw - 3.2rem);
+    will-change: left, top, transform;
+    isolation: isolate;
+}
+
+.warzone-panel--feed {
+    width: 32rem;
+}
+
+.warzone-panel--floating .panel-head {
+    cursor: grab;
+    padding: 1.2rem 1.3rem;
+    user-select: none;
+}
+
+.warzone-panel--floating.is-dragging .panel-head {
+    cursor: grabbing;
+}
+
+.warzone-panel--floating .panel-body,
+.warzone-panel--floating .feed-list {
+    user-select: text;
+}
+
+.warzone-panel--floating.is-collapsed .panel-action {
+    transform: rotate(-180deg);
+}
+
+.panel-content {
+    overflow: hidden;
+    height: auto;
+    opacity: 1;
+    transition: height 260ms ease, opacity 220ms ease;
+}
+
+.warzone-panel--floating.is-collapsed .panel-content {
+    pointer-events: none;
+}
+/* #endregion */
+
+/* #region =========== Legacy Flat Map =========== */
+.warzone-map {
+    position: relative;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    border: 0.2rem solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(rgba(255, 255, 255, 0.05) 0.2rem, transparent 0.2rem), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0.2rem, transparent 0.2rem), radial-gradient(circle at center, rgba(53, 63, 83, 0.7), rgba(8, 10, 13, 1));
+    background-size: 4rem 4rem, 4rem 4rem, cover;
+}
+
+    .warzone-map::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at 20% 25%, rgba(255, 255, 255, 0.05), transparent 12%), radial-gradient(circle at 45% 35%, rgba(255, 255, 255, 0.04), transparent 16%), radial-gradient(circle at 70% 58%, rgba(255, 255, 255, 0.035), transparent 18%), radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.025), transparent 14%);
+    }
+
+.warzone-marker {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%);
+    border: 0;
+    border-radius: 999rem;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.3rem;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25);
+}
+
+    .warzone-marker.is-sm {
+        width: 3.2rem;
+        height: 3.2rem;
+        background: #d14d3f;
+    }
+
+    .warzone-marker.is-md {
+        width: 4.4rem;
+        height: 4.4rem;
+        background: #de8d27;
+    }
+
+    .warzone-marker.is-lg {
+        width: 5.8rem;
+        height: 5.8rem;
+        background: #d2ab18;
+    }
+
+    .warzone-marker.is-xl {
+        width: 7rem;
+        height: 7rem;
+        background: #cc9c10;
+    }
+/* #endregion */
+
+/* #region =========== Alert Bar =========== */
+.warzone-alert {
+    position: absolute;
+    top: 1.6rem;
+    left: 50%;
+    z-index: 40;
+    min-width: min(72rem, calc(100% - 12rem));
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    padding: 1.4rem 1.6rem;
+    border: 0.2rem solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    background: transparent;
+    box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-120%);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+    .warzone-alert.is-active {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateX(-50%) translateY(0);
+        animation: warzoneAlertPulse 1s infinite alternate;
+    }
+
+    .warzone-alert.is-orange {
+        background: linear-gradient(90deg, rgba(255, 115, 0, 0.96), rgba(255, 68, 0, 0.88));
+    }
+
+    .warzone-alert.is-red {
+        background: linear-gradient(90deg, rgba(255, 55, 55, 0.96), rgba(196, 22, 22, 0.9));
+    }
+
+.warzone-alert__icon {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+
+.warzone-alert__content {
+    display: grid;
+    gap: 0.3rem;
+    flex: 1;
+}
+
+    .warzone-alert__content strong {
+        color: #fff;
+        font-size: 2rem;
+        line-height: 1;
+        letter-spacing: 0.04em;
+    }
+
+    .warzone-alert__content span {
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 1.3rem;
+        line-height: 1.3;
+    }
+
+.warzone-alert__close {
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font-size: 2.4rem;
+    line-height: 1;
+}
+
+@keyframes warzoneAlertPulse {
+    from {
+        box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.42), 0 0 0 rgba(255, 80, 0, 0.18);
+    }
+
+    to {
+        box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.52), 0 0 2.4rem rgba(255, 80, 0, 0.45);
+    }
+}
+/* #endregion */
+
+.toolbar-chip--dev {
+    border-color: rgba(255, 176, 32, 0.45);
+    color: #ffcf6b;
+}
+
+/* #region =========== Shared Layout =========== */
+.warzone-stage {
+    position: relative;
+}
+
+.warzone-grid {
+    display: grid;
+    grid-template-columns: 28rem 1fr 34rem;
+    gap: 1.6rem;
+    align-items: start;
+}
+/* #endregion */
+
+/* #region =========== Shared Panels =========== */
+.panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.3rem 1.4rem;
+    border-bottom: 0.2rem solid var(--color-panel-line);
+}
+
+    .panel-head h2,
+    .panel-head h3 {
+        font-size: 2rem;
+        line-height: 1;
+        letter-spacing: 0.06em;
+    }
+
+.panel-body {
+    padding: 1.4rem;
+}
+
+.panel-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.2rem;
+    height: 3.2rem;
+    border: 0.2rem solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 2rem;
+    line-height: 1;
+    transition: background 180ms ease, transform 220ms ease;
+}
+
+    .panel-action:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+/* #endregion */
+
+/* #region =========== Shared Stats / Feed =========== */
+.stats-stack {
+    display: grid;
+    gap: 1rem;
+    padding: 1.2rem;
+}
+
+.stat-card {
+    padding: 1.3rem 1.4rem;
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.stat-label {
+    display: block;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    color: #8f98a8;
+    letter-spacing: 0.12em;
+}
+
+.stat-value {
+    display: block;
+    margin-top: 0.6rem;
+    color: var(--color-white);
+    font-size: 3rem;
+    line-height: 1;
+}
+
+.feed-list {
+    display: grid;
+    gap: 1rem;
+    max-height: 64rem;
+    overflow: auto;
+    padding: 1rem;
+}
+
+.feed-card {
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.2rem;
+    transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+    .feed-card:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .feed-card.is-flash {
+        border-color: var(--color-teal);
+        background: rgba(25, 216, 179, 0.08);
+    }
+
+.feed-card__meta,
+.feed-card__foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    font-size: 1.1rem;
+    color: #95a0b2;
+}
+
+.feed-card__title {
+    margin-top: 0.8rem;
+    color: var(--color-white);
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.feed-card__summary {
+    margin-top: 0.8rem;
+    color: var(--color-text);
+    font-size: 1.35rem;
+    line-height: 1.45;
+}
+
+.feed-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999rem;
+    border: 0.2rem solid rgba(255, 255, 255, 0.12);
+    padding: 0.5rem 0.8rem;
+    color: #ffd16f;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.feed-empty {
+    padding: 1.4rem;
+    border: 0.2rem dashed rgba(255, 255, 255, 0.12);
+    color: #98a4b8;
+    font-size: 1.4rem;
+}
+/* #endregion */
+
+@media (max-width: 1280px) {
+    .analytics-grid--top,
+    .analytics-grid--charts {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .warzone-shell {
+        padding: 1rem;
+    }
+
+    .warzone-commandbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .analytics-grid--top,
+    .analytics-grid--charts,
+    .weapons-grid,
+    .recon-region-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bar-row,
+    .timeline-item {
+        grid-template-columns: 1fr;
+    }
+
+    .warzone-panel--floating {
+        max-width: calc(100vw - 2rem);
+    }
+}

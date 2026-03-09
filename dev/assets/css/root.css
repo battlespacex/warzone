@@ -1,42 +1,181 @@
-﻿/* assets/css/root.css */
+﻿/* --- assets/css/root.css --- */
 
-/* #region =========== Root Properties =========== */
+/* #region =========== Core Design Tokens =========== */
 :root {
---color-bg-dark: #050608;
---color-bg-medium: #111318;
---color-bg-light: #1c1f27;
---color-bg-overlay: rgba(8, 10, 14, 0.78);
---color-bg-modal: rgba(25, 28, 35, 0.72);
---color-bg-header: rgba(7, 9, 13, 0.9);
---color-teal: #19d8b3;
---color-white: #ffffff;
---color-black: #000000;
---color-accent: #f3b000;
---color-error: #ff4e5f;
---color-text: #aeb6c4;
---color-heading: #ffffff;
---color-panel-line: rgba(255, 255, 255, 0.08);
---font-heading: "Bebas Neue", system-ui, -apple-system, BlinkMacSystemFont,
-"Segoe UI", Arial, sans-serif;
---font-icon: "aerocism-font", system-ui, -apple-system, BlinkMacSystemFont,
-sans-serif;
---page-gutter: 2rem;
---frame-max: 186rem;
---sec-width: calc(100% - 4rem);
---min-width: min(168rem, calc(100% - 4rem));
---max-width: 100%;
---default-text: 1.6rem;
---small-text: 1.2rem;
---transition-fast: 160ms ease;
---transition-med: 300ms ease;
---shadow-subtle: 0 1rem 2.5rem rgba(0, 0, 0, 0.35);
---portfolio-stagger-step: 0.2s;
---border-radius-large: 1.2rem;
---border-radius-small: 0.8rem;
---box-shadow: 0 1.5rem 2.5rem rgba(0, 0, 0, 0.72);
---large-clip-path: path("m0 250a80 80 0 0 1 30.44-73.19l146.65-146.57a80 80 90 0 1 72.90-30.24h10000v10000H0z");
---rect-clip-path: path("m0 0a80 80 0 0 1 0 0l0 0a80 80 90 0 1 0 0h10000v10000H0z");
---primary-clip-path: path("m0 62a25.7 25.68 0 0 1 7.55-18.15l36.37-36.35a25.6 25.6 90 0 1 18.08-7.5 h10000 v10000 H0z");
---secondary-clip-path: path("m0 31a12.85 12.84 0 0 1 3.78-9.08l18.19-18.18a12.8 12.8 90 0 1 9.04-3.75 h10000 v10000 H0z");
+    --color-bg-dark: #050608;
+    --color-bg-medium: #111318;
+    --color-bg-light: #1c1f27;
+    --color-bg-overlay: rgba(8, 10, 14, 0.78);
+    --color-bg-modal: rgba(25, 28, 35, 0.72);
+    --color-bg-header: rgba(7, 9, 13, 0.9);
+    --color-teal: #19d8b3;
+    --color-white: #ffffff;
+    --color-black: #000000;
+    --color-accent: #f3b000;
+    --color-error: #ff4e5f;
+    --color-text: #aeb6c4;
+    --color-heading: #ffffff;
+    --color-panel-line: rgba(255, 255, 255, 0.08);
+    --font-heading: "Bebas Neue", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    --font-icon: "aerocism-font", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --page-gutter: 2rem;
+    --frame-max: 186rem;
+    --sec-width: calc(100% - 4rem);
+    --min-width: min(168rem, calc(100% - 4rem));
+    --max-width: 100%;
+    --default-text: 1.6rem;
+    --small-text: 1.2rem;
+    --transition-fast: 160ms ease;
+    --transition-med: 300ms ease;
+    --color-blue: rgba(34, 42, 164, 1);
+    --color-green: rgb(22, 112, 96);
+    --color-red: rgba(174, 15, 68, 0.9);
+    --color-gray: rgba(69, 80, 94, 0.6);
+    --color-gray-v1: rgba(32, 38, 49, 0.8);
+    --color-gray-v2: rgba(69, 80, 94, 0.6);
+    --color-gray-v3: rgb(67 74 85);
+    --color-gray-v4: rgb(41, 48, 60);
+    --color-black-v1: rgba(3, 3, 4, 0.9);
+    --color-black-v2: rgba(3, 3, 4, 1);
+    --color-border-blue: rgba(35, 164, 228, 1);
+    --color-border-green: rgb(22, 112, 96);
+    --color-border-teal: rgba(24, 226, 219, 1);
+    --color-border-red: rgba(226, 14, 85, 0.9);
+    --color-border-gray: rgba(61, 72, 87, 0.8);
+    --color-hover-blue: rgba(23, 29, 125, 1);
+    --color-hover-teal: rgba(22, 147, 159, 0.3);
+    --color-bg-gray-before: rgba(10, 11, 20, 0.4);
+    --color-status-yellow: rgb(207 188 36);
+    --color-status-green: rgba(12, 163, 107, 1);
+    --color-status-orange: rgba(255, 106, 0, 1);
+    --color-orange: rgba(233, 69, 0, 0.9);
+    --color-status-red: rgba(226, 14, 85, 1);
+    --color-input-red: rgba(136, 9, 51, 0.72);
+    --color-featured: rgba(7, 253, 139, 0.64);
+    --color-input-gray: rgba(26, 29, 39, 1);
+    --text-font-v1: "BX-H", sans-serif;
+    --text-font-v2: "Oxanium", sans-serif;
+    --text-font-v3: "JetBrains Mono", sans-serif;
+    --text-font-v4: "Share Tech Mono", sans-serif;
+    --icon-font: "BX-Font-R1_1";
+    --font-size-default: 1.5rem;
+    --font-size-small: 1.3rem;
+    --icon-size-default: 2.6rem;
+    --icon-size-small: 2.2rem;
+    --text-color-heading: #eff0f4;
+    --text-color-all: rgb(203 206 215);
+    --text-color-yellow: #ad1;
+    --background-attachment: fixed;
+    /* Correct clip-path tokens: value only, no "clip-path:" prefix */
+    --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
+    --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
+    --clippath-shape-3: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
+    --clippath-shape-4: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
+    --clippath-shape-5: polygon(100% 0rem,100% 0rem,calc(100% - 0rem) 0rem,calc(100% - 0rem) calc(100% - 1rem),calc(100% - 1rem) calc(100% - 0rem),0rem calc(100% - 0rem),0rem calc(0% + 0rem));
+    --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
+    --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
+    --widget-shadow-1: 0 .6rem 1.3rem rgba(0, 0, 0, 0.75);
+}
+/* #endregion */
+
+/* #region =========== Warzone Map Tokens =========== */
+:root {
+    --warzone-space: #02050b;
+    --warzone-globe-base: #08111a;
+    --warzone-strike: #ff0753;
+    --warzone-recon: #ff4d07;
+    --warzone-military: #56d80e;
+    --warzone-default: #ff7a45;
+    --warzone-map-brightness: 0.8;
+    --warzone-map-contrast: 1.35;
+    --warzone-map-gamma: 0.5;
+    --warzone-map-saturation: 0.2;
+    --warzone-map-hue: 170;
+    --warzone-map-alpha: 0.5;
+    --warzone-labels-brightness: 1;
+    --warzone-labels-contrast: 1.15;
+    --warzone-labels-gamma: 1;
+    --warzone-labels-saturation: 0;
+    --warzone-labels-hue: 0;
+    --warzone-labels-alpha: 0.95;
+    --warzone-country-border: #00d8b2;
+    --warzone-country-border-alpha: 1;
+    --warzone-country-border-width: 3;
+    --warzone-province-border: #0ba88c;
+    --warzone-province-border-alpha: 1;
+    --warzone-province-border-width: 1.2;
+    --warzone-city-border: #0ba88c;
+    --warzone-city-border-alpha: 1;
+    --warzone-city-border-width: 0.8;
+    --warzone-start-lon: 47.8;
+    --warzone-start-lat: 30.2;
+    --warzone-start-height: 2350000;
+    --warzone-focus-height: 2350000;
+    --warzone-start-heading: 0;
+    --warzone-start-pitch: -82;
+    --warzone-start-roll: 0;
+    --warzone-resolution-scale: 1;
+    --warzone-msaa-samples: 1;
+    --warzone-fxaa-enabled: 1;
+    --warzone-camera-min-zoom: 200;
+    --warzone-marker-scale: 0;
+    --warzone-event-markers-visible: 1;
+    --warzone-event-rings-visible: 1;
+    --warzone-event-ring-size: 70000;
+    --warzone-event-ring-fill-alpha: 0.3;
+    --warzone-event-ring-outline-alpha: 0;
+    --warzone-event-ring-outline-width: 0;
+}
+/* #endregion */
+
+/* #region =========== Missile / Warning / Impact Tokens =========== */
+:root {
+    --warzone-missile-launch-color: #ff0753;
+    --warzone-missile-impact-color: #ff0753;
+    --warzone-missile-line-color: #ff0753;
+    --warzone-missile-peak-height-critical: 450000;
+    --warzone-missile-peak-height-high: 250000;
+    --warzone-missile-peak-height-medium: 100000;
+    --warzone-missile-launch-flash-duration: 900;
+    --warzone-missile-launch-ring-size: 65000;
+    --warzone-incoming-highlight-color: #ff0753;
+    --warzone-incoming-highlight-radius-city: 120000;
+    --warzone-incoming-highlight-radius-region: 180000;
+    --warzone-incoming-highlight-radius-country: 260000;
+    --warzone-incoming-highlight-outline-width: 5;
+    --warzone-warning-height: 4000;
+    --warzone-impact-marker-height: 4000;
+    --warzone-missile-impact-height: 5000;
+    --warzone-missile-impact-cycles: 3;
+    --warzone-missile-impact-cycle-duration: 4000;
+    --warzone-missile-fadeout-duration: 2200;
+    --warzone-missile-impact-ring-count: 3;
+    --warzone-missile-impact-ring-line-width: 35;
+    --warzone-missile-impact-ring-min-scale: 0.02;
+    --warzone-missile-impact-ring-max-scale: 0.20;
+    --warzone-missile-impact-ring-alpha-max: 0.40;
+    --warzone-missile-impact-ring-stagger-ms: 620;
+    --warzone-missile-steps: 120;
+    --warzone-max-active-missiles: 12;
+    --warzone-missile-auto-focus: 1;
+    --warzone-missile-focus-duration: 0.95;
+    --warzone-missile-duration-critical: 9000;
+    --warzone-missile-duration-high: 7500;
+    --warzone-missile-duration-medium: 6200;
+    --warzone-missile-persist-critical: 24000;
+    --warzone-missile-persist-high: 20000;
+    --warzone-missile-persist-medium: 16000;
+    --warzone-missile-line-alpha: 1;
+    --warzone-missile-line-width: 5;
+    --warzone-missile-segment-count: 22;
+    --warzone-missile-segment-gap: 0;
+    --warzone-missile-origin-fade-start: 0;
+    --warzone-missile-origin-fade-end: 0.3;
+    --warzone-missile-origin-alpha-min: 0.2;
+    --warzone-missile-origin-alpha-max: 1;
+    --warzone-sound-alert-loop: "/assets/audio/warzone-alert-loop.mp3";
+    --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
+    --warzone-sound-alert-volume: 0.65;
+    --warzone-sound-impact-volume: 0.9;
 }
 /* #endregion */
