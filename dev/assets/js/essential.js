@@ -6,6 +6,7 @@ let __eventsCache = [];
 let __alertAudio = null;
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
+let __lastSeenOccurredAt = null;
 
 function bindScrollClassToggles() {
     if (__scrollClassBound) return;
@@ -139,6 +140,55 @@ function normalizeEvent(event) {
         fir_code: event.fir_code || "",
         tags: Array.isArray(event.tags) ? event.tags : [],
     };
+}
+
+function hasTrajectory(event) {
+    return (
+        Number.isFinite(Number(event.origin_lat)) &&
+        Number.isFinite(Number(event.origin_lon)) &&
+        Number.isFinite(Number(event.impact_lat ?? event.lat)) &&
+        Number.isFinite(Number(event.impact_lon ?? event.lon))
+    );
+}
+
+function isTrackLikeEvent(event) {
+    const category = String(event.category || "").toLowerCase();
+    const weapon = String(event.weapon_type || "").toLowerCase();
+    const title = String(event.title || "").toLowerCase();
+    const summary = String(event.summary || "").toLowerCase();
+    const haystack = `${category} ${weapon} ${title} ${summary}`;
+
+    return (
+        hasTrajectory(event) &&
+        (
+            haystack.includes("missile") ||
+            haystack.includes("rocket") ||
+            haystack.includes("drone") ||
+            haystack.includes("uav") ||
+            haystack.includes("air strike") ||
+            haystack.includes("airstrike") ||
+            haystack.includes("fighter") ||
+            haystack.includes("sortie")
+        )
+    );
+}
+
+function isSirenLikeEvent(event) {
+    const title = String(event.title || "").toLowerCase();
+    const summary = String(event.summary || "").toLowerCase();
+    const weapon = String(event.weapon_type || "").toLowerCase();
+    const category = String(event.category || "").toLowerCase();
+    const full = `${title} ${summary} ${weapon} ${category}`;
+
+    return (
+        category === "alert" ||
+        full.includes("siren") ||
+        full.includes("sirens") ||
+        full.includes("air raid") ||
+        full.includes("red alert") ||
+        full.includes("take shelter") ||
+        full.includes("incoming")
+    );
 }
 
 function sortEvents(events) {
@@ -533,6 +583,10 @@ function syncInitialEventsToGlobe(events) {
 
     events.forEach((event) => {
         globe.addEvent?.(event);
+
+        if (isTrackLikeEvent(event)) {
+            globe.animateMissileTrack?.(event);
+        }
     });
 }
 
@@ -550,7 +604,53 @@ export async function initWarzoneApp() {
     const events = Array.isArray(data) ? data.map(normalizeEvent) : [];
     renderAll(events);
     syncInitialEventsToGlobe(events);
+
+    if (events[0]?.occurred_at) {
+        __lastSeenOccurredAt = events[0].occurred_at;
+    }
+
     return events;
+}
+
+async function pollLatestEvents() {
+    try {
+        let query = supabase
+            .from("events")
+            .select("*")
+            .order("occurred_at", { ascending: false })
+            .limit(25);
+
+        if (__lastSeenOccurredAt) {
+            query = query.gt("occurred_at", __lastSeenOccurredAt);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error("Polling latest events error:", error);
+            return;
+        }
+
+        const rows = Array.isArray(data) ? data.map(normalizeEvent) : [];
+        if (!rows.length) return;
+
+        rows
+            .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at))
+            .forEach(handleIncomingEvent);
+
+        const newest = rows[0];
+        if (newest?.occurred_at) {
+            __lastSeenOccurredAt = newest.occurred_at;
+        }
+    } catch (err) {
+        console.error("Polling latest events failed:", err);
+    }
+}
+
+export function startEventPollingFallback() {
+    setInterval(() => {
+        pollLatestEvents();
+    }, 30000);
 }
 
 export function handleIncomingEvent(event) {
@@ -566,24 +666,31 @@ export function handleIncomingEvent(event) {
     renderAll(__eventsCache);
     flashFeedCard(normalized.id);
 
-    window.__warzoneViewer?.__warzone?.addEvent?.(normalized);
-    window.__warzoneViewer?.__warzone?.highlightAlertRegion?.(normalized);
+    const globe = window.__warzoneViewer?.__warzone;
 
-    const isSirenLike =
-        normalized.category === "alert" ||
-        String(normalized.weapon_type || "").toLowerCase().includes("siren") ||
-        String(normalized.title || "").toLowerCase().includes("siren") ||
-        String(normalized.title || "").toLowerCase().includes("air raid") ||
-        String(normalized.title || "").toLowerCase().includes("red alert");
+    globe?.addEvent?.(normalized);
+    globe?.highlightAlertRegion?.(normalized);
 
-    if (!isSirenLike) {
-        triggerWarzoneAlert({
-            title: normalized.title,
-            location: normalized.location_label,
-            level: normalized.severity === "critical" ? "critical" : "high",
-            playSound: false,
-        });
+    if (isTrackLikeEvent(normalized)) {
+        globe?.animateMissileTrack?.(normalized);
     }
+
+    if (isSirenLikeEvent(normalized)) {
+        triggerWarzoneAlert({
+            title: normalized.title || "Air raid sirens active",
+            location: normalized.location_label || "Warning area",
+            level: normalized.severity === "critical" ? "critical" : "high",
+            playSound: true,
+        });
+        return;
+    }
+
+    triggerWarzoneAlert({
+        title: normalized.title,
+        location: normalized.location_label,
+        level: normalized.severity === "critical" ? "critical" : "high",
+        playSound: false,
+    });
 }
 
 function initFloatingPanels() {

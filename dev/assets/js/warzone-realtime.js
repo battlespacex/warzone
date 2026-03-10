@@ -55,3 +55,29 @@ export async function subscribeToActiveAlerts() {
         )
         .subscribe();
 }
+export function startActiveAlertsPollingFallback() {
+    setInterval(async () => {
+        const { data, error } = await supabase
+            .from("active_alerts")
+            .select("*")
+            .eq("status", "active")
+            .order("updated_at", { ascending: false });
+
+        if (error) {
+            console.error("Active alerts polling error:", error);
+            return;
+        }
+
+        const activeKeys = new Set();
+
+        (data || []).forEach((row) => {
+            activeKeys.add(row.alert_key);
+            showStickyAlert(row);
+        });
+
+        const root = document.getElementById("warzone-alert");
+        if (root?.dataset?.alertKey && !activeKeys.has(root.dataset.alertKey)) {
+            hideStickyAlert(root.dataset.alertKey);
+        }
+    }, 20000);
+}

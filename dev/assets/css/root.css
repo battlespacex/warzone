@@ -86,6 +86,11 @@
     --warzone-recon: #ff4d07;
     --warzone-military: #56d80e;
     --warzone-default: #ff7a45;
+    --warzone-alert-color: #ff2a2a;
+    --warzone-airspace-color: #00d8b2;
+    --warzone-cyber-color: #9b7bff;
+    --warzone-thermal-color: #ff7a00;
+    --warzone-signal-color: #ffd24d;
     --warzone-map-brightness: 0.8;
     --warzone-map-contrast: 1.35;
     --warzone-map-gamma: 0.5;

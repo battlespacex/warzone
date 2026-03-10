@@ -9,24 +9,8 @@
       "category": "strike"
     },
     {
-      "name": "ACLED Conflict Feed",
-      "enabled": false,
-      "type": "acled-api",
-      "parser": "acled",
-      "url": "https://acleddata.com/api/acled/read",
-      "category": "conflict"
-    },
-    {
-      "name": "NASA EONET Wildfires",
-      "enabled": false,
-      "type": "eonet-api",
-      "parser": "eonet",
-      "url": "https://eonet.gsfc.nasa.gov/api/v3/events",
-      "category": "fire"
-    },
-    {
       "name": "GDELT Conflict Signals",
-      "enabled": false,
+      "enabled": true,
       "type": "gdelt-api",
       "parser": "gdelt",
       "url": "https://api.gdeltproject.org/api/v2/doc/doc",
@@ -53,24 +37,104 @@
       "tags": [ "telegram", "osint", "military" ]
     },
     {
-      "name": "Airspace Status Feed",
+      "name": "Reddit CombatFootage",
       "enabled": true,
-      "type": "airspace",
-      "parser": "airspace",
-      "url": "YOUR_AIRSPACE_SOURCE_URL",
+      "type": "reddit",
+      "parser": "reddit",
+      "url": "https://www.reddit.com/r/CombatFootage/new.json",
+      "category": "strike"
+    },
+    {
+      "name": "Reddit UkraineWarVideoReport",
+      "enabled": true,
+      "type": "reddit",
+      "parser": "reddit",
+      "url": "https://www.reddit.com/r/UkraineWarVideoReport/new.json",
+      "category": "strike"
+    },
+    {
+      "name": "USGS Earthquake Feed",
+      "enabled": true,
+      "type": "usgs",
+      "parser": "usgs",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
+      "category": "signal"
+    },
+    {
+      "name": "NASA FIRMS Thermal Anomalies",
+      "enabled": true,
+      "type": "firms",
+      "parser": "firms",
+      "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/1",
+      "category": "thermal"
+    },
+    {
+      "name": "Manual Siren Alerts",
+      "enabled": false,
+      "type": "manual-json",
+      "parser": "alerts-array",
+      "url": "${MANUAL_ALERTS_FEED_URL}",
+      "category": "alert"
+    },
+    {
+      "name": "Manual Airspace Status",
+      "enabled": false,
+      "type": "manual-json",
+      "parser": "airspace-manual",
+      "url": "${AIRSPACE_STATUS_FEED_URL}",
       "category": "airspace"
     },
     {
-      "name": "Cyber Status Feed",
+      "name": "AviationEdge NOTAM",
+      "enabled": false,
+      "type": "airspace-api",
+      "parser": "airspace-api",
+      "url": "https://aviation-edge.com/v2/public/notam",
+      "category": "airspace"
+    },
+    {
+      "name": "AviationEdge Military Flights",
+      "enabled": false,
+      "type": "adsb-like",
+      "parser": "adsb-military",
+      "url": "https://aviation-edge.com/v2/public/flights",
+      "category": "recon"
+    },
+    {
+      "name": "CISA Cyber Threat Feed",
       "enabled": true,
       "type": "cyber",
       "parser": "cyber",
-      "url": "YOUR_CYBER_SOURCE_URL",
+      "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
       "category": "cyber"
     },
     {
-      "name": "Curated Warzone Feed",
+      "name": "ACLED Conflict Feed",
+      "enabled": false,
+      "type": "acled-api",
+      "parser": "acled",
+      "url": "https://acleddata.com/api/acled/read",
+      "category": "conflict"
+    },
+    {
+      "name": "NASA EONET Wildfires",
+      "enabled": false,
+      "type": "eonet-api",
+      "parser": "eonet",
+      "url": "https://eonet.gsfc.nasa.gov/api/v3/events",
+      "category": "fire"
+    },
+    {
+      "name": "USGS Earthquakes",
       "enabled": true,
+      "type": "seismic",
+      "parser": "usgs",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
+      "category": "seismic"
+    },
+    {
+      "name": "Curated Warzone Feed",
+      "enabled": false,
       "type": "manual-json",
       "parser": "events-array",
       "url": "https://warzone.battlespacex.com/assets/others/warzone-live-events.json",
