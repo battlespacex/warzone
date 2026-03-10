@@ -20,7 +20,7 @@ body {
     color: var(--color-text);
     line-height: normal;
     background: var(--color-bg-dark);
-    overflow-x: clip;
+    overflow-x: hidden;
     padding-bottom: env(safe-area-inset-bottom);
     font-style: normal;
     letter-spacing: 0.03rem;

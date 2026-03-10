@@ -1,3 +1,4 @@
+// apps/worker/src/index.js
 import "dotenv/config";
 import http from "http";
 import cron from "node-cron";
@@ -8,6 +9,8 @@ import { fileURLToPath } from "url";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { supabase } from "./supabase.js";
+import { runAdsbWorker } from "./adsb-worker.js";
+import { runAisWorker } from "./ais-worker.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -1369,6 +1372,7 @@ function isRelevantRedditPost(post) {
 }
 
 async function normalizeRedditPost(post, feed) {
+
     if (!post || !isRelevantRedditPost(post)) return null;
 
     const text = `${post.title || ""} ${post.selftext || ""}`;
@@ -1380,15 +1384,22 @@ async function normalizeRedditPost(post, feed) {
     let weaponType = "unknown";
     if (lower.includes("ballistic missile")) weaponType = "ballistic missile";
     else if (lower.includes("cruise missile")) weaponType = "cruise missile";
-    else if (lower.includes("missile")) weaponType = "missile";
-    else if (lower.includes("drone") || lower.includes("uav")) weaponType = "drone";
+    else if (lower.includes("hypersonic missile")) weaponType = "hypersonic missile";
+    else if (lower.includes("glide bomb")) weaponType = "glide bomb";
+    else if (lower.includes("kamikaze") || lower.includes("loitering munition")) weaponType = "kamikaze drone";
+    else if (lower.includes("fpv drone") || lower.includes("fpv")) weaponType = "fpv drone";
+    else if (lower.includes("ucav")) weaponType = "ucav";
+    else if (lower.includes("uav") || lower.includes("drone")) weaponType = "drone";
     else if (lower.includes("rocket")) weaponType = "rocket";
-    else if (lower.includes("artillery")) weaponType = "artillery";
-    else if (lower.includes("airstrike") || lower.includes("air strike")) weaponType = "air strike";
+    else if (lower.includes("artillery") || lower.includes("howitzer")) weaponType = "artillery";
+    else if (lower.includes("airstrike") || lower.includes("air strike") || lower.includes("air raid")) weaponType = "air strike";
+    else if (lower.includes("missile")) weaponType = "missile";
 
     let severity = "medium";
     if (/(massive|huge|major|heavy|multiple|barrage|wave)/i.test(text)) severity = "high";
     if (/(critical|catastrophic)/i.test(text)) severity = "critical";
+
+
 
     return {
         category: feed.category || "strike",
@@ -1432,12 +1443,14 @@ async function normalizeRedditPost(post, feed) {
 async function processRedditFeed(feed) {
     const response = await axios.get(feed.url, {
         headers: {
-            "User-Agent": process.env.REDDIT_USER_AGENT || "warzone-worker/1.0"
+            "User-Agent": process.env.REDDIT_USER_AGENT || "web:warzone-osint-bot:1.0 (by /u/warzonebot)"
         },
         timeout: 15000
     });
 
-    const posts = response.data?.data?.children?.map((item) => item?.data).filter(Boolean) || [];
+    const posts = response.data?.data?.children
+        ?.map((item) => item?.data)
+        .filter(Boolean) || [];
 
     for (const post of posts) {
         try {
@@ -2186,12 +2199,18 @@ async function runWorker() {
         console.log("Previous worker cycle still running, skipping this tick");
         return;
     }
-
     isWorkerRunning = true;
-
     try {
-        const activeFeeds = toArray(sources.feeds).filter((feed) => feed.enabled !== false);
+        const adsbFeed = sources.feeds.find(f => f.type === "adsb-opensky");
+        const aisFeed = sources.feeds.find(f => f.type === "ais-stream");
 
+        if (adsbFeed?.enabled !== false)
+            await runAdsbWorker().catch(err => console.error("[adsb]", err.message));
+
+        if (aisFeed?.enabled !== false)
+            await runAisWorker().catch(err => console.error("[ais]", err.message));
+
+        const activeFeeds = toArray(sources.feeds).filter((feed) => feed.enabled !== false);
         for (const feed of activeFeeds) {
             try {
                 await processFeed(feed);
@@ -2199,7 +2218,6 @@ async function runWorker() {
                 console.error("Feed error:", feed.name, err.message);
             }
         }
-
         try {
             await clearExpiredAlerts();
         } catch (err) {
@@ -2210,7 +2228,7 @@ async function runWorker() {
     }
 }
 
-cron.schedule("*/3 * * * *", () => {
+cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
 

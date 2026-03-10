@@ -4,8 +4,8 @@ import * as Cesium from "cesium";
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
     countries: "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
-    provinces: "/assets/others/provinces.geojson",
-    cities: "/assets/others/cities.geojson",
+    provinces: "",
+    cities: "",
 };
 
 const markerCache = new Map();
@@ -92,71 +92,47 @@ function getCategoryColorCss(category) {
 }
 
 function getSeverityRadius(event) {
-    const base = numberVar("--warzone-event-ring-size", 70000);
+    const base = numberVar("--warzone-event-ring-size", 32000);
 
     switch (event?.severity) {
-        case "critical":
-            return base * 2;
-        case "high":
-            return base * 1.55;
-        case "medium":
-            return base * 1.2;
-        case "low":
-            return base;
-        default:
-            return base * 1.08;
+        case "critical": return base * 1.6;
+        case "high": return base * 1.3;
+        case "medium": return base * 1.05;
+        case "low": return base * 0.9;
+        default: return base;
     }
+}
+
+// ── Cluster radius scales with count ─────────────────────────────────────────
+function getClusterRadius(event) {
+    const count = Number(event._clusterCount || 1);
+    const base = getSeverityRadius(event);
+    if (count <= 1) return base;
+    // Logarithmic scale: 10 events → ~2x radius, 50 events → ~3x
+    return base * (1 + Math.log10(count) * 0.9);
 }
 
 function getHeatRadius(event) {
     switch (event?.severity) {
-        case "critical":
-            return 240000;
-        case "high":
-            return 180000;
-        case "medium":
-            return 135000;
-        default:
-            return 100000;
+        case "critical": return 110000;
+        case "high": return 85000;
+        case "medium": return 65000;
+        default: return 50000;
     }
 }
 
-function normalizeEvents(events) {
-    if (!Array.isArray(events)) return [];
-
-    return events
-        .map((item, index) => ({
-            id: item.id || `event-${index + 1}`,
-            title: item.title || "Untitled event",
-            summary: item.summary || "",
-            category: item.category || "strike",
-            severity: item.severity || "medium",
-            lat: Number(item.lat),
-            lon: Number(item.lon),
-            origin_lat: Number(item.origin_lat),
-            origin_lon: Number(item.origin_lon),
-            origin_label: item.origin_label || "",
-            impact_lat: Number(item.impact_lat ?? item.lat),
-            impact_lon: Number(item.impact_lon ?? item.lon),
-            impact_label: item.impact_label || item.location_label || "",
-            location_label: item.location_label || "Unknown location",
-            occurred_at: item.occurred_at || "",
-            confidence: Number(item.confidence ?? 50),
-            animation_duration_ms: Number(item.animation_duration_ms),
-            persist_ms: Number(item.persist_ms),
-            target_type: item.target_type || "",
-            target_scope: item.target_scope || "",
-            location_scope: item.location_scope || "",
-            highlight_radius_m: Number(item.highlight_radius_m),
-            target_radius_m: Number(item.target_radius_m),
-            incoming_highlight_radius_m: Number(item.incoming_highlight_radius_m),
-        }))
-        .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon));
+function isRenderableEvent(event) {
+    return (
+        event &&
+        Number.isFinite(Number(event.lat)) &&
+        Number.isFinite(Number(event.lon))
+    );
 }
 
 /* ---------- Marker canvases ---------- */
-function createMarkerCanvas(colorCss) {
-    if (markerCache.has(colorCss)) return markerCache.get(colorCss);
+function createMarkerCanvas(colorCss, count = 1) {
+    const key = `${colorCss}|${count > 1 ? "cluster" : "single"}`;
+    if (markerCache.has(key)) return markerCache.get(key);
 
     const canvas = document.createElement("canvas");
     canvas.width = 96;
@@ -168,29 +144,51 @@ function createMarkerCanvas(colorCss) {
 
     ctx.clearRect(0, 0, 96, 96);
 
+    // Glow
     const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, 30);
     glow.addColorStop(0, colorCss);
     glow.addColorStop(0.25, "rgba(255,255,255,0.15)");
     glow.addColorStop(1, "rgba(0,0,0,0)");
-
     ctx.fillStyle = glow;
     ctx.beginPath();
     ctx.arc(cx, cy, 30, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = colorCss;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.fill();
+    if (count > 1) {
+        // Cluster: filled circle + count text
+        ctx.fillStyle = colorCss;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+        ctx.fill();
 
-    ctx.strokeStyle = "rgba(255,255,255,0.75)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
-    ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 18px monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const label = count > 99 ? "99+" : String(count);
+        ctx.fillText(label, cx, cy);
+    } else {
+        // Single event: original dot
+        ctx.fillStyle = colorCss;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.75)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.stroke();
+    }
 
     const dataUrl = canvas.toDataURL("image/png");
-    markerCache.set(colorCss, dataUrl);
+    markerCache.set(key, dataUrl);
     return dataUrl;
 }
 
@@ -223,22 +221,29 @@ function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
 function createEventEntity(event) {
     const colorCss = getCategoryColorCss(event.category);
     const color = Cesium.Color.fromCssColorString(colorCss);
-    const marker = createMarkerCanvas(colorCss);
-    const radius = getSeverityRadius(event);
+    const count = Number(event._clusterCount || 1);
+    const marker = createMarkerCanvas(colorCss, count);
+    const radius = getClusterRadius(event);
     const heatRadius = getHeatRadius(event);
 
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
     const showEventRings = boolVar("--warzone-event-rings-visible", true);
 
-    const fillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.14);
+    // Cluster fill alpha scales down so overlaps aren't as opaque
+    const baseFillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.14);
+    const fillAlpha = count > 1
+        ? Math.max(0.06, baseFillAlpha - (Math.log10(count) * 0.03))
+        : baseFillAlpha;
 
     return {
-        id: event.id,
-        name: event.title,
-        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+        id: `event-${event.id}`,
+        name: event.title || "Untitled event",
+        position: Cesium.Cartesian3.fromDegrees(Number(event.lon), Number(event.lat)),
         billboard: {
             image: marker,
-            scale: numberVar("--warzone-marker-scale", 1),
+            scale: count > 1
+                ? numberVar("--warzone-marker-scale", 1) * Math.min(1.4, 1 + Math.log10(count) * 0.15)
+                : numberVar("--warzone-marker-scale", 1),
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
             show: showEventMarkers,
@@ -252,32 +257,49 @@ function createEventEntity(event) {
             show: showEventRings,
         },
         properties: {
-            title: event.title,
-            summary: event.summary,
-            category: event.category,
-            severity: event.severity,
-            location_label: event.location_label,
-            occurred_at: event.occurred_at,
-            confidence: event.confidence,
+            eventId: String(event.id || ""),
+            title: event.title || "",
+            summary: event.summary || "",
+            category: event.category || "strike",
+            severity: event.severity || "medium",
+            location_label: event.location_label || "",
+            occurred_at: event.occurred_at || "",
+            confidence: Number(event.confidence ?? 0),
             heatRadius,
             radius,
+            clusterCount: count,
             origin_lat: event.origin_lat,
             origin_lon: event.origin_lon,
-            origin_label: event.origin_label,
+            origin_label: event.origin_label || "",
             impact_lat: event.impact_lat,
             impact_lon: event.impact_lon,
-            impact_label: event.impact_label,
+            impact_label: event.impact_label || "",
         },
     };
 }
 
 function addEventEntity(viewer, event) {
+    if (!isRenderableEvent(event)) return null;
+
+    const existingMain = viewer.entities.getById(`event-${event.id}`);
+    const existingRing = viewer.entities.getById(`event-${event.id}-outline`);
+
+    if (existingMain) {
+        try { viewer.entities.remove(existingMain); } catch { }
+    }
+    if (existingRing) {
+        try { viewer.entities.remove(existingRing); } catch { }
+    }
+
     const entity = viewer.entities.add(createEventEntity(event));
 
     const colorCss = getCategoryColorCss(event.category);
-    const outlineAlpha = numberVar("--warzone-event-ring-outline-alpha", 0.82);
+    const count = Number(event._clusterCount || 1);
+    const outlineAlpha = count > 1
+        ? numberVar("--warzone-event-ring-outline-alpha", 0.82) * 0.7
+        : numberVar("--warzone-event-ring-outline-alpha", 0.82);
     const outlineWidth = numberVar("--warzone-event-ring-outline-width", 3);
-    const radius = getSeverityRadius(event);
+    const radius = getClusterRadius(event);
     const showEventRings = boolVar("--warzone-event-rings-visible", true);
 
     const ringImage = createRingCanvas(
@@ -287,8 +309,8 @@ function addEventEntity(viewer, event) {
     );
 
     const ringEntity = viewer.entities.add({
-        id: `${event.id}-outline`,
-        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat, 10),
+        id: `event-${event.id}-outline`,
+        position: Cesium.Cartesian3.fromDegrees(Number(event.lon), Number(event.lat), 10),
         billboard: {
             image: ringImage,
             scale: radius / 256,
@@ -299,10 +321,12 @@ function addEventEntity(viewer, event) {
         },
         properties: {
             isEventOutline: true,
-            category: event.category,
-            severity: event.severity,
+            eventId: String(event.id || ""),
+            category: event.category || "strike",
+            severity: event.severity || "medium",
             heatRadius: getHeatRadius(event),
             radius,
+            clusterCount: count,
         },
     });
 
@@ -550,8 +574,9 @@ function setMapMode(viewer, mode = "map") {
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const colorCss = getCategoryColorCss(category);
         const color = Cesium.Color.fromCssColorString(colorCss);
+        const count = Number(entity.properties?.clusterCount?.getValue?.() ?? 1);
 
-        if (entity.billboard) {
+        if (entity.billboard && !entity.properties?.isEventOutline?.getValue?.()) {
             const allowMarker = boolVar("--warzone-event-markers-visible", true);
             entity.billboard.show = mode !== "heatmap" && allowMarker;
         }
@@ -570,15 +595,25 @@ function setMapMode(viewer, mode = "map") {
                 entity.ellipse.material = color.withAlpha(0.32);
                 entity.ellipse.outline = false;
             } else {
-                const normalRadius = getSeverityRadius({
+                const normalRadius = getClusterRadius({
                     severity: entity.properties?.severity?.getValue?.() ?? "medium",
+                    _clusterCount: count,
                 });
+                const baseFillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.14);
+                const fillAlpha = count > 1
+                    ? Math.max(0.06, baseFillAlpha - (Math.log10(count) * 0.03))
+                    : baseFillAlpha;
+
                 entity.ellipse.show = true;
                 entity.ellipse.semiMinorAxis = normalRadius;
                 entity.ellipse.semiMajorAxis = normalRadius;
-                entity.ellipse.material = color.withAlpha(numberVar("--warzone-event-ring-fill-alpha", 0.14));
+                entity.ellipse.material = color.withAlpha(fillAlpha);
                 entity.ellipse.outline = true;
-                entity.ellipse.outlineColor = color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.82));
+                entity.ellipse.outlineColor = color.withAlpha(
+                    count > 1
+                        ? numberVar("--warzone-event-ring-outline-alpha", 0.82) * 0.7
+                        : numberVar("--warzone-event-ring-outline-alpha", 0.82)
+                );
             }
         }
     }
@@ -625,13 +660,7 @@ function interpolateSample(samples, t) {
     const lat = lerp(a.lat, b.lat, localT);
     const height = lerp(a.height, b.height, localT);
 
-    return {
-        t: clamped,
-        lon,
-        lat,
-        height,
-        cart: Cesium.Cartesian3.fromDegrees(lon, lat, height),
-    };
+    return { t: clamped, lon, lat, height, cart: Cesium.Cartesian3.fromDegrees(lon, lat, height) };
 }
 
 function alphaRampFromOrigin(t) {
@@ -739,9 +768,7 @@ function clearOneMissileTrack(viewer, missileId) {
     }
 
     for (const entity of track.entities || []) {
-        try {
-            viewer.entities.remove(entity);
-        } catch { }
+        try { viewer.entities.remove(entity); } catch { }
     }
 
     viewer.__warzoneMissiles.delete(missileId);
@@ -750,7 +777,6 @@ function clearOneMissileTrack(viewer, missileId) {
 
 function clearAllMissileTracks(viewer) {
     ensureMissileStore(viewer);
-
     for (const missileId of viewer.__warzoneMissiles.keys()) {
         clearOneMissileTrack(viewer, missileId);
     }
@@ -758,9 +784,7 @@ function clearAllMissileTracks(viewer) {
 
 function enforceMissileCap(viewer) {
     ensureMissileStore(viewer);
-
     const maxActive = Math.max(1, numberVar("--warzone-max-active-missiles", 12));
-
     while (viewer.__warzoneMissileOrder.length > maxActive) {
         const oldestId = viewer.__warzoneMissileOrder[0];
         if (!oldestId) break;
@@ -775,37 +799,28 @@ function getIncomingHighlightRadius(event) {
         Number(event?.target_radius_m) ||
         Number(event?.incoming_highlight_radius_m);
 
-    if (Number.isFinite(explicitRadius) && explicitRadius > 0) {
-        return explicitRadius;
-    }
+    if (Number.isFinite(explicitRadius) && explicitRadius > 0) return explicitRadius;
 
     const targetScope = String(
-        event?.target_scope ||
-        event?.target_type ||
-        event?.location_scope ||
-        ""
+        event?.target_scope || event?.target_type || event?.location_scope || ""
     ).toLowerCase();
 
-    if (targetScope.includes("country") || targetScope.includes("national")) {
+    if (targetScope.includes("country") || targetScope.includes("national"))
         return numberVar("--warzone-incoming-highlight-radius-country", 260000);
-    }
 
     if (
         targetScope.includes("province") ||
         targetScope.includes("state") ||
         targetScope.includes("region") ||
         targetScope.includes("governorate")
-    ) {
+    )
         return numberVar("--warzone-incoming-highlight-radius-region", 180000);
-    }
 
     return numberVar("--warzone-incoming-highlight-radius-city", 120000);
 }
 
 function makeIncomingWarningEntity(viewer, missileId, event, lon, lat) {
-    const color = Cesium.Color.fromCssColorString(
-        cssVar("--warzone-incoming-highlight-color", "#ff2a2a")
-    );
+    const color = Cesium.Color.fromCssColorString(cssVar("--warzone-incoming-highlight-color", "#ff2a2a"));
     const radius = getIncomingHighlightRadius(event);
     const height = numberVar("--warzone-warning-height", 4000);
 
@@ -870,9 +885,7 @@ function animateIncomingWarning(viewer, missileId) {
         if (!track || track.isFading || track.hasImpacted) return;
 
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
-        const color = Cesium.Color.fromCssColorString(
-            cssVar("--warzone-incoming-highlight-color", "#ff2a2a")
-        );
+        const color = Cesium.Color.fromCssColorString(cssVar("--warzone-incoming-highlight-color", "#ff2a2a"));
 
         if (track.warningOuter?.ellipse) {
             const r = track.warningBaseRadius * (0.92 + pulse * 0.16);
@@ -898,18 +911,12 @@ function animateIncomingWarning(viewer, missileId) {
     };
 
     const track = viewer.__warzoneMissiles.get(missileId);
-    if (track) {
-        track.highlightFrame = requestAnimationFrame(tick);
-    }
+    if (track) track.highlightFrame = requestAnimationFrame(tick);
 }
 
 function makeImpactPulseEntities(viewer, missileId, lon, lat) {
     const stroke = cssVar("--warzone-missile-impact-color", "#ff2a2a");
-    const img = createRingCanvas(
-        stroke,
-        512,
-        numberVar("--warzone-missile-impact-ring-line-width", 10)
-    );
+    const img = createRingCanvas(stroke, 512, numberVar("--warzone-missile-impact-ring-line-width", 10));
     const height = numberVar("--warzone-missile-impact-height", 5000);
 
     const rings = [];
@@ -930,24 +937,19 @@ function makeImpactPulseEntities(viewer, missileId, lon, lat) {
     }
 
     const track = viewer.__warzoneMissiles.get(missileId);
-    if (track) {
-        track.entities.push(...rings);
-    }
+    if (track) track.entities.push(...rings);
 
     return rings;
 }
 
 function animateImpactPulse(viewer, missileId, rings) {
     const startedAt = performance.now();
-
     const cycles = Math.max(1, numberVar("--warzone-missile-impact-cycles", 3));
     const cycleDuration = Math.max(1200, numberVar("--warzone-missile-impact-cycle-duration", 5580));
     const staggerMs = Math.max(80, numberVar("--warzone-missile-impact-ring-stagger-ms", 620));
-
     const minScale = numberVar("--warzone-missile-impact-ring-min-scale", 0.02);
     const maxScale = numberVar("--warzone-missile-impact-ring-max-scale", 0.30);
     const alphaMax = clamp01(numberVar("--warzone-missile-impact-ring-alpha-max", 0.60));
-
     const totalDuration = cycles * cycleDuration;
 
     const tick = () => {
@@ -955,7 +957,6 @@ function animateImpactPulse(viewer, missileId, rings) {
         if (!track) return;
 
         const elapsed = performance.now() - startedAt;
-
         const globalFadeWindow = Math.min(1600, cycleDuration * 0.35);
         const globalFadeStart = totalDuration - globalFadeWindow;
         const globalFade =
@@ -1001,7 +1002,6 @@ function animateImpactPulse(viewer, missileId, rings) {
             }
 
             alpha *= globalFade;
-
             ring.billboard.scale = scale;
             ring.billboard.color = Cesium.Color.WHITE.withAlpha(alpha);
         }
@@ -1011,9 +1011,7 @@ function animateImpactPulse(viewer, missileId, rings) {
     };
 
     const track = viewer.__warzoneMissiles.get(missileId);
-    if (track) {
-        track.impactFxFrame = requestAnimationFrame(tick);
-    }
+    if (track) track.impactFxFrame = requestAnimationFrame(tick);
 }
 
 function makeLaunchFlashEntity(viewer, missileId, lon, lat, color = Cesium.Color.ORANGE) {
@@ -1085,9 +1083,7 @@ function makeLaunchFlashEntity(viewer, missileId, lon, lat, color = Cesium.Color
         activeTrack.launchFxFrame = requestAnimationFrame(tick);
     };
 
-    if (track) {
-        track.launchFxFrame = requestAnimationFrame(tick);
-    }
+    if (track) track.launchFxFrame = requestAnimationFrame(tick);
 
     return [launchRing, launchPoint];
 }
@@ -1116,13 +1112,7 @@ function createMissileSegmentEntities(viewer, track, positions) {
             },
         });
 
-        segments.push({
-            entity: segment,
-            t0,
-            t1,
-            baseAlpha,
-        });
-
+        segments.push({ entity: segment, t0, t1, baseAlpha });
         track.entities.push(segment);
     }
 
@@ -1137,15 +1127,8 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
 
     track.isFading = true;
 
-    if (track.cleanupTimer) {
-        clearTimeout(track.cleanupTimer);
-        track.cleanupTimer = null;
-    }
-
-    if (track.highlightFrame) {
-        cancelAnimationFrame(track.highlightFrame);
-        track.highlightFrame = null;
-    }
+    if (track.cleanupTimer) { clearTimeout(track.cleanupTimer); track.cleanupTimer = null; }
+    if (track.highlightFrame) { cancelAnimationFrame(track.highlightFrame); track.highlightFrame = null; }
 
     const startedAt = performance.now();
     const launchColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-launch-color", "#ff2a2a"));
@@ -1162,8 +1145,7 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
         if (Array.isArray(activeTrack.segmentEntities)) {
             for (const segment of activeTrack.segmentEntities) {
                 if (!segment?.entity?.polyline) continue;
-                segment.entity.polyline.material =
-                    activeTrack.lineBaseColor.withAlpha(segment.baseAlpha * fade);
+                segment.entity.polyline.material = activeTrack.lineBaseColor.withAlpha(segment.baseAlpha * fade);
             }
         }
 
@@ -1209,21 +1191,21 @@ function animateMissileTrack(viewer, event) {
     const impactLat = Number(event.impact_lat ?? event.lat);
 
     if (
-        !Number.isFinite(originLon) ||
-        !Number.isFinite(originLat) ||
-        !Number.isFinite(impactLon) ||
-        !Number.isFinite(impactLat)
-    ) {
-        return null;
-    }
+        !Number.isFinite(originLon) || !Number.isFinite(originLat) ||
+        !Number.isFinite(impactLon) || !Number.isFinite(impactLat)
+    ) return null;
+
+    const samePoint =
+        Math.abs(originLat - impactLat) < 0.01 &&
+        Math.abs(originLon - impactLon) < 0.01;
+
+    if (samePoint) return null;
 
     ensureMissileStore(viewer);
 
-    const missileId = String(event.id || `missile-${++viewer.__warzoneMissileSeq}`);
+    const missileId = `missile-${String(event.id || `${++viewer.__warzoneMissileSeq}`)}`;
 
-    if (viewer.__warzoneMissiles.has(missileId)) {
-        clearOneMissileTrack(viewer, missileId);
-    }
+    if (viewer.__warzoneMissiles.has(missileId)) clearOneMissileTrack(viewer, missileId);
 
     const peakHeight =
         event.severity === "critical"
@@ -1251,10 +1233,7 @@ function animateMissileTrack(viewer, event) {
     );
 
     const { positions, samples } = buildArcState(
-        originLon,
-        originLat,
-        impactLon,
-        impactLat,
+        originLon, originLat, impactLon, impactLat,
         peakHeight,
         Math.max(64, numberVar("--warzone-missile-steps", 120))
     );
@@ -1265,26 +1244,15 @@ function animateMissileTrack(viewer, event) {
     const track = {
         id: missileId,
         entities: [],
-        flightFrame: null,
-        launchFxFrame: null,
-        impactFxFrame: null,
-        fadeFrame: null,
-        highlightFrame: null,
-        cleanupTimer: null,
-        isFading: false,
-        hasImpacted: false,
-        segmentEntities: [],
-        segmentPositions: [],
-        launchMarker: null,
-        impactMarker: null,
+        flightFrame: null, launchFxFrame: null, impactFxFrame: null,
+        fadeFrame: null, highlightFrame: null, cleanupTimer: null,
+        isFading: false, hasImpacted: false,
+        segmentEntities: [], segmentPositions: [],
+        launchMarker: null, impactMarker: null,
         lineBaseColor: Cesium.Color.fromCssColorString(cssVar("--warzone-missile-line-color", "#ff2a2a")),
         lastImpactCart: null,
-        warningOuter: null,
-        warningInner: null,
-        warningCore: null,
-        warningBaseRadius: 0,
-        alertSoundActive: false,
-        impactSoundPlayed: false,
+        warningOuter: null, warningInner: null, warningCore: null,
+        warningBaseRadius: 0, alertSoundActive: false, impactSoundPlayed: false,
     };
 
     viewer.__warzoneMissiles.set(missileId, track);
@@ -1379,9 +1347,7 @@ function animateMissileTrack(viewer, event) {
         const segmentGap = clamp01(numberVar("--warzone-missile-segment-gap", 0.02));
 
         activeTrack.segmentPositions = activeTrack.segmentEntities.map((segment) => {
-            if (eased <= segment.t0) {
-                return [positions[0], positions[0]];
-            }
+            if (eased <= segment.t0) return [positions[0], positions[0]];
 
             const visibleEnd = Math.min(eased, segment.t1);
             const localEnd = interpolateSample(samples, visibleEnd).cart;
@@ -1424,11 +1390,7 @@ function animateMissileTrack(viewer, event) {
         viewer.scene.requestRender();
 
         activeTrack.cleanupTimer = setTimeout(() => {
-            fadeOutMissileTrack(
-                viewer,
-                missileId,
-                numberVar("--warzone-missile-fadeout-duration", 1800)
-            );
+            fadeOutMissileTrack(viewer, missileId, numberVar("--warzone-missile-fadeout-duration", 1800));
         }, persistMs);
     };
 
@@ -1476,6 +1438,7 @@ function highlightAlertRegion(viewer, event) {
     }, 9000);
 }
 
+/* ---------- Globe init ---------- */
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
@@ -1513,51 +1476,35 @@ export async function initWarzoneGlobe() {
 
     viewer.__warzone = {
         addEvent(event) {
+            if (!isRenderableEvent(event)) return null;
             const entity = addEventEntity(viewer, event);
             viewer.scene.requestRender();
             return entity;
         },
+
         addEvents(events = []) {
-            const normalized = normalizeEvents(events);
-            normalized.forEach((event) => addEventEntity(viewer, event));
+            const valid = Array.isArray(events) ? events.filter(isRenderableEvent) : [];
+            valid.forEach((event) => addEventEntity(viewer, event));
             viewer.scene.requestRender();
         },
+
         focusRegion,
         refocusMiddleEast() {
             const cam = getStartCameraConfig();
             focusRegion(viewer, cam.lon, cam.lat, numberVar("--warzone-focus-height", 2350000));
         },
-        setMapMode(mode) {
-            setMapMode(viewer, mode);
-        },
-        highlightAlertRegion(event) {
-            highlightAlertRegion(viewer, event);
-        },
-        clearAlertHighlight() {
-            clearAlertHighlight(viewer);
-        },
-        animateMissileTrack(event) {
-            return animateMissileTrack(viewer, event);
-        },
+        setMapMode(mode) { setMapMode(viewer, mode); },
+        highlightAlertRegion(event) { highlightAlertRegion(viewer, event); },
+        clearAlertHighlight() { clearAlertHighlight(viewer); },
+        animateMissileTrack(event) { return animateMissileTrack(viewer, event); },
         clearMissileTrack(id) {
-            if (id) {
-                clearOneMissileTrack(viewer, id);
-            } else {
-                clearAllMissileTracks(viewer);
-            }
+            if (id) clearOneMissileTrack(viewer, id);
+            else clearAllMissileTracks(viewer);
         },
-        clearAllMissileTracks() {
-            clearAllMissileTracks(viewer);
-        },
-        startAlertLoopSound() {
-            startMissileAlertSound(viewer);
-        },
-        stopAlertLoopSound() {
-            stopMissileAlertSound(viewer);
-        },
-        playImpactSound() {
-            playImpactSound(viewer);
-        },
+        clearAllMissileTracks() { clearAllMissileTracks(viewer); },
+        startAlertLoopSound() { startMissileAlertSound(viewer); },
+        stopAlertLoopSound() { stopMissileAlertSound(viewer); },
+        playImpactSound() { playImpactSound(viewer); },
     };
 
     return viewer;

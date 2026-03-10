@@ -1,12 +1,17 @@
 ﻿// assets/js/essential.js
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase } from "./supabase.js";
+import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
+import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
+import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 
 let __eventsCache = [];
 let __alertAudio = null;
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
 let __lastSeenOccurredAt = null;
+let __hotspotLayer = null;
+let __militaryTracks = null;
 
 function bindScrollClassToggles() {
     if (__scrollClassBound) return;
@@ -142,15 +147,6 @@ function normalizeEvent(event) {
     };
 }
 
-function hasTrajectory(event) {
-    return (
-        Number.isFinite(Number(event.origin_lat)) &&
-        Number.isFinite(Number(event.origin_lon)) &&
-        Number.isFinite(Number(event.impact_lat ?? event.lat)) &&
-        Number.isFinite(Number(event.impact_lon ?? event.lon))
-    );
-}
-
 function isTrackLikeEvent(event) {
     const category = String(event.category || "").toLowerCase();
     const weapon = String(event.weapon_type || "").toLowerCase();
@@ -158,18 +154,37 @@ function isTrackLikeEvent(event) {
     const summary = String(event.summary || "").toLowerCase();
     const haystack = `${category} ${weapon} ${title} ${summary}`;
 
+    const originLat = Number(event.origin_lat);
+    const originLon = Number(event.origin_lon);
+    const impactLat = Number(event.impact_lat ?? event.lat);
+    const impactLon = Number(event.impact_lon ?? event.lon);
+
+    const hasOrigin =
+        event.origin_lat != null &&
+        event.origin_lat !== "" &&
+        Number.isFinite(originLat) &&
+        Number.isFinite(originLon) &&
+        !(originLat === 0 && originLon === 0);
+
+    const hasImpact =
+        Number.isFinite(impactLat) &&
+        Number.isFinite(impactLon);
+
+    if (!hasOrigin || !hasImpact) return false;
+
+    const samePoint =
+        Math.abs(originLat - impactLat) < 0.01 &&
+        Math.abs(originLon - impactLon) < 0.01;
+
+    if (samePoint) return false;
+
     return (
-        hasTrajectory(event) &&
-        (
-            haystack.includes("missile") ||
-            haystack.includes("rocket") ||
-            haystack.includes("drone") ||
-            haystack.includes("uav") ||
-            haystack.includes("air strike") ||
-            haystack.includes("airstrike") ||
-            haystack.includes("fighter") ||
-            haystack.includes("sortie")
-        )
+        haystack.includes("missile") ||
+        haystack.includes("rocket") ||
+        haystack.includes("drone") ||
+        haystack.includes("uav") ||
+        haystack.includes("air strike") ||
+        haystack.includes("airstrike")
     );
 }
 
@@ -533,25 +548,14 @@ function ensureAlertAudio() {
 }
 
 export function triggerWarzoneAlert({ title, location, level = "high", playSound = true } = {}) {
-    const root = document.getElementById("warzone-alert");
-    const titleEl = document.getElementById("warzone-alert-title");
-    const metaEl = document.getElementById("warzone-alert-meta");
-
-    if (!root || !titleEl || !metaEl) return;
-
-    root.classList.remove("is-red", "is-orange");
-    root.classList.add(level === "critical" ? "is-red" : "is-orange", "is-active");
-
-    titleEl.textContent = title || "Incoming alert";
-    metaEl.textContent = location || "Live event detected";
-
-    if (playSound) {
-        const audio = ensureAlertAudio();
-        audio?.play?.().catch(() => { });
-    }
-
-    clearTimeout(root.__timer);
-    root.__timer = setTimeout(() => root.classList.remove("is-active"), 7000);
+    // Redirect to new siren alert system
+    const alertLevel = level === "critical" ? "red" : level === "high" ? "orange" : "yellow";
+    showSirenAlert({
+        title: String(title || "ALERT"),
+        meta: String(location || ""),
+        level: alertLevel,
+        sound: playSound,
+    });
 }
 
 function flashFeedCard(eventId) {
@@ -577,13 +581,84 @@ function renderAll(events) {
     renderKillChain(__eventsCache);
 }
 
+// ─── Globe circle clustering ──────────────────────────────────────────────────
+// Globe pe har event ka alag circle nahi banana — nearby events merge karo.
+// Radius: ~0.5 degrees (~55km). Ek cluster = 1 circle with count.
+// Military tracks (aircraft/ships) cluster se bahar hain — unka apna system hai.
+
+const GLOBE_CLUSTER_RADIUS_DEG = 0.5;
+
+// Category priority — cluster mein highest priority wala dikhega
+const CAT_PRIORITY = {
+    alert: 10, strike: 9, airspace: 8, military: 7,
+    recon: 6, cyber: 5, thermal: 4, seismic: 3, signal: 2,
+};
+
+function catScore(e) {
+    return (CAT_PRIORITY[String(e.category || "").toLowerCase()] || 1) +
+        (e.severity === "critical" ? 4 : e.severity === "high" ? 2 : 0);
+}
+
+function clusterEventsForGlobe(events) {
+    // Military tracks skip — handled by warzone-military-tracks.js
+    const toCluster = events.filter(e => {
+        const src = String(e.source_name || "").toLowerCase();
+        return !src.includes("ads-b") && !src.includes("ais");
+    });
+
+    const clusters = [];   // [ { rep: event, count, events[] } ]
+
+    for (const event of toCluster) {
+        const lat = Number(event.lat);
+        const lon = Number(event.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+        // Find nearest cluster
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        for (const cluster of clusters) {
+            const dLat = cluster.rep.lat - lat;
+            const dLon = cluster.rep.lon - lon;
+            const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = cluster;
+            }
+        }
+
+        if (nearest && nearestDist <= GLOBE_CLUSTER_RADIUS_DEG) {
+            nearest.events.push(event);
+            nearest.count++;
+            // Replace rep if this event has higher priority
+            if (catScore(event) > catScore(nearest.rep)) {
+                nearest.rep = event;
+            }
+        } else {
+            clusters.push({ rep: event, count: 1, events: [event] });
+        }
+    }
+
+    // Return representative events with _clusterCount attached
+    return clusters.map(c => ({
+        ...c.rep,
+        _clusterCount: c.count,
+        _clusterEvents: c.events,
+    }));
+}
+
 function syncInitialEventsToGlobe(events) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
 
-    events.forEach((event) => {
-        globe.addEvent?.(event);
+    // Cluster nearby events — prevents 50 red circles on same spot
+    const clustered = clusterEventsForGlobe(events);
+    console.log(`[globe] ${events.length} events → ${clustered.length} clusters`);
 
+    globe.addEvents?.(clustered);
+
+    // Missile arcs — use original unclustered events (each arc is unique)
+    events.forEach((event) => {
         if (isTrackLikeEvent(event)) {
             globe.animateMissileTrack?.(event);
         }
@@ -604,6 +679,34 @@ export async function initWarzoneApp() {
     const events = Array.isArray(data) ? data.map(normalizeEvent) : [];
     renderAll(events);
     syncInitialEventsToGlobe(events);
+
+    const hotspotRoot = document.getElementById("warzone-hotspot-layer");
+    const viewer = window.__warzoneViewer;
+
+    if (hotspotRoot && viewer && !__hotspotLayer) {
+        __hotspotLayer = createWarzoneHotspotLayer(viewer, hotspotRoot, {
+            maxCards: 20,
+            clusterDistanceLat: 2.6,
+            clusterDistanceLon: 3.2,
+            stackDistancePx: 90,
+            maxVisiblePerHotspot: 3,
+            minItemsForCluster: 1,
+        });
+    }
+
+    __hotspotLayer?.setEvents(events);
+
+    // ── Military tracks init ────────────────────────────────────────────────
+    if (viewer && !__militaryTracks) {
+        __militaryTracks = initMilitaryTracks(viewer);
+    }
+
+    if (__militaryTracks) {
+        const milEvents = events.filter(isMilitaryTrackEvent);
+        __militaryTracks.setTracks(milEvents);
+        console.log(`[tracks] Loaded ${milEvents.length} military tracks`);
+    }
+    // ───────────────────────────────────────────────────────────────────────
 
     if (events[0]?.occurred_at) {
         __lastSeenOccurredAt = events[0].occurred_at;
@@ -663,34 +766,53 @@ export function handleIncomingEvent(event) {
         __eventsCache.unshift(normalized);
     }
 
+    // Keep UI counters / feed / escalation current on every new event
     renderAll(__eventsCache);
+
     flashFeedCard(normalized.id);
 
     const globe = window.__warzoneViewer?.__warzone;
 
-    globe?.addEvent?.(normalized);
+    // Realtime event — check if a circle already exists nearby before adding
+    // This prevents new circles piling up on existing clusters
+    const isNearExisting = __eventsCache.some(e => {
+        if (String(e.id) === String(normalized.id)) return false;
+        const dLat = Math.abs(Number(e.lat) - Number(normalized.lat));
+        const dLon = Math.abs(Number(e.lon) - Number(normalized.lon));
+        return dLat < GLOBE_CLUSTER_RADIUS_DEG && dLon < GLOBE_CLUSTER_RADIUS_DEG;
+    });
+
+    // Always add to globe but with cluster flag so globe can merge/resize
+    globe?.addEvent?.({ ...normalized, _nearExisting: isNearExisting });
     globe?.highlightAlertRegion?.(normalized);
 
     if (isTrackLikeEvent(normalized)) {
         globe?.animateMissileTrack?.(normalized);
     }
 
-    if (isSirenLikeEvent(normalized)) {
-        triggerWarzoneAlert({
-            title: normalized.title || "Air raid sirens active",
-            location: normalized.location_label || "Warning area",
-            level: normalized.severity === "critical" ? "critical" : "high",
-            playSound: true,
-        });
+    __hotspotLayer?.addEvent(normalized);
+
+    // ── Military track (aircraft / naval) ──────────────────────────────────
+    if (isMilitaryTrackEvent(normalized) && __militaryTracks) {
+        __militaryTracks.addTrack(normalized);
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
+    // Use tight siren check — avoids news articles falsely triggering
+    if (isSirenEvent(normalized)) {
+        sirenAlertFromEvent(normalized);
         return;
     }
 
-    triggerWarzoneAlert({
-        title: normalized.title,
-        location: normalized.location_label,
-        level: normalized.severity === "critical" ? "critical" : "high",
-        playSound: false,
-    });
+    // Non-siren events: only show banner for critical/high severity
+    if (normalized.severity === "critical" || normalized.severity === "high") {
+        triggerWarzoneAlert({
+            title: normalized.title,
+            location: normalized.location_label,
+            level: normalized.severity === "critical" ? "critical" : "high",
+            playSound: false,
+        });
+    }
 }
 
 function initFloatingPanels() {

@@ -18,7 +18,7 @@
     },
     {
       "name": "Telegram OSINT",
-      "enabled": true,
+      "enabled": false,
       "type": "telegram",
       "parser": "telegram",
       "category": "military",
@@ -125,20 +125,24 @@
       "category": "fire"
     },
     {
-      "name": "USGS Earthquakes",
-      "enabled": true,
-      "type": "seismic",
-      "parser": "usgs",
-      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
-      "category": "seismic"
-    },
-    {
       "name": "Curated Warzone Feed",
       "enabled": false,
       "type": "manual-json",
       "parser": "events-array",
       "url": "https://warzone.battlespacex.com/assets/others/warzone-live-events.json",
       "category": "strike"
+    },
+    {
+      "name": "ADS-B Military Aircraft",
+      "enabled": true,
+      "type": "adsb-opensky",
+      "category": "military"
+    },
+    {
+      "name": "AIS Naval Vessels",
+      "enabled": true,
+      "type": "ais-stream",
+      "category": "military"
     }
   ]
 }

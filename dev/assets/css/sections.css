@@ -176,7 +176,7 @@
     position: relative;
     height: 100%;
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
     border-top: 0.2rem solid rgba(120, 160, 255, 0.08);
     background: radial-gradient(circle at center, rgba(10, 20, 32, 0.75) 0%, rgba(2, 5, 11, 1) 100%);
 }
@@ -723,7 +723,7 @@
 .warzone-ui-layer {
     position: absolute;
     inset: 0;
-    z-index: 20;
+    z-index: 40;
     pointer-events: none;
 }
 
@@ -1103,3 +1103,594 @@
         max-width: calc(100vw - 2rem);
     }
 }
+
+
+.warzone-map-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+
+/* ================================================================
+   WARZONE HOTSPOT CARDS  —  wzhs component
+   Replaces: .warzone-hotspot and all previous .wzhs rules.
+   Add this block to sections.css (after the existing .warzone-hotspot-layer rule).
+   Remove old .warzone-hotspot { ... } block if it still exists.
+   ================================================================ */
+
+/* ── overlay layer ─────────────────────────────────────────────────────────── */
+.warzone-hotspot-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 35;
+    pointer-events: none;
+    overflow: visible;
+}
+
+/* ── card shell ────────────────────────────────────────────────────────────── */
+.wzhs {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    border: none;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: "Rajdhani", "Bebas Neue", sans-serif;
+    animation: wzhs-in 0.1s ease both;
+}
+
+@keyframes wzhs-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -56%) scale(0.88);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* ── inner box ─────────────────────────────────────────────────────────────── */
+.wzhs__body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 1rem 0.6rem 1.2rem;
+    background: rgba(5, 8, 13, 0.93);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    clip-path: polygon(0 0, calc(100% - 1.2rem) 0, 100% 1.2rem, 100% 100%, 1.2rem 100%, 0 calc(100% - 1.2rem));
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    transition: box-shadow 0.16s ease;
+    min-width: 8rem;
+}
+
+.wzhs:hover .wzhs__body,
+.wzhs--open .wzhs__body {
+    box-shadow: 0 8px 30px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.1);
+}
+
+/* ── left accent bar ───────────────────────────────────────────────────────── */
+.wzhs__bar {
+    position: absolute;
+    left: 0;
+    top: 1.4rem;
+    bottom: 1.4rem;
+    width: 3px;
+    background: currentColor;
+    border-radius: 0 2px 2px 0;
+}
+
+/* ── top row: icon / count / label / chevron ───────────────────────────────── */
+.wzhs__top {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    line-height: 1;
+}
+
+.wzhs__icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.wzhs__count {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.wzhs__label {
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    line-height: 1;
+}
+
+.wzhs__arr {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.28);
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* ── expanded detail panel ─────────────────────────────────────────────────── */
+.wzhs__detail {
+    margin-top: 0.7rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.wzhs__loc {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 20rem;
+}
+
+.wzhs__time {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.3);
+}
+
+.wzhs__items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    max-height: 22rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+/* ── event item inside expanded ────────────────────────────────────────────── */
+.wzhs-item {
+    padding: 0.6rem 0.75rem;
+    background: rgba(255,255,255,0.025);
+    border-left: 2px solid rgba(255,255,255,0.08);
+}
+
+.wzhs-item__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+}
+
+.wzhs-item__sev {
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.18rem 0.45rem;
+}
+
+.wzhs-item__sev--critical {
+    background: rgba(255,7,83,0.18);
+    color: #ff3068;
+}
+
+.wzhs-item__sev--high {
+    background: rgba(255,106,0,0.18);
+    color: #ff6a00;
+}
+
+.wzhs-item__sev--medium {
+    background: rgba(255,180,0,0.14);
+    color: #ffb400;
+}
+
+.wzhs-item__sev--low {
+    background: rgba(86,216,14,0.12);
+    color: #56d80e;
+}
+
+.wzhs-item__time {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.28);
+}
+
+.wzhs-item__title {
+    display: block;
+    font-size: 1.15rem;
+    color: rgba(255,255,255,0.82);
+    line-height: 1.35;
+}
+
+.wzhs-item__loc {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.34);
+}
+
+/* ── stack depth modifiers ─────────────────────────────────────────────────── */
+.wzhs--s2 .wzhs__body {
+    opacity: 0.84;
+}
+
+.wzhs--s3 .wzhs__body {
+    opacity: 0.68;
+}
+
+/* ── category colour themes ────────────────────────────────────────────────── */
+.wzhs--strike {
+    color: #ff0753;
+}
+
+    .wzhs--strike .wzhs__body {
+        border-color: rgba(255,7,83,0.32);
+        box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 14px rgba(255,7,83,0.12);
+    }
+
+    .wzhs--strike .wzhs__count {
+        color: #ff3d74;
+    }
+
+.wzhs--alert {
+    color: #ff2a2a;
+}
+
+    .wzhs--alert .wzhs__body {
+        border-color: rgba(255,42,42,0.38);
+        box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 18px rgba(255,42,42,0.18);
+    }
+
+    .wzhs--alert .wzhs__body {
+        animation: wzhs-pulse 2s ease-in-out infinite;
+    }
+
+@keyframes wzhs-pulse {
+    0%,100% {
+        box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 14px rgba(255,42,42,0.15);
+    }
+
+    50% {
+        box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 28px rgba(255,42,42,0.35);
+    }
+}
+
+.wzhs--alert .wzhs__count {
+    color: #ff5a5a;
+}
+
+.wzhs--military {
+    color: #56d80e;
+}
+
+    .wzhs--military .wzhs__body {
+        border-color: rgba(86,216,14,0.28);
+    }
+
+    .wzhs--military .wzhs__count {
+        color: #7fec3c;
+    }
+
+.wzhs--recon {
+    color: #ff6a00;
+}
+
+    .wzhs--recon .wzhs__body {
+        border-color: rgba(255,106,0,0.28);
+    }
+
+    .wzhs--recon .wzhs__count {
+        color: #ff8c35;
+    }
+
+.wzhs--airspace {
+    color: #00d8b2;
+}
+
+    .wzhs--airspace .wzhs__body {
+        border-color: rgba(0,216,178,0.28);
+    }
+
+    .wzhs--airspace .wzhs__count {
+        color: #1ff5d0;
+    }
+
+.wzhs--cyber {
+    color: #9b7bff;
+}
+
+    .wzhs--cyber .wzhs__body {
+        border-color: rgba(155,123,255,0.28);
+    }
+
+    .wzhs--cyber .wzhs__count {
+        color: #b89fff;
+    }
+
+.wzhs--thermal {
+    color: #ff7a00;
+}
+
+    .wzhs--thermal .wzhs__body {
+        border-color: rgba(255,122,0,0.28);
+    }
+
+.wzhs--signal {
+    color: #ffd24d;
+}
+
+    .wzhs--signal .wzhs__body {
+        border-color: rgba(255,210,77,0.22);
+    }
+
+.wzhs--default {
+    color: #ff7a45;
+}
+
+/* ── open state ────────────────────────────────────────────────────────────── */
+.wzhs--open .wzhs__body {
+    min-width: 22rem;
+    max-width: 28rem;
+}
+
+/* ── mobile ────────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .wzhs__body {
+        min-width: 7rem;
+        max-width: 16rem;
+        padding: 0.5rem 0.85rem 0.5rem 1rem;
+    }
+
+    .wzhs__count {
+        font-size: 1.8rem;
+    }
+
+    .wzhs--open .wzhs__body {
+        min-width: 16rem;
+        max-width: 90vw;
+    }
+}
+
+
+
+
+
+
+
+
+/* ============================================================
+   warzone-siren-alert.css
+   3 levels: red (active) / orange (confirmed) / yellow (warning)
+   All pulse. StrikeMap style — no extra text, clean.
+   ============================================================ */
+
+#wz-siren-stack {
+    position: fixed;
+    top: 0.8rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    align-items: center;
+    pointer-events: none;
+    width: min(580px, calc(100vw - 1.5rem));
+}
+
+/* ── Banner base ───────────────────────────────────────────── */
+.wz-siren-banner {
+    pointer-events: all;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.9rem 0.6rem 1rem;
+    border-radius: 3px;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+    /* slide in from top */
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+    .wz-siren-banner.is-closing {
+        animation: wz-siren-out 0.18s ease-in both;
+    }
+
+/* ── Color levels ──────────────────────────────────────────── */
+
+/* RED — active sirens firing right now */
+.wz-siren-banner--red {
+    background: #d42020;
+    box-shadow: 0 2px 18px rgba(212, 32, 32, 0.55);
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-red 1.6s ease-in-out 0.25s infinite;
+}
+
+/* ORANGE — sirens reported / confirmed */
+.wz-siren-banner--orange {
+    background: #d45a00;
+    box-shadow: 0 2px 18px rgba(212, 90, 0, 0.5);
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-orange 2s ease-in-out 0.25s infinite;
+}
+
+/* YELLOW — incoming / unconfirmed warning */
+.wz-siren-banner--yellow {
+    background: #b88000;
+    box-shadow: 0 2px 18px rgba(184, 128, 0, 0.5);
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-yellow 2.4s ease-in-out 0.25s infinite;
+}
+
+/* ── Pulse keyframes ───────────────────────────────────────── */
+@keyframes wz-pulse-red {
+    0%, 100% {
+        box-shadow: 0 2px 18px rgba(212,32,32,0.55);
+        background: #d42020;
+    }
+
+    50% {
+        box-shadow: 0 4px 32px rgba(255,60,60,0.9);
+        background: #ff2424;
+    }
+}
+
+@keyframes wz-pulse-orange {
+    0%, 100% {
+        box-shadow: 0 2px 18px rgba(212,90,0,0.5);
+        background: #d45a00;
+    }
+
+    50% {
+        box-shadow: 0 4px 28px rgba(255,120,0,0.8);
+        background: #f06400;
+    }
+}
+
+@keyframes wz-pulse-yellow {
+    0%, 100% {
+        box-shadow: 0 2px 18px rgba(184,128,0,0.5);
+        background: #b88000;
+    }
+
+    50% {
+        box-shadow: 0 4px 28px rgba(230,170,0,0.8);
+        background: #d49600;
+    }
+}
+
+/* ── Slide animations ──────────────────────────────────────── */
+@keyframes wz-siren-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scaleY(0.92);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+}
+
+@keyframes wz-siren-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 80px;
+        margin-bottom: 0;
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-8px);
+        max-height: 0;
+        margin-bottom: -0.45rem;
+    }
+}
+
+/* ── Bell icon ─────────────────────────────────────────────── */
+.wz-siren-bell {
+    font-size: 1rem;
+    flex-shrink: 0;
+    animation: wz-bell-ring 1.2s ease-in-out infinite;
+    transform-origin: top center;
+}
+
+@keyframes wz-bell-ring {
+    0%,100% {
+        transform: rotate(0deg);
+    }
+
+    10% {
+        transform: rotate(14deg);
+    }
+
+    20% {
+        transform: rotate(-12deg);
+    }
+
+    30% {
+        transform: rotate(10deg);
+    }
+
+    40% {
+        transform: rotate(-8deg);
+    }
+
+    50% {
+        transform: rotate(0deg);
+    }
+}
+
+/* ── Text block ────────────────────────────────────────────── */
+.wz-siren-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.wz-siren-title {
+    display: block;
+    font-family: 'Rajdhani', 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #ffffff;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wz-siren-meta {
+    display: block;
+    margin-top: 0.1rem;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.72);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Right bell (mirror) ───────────────────────────────────── */
+.wz-siren-bell-right {
+    font-size: 1rem;
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.7);
+    animation: wz-bell-ring 1.2s ease-in-out 0.3s infinite;
+    transform-origin: top center;
+}
+
+/* ── Close button ──────────────────────────────────────────── */
+.wz-siren-close {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.25);
+    border: none;
+    border-radius: 2px;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.12s;
+    padding: 0;
+    line-height: 1;
+}
+
+    .wz-siren-close:hover {
+        background: rgba(0,0,0,0.45);
+        color: #fff;
+    }

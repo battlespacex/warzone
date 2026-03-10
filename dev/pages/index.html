@@ -23,6 +23,8 @@
     <meta name="twitter:description" content="<%= meta.twDescription %>" />
     <meta name="twitter:image" content="<%= meta.twImage %>" />
     <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <%= preloadLinks %>
     <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
 </head>
@@ -92,7 +94,10 @@
                         </div>
 
                         <div class="warzone-map-wrap">
-                            <div id="warzone-globe" class="warzone-globe"></div>
+                            <div class="warzone-map-shell">
+                                <div id="warzone-globe" class="warzone-globe"></div>
+                                <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
+                            </div>
                             <div id="warzone-map-credits" class="warzone-map-credits"></div>
 
                             <div class="warzone-ui-layer">
@@ -108,7 +113,7 @@
                                             <div class="mini-stat"><span>Iranian</span><strong id="stat-iran">--</strong></div>
                                             <div class="mini-stat"><span>US / Israel</span><strong id="stat-usisr">--</strong></div>
                                         </div>
-                                    </div>                
+                                    </div>
                                     <div class="clippath-shape-1" aria-hidden="true"></div>
                                 </aside>
 
@@ -120,7 +125,7 @@
                                     <div class="panel-content">
                                         <div id="cyber-status-list" class="status-list"></div>
                                     </div>
-                                   
+
                                     <div class="clippath-shape-1" aria-hidden="true"></div>
                                 </aside>
 
@@ -132,7 +137,7 @@
                                     <div class="panel-content">
                                         <div id="airspace-status-list" class="status-list"></div>
                                     </div>
-                                   
+
                                     <div class="clippath-shape-1" aria-hidden="true"></div>
                                 </aside>
 
@@ -149,7 +154,7 @@
                                             </div>
                                             <ul id="escalation-breakdown" class="escalation-list"></ul>
                                         </div>
-                                    </div>                                  
+                                    </div>
                                     <div class="clippath-shape-1" aria-hidden="true"></div>
                                 </aside>
 
@@ -160,7 +165,7 @@
                                     </div>
                                     <div class="panel-content">
                                         <div id="live-feed-list" class="feed-list"></div>
-                                    </div>                                  
+                                    </div>
                                     <div class="clippath-shape-1" aria-hidden="true"></div>
                                 </aside>
 
@@ -176,8 +181,7 @@
                                         <strong id="warzone-alert-title">Incoming alert</strong>
                                         <span id="warzone-alert-meta">Live event detected</span>
                                     </div>
-                                   <button type="button" class="warzone-alert__close">×</button>                                  
-                                    <div class="clippath-shape-1" aria-hidden="true"></div>
+                                    <button type="button" class="warzone-alert__close">×</button>
                                 </div>
                             </div>
                         </div>

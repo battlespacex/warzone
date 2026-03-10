@@ -124,10 +124,10 @@
     --warzone-fxaa-enabled: 1;
     --warzone-camera-min-zoom: 200;
     --warzone-marker-scale: 0;
-    --warzone-event-markers-visible: 1;
+    --warzone-event-markers-visible: 0;
     --warzone-event-rings-visible: 1;
-    --warzone-event-ring-size: 70000;
-    --warzone-event-ring-fill-alpha: 0.3;
+    --warzone-event-ring-size: 32000;
+    --warzone-event-ring-fill-alpha: 0.16;
     --warzone-event-ring-outline-alpha: 0;
     --warzone-event-ring-outline-width: 0;
 }
@@ -182,5 +182,43 @@
     --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
     --warzone-sound-alert-volume: 0.65;
     --warzone-sound-impact-volume: 0.9;
+}
+/* #endregion */
+
+
+
+/* #region =========== Cluster =========== */
+:root {
+    --warzone-cluster-font: "Rajdhani", sans-serif;
+    --warzone-cluster-text: #ffffff;
+    --warzone-cluster-border: rgba(255, 255, 255, 0.08);
+    --warzone-cluster-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+    --warzone-cluster-radius: 1rem;
+    --warzone-cluster-padding-y: 0.85rem;
+    --warzone-cluster-padding-x: 1rem;
+    --warzone-cluster-gap: 0.85rem;
+    --warzone-cluster-count-size: 2.1rem;
+    --warzone-cluster-title-size: 1rem;
+    --warzone-cluster-desc-size: 0.95rem;
+    --warzone-cluster-icon-size: 1.4rem;
+    --warzone-cluster-compact-min-width: 10rem;
+    --warzone-cluster-expanded-width: 19rem;
+    --warzone-cluster-expanded-min-height: 10rem;
+    --warzone-cluster-hover-scale: 1.03;
+    --warzone-cluster-active-scale: 1.05;
+    --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
+    --warzone-cluster-stack-x-2: -16px;
+    --warzone-cluster-stack-y-2: -14px;
+    --warzone-cluster-stack-x-3: 16px;
+    --warzone-cluster-stack-y-3: 14px;
+    --warzone-cluster-strike: #ff0a5b;
+    --warzone-cluster-recon: #ff6a00;
+    --warzone-cluster-military: #4fd61a;
+    --warzone-cluster-alert: #ff2a2a;
+    --warzone-cluster-airspace: #00d8b2;
+    --warzone-cluster-cyber: #9b7bff;
+    --warzone-cluster-thermal: #ff8a00;
+    --warzone-cluster-signal: #ffd24d;
+    --warzone-cluster-default: #ff7a45;
 }
 /* #endregion */

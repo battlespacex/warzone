@@ -1,4 +1,5 @@
-﻿import { supabase } from "./supabase.js";
+﻿// assets/js/warzone-realtime.js
+import { supabase } from "./supabase.js";
 import { handleIncomingEvent } from "./essential.js";
 import { showStickyAlert, hideStickyAlert } from "./warzone-sticky-alert.js";
 
