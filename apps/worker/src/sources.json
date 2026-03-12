@@ -27,6 +27,7 @@
         "OSINTLive",
         "wor_mil_news",
         "ClashReport",
+        "conflicthistoryandnews",
         "mmirlb",
         "war_translated",
         "U_S_CENTCOM",
@@ -35,6 +36,43 @@
       ],
       "limit": 25,
       "tags": [ "telegram", "osint", "military" ]
+    },
+    {
+      "name": "IsraelWarRoom Siren Feed",
+      "enabled": true,
+      "type": "telegram",
+      "parser": "telegram",
+      "category": "alert",
+      "channels": [
+        "IsraelWarRoom"
+      ],
+      "limit": 10,
+      "tags": [ "telegram", "siren", "israel", "red-alert" ],
+      "notes": "Real-time siren/rocket alerts from Israel. Messages routed through handleIsraelWarRoomMessage() in warzone-siren-poller.js for geo-coding and Supabase broadcast."
+    },
+    {
+      "name": "Tzevaadom English (Pikud HaOref mirror)",
+      "enabled": true,
+      "type": "telegram",
+      "parser": "telegram",
+      "category": "alert",
+      "channels": [
+        "tzevaadom_en"
+      ],
+      "limit": 10,
+      "tags": [ "telegram", "siren", "israel", "pikud-haoref", "red-alert" ],
+      "notes": "Mirrors official Pikud HaOref alerts in English. Used as fallback when oref.org.il is geo-blocking the EC2. Routed through handleIsraelWarRoomMessage() in warzone-siren-poller.js."
+    },
+    {
+      "name": "Pikud HaOref Real-Time Sirens",
+      "enabled": true,
+      "type": "oref-poller",
+      "parser": "oref",
+      "url": "https://www.oref.org.il/WarningMessages/alert/alerts.json",
+      "category": "alert",
+      "poll_ms": 1500,
+      "tags": [ "siren", "israel", "pikud-haoref", "red-alert", "real-time" ],
+      "notes": "Handled by startOrefPoller() in warzone-siren-poller.js — NOT processed through the standard processFeed() loop. Requires EC2 in il-central-1 (Tel Aviv) or set OREF_PROXY env var."
     },
     {
       "name": "Reddit CombatFootage",

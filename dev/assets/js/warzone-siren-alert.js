@@ -23,17 +23,13 @@ const AUTO_DISMISS = {
 };
 
 // ── Stack ──────────────────────────────────────────────────────────────────────
+// Stack container lives in partials/popups.html → #wz-siren-stack
+// Banner template lives in partials/popups.html → #tpl-siren-banner
 let __stack = [];   // [ { id, el, timer } ]
 let __seq = 0;
 
-function getOrCreateStack() {
-    let el = document.getElementById("wz-siren-stack");
-    if (!el) {
-        el = document.createElement("div");
-        el.id = "wz-siren-stack";
-        document.body.appendChild(el);
-    }
-    return el;
+function getStack() {
+    return document.getElementById("wz-siren-stack");
 }
 
 // ── Classify level from event ──────────────────────────────────────────────────
@@ -211,21 +207,40 @@ export function showSirenAlert({ title, meta = "", level = "orange", sound = tru
     enforceCap();
 
     const id = ++__seq;
-    const stack = getOrCreateStack();
+    const stack = getStack();
+    if (!stack) return;
 
-    const banner = document.createElement("div");
+    // Clone banner from <template id="tpl-siren-banner"> in partials/popups.html
+    const tpl = document.getElementById("tpl-siren-banner");
+    let banner;
+    if (tpl) {
+        banner = tpl.content.cloneNode(true).firstElementChild;
+    } else {
+        // Fallback: create manually if template somehow missing
+        banner = document.createElement("div");
+        banner.innerHTML = `
+            <span class="wz-siren-bell" aria-hidden="true">🔔</span>
+            <span class="wz-siren-body">
+                <strong class="wz-siren-title"></strong>
+                <span class="wz-siren-meta"></span>
+            </span>
+            <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
+            <button class="wz-siren-close" aria-label="Dismiss">✕</button>
+        `;
+    }
+
     banner.className = `wz-siren-banner wz-siren-banner--${level}`;
     banner.dataset.alertId = id;
 
-    banner.innerHTML = `
-        <span class="wz-siren-bell" aria-hidden="true">🔔</span>
-        <span class="wz-siren-body">
-            <strong class="wz-siren-title">${title}</strong>
-            ${meta ? `<span class="wz-siren-meta">${meta}</span>` : ""}
-        </span>
-        <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
-        <button class="wz-siren-close" aria-label="Dismiss" data-dismiss="${id}">✕</button>
-    `;
+    // Fill content
+    banner.querySelector(".wz-siren-title").textContent = title;
+    const metaEl = banner.querySelector(".wz-siren-meta");
+    if (meta) {
+        metaEl.textContent = meta;
+        metaEl.hidden = false;
+    } else {
+        metaEl.hidden = true;
+    }
 
     // Close button
     banner.querySelector(".wz-siren-close").addEventListener("click", (e) => {

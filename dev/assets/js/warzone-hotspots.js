@@ -8,6 +8,7 @@
 //   • postRender throttled to ~8fps for the overlay — Cesium still runs at full fps
 
 import * as Cesium from "cesium";
+import { isEventVisible } from "./warzone-layers.js";
 
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -421,6 +422,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
 
         addEvent(evt) {
             if (!evt) return;
+            if (!isEventVisible(evt)) return;   // respect layer toggles
             if (allEvents.some(e => String(e.id) === String(evt.id))) return;
             allEvents.unshift(evt);
             clustersDirty = true;

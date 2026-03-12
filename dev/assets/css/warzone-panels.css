@@ -1,0 +1,424 @@
+﻿/* ============================================================
+   warzone-panels.css
+   ============================================================ */
+
+/* ── Boot: kill transitions during initial paint ── */
+.wz-no-transitions .warzone-panel--floating,
+.wz-no-transitions .wz-dock__btn[data-dock-widget],
+.wz-no-transitions .wz-dock__sep {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* ── UI layer — passthrough except interactive children ── */
+.warzone-ui-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    margin: 10rem 2rem 2rem;
+}
+
+    .warzone-ui-layer .warzone-panel--floating,
+    .warzone-ui-layer .warzone-alert,
+    .warzone-ui-layer .wz-dock,
+    .warzone-ui-layer .wz-modal {
+        pointer-events: auto;
+    }
+
+/* ── Floating panel shell ── */
+.warzone-panel--floating {
+    position: absolute;
+    z-index: 20;
+    width: 28rem;
+    max-width: calc(100vw - 3.2rem);
+    isolation: isolate;
+    /* Fade in/out — driven by .wz-is-hidden only.
+       NO visibility property — it causes browsers to block re-show mid-transition.
+       opacity+pointer-events is sufficient since panels are position:absolute. */
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    transition: opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+    /* Hidden state — fade out + tiny downward drift */
+    .warzone-panel--floating.wz-is-hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(10px) scale(0.97);
+    }
+
+    /* ── Collapse: pure CSS grid trick — no JS height needed ── */
+    .warzone-panel--floating.is-collapsed .panel-action[data-panel-collapse] {
+        transform: rotate(-180deg);
+    }
+
+.panel-content {
+    display: grid;
+    grid-template-rows: 1fr;
+    /* overflow:hidden clips the inner content as grid row shrinks to 0fr */
+    overflow: hidden;
+    opacity: 1;
+    transition: grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 260ms ease;
+}
+
+    /* Direct child MUST have min-height:0 — lets it squish below its natural height */
+    .panel-content > * {
+        overflow: hidden;
+        min-height: 0;
+    }
+
+.warzone-panel--floating.is-collapsed .panel-content {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Panel chrome ── */
+.warzone-panel--feed {
+    width: 32rem;
+}
+
+.warzone-panel--floating .panel-head {
+    cursor: grab;
+    padding: 1.2rem 1.3rem;
+}
+
+.warzone-panel--floating.is-dragging .panel-head {
+    cursor: grabbing;
+}
+
+.warzone-panel--floating .panel-body,
+.warzone-panel--floating .feed-list {
+    padding: 0.8rem 1.3rem;
+}
+
+/* ── Panel head ── */
+.panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.3rem 1.4rem;
+    border-bottom: 0.2rem solid var(--color-panel-line);
+}
+
+    .panel-head h2,
+    .warzone-widget .panel-head h2 {
+        font-family: var(--font-ui);
+        font-size: var(--text-sm);
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--color-heading-3);
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+/* ── Panel actions row ── */
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.panel-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.55);
+    cursor: pointer;
+    font-size: 1.4rem;
+    line-height: 1;
+    transition: background 180ms ease, transform 220ms ease;
+}
+
+    .panel-action:hover {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+    }
+
+.panel-action--close:hover {
+    background: rgba(255, 50, 50, 0.2);
+    border-color: rgba(255, 50, 50, 0.4);
+    color: #ff4444;
+}
+
+/* ── Mini stat rows (Strike Counter) ── */
+.mini-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.3rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+}
+
+    .mini-stat:last-child {
+        border-bottom: none;
+    }
+
+    .mini-stat strong {
+        font-weight: 700;
+        color: var(--color-heading-3);
+        font-size: var(--text-md);
+    }
+
+/* ── Status rows (Cyber / Airspace) ── */
+.status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1.3rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+}
+
+    .status-row:last-child {
+        border-bottom: none;
+    }
+
+/* ── Status pills ── */
+.status-pill {
+    font-family: var(--font-ui);
+    font-size: 1.0rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.7rem;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+}
+
+.status-pill--normal {
+    color: var(--warzone-military);
+}
+
+.status-pill--unknown {
+    color: rgba(255,255,255,0.3);
+}
+
+.status-pill--closed {
+    color: var(--warzone-strike);
+}
+
+.status-pill--restricted {
+    color: var(--warzone-recon);
+}
+
+/* ── Escalation widget ── */
+.escalation-box {
+    padding: 1.2rem 1.3rem;
+}
+
+.escalation-meter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-bottom: 1.2rem;
+}
+
+    .escalation-meter span {
+        font-family: var(--font-display);
+        font-size: var(--text-3xl);
+        color: var(--warzone-strike);
+        line-height: 1;
+    }
+
+    .escalation-meter small {
+        font-family: var(--font-ui);
+        font-size: var(--text-sm);
+        color: var(--color-text-dim);
+        letter-spacing: 0.06em;
+    }
+
+.escalation-list {
+    list-style: disc;
+    padding-left: 1.6rem;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+    .escalation-list li {
+        font-family: var(--font-ui);
+        font-size: var(--text-sm);
+        color: var(--color-text-dim);
+    }
+
+/* ── About / Terms modal ── */
+.wz-modal {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+}
+
+.wz-modal__box {
+    width: 56rem;
+    max-width: 92vw;
+    max-height: 80vh;
+    background: rgba(6, 10, 16, 0.98);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.wz-modal__tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.wz-modal__tab {
+    flex: 1;
+    padding: 1.2rem;
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+    .wz-modal__tab.is-active {
+        color: var(--warzone-airspace-color);
+        border-bottom-color: var(--warzone-airspace-color);
+    }
+
+.wz-modal__body {
+    overflow-y: auto;
+    padding: 2rem;
+    flex: 1;
+}
+
+.wz-modal__pane {
+    display: none;
+}
+
+    .wz-modal__pane.is-active {
+        display: block;
+    }
+
+.wz-modal__close {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    width: 3.2rem;
+    height: 3.2rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    font-size: 1.6rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .warzone-panel--floating {
+        left: 0.8rem !important;
+        right: 0.8rem !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+
+    .wz-modal__box {
+        width: 96vw;
+        max-height: 90vh;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WIDGET DEFAULT POSITIONS
+   Sets a clean 2-column, no-overlap starting layout.
+   These are CSS fallbacks — inline styles (set by drag system) win over them.
+   Commandbar is position:absolute over the map, so all widgets need top: ≥7rem
+   to clear it. --wz-bar-h is the source of truth.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --wz-bar-h: 6rem; /* commandbar height: 1.2rem×2 padding + 3.2rem logo + 0.4rem border */
+}
+
+/* Left column — Counter (top) · Airspace (middle) · Layers (bottom) */
+.warzone-widget--counter {
+    left: 1.6rem;
+    top: calc(var(--wz-bar-h) + 1rem);
+}
+
+.warzone-widget--airspace {
+    left: 1.6rem;
+    top: calc(var(--wz-bar-h) + 27rem);
+}
+/* below counter */
+.warzone-widget--layers {
+    left: 30rem;
+    top: 0;
+}
+
+/* Right column — Escalation (top) · Cyber (bottom) */
+.warzone-widget--escalation {
+    right: 1.6rem;
+    top: calc(var(--wz-bar-h) + 1rem);
+}
+
+.warzone-widget--cyber {
+    right: 1.6rem;
+    bottom: 12rem;
+    top: auto;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE POPUP BACKDROP
+   Shown by JS when any widget is open on mobile/tablet
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wz-widget-backdrop {
+    display: none; /* shown via JS */
+    position: fixed;
+    inset: 0;
+    z-index: 490;
+    background: rgba(2, 5, 15, 0.78);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    animation: wz-backdrop-in 180ms ease forwards;
+}
+
+@keyframes wz-backdrop-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

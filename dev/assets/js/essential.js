@@ -4,14 +4,50 @@ import { supabase } from "./supabase.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
+import { initRegionSelector, onRegionChange, filterEventsByRegion, getActiveRegion } from "./warzone-region-selector.js";
+import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled } from "./warzone-layers.js";
+import { initDevPanel } from "./warzone-dev-panel.js";
 
 let __eventsCache = [];
+
+// Single source of truth: apply both region AND layer filters
+function applyAllFilters(events) {
+    const region = getActiveRegion?.();
+    const regional = filterEventsByRegion ? filterEventsByRegion(events, region) : events;
+    return regional.filter(e => isEventVisible(e));
+}
 let __alertAudio = null;
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
 let __lastSeenOccurredAt = null;
 let __hotspotLayer = null;
 let __militaryTracks = null;
+
+// ── Performance: debounced UI renders ─────────────────────────────────────────
+function debounce(fn, ms) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+}
+
+const debouncedRenderUI = debounce((events) => {
+    renderStrikeCounters(events);
+    renderCyberStatus(events);
+    renderAirspaceStatus(events);
+    renderEscalation(events);
+}, 800);
+
+const debouncedRenderFeed = debounce((events) => {
+    renderFeed(events);
+}, 400);
+
+const debouncedRenderHeavy = debounce((events) => {
+    renderSummary(events);
+    renderTimeline(events);
+    renderAnalytics(events);
+    renderRecon(events);
+    renderWeapons(events);
+    renderKillChain(events);
+}, 2000);
 
 function bindScrollClassToggles() {
     if (__scrollClassBound) return;
@@ -313,13 +349,45 @@ function renderAirspaceStatus(events) {
     if (!container) return;
 
     const countries = ["Iran", "Israel", "Lebanon", "Syria", "Iraq", "Jordan", "Saudi Arabia", "UAE", "Bahrain", "Oman"];
+
+    // Derive airspace status intelligently from event data.
+    // Priority: explicit airspace_status field → inferred from strikes/alerts → normal
+    function deriveStatus(country) {
+        const lc = country.toLowerCase();
+        const countryEvents = events.filter(e =>
+            String(e.location_label || "").toLowerCase().includes(lc) ||
+            String(e.country || "").toLowerCase().includes(lc)
+        );
+
+        if (!countryEvents.length) return "unknown";
+
+        // Check explicit field first
+        const explicit = countryEvents.find(e => e.airspace_status && e.airspace_status !== "unknown");
+        if (explicit) return explicit.airspace_status;
+
+        // Infer: any alert/siren category → closed
+        const hasAlert = countryEvents.some(e => e.category === "alert");
+        if (hasAlert) return "closed";
+
+        // Infer: airstrikes or missiles in last 2h → restricted
+        const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+        const hasRecentStrike = countryEvents.some(e => {
+            const t = new Date(e.occurred_at).getTime();
+            return t > twoHoursAgo && (e.category === "strike" || e.category === "military");
+        });
+        if (hasRecentStrike) return "restricted";
+
+        // Has old events → normal
+        return "normal";
+    }
+
     const markup = countries.map((country) => {
-        const hit = events.find((e) => String(e.location_label).toLowerCase().includes(country.toLowerCase()));
-        const status = hit?.airspace_status || "unknown";
+        const status = deriveStatus(country);
+        const label = status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
                 <span>${country}</span>
-                <strong class="status-pill status-pill--${status}">${status}</strong>
+                <strong class="status-pill status-pill--${status}">${label}</strong>
             </div>
         `;
     }).join("");
@@ -568,17 +636,12 @@ function flashFeedCard(eventId) {
 function renderAll(events) {
     __eventsCache = sortEvents(events.map(normalizeEvent));
 
-    renderStrikeCounters(__eventsCache);
-    renderFeed(__eventsCache);
-    renderCyberStatus(__eventsCache);
-    renderAirspaceStatus(__eventsCache);
-    renderEscalation(__eventsCache);
-    renderSummary(__eventsCache);
-    renderTimeline(__eventsCache);
-    renderAnalytics(__eventsCache);
-    renderRecon(__eventsCache);
-    renderWeapons(__eventsCache);
-    renderKillChain(__eventsCache);
+    // Fast renders — happen immediately
+    debouncedRenderFeed(__eventsCache);
+    debouncedRenderUI(__eventsCache);
+
+    // Heavy renders — debounced 2s (analytics, weapons, etc.)
+    debouncedRenderHeavy(__eventsCache);
 }
 
 // ─── Globe circle clustering ──────────────────────────────────────────────────
@@ -651,17 +714,25 @@ function syncInitialEventsToGlobe(events) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
 
-    // Cluster nearby events — prevents 50 red circles on same spot
-    const clustered = clusterEventsForGlobe(events);
-    console.log(`[globe] ${events.length} events → ${clustered.length} clusters`);
+    globe.clearEventEntities?.();
 
+    const visible = applyAllFilters(events);
+
+    // Adjust render rate based on how many events are visible
+    // 0 = idle (very low GPU), 1–30 = light, 31+ = full
+    globe.setPerformanceMode?.(visible.length);
+
+    // Nothing to render — already cleared above, bail early
+    if (!visible.length) {
+        window.__warzoneViewer?.scene?.requestRender?.();
+        return;
+    }
+
+    const clustered = clusterEventsForGlobe(visible);
     globe.addEvents?.(clustered);
 
-    // Missile arcs — use original unclustered events (each arc is unique)
-    events.forEach((event) => {
-        if (isTrackLikeEvent(event)) {
-            globe.animateMissileTrack?.(event);
-        }
+    visible.forEach((event) => {
+        if (isTrackLikeEvent(event)) globe.animateMissileTrack?.(event);
     });
 }
 
@@ -694,12 +765,56 @@ export async function initWarzoneApp() {
         });
     }
 
-    __hotspotLayer?.setEvents(events);
+    __hotspotLayer?.setEvents(applyAllFilters(events));
+
+    // ── Region selector ─────────────────────────────────────────────────────
+    if (viewer) {
+        initRegionSelector(viewer);
+        onRegionChange(() => {
+            syncInitialEventsToGlobe(__eventsCache);
+            __hotspotLayer?.setEvents(applyAllFilters(__eventsCache));
+            debouncedRenderUI(applyAllFilters(__eventsCache));
+        });
+    }
+
+    // ── Layer panel ─────────────────────────────────────────────────────────
+    initLayerPanel();
+    onLayerChange((id) => {
+        // Hotspot labels — instant show/hide
+        if (id === "hotspots" || id === "*") {
+            const hotspotRoot = document.getElementById("warzone-hotspot-layer");
+            if (hotspotRoot) {
+                hotspotRoot.style.display = isLayerEnabled("hotspots") ? "" : "none";
+            }
+        }
+        // Satellite imagery — toggle ArcGIS layers (big perf boost when off)
+        if (id === "terrain" || id === "*") {
+            const globe = window.__warzoneViewer?.__warzone;
+            globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
+            // Also recalculate perf mode since terrain off = lighter GPU
+            globe?.setPerformanceMode?.(applyAllFilters(__eventsCache).length);
+        }
+        // Re-sync globe + hotspot cards for data layers
+        if (id !== "hotspots" && id !== "terrain") {
+            const filtered = applyAllFilters(__eventsCache);
+            syncInitialEventsToGlobe(__eventsCache);
+            __hotspotLayer?.setEvents(filtered);
+            debouncedRenderUI(filtered);
+        }
+    });
 
     // ── Military tracks init ────────────────────────────────────────────────
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
+        window.__warzoneViewer = viewer;  // ensure global reference
     }
+
+    // ── Re-cluster on zoom change ────────────────────────────────────────────
+    // Re-cluster only when zoom changes significantly — NOT on every pan
+    // Panning does not need re-sync since all visible events are already rendered
+    window.addEventListener("wz:recluster", () => {
+        syncInitialEventsToGlobe(__eventsCache);
+    });
 
     if (__militaryTracks) {
         const milEvents = events.filter(isMilitaryTrackEvent);
@@ -773,24 +888,33 @@ export function handleIncomingEvent(event) {
 
     const globe = window.__warzoneViewer?.__warzone;
 
-    // Realtime event — check if a circle already exists nearby before adding
-    // This prevents new circles piling up on existing clusters
-    const isNearExisting = __eventsCache.some(e => {
-        if (String(e.id) === String(normalized.id)) return false;
-        const dLat = Math.abs(Number(e.lat) - Number(normalized.lat));
-        const dLon = Math.abs(Number(e.lon) - Number(normalized.lon));
-        return dLat < GLOBE_CLUSTER_RADIUS_DEG && dLon < GLOBE_CLUSTER_RADIUS_DEG;
-    });
+    // Apply region + layer filter before globe render
+    const region = getActiveRegion?.();
+    const inRegion = !filterEventsByRegion || !region || region.id === "global" || (() => {
+        const b = region.bounds;
+        const lat = Number(normalized.lat), lon = Number(normalized.lon);
+        return lat >= b.minLat && lat <= b.maxLat && lon >= b.minLon && lon <= b.maxLon;
+    })();
 
-    // Always add to globe but with cluster flag so globe can merge/resize
-    globe?.addEvent?.({ ...normalized, _nearExisting: isNearExisting });
-    globe?.highlightAlertRegion?.(normalized);
+    const layerOk = !isEventVisible || isEventVisible(normalized);
+
+    if (inRegion && layerOk) {
+        // Check if a circle already exists nearby
+        const isNearExisting = __eventsCache.some(e => {
+            if (String(e.id) === String(normalized.id)) return false;
+            const dLat = Math.abs(Number(e.lat) - Number(normalized.lat));
+            const dLon = Math.abs(Number(e.lon) - Number(normalized.lon));
+            return dLat < GLOBE_CLUSTER_RADIUS_DEG && dLon < GLOBE_CLUSTER_RADIUS_DEG;
+        });
+        globe?.addEvent?.({ ...normalized, _nearExisting: isNearExisting });
+        globe?.highlightAlertRegion?.(normalized);
+    }
 
     if (isTrackLikeEvent(normalized)) {
         globe?.animateMissileTrack?.(normalized);
     }
 
-    __hotspotLayer?.addEvent(normalized);
+    __hotspotLayer?.addEvent(normalized);   // hotspot layer does its own cluster rebuild
 
     // ── Military track (aircraft / naval) ──────────────────────────────────
     if (isMilitaryTrackEvent(normalized) && __militaryTracks) {
@@ -801,18 +925,13 @@ export function handleIncomingEvent(event) {
     // Use tight siren check — avoids news articles falsely triggering
     if (isSirenEvent(normalized)) {
         sirenAlertFromEvent(normalized);
+        // Pulse the country/region on the globe too
+        globe?.highlightAlertRegion?.(normalized);
         return;
     }
 
-    // Non-siren events: only show banner for critical/high severity
-    if (normalized.severity === "critical" || normalized.severity === "high") {
-        triggerWarzoneAlert({
-            title: normalized.title,
-            location: normalized.location_label,
-            level: normalized.severity === "critical" ? "critical" : "high",
-            playSound: false,
-        });
-    }
+    // Non-siren events: NO banner — only map circle + feed update
+    // (MonitorX / Telegram news articles should not pop up as alerts)
 }
 
 function initFloatingPanels() {
@@ -823,38 +942,7 @@ function initFloatingPanels() {
         const collapseBtn = panel.querySelector("[data-panel-collapse]");
         const content = panel.querySelector(".panel-content");
 
-        if (collapseBtn && content) {
-            collapseBtn.addEventListener("click", () => {
-                const isCollapsed = panel.classList.toggle("is-collapsed");
-                collapseBtn.setAttribute("aria-expanded", String(!isCollapsed));
-
-                if (isCollapsed) {
-                    content.hidden = false;
-                    content.style.height = `${content.scrollHeight}px`;
-                    requestAnimationFrame(() => {
-                        content.style.height = "0px";
-                        content.style.opacity = "0";
-                    });
-                } else {
-                    content.hidden = false;
-                    content.style.height = "0px";
-                    content.style.opacity = "0";
-                    requestAnimationFrame(() => {
-                        content.style.height = `${content.scrollHeight}px`;
-                        content.style.opacity = "1";
-                    });
-                }
-            });
-
-            content.addEventListener("transitionend", (e) => {
-                if (e.propertyName !== "height") return;
-                if (panel.classList.contains("is-collapsed")) {
-                    content.hidden = true;
-                } else {
-                    content.style.height = "auto";
-                }
-            });
-        }
+        // Collapse handled by warzone-boot.js via CSS grid-template-rows trick.
 
         if (!head) return;
 
@@ -948,6 +1036,7 @@ export function initGlobal() {
     initSiteLoader();
     initNav();
     initFloatingPanels();
+    initDevPanel();
 }
 
 export function initBoot() {

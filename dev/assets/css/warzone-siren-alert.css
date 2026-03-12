@@ -1,0 +1,227 @@
+﻿/* ============================================================
+   warzone-siren-alert.css
+   3 levels: red (active) / orange (confirmed) / yellow (warning)
+   All pulse. StrikeMap style — no extra text, clean.
+   ============================================================ */
+
+#wz-siren-stack {
+    position: fixed;
+    top: 0.8rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    align-items: center;
+    pointer-events: none;
+    width: min(580px, calc(100vw - 1.5rem));
+}
+
+/* ── Banner base ───────────────────────────────────────────── */
+.wz-siren-banner {
+    pointer-events: all;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.9rem 0.6rem 1rem;
+    border-radius: 3px;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+    /* slide in from top */
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+    .wz-siren-banner.is-closing {
+        animation: wz-siren-out 0.18s ease-in both;
+    }
+
+/* ── Color levels ──────────────────────────────────────────── */
+
+/* RED — active sirens firing right now */
+.wz-siren-banner--red {
+    background: #d42020;
+    box-shadow: 0 2px 18px rgba(212, 32, 32, 0.55);
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-red 1.6s ease-in-out 0.25s infinite;
+}
+
+/* ORANGE — sirens reported / confirmed */
+.wz-siren-banner--orange {
+    background: #d45a00;
+    box-shadow: 0 2px 18px rgba(212, 90, 0, 0.5);
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-orange 2s ease-in-out 0.25s infinite;
+}
+
+/* YELLOW — incoming / unconfirmed warning */
+.wz-siren-banner--yellow {
+    background: #b88000;
+    box-shadow: 0 2px 18px rgba(184, 128, 0, 0.5);
+    animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-yellow 2.4s ease-in-out 0.25s infinite;
+}
+
+/* ── Pulse keyframes ───────────────────────────────────────── */
+@keyframes wz-pulse-red {
+    0%, 100% {
+        box-shadow: 0 2px 18px rgba(212,32,32,0.55);
+        background: #d42020;
+    }
+
+    50% {
+        box-shadow: 0 4px 32px rgba(255,60,60,0.9);
+        background: #ff2424;
+    }
+}
+
+@keyframes wz-pulse-orange {
+    0%, 100% {
+        box-shadow: 0 2px 18px rgba(212,90,0,0.5);
+        background: #d45a00;
+    }
+
+    50% {
+        box-shadow: 0 4px 28px rgba(255,120,0,0.8);
+        background: #f06400;
+    }
+}
+
+@keyframes wz-pulse-yellow {
+    0%, 100% {
+        box-shadow: 0 2px 18px rgba(184,128,0,0.5);
+        background: #b88000;
+    }
+
+    50% {
+        box-shadow: 0 4px 28px rgba(230,170,0,0.8);
+        background: #d49600;
+    }
+}
+
+/* ── Slide animations ──────────────────────────────────────── */
+@keyframes wz-siren-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scaleY(0.92);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+}
+
+@keyframes wz-siren-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 80px;
+        margin-bottom: 0;
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-8px);
+        max-height: 0;
+        margin-bottom: -0.45rem;
+    }
+}
+
+/* ── Bell icon ─────────────────────────────────────────────── */
+.wz-siren-bell {
+    font-size: 1rem;
+    flex-shrink: 0;
+    animation: wz-bell-ring 1.2s ease-in-out infinite;
+    transform-origin: top center;
+}
+
+@keyframes wz-bell-ring {
+    0%,100% {
+        transform: rotate(0deg);
+    }
+
+    10% {
+        transform: rotate(14deg);
+    }
+
+    20% {
+        transform: rotate(-12deg);
+    }
+
+    30% {
+        transform: rotate(10deg);
+    }
+
+    40% {
+        transform: rotate(-8deg);
+    }
+
+    50% {
+        transform: rotate(0deg);
+    }
+}
+
+/* ── Text block ────────────────────────────────────────────── */
+.wz-siren-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.wz-siren-title {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #ffffff;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wz-siren-meta {
+    display: block;
+    margin-top: 0.1rem;
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.72);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Right bell (mirror) ───────────────────────────────────── */
+.wz-siren-bell-right {
+    font-size: 1rem;
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.7);
+    animation: wz-bell-ring 1.2s ease-in-out 0.3s infinite;
+    transform-origin: top center;
+}
+
+/* ── Close button ──────────────────────────────────────────── */
+.wz-siren-close {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.25);
+    border: none;
+    border-radius: 2px;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.12s;
+    padding: 0;
+    line-height: 1;
+}
+
+    .wz-siren-close:hover {
+        background: rgba(0,0,0,0.45);
+        color: #fff;
+    }

@@ -1,4 +1,4 @@
-// apps/worker/src/index.js
+ï»¿// apps/worker/src/index.js
 import "dotenv/config";
 import http from "http";
 import cron from "node-cron";
@@ -11,6 +11,7 @@ import { StringSession } from "telegram/sessions/index.js";
 import { supabase } from "./supabase.js";
 import { runAdsbWorker } from "./adsb-worker.js";
 import { runAisWorker } from "./ais-worker.js";
+import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -371,8 +372,8 @@ function containsRelevantKeyword(text, extraKeywords = []) {
 
 function cleanLocationCandidate(value) {
     return String(value || "")
-        .replace(/^[\s,:;.\-–—]+/, "")
-        .replace(/[\s,:;.\-–—]+$/, "")
+        .replace(/^[\s,:;.\-ï¿½ï¿½]+/, "")
+        .replace(/[\s,:;.\-ï¿½ï¿½]+$/, "")
         .replace(/\s+/g, " ")
         .trim();
 }
@@ -395,9 +396,9 @@ function extractLocationCandidates(text) {
     const normalized = String(text || "").replace(/\n/g, " ");
 
     const patterns = [
-        /\b(?:in|near|over|around|at)\s+([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3}(?:,\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2})?)/g,
-        /\b(?:north of|south of|east of|west of)\s+([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,3}(?:,\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2})?)/g,
-        /\b([A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2},\s*[A-Z][A-Za-z.'’-]+(?:[\s-][A-Z][A-Za-z.'’-]+){0,2})\b/g
+        /\b(?:in|near|over|around|at)\s+([A-Z][A-Za-z.'ï¿½-]+(?:[\s-][A-Z][A-Za-z.'ï¿½-]+){0,3}(?:,\s*[A-Z][A-Za-z.'ï¿½-]+(?:[\s-][A-Z][A-Za-z.'ï¿½-]+){0,2})?)/g,
+        /\b(?:north of|south of|east of|west of)\s+([A-Z][A-Za-z.'ï¿½-]+(?:[\s-][A-Z][A-Za-z.'ï¿½-]+){0,3}(?:,\s*[A-Z][A-Za-z.'ï¿½-]+(?:[\s-][A-Z][A-Za-z.'ï¿½-]+){0,2})?)/g,
+        /\b([A-Z][A-Za-z.'ï¿½-]+(?:[\s-][A-Z][A-Za-z.'ï¿½-]+){0,2},\s*[A-Z][A-Za-z.'ï¿½-]+(?:[\s-][A-Z][A-Za-z.'ï¿½-]+){0,2})\b/g
     ];
 
     for (const pattern of patterns) {
@@ -1320,6 +1321,16 @@ async function processTelegramFeed(feed) {
                     const event = await normalizeTelegramEvent(msg, feed, channelKey);
                     if (!event) continue;
 
+                    // â”€â”€ IsraelWarRoom + tzevaadom: route through siren poller â”€â”€
+                    const isWarRoom = /IsraelWarRoom/i.test(channelKey);
+                    const isTzeva = /tzevaadom/i.test(channelKey);
+                    if (isWarRoom || isTzeva) {
+                        const rawText = msg.message || msg.text || "";
+                        await handleIsraelWarRoomMessage(rawText).catch(e =>
+                            console.error("[siren-tg] handler error:", e.message)
+                        );
+                    }
+
                     const inserted = await insertEventIfValid(event);
 
                     if (inserted && event.category === "alert") {
@@ -2231,6 +2242,10 @@ async function runWorker() {
 cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
+
+// â”€â”€ Pikud HaOref real-time siren poller (1.5s interval) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Runs independently of the 5-min cron â€” sidetracks into warzone-siren-poller.js
+startOrefPoller();
 
 console.log("Worker started");
 runWorker();

@@ -78,4 +78,24 @@
     pointer-events: none;
     transition: left 0.3s ease, width 0.3s ease;
 }
+
+
+
+/* ── Commandbar ── */
+.warzone-commandbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    padding: 1.2rem 1.4rem;
+    border: 0.2rem solid var(--color-panel-line);
+    background: var(--color-black-v2);
+    box-shadow: var(--box-shadow);
+    position: absolute;
+    z-index: 2;
+    margin: 2rem;
+    width: calc(100% - 4rem);
+    clip-path: var(--clippath-shape-1);
+}
+
 /* #endregion */

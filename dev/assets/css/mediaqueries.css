@@ -1,6 +1,6 @@
-﻿/* --- assets/cs/mediaqueries.css --- */
+﻿/* --- assets/css/mediaqueries.css --- */
 
-/* #region =========== Large / Tablet =========== */
+/* #region =========== Large / Tablet (≤1280px) =========== */
 @media (max-width: 1280px) {
     .warzone-grid {
         grid-template-columns: 1fr;
@@ -9,8 +9,15 @@
     .warzone-map-card {
         order: 1;
     }
-}
 
+    .analytics-grid--top,
+    .analytics-grid--charts {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+/* #endregion */
+
+/* #region =========== Tablet (≤980px) =========== */
 @media (max-width: 980px) {
     .warzone-panel--stats,
     .warzone-panel--feed {
@@ -20,10 +27,61 @@
     .warzone-alert {
         min-width: calc(100% - 3.2rem);
     }
+
+    .warzone-commandbar {
+        flex-wrap: wrap;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .warzone-region-bar {
+        order: 2;
+        width: 100%;
+    }
+
+    .warzone-top-tabs {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+    }
+}
+
+/* ── Tablet (769–980px): widgets as popup modals ── */
+@media (min-width: 769px) and (max-width: 980px) {
+
+    .wz-widget-backdrop {
+        display: block;
+    }
+
+    .warzone-panel--floating {
+        position: fixed !important;
+        left: 50% !important;
+        right: auto !important;
+        top: 50% !important;
+        bottom: auto !important;
+        width: 42rem !important;
+        max-width: calc(100vw - 4rem) !important;
+        max-height: 80dvh;
+        overflow-y: auto;
+        transform: translate(-50%, -50%) !important;
+        z-index: 500 !important;
+        transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+        .warzone-panel--floating.wz-is-hidden {
+            opacity: 0 !important;
+            transform: translate(-50%, -50%) scale(0.95) !important;
+            pointer-events: none !important;
+        }
+
+    .warzone-widget .panel-content {
+        max-height: 60dvh;
+        overflow-y: auto;
+    }
 }
 /* #endregion */
 
-/* #region =========== Mobile =========== */
+/* #region =========== Mobile (≤768px) =========== */
 @media (max-width: 768px) {
     :root {
         --sec-width: calc(100% - 2rem);
@@ -57,25 +115,101 @@
         min-height: 48rem;
     }
 
+    /* ── Mobile: all widgets become centered popup modals ── */
+
+    /* Backdrop */
+    .wz-widget-backdrop {
+        display: block; /* JS sets hidden attr to toggle; this enables display */
+    }
+
+    /* Widget becomes fixed, centered in viewport */
     .warzone-panel--floating {
-        position: absolute;
+        position: fixed !important;
         left: 1rem !important;
         right: 1rem !important;
-        width: auto;
-        max-width: none;
+        top: calc(var(--wz-bar-h, 6rem) + 1.5rem) !important;
+        bottom: auto !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: 75dvh;
+        overflow-y: auto;
+        z-index: 500 !important;
+        /* override desktop transform — mobile uses opacity-only transition */
+        transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
-    .warzone-panel--stats {
-        top: 1rem !important;
+        /* Hidden state on mobile: pop down (instead of translateY drift used on desktop) */
+        .warzone-panel--floating.wz-is-hidden {
+            opacity: 0 !important;
+            transform: scale(0.95) translateY(8px) !important;
+            pointer-events: none !important;
+        }
+
+        /* Visible state on mobile — clear the desktop transform offset */
+        .warzone-panel--floating:not(.wz-is-hidden) {
+            transform: none !important;
+        }
+
+    .warzone-widget .panel-content {
+        max-height: 55dvh;
+        overflow-y: auto;
     }
 
-    .warzone-panel--feed {
-        top: auto !important;
-        bottom: 1rem !important;
+    /* Layers widget: no bottom anchor on mobile, let it flow from top like others */
+    .warzone-widget--layers {
+        top: calc(var(--wz-bar-h, 6rem) + 1.5rem) !important;
+        bottom: auto !important;
     }
 
     .feed-list {
         max-height: 28rem;
+    }
+
+    .analytics-grid--top,
+    .analytics-grid--charts,
+    .weapons-grid,
+    .recon-region-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bar-row,
+    .timeline-item {
+        grid-template-columns: 1fr;
+    }
+
+    .wz-modal__box {
+        width: 96vw !important;
+        max-height: 90vh !important;
+    }
+
+    .wz-layer-panel-wrap {
+        left: 0.8rem !important;
+        right: 0.8rem !important;
+        width: auto;
+    }
+}
+/* #endregion */
+
+/* #region =========== Small Mobile (≤480px) =========== */
+@media (max-width: 480px) {
+    .warzone-commandbar {
+        padding: 0.8rem;
+        gap: 0.8rem;
+    }
+
+    .warzone-brand h1 {
+        font-size: 2.4rem !important;
+    }
+
+    .top-tab {
+        font-size: 1.1rem;
+        padding: 0 0.8rem;
+        min-height: 3.2rem;
+    }
+
+    .warzone-panel--floating {
+        left: 0.4rem !important;
+        right: 0.4rem !important;
     }
 }
 /* #endregion */

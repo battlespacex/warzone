@@ -12,6 +12,7 @@
 //
 // Koi server ya database nahi chahiye — seedha globe functions call karta hai
 
+import * as Cesium from "cesium";
 import { triggerWarzoneAlert } from "./essential.js";
 import { isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
@@ -269,136 +270,6 @@ const TEST_EVENTS = {
     },
 };
 
-// ─── Panel HTML ────────────────────────────────────────────────────────────────
-
-const PANEL_HTML = `
-<div id="wz-dev-panel" style="
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 9999;
-    font-family: 'Rajdhani', monospace, sans-serif;
-">
-    <!-- Toggle button -->
-    <button id="wz-dev-toggle" style="
-        display: block;
-        margin-left: auto;
-        padding: 0.4rem 0.9rem;
-        background: rgba(255,7,83,0.15);
-        border: 1px solid rgba(255,7,83,0.5);
-        color: #ff0753;
-        font-family: inherit;
-        font-size: 0.85rem;
-        letter-spacing: 0.15em;
-        cursor: pointer;
-        clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-    ">⚙ DEV</button>
-
-    <!-- Panel -->
-    <div id="wz-dev-body" style="
-        display: none;
-        margin-top: 0.5rem;
-        width: 22rem;
-        background: rgba(4, 7, 12, 0.97);
-        border: 1px solid rgba(255,7,83,0.3);
-        padding: 1rem;
-        clip-path: polygon(0 0, calc(100% - 1rem) 0, 100% 1rem, 100% 100%, 1rem 100%, 0 calc(100% - 1rem));
-        box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-    ">
-        <div style="color:#ff0753;font-size:0.8rem;letter-spacing:0.15em;margin-bottom:0.8rem;border-bottom:1px solid rgba(255,7,83,0.2);padding-bottom:0.5rem;">
-            ⚠ DEV TEST PANEL — LOCAL ONLY
-        </div>
-
-        <div style="display:grid;gap:0.4rem;">
-
-            <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;letter-spacing:0.1em;margin-top:0.3rem;">MISSILE / STRIKE</div>
-            <button class="wz-dev-btn" data-event="missile_iran_israel"    style="--c:#ff0753">🚀 Missile — Iran → Israel</button>
-            <button class="wz-dev-btn" data-event="missile_russia_ukraine" style="--c:#ff0753">🚀 Missile — Russia → Ukraine</button>
-            <button class="wz-dev-btn" data-event="drone_kamikaze"         style="--c:#ff6a00">🛸 Drone Strike (Shahed)</button>
-            <button class="wz-dev-btn" data-event="airstrike"              style="--c:#ff6a00">💥 Air Strike (IAF)</button>
-
-            <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;letter-spacing:0.1em;margin-top:0.5rem;">SIRENS / ALERTS</div>
-            <button class="wz-dev-btn" data-siren="red"    style="--c:#d42020">🔴 RED — Sirens Going Off (Israel)</button>
-            <button class="wz-dev-btn" data-siren="orange" style="--c:#d45a00">🟠 ORANGE — Sirens Reported (Lebanon)</button>
-            <button class="wz-dev-btn" data-siren="yellow" style="--c:#b88000">🟡 YELLOW — Incoming Warning</button>
-
-            <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;letter-spacing:0.1em;margin-top:0.5rem;">MILITARY AIRCRAFT</div>
-            <button class="wz-dev-btn" data-event="aircraft_fighter" style="--c:#56d80e">✈ Fighter — F-35I (IAF)</button>
-            <button class="wz-dev-btn" data-event="aircraft_awacs"   style="--c:#ffd24d">✈ AWACS E-3 Sentry (NATO)</button>
-            <button class="wz-dev-btn" data-event="aircraft_recon"   style="--c:#ff6a00">✈ Recon RC-135 (USAF)</button>
-            <button class="wz-dev-btn" data-event="aircraft_tanker"  style="--c:#00d8b2">✈ Tanker KC-135 (USAF)</button>
-
-            <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;letter-spacing:0.1em;margin-top:0.5rem;">NAVAL</div>
-            <button class="wz-dev-btn" data-event="ship_carrier"   style="--c:#ff2a2a">⛵ Carrier — USS Gerald R Ford</button>
-            <button class="wz-dev-btn" data-event="ship_destroyer" style="--c:#9b7bff">⛵ Destroyer — USS Arleigh Burke</button>
-            <button class="wz-dev-btn" data-event="ship_russian"   style="--c:#ff6a00">⛵ Frigate — Admiral Gorshkov</button>
-
-            <div style="color:rgba(255,255,255,0.4);font-size:0.75rem;letter-spacing:0.1em;margin-top:0.5rem;">OTHER</div>
-            <button class="wz-dev-btn" data-event="cyber"   style="--c:#9b7bff">💻 Cyber Attack — Iran</button>
-            <button class="wz-dev-btn" data-event="thermal" style="--c:#ff7a00">🔥 Thermal Anomaly — Syria</button>
-
-            <div style="margin-top:0.8rem;display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;">
-                <button id="wz-dev-fire-all" style="
-                    padding:0.4rem;
-                    background:rgba(255,7,83,0.1);
-                    border:1px solid rgba(255,7,83,0.4);
-                    color:#ff0753;
-                    font-family:inherit;
-                    font-size:0.8rem;
-                    letter-spacing:0.08em;
-                    cursor:pointer;
-                ">⚡ FIRE ALL</button>
-                <button id="wz-dev-clear" style="
-                    padding:0.4rem;
-                    background:rgba(255,255,255,0.04);
-                    border:1px solid rgba(255,255,255,0.12);
-                    color:rgba(255,255,255,0.5);
-                    font-family:inherit;
-                    font-size:0.8rem;
-                    letter-spacing:0.08em;
-                    cursor:pointer;
-                ">✕ CLEAR LOG</button>
-            </div>
-
-            <div id="wz-dev-log" style="
-                margin-top:0.5rem;
-                max-height:6rem;
-                overflow-y:auto;
-                font-size:0.78rem;
-                color:rgba(255,255,255,0.35);
-                font-family:monospace;
-                border-top:1px solid rgba(255,255,255,0.06);
-                padding-top:0.5rem;
-            "></div>
-        </div>
-    </div>
-</div>
-
-<style>
-.wz-dev-btn {
-    padding: 0.45rem 0.7rem;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-left: 2px solid var(--c, #ff0753);
-    color: rgba(255,255,255,0.75);
-    font-family: 'Rajdhani', monospace, sans-serif;
-    font-size: 0.9rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.12s ease, border-color 0.12s ease;
-    letter-spacing: 0.03em;
-}
-.wz-dev-btn:hover {
-    background: rgba(255,255,255,0.07);
-    border-left-color: var(--c, #ff0753);
-    color: #fff;
-}
-.wz-dev-btn:active {
-    background: rgba(255,255,255,0.12);
-}
-</style>
-`;
-
 // ─── Log helper ───────────────────────────────────────────────────────────────
 
 function devLog(msg) {
@@ -456,15 +327,20 @@ function fireTestEvent(key) {
         devLog(`🔴 Alert: ${event.title}`);
     }
 
-    // Military track (aircraft / naval)
+    // Military track (aircraft / naval) — always fire from dev panel
     if (event.category === "military" && tracks) {
-        const isMilTrack =
-            event.source_name?.includes("ADS-B") ||
-            event.source_name?.includes("AIS");
+        tracks.addTrack(event);
+        devLog(`✈ Track: ${event.title}`);
 
-        if (isMilTrack) {
-            tracks.addTrack(event);
-            devLog(`✈ Track: ${event.title}`);
+        // Fly camera to track location
+        const viewer = window.__warzoneViewer;
+        if (viewer) {
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(
+                    Number(event.lon), Number(event.lat), 800000
+                ),
+                duration: 1.2,
+            });
         }
     }
 
@@ -480,24 +356,54 @@ function fireTestEvent(key) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function initDevPanel() {
-    // Only show on localhost / dev
+    // ── Activation check ────────────────────────────────────────────────────
+    // Show dev panel if:
+    //   1. localhost / 127.0.0.1 / empty hostname (direct file open)
+    //   2. URL has ?devpanel=1 (staging / any URL)
+    //   3. localStorage flag: localStorage.setItem('wz_dev','1') then refresh
+    //   4. Keyboard shortcut Ctrl+Shift+` (backtick) anytime — activates for session
     const isLocal =
         window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1" ||
         window.location.hostname === "" ||
-        window.location.search.includes("devpanel=1");  // ?devpanel=1 for staging test
+        window.location.search.includes("devpanel=1") ||
+        localStorage.getItem("wz_dev") === "1";
+
+    // Panel HTML lives in partials/popups.html → #wz-dev-panel
+    // JS just reveals it and wires events
+    const panel = document.getElementById("wz-dev-panel");
+    if (!panel) {
+        console.warn("[DevPanel] #wz-dev-panel not found — ensure partials/popups.html is loaded.");
+        return;
+    }
+
+    // ── Secret keyboard shortcut: Ctrl+Shift+` ────────────────────────────
+    // Works on any hostname — no URL change needed.
+    // Once activated, writes localStorage flag so it persists across refreshes.
+    document.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.shiftKey && (e.key === "`" || e.key === "~" || e.code === "Backquote")) {
+            e.preventDefault();
+            if (panel.hidden) {
+                panel.hidden = false;
+                localStorage.setItem("wz_dev", "1");
+                devLog("🔑 Dev panel unlocked via keyboard shortcut");
+                console.log("[dev] Warzone dev panel activated — Ctrl+Shift+` pressed");
+            } else {
+                // Toggle body collapse (don't hide the whole panel, just collapse it)
+                const body = document.getElementById("wz-dev-body");
+                if (body) body.hidden = !body.hidden;
+            }
+        }
+    });
 
     if (!isLocal) return;
 
-    // Inject HTML
-    const container = document.createElement("div");
-    container.innerHTML = PANEL_HTML;
-    document.body.appendChild(container);
+    panel.hidden = false;
 
-    // Toggle
+    // Toggle body
     document.getElementById("wz-dev-toggle").addEventListener("click", () => {
         const body = document.getElementById("wz-dev-body");
-        body.style.display = body.style.display === "none" ? "block" : "none";
+        if (body) body.hidden = !body.hidden;
     });
 
     // Individual buttons
@@ -523,6 +429,35 @@ export function initDevPanel() {
             };
             showSirenAlert({ title: titles[level], meta: metas[level], level, sound: true });
             devLog(`🔔 Siren [${level.toUpperCase()}]: ${titles[level]}`);
+        });
+    });
+
+    // Pulse highlight test buttons
+    const HIGHLIGHT_LOCATIONS = {
+        israel: { lat: 31.5, lon: 34.8, severity: "critical", label: "Israel" },
+        uae: { lat: 24.2, lon: 54.4, severity: "high", label: "UAE" },
+        iran: { lat: 32.4, lon: 53.7, severity: "critical", label: "Iran" },
+        ukraine: { lat: 49.0, lon: 32.0, severity: "high", label: "Ukraine" },
+    };
+
+    document.querySelectorAll(".wz-dev-btn[data-highlight]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const key = btn.dataset.highlight;
+            const globe = window.__warzoneViewer?.__warzone;
+            if (key === "clear") {
+                globe?.clearAlertHighlight?.();
+                devLog("✖ Highlight cleared");
+                return;
+            }
+            const loc = HIGHLIGHT_LOCATIONS[key];
+            if (!loc || !globe) return;
+            globe.highlightAlertRegion({ lat: loc.lat, lon: loc.lon, severity: loc.severity });
+            // Also fly camera to it so you can see the effect
+            window.__warzoneViewer?.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(loc.lon, loc.lat, 900000),
+                duration: 1.2,
+            });
+            devLog(`🔴 Pulse highlight: ${loc.label} [${loc.severity}]`);
         });
     });
 

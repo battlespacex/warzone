@@ -6,5 +6,12 @@
 @import url("../fonts/bx/style.css");
 @import url("./nav.css");
 @import url("./sections.css");
+@import url("./warzone-map.css");
+@import url("./warzone-panels.css");
+@import url("./warzone-widgets.css");
+@import url("./warzone-analytics.css");
+@import url("./warzone-hotspots.css");
+@import url("./warzone-siren-alert.css");
+@import url("./warzone-region-layers.css");
 @import url("./mediaqueries.css");
 @import url("./a11y.css");

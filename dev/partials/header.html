@@ -1,32 +1,26 @@
-﻿<header id="header" class="site-header">
-    <nav class="nav" aria-label="Main navigation">
-        <div class="header--content">
-            <div class="h5 color-white">You won’t see them. You’ll feel them.</div>
-            <button type="button" class="x-icon" aria-label="Scroll to gallery" data-target="#quote">
-                <span aria-hidden="true" class="aerocism-ico-more-1"></span>
-            </button>
+﻿<!-- Command bar -->
+<header class="warzone-commandbar">
+    <div class="warzone-brand">
+        <h1><span>STRIKE</span>MAP</h1>
+        <div class="warzone-brand-actions">
+            <a class="icon-chip" href="https://t.me/strikemaplive" target="_blank" rel="noopener noreferrer" aria-label="Telegram">TG</a>
+            <a class="icon-chip" href="https://x.com/strikemaplive" target="_blank" rel="noopener noreferrer" aria-label="X / Twitter">X</a>
+            <a class="icon-chip" href="#" aria-label="Instagram">IG</a>
+            <a class="icon-chip" href="#" aria-label="Discord">DC</a>
+            <button class="support-chip">♥ Support</button>
         </div>
+    </div>
 
-        <div id="nav-menu" class="nav__menu">
-            <a href="/#xswiper">Airspace</a>
-            <a href="/#gallery">Shots</a>
-            <a href="/#about">About</a>
-            <a href="/#contact">Contact</a>
-            <a href="/military-aviation">Military Aviation</a>
-            <a href="/airshows">Airshows</a>
-            <a href="/licensing">Licensing</a>
-        </div>
+    <!-- Region dropdown — populated by warzone-region-selector.js -->
+    <div class="warzone-region-bar">
+        <span class="warzone-region-bar__label">REGION</span>
+        <select id="wz-region-nav" aria-label="Select monitoring region"></select>
+    </div>
 
-        <div class="nav__brand">
-            <a href="/" aria-label="Aerocism home">
-                <img src="/assets/images/web/logo-aerocism-2.svg"
-                     alt="Aerocism logo"
-                     class="nav__logo"
-                     width="380"
-                     height="100"
-                     loading="lazy"
-                     decoding="async" />
-            </a>
-        </div>
-    </nav>
+    <div class="warzone-top-tabs">
+        <button class="top-tab is-active" data-view="strikes">Strikes</button>
+        <button class="top-tab" data-view="analytics">Analytics</button>
+        <button class="top-tab" data-view="recon">Recon</button>
+        <button class="top-tab" data-view="military">Military</button>
+    </div>
 </header>

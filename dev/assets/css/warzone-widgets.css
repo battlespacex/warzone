@@ -1,0 +1,107 @@
+﻿/* ============================================================
+   warzone-widgets.css
+   Widget-specific content styles:
+   Strike Counter, Status Pills (Cyber / Airspace), Escalation
+   ============================================================ */
+
+/* ── Strike Counter widget ── */
+.compact-stats {
+    display: grid;
+    gap: 1rem;
+}
+
+.mini-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1rem 1.2rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+    .mini-stat strong {
+        color: #fff;
+        font-size: 2.2rem;
+    }
+
+/* ── Status list (Cyber Status / Airspace widgets) ── */
+.status-list {
+    display: grid;
+    gap: 0.8rem;
+    padding: 1rem;
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    border: 0.2rem solid rgba(255, 255, 255, 0.06);
+    padding: 0.9rem 1rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Status pills ── */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 8rem;
+    padding: 0.4rem 0.8rem;
+    text-transform: uppercase;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+}
+
+.status-pill--closed,
+.status-pill--critical {
+    color: #ff6c6c;
+    border: 0.2rem solid rgba(255, 88, 88, 0.3);
+    background: rgba(255, 88, 88, 0.08);
+}
+
+.status-pill--restricted,
+.status-pill--warning,
+.status-pill--high {
+    color: #ffbe45;
+    border: 0.2rem solid rgba(255, 190, 69, 0.3);
+    background: rgba(255, 190, 69, 0.08);
+}
+
+.status-pill--normal,
+.status-pill--minor,
+.status-pill--low {
+    color: #30d17f;
+    border: 0.2rem solid rgba(48, 209, 127, 0.3);
+    background: rgba(48, 209, 127, 0.08);
+}
+
+.status-pill--unknown,
+.status-pill--medium {
+    color: #8fa3b8;
+    border: 0.2rem solid rgba(143, 163, 184, 0.25);
+    background: rgba(143, 163, 184, 0.06);
+}
+
+/* ── Escalation Meter widget ── */
+.escalation-box {
+    padding: 1.2rem;
+}
+
+.escalation-meter {
+    display: grid;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+    .escalation-meter span {
+        color: #ff4f4f;
+        font-size: 4rem;
+        line-height: 1;
+    }
+
+.escalation-list {
+    margin: 0;
+    padding-left: 1.6rem;
+    color: var(--color-text);
+}

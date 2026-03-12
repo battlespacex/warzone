@@ -1,137 +1,124 @@
 ﻿// assets/js/warzone-military-tracks.js
-//
-// Military aircraft + naval vessel visualization
-//
-// Aircraft: glowing heading-rotated icon + fading trail polyline
-// Ships:    heading-rotated icon + shorter wake trail
-// AWACS:    orbit ring + icon
-//
-// Called from essential.js when events with subcategory matching
-// aircraft/vessel types are loaded or received in realtime.
-//
-// Public API (attached to window.__warzoneViewer.__warzone):
-//   addMilitaryTrack(event)   — add single aircraft/vessel
-//   setMilitaryTracks(events) — bulk load on page init
-//   clearMilitaryTracks()     — remove all
+// Canvas-generated icons (no SVG files needed), drone loiter animation
 
 import * as Cesium from "cesium";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
 const CFG = {
-    maxTracks: 200,       // max simultaneous tracks
-    trailSegments: 12,        // polyline segments per trail
-    trailLengthDeg: 3.5,       // trail length in degrees (aircraft)
-    shipTrailLengthDeg: 1.8,       // shorter for ships
-    trailFadeMs: 25 * 60 * 1000,  // 25 min — fade out old tracks
-    iconScale: 0.55,
-    awacOrbitRadiusKm: 280,       // AWACS patrol orbit radius
-    altitudeAircraft: 9000,      // display altitude for aircraft (9km)
-    altitudeShip: 50,        // ships at sea level
+    maxTracks: 150,
+    trailSegments: 10,
+    trailLengthDeg: 3.0,
+    shipTrailLengthDeg: 1.5,
+    trailFadeMs: 25 * 60 * 1000,
+    iconSize: 48,
+    iconScale: 0.6,
+    awacOrbitRadiusKm: 280,
+    altitudeAircraft: 9000,
+    altitudeShip: 80,
+    droneAltitude: 600,
+    droneOrbitRadiusKm: 8,
+    droneOrbitSteps: 60,
 };
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-// Apni SVG files yahan set karo.
-// SVGs white fill mein banao — Cesium billboard "color" property se tint hoga.
-// Icon upar (north) ki taraf point kare jab heading = 0.
-//
-// Example:
-//   const ICON_AIRCRAFT = "/assets/icons/aircraft-fighter.svg";
-//
-// Abhi ke liye inline SVGs use ho rahe hain — jab apni files ready ho jayen
-// toh bas path string se replace karo, svgUrl() hataao.
+// ── Canvas Icon Factory ────────────────────────────────────────────────────────
+const __iconCache = new Map();
 
-function svgUrl(svg) {
-    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+function makeIconCanvas(subcat, colorHex) {
+    const cacheKey = `${subcat}::${colorHex}`;
+    if (__iconCache.has(cacheKey)) return __iconCache.get(cacheKey);
+    const S = CFG.iconSize, cx = S / 2, cy = S / 2;
+    const c = document.createElement("canvas");
+    c.width = S; c.height = S;
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, S, S);
+    ctx.fillStyle = colorHex;
+    ctx.strokeStyle = colorHex;
+    ctx.shadowColor = colorHex;
+    ctx.shadowBlur = 10;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    const s = subcat.toLowerCase();
+    if (s === "fighter" || s === "military") {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 6, cy - 4);
+        ctx.lineTo(cx + 18, cy + 14); ctx.lineTo(cx + 10, cy + 12);
+        ctx.lineTo(cx + 7, cy + 20); ctx.lineTo(cx, cy + 14);
+        ctx.lineTo(cx - 7, cy + 20); ctx.lineTo(cx - 10, cy + 12);
+        ctx.lineTo(cx - 18, cy + 14); ctx.lineTo(cx - 6, cy - 4);
+        ctx.closePath(); ctx.fill();
+    } else if (s === "tanker" || s === "transport") {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 4, cy - 8);
+        ctx.lineTo(cx + 22, cy + 4); ctx.lineTo(cx + 14, cy + 8);
+        ctx.lineTo(cx + 5, cy + 20); ctx.lineTo(cx - 5, cy + 20);
+        ctx.lineTo(cx - 14, cy + 8); ctx.lineTo(cx - 22, cy + 4);
+        ctx.lineTo(cx - 4, cy - 8); ctx.closePath(); ctx.fill();
+    } else if (s === "awacs") {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 18); ctx.lineTo(cx + 4, cy - 6);
+        ctx.lineTo(cx + 20, cy + 4); ctx.lineTo(cx + 12, cy + 8);
+        ctx.lineTo(cx + 5, cy + 18); ctx.lineTo(cx - 5, cy + 18);
+        ctx.lineTo(cx - 12, cy + 8); ctx.lineTo(cx - 20, cy + 4);
+        ctx.lineTo(cx - 4, cy - 6); ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.ellipse(cx, cy - 4, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (s === "recon" || s === "patrol") {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 22); ctx.lineTo(cx + 3, cy - 10);
+        ctx.lineTo(cx + 22, cy); ctx.lineTo(cx + 12, cy + 4);
+        ctx.lineTo(cx + 4, cy + 22); ctx.lineTo(cx - 4, cy + 22);
+        ctx.lineTo(cx - 12, cy + 4); ctx.lineTo(cx - 22, cy);
+        ctx.lineTo(cx - 3, cy - 10); ctx.closePath(); ctx.fill();
+    } else if (s === "carrier") {
+        ctx.beginPath();
+        ctx.roundRect(cx - 18, cy - 7, 36, 14, 3); ctx.fill();
+        ctx.shadowBlur = 4;
+        ctx.fillRect(cx + 6, cy - 13, 6, 6);
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cx - 16, cy - 2); ctx.lineTo(cx + 16, cy - 2); ctx.stroke();
+    } else if (s === "destroyer" || s === "frigate") {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 18); ctx.lineTo(cx + 8, cy - 4);
+        ctx.lineTo(cx + 10, cy + 12); ctx.lineTo(cx + 4, cy + 18);
+        ctx.lineTo(cx - 4, cy + 18); ctx.lineTo(cx - 10, cy + 12);
+        ctx.lineTo(cx - 8, cy - 4); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = colorHex; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy - 22);
+        ctx.moveTo(cx - 5, cy - 18); ctx.lineTo(cx + 5, cy - 18); ctx.stroke();
+    } else if (s === "submarine") {
+        ctx.beginPath(); ctx.ellipse(cx, cy + 4, 7, 18, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 4; ctx.fillRect(cx - 3, cy - 16, 6, 8);
+    } else if (s === "drone" || s === "uav" || s === "shahed") {
+        // Hexagon with propellers
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
+            const x = cx + 13 * Math.cos(a), y = cy + 13 * Math.sin(a);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    } else {
+        // Naval generic
+        ctx.beginPath();
+        ctx.roundRect(cx - 7, cy - 16, 14, 32, 3); ctx.fill();
+    }
+    __iconCache.set(cacheKey, c);
+    return c;
 }
 
-// ── REPLACE THESE with your own file paths when ready ─────────────────────────
-// const ICON_AIRCRAFT  = "/assets/icons/aircraft-fighter.svg";
-// const ICON_TANKER    = "/assets/icons/aircraft-tanker.svg";
-// const ICON_AWACS     = "/assets/icons/aircraft-awacs.svg";
-// const ICON_RECON     = "/assets/icons/aircraft-recon.svg";
-// const ICON_SHIP      = "/assets/icons/ship-naval.svg";
-// const ICON_CARRIER   = "/assets/icons/ship-carrier.svg";
-// const ICON_DESTROYER = "/assets/icons/ship-destroyer.svg";
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ICON_AIRCRAFT = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <polygon points="16,2 19,14 30,18 19,19 18,30 16,26 14,30 13,19 2,18 13,14" fill="white" opacity="0.95"/>
-</svg>`);
-
-const ICON_TANKER = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <polygon points="16,3 20,12 30,16 20,18 18,29 16,25 14,29 12,18 2,16 12,12" fill="white" opacity="0.9"/>
-</svg>`);
-
-const ICON_AWACS = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <circle cx="16" cy="16" r="13" fill="none" stroke="white" stroke-width="2" opacity="0.9"/>
-  <polygon points="16,3 18,13 29,16 18,18 16,29 14,18 3,16 14,13" fill="white" opacity="0.95"/>
-</svg>`);
-
-const ICON_RECON = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <polygon points="16,2 18,14 30,16 18,18 16,30 14,18 2,16 14,14" fill="white" opacity="0.95"/>
-  <circle cx="16" cy="16" r="4" fill="white" opacity="0.7"/>
-</svg>`);
-
-const ICON_SHIP = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <path d="M16 4 L20 12 L28 14 L28 20 L20 22 L16 28 L12 22 L4 20 L4 14 L12 12 Z" fill="white" opacity="0.9"/>
-  <rect x="14" y="10" width="4" height="8" fill="rgba(0,0,0,0.4)"/>
-</svg>`);
-
-const ICON_CARRIER = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <polygon points="16,2 30,16 16,30 2,16" fill="white" opacity="0.9" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
-  <rect x="13" y="8" width="6" height="16" fill="rgba(0,0,0,0.35)"/>
-</svg>`);
-
-const ICON_DESTROYER = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <polygon points="16,4 22,14 28,18 22,22 16,28 10,22 4,18 10,14" fill="white" opacity="0.9"/>
-</svg>`);
-
-
-/*const ICON_AIRCRAFT = "/assets/icons/aircraft-fighter.svg";
-const ICON_TANKER = "/assets/icons/aircraft-tanker.svg";
-const ICON_AWACS = "/assets/icons/aircraft-awacs.svg";
-const ICON_RECON = "/assets/icons/aircraft-recon.svg";
-const ICON_SHIP = "/assets/icons/ship-naval.svg";
-const ICON_CARRIER = "/assets/icons/ship-carrier.svg";
-const ICON_DESTROYER = "/assets/icons/ship-destroyer.svg";*/
-
-function getIcon(subcat) {
-    switch ((subcat || "").toLowerCase()) {
-        case "awacs": return ICON_AWACS;
-        case "tanker":
-        case "transport": return ICON_TANKER;
-        case "recon":
-        case "patrol": return ICON_RECON;
-        case "carrier": return ICON_CARRIER;
-        case "destroyer":
-        case "frigate":
-        case "submarine": return ICON_DESTROYER;
-        case "naval":
-        case "logistics":
-        case "patrol": return ICON_SHIP;
-        case "fighter":
-        case "military":
-        default:
-            return ICON_AIRCRAFT;
-    }
-}
-
-function getTrailColor(subcat) {
-    switch ((subcat || "").toLowerCase()) {
-        case "awacs": return new Cesium.Color(1.0, 0.82, 0.3, 1.0);   // gold
-        case "tanker":
-        case "transport": return new Cesium.Color(0.0, 0.85, 0.7, 1.0);   // teal
-        case "recon":
-        case "patrol": return new Cesium.Color(1.0, 0.42, 0.0, 1.0);   // orange
-        case "carrier": return new Cesium.Color(1.0, 0.16, 0.16, 1.0);  // red
-        case "destroyer":
-        case "frigate": return new Cesium.Color(0.61, 0.48, 1.0, 1.0);  // purple
-        case "naval":
-        case "logistics": return new Cesium.Color(0.0, 0.85, 0.7, 0.8);
-        case "fighter":
-        default: return new Cesium.Color(0.34, 0.85, 0.05, 1.0); // green
-    }
+function getColor(subcat) {
+    const s = (subcat || "").toLowerCase();
+    if (s === "awacs") return "#f0d060";
+    if (s === "tanker" || s === "transport") return "#00d9b2";
+    if (s === "recon" || s === "patrol") return "#ff7820";
+    if (s === "carrier") return "#ff3c3c";
+    if (s === "destroyer" || s === "frigate") return "#9b7bff";
+    if (s === "submarine") return "#7bdcff";
+    if (s === "naval" || s === "logistics") return "#00d9b2";
+    if (s === "drone" || s === "uav" || s === "shahed") return "#ffcc00";
+    return "#33d90a";
 }
 
 function isNaval(subcat) {
@@ -139,62 +126,67 @@ function isNaval(subcat) {
         .includes((subcat || "").toLowerCase());
 }
 
-function isAircraft(subcat) {
-    return ["fighter", "tanker", "transport", "awacs", "recon", "patrol", "military"]
-        .includes((subcat || "").toLowerCase());
+function hexToCs(hex, a = 1.0) {
+    const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
+    return new Cesium.Color(r, g, b, a);
 }
 
-// ─── Trail geometry ────────────────────────────────────────────────────────────
-// Build trail positions going BACKWARDS from current position along heading
-
-function buildTrailPositions(lon, lat, headingDeg, trailLengthDeg, segments, altM) {
-    const positions = [];
-    // Opposite direction of travel
-    const backDeg = (headingDeg + 180) % 360;
-    const backRad = Cesium.Math.toRadians(backDeg);
-
-    for (let i = 0; i <= segments; i++) {
-        const t = i / segments;
-        const dist = t * trailLengthDeg;
-        // Simple linear trail (not great circle but good enough for short distances)
-        const tLon = lon + dist * Math.sin(backRad);
-        const tLat = lat + dist * Math.cos(backRad);
-        const tAlt = altM * (1 - t * 0.3);   // slight altitude taper
-        positions.push(Cesium.Cartesian3.fromDegrees(tLon, tLat, tAlt));
-    }
-    return positions;
+function buildTrail(lon, lat, headingDeg, len, segs, altM) {
+    const backRad = Cesium.Math.toRadians((headingDeg + 180) % 360);
+    return Array.from({ length: segs + 1 }, (_, i) => {
+        const t = i / segs, dist = t * len;
+        return Cesium.Cartesian3.fromDegrees(
+            lon + dist * Math.sin(backRad), lat + dist * Math.cos(backRad), altM * (1 - t * 0.25)
+        );
+    });
 }
 
-// Per-position alpha for trail fade (bright at aircraft, transparent at tail)
-function buildTrailColors(baseColor, segments) {
-    const colors = [];
-    for (let i = 0; i <= segments; i++) {
-        const t = i / segments;
-        const alpha = (1 - t) * baseColor.alpha;
-        colors.push(new Cesium.Color(baseColor.red, baseColor.green, baseColor.blue, alpha));
-    }
-    return colors;
+function buildCircle(lon, lat, radiusKm, altM, steps = 64) {
+    return Array.from({ length: steps + 1 }, (_, i) => {
+        const a = (i / steps) * Math.PI * 2;
+        const dLon = (radiusKm / 111.32) * Math.sin(a) / Math.cos(Cesium.Math.toRadians(lat));
+        const dLat = (radiusKm / 111.32) * Math.cos(a);
+        return Cesium.Cartesian3.fromDegrees(lon + dLon, lat + dLat, altM);
+    });
 }
 
-// ─── AWACS orbit ring ──────────────────────────────────────────────────────────
+// ── Drone loiter ───────────────────────────────────────────────────────────────
+function animateDroneLoiter(viewer, lon, lat, colorHex) {
+    const orbit = buildCircle(lon, lat, CFG.droneOrbitRadiusKm, CFG.droneAltitude, CFG.droneOrbitSteps);
+    const color = hexToCs(colorHex, 0.9);
+    let frame = 0;
 
-function buildOrbitPositions(lon, lat, radiusKm, segments = 64) {
-    const positions = [];
-    for (let i = 0; i <= segments; i++) {
-        const angle = (i / segments) * Math.PI * 2;
-        const dLon = (radiusKm / 111.32) * Math.sin(angle) / Math.cos(Cesium.Math.toRadians(lat));
-        const dLat = (radiusKm / 111.32) * Math.cos(angle);
-        positions.push(Cesium.Cartesian3.fromDegrees(lon + dLon, lat + dLat, CFG.altitudeAircraft));
-    }
-    return positions;
+    const billboard = viewer.entities.add({
+        position: new Cesium.CallbackProperty(() => orbit[frame % orbit.length], false),
+        billboard: {
+            image: makeIconCanvas("drone", colorHex),
+            scale: 0.45,
+            color,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            eyeOffset: new Cesium.Cartesian3(0, 0, -200),
+        },
+    });
+
+    const ring = viewer.entities.add({
+        polyline: {
+            positions: orbit,
+            width: 1.0,
+            material: new Cesium.PolylineGlowMaterialProperty({
+                glowPower: 0.15, color: hexToCs(colorHex, 0.3),
+            }),
+        },
+    });
+
+    const interval = setInterval(() => { frame++; viewer.scene.requestRender(); }, 400);
+    return {
+        billboard, ring, interval,
+        stop() { clearInterval(interval); },
+    };
 }
 
-// ─── Entity management ────────────────────────────────────────────────────────
-
+// ── Init ───────────────────────────────────────────────────────────────────────
 export function initMilitaryTracks(viewer) {
     if (!viewer) return null;
-
-    // Map: sourceKey → { iconEntity, trailEntity, orbitEntity, addedAt }
     const trackMap = new Map();
 
     function removeTrack(key) {
@@ -203,175 +195,139 @@ export function initMilitaryTracks(viewer) {
         if (t.iconEntity) viewer.entities.remove(t.iconEntity);
         if (t.trailEntity) viewer.entities.remove(t.trailEntity);
         if (t.orbitEntity) viewer.entities.remove(t.orbitEntity);
+        if (t.droneAnim) {
+            t.droneAnim.stop();
+            viewer.entities.remove(t.droneAnim.billboard);
+            viewer.entities.remove(t.droneAnim.ring);
+        }
         trackMap.delete(key);
     }
 
     function enforceMax() {
         if (trackMap.size <= CFG.maxTracks) return;
-        // Remove oldest
-        const sorted = [...trackMap.entries()]
-            .sort((a, b) => a[1].addedAt - b[1].addedAt);
-        const toRemove = sorted.slice(0, trackMap.size - CFG.maxTracks);
-        for (const [k] of toRemove) removeTrack(k);
-    }
-
-    function pruneExpired() {
-        const cutoff = Date.now() - CFG.trailFadeMs;
-        for (const [k, t] of trackMap) {
-            if (t.addedAt < cutoff) removeTrack(k);
-        }
+        [...trackMap.entries()].sort((a, b) => a[1].addedAt - b[1].addedAt)
+            .slice(0, trackMap.size - CFG.maxTracks)
+            .forEach(([k]) => removeTrack(k));
     }
 
     function addTrack(event) {
         if (!event) return;
+        const lon = Number(event.lon), lat = Number(event.lat);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat) || (lon === 0 && lat === 0)) return;
 
-        const lon = Number(event.lon);
-        const lat = Number(event.lat);
-        if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
-
-        const key = event.source_key || `mil-${event.id}`;
+        const key = event.source_key || `mil-${event.id || Date.now()}`;
         const subcat = String(event.subcategory || event.category || "military").toLowerCase();
         const meta = event.metadata || {};
-        const heading = Number(meta.heading ?? 0);
+        const heading = Number(meta.heading || event.heading || 0);
         const naval = isNaval(subcat);
         const altM = naval ? CFG.altitudeShip : CFG.altitudeAircraft;
+        const colorHex = getColor(subcat);
+        const color = hexToCs(colorHex);
 
-        // Remove old entry for same key (position update)
         if (trackMap.has(key)) removeTrack(key);
 
-        const color = getTrailColor(subcat);
-        const iconImg = getIcon(subcat);
-        const trailLen = naval ? CFG.shipTrailLengthDeg : CFG.trailLengthDeg;
+        // Drone: loiter animation
+        if (["drone", "uav", "shahed"].includes(subcat)) {
+            const droneAnim = animateDroneLoiter(viewer, lon, lat, colorHex);
+            trackMap.set(key, { droneAnim, addedAt: Date.now() });
+            enforceMax();
+            viewer.scene.requestRender();
+            return;
+        }
 
-        // ── Icon billboard ──────────────────────────────────────────────────
+        const callsign = String(meta.callsign || meta.vessel_name || meta.flight || event.title || subcat).toUpperCase().slice(0, 14);
+
         const iconEntity = viewer.entities.add({
             position: Cesium.Cartesian3.fromDegrees(lon, lat, altM),
             billboard: {
-                image: iconImg,
+                image: makeIconCanvas(subcat, colorHex),
                 scale: CFG.iconScale,
                 rotation: Cesium.Math.toRadians(-heading),
                 alignedAxis: Cesium.Cartesian3.UNIT_Z,
                 verticalOrigin: Cesium.VerticalOrigin.CENTER,
                 horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                // Glow effect via eye offset
-                eyeOffset: new Cesium.Cartesian3(0, 0, -500),
+                eyeOffset: new Cesium.Cartesian3(0, 0, -800),
+                color,
             },
             label: {
-                text: String(meta.callsign || meta.vessel_name || subcat.toUpperCase()),
-                font: "500 11px 'Rajdhani', sans-serif",
+                text: callsign,
+                font: "600 10px 'Rajdhani',monospace",
                 fillColor: color,
                 outlineColor: Cesium.Color.BLACK,
                 outlineWidth: 3,
                 style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                pixelOffset: new Cesium.Cartesian2(0, -28),
+                pixelOffset: new Cesium.Cartesian2(0, -34),
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                showBackground: false,
                 scale: 0.9,
+                showBackground: true,
+                backgroundColor: new Cesium.Color(0, 0, 0, 0.65),
+                backgroundPadding: new Cesium.Cartesian2(5, 3),
             },
-            // Store event data for click popup
-            properties: {
-                eventId: event.id,
-                sourceKey: key,
-                subcat,
-                title: event.title,
-                summary: event.summary,
-                meta: JSON.stringify(meta),
-            },
+            properties: { eventId: event.id, subcat, title: event.title || "" },
         });
 
-        // ── Trail polyline ──────────────────────────────────────────────────
-        const trailPositions = buildTrailPositions(lon, lat, heading, trailLen, CFG.trailSegments, altM);
-        const trailColors = buildTrailColors(color, CFG.trailSegments);
-
+        const trailLen = naval ? CFG.shipTrailLengthDeg : CFG.trailLengthDeg;
+        const trailPos = buildTrail(lon, lat, heading, trailLen, CFG.trailSegments, altM);
         const trailEntity = viewer.entities.add({
             polyline: {
-                positions: trailPositions,
+                positions: trailPos,
                 width: naval ? 1.5 : 2.0,
                 material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.18,
-                    color: color.withAlpha(0.7),
+                    glowPower: 0.2, color: hexToCs(colorHex, 0.6),
                 }),
-                clampToGround: false,
-                followSurface: false,
-                depthFailMaterial: new Cesium.ColorMaterialProperty(color.withAlpha(0.1)),
+                clampToGround: false, followSurface: false,
             },
         });
 
-        // ── AWACS orbit ring ────────────────────────────────────────────────
         let orbitEntity = null;
         if (subcat === "awacs") {
-            const orbitPositions = buildOrbitPositions(lon, lat, CFG.awacOrbitRadiusKm);
             orbitEntity = viewer.entities.add({
                 polyline: {
-                    positions: orbitPositions,
+                    positions: buildCircle(lon, lat, CFG.awacOrbitRadiusKm, altM),
                     width: 1.0,
                     material: new Cesium.PolylineGlowMaterialProperty({
-                        glowPower: 0.12,
-                        color: new Cesium.Color(1.0, 0.82, 0.3, 0.35),
+                        glowPower: 0.1, color: hexToCs(colorHex, 0.28),
                     }),
-                    clampToGround: false,
                 },
             });
         }
 
-        trackMap.set(key, {
-            iconEntity,
-            trailEntity,
-            orbitEntity,
-            addedAt: Date.now(),
-        });
-
+        trackMap.set(key, { iconEntity, trailEntity, orbitEntity, addedAt: Date.now() });
         enforceMax();
-
-        // Request a render so Cesium draws the new entity
         viewer.scene.requestRender();
     }
 
-    // Periodic cleanup of expired tracks
-    const cleanupInterval = setInterval(pruneExpired, 5 * 60 * 1000);
+    const cleanupInterval = setInterval(() => {
+        const cutoff = Date.now() - CFG.trailFadeMs;
+        for (const [k, t] of trackMap) { if (t.addedAt < cutoff) removeTrack(k); }
+    }, 5 * 60 * 1000);
 
-    // ── Public API ──────────────────────────────────────────────────────────
     return {
         addTrack,
-
         setTracks(events = []) {
-            // Clear all existing
-            for (const key of [...trackMap.keys()]) removeTrack(key);
-            for (const e of events) addTrack(e);
+            [...trackMap.keys()].forEach(removeTrack);
+            events.forEach(addTrack);
         },
-
-        clearAll() {
-            for (const key of [...trackMap.keys()]) removeTrack(key);
-        },
-
-        destroy() {
-            clearInterval(cleanupInterval);
-            for (const key of [...trackMap.keys()]) removeTrack(key);
-        },
-
+        clearAll() { [...trackMap.keys()].forEach(removeTrack); },
+        destroy() { clearInterval(cleanupInterval);[...trackMap.keys()].forEach(removeTrack); },
         get count() { return trackMap.size; },
     };
 }
 
-// ─── Category detector ────────────────────────────────────────────────────────
-// Use this in essential.js to decide if an event should get a military track
-
 export function isMilitaryTrackEvent(event) {
     if (!event) return false;
     const cat = String(event.category || "").toLowerCase();
-    const subcat = String(event.subcategory || "").toLowerCase();
     const src = String(event.source_name || "").toLowerCase();
-
-    // Must be military category AND from our workers
+    const subcat = String(event.subcategory || "").toLowerCase();
     if (cat !== "military") return false;
-    if (!src.includes("ads-b") && !src.includes("ais")) return false;
-
-    // Must have valid position
-    const lat = Number(event.lat);
-    const lon = Number(event.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-    if (lat === 0 && lon === 0) return false;
-
-    return true;
+    const valid = ["fighter", "tanker", "transport", "awacs", "recon", "patrol",
+        "carrier", "destroyer", "frigate", "submarine", "naval",
+        "logistics", "military", "drone", "uav", "shahed"];
+    const ok = src.includes("ads-b") || src.includes("ais") ||
+        src.includes("dev test") || src.includes("dev_test") ||
+        valid.includes(subcat);
+    if (!ok) return false;
+    const lat = Number(event.lat), lon = Number(event.lon);
+    return Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0);
 }

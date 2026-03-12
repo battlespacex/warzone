@@ -1,0 +1,361 @@
+﻿/* ============================================================
+   warzone-analytics.css
+   Analytics view, Intel cards, period tabs, bar charts,
+   timeline, Recon / Airspace view, Military view
+   ============================================================ */
+
+/* ── Page chrome ── */
+.intel-page {
+    display: grid;
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+.intel-banner,
+.warning-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 5.4rem;
+    border: 0.2rem solid rgba(255, 165, 0, 0.2);
+    background: rgba(255, 165, 0, 0.08);
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: var(--text-sm);
+}
+
+.page-title {
+    font-size: var(--text-3xl);
+    line-height: 1;
+}
+
+.recon-title {
+    color: #57b8ff;
+}
+
+.page-subtitle {
+    color: var(--color-text-dim);
+    max-width: 80rem;
+}
+
+/* ── Intel card / analytics panel ── */
+.intel-card,
+.analytics-panel {
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(14, 17, 24, 0.82);
+    box-shadow: var(--box-shadow);
+    padding: 1.6rem;
+}
+
+.intel-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+}
+
+    .intel-card__head h2 {
+        font-size: var(--text-2xl);
+        line-height: 1;
+    }
+
+.intel-meta {
+    margin-top: 1rem;
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+}
+
+/* ── Period tabs ── */
+.period-tabs {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.period-tab {
+    border: 0.2rem solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--color-heading);
+    min-height: 3.6rem;
+    padding: 0 1rem;
+}
+
+    .period-tab.is-active {
+        color: var(--color-accent);
+        border-color: rgba(255, 207, 87, 0.3);
+        background: rgba(255, 207, 87, 0.08);
+    }
+
+/* ── Analytics grid + top cards ── */
+.analytics-grid {
+    display: grid;
+    gap: 1.6rem;
+}
+
+.analytics-grid--top {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.analytics-grid--charts {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.analytics-card {
+    padding: 1.6rem;
+    border: 0.2rem solid var(--color-panel-line);
+    background: rgba(14, 17, 24, 0.82);
+}
+
+    .analytics-card span {
+        display: block;
+        color: var(--color-text-dim);
+        text-transform: uppercase;
+        font-size: var(--text-sm);
+    }
+
+    .analytics-card strong {
+        display: block;
+        margin-top: 0.8rem;
+        color: var(--color-heading);
+        font-size: var(--text-3xl);
+        line-height: 1;
+    }
+
+/* ── Ring stat grid (strike side breakdown) ── */
+.ring-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+}
+
+.ring-stat-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1.4rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+    .ring-stat-card strong {
+        display: block;
+        color: var(--color-heading);
+        font-size: var(--text-2xl);
+    }
+
+    .ring-stat-card span {
+        color: var(--color-text-dim);
+        text-transform: uppercase;
+        font-size: var(--text-xs);
+    }
+
+/* ── Bar charts ── */
+.bars-list {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.bar-row {
+    display: grid;
+    grid-template-columns: 20rem 1fr 5rem;
+    gap: 1rem;
+    align-items: center;
+}
+
+.bar-track {
+    height: 1.2rem;
+    border-radius: 999rem;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+
+    .bar-track i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #ff7a45, #ffb020);
+    }
+
+/* ── Chronological timeline ── */
+.timeline-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.timeline-item {
+    display: grid;
+    grid-template-columns: 20rem 1fr;
+    gap: 1.4rem;
+    padding: 1rem 0;
+    border-top: 0.2rem solid rgba(255, 255, 255, 0.06);
+}
+
+    .timeline-item:first-child {
+        border-top: 0;
+    }
+
+.timeline-time {
+    color: var(--color-accent);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+}
+
+.timeline-body strong {
+    display: block;
+    color: var(--color-heading);
+    margin-bottom: 0.4rem;
+}
+
+/* ── Recon / Airspace view ── */
+.recon-region-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1.2rem;
+}
+
+.region-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.4rem;
+}
+
+    .region-card h4 {
+        font-size: var(--text-lg);
+        line-height: 1;
+        margin-bottom: 0.6rem;
+    }
+
+.recon-alert-list,
+.correlation-list,
+.killchain-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.recon-alert-row,
+.correlation-row {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1.2rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Military view — weapons grid ── */
+.weapons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
+    gap: 1.4rem;
+}
+
+.weapon-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.6rem;
+}
+
+.weapon-card__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+}
+
+    .weapon-card__top h3 {
+        font-size: var(--text-xl);
+        line-height: 1;
+    }
+
+    .weapon-card__top span {
+        color: #ff5a4f;
+        font-size: var(--text-xs);
+        text-transform: uppercase;
+    }
+
+.weapon-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 1rem 0;
+}
+
+.weapon-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999rem;
+    border: 0.2rem solid rgba(87, 184, 255, 0.25);
+    background: rgba(87, 184, 255, 0.08);
+    color: #57b8ff;
+    padding: 0.5rem 0.8rem;
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+/* ── Military sub-panel switcher ── */
+.military-switcher {
+    display: flex;
+    gap: 1rem;
+}
+
+.military-panel {
+    display: none;
+}
+
+    .military-panel.is-active {
+        display: block;
+    }
+
+/* ── Kill-chain cards ── */
+.killchain-card {
+    border: 0.2rem solid rgba(255, 255, 255, 0.08);
+    padding: 1.6rem;
+}
+
+.killchain-card--iran {
+    background: rgba(120, 0, 0, 0.18);
+    border-color: rgba(255, 80, 80, 0.18);
+}
+
+.killchain-card--us_israel {
+    background: rgba(0, 70, 90, 0.18);
+    border-color: rgba(87, 184, 255, 0.18);
+}
+
+.killchain-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.killchain-flow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+    .killchain-flow > div {
+        border: 0.2rem solid rgba(255, 255, 255, 0.08);
+        padding: 1rem;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+/* ── Responsive ── */
+@media (max-width: 1280px) {
+    .analytics-grid--top,
+    .analytics-grid--charts {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .analytics-grid--top,
+    .analytics-grid--charts,
+    .weapons-grid,
+    .recon-region-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bar-row,
+    .timeline-item {
+        grid-template-columns: 1fr;
+    }
+}

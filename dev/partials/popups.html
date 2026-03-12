@@ -1,0 +1,272 @@
+﻿<%
+/*
+ * partials/popups.html
+ * ════════════════════════════════════════════════════════════════════════════
+ * WARZONE / BATTLESPACEX — Centralized Popup & Overlay Partials
+ *
+ * Har popup, modal, overlay, siren banner — sab yahan hain.
+ * JS files sirf IDs/classes ke zariye content fill karte hain,
+ * HTML structure hamesha yahan se aata hai.
+ *
+ * Index mein call karo:
+ *   <%= partials("popups") %>
+ *
+ * Contents:
+ *   1.  #wz-siren-stack          — Siren alert banners (3 levels: red/orange/yellow)
+ *   2.  #tpl-siren-banner        —
+<template>
+    for one siren banner (cloned by JS)
+    *   3.  #warzone-alert           — Sticky persistent alert bar (top of map)
+    *   4.  #wz-region-modal         — Region select overlay (first visit + nav button)
+    *   5.  #wz-about-modal          — About / Terms / Data Sources modal
+    *   6.  #wz-dev-panel            — Dev test panel (local only, hidden in prod)
+    *   7.  #wz-event-popup          — Individual event click detail popup (future)
+    * ════════════════════════════════════════════════════════════════════════════
+    */
+    %>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         1. SIREN ALERT STACK
+         Controlled by: warzone-siren-alert.js → showSirenAlert({ title, meta, level })
+         Levels: "red" | "orange" | "yellow"
+         Stacks up to 3 banners. Auto-dismisses per AUTO_DISMISS config in JS.
+         CSS: warzone-siren-alert.css
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-siren-stack" class="wz-siren-stack" aria-live="assertive" aria-atomic="false">
+        <!-- Siren banners injected here dynamically by warzone-siren-alert.js
+             Each banner cloned from #tpl-siren-banner below -->
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         2. SIREN BANNER TEMPLATE
+         Cloned by: warzone-siren-alert.js → showSirenAlert()
+         JS fills: .wz-siren-title text, .wz-siren-meta text
+         JS sets:  banner class → wz-siren-banner--red / --orange / --yellow
+         JS sets:  data-alert-id, data-dismiss on close button
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <template id="tpl-siren-banner">
+        <div class="wz-siren-banner" role="alert">
+            <span class="wz-siren-bell" aria-hidden="true">🔔</span>
+            <span class="wz-siren-body">
+                <strong class="wz-siren-title"><!-- filled by JS --></strong>
+                <span class="wz-siren-meta"><!-- filled by JS, hidden if empty --></span>
+            </span>
+            <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
+            <button class="wz-siren-close" aria-label="Dismiss">✕</button>
+        </div>
+    </template>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         3. STICKY ALERT BAR
+         Controlled by: warzone-sticky-alert.js → showStickyAlert() / hideStickyAlert()
+         JS adds/removes: .is-active .is-red .is-orange classes
+         JS fills: #warzone-alert-title, #warzone-alert-meta text
+         JS sets:  data-alert-key, data-sticky attributes
+         CSS: warzone-panels.css → .warzone-alert
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="warzone-alert"
+         class="warzone-alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-alert-key=""
+         data-sticky="">
+        <span class="warzone-alert__icon" aria-hidden="true">🔴</span>
+        <span class="warzone-alert__text">
+            <strong id="warzone-alert-title">Air raid sirens active</strong>
+            <span id="warzone-alert-meta"></span>
+        </span>
+        <button class="warzone-alert__close" id="warzone-alert-dismiss" aria-label="Dismiss alert">✕</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         4. REGION SELECT MODAL
+         Controlled by: warzone-region-selector.js → showRegionModal()
+         JS fills:  .wz-region-modal__grid with region buttons
+         JS adds:   .is-visible class to trigger CSS transition in
+         JS adds:   .is-closing class to fade out before removal
+         First visit: shown automatically. Revisit: triggered by region nav button.
+         CSS: warzone-region-layers.css → .wz-region-modal__*
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-region-modal" class="wz-region-modal" aria-modal="true" role="dialog" aria-label="Select monitoring region" hidden>
+        <div class="wz-region-modal__backdrop"></div>
+        <div class="wz-region-modal__box">
+            <div class="wz-region-modal__head">
+                <div class="wz-region-modal__logo">⬡ WARZONE</div>
+                <h2 class="wz-region-modal__title">SELECT MONITORING REGION</h2>
+                <p class="wz-region-modal__sub">Live OSINT situational awareness — choose your area of interest</p>
+            </div>
+            <!-- Region buttons injected here by warzone-region-selector.js -->
+            <div class="wz-region-modal__grid" id="wz-region-modal-grid"></div>
+            <button class="wz-region-modal__confirm" id="wz-region-confirm" disabled>
+                ENTER WARZONE
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         5. ABOUT / TERMS / SOURCES MODAL
+         Controlled by: warzone-boot.js → About dock button click
+         JS toggles: hidden attribute, tab switching via data-tab / data-pane
+         Tabs: About | Terms of Use | Data Sources
+         CSS: warzone-panels.css → .wz-modal, .wz-modal__*
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-about-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About BattlespaceX">
+        <div class="wz-modal__backdrop"></div>
+        <div class="wz-modal__box">
+            <div class="wz-modal__head">
+                <span>ABOUT BATTLESPACEX</span>
+                <button class="wz-modal__close" id="wz-about-close" aria-label="Close">×</button>
+            </div>
+            <div class="wz-modal__tabs" role="tablist">
+                <button class="wz-modal__tab is-active" data-tab="about" role="tab" aria-selected="true">About</button>
+                <button class="wz-modal__tab" data-tab="terms" role="tab" aria-selected="false">Terms of Use</button>
+                <button class="wz-modal__tab" data-tab="sources" role="tab" aria-selected="false">Data Sources</button>
+            </div>
+            <div class="wz-modal__body">
+
+                <!-- Tab: About -->
+                <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
+                    <h3>ABOUT BATTLESPACEX</h3>
+                    <p>BattlespaceX is an independent, real-time geopolitical and military conflict monitoring platform. We aggregate, process, and visualize open-source intelligence (OSINT) from publicly available sources to provide situational awareness during active conflict zones.</p>
+                    <p>This platform is operated independently and is not affiliated with any government, military organization, or intelligence agency. All data is derived from open-source public information.</p>
+                    <h3>DISCLAIMER</h3>
+                    <p>Information displayed is provided for situational awareness and informational purposes only. BattlespaceX makes no guarantees regarding the accuracy, completeness, or timeliness of any data. Do not use this platform to make safety-critical or life-threatening decisions. Always refer to official local authorities during emergencies.</p>
+                </div>
+
+                <!-- Tab: Terms of Use -->
+                <div class="wz-modal__pane" data-pane="terms" role="tabpanel">
+                    <h3>TERMS OF USE</h3>
+                    <ul class="wz-terms-list">
+                        <li><strong>Personal use only.</strong> This platform is provided for personal, non-commercial, informational purposes. Commercial use of any kind is strictly prohibited without written permission.</li>
+                        <li><strong>No scraping or automated data collection.</strong> You may not use bots, crawlers, scrapers, or any automated means to access, extract, or collect data from this platform.</li>
+                        <li><strong>No redistribution.</strong> Content, data, maps, and visualizations displayed on BattlespaceX may not be copied, reproduced, republished, or redistributed without explicit written permission.</li>
+                        <li><strong>No warranty.</strong> Data is provided as-is. BattlespaceX makes no guarantees about accuracy, completeness, or timeliness. Do not rely on this data for safety-critical decisions.</li>
+                        <li><strong>API access prohibited.</strong> Directly accessing API endpoints programmatically or reverse-engineering the data pipeline is strictly prohibited and may result in permanent IP bans.</li>
+                        <li><strong>Content accuracy.</strong> Strike reports, alerts, and conflict data are aggregated from open-source channels and may contain unverified information. BattlespaceX does not independently verify all reports.</li>
+                    </ul>
+                    <p class="wz-terms-footer">By accessing BattlespaceX you agree to these terms. For inquiries, contact us via our social channels.</p>
+                </div>
+
+                <!-- Tab: Data Sources -->
+                <div class="wz-modal__pane" data-pane="sources" role="tabpanel">
+                    <h3>DATA SOURCES</h3>
+                    <ul class="wz-terms-list">
+                        <li><strong>Telegram OSINT channels</strong> — Real-time ingestion from verified conflict reporting channels</li>
+                        <li><strong>RSS news feeds</strong> — Aggregated from regional and international news outlets</li>
+                        <li><strong>NASA FIRMS</strong> — Thermal anomaly detection via satellite fire data</li>
+                        <li><strong>USGS</strong> — Seismic event data for explosion / strike correlation</li>
+                        <li><strong>ADS-B transponder data</strong> — Military and civilian aircraft tracking</li>
+                        <li><strong>AIS vessel tracking</strong> — Naval and maritime monitoring</li>
+                        <li><strong>OpenStreetMap / ArcGIS</strong> — Base map and geospatial data</li>
+                        <li><strong>Natural Earth</strong> — Country borders and geographic boundaries</li>
+                    </ul>
+                    <p class="wz-terms-footer">All data is processed and enriched automatically. Source accuracy varies. BattlespaceX is not responsible for errors in upstream data sources.</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         6. DEV TEST PANEL
+         Controlled by: warzone-dev-panel.js
+         Visibility: hidden in production (JS checks hostname or ?dev=1)
+         Toggle: #wz-dev-toggle button
+         Buttons: fire test events, sirens, pulse highlights
+         CSS: .wz-dev-panel, .wz-dev-btn (defined in warzone-dev-panel.js <style>
+              or move to a dedicated dev.css if needed)
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-dev-panel" class="wz-dev-panel" hidden>
+
+        <!-- Collapse toggle -->
+        <button id="wz-dev-toggle" class="wz-dev-toggle">⚙ DEV</button>
+
+        <!-- Panel body -->
+        <div id="wz-dev-body" class="wz-dev-body" hidden>
+
+            <div class="wz-dev-heading">⚠ DEV TEST PANEL — LOCAL ONLY</div>
+
+            <div class="wz-dev-grid">
+
+                <!-- MISSILE / STRIKE -->
+                <div class="wz-dev-label">MISSILE / STRIKE</div>
+                <button class="wz-dev-btn" data-event="missile_iran_israel" style="--c:#ff0753">🚀 Missile — Iran → Israel</button>
+                <button class="wz-dev-btn" data-event="missile_russia_ukraine" style="--c:#ff0753">🚀 Missile — Russia → Ukraine</button>
+                <button class="wz-dev-btn" data-event="drone_kamikaze" style="--c:#ff6a00">🛸 Drone Strike (Shahed)</button>
+                <button class="wz-dev-btn" data-event="airstrike" style="--c:#ff6a00">💥 Air Strike (IAF)</button>
+
+                <!-- SIRENS / ALERTS -->
+                <div class="wz-dev-label">SIRENS / ALERTS</div>
+                <button class="wz-dev-btn" data-siren="red" style="--c:#d42020">🔴 RED — Sirens Going Off (Israel)</button>
+                <button class="wz-dev-btn" data-siren="orange" style="--c:#d45a00">🟠 ORANGE — Sirens Reported (Lebanon)</button>
+                <button class="wz-dev-btn" data-siren="yellow" style="--c:#b88000">🟡 YELLOW — Incoming Warning</button>
+
+                <!-- PULSE HIGHLIGHT TEST -->
+                <div class="wz-dev-label">🔴 PULSE HIGHLIGHT TEST</div>
+                <button class="wz-dev-btn" data-highlight="israel" style="--c:#ff2a2a">🇮🇱 Pulse — Israel (Critical)</button>
+                <button class="wz-dev-btn" data-highlight="uae" style="--c:#ff2a2a">🇦🇪 Pulse — UAE (High)</button>
+                <button class="wz-dev-btn" data-highlight="iran" style="--c:#ff2a2a">🇮🇷 Pulse — Iran (Critical)</button>
+                <button class="wz-dev-btn" data-highlight="ukraine" style="--c:#ff2a2a">🇺🇦 Pulse — Ukraine (High)</button>
+                <button class="wz-dev-btn" data-highlight="clear" style="--c:#444">✖ Clear Highlight</button>
+
+                <!-- MILITARY AIRCRAFT -->
+                <div class="wz-dev-label">MILITARY AIRCRAFT</div>
+                <button class="wz-dev-btn" data-event="aircraft_fighter" style="--c:#56d80e">✈ Fighter — F-35I (IAF)</button>
+                <button class="wz-dev-btn" data-event="aircraft_awacs" style="--c:#ffd24d">✈ AWACS E-3 Sentry (NATO)</button>
+                <button class="wz-dev-btn" data-event="aircraft_recon" style="--c:#ff6a00">✈ Recon RC-135 (USAF)</button>
+                <button class="wz-dev-btn" data-event="aircraft_tanker" style="--c:#00d8b2">✈ Tanker KC-135 (USAF)</button>
+
+                <!-- NAVAL -->
+                <div class="wz-dev-label">NAVAL</div>
+                <button class="wz-dev-btn" data-event="ship_carrier" style="--c:#ff2a2a">⛵ Carrier — USS Gerald R Ford</button>
+                <button class="wz-dev-btn" data-event="ship_destroyer" style="--c:#9b7bff">⛵ Destroyer — USS Arleigh Burke</button>
+                <button class="wz-dev-btn" data-event="ship_russian" style="--c:#ff6a00">⛵ Frigate — Admiral Gorshkov</button>
+
+                <!-- OTHER -->
+                <div class="wz-dev-label">OTHER</div>
+                <button class="wz-dev-btn" data-event="cyber" style="--c:#9b7bff">💻 Cyber Attack — Iran</button>
+                <button class="wz-dev-btn" data-event="thermal" style="--c:#ff7a00">🔥 Thermal Anomaly — Syria</button>
+
+                <!-- ACTIONS -->
+                <div class="wz-dev-actions">
+                    <button id="wz-dev-fire-all" class="wz-dev-action wz-dev-action--fire">⚡ FIRE ALL</button>
+                    <button id="wz-dev-clear" class="wz-dev-action wz-dev-action--clear">✕ CLEAR LOG</button>
+                </div>
+
+                <!-- LOG OUTPUT -->
+                <div id="wz-dev-log" class="wz-dev-log"></div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         7. EVENT CLICK DETAIL POPUP  (placeholder — not yet implemented)
+         Will be shown when user clicks an event circle on the globe.
+         Controlled by: warzone-globe.js (future)
+         JS fills: #wz-event-popup-* fields
+         CSS: warzone-panels.css → .wz-event-popup
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite">
+        <div class="wz-event-popup__head">
+            <span id="wz-event-popup-cat" class="wz-event-popup__cat"></span>
+            <span id="wz-event-popup-sev" class="wz-event-popup__sev"></span>
+            <button class="wz-event-popup__close" id="wz-event-popup-close" aria-label="Close">×</button>
+        </div>
+        <div class="wz-event-popup__body">
+            <h3 id="wz-event-popup-title" class="wz-event-popup__title"></h3>
+            <p id="wz-event-popup-summary" class="wz-event-popup__summary"></p>
+            <div class="wz-event-popup__meta">
+                <span id="wz-event-popup-location"></span>
+                <span id="wz-event-popup-time"></span>
+                <span id="wz-event-popup-weapon"></span>
+            </div>
+            <a id="wz-event-popup-source" class="wz-event-popup__source" href="#" target="_blank" rel="noopener">View Source ↗</a>
+        </div>
+    </div>

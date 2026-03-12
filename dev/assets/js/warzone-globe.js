@@ -92,12 +92,12 @@ function getCategoryColorCss(category) {
 }
 
 function getSeverityRadius(event) {
-    const base = numberVar("--warzone-event-ring-size", 32000);
+    const base = numberVar("--warzone-event-ring-size", 55000);  // 55km base — visible and bold
 
     switch (event?.severity) {
-        case "critical": return base * 1.6;
-        case "high": return base * 1.3;
-        case "medium": return base * 1.05;
+        case "critical": return base * 1.8;
+        case "high": return base * 1.45;
+        case "medium": return base * 1.15;
         case "low": return base * 0.9;
         default: return base;
     }
@@ -217,120 +217,146 @@ function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
     return dataUrl;
 }
 
-/* ---------- Event entities ---------- */
-function createEventEntity(event) {
-    const colorCss = getCategoryColorCss(event.category);
-    const color = Cesium.Color.fromCssColorString(colorCss);
-    const count = Number(event._clusterCount || 1);
-    const marker = createMarkerCanvas(colorCss, count);
-    const radius = getClusterRadius(event);
-    const heatRadius = getHeatRadius(event);
+// ─── PRIMITIVE-BASED EVENT RENDERING ─────────────────────────────────────────
+// Markers: BillboardCollection (1 draw call for all dots)
+// Rings + fills: viewer.entities with suspendEvents (world-space meters — correct size at all zooms)
+// Hybrid approach: best of both worlds
+// ─────────────────────────────────────────────────────────────────────────────
 
-    const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
-    const showEventRings = boolVar("--warzone-event-rings-visible", true);
+let __billboards = null;      // BillboardCollection — marker dots only
+const __primMap = new Map(); // eventId → { billboard, prim, outlinePrim }
 
-    // Cluster fill alpha scales down so overlaps aren't as opaque
-    const baseFillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.14);
-    const fillAlpha = count > 1
-        ? Math.max(0.06, baseFillAlpha - (Math.log10(count) * 0.03))
-        : baseFillAlpha;
+function ensurePrimitiveCollections(viewer) {
+    if (__billboards) return;
+    __billboards = viewer.scene.primitives.add(
+        new Cesium.BillboardCollection({ scene: viewer.scene })
+    );
+}
 
-    return {
-        id: `event-${event.id}`,
-        name: event.title || "Untitled event",
-        position: Cesium.Cartesian3.fromDegrees(Number(event.lon), Number(event.lat)),
-        billboard: {
-            image: marker,
-            scale: count > 1
-                ? numberVar("--warzone-marker-scale", 1) * Math.min(1.4, 1 + Math.log10(count) * 0.15)
-                : numberVar("--warzone-marker-scale", 1),
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: showEventMarkers,
-        },
-        ellipse: {
-            semiMinorAxis: radius,
-            semiMajorAxis: radius,
-            material: color.withAlpha(fillAlpha),
-            outline: false,
-            height: 0,
-            show: showEventRings,
-        },
-        properties: {
-            eventId: String(event.id || ""),
-            title: event.title || "",
-            summary: event.summary || "",
-            category: event.category || "strike",
-            severity: event.severity || "medium",
-            location_label: event.location_label || "",
-            occurred_at: event.occurred_at || "",
-            confidence: Number(event.confidence ?? 0),
-            heatRadius,
-            radius,
-            clusterCount: count,
-            origin_lat: event.origin_lat,
-            origin_lon: event.origin_lon,
-            origin_label: event.origin_label || "",
-            impact_lat: event.impact_lat,
-            impact_lon: event.impact_lon,
-            impact_label: event.impact_label || "",
-        },
-    };
+function clearEventEntities(viewer) {
+    ensurePrimitiveCollections(viewer);
+    __billboards.removeAll();
+    for (const { prim, outlinePrim } of __primMap.values()) {
+        if (prim) try { viewer.scene.primitives.remove(prim); } catch { }
+        if (outlinePrim) try { viewer.scene.primitives.remove(outlinePrim); } catch { }
+    }
+    __primMap.clear();
 }
 
 function addEventEntity(viewer, event) {
     if (!isRenderableEvent(event)) return null;
+    ensurePrimitiveCollections(viewer);
 
-    const existingMain = viewer.entities.getById(`event-${event.id}`);
-    const existingRing = viewer.entities.getById(`event-${event.id}-outline`);
-
-    if (existingMain) {
-        try { viewer.entities.remove(existingMain); } catch { }
-    }
-    if (existingRing) {
-        try { viewer.entities.remove(existingRing); } catch { }
-    }
-
-    const entity = viewer.entities.add(createEventEntity(event));
-
+    const id = String(event.id || Math.random());
     const colorCss = getCategoryColorCss(event.category);
+    const color = Cesium.Color.fromCssColorString(colorCss);
     const count = Number(event._clusterCount || 1);
+    const lat = Number(event.lat);
+    const lon = Number(event.lon);
+    const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 50);
+
+    // Remove existing if re-adding
+    if (__primMap.has(id)) {
+        const prev = __primMap.get(id);
+        try { __billboards.remove(prev.billboard); } catch { }
+        if (prev.prim) try { viewer.scene.primitives.remove(prev.prim); } catch { }
+        if (prev.outlinePrim) try { viewer.scene.primitives.remove(prev.outlinePrim); } catch { }
+        __primMap.delete(id);
+    }
+
+    const showMarkers = boolVar("--warzone-event-markers-visible", true);
+    const showRings = boolVar("--warzone-event-rings-visible", true);
+    const radius = getClusterRadius(event);
+    const markerImg = createMarkerCanvas(colorCss, count);
+    const markerScale = count > 1
+        ? numberVar("--warzone-marker-scale", 1) * Math.min(1.4, 1 + Math.log10(count) * 0.15)
+        : numberVar("--warzone-marker-scale", 1);
+    const baseFillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.22);
+    const fillAlpha = count > 1
+        ? Math.max(0.06, baseFillAlpha - (Math.log10(count) * 0.03))
+        : baseFillAlpha;
     const outlineAlpha = count > 1
         ? numberVar("--warzone-event-ring-outline-alpha", 0.82) * 0.7
         : numberVar("--warzone-event-ring-outline-alpha", 0.82);
-    const outlineWidth = numberVar("--warzone-event-ring-outline-width", 3);
-    const radius = getClusterRadius(event);
-    const showEventRings = boolVar("--warzone-event-rings-visible", true);
 
-    const ringImage = createRingCanvas(
-        colorCss,
-        512,
-        Math.max(2, Math.round(outlineWidth))
-    );
-
-    const ringEntity = viewer.entities.add({
-        id: `event-${event.id}-outline`,
-        position: Cesium.Cartesian3.fromDegrees(Number(event.lon), Number(event.lat), 10),
-        billboard: {
-            image: ringImage,
-            scale: radius / 256,
-            color: Cesium.Color.WHITE.withAlpha(outlineAlpha),
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: showEventRings,
-        },
-        properties: {
-            isEventOutline: true,
-            eventId: String(event.id || ""),
-            category: event.category || "strike",
-            severity: event.severity || "medium",
-            heatRadius: getHeatRadius(event),
-            radius,
-            clusterCount: count,
-        },
+    // 1. Marker dot — BillboardCollection (fast, batched)
+    const billboard = __billboards.add({
+        position: pos,
+        image: markerImg,
+        scale: markerScale,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        show: showMarkers,
+        id: `event-${id}`,
     });
 
-    return { entity, ringEntity };
+    // 2. Ring + fill — GeometryInstance batched into scene primitives
+    // This is world-space (meters) like entity ellipse, but batched = 1 draw call per add
+    let prim = null;
+    if (showRings) {
+        try {
+            const instances = [
+                // Fill
+                new Cesium.GeometryInstance({
+                    id: `event-fill-${id}`,
+                    geometry: new Cesium.EllipseGeometry({
+                        center: Cesium.Cartesian3.fromDegrees(lon, lat),
+                        semiMajorAxis: radius,
+                        semiMinorAxis: radius,
+                        vertexFormat: Cesium.EllipseGeometry.VERTEX_FORMAT,
+                    }),
+                    attributes: {
+                        color: Cesium.ColorGeometryInstanceAttribute.fromColor(
+                            color.withAlpha(fillAlpha)
+                        ),
+                    },
+                }),
+            ];
+
+            prim = viewer.scene.primitives.add(new Cesium.Primitive({
+                geometryInstances: instances,
+                appearance: new Cesium.PerInstanceColorAppearance({
+                    flat: true,
+                    translucent: true,
+                }),
+                asynchronous: false,  // sync compile — no pop-in
+                allowPicking: false,
+            }));
+
+            // Outline ring as separate GroundPolyline-style ellipse outline
+            const outlinePrim = viewer.scene.primitives.add(new Cesium.Primitive({
+                geometryInstances: new Cesium.GeometryInstance({
+                    id: `event-ring-${id}`,
+                    geometry: new Cesium.EllipseOutlineGeometry({
+                        center: Cesium.Cartesian3.fromDegrees(lon, lat),
+                        semiMajorAxis: radius,
+                        semiMinorAxis: radius,
+                    }),
+                    attributes: {
+                        color: Cesium.ColorGeometryInstanceAttribute.fromColor(
+                            color.withAlpha(outlineAlpha)
+                        ),
+                    },
+                }),
+                appearance: new Cesium.PerInstanceColorAppearance({
+                    flat: true,
+                    translucent: true,
+                    renderState: { lineWidth: Math.min(2, viewer.scene.maximumAliasedLineWidth) },
+                }),
+                asynchronous: false,
+                allowPicking: false,
+            }));
+
+            __primMap.set(id, { billboard, prim, outlinePrim, event });
+            return { billboard, prim, outlinePrim };
+
+        } catch (e) {
+            // GeometryInstance failed (e.g. invalid coords) — skip ring
+        }
+    }
+
+    __primMap.set(id, { billboard, prim: null, outlinePrim: null, event });
+    return { billboard };
 }
 
 /* ---------- Viewer style ---------- */
@@ -359,8 +385,20 @@ function applyViewerStyle(viewer) {
     }
 
     viewer.scene.requestRenderMode = true;
-    viewer.scene.maximumRenderTimeChange = Infinity;
-    viewer.resolutionScale = numberVar("--warzone-resolution-scale", 1);
+    viewer.scene.maximumRenderTimeChange = 2.0;      // was 1.0 — less frequent re-renders = fewer worker jobs
+    viewer.resolutionScale = window.devicePixelRatio > 1 ? 0.85 : 1.0;  // 0.75 was too blurry
+
+    // Performance: reduce GPU load
+    viewer.scene.fog.enabled = false;
+    viewer.scene.globe.showGroundAtmosphere = false;
+    if (viewer.scene.skyAtmosphere) {
+        viewer.scene.skyAtmosphere.show = false;
+    }
+    viewer.scene.globe.tileCacheSize = 100;          // slightly larger cache = fewer rebuilds
+    viewer.scene.globe.maximumScreenSpaceError = 4;  // coarser tiles = far fewer worker jobs (was 2.5)
+    viewer.scene.globe.preloadSiblings = false;
+    viewer.scene.globe.preloadAncestors = false;
+    viewer.scene.globe.loadingDescendantLimit = 4;   // limit concurrent tile loads
 
     if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = boolVar("--warzone-fxaa-enabled", true);
@@ -376,7 +414,7 @@ function tuneImageryLayer(layer, prefix = "--warzone-map") {
     layer.contrast = numberVar(`${prefix}-contrast`, 1.2);
     layer.gamma = numberVar(`${prefix}-gamma`, 0.85);
     layer.saturation = numberVar(`${prefix}-saturation`, 0.2);
-    layer.hue = numberVar(`${prefix}-hue`, 0);
+    layer.hue = numberVar(`${prefix}-hue`, 0);    // raw value — Cesium cycles at 2π, 170 ≈ 0.44rad which gives correct tint
     layer.alpha = numberVar(`${prefix}-alpha`, 1);
 }
 
@@ -446,7 +484,8 @@ function addPolylineForRing(viewer, ring, options) {
     const coords = flattenRingToDegrees(ring);
     if (coords.length < 4) return;
 
-    viewer.entities.add({
+    return viewer.entities.add({
+        name: options.countryName || undefined,
         polyline: {
             positions: Cesium.Cartesian3.fromDegreesArray(coords),
             width: options.width,
@@ -483,21 +522,26 @@ async function addGeoJsonBorderLayer(viewer, config) {
         for (const feature of features) {
             const geometry = feature?.geometry;
             if (!geometry) continue;
+            const countryName = (
+                feature.properties?.ADMIN ||
+                feature.properties?.name ||
+                feature.properties?.NAME || ""
+            ).toUpperCase();
 
             if (geometry.type === "Polygon") {
                 const rings = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
-                if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width });
+                if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width, countryName });
             } else if (geometry.type === "MultiPolygon") {
                 const polygons = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
                 for (const polygon of polygons) {
                     const rings = Array.isArray(polygon) ? polygon : [];
-                    if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width });
+                    if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width, countryName });
                 }
             } else if (geometry.type === "LineString") {
-                addPolylineForRing(viewer, geometry.coordinates, { color, width });
+                addPolylineForRing(viewer, geometry.coordinates, { color, width, countryName });
             } else if (geometry.type === "MultiLineString") {
                 const lines = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
-                for (const line of lines) addPolylineForRing(viewer, line, { color, width });
+                for (const line of lines) addPolylineForRing(viewer, line, { color, width, countryName });
             }
         }
 
@@ -508,6 +552,12 @@ async function addGeoJsonBorderLayer(viewer, config) {
 }
 
 async function addBorderLayers(viewer) {
+    // Fetch and cache country GeoJSON globally — used by highlightAlertRegion
+    try {
+        const gj = await fetchGeoJson(BORDER_SOURCES.countries);
+        window.__warzoneCountryGeoJson = gj;
+    } catch { }
+
     await addGeoJsonBorderLayer(viewer, {
         name: "Country",
         url: BORDER_SOURCES.countries,
@@ -545,20 +595,30 @@ async function addBorderLayers(viewer) {
 async function addArcGisLayers(viewer) {
     viewer.imageryLayers.removeAll();
 
+    // 1. Satellite base imagery
     const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
     );
 
+    // 2. ArcGIS place name labels — kept separate so they survive satellite toggle
     const labelsProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer"
     );
 
     const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
-    tuneImageryLayer(baseLayer, "--warzone-map");
-
     const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
+
+    tuneImageryLayer(baseLayer, "--warzone-map");
     tuneImageryLayer(labelsLayer, "--warzone-labels");
     labelsLayer.alpha = numberVar("--warzone-labels-alpha", 0.95);
+
+    // Re-apply after CSS vars parsed
+    requestAnimationFrame(() => {
+        tuneImageryLayer(baseLayer, "--warzone-map");
+        tuneImageryLayer(labelsLayer, "--warzone-labels");
+        labelsLayer.alpha = numberVar("--warzone-labels-alpha", 0.95);
+        viewer.scene.requestRender();
+    });
 
     return { baseLayer, labelsLayer };
 }
@@ -1184,6 +1244,45 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
     track.fadeFrame = requestAnimationFrame(step);
 }
 
+
+/* ---------- Drone path (slow, low altitude, zigzag) ---------- */
+function buildDroneState(originLon, originLat, impactLon, impactLat, steps = 80) {
+    const positions = [];
+    const samples = [];
+
+    // Drones fly LOW — max 500m altitude, slight zigzag
+    const peakHeight = 400;
+
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const lon = lerp(originLon, impactLon, t);
+        const lat = lerp(originLat, impactLat, t);
+
+        // Very shallow arc + small lateral drift (zigzag)
+        const arc = Math.sin(Math.PI * t) * peakHeight;
+        const zigzag = Math.sin(t * Math.PI * 6) * 0.08;   // subtle weave
+        const height = arc;
+
+        const cart = Cesium.Cartesian3.fromDegrees(lon + zigzag, lat, height);
+        positions.push(cart);
+        samples.push({ t, lon: lon + zigzag, lat, height, cart });
+    }
+
+    return { positions, samples };
+}
+
+function isDroneEvent(event) {
+    const weapon = String(event?.weapon_type || "").toLowerCase();
+    const subcat = String(event?.subcategory || "").toLowerCase();
+    const title = String(event?.title || "").toLowerCase();
+    return (
+        weapon.includes("drone") || weapon.includes("uav") ||
+        subcat.includes("drone") || subcat.includes("uav") ||
+        title.includes("shahed") || title.includes("drone") ||
+        title.includes("kamikaze")
+    );
+}
+
 function animateMissileTrack(viewer, event) {
     const originLon = Number(event.origin_lon);
     const originLat = Number(event.origin_lat);
@@ -1214,13 +1313,16 @@ function animateMissileTrack(viewer, event) {
                 ? numberVar("--warzone-missile-peak-height-high", 620000)
                 : numberVar("--warzone-missile-peak-height-medium", 460000);
 
+    // Drones are slower than missiles
     const durationMs = Number(
         event.animation_duration_ms ||
-        (event.severity === "critical"
-            ? numberVar("--warzone-missile-duration-critical", 9000)
-            : event.severity === "high"
-                ? numberVar("--warzone-missile-duration-high", 7500)
-                : numberVar("--warzone-missile-duration-medium", 6200))
+        (isDroneEvent(event)
+            ? 14000   // drone: 14 seconds to travel
+            : event.severity === "critical"
+                ? numberVar("--warzone-missile-duration-critical", 9000)
+                : event.severity === "high"
+                    ? numberVar("--warzone-missile-duration-high", 7500)
+                    : numberVar("--warzone-missile-duration-medium", 6200))
     );
 
     const persistMs = Number(
@@ -1232,11 +1334,16 @@ function animateMissileTrack(viewer, event) {
                 : numberVar("--warzone-missile-persist-medium", 8000))
     );
 
-    const { positions, samples } = buildArcState(
-        originLon, originLat, impactLon, impactLat,
-        peakHeight,
-        Math.max(64, numberVar("--warzone-missile-steps", 120))
-    );
+    // Drone events: slow low path. Missiles: high arc.
+    const useDronePath = isDroneEvent(event);
+
+    const { positions, samples } = useDronePath
+        ? buildDroneState(originLon, originLat, impactLon, impactLat, 80)
+        : buildArcState(
+            originLon, originLat, impactLon, impactLat,
+            peakHeight,
+            Math.max(64, numberVar("--warzone-missile-steps", 120))
+        );
 
     const launchColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-launch-color", "#ff2a2a"));
     const impactColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-impact-color", "#ff2a2a"));
@@ -1249,7 +1356,9 @@ function animateMissileTrack(viewer, event) {
         isFading: false, hasImpacted: false,
         segmentEntities: [], segmentPositions: [],
         launchMarker: null, impactMarker: null,
-        lineBaseColor: Cesium.Color.fromCssColorString(cssVar("--warzone-missile-line-color", "#ff2a2a")),
+        lineBaseColor: useDronePath
+            ? Cesium.Color.fromCssColorString("#ff8c00")   // drone = amber/orange
+            : Cesium.Color.fromCssColorString(cssVar("--warzone-missile-line-color", "#ff2a2a")),
         lastImpactCart: null,
         warningOuter: null, warningInner: null, warningCore: null,
         warningBaseRadius: 0, alertSoundActive: false, impactSoundPlayed: false,
@@ -1398,44 +1507,198 @@ function animateMissileTrack(viewer, event) {
     return missileId;
 }
 
-function clearAlertHighlight(viewer) {
-    if (viewer.__warzoneAlertEntity) {
-        viewer.entities.remove(viewer.__warzoneAlertEntity);
-        viewer.__warzoneAlertEntity = null;
+// ─── Country border pulse highlight ───────────────────────────────────────────
+// Highlights the actual country polygon border (not a circle)
+// Finds matching country from cached GeoJSON, draws pulsing polylines on border
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Point-in-polygon — ray casting
+function pointInPolygon(lon, lat, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
     }
+    return inside;
+}
+
+function findCountryFeature(lon, lat) {
+    const geojson = window.__warzoneCountryGeoJson;
+    if (!geojson?.features) return null;
+    for (const feature of geojson.features) {
+        const geo = feature?.geometry;
+        if (!geo) continue;
+        const polygons = geo.type === "Polygon"
+            ? [geo.coordinates]
+            : geo.type === "MultiPolygon" ? geo.coordinates : [];
+        for (const poly of polygons) {
+            if (poly[0] && pointInPolygon(lon, lat, poly[0])) return feature;
+        }
+    }
+    return null;
+}
+
+function clearAlertHighlight(viewer) {
+    if (viewer.__alertHighlightEntities) {
+        viewer.entities.suspendEvents();
+        viewer.__alertHighlightEntities.forEach(e => {
+            try { viewer.entities.remove(e); } catch { }
+        });
+        viewer.entities.resumeEvents();
+        viewer.__alertHighlightEntities = null;
+    }
+    if (viewer.__alertHighlightRAF) {
+        cancelAnimationFrame(viewer.__alertHighlightRAF);
+        viewer.__alertHighlightRAF = null;
+    }
+    if (viewer.__alertHighlightTimer) {
+        clearTimeout(viewer.__alertHighlightTimer);
+        viewer.__alertHighlightTimer = null;
+    }
+}
+
+function buildBorderPositions(geometry, heightM = 4000) {
+    // Returns array of Cartesian3[] — one per polygon outer ring.
+    // heightM above ellipsoid ensures the highlight renders ON TOP of
+    // the ground-clamped teal country borders (no Z-fighting).
+    const results = [];
+    const polygons = geometry.type === "Polygon"
+        ? [geometry.coordinates]
+        : geometry.type === "MultiPolygon" ? geometry.coordinates : [];
+
+    for (const poly of polygons) {
+        if (!poly[0] || poly[0].length < 3) continue;
+        const positions = poly[0].map(([lon, lat]) =>
+            Cesium.Cartesian3.fromDegrees(lon, lat, heightM)
+        );
+        if (positions.length > 2) results.push(positions);
+    }
+    return results;
 }
 
 function highlightAlertRegion(viewer, event) {
     clearAlertHighlight(viewer);
-
     if (!event || !Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) return;
 
-    const radius =
-        event.severity === "critical" ? 420000 :
-            event.severity === "high" ? 320000 :
-                event.severity === "medium" ? 240000 :
-                    180000;
+    const lon = Number(event.lon);
+    const lat = Number(event.lat);
+    const startTime = Date.now();
 
-    viewer.__warzoneAlertEntity = viewer.entities.add({
-        id: `alert-highlight-${Date.now()}`,
-        position: Cesium.Cartesian3.fromDegrees(Number(event.lon), Number(event.lat), 3000),
-        ellipse: {
-            semiMinorAxis: radius,
-            semiMajorAxis: radius,
-            material: Cesium.Color.TRANSPARENT,
-            outline: true,
-            outlineColor: Cesium.Color.RED.withAlpha(0.95),
-            outlineWidth: 4,
-            height: 3000,
-        },
-    });
+    // ── CSS var–driven config ────────────────────────────────────────────────
+    // Override any of these in your :root to change color / timing / duration
+    const BORDER_COLOR = cssVar("--warzone-highlight-border-color", "#ff2020");
+    const FILL_COLOR = cssVar("--warzone-highlight-fill-color", "#cc0000");
+    const BORDER_WIDTH = numberVar("--warzone-highlight-border-width", 5);
+    const PULSE_SPEED = numberVar("--warzone-highlight-pulse-speed", 700);   // ms per cycle
+    const DURATION = numberVar("--warzone-highlight-duration", 14000);  // auto-clear ms
+    // ────────────────────────────────────────────────────────────────────────
 
-    viewer.scene.requestRender();
+    let phase = 0;
+    const feature = findCountryFeature(lon, lat);
+    const newEntities = [];
 
-    setTimeout(() => {
+    if (feature?.geometry) {
+        // NOTE: We do NOT hide the teal borders anymore.
+        // The highlight polylines sit at 4000m height (set in buildBorderPositions)
+        // so they always render cleanly ON TOP of the ground-clamped teal borders.
+
+        const ringArrays = buildBorderPositions(feature.geometry, 4000);
+        for (const positions of ringArrays) {
+            // Soft outer glow — thin, low alpha
+            newEntities.push(viewer.entities.add({
+                polyline: {
+                    positions,
+                    width: BORDER_WIDTH + 3,
+                    clampToGround: false,
+                    arcType: Cesium.ArcType.RHUMB,
+                    material: new Cesium.ColorMaterialProperty(
+                        new Cesium.CallbackProperty(() => {
+                            phase = ((Date.now() - startTime) / PULSE_SPEED) % (Math.PI * 2);
+                            return Cesium.Color.fromCssColorString(BORDER_COLOR).withAlpha(
+                                0.15 + Math.abs(Math.sin(phase)) * 0.2
+                            );
+                        }, false)
+                    ),
+                },
+            }));
+            // Sharp inner line — 1px clean
+            newEntities.push(viewer.entities.add({
+                polyline: {
+                    positions,
+                    width: BORDER_WIDTH,
+                    clampToGround: false,
+                    arcType: Cesium.ArcType.RHUMB,
+                    material: new Cesium.ColorMaterialProperty(
+                        new Cesium.CallbackProperty(() =>
+                            Cesium.Color.fromCssColorString(BORDER_COLOR).withAlpha(
+                                0.75 + Math.abs(Math.sin(phase)) * 0.25
+                            ), false)
+                    ),
+                },
+            }));
+        }
+
+        // Pulsing fill — all polygon pieces
+        const geo = feature.geometry;
+        const polys = geo.type === "Polygon" ? [geo.coordinates] : geo.coordinates;
+        for (const poly of polys) {
+            if (!poly[0] || poly[0].length < 4) continue;
+            const flat = poly[0].flat();
+            if (flat.length < 4) continue;
+            newEntities.push(viewer.entities.add({
+                polygon: {
+                    hierarchy: new Cesium.PolygonHierarchy(
+                        Cesium.Cartesian3.fromDegreesArray(flat)
+                    ),
+                    material: new Cesium.ColorMaterialProperty(
+                        new Cesium.CallbackProperty(() =>
+                            Cesium.Color.fromCssColorString(FILL_COLOR).withAlpha(
+                                0.09 + Math.abs(Math.sin(phase)) * 0.15
+                            ), false)
+                    ),
+                    height: 0,
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                },
+            }));
+        }
+
+    } else {
+        // Fallback — no polygon match
+        newEntities.push(viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+            ellipse: {
+                semiMinorAxis: 200000,
+                semiMajorAxis: 200000,
+                material: Cesium.Color.TRANSPARENT,
+                outline: true,
+                outlineColor: new Cesium.CallbackProperty(() => {
+                    phase = ((Date.now() - startTime) / PULSE_SPEED) % (Math.PI * 2);
+                    return Cesium.Color.fromCssColorString(BORDER_COLOR).withAlpha(
+                        0.5 + Math.abs(Math.sin(phase)) * 0.5
+                    );
+                }, false),
+                outlineWidth: 4,
+                height: 0,
+            },
+        }));
+    }
+
+    viewer.__alertHighlightEntities = newEntities;
+
+    function tick() {
+        if (!viewer.__alertHighlightEntities) return;
+        viewer.scene.requestRender();
+        viewer.__alertHighlightRAF = requestAnimationFrame(tick);
+    }
+    viewer.__alertHighlightRAF = requestAnimationFrame(tick);
+
+    viewer.__alertHighlightTimer = setTimeout(() => {
         clearAlertHighlight(viewer);
         viewer.scene.requestRender();
-    }, 9000);
+    }, DURATION);
 }
 
 /* ---------- Globe init ---------- */
@@ -1444,6 +1707,10 @@ export async function initWarzoneGlobe() {
     const creditsEl = document.getElementById("warzone-map-credits");
 
     if (!globeEl) return null;
+
+    // Limit geometry worker threads — default is uncapped and spawns one per CPU core.
+    // 2 workers is enough for a map viewer; reduces the createGeometry.js worker storm.
+    Cesium.TaskProcessor.maximumActiveTasks = 2;
 
     const viewer = new Cesium.Viewer(globeEl, {
         animation: false,
@@ -1459,13 +1726,18 @@ export async function initWarzoneGlobe() {
         shouldAnimate: false,
         scene3DOnly: true,
         requestRenderMode: true,
-        skyAtmosphere: false,
         terrain: undefined,
         creditContainer: creditsEl || undefined,
     });
 
     applyViewerStyle(viewer);
-    await addArcGisLayers(viewer);
+
+    // Map loader disabled — shown only by warzone-boot.js during initial page load,
+    // then hidden once the globe is ready. No tile/movement triggers.
+
+    const { baseLayer, labelsLayer } = await addArcGisLayers(viewer);
+    viewer.__imageryBase = baseLayer;
+    viewer.__imageryLabels = labelsLayer;
     setInitialCamera(viewer);
     await addBorderLayers(viewer);
 
@@ -1473,6 +1745,25 @@ export async function initWarzoneGlobe() {
     ensureAudioStore(viewer);
 
     viewer.scene.requestRender();
+
+    // Re-cluster events when zoom changes significantly
+    let __lastAlt = 0;
+    let __reclusterTimer = null;
+    viewer.camera.moveEnd.addEventListener(() => {
+        try {
+            const alt = viewer.camera.positionCartographic.height;
+            // Only re-cluster if zoom changed significantly (2x difference)
+            if (Math.abs(alt - __lastAlt) / Math.max(alt, __lastAlt, 1) > 0.4) {
+                __lastAlt = alt;
+                clearTimeout(__reclusterTimer);
+                __reclusterTimer = setTimeout(() => {
+                    // Tell essential.js to re-sync globe clusters
+                    window.__warzoneGlobeNeedsRecluster = true;
+                    window.dispatchEvent(new CustomEvent("wz:recluster"));
+                }, 600);
+            }
+        } catch { }
+    });
 
     viewer.__warzone = {
         addEvent(event) {
@@ -1484,16 +1775,60 @@ export async function initWarzoneGlobe() {
 
         addEvents(events = []) {
             const valid = Array.isArray(events) ? events.filter(isRenderableEvent) : [];
+            if (!valid.length) return;
             valid.forEach((event) => addEventEntity(viewer, event));
             viewer.scene.requestRender();
         },
 
+        clearEventEntities() { clearEventEntities(viewer); },
         focusRegion,
         refocusMiddleEast() {
             const cam = getStartCameraConfig();
             focusRegion(viewer, cam.lon, cam.lat, numberVar("--warzone-focus-height", 2350000));
         },
         setMapMode(mode) { setMapMode(viewer, mode); },
+        setTerrainVisible(visible) {
+            // Only hide the satellite base imagery — labels (cities/countries) always stay on
+            if (viewer.__imageryBase) viewer.__imageryBase.show = visible;
+            viewer.scene.requestRender();
+        },
+
+        /**
+         * setPerformanceMode(visibleEventCount)
+         * Dynamically adjusts Cesium render settings based on how many events
+         * are currently visible on the globe.
+         *
+         *  0 events  → idle mode   — render only on user interaction (very low GPU)
+         *  1–30      → light mode  — moderate render rate
+         *  31+       → full mode   — normal render rate (missiles, tracks, pulses active)
+         */
+        setPerformanceMode(visibleCount = 0) {
+            const s = viewer.scene;
+            const baseResolution = window.devicePixelRatio > 1 ? 0.85 : 1.0;
+
+            if (visibleCount === 0) {
+                // Idle — render only on interaction, coarser tiles to save GPU
+                s.requestRenderMode = true;
+                s.maximumRenderTimeChange = 2.0;   // still re-render for borders/labels
+                viewer.resolutionScale = baseResolution;
+                s.globe.maximumScreenSpaceError = 3.5;
+            } else if (visibleCount <= 30) {
+                // Light — moderate render rate
+                s.requestRenderMode = true;
+                s.maximumRenderTimeChange = 1.5;
+                viewer.resolutionScale = baseResolution;
+                s.globe.maximumScreenSpaceError = 2.5;
+            } else {
+                // Full — missiles / pulse animations need continuous frames
+                s.requestRenderMode = true;
+                s.maximumRenderTimeChange = 0.5;
+                viewer.resolutionScale = baseResolution;
+                s.globe.maximumScreenSpaceError = 2.0;
+            }
+        },
+        isTerrainVisible() {
+            return viewer.__imageryBase ? viewer.__imageryBase.show : true;
+        },
         highlightAlertRegion(event) { highlightAlertRegion(viewer, event); },
         clearAlertHighlight() { clearAlertHighlight(viewer); },
         animateMissileTrack(event) { return animateMissileTrack(viewer, event); },
