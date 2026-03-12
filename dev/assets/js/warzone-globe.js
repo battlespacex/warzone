@@ -385,7 +385,7 @@ function applyViewerStyle(viewer) {
     }
 
     viewer.scene.requestRenderMode = true;
-    viewer.scene.maximumRenderTimeChange = 2.0;      // was 1.0 — less frequent re-renders = fewer worker jobs
+    viewer.scene.maximumRenderTimeChange = 1.0;
     viewer.resolutionScale = window.devicePixelRatio > 1 ? 0.85 : 1.0;  // 0.75 was too blurry
 
     // Performance: reduce GPU load
@@ -394,17 +394,26 @@ function applyViewerStyle(viewer) {
     if (viewer.scene.skyAtmosphere) {
         viewer.scene.skyAtmosphere.show = false;
     }
-    viewer.scene.globe.tileCacheSize = 100;          // slightly larger cache = fewer rebuilds
-    viewer.scene.globe.maximumScreenSpaceError = 4;  // coarser tiles = far fewer worker jobs (was 2.5)
+    viewer.scene.globe.tileCacheSize = 100;
+    viewer.scene.globe.maximumScreenSpaceError = 2.5;  // restored — 4 was too coarse/slow
     viewer.scene.globe.preloadSiblings = false;
     viewer.scene.globe.preloadAncestors = false;
-    viewer.scene.globe.loadingDescendantLimit = 4;   // limit concurrent tile loads
+    viewer.scene.globe.loadingDescendantLimit = 4;
 
     if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = boolVar("--warzone-fxaa-enabled", true);
     }
 
     viewer.scene.msaaSamples = numberVar("--warzone-msaa-samples", 1);
+
+    // Destroy Cesium's default screenSpaceEventHandler.
+    // By default it runs a GPU pick raycast on EVERY pointer event (click, move, hover)
+    // to find selected entities — this causes 500–1000ms INP stalls.
+    // We don't use Cesium's built-in selection system (infoBox/selectionIndicator are off),
+    // so destroying it is safe. Camera controls are on screenSpaceCameraController (unaffected).
+    if (viewer.screenSpaceEventHandler && !viewer.screenSpaceEventHandler.isDestroyed()) {
+        viewer.screenSpaceEventHandler.destroy();
+    }
 }
 
 function tuneImageryLayer(layer, prefix = "--warzone-map") {
@@ -480,18 +489,29 @@ function flattenRingToDegrees(ring) {
     return out;
 }
 
+// Border layer collections — one per layer, populated in addGeoJsonBorderLayer
+const __borderCollections = {};
+
 function addPolylineForRing(viewer, ring, options) {
     const coords = flattenRingToDegrees(ring);
     if (coords.length < 4) return;
 
-    return viewer.entities.add({
-        name: options.countryName || undefined,
-        polyline: {
-            positions: Cesium.Cartesian3.fromDegreesArray(coords),
-            width: options.width,
-            material: options.color,
-            clampToGround: false,
-        },
+    // Get or create a PolylineCollection for this layer.
+    // PolylineCollection renders ALL lines as a single GPU draw call — far faster
+    // than viewer.entities which evaluates every entity dynamically every frame.
+    const key = options.collectionKey || "default";
+    if (!__borderCollections[key]) {
+        __borderCollections[key] = viewer.scene.primitives.add(new Cesium.PolylineCollection());
+    }
+    const col = __borderCollections[key];
+
+    col.add({
+        positions: Cesium.Cartesian3.fromDegreesArray(coords),
+        width: options.width,
+        material: Cesium.Material.fromType("Color", {
+            color: options.color,
+        }),
+        loop: false,
     });
 }
 
@@ -530,18 +550,18 @@ async function addGeoJsonBorderLayer(viewer, config) {
 
             if (geometry.type === "Polygon") {
                 const rings = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
-                if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width, countryName });
+                if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width, countryName, collectionKey: config.name });
             } else if (geometry.type === "MultiPolygon") {
                 const polygons = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
                 for (const polygon of polygons) {
                     const rings = Array.isArray(polygon) ? polygon : [];
-                    if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width, countryName });
+                    if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width, countryName, collectionKey: config.name });
                 }
             } else if (geometry.type === "LineString") {
-                addPolylineForRing(viewer, geometry.coordinates, { color, width, countryName });
+                addPolylineForRing(viewer, geometry.coordinates, { color, width, countryName, collectionKey: config.name });
             } else if (geometry.type === "MultiLineString") {
                 const lines = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
-                for (const line of lines) addPolylineForRing(viewer, line, { color, width, countryName });
+                for (const line of lines) addPolylineForRing(viewer, line, { color, width, countryName, collectionKey: config.name });
             }
         }
 
@@ -1708,10 +1728,6 @@ export async function initWarzoneGlobe() {
 
     if (!globeEl) return null;
 
-    // Limit geometry worker threads — default is uncapped and spawns one per CPU core.
-    // 2 workers is enough for a map viewer; reduces the createGeometry.js worker storm.
-    Cesium.TaskProcessor.maximumActiveTasks = 2;
-
     const viewer = new Cesium.Viewer(globeEl, {
         animation: false,
         timeline: false,
@@ -1766,6 +1782,10 @@ export async function initWarzoneGlobe() {
     });
 
     viewer.__warzone = {
+        // Border layer collections keyed by name ("Country", "Province", "City")
+        // Set .show = true/false on each to toggle border layers.
+        borderCollections: __borderCollections,
+
         addEvent(event) {
             if (!isRenderableEvent(event)) return null;
             const entity = addEventEntity(viewer, event);
