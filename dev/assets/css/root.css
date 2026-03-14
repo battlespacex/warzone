@@ -16,8 +16,6 @@
     --color-accent: #f3b000; /* Gold/amber accent */
     --color-error: #ff4e5f; /* Error / danger */
     /* [[[[[[[[[[[ Typography — Text Colors ]]]]]]]]]]] */
-    /* ONE source of truth for all text and heading colors.
-       Never hardcode a text color in component files — use these. */
     --color-heading: #ffffff; /* H1 — hero title, commandbar brand, large displays */
     --color-heading-2: #eff0f4; /* H2 — section titles, page titles, panel headers */
     --color-heading-3: #d0d6e0; /* H3 — card sub-titles, widget headings */
@@ -26,13 +24,10 @@
     --color-text-faint: rgba(255, 255, 255, 0.35); /* Placeholders, fine print, footer notes */
     --color-text-accent: #f9c860; /* Eyebrow labels, highlighted callouts */
     --color-panel-line: rgba(255, 255, 255, 0.08); /* Dividers, border lines */
-    /* Legacy aliases — kept for backward compat, all point to new vars above */
     --text-color-heading: var(--color-heading-2);
     --text-color-all: var(--color-text);
     --text-color-yellow: var(--color-accent);
     /* [[[[[[[[[[[ Typography — Fonts ]]]]]]]]]]] */
-    /* 3 font roles. Use the ROLE token in all component CSS — never hardcode a font name.
-       To change the font site-wide, change it here only. */
     --font-display: "Bebas Neue", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --font-ui: "Rajdhani", "Barlow Condensed", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
@@ -45,7 +40,6 @@
     --text-font-v4: var(--font-mono);
     --icon-font: var(--font-icon);
     /* [[[[[[[[[[[ Typography — Sizes ]]]]]]]]]]] */
-    /* Scale everything from here. 1rem = 10px (62.5% root set in required.css) */
     --text-xs: 1.1rem; /* Timestamps, credits, fine print */
     --text-sm: 1.2rem; /* Meta labels, badges, small UI text */
     --text-base: 1.4rem; /* Default body / UI text */
@@ -110,11 +104,6 @@
     --clippath-shape-5: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
     --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
-}
-/* #endregion */
-
-/* #region =========== Warzone Map Tokens =========== */
-:root {
     /* [[[[[[[[[[[ Globe Base ]]]]]]]]]]] */
     --warzone-space: #02050b; /* Deep space background */
     --warzone-globe-base: #08111a; /* Globe ocean color */
@@ -179,11 +168,6 @@
     --warzone-highlight-border-width: 2; /* Border thickness in px — keep low for clean look */
     --warzone-highlight-pulse-speed: 700; /* Pulse speed in ms — lower = faster */
     --warzone-highlight-duration: 14000; /* Total visible duration in ms */
-}
-/* #endregion */
-
-/* #region =========== Missile / Warning / Impact Tokens =========== */
-:root {
     /* [[[[[[[[[[[ Missile Colors ]]]]]]]]]]] */
     --warzone-missile-launch-color: #ff0753;
     --warzone-missile-impact-color: #ff0753;
@@ -236,16 +220,6 @@
     --warzone-missile-origin-fade-end: 0.3;
     --warzone-missile-origin-alpha-min: 0.2;
     --warzone-missile-origin-alpha-max: 1;
-    /* [[[[[[[[[[[ Audio ]]]]]]]]]]] */
-    --warzone-sound-alert-loop: "/assets/audio/warzone-alert-loop.mp3";
-    --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
-    --warzone-sound-alert-volume: 0.65;
-    --warzone-sound-impact-volume: 0.9;
-}
-/* #endregion */
-
-/* #region =========== Cluster Tokens =========== */
-:root {
     /* [[[[[[[[[[[ Cluster Appearance ]]]]]]]]]]] */
     --warzone-cluster-font: var(--font-ui);
     --warzone-cluster-text: #ffffff;
@@ -283,5 +257,52 @@
     --warzone-cluster-thermal: #ff8a00;
     --warzone-cluster-signal: #ffd24d;
     --warzone-cluster-default: #ff7a45;
+    /* [[[[[[[[[[[ Military Track Controls ]]]]]]]]]]] */
+    --warzone-military: #56d80e;
+    --warzone-military-trail-default: #56d80e;
+    --warzone-military-trail-awacs: #f0d060;
+    --warzone-military-trail-tanker: #00d9b2;
+    --warzone-military-trail-recon: #ff7820;
+    --warzone-military-trail-carrier: #ff3c3c;
+    --warzone-military-trail-naval: #9b7bff;
+    --warzone-military-trail-submarine: #7bdcff;
+    --warzone-military-trail-drone: #ffcc00;
+    --warzone-military-trail-alpha: 0.9;
+    --warzone-military-trail-width-aircraft: 3.6;
+    --warzone-military-trail-width-naval: 2.4;
+    --warzone-military-asset-scale: 0.72;
+    --warzone-military-asset-alpha: 1;
+    --warzone-military-asset-blink-min: 0.55;
+    --warzone-military-asset-blink-max: 1;
+    --warzone-military-asset-blink-speed: 0.0028;
+    --warzone-military-awacs-color: #f0d060;
+    --warzone-military-tanker-color: #00d9b2;
+    --warzone-military-recon-color: #ff7820;
+    --warzone-military-carrier-color: #ff3c3c;
+    --warzone-military-naval-color: #9b7bff;
+    --warzone-military-submarine-color: #7bdcff;
+    --warzone-military-drone-color: #ffcc00;
+    --warzone-military-awacs-orbit-color: #f0d060;
+    --warzone-military-awacs-orbit-alpha: 0.28;
+    --warzone-military-awacs-orbit-width: 1;
+    --warzone-military-sound: url("/assets/audio/military-track-appear.mp3");
+    --warzone-military-sound-volume: 0.72;
+    --warzone-military-heading-offset-default: 0;
+    --warzone-military-heading-offset-fighter: 0;
+    --warzone-military-heading-offset-awacs: 0;
+    --warzone-military-heading-offset-recon: 0;
+    --warzone-military-heading-offset-tanker: 0;
+    --warzone-military-heading-offset-carrier: 0;
+    --warzone-military-heading-offset-destroyer: 0;
+    --warzone-military-heading-offset-frigate: 0;
+    --warzone-military-heading-offset-submarine: 0;
+    --warzone-military-heading-offset-drone: 0;
+    /* [[[[[[[[[[[ Audio ]]]]]]]]]]] */
+    --warzone-sound-alert-loop: "/assets/audio/warzone-alert-loop.mp3";
+    --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
+    --warzone-military-sound: "/assets/audio/warzone-impact.mp3";
+    --warzone-military-sound-volume: 0.72;
+    --warzone-sound-alert-volume: 0.65;
+    --warzone-sound-impact-volume: 0.9;
 }
 /* #endregion */

@@ -13,7 +13,7 @@
 // Koi server ya database nahi chahiye — seedha globe functions call karta hai
 
 import * as Cesium from "cesium";
-import { triggerWarzoneAlert } from "./essential.js";
+import { handleIncomingEvent, triggerWarzoneAlert } from "./essential.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 
 // ─── Test event templates ──────────────────────────────────────────────────────
@@ -293,6 +293,9 @@ function fireTestEvent(key) {
         id: `${template.id}-${Date.now()}`,
         occurred_at: new Date().toISOString(),
     };
+
+    handleIncomingEvent(event);
+    return;
 
     const globe = window.__warzoneViewer?.__warzone;
     const tracks = window.__militaryTracks;

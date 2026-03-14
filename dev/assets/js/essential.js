@@ -835,7 +835,13 @@ export async function initWarzoneApp() {
             __hotspotLayer?.setEvents(enabled ? filtered : []);
         }
 
-        if (id === "terrain" || id === "*") {
+        if (id === "terrain") {
+            globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
+            window.__warzoneViewer?.scene?.requestRender?.();
+            return;
+        }
+
+        if (id === "*") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
         }
 

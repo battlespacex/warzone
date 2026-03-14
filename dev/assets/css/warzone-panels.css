@@ -81,6 +81,8 @@
         transform: rotate(-180deg);
     }
 
+
+
 .panel-content {
     display: grid;
     grid-template-rows: 1fr;

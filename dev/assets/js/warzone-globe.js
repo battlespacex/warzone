@@ -1469,12 +1469,24 @@ export async function initWarzoneGlobe() {
 
         // PASS 1: required by NEW essential.js terrain/layer toggle
         setTerrainVisible(visible) {
-            if (viewer.__imageryBase) viewer.__imageryBase.show = !!visible;
+            const show = !!visible;
+
+            if (viewer.__imageryBase) {
+                viewer.__imageryBase.show = show;
+            }
+
+            if (viewer.__imageryLabels) {
+                viewer.__imageryLabels.show = show;
+            }
+
             viewer.scene.requestRender();
         },
 
         isTerrainVisible() {
-            return viewer.__imageryBase ? viewer.__imageryBase.show : true;
+            return !!(
+                viewer.__imageryBase &&
+                viewer.__imageryBase.show
+            );
         },
 
         // PASS 1: lightweight compatibility only

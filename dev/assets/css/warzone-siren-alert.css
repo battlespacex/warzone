@@ -4,7 +4,7 @@
    All pulse. StrikeMap style — no extra text, clean.
    ============================================================ */
 
-#wz-siren-stack {
+.wz-siren-stack {
     position: absolute;
     top: 0.8rem;
     left: 50%;
@@ -19,7 +19,7 @@
 }
 
 /* ── Banner base ───────────────────────────────────────────── */
-.wz-siren-stack {
+.wz-siren-banner {
     pointer-events: all;
     width: 100%;
     display: flex;
