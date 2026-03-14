@@ -1,8 +1,8 @@
 ﻿// assets/js/index.js
 import "../css/style.css";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import "./warzone-boot.js";                  // loader bar + SiteLoader API (no inline scripts in HTML)
-import { initDevPanel } from "./warzone-dev-panel.js";
+import "./warzone-boot.js";
+
 import { initBoot, initWarzoneApp } from "./essential.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
 import {
@@ -10,6 +10,7 @@ import {
     startActiveAlertsPollingFallback
 } from "./warzone-realtime.js";
 import { bindWarzoneUi } from "./warzone-ui.js";
+import { initDevPanel } from "./warzone-dev-panel.js";
 
 initBoot();
 

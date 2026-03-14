@@ -5,7 +5,7 @@
    ============================================================ */
 
 #wz-siren-stack {
-    position: fixed;
+    position: absolute;
     top: 0.8rem;
     left: 50%;
     transform: translateX(-50%);
@@ -19,7 +19,7 @@
 }
 
 /* ── Banner base ───────────────────────────────────────────── */
-.wz-siren-banner {
+.wz-siren-stack {
     pointer-events: all;
     width: 100%;
     display: flex;

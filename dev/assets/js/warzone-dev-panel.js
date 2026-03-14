@@ -14,7 +14,6 @@
 
 import * as Cesium from "cesium";
 import { triggerWarzoneAlert } from "./essential.js";
-import { isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 
 // ─── Test event templates ──────────────────────────────────────────────────────
@@ -302,6 +301,7 @@ function fireTestEvent(key) {
     globe?.addEvent?.(event);
 
     // Missile / drone arc
+    // Missile / drone / airstrike arc + linked siren popup
     if (
         event.origin_lat != null && event.origin_lat !== "" &&
         event.origin_lon != null && event.origin_lon !== "" &&
@@ -312,7 +312,31 @@ function fireTestEvent(key) {
             String(event.weapon_type).includes("air_strike"))
     ) {
         globe?.animateMissileTrack?.(event);
-        devLog(`🚀 Fired: ${event.title}`);
+
+        const impactLabel = String(event.impact_label || event.location_label || "IMPACT ZONE").toUpperCase();
+
+        let sirenLevel = "orange";
+        if (event.severity === "critical") sirenLevel = "red";
+        else if (event.severity === "high") sirenLevel = "orange";
+        else sirenLevel = "yellow";
+
+        let sirenMeta = "via DEV TEST · INCOMING STRIKE";
+        if (String(event.weapon_type).includes("drone") || String(event.subcategory).includes("drone")) {
+            sirenMeta = "via DEV TEST · INCOMING UAV / DRONE THREAT";
+        } else if (String(event.weapon_type).includes("air_strike")) {
+            sirenMeta = "via DEV TEST · AIR STRIKE WARNING";
+        } else if (String(event.weapon_type).includes("missile")) {
+            sirenMeta = "via DEV TEST · TAKE SHELTER IMMEDIATELY";
+        }
+
+        showSirenAlert({
+            title: `SIRENS GOING OFF IN: ${impactLabel}`,
+            meta: sirenMeta,
+            level: sirenLevel,
+            sound: true,
+        });
+
+        devLog(`🚀 Fired: ${event.title} → Siren: ${impactLabel}`);
     }
 
     // Siren / alert

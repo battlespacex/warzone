@@ -4,7 +4,7 @@
 import * as Cesium from "cesium";
 
 const CFG = {
-    maxTracks: 150,
+    maxTracks: 90,
     trailSegments: 10,
     trailLengthDeg: 3.0,
     shipTrailLengthDeg: 1.5,
@@ -177,7 +177,10 @@ function animateDroneLoiter(viewer, lon, lat, colorHex) {
         },
     });
 
-    const interval = setInterval(() => { frame++; viewer.scene.requestRender(); }, 400);
+    const interval = setInterval(() => {
+        frame = (frame + 1) % orbit.length;
+        viewer.scene.requestRender();
+    }, 700);
     return {
         billboard, ring, interval,
         stop() { clearInterval(interval); },
@@ -205,9 +208,18 @@ export function initMilitaryTracks(viewer) {
 
     function enforceMax() {
         if (trackMap.size <= CFG.maxTracks) return;
-        [...trackMap.entries()].sort((a, b) => a[1].addedAt - b[1].addedAt)
-            .slice(0, trackMap.size - CFG.maxTracks)
-            .forEach(([k]) => removeTrack(k));
+
+        let oldestKey = null;
+        let oldestTime = Infinity;
+
+        for (const [k, t] of trackMap.entries()) {
+            if (t.addedAt < oldestTime) {
+                oldestTime = t.addedAt;
+                oldestKey = k;
+            }
+        }
+
+        if (oldestKey) removeTrack(oldestKey);
     }
 
     function addTrack(event) {

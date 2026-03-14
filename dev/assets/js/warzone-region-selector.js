@@ -262,15 +262,12 @@ export function initRegionSelector(viewer) {
 }
 
 function showRegionModal(viewer) {
-    // Modal shell lives in partials/popups.html → #wz-region-modal
-    // JS only fills the buttons grid and wires events
     const overlay = document.getElementById("wz-region-modal");
     if (!overlay) return;
 
     const grid = document.getElementById("wz-region-modal-grid");
     if (!grid) return;
 
-    // Build region buttons into the static grid container
     grid.innerHTML = REGIONS.map(r => {
         const hotClass = r.hot ? " is-hot" : "";
         const selClass = r.id === __activeRegion.id ? " is-selected" : "";
@@ -283,15 +280,21 @@ function showRegionModal(viewer) {
             </button>`;
     }).join("");
 
-    // Reset confirm button state
-    const confirmBtn = document.getElementById("wz-region-confirm");
+    // Replace confirm button first, then use the new one everywhere
+    const oldConfirm = document.getElementById("wz-region-confirm");
+    let confirmBtn = oldConfirm;
+
+    if (oldConfirm) {
+        const newConfirm = oldConfirm.cloneNode(true);
+        oldConfirm.replaceWith(newConfirm);
+        confirmBtn = newConfirm;
+    }
+
     if (confirmBtn) confirmBtn.disabled = true;
 
-    // Show modal
     overlay.hidden = false;
     let chosen = __activeRegion.id;
 
-    // Wire region button clicks
     overlay.querySelectorAll(".wz-region-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             overlay.querySelectorAll(".wz-region-btn").forEach(b => b.classList.remove("is-selected"));
@@ -302,22 +305,25 @@ function showRegionModal(viewer) {
     });
 
     if (confirmBtn) {
-        // Remove any old listener before adding new one
-        const newConfirm = confirmBtn.cloneNode(true);
-        confirmBtn.replaceWith(newConfirm);
-        newConfirm.addEventListener("click", () => {
+        confirmBtn.addEventListener("click", () => {
             try { localStorage.setItem(VISITED_KEY, "1"); } catch { }
+
             overlay.classList.add("is-closing");
+
             setTimeout(() => {
                 overlay.hidden = true;
                 overlay.classList.remove("is-visible", "is-closing");
             }, 400);
+
             selectRegion(viewer, chosen);
         });
     }
 
-    // Double rAF so CSS transition fires after hidden removal
-    requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add("is-visible")));
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            overlay.classList.add("is-visible");
+        });
+    });
 }
 
 export { REGIONS };

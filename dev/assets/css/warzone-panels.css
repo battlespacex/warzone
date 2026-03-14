@@ -2,6 +2,33 @@
    warzone-panels.css
    ============================================================ */
 
+.wz-dev-panel {
+    position: fixed;
+    right: 1.6rem;
+    bottom: 1.6rem;
+    z-index: 9999;
+}
+
+.wz-dev-toggle {
+    background: #111;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+}
+
+.wz-dev-body {
+    position: absolute;
+    right: 0;
+    bottom: 3.5rem;
+    width: 340px;
+    max-height: 70vh;
+    overflow: auto;
+    background: rgba(10,10,10,0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 10px;
+}
+
 /* ── Boot: kill transitions during initial paint ── */
 .wz-no-transitions .warzone-panel--floating,
 .wz-no-transitions .wz-dock__btn[data-dock-widget],
