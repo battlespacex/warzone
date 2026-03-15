@@ -1,0 +1,66 @@
+BATTLESPACEX – DATA API STRUCTURE
+
+1. NORMALIZED EVENT MODEL
+A platform event should follow a common structure.
+
+Required or common fields:
+• id
+• category
+• title
+• summary
+• occurred_at
+• lat
+• lon
+• severity
+• source_name
+
+Common extended fields:
+• origin_lat
+• origin_lon
+• impact_lat
+• impact_lon
+• actor_side
+• target_side
+• weapon_type
+• target_type
+• impact_type
+• country_code
+• airspace_status
+• cyber_status
+• fir_code
+• tags
+• metadata
+
+2. CORE CATEGORIES
+• strike
+• military
+• alert
+• airspace
+• cyber
+• thermal
+• signal
+• recon (legacy / optional)
+
+3. MILITARY SUBCATEGORIES
+Examples:
+• fighter
+• tanker
+• transport
+• awacs
+• recon
+• patrol
+• carrier
+• destroyer
+• frigate
+• submarine
+• naval
+• logistics
+• drone
+• uav
+• shahed
+
+4. API / FEED DESIGN PRINCIPLES
+• normalize all incoming sources into a common event schema
+• preserve timestamps and coordinates
+• separate strike events from military track events
+• attach source metadata without exposing protected aggregation logic

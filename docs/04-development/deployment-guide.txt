@@ -1,0 +1,33 @@
+
+WARZONE - BATTLESPACEX | DEPLOYMENT GUIDE
+
+1. DEPLOYMENT MODEL
+Typical deployment architecture:
+• frontend static assets hosted on static hosting or CDN
+• supporting data services for event ingestion
+• JSON feed ingestion or API-backed retrieval
+• environment-based configuration for development and production
+
+2. RECOMMENDED INFRASTRUCTURE
+• static hosting for frontend assets
+• CDN for map and application delivery
+• Supabase or equivalent data backend for normalized events
+• optional workers for feed ingestion and transformation
+
+3. BUILD AND RELEASE FLOW
+1. prepare production build
+2. validate asset paths and environment variables
+3. deploy JS / CSS / HTML assets
+4. verify feed connectivity
+5. test map initialization and layer toggles
+6. validate live event polling
+7. confirm widgets and hotspots are functioning
+
+4. POST-DEPLOYMENT VALIDATION
+• globe loads correctly
+• event rendering works
+• satellite / terrain toggle works
+• region switching works
+• live updates appear
+• hotspots render correctly
+• no blocking console errors

@@ -1,0 +1,263 @@
+
+WARZONE - BATTLESPACEX | DEVELOPER ONBOARDING GUIDE
+
+Purpose:
+This document is intended to help a new developer, collaborator, or AI agent quickly understand how the BattlespaceX project works, how to run it, and which files require special care.
+
+------------------------------------------------------------
+1. PROJECT PURPOSE
+------------------------------------------------------------
+
+BattlespaceX is a military-style global conflict monitoring and OSINT visualization platform built around a CesiumJS 3D globe.
+
+The project is designed to display real-time or near-real-time conflict-related activity such as:
+
+• missile strikes
+• drone / UAV activity
+• military aircraft movement
+• naval activity
+• airspace alerts
+• cyber signals
+• thermal or anomaly detections
+• alert and siren events
+
+The intended visual style is a cinematic military operations dashboard, not a generic web map.
+
+------------------------------------------------------------
+2. PRIMARY GOALS FOR ANY DEVELOPER
+------------------------------------------------------------
+
+When working on this project, always prioritize:
+
+• preserving existing working functionality
+• maintaining map performance
+• avoiding unnecessary rewrites
+• keeping UI behavior stable
+• protecting the relationship between core files
+
+The most sensitive files in the system are:
+
+• essential.js
+• warzone-globe.js
+• warzone-layers.js
+
+These files are tightly coupled. Large structural rewrites here can easily break the platform.
+
+------------------------------------------------------------
+3. CORE FILES AND RESPONSIBILITIES
+------------------------------------------------------------
+
+assets/js/essential.js
+Main application coordinator.
+
+Responsible for:
+• initialization
+• event normalization
+• widget updates
+• region filtering
+• live polling
+• viewport-based event refresh
+• synchronization of events, hotspots, and military tracks
+
+assets/js/warzone-globe.js
+Cesium rendering engine.
+
+Responsible for:
+• globe initialization
+• map styling
+• terrain / satellite toggles
+• event entity rendering
+• missile arc rendering
+• viewport bounds reporting
+• alert region highlighting
+
+assets/js/warzone-military-tracks.js
+Responsible for:
+• aircraft tracks
+• drone tracks
+• naval tracks
+• trails
+• animated movement behavior
+
+assets/js/warzone-layers.js
+Responsible for:
+• layer definitions
+• layer visibility
+• category filtering
+• terrain / imagery toggle state
+
+assets/js/warzone-realtime.js
+Responsible for:
+• live polling logic
+• event update processing
+• real-time additions to the event stream
+
+------------------------------------------------------------
+4. FILES THAT MUST BE TREATED CAREFULLY
+------------------------------------------------------------
+
+High-risk / sensitive files:
+
+• essential.js
+• warzone-globe.js
+• warzone-layers.js
+• warzone-military-tracks.js
+
+Rules:
+• do not rename public methods unless all dependent files are updated
+• do not remove methods used by other modules
+• do not change core data flow without testing region filters, layer toggles, and live updates
+• avoid “cleanup rewrites” unless the exact dependencies are understood
+
+------------------------------------------------------------
+5. EXPECTED PROJECT FLOW
+------------------------------------------------------------
+
+Typical runtime flow:
+
+1. application initializes
+2. Cesium globe is created
+3. initial event set is loaded
+4. events are normalized
+5. globe entities render
+6. hotspot layer receives visible events
+7. military track layer receives movement events
+8. live polling continues to add new events
+9. map movement can trigger viewport-based data refresh
+
+------------------------------------------------------------
+6. HOW TO RUN THE PROJECT
+------------------------------------------------------------
+
+Typical local workflow:
+
+1. install dependencies
+   npm install
+
+2. start local development
+   npm run dev
+   or use local server / webpack dev server depending on project setup
+
+3. open the local site
+   example:
+   http://localhost:5173
+   or whichever port is configured
+
+4. verify:
+   • globe loads
+   • widgets appear
+   • no major console errors
+   • event circles render
+   • military tracks appear when test events are triggered
+
+------------------------------------------------------------
+7. BUILD PROCESS
+------------------------------------------------------------
+
+Typical production build flow:
+
+1. Webpack bundles JavaScript modules
+2. CSS is processed and included
+3. production assets are generated
+4. assets are deployed to static hosting / CDN
+
+Common files involved:
+• webpack.config.js
+• package.json
+• optional local server files such as server.js
+
+------------------------------------------------------------
+8. EXPECTED UI COMPONENTS
+------------------------------------------------------------
+
+The interface commonly includes:
+
+• Strike Counter
+• Map Layers panel
+• Airspace Status panel
+• Cyber Status panel
+• Escalation panel
+• Region selector
+• Dev panel
+• Hotspot cards
+• Dock buttons
+• About / Terms popup
+
+------------------------------------------------------------
+9. LIVE DATA AND VIEWPORT LOGIC
+------------------------------------------------------------
+
+The platform may use two forms of updates:
+
+A. Polling for new events
+The system checks for events newer than the last known timestamp.
+
+B. Viewport-based refresh
+When the map moves and stops, visible geographic bounds may be calculated and used to fetch only the visible-area events.
+
+This is important for performance and for correct regional behavior.
+
+------------------------------------------------------------
+10. BEFORE CHANGING ANYTHING, TEST THESE
+------------------------------------------------------------
+
+Always verify after changes:
+
+• globe still loads
+• layer toggles still work
+• satellite / terrain toggle works
+• widgets still open / close / collapse correctly
+• no unnecessary sounds play
+• hotspots still update
+• live events still appear
+• military tracks still render
+• map remains smooth during pan / zoom
+• no major console errors
+
+------------------------------------------------------------
+11. COMMON DANGERS
+------------------------------------------------------------
+
+Most common ways to break the project:
+
+• rebuilding all entities on unrelated layer toggles
+• breaking the contract between essential.js and warzone-globe.js
+• changing hotspot logic without testing movement behavior
+• changing military track APIs
+• changing event structure assumptions
+• adding heavy per-frame operations
+
+------------------------------------------------------------
+12. RECOMMENDED DEVELOPMENT STYLE
+------------------------------------------------------------
+
+Preferred approach:
+
+• small targeted fixes
+• one subsystem at a time
+• test after each change
+• preserve working APIs
+• avoid unnecessary architecture rewrites
+• prioritize performance and rendering stability
+
+------------------------------------------------------------
+13. HANDOVER NOTE FOR NEW CONTRIBUTORS
+------------------------------------------------------------
+
+If you are a new contributor:
+• first understand essential.js and warzone-globe.js
+• map the existing event flow before making changes
+• do not assume a function is unused just because it looks redundant
+• ask whether a change affects:
+  – region loading
+  – layer toggles
+  – hotspots
+  – military tracks
+  – live polling
+  – audio / alerts
+
+The safest contributions are focused improvements, not broad refactors.
+
+------------------------------------------------------------
+
+End of onboarding guide.

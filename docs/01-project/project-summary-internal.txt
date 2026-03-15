@@ -1,0 +1,22 @@
+WARZONE - BATTLESPACEX | INTERNAL PROJECT SUMMARY
+
+Project Type:
+Military-style global conflict monitoring platform
+
+Current Direction:
+Build a platform more advanced than basic public conflict maps by combining:
+• OSINT aggregation
+• military activity visualization
+• strong 3D map presentation
+• better structured intelligence-style overlays
+
+Immediate priorities:
+• maintain performance
+• stabilize hotspots
+• ensure correct regional data loading
+• refine military track system
+• keep UI cinematic but uncluttered
+
+Current architectural sensitivity:
+The core logic in essential.js and warzone-globe.js is tightly coupled.
+Controlled changes are preferred over rewrites.

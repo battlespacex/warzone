@@ -1451,12 +1451,28 @@ export async function initWarzoneGlobe() {
             viewer.scene.requestRender();
         },
 
-        // PASS 1: required by NEW essential.js
         clearEventEntities() {
             clearTrackedEventEntities(viewer);
         },
 
         focusRegion,
+
+        getViewportBounds() {
+            const rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
+            if (!rect) return null;
+
+            const west = Cesium.Math.toDegrees(rect.west);
+            const south = Cesium.Math.toDegrees(rect.south);
+            const east = Cesium.Math.toDegrees(rect.east);
+            const north = Cesium.Math.toDegrees(rect.north);
+
+            return {
+                minLon: west,
+                minLat: south,
+                maxLon: east,
+                maxLat: north
+            };
+        },
 
         refocusMiddleEast() {
             const cam = getStartCameraConfig();
@@ -1467,7 +1483,6 @@ export async function initWarzoneGlobe() {
             setMapMode(viewer, mode);
         },
 
-        // PASS 1: required by NEW essential.js terrain/layer toggle
         setTerrainVisible(visible) {
             const show = !!visible;
 
@@ -1489,8 +1504,6 @@ export async function initWarzoneGlobe() {
             );
         },
 
-        // PASS 1: lightweight compatibility only
-        // Do NOT add heavy adaptive logic yet.
         setPerformanceMode(visibleCount = 0) {
             const baseResolution = numberVar("--warzone-resolution-scale", 1);
             viewer.resolutionScale = baseResolution;
@@ -1540,6 +1553,8 @@ export async function initWarzoneGlobe() {
         playImpactSound() {
             playImpactSound(viewer);
         },
+
+ 
     };
 
     return viewer;

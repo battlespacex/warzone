@@ -1,0 +1,272 @@
+
+BATTLESPACEX – AI_CONTEXT_FULL
+
+Purpose
+-------
+This file is designed to give any AI agent or developer immediate understanding of the BattlespaceX project so they can assist with development, debugging, optimization, or feature expansion.
+
+Project Summary
+---------------
+BattlespaceX is a military‑style global conflict monitoring and OSINT visualization platform. 
+It displays real‑time or near‑real‑time geopolitical and military‑related activity on a 3D globe using CesiumJS.
+
+The platform aggregates open‑source signals and visualizes them through cinematic command‑center style UI elements such as:
+
+• missile strike arcs
+• drone/UAV activity
+• military aircraft tracks
+• naval activity
+• airspace alerts
+• cyber indicators
+• thermal or anomaly signals
+• escalation alerts
+• event hotspots
+
+The interface is designed to resemble a **military operations theater dashboard**, not a traditional web map.
+
+Technology Stack
+----------------
+Frontend:
+• CesiumJS (3D globe rendering)
+• Vanilla JavaScript modules
+• Custom CSS UI system
+• Canvas generated icons
+• JSON event feeds
+
+Build System:
+• Webpack bundling
+• modular JS architecture
+
+Data Sources:
+• OSINT feeds
+• curated JSON feeds
+• ACLED conflict datasets
+• GDELT event feeds
+• NASA EONET anomaly feeds
+• Telegram OSINT monitoring feeds
+
+Infrastructure:
+• static hosting deployment
+• CDN delivery
+• event ingestion pipeline
+• modular JS architecture
+
+Core Frontend Modules
+---------------------
+
+essential.js
+Main application controller.
+
+Handles:
+• application initialization
+• event normalization
+• region filtering
+• layer control
+• hotspot updates
+• military track updates
+• syncing event data to the globe
+• live polling
+
+warzone-globe.js
+Cesium rendering engine.
+
+Responsible for:
+• globe initialization
+• map rendering
+• satellite/terrain layers
+• event markers
+• missile arcs
+• hotspot anchor updates
+• viewport bounds reporting
+
+warzone-military-tracks.js
+Responsible for:
+• aircraft tracks
+• drone tracks
+• naval tracks
+• animated trajectory lines
+
+warzone-layers.js
+Responsible for:
+• layer definitions
+• layer toggles
+• category visibility
+
+warzone-realtime.js
+Responsible for:
+• polling feeds
+• ingesting live events
+• updating event dataset
+
+Event Schema
+------------
+Typical normalized event fields:
+
+id
+category
+title
+summary
+occurred_at
+lat
+lon
+actor_side
+target_side
+weapon_type
+target_type
+severity
+confidence
+country_code
+airspace_status
+cyber_status
+tags
+source_name
+
+Events render as:
+• map circles
+• hotspot cards
+• missile arcs
+• military tracks
+
+UI Components
+-------------
+
+Main UI widgets:
+
+• Strike Counter
+• Map Layers Panel
+• Airspace Status Panel
+• Cyber Status Panel
+• Region Selector
+• Dev Panel
+• Event Cards
+• Globe Container
+• Military Tracks Overlay
+
+Visual hierarchy:
+
+warzone-map-shell
+    warzone-globe
+    warzone-hotspot-layer
+
+Performance Strategy
+--------------------
+
+To keep the globe fast:
+
+• viewport based event loading
+• event clustering
+• hotspot pooling
+• debounced updates
+• efficient Cesium entity usage
+
+When the map moves:
+
+1. camera stops
+2. visible bounds are calculated
+3. events for that region are fetched
+4. only visible events are rendered
+
+Known Issues (Current Development Phase)
+----------------------------------------
+
+• hotspot cards sometimes flicker
+• performance degradation after some rendering changes
+• map label quality inconsistencies
+• some visual features temporarily missing after optimization attempts
+
+The two most sensitive files in the system are:
+
+essential.js
+warzone-globe.js
+
+Large rewrites in these files can break the platform.
+
+Design Goals
+------------
+
+The interface should resemble a global military command center.
+
+Design characteristics:
+
+• cinematic glow effects
+• radar‑style colors
+• missile arc animations
+• aircraft track animations
+• siren alerts
+• minimal UI clutter
+
+Desired End State
+-----------------
+
+The final platform should support:
+
+• real‑time intelligence layers
+• missile strike visualization
+• aircraft patrol routes
+• naval movement
+• cyber signals
+• airspace closures
+• OSINT aggregation pipelines
+• stable UI panels
+• high performance rendering
+
+Project Folder Structure (Simplified)
+-------------------------------------
+
+project-root/
+
+dev/
+    pages/
+    partials/
+    assets/
+        js/
+        css/
+        icons/
+
+production/
+    assets/
+    index.html
+
+docs/
+    00-master
+    01-project
+    02-architecture
+    03-product
+    04-development
+    05-business
+
+webpack.config.js
+package.json
+server.js (optional)
+
+Build Workflow
+--------------
+
+1. Webpack bundles JS modules
+2. CSS and assets are compiled
+3. production assets generated
+4. assets deployed to static hosting or CDN
+
+Typical development workflow:
+
+npm install
+npm run dev
+
+Then open the local server.
+
+Instructions for AI Assistants
+------------------------------
+
+When assisting with this project:
+
+• avoid rewriting essential.js unless absolutely necessary
+• avoid breaking the contract between essential.js and warzone-globe.js
+• prioritize performance and rendering stability
+• make small targeted improvements
+• test hotspot behavior after any change
+• test map movement performance
+• test layer toggles after any change
+
+Always preserve working functionality before introducing new features.
+
+End of AI context file.

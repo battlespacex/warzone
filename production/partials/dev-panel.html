@@ -1,0 +1,48 @@
+﻿<!-- ── DEV TEST PANEL (inlined here because partials need template engine) ── -->
+<!-- Activate: localhost auto-shows · ?devpanel=1 in URL · Ctrl+Shift+` anywhere -->
+<div id="wz-dev-panel" class="wz-dev-panel" hidden>
+    <button id="wz-dev-toggle" class="wz-dev-toggle">⚙ DEV</button>
+    <div id="wz-dev-body" class="wz-dev-body" hidden>
+        <div class="wz-dev-heading">⚠ DEV TEST PANEL — LOCAL ONLY</div>
+        <div class="wz-dev-grid">
+            <div class="wz-dev-label">MISSILE / STRIKE</div>
+            <button class="wz-dev-btn" data-event="missile_iran_israel" style="--c:#ff0753">🚀 Missile — Iran → Israel</button>
+            <button class="wz-dev-btn" data-event="missile_russia_ukraine" style="--c:#ff0753">🚀 Missile — Russia → Ukraine</button>
+            <button class="wz-dev-btn" data-event="drone_kamikaze" style="--c:#ff6a00">🛸 Drone Strike (Shahed)</button>
+            <button class="wz-dev-btn" data-event="airstrike" style="--c:#ff6a00">💥 Air Strike (IAF)</button>
+
+            <div class="wz-dev-label">SIRENS / ALERTS</div>
+            <button class="wz-dev-btn" data-siren="red" style="--c:#d42020">🔴 RED — Sirens (Israel)</button>
+            <button class="wz-dev-btn" data-siren="orange" style="--c:#d45a00">🟠 ORANGE — Sirens (Lebanon)</button>
+            <button class="wz-dev-btn" data-siren="yellow" style="--c:#b88000">🟡 YELLOW — Incoming Warning</button>
+
+            <div class="wz-dev-label">🔴 PULSE HIGHLIGHT</div>
+            <button class="wz-dev-btn" data-highlight="israel" style="--c:#ff2a2a">🇮🇱 Israel (Critical)</button>
+            <button class="wz-dev-btn" data-highlight="uae" style="--c:#ff2a2a">🇦🇪 UAE (High)</button>
+            <button class="wz-dev-btn" data-highlight="iran" style="--c:#ff2a2a">🇮🇷 Iran (Critical)</button>
+            <button class="wz-dev-btn" data-highlight="ukraine" style="--c:#ff2a2a">🇺🇦 Ukraine (High)</button>
+            <button class="wz-dev-btn" data-highlight="clear" style="--c:#444">✖ Clear Highlight</button>
+
+            <div class="wz-dev-label">MILITARY AIRCRAFT</div>
+            <button class="wz-dev-btn" data-event="aircraft_fighter" style="--c:#56d80e">✈ Fighter — F-35I (IAF)</button>
+            <button class="wz-dev-btn" data-event="aircraft_awacs" style="--c:#ffd24d">✈ AWACS E-3 (NATO)</button>
+            <button class="wz-dev-btn" data-event="aircraft_recon" style="--c:#ff6a00">✈ Recon RC-135 (USAF)</button>
+            <button class="wz-dev-btn" data-event="aircraft_tanker" style="--c:#00d8b2">✈ Tanker KC-135 (USAF)</button>
+
+            <div class="wz-dev-label">NAVAL</div>
+            <button class="wz-dev-btn" data-event="ship_carrier" style="--c:#ff2a2a">⛵ Carrier — USS Gerald R Ford</button>
+            <button class="wz-dev-btn" data-event="ship_destroyer" style="--c:#9b7bff">⛵ Destroyer — Arleigh Burke</button>
+            <button class="wz-dev-btn" data-event="ship_russian" style="--c:#ff6a00">⛵ Frigate — Gorshkov</button>
+
+            <div class="wz-dev-label">OTHER</div>
+            <button class="wz-dev-btn" data-event="cyber" style="--c:#9b7bff">💻 Cyber — Iran</button>
+            <button class="wz-dev-btn" data-event="thermal" style="--c:#ff7a00">🔥 Thermal — Syria</button>
+
+            <div class="wz-dev-actions">
+                <button id="wz-dev-fire-all" class="wz-dev-action wz-dev-action--fire">⚡ FIRE ALL</button>
+                <button id="wz-dev-clear" class="wz-dev-action wz-dev-action--clear">✕ CLEAR LOG</button>
+            </div>
+            <div id="wz-dev-log" class="wz-dev-log"></div>
+        </div>
+    </div>
+</div>

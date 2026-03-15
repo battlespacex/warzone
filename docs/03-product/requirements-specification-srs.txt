@@ -1,0 +1,158 @@
+BATTLESPACEX – SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
+
+1. INTRODUCTION
+This document defines the core functional and non-functional requirements of the BattlespaceX platform.
+
+2. PROJECT OVERVIEW
+BattlespaceX is a military-style global conflict monitoring platform designed to visualize real-time or near-real-time conflict events on a 3D globe, including missile strikes, drone activity, airspace alerts, cyber events, and other military-related activity.
+
+3. CORE TECHNOLOGIES
+Frontend:
+• CesiumJS
+• Vanilla JavaScript modules
+• Custom CSS UI system
+• Canvas-generated icons
+• JSON event feeds
+
+Backend / Data:
+• OSINT feeds
+• manual JSON feeds
+• ACLED-style / GDELT-style / curated feeds
+• Telegram-based OSINT parsing
+• environmental and alert feeds
+
+4. FUNCTIONAL REQUIREMENTS
+
+4.1 Globe Initialization
+The system shall initialize a Cesium-based 3D globe.
+The system shall support initial camera focus on a configured region.
+The system shall support satellite imagery and terrain-style base map toggles.
+
+4.2 Event Rendering
+The system shall render events on the globe using circles, markers, or other visual entities.
+The system shall support strike categories including:
+• ballistic missiles
+• cruise missiles
+• rockets
+• drone strikes
+• air strikes
+
+4.3 Military Track Rendering
+The system shall support military track rendering for:
+• UAV / drone activity
+• AWACS aircraft
+• tankers
+• reconnaissance aircraft
+• aircraft patrol lines
+• naval activity
+The system shall render these as animated or directional movement paths.
+
+4.4 Event Intelligence Schema
+Each event should support fields such as:
+• category
+• title
+• summary
+• lat
+• lon
+• actor_side
+• target_side
+• weapon_type
+• target_type
+• severity
+• confidence
+• country_code
+• airspace_status
+• cyber_status
+• tags
+
+4.5 Hotspot Cards
+The system shall generate interactive hotspot cards for relevant events.
+A hotspot card should be able to display:
+• strike summary
+• actor information
+• weapon type
+• confidence
+• timestamp
+• source link
+Hotspot cards should remain geographically associated with the relevant event region.
+
+4.6 Feed and Layer System
+The system shall support multiple feed types including:
+• curated JSON feeds
+• Telegram OSINT monitoring
+• GDELT-style feeds
+• ACLED-style feeds
+• thermal / anomaly feeds
+• airspace / NOTAM-style feeds
+The system shall allow event visibility to be controlled through layer toggles.
+
+4.7 UI Components
+The system shall support the following UI panels and controls:
+• Strike Counter
+• Layer Control Panel
+• Region Selector
+• Dev Panel
+• Event Cards
+• Globe container
+• Military tracks overlay
+
+4.8 Region and Viewport Behavior
+The system shall allow users to switch regions and move across the globe.
+The system shall support viewport-based regional data loading so that moving to a different region can retrieve relevant data for that area.
+The system shall avoid rendering unnecessary off-screen event load.
+
+4.9 Live Update System
+The system shall support live or near-live event updates.
+The system shall periodically check for events newer than the last known event timestamp.
+Newly received events shall be added to the map, feed, and hotspot system if they satisfy visibility rules.
+
+4.10 Alert and Escalation Indicators
+The system shall support operational alerts, siren-style notifications, escalation scoring, and related indicators.
+
+5. NON-FUNCTIONAL REQUIREMENTS
+
+5.1 Performance
+The system shall maintain smooth globe movement.
+The system shall minimize hotspot flicker.
+The system shall support event clustering and throttled updates.
+The system shall avoid unnecessary entity recreation where possible.
+
+5.2 Visual Design
+The interface shall resemble a military command theater rather than a generic map.
+Desired visual characteristics include:
+• cinematic glow effects
+• radar style color language
+• missile arcs
+• animated tracks
+• siren alerts
+• minimal UI clutter
+
+5.3 Reliability
+The platform shall tolerate partial source gaps.
+The platform shall continue functioning when some data categories are sparse or unavailable.
+
+5.4 Modularity
+The platform shall preserve the working contract between essential.js and warzone-globe.js.
+Large rewrites should be avoided unless validated carefully.
+
+6. CURRENT KNOWN ISSUES / RISKS
+• performance degradation after some rendering changes
+• hotspot card flickering
+• map rendering quality inconsistency
+• missing visual elements after failed optimization attempts
+• incorrect event origins in some data cases
+• tight coupling between major core files
+
+7. DESIRED END STATE
+The final platform should provide:
+• real-time intelligence layers
+• missile strikes
+• drone activity
+• airspace closures
+• cyber events
+• naval activity
+• aircraft patrols
+• efficient event clustering
+• stable UI panels
+• smooth rendering
+• a cinematic global command-center style experience

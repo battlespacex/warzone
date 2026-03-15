@@ -1,0 +1,72 @@
+BATTLESPACEX – SYSTEM ARCHITECTURE
+
+1. FRONTEND STACK
+• CesiumJS for 3D globe rendering
+• Vanilla JavaScript modular architecture
+• Custom CSS-based UI system
+• Canvas-generated icons and map assets
+• HTML partial-based interface composition
+• Webpack bundling pipeline
+
+2. BACKEND / DATA LAYER
+• OSINT feeds
+• Manual JSON feeds
+• Curated event pipelines
+• Supabase-backed event storage / retrieval
+• Signal ingestion workers and parsing services
+
+3. KEY FRONTEND MODULES
+
+warzone-globe.js
+Responsible for:
+• Cesium globe initialization
+• event rendering
+• event entity cleanup
+• map style and imagery layers
+• terrain / satellite toggles
+• viewport bounds reporting
+• missile track and alert visuals
+
+essential.js
+Responsible for:
+• application initialization
+• event normalization
+• region filtering
+• layer control
+• hotspot synchronization
+• military track synchronization
+• live polling
+• viewport-based event refresh flow
+• UI rendering for widgets and analytics
+
+warzone-military-tracks.js
+Responsible for:
+• military aircraft movement tracks
+• naval tracks
+• drone / UAV track rendering
+• trail generation and cleanup
+
+warzone-layers.js
+Responsible for:
+• layer definitions
+• event visibility by category
+• layer toggle state
+• terrain / imagery control integration
+
+warzone-realtime.js and workers
+Responsible for:
+• feed polling
+• source ingestion
+• event generation / parsing
+• specialized telemetry and signal handling
+
+4. DATA FLOW SUMMARY
+• Source feeds generate raw events
+• Events are normalized into a common schema
+• Events are stored / retrieved
+• essential.js applies filters and visibility logic
+• warzone-globe.js renders globe entities
+• hotspot and military subsystems render specialized overlays
+
+5. ARCHITECTURAL NOTE
+The platform currently depends heavily on tight coordination between essential.js and warzone-globe.js. Large rewrites in either file can break the application contract and should be avoided unless carefully planned.

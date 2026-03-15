@@ -1,0 +1,64 @@
+BATTLESPACEX – DATA FLOW AND OPERATIONS
+
+1. EVENT PIPELINE
+Incoming data is normalized into a structured event format before rendering. A normalized event may include:
+• id
+• category
+• title
+• summary
+• occurred_at
+• lat
+• lon
+• origin_lat
+• origin_lon
+• impact_lat
+• impact_lon
+• actor_side
+• target_side
+• weapon_type
+• target_type
+• severity
+• confidence
+• country_code
+• airspace_status
+• cyber_status
+• tags
+
+2. INITIAL LOAD
+On application start, the platform loads a recent event dataset, normalizes it, and renders:
+• strike counters
+• cyber and airspace widgets
+• globe event circles
+• hotspot cards
+• military tracks
+• summary and analytics views
+
+3. VIEWPORT-BASED LOADING
+The platform is being evolved toward viewport-based event loading to keep performance fast.
+Intended workflow:
+1. user moves the globe
+2. camera movement stops
+3. current visible bounds are calculated
+4. events for that region are fetched
+5. only relevant regional events are rendered
+
+4. LIVE UPDATES
+The platform also supports periodic live polling.
+• system checks for events newer than the last known timestamp
+• new events are merged into the active dataset
+• new markers, hotspots, and tracks are added when valid
+• active UI counters and feeds update
+
+5. RENDER STRATEGY
+To maintain performance:
+• events may be clustered
+• hotspots are limited
+• military tracks are handled separately
+• rendering is filtered by region and layer visibility
+• heavy UI sections are debounced
+
+6. LIMITATIONS
+• coverage depends on source availability
+• some signals may be delayed or incomplete
+• absence of telemetry does not mean absence of activity
+• platform output is OSINT-informed, not verified intelligence

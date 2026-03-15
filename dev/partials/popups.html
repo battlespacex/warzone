@@ -81,63 +81,253 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     5. ABOUT / TERMS / SOURCES MODAL
-     Controlled by: warzone-boot.js → About dock button click
-     JS toggles: hidden attribute, tab switching via data-tab / data-pane
-     Tabs: About | Terms of Use | Data Sources
-     CSS: warzone-panels.css → .wz-modal, .wz-modal__*
+     ABOUT / TERMS / DATA POLICY MODAL
+     BattlespaceX premium modal
+     Controlled by: warzone-boot.js
+     Tabs: About | What You See | How It Works | Terms of Use | Data Policy
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div id="wz-about-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About BattlespaceX">
     <div class="wz-modal__backdrop"></div>
+
     <div class="wz-modal__box">
         <div class="wz-modal__head">
-            <span>ABOUT BATTLESPACEX</span>
+            <span>BATTLESPACEX // PLATFORM BRIEFING</span>
             <button class="wz-modal__close" id="wz-about-close" aria-label="Close">×</button>
         </div>
+
         <div class="wz-modal__tabs" role="tablist">
             <button class="wz-modal__tab is-active" data-tab="about" role="tab" aria-selected="true">About</button>
+            <button class="wz-modal__tab" data-tab="signals" role="tab" aria-selected="false">What You See</button>
+            <button class="wz-modal__tab" data-tab="method" role="tab" aria-selected="false">How It Works</button>
             <button class="wz-modal__tab" data-tab="terms" role="tab" aria-selected="false">Terms of Use</button>
-            <button class="wz-modal__tab" data-tab="sources" role="tab" aria-selected="false">Data Sources</button>
+            <button class="wz-modal__tab" data-tab="policy" role="tab" aria-selected="false">Data Policy</button>
         </div>
+
         <div class="wz-modal__body">
 
-            <!-- Tab: About -->
+            <!-- TAB 1: ABOUT -->
             <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
                 <h3>ABOUT BATTLESPACEX</h3>
-                <p>BattlespaceX is an independent, real-time geopolitical and military conflict monitoring platform. We aggregate, process, and visualize open-source intelligence (OSINT) from publicly available sources to provide situational awareness during active conflict zones.</p>
-                <p>This platform is operated independently and is not affiliated with any government, military organization, or intelligence agency. All data is derived from open-source public information.</p>
-                <h3>DISCLAIMER</h3>
-                <p>Information displayed is provided for situational awareness and informational purposes only. BattlespaceX makes no guarantees regarding the accuracy, completeness, or timeliness of any data. Do not use this platform to make safety-critical or life-threatening decisions. Always refer to official local authorities during emergencies.</p>
+
+                <p>
+                    BattlespaceX is an independent OSINT-style situational awareness platform built to visualize
+                    military-related and conflict-relevant activity through a cinematic operational map interface.
+                    The system is designed to transform fragmented open-source signals into a structured, readable,
+                    and visually coherent global picture.
+                </p>
+
+                <p>
+                    Rather than functioning as a generic news map, BattlespaceX focuses on military, geopolitical,
+                    aviation, maritime, airspace, cyber, and anomaly-related indicators that help users monitor
+                    patterns, escalation, and activity concentration across regions of interest.
+                </p>
+
+                <p>
+                    The platform is designed for public informational, analytical, and observational use. It is not
+                    a command-and-control system, not an official alert network, and not a substitute for government,
+                    military, aviation, maritime, or emergency authority guidance.
+                </p>
+
+                <h3>PLATFORM CHARACTER</h3>
+
+                <ul class="wz-terms-list">
+                    <li><strong>Independent</strong> — not affiliated with any government, military, or intelligence service</li>
+                    <li><strong>OSINT-informed</strong> — built from open-source signals, telemetry, alerts, and structured event inputs</li>
+                    <li><strong>Military-style visualization</strong> — designed as a command-theater interface, not a traditional map</li>
+                    <li><strong>Performance-focused</strong> — optimized for layered rendering, hotspots, and global event awareness</li>
+                </ul>
+
+                <p class="wz-terms-footer">
+                    BattlespaceX presents a public-facing strategic overview of observable activity. It should be understood as a situational awareness interface, not an authoritative intelligence product.
+                </p>
             </div>
 
-            <!-- Tab: Terms of Use -->
+            <!-- TAB 2: WHAT YOU SEE -->
+            <div class="wz-modal__pane" data-pane="signals" role="tabpanel">
+                <h3>WHAT THE PLATFORM SHOWS</h3>
+
+                <p>
+                    BattlespaceX visualizes a range of conflict-relevant and military-related activity categories.
+                    Depending on source visibility, regional coverage, and current conditions, the platform may display
+                    the following signal types:
+                </p>
+
+                <ul class="wz-terms-list">
+                    <li><strong>Strike Activity</strong> — missile, rocket, drone, UAV, artillery, and airstrike-related incidents</li>
+                    <li><strong>Military Aircraft Activity</strong> — selected aircraft movement including tanker, AWACS, patrol, recon, transport, and other military-linked flight behavior</li>
+                    <li><strong>Naval Activity</strong> — selected naval or maritime movement where public telemetry or verified reporting is available</li>
+                    <li><strong>Alerts &amp; Sirens</strong> — warning conditions, alert states, and air-raid or threat-style notifications where applicable</li>
+                    <li><strong>Airspace Status</strong> — closures, restrictions, warnings, and other aviation-related operational changes</li>
+                    <li><strong>Cyber Signals</strong> — cyber-relevant indicators, exploit context, or structured security-related signals</li>
+                    <li><strong>Thermal / Fire Signals</strong> — heat, fire, burn, or anomaly-style detections relevant to conflict monitoring</li>
+                    <li><strong>Seismic / Blast Indicators</strong> — seismic or explosion-style signals where applicable</li>
+                </ul>
+
+                <h3>MAP VISUALS</h3>
+
+                <ul class="wz-terms-list">
+                    <li><strong>Event Circles</strong> — indicate the geographic presence of relevant incidents or signals</li>
+                    <li><strong>Hotspots</strong> — highlight important or clustered activity in the active map view</li>
+                    <li><strong>Movement Tracks</strong> — display aircraft, drone, or naval motion patterns where available</li>
+                    <li><strong>Operational Panels</strong> — summarize strike counts, airspace conditions, escalation, and supporting intelligence-style indicators</li>
+                </ul>
+
+                <p class="wz-terms-footer">
+                    Not every event type is available in every region at all times. Coverage depends on source visibility, telemetry availability, reporting conditions, and current filtering state.
+                </p>
+            </div>
+
+            <!-- TAB 3: HOW IT WORKS -->
+            <div class="wz-modal__pane" data-pane="method" role="tabpanel">
+                <h3>HOW THE PLATFORM WORKS</h3>
+
+                <p>
+                    BattlespaceX aggregates and visualizes publicly accessible signals and structured event inputs.
+                    Incoming information is normalized into a consistent event model, filtered by category and region,
+                    and then rendered into a layered operational map experience.
+                </p>
+
+                <h3>SIMPLIFIED WORKFLOW</h3>
+
+                <ul class="wz-terms-list">
+                    <li><strong>Collection</strong> — public signals, alerts, telemetry-derived inputs, and structured OSINT-style event feeds are collected</li>
+                    <li><strong>Normalization</strong> — incoming records are transformed into a consistent internal event schema</li>
+                    <li><strong>Filtering</strong> — data is filtered by active region, active layers, and current view state</li>
+                    <li><strong>Rendering</strong> — relevant events are shown as circles, hotspots, movement tracks, alerts, and summary indicators</li>
+                    <li><strong>Live Refresh</strong> — newer events may be added as the system receives fresh updates</li>
+                </ul>
+
+                <h3>WHY SOME REGIONS SHOW MORE THAN OTHERS</h3>
+
+                <p>
+                    BattlespaceX does not invent activity where no public signal exists. Some areas may appear dense with activity,
+                    while other regions may appear quiet. This is usually a function of source coverage, visibility, telemetry
+                    presence, and the availability of current open-source inputs.
+                </p>
+
+                <h3>WHY DATA MAY CHANGE</h3>
+
+                <p>
+                    Event representations may be updated, filtered, grouped, delayed, corrected, or deprioritized as new information
+                    becomes available. Hotspots, clusters, and counts are presentation layers built for usability and should not be
+                    interpreted as literal or final battlefield truth.
+                </p>
+
+                <p class="wz-terms-footer">
+                    BattlespaceX is designed to improve readability and awareness, not to expose private collection logic or reveal protected internal workflows.
+                </p>
+            </div>
+
+            <!-- TAB 4: TERMS -->
             <div class="wz-modal__pane" data-pane="terms" role="tabpanel">
-                <h3>TERMS OF USE</h3>
+                <h3>TERMS OF USE &amp; DISCLAIMER</h3>
+
                 <ul class="wz-terms-list">
-                    <li><strong>Personal use only.</strong> This platform is provided for personal, non-commercial, informational purposes. Commercial use of any kind is strictly prohibited without written permission.</li>
-                    <li><strong>No scraping or automated data collection.</strong> You may not use bots, crawlers, scrapers, or any automated means to access, extract, or collect data from this platform.</li>
-                    <li><strong>No redistribution.</strong> Content, data, maps, and visualizations displayed on BattlespaceX may not be copied, reproduced, republished, or redistributed without explicit written permission.</li>
-                    <li><strong>No warranty.</strong> Data is provided as-is. BattlespaceX makes no guarantees about accuracy, completeness, or timeliness. Do not rely on this data for safety-critical decisions.</li>
-                    <li><strong>API access prohibited.</strong> Directly accessing API endpoints programmatically or reverse-engineering the data pipeline is strictly prohibited and may result in permanent IP bans.</li>
-                    <li><strong>Content accuracy.</strong> Strike reports, alerts, and conflict data are aggregated from open-source channels and may contain unverified information. BattlespaceX does not independently verify all reports.</li>
+                    <li>
+                        <strong>Informational use only.</strong>
+                        This platform is provided solely for informational, analytical, research, and educational use.
+                        It must not be interpreted as verified intelligence, operational guidance, emergency direction,
+                        or official state-issued instruction.
+                    </li>
+
+                    <li>
+                        <strong>No operational or targeting use.</strong>
+                        BattlespaceX must not be used for combat decision-making, surveillance operations, targeting,
+                        military planning, navigation, or any workflow that could endanger persons, infrastructure,
+                        property, or national security.
+                    </li>
+
+                    <li>
+                        <strong>Non-commercial use only.</strong>
+                        The platform is provided for non-commercial use. Unauthorized commercial exploitation, resale,
+                        redistribution, republication, scraping, mirroring, or systematic reuse of platform content,
+                        datasets, or outputs is prohibited.
+                    </li>
+
+                    <li>
+                        <strong>Unauthorized use may result in consequences.</strong>
+                        Misuse of the platform, including harmful use, scraping, mass extraction, commercial exploitation,
+                        reverse engineering of protected systems, or attempts to replicate confidential aggregation logic,
+                        may result in access restrictions, complaints, takedown action, or other serious consequences.
+                    </li>
+
+                    <li>
+                        <strong>No guarantee of accuracy.</strong>
+                        Data may contain delays, omissions, gaps, stale records, duplicate signals, conflicting reports,
+                        inferred classifications, or incomplete regional visibility. No warranty is given regarding
+                        completeness, timeliness, or fitness for any purpose.
+                    </li>
+
+                    <li>
+                        <strong>Independent verification required.</strong>
+                        Users are solely responsible for independently verifying any information before relying on it.
+                        The operator of BattlespaceX accepts no liability for decisions made on the basis of platform content.
+                    </li>
+
+                    <li>
+                        <strong>No government affiliation.</strong>
+                        BattlespaceX is not a government platform and is not a substitute for aviation authorities,
+                        maritime authorities, emergency services, civil defense systems, or official warning networks.
+                    </li>
+
+                    <li>
+                        <strong>Use at your own risk.</strong>
+                        By accessing this platform, you acknowledge that all content is used at your own discretion and risk.
+                    </li>
                 </ul>
-                <p class="wz-terms-footer">By accessing BattlespaceX you agree to these terms. For inquiries, contact us via our social channels.</p>
+
+                <p class="wz-terms-footer">
+                    If you require verified alerts, official airspace notices, emergency guidance, or public safety information, always refer to the relevant authority.
+                </p>
             </div>
 
-            <!-- Tab: Data Sources -->
-            <div class="wz-modal__pane" data-pane="sources" role="tabpanel">
-                <h3>DATA SOURCES</h3>
+            <!-- TAB 5: DATA POLICY -->
+            <div class="wz-modal__pane" data-pane="policy" role="tabpanel">
+                <h3>DATA POLICY &amp; TRANSPARENCY</h3>
+
+                <p>
+                    BattlespaceX is committed to user-level transparency while also protecting platform integrity,
+                    source confidentiality, and internal operational logic.
+                </p>
+
+                <h3>WHAT WE DISCLOSE</h3>
+
                 <ul class="wz-terms-list">
-                    <li><strong>Telegram OSINT channels</strong> — Real-time ingestion from verified conflict reporting channels</li>
-                    <li><strong>RSS news feeds</strong> — Aggregated from regional and international news outlets</li>
-                    <li><strong>NASA FIRMS</strong> — Thermal anomaly detection via satellite fire data</li>
-                    <li><strong>USGS</strong> — Seismic event data for explosion / strike correlation</li>
-                    <li><strong>ADS-B transponder data</strong> — Military and civilian aircraft tracking</li>
-                    <li><strong>AIS vessel tracking</strong> — Naval and maritime monitoring</li>
-                    <li><strong>OpenStreetMap / ArcGIS</strong> — Base map and geospatial data</li>
-                    <li><strong>Natural Earth</strong> — Country borders and geographic boundaries</li>
+                    <li>The platform uses publicly accessible, open-source, telemetry-derived, alert-based, or structured event inputs</li>
+                    <li>Signals may include aviation, maritime, airspace, anomaly, cyber, strike, and related conflict-monitoring categories</li>
+                    <li>Events may be normalized, grouped, clustered, filtered, ranked, delayed, or visually transformed before display</li>
+                    <li>The platform shows an OSINT-informed operational picture, not raw unprocessed source output</li>
                 </ul>
-                <p class="wz-terms-footer">All data is processed and enriched automatically. Source accuracy varies. BattlespaceX is not responsible for errors in upstream data sources.</p>
+
+                <h3>WHAT WE DO NOT DISCLOSE</h3>
+
+                <ul class="wz-terms-list">
+                    <li>Protected upstream source combinations</li>
+                    <li>Internal ranking logic or confidence methodology</li>
+                    <li>Private enrichment workflows or ingestion architecture</li>
+                    <li>Confidential feed composition, prioritization rules, or internal processing layers</li>
+                </ul>
+
+                <h3>WHY SOME DETAILS REMAIN CONFIDENTIAL</h3>
+
+                <p>
+                    Certain implementation details are intentionally withheld to protect platform integrity,
+                    reduce misuse, prevent malicious replication, and preserve the safety and sustainability of the system.
+                    Transparency at the user level does not require disclosure of protected internal architecture.
+                </p>
+
+                <h3>IMPORTANT LIMITATIONS</h3>
+
+                <ul class="wz-terms-list">
+                    <li>Coverage varies by region, source availability, and current operational conditions</li>
+                    <li>Not all military, aviation, naval, cyber, or strike activity is publicly visible</li>
+                    <li>Absence of telemetry does not imply absence of an asset or event</li>
+                    <li>Displayed visuals may represent normalized or derived signals rather than confirmed ground truth</li>
+                </ul>
+
+                <p class="wz-terms-footer">
+                    BattlespaceX provides a transparent user-facing explanation of what the platform does, while preserving confidentiality around protected sources and internal operational logic.
+                </p>
             </div>
 
         </div>

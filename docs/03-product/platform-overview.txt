@@ -1,0 +1,32 @@
+BATTLESPACEX – PLATFORM OVERVIEW
+
+1. PROJECT SUMMARY
+BattlespaceX is a military-style global conflict monitoring platform inspired by systems such as strikemap.live, but designed to provide a stronger OSINT visualization layer, improved operational awareness, and a more cinematic command-center style experience.
+
+The platform displays real-time or near-real-time conflict-related activity on an interactive 3D globe. The system is intended to visualize missile strikes, drone activity, military aircraft movement, naval activity, airspace alerts, cyber signals, thermal anomalies, and other security-related indicators.
+
+The long-term goal is to create a high-performance strategic map that can aggregate multiple open-source inputs into a clear operational picture.
+
+2. PLATFORM OBJECTIVES
+• Provide a visually strong operational map interface
+• Present conflict-related OSINT data in a structured way
+• Support near-real-time monitoring of global events
+• Maintain fast rendering and clean UI behavior
+• Deliver a more advanced and more flexible platform than basic event maps
+
+3. PRIMARY USE CASES
+• OSINT situational awareness
+• Conflict monitoring
+• Trend and escalation monitoring
+• Demonstration to partners, collaborators, and investors
+• Future expansion into advanced intelligence-style visualization
+
+4. HIGH-LEVEL CAPABILITIES
+• Strike visualization on a 3D globe
+• Military aircraft and naval movement visualization
+• Alert and siren indicators
+• Airspace monitoring
+• Cyber and anomaly signal display
+• Hotspots and event cards
+• Layer filtering and region switching
+• Live or near-live event updates
