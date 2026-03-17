@@ -1157,3 +1157,61 @@ export function initBoot() {
         window.SiteLoader?.forceHide?.();
     });
 }
+
+export function initAudio() {
+    const audio = document.getElementById("bg-audio");
+    const toggle = document.getElementById("audio-toggle");
+    const playIcon = toggle?.querySelector(".audio-toggle__icon--play");
+    const pauseIcon = toggle?.querySelector(".audio-toggle__icon--pause");
+
+    if (!audio || !toggle || !playIcon || !pauseIcon) return;
+
+    audio.loop = true;
+    audio.volume = 0.35;
+
+    let isPlaying = false;
+
+    function syncUi(playing) {
+        isPlaying = playing;
+        toggle.classList.toggle("is-on", playing);
+        toggle.setAttribute("aria-pressed", String(playing));
+        playIcon.classList.toggle("is-active", !playing);
+        pauseIcon.classList.toggle("is-active", playing);
+    }
+
+    async function playAudio() {
+        try {
+            await audio.play();
+            syncUi(true);
+        } catch (err) {
+            console.warn("Autoplay blocked, waiting for interaction...");
+        }
+    }
+
+    function pauseAudio() {
+        audio.pause();
+        syncUi(false);
+    }
+
+    toggle.addEventListener("click", async () => {
+        if (isPlaying) pauseAudio();
+        else await playAudio();
+    });
+
+    // TRY autoplay immediately
+    playAudio();
+
+    // FALLBACK: first interaction anywhere
+    const unlock = async () => {
+        if (!isPlaying) {
+            await playAudio();
+        }
+        document.removeEventListener("click", unlock);
+        document.removeEventListener("keydown", unlock);
+    };
+
+    document.addEventListener("click", unlock);
+    document.addEventListener("keydown", unlock);
+
+    syncUi(false);
+}

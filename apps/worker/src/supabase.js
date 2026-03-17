@@ -1,9 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({
+    path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
+});
+
+import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+if (!supabaseUrl) {
+    throw new Error("SUPABASE_URL is missing in selected env file");
+}
+
+if (!supabaseServiceRoleKey) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is missing in selected env file");
+}
+
+export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);

@@ -93,15 +93,15 @@ function getSeverityRadius(event) {
     const base = numberVar("--warzone-event-ring-size", 70000);
     switch (event?.severity) {
         case "critical":
-            return base * 2;
+            return base * 4;
         case "high":
-            return base * 1.55;
+            return base * 3;
         case "medium":
-            return base * 1.2;
+            return base * 2.5;
         case "low":
             return base;
         default:
-            return base * 1.08;
+            return base * 1.8;
     }
 }
 function getHeatRadius(event) {

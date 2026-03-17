@@ -1,5 +1,9 @@
 ﻿// apps/worker/src/index.js
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config({
+    path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
+});
 import http from "http";
 import cron from "node-cron";
 import axios from "axios";
@@ -974,9 +978,7 @@ async function ensureTelegramClient() {
         new StringSession(TELEGRAM_SESSION),
         TELEGRAM_API_ID,
         TELEGRAM_API_HASH,
-        {
-            connectionRetries: 5
-        }
+        { connectionRetries: 5 }
     );
 
     try {
