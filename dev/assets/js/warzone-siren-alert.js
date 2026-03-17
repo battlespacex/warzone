@@ -1,19 +1,6 @@
-﻿// assets/js/warzone-siren-alert.js
-//
-// Siren alert system — StrikeMap style
-// 3 levels:
-//   "red"    — active / sirens firing now   → "SIRENS GOING OFF IN: ..."
-//   "orange" — confirmed / reported sirens  → "SIRENS REPORTED IN: ..."
-//   "yellow" — incoming / warning           → "INCOMING THREAT: ..."
-//
-// Usage:
-//   import { showSirenAlert, classifyAlertLevel } from "./warzone-siren-alert.js";
-//   showSirenAlert({ title: "Tel Aviv, Haifa", source: "IDF Home Front", level: "red" });
-//
-// Or pass full event:
-//   import { sirenAlertFromEvent } from "./warzone-siren-alert.js";
-//   sirenAlertFromEvent(normalizedEvent);
+﻿
 
+// assets/js/warzone-siren-alert.js
 // ── Config ─────────────────────────────────────────────────────────────────────
 const MAX_VISIBLE = 3;       // max banners on screen at once
 const AUTO_DISMISS = {
@@ -299,3 +286,8 @@ export function isSirenEvent(event) {
 
     return false;
 }
+
+
+
+
+

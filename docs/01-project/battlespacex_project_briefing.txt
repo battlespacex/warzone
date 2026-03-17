@@ -6,7 +6,7 @@ Purpose: Quick briefing to explain the project to another AI agent, developer, o
 1. PROJECT SUMMARY
 ------------------------------------------------------------
 
-BattlespaceX is a military‑style global conflict monitoring and OSINT visualization platform.
+BattlespaceX is a high-perfromance strategic global conflict monitoring and OSINT visualization command-center.
 
 The system renders real‑time or near‑real‑time geopolitical and military‑related activity on a 3D globe using CesiumJS.
 

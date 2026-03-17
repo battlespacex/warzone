@@ -1,12 +1,5 @@
-﻿// assets/js/warzone-military-tracks.js
-// Restored manager-style military tracks system
-// Keeps your existing app flow working, plus:
-// - root/CSS controlled trail + asset settings
-// - solid trail color (no glow border)
-// - blink effect
-// - one-time sound on appear
-// - SVG icon support with canvas fallback
-// - longer visible lifetime
+﻿
+// assets/js/warzone-military-tracks.js
 
 import * as Cesium from "cesium";
 

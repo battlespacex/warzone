@@ -1,7 +1,22 @@
 ﻿<!-- Command bar -->
 <header class="warzone-commandbar">
+    <div class="warzone-region-bar">
+        <span class="warzone-region-bar__label static-icon"><span class="bx-web-ico-website-R1_0" aria-hidden="true"></span></span>
+        <div class="wz-selector">
+            <select aria-label="Select monitoring region" aria-required="true" class="wz--dropdown" id="wz-region-nav" ></select>
+        </div>
+    </div>
     <div class="warzone-brand">
-        <h1><span>STRIKE</span>MAP</h1>
+        <div class="warzone-logo">
+            <h1><span>Strat</span>OPS</h1>
+        </div>
+    </div>
+
+    <div class="warzone-actions">
+        <div class="warzone-top-tabs">
+            <button class="top-tab is-active" data-view="strikes">Strikes</button>
+            <button class="top-tab" data-view="analytics">Analytics</button>
+        </div>
         <div class="warzone-brand-actions">
             <a class="icon-chip" href="https://t.me/strikemaplive" target="_blank" rel="noopener noreferrer" aria-label="Telegram">TG</a>
             <a class="icon-chip" href="https://x.com/strikemaplive" target="_blank" rel="noopener noreferrer" aria-label="X / Twitter">X</a>
@@ -9,16 +24,5 @@
             <a class="icon-chip" href="#" aria-label="Discord">DC</a>
             <button class="support-chip">♥ Support</button>
         </div>
-    </div>
-
-    <!-- Region dropdown — populated by warzone-region-selector.js -->
-    <div class="warzone-region-bar">
-        <span class="warzone-region-bar__label">REGION</span>
-        <select id="wz-region-nav" aria-label="Select monitoring region"></select>
-    </div>
-
-    <div class="warzone-top-tabs">
-        <button class="top-tab is-active" data-view="strikes">Strikes</button>
-        <button class="top-tab" data-view="analytics">Analytics</button>
     </div>
 </header>

@@ -23,34 +23,28 @@
     <meta name="twitter:description" content="<%= meta.twDescription %>" />
     <meta name="twitter:image" content="<%= meta.twImage %>" />
     <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet" />
-    <%= preloadLinks %>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&display=swap" rel="stylesheet">
     <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
 </head>
 
 <body class="home__page">
     <a class="skip-link sr-only" href="#main">Skip to main content</a>
     <div class="body-bg" aria-hidden="true"></div>
-
-
-
     <main id="main">
         <div id="warzone-app" class="warzone-app" data-api-base="https://api.battlespacex.com">
-
             <%= partials("site-loader") %>
-            <%= partials("header") %>
+            <%= partials("header") %>  <!-- Top Header -->
+            <%= partials("nav") %> <!-- Dock -->
             <%= partials("dev-panel") %>
 
             <!-- STRIKES VIEW -->
             <section class="warzone-view is-active" data-view-panel="strikes">
                 <div class="warzone-map-wrap">
-
                     <!-- Map-scoped loader — blurs only the map, not full page -->
                     <div id="wz-map-loader" class="wz-map-loader" hidden>
                         <img src="/assets/images/web/bx_preloader.gif" alt="" class="wz-map-loader__gif" />
                     </div>
-
                     <div class="warzone-map-shell">
                         <div id="warzone-globe" class="warzone-globe"></div>
                         <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
@@ -58,150 +52,18 @@
 
                     <div id="warzone-map-credits" class="warzone-map-credits"></div>
 
+                    <!--   <div id="warzone-map-credits" class="warzone-map-credits">
+                <a href="https://cesium.com/" target="_blank">
+                    <img src="http://localhost:4173/assets/cesium/Assets/Images/ion-credit.png" style="" title="Cesium ion">
+                </a>
+                <a class="" style="">Data attribution</a>
+            </div>-->
+
                     <div class="warzone-ui-layer">
                         <%= partials("popups") %>
-
-                        <!-- Mobile / tablet: dim backdrop shown when any widget is open.
-                JS toggles `hidden`. Clicking it closes all open widgets. -->
-                        <div id="wz-widget-backdrop" class="wz-widget-backdrop" aria-hidden="true" hidden></div>
-
-                        <!-- Strike Counter — left col, top -->
-                        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
-                               data-widget-id="counter"
-                               style="left: 0; top: 0;">
-                            <div class="panel-head">
-                                <h2>Strike Counter</h2>
-                                <div class="panel-actions">
-                                    <button type="button" class="panel-action" data-panel-collapse aria-expanded="true">−</button>
-                                    <button type="button" class="panel-action panel-action--close" data-widget-close title="Hide widget">×</button>
-                                </div>
-                            </div>
-                            <div class="panel-content">
-                                <div class="panel-body compact-stats">
-                                    <div class="mini-stat"><span>Total Strikes</span> <strong id="stat-total">--</strong></div>
-                                    <div class="mini-stat"><span>Mapped</span>        <strong id="stat-mapped">--</strong></div>
-                                    <div class="mini-stat"><span>Iranian</span>       <strong id="stat-iran">--</strong></div>
-                                    <div class="mini-stat"><span>US / Israel</span>   <strong id="stat-usisr">--</strong></div>
-                                </div>
-                            </div>
-                            <div class="clippath-shape-1" aria-hidden="true"></div>
-                        </aside>
-
-                        <!-- Airspace Status — left col, middle -->
-                        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--airspace"
-                               data-widget-id="airspace"
-                               style="left: 1.6rem; top: 34rem;">
-                            <div class="panel-head">
-                                <h2>Airspace Status</h2>
-                                <div class="panel-actions">
-                                    <button type="button" class="panel-action" data-panel-collapse aria-expanded="true">−</button>
-                                    <button type="button" class="panel-action panel-action--close" data-widget-close title="Hide widget">×</button>
-                                </div>
-                            </div>
-                            <div class="panel-content">
-                                <div id="airspace-status-list" class="status-list"></div>
-                            </div>
-                            <div class="clippath-shape-1" aria-hidden="true"></div>
-                        </aside>
-
-                        <!-- Map Layers — left col, bottom-anchored above dock -->
-                        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--layers"
-                               data-widget-id="layers"
-                               style="left: 30rem; top: 0;">
-                            <div class="panel-head">
-                                <h2>Map Layers</h2>
-                                <div class="panel-actions">
-                                    <button type="button" class="panel-action" data-panel-collapse aria-expanded="true">−</button>
-                                    <button type="button" class="panel-action panel-action--close" data-widget-close title="Hide widget">×</button>
-                                </div>
-                            </div>
-                            <div class="panel-content">
-                                <div id="wz-layer-panel"></div>
-                            </div>
-                            <div class="clippath-shape-1" aria-hidden="true"></div>
-                        </aside>
-
-                        <!-- Escalation Meter — right col, top -->
-                        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--escalation"
-                               data-widget-id="escalation"
-                               style="right: 0; top: 0;">
-                            <div class="panel-head">
-                                <h2>Escalation Meter</h2>
-                                <div class="panel-actions">
-                                    <button type="button" class="panel-action" data-panel-collapse aria-expanded="true">−</button>
-                                    <button type="button" class="panel-action panel-action--close" data-widget-close title="Hide widget">×</button>
-                                </div>
-                            </div>
-                            <div class="panel-content">
-                                <div class="panel-body escalation-box">
-                                    <div class="escalation-meter">
-                                        <span id="escalation-score">--</span>
-                                        <small id="escalation-label">Moderate</small>
-                                    </div>
-                                    <ul id="escalation-breakdown" class="escalation-list"></ul>
-                                </div>
-                            </div>
-                            <div class="clippath-shape-1" aria-hidden="true"></div>
-                        </aside>
-
-                        <!-- Cyber Status — right col, bottom-anchored above dock -->
-                        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--cyber"
-                               data-widget-id="cyber"
-                               style="right: 0; bottom: 10rem;">
-                            <div class="panel-head">
-                                <h2>Cyber Status</h2>
-                                <div class="panel-actions">
-                                    <button type="button" class="panel-action" data-panel-collapse aria-expanded="true">−</button>
-                                    <button type="button" class="panel-action panel-action--close" data-widget-close title="Hide widget">×</button>
-                                </div>
-                            </div>
-                            <div class="panel-content">
-                                <div id="cyber-status-list" class="status-list"></div>
-                            </div>
-                            <div class="clippath-shape-1" aria-hidden="true"></div>
-                        </aside>
-
-                        <nav class="wz-dock" aria-label="Map controls">
-
-                            <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="counter" title="Strike Counter">
-                                <span class="wz-dock__icon">📊</span>
-                                <span class="wz-dock__label">Counter</span>
-                            </button>
-                            <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="cyber" title="Cyber Status">
-                                <span class="wz-dock__icon">💻</span>
-                                <span class="wz-dock__label">Cyber</span>
-                            </button>
-                            <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="airspace" title="Airspace Status">
-                                <span class="wz-dock__icon">✈</span>
-                                <span class="wz-dock__label">Airspace</span>
-                            </button>
-                            <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="escalation" title="Escalation Meter">
-                                <span class="wz-dock__icon">📈</span>
-                                <span class="wz-dock__label">Escalation</span>
-                            </button>
-                            <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="layers" title="Map Layers">
-                                <span class="wz-dock__icon">⊞</span>
-                                <span class="wz-dock__label">Layers</span>
-                            </button>
-
-                            <!-- Separator — hidden by JS when all widget buttons are gone -->
-                            <div class="wz-dock__sep" aria-hidden="true"></div>
-
-                            <!-- System controls — always visible in dock -->
-                            <button class="wz-dock__btn" id="dock-fullscreen" title="Full Screen">
-                                <span class="wz-dock__icon">⛶</span>
-                                <span class="wz-dock__label">Fullscreen</span>
-                            </button>
-                            <button class="wz-dock__btn" id="dock-about" title="About / Terms">
-                                <span class="wz-dock__icon">ⓘ</span>
-                                <span class="wz-dock__label">About</span>
-                            </button>
-                        </nav>
-
-                        <!-- Popups, modals, overlays → partials/popups.html -->
-
+                        <%= partials("widgets") %>
                     </div>
-                </div><!-- /.warzone-map-wrap -->
+                </div>
             </section>
 
             <!-- ANALYTICS VIEW -->

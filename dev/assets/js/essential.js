@@ -6,6 +6,7 @@ import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-sir
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { initRegionSelector, onRegionChange, filterEventsByRegion, getActiveRegion } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId } from "./warzone-layers.js";
+import { renderRanges, clearRanges } from "./warzone-ranges.js";
 
 let __eventsCache = [];
 let __liveRecentEvents = [];

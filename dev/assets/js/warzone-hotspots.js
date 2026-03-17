@@ -12,7 +12,29 @@ import { isEventVisible } from "./warzone-layers.js";
 
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 
-function norm(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
+function sanitizeText(v) {
+    if (!v) return "";
+
+    let t = String(v);
+
+    // remove emojis / pictographs
+    t = t.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
+
+    // remove Arabic script + Arabic presentation forms + RTL marks
+    t = t.replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g, "");
+    t = t.replace(/[\u200E\u200F\u202A-\u202E]/g, "");
+
+    // remove repeated punctuation junk left behind
+    t = t.replace(/[،؛ـ]+/g, " ");
+    t = t.replace(/[^\p{L}\p{N}\s.,:;!?()\-\/&]/gu, " ");
+
+    // collapse spaces
+    t = t.replace(/\s+/g, " ").trim();
+
+    return t;
+}
+
+function norm(v) { return sanitizeText(v); }
 
 function timeAgo(d) {
     try {
@@ -26,8 +48,15 @@ function timeAgo(d) {
 }
 
 const ICONS = {
-    strike: "✦", military: "⬢", recon: "◉", alert: "⚠",
-    airspace: "✈", cyber: "◈", thermal: "⬤", signal: "◎", default: "●"
+    strike: "bx-web-ico-conflict-1-0",
+    military: "bx-web-ico-air-1-0",
+    recon: "bx-web-ico-warfare-1-0",
+    alert: "bx-web-ico-alerts-1-2",
+    airspace: "bx-ico-airspace-1",
+    cyber: "bx-web-ico-c4isr-1-0",
+    thermal: "bx-web-ico-bookmark-1-0",
+    signal: "bx-web-ico-status-1-0",
+    default: "bx-web-ico-Profile-1-0"
 };
 
 const LABELS = {
@@ -35,7 +64,10 @@ const LABELS = {
     airspace: "AIRSPACE", cyber: "CYBER", thermal: "THERMAL", signal: "SIGNAL", default: "ACTIVITY"
 };
 
-function icon(cat) { return ICONS[String(cat || "").toLowerCase()] || ICONS.default; }
+function icon(cat) {
+    const key = String(cat || "").toLowerCase();
+    return ICONS[key] || ICONS.default;
+}
 function label(cat) { return LABELS[String(cat || "").toLowerCase()] || LABELS.default; }
 
 function sevWeight(s) {
@@ -197,15 +229,22 @@ function createCardEl(cluster, onToggle) {
             <div class="wzhs__bar"></div>
             <div class="wzhs__body">
                 <div class="wzhs__top">
-                    <span class="wzhs__icon">${cluster.icon}</span>
-                    <span class="wzhs__count">${cluster.count}</span>
-                    <span class="wzhs__label">${cluster.label}</span>
-                    <span class="wzhs__arr">${isExpanded ? "▲" : "▼"}</span>
+                    <div class="wzhs__core">
+                        <div class="wzhs__icon static-icon">
+                            <span class="${cluster.icon}" aria-hidden="true"></span>   
+                        </div>
+                        <span class="wzhs__count">${cluster.count}</span>
+                        <span class="wzhs__label">${cluster.label}</span>
+                    </div>
+                    <span class="wzhs__arr static-icon">
+                        <span class="bx-web-ico-bottom-1-1" aria-hidden="true"></span>
+                    </span>
                 </div>
                 ${isExpanded ? `
                 <div class="wzhs__detail">
-                    ${loc ? `<div class="wzhs__loc">📍 ${loc}</div>` : ""}
-                    <div class="wzhs__time">${time}</div>
+                    <div class="wzhs__header">
+                        ${loc ? `<div class="wzhs__loc">${loc}</div>` : ""}
+                     <div class="wzhs__time">${time}</div></div>
                     <div class="wzhs__items">${buildExpandedHTML(cluster.items)}</div>
                 </div>` : ""}
             </div>`;
@@ -342,7 +381,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
             const tx = Math.round(cluster.screen.x + off.x);
             const ty = Math.round(cluster.screen.y + off.y);
-            const zi = 40 - cluster.stackIdx;
+            const zi = 25 - cluster.stackIdx;
 
             if (nodeMap.has(cluster.id)) {
                 // Card already exists — just reposition (NO DOM recreation, NO blink)

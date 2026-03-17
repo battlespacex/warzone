@@ -1,6 +1,4 @@
 ﻿// assets/js/warzone-layers.js
-// Layer toggle system — show/hide event types on globe + feed
-// Persisted to localStorage
 
 const LAYER_DEFS = [
     { id: "strikes", label: "Strikes & Artillery", icon: "💥", color: "#ff2a2a" },
@@ -9,12 +7,13 @@ const LAYER_DEFS = [
     { id: "airstrikes", label: "Air Strikes", icon: "✈️", color: "#ff7820" },
     { id: "aircraft", label: "Military Aircraft", icon: "🛩️", color: "#33d90a" },
     { id: "naval", label: "Naval Activity", icon: "⚓", color: "#9b7bff" },
+    { id: "ranges", label: "Detection / Threat Ranges", icon: "📡", color: "#33d9ff" },
     { id: "alerts", label: "Alerts & Sirens", icon: "🔔", color: "#ff2a2a" },
     { id: "cyber", label: "Cyber Operations", icon: "💻", color: "#9b7bff" },
     { id: "thermal", label: "Thermal / Fires", icon: "🔥", color: "#ff6600" },
     { id: "recon", label: "Recon / Intelligence", icon: "👁️", color: "#00d9b2" },
     { id: "seismic", label: "Seismic / Explosions", icon: "📡", color: "#ffdd00" },
-    { id: "news", label: "News / Reports", icon: "📰", color: "#888" },
+    // { id: "news", label: "News / Reports", icon: "📰", color: "#888" },
     { id: "hotspots", label: "Hotspot Labels", icon: "📍", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", icon: "🛰️", color: "#4a9eff", uiOnly: true },
 ];
@@ -113,8 +112,8 @@ export function initLayerPanel() {
 
     container.innerHTML = `
         <div class="wz-layers__toolbar">
-            <button class="wz-layers__all-on" id="wz-layers-all-on">ALL ON</button>
-            <button class="wz-layers__all-off" id="wz-layers-all-off">ALL OFF</button>
+            <button class="wz-layers__all-on btn-primary" id="wz-layers-all-on">ALL ON<span aria-hidden="true"></span></button>
+            <button class="wz-layers__all-off btn-primary" id="wz-layers-all-off">ALL OFF<span aria-hidden="true"></span></button>
         </div>
         <div class="wz-layers__list">${rows}</div>
     `;
@@ -152,4 +151,5 @@ export function initLayerPanel() {
     });
 }
 
-export { LAYER_DEFS };
+export { LAYER_DEFS
+    };

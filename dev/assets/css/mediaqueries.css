@@ -1,4 +1,5 @@
 ﻿/* --- assets/css/mediaqueries.css --- */
+@import url("./root.css");
 
 /* #region =========== Large / Tablet (≤1280px) =========== */
 @media (max-width: 1280px) {
@@ -141,7 +142,7 @@
         /* Hidden state on mobile: pop down (instead of translateY drift used on desktop) */
         .warzone-panel--floating.wz-is-hidden {
             opacity: 0 !important;
-            transform: scale(0.95) translateY(8px) !important;
+            transform: scale(0.95) translateY(1rem) !important;
             pointer-events: none !important;
         }
 
@@ -180,6 +181,15 @@
     .wz-modal__box {
         width: 96vw !important;
         max-height: 90vh !important;
+    }
+
+    .wz-modal__tabs {
+        overflow-x: auto;
+    }
+
+    .wz-modal__tab {
+        flex: 0 0 auto;
+        min-width: 11.5rem;
     }
 
     .wz-layer-panel-wrap {

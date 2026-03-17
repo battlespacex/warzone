@@ -1,10 +1,5 @@
-﻿// assets/js/warzone-region-selector.js
-// Region selector:
-// 1. First visit -> modal popup, choose monitoring region
-// 2. Top nav dropdown auto-updates as user pans globe
-// 3. Filters visible events to selected region
-// 4. Shows loader while camera flies to region
-
+﻿
+// assets/js/warzone-region-selector.js
 import * as Cesium from "cesium";
 
 // ── Region definitions ─────────────────────────────────────────────────────────
@@ -12,14 +7,12 @@ const REGIONS = [
     {
         id: "global",
         label: "Global View",
-        emoji: "🌍",
         bounds: { minLat: -90, maxLat: 90, minLon: -180, maxLon: 180 },
         camera: { lon: 40, lat: 25, alt: 12000000 },
     },
     {
         id: "middle_east",
         label: "Middle East & Gulf",
-        emoji: "🔥",
         bounds: { minLat: 12, maxLat: 42, minLon: 28, maxLon: 65 },
         camera: { lon: 44, lat: 28, alt: 3800000 },
         hot: true,
@@ -27,7 +20,6 @@ const REGIONS = [
     {
         id: "levant",
         label: "Levant & Eastern Med",
-        emoji: "⚔️",
         bounds: { minLat: 28, maxLat: 40, minLon: 25, maxLon: 42 },
         camera: { lon: 35, lat: 33, alt: 1800000 },
         hot: true,
@@ -35,42 +27,36 @@ const REGIONS = [
     {
         id: "ukraine",
         label: "Ukraine & Eastern Europe",
-        emoji: "🛡️",
         bounds: { minLat: 44, maxLat: 56, minLon: 22, maxLon: 42 },
         camera: { lon: 33, lat: 49, alt: 2200000 },
     },
     {
         id: "south_asia",
         label: "South Asia",
-        emoji: "🌐",
         bounds: { minLat: 5, maxLat: 38, minLon: 60, maxLon: 100 },
         camera: { lon: 78, lat: 22, alt: 5000000 },
     },
     {
         id: "europe",
         label: "Europe",
-        emoji: "🏛️",
         bounds: { minLat: 35, maxLat: 72, minLon: -12, maxLon: 45 },
         camera: { lon: 15, lat: 52, alt: 5500000 },
     },
     {
         id: "north_america",
         label: "North America",
-        emoji: "🦅",
         bounds: { minLat: 18, maxLat: 72, minLon: -170, maxLon: -50 },
         camera: { lon: -96, lat: 40, alt: 8000000 },
     },
     {
         id: "east_asia",
         label: "East Asia & Pacific",
-        emoji: "🌏",
         bounds: { minLat: -10, maxLat: 55, minLon: 100, maxLon: 180 },
         camera: { lon: 125, lat: 28, alt: 5500000 },
     },
     {
         id: "africa",
         label: "Africa",
-        emoji: "🌍",
         bounds: { minLat: -35, maxLat: 38, minLon: -20, maxLon: 52 },
         camera: { lon: 20, lat: 5, alt: 7000000 },
     },
@@ -78,6 +64,7 @@ const REGIONS = [
 
 const STORAGE_KEY = "wz_selected_region";
 const VISITED_KEY = "wz_region_visited";
+const INTRO_ACCEPT_KEY = "wz_intro_accepted";
 
 let __activeRegion = REGIONS[0]; // default: global
 let __onChangeCallbacks = [];
@@ -215,7 +202,7 @@ export function initRegionNav(viewer) {
     if (!dropdown) return;
 
     dropdown.innerHTML = REGIONS.map(r =>
-        `<option value="${r.id}">${r.emoji} ${r.label}${r.hot ? " 🔴" : ""}</option>`
+        `<option value="${r.id}">${r.label} <span>${r.hot ? "◉" : ""}</span></option>`
     ).join("");
 
     dropdown.value = __activeRegion.id;
@@ -252,7 +239,14 @@ export function initRegionSelector(viewer) {
         catch { return false; }
     })();
 
-    if (!visited) {
+    const introAccepted = (() => {
+        try { return localStorage.getItem(INTRO_ACCEPT_KEY) === "1"; }
+        catch { return false; }
+    })();
+
+    if (!introAccepted) {
+        flyToRegion(viewer, __activeRegion);
+    } else if (!visited) {
         showRegionModal(viewer);
     } else {
         flyToRegion(viewer, __activeRegion);
@@ -274,7 +268,6 @@ function showRegionModal(viewer) {
         const hotBadge = r.hot ? '<span class="wz-region-btn__hot">ACTIVE</span>' : "";
         return `
             <button class="wz-region-btn${hotClass}${selClass}" data-region="${r.id}">
-                <span class="wz-region-btn__emoji">${r.emoji}</span>
                 <span class="wz-region-btn__label">${r.label}</span>
                 ${hotBadge}
             </button>`;
@@ -327,3 +320,4 @@ function showRegionModal(viewer) {
 }
 
 export { REGIONS };
+

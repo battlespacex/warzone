@@ -2,6 +2,7 @@
    warzone-hero.css
    Hero banner section + .btn component
    ============================================================ */
+@import url("./root.css");
 
 .hero-banner {
     position: relative;
@@ -14,7 +15,7 @@
     position: relative;
     overflow: hidden;
     padding: 3rem;
-    border: 0.2rem solid var(--color-panel-line);
+    border: 0.2rem solid var(--color-border-gray);
     background: radial-gradient(circle at left center, rgba(255, 255, 255, 0.05), transparent 30%), linear-gradient(135deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
     box-shadow: var(--box-shadow);
 }
@@ -23,13 +24,11 @@
     font-size: 1.2rem;
     text-transform: uppercase;
     color: #f9c860;
-    letter-spacing: 0.14em;
 }
 
 .hero-banner__title {
     margin-top: 1rem;
     font-size: clamp(5rem, 7vw, 10rem);
-    line-height: 0.9;
 }
 
 .hero-banner__desc {
@@ -59,7 +58,6 @@
     font-size: 1.3rem;
     line-height: 1;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
     transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
@@ -117,101 +115,4 @@
     grid-template-columns: 28rem 1fr 34rem;
     gap: 1.6rem;
     align-items: start;
-}
-
-/* ── Commandbar ── */
-.warzone-commandbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 2rem;
-    padding: 1.2rem 1.4rem;
-    border: 0.2rem solid var(--color-panel-line);
-    background: rgba(10, 12, 16, 0.92);
-    box-shadow: var(--box-shadow);
-}
-
-/* ── Brand ── */
-.warzone-brand {
-    display: flex;
-    align-items: center;
-    gap: 1.6rem;
-}
-
-    .warzone-brand h1 {
-        font-size: 3.2rem;
-        line-height: 1;
-        letter-spacing: 0.06em;
-    }
-
-        .warzone-brand h1 span {
-            color: #ff4f4f;
-        }
-
-.warzone-brand-actions,
-.warzone-top-tabs {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-}
-
-/* ── Shared chip base (icon, support, tab, select, dock) ── */
-.icon-chip,
-.support-chip,
-.top-tab,
-.toolbar-select,
-.dock-chip {
-    border: 0.2rem solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.04);
-    color: #fff;
-    min-height: 3.8rem;
-    padding: 0 1.2rem;
-}
-
-.support-chip {
-    background: rgba(255, 215, 0, 0.12);
-    color: #ffd84d;
-}
-
-/* ── Active states ── */
-.top-tab.is-active,
-.toolbar-chip.is-active {
-    background: rgba(25, 216, 179, 0.12);
-    border-color: rgba(25, 216, 179, 0.35);
-    color: #19d8b3;
-}
-
-/* ── Toolbar ── */
-.warzone-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.8rem;
-}
-
-.toolbar-chip {
-    border: 0.2rem solid var(--color-panel-line);
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--color-white);
-    padding: 0.8rem 1.2rem;
-    font-size: 1.2rem;
-    line-height: 1;
-    text-transform: uppercase;
-}
-
-.toolbar-chip--dev {
-    border-color: rgba(255, 176, 32, 0.45);
-    color: #ffcf6b;
-}
-
-/* ── Responsive ── */
-@media (max-width: 900px) {
-    .warzone-commandbar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .warzone-grid {
-        grid-template-columns: 1fr;
-    }
 }

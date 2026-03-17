@@ -1,272 +1,613 @@
-
-BATTLESPACEX – AI_CONTEXT_FULL
+BATTLESPACEX — WARZONE
+AI CONTEXT
 
 Purpose
 -------
-This file is designed to give any AI agent or developer immediate understanding of the BattlespaceX project so they can assist with development, debugging, optimization, or feature expansion.
+This file gives any AI assistant, developer, or technical collaborator immediate working context for the Warzone project so they can help without needing repeated explanations from the project owner.
 
-Project Summary
----------------
-BattlespaceX is a military‑style global conflict monitoring and OSINT visualization platform. 
-It displays real‑time or near‑real‑time geopolitical and military‑related activity on a 3D globe using CesiumJS.
+It is intended to explain what the platform is, how it is structured, how it is built, how data flows through it, and which files and modules are most important.
 
-The platform aggregates open‑source signals and visualizes them through cinematic command‑center style UI elements such as:
 
+Brand and Product Relationship
+------------------------------
+Warzone is a BattlespaceX product and should always be understood in that context.
+
+BattlespaceX is the parent defense-news and OSINT wires platform / brand.
+Warzone is the dedicated military-style global conflict monitoring and OSINT visualization command center under that brand.
+
+Brand relationship:
+• Parent platform: BattlespaceX
+• Product / sub-platform: Warzone
+• Main brand site: battlespacex.com
+• Product deployment: warzone.battlespacex.com
+
+When writing copy, modal content, summaries, or product descriptions, it should be clear that:
+• Warzone is powered by / launched by / built by BattlespaceX
+• BattlespaceX is the umbrella brand
+• Warzone is the specialized operational visualization environment
+
+
+Product Overview
+----------------
+Warzone is a high-performance global conflict monitoring and OSINT visualization command center powered by BattlespaceX.
+
+It visualizes open-source signals, reported military activity, and emerging strategic events on a 3D Cesium globe through a cinematic command-center interface.
+
+The platform is designed to support situational awareness and conflict observation through public-facing, OSINT-informed visualization rather than generic news presentation.
+
+The visual and functional character of the platform is closer to a military operations dashboard than a traditional web map.
+
+Typical platform capabilities include:
 • missile strike arcs
-• drone/UAV activity
-• military aircraft tracks
-• naval activity
-• airspace alerts
+• drone / UAV activity
+• military aircraft tracking
+• naval vessel tracking
+• airspace alerts and sirens
 • cyber indicators
 • thermal or anomaly signals
-• escalation alerts
+• escalation indicators
 • event hotspots
+• live or near-live event streaming
+• heatmap mode
+• layer controls
+• regional filtering
+• detection / threat range visualization
 
-The interface is designed to resemble a **military operations theater dashboard**, not a traditional web map.
+
+Positioning
+-----------
+Warzone should be described as a premium, military-style, OSINT-informed situational awareness platform.
+
+It is not a generic news map.
+It is not an official warning network.
+It is not a command-and-control system.
+It is not a verified intelligence product.
+
+It is a public-facing operational visualization environment that transforms fragmented open-source signals into a clearer, structured, and visually coherent battlespace picture.
+
+Useful positioning language:
+• high-performance global conflict monitoring and OSINT visualization command center
+• BattlespaceX operational map experience
+• military-style situational awareness platform
+• Palantir-style battlespace visualization powered by OSINT
+• command-theater interface for public conflict monitoring
+
+Avoid writing claims that imply:
+• official military authority
+• perfect accuracy
+• verified intelligence status
+• direct operational suitability
+• exclusivity claims that cannot be proven
+
+Preferred wording examples:
+• open-source signals
+• reported military activity
+• OSINT-informed visualization
+• emerging strategic events
+• situational awareness
+• publicly visible telemetry and reporting
+
 
 Technology Stack
 ----------------
-Frontend:
-• CesiumJS (3D globe rendering)
+Frontend
+• CesiumJS
 • Vanilla JavaScript modules
-• Custom CSS UI system
-• Canvas generated icons
-• JSON event feeds
-
-Build System:
+• Custom CSS token system
+• HTML pages + partials
 • Webpack bundling
-• modular JS architecture
 
-Data Sources:
-• OSINT feeds
+Backend / Serving
+• Node.js
+• Express static server
+
+Data Layer
+• Supabase
+• Realtime subscriptions
+• Normalized event pipeline
+
+Worker / Ingestion Layer
+• Telegram authentication and feed access
+• ADS-B worker
+• AIS worker
+• Airspace worker
+• Siren poller
+• Source configuration file
+
+SEO / Meta Layer
+• page metadata generation
+• schema generation
+• sitemap generation
+
+
+Primary Data Sources / Signal Types
+-----------------------------------
+The system is designed to work with publicly accessible or structured event inputs such as:
+• Telegram monitoring feeds
 • curated JSON feeds
-• ACLED conflict datasets
-• GDELT event feeds
-• NASA EONET anomaly feeds
-• Telegram OSINT monitoring feeds
+• ACLED-style conflict data
+• GDELT-style geopolitical event feeds
+• ADS-B aircraft tracking
+• AIS maritime tracking
+• airspace-related signals
+• siren / alert signals
+• NASA anomaly or thermal-related signals
 
-Infrastructure:
-• static hosting deployment
-• CDN delivery
-• event ingestion pipeline
-• modular JS architecture
+Not all sources are always exposed directly in user-facing text.
+Do not reveal protected internal combinations, source weighting logic, ranking methodology, or private enrichment flow unless explicitly requested and safe to disclose.
 
-Core Frontend Modules
----------------------
 
-essential.js
-Main application controller.
-
-Handles:
-• application initialization
-• event normalization
-• region filtering
-• layer control
-• hotspot updates
-• military track updates
-• syncing event data to the globe
-• live polling
-
-warzone-globe.js
-Cesium rendering engine.
-
-Responsible for:
-• globe initialization
-• map rendering
-• satellite/terrain layers
-• event markers
-• missile arcs
-• hotspot anchor updates
-• viewport bounds reporting
-
-warzone-military-tracks.js
-Responsible for:
-• aircraft tracks
-• drone tracks
-• naval tracks
-• animated trajectory lines
-
-warzone-layers.js
-Responsible for:
-• layer definitions
-• layer toggles
-• category visibility
-
-warzone-realtime.js
-Responsible for:
-• polling feeds
-• ingesting live events
-• updating event dataset
-
-Event Schema
-------------
-Typical normalized event fields:
+Normalized Event Model
+----------------------
+Typical event fields include:
 
 id
 category
+subcategory
 title
 summary
 occurred_at
 lat
 lon
+origin_lat
+origin_lon
+impact_lat
+impact_lon
+location_label
+origin_label
+impact_label
 actor_side
 target_side
 weapon_type
 target_type
+impact_type
 severity
 confidence
 country_code
 airspace_status
 cyber_status
+fir_code
 tags
 source_name
+metadata
 
-Events render as:
-• map circles
+These events may render as:
+• map circles / markers
 • hotspot cards
 • missile arcs
 • military tracks
+• alert banners
+• escalation widgets
+• detection / threat rings
 
-UI Components
--------------
 
-Main UI widgets:
+Frontend Module Map
+-------------------
+The frontend is modular. The most important files are below.
 
-• Strike Counter
-• Map Layers Panel
-• Airspace Status Panel
-• Cyber Status Panel
-• Region Selector
-• Dev Panel
-• Event Cards
-• Globe Container
-• Military Tracks Overlay
+assets/js/index.js
+Application entry point.
+Initializes UI, globe, app logic, live subscriptions, and dev tooling.
 
-Visual hierarchy:
+assets/js/essential.js
+Main application controller.
+Responsibilities:
+• application boot
+• event normalization
+• UI rendering
+• region filtering
+• layer filtering
+• syncing events to globe
+• hotspot integration
+• military track integration
+• viewport-based event fetching
+• handling incoming realtime events
 
-warzone-map-shell
-    warzone-globe
-    warzone-hotspot-layer
+assets/js/warzone-globe.js
+Cesium rendering engine.
+Responsibilities:
+• globe initialization
+• imagery / labels setup
+• event rendering
+• missile arc visualization
+• impact pulses
+• alert-region highlights
+• viewport bounds reporting
+• map mode switching
 
-Performance Strategy
---------------------
+assets/js/warzone-hotspots.js
+Handles DOM-based hotspot cards tied to map positions.
 
-To keep the globe fast:
+assets/js/warzone-military-tracks.js
+Handles aircraft, drone, and naval movement rendering.
 
-• viewport based event loading
-• event clustering
-• hotspot pooling
-• debounced updates
-• efficient Cesium entity usage
+assets/js/warzone-layers.js
+Layer definitions, UI state, layer filtering, and persistence.
 
-When the map moves:
+assets/js/warzone-region-selector.js
+Region modal, region selection logic, and camera-based / viewport-based filtering.
 
-1. camera stops
-2. visible bounds are calculated
-3. events for that region are fetched
-4. only visible events are rendered
+assets/js/warzone-realtime.js
+Supabase realtime subscriptions for new events and active alerts.
 
-Known Issues (Current Development Phase)
-----------------------------------------
+assets/js/warzone-ranges.js
+Operational detection / threat range visualization layer.
+Intended for AWACS, fighters, carriers, destroyers, SAM / air-defense style events, etc.
+Styling should be controlled through CSS root tokens rather than hardcoded values.
 
-• hotspot cards sometimes flicker
-• performance degradation after some rendering changes
-• map label quality inconsistencies
-• some visual features temporarily missing after optimization attempts
+assets/js/warzone-siren-alert.js
+Stacked siren and warning banner system.
 
-The two most sensitive files in the system are:
+assets/js/warzone-sticky-alert.js
+Persistent active alert bar.
 
-essential.js
-warzone-globe.js
+assets/js/warzone-dev-panel.js
+Development-only test event launcher.
 
-Large rewrites in these files can break the platform.
+assets/js/warzone-ui.js
+General UI tab / panel interaction binding.
 
-Design Goals
-------------
+assets/js/warzone-boot.js
+Loader, intro modal, dock widget interactions, fullscreen, modal tabs, and widget show/hide behaviors.
 
-The interface should resemble a global military command center.
+assets/js/supabase.js
+Supabase client connection.
 
-Design characteristics:
+assets/js/home-anchors.js
+Home / UI anchor behavior.
 
-• cinematic glow effects
-• radar‑style colors
-• missile arc animations
-• aircraft track animations
-• siren alerts
-• minimal UI clutter
 
-Desired End State
+Worker / Ingestion Files
+------------------------
+apps/worker/src/index.js
+Worker entry point.
+
+apps/worker/src/adsb-worker.js
+Aircraft telemetry ingestion / transformation.
+
+apps/worker/src/ais-worker.js
+Maritime telemetry ingestion / transformation.
+
+apps/worker/src/airspace-worker.js
+Airspace-related signal ingestion.
+
+apps/worker/src/warzone-siren-poller.js
+Siren / active alert ingestion or polling.
+
+apps/worker/src/telegram-auth.js
+Telegram client auth helper.
+
+apps/worker/src/sources.json
+Configured source list.
+
+apps/worker/src/supabase.js
+Worker-side Supabase integration.
+
+apps/api/src/
+Reserved API-related code structure.
+
+
+UI / UX Character
 -----------------
+Warzone should feel like a premium strategic operations console.
 
-The final platform should support:
+Design goals:
+• cinematic command-center mood
+• clean but high-information presentation
+• military-style visual language
+• radar-style color logic
+• strong hierarchy and readability
+• minimal clutter relative to information density
 
-• real‑time intelligence layers
-• missile strike visualization
-• aircraft patrol routes
-• naval movement
-• cyber signals
-• airspace closures
-• OSINT aggregation pipelines
-• stable UI panels
-• high performance rendering
+The platform should feel analytical, operational, and high-performance.
 
-Project Folder Structure (Simplified)
--------------------------------------
 
+Core User-Facing Features
+-------------------------
+The platform already supports or is designed to support:
+• missile arcs
+• drone tracks
+• aircraft tracks
+• naval tracking
+• hotspot clusters
+• strike counters
+• live database streaming
+• heatmap mode
+• layer control
+• region filtering
+• alert and siren visualization
+• airspace status displays
+• cyber status displays
+• escalation scoring
+• operational panels
+• Cesium global globe rendering
+• detection / threat range overlays
+
+Possible multi-domain layers include:
+
+Air Domain
+• aircraft
+• AWACS / ISR coverage
+• missile launches
+• air-defense signals
+
+Maritime Domain
+• naval fleets
+• carrier groups
+• destroyers / escorts
+• submarine-related or maritime signals
+
+Ground Domain
+• strikes
+• artillery
+• missile / rocket impacts
+• ground conflict indicators
+
+Cyber / Strategic Domain
+• cyber activity
+• infrastructure-related events
+• strategic alerts
+• anomaly signals
+
+
+Build System
+------------
+Webpack is the build pipeline.
+
+webpack.config.js responsibilities:
+• JS bundling
+• CSS extraction
+• asset copying
+• Cesium asset handling
+• HTML page generation
+• partial injection
+• SEO metadata injection
+• dev server setup
+• history fallback / route rewrites
+
+package.json scripts:
+• npm run dev
+• npm run build
+• npm run serve
+
+Current package metadata shows:
+• webpack-dev-server for development
+• express for static serving
+• Cesium dependency
+• Supabase dependency
+
+
+Server Layer
+------------
+server.js serves production output from the production folder.
+
+It maps routes such as:
+• /warzone/
+• /warzone/about
+• /warzone/report
+• /warzone/sources
+• /warzone/404
+
+The production server is an Express static server around built assets and HTML pages.
+
+
+HTML Structure
+--------------
+The project uses both full pages and reusable partials.
+
+Pages
+• dev/pages/index.html
+• dev/pages/about.html
+• dev/pages/report.html
+• dev/pages/sources.html
+• dev/pages/404.html
+
+Partials
+• dev/partials/header.html
+• dev/partials/footer.html
+• dev/partials/widgets.html
+• dev/partials/popups.html
+• dev/partials/dev-panel.html
+• dev/partials/site-loader.html
+• additional head / nav / modal partials
+
+Important note:
+The popups.html partial contains important modal and alert markup including:
+• intro modal
+• about modal
+• siren stack
+• sticky alert bar
+• event detail popup
+• region select modal
+
+
+CSS Structure
+-------------
+CSS is modular.
+Primary files include:
+• dev/assets/css/root.css
+• dev/assets/css/style.css
+• dev/assets/css/sections.css
+• dev/assets/css/warzone-analytics.css
+• dev/assets/css/warzone-hotspots.css
+• dev/assets/css/warzone-map.css
+• dev/assets/css/warzone-panels.css
+• dev/assets/css/warzone-region-layers.css
+• dev/assets/css/warzone-siren-alert.css
+• dev/assets/css/warzone-widgets.css
+• supporting CSS files such as nav.css, mediaqueries.css, required.css, a11y.css
+
+Important rule:
+Visual styling tokens should preferably live in root.css / CSS custom properties rather than being hardcoded in JS.
+
+
+Audio Assets
+------------
+Audio assets include:
+• dev/assets/audio/warzone-alert-loop.mp3
+• dev/assets/audio/warzone-impact.mp3
+
+These are used for alert loop and missile impact style sound effects.
+
+
+Project Folder Structure
+------------------------
 project-root/
 
-dev/
-    pages/
-    partials/
-    assets/
-        js/
-        css/
-        icons/
+apps/
+  api/
+    src/
+    package.json
+  worker/
+    src/
+      adsb-worker.js
+      airspace-worker.js
+      ais-worker.js
+      index.js
+      sources.json
+      supabase.js
+      telegram-auth.js
+      warzone-siren-poller.js
+    package-lock.json
+    package.json
 
-production/
-    assets/
+dev/
+  assets/
+    audio/
+      warzone-alert-loop.mp3
+      warzone-impact.mp3
+    cesium/
+    css/
+      a11y.css
+      mediaqueries.css
+      nav.css
+      required.css
+      root.css
+      sections.css
+      style.css
+      warzone-analytics.css
+      warzone-hotspots.css
+      warzone-map.css
+      warzone-panels.css
+      warzone-region-layers.css
+      warzone-siren-alert.css
+      warzone-widgets.css
+    fonts/
+      bx/
+      custom/
+      aerocism-font.eot
+      aerocism-font.svg
+      aerocism-font.ttf
+      aerocism-font.woff
+      google-font.woff2
+      selection.json
+      style.css
+    images/
+      fav/
+      ico/
+      web/
+    js/
+      essential.js
+      home-anchors.js
+      index.js
+      supabase.js
+      warzone-boot.js
+      warzone-dev-panel.js
+      warzone-globe.js
+      warzone-hotspots.js
+      warzone-layers.js
+      warzone-military-tracks.js
+      warzone-ranges.js
+      warzone-realtime.js
+      warzone-region-selector.js
+      warzone-siren-alert.js
+      warzone-sticky-alert.js
+      warzone-ui.js
+    others/
+      events.json
+      js.zip
+  pages/
+    about.html
     index.html
+    report.html
+    sources.html
+    404.html
+  partials/
+    dev-panel.html
+    footer.html
+    head-base.html
+    head-verifications.html
+    header.html
+    inner-header.html
+    mob-components.html
+    modal-contact-success.html
+    nav.html
+    popups.html
+    site-loader.html
+    widgets.html
+  public/
+    favicon.ico
+    robots.txt
+    sitemap.xml
+    web.config
 
 docs/
-    00-master
-    01-project
-    02-architecture
-    03-product
-    04-development
-    05-business
+  00-master/
+  01-project/
+  02-architecture/
+  03-product/
+  04-development/
+  05-business/
+  Ai-Context.txt
+  README.txt
 
-webpack.config.js
-package.json
-server.js (optional)
+production/
 
-Build Workflow
---------------
+seo/
+  pages.js
+  schema.js
+  site.js
+  sitemap.js
 
-1. Webpack bundles JS modules
-2. CSS and assets are compiled
-3. production assets generated
-4. assets deployed to static hosting or CDN
+root files
+• .gitignore
+• package-lock.json
+• package.json
+• server.js
+• Web.config
+• webpack.config.js
 
-Typical development workflow:
 
-npm install
-npm run dev
+Build / Run Workflow
+--------------------
+Development:
+• npm install
+• npm run dev
 
-Then open the local server.
+Production build:
+• npm run build
 
-Instructions for AI Assistants
-------------------------------
+Production server:
+• npm run serve
 
-When assisting with this project:
+Typical local development ports in project materials include 4173 and other environment-specific ports depending on server or proxy setup.
 
-• avoid rewriting essential.js unless absolutely necessary
-• avoid breaking the contract between essential.js and warzone-globe.js
-• prioritize performance and rendering stability
-• make small targeted improvements
-• test hotspot behavior after any change
-• test map movement performance
-• test layer toggles after any change
 
-Always preserve working functionality before introducing new features.
+Authoring Guidance for AI Assistants
+------------------------------------
+When helping with this project:
+• preserve working behavior first
+• prefer targeted improvements over rewrites
+• keep the Warzone / BattlespaceX brand relationship clear
+• maintain military-style but public-safe wording
+• avoid claiming perfect accuracy or official authority
+• do not expose protected source combinations or internal ranking logic
+• prefer CSS root tokens for visual styling
+• keep modal copy premium, clear, and serious
+• keep legal / policy text firm but readable
+• respect the existing module split and folder naming
 
-End of AI context file.
+When writing public-facing copy, preferred identity is:
+Warzone is a BattlespaceX product focused on OSINT-informed battlespace visualization and situational awareness.
+
+End of AI context.

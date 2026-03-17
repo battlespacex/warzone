@@ -3,99 +3,63 @@
 /* #region =========== Core Design Tokens =========== */
 :root {
     /* [[[[[[[[[[[ Backgrounds ]]]]]]]]]]] */
-    --color-bg-dark: #050608; /* Page background */
-    --color-bg-medium: #111318; /* Card backgrounds */
-    --color-bg-light: #1c1f27; /* Elevated surfaces */
-    --color-bg-overlay: rgba(8, 10, 14, 0.78);
+    --color-bg-dark: rgba(32,38,49,0.85);
+    --color-bg-header: rgb(69,80,94,0.6);
+    --color-bg-row: rgb(46 53 63 / 86%);
+    --color-bg-overlay: rgba(8, 10, 14, 0.6);
     --color-bg-modal: rgba(25, 28, 35, 0.72);
-    --color-bg-header: rgba(7, 9, 13, 0.9);
-    /* [[[[[[[[[[[ Brand Colors ]]]]]]]]]]] */
-    --color-teal: #19d8b3; /* Primary accent */
+    /* [[[[[[[[[[[ Colors ]]]]]]]]]]] */
+
     --color-white: #ffffff;
     --color-black: #000000;
-    --color-accent: #f3b000; /* Gold/amber accent */
+    --color-accent: #f3b000;
     --color-error: #ff4e5f; /* Error / danger */
+    --color-blue: rgba(34, 42, 164, 1);
+    --color-green: rgb(22, 112, 96);
+    --color-red: rgba(174, 15, 68, 0.9);
+    --color-orange: rgba(255, 106, 0, 1);
+    --color-yellow: rgb(207, 188, 36);
+    --color-teal: rgba(15,140,147,0.8); /* Primary accent */
+    --color-teal-hover: rgba(22, 147, 159, 0.3);
+    --color-teal-glow: rgba(24,226,219,1);
+    --color-gray: rgba(69, 80, 94, 0.6);
+    --color-gray-1: rgba(32, 38, 49, 0.8);
+    --color-border-gray: blue /* rgba(61, 72, 87, 0.8)*/;
     /* [[[[[[[[[[[ Typography — Text Colors ]]]]]]]]]]] */
-    --color-heading: #ffffff; /* H1 — hero title, commandbar brand, large displays */
-    --color-heading-2: #eff0f4; /* H2 — section titles, page titles, panel headers */
-    --color-heading-3: #d0d6e0; /* H3 — card sub-titles, widget headings */
-    --color-text: #aeb6c4; /* Body text, descriptions, normal reading text */
+    --color-heading: #eff0f4; /* H1 — hero title, commandbar brand, large displays */
     --color-text-dim: #8fa3b8; /* Muted / secondary text, meta info, timestamps */
-    --color-text-faint: rgba(255, 255, 255, 0.35); /* Placeholders, fine print, footer notes */
-    --color-text-accent: #f9c860; /* Eyebrow labels, highlighted callouts */
-    --color-panel-line: rgba(255, 255, 255, 0.08); /* Dividers, border lines */
-    --text-color-heading: var(--color-heading-2);
-    --text-color-all: var(--color-text);
-    --text-color-yellow: var(--color-accent);
+    --color-text: rgb(203 206 215); /* Body text, descriptions, normal reading text */
     /* [[[[[[[[[[[ Typography — Fonts ]]]]]]]]]]] */
-    --font-display: "Bebas Neue", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
-    --font-ui: "Rajdhani", "Barlow Condensed", sans-serif; /* UI labels, buttons, badges, panels */
+    --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
+    --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
-    --font-icon: "aerocism-font", system-ui, sans-serif; /* BX icon font */
-    /* Legacy aliases */
-    --font-heading: var(--font-display);
-    --text-font-v1: var(--font-display);
-    --text-font-v2: var(--font-ui);
-    --text-font-v3: var(--font-mono);
-    --text-font-v4: var(--font-mono);
-    --icon-font: var(--font-icon);
+    --font-icon: "BX-Font-R1_1", system-ui, sans-serif; /* BX icon font */
     /* [[[[[[[[[[[ Typography — Sizes ]]]]]]]]]]] */
-    --text-xs: 1.1rem; /* Timestamps, credits, fine print */
+    --text-xs: 1rem; /* Timestamps, credits, fine print */
     --text-sm: 1.2rem; /* Meta labels, badges, small UI text */
-    --text-base: 1.4rem; /* Default body / UI text */
-    --text-md: 1.6rem; /* Comfortable reading text */
-    --text-lg: 2.0rem; /* Panel headings, widget titles (h3 level) */
-    --text-xl: 2.4rem; /* Section headings (h2 level) */
-    --text-2xl: 3.2rem; /* Page/commandbar titles */
-    --text-3xl: 4.4rem; /* Large display numbers, analytics stats */
-    --text-hero: clamp(5rem, 7vw, 10rem); /* Hero banner only */
-    /* Legacy size aliases */
-    --default-text: var(--text-md);
-    --small-text: var(--text-sm);
-    --font-size-default: var(--text-base);
-    --font-size-small: var(--text-sm);
-    --icon-size-default: 2.6rem;
-    --icon-size-small: 2.2rem;
+    --text-base: 1.45rem; /* Default body / UI text */
+    --text-lg: 1.8rem; /* Panel headings, widget titles (h3 level) */
+    --text-xl: 2.4rem; /* Section headings*/
+    --text-xxl: 5.4rem; /* Section headings*/
+    /* [[[[[[[[[[[ Semantic UI Typography Tokens ]]]]]]]]]]] */
+    --text-heading-weight: 700;
+    --text-base-weight: 500;
+    --item-spacing: 0.5rem;
+    /* [[[[[[[[[[[ Icon Sizes ]]]]]]]]]]] */
+    --icon-xl: 3.6rem;
+    --icon-lg: 2.6rem;
+    --icon-md: 1.6rem;
+    --icon-sm: 1rem;
     /* [[[[[[[[[[[ Spacing & Layout ]]]]]]]]]]] */
-    --page-gutter: 2rem;
-    --frame-max: 186rem;
     --sec-width: calc(100% - 4rem);
-    --min-width: min(168rem, calc(100% - 4rem));
+    --min-width: calc(100% - 4rem);
     --max-width: 100%;
     /* [[[[[[[[[[[ Motion ]]]]]]]]]]] */
     --transition-fast: 160ms ease;
     --transition-med: 300ms ease;
     /* [[[[[[[[[[[ Shadows ]]]]]]]]]]] */
-    --widget-shadow-1: 0 0.6rem 1.3rem rgba(0, 0, 0, 0.75);
-    /* [[[[[[[[[[[ Background Attachment ]]]]]]]]]]] */
-    --background-attachment: fixed;
-    /* [[[[[[[[[[[ Extended UI Colors ]]]]]]]]]]] */
-    --color-blue: rgba(34, 42, 164, 1);
-    --color-green: rgb(22, 112, 96);
-    --color-red: rgba(174, 15, 68, 0.9);
-    --color-gray: rgba(69, 80, 94, 0.6);
-    --color-gray-v1: rgba(32, 38, 49, 0.8);
-    --color-gray-v2: rgba(69, 80, 94, 0.6);
-    --color-gray-v3: rgb(67, 74, 85);
-    --color-gray-v4: rgb(41, 48, 60);
-    --color-black-v1: rgba(3, 3, 4, 0.9);
-    --color-black-v2: rgba(3, 3, 4, 1);
-    --color-border-blue: rgba(35, 164, 228, 1);
-    --color-border-green: rgb(22, 112, 96);
-    --color-border-teal: rgba(24, 226, 219, 1);
-    --color-border-red: rgba(226, 14, 85, 0.9);
-    --color-border-gray: rgba(61, 72, 87, 0.8);
-    --color-hover-blue: rgba(23, 29, 125, 1);
-    --color-hover-teal: rgba(22, 147, 159, 0.3);
-    --color-bg-gray-before: rgba(10, 11, 20, 0.4);
-    --color-status-yellow: rgb(207, 188, 36);
-    --color-status-green: rgba(12, 163, 107, 1);
-    --color-status-orange: rgba(255, 106, 0, 1);
-    --color-orange: rgba(233, 69, 0, 0.9);
-    --color-status-red: rgba(226, 14, 85, 1);
-    --color-input-red: rgba(136, 9, 51, 0.72);
-    --color-featured: rgba(7, 253, 139, 0.64);
-    --color-input-gray: rgba(26, 29, 39, 1);
+    --header-shadow: drop-shadow(0 0rem 2rem #0f1014e3);
+    --widget-shadow: drop-shadow(0 0.5rem 1rem #0f1014e3);
     /* [[[[[[[[[[[ Clip Paths ]]]]]]]]]]] */
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
@@ -104,14 +68,11 @@
     --clippath-shape-5: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
     --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
-    /* [[[[[[[[[[[ Globe Base ]]]]]]]]]]] */
-    --warzone-space: #02050b; /* Deep space background */
-    --warzone-globe-base: #08111a; /* Globe ocean color */
     /* [[[[[[[[[[[ Event Type Colors ]]]]]]]]]]] */
-    --warzone-strike: #ff0753;
-    --warzone-recon: #ff4d07;
-    --warzone-military: #56d80e;
-    --warzone-default: #ff7a45;
+    --warzone-strike-color: #ff0753;
+    --warzone-recon-color: #ff4d07;
+    --warzone-military-color: #56d80e;
+    --warzone-default-color: #ff7a45;
     --warzone-alert-color: #ff2a2a;
     --warzone-airspace-color: #00d8b2;
     --warzone-cyber-color: #9b7bff;
@@ -122,7 +83,7 @@
     --warzone-map-contrast: 1.35;
     --warzone-map-gamma: 0.5;
     --warzone-map-saturation: 0.2;
-    --warzone-map-hue: 170; /* Raw value — not radians */
+    --warzone-map-hue: 170;
     --warzone-map-alpha: 0.5;
     /* [[[[[[[[[[[ Labels Layer ]]]]]]]]]]] */
     --warzone-labels-brightness: 1;
@@ -221,7 +182,7 @@
     --warzone-missile-origin-alpha-min: 0.2;
     --warzone-missile-origin-alpha-max: 1;
     /* [[[[[[[[[[[ Cluster Appearance ]]]]]]]]]]] */
-    --warzone-cluster-font: var(--font-ui);
+    --warzone-cluster-font: var(--text-font);
     --warzone-cluster-text: #ffffff;
     --warzone-cluster-border: rgba(255, 255, 255, 0.08);
     --warzone-cluster-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
@@ -257,6 +218,17 @@
     --warzone-cluster-thermal: #ff8a00;
     --warzone-cluster-signal: #ffd24d;
     --warzone-cluster-default: #ff7a45;
+    /* [[[[[[[[[[[ Hotspot ]]]]]]]]]]] */
+    --criticality-level-ex-bg: rgba(255 7 83 / 30%);
+    --criticality-level-ex-cl: #ff3068;
+    --criticality-level-hi-bg: rgba(255 106 0 / 30%);
+    --criticality-level-hi-cl: #ff6a00;
+    --criticality-level-med-bg: rgb(187 141 14 / 30%);
+    --criticality-level-med-cl: #ffb400;
+    --criticality-level-lo-bg: rgb(6 160 67 / 30%);
+    --criticality-level-lo-cl: #0abc6a;
+    --criticality-level-de-bg: rgba(69 80 94 / 30%);
+    --criticality-level-de-cl: #8fa3b8;
     /* [[[[[[[[[[[ Military Track Controls ]]]]]]]]]]] */
     --warzone-military: #56d80e;
     --warzone-military-trail-default: #56d80e;
@@ -270,7 +242,7 @@
     --warzone-military-trail-alpha: 0.9;
     --warzone-military-trail-width-aircraft: 3.6;
     --warzone-military-trail-width-naval: 2.4;
-    --warzone-military-asset-scale: 0.72;
+    --warzone-military-asset-scale: 1;
     --warzone-military-asset-alpha: 1;
     --warzone-military-asset-blink-min: 0.55;
     --warzone-military-asset-blink-max: 1;
@@ -286,7 +258,7 @@
     --warzone-military-awacs-orbit-alpha: 0.28;
     --warzone-military-awacs-orbit-width: 1;
     --warzone-military-sound: url("/assets/audio/military-track-appear.mp3");
-    --warzone-military-sound-volume: 0.72;
+    --warzone-military-sound-volume: 1;
     --warzone-military-heading-offset-default: 0;
     --warzone-military-heading-offset-fighter: 0;
     --warzone-military-heading-offset-awacs: 0;
@@ -304,5 +276,39 @@
     --warzone-military-sound-volume: 0.72;
     --warzone-sound-alert-volume: 0.65;
     --warzone-sound-impact-volume: 0.9;
+    /* [[[[[[[[[[[ Operational Range Tokens ]]]]]]]]]]] */
+    /* AWACS detection */
+    --range-awacs-color: #33d9ff;
+    --range-awacs-opacity: 0.08;
+    --range-awacs-outline: 0.7;
+    /* Fighter combat radius */
+    --range-fighter-color: #33ff88;
+    --range-fighter-opacity: 0.08;
+    --range-fighter-outline: 0.7;
+    /* Carrier strike radius */
+    --range-carrier-color: #ff8800;
+    --range-carrier-opacity: 0.08;
+    --range-carrier-outline: 0.7;
+    /* Destroyer defense */
+    --range-destroyer-color: #ffaa33;
+    --range-destroyer-opacity: 0.08;
+    --range-destroyer-outline: 0.7;
+    /* SAM defense */
+    --range-sam-color: #ff4444;
+    --range-sam-opacity: 0.08;
+    --range-sam-outline: 0.7;
+    /* shared ring style */
+    --range-outline-width: 1.4;
+    --range-awacs-color: #33d9ff;
+    --range-awacs-opacity: 0.08;
+    --range-fighter-color: #33ff88;
+    --range-fighter-opacity: 0.08;
+    --range-carrier-color: #ff8800;
+    --range-carrier-opacity: 0.08;
+    --range-destroyer-color: #ffaa33;
+    --range-destroyer-opacity: 0.08;
+    --range-sam-color: #ff4444;
+    --range-sam-opacity: 0.08;
+    --range-outline-width: 1.4;
 }
 /* #endregion */

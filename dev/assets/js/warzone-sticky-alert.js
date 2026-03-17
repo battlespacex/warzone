@@ -1,4 +1,6 @@
-﻿// assets/js/warzone-sticky-alert.js
+﻿
+
+// assets/js/warzone-sticky-alert.js
 export function showStickyAlert(alert) {
     const root = document.getElementById("warzone-alert");
     const titleEl = document.getElementById("warzone-alert-title");
@@ -25,3 +27,7 @@ export function hideStickyAlert(alertKey) {
     root.dataset.alertKey = "";
     root.dataset.sticky = "";
 }
+
+
+
+
