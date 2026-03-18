@@ -310,34 +310,31 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!content || !icon) return;
 
         btn.addEventListener("click", () => {
-            const collapsed = panel.classList.contains("is-collapsed");
+            const willCollapse = !panel.classList.contains("is-collapsed");
 
-            if (collapsed) {
-                // EXPAND
-                panel.classList.remove("is-collapsed");
-                btn.setAttribute("aria-expanded", "true");
-
-                icon.classList.remove("bx-web-ico-bottom-1-1");
-                icon.classList.add("bx-web-ico-top-1-0");
-
-                content.style.display = "block";
-                content.style.height = "0px";
-
-                requestAnimationFrame(() => {
-                    content.style.height = content.scrollHeight + "px";
-                });
-            } else {
-                // COLLAPSE
+            if (willCollapse) {
                 btn.setAttribute("aria-expanded", "false");
 
-                icon.classList.remove("bx-web-ico-top-1-0");
-                icon.classList.add("bx-web-ico-bottom-1-1");
+                icon.classList.remove("bx-web-ico-close-1-2");
+                icon.classList.add("bx-web-ico-top-1-0");
 
-                content.style.height = content.scrollHeight + "px";
+                content.style.height = `${content.scrollHeight}px`;
 
                 requestAnimationFrame(() => {
                     panel.classList.add("is-collapsed");
                     content.style.height = "0px";
+                });
+            } else {
+                btn.setAttribute("aria-expanded", "true");
+
+                icon.classList.remove("bx-web-ico-top-1-0");
+                icon.classList.add("bx-web-ico-close-1-2");
+
+                panel.classList.remove("is-collapsed");
+                content.style.height = "0px";
+
+                requestAnimationFrame(() => {
+                    content.style.height = `${content.scrollHeight}px`;
                 });
             }
         });
@@ -346,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (e.propertyName !== "height") return;
 
             if (panel.classList.contains("is-collapsed")) {
-                content.style.display = "none";
+                content.style.height = "0px";
             } else {
                 content.style.height = "auto";
             }

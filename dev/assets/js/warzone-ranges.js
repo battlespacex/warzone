@@ -1,119 +1,84 @@
-﻿// assets/js/warzone-ranges.js
-
-import * as Cesium from "cesium";
-import { isLayerEnabled } from "./warzone-layers.js";
+﻿import * as Cesium from "cesium";
 
 let __rangeEntities = [];
 
-function getViewer() {
-    return window.__warzoneViewer;
+function cssVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return (v || fallback).trim();
 }
 
-function clearRanges() {
-    const viewer = getViewer();
-    if (!viewer) return;
+function cssColor(name, fallback) {
+    return Cesium.Color.fromCssColorString(cssVar(name, fallback));
+}
 
-    __rangeEntities.forEach(e => {
-        try { viewer.entities.remove(e); } catch { }
-    });
+function cssNum(name, fallback) {
+    const v = parseFloat(cssVar(name, fallback));
+    return Number.isFinite(v) ? v : fallback;
+}
 
+const RANGE_PRESETS = {
+    awacs: { radius: 400000, color: "--range-awacs-color", opacity: "--range-awacs-opacity" },
+    fighter: { radius: 180000, color: "--range-fighter-color", opacity: "--range-fighter-opacity" },
+    carrier: { radius: 600000, color: "--range-carrier-color", opacity: "--range-carrier-opacity" },
+    destroyer: { radius: 120000, color: "--range-destroyer-color", opacity: "--range-destroyer-opacity" },
+    sam: { radius: 250000, color: "--range-sam-color", opacity: "--range-sam-opacity" },
+};
+
+function getRangePreset(event) {
+
+    const sub = String(event.subcategory || "").toLowerCase();
+    const weapon = String(event.weapon_type || "").toLowerCase();
+
+    if (sub.includes("awacs")) return RANGE_PRESETS.awacs;
+    if (sub.includes("fighter")) return RANGE_PRESETS.fighter;
+    if (sub.includes("carrier")) return RANGE_PRESETS.carrier;
+    if (sub.includes("destroyer")) return RANGE_PRESETS.destroyer;
+
+    if (weapon.includes("sam") || weapon.includes("air defense"))
+        return RANGE_PRESETS.sam;
+
+    return null;
+}
+
+export function clearRanges(viewer) {
+    __rangeEntities.forEach(e => viewer.entities.remove(e));
     __rangeEntities = [];
 }
 
-/**
- * Core renderer
- * Called from essential.js
- */
-function renderRanges(events = []) {
-    const viewer = getViewer();
-    if (!viewer) return;
+export function renderRanges(viewer, events) {
 
-    // Clear previous
-    clearRanges();
+    clearRanges(viewer);
 
-    // Layer toggle
-    if (!isLayerEnabled("ranges")) return;
+    const outlineWidth = cssNum("--range-outline-width", 1.4);
 
-    events.forEach((event) => {
+    events.forEach(event => {
+
+        const preset = getRangePreset(event);
+        if (!preset) return;
+
         const lat = Number(event.lat);
         const lon = Number(event.lon);
-
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-        // === TYPE 1: Impact / highlight radius ===
-        const highlight = Number(event.highlight_radius_m);
-        if (highlight > 0) {
-            const entity = viewer.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                ellipse: {
-                    semiMajorAxis: highlight,
-                    semiMinorAxis: highlight,
-                    material: Cesium.Color.RED.withAlpha(0.08),
-                    outline: true,
-                    outlineColor: Cesium.Color.RED.withAlpha(0.4),
-                    outlineWidth: 1.2,
-                    height: 0,
-                },
-                properties: {
-                    type: "highlight",
-                    eventId: event.id,
-                }
-            });
+        const baseColor = cssColor(preset.color, "#33d9ff");
+        const opacity = cssNum(preset.opacity, 0.08);
 
-            __rangeEntities.push(entity);
-        }
+        const entity = viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(lon, lat),
 
-        // === TYPE 2: Target radius ===
-        const target = Number(event.target_radius_m);
-        if (target > 0) {
-            const entity = viewer.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                ellipse: {
-                    semiMajorAxis: target,
-                    semiMinorAxis: target,
-                    material: Cesium.Color.ORANGE.withAlpha(0.06),
-                    outline: true,
-                    outlineColor: Cesium.Color.ORANGE.withAlpha(0.35),
-                    outlineWidth: 1,
-                    height: 0,
-                },
-                properties: {
-                    type: "target",
-                    eventId: event.id,
-                }
-            });
+            ellipse: {
+                semiMajorAxis: preset.radius,
+                semiMinorAxis: preset.radius,
+                height: 0,
 
-            __rangeEntities.push(entity);
-        }
+                material: baseColor.withAlpha(opacity),
 
-        // === TYPE 3: Incoming / missile envelope ===
-        const incoming = Number(event.incoming_highlight_radius_m);
-        if (incoming > 0) {
-            const entity = viewer.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                ellipse: {
-                    semiMajorAxis: incoming,
-                    semiMinorAxis: incoming,
-                    material: Cesium.Color.YELLOW.withAlpha(0.05),
-                    outline: true,
-                    outlineColor: Cesium.Color.YELLOW.withAlpha(0.3),
-                    outlineWidth: 0.8,
-                    height: 0,
-                },
-                properties: {
-                    type: "incoming",
-                    eventId: event.id,
-                }
-            });
+                outline: true,
+                outlineColor: baseColor.withAlpha(0.7),
+                outlineWidth: outlineWidth,
+            }
+        });
 
-            __rangeEntities.push(entity);
-        }
+        __rangeEntities.push(entity);
     });
-
-    viewer.scene.requestRender();
 }
-
-export {
-    renderRanges,
-    clearRanges,
-};

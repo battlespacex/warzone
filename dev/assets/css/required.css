@@ -648,3 +648,59 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         opacity: 1;
         transform: scale(1);
     }
+
+
+
+
+
+
+
+
+.warzone-map-shell {
+    position: relative;
+}
+
+.wz-target-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none; 
+}
+
+.wz-target-overlay__corner {
+    position: absolute;
+    width: 6rem;
+    height: 6rem;
+    border-color: var(--color-heading);
+    border-style: solid;
+    opacity: 0.9;
+    filter: blur(1px) drop-shadow(0 0 0.7rem var(--color-heading));
+}
+
+/* top-left */
+.wz-target-overlay__corner--tl {
+    top: 13rem;
+    left: 21%;
+    border-width: 0.5rem 0 0 0.5rem;
+}
+
+/* top-right */
+.wz-target-overlay__corner--tr {
+    top: 13rem;
+    right: 21%;
+    border-width: 0.5rem 0.5rem 0 0;
+}
+
+/* bottom-left */
+.wz-target-overlay__corner--bl {
+    bottom: 13rem;
+    left: 21%;
+    border-width: 0 0 0.5rem 0.5rem;
+}
+
+/* bottom-right */
+.wz-target-overlay__corner--br {
+    bottom: 13rem;
+    right: 21%;
+    border-width: 0 0.5rem 0.5rem 0;
+}

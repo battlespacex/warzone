@@ -4,8 +4,6 @@
    map + markers, map credits, hotspot layer, tile loader,
    bottom Mac-style dock
    ============================================================ */
-@import url("./root.css");
-
 /* #region =========== Map Card =========== */
 
 .warzone-map-card {
@@ -332,8 +330,6 @@
     max-height: 6rem;
     overflow-y: auto;
     font-size: 1rem;
-    color: rgba(255, 255, 255, 0.35);
-    font-family: var(--font-mono, monospace);
     border-top: .2rem solid var(--color-border-gray);
     padding-top: 0.5rem;
 }

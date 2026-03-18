@@ -34,8 +34,8 @@
     <main id="main">
         <div id="warzone-app" class="warzone-app" data-api-base="https://api.battlespacex.com">
             <%= partials("site-loader") %>
-            <%= partials("header") %>  <!-- Top Header -->
-            <%= partials("nav") %> <!-- Dock -->
+            <%= partials("header") %> 
+            <%= partials("nav") %> 
             <%= partials("dev-panel") %>
 
             <!-- STRIKES VIEW -->
@@ -45,19 +45,20 @@
                     <div id="wz-map-loader" class="wz-map-loader" hidden>
                         <img src="/assets/images/web/bx_preloader.gif" alt="" class="wz-map-loader__gif" />
                     </div>
+                    <%= partials("lock-on") %>
                     <div class="warzone-map-shell">
                         <div id="warzone-globe" class="warzone-globe"></div>
                         <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
                     </div>
-                    <%= partials("lock-on") %>
+
                     <div id="warzone-map-credits" class="warzone-map-credits"></div>
 
                     <!--   <div id="warzone-map-credits" class="warzone-map-credits">
-                        <a href="https://cesium.com/" target="_blank">
-                            <img src="http://localhost:4173/assets/cesium/Assets/Images/ion-credit.png" style="" title="Cesium ion">
-                        </a>
-                        <a class="" style="">Data attribution</a>
-                    </div>-->
+        <a href="https://cesium.com/" target="_blank">
+            <img src="http://localhost:4173/assets/cesium/Assets/Images/ion-credit.png" style="" title="Cesium ion">
+        </a>
+        <a class="" style="">Data attribution</a>
+    </div>-->
 
                     <div class="warzone-ui-layer">
                         <%= partials("popups") %>
@@ -155,7 +156,6 @@
     <audio id="bg-audio" loop preload="auto">
         <source src="/assets/audio/mil-chatter.mp3" type="audio/mpeg">
     </audio>
-
     <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false" aria-label="Toggle background audio">
         <span class="audio-toggle__icon audio-toggle__icon--play is-active bx-play" aria-hidden="true"></span>
         <span class="audio-toggle__icon audio-toggle__icon--pause bx-pause" aria-hidden="true"></span>

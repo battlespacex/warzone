@@ -488,111 +488,6 @@
 
 
 
-/* ── Floating panel shell ── */
-.warzone-panel--floating {
-    position: absolute;
-    z-index: 20;
-    width: 28rem;
-    max-width: calc(100vw - 28rem);
-    isolation: isolate;
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0) scale(1);
-    background: var(--color-bg-dark);
-    clip-path: var(--clippath-shape-1);
-    transition: opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-    .warzone-panel--floating.wz-is-hidden {
-        opacity: 0;
-        pointer-events: none;
-        transform: translateY(10px) scale(0.97);
-    }
-
-    .warzone-panel--floating.is-collapsed {
-        clip-path: var(--clippath-shape-3);
-    }
-
-        .warzone-panel--floating.is-collapsed .panel-action[data-panel-collapse] {
-            transform: rotate(-180deg);
-        }
-
-.panel-content {
-    display: grid;
-    grid-template-rows: 1fr;
-    overflow: hidden;
-    opacity: 1;
-    transition: grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 260ms ease;
-}
-
-.wz-layer-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    min-height: 0;
-    overflow: hidden;
-    padding: 1.5rem;
-}
-.warzone-panel--floating .panel-content {
-    overflow: hidden;
-    opacity: 1;
-    transition: height 0.28s ease, opacity 0.22s ease;
-}
-
-.warzone-panel--floating.is-collapsed .panel-content {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.warzone-panel--feed {
-    width: 32rem;
-}
-
-.warzone-panel--floating .panel-head {
-    cursor: grab;
-}
-
-.warzone-panel--floating.is-dragging .panel-head {
-    cursor: grabbing;
-}
-
-/* ── Panel head ── */
-.panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    height: 4rem;
-    padding: 0 1rem 0 1.5rem;
-    background: var(--color-bg-header);
-}
-
-    .panel-head h2,
-    .warzone-widget .panel-head h2 {
-        flex: 1;
-        min-width: 0;
-        margin: 0;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-    }
-
-.panel-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-}
-
-.panel-action {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 180ms ease, transform 220ms ease, color 180ms ease;
-}
-
-
-
 /* ── About / Terms modal ── */
 .wz-modal {
     position: absolute;
@@ -1103,23 +998,6 @@
     }
 
 
-/* ── Region Nav Dropdown ───────────────────────────────────── */
-#wz-region-nav {
-    height: 3rem;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    outline: none;
-    background: yellow;
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-    #wz-region-nav:focus {
-        border-color: var(--color-teal);
-    }
-
-
-
 /* ── Toolbar — ALL ON / ALL OFF buttons ── */
 .wz-layers__toolbar {
     display: flex;
@@ -1329,7 +1207,7 @@
     overflow: hidden;
     min-height: 0;
     display: flex;
-    gap: 0.5rem;
+    gap: 1rem;
     padding: 1.5rem;
     transition: 320ms ease;
     clip-path: var(--clippath-shape-1);
@@ -1338,12 +1216,12 @@
 .mini-stat {
     display: flex;
     flex-direction: column;
-    gap: 0;
     width: 100%;
     min-height: 8rem;
     padding: 1rem;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-5);
+    gap: .2rem;
 }
 
     .mini-stat strong {
@@ -1353,9 +1231,21 @@
         color: var(--color-heading);
     }
 
+    .mini-stat:first-child {
+        background: var(--color-red);
+        color: var(--color-heading);
+        font-weight: 600;
+    }
+
+    .mini-stat:last-child {
+        background: var(--warzone-cluster-alert);
+        color: var(--color-heading);
+        font-weight: 600;
+    }
+
+
 
 /* ── Status list (Cyber Status / Airspace widgets) ── */
-
 .status-list {
     display: grid;
     gap: 0.7rem;

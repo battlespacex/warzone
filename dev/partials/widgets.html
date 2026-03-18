@@ -1,110 +1,112 @@
-﻿
-
-<!-- Strike Counter — left col, top -->
-<aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
-       data-widget-id="counter"
-       style="left: 0; top: 0;">
-    <div class="panel-head">
-        <h2>Strike Counter</h2>
-        <div class="panel-actions">
-            <button type="button" class="static-icon" data-panel-collapse aria-expanded="true">
-                <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="static-icon" data-widget-close title="Hide widget">
-                <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-    <div class="panel-content">
-        <div class="compact-stats">
-            <div class="mini-stat"><span>Total Strikes</span> <strong id="stat-total">00</strong></div>
-            <div class="mini-stat"><span>Mapped</span>        <strong id="stat-mapped">00</strong></div>
-            <!--<div class="mini-stat"><span>Iranian</span>       <strong id="stat-iran">--</strong></div>
-            <div class="mini-stat"><span>US / Israel</span>   <strong id="stat-usisr">--</strong></div>-->
-        </div>
-    </div>
-</aside>
+﻿<div class="secondary-content">
 
 
-<!-- Airspace Status — left col, middle -->
-<aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--airspace"
-       data-widget-id="airspace"
-       style="left: 1.6rem; top: 34rem">
-    <div class="panel-head">
-        <h2>Airspace Status</h2>
-        <div class="panel-actions">
-            <button type="button" class="static-icon" data-panel-collapse aria-expanded="true">
-                <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="static-icon" data-widget-close title="Hide widget">
-                <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-    <div class="panel-content"><div id="airspace-status-list" class="status-list"></div></div>
-    <div class="clippath-shape-1" aria-hidden="true"></div>
-</aside>
-
-
-<!-- Map Layers — left col, bottom-anchored -->
-<aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--layers"
-       data-widget-id="layers"
-       style="left: 30rem; top: 0">
-    <div class="panel-head">
-        <h2>Map Layers</h2>
-        <div class="panel-actions">
-            <button type="button" class="static-icon" data-panel-collapse aria-expanded="true">
-                <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="static-icon" data-widget-close title="Hide widget">
-                <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-    <div class="panel-content"><div id="wz-layer-panel"></div></div>
-</aside>
-
-
-<!-- Escalation Meter — right col, top -->
-<aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--escalation"
-       data-widget-id="escalation"
-       style="right: 0; top: 0">
-    <div class="panel-head">
-        <h2>Escalation Meter</h2>
-        <div class="panel-actions">
-            <button type="button" class="static-icon" data-panel-collapse aria-expanded="true">
-                <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="static-icon" data-widget-close title="Hide widget">
-                <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-    <div class="panel-content">
-        <div class="panel-body escalation-box">
-            <div class="escalation-meter">
-                <span id="escalation-score">--</span> <small id="escalation-label">Moderate</small>
+    <!-- Strike Counter — left col, top -->
+    <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
+           data-widget-id="counter"
+           style="left: 0; top: 0;">
+        <div class="panel-head">
+            <h2>Strike Counter</h2>
+            <div class="panel-actions">
+                <button type="button" class="static-icon" data-panel-collapse aria-expanded="true" title="Collapse widget">
+                    <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="static-icon" data-widget-close title="Hide widget">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
             </div>
-            <ul id="escalation-breakdown" class="escalation-list"></ul>
         </div>
-    </div>
-</aside>
+        <div class="panel-content">
+            <div class="compact-stats">
+                <div class="mini-stat"><span>Total Strikes</span> <strong id="stat-total">00</strong></div>
+                <div class="mini-stat"><span>Mapped</span>        <strong id="stat-mapped">00</strong></div>
+                <!--<div class="mini-stat"><span>Iranian</span>       <strong id="stat-iran">--</strong></div>
+                <div class="mini-stat"><span>US / Israel</span>   <strong id="stat-usisr">--</strong></div>-->
+            </div>
+        </div>
+    </aside>
 
 
-<!-- Cyber Status — right col, bottom-anchored -->
-<aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--cyber"
-       data-widget-id="cyber"
-       style="right: 0; bottom: 10rem">
-    <div class="panel-head">
-        <h2>Cyber Status</h2>
-        <div class="panel-actions">
-            <button type="button" class="static-icon" data-panel-collapse aria-expanded="true">
-                <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="static-icon" data-widget-close title="Hide widget">
-                <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-            </button>
+    <!-- Airspace Status — left col, middle -->
+    <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--airspace"
+           data-widget-id="airspace"
+           style="left: 1.6rem; top: 34rem">
+        <div class="panel-head">
+            <h2>Airspace Status</h2>
+            <div class="panel-actions">
+                <button type="button" class="static-icon" data-panel-collapse aria-expanded="true" title="Collapse widget">
+                    <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="static-icon" data-widget-close title="Hide widget">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
         </div>
-    </div>
-    <div class="panel-content"><div id="cyber-status-list" class="status-list"></div></div>
-</aside>
+        <div class="panel-content"><div id="airspace-status-list" class="status-list"></div></div>
+    </aside>
+
+
+    <!-- Map Layers — left col, bottom-anchored -->
+    <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--layers"
+           data-widget-id="layers"
+           style="left: 30rem; top: 0">
+        <div class="panel-head">
+            <h2>Map Layers</h2>
+            <div class="panel-actions">
+                <button type="button" class="static-icon" data-panel-collapse aria-expanded="true" title="Collapse widget">
+                    <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="static-icon" data-widget-close title="Hide widget">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+        <div class="panel-content"><div id="wz-layer-panel"></div></div>
+    </aside>
+
+
+    <!-- Escalation Meter — right col, top -->
+    <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--escalation"
+           data-widget-id="escalation"
+           style="right: 0; top: 0">
+        <div class="panel-head">
+            <h2>Escalation Meter</h2>
+            <div class="panel-actions">
+                <button type="button" class="static-icon" data-panel-collapse aria-expanded="true" title="Collapse widget">
+                    <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="static-icon" data-widget-close title="Hide widget">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+        <div class="panel-content">
+            <div class="panel-body escalation-box">
+                <div class="escalation-meter">
+                    <span id="escalation-score">--</span> <small id="escalation-label">Moderate</small>
+                </div>
+                <ul id="escalation-breakdown" class="escalation-list"></ul>
+            </div>
+        </div>
+    </aside>
+
+
+    <!-- Cyber Status — right col, bottom-anchored -->
+    <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--cyber"
+           data-widget-id="cyber"
+           style="right: 0; bottom: 10rem">
+        <div class="panel-head">
+            <h2>Cyber Status</h2>
+            <div class="panel-actions">
+                <button type="button" class="static-icon" data-panel-collapse aria-expanded="true" title="Collapse widget">
+                    <span class="bx-web-ico-close-1-2" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="static-icon" data-widget-close title="Hide widget">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+        <div class="panel-content"><div id="cyber-status-list" class="status-list"></div></div>
+    </aside>
+</div>
+
