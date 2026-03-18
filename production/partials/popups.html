@@ -1,166 +1,399 @@
-﻿<!-- ═══════════════════════════════════════════════════════════════════════════
+﻿<div class="secondary-content">
+    <!-- ═══════════════════════════════════════════════════════════════════════════
      1. SIREN ALERT STACK
      Controlled by: warzone-siren-alert.js → showSirenAlert({ title, meta, level })
      Levels: "red" | "orange" | "yellow"
      Stacks up to 3 banners. Auto-dismisses per AUTO_DISMISS config in JS.
      CSS: warzone-siren-alert.css
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div id="wz-siren-stack" class="wz-siren-stack" aria-live="assertive" aria-atomic="false">
-    <!-- Siren banners injected here dynamically by warzone-siren-alert.js
-         Each banner cloned from #tpl-siren-banner below -->
-</div>
+    <div id="wz-siren-stack" class="wz-siren-stack" aria-live="assertive" aria-atomic="false">
+        <!-- Siren banners injected here dynamically by warzone-siren-alert.js
+             Each banner cloned from #tpl-siren-banner below -->
+    </div>
 
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     2. SIREN BANNER TEMPLATE
-     Cloned by: warzone-siren-alert.js → showSirenAlert()
-     JS fills: .wz-siren-title text, .wz-siren-meta text
-     JS sets:  banner class → wz-siren-banner--red / --orange / --yellow
-     JS sets:  data-alert-id, data-dismiss on close button
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<template id="tpl-siren-banner">
-    <div class="wz-siren-banner" role="alert">
-        <span class="wz-siren-bell" aria-hidden="true">🔔</span>
-        <span class="wz-siren-body">
-            <strong class="wz-siren-title"><!-- filled by JS --></strong>
-            <span class="wz-siren-meta"><!-- filled by JS, hidden if empty --></span>
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         2. SIREN BANNER TEMPLATE
+         Cloned by: warzone-siren-alert.js → showSirenAlert()
+         JS fills: .wz-siren-title text, .wz-siren-meta text
+         JS sets:  banner class → wz-siren-banner--red / --orange / --yellow
+         JS sets:  data-alert-id, data-dismiss on close button
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <template id="tpl-siren-banner">
+        <div class="wz-siren-banner" role="alert">
+            <span class="wz-siren-bell" aria-hidden="true">🔔</span>
+            <span class="wz-siren-body">
+                <strong class="wz-siren-title"><!-- filled by JS --></strong>
+                <span class="wz-siren-meta"><!-- filled by JS, hidden if empty --></span>
+            </span>
+            <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
+            <button class="wz-siren-close" aria-label="Dismiss">✕</button>
+        </div>
+    </template>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         3. STICKY ALERT BAR
+         Controlled by: warzone-sticky-alert.js → showStickyAlert() / hideStickyAlert()
+         JS adds/removes: .is-active .is-red .is-orange classes
+         JS fills: #warzone-alert-title, #warzone-alert-meta text
+         JS sets:  data-alert-key, data-sticky attributes
+         CSS: warzone-panels.css → .warzone-alert
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <div id="warzone-alert"
+         class="warzone-alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-alert-key=""
+         data-sticky="">
+        <span class="warzone-alert__icon" aria-hidden="true">🔴</span>
+        <span class="warzone-alert__text">
+            <strong id="warzone-alert-title">Air raid sirens active</strong>
+            <span id="warzone-alert-meta"></span>
         </span>
-        <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
-        <button class="wz-siren-close" aria-label="Dismiss">✕</button>
+        <button class="warzone-alert__close" id="warzone-alert-dismiss" aria-label="Dismiss alert">✕</button>
     </div>
-</template>
 
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     3. STICKY ALERT BAR
-     Controlled by: warzone-sticky-alert.js → showStickyAlert() / hideStickyAlert()
-     JS adds/removes: .is-active .is-red .is-orange classes
-     JS fills: #warzone-alert-title, #warzone-alert-meta text
-     JS sets:  data-alert-key, data-sticky attributes
-     CSS: warzone-panels.css → .warzone-alert
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<div id="warzone-alert"
-     class="warzone-alert"
-     aria-live="assertive"
-     aria-atomic="true"
-     data-alert-key=""
-     data-sticky="">
-    <span class="warzone-alert__icon" aria-hidden="true">🔴</span>
-    <span class="warzone-alert__text">
-        <strong id="warzone-alert-title">Air raid sirens active</strong>
-        <span id="warzone-alert-meta"></span>
-    </span>
-    <button class="warzone-alert__close" id="warzone-alert-dismiss" aria-label="Dismiss alert">✕</button>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     4. REGION SELECT MODAL
-     Controlled by: warzone-region-selector.js → showRegionModal()
-     JS fills:  .wz-region-modal__grid with region buttons
-     JS adds:   .is-visible class to trigger CSS transition in
-     JS adds:   .is-closing class to fade out before removal
-     First visit: shown automatically. Revisit: triggered by region nav button.
-     CSS: warzone-region-layers.css → .wz-region-modal__*
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<div id="wz-region-modal" class="wz-region-modal" aria-modal="true" role="dialog" aria-label="Select monitoring region" hidden>
-    <div class="wz-region-modal__backdrop"></div>
-    <div class="wz-region-modal__box">
-        <div class="wz-region-modal__head">
-            <div class="wz-region-modal__logo">⬡ WARZONE</div>
-            <h2 class="wz-region-modal__title">SELECT MONITORING REGION</h2>
-            <p class="wz-region-modal__sub">Live OSINT situational awareness — choose your area of interest</p>
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         7. EVENT CLICK DETAIL POPUP ═════════════════════════════ -->
+    <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite">
+        <div class="wz-event-popup__head">
+            <span id="wz-event-popup-cat" class="wz-event-popup__cat"></span>
+            <span id="wz-event-popup-sev" class="wz-event-popup__sev"></span>
+            <button class="wz-event-popup__close" id="wz-event-popup-close" aria-label="Close">×</button>
         </div>
-        <!-- Region buttons injected here by warzone-region-selector.js -->
-        <div class="wz-region-modal__grid" id="wz-region-modal-grid"></div>
-        <button class="wz-region-modal__confirm" id="wz-region-confirm" disabled>
-            ENTER WARZONE
-        </button>
-    </div>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     5. ABOUT / TERMS / SOURCES MODAL
-     Controlled by: warzone-boot.js → About dock button click
-     JS toggles: hidden attribute, tab switching via data-tab / data-pane
-     Tabs: About | Terms of Use | Data Sources
-     CSS: warzone-panels.css → .wz-modal, .wz-modal__*
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<div id="wz-about-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About BattlespaceX">
-    <div class="wz-modal__backdrop"></div>
-    <div class="wz-modal__box">
-        <div class="wz-modal__head">
-            <span>ABOUT BATTLESPACEX</span>
-            <button class="wz-modal__close" id="wz-about-close" aria-label="Close">×</button>
-        </div>
-        <div class="wz-modal__tabs" role="tablist">
-            <button class="wz-modal__tab is-active" data-tab="about" role="tab" aria-selected="true">About</button>
-            <button class="wz-modal__tab" data-tab="terms" role="tab" aria-selected="false">Terms of Use</button>
-            <button class="wz-modal__tab" data-tab="sources" role="tab" aria-selected="false">Data Sources</button>
-        </div>
-        <div class="wz-modal__body">
-
-            <!-- Tab: About -->
-            <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
-                <h3>ABOUT BATTLESPACEX</h3>
-                <p>BattlespaceX is an independent, real-time geopolitical and military conflict monitoring platform. We aggregate, process, and visualize open-source intelligence (OSINT) from publicly available sources to provide situational awareness during active conflict zones.</p>
-                <p>This platform is operated independently and is not affiliated with any government, military organization, or intelligence agency. All data is derived from open-source public information.</p>
-                <h3>DISCLAIMER</h3>
-                <p>Information displayed is provided for situational awareness and informational purposes only. BattlespaceX makes no guarantees regarding the accuracy, completeness, or timeliness of any data. Do not use this platform to make safety-critical or life-threatening decisions. Always refer to official local authorities during emergencies.</p>
+        <div class="wz-event-popup__body">
+            <h3 id="wz-event-popup-title" class="wz-event-popup__title"></h3>
+            <p id="wz-event-popup-summary" class="wz-event-popup__summary"></p>
+            <div class="wz-event-popup__meta">
+                <span id="wz-event-popup-location"></span>
+                <span id="wz-event-popup-time"></span>
+                <span id="wz-event-popup-weapon"></span>
             </div>
-
-            <!-- Tab: Terms of Use -->
-            <div class="wz-modal__pane" data-pane="terms" role="tabpanel">
-                <h3>TERMS OF USE</h3>
-                <ul class="wz-terms-list">
-                    <li><strong>Personal use only.</strong> This platform is provided for personal, non-commercial, informational purposes. Commercial use of any kind is strictly prohibited without written permission.</li>
-                    <li><strong>No scraping or automated data collection.</strong> You may not use bots, crawlers, scrapers, or any automated means to access, extract, or collect data from this platform.</li>
-                    <li><strong>No redistribution.</strong> Content, data, maps, and visualizations displayed on BattlespaceX may not be copied, reproduced, republished, or redistributed without explicit written permission.</li>
-                    <li><strong>No warranty.</strong> Data is provided as-is. BattlespaceX makes no guarantees about accuracy, completeness, or timeliness. Do not rely on this data for safety-critical decisions.</li>
-                    <li><strong>API access prohibited.</strong> Directly accessing API endpoints programmatically or reverse-engineering the data pipeline is strictly prohibited and may result in permanent IP bans.</li>
-                    <li><strong>Content accuracy.</strong> Strike reports, alerts, and conflict data are aggregated from open-source channels and may contain unverified information. BattlespaceX does not independently verify all reports.</li>
-                </ul>
-                <p class="wz-terms-footer">By accessing BattlespaceX you agree to these terms. For inquiries, contact us via our social channels.</p>
-            </div>
-
-            <!-- Tab: Data Sources -->
-            <div class="wz-modal__pane" data-pane="sources" role="tabpanel">
-                <h3>DATA SOURCES</h3>
-                <ul class="wz-terms-list">
-                    <li><strong>Telegram OSINT channels</strong> — Real-time ingestion from verified conflict reporting channels</li>
-                    <li><strong>RSS news feeds</strong> — Aggregated from regional and international news outlets</li>
-                    <li><strong>NASA FIRMS</strong> — Thermal anomaly detection via satellite fire data</li>
-                    <li><strong>USGS</strong> — Seismic event data for explosion / strike correlation</li>
-                    <li><strong>ADS-B transponder data</strong> — Military and civilian aircraft tracking</li>
-                    <li><strong>AIS vessel tracking</strong> — Naval and maritime monitoring</li>
-                    <li><strong>OpenStreetMap / ArcGIS</strong> — Base map and geospatial data</li>
-                    <li><strong>Natural Earth</strong> — Country borders and geographic boundaries</li>
-                </ul>
-                <p class="wz-terms-footer">All data is processed and enriched automatically. Source accuracy varies. BattlespaceX is not responsible for errors in upstream data sources.</p>
-            </div>
-
+            <a id="wz-event-popup-source" class="wz-event-popup__source" href="#" target="_blank" rel="noopener">View Source ↗</a>
         </div>
     </div>
 </div>
 
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     7. EVENT CLICK DETAIL POPUP ═════════════════════════════ -->
-<div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite">
-    <div class="wz-event-popup__head">
-        <span id="wz-event-popup-cat" class="wz-event-popup__cat"></span>
-        <span id="wz-event-popup-sev" class="wz-event-popup__sev"></span>
-        <button class="wz-event-popup__close" id="wz-event-popup-close" aria-label="Close">×</button>
-    </div>
-    <div class="wz-event-popup__body">
-        <h3 id="wz-event-popup-title" class="wz-event-popup__title"></h3>
-        <p id="wz-event-popup-summary" class="wz-event-popup__summary"></p>
-        <div class="wz-event-popup__meta">
-            <span id="wz-event-popup-location"></span>
-            <span id="wz-event-popup-time"></span>
-            <span id="wz-event-popup-weapon"></span>
+<div class="primary-content">
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         4. INTRO / DISCLAIMER MODAL
+         First-load gate shown before region selection.
+         Controlled by: warzone-boot.js
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-intro-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About BattlespaceX and important disclaimers">
+        <div class="wz-modal__box wz-intro">
+            <div class="wz-modal__container">
+                <div class="wz-intro__hero">
+                    <span class="wz-intro__eyebrow">StratOps | Powered by BattlespaceX</span>
+                    <h2 class="wz-intro__title">Global conflict monitoring through a military-style OSINT commmand interface</h2>
+                </div>
+                <div class="wz-intro__body">
+                    <p>
+                        StratOps is a BattlespaceX platform built to monitor reported conflict activity through a cinematic, multi-domain, military-style map experience.
+                        It brings together open-source signals, reported military activity, airspace changes, alerts, telemetry-linked movement, and emerging strategic events into a clearer battlespace view.
+                    </p>
+
+                    <div class="wz-intro__grid">
+                        <div class="wz-intro__card">
+                            <strong>What you may see</strong>
+                            <p>Missile arcs, drone and UAV activity, military aircraft tracks, naval movement, sirens and alerts, cyber indicators, thermal anomalies, hotspots, heatmaps, and operational overlays such as detection or threat ranges.</p>
+                        </div>
+                        <div class="wz-intro__card">
+                            <strong>What this is not</strong>
+                            <p>This is not an official warning system, not a command platform, and not a substitute for government, military, aviation, maritime, or emergency authority guidance.</p>
+                        </div>
+                    </div>
+
+                    <div class="wz-intro__disclaimer">
+                        <h3>Important disclaimer</h3>
+                        <p>
+                            Information shown here may be delayed, incomplete, normalized, grouped, filtered, or derived from open-source reporting, telemetry, and structured event inputs.
+                            Always verify critical information independently. Do not use this platform for operational, targeting, combat, navigation, or safety-critical decisions.
+                        </p>
+                    </div>
+
+                    <div class="wz-intro__actions">
+                        <p class="wz-intro__note">By continuing, you acknowledge that platform content is informational, observational, and OSINT-informed rather than an official or verified intelligence product.</p>
+                        <button id="wz-intro-accept" class="wz-intro__accept" type="button">Accept and Enter</button>
+                    </div>
+                    <div class="clippath-shape-1" aria-hidden="true"></div>
+                </div>
+            </div>
         </div>
-        <a id="wz-event-popup-source" class="wz-event-popup__source" href="#" target="_blank" rel="noopener">View Source ↗</a>
+        <div class="wz-modal__backdrop"></div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         ABOUT / TERMS / DATA POLICY MODAL
+         Controlled by: warzone-boot.js
+         Tabs: About | Capabilities | How It Works | Terms of Use | Data Policy
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <div id="wz-about-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About StratOps by BattlespaceX">
+        <div class="wz-modal__box">
+            <div class="wz-modal__container">
+                <div class="wz-modal__head">
+                    <h2>
+                        <span class="text-xxl" aria-hidden="true">StratOps</span>
+                        <span class="text-xl" aria-hidden="true">BattlespaceX</span>
+                    </h2>
+                    <button class="wz-modal__close static-icon" id="wz-about-close" aria-label="Close">
+                        <span class="bx-web-close-1-1" aria-hidden="true"></span>s
+                    </button>
+                </div>
+
+                <div class="wz-modal__tabs" role="tablist">
+                    <button class="wz-modal__tab is-active" data-tab="about" role="tab" aria-selected="true">About</button>
+                    <button class="wz-modal__tab" data-tab="capabilities" role="tab" aria-selected="false">Capabilities</button>
+                    <button class="wz-modal__tab" data-tab="method" role="tab" aria-selected="false">How It Works</button>
+                    <button class="wz-modal__tab" data-tab="terms" role="tab" aria-selected="false">Terms of Use</button>
+                    <button class="wz-modal__tab" data-tab="policy" role="tab" aria-selected="false">Data Policy</button>
+                </div>
+
+                <div class="wz-modal__body">
+
+                    <!-- TAB 1: ABOUT -->
+                    <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
+                        <h3>About StratOps</h3>
+
+                        <p>
+                            <strong>StratOps</strong> is a high-performance global conflict monitoring and OSINT visualization command center powered by <strong>BattlespaceX</strong>.
+                            It is built to transform fragmented open-source signals, reported military activity, and emerging strategic events into a structured operational picture on a cinematic 3D globe.
+                        </p>
+
+                        <p>
+                            BattlespaceX is the parent brand and defense-news / OSINT wires platform. StratOps is its dedicated operational map environment, designed for users who want a stronger situational awareness layer than a conventional news feed or static conflict map can provide.
+                        </p>
+
+                        <p>
+                            The platform focuses on military, geopolitical, aviation, maritime, airspace, cyber, and anomaly-related indicators presented through a command-theater style interface. The objective is clarity, speed, and credible OSINT-informed visualization rather than noise, clutter, or generic map presentation.
+                        </p>
+
+                        <h3>Platform Identity</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li><strong>BattlespaceX product</strong> — StratOps is part of the broader BattlespaceX brand and ecosystem</li>
+                            <li><strong>OSINT-informed</strong> — built from publicly visible reporting, telemetry, alerts, and structured event inputs</li>
+                            <li><strong>Visualization</strong> — designed as a battlespace interface, not a traditional news map</li>
+                            <li><strong>Multi-domain awareness</strong> — supports air, maritime, strike, cyber, and alert-focused monitoring layers</li>
+                            <li><strong>Performance-focused</strong> — optimized for fast rendering, layered event awareness, and operational readability</li>
+                        </ul>
+
+                        <p class="wz-terms-footer">
+                            StratOps should be understood as a public-facing situational awareness platform by BattlespaceX, not an official warning network or authoritative intelligence system.
+                        </p>
+                    </div>
+
+                    <!-- TAB 2: CAPABILITIES -->
+                    <div class="wz-modal__pane" data-pane="capabilities" role="tabpanel">
+                        <h3>Operational Capabilities</h3>
+
+                        <p>
+                            StratOps is designed as a multi-domain battlespace visualization layer. Depending on source visibility, current regional coverage, and active filters, the platform may display a wide range of conflict-relevant signal types and operational overlays.
+                        </p>
+
+                        <h3>Multi-Domain Signal Layer</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li><strong>Strike Activity</strong> — missile, rocket, artillery, drone, UAV, and airstrike-related incidents</li>
+                            <li><strong>Military Aircraft</strong> — fighter, tanker, patrol, transport, AWACS, recon, ISR-linked, and other military-associated flight behavior</li>
+                            <li><strong>Naval Activity</strong> — selected maritime and fleet-linked movement including carriers, destroyers, escorts, and other naval signals where public visibility exists</li>
+                            <li><strong>Alerts &amp; Sirens</strong> — warning conditions, threat states, and siren-style alerts where applicable</li>
+                            <li><strong>Airspace Monitoring</strong> — closures, restrictions, warnings, and related operational airspace changes</li>
+                            <li><strong>Cyber &amp; Strategic Signals</strong> — cyber-relevant indicators, infrastructure-related events, and strategic escalation signals</li>
+                            <li><strong>Thermal / Fire / Anomaly Signals</strong> — heat, burn, fire, anomaly, or detection-style events relevant to conflict monitoring</li>
+                        </ul>
+
+                        <h3>Visualization Features</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li><strong>Missile Arcs</strong> — animated strike trajectories and impact visualization</li>
+                            <li><strong>Hotspot Clusters</strong> — condensed activity concentration in the active battlespace view</li>
+                            <li><strong>Military Tracks</strong> — aircraft, drone, and naval movement paths where track logic is available</li>
+                            <li><strong>Heatmap Mode</strong> — density-based visualization for strike, drone, naval, cyber, or broader activity concentration</li>
+                            <li><strong>Layer Control</strong> — toggle specific domains and signal categories on demand</li>
+                            <li><strong>Regional Filtering</strong> — switch operational focus by region and viewport</li>
+                            <li><strong>Live Database Streaming</strong> — near-live event ingestion and update flow</li>
+                        </ul>
+
+                        <h3>Advanced Operational Overlays</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li><strong>Detection / Threat Ranges</strong> — visual envelopes for selected asset classes such as AWACS, fighters, carriers, destroyers, and air-defense style events</li>
+                            <li><strong>AWACS / ISR Coverage Concepts</strong> — user-facing visualization of radar-style monitoring or surveillance-linked presence where supported</li>
+                            <li><strong>Carrier Battle Group Reach</strong> — operational range-style overlays for maritime strike posture visualization</li>
+                            <li><strong>Command-Style Presentation</strong> — a battlespace visual language inspired by strategic operations consoles rather than basic public maps</li>
+                        </ul>
+
+                        <p class="wz-terms-footer">
+                            Coverage varies by region, source visibility, telemetry availability, and active filters. Not every layer is present in every theater at all times.
+                        </p>
+                    </div>
+
+                    <!-- TAB 3: HOW IT WORKS -->
+                    <div class="wz-modal__pane" data-pane="method" role="tabpanel">
+                        <h3>How StratOps Work</h3>
+
+                        <p>
+                            StratOps aggregates publicly visible signals and structured event inputs, normalizes them into a consistent internal event model, and renders them through a layered operational interface on a Cesium-based globe.
+                        </p>
+
+                        <h3>Workflow</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li><strong>Collection</strong> — the platform ingests publicly accessible reporting, telemetry-derived inputs, alert signals, and structured OSINT-style data</li>
+                            <li><strong>Normalization</strong> — incoming records are transformed into a unified event schema so different source types can be rendered consistently</li>
+                            <li><strong>Filtering</strong> — events are filtered by region, viewport, active layer state, and current UI mode</li>
+                            <li><strong>Rendering</strong> — relevant events are presented as circles, hotspots, arcs, tracks, alerts, heatmaps, panels, and operational overlays</li>
+                            <li><strong>Live Refresh</strong> — newer events may appear as fresh data enters the system through the live database pipeline</li>
+                        </ul>
+
+                        <h3>Why the platform looks different</h3>
+
+                        <p>
+                            StratOps is intentionally designed to feel more like a strategic operations console than a generic news map. Visual elements such as missile arcs, movement tracks, density views, alerts, hotspot logic, and range overlays are used to improve situational readability across complex events.
+                        </p>
+
+                        <h3>Why data may change</h3>
+
+                        <p>
+                            Events may be grouped, filtered, normalized, delayed, updated, corrected, or visually prioritized as new reporting arrives. Hotspots, clusters, density views, and overlays are presentation layers built for usability and awareness rather than literal or final ground truth.
+                        </p>
+
+                        <p class="wz-terms-footer">
+                            StratOps is designed to expose the operational picture more clearly while preserving protected source composition and internal processing logic.
+                        </p>
+                    </div>
+
+                    <!-- TAB 4: TERMS -->
+                    <div class="wz-modal__pane" data-pane="terms" role="tabpanel">
+                        <h3>Terms of Use &Aacute; Disclaimer</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li>
+                                <strong>Informational use only.</strong>
+                                This platform is provided solely for informational, analytical, research, and educational use.
+                                It must not be interpreted as verified intelligence, operational guidance, emergency direction,
+                                or official state-issued instruction.
+                            </li>
+
+                            <li>
+                                <strong>No operational or targeting use.</strong>
+                                StratOps | BattlespaceX must not be used for combat decision-making, surveillance operations, targeting,
+                                military planning, navigation, or any workflow that could endanger persons, infrastructure,
+                                property, or national security.
+                            </li>
+
+                            <li>
+                                <strong>No guarantee of accuracy.</strong>
+                                Data may contain delays, omissions, gaps, stale records, duplicate signals, conflicting reports,
+                                inferred classifications, or incomplete regional visibility. No warranty is given regarding
+                                completeness, timeliness, or fitness for any purpose.
+                            </li>
+
+                            <li>
+                                <strong>Independent verification required.</strong>
+                                Users are solely responsible for independently verifying any information before relying on it.
+                                The operator of BattlespaceX accepts no liability for decisions made on the basis of platform content.
+                            </li>
+
+                            <li>
+                                <strong>No government affiliation.</strong>
+                                BattlespaceX is an independent platform and is not a substitute for aviation authorities,
+                                maritime authorities, emergency services, civil defense systems, or official warning networks.
+                            </li>
+
+                            <li>
+                                <strong>Restricted reuse.</strong>
+                                Unauthorized scraping, bulk extraction, systematic republication, mirroring, resale, or commercial exploitation
+                                of platform content, outputs, datasets, or protected system behavior is prohibited.
+                            </li>
+
+                            <li>
+                                <strong>Use at your own risk.</strong>
+                                By accessing this platform, you acknowledge that all content is used at your own discretion and risk.
+                            </li>
+                        </ul>
+
+                        <p class="wz-terms-footer">
+                            If you require verified alerts, official airspace notices, emergency guidance, or public safety information, always refer to the relevant authority.
+                        </p>
+                    </div>
+
+                    <!-- TAB 5: DATA POLICY -->
+                    <div class="wz-modal__pane" data-pane="policy" role="tabpanel">
+                        <h3>Data Policy</h3>
+
+                        <p>
+                            BattlespaceX aims to provide strong user-level transparency while also protecting platform integrity,
+                            source confidentiality, and internal operational logic.
+                        </p>
+
+                        <h3>What this platform makes clear</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li>StratOps uses publicly accessible, open-source, telemetry-derived, alert-based, or structured event inputs</li>
+                            <li>Signals may include strike, aviation, maritime, airspace, cyber, anomaly, and related conflict-monitoring categories</li>
+                            <li>Records may be normalized, grouped, clustered, filtered, ranked, delayed, or visually transformed before display</li>
+                            <li>The system presents an OSINT-informed operational picture rather than raw unprocessed source output</li>
+                        </ul>
+
+                        <h3>What remains protected</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li>Protected upstream source combinations</li>
+                            <li>Internal ranking, weighting, or confidence methodology</li>
+                            <li>Private enrichment workflows or ingestion logic</li>
+                            <li>Confidential feed composition, processing layers, and prioritization rules</li>
+                        </ul>
+
+                        <h3>Important Limitations</h3>
+
+                        <ul class="wz-terms-list wz-list-view">
+                            <li>Coverage varies by region, source availability, telemetry visibility, and current conditions</li>
+                            <li>Not all military, aviation, naval, cyber, or strike activity is publicly visible</li>
+                            <li>Absence of telemetry does not imply absence of an asset or event</li>
+                            <li>Displayed visuals may represent normalized or derived signals rather than confirmed ground truth</li>
+                        </ul>
+
+                        <p class="wz-terms-footer">
+                            BattlespaceX provides a transparent public explanation of what StratOps does while preserving confidentiality around protected sources and internal operational logic.
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        <div class="wz-modal__backdrop"></div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         4. REGION SELECT MODAL
+         Controlled by: warzone-region-selector.js → showRegionModal()
+         JS fills:  .wz-region-modal__grid with region buttons
+         JS adds:   .is-visible class to trigger CSS transition in
+         JS adds:   .is-closing class to fade out before removal
+         First visit: shown automatically. Revisit: triggered by region nav button.
+         CSS: warzone-region-layers.css → .wz-region-modal__*
+         ═══════════════════════════════════════════════════════════════════════ -->
+
+    <div id="wz-region-modal" class="wz-region-modal" aria-modal="true" role="dialog" aria-label="Select monitoring region" hidden>
+        <div class="wz-region-modal__box">
+            <div class="wz-modal__container">
+                <div class="wz-region-modal__head">
+                    <div class="wz-region-modal__logo">⬡ StratOps</div>
+                    <h2 class="wz-region-modal__title">Select Monitoring Region</h2>
+                    <p class="wz-region-modal__sub">Live OSINT situational awareness — choose your area of interest</p>
+                </div>
+                <!-- Region buttons injected here by warzone-region-selector.js -->
+                <div class="wz-region-modal__grid" id="wz-region-modal-grid"></div>
+                <button class="wz-region-modal__confirm" id="wz-region-confirm" disabled>
+                    Enter StratOps
+                </button>
+            </div>
+        </div>
+        <div class="wz-region-modal__backdrop"></div>
     </div>
 </div>
