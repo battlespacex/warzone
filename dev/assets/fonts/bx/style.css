@@ -1,18 +1,18 @@
 /* #region -----------------/ Font Face - Start /----------------- */
 @font-face {
 	font-family: 'BX-Font-R1_1';
-	src: url('/Assets/Fonts/bx/BX-Font-R1_1.eot?cvo1wd');
-	src: url('/Assets/Fonts/bx/BX-Font-R1_1.eot?cvo1wd#iefix') format('embedded-opentype'), 
-		url('/Assets/Fonts/bx/BX-Font-R1_1.ttf?cvo1wd') format('truetype'),
-		url('/Assets/Fonts/bx/BX-Font-R1_1.woff?cvo1wd') format('woff'),
-		url('/Assets/Fonts/bx/BX-Font-R1_1.svg?cvo1wd#BX-Font-R1_1') format('svg');
+	src: url('/assets/fonts/bx/BX-Font-R1_1.eot?cvo1wd');
+	src: url('/assets/fonts/bx/BX-Font-R1_1.eot?cvo1wd#iefix') format('embedded-opentype'), 
+		url('/assets/fonts/bx/BX-Font-R1_1.ttf?cvo1wd') format('truetype'),
+		url('/assets/fonts/bx/BX-Font-R1_1.woff?cvo1wd') format('woff'),
+		url('/assets/fonts/bx/BX-Font-R1_1.svg?cvo1wd#BX-Font-R1_1') format('svg');
 	font-weight: normal;
 	font-style: normal;
 	font-display: block;
 }
 @font-face {
 	font-family: 'BX-Official-Font';
-	src: url('/Assets/Fonts/custom/bx-official-font.ttf') format('truetype');
+	src: url('/assets/fonts/custom/bx-official-font.ttf') format('truetype');
 	font-weight: normal;
 	font-style: normal;
 	font-display: block;

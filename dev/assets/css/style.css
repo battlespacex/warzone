@@ -1,6 +1,5 @@
 ﻿/* --- assets/cs/style.css --- */
 @charset "utf-8";
-@import url("./fonts.css");
 @import url("../fonts/bx/style.css");
 
 @import url("./root.css");
@@ -12,7 +11,6 @@
 @import url("./warzone-map.css");
 @import url("./warzone-components.css");
 @import url("./warzone-analytics.css");
-
 
 @import url("./a11y.css");
 @import url("./mediaqueries.css");
