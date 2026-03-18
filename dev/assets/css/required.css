@@ -1,10 +1,10 @@
 ﻿/* --- assets/cs/required.css --- */
 @import url("./root.css");
 @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap');
-/* #region =========== Reset / Base =========== */
-*,
-*::before,
-*::after {
+
+/* #region =========== GENERICS =========== */
+
+*, *::before, *::after {
     box-sizing: border-box;
 }
 
@@ -58,53 +58,53 @@ button {
     cursor: pointer;
 }
 
-input,
-select,
-textarea {
+input, select, textarea {
     font: inherit;
 }
 
 :focus-visible {
     outline: 0.3rem solid var(--color-teal-glow);
 }
-/* #endregion */
 
-/* #region =========== Background / Loader =========== */
-.body-bg {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background: radial-gradient(circle at top center, rgba(255, 255, 255, 0.05), transparent 35%), linear-gradient(180deg, #0a0d12 0%, #050608 100%);
+* {
+    margin: 0;
+    padding: 0;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    word-wrap: break-word;
+    scrollbar-width: auto;
+    scrollbar-color: var(--color-teal-glow) var(--color-bg-dark);
 }
 
-.site-loader {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: grid;
-    place-items: center;
-    background: var(--color-bg-overlay);
-    backdrop-filter: blur(10px);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.32s ease, visibility 0s linear 0.32s;
-    will-change: opacity;
+button {
+    cursor: pointer
 }
 
-body.show-loader .site-loader {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transition: opacity 0.18s ease, visibility 0s;
+.text-stack {
+    display: block;
+    width: 100%;
+    white-space: break-spaces;
 }
 
-.site-loader.is-gone {
-    display: none;
+[data-tooltip][data-tooltip]:not([data-tooltip=""]):hover:after {
+    clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);
 }
-/* #endregion */
 
-/* #region =========== Typography =========== */
+/* #endregion =========== */
+
+/* #region =========== FONT-FILE =========== */
+@font-face {
+    font-family: 'BX-H';
+    font-display: swap;
+    font-weight: normal;
+    font-style: normal;
+    src: url(/assets/fonts/custom/bx-heading.eot?) format("eot"), url(/assets/fonts/custom/bx-heading.woff) format("woff"), url(/assets/fonts/custom/bx-heading.woff2) format("woff2"), url(/assets/fonts/custom/bx-heading.ttf) format("truetype");
+}
+
+/* #endregion =========== */
+
+/* #region =========== HEADINGS / TEXT =========== */
+
 h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 {
     font-family: var(--heading-font);
     text-transform: uppercase;
@@ -150,100 +150,10 @@ strong {
 .text-xxl {
     font-size: 5.4rem
 }
-/* #endregion */
-/* #region -----------------/ Clippath / Shapes /----------------- */
-.clippath-shape-1, .clippath-shape-2, .clippath-shape-3, .clippath-shape-4, .clippath-shape-5, .clippath-shape-6 {
-    border: 0.2rem solid blue;
-    box-sizing: border-box;
-    overflow: hidden;
-    z-index: -1;
-    background: var(--color-bg-dark);
-    backdrop-filter: blur(12px);
-}
 
-    .clippath-shape-1:before, .clippath-shape-2:before, .clippath-shape-3:before, .clippath-shape-4:before, .clippath-shape-4:after, .clippath-shape-5:before, .clippath-shape-5:after, .clippath-shape-6:before, .clippath-shape-6:after {
-        content: '';
-        -moz-transform: rotate(-45deg);
-        -webkit-transform: rotate(-45deg);
-        transform: rotate(-45deg);
-        position: absolute;
-        z-index: 1;
-        background: blue;
-        border: 0;
-        width: 10rem;
-        height: 10rem;
-    }
+/* #endregion =========== */
 
-    .clippath-shape-5:before {
-        right: -7.6rem;
-        bottom: -7.6rem;
-    }
-
-    .clippath-shape-5:after {
-        right: calc(40% - 1.2rem);
-        top: -1.1rem;
-        height: 2.2rem;
-        width: 2.2rem;
-    }
-
-    .clippath-shape-6:before {
-        right: calc(100% - 100% - 2.8rem);
-        bottom: 1.6rem;
-    }
-
-    .clippath-shape-6:after {
-        left: calc(100% - 100% - 3.4rem);
-        top: 0.2rem;
-        border: none;
-    }
-
-
-
-.clippath-shape-1 {
-    backdrop-filter: blur(12px);
-    clip-path: var(--clippath-shape-1);
-}
-
-    .clippath-shape-1:before {
-        right: -7.6rem;
-        bottom: -7.6rem;
-    }
-
-.clippath-shape-2 {
-    backdrop-filter: blur(12px);
-    clip-path: var(--clippath-shape-2);
-}
-
-    .clippath-shape-2:before {
-        right: -8rem;
-        bottom: -8rem;
-    }
-
-.clippath-shape-3 {
-    backdrop-filter: blur(12px);
-    clip-path: var(--clippath-shape-3);
-}
-
-.clippath-shape-4 {
-    backdrop-filter: blur(12px);
-    clip-path: var(--clippath-shape-4);
-}
-
-    .clippath-shape-4:before {
-        right: calc(100% - 100% - 3.6rem);
-        bottom: 2.8rem;
-    }
-
-    .clippath-shape-4:after {
-        left: calc(60% - 3.7rem);
-        min-width: 4.6rem;
-    }
-
-[data-tooltip][data-tooltip]:not([data-tooltip=""]):hover:after {
-    clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);
-}
-/* #endregion ----------------- */
-
+/* #region =========== ICONS =========== */
 
 .action-icon, .static-icon {
     font-family: var(--font-icon);
@@ -264,10 +174,16 @@ strong {
     background: transparent;
 }
 
+/* #endregion =========== */
 
+/* #region =========== BUTTONS =========== */
 
-button {
-    cursor: pointer
+.btn--primary {
+    background: var(--color-teal);
+}
+
+.btn--secondary {
+    background: var(--color-gray);
 }
 
 .btn {
@@ -318,8 +234,8 @@ button {
     animation: .2s fadeIn all;
 }
 
-.btn-primary {
-    font-family: var(--text-font-v2);
+.btn-primary, .btn-secondary {
+    font-family: var(--text-base);
     font-weight: 600;
     text-align: center;
     min-width: 8rem !important;
@@ -431,16 +347,9 @@ button {
         padding: 0 !important;
     }
 
+/* #endregion =========== */
 
-
-
-
-
-
-
-
-
-
+/* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
 
 .wz--dropdown {
     height: 4rem;
@@ -480,14 +389,6 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     border-radius: 0;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    -moz-box-sizing: border-box;
-    box-sizing: border-box;
-    word-wrap: break-word;
-}
-
 .wz-selector {
     position: relative;
     z-index: 1;
@@ -519,12 +420,9 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         font-size: 3rem;
     }
 
+/* #endregion =========== */
 
-.text-stack {
-    display: block;
-    width: 100%;
-    white-space: break-spaces;
-}
+/* #region =========== LISTVIEW =========== */
 
 .wz-list-view {
     display: flex;
@@ -558,22 +456,13 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         width: 75%;
     }
 
+/* #endregion =========== */
 
+/* #region =========== BROWSER DEFAULT SCROLLBAR REPLACEMENT =========== */
 
-
-
-
-
-
-* {
-    scrollbar-width: auto; 
-    scrollbar-color: auto;
-}
-
-    *::-webkit-scrollbar {
+*::-webkit-scrollbar {
         all: unset;
     }
-
 
 ::-webkit-scrollbar {
     width: 1rem;
@@ -593,16 +482,9 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         background: var(--color-teal-glow);
     }
 
+/* #endregion =========== */
 
-* {
-    scrollbar-width: auto;
-    scrollbar-color: var(--color-teal-glow) var(--color-bg-dark);
-}
-
-
-
-
-
+/* #region =========== UI AUDIO =========== */
 
 .audio-toggle {
     position: fixed;
@@ -623,12 +505,10 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     transition: border-color 0.25s ease, color 0.25s ease;
 }
 
-
     .audio-toggle.is-on {
         color: #19d8b3;
         border-color: rgba(25,216,179,0.45);
     }
-
 
 .audio-toggle__icon {
     position: absolute;
@@ -649,12 +529,9 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         transform: scale(1);
     }
 
+/* #endregion =========== */
 
-
-
-
-
-
+/* #region =========== LAYER - LOCK-ON =========== */
 
 .warzone-map-shell {
     position: relative;
@@ -677,30 +554,115 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     filter: blur(1px) drop-shadow(0 0 0.7rem var(--color-heading));
 }
 
-/* top-left */
 .wz-target-overlay__corner--tl {
     top: 13rem;
     left: 21%;
     border-width: 0.5rem 0 0 0.5rem;
 }
 
-/* top-right */
 .wz-target-overlay__corner--tr {
     top: 13rem;
     right: 21%;
     border-width: 0.5rem 0.5rem 0 0;
 }
 
-/* bottom-left */
 .wz-target-overlay__corner--bl {
     bottom: 13rem;
     left: 21%;
     border-width: 0 0 0.5rem 0.5rem;
 }
 
-/* bottom-right */
 .wz-target-overlay__corner--br {
     bottom: 13rem;
     right: 21%;
     border-width: 0 0.5rem 0.5rem 0;
 }
+
+/* #endregion =========== */
+
+/* #region =========== APP SHELL =========== */
+
+.warzone-app {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh; /* dynamic viewport — handles mobile URL bar */
+    max-height: 100dvh;
+    overflow: hidden; /* hard clip — no page scroll */
+    display: flex;
+    flex-direction: column;
+}
+
+.warzone-view {
+    display: none;
+    min-height: 0;
+    flex: 1;
+}
+
+    .warzone-view.is-active {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+/* #endregion =========== */
+
+/* #region =========== STAGE GRID =========== */
+
+.warzone-stage {
+    position: relative;
+}
+
+.warzone-grid {
+    display: grid;
+    grid-template-columns: 28rem 1fr 34rem;
+    gap: 1.6rem;
+    align-items: start;
+}
+
+/* #endregion =========== */
+
+/* #region =========== LOADER =========== */
+.wz-map-loader__gif {
+    width: 40vh;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    image-rendering: auto;
+}
+
+.site-loader__gif {
+    display: block;
+    width: 40vh;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+}
+
+.site-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    background: var(--color-bg-overlay);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.32s ease, visibility 0s linear 0.32s;
+    will-change: opacity;
+}
+
+    .site-loader.is-gone {
+        display: none;
+    }
+
+body.show-loader .site-loader {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.18s ease, visibility 0s;
+}
+
+/* #endregion =========== */

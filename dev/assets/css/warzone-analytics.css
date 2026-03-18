@@ -1,11 +1,7 @@
-﻿/* ============================================================
-   //assets/css/warzone-analytics.css
-   Analytics view, Intel cards, period tabs, bar charts,
-   timeline, Recon / Airspace view, Military view
-   ============================================================ */
-@import url("./root.css");
+﻿/* assets/css/warzone-analytics.css */
 
-/* ── Page chrome ── */
+/* #region =========== GENERAL ANALYTICS =========== */
+
 .intel-page {
     display: grid;
     gap: 2rem;
@@ -39,7 +35,10 @@
     max-width: 80rem;
 }
 
-/* ── Intel card / analytics panel ── */
+/* #endregion =========== */
+
+/* #region =========== INTEL CARD / ANALYTICS PANEL ========== */
+
 .intel-card,
 .analytics-panel {
     border: 0.2rem solid var(--color-border-gray);
@@ -66,7 +65,10 @@
     font-size: var(--text-sm);
 }
 
-/* ── Period tabs ── */
+/* #endregion =========== */
+
+/* #region =========== PERIOD TABS =========== */
+
 .period-tabs {
     display: flex;
     gap: 0.8rem;
@@ -86,7 +88,10 @@
         background: rgba(255, 207, 87, 0.08);
     }
 
-/* ── Analytics grid + top cards ── */
+/* #endregion =========== */
+
+/* #region =========== ANALYTICS GRID CARD =========== */
+
 .analytics-grid {
     display: grid;
     gap: 1.6rem;
@@ -121,7 +126,10 @@
         line-height: 1;
     }
 
-/* ── Ring stat grid (strike side breakdown) ── */
+/* #endregion =========== */
+
+/* #region =========== RING STAT GRID (STRIKE SIDE BREAKDOWN) =========== */
+
 .ring-stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -146,7 +154,10 @@
         font-size: var(--text-sm);
     }
 
-/* ── Bar charts ── */
+/* #endregion =========== */
+
+/* #region =========== BAR CHARTS =========== */
+
 .bars-list {
     display: grid;
     gap: 0.9rem;
@@ -172,7 +183,10 @@
         background: linear-gradient(90deg, #ff7a45, #ffb020);
     }
 
-/* ── Chronological timeline ── */
+/* #endregion =========== */
+
+/* #region =========== TIMELINE =========== */
+
 .timeline-list {
     display: grid;
     gap: 1rem;
@@ -202,7 +216,10 @@
     margin-bottom: 0.4rem;
 }
 
-/* ── Recon / Airspace view ── */
+/* #endregion =========== */
+
+/* #region =========== RECON / AIRSPACE VIEW =========== */
+
 .recon-region-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
@@ -235,7 +252,10 @@
     background: rgba(255, 255, 255, 0.02);
 }
 
-/* ── Military view — weapons grid ── */
+/* #endregion =========== */
+
+/* #region =========== MILITARY - WEAPONS GRID =========== */
+
 .weapons-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
@@ -284,7 +304,10 @@
     text-transform: uppercase;
 }
 
-/* ── Military sub-panel switcher ── */
+/* #endregion =========== */
+
+/* #region =========== MILITARY - SUB-PANEL SWITCHER =========== */
+
 .military-switcher {
     display: flex;
     gap: 1rem;
@@ -298,7 +321,10 @@
         display: block;
     }
 
-/* ── Kill-chain cards ── */
+/* #endregion =========== */
+
+/* #region =========== KILL-CHAIN CARD =========== */
+
 .killchain-card {
     border: 0.2rem solid rgba(255, 255, 255, 0.08);
     padding: 1.6rem;
@@ -336,7 +362,10 @@
         background: rgba(255, 255, 255, 0.03);
     }
 
-/* ── Responsive ── */
+/* #endregion =========== */
+
+/* #region =========== RESPONSIVE =========== */
+
 @media (max-width: 1280px) {
     .analytics-grid--top,
     .analytics-grid--charts {
@@ -357,3 +386,5 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* #endregion =========== */

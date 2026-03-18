@@ -1,7 +1,6 @@
 ﻿/* --- assets/cs/nav.css --- */
-@import url("./root.css");
 
-/* #region =========== Header / Navigation =========== */
+/* #region =========== NAVIGATION HEADER =========== */
 
 .brand_header {
     position: absolute;
@@ -78,6 +77,10 @@
     pointer-events: none;
     transition: left 0.3s ease, width 0.3s ease;
 }
+
+/* #endregion =========== */
+
+/* #region =========== COMMAND CENTER HEADER =========== */
 
 .warzone-commandbar {
     position: fixed;
@@ -200,8 +203,11 @@ body.is-ui-ready .warzone-brand {
         grid-template-columns: 1fr;
     }
 }
-/* #endregion */
-/* #region =========== Mac-style Bottom Dock =========== */
+
+/* #endregion =========== */
+
+/* #region =========== DOCK BUTTONS =========== */
+
 .wz-dock {
     position: absolute;
     bottom: 0;
@@ -372,175 +378,8 @@ body.is-ui-ready .wz-dock {
         font-size: 1.2rem;
     }
 }
-/* #endregion */
 
-
-
-
-/* ========================================================================
-   1) Region Modal
-   ======================================================================== */
-
-#wz-region-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 100000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-
-    #wz-region-modal.is-visible {
-        opacity: 1;
-        pointer-events: all;
-    }
-
-    #wz-region-modal.is-closing {
-        opacity: 0;
-    }
-
-.wz-region-modal__backdrop {
-    position: absolute;
-    inset: 0;
-    background: green;
-    backdrop-filter: blur(6px);
-}
-
-.wz-region-modal__box {
-    position: relative;
-    z-index: 1;
-    width: min(720px, calc(100vw - 2rem));
-    max-height: calc(100vh - 3rem);
-    overflow-y: auto;
-    padding: 2rem;
-    background: #0b0f14;
-    border: 0.2rem solid var(--color-border-gray);
-    animation: wz-modal-in 0.3s cubic-bezier(0.2, 0, 0, 1) both;
-}
-
-@keyframes wz-modal-in {
-    from {
-        transform: scale(0.94) translateY(12px);
-    }
-
-    to {
-        transform: scale(1) translateY(0);
-    }
-}
-
-.wz-region-modal__head {
-    margin-bottom: 1.6rem;
-    text-align: center;
-}
-
-.wz-region-modal__logo {
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--color-teal);
-}
-
-.wz-region-modal__title {
-    margin: 0 0 0.5rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: #fff;
-}
-
-.wz-region-modal__sub {
-    margin: 0;
-    font-size: 2;
-    color: rgba(255, 255, 255, 0.45);
-}
-
-.wz-region-modal__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.wz-region-btn {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-    color: #fff;
-    text-align: left;
-    cursor: pointer;
-    background: rgba(255, 255, 255, 0.04);
-    border: 0.2rem solid var(--color-border-gray);
-    transition: border-color 0.12s, background 0.12s;
-}
-
-    .wz-region-btn:hover {
-        background: rgba(0, 216, 178, 0.08);
-        border-color: rgba(0, 216, 178, 0.35);
-    }
-
-    .wz-region-btn.is-selected {
-        background: rgba(0, 216, 178, 0.12);
-        border-color: var(--color-teal);
-    }
-
-    .wz-region-btn.is-hot {
-        border-color: rgba(255, 42, 42, 0.35);
-    }
-
-        .wz-region-btn.is-hot.is-selected {
-            background: rgba(255, 42, 42, 0.1);
-            border-color: #ff2a2a;
-        }
-
-.wz-region-btn__emoji {
-    font-size: 1.5rem;
-    line-height: 1;
-}
-
-.wz-region-btn__label {
-    font-size: 1rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: hotpink;
-}
-
-.wz-region-btn__hot {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    font-size: 0.5rem;
-    font-weight: 700;
-    color: #ff2a2a;
-    background: pink;
-}
-
-.wz-region-modal__confirm {
-    width: 100%;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: #000;
-    cursor: pointer;
-    background: #00d8b2;
-    border: none;
-    transition: opacity 0.12s, background 0.12s;
-}
-
-    .wz-region-modal__confirm:hover:not(:disabled) {
-        background: #00ffe6;
-    }
-
-    .wz-region-modal__confirm:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-    }
-
-
+/* #endregion =========== */
 
 
 /*.mobile-logo-tray { background-image: url(/assets/images/web/logo-aerocism-mob.png); pointer-events: none; transform: translateY(-100%); background-size: contain; background-repeat: no-repeat; background-position: center; align-items: center; height: 9rem; padding: 2.5rem 0 3.7rem; top: -1rem; }

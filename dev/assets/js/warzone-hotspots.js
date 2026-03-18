@@ -228,6 +228,7 @@ function createCardEl(cluster, onToggle) {
         btn.innerHTML = `
             <div class="wzhs__bar"></div>
             <div class="wzhs__body">
+            <div clss=".wzhs__detail-inner">
                 <div class="wzhs__top">
                     <div class="wzhs__core">
                         <div class="wzhs__icon static-icon">
@@ -247,6 +248,7 @@ function createCardEl(cluster, onToggle) {
                      <div class="wzhs__time">${time}</div></div>
                     <div class="wzhs__items">${buildExpandedHTML(cluster.items)}</div>
                 </div>` : ""}
+            </div>
             </div>`;
     }
 

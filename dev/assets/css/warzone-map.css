@@ -1,11 +1,6 @@
-﻿/* ============================================================
-   //assets/css/warzone-map.css
-   Map card shell, CesiumJS globe, legacy live-map, legacy flat
-   map + markers, map credits, hotspot layer, tile loader,
-   bottom Mac-style dock
-   ============================================================ */
-/* #region =========== Map Card =========== */
+﻿/* assets/css/warzone-map.css */
 
+/* #region =========== Map Card =========== */
 .warzone-map-card {
     position: relative;
     height: 100%;
@@ -18,12 +13,10 @@
     box-shadow: var(--box-shadow);
     backdrop-filter: blur(8px);
 }
-
 .warzone-map-card__head {
     position: relative;
     z-index: 5;
 }
-
 .warzone-map-wrap {
     position: relative;
     flex: 1; /* fills remaining height in the flex column view */
@@ -32,9 +25,9 @@
     background: radial-gradient(circle at center, rgba(10, 20, 32, 0.75) 0%, rgba(2, 5, 11, 1) 100%);
 }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== Map Shell + Hotspot Layer =========== */
+/* #region =========== MAP SHELL + HOTSPOT LAYER =========== */
 
 .warzone-map-shell {
     position: relative;
@@ -42,7 +35,6 @@
     height: 100%;
     overflow: hidden;
 }
-
 .warzone-hotspot-layer {
     position: absolute;
     inset: 0;
@@ -51,9 +43,9 @@
     overflow: visible;
 }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== Tile Load Progress Indicator =========== */
+/* #region =========== TILE LOADED PROGRESS INDICATOR =========== */
 
 .wz-map-loader {
     position: absolute;
@@ -67,11 +59,9 @@
     opacity: 1;
     transition: opacity 200ms ease;
 }
-
     .wz-map-loader[hidden] {
         display: none;
     }
-
 .wz-map-loader__gif {
     width: 40vh;
     aspect-ratio: 1 / 1;
@@ -84,9 +74,9 @@
     }
 }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== CesiumJS Globe =========== */
+/* #region =========== CESIUM JS GLOBE =========== */
 
 .warzone-globe {
     position: absolute;
@@ -108,9 +98,9 @@
         display: none !important;
     }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== Map Credits =========== */
+/* #region =========== MAP CREDITS =========== */
 
 .warzone-map-credits {
     position: absolute;
@@ -124,16 +114,15 @@
     text-align: right;
     pointer-events: none;
 }
-
     .warzone-map-credits a,
     .warzone-map-credits button,
     .warzone-map-credits img {
         pointer-events: auto;
     }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== Legacy Live-map Shell =========== */
+/* #region =========== LEGACY LIVE-MAP SHELL =========== */
 
 /* CesiumJS shell before map-card wrapper existed — kept for compatibility */
 .live-map {
@@ -146,26 +135,23 @@
     background: #02060d;
     box-shadow: inset 0 0 6rem rgba(0, 140, 255, 0.08);
 }
-
 .live-map__globe {
     position: absolute;
     inset: 0;
 }
-
 .live-map .cesium-widget,
 .live-map canvas {
     display: block;
     width: 100% !important;
     height: 100% !important;
 }
-
 .live-map .cesium-viewer-bottom {
     display: none;
 }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== Legacy Flat Map (non-Cesium placeholder) =========== */
+/* #region =========== LEGACY FLAT MAP (NON-CESIUM PLACEHOLDER) =========== */
 
 .warzone-map {
     position: relative;
@@ -176,7 +162,6 @@
     background: linear-gradient(rgba(255, 255, 255, 0.05) 0.2rem, transparent 0.2rem), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0.2rem, transparent 0.2rem), radial-gradient(circle at center, rgba(53, 63, 83, 0.7), rgba(8, 10, 13, 1));
     background-size: 4rem 4rem, 4rem 4rem, cover;
 }
-
     .warzone-map::before {
         content: "";
         position: absolute;
@@ -185,9 +170,9 @@
         background: radial-gradient(circle at 20% 25%, rgba(255, 255, 255, 0.05), transparent 12%), radial-gradient(circle at 45% 35%, rgba(255, 255, 255, 0.04), transparent 16%), radial-gradient(circle at 70% 58%, rgba(255, 255, 255, 0.035), transparent 18%), radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.025), transparent 14%);
     }
 
-/* #endregion */
+/* #endregion =========== */
 
-/* #region =========== Flat Map Markers =========== */
+/* #region =========== FLAT MAP MARKER =========== */
 
 .warzone-marker {
     position: absolute;
@@ -200,25 +185,21 @@
     font-weight: 700;
     font-size: 1.5rem;
 }
-
     .warzone-marker.is-sm {
         width: 3.2rem;
         height: 3.2rem;
         background: #d14d3f;
     }
-
     .warzone-marker.is-md {
         width: 4.4rem;
         height: 4.4rem;
         background: #de8d27;
     }
-
     .warzone-marker.is-lg {
         width: 5.8rem;
         height: 5.8rem;
         background: #d2ab18;
     }
-
     .warzone-marker.is-xl {
         width: 7rem;
         height: 7rem;
@@ -226,110 +207,3 @@
     }
 
 /* #endregion */
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   DEV TEST PANEL  (#wz-dev-panel — from partials/popups.html)
-   Only visible on localhost or ?devpanel=1
-   ═══════════════════════════════════════════════════════════════════════════ */
-.wz-dev-panel {
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 9999;
-}
-
-.wz-dev-toggle {
-    display: block;
-    margin-left: auto;
-    padding: 0.5rem 1rem;
-    background: yellow;
-    border: .2rem solid var(--color-border-gray);
-    color: teal;
-    font-family: inherit;
-    font-size: 1.2rem;
-    cursor: pointer;
-    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-    transition: background 0.15s ease;
-}
-
-    .wz-dev-toggle:hover {
-        background: rgba(255, 7, 83, 0.28);
-    }
-
-.wz-dev-body {
-    margin-top: 0.5rem;
-    width: 22rem;
-    background: rgba(4, 7, 12, 0.97);
-    border: .2rem solid var(--color-border-gray);
-    padding: 1rem;
-    clip-path: polygon(0 0, calc(100% - 1rem) 0, 100% 1rem, 100% 100%, 1rem 100%, 0 calc(100% - 1rem));
-}
-
-.wz-dev-heading {
-    color: #ff0753;
-    font-size: 1rem;
-    letter-spacing: 0.15em;
-    margin-bottom: 1rem;
-    border-bottom: .2rem solid var(--color-border-gray);
-    padding-bottom: 1rem;
-}
-
-.wz-dev-grid {
-    display: grid;
-    gap: 0.5rem;
-}
-
-.wz-dev-label {
-    color: hotpink;
-    font-size: 0.75rem;
-    margin-top: 0.5rem;
-}
-
-.wz-dev-btn {
-    background: green;
-    border: .2rem solid var(--color-border-gray);
-    border-left: .2rem solid var(--color-border-gray);
-    font-size: 1rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.12s ease, border-color 0.12s ease;
-}
-
-    .wz-dev-btn:hover {
-        background: rgba(255, 255, 255, 0.07);
-        border-left-color: var(--c, #ff0753);
-    }
-
-.wz-dev-actions {
-    margin-top: 1rem;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.4rem;
-}
-
-.wz-dev-action {
-    padding: 0.5rem;
-    font-size: 1rem;
-    cursor: pointer;
-}
-
-.wz-dev-action--fire {
-    background: pink;
-    border: .2rem solid var(--color-border-gray);
-    color: #ff0753;
-}
-
-.wz-dev-action--clear {
-    background: yellow;
-    border: .2rem solid var(--color-border-gray);
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.wz-dev-log {
-    margin-top: 0.5rem;
-    max-height: 6rem;
-    overflow-y: auto;
-    font-size: 1rem;
-    border-top: .2rem solid var(--color-border-gray);
-    padding-top: 0.5rem;
-}

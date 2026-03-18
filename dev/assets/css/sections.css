@@ -1,52 +1,6 @@
-﻿/* ============================================================
-   warzone-hero.css
-   Hero banner section + .btn component
-   ============================================================ */
-@import url("./root.css");
+﻿
 
-.hero-banner {
-    position: relative;
-    z-index: 2;
-    width: var(--min-width);
-    margin: 10rem auto 2rem;
-}
-
-.hero-banner__box {
-    position: relative;
-    overflow: hidden;
-    padding: 3rem;
-    border: 0.2rem solid var(--color-border-gray);
-    background: radial-gradient(circle at left center, rgba(255, 255, 255, 0.05), transparent 30%), linear-gradient(135deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
-    box-shadow: var(--box-shadow);
-}
-
-.hero-banner__eyebrow {
-    font-size: 1.2rem;
-    text-transform: uppercase;
-    color: #f9c860;
-}
-
-.hero-banner__title {
-    margin-top: 1rem;
-    font-size: clamp(5rem, 7vw, 10rem);
-}
-
-.hero-banner__desc {
-    margin-top: 1.4rem;
-    max-width: 90rem;
-    color: var(--color-text);
-    font-size: 1.6rem;
-    line-height: 1.55;
-}
-
-.hero-banner__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-top: 2rem;
-}
-
-/* ── Button component ── */
+/* #region =========== BUTTONS =========== */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -72,13 +26,13 @@
     color: var(--color-white);
 }
 
-.btn:hover,
-.btn:focus-visible {
+.btn:hover, .btn:focus-visible {
     border-color: var(--color-teal);
 }
+/* #endregion =========== */
 
+/* #region =========== APP SHELL =========== */
 
-/* ── App shell (warzone-shell removed — warzone-app IS the shell now) ── */
 .warzone-app {
     position: relative;
     width: 100%;
@@ -90,7 +44,6 @@
     flex-direction: column;
 }
 
-/* ── View switching ── */
 .warzone-view {
     display: none;
     min-height: 0;
@@ -105,7 +58,10 @@
         overflow: hidden;
     }
 
-/* ── Stage / grid ── */
+/* #endregion =========== */
+
+/* #region =========== STAGE GRID =========== */
+
 .warzone-stage {
     position: relative;
 }
@@ -116,3 +72,23 @@
     gap: 1.6rem;
     align-items: start;
 }
+
+/* #endregion =========== */
+
+/* #region =========== LOADER =========== */
+
+.wz-map-loader__gif {
+    width: 40vh;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    image-rendering: auto;
+}
+
+.site-loader__gif {
+    display: block;
+    width: 40vh;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+}
+
+/* #endregion =========== */

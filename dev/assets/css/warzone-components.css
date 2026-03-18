@@ -1,15 +1,8 @@
-﻿
+﻿/* assets/css/warzone-components.css */
+@import url("./root.css");
 
+/* #region =========== HOT-SPOTS =========== */
 
-
-
-/* ============================================================
-   warzone-hotspots.css
-   wzhs hotspot card component — all variants and states.
-   Rendered by warzone-hotspots.js into #warzone-hotspot-layer.
-   ============================================================ */
-
-/* ── Card shell ── */
 .wzhs {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -19,31 +12,19 @@
     background: transparent;
     cursor: pointer;
     text-align: left;
-    animation: wzhs-in 0.16s ease both;
+    animation: wzhs-in 0.6s ease both;
 }
 
-@keyframes wzhs-in {
-    from {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0.96);
-    }
-
-    to {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
-    }
-}
-
-/* ── Inner box ── */
 .wzhs__body {
     position: relative;
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(12px);
     transition: box-shadow 0.18s ease, transform 0.18s ease;
+    transition: box-shadow 0.18s ease;
     min-width: 8rem;
-    color: white;
-    background: rgb(30 31 33);
+    color: var(--color-heading);
+    background: var(--color-bg-dark);
     clip-path: var(--clippath-shape-3);
     justify-content: center;
     font-size: var(--text-base);
@@ -54,24 +35,8 @@
     transform: none;
 }
 
-/*    .wzhs__body:before {
-        content: '';
-        -moz-transform: rotate(-45deg);
-        -webkit-transform: rotate(-45deg);
-        transform: rotate(-45deg);
-        position: absolute;
-        z-index: 1;
-        border: 0;
-        width: 3rem;
-        height: 3rem;
-        right: -2.1rem;
-        bottom: -2.1rem;
-    } */
-
-.wzhs:hover .wzhs__body,
-.wzhs--open .wzhs__body {
+.wzhs:hover .wzhs__body, .wzhs--open .wzhs__body {
     transform: translateY(-0.2rem) scale(1.01);
-    box-shadow: 0 0.8rem 3rem rgba(0, 0, 0, 0.45), 0 0 0 0.1rem rgba(255, 255, 255, 0.06);
 }
 
 .wzhs__bar {
@@ -88,13 +53,12 @@
     align-items: center;
     gap: 1rem;
     line-height: 1;
-    padding: 0.4rem 0.5rem 0.4rem 0.5rem;
+    padding: 0.4rem 0.5rem;
     transition: background-color 180ms ease, color 180ms ease;
 }
 
 .wzhs__icon {
     position: absolute;
-    inset: 0 auto 0 0;
     width: 3rem;
     display: flex;
     justify-content: center;
@@ -103,13 +67,16 @@
     font-size: var(--icon-xl);
     color: var(--text-heading);
     transition: background-color 180ms ease, color 180ms ease, transform 220ms ease;
+    top: 0;
+    bottom: 0;
+    left: 0;
 }
 
 .wzhs__count {
     margin-left: 3.5rem;
     font-size: var(--text-xl);
     font-weight: 700;
-    color: #fff;
+    color: var(--color-heading);
     transition: color 180ms ease, margin-left 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -129,23 +96,12 @@
     transition: transform 220ms ease, color 180ms ease, opacity 180ms ease;
 }
 
-/* ── Expand / collapse detail ── */
 .wzhs__detail {
     display: flex;
     flex-direction: column;
 }
 
-    .wzhs__detail > * {
-        min-height: 0;
-    }
-
 .wzhs__detail-inner {
-    min-height: 0;
-    overflow: hidden;
-}
-
-/* Fallback if JS does not provide .wzhs__detail-inner wrapper */
-.wzhs__detail > * {
     min-height: 0;
     overflow: hidden;
 }
@@ -190,18 +146,6 @@
     opacity: 1;
 }
 
-.wzhs__items::-webkit-scrollbar {
-    width: 0.6rem;
-}
-
-.wzhs__items::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.wzhs__items::-webkit-scrollbar-track {
-    background: transparent;
-}
-
 .wzhs-item {
     display: flex;
     flex-direction: column;
@@ -214,9 +158,6 @@
     align-items: center;
     gap: 1rem;
 }
-/* ========================================================================
-   3) Severity Styles
-   ======================================================================== */
 
 .wzhs-item__sev {
     padding: 0.3rem 0.5rem;
@@ -244,9 +185,6 @@
     background: var(--criticality-level-lo-bg);
 }
 
-
-
-
 .wzhs-item__time {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
@@ -262,21 +200,11 @@
     color: var(--color-text-dim);
 }
 
-.wzhs--s2 .wzhs__body {
-    opacity: 0.84;
-}
-
-.wzhs--s3 .wzhs__body {
-    opacity: 0.68;
-}
-
-/* ── Category styles ── */
 .wzhs--strike .wzhs__count {
     color: var(--warzone-strike-color);
 }
 
-.wzhs--open.wzhs--strike .wzhs__top,
-.wzhs--strike .wzhs__icon {
+.wzhs--open.wzhs--strike .wzhs__top, .wzhs--strike .wzhs__icon {
     background: var(--warzone-strike-color);
 }
 
@@ -284,8 +212,7 @@
     color: var(--warzone-alert-color);
 }
 
-.wzhs--open.wzhs--alert .wzhs__top,
-.wzhs--alert .wzhs__icon {
+.wzhs--open.wzhs--alert .wzhs__top, .wzhs--alert .wzhs__icon {
     background: var(--warzone-alert-color);
 }
 
@@ -293,8 +220,7 @@
     color: var(--warzone-military-color);
 }
 
-.wzhs--open.wzhs--military .wzhs__top,
-.wzhs--military .wzhs__icon {
+.wzhs--open.wzhs--military .wzhs__top, .wzhs--military .wzhs__icon {
     background: var(--warzone-military-color);
 }
 
@@ -302,8 +228,7 @@
     color: var(--warzone-recon-color);
 }
 
-.wzhs--open.wzhs--recon .wzhs__top,
-.wzhs--recon .wzhs__icon {
+.wzhs--open.wzhs--recon .wzhs__top, .wzhs--recon .wzhs__icon {
     background: var(--warzone-recon-color);
 }
 
@@ -311,8 +236,7 @@
     color: var(--warzone-airspace-color);
 }
 
-.wzhs--open.wzhs--airspace .wzhs__top,
-.wzhs--airspace .wzhs__icon {
+.wzhs--open.wzhs--airspace .wzhs__top, .wzhs--airspace .wzhs__icon {
     background: var(--warzone-airspace-color);
 }
 
@@ -320,8 +244,7 @@
     color: var(--warzone-cyber-color);
 }
 
-.wzhs--open.wzhs--cyber .wzhs__top,
-.wzhs--cyber .wzhs__icon {
+.wzhs--open.wzhs--cyber .wzhs__top, .wzhs--cyber .wzhs__icon {
     background: var(--warzone-cyber-color);
 }
 
@@ -329,8 +252,7 @@
     color: var(--warzone-thermal-color);
 }
 
-.wzhs--open.wzhs--thermal .wzhs__top,
-.wzhs--thermal .wzhs__icon {
+.wzhs--open.wzhs--thermal .wzhs__top, .wzhs--thermal .wzhs__icon {
     background: var(--warzone-thermal-color);
 }
 
@@ -338,12 +260,10 @@
     color: var(--warzone-default-color);
 }
 
-.wzhs--open.wzhs--default .wzhs__top,
-.wzhs--default .wzhs__icon {
+.wzhs--open.wzhs--default .wzhs__top, .wzhs--default .wzhs__icon {
     background: var(--warzone-default-color);
 }
 
-/* ── Open state ── */
 .wzhs--open {
     z-index: 30 !important;
 }
@@ -365,69 +285,24 @@
     .wzhs--open .wzhs__body {
         min-width: 22rem;
         max-width: 28rem;
-    transform: none !important;
-}
-
-/* ── Reduced motion ── */
-@media (prefers-reduced-motion: reduce) {
-    .wzhs,
-    .wzhs__body,
-    .wzhs__top,
-    .wzhs__icon,
-    .wzhs__count,
-    .wzhs__label,
-    .wzhs__arr,
-    .wzhs__detail,
-    .wzhs__detail .wzhs__header,
-    .wzhs__items {
-        animation: none !important;
-        transition: none !important;
-    }
-}
-
-/* ── Mobile ── */
-@media (max-width: 600px) {
-    .wzhs__body {
-        min-width: 7rem;
-        max-width: 16rem;
+        transform: none !important;
+        clip-path: var(--clippath-shape-1);
     }
 
-    .wzhs__count {
-        font-size: 1.8rem;
-    }
+/* #endregion =========== */
 
-    .wzhs__items {
-        gap: 1.4rem;
-        margin: 1rem 0;
-        padding: 0 1rem;
-        max-height: 18rem;
-    }
-
-    .wzhs--open .wzhs__body {
-        min-width: 16rem;
-        max-width: 90vw;
-    }
-}
-
-
-
-
-
-
-/* ============================================================
-   warzone-panels.css
-   ============================================================ */
+/* #region =========== DEV - TESTER PANEL =========== */
 
 .wz-dev-panel {
     position: fixed;
-    right: 1.5rem;
     bottom: 1.5rem;
+    right: 1.5rem;
     z-index: 9999;
 }
 
 .wz-dev-toggle {
     padding: 0.5rem 1rem;
-    color: #fff;
+    color: var(--color-heading);
     cursor: pointer;
     background: #111;
     border: 0.2rem solid var(--color-border-gray);
@@ -440,16 +315,90 @@
     width: 34rem;
     max-height: 70vh;
     overflow: auto;
-    background: rgba(10, 10, 10, 0.95);
+    background: var(--color-bg-dark);
     border: 0.2rem solid var(--color-border-gray);
 }
 
-/* ── Boot: kill transitions during initial paint ── */
-.wz-no-transitions .warzone-panel--floating,
-.wz-no-transitions .wz-dock__btn[data-dock-widget] {
-    animation: none !important;
-    transition: none !important;
+.wz-dev-toggle:hover {
+    background: rgba(255, 7, 83, 0.28);
 }
+
+.wz-dev-heading {
+    color: #ff0753;
+    font-size: 1rem;
+    letter-spacing: 0.15em;
+    margin-bottom: 1rem;
+    border-bottom: .2rem solid var(--color-border-gray);
+    padding-bottom: 1rem;
+}
+
+.wz-dev-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.wz-dev-label {
+    color: hotpink;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.wz-dev-btn {
+    background: green;
+    border: .2rem solid var(--color-border-gray);
+    border-left: .2rem solid var(--color-border-gray);
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+    .wz-dev-btn:hover {
+        background: rgba(255, 255, 255, 0.07);
+        border-left-color: var(--c, #ff0753);
+    }
+
+.wz-dev-actions {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.wz-dev-action {
+    padding: 0.5rem;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.wz-dev-action--fire {
+    background: pink;
+    border: .2rem solid var(--color-border-gray);
+    color: #ff0753;
+}
+
+.wz-dev-action--clear {
+    background: yellow;
+    border: .2rem solid var(--color-border-gray);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.wz-dev-log {
+    margin-top: 0.5rem;
+    max-height: 6rem;
+    overflow-y: auto;
+    font-size: 1rem;
+    border-top: .2rem solid var(--color-border-gray);
+    padding-top: 0.5rem;
+}
+
+.wz-no-transitions .warzone-panel--floating, .wz-no-transitions .wz-dock__btn[data-dock-widget] {
+    animation: none !important;
+}
+
+/* #endregion =========== */
+
+/* #region =========== UI LAYERS =========== */
 
 .warzone-ui-layer {
     position: absolute;
@@ -481,524 +430,14 @@
         box-sizing: border-box;
     }
 
-.top-tab[data-view="recon"],
-.top-tab[data-view="military"] {
+.top-tab[data-view="recon"], .top-tab[data-view="military"] {
     display: none !important;
 }
 
+/* #endregion =========== */
 
+/* #region =========== LAYERS =========== */
 
-/* ── About / Terms modal ── */
-.wz-modal {
-    position: absolute;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-    .wz-modal[hidden] {
-        display: none;
-    }
-
-.wz-modal__backdrop {
-    position: absolute;
-    inset: 0;
-    background: var(--color-bg-overlay);
-    backdrop-filter: blur(1rem);
-}
-
-.wz-modal__box {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    width: min(74rem, 92vw);
-    max-height: min(88vh, 82rem);
-    height: 70vh;
-    overflow: hidden;
-    background: var(--color-bg-dark);
-    clip-path: var(--clippath-shape-2);
-}
-
-.wz-modal__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 3rem 2rem 1.5rem;
-    background: var(--color-bg-header);
-}
-
-    .wz-modal__head span {
-        font-family: var(--text-font);
-        font-size: var(--text-lg);
-        font-weight: var(--text-heading-weight);
-        text-transform: uppercase;
-        color: var(--color-heading);
-    }
-
-
-.wz-modal__tabs {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
-}
-
-    .wz-modal__tabs::-webkit-scrollbar {
-        display: none;
-    }
-
-.wz-modal__tab {
-    flex: 1 1 20%;
-    min-width: 12rem;
-    font-family: var(--text-font);
-    font-size: var(--text-lg);
-    font-weight: var(--text-heading-weight);
-    text-transform: uppercase;
-    white-space: nowrap;
-    color: var(--color-text-dim);
-    cursor: pointer;
-    background: none;
-    border: none;
-    border-bottom: 0.2rem solid transparent;
-    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-}
-
-    .wz-modal__tab:hover {
-        color: var(--color-heading);
-        background: rgba(255, 255, 255, 0.03);
-    }
-
-    .wz-modal__tab.is-active {
-        color: var(--warzone-airspace-color);
-        background: rgba(255, 255, 255, 0.03);
-        border-bottom-color: var(--warzone-airspace-color);
-    }
-
-.wz-modal__body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 2rem;
-}
-
-.wz-modal__pane {
-    display: none;
-}
-
-    .wz-modal__pane.is-active {
-        display: block;
-    }
-
-    .wz-modal__pane h3 + p,
-    .wz-modal__pane h3 + ul,
-    .wz-modal__pane p + h3,
-    .wz-modal__pane ul + h3 {
-        margin-top: 1.5rem;
-    }
-
-    .wz-modal__pane p {
-        margin: 0 0 1rem;
-    }
-
-.wz-terms-list {
-    display: grid;
-    gap: 0.5rem;
-    margin: 0;
-    padding-left: 2rem;
-}
-
-    .wz-terms-list strong {
-        color: var(--color-heading);
-    }
-
-.wz-terms-footer {
-    margin-top: 1.5rem !important;
-    padding-top: 1.5rem;
-    font-size: var(--text-sm) !important;
-    font-weight: var(--text-base-weight) !important;
-    line-height: normal;
-    color: var(--color-text-dim) !important;
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-.wz-modal__close {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3.2rem;
-    height: 3.2rem;
-    font-size: 2.4rem;
-    cursor: pointer;
-    border: 0.2rem solid var(--color-border-gray);
-    transition: background 160ms ease, color 160ms ease;
-}
-
-    .wz-modal__close:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.12);
-    }
-
-
-/* ── Responsive ── */
-@media (max-width: 768px) {
-    .warzone-panel--floating {
-        left: 0.8rem !important;
-        right: 0.8rem !important;
-        width: auto !important;
-        max-width: none !important;
-    }
-
-    .wz-modal__box {
-        width: 96vw;
-        max-height: 90vh;
-    }
-}
-
-
-
-/* ========================================================================
-   6) Intro Modal Content
-   ======================================================================== */
-
-.wz-intro__hero {
-    background: radial-gradient(circle at top left, rgba(0, 216, 178, 0.12), transparent 32%), radial-gradient(circle at top right, rgba(255, 7, 83, 0.12), transparent 34%);
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-.wz-intro__eyebrow {
-    display: inline-block;
-    margin-bottom: 1rem;
-    font-family: var(--text-font);
-    font-size: var(--text-lg);
-    font-weight: var(--text-heading-weight);
-    text-transform: uppercase;
-    color: var(--warzone-airspace-color);
-}
-
-.wz-intro__title {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: clamp(3.6rem, 4vw, 5.4rem);
-    color: var(--color-heading);
-}
-
-.wz-intro__body {
-    padding: 2rem;
-}
-
-.wz-intro__grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-    margin: 1.5rem 0;
-}
-
-.wz-intro__card {
-    background: yellow;
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-    .wz-intro__card strong {
-        display: block;
-        font-family: var(--text-font);
-        font-size: var(--text-lg);
-        font-weight: var(--text-heading-weight);
-        text-transform: uppercase;
-        color: var(--color-heading);
-    }
-
-.wz-intro__disclaimer {
-    margin-top: 1.5rem;
-    background: green;
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-    .wz-intro__disclaimer h3 {
-        margin-bottom: 1rem;
-    }
-
-.wz-intro__actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-.wz-intro__note {
-    font-size: var(--text-sm);
-    font-weight: var(--text-base-weight);
-    color: var(--color-text-dim);
-}
-
-.wz-intro__accept {
-    min-height: 4.4rem;
-    padding: 0 1.5rem;
-    font-family: var(--text-font);
-    font-size: var(--text-lg);
-    font-weight: var(--text-heading-weight);
-    text-transform: uppercase;
-    color: var(--color-heading);
-    cursor: pointer;
-    background: green;
-    border: 0.2rem solid var(--color-border-gray);
-}
-
-    .wz-intro__accept:hover {
-        background: rgba(25, 216, 179, 0.22);
-    }
-
-
-
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   WIDGET DEFAULT POSITIONS
-   Sets a clean 2-column, no-overlap starting layout.
-   These are CSS fallbacks — inline styles (set by drag system) win over them.
-   Commandbar is position:absolute over the map, so all widgets need top: ≥7rem
-   to clear it. --wz-bar-h is the source of truth.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-:root {
-    --wz-bar-h: 6rem; /* commandbar height: 1.2rem×2 padding + 3.2rem logo + 0.4rem border */
-}
-
-/* Left column — Counter (top) · Airspace (middle) · Layers (bottom) */
-.warzone-widget--counter {
-    left: 1.6rem;
-    top: calc(var(--wz-bar-h) + 1rem);
-}
-
-.warzone-widget--airspace {
-    left: 1.6rem;
-    top: calc(var(--wz-bar-h) + 27rem);
-}
-/* below counter */
-.warzone-widget--layers {
-    left: 30rem;
-    top: 0;
-}
-
-/* Right column — Escalation (top) · Cyber (bottom) */
-.warzone-widget--escalation {
-    right: 1.6rem;
-    top: calc(var(--wz-bar-h) + 1rem);
-}
-
-.warzone-widget--cyber {
-    right: 1.6rem;
-    bottom: 12rem;
-    top: auto;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   MOBILE POPUP BACKDROP
-   Shown by JS when any widget is open on mobile/tablet
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.wz-widget-backdrop {
-    display: none; /* shown via JS */
-    position: fixed;
-    inset: 0;
-    z-index: 490;
-    background: rgba(2, 5, 15, 0.78);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-    animation: wz-backdrop-in 180ms ease forwards;
-}
-
-@keyframes wz-backdrop-in {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
-
-
-
-
-/* ============================================================
-   //assets/css/warzone-region-layers.css
-   Region selector modal + Layer panel
-   ============================================================ */
-
-/* ── Region Modal ──────────────────────────────────────────── */
-#wz-region-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 100000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-    #wz-region-modal.is-visible {
-        opacity: 1;
-        pointer-events: all;
-    }
-
-    #wz-region-modal.is-closing {
-        opacity: 0;
-    }
-
-.wz-region-modal__backdrop {
-    position: absolute;
-    inset: 0;
-    background: green;
-    backdrop-filter: blur(6px);
-}
-
-.wz-region-modal__box {
-    position: relative;
-    z-index: 1;
-    width: min(720px, calc(100vw - 2rem));
-    max-height: calc(100vh - 3rem);
-    overflow-y: auto;
-    padding: 2rem;
-    background: #0b0f14;
-    border: 0.2rem solid var(--color-border-gray);
-    animation: wz-modal-in 0.3s cubic-bezier(0.2, 0, 0, 1) both;
-}
-
-
-@keyframes wz-modal-in {
-    from {
-        transform: scale(0.94) translateY(12px);
-    }
-
-    to {
-        transform: scale(1) translateY(0);
-    }
-}
-
-.wz-region-modal__head {
-    margin-bottom: 1.6rem;
-    text-align: center;
-}
-
-.wz-region-modal__logo {
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--color-teal);
-}
-
-.wz-region-modal__title {
-    margin: 0 0 0.5rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: #fff;
-}
-
-.wz-region-modal__sub {
-    margin: 0;
-    font-size: 2;
-    color: rgba(255, 255, 255, 0.45);
-}
-
-.wz-region-modal__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.wz-region-btn {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-    color: #fff;
-    text-align: left;
-    cursor: pointer;
-    background: rgba(255, 255, 255, 0.04);
-    border: 0.2rem solid var(--color-border-gray);
-    transition: border-color 0.12s, background 0.12s;
-}
-
-    .wz-region-btn:hover {
-        background: rgba(0, 216, 178, 0.08);
-        border-color: rgba(0, 216, 178, 0.35);
-    }
-
-    .wz-region-btn.is-selected {
-        background: rgba(0, 216, 178, 0.12);
-        border-color: var(--color-teal);
-    }
-
-    .wz-region-btn.is-hot {
-        border-color: rgba(255, 42, 42, 0.35);
-    }
-
-        .wz-region-btn.is-hot.is-selected {
-            background: rgba(255, 42, 42, 0.1);
-            border-color: #ff2a2a;
-        }
-
-.wz-region-btn__emoji {
-    font-size: 1.5rem;
-    line-height: 1;
-}
-
-.wz-region-btn__label {
-    font-size: 1rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: hotpink;
-}
-
-.wz-region-btn__hot {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    font-size: 0.5rem;
-    font-weight: 700;
-    color: #ff2a2a;
-    background: pink;
-}
-
-.wz-region-modal__confirm {
-    width: 100%;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: #000;
-    cursor: pointer;
-    background: #00d8b2;
-    border: none;
-    transition: opacity 0.12s, background 0.12s;
-}
-
-    .wz-region-modal__confirm:hover:not(:disabled) {
-        background: #00ffe6;
-    }
-
-    .wz-region-modal__confirm:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-    }
-
-
-/* ── Toolbar — ALL ON / ALL OFF buttons ── */
 .wz-layers__toolbar {
     display: flex;
     gap: 1rem;
@@ -1014,6 +453,7 @@
     background: none;
     transition: background 0.15s, color 0.15s;
 }
+
 .wz-layers__all-on {
     color: var(--warzone-airspace-color);
     border: 0.2rem solid var(--color-border-gray);
@@ -1129,8 +569,6 @@
     display: none !important;
 }
 
-
-/* ── Map-scoped loader — tile loading indicator ────────────────────────────── */
 .wz-map-loader {
     position: absolute;
     inset: 0;
@@ -1138,7 +576,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: green;
+    background: transparent;
     backdrop-filter: blur(4px);
     pointer-events: none;
 }
@@ -1147,33 +585,448 @@
         display: none;
     }
 
-.wz-map-loader__gif {
-    width: 40vh;
-    aspect-ratio: 1 / 1;
-    object-fit: contain;
-    image-rendering: auto;
+/* #endregion =========== */
+
+/* #region =========== MODAL - ABOUT =========== */
+
+.wz-modal {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.site-loader__gif {
-    display: block;
-    width: 40vh;
-    aspect-ratio: 1 / 1;
-    object-fit: contain;
-}
-
-@media (max-width: 768px) {
-    .wz-map-loader__gif,
-    .site-loader__gif {
-        width: 60vmin;
+    .wz-modal[hidden] {
+        display: none;
     }
+
+.wz-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--color-bg-overlay);
+    backdrop-filter: blur(1rem);
 }
 
+.wz-modal__box {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(74rem, 92vw);
+    max-height: min(88vh, 82rem);
+    height: 70vh;
+    overflow: hidden;
+    background: var(--color-bg-dark);
+    clip-path: var(--clippath-shape-2);
+}
 
-/* ── Widget close button ────────────────────────────────────────────────────── */
+.wz-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 3rem 2rem 1.5rem;
+    background: var(--color-bg-header);
+}
+
+    .wz-modal__head span {
+        font-family: var(--text-font);
+        font-size: var(--text-lg);
+        font-weight: var(--text-heading-weight);
+        text-transform: uppercase;
+        color: var(--color-heading);
+    }
+
+.wz-modal__tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    border-bottom: 0.1rem solid rgba(255,255,255,0.08);
+}
+
+    .wz-modal__tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+.wz-modal__tab {
+    flex: 1 1 20%;
+    min-width: 12rem;
+    font-family: var(--text-font);
+    font-size: var(--text-lg);
+    font-weight: var(--text-heading-weight);
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--color-text-dim);
+    cursor: pointer;
+    background: none;
+    border: none;
+    border-bottom: 0.2rem solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+    .wz-modal__tab:hover {
+        color: var(--color-heading);
+        background: rgba(255,255,255,0.03);
+    }
+
+    .wz-modal__tab.is-active {
+        color: var(--warzone-airspace-color);
+        background: rgba(255,255,255,0.03);
+        border-bottom-color: var(--warzone-airspace-color);
+    }
+
+.wz-modal__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+}
+
+.wz-modal__pane {
+    display: none;
+}
+
+    .wz-modal__pane.is-active {
+        display: block;
+    }
+
+    .wz-modal__pane h3 + p,
+    .wz-modal__pane h3 + ul,
+    .wz-modal__pane p + h3,
+    .wz-modal__pane ul + h3 {
+        margin-top: 1.5rem;
+    }
+
+    .wz-modal__pane p {
+        margin: 0 0 1rem;
+    }
+
+/* #endregion =========== */
+
+/* #region =========== MODAL - TERMS & CONDITION =========== */
+
+.wz-terms-list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding-left: 2rem;
+}
+
+    .wz-terms-list strong {
+        color: var(--color-heading);
+    }
+
+.wz-terms-footer {
+    margin-top: 1.5rem !important;
+    padding-top: 1.5rem;
+    font-size: var(--text-sm) !important;
+    font-weight: var(--text-base-weight) !important;
+    line-height: normal;
+    color: var(--color-text-dim) !important;
+    border: 0.2rem solid var(--color-border-gray);
+}
+
+.wz-modal__close {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.2rem;
+    height: 3.2rem;
+    font-size: 2.4rem;
+    cursor: pointer;
+    border: 0.2rem solid var(--color-border-gray);
+    transition: background 160ms ease, color 160ms ease;
+}
+
+    .wz-modal__close:hover {
+        color: var(--color-heading);
+    }
+
+/* #endregion =========== */
+
+/* #region =========== MODAL - INTRO/DISCLAIMER =========== */
+
+.wz-intro__hero {
+    background: radial-gradient(circle at top left, rgba(0, 216, 178, 0.12), transparent 32%), radial-gradient(circle at top right, rgba(255, 7, 83, 0.12), transparent 34%);
+}
+
+.wz-intro__eyebrow {
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-family: var(--text-font);
+    font-size: var(--text-lg);
+    font-weight: var(--text-heading-weight);
+    text-transform: uppercase;
+    color: var(--warzone-airspace-color);
+}
+
+.wz-intro__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(3.6rem, 4vw, 5.4rem);
+    color: var(--color-heading);
+}
+
+.wz-intro__body {
+    padding: 2rem;
+}
+
+.wz-intro__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.wz-intro__card {
+    background: yellow;
+    border: 0.2rem solid var(--color-border-gray);
+}
+
+    .wz-intro__card strong {
+        display: block;
+        font-family: var(--text-font);
+        font-size: var(--text-lg);
+        font-weight: var(--text-heading-weight);
+        text-transform: uppercase;
+        color: var(--color-heading);
+    }
+
+.wz-intro__disclaimer {
+    margin-top: 1.5rem;
+    background: green;
+    border: 0.2rem solid var(--color-border-gray);
+}
+
+    .wz-intro__disclaimer h3 {
+        margin-bottom: 1rem;
+    }
+
+.wz-intro__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border: 0.2rem solid var(--color-border-gray);
+}
+
+.wz-intro__note {
+    font-size: var(--text-sm);
+    font-weight: var(--text-base-weight);
+    color: var(--color-text-dim);
+}
+
+.wz-intro__accept {
+    min-height: 4.4rem;
+    padding: 0 1.5rem;
+    font-family: var(--text-font);
+    font-size: var(--text-lg);
+    font-weight: var(--text-heading-weight);
+    text-transform: uppercase;
+    color: var(--color-heading);
+    cursor: pointer;
+    background: green;
+    border: 0.2rem solid var(--color-border-gray);
+}
+
+    .wz-intro__accept:hover {
+        background: rgba(25, 216, 179, 0.22);
+    }
+
+/* #endregion =========== */
+
+/* #region =========== REGION SELECTOR =========== */
+
+#wz-region-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+    #wz-region-modal.is-visible {
+        opacity: 1;
+        pointer-events: all;
+    }
+
+    #wz-region-modal.is-closing {
+        opacity: 0;
+    }
+
+.wz-region-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: green;
+    backdrop-filter: blur(6px);
+}
+
+.wz-region-modal__box {
+    position: relative;
+    z-index: 1;
+    width: min(720px, calc(100vw - 2rem));
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+    padding: 2rem;
+    background: var(--color-bg-dark);
+    border: 0.2rem solid var(--color-border-gray);
+    animation: wz-modal-in 0.3s cubic-bezier(0.2,0,0,1) both;
+}
+
+.wz-region-modal__head {
+    margin-bottom: 1.6rem;
+    text-align: center;
+}
+
+.wz-region-modal__logo {
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-teal);
+}
+
+.wz-region-modal__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-heading);
+}
+
+.wz-region-modal__sub {
+    margin: 0;
+    color: rgba(255,255,255,0.45);
+}
+
+.wz-region-modal__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.wz-region-btn {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.04);
+    border: .2rem solid var(--color-border-gray);
+    transition: border-color 0.12s, background 0.12s;
+}
+
+    .wz-region-btn:hover {
+        background: rgba(0, 216, 178, 0.08);
+        border-color: rgba(0,216,178,0.35);
+    }
+
+    .wz-region-btn.is-selected {
+        background: rgba(0, 216, 178, 0.12);
+        border-color: var(--color-teal);
+    }
+
+    .wz-region-btn.is-hot {
+        border-color: rgba(255, 42, 42, 0.35);
+    }
+
+        .wz-region-btn.is-hot.is-selected {
+            background: rgba(255, 42, 42, 0.1);
+            border-color: #ff2a2a;
+        }
+
+.wz-region-btn__label {
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: hotpink;
+}
+
+.wz-region-btn__hot {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.5rem;
+    font-weight: 700;
+    color: #ff2a2a;
+    background: pink;
+}
+
+.wz-region-modal__confirm {
+    width: 100%;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #000;
+    cursor: pointer;
+    background: #00d8b2;
+    border: none;
+    transition: opacity 0.12s, background 0.12s;
+}
+
+    .wz-region-modal__confirm:hover:not(:disabled) {
+        background: #00ffe6;
+    }
+
+    .wz-region-modal__confirm:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
+/* #endregion =========== */
+
+/* #region =========== WIDGETS POSITIONINGS/SIZES =========== */
+
+.warzone-widget--counter {
+    left: 0;
+    top: calc(var(--wz-bar-h) + 1rem);
+}
+
+.warzone-widget--airspace {
+    left: 0;
+    top: calc(var(--wz-bar-h) + 27rem);
+}
+
+.warzone-widget--layers {
+    left: 30rem;
+    top: 0;
+}
+
+.warzone-widget--escalation {
+    right: 0;
+    top: calc(var(--wz-bar-h) + 1rem);
+}
+
+.warzone-widget--cyber {
+    right: 0rem;
+    bottom: 0;
+    top: auto;
+}
+
+/* #endregion =========== */
+
+/* #region =========== WIDGET INNER PANELS =========== */
+
 .panel-actions {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.5rem;
+    flex-shrink: 0;
 }
 
 .panel-action--close {
@@ -1187,27 +1040,15 @@
         color: #ff4444;
     }
 
+/* #endregion =========== */
 
+/* #region =========== WIDGET - COUNTER =========== */
 
-
-
-
-
-
-
-
-/* ============================================================
-   warzone-widgets.css
-   Widget-specific content styles:
-   Strike Counter, Status Pills (Cyber / Airspace), Escalation
-   ============================================================ */
-
-/* ── Strike Counter widget ── */
 .compact-stats {
     overflow: hidden;
     min-height: 0;
     display: flex;
-    gap: 1rem;
+    gap: 0.5rem;
     padding: 1.5rem;
     transition: 320ms ease;
     clip-path: var(--clippath-shape-1);
@@ -1243,9 +1084,10 @@
         font-weight: 600;
     }
 
+/* #endregion =========== */
 
+/* #region =========== WIDGET - CRITICALITY COLOR PILLS =========== */
 
-/* ── Status list (Cyber Status / Airspace widgets) ── */
 .status-list {
     display: grid;
     gap: 0.7rem;
@@ -1272,52 +1114,129 @@
     clip-path: var(--clippath-shape-5);
 }
 
-.status-pill--closed,
-.status-pill--critical,
-.status-pill--restricted,
-.status-pill--warning,
-.status-pill--high {
+.status-pill--closed, .status-pill--critical {
+    color: var(--criticality-level-ex-cl);
+    background: var(--criticality-level-ex-bg);
+}
+
+.status-pill--restricted, .status-pill--warning, .status-pill--high {
     color: var(--criticality-level-ex-cl);
     background: var(--criticality-level-hi-bg);
 }
 
-.status-pill--normal,
-.status-pill--minor,
-.status-pill--low {
+.status-pill--normal, .status-pill--minor, .status-pill--low {
     color: var(--criticality-level-lo-cl);
     background: var(--criticality-level-lo-bg);
 }
 
-.status-pill--unknown,
-.status-pill--medium {
+.status-pill--unknown, .status-pill--medium {
     color: var(--criticality-level-de-cl);
     background: var(--criticality-level-de-bg);
 }
+/* #endregion =========== */
 
+/* #region =========== WIDGET - FLOATING =========== */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ── Escalation widget ── */
-.escalation-box {
-    padding: 1.2rem 1.3rem;
+.warzone-panel--floating {
+    position: absolute;
+    z-index: 20;
+    width: 28rem;
+    max-width: calc(100vw - 28rem);
+    isolation: isolate;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    transition: opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
+    filter: var(--widget-shadow);
 }
 
-/* ── Escalation Meter widget ── */
+.panel-container {
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+    overflow: hidden;
+    background: var(--color-bg-dark);
+    clip-path: var(--clippath-shape-1);
+    transition: clip-path 260ms ease;
+}
+
+.warzone-panel--floating.wz-is-hidden {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+}
+
+.warzone-panel--floating.is-collapsed .panel-container {
+    clip-path: var(--clippath-shape-3);
+}
+
+.warzone-panel--floating.is-collapsed .static-icon[data-panel-collapse] {
+    transform: rotate(-180deg);
+}
+
+.panel-content {
+    height: auto;
+    overflow: hidden;
+    opacity: 1;
+    transition: height 0.28s ease, opacity 0.22s ease;
+    will-change: height, opacity;
+}
+
+.wz-layer-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-height: 0;
+    overflow: hidden;
+    padding: 1.5rem;
+}
+
+.warzone-panel--floating.is-collapsed .panel-content {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.warzone-panel--feed {
+    width: 32rem;
+}
+
+.warzone-panel--floating .panel-head {
+    cursor: grab;
+}
+
+.warzone-panel--floating.is-dragging .panel-head {
+    cursor: grabbing;
+}
+
+.panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    height: 4rem;
+    padding: 0 1rem 0 1.5rem;
+    background: var(--color-bg-header);
+}
+
+    .panel-head h2, .warzone-widget .panel-head h2 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+.panel-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 180ms ease, transform 220ms ease, color 180ms ease;
+}
+
+/* #endregion =========== */
+
+/* #region =========== WIDGET - ESCALATION =========== */
+
 .escalation-box {
     padding: 1.2rem;
 }
@@ -1326,7 +1245,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    margin-bottom: 1.2rem;
+    margin-bottom: 1rem;
 }
 
     .escalation-meter span {
@@ -1343,124 +1262,12 @@
 
 .escalation-list {
     margin: 0;
+    margin: 0;
 }
 
+/* #endregion =========== */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ========================================================================
-   3) Animations
-   ======================================================================== */
-
-@keyframes wz-pulse-red {
-    0%, 100% {
-        background: #d42020;
-        box-shadow: 0 0.2rem 2rem rgba(212, 32, 32, 0.55);
-    }
-
-    50% {
-        background: #ff2424;
-        box-shadow: 0 4px 32px rgba(255, 60, 60, 0.9);
-    }
-}
-
-@keyframes wz-pulse-orange {
-    0%, 100% {
-        background: #d45a00;
-        box-shadow: 0 0.2rem 2rem rgba(212, 90, 0, 0.5);
-    }
-
-    50% {
-        background: #f06400;
-        box-shadow: 0 4px 28px rgba(255, 120, 0, 0.8);
-    }
-}
-
-@keyframes wz-pulse-yellow {
-    0%, 100% {
-        background: #b88000;
-        box-shadow: 0 2px 18px rgba(184, 128, 0, 0.5);
-    }
-
-    50% {
-        background: #d49600;
-        box-shadow: 0 4px 28px rgba(230, 170, 0, 0.8);
-    }
-}
-
-@keyframes wz-siren-in {
-    from {
-        opacity: 0;
-        transform: translateY(-12px) scaleY(0.92);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-    }
-}
-
-@keyframes wz-siren-out {
-    from {
-        opacity: 1;
-        max-height: 80px;
-        margin-bottom: 0;
-        transform: translateY(0);
-    }
-
-    to {
-        opacity: 0;
-        max-height: 0;
-        margin-bottom: -0.45rem;
-        transform: translateY(-8px);
-    }
-}
-
-@keyframes wz-bell-ring {
-    0%, 100% {
-        transform: rotate(0deg);
-    }
-
-    10% {
-        transform: rotate(14deg);
-    }
-
-    20% {
-        transform: rotate(-12deg);
-    }
-
-    30% {
-        transform: rotate(10deg);
-    }
-
-    40% {
-        transform: rotate(-8deg);
-    }
-
-    50% {
-        transform: rotate(0deg);
-    }
-}
-
-
-
-/* ========================================================================
-   2) Color States
-   ======================================================================== */
+/* #region =========== SIREN BANNER =========== */
 
 .wz-siren-banner--red {
     background: #d42020;
@@ -1479,32 +1286,6 @@
     box-shadow: 0 2px 18px rgba(184, 128, 0, 0.5);
     animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both, wz-pulse-yellow 2.4s ease-in-out 0.25s infinite;
 }
-
-/* ========================================================================
-   6) Responsive Rules
-   ======================================================================== */
-
-@media (max-width: 600px) {
-    .wzhs__body {
-        min-width: 7rem;
-        max-width: 16rem;
-        padding: 0.5rem 0.85rem 0.5rem 1rem;
-    }
-
-    .wzhs__count {
-        font-size: 1.8rem;
-    }
-
-    .wzhs--open .wzhs__body {
-        min-width: 16rem;
-        max-width: 90vw;
-    }
-}
-
-
-/* ========================================================================
-   1) Layout
-   ======================================================================== */
 
 .wz-siren-stack {
     position: absolute;
@@ -1536,104 +1317,6 @@
         animation: wz-siren-out 0.18s ease-in both;
     }
 
-/* ========================================================================
-   3) Animations
-   ======================================================================== */
-
-@keyframes wz-pulse-red {
-    0%, 100% {
-        background: #d42020;
-        box-shadow: 0 0.2rem 2rem rgba(212, 32, 32, 0.55);
-    }
-
-    50% {
-        background: #ff2424;
-        box-shadow: 0 4px 32px rgba(255, 60, 60, 0.9);
-    }
-}
-
-@keyframes wz-pulse-orange {
-    0%, 100% {
-        background: #d45a00;
-        box-shadow: 0 0.2rem 2rem rgba(212, 90, 0, 0.5);
-    }
-
-    50% {
-        background: #f06400;
-        box-shadow: 0 4px 28px rgba(255, 120, 0, 0.8);
-    }
-}
-
-@keyframes wz-pulse-yellow {
-    0%, 100% {
-        background: #b88000;
-        box-shadow: 0 2px 18px rgba(184, 128, 0, 0.5);
-    }
-
-    50% {
-        background: #d49600;
-        box-shadow: 0 4px 28px rgba(230, 170, 0, 0.8);
-    }
-}
-
-@keyframes wz-siren-in {
-    from {
-        opacity: 0;
-        transform: translateY(-12px) scaleY(0.92);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-    }
-}
-
-@keyframes wz-siren-out {
-    from {
-        opacity: 1;
-        max-height: 80px;
-        margin-bottom: 0;
-        transform: translateY(0);
-    }
-
-    to {
-        opacity: 0;
-        max-height: 0;
-        margin-bottom: -0.45rem;
-        transform: translateY(-8px);
-    }
-}
-
-@keyframes wz-bell-ring {
-    0%, 100% {
-        transform: rotate(0deg);
-    }
-
-    10% {
-        transform: rotate(14deg);
-    }
-
-    20% {
-        transform: rotate(-12deg);
-    }
-
-    30% {
-        transform: rotate(10deg);
-    }
-
-    40% {
-        transform: rotate(-8deg);
-    }
-
-    50% {
-        transform: rotate(0deg);
-    }
-}
-
-/* ========================================================================
-   4) Bells
-   ======================================================================== */
-
 .wz-siren-bell,
 .wz-siren-bell-right {
     flex-shrink: 0;
@@ -1643,16 +1326,19 @@
 
 .wz-siren-bell {
     animation: wz-bell-ring 1.2s ease-in-out infinite;
+    animation: wz-bell-ring 1.2s ease-in-out infinite;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transform-origin: top center;
 }
 
 .wz-siren-bell-right {
     color: blue;
     animation: wz-bell-ring 1.2s ease-in-out 0.3s infinite;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transform-origin: top center;
 }
-
-/* ========================================================================
-   5) Text and Controls
-   ======================================================================== */
 
 .wz-siren-body {
     flex: 1;
@@ -1689,14 +1375,240 @@
     padding: 0;
     font-size: 0.95rem;
     line-height: 1;
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(255,255,255,0.85);
     cursor: pointer;
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(0,0,0,0.25);
     border: none;
     transition: background 0.12s;
 }
 
     .wz-siren-close:hover {
         color: #fff;
-        background: rgba(0, 0, 0, 0.45);
+        background: rgba(0,0,0,0.45);
     }
+
+.wz-no-transitions .warzone-panel--floating,
+.wz-no-transitions .wz-dock__btn[data-dock-widget],
+.wz-no-transitions .wz-dock__sep {
+    transition: none !important;
+    animation: none !important;
+}
+
+.warzone-panel--floating .panel-body,
+.warzone-panel--floating .feed-list {
+}
+
+/* #endregion =========== */
+
+/* #region =========== KEYFRAMES / ANIMATIONS =========== */
+
+@keyframes wzhs-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -56%) scale(0.88);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes wz-backdrop-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes wz-modal-in {
+    from {
+        transform: scale(0.94) translateY(12px);
+    }
+
+    to {
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes wz-pulse-red {
+    0%, 100% {
+        background: #d42020;
+        box-shadow: 0 0.2rem 2rem rgba(212, 32, 32, 0.55);
+    }
+
+    50% {
+        background: #ff2424;
+        box-shadow: 0 4px 32px rgba(255, 60, 60, 0.9);
+    }
+}
+
+@keyframes wz-pulse-orange {
+    0%, 100% {
+        background: #d45a00;
+        box-shadow: 0 0.2rem 2rem rgba(212, 90, 0, 0.5);
+    }
+
+    50% {
+        background: #f06400;
+        box-shadow: 0 4px 28px rgba(255, 120, 0, 0.8);
+    }
+}
+
+@keyframes wz-pulse-yellow {
+    0%, 100% {
+        background: #b88000;
+        box-shadow: 0 2px 18px rgba(184,128,0,0.5);
+    }
+
+    50% {
+        background: #d49600;
+        box-shadow: 0 4px 28px rgba(230,170,0,0.8);
+    }
+}
+
+@keyframes wz-siren-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scaleY(0.92);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+}
+
+@keyframes wz-siren-out {
+    from {
+        opacity: 1;
+        max-height: 80px;
+        margin-bottom: 0;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        max-height: 0;
+        margin-bottom: -0.45rem;
+        transform: translateY(-8px);
+    }
+}
+
+@keyframes wz-bell-ring {
+    0%, 100% {
+        transform: rotate(0deg);
+    }
+
+    10% {
+        transform: rotate(14deg);
+    }
+
+    20% {
+        transform: rotate(-12deg);
+    }
+
+    30% {
+        transform: rotate(10deg);
+    }
+
+    40% {
+        transform: rotate(-8deg);
+    }
+
+    50% {
+        transform: rotate(0deg);
+    }
+
+    0%, 100% {
+        transform: rotate(0deg);
+    }
+}
+
+
+/* #endregion =========== */
+
+/* #region =========== MEDIA QUERIES =========== */
+
+@media (prefers-reduced-motion: reduce) {
+    .wzhs, .wzhs__body, .wzhs__top, .wzhs__icon, .wzhs__count, .wzhs__label, .wzhs__arr, .wzhs__detail, .wzhs__detail .wzhs__header, .wzhs__items {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+@media (max-width: 980px) {
+    .wz-modal__box {
+        width: min(96vw, 72rem);
+    }
+}
+
+@media (max-width: 600px) {
+
+    .wzhs__body {
+        min-width: 7rem;
+        max-width: 16rem;
+        padding: 0.5rem 0.85rem 0.5rem 1rem;
+    }
+
+    .wzhs__count {
+        font-size: 1.8rem;
+    }
+
+    .wzhs__items {
+        gap: 1.4rem;
+        margin: 1rem 0;
+        padding: 0 1rem;
+        max-height: 18rem;
+    }
+
+    .wzhs--open .wzhs__body {
+        min-width: 16rem;
+        max-width: 90vw;
+    }
+}
+
+@media (max-width: 768px) {
+
+    .warzone-panel--floating {
+        left: 0.8rem !important;
+        right: 1rem !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+
+    .wz-modal__box {
+        width: 96vw;
+        max-height: 90vh;
+    }
+
+    .wz-map-loader__gif, .site-loader__gif {
+        width: 60vmin;
+    }
+
+    .wz-modal__head {
+        padding-right: 5rem;
+    }
+
+    .wz-modal__body {
+        padding: 1.5rem;
+    }
+
+    .wz-modal__tab {
+        min-width: 11rem;
+    }
+
+    .wz-intro__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .wz-intro__actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+/* #endregion =========== */

@@ -8,8 +8,8 @@
     --color-bg-row: rgb(46 53 63 / 86%);
     --color-bg-overlay: rgba(8, 10, 14, 0.6);
     --color-bg-modal: rgba(25, 28, 35, 0.72);
-    /* [[[[[[[[[[[ Colors ]]]]]]]]]]] */
 
+    /* [[[[[[[[[[[ Colors ]]]]]]]]]]] */
     --color-white: #ffffff;
     --color-black: #000000;
     --color-accent: #f3b000;
@@ -26,14 +26,17 @@
     --color-gray-1: rgba(32, 38, 49, 0.8);
     --color-border-gray: blue /* rgba(61, 72, 87, 0.8)*/;
     /* [[[[[[[[[[[ Typography — Text Colors ]]]]]]]]]]] */
+
     --color-heading: #eff0f4; /* H1 — hero title, commandbar brand, large displays */
     --color-text-dim: #8fa3b8; /* Muted / secondary text, meta info, timestamps */
     --color-text: rgb(203 206 215); /* Body text, descriptions, normal reading text */
+
     /* [[[[[[[[[[[ Typography — Fonts ]]]]]]]]]]] */
     --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
     --font-icon: "BX-Font-R1_1", system-ui, sans-serif; /* BX icon font */
+
     /* [[[[[[[[[[[ Typography — Sizes ]]]]]]]]]]] */
     --text-xs: 1rem; /* Timestamps, credits, fine print */
     --text-sm: 1.2rem; /* Meta labels, badges, small UI text */
@@ -41,25 +44,31 @@
     --text-lg: 1.8rem; /* Panel headings, widget titles (h3 level) */
     --text-xl: 2.4rem; /* Section headings*/
     --text-xxl: 5.4rem; /* Section headings*/
+
     /* [[[[[[[[[[[ Semantic UI Typography Tokens ]]]]]]]]]]] */
     --text-heading-weight: 700;
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
+
     /* [[[[[[[[[[[ Icon Sizes ]]]]]]]]]]] */
     --icon-xl: 3.6rem;
     --icon-lg: 2.6rem;
     --icon-md: 1.6rem;
     --icon-sm: 1rem;
+
     /* [[[[[[[[[[[ Spacing & Layout ]]]]]]]]]]] */
     --sec-width: calc(100% - 4rem);
     --min-width: calc(100% - 4rem);
     --max-width: 100%;
+
     /* [[[[[[[[[[[ Motion ]]]]]]]]]]] */
     --transition-fast: 160ms ease;
     --transition-med: 300ms ease;
+
     /* [[[[[[[[[[[ Shadows ]]]]]]]]]]] */
     --header-shadow: drop-shadow(0 0rem 2rem #0f1014e3);
     --widget-shadow: drop-shadow(0 0.5rem 1rem #0f1014e3);
+
     /* [[[[[[[[[[[ Clip Paths ]]]]]]]]]]] */
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
@@ -68,6 +77,7 @@
     --clippath-shape-5: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
     --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
+
     /* [[[[[[[[[[[ Event Type Colors ]]]]]]]]]]] */
     --warzone-strike-color: #ff0753;
     --warzone-recon-color: #ff4d07;

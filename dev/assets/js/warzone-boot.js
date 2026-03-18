@@ -272,10 +272,11 @@ document.addEventListener("DOMContentLoaded", () => {
     syncDock();
     updateBackdrop();
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            document.documentElement.classList.remove("wz-no-transitions");
-        });
+        document.documentElement.classList.remove("wz-no-transitions");
+        document.body.classList.remove("wz-no-transitions");
     });
+
+
 
     document.querySelectorAll("[data-widget-close]").forEach((btn) => {
         btn.addEventListener("click", () => {
