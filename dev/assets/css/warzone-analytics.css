@@ -363,28 +363,3 @@
     }
 
 /* #endregion =========== */
-
-/* #region =========== RESPONSIVE =========== */
-
-@media (max-width: 1280px) {
-    .analytics-grid--top,
-    .analytics-grid--charts {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
-@media (max-width: 900px) {
-    .analytics-grid--top,
-    .analytics-grid--charts,
-    .weapons-grid,
-    .recon-region-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .bar-row,
-    .timeline-item {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* #endregion =========== */

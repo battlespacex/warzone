@@ -1,5 +1,27 @@
-﻿/* --- assets/css/mediaqueries.css --- */
-@import url("./root.css");
+﻿/* assets/css/mediaqueries.css */
+
+/* #region =========== RESPONSIVE =========== */
+
+@media (max-width: 1280px) {
+    .analytics-grid--top,
+    .analytics-grid--charts {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .analytics-grid--top,
+    .analytics-grid--charts,
+    .weapons-grid,
+    .recon-region-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bar-row,
+    .timeline-item {
+        grid-template-columns: 1fr;
+    }
+}
 
 /* #region =========== Large / Tablet (≤1280px) =========== */
 @media (max-width: 1280px) {
@@ -223,3 +245,8 @@
     }
 }
 /* #endregion */
+
+/* #endregion =========== */
+
+
+
