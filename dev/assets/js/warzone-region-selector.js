@@ -163,8 +163,7 @@ function notifyChange(region) {
 export function flyToRegion(viewer, region) {
     if (!viewer || !region) return;
 
-    // Show loader ONLY inside the map div — not full page
-    const mapLoader = document.getElementById("wz-map-loader");
+    const mapLoader = document.getElementById("site-loader");
     if (mapLoader) { mapLoader.hidden = false; }
 
     const { minLon, minLat, maxLon, maxLat } = region.bounds;

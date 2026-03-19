@@ -38,36 +38,21 @@
             <%= partials("nav") %> 
             <%= partials("dev-panel") %>
 
-            <!-- STRIKES VIEW -->
+            <!-- STRIKES -->
             <section class="warzone-view is-active" data-view-panel="strikes">
-                <div class="warzone-map-wrap">
-                    <!-- Map-scoped loader — blurs only the map, not full page -->
-                    <div id="wz-map-loader" class="wz-map-loader" hidden>
-                        <img src="/assets/images/web/bx_preloader.gif" alt="" class="wz-map-loader__gif" />
-                    </div>
+                <div class="warzone-map-shell">
+                    <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
                     <%= partials("lock-on") %>
-                    <div class="warzone-map-shell">
-                        <div id="warzone-globe" class="warzone-globe"></div>
-                        <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
-                    </div>
-
                     <div id="warzone-map-credits" class="warzone-map-credits"></div>
-
-                    <!--   <div id="warzone-map-credits" class="warzone-map-credits">
-        <a href="https://cesium.com/" target="_blank">
-            <img src="http://localhost:4173/assets/cesium/Assets/Images/ion-credit.png" style="" title="Cesium ion">
-        </a>
-        <a class="" style="">Data attribution</a>
-    </div>-->
-
-                    <div class="warzone-ui-layer">
-                        <%= partials("popups") %>
-                        <%= partials("widgets") %>
-                    </div>
+                    <div id="warzone-globe" class="warzone-globe"></div>
+                </div>
+                <div class="warzone-ui-layer">
+                    <%= partials("popups") %>
+                    <%= partials("widgets") %>
                 </div>
             </section>
 
-            <!-- ANALYTICS VIEW -->
+            <!-- ANALYTICS -->
             <section class="warzone-view" data-view-panel="analytics">
                 <section class="intel-page">
                     <div class="intel-banner">UNCLASSIFIED // OSINT DERIVED</div>
@@ -112,42 +97,6 @@
                     <div class="intel-card">
                         <h3>Chronological Timeline</h3>
                         <div id="timeline-list" class="timeline-list"></div>
-                    </div>
-                </section>
-            </section>
-
-            <!-- RECON VIEW -->
-            <section class="warzone-view" data-view-panel="recon">
-                <section class="intel-page">
-                    <h2 class="page-title recon-title">Airspace Monitor</h2>
-                    <p class="page-subtitle">Regional closures and derived FIR alerts from current dataset.</p>
-                    <div class="warning-banner" id="recon-closure-banner">Regional airspace closure status</div>
-                    <div id="recon-region-grid" class="recon-region-grid"></div>
-                    <div class="intel-card">
-                        <h3>Active NOTAM-style Alerts</h3>
-                        <div id="recon-alert-list" class="recon-alert-list"></div>
-                    </div>
-                    <div class="intel-card">
-                        <h3>Closure ↔ Strike Correlation</h3>
-                        <div id="recon-correlation-list" class="correlation-list"></div>
-                    </div>
-                </section>
-            </section>
-
-            <!-- MILITARY VIEW -->
-            <section class="warzone-view" data-view-panel="military">
-                <section class="intel-page">
-                    <div class="military-switcher">
-                        <button class="toolbar-chip is-active" data-military-view="weapons">Weapons</button>
-                        <button class="toolbar-chip" data-military-view="killchain">Kill Chain</button>
-                    </div>
-                    <div class="military-panel is-active" data-military-panel="weapons">
-                        <h2 class="page-title">Weapons Database</h2>
-                        <div id="weapons-grid" class="weapons-grid"></div>
-                    </div>
-                    <div class="military-panel" data-military-panel="killchain">
-                        <h2 class="page-title">Kill Chain Analysis</h2>
-                        <div id="killchain-list" class="killchain-list"></div>
                     </div>
                 </section>
             </section>

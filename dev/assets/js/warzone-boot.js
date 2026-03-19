@@ -168,6 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return document.getElementById("wz-widget-backdrop");
     }
 
+
     function updateBackdrop() {
         if (!isMobileLayout()) return;
         const backdrop = getBackdrop();
@@ -307,8 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!panel) return;
 
         const content = panel.querySelector(".panel-content");
-        const icon = btn.querySelector("span");
-        if (!content || !icon) return;
+        if (!content) return;
 
         btn.addEventListener("click", () => {
             const willCollapse = !panel.classList.contains("is-collapsed");
@@ -316,27 +316,28 @@ document.addEventListener("DOMContentLoaded", () => {
             if (willCollapse) {
                 btn.setAttribute("aria-expanded", "false");
 
-                icon.classList.remove("bx-web-ico-close-1-2");
-                icon.classList.add("bx-web-ico-top-1-0");
+                const startHeight = content.scrollHeight;
+                content.style.height = `${startHeight}px`;
+                content.style.opacity = "1";
 
-                content.style.height = `${content.scrollHeight}px`;
+                content.offsetHeight; // force reflow
 
-                requestAnimationFrame(() => {
-                    panel.classList.add("is-collapsed");
-                    content.style.height = "0px";
-                });
+                panel.classList.add("is-collapsed");
+                content.style.height = "0px";
+                content.style.opacity = "0";
             } else {
                 btn.setAttribute("aria-expanded", "true");
 
-                icon.classList.remove("bx-web-ico-top-1-0");
-                icon.classList.add("bx-web-ico-close-1-2");
-
                 panel.classList.remove("is-collapsed");
-                content.style.height = "0px";
 
-                requestAnimationFrame(() => {
-                    content.style.height = `${content.scrollHeight}px`;
-                });
+                content.style.height = "0px";
+                content.style.opacity = "0";
+
+                content.offsetHeight; // force reflow
+
+                const endHeight = content.scrollHeight;
+                content.style.height = `${endHeight}px`;
+                content.style.opacity = "1";
             }
         });
 

@@ -20,7 +20,7 @@ let __pollTimer = null;
 let __viewportFetchTimer = null;
 let __lastViewportKey = "";
 
-// Single source of truth: apply both region AND layer filters
+
 function applyAllFilters(events) {
     const region = getActiveRegion?.();
     const regional = filterEventsByRegion ? filterEventsByRegion(events, region) : events;

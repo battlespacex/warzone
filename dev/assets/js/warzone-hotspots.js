@@ -226,11 +226,10 @@ function createCardEl(cluster, onToggle) {
         ].filter(Boolean).join(" ");
 
         btn.innerHTML = `
-            <div class="wzhs__bar"></div>
             <div class="wzhs__body">
-            <div clss=".wzhs__detail-inner">
+            <div class="wzhs__detail-inner">
                 <div class="wzhs__top">
-                    <div class="wzhs__core">
+                    <div class="wzhs__title">
                         <div class="wzhs__icon static-icon">
                             <span class="${cluster.icon}" aria-hidden="true"></span>   
                         </div>
@@ -244,8 +243,9 @@ function createCardEl(cluster, onToggle) {
                 ${isExpanded ? `
                 <div class="wzhs__detail">
                     <div class="wzhs__header">
-                        ${loc ? `<div class="wzhs__loc">${loc}</div>` : ""}
-                     <div class="wzhs__time">${time}</div></div>
+                        ${loc ? `<span class="wzhs__loc">${loc}</span>` : ""}
+                                <span class="wzhs__time">${time}</span>
+                     </div>
                     <div class="wzhs__items">${buildExpandedHTML(cluster.items)}</div>
                 </div>` : ""}
             </div>

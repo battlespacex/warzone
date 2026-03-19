@@ -29,17 +29,6 @@ body {
     height: 100%;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    html {
-        scroll-behavior: auto;
-    }
-
-    * {
-        transition-duration: 0.01ms !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-    }
-}
 
 main {
     position: relative;
@@ -120,7 +109,7 @@ button {
 h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 {
     font-family: var(--heading-font);
     text-transform: uppercase;
-    color: var(--color-heading);
+    color: var(--color-text-heading);
     font-weight: normal;
 }
 
@@ -136,7 +125,7 @@ small {
 }
 
 strong {
-   color:  var(--color-heading);
+   color:  var(--color-text-heading);
 }
 
 .text-xs {
@@ -178,7 +167,7 @@ strong {
     flex-direction: row;
     vertical-align: middle;
     transition: 0.1s all;
-    color: var(--color-heading);
+    color: var(--color-text-heading);
     border: none;
     outline: none;
     align-content: center;
@@ -241,7 +230,7 @@ strong {
 .btn-primary, .btn-add {
     background: var(--color-teal);
     border: 0;
-    color: var(--color-heading);
+    color: var(--color-text-heading);
     -webkit-appearance: none;
     animation: .2s fadeIn all;
 }
@@ -389,7 +378,7 @@ strong {
     box-sizing: border-box;
     border: 0.2rem solid var(--color-bg-dark);
     background: var(--color-bg-row);
-    color: var(--color-heading);
+    color: var(--color-text-heading);
     resize: none;
     display: flex;
     min-width: 20rem;
@@ -560,10 +549,10 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     position: absolute;
     width: 6rem;
     height: 6rem;
-    border-color: var(--color-heading);
+    border-color: var(--color-text-heading);
     border-style: solid;
     opacity: 0.9;
-    filter: blur(1px) drop-shadow(0 0 0.7rem var(--color-heading));
+    filter: blur(1px) drop-shadow(0 0 0.7rem var(--color-text-heading));
 }
 
 .wz-target-overlay__corner--tl {
@@ -637,18 +626,12 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 /* #endregion =========== */
 
 /* #region =========== LOADER =========== */
-.wz-map-loader__gif {
+
+.site-loader__gif {
     width: 40vh;
     aspect-ratio: 1 / 1;
     object-fit: contain;
     image-rendering: auto;
-}
-
-.site-loader__gif {
-    display: block;
-    width: 40vh;
-    aspect-ratio: 1 / 1;
-    object-fit: contain;
 }
 
 .site-loader {
@@ -709,4 +692,3 @@ body.show-loader .site-loader {
     }
 
 /* #endregion =========== */
-

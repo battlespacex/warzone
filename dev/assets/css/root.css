@@ -1,15 +1,17 @@
 ﻿/* --- assets/css/root.css --- */
 
-/* #region =========== Core Design Tokens =========== */
+/* #region =========== Backgrounds =========== */
 :root {
-    /* [[[[[[[[[[[ Backgrounds ]]]]]]]]]]] */
     --color-bg-dark: rgba(32,38,49,0.85);
     --color-bg-header: rgb(69,80,94,0.6);
     --color-bg-row: rgb(46 53 63 / 86%);
     --color-bg-overlay: rgba(8, 10, 14, 0.6);
     --color-bg-modal: rgba(25, 28, 35, 0.72);
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Colors ]]]]]]]]]]] */
+/* #region =========== Colors =========== */
+:root {
     --color-white: #ffffff;
     --color-black: #000000;
     --color-accent: #f3b000;
@@ -25,51 +27,77 @@
     --color-gray: rgba(69, 80, 94, 0.6);
     --color-gray-1: rgba(32, 38, 49, 0.8);
     --color-border-gray: blue /* rgba(61, 72, 87, 0.8)*/;
-    /* [[[[[[[[[[[ Typography — Text Colors ]]]]]]]]]]] */
+}
+/* #endregion =========== */
 
-    --color-heading: #eff0f4; /* H1 — hero title, commandbar brand, large displays */
+/* #region =========== Typography — Text Colors =========== */
+
+:root {
+    --color-text-heading: #eff0f4; /* H1 — hero title, commandbar brand, large displays */
     --color-text-dim: #8fa3b8; /* Muted / secondary text, meta info, timestamps */
-    --color-text: rgb(203 206 215); /* Body text, descriptions, normal reading text */
+    --color-text: rgb(203 206 215);
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Typography — Fonts ]]]]]]]]]]] */
+/* #region =========== Typography — Fonts =========== */
+
+:root {
     --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
-    --font-icon: "BX-Font-R1_1", system-ui, sans-serif; /* BX icon font */
+    --font-icon: "BX-Font-R1_1", system-ui, sans-serif;
 
-    /* [[[[[[[[[[[ Typography — Sizes ]]]]]]]]]]] */
-    --text-xs: 1rem; /* Timestamps, credits, fine print */
-    --text-sm: 1.2rem; /* Meta labels, badges, small UI text */
-    --text-base: 1.45rem; /* Default body / UI text */
-    --text-lg: 1.8rem; /* Panel headings, widget titles (h3 level) */
-    --text-xl: 2.4rem; /* Section headings*/
-    --text-xxl: 5.4rem; /* Section headings*/
-
-    /* [[[[[[[[[[[ Semantic UI Typography Tokens ]]]]]]]]]]] */
+    --text-xs: 1rem;
+    --text-sm: 1.2rem;
+    --text-base: 1.4rem;
+    --text-lg: 1.7rem;
+    --text-xl: 2.4rem;
+    --text-xxl: 5.4rem;
+    
     --text-heading-weight: 700;
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Icon Sizes ]]]]]]]]]]] */
+/* #region =========== Icon Sizes =========== */
+
+:root {
     --icon-xl: 3.6rem;
     --icon-lg: 2.6rem;
     --icon-md: 1.6rem;
     --icon-sm: 1rem;
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Spacing & Layout ]]]]]]]]]]] */
+/* #region =========== Spacing & Layout =========== */
+
+:root {
     --sec-width: calc(100% - 4rem);
     --min-width: calc(100% - 4rem);
     --max-width: 100%;
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Motion ]]]]]]]]]]] */
+/* #region =========== Motion =========== */
+
+:root {
     --transition-fast: 160ms ease;
     --transition-med: 300ms ease;
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Shadows ]]]]]]]]]]] */
+/* #region =========== Shadows =========== */
+
+:root {
     --header-shadow: drop-shadow(0 0rem 2rem #0f1014e3);
     --widget-shadow: drop-shadow(0 0.5rem 1rem #0f1014e3);
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Clip Paths ]]]]]]]]]]] */
+/* #region =========== Clip Paths =========== */
+
+:root {
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
     --clippath-shape-3: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
@@ -77,8 +105,12 @@
     --clippath-shape-5: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
     --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
+}
+/* #endregion =========== */
 
-    /* [[[[[[[[[[[ Event Type Colors ]]]]]]]]]]] */
+/* #region =========== Event Type Colors =========== */
+
+:root {
     --warzone-strike-color: #ff0753;
     --warzone-recon-color: #ff4d07;
     --warzone-military-color: #56d80e;
@@ -88,21 +120,44 @@
     --warzone-cyber-color: #9b7bff;
     --warzone-thermal-color: #ff7a00;
     --warzone-signal-color: #ffd24d;
-    /* [[[[[[[[[[[ Imagery / Tile Layer ]]]]]]]]]]] */
-    --warzone-map-brightness: 0.8;
+}
+/* #endregion =========== */
+
+/* #region =========== Global Satellite Imagery =========== */
+
+:root {
+    /*    --warzone-map-brightness: 0.8;
     --warzone-map-contrast: 1.35;
     --warzone-map-gamma: 0.5;
     --warzone-map-saturation: 0.2;
     --warzone-map-hue: 170;
-    --warzone-map-alpha: 0.5;
-    /* [[[[[[[[[[[ Labels Layer ]]]]]]]]]]] */
+    --warzone-map-alpha: 0.5;*/
+
+
+    --warzone-map-brightness: 1;
+    --warzone-map-contrast: 1.8;
+    --warzone-map-gamma: 0.6;
+    --warzone-map-saturation: 0.1;
+    --warzone-map-hue: 170;
+    --warzone-map-alpha: 0.3;
+}
+/* #endregion =========== */
+
+/* #region =========== Labels Layer =========== */
+
+:root {
     --warzone-labels-brightness: 1;
     --warzone-labels-contrast: 1.15;
     --warzone-labels-gamma: 1;
     --warzone-labels-saturation: 0;
     --warzone-labels-hue: 0;
     --warzone-labels-alpha: 0.95;
-    /* [[[[[[[[[[[ Country / Province Borders ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Country / Province Borders =========== */
+
+:root {
     --warzone-country-border: #00d8b2;
     --warzone-country-border-alpha: 1;
     --warzone-country-border-width: 3;
@@ -112,7 +167,12 @@
     --warzone-city-border: #0ba88c;
     --warzone-city-border-alpha: 1;
     --warzone-city-border-width: 0.8;
-    /* [[[[[[[[[[[ Camera Defaults ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Camera Defaults =========== */
+
+:root {
     --warzone-start-lon: 47.8;
     --warzone-start-lat: 30.2;
     --warzone-start-height: 2350000;
@@ -120,47 +180,88 @@
     --warzone-start-heading: 0;
     --warzone-start-pitch: -82;
     --warzone-start-roll: 0;
-    /* [[[[[[[[[[[ Globe Render Quality ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Globe Render Quality =========== */
+
+:root {
     --warzone-resolution-scale: 1;
     --warzone-msaa-samples: 1;
     --warzone-fxaa-enabled: 1;
     --warzone-camera-min-zoom: 200;
-    /* [[[[[[[[[[[ Event Markers ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Event Markers =========== */
+
+:root {
     --warzone-marker-scale: 0;
     --warzone-event-markers-visible: 0;
     --warzone-event-rings-visible: 1;
     --warzone-event-ring-size: 32000;
-    --warzone-event-ring-fill-alpha: 0.3;
+    --warzone-event-ring-fill-alpha: 0.2;
     --warzone-event-ring-outline-alpha: 0;
     --warzone-event-ring-outline-width: 0;
-    /* [[[[[[[[[[[ Country Pulse Highlight ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Country Pulse Highlight =========== */
+
+:root {
     --warzone-highlight-border-color: #ff2020; /* Border color */
     --warzone-highlight-fill-color: #cc0000; /* Fill color */
     --warzone-highlight-border-width: 2; /* Border thickness in px — keep low for clean look */
     --warzone-highlight-pulse-speed: 700; /* Pulse speed in ms — lower = faster */
-    --warzone-highlight-duration: 14000; /* Total visible duration in ms */
-    /* [[[[[[[[[[[ Missile Colors ]]]]]]]]]]] */
+    --warzone-highlight-duration: 14000;
+}
+/* #endregion =========== */
+
+/* #region =========== Missile Colors =========== */
+
+:root {
     --warzone-missile-launch-color: #ff0753;
     --warzone-missile-impact-color: #ff0753;
     --warzone-missile-line-color: #ff0753;
-    /* [[[[[[[[[[[ Missile Peak Heights (meters) ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Missile Peak Heights (meters) =========== */
+
+:root {
     --warzone-missile-peak-height-critical: 450000;
     --warzone-missile-peak-height-high: 250000;
     --warzone-missile-peak-height-medium: 100000;
-    /* [[[[[[[[[[[ Missile Launch ]]]]]]]]]]] */
+    /* 
+        =========== Missile Launch ]]]]]]]]]]] */
     --warzone-missile-launch-flash-duration: 900;
     --warzone-missile-launch-ring-size: 65000;
-    /* [[[[[[[[[[[ Incoming Highlight ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Incoming Highlight =========== */
+
+:root {
     --warzone-incoming-highlight-color: #ff0753;
     --warzone-incoming-highlight-radius-city: 120000;
     --warzone-incoming-highlight-radius-region: 180000;
     --warzone-incoming-highlight-radius-country: 260000;
     --warzone-incoming-highlight-outline-width: 5;
-    /* [[[[[[[[[[[ Warning / Impact Heights (meters) ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Warning / Impact Heights (meters) =========== */
+
+:root {
     --warzone-warning-height: 4000;
     --warzone-impact-marker-height: 4000;
     --warzone-missile-impact-height: 5000;
-    /* [[[[[[[[[[[ Impact Ring Animation ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Impact Ring Animation =========== */
+
+:root {
     --warzone-missile-impact-cycles: 4;
     --warzone-missile-impact-cycle-duration: 5580;
     --warzone-missile-fadeout-duration: 2200;
@@ -170,19 +271,34 @@
     --warzone-missile-impact-ring-max-scale: 0.20;
     --warzone-missile-impact-ring-alpha-max: 0.40;
     --warzone-missile-impact-ring-stagger-ms: 620;
-    /* [[[[[[[[[[[ Missile Track ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Missile Track =========== */
+
+:root {
     --warzone-missile-steps: 120;
     --warzone-max-active-missiles: 12;
     --warzone-missile-auto-focus: 1;
     --warzone-missile-focus-duration: 0.95;
-    /* [[[[[[[[[[[ Missile Durations (ms) ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Missile Durations (ms) =========== */
+
+:root {
     --warzone-missile-duration-critical: 9000;
     --warzone-missile-duration-high: 7500;
     --warzone-missile-duration-medium: 6200;
     --warzone-missile-persist-critical: 24000;
     --warzone-missile-persist-high: 20000;
     --warzone-missile-persist-medium: 16000;
-    /* [[[[[[[[[[[ Missile Line Style ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Missile Line Style =========== */
+
+:root {
     --warzone-missile-line-alpha: 1;
     --warzone-missile-line-width: 5;
     --warzone-missile-segment-count: 22;
@@ -191,7 +307,12 @@
     --warzone-missile-origin-fade-end: 0.3;
     --warzone-missile-origin-alpha-min: 0.2;
     --warzone-missile-origin-alpha-max: 1;
-    /* [[[[[[[[[[[ Cluster Appearance ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Cluster Appearance =========== */
+
+:root {
     --warzone-cluster-font: var(--text-font);
     --warzone-cluster-text: #ffffff;
     --warzone-cluster-border: rgba(255, 255, 255, 0.08);
@@ -200,25 +321,40 @@
     --warzone-cluster-padding-y: 0.85rem;
     --warzone-cluster-padding-x: 1rem;
     --warzone-cluster-gap: 0.85rem;
-    /* [[[[[[[[[[[ Cluster Typography ]]]]]]]]]]] */
+
     --warzone-cluster-count-size: 2.1rem;
     --warzone-cluster-title-size: 1rem;
     --warzone-cluster-desc-size: 0.95rem;
     --warzone-cluster-icon-size: 1.4rem;
-    /* [[[[[[[[[[[ Cluster Sizes ]]]]]]]]]]] */
+
     --warzone-cluster-compact-min-width: 10rem;
     --warzone-cluster-expanded-width: 19rem;
     --warzone-cluster-expanded-min-height: 10rem;
-    /* [[[[[[[[[[[ Cluster Interactions ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Cluster Interactions =========== */
+
+:root {
     --warzone-cluster-hover-scale: 1.03;
     --warzone-cluster-active-scale: 1.05;
     --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
-    /* [[[[[[[[[[[ Cluster Stack Offsets ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Cluster Stack Offsets =========== */
+
+:root {
     --warzone-cluster-stack-x-2: -16px;
     --warzone-cluster-stack-y-2: -14px;
     --warzone-cluster-stack-x-3: 16px;
     --warzone-cluster-stack-y-3: 14px;
-    /* [[[[[[[[[[[ Cluster Event Colors ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Cluster Event Colors =========== */
+
+:root {
     --warzone-cluster-strike: #ff0a5b;
     --warzone-cluster-recon: #ff6a00;
     --warzone-cluster-military: #4fd61a;
@@ -228,7 +364,12 @@
     --warzone-cluster-thermal: #ff8a00;
     --warzone-cluster-signal: #ffd24d;
     --warzone-cluster-default: #ff7a45;
-    /* [[[[[[[[[[[ Hotspot ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Hotspot =========== */
+
+:root {
     --criticality-level-ex-bg: rgba(255 7 83 / 30%);
     --criticality-level-ex-cl: #ff3068;
     --criticality-level-hi-bg: rgba(255 106 0 / 30%);
@@ -239,7 +380,12 @@
     --criticality-level-lo-cl: #0abc6a;
     --criticality-level-de-bg: rgba(69 80 94 / 30%);
     --criticality-level-de-cl: #8fa3b8;
-    /* [[[[[[[[[[[ Military Track Controls ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Military Track Controls =========== */
+
+:root {
     --warzone-military: #56d80e;
     --warzone-military-trail-default: #56d80e;
     --warzone-military-trail-awacs: #f0d060;
@@ -267,8 +413,6 @@
     --warzone-military-awacs-orbit-color: #f0d060;
     --warzone-military-awacs-orbit-alpha: 0.28;
     --warzone-military-awacs-orbit-width: 1;
-    --warzone-military-sound: url("/assets/audio/military-track-appear.mp3");
-    --warzone-military-sound-volume: 1;
     --warzone-military-heading-offset-default: 0;
     --warzone-military-heading-offset-fighter: 0;
     --warzone-military-heading-offset-awacs: 0;
@@ -279,14 +423,24 @@
     --warzone-military-heading-offset-frigate: 0;
     --warzone-military-heading-offset-submarine: 0;
     --warzone-military-heading-offset-drone: 0;
-    /* [[[[[[[[[[[ Audio ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Audio =========== */
+
+:root {
     --warzone-sound-alert-loop: "/assets/audio/warzone-alert-loop.mp3";
     --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
     --warzone-military-sound: "/assets/audio/warzone-impact.mp3";
-    --warzone-military-sound-volume: 0.72;
+    --warzone-military-sound-volume: 0.7;
     --warzone-sound-alert-volume: 0.65;
     --warzone-sound-impact-volume: 0.9;
-    /* [[[[[[[[[[[ Operational Range Tokens ]]]]]]]]]]] */
+}
+/* #endregion =========== */
+
+/* #region =========== Operational Range Tokens =========== */
+
+:root {
     /* AWACS detection */
     --range-awacs-color: #33d9ff;
     --range-awacs-opacity: 0.08;
@@ -308,17 +462,6 @@
     --range-sam-opacity: 0.08;
     --range-sam-outline: 0.7;
     /* shared ring style */
-    --range-outline-width: 1.4;
-    --range-awacs-color: #33d9ff;
-    --range-awacs-opacity: 0.08;
-    --range-fighter-color: #33ff88;
-    --range-fighter-opacity: 0.08;
-    --range-carrier-color: #ff8800;
-    --range-carrier-opacity: 0.08;
-    --range-destroyer-color: #ffaa33;
-    --range-destroyer-opacity: 0.08;
-    --range-sam-color: #ff4444;
-    --range-sam-opacity: 0.08;
     --range-outline-width: 1.4;
 }
 /* #endregion */
