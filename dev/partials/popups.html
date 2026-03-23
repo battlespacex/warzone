@@ -19,15 +19,34 @@
          JS sets:  banner class → wz-siren-banner--red / --orange / --yellow
          JS sets:  data-alert-id, data-dismiss on close button
          ═══════════════════════════════════════════════════════════════════════ -->
-    <template id="tpl-siren-banner">
+    <!--<template id="tpl-siren-banner">
         <div class="wz-siren-banner" role="alert">
             <span class="wz-siren-bell" aria-hidden="true">🔔</span>
             <span class="wz-siren-body">
-                <strong class="wz-siren-title"><!-- filled by JS --></strong>
-                <span class="wz-siren-meta"><!-- filled by JS, hidden if empty --></span>
+                <strong class="wz-siren-title">--><!-- filled by JS --><!--</strong>
+                <span class="wz-siren-meta">--><!-- filled by JS, hidden if empty --><!--</span>
             </span>
             <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
             <button class="wz-siren-close" aria-label="Dismiss">✕</button>
+        </div>
+    </template>-->
+
+    <template id="tpl-siren-banner">
+        <div class="wz-siren-banner" role="alert">
+            <div class="wz-siren__content">
+                <span class="wz-siren-alert static-icon" aria-hidden="true">
+                    <span class="bx-web-ico-alert-1-0" aria-hidden="true"></span>
+                </span>
+
+                <span class="wz-siren-body">
+                    <strong class="wz-siren-title"></strong>
+                    <span class="wz-siren-meta"></span>
+                </span>
+
+                <button type="button" class="wz-siren-close static-icon" aria-label="Dismiss">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
         </div>
     </template>
 
@@ -77,60 +96,46 @@
 </div>
 
 <div class="primary-content">
-    <!-- ═══════════════════════════════════════════════════════════════════════════
-         4. INTRO / DISCLAIMER MODAL
-         First-load gate shown before region selection.
-         Controlled by: warzone-boot.js
-         ═══════════════════════════════════════════════════════════════════════ -->
-    <div id="wz-intro-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About BattlespaceX and important disclaimers">
-        <div class="wz-modal__box wz-intro">
+
+    <!-- ══════════  INTRO / DISCLAIMER MODAL ══════════ -->
+    <div id="wz-intro-modal" class="wz-modal wz-intro" aria-modal="true" role="dialog" aria-label="About BattlespaceX and important disclaimers" hidden>
+        <div class="wz-modal__box">
             <div class="wz-modal__container">
                 <div class="wz-intro__hero">
-                    <span class="wz-intro__eyebrow">StratOps | Powered by BattlespaceX</span>
-                    <h2 class="wz-intro__title">Global conflict monitoring through a military-style OSINT commmand interface</h2>
+                    <div aria-label="stratops visualization board" class="warzone-logo">
+                        <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="StratOps logo" class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async">
+                    </div>
                 </div>
+
                 <div class="wz-intro__body">
+                    <h2 class="wz-intro__title">Global military conflict tracking leverage OSINT command interface</h2>
                     <p>
                         StratOps is a BattlespaceX platform built to monitor reported conflict activity through a cinematic, multi-domain, military-style map experience.
                         It brings together open-source signals, reported military activity, airspace changes, alerts, telemetry-linked movement, and emerging strategic events into a clearer battlespace view.
                     </p>
 
-                    <div class="wz-intro__grid">
-                        <div class="wz-intro__card">
-                            <strong>What you may see</strong>
-                            <p>Missile arcs, drone and UAV activity, military aircraft tracks, naval movement, sirens and alerts, cyber indicators, thermal anomalies, hotspots, heatmaps, and operational overlays such as detection or threat ranges.</p>
-                        </div>
-                        <div class="wz-intro__card">
-                            <strong>What this is not</strong>
-                            <p>This is not an official warning system, not a command platform, and not a substitute for government, military, aviation, maritime, or emergency authority guidance.</p>
-                        </div>
-                    </div>
-
                     <div class="wz-intro__disclaimer">
                         <h3>Important disclaimer</h3>
                         <p>
-                            Information shown here may be delayed, incomplete, normalized, grouped, filtered, or derived from open-source reporting, telemetry, and structured event inputs.
-                            Always verify critical information independently. Do not use this platform for operational, targeting, combat, navigation, or safety-critical decisions.
+                            Information shown here may be delayed, incomplete, normalized, grouped, filtered, or derived from open-source reporting, telemetry, and structured event inputs. What you see on the platform may include missile arcs, drone and UAV activity, military aircraft tracks, naval movement, sirens and alerts, cyber indicators, thermal anomalies, hotspots, heatmaps, and operational overlays such as detection or threat ranges. Always verify critical information independently. Do not use this platform for operational, targeting, combat, navigation, or safety-critical decisions.
                         </p>
                     </div>
+                </div>
 
-                    <div class="wz-intro__actions">
-                        <p class="wz-intro__note">By continuing, you acknowledge that platform content is informational, observational, and OSINT-informed rather than an official or verified intelligence product.</p>
-                        <button id="wz-intro-accept" class="wz-intro__accept" type="button">Accept and Enter</button>
-                    </div>
-                    <div class="clippath-shape-1" aria-hidden="true"></div>
+                <div class="wz-intro__actions">
+                    <p class="wz-intro__note">
+                        By continuing, you acknowledge that platform content is informational, observational, and OSINT-informed rather than an official or verified intelligence product.
+                    </p>
+                    <button id="wz-intro-accept" class="btn-primary" type="button"><span aria-hidden="true"></span>Accept and Enter</button>
                 </div>
             </div>
         </div>
         <div class="wz-modal__backdrop"></div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════════
-         ABOUT / TERMS / DATA POLICY MODAL
-         Controlled by: warzone-boot.js
-         Tabs: About | Capabilities | How It Works | Terms of Use | Data Policy
-         ═══════════════════════════════════════════════════════════════════════ -->
-    <div id="wz-about-modal" class="wz-modal" hidden aria-modal="true" role="dialog" aria-label="About StratOps by BattlespaceX">
+
+    <!-- ══════════  ABOUT MODAL ══════════ -->
+    <div id="wz-about-modal" class="wz-modal" aria-modal="true" role="dialog" aria-label="About StratOps" hidden>
         <div class="wz-modal__box">
             <div class="wz-modal__container">
                 <div class="wz-modal__head">
@@ -139,7 +144,7 @@
                         <span class="text-xl" aria-hidden="true">BattlespaceX</span>
                     </h2>
                     <button class="wz-modal__close static-icon" id="wz-about-close" aria-label="Close">
-                        <span class="bx-web-close-1-1" aria-hidden="true"></span>s
+                        <span class="bx-web-close-1-1" aria-hidden="true"></span>
                     </button>
                 </div>
 
@@ -152,7 +157,6 @@
                 </div>
 
                 <div class="wz-modal__body">
-
                     <!-- TAB 1: ABOUT -->
                     <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
                         <h3>About StratOps</h3>
@@ -361,38 +365,31 @@
                             BattlespaceX provides a transparent public explanation of what StratOps does while preserving confidentiality around protected sources and internal operational logic.
                         </p>
                     </div>
-
                 </div>
             </div>
         </div>
         <div class="wz-modal__backdrop"></div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════════
-         4. REGION SELECT MODAL
-         Controlled by: warzone-region-selector.js → showRegionModal()
-         JS fills:  .wz-region-modal__grid with region buttons
-         JS adds:   .is-visible class to trigger CSS transition in
-         JS adds:   .is-closing class to fade out before removal
-         First visit: shown automatically. Revisit: triggered by region nav button.
-         CSS: warzone-region-layers.css → .wz-region-modal__*
-         ═══════════════════════════════════════════════════════════════════════ -->
 
-    <div id="wz-region-modal" class="wz-region-modal" aria-modal="true" role="dialog" aria-label="Select monitoring region" hidden>
-        <div class="wz-region-modal__box">
-            <div class="wz-modal__container">
+    <!-- ══════════  REGION SELECTOR MODAL ══════════ -->
+    <div id="wz-region-modal" class="wz-modal wz-region-modal" aria-modal="true" role="dialog" aria-label="Select monitoring region" hidden>
+        <div class="wz-modal__box">
+            <div class="wz-modal__container wz-region-modal__container">
                 <div class="wz-region-modal__head">
                     <div class="wz-region-modal__logo">⬡ StratOps</div>
                     <h2 class="wz-region-modal__title">Select Monitoring Region</h2>
                     <p class="wz-region-modal__sub">Live OSINT situational awareness — choose your area of interest</p>
                 </div>
-                <!-- Region buttons injected here by warzone-region-selector.js -->
+
                 <div class="wz-region-modal__grid" id="wz-region-modal-grid"></div>
+
                 <button class="wz-region-modal__confirm" id="wz-region-confirm" disabled>
                     Enter StratOps
                 </button>
             </div>
         </div>
-        <div class="wz-region-modal__backdrop"></div>
+        <div class="wz-modal__backdrop"></div>
     </div>
+
 </div>

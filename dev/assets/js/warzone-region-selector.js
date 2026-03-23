@@ -62,16 +62,138 @@ const REGIONS = [
     },
 ];
 
+const LENS_THEATERS = {
+    live: [
+        "global",
+        "middle_east",
+        "levant",
+        "ukraine",
+        "south_asia",
+        "europe",
+        "north_america",
+        "east_asia",
+        "africa"
+    ],
+    standoff: [
+        "global",
+        "middle_east",
+        "levant",
+        "ukraine",
+        "south_asia",
+        "europe",
+        "north_america",
+        "east_asia",
+        "africa"
+    ],
+    flashpoint: [
+        "global",
+        "middle_east",
+        "levant",
+        "ukraine",
+        "south_asia",
+        "europe",
+        "north_america",
+        "east_asia",
+        "africa"
+    ],
+    all: [
+        "global",
+        "middle_east",
+        "levant",
+        "ukraine",
+        "south_asia",
+        "europe",
+        "north_america",
+        "east_asia",
+        "africa"
+    ]
+};
+
+const LENS_REGION_LABELS = {
+    live: {
+        global: "Global View",
+        middle_east: "Middle East & Gulf",
+        levant: "Levant & Eastern Med",
+        ukraine: "Ukraine & Eastern Europe",
+        south_asia: "South Asia",
+        europe: "Europe",
+        north_america: "North America",
+        east_asia: "East Asia & Pacific",
+        africa: "Africa",
+    },
+
+    standoff: {
+        global: "Global View",
+        middle_east: "Middle East & Gulf",
+        levant: "Levant & Eastern Med",
+        ukraine: "Ukraine & Eastern Europe",
+        south_asia: "South Asia",
+        europe: "Europe",
+        north_america: "North America",
+        east_asia: "East Asia & Pacific",
+        africa: "Africa",
+    },
+
+    flashpoint: {
+        global: "Global View",
+        middle_east: "Middle East & Gulf",
+        levant: "Levant & Eastern Med",
+        ukraine: "Ukraine & Eastern Europe",
+        south_asia: "South Asia",
+        europe: "Europe",
+        north_america: "North America",
+        east_asia: "East Asia & Pacific",
+        africa: "Africa",
+    },
+
+    all: {
+        global: "Global View",
+        middle_east: "Middle East & Gulf",
+        levant: "Levant & Eastern Med",
+        ukraine: "Ukraine & Eastern Europe",
+        south_asia: "South Asia",
+        europe: "Europe",
+        north_america: "North America",
+        east_asia: "East Asia & Pacific",
+        africa: "Africa",
+    }
+};
+
 const STORAGE_KEY = "wz_selected_region";
+const LENS_KEY = "wz_selected_lens";
 const VISITED_KEY = "wz_region_visited";
 const INTRO_ACCEPT_KEY = "wz_intro_accepted";
 
-let __activeRegion = REGIONS[0]; // default: global
+let __activeRegion = getRegionById("middle_east");
+let __activeLens = "live";
 let __onChangeCallbacks = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function getRegionById(id) {
     return REGIONS.find(r => r.id === id) || REGIONS[0];
+}
+
+function getRegionsForLens(lens) {
+    const ids = LENS_THEATERS[lens] || LENS_THEATERS.live;
+    return ids.map((id) => getRegionById(id)).filter(Boolean);
+}
+
+function getRegionLabelForLens(region, lens) {
+    return LENS_REGION_LABELS[lens]?.[region.id] || region.label;
+}
+
+function getDefaultRegionForLens(lens) {
+    const regions = getRegionsForLens(lens);
+    return regions[0] || getRegionById("middle_east");
+}
+
+function ensureRegionAllowedForLens() {
+    const allowed = getRegionsForLens(__activeLens);
+    const ok = allowed.some(r => r.id === __activeRegion.id);
+
+    if (!ok) {
+        __activeRegion = getDefaultRegionForLens(__activeLens);
+    }
 }
 
 function detectRegionFromCamera(viewer) {
@@ -112,59 +234,61 @@ function detectRegionFromCamera(viewer) {
 export function filterEventsByRegion(events, region) {
     if (!region || region.id === "global") return events;
 
-    // Try to use live camera viewport first
-    const viewer = window.__warzoneViewer;
-    if (viewer) {
-        try {
-            const rect = viewer.camera.computeViewRectangle();
-            if (rect) {
-                const minLon = Cesium.Math.toDegrees(rect.west);
-                const maxLon = Cesium.Math.toDegrees(rect.east);
-                const minLat = Cesium.Math.toDegrees(rect.south);
-                const maxLat = Cesium.Math.toDegrees(rect.north);
-
-                // Add 15% padding so events near edges still show
-                const lonPad = (maxLon - minLon) * 0.15;
-                const latPad = (maxLat - minLat) * 0.15;
-
-                return events.filter(e => {
-                    const lat = Number(e.lat);
-                    const lon = Number(e.lon);
-                    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-                    return lat >= minLat - latPad && lat <= maxLat + latPad &&
-                        lon >= minLon - lonPad && lon <= maxLon + lonPad;
-                });
-            }
-        } catch { }
-    }
-
-    // Fallback to region bounds if camera not ready yet
     const { minLat, maxLat, minLon, maxLon } = region.bounds;
-    return events.filter(e => {
+
+    return events.filter((e) => {
         const lat = Number(e.lat);
         const lon = Number(e.lon);
+
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-        return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+
+        return (
+            lat >= minLat &&
+            lat <= maxLat &&
+            lon >= minLon &&
+            lon <= maxLon
+        );
+    });
+}
+export function getActiveRegion() { return __activeRegion; }
+export function getActiveLens() {
+    return __activeLens;
+}
+
+function notifyScopeChange() {
+    try { localStorage.setItem(STORAGE_KEY, __activeRegion.id); } catch { }
+    try { localStorage.setItem(LENS_KEY, __activeLens); } catch { }
+
+    updateNavDropdown(__activeRegion);
+    updateLensDropdown(__activeLens);
+
+    __onChangeCallbacks.forEach((cb) => {
+        try {
+            cb({
+                region: __activeRegion,
+                lens: __activeLens,
+            });
+        } catch { }
     });
 }
 
-export function getActiveRegion() { return __activeRegion; }
-
+export function setActiveLens(lensId) {
+    __activeLens = lensId || "live";
+    ensureRegionAllowedForLens();
+    notifyScopeChange();
+}
 export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
 
 function notifyChange(region) {
     __activeRegion = region;
-    try { localStorage.setItem(STORAGE_KEY, region.id); } catch { }
-    __onChangeCallbacks.forEach(cb => { try { cb(region); } catch { } });
-    updateNavDropdown(region);
+    notifyScopeChange();
 }
 
 // ── Camera fly ────────────────────────────────────────────────────────────────
 export function flyToRegion(viewer, region) {
     if (!viewer || !region) return;
 
-    const mapLoader = document.getElementById("site-loader");
-    if (mapLoader) { mapLoader.hidden = false; }
+    window.SiteLoader?.start?.();
 
     const { minLon, minLat, maxLon, maxLat } = region.bounds;
 
@@ -172,7 +296,7 @@ export function flyToRegion(viewer, region) {
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(20, 20, 18000000),
             duration: 1.8,
-            complete: () => { if (mapLoader) mapLoader.hidden = true; },
+            complete: () => { window.SiteLoader?.stop?.(); },
         });
         return;
     }
@@ -180,7 +304,7 @@ export function flyToRegion(viewer, region) {
     viewer.camera.flyTo({
         destination: Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
         duration: 1.8,
-        complete: () => { if (mapLoader) mapLoader.hidden = true; },
+        complete: () => { window.SiteLoader?.stop?.(); },
     });
 }
 
@@ -193,24 +317,47 @@ export function selectRegion(viewer, regionId) {
 // ── Nav dropdown ──────────────────────────────────────────────────────────────
 function updateNavDropdown(region) {
     const dropdown = document.getElementById("wz-region-nav");
-    if (dropdown) dropdown.value = region.id;
+    if (!dropdown) return;
+
+    const regions = getRegionsForLens(__activeLens);
+
+    dropdown.innerHTML = regions.map((r) =>
+        `<option value="${r.id}">${getRegionLabelForLens(r, __activeLens)}${r.hot ? " ◉" : ""}</option>`
+    ).join("");
+
+    if (region && regions.some((r) => r.id === region.id)) {
+        dropdown.value = region.id;
+    } else if (regions.length) {
+        dropdown.value = regions[0].id;
+    }
+}
+
+function updateLensDropdown(lens) {
+    const dropdown = document.getElementById("wz-lens-nav");
+    if (!dropdown) return;
+    dropdown.value = lens;
 }
 
 export function initRegionNav(viewer) {
     const dropdown = document.getElementById("wz-region-nav");
     if (!dropdown) return;
 
-    dropdown.innerHTML = REGIONS.map(r =>
-        `<option value="${r.id}">${r.label} <span>${r.hot ? "◉" : ""}</span></option>`
-    ).join("");
-
-    dropdown.value = __activeRegion.id;
+    updateNavDropdown(__activeRegion);
 
     dropdown.addEventListener("change", () => {
         selectRegion(viewer, dropdown.value);
     });
 
-    // Update region dropdown label as user pans — no data re-sync needed
+    const lensDropdown = document.getElementById("wz-lens-nav");
+    if (lensDropdown) {
+        lensDropdown.value = __activeLens;
+
+        lensDropdown.addEventListener("change", () => {
+            setActiveLens(lensDropdown.value);
+            flyToRegion(viewer, __activeRegion);
+        });
+    }
+
     let detectTimer = null;
     viewer?.camera?.moveEnd?.addEventListener(() => {
         clearTimeout(detectTimer);
@@ -226,9 +373,20 @@ export function initRegionNav(viewer) {
 // ── First-visit modal ─────────────────────────────────────────────────────────
 export function initRegionSelector(viewer) {
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) __activeRegion = getRegionById(saved);
-    } catch { }
+        const savedRegion = localStorage.getItem(STORAGE_KEY);
+        if (savedRegion) {
+            __activeRegion = getRegionById(savedRegion);
+        } else {
+            __activeRegion = getRegionById("middle_east");
+        }
+
+        const savedLens = localStorage.getItem(LENS_KEY);
+        __activeLens = savedLens || "live";
+        ensureRegionAllowedForLens();
+    } catch {
+        __activeRegion = getRegionById("middle_east");
+        __activeLens = "live";
+    }
 
     // Expose for dock "🌍 Region" button
     window.__warzoneShowRegionModal = () => showRegionModal(viewer);
@@ -249,6 +407,9 @@ export function initRegionSelector(viewer) {
         showRegionModal(viewer);
     } else {
         flyToRegion(viewer, __activeRegion);
+        window.setTimeout(() => {
+            window.__warzoneEnterApp?.();
+        }, 1000);
     }
 
     initRegionNav(viewer);
@@ -285,6 +446,7 @@ function showRegionModal(viewer) {
     if (confirmBtn) confirmBtn.disabled = true;
 
     overlay.hidden = false;
+    overlay.classList.remove("is-closing");
     let chosen = __activeRegion.id;
 
     overlay.querySelectorAll(".wz-region-btn").forEach(btn => {
@@ -300,14 +462,17 @@ function showRegionModal(viewer) {
         confirmBtn.addEventListener("click", () => {
             try { localStorage.setItem(VISITED_KEY, "1"); } catch { }
 
+            overlay.classList.remove("is-visible");
             overlay.classList.add("is-closing");
 
             setTimeout(() => {
                 overlay.hidden = true;
-                overlay.classList.remove("is-visible", "is-closing");
-            }, 400);
+                overlay.classList.remove("is-closing");
 
-            selectRegion(viewer, chosen);
+                selectRegion(viewer, chosen);
+
+                window.__warzoneEnterApp?.();
+            }, 220);
         });
     }
 

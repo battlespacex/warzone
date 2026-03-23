@@ -296,8 +296,7 @@
 .weapon-tag {
     display: inline-flex;
     align-items: center;
-    border: 0.2rem solid rgba(87, 184, 255, 0.25);
-    background: red;
+    background: var(--color-bg-dark);
     color: #57b8ff;
     padding: 0.5rem 1rem;
     font-size: 1rem;

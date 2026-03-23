@@ -14,6 +14,10 @@ const AUTO_DISMISS = {
 // Banner template lives in partials/popups.html → #tpl-siren-banner
 let __stack = [];   // [ { id, el, timer } ]
 let __seq = 0;
+let __sirenLoopTimer = null;
+let __sirenAudioEl = null;
+
+const SIREN_STYLE_MODE = false;
 
 function getStack() {
     return document.getElementById("wz-siren-stack");
@@ -103,16 +107,18 @@ function formatAlertTitle(event, level) {
 function formatMeta(event) {
     const parts = [];
 
-    const src = String(event?.source_name || "").trim();
-    if (src && !src.includes("DEV TEST")) {
-        // Shorten Telegram / Reddit names
-        const shortSrc = src
-            .replace("Telegram OSINT", "Telegram")
-            .replace("Reddit CombatFootage", "Reddit")
-            .replace("Reddit UkraineWarVideoReport", "Reddit")
-            .replace("ADS-B / OpenSky Network", "ADS-B")
-            .replace("AIS / AISStream.io", "AIS");
-        parts.push(`via ${shortSrc}`);
+    const src = String(event?.source_name || "").toLowerCase().trim();
+
+    if (src && !src.includes("dev test")) {
+        let sourceLabel = "";
+
+        if (src.includes("telegram")) sourceLabel = "Telegram OSINT";
+        else if (src.includes("reddit")) sourceLabel = "Reddit";
+        else if (src.includes("ads-b")) sourceLabel = "ADS-B";
+        else if (src.includes("ais")) sourceLabel = "AIS";
+        else sourceLabel = "OSINT Feed";
+
+        parts.push(`via ${sourceLabel}`);
     }
 
     if (event?.occurred_at) {
@@ -145,6 +151,10 @@ function dismiss(id) {
     setTimeout(() => { try { item.el.remove(); } catch { } }, 400);
 
     __stack.splice(idx, 1);
+
+    if (__stack.length === 0) {
+        stopSirenLoop();
+    }
 }
 
 // ── Remove oldest if over cap ──────────────────────────────────────────────────
@@ -154,39 +164,37 @@ function enforceCap() {
     }
 }
 
-// ── Sound ──────────────────────────────────────────────────────────────────────
-let __sirenAudio = null;
 
-function playSirenSound(level) {
-    // Use existing warzone alert audio element if available
-    const el = document.getElementById("warzone-alert-audio");
-    if (el) {
-        try {
-            el.currentTime = 0;
-            el.play().catch(() => { });
-        } catch { }
-        return;
+function startSirenLoop() {
+    if (__sirenLoopTimer) return;
+
+    if (!__sirenAudioEl) {
+        __sirenAudioEl = new Audio("/assets/audio/warzone-alert-loop.mp3");
+        __sirenAudioEl.preload = "auto";
+        __sirenAudioEl.volume = 0.7;
     }
 
-    // Fallback: Web Audio API beep pattern (no file needed)
-    try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const freqs = level === "red" ? [880, 660, 880, 660] : [660, 440];
+    const play = () => {
+        try {
+            __sirenAudioEl.currentTime = 0;
+            __sirenAudioEl.play().catch(() => { });
+        } catch { }
+    };
 
-        freqs.forEach((freq, i) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.frequency.value = freq;
-            osc.type = "sine";
-            gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
-            gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.04);
-            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.18 + 0.14);
-            osc.start(ctx.currentTime + i * 0.18);
-            osc.stop(ctx.currentTime + i * 0.18 + 0.15);
-        });
-    } catch { }
+    // play once immediately
+    play();
+
+    // then every 10 seconds
+    __sirenLoopTimer = setInterval(() => {
+        play();
+    }, 10000);
+}
+
+function stopSirenLoop() {
+    if (__sirenLoopTimer) {
+        clearInterval(__sirenLoopTimer);
+        __sirenLoopTimer = null;
+    }
 }
 
 // ── Main API ───────────────────────────────────────────────────────────────────
@@ -197,30 +205,16 @@ export function showSirenAlert({ title, meta = "", level = "orange", sound = tru
     const stack = getStack();
     if (!stack) return;
 
-    // Clone banner from <template id="tpl-siren-banner"> in partials/popups.html
     const tpl = document.getElementById("tpl-siren-banner");
-    let banner;
-    if (tpl) {
-        banner = tpl.content.cloneNode(true).firstElementChild;
-    } else {
-        // Fallback: create manually if template somehow missing
-        banner = document.createElement("div");
-        banner.innerHTML = `
-            <span class="wz-siren-bell" aria-hidden="true">🔔</span>
-            <span class="wz-siren-body">
-                <strong class="wz-siren-title"></strong>
-                <span class="wz-siren-meta"></span>
-            </span>
-            <span class="wz-siren-bell-right" aria-hidden="true">🔔</span>
-            <button class="wz-siren-close" aria-label="Dismiss">✕</button>
-        `;
-    }
+    if (!tpl) return;
+
+    const banner = tpl.content.cloneNode(true).firstElementChild;
 
     banner.className = `wz-siren-banner wz-siren-banner--${level}`;
     banner.dataset.alertId = id;
 
-    // Fill content
     banner.querySelector(".wz-siren-title").textContent = title;
+
     const metaEl = banner.querySelector(".wz-siren-meta");
     if (meta) {
         metaEl.textContent = meta;
@@ -229,7 +223,6 @@ export function showSirenAlert({ title, meta = "", level = "orange", sound = tru
         metaEl.hidden = true;
     }
 
-    // Close button
     banner.querySelector(".wz-siren-close").addEventListener("click", (e) => {
         e.stopPropagation();
         dismiss(id);
@@ -237,10 +230,15 @@ export function showSirenAlert({ title, meta = "", level = "orange", sound = tru
 
     stack.appendChild(banner);
 
-    const timer = setTimeout(() => dismiss(id), AUTO_DISMISS[level] || 10000);
-    __stack.push({ id, el: banner, timer });
+    if (__stack.length === 0 && sound) {
+        startSirenLoop();
+    }
 
-    if (sound) playSirenSound(level);
+    const timer = SIREN_STYLE_MODE
+        ? null
+        : setTimeout(() => dismiss(id), AUTO_DISMISS[level] || 10000);
+
+    __stack.push({ id, el: banner, timer });
 }
 
 // ── From normalized event ──────────────────────────────────────────────────────
@@ -289,5 +287,29 @@ export function isSirenEvent(event) {
 
 
 
+if (SIREN_STYLE_MODE) {
+    window.addEventListener("DOMContentLoaded", () => {
+        setTimeout(() => {
+            showSirenAlert({
+                title: "SIRENS GOING OFF IN: TEL AVIV, HAIFA, CENTRAL ISRAEL",
+                meta: "via Telegram",
+                level: "red",
+                sound: false
+            });
 
+            showSirenAlert({
+                title: "SIRENS REPORTED IN: BEIRUT, SOUTHERN LEBANON",
+                meta: "via Telegram",
+                level: "orange",
+                sound: false
+            });
 
+            showSirenAlert({
+                title: "INCOMING THREAT — NORTHERN ISRAEL",
+                meta: "via Alert Feed",
+                level: "yellow",
+                sound: false
+            });
+        }, 300);
+    });
+}

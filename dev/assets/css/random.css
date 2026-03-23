@@ -299,8 +299,6 @@
     overflow-y: auto;
     margin: 1.5rem 0;
     padding: 0 1.5rem;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
     opacity: 0;
     transform: none;
     transition: opacity 140ms ease;
@@ -308,18 +306,6 @@
 
 .wzhs--open .wzhs__items {
     opacity: 1;
-}
-
-.wzhs__items::-webkit-scrollbar {
-    width: 0.6rem;
-}
-
-.wzhs__items::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.wzhs__items::-webkit-scrollbar-track {
-    background: transparent;
 }
 
 .wzhs-item {
@@ -660,8 +646,6 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
-    scrollbar-width: none;
-    border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
 }
 
     .wz-modal__tabs::-webkit-scrollbar {

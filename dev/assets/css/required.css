@@ -73,7 +73,7 @@ input, select, textarea {
     -moz-box-sizing: border-box;
     box-sizing: border-box;
     word-wrap: break-word;
-    scrollbar-width: auto;
+    scrollbar-width: inherit;
     scrollbar-color: var(--color-teal-glow) var(--color-bg-dark);
 }
 
@@ -178,10 +178,6 @@ strong {
 /* #endregion =========== */
 
 /* #region =========== BUTTONS =========== */
-
-.btn--primary {
-    background: var(--color-teal);
-}
 
 .btn--secondary {
     background: var(--color-gray);
@@ -461,12 +457,12 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 
 /* #region =========== BROWSER DEFAULT SCROLLBAR REPLACEMENT =========== */
 
-*::-webkit-scrollbar {
+/**::-webkit-scrollbar {
         all: unset;
     }
 
 ::-webkit-scrollbar {
-    width: 1rem;
+    width: 0.8rem;
     height: 1rem;
 }
 
@@ -482,7 +478,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     ::-webkit-scrollbar-thumb:hover {
         background: var(--color-teal-glow);
     }
-
+*/
 /* #endregion =========== */
 
 /* #region =========== UI AUDIO =========== */
@@ -627,13 +623,6 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 
 /* #region =========== LOADER =========== */
 
-.site-loader__gif {
-    width: 40vh;
-    aspect-ratio: 1 / 1;
-    object-fit: contain;
-    image-rendering: auto;
-}
-
 .site-loader {
     position: fixed;
     inset: 0;
@@ -658,6 +647,19 @@ body.show-loader .site-loader {
     visibility: visible;
     pointer-events: auto;
     transition: opacity 0.18s ease, visibility 0s;
+}
+
+.site-loader__gif {
+    width: 40vh;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    image-rendering: auto;
+}
+
+.site-loader__inner {
+    display: grid;
+    place-items: center;
+    gap: 1.2rem;
 }
 
 /* #endregion =========== */
@@ -691,4 +693,21 @@ body.show-loader .site-loader {
         transform: translateY(5rem);
     }
 
+/* #endregion =========== */
+
+/* #region =========== GATE LAYER =========== */
+#warzone-gate-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 150;
+    pointer-events: none;
+}
+
+    #warzone-gate-layer .wz-modal {
+        pointer-events: none;
+    }
+
+        #warzone-gate-layer .wz-modal.is-visible {
+            pointer-events: auto;
+        }
 /* #endregion =========== */

@@ -10,7 +10,7 @@
 //   3. Click karo — panel khulega
 //   4. Har button ek alag event type fire karta hai globe pe
 //
-// Koi server ya database nahi chahiye — seedha globe functions call karta hai
+// Koi server ya database nahi chahiye — central event pipeline use karta hai
 
 import * as Cesium from "cesium";
 import { handleIncomingEvent, triggerWarzoneAlert } from "./essential.js";
@@ -19,7 +19,6 @@ import { showSirenAlert } from "./warzone-siren-alert.js";
 // ─── Test event templates ──────────────────────────────────────────────────────
 
 const TEST_EVENTS = {
-
     // ── Missile arc (Iran → Israel) ────────────────────────────────────────
     missile_iran_israel: {
         id: "test-missile-1",
@@ -29,9 +28,12 @@ const TEST_EVENTS = {
         subcategory: "missile",
         weapon_type: "ballistic_missile",
         severity: "critical",
-        lat: 32.08, lon: 34.78,       // Tel Aviv (impact)
-        impact_lat: 32.08, impact_lon: 34.78,
-        origin_lat: 32.42, origin_lon: 53.69,  // Iran
+        lat: 32.08,
+        lon: 34.78,
+        impact_lat: 32.08,
+        impact_lon: 34.78,
+        origin_lat: 32.42,
+        origin_lon: 53.69,
         origin_label: "Isfahan, Iran",
         impact_label: "Tel Aviv, Israel",
         location_label: "Israel",
@@ -48,9 +50,12 @@ const TEST_EVENTS = {
         subcategory: "cruise_missile",
         weapon_type: "cruise_missile",
         severity: "critical",
-        lat: 50.45, lon: 30.52,
-        impact_lat: 50.45, impact_lon: 30.52,
-        origin_lat: 55.75, origin_lon: 37.61,
+        lat: 50.45,
+        lon: 30.52,
+        impact_lat: 50.45,
+        impact_lon: 30.52,
+        origin_lat: 55.75,
+        origin_lon: 37.61,
         origin_label: "Moscow region",
         impact_label: "Kyiv, Ukraine",
         location_label: "Ukraine",
@@ -67,9 +72,12 @@ const TEST_EVENTS = {
         subcategory: "drone",
         weapon_type: "drone",
         severity: "high",
-        lat: 49.84, lon: 24.02,
-        impact_lat: 49.84, impact_lon: 24.02,
-        origin_lat: 47.51, origin_lon: 34.25,
+        lat: 49.84,
+        lon: 24.02,
+        impact_lat: 49.84,
+        impact_lon: 24.02,
+        origin_lat: 47.51,
+        origin_lon: 34.25,
         origin_label: "Zaporizhzhia region",
         impact_label: "Lviv, Ukraine",
         location_label: "Ukraine",
@@ -86,9 +94,12 @@ const TEST_EVENTS = {
         subcategory: "airstrike",
         weapon_type: "air_strike",
         severity: "high",
-        lat: 33.27, lon: 35.20,
-        impact_lat: 33.27, impact_lon: 35.20,
-        origin_lat: 32.08, origin_lon: 34.78,
+        lat: 33.27,
+        lon: 35.2,
+        impact_lat: 33.27,
+        impact_lon: 35.2,
+        origin_lat: 32.08,
+        origin_lon: 34.78,
         origin_label: "Israel",
         impact_label: "Southern Lebanon",
         location_label: "Lebanon",
@@ -105,8 +116,10 @@ const TEST_EVENTS = {
         subcategory: "siren",
         weapon_type: "unknown",
         severity: "critical",
-        lat: 32.08, lon: 34.78,
-        impact_lat: 32.08, impact_lon: 34.78,
+        lat: 32.08,
+        lon: 34.78,
+        impact_lat: 32.08,
+        impact_lon: 34.78,
         location_label: "Tel Aviv, Israel",
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
@@ -120,8 +133,10 @@ const TEST_EVENTS = {
         category: "alert",
         subcategory: "siren",
         severity: "critical",
-        lat: 50.45, lon: 30.52,
-        impact_lat: 50.45, impact_lon: 30.52,
+        lat: 50.45,
+        lon: 30.52,
+        impact_lat: 50.45,
+        impact_lon: 30.52,
         location_label: "Kyiv, Ukraine",
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
@@ -135,8 +150,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "fighter",
         severity: "medium",
-        lat: 31.50, lon: 34.90,
-        lon: 34.90,
+        lat: 31.5,
+        lon: 34.9,
         location_label: "Israel",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
@@ -152,7 +167,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "awacs",
         severity: "medium",
-        lat: 50.06, lon: 19.94,
+        lat: 50.06,
+        lon: 19.94,
         location_label: "Poland",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
@@ -168,7 +184,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "recon",
         severity: "medium",
-        lat: 37.06, lon: 36.16,
+        lat: 37.06,
+        lon: 36.16,
         location_label: "Turkey / Syria border",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
@@ -184,7 +201,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "tanker",
         severity: "low",
-        lat: 48.20, lon: 16.37,
+        lat: 48.2,
+        lon: 16.37,
         location_label: "Austria / Germany region",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
@@ -200,7 +218,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "carrier",
         severity: "high",
-        lat: 35.20, lon: 28.50,
+        lat: 35.2,
+        lon: 28.5,
         location_label: "Eastern Mediterranean",
         source_name: "AIS / AISStream.io",
         occurred_at: new Date().toISOString(),
@@ -216,7 +235,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "destroyer",
         severity: "medium",
-        lat: 35.50, lon: 29.20,
+        lat: 35.5,
+        lon: 29.2,
         location_label: "Eastern Mediterranean",
         source_name: "AIS / AISStream.io",
         occurred_at: new Date().toISOString(),
@@ -232,7 +252,8 @@ const TEST_EVENTS = {
         category: "military",
         subcategory: "frigate",
         severity: "high",
-        lat: 44.60, lon: 33.52,
+        lat: 44.6,
+        lon: 33.52,
         location_label: "Black Sea",
         source_name: "AIS / AISStream.io",
         occurred_at: new Date().toISOString(),
@@ -248,7 +269,8 @@ const TEST_EVENTS = {
         category: "cyber",
         subcategory: "cyber",
         severity: "high",
-        lat: 35.69, lon: 51.38,
+        lat: 35.69,
+        lon: 51.38,
         location_label: "Tehran, Iran",
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
@@ -262,7 +284,8 @@ const TEST_EVENTS = {
         category: "thermal",
         subcategory: "thermal",
         severity: "medium",
-        lat: 33.51, lon: 36.29,
+        lat: 33.51,
+        lon: 36.29,
         location_label: "Damascus, Syria",
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
@@ -274,11 +297,58 @@ const TEST_EVENTS = {
 function devLog(msg) {
     const log = document.getElementById("wz-dev-log");
     if (!log) return;
+
     const line = document.createElement("div");
     line.textContent = `${new Date().toLocaleTimeString()} ${msg}`;
     log.prepend(line);
-    // Keep max 20 lines
-    while (log.children.length > 20) log.removeChild(log.lastChild);
+
+    while (log.children.length > 20) {
+        log.removeChild(log.lastChild);
+    }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function isStrikeLikeEvent(event) {
+    const weaponType = String(event.weapon_type || "").toLowerCase();
+    const subcategory = String(event.subcategory || "").toLowerCase();
+
+    return (
+        event.origin_lat != null &&
+        event.origin_lon != null &&
+        (
+            weaponType.includes("missile") ||
+            weaponType.includes("drone") ||
+            weaponType.includes("air_strike") ||
+            subcategory.includes("missile") ||
+            subcategory.includes("drone")
+        )
+    );
+}
+
+function buildDevSirenMeta(event) {
+    const weaponType = String(event.weapon_type || "").toLowerCase();
+    const subcategory = String(event.subcategory || "").toLowerCase();
+
+    if (weaponType.includes("drone") || subcategory.includes("drone")) {
+        return "via DEV TEST · INCOMING UAV / DRONE THREAT";
+    }
+
+    if (weaponType.includes("air_strike")) {
+        return "via DEV TEST · AIR STRIKE WARNING";
+    }
+
+    if (weaponType.includes("missile") || subcategory.includes("missile")) {
+        return "via DEV TEST · TAKE SHELTER IMMEDIATELY";
+    }
+
+    return "via DEV TEST · INCOMING STRIKE";
+}
+
+function getSirenLevel(severity) {
+    if (severity === "critical") return "red";
+    if (severity === "high") return "orange";
+    return "yellow";
 }
 
 // ─── Fire a test event ────────────────────────────────────────────────────────
@@ -287,108 +357,80 @@ function fireTestEvent(key) {
     const template = TEST_EVENTS[key];
     if (!template) return;
 
-    // Fresh copy with new ID and timestamp
     const event = {
         ...template,
         id: `${template.id}-${Date.now()}`,
         occurred_at: new Date().toISOString(),
     };
 
-    handleIncomingEvent(event);
-    return;
-
     const globe = window.__warzoneViewer?.__warzone;
-    const tracks = window.__militaryTracks;
 
-    // Add to globe circles
-    globe?.addEvent?.(event);
+    // Central pipeline handles:
+    // - globe.addEvent
+    // - missile animation
+    // - hotspot add
+    // - military tracks
+    handleIncomingEvent(event);
 
-    // Missile / drone arc
-    // Missile / drone / airstrike arc + linked siren popup
-    if (
-        event.origin_lat != null && event.origin_lat !== "" &&
-        event.origin_lon != null && event.origin_lon !== "" &&
-        (String(event.weapon_type).includes("missile") ||
-            String(event.weapon_type).includes("drone") ||
-            String(event.subcategory).includes("drone") ||
-            String(event.subcategory).includes("missile") ||
-            String(event.weapon_type).includes("air_strike"))
-    ) {
-        globe?.animateMissileTrack?.(event);
-
-        const impactLabel = String(event.impact_label || event.location_label || "IMPACT ZONE").toUpperCase();
-
-        let sirenLevel = "orange";
-        if (event.severity === "critical") sirenLevel = "red";
-        else if (event.severity === "high") sirenLevel = "orange";
-        else sirenLevel = "yellow";
-
-        let sirenMeta = "via DEV TEST · INCOMING STRIKE";
-        if (String(event.weapon_type).includes("drone") || String(event.subcategory).includes("drone")) {
-            sirenMeta = "via DEV TEST · INCOMING UAV / DRONE THREAT";
-        } else if (String(event.weapon_type).includes("air_strike")) {
-            sirenMeta = "via DEV TEST · AIR STRIKE WARNING";
-        } else if (String(event.weapon_type).includes("missile")) {
-            sirenMeta = "via DEV TEST · TAKE SHELTER IMMEDIATELY";
-        }
+    // Custom dev-only siren popup text for strike-like test events
+    if (isStrikeLikeEvent(event)) {
+        const impactLabel = String(
+            event.impact_label || event.location_label || "IMPACT ZONE"
+        ).toUpperCase();
 
         showSirenAlert({
             title: `SIRENS GOING OFF IN: ${impactLabel}`,
-            meta: sirenMeta,
-            level: sirenLevel,
+            meta: buildDevSirenMeta(event),
+            level: getSirenLevel(event.severity),
             sound: true,
         });
 
         devLog(`🚀 Fired: ${event.title} → Siren: ${impactLabel}`);
     }
 
-    // Siren / alert
-    if (event.category === "alert" || String(event.title + event.summary).toLowerCase().includes("siren")) {
+    // Dedicated alert test events
+    if (
+        event.category === "alert" ||
+        String(`${event.title} ${event.summary}`).toLowerCase().includes("siren")
+    ) {
         triggerWarzoneAlert({
             title: event.title,
             location: event.location_label,
             level: "critical",
             playSound: true,
         });
+
         globe?.highlightAlertRegion?.(event);
         devLog(`🔴 Alert: ${event.title}`);
+        return;
     }
 
-    // Military track (aircraft / naval) — always fire from dev panel
-    if (event.category === "military" && tracks) {
-        tracks.addTrack(event);
+    // Military track logging + flyTo only
+    if (event.category === "military") {
         devLog(`✈ Track: ${event.title}`);
 
-        // Fly camera to track location
         const viewer = window.__warzoneViewer;
-        if (viewer) {
+        if (viewer && event.lon != null && event.lat != null) {
             viewer.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(
-                    Number(event.lon), Number(event.lat), 800000
+                    Number(event.lon),
+                    Number(event.lat),
+                    800000
                 ),
                 duration: 1.2,
             });
         }
+
+        return;
     }
 
-    // Hotspot layer
-    window.__hotspotLayer?.addEvent?.(event);
-
-    // Generic event (cyber, thermal, etc.)
-    if (!["military", "alert"].includes(event.category)) {
-        devLog(`📍 Event: ${event.title}`);
-    }
+    // Generic event logging only
+    devLog(`📍 Event: ${event.title}`);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function initDevPanel() {
-    // ── Activation check ────────────────────────────────────────────────────
-    // Show dev panel if:
-    //   1. localhost / 127.0.0.1 / empty hostname (direct file open)
-    //   2. URL has ?devpanel=1 (staging / any URL)
-    //   3. localStorage flag: localStorage.setItem('wz_dev','1') then refresh
-    //   4. Keyboard shortcut Ctrl+Shift+` (backtick) anytime — activates for session
     const isLocal =
         window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1" ||
@@ -396,27 +438,22 @@ export function initDevPanel() {
         window.location.search.includes("devpanel=1") ||
         localStorage.getItem("wz_dev") === "1";
 
-    // Panel HTML lives in partials/popups.html → #wz-dev-panel
-    // JS just reveals it and wires events
     const panel = document.getElementById("wz-dev-panel");
     if (!panel) {
         console.warn("[DevPanel] #wz-dev-panel not found — ensure partials/popups.html is loaded.");
         return;
     }
 
-    // ── Secret keyboard shortcut: Ctrl+Shift+` ────────────────────────────
-    // Works on any hostname — no URL change needed.
-    // Once activated, writes localStorage flag so it persists across refreshes.
     document.addEventListener("keydown", (e) => {
         if (e.ctrlKey && e.shiftKey && (e.key === "`" || e.key === "~" || e.code === "Backquote")) {
             e.preventDefault();
+
             if (panel.hidden) {
                 panel.hidden = false;
                 localStorage.setItem("wz_dev", "1");
                 devLog("🔑 Dev panel unlocked via keyboard shortcut");
                 console.log("[dev] Warzone dev panel activated — Ctrl+Shift+` pressed");
             } else {
-                // Toggle body collapse (don't hide the whole panel, just collapse it)
                 const body = document.getElementById("wz-dev-body");
                 if (body) body.hidden = !body.hidden;
             }
@@ -427,39 +464,44 @@ export function initDevPanel() {
 
     panel.hidden = false;
 
-    // Toggle body
     document.getElementById("wz-dev-toggle").addEventListener("click", () => {
         const body = document.getElementById("wz-dev-body");
         if (body) body.hidden = !body.hidden;
     });
 
-    // Individual buttons
-    document.querySelectorAll(".wz-dev-btn").forEach(btn => {
+    document.querySelectorAll(".wz-dev-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
             fireTestEvent(btn.dataset.event);
         });
     });
 
-    // Siren buttons
-    document.querySelectorAll(".wz-dev-btn[data-siren]").forEach(btn => {
+    document.querySelectorAll(".wz-dev-btn[data-siren]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const level = btn.dataset.siren;
+
             const titles = {
                 red: "TEL AVIV, HAIFA, CENTRAL ISRAEL",
                 orange: "BEIRUT, SOUTHERN LEBANON, SIDON",
                 yellow: "NORTHERN ISRAEL, HAMIFRATZ, HAMAKIM",
             };
+
             const metas = {
-                red: "via IDF Home Front · TAKE SHELTER IMMEDIATELY",
-                orange: "via Telegram (3 reports) · Confirmed",
-                yellow: "via Tzofar (Tzeva Adom) · Unconfirmed",
+                red: "via Alert Feed",
+                orange: "via Telegram OSINT",
+                yellow: "via Alert Feed",
             };
-            showSirenAlert({ title: titles[level], meta: metas[level], level, sound: true });
+
+            showSirenAlert({
+                title: titles[level],
+                meta: metas[level],
+                level,
+                sound: true,
+            });
+
             devLog(`🔔 Siren [${level.toUpperCase()}]: ${titles[level]}`);
         });
     });
 
-    // Pulse highlight test buttons
     const HIGHLIGHT_LOCATIONS = {
         israel: { lat: 31.5, lon: 34.8, severity: "critical", label: "Israel" },
         uae: { lat: 24.2, lon: 54.4, severity: "high", label: "UAE" },
@@ -467,38 +509,46 @@ export function initDevPanel() {
         ukraine: { lat: 49.0, lon: 32.0, severity: "high", label: "Ukraine" },
     };
 
-    document.querySelectorAll(".wz-dev-btn[data-highlight]").forEach(btn => {
+    document.querySelectorAll(".wz-dev-btn[data-highlight]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.highlight;
             const globe = window.__warzoneViewer?.__warzone;
+
             if (key === "clear") {
                 globe?.clearAlertHighlight?.();
                 devLog("✖ Highlight cleared");
                 return;
             }
+
             const loc = HIGHLIGHT_LOCATIONS[key];
             if (!loc || !globe) return;
-            globe.highlightAlertRegion({ lat: loc.lat, lon: loc.lon, severity: loc.severity });
-            // Also fly camera to it so you can see the effect
+
+            globe.highlightAlertRegion({
+                lat: loc.lat,
+                lon: loc.lon,
+                severity: loc.severity,
+            });
+
             window.__warzoneViewer?.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(loc.lon, loc.lat, 900000),
                 duration: 1.2,
             });
+
             devLog(`🔴 Pulse highlight: ${loc.label} [${loc.severity}]`);
         });
     });
 
-    // Fire all
     document.getElementById("wz-dev-fire-all").addEventListener("click", () => {
         let delay = 0;
-        Object.keys(TEST_EVENTS).forEach(key => {
+
+        Object.keys(TEST_EVENTS).forEach((key) => {
             setTimeout(() => fireTestEvent(key), delay);
-            delay += 800;  // 800ms between each so globe doesn't get flooded
+            delay += 800;
         });
+
         devLog(`⚡ Firing all ${Object.keys(TEST_EVENTS).length} test events...`);
     });
 
-    // Clear log
     document.getElementById("wz-dev-clear").addEventListener("click", () => {
         const log = document.getElementById("wz-dev-log");
         if (log) log.innerHTML = "";

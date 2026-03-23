@@ -28,27 +28,33 @@
     <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
 </head>
 
-<body class="home__page">
+<body class="home__page show-loader">
     <a class="skip-link sr-only" href="#main">Skip to main content</a>
-    <div class="body-bg" aria-hidden="true"></div>
     <main id="main">
         <div id="warzone-app" class="warzone-app" data-api-base="https://api.battlespacex.com">
-            <%= partials("site-loader") %>
-            <%= partials("header") %> 
-            <%= partials("nav") %> 
-            <%= partials("dev-panel") %>
 
-            <!-- STRIKES -->
+            <%= partials("site-loader") %>
+
             <section class="warzone-view is-active" data-view-panel="strikes">
                 <div class="warzone-map-shell">
-                    <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
-                    <%= partials("lock-on") %>
                     <div id="warzone-map-credits" class="warzone-map-credits"></div>
                     <div id="warzone-globe" class="warzone-globe"></div>
                 </div>
-                <div class="warzone-ui-layer">
+
+                <div id="warzone-gate-layer" class="warzone-gate-layer">
                     <%= partials("popups") %>
-                    <%= partials("widgets") %>
+                </div>
+
+                <div id="warzone-ui-shell" class="warzone-ui-shell" hidden>
+                    <%= partials("header") %>
+                    <%= partials("nav") %>
+                    <%= partials("dev-panel") %>
+                    <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
+                    <div id="wz-radar-label-layer" class="wz-radar-label-layer"></div>
+                    <%= partials("lock-on") %>
+                    <div class="warzone-ui-layer">
+                        <%= partials("widgets") %>
+                    </div>
                 </div>
             </section>
 
@@ -56,6 +62,7 @@
             <section class="warzone-view" data-view-panel="analytics">
                 <section class="intel-page">
                     <div class="intel-banner">UNCLASSIFIED // OSINT DERIVED</div>
+
                     <div class="intel-card">
                         <div class="intel-card__head">
                             <div>
@@ -70,12 +77,14 @@
                         </div>
                         <div class="intel-meta" id="intel-meta-line">Generated from current event stream.</div>
                     </div>
+
                     <div class="analytics-grid analytics-grid--top">
-                        <div class="analytics-card"><span>Total Strikes</span>    <strong id="analytics-total">--</strong></div>
-                        <div class="analytics-card"><span>Iranian Strikes</span>  <strong id="analytics-iran">--</strong></div>
-                        <div class="analytics-card"><span>US/Israel Strikes</span><strong id="analytics-usisr">--</strong></div>
-                        <div class="analytics-card"><span>Date Range</span>       <strong id="analytics-range">--</strong></div>
+                        <div class="analytics-card"><span>Total Events</span><strong id="analytics-total">--</strong></div>
+                        <div class="analytics-card"><span>Primary Actor</span><strong id="analytics-iran">--</strong></div>
+                        <div class="analytics-card"><span>Secondary Actor</span><strong id="analytics-usisr">--</strong></div>
+                        <div class="analytics-card"><span>Date Range</span><strong id="analytics-range">--</strong></div>
                     </div>
+
                     <div class="analytics-grid analytics-grid--charts">
                         <div class="analytics-panel">
                             <h3>Strikes by Side</h3>
@@ -90,10 +99,12 @@
                             <div id="analytics-targets" class="bars-list"></div>
                         </div>
                     </div>
+
                     <div class="intel-card">
                         <h3>Executive Summary</h3>
                         <p id="executive-summary"></p>
                     </div>
+
                     <div class="intel-card">
                         <h3>Chronological Timeline</h3>
                         <div id="timeline-list" class="timeline-list"></div>

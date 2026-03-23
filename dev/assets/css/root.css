@@ -19,6 +19,7 @@
     --color-blue: rgba(34, 42, 164, 1);
     --color-green: rgb(22, 112, 96);
     --color-red: rgba(174, 15, 68, 0.9);
+    --color-red-glow: rgb(239 29 85 / 90%);
     --color-orange: rgba(255, 106, 0, 1);
     --color-yellow: rgb(207, 188, 36);
     --color-teal: rgba(15,140,147,0.8); /* Primary accent */
@@ -26,7 +27,7 @@
     --color-teal-glow: rgba(24,226,219,1);
     --color-gray: rgba(69, 80, 94, 0.6);
     --color-gray-1: rgba(32, 38, 49, 0.8);
-    --color-border-gray: blue /* rgba(61, 72, 87, 0.8)*/;
+    --color-border-gray: rgba(61, 72, 87, 0.8);
 }
 /* #endregion =========== */
 
@@ -63,6 +64,7 @@
 /* #region =========== Icon Sizes =========== */
 
 :root {
+    --icon-xxl: 4.6rem;
     --icon-xl: 3.6rem;
     --icon-lg: 2.6rem;
     --icon-md: 1.6rem;
@@ -126,20 +128,12 @@
 /* #region =========== Global Satellite Imagery =========== */
 
 :root {
-    /*    --warzone-map-brightness: 0.8;
+    --warzone-map-brightness: 0.8;
     --warzone-map-contrast: 1.35;
     --warzone-map-gamma: 0.5;
     --warzone-map-saturation: 0.2;
     --warzone-map-hue: 170;
-    --warzone-map-alpha: 0.5;*/
-
-
-    --warzone-map-brightness: 1;
-    --warzone-map-contrast: 1.8;
-    --warzone-map-gamma: 0.6;
-    --warzone-map-saturation: 0.1;
-    --warzone-map-hue: 170;
-    --warzone-map-alpha: 0.3;
+    --warzone-map-alpha: 0.5;
 }
 /* #endregion =========== */
 
@@ -465,3 +459,16 @@
     --range-outline-width: 1.4;
 }
 /* #endregion */
+
+
+/* #region =========== Radar Sweeper =========== */
+
+:root {
+    --wz-radar-inner-ratio: 0.72;
+    --wz-radar-outline-width: 6;
+    --wz-radar-inner-outline-width: 5;
+    --wz-radar-center-dot-size: 6;
+    --wz-radar-sweep-alpha: 0.4;
+}
+/* #endregion =========== */
+

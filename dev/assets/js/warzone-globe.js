@@ -78,15 +78,26 @@ function easeOutCubic(t) {
 }
 /* ---------- Event helpers ---------- */
 function getCategoryColorCss(category) {
-    switch (category) {
+    switch (String(category || "").toLowerCase()) {
         case "strike":
-            return cssVar("--warzone-strike", "#ff5a4f");
+            return cssVar("--warzone-strike-color", "#ff5a4f");
         case "recon":
-            return cssVar("--warzone-recon", "#57b8ff");
+            return cssVar("--warzone-recon-color", "#57b8ff");
         case "military":
-            return cssVar("--warzone-military", "#ffb020");
+            return cssVar("--warzone-military-color", "#56d80e");
+        case "alert":
+            return cssVar("--warzone-alert-color", "#ff2a2a");
+        case "airspace":
+            return cssVar("--warzone-airspace-color", "#00d8b2");
+        case "cyber":
+            return cssVar("--warzone-cyber-color", "#9b7bff");
+        case "thermal":
+            return cssVar("--warzone-thermal-color", "#ff7a00");
+        case "signal":
+        case "seismic":
+            return cssVar("--warzone-signal-color", "#ffd24d");
         default:
-            return cssVar("--warzone-default", "#ff7a45");
+            return cssVar("--warzone-default-color", "#ff7a45");
     }
 }
 function getSeverityRadius(event) {

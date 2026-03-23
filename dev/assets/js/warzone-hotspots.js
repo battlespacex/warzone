@@ -36,6 +36,19 @@ function sanitizeText(v) {
 
 function norm(v) { return sanitizeText(v); }
 
+function compactPlaceLabel(v) {
+    const clean = sanitizeText(v);
+    if (!clean) return "";
+
+    const parts = clean.split(",").map((x) => x.trim()).filter(Boolean);
+    if (!parts.length) return "";
+
+    const last = parts[parts.length - 1];
+    if (/[a-z]/i.test(last) && !/\d/.test(last)) return last;
+
+    return parts[0] || clean;
+}
+
 function timeAgo(d) {
     try {
         const m = Math.floor((Date.now() - new Date(d)) / 60000);
@@ -192,7 +205,7 @@ function buildExpandedHTML(items) {
     return items.slice(0, 6).map(e => {
         const sev = String(e.severity || "medium").toLowerCase();
         const t = norm(e.title || "Untitled").slice(0, 80);
-        const loc = norm(e.location_label || "");
+        const loc = compactPlaceLabel(e.location_label || e.impact_label || e.origin_label || "");
         const time = timeAgo(e.occurred_at);
         return `<div class="wzhs-item">
             <div class="wzhs-item__row">
@@ -227,28 +240,26 @@ function createCardEl(cluster, onToggle) {
 
         btn.innerHTML = `
             <div class="wzhs__body">
-            <div class="wzhs__detail-inner">
                 <div class="wzhs__top">
                     <div class="wzhs__title">
                         <div class="wzhs__icon static-icon">
-                            <span class="${cluster.icon}" aria-hidden="true"></span>   
+                            <span class="${cluster.icon}" aria-hidden="true"></span>
                         </div>
                         <span class="wzhs__count">${cluster.count}</span>
                         <span class="wzhs__label">${cluster.label}</span>
                     </div>
                     <span class="wzhs__arr static-icon">
-                        <span class="bx-web-ico-bottom-1-1" aria-hidden="true"></span>
+                        <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
                     </span>
                 </div>
                 ${isExpanded ? `
                 <div class="wzhs__detail">
                     <div class="wzhs__header">
                         ${loc ? `<span class="wzhs__loc">${loc}</span>` : ""}
-                                <span class="wzhs__time">${time}</span>
-                     </div>
+                        <span class="wzhs__time">${time}</span>
+                    </div>
                     <div class="wzhs__items">${buildExpandedHTML(cluster.items)}</div>
                 </div>` : ""}
-            </div>
             </div>`;
     }
 
