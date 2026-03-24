@@ -1,57 +1,27 @@
 ﻿module.exports = {
     index: {
         path: "/",
-        title: "Warzone Live | BattleSpaceX",
-        description: "Live incident map, strike clusters, latest updates, and open-source conflict tracking by BattleSpaceX.",
-        ogAlt: "BattleSpaceX Warzone Live",
-        breadcrumbs: [{ name: "Home", item: "https://battlespacex.com/warzone/" }],
+        title: "StratOps | Live OSINT Conflict Monitoring Map | BattleSpaceX",
+        description: "StratOps by BattleSpaceX is a live OSINT conflict monitoring interface with strike mapping, alerts, airspace awareness, cyber status, analytics, and theater-level situational context.",
+        robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+        ogAlt: "StratOps by BattleSpaceX live conflict monitoring map and analytics dashboard",
+        breadcrumbs: [
+            { name: "Home", item: "https://battlespacex.com/stratops/" }
+        ],
         preload: [
-            { href: "/warzone/assets/images/web/warzone-og-preview.jpg" }
-        ]
-    },
-
-    report: {
-        path: "/report",
-        title: "Warzone Report | BattleSpaceX",
-        description: "Situation report, event summary, and running totals for the monitored battlespace.",
-        ogAlt: "BattleSpaceX Warzone Report",
-        breadcrumbs: [
-            { name: "Home", item: "https://battlespacex.com/warzone/" },
-            { name: "Report", item: "https://battlespacex.com/warzone/report" }
-        ]
-    },
-
-    sources: {
-        path: "/sources",
-        title: "Sources | BattleSpaceX Warzone",
-        description: "Source transparency, methodology notes, and public-source tracking references for Warzone.",
-        ogAlt: "BattleSpaceX Warzone Sources",
-        breadcrumbs: [
-            { name: "Home", item: "https://battlespacex.com/warzone/" },
-            { name: "Sources", item: "https://battlespacex.com/warzone/sources" }
-        ]
-    },
-
-    about: {
-        path: "/about",
-        title: "About | BattleSpaceX Warzone",
-        description: "About the Warzone project, its purpose, limitations, and how BattleSpaceX presents live conflict data.",
-        ogAlt: "About BattleSpaceX Warzone",
-        breadcrumbs: [
-            { name: "Home", item: "https://battlespacex.com/warzone/" },
-            { name: "About", item: "https://battlespacex.com/warzone/about" }
+            { href: "/assets/images/web/warzone-og-preview.jpg" }
         ]
     },
 
     "404": {
         path: "/404",
-        title: "404 | BattleSpaceX Warzone",
-        description: "This page could not be found.",
+        title: "404 | StratOps",
+        description: "The requested StratOps page could not be found.",
         robots: "noindex, nofollow",
-        ogAlt: "BattleSpaceX Warzone Not Found",
+        ogAlt: "StratOps page not found",
         breadcrumbs: [
-            { name: "Home", item: "https://battlespacex.com/warzone/" },
-            { name: "404", item: "https://battlespacex.com/warzone/404" }
+            { name: "Home", item: "https://battlespacex.com/stratops/" },
+            { name: "404", item: "https://battlespacex.com/stratops/404" }
         ]
     }
 };

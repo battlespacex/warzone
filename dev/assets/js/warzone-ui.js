@@ -1,9 +1,13 @@
 ﻿// assets/js/warzone-ui.js
+
+import { initTheaterPanel } from "./warzone-theater-panel.js";
+
+
 export function bindWarzoneUi() {
     bindTopViews();
-    bindMilitaryViews();
     bindAlertDismiss();
     bindMapModeButtons();
+    initTheaterPanel();
 }
 
 function bindTopViews() {
@@ -28,27 +32,7 @@ function bindTopViews() {
     });
 }
 
-function bindMilitaryViews() {
-    const tabs = document.querySelectorAll("[data-military-view]");
-    const panels = document.querySelectorAll("[data-military-panel]");
 
-    tabs.forEach((tab) => {
-        tab.addEventListener("click", () => {
-            const target = tab.dataset.militaryView;
-
-            tabs.forEach((t) =>
-                t.classList.toggle("is-active", t === tab)
-            );
-
-            panels.forEach((p) =>
-                p.classList.toggle(
-                    "is-active",
-                    p.dataset.militaryPanel === target
-                )
-            );
-        });
-    });
-}
 
 function bindAlertDismiss() {
     const closeBtn = document.querySelector(".warzone-alert__close");

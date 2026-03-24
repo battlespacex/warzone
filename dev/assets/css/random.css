@@ -299,8 +299,6 @@
     overflow-y: auto;
     margin: 1.5rem 0;
     padding: 0 1.5rem;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
     opacity: 0;
     transform: none;
     transition: opacity 140ms ease;
@@ -308,18 +306,6 @@
 
 .wzhs--open .wzhs__items {
     opacity: 1;
-}
-
-.wzhs__items::-webkit-scrollbar {
-    width: 0.6rem;
-}
-
-.wzhs__items::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.wzhs__items::-webkit-scrollbar-track {
-    background: transparent;
 }
 
 .wzhs-item {
@@ -373,7 +359,7 @@
 }
 
 .wzhs-item__title {
-    color: var(--color-heading);
+    color: var(--color-text-heading);
 }
 
 .wzhs-item__loc {
@@ -479,7 +465,7 @@
     .wzhs--open .wzhs__count,
     .wzhs--open .wzhs__label,
     .wzhs--open .wzhs__arr {
-        color: var(--color-heading) !important;
+        color: var(--color-text-heading) !important;
     }
 
     .wzhs--open .wzhs__body {
@@ -601,11 +587,6 @@
         box-sizing: border-box;
     }
 
-.top-tab[data-view="recon"],
-.top-tab[data-view="military"] {
-    display: none !important;
-}
-
 
 
 /* ── About / Terms modal ── */
@@ -656,7 +637,7 @@
         font-size: var(--text-lg);
         font-weight: var(--text-heading-weight);
         text-transform: uppercase;
-        color: var(--color-heading);
+        color: var(--color-text-heading);
     }
 
 
@@ -665,8 +646,6 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
-    scrollbar-width: none;
-    border-bottom: 0.1rem solid rgba(255, 255, 255, 0.08);
 }
 
     .wz-modal__tabs::-webkit-scrollbar {
@@ -690,7 +669,7 @@
 }
 
     .wz-modal__tab:hover {
-        color: var(--color-heading);
+        color: var(--color-text-heading);
         background: rgba(255, 255, 255, 0.03);
     }
 
@@ -733,7 +712,7 @@
 }
 
     .wz-terms-list strong {
-        color: var(--color-heading);
+        color: var(--color-text-heading);
     }
 
 .wz-terms-footer {
@@ -807,7 +786,7 @@
     margin: 0;
     font-family: var(--font-display);
     font-size: clamp(3.6rem, 4vw, 5.4rem);
-    color: var(--color-heading);
+    color: var(--color-text-heading);
 }
 
 .wz-intro__body {
@@ -832,7 +811,7 @@
         font-size: var(--text-lg);
         font-weight: var(--text-heading-weight);
         text-transform: uppercase;
-        color: var(--color-heading);
+        color: var(--color-text-heading);
     }
 
 .wz-intro__disclaimer {
@@ -868,7 +847,7 @@
     font-size: var(--text-lg);
     font-weight: var(--text-heading-weight);
     text-transform: uppercase;
-    color: var(--color-heading);
+    color: var(--color-text-heading);
     cursor: pointer;
     background: green;
     border: 0.2rem solid var(--color-border-gray);
@@ -1207,7 +1186,7 @@
     font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--color-heading-3);
+    color: var(--color-text-heading-3);
 }
 
 .wz-layer-check {
@@ -1350,18 +1329,18 @@
         font-family: var(--heading-font);
         font-size: 4rem;
         font-weight: 100;
-        color: var(--color-heading);
+        color: var(--color-text-heading);
     }
 
     .mini-stat:first-child {
         background: var(--color-red);
-        color: var(--color-heading);
+        color: var(--color-text-heading);
         font-weight: 600;
     }
 
     .mini-stat:last-child {
         background: var(--warzone-cluster-alert);
-        color: var(--color-heading);
+        color: var(--color-text-heading);
         font-weight: 600;
     }
 

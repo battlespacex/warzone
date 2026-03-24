@@ -18,9 +18,20 @@
             {
                 "@type": "WebSite",
                 "@id": `${baseUrl}/#website`,
-                name: site.siteName || "BattleSpaceX Warzone",
+                name: site.siteName || "StratOps | BattleSpaceX",
                 url: `${baseUrl}/`,
                 publisher: { "@id": `${baseUrl}/#org` },
+                inLanguage: "en-CA"
+            },
+            {
+                "@type": "CollectionPage",
+                "@id": `${pageUrl}#webpage`,
+                url: pageUrl,
+                name: page.title || site.siteName || "StratOps | BattleSpaceX",
+                description: page.description || "",
+                isPartOf: { "@id": `${baseUrl}/#website` },
+                about: { "@id": `${baseUrl}/#org` },
+                primaryImageOfPage: { "@id": `${pageUrl}#primaryimage` },
                 inLanguage: "en-CA"
             },
             {
@@ -30,19 +41,18 @@
                 contentUrl: ogImageAbs,
                 width: 1200,
                 height: 630,
-                caption: page.title || site.siteName || "BattleSpaceX Warzone",
+                caption: page.title || site.siteName || "StratOps | BattleSpaceX",
                 representativeOfPage: true
             },
             {
-                "@type": "WebPage",
-                "@id": `${pageUrl}#webpage`,
-                url: pageUrl,
-                name: page.title || site.siteName || "BattleSpaceX Warzone",
-                description: page.description || "",
-                isPartOf: { "@id": `${baseUrl}/#website` },
+                "@type": "SoftwareApplication",
+                "@id": `${baseUrl}/#app`,
+                name: "StratOps",
+                applicationCategory: "BusinessApplication",
+                operatingSystem: "Web",
+                url: `${baseUrl}/`,
                 publisher: { "@id": `${baseUrl}/#org` },
-                primaryImageOfPage: { "@id": `${pageUrl}#primaryimage` },
-                inLanguage: "en-CA"
+                description: "Public-facing OSINT conflict monitoring interface with global map visualization, alerts, airspace status, cyber indicators, and analytics."
             },
             {
                 "@type": "BreadcrumbList",

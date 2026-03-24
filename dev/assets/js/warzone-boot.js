@@ -1,12 +1,19 @@
 ﻿// assets/js/warzone-boot.js
 // Site loader, modal handling, and Mac-style dock widget system.
 
-const bar = document.getElementById("site-loader-bar");
-let pct = 0;
-const iv = setInterval(() => {
-    pct = Math.min(pct + (pct < 70 ? 8 : pct < 90 ? 2 : 0.4), 98);
-    if (bar) bar.style.width = pct + "%";
-}, 120);
+window.__warzoneEnterApp = function () {
+    const uiShell = document.getElementById("warzone-ui-shell");
+
+    if (!uiShell) return;
+
+    uiShell.hidden = false;
+
+    requestAnimationFrame(() => {
+        uiShell.classList.add("is-ui-visible");
+    });
+
+    document.body.classList.add("is-ui-ready");
+};
 
 function markUiReady(delay = 0) {
     window.setTimeout(() => {
@@ -17,29 +24,29 @@ function markUiReady(delay = 0) {
 window.SiteLoader = {
     start() {
         const loader = document.getElementById("site-loader");
-        if (loader) {
-            loader.hidden = false;
-            loader.classList.remove("is-gone");
-        }
+        if (!loader) return;
+
+        loader.classList.remove("is-gone");
         document.body.classList.add("show-loader");
         document.body.classList.remove("is-ui-ready");
     },
+
     stop() {
-        clearInterval(iv);
-        if (bar) bar.style.width = "100%";
-        setTimeout(() => {
-            const loader = document.getElementById("site-loader");
-            if (loader) loader.classList.add("is-gone");
-            document.body.classList.remove("show-loader");
-            markUiReady(80);
-        }, 380);
-    },
-    forceHide() {
-        clearInterval(iv);
         const loader = document.getElementById("site-loader");
-        if (loader) loader.classList.add("is-gone");
+        if (!loader) return;
+
+        setTimeout(() => {
+            document.body.classList.remove("show-loader");
+            loader.classList.add("is-gone");
+        }, 300);
+    },
+
+    forceHide() {
+        const loader = document.getElementById("site-loader");
+        if (!loader) return;
+
         document.body.classList.remove("show-loader");
-        markUiReady(0);
+        loader.classList.add("is-gone");
     },
 };
 
@@ -47,12 +54,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const INTRO_ACCEPT_KEY = "wz_intro_accepted";
     const WZ_WIDGET_KEY = "wz_widget_visibility";
     const POPUP_BREAKPOINT = 980;
-
-    if (!document.body.classList.contains("show-loader")) {
-        requestAnimationFrame(() => {
-            document.body.classList.add("is-ui-ready");
-        });
-    }
 
     function isMobileLayout() {
         return window.innerWidth <= POPUP_BREAKPOINT;
@@ -98,15 +99,55 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function openModal(modal) {
-        if (modal) modal.hidden = false;
+        if (!modal) return;
+        modal.hidden = false;
+        requestAnimationFrame(() => {
+            modal.classList.add("is-visible");
+        });
     }
 
-    function closeModal(modal) {
-        if (modal) modal.hidden = true;
+    function closeModal(modal, callback) {
+        if (!modal) return;
+        modal.classList.remove("is-visible");
+        window.setTimeout(() => {
+            modal.hidden = true;
+            if (typeof callback === "function") callback();
+        }, 220);
     }
 
     const aboutModal = document.getElementById("wz-about-modal");
     const introModal = document.getElementById("wz-intro-modal");
+    const uiShell = document.getElementById("warzone-ui-shell");
+    window.__warzoneEnterApp = function () {
+        if (!uiShell) return;
+
+        uiShell.hidden = false;
+
+        requestAnimationFrame(() => {
+            uiShell.classList.add("is-ui-visible");
+        });
+
+        document.body.classList.add("is-ui-ready");
+    };
+    const introAccepted = (() => {
+        try {
+            return localStorage.getItem(INTRO_ACCEPT_KEY) === "1";
+        } catch {
+            return false;
+        }
+    })();
+
+    /*if (introAccepted && uiShell) {
+        uiShell.hidden = false;
+        requestAnimationFrame(() => {
+            uiShell.classList.add("is-ui-visible");
+        });
+    }*/
+
+    if (introAccepted && uiShell) {
+        uiShell.classList.remove("is-ui-visible");
+        uiShell.hidden = true;
+    }
 
     document.getElementById("dock-about")?.addEventListener("click", () => openModal(aboutModal));
     document.getElementById("wz-about-close")?.addEventListener("click", () => closeModal(aboutModal));
@@ -130,13 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    const introAccepted = (() => {
-        try {
-            return localStorage.getItem(INTRO_ACCEPT_KEY) === "1";
-        } catch {
-            return false;
-        }
-    })();
 
     if (!introAccepted && introModal) {
         openModal(introModal);
@@ -146,8 +180,10 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             localStorage.setItem(INTRO_ACCEPT_KEY, "1");
         } catch { }
-        closeModal(introModal);
-        window.__warzoneShowRegionModal?.();
+
+        closeModal(introModal, () => {
+            window.__warzoneShowRegionModal?.();
+        });
     });
 
     const btnFullscreen = document.getElementById("dock-fullscreen");
@@ -183,6 +219,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function showWidget(widget) {
         const content = widget.querySelector(".panel-content");
+        const collapseBtn = widget.querySelector("[data-panel-collapse]");
+        const icon = collapseBtn?.querySelector("span");
+
+        widget.classList.remove("is-collapsed");
+
+        if (collapseBtn) {
+            collapseBtn.setAttribute("aria-expanded", "true");
+        }
+
+        if (icon) {
+            icon.classList.remove("bx-web-ico-close-1-2");
+            icon.classList.add("bx-web-ico-top-1-0");
+        }
+
         if (content) {
             content.style.height = "";
             content.style.opacity = "";
@@ -307,8 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!panel) return;
 
         const content = panel.querySelector(".panel-content");
-        const icon = btn.querySelector("span");
-        if (!content || !icon) return;
+        if (!content) return;
 
         btn.addEventListener("click", () => {
             const willCollapse = !panel.classList.contains("is-collapsed");
@@ -316,27 +365,28 @@ document.addEventListener("DOMContentLoaded", () => {
             if (willCollapse) {
                 btn.setAttribute("aria-expanded", "false");
 
-                icon.classList.remove("bx-web-ico-close-1-2");
-                icon.classList.add("bx-web-ico-top-1-0");
+                const startHeight = content.scrollHeight;
+                content.style.height = `${startHeight}px`;
+                content.style.opacity = "1";
 
-                content.style.height = `${content.scrollHeight}px`;
+                content.offsetHeight; // force reflow
 
-                requestAnimationFrame(() => {
-                    panel.classList.add("is-collapsed");
-                    content.style.height = "0px";
-                });
+                panel.classList.add("is-collapsed");
+                content.style.height = "0px";
+                content.style.opacity = "0";
             } else {
                 btn.setAttribute("aria-expanded", "true");
 
-                icon.classList.remove("bx-web-ico-top-1-0");
-                icon.classList.add("bx-web-ico-close-1-2");
-
                 panel.classList.remove("is-collapsed");
-                content.style.height = "0px";
 
-                requestAnimationFrame(() => {
-                    content.style.height = `${content.scrollHeight}px`;
-                });
+                content.style.height = "0px";
+                content.style.opacity = "0";
+
+                content.offsetHeight; // force reflow
+
+                const endHeight = content.scrollHeight;
+                content.style.height = `${endHeight}px`;
+                content.style.opacity = "1";
             }
         });
 

@@ -1,52 +1,80 @@
 ﻿<nav class="wz-dock" aria-label="Map controls">
-    <div class="wz-btn-container">
-        <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="counter" title="Strike Counter">
-            <!--<span class="wz-dock__icon static-icon">📊</span>-->
+    <div class="wz-btn-container" role="toolbar" aria-label="Dock actions">
+        <button class="wz-dock__btn wz-dock__btn--widget"
+                type="button"
+                data-dock-widget="counter"
+                title="Toggle strike counter widget"
+                aria-label="Toggle strike counter widget">
             <span class="wz-dock__icon">
-                <span class="static-icon bx-web-ico-alerts-1-2" aria-hidden="true"></span>
+                <span class="static-icon bx-web-ico-conflict-1-0" aria-hidden="true"></span>
             </span>
             <span class="wz-dock__label">Counter</span>
         </button>
-        <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="cyber" title="Cyber Status">
-            <!--<span class="wz-dock__icon static-icon">💻</span>-->
+
+        <button class="wz-dock__btn wz-dock__btn--widget"
+                type="button"
+                data-dock-widget="cyber"
+                title="Toggle cyber status widget"
+                aria-label="Toggle cyber status widget">
             <span class="wz-dock__icon">
-                <span class="static-icon bx-web-ico-website-R1_0" aria-hidden="true"></span>
+                <span class="static-icon bx-web-ico-c4isr-1-0" aria-hidden="true"></span>
             </span>
             <span class="wz-dock__label">Cyber</span>
         </button>
-        <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="airspace" title="Airspace Status">
-            <!--<span class="wz-dock__icon static-icon">✈</span>-->
-            <span class="wz-dock__icon"><span class="static-icon bx-web-ico-air-1-0" aria-hidden="true"></span></span>
+
+        <button class="wz-dock__btn wz-dock__btn--widget"
+                type="button"
+                data-dock-widget="airspace"
+                title="Toggle airspace status widget"
+                aria-label="Toggle airspace status widget">
+            <span class="wz-dock__icon">
+                <span class="static-icon bx-web-ico-airspace-1-2" aria-hidden="true"></span>
+            </span>
             <span class="wz-dock__label">Airspace</span>
         </button>
-        <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="escalation" title="Escalation Meter">
-            <!--<span class="wz-dock__icon static-icon">📈</span>-->
+
+        <button class="wz-dock__btn wz-dock__btn--widget"
+                type="button"
+                data-dock-widget="escalation"
+                title="Toggle escalation meter widget"
+                aria-label="Toggle escalation meter widget">
             <span class="wz-dock__icon">
-                <span class="static-icon bx-web-ico-following-1-0" aria-hidden="true"></span>
+                <span class="static-icon bx-web-ico-alert-1-0" aria-hidden="true"></span>
             </span>
             <span class="wz-dock__label">Escalation</span>
         </button>
-        <button class="wz-dock__btn wz-dock__btn--widget" data-dock-widget="layers" title="Map Layers">
-            <!--<span class="wz-dock__icon static-icon">⊞</span>-->
+
+        <button class="wz-dock__btn wz-dock__btn--widget"
+                type="button"
+                data-dock-widget="layers"
+                title="Toggle map layers widget"
+                aria-label="Toggle map layers widget">
             <span class="wz-dock__icon">
-                <span class="static-icon bx-web-ico-filter-1-0" aria-hidden="true"></span>
+                <span class="static-icon bx-web-ico-trends-1-0" aria-hidden="true"></span>
             </span>
             <span class="wz-dock__label">Layers</span>
         </button>
-        <button class="wz-dock__btn" id="dock-fullscreen" title="Full Screen">
-            <!--<span class="wz-dock__icon static-icon">⛶</span>-->
+
+        <button class="wz-dock__btn"
+                type="button"
+                id="dock-fullscreen"
+                title="Toggle fullscreen"
+                aria-label="Toggle fullscreen mode">
             <span class="wz-dock__icon">
                 <span class="static-icon bx-web-ico-full-screen-1-0" aria-hidden="true"></span>
             </span>
             <span class="wz-dock__label">Fullscreen</span>
         </button>
-        <button class="wz-dock__btn" id="dock-about" title="About / Terms">
-            <!--<span class="wz-dock__icon static-icon">ⓘ</span>-->
-            <span class="wz-dock__icon"><span class="static-icon bx-logo-1-1" aria-hidden="true"></span></span>
+
+        <button class="wz-dock__btn"
+                type="button"
+                id="dock-about"
+                title="Open about, terms, and data policy"
+                aria-label="Open about, terms, and data policy">
+            <span class="wz-dock__icon">
+                <span class="static-icon bx-web-stratops-logo-1" aria-hidden="true"></span>
+            </span>
             <span class="wz-dock__label">About</span>
         </button>
     </div>
 </nav>
-
-
-

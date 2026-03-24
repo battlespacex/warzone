@@ -20,7 +20,7 @@ module.exports = (env, argv) => {
     const PROD_DIR = path.resolve(ROOT_DIR, "production");
     const DEV_DIR = path.resolve(ROOT_DIR, "dev");
 
-    const pages = Object.keys(pageMeta);
+    const pages = ["index", "404"];
 
     // -----------------------------
     // helpers
@@ -297,9 +297,6 @@ module.exports = (env, argv) => {
                     historyApiFallback: {
                         rewrites: [
                             { from: /^\/$/, to: "/pages/index.html" },
-                            { from: /^\/sources\/?$/, to: "/pages/sources.html" },
-                            { from: /^\/about\/?$/, to: "/pages/about.html" },
-                            { from: /^\/report\/?$/, to: "/pages/report.html" },
                             { from: /^\/404\/?$/, to: "/pages/404.html" },
                             { from: /./, to: "/pages/404.html" },
                         ],

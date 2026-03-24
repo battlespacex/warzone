@@ -4,9 +4,13 @@ import { supabase } from "./supabase.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
-import { initRegionSelector, onRegionChange, filterEventsByRegion, getActiveRegion } from "./warzone-region-selector.js";
+import { initRegionSelector, onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId } from "./warzone-layers.js";
 import { renderRanges, clearRanges } from "./warzone-ranges.js";
+import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
+import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
+import { theaterMatchesRegion } from "./warzone-theaters.js";
+import { updateTheaterPanel } from "./warzone-theater-panel.js";
 
 let __eventsCache = [];
 let __liveRecentEvents = [];
@@ -20,17 +24,196 @@ let __pollTimer = null;
 let __viewportFetchTimer = null;
 let __lastViewportKey = "";
 
-// Single source of truth: apply both region AND layer filters
+
+function isEventInLens(event, lens) {
+    if (!event) return false;
+
+    const category = String(event.category || "").toLowerCase();
+    const severity = String(event.severity || "").toLowerCase();
+    const weapon = String(event.weapon_type || "").toLowerCase();
+    const place = eventPlaceText(event);
+    const occurredAt = new Date(event.occurred_at || 0).getTime();
+    const ageMs = Date.now() - occurredAt;
+
+    const isRecent = Number.isFinite(ageMs) && ageMs <= 14 * 24 * 60 * 60 * 1000;
+    const isHighSignal =
+        category === "alert" ||
+        category === "strike" ||
+        category === "military" ||
+        severity === "critical" ||
+        severity === "high";
+
+    const isStandoffZone =
+        place.includes("kashmir") ||
+        place.includes("taiwan") ||
+        place.includes("south china sea") ||
+        place.includes("north korea") ||
+        place.includes("south korea") ||
+        place.includes("korean peninsula") ||
+        place.includes("palestine") ||
+        place.includes("israel") ||
+        place.includes("levant") ||
+        place.includes("armenia") ||
+        place.includes("azerbaijan") ||
+        place.includes("gulf");
+
+    switch (lens) {
+        case "flashpoint":
+            return isHighSignal || isRecent;
+
+        case "standoff":
+            return isStandoffZone ||
+                category === "military" ||
+                category === "airspace" ||
+                category === "cyber" ||
+                weapon.includes("naval") ||
+                weapon.includes("fighter") ||
+                weapon.includes("missile");
+
+        case "all":
+            return true;
+
+        case "live":
+            return isRecent || isHighSignal || category === "cyber" || category === "airspace" || category === "thermal" || category === "recon" || category === "military";
+
+        default:
+            return true;
+    }
+}
+function isMilitaryRelevant(event) {
+    const category = String(event.category || "").toLowerCase();
+    const text = [
+        event.title,
+        event.summary,
+        event.description,
+        event.weapon_type,
+        event.subtype,
+        event.subcategory,
+        event.source_name
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    if (
+        text.includes("murder") ||
+        text.includes("teenager") ||
+        text.includes("school") ||
+        text.includes("shooting") ||
+        text.includes("stab") ||
+        text.includes("police") ||
+        text.includes("arrest") ||
+        text.includes("robbery") ||
+        text.includes("domestic") ||
+        text.includes("local news") ||
+        text.includes("breaking news") ||
+        text.includes("homicide") ||
+        text.includes("law enforcement") ||
+        text.includes("sheriff") ||
+        text.includes("fbi") ||
+        text.includes("bulletin") ||
+        text.includes("investigation") ||
+        text.includes("gas") ||
+        text.includes("cylinder") ||
+        text.includes("fire") ||
+        text.includes("accident")
+    ) {
+        return false;
+    }
+
+    if (
+        category === "strike" ||
+        category === "military" ||
+        category === "cyber" ||
+        category === "airspace" ||
+        category === "recon" ||
+        category === "thermal" ||
+        category === "alert"
+    ) {
+        return true;
+    }
+
+    if (
+        text.includes("missile") ||
+        text.includes("rocket") ||
+        text.includes("drone") ||
+        text.includes("uav") ||
+        text.includes("airstrike") ||
+        text.includes("fighter") ||
+        text.includes("awacs") ||
+        text.includes("naval") ||
+        text.includes("frigate") ||
+        text.includes("destroyer") ||
+        text.includes("carrier") ||
+        text.includes("air defense") ||
+        text.includes("sam") ||
+        text.includes("radar") ||
+        text.includes("military") ||
+        text.includes("air raid") ||
+        text.includes("red alert") ||
+        text.includes("take shelter") ||
+        text.includes("siren")
+    ) {
+        return true;
+    }
+
+    return false;
+}
+function resolveStrikeGeometry(event) {
+    // keep real data if already present
+    if (
+        typeof event.origin_lat === "number" &&
+        typeof event.origin_lon === "number" &&
+        typeof event.impact_lat === "number" &&
+        typeof event.impact_lon === "number"
+    ) {
+        return event;
+    }
+
+    const text = `
+        ${event.title || ""}
+        ${event.summary || ""}
+        ${event.location || ""}
+        ${event.country || ""}
+        ${event.category || ""}
+        ${event.subcategory || ""}
+        ${event.weapon_type || ""}
+    `.toLowerCase();
+
+    const isStrikeLike =
+        text.includes("missile") ||
+        text.includes("rocket") ||
+        text.includes("drone") ||
+        text.includes("uav") ||
+        text.includes("airstrike") ||
+        text.includes("air strike");
+
+    if (!isStrikeLike) return event;
+
+    // no real origin data available → do not fake it
+    return {
+        ...event,
+        impact_lat: event.impact_lat ?? event.lat ?? null,
+        impact_lon: event.impact_lon ?? event.lon ?? null
+    };
+}
 function applyAllFilters(events) {
     const region = getActiveRegion?.();
-    const regional = filterEventsByRegion ? filterEventsByRegion(events, region) : events;
+    const lens = getActiveLens?.() || "live";
+
+    const regionalRaw = filterEventsByRegion ? filterEventsByRegion(events, region) : events;
+    const regional = regionalRaw.filter(isMilitaryRelevant);
+    const byLens = regional.filter((e) => isEventInLens(e, lens));
+    const visibleByLens = byLens.filter((e) => isEventVisible(e));
+
+    if (visibleByLens.length > 0) {
+        return visibleByLens;
+    }
+
     return regional.filter((e) => isEventVisible(e));
 }
-
 function roundCoord(value, step = 2) {
     return Math.round(Number(value) / step) * step;
 }
-
 function makeViewportKey(bounds, regionId = "global") {
     if (!bounds) return `${regionId}:none`;
     return [
@@ -41,7 +224,6 @@ function makeViewportKey(bounds, regionId = "global") {
         roundCoord(bounds.maxLon, 2),
     ].join("|");
 }
-
 function debounce(fn, ms) {
     let timer;
     return (...args) => {
@@ -69,14 +251,12 @@ const debouncedRenderHeavy = debounce((events) => {
     renderWeapons(events);
     renderKillChain(events);
 }, 2000);
-
 function scheduleViewportFetch(delay = 500) {
     clearTimeout(__viewportFetchTimer);
     __viewportFetchTimer = setTimeout(() => {
         fetchViewportEvents();
     }, delay);
 }
-
 function bindScrollClassToggles() {
     if (__scrollClassBound) return;
     __scrollClassBound = true;
@@ -130,7 +310,6 @@ function bindScrollClassToggles() {
     if (main) main.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", refreshScroller, { passive: true });
 }
-
 function bindScrollToTargets() {
     if (__scrollToTargetBound) return;
     __scrollToTargetBound = true;
@@ -143,32 +322,10 @@ function bindScrollToTargets() {
         if (el) el.scrollIntoView({ behavior: "smooth" });
     });
 }
-
-function initSiteLoader() {
-    const loader = document.getElementById("site-loader");
-    if (!loader) return;
-
-    window.SiteLoader = {
-        start() {
-            document.body.classList.add("show-loader");
-            loader.classList.remove("is-gone");
-        },
-        stop() {
-            document.body.classList.remove("show-loader");
-            loader.classList.add("is-gone");
-        },
-        forceHide() {
-            document.body.classList.remove("show-loader");
-            loader.classList.add("is-gone");
-        },
-    };
-}
-
 function initNav() {
     const yearEl = document.getElementById("year");
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 }
-
 function formatTime(value) {
     try {
         return new Date(value).toLocaleString();
@@ -176,78 +333,55 @@ function formatTime(value) {
         return value || "";
     }
 }
-
-function normalizeEvent(event) {
-    const lat = Number(event.lat);
-    const lon = Number(event.lon);
-    const impactLat = Number(event.impact_lat ?? event.lat);
-    const impactLon = Number(event.impact_lon ?? event.lon);
-    const originLat = Number(event.origin_lat);
-    const originLon = Number(event.origin_lon);
-
-    return {
+function normalizeEvent(event = {}) {
+    const normalized = {
         ...event,
-        category: event.category || "strike",
-        lat,
-        lon,
-        impact_lat: impactLat,
-        impact_lon: impactLon,
-        impact_label: event.impact_label || event.location_label || "",
-        origin_lat: Number.isFinite(originLat) ? originLat : null,
-        origin_lon: Number.isFinite(originLon) ? originLon : null,
-        origin_label: event.origin_label || "",
-        confidence: Number(event.confidence ?? 0),
-        actor_side: event.actor_side || "unknown",
-        target_side: event.target_side || "unknown",
-        weapon_type: event.weapon_type || "unknown",
-        target_type: event.target_type || "unknown",
-        impact_type: event.impact_type || "unknown",
-        report_type: event.report_type || "strike",
-        severity: event.severity || "medium",
-        airspace_status: event.airspace_status || "unknown",
-        cyber_status: event.cyber_status || "unknown",
-        fir_code: event.fir_code || "",
-        tags: Array.isArray(event.tags) ? event.tags : [],
+
+        id: event.id || crypto.randomUUID?.() || `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: event.title || "",
+        summary: event.summary || "",
+        category: event.category || "",
+        subcategory: event.subcategory || "",
+        weapon_type: event.weapon_type || "",
+
+        lat: Number(event.lat ?? event.latitude ?? event.impact_lat ?? 0),
+        lon: Number(event.lon ?? event.longitude ?? event.impact_lon ?? 0),
+
+        impact_lat: Number(event.impact_lat ?? event.lat ?? 0),
+        impact_lon: Number(event.impact_lon ?? event.lon ?? 0),
+
+        origin_lat: event.origin_lat != null ? Number(event.origin_lat) : null,
+        origin_lon: event.origin_lon != null ? Number(event.origin_lon) : null,
+
+        country: event.country || "",
+        city: event.city || "",
+        location: event.location || "",
+
+        occurred_at: event.occurred_at || new Date().toISOString()
     };
+
+    return normalized;
 }
-
 function isTrackLikeEvent(event) {
-    const category = String(event.category || "").toLowerCase();
-    const weapon = String(event.weapon_type || "").toLowerCase();
-    const title = String(event.title || "").toLowerCase();
-    const summary = String(event.summary || "").toLowerCase();
-    const haystack = `${category} ${weapon} ${title} ${summary}`;
-
-    const originLat = Number(event.origin_lat);
-    const originLon = Number(event.origin_lon);
-    const impactLat = Number(event.impact_lat ?? event.lat);
-    const impactLon = Number(event.impact_lon ?? event.lon);
+    if (!isMilitaryRelevant(event)) return false;
 
     const hasOrigin =
-        event.origin_lat != null &&
-        event.origin_lat !== "" &&
-        Number.isFinite(originLat) &&
-        Number.isFinite(originLon) &&
-        !(originLat === 0 && originLon === 0);
+        typeof event.origin_lat === "number" &&
+        typeof event.origin_lon === "number";
 
-    const hasImpact = Number.isFinite(impactLat) && Number.isFinite(impactLon);
+    const hasImpact =
+        typeof event.impact_lat === "number" &&
+        typeof event.impact_lon === "number";
 
     if (!hasOrigin || !hasImpact) return false;
 
     const samePoint =
-        Math.abs(originLat - impactLat) < 0.01 &&
-        Math.abs(originLon - impactLon) < 0.01;
+        Math.abs(event.origin_lat - event.impact_lat) < 0.01 &&
+        Math.abs(event.origin_lon - event.impact_lon) < 0.01;
 
     if (samePoint) return false;
 
-    return (
-        haystack.includes("missile") ||
-        haystack.includes("rocket") ||
-        haystack.includes("drone") ||
-        haystack.includes("uav") ||
-        haystack.includes("air strike") ||
-        haystack.includes("airstrike")
-    );
+    return true;
 }
 
 async function fetchViewportEvents() {
@@ -263,13 +397,21 @@ async function fetchViewportEvents() {
     __lastViewportKey = viewportKey;
 
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from("events")
             .select("*")
             .gte("lat", bounds.minLat)
-            .lte("lat", bounds.maxLat)
-            .gte("lon", bounds.minLon)
-            .lte("lon", bounds.maxLon)
+            .lte("lat", bounds.maxLat);
+
+        if (bounds.minLon <= bounds.maxLon) {
+            query = query
+                .gte("lon", bounds.minLon)
+                .lte("lon", bounds.maxLon);
+        } else {
+            query = query.or(`lon.gte.${bounds.minLon},lon.lte.${bounds.maxLon}`);
+        }
+
+        const { data, error } = await query
             .order("occurred_at", { ascending: false })
             .limit(500);
 
@@ -278,7 +420,7 @@ async function fetchViewportEvents() {
             return;
         }
 
-        const viewportRows = Array.isArray(data) ? data.map(normalizeEvent) : [];
+        const viewportRows = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
         const merged = [...viewportRows];
         const seen = new Set(merged.map((e) => String(e.id)));
 
@@ -311,25 +453,6 @@ async function fetchViewportEvents() {
         console.error("Viewport fetch failed:", err);
     }
 }
-
-function isSirenLikeEvent(event) {
-    const title = String(event.title || "").toLowerCase();
-    const summary = String(event.summary || "").toLowerCase();
-    const weapon = String(event.weapon_type || "").toLowerCase();
-    const category = String(event.category || "").toLowerCase();
-    const full = `${title} ${summary} ${weapon} ${category}`;
-
-    return (
-        category === "alert" ||
-        full.includes("siren") ||
-        full.includes("sirens") ||
-        full.includes("air raid") ||
-        full.includes("red alert") ||
-        full.includes("take shelter") ||
-        full.includes("incoming")
-    );
-}
-
 function sortEvents(events) {
     return [...events].sort((a, b) => {
         const aa = new Date(a.occurred_at || 0).getTime();
@@ -338,6 +461,436 @@ function sortEvents(events) {
     });
 }
 
+const REGION_COUNTRY_HINTS = {
+    global: [],
+    middle_east: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Iraq", "Iran", "Saudi Arabia", "UAE", "Yemen", "Qatar", "Bahrain", "Oman", "Kuwait"],
+    levant: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Cyprus", "Turkey", "Egypt"],
+    ukraine: ["Ukraine", "Russia", "Belarus", "Poland", "Romania", "Moldova", "Lithuania", "Latvia", "Estonia"],
+    south_asia: ["Pakistan", "India", "Kashmir", "Afghanistan", "China", "Bangladesh", "Sri Lanka", "Nepal"],
+    europe: ["Ukraine", "Russia", "Poland", "Romania", "Germany", "France", "UK", "Belarus", "Baltics"],
+    north_america: ["United States", "Canada", "Mexico", "Greenland"],
+    east_asia: ["China", "Taiwan", "North Korea", "South Korea", "Japan", "Philippines", "Vietnam"],
+    africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "DR Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
+};
+function normalizePlace(value) {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .replace(/[|]/g, ",")
+        .trim();
+}
+function compactEventPlaceLabel(event = {}) {
+    const raw =
+        event.location_label ||
+        event.impact_label ||
+        event.origin_label ||
+        event.country ||
+        event.region ||
+        "";
+
+    const clean = String(raw).trim();
+    if (!clean) return "Unknown location";
+
+    const bits = clean.split(",").map((x) => x.trim()).filter(Boolean);
+    if (bits.length > 1) {
+        const last = bits[bits.length - 1];
+        if (/[a-z]/i.test(last) && !/\d/.test(last)) {
+            return last;
+        }
+    }
+
+    return bits[0] || clean;
+}
+function eventPlaceText(event) {
+    return [
+        event.location_label,
+        event.impact_label,
+        event.origin_label,
+        event.country,
+        event.countryName,
+        event.region,
+        event.state,
+        event.city,
+        event.location,
+        event.name,
+        Array.isArray(event.tags) ? event.tags.join(" ") : "",
+    ]
+        .filter(Boolean)
+        .join(" | ")
+        .toLowerCase();
+}
+function countryMentionCount(events, country) {
+    const needle = String(country || "").toLowerCase();
+    if (!needle) return 0;
+
+    return events.reduce((count, event) => {
+        return count + (eventPlaceText(event).includes(needle) ? 1 : 0);
+    }, 0);
+}
+function deriveFocusCountries(events, max = 10) {
+    const lens = getActiveLens?.() || "live";
+
+    const scoreCountry = (name) => {
+        const needle = String(name || "").toLowerCase().trim();
+        if (!needle) return 0;
+
+        return events.reduce((score, event) => {
+            const text = eventPlaceText(event);
+            if (!text.includes(needle)) return score;
+
+            const category = String(event.category || "").toLowerCase();
+            const severity = String(event.severity || "").toLowerCase();
+            const airspace = String(event.airspace_status || "").toLowerCase();
+            const cyber = String(event.cyber_status || "").toLowerCase();
+            const occurredAt = new Date(event.occurred_at || 0).getTime();
+            const ageMs = Date.now() - occurredAt;
+
+            let points = 1;
+
+            if (category === "alert") points += 6;
+            if (category === "strike") points += 5;
+            if (category === "military") points += 4;
+            if (category === "cyber") points += 3;
+            if (category === "thermal") points += 2;
+
+            if (severity === "critical") points += 6;
+            else if (severity === "high") points += 4;
+            else if (severity === "medium") points += 2;
+
+            if (airspace === "closed") points += 6;
+            else if (airspace === "restricted") points += 3;
+
+            if (cyber === "critical") points += 4;
+            else if (cyber === "high" || cyber === "elevated") points += 2;
+
+            if (Number.isFinite(ageMs)) {
+                if (ageMs <= 6 * 60 * 60 * 1000) points += 4;
+                else if (ageMs <= 24 * 60 * 60 * 1000) points += 2;
+            }
+
+            return score + points;
+        }, 0);
+    };
+
+    function extractTrailingPlace(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return [];
+
+        return raw
+            .split(/[|/]/)
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .flatMap((part) => {
+                const bits = part.split(",").map((x) => x.trim()).filter(Boolean);
+                if (!bits.length) return [];
+                return [bits[bits.length - 1]];
+            });
+    }
+
+    function isCleanCountryCandidate(value) {
+        const v = String(value || "").trim();
+
+        if (!v) return false;
+        if (v.length < 3 || v.length > 40) return false;
+        if (/\d/.test(v)) return false;
+        if (/unit|street|st\.|road|rd\.|avenue|ave|school|district|north york|toronto|ontario/i.test(v)) return false;
+        if (!/[a-z]/i.test(v)) return false;
+
+        return true;
+    }
+
+    const candidates = new Set();
+
+    events.forEach((event) => {
+        [
+            event.country,
+            event.countryName,
+            event.region
+        ]
+            .filter(Boolean)
+            .forEach((value) => {
+                String(value)
+                    .split(/[|,/]/)
+                    .map((part) => part.trim())
+                    .filter(Boolean)
+                    .forEach((part) => {
+                        if (isCleanCountryCandidate(part)) {
+                            candidates.add(part);
+                        }
+                    });
+            });
+
+        [
+            event.location_label,
+            event.impact_label,
+            event.origin_label
+        ]
+            .filter(Boolean)
+            .forEach((value) => {
+                extractTrailingPlace(value).forEach((part) => {
+                    if (isCleanCountryCandidate(part)) {
+                        candidates.add(part);
+                    }
+                });
+            });
+    });
+
+    const dynamic = [...candidates]
+        .map((name) => ({ name, score: scoreCountry(name) }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((item) => item.name);
+
+    const regionId = getActiveRegion?.()?.id || "global";
+    const hints = REGION_COUNTRY_HINTS[regionId] || [];
+
+    const fallbackHints = hints
+        .filter((name) => !dynamic.includes(name))
+        .map((name) => ({ name, score: scoreCountry(name) }))
+        .sort((a, b) => b.score - a.score)
+        .map((item) => item.name);
+
+    const merged = [...dynamic, ...fallbackHints];
+
+    if (lens === "flashpoint") {
+        return merged.slice(0, max);
+    }
+
+    return merged.slice(0, max);
+}
+function getEventTimestamp(event = {}) {
+    const raw =
+        event.occurred_at ||
+        event.timestamp ||
+        event.time ||
+        event.datetime ||
+        event.occurredAt ||
+        event.publishedAt ||
+        event.updatedAt ||
+        event.updated_at ||
+        event.createdAt ||
+        event.created_at;
+
+    const ts = raw ? new Date(raw).getTime() : 0;
+    return Number.isFinite(ts) ? ts : 0;
+}
+function getEventSeverityScore(event = {}) {
+    const severityMap = {
+        critical: 5,
+        severe: 4,
+        high: 4,
+        elevated: 3,
+        medium: 3,
+        moderate: 2,
+        low: 1,
+        minimal: 1
+    };
+
+    const severityRaw =
+        String(event.severity || event.priority || event.level || "")
+            .toLowerCase()
+            .trim();
+
+    let score = severityMap[severityRaw] || 0;
+
+    const typeText = String(
+        [
+            event.category,
+            event.subtype,
+            event.type,
+            event.title,
+            event.summary
+        ]
+            .filter(Boolean)
+            .join(" ")
+    ).toLowerCase();
+
+    if (/strike|missile|ballistic|drone attack|airstrike/.test(typeText)) score += 4;
+    else if (/airspace|closure|intercept|scramble|military/.test(typeText)) score += 3;
+    else if (/cyber|outage|jamming|gps spoof|disruption/.test(typeText)) score += 2;
+    else if (/alert|warning|advisory/.test(typeText)) score += 1;
+
+    return score;
+}
+function getRecencyScore(event = {}) {
+    const ts = getEventTimestamp(event);
+    if (!ts) return 0;
+
+    const ageHours = (Date.now() - ts) / (1000 * 60 * 60);
+
+    if (ageHours <= 6) return 5;
+    if (ageHours <= 24) return 4;
+    if (ageHours <= 72) return 3;
+    if (ageHours <= 168) return 2;
+    if (ageHours <= 336) return 1;
+
+    return 0;
+}
+function getTheaterEventWeight(event = {}) {
+    const text = String(
+        [
+            event.category,
+            event.subtype,
+            event.type,
+            event.title,
+            event.summary
+        ]
+            .filter(Boolean)
+            .join(" ")
+    ).toLowerCase();
+
+    if (/strike|missile|ballistic|airstrike|uav strike|drone attack/.test(text)) return 5;
+    if (/military|airspace|naval|carrier|awacs|intercept|troop/.test(text)) return 4;
+    if (/cyber|jam|spoof|outage|intrusion/.test(text)) return 3;
+    if (/alert|warning|advisory/.test(text)) return 2;
+
+    return 1;
+}
+function theaterPassesLens(theaterDef, lensValue) {
+    if (!lensValue || lensValue === "all") return true;
+    if (!theaterDef?.lenses?.length) return true;
+    return theaterDef.lenses.includes(lensValue) || theaterDef.lenses.includes("all");
+}
+export function deriveFocusTheaters(events = [], lensValue = "all", limit = 8) {
+    const bucket = new Map();
+
+    for (const event of events) {
+        const theater = resolveEventTheater(event);
+        if (!theater) continue;
+
+        const theaterDef = getTheaterById(theater.id);
+        if (!theaterPassesLens(theaterDef, lensValue)) continue;
+
+        const activeRegion = getActiveRegion?.();
+        if (!theaterMatchesRegion(theater, activeRegion)) continue;
+
+        const severityScore = getEventSeverityScore(event);
+        const recencyScore = getRecencyScore(event);
+        const eventWeight = getTheaterEventWeight(event);
+        const densityIncrement = 1;
+
+        const weightedScore =
+            ((severityScore * 2) + recencyScore + eventWeight + densityIncrement) *
+            (theater.weight || 1);
+
+        if (!bucket.has(theater.id)) {
+            bucket.set(theater.id, {
+                id: theater.id,
+                label: theater.label,
+                region: theater.region,
+                score: 0,
+                density: 0,
+                maxSeverity: 0,
+                latestTimestamp: 0,
+                events: []
+            });
+        }
+
+        const item = bucket.get(theater.id);
+        item.score += weightedScore;
+        item.density += 1;
+        item.maxSeverity = Math.max(item.maxSeverity, severityScore);
+        item.latestTimestamp = Math.max(item.latestTimestamp, getEventTimestamp(event));
+        item.events.push(event);
+    }
+
+    return [...bucket.values()]
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (b.maxSeverity !== a.maxSeverity) return b.maxSeverity - a.maxSeverity;
+            if (b.latestTimestamp !== a.latestTimestamp) return b.latestTimestamp - a.latestTimestamp;
+            return b.density - a.density;
+        })
+        .slice(0, limit);
+}
+export function deriveTheaterStatus(theaterItem = {}) {
+    const score = Number(theaterItem.score || 0);
+    const density = Number(theaterItem.density || 0);
+    const maxSeverity = Number(theaterItem.maxSeverity || 0);
+
+    if (maxSeverity >= 7 || score >= 40) {
+        return "CLOSED";
+    }
+
+    if (maxSeverity >= 5 || score >= 24 || density >= 4) {
+        return "RESTRICTED";
+    }
+
+    if (maxSeverity >= 3 || score >= 12 || density >= 2) {
+        return "ELEVATED";
+    }
+
+    return "NORMAL";
+}
+function deriveCountryStatus(events, country, type = "airspace") {
+    const relevant = events.filter((event) =>
+        eventPlaceText(event).includes(String(country).toLowerCase())
+    );
+
+    if (!relevant.length) return "unknown";
+
+    if (type === "cyber") {
+        const cyberEvents = relevant.filter(
+            (e) => String(e.category || "").toLowerCase() === "cyber"
+        );
+
+        if (!cyberEvents.length) return "normal";
+
+        if (
+            cyberEvents.some((e) =>
+                ["critical", "high"].includes(String(e.severity || "").toLowerCase())
+            )
+        ) {
+            return "critical";
+        }
+
+        if (
+            cyberEvents.some((e) =>
+                ["critical", "high", "elevated", "degraded", "disrupted"].includes(
+                    String(e.cyber_status || "").toLowerCase()
+                )
+            )
+        ) {
+            return "high";
+        }
+
+        return "elevated";
+    }
+
+    const explicitStatuses = relevant
+        .map((e) => String(e.airspace_status || "").toLowerCase())
+        .filter((s) => s && s !== "unknown");
+
+    if (explicitStatuses.includes("closed")) return "closed";
+    if (explicitStatuses.includes("restricted")) return "restricted";
+    if (explicitStatuses.includes("elevated")) return "elevated";
+    if (explicitStatuses.includes("normal")) return "normal";
+
+    const alertsCount = relevant.filter(
+        (e) => String(e.category || "").toLowerCase() === "alert"
+    ).length;
+
+    const recentCutoff = Date.now() - 2 * 60 * 60 * 1000;
+    const kineticCount = relevant.filter((e) => {
+        const t = new Date(e.occurred_at).getTime();
+        const cat = String(e.category || "").toLowerCase();
+        return t > recentCutoff && (cat === "strike" || cat === "military");
+    }).length;
+
+    if (alertsCount >= 5 || kineticCount >= 3) return "closed";
+    if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
+
+    return "normal";
+}
+function topActors(events, max = 3) {
+    return countBy(events, (e) => e.actor_side || "unknown")
+        .filter(([name]) => name !== "unknown")
+        .slice(0, max);
+}
+function topLocations(events, max = 3) {
+    return countBy(events, (e) => e.location_label || e.impact_label || "unknown")
+        .filter(([name]) => name !== "unknown")
+        .slice(0, max);
+}
 function countBy(events, key) {
     const out = new Map();
 
@@ -349,12 +902,10 @@ function countBy(events, key) {
 
     return [...out.entries()].sort((a, b) => b[1] - a[1]);
 }
-
 function setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = String(value);
 }
-
 function renderFeed(events) {
     const feed = document.getElementById("live-feed-list");
     if (!feed) return;
@@ -375,13 +926,13 @@ function renderFeed(events) {
 
         card.innerHTML = `
             <div class="feed-card__meta">
-                <span class="feed-pill">${event.category || "strike"}</span>
+                <span class="feed-pill">${event.category || "unknown"}</span>
                 <time>${formatTime(event.occurred_at)}</time>
             </div>
             <h3 class="feed-card__title">${event.title || "Untitled event"}</h3>
             <p class="feed-card__summary">${event.summary || "No summary available."}</p>
             <div class="feed-card__foot">
-                <span>${event.location_label || "Unknown location"}</span>
+                <span>${compactEventPlaceLabel(event)}</span>
                 ${event.source_url ? `<a href="${event.source_url}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}
             </div>
         `;
@@ -389,20 +940,21 @@ function renderFeed(events) {
         feed.appendChild(card);
     });
 }
-
 function renderStrikeCounters(events) {
-    const iran = events.filter((e) => e.actor_side === "iran").length;
-    const usisr = events.filter((e) => e.actor_side === "us_israel").length;
     const mapped = events.filter((e) => Number.isFinite(e.lat) && Number.isFinite(e.lon)).length;
+    const topSides = countBy(events, (e) => e.actor_side || "unknown")
+        .filter(([name]) => name !== "unknown")
+        .slice(0, 2);
+
+    const primaryActor = topSides[0] ? `${topSides[0][0]} (${topSides[0][1]})` : "--";
+    const secondaryActor = topSides[1] ? `${topSides[1][0]} (${topSides[1][1]})` : "--";
 
     setText("stat-total", events.length);
     setText("stat-mapped", mapped);
-    setText("stat-iran", iran);
-    setText("stat-usisr", usisr);
 
     setText("analytics-total", events.length);
-    setText("analytics-iran", iran);
-    setText("analytics-usisr", usisr);
+    setText("analytics-iran", primaryActor);
+    setText("analytics-usisr", secondaryActor);
 
     const latest = events[0]?.occurred_at ? new Date(events[0].occurred_at) : null;
     const oldest = events[events.length - 1]?.occurred_at ? new Date(events[events.length - 1].occurred_at) : null;
@@ -412,63 +964,67 @@ function renderStrikeCounters(events) {
 
     setText("analytics-range", range);
 }
+function statusPriority(status) {
+    switch (String(status || "").toLowerCase()) {
+        case "closed":
+        case "critical":
+            return 4;
+        case "restricted":
+        case "high":
+            return 3;
+        case "elevated":
+            return 2;
+        case "normal":
+            return 1;
+        default:
+            return 0;
+    }
+}
+function rankCountryRows(events, type, max = 10) {
+    const countries = deriveFocusCountries(events, Math.max(max, 20));
 
+    const rows = countries
+        .map((country) => {
+            const status = deriveCountryStatus(events, country, type);
+            const relatedCount = events.filter((e) =>
+                eventPlaceText(e).includes(String(country).toLowerCase())
+            ).length;
+
+            return {
+                label: country,
+                status,
+                relatedCount,
+                priority: statusPriority(status),
+            };
+        })
+        .sort((a, b) => {
+            if (b.priority !== a.priority) return b.priority - a.priority;
+            if (b.relatedCount !== a.relatedCount) return b.relatedCount - a.relatedCount;
+            return a.label.localeCompare(b.label);
+        });
+
+    const strongRows = rows.filter((row) => row.relatedCount > 0 || row.status !== "unknown");
+
+    return (strongRows.length ? strongRows : rows).slice(0, max);
+}
 function renderCyberStatus(events) {
     const container = document.getElementById("cyber-status-list");
     if (!container) return;
 
-    const countries = ["iran", "israel", "iraq", "lebanon", "syria", "yemen"];
-    const markup = countries.map((name) => {
-        const hit = events.find((e) => String(e.location_label).toLowerCase().includes(name));
-        const status = hit?.cyber_status || "normal";
-        return `
-            <div class="status-row">
-                <span>${name.toUpperCase()}</span>
-                <strong class="status-pill status-pill--${status}">${status}</strong>
-            </div>
-        `;
-    }).join("");
+    const rows = rankCountryRows(events, "cyber", 8);
 
-    container.innerHTML = markup;
-}
-
-function renderAirspaceStatus(events) {
-    const container = document.getElementById("airspace-status-list");
-    if (!container) return;
-
-    const countries = ["Iran", "Israel", "Lebanon", "Syria", "Iraq", "Jordan", "Saudi Arabia", "UAE", "Bahrain", "Oman"];
-
-    function deriveStatus(country) {
-        const lc = country.toLowerCase();
-        const countryEvents = events.filter((e) =>
-            String(e.location_label || "").toLowerCase().includes(lc) ||
-            String(e.country || "").toLowerCase().includes(lc)
-        );
-
-        if (!countryEvents.length) return "unknown";
-
-        const explicit = countryEvents.find((e) => e.airspace_status && e.airspace_status !== "unknown");
-        if (explicit) return explicit.airspace_status;
-
-        const hasAlert = countryEvents.some((e) => e.category === "alert");
-        if (hasAlert) return "closed";
-
-        const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
-        const hasRecentStrike = countryEvents.some((e) => {
-            const t = new Date(e.occurred_at).getTime();
-            return t > twoHoursAgo && (e.category === "strike" || e.category === "military");
-        });
-        if (hasRecentStrike) return "restricted";
-
-        return "normal";
+    if (!rows.length) {
+        container.innerHTML = '<div class="status-row"><span>No cyber signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
+        return;
     }
 
-    const markup = countries.map((country) => {
-        const status = deriveStatus(country);
+    const markup = rows.map((row) => {
+        const status = String(row.status || "unknown").toLowerCase();
         const label = status.charAt(0).toUpperCase() + status.slice(1);
+
         return `
             <div class="status-row">
-                <span>${country}</span>
+                <span>${row.label}</span>
                 <strong class="status-pill status-pill--${status}">${label}</strong>
             </div>
         `;
@@ -476,7 +1032,31 @@ function renderAirspaceStatus(events) {
 
     container.innerHTML = markup;
 }
+function renderAirspaceStatus(events) {
+    const container = document.getElementById("airspace-status-list");
+    if (!container) return;
 
+    const rows = rankCountryRows(events, "airspace", 10);
+
+    if (!rows.length) {
+        container.innerHTML = '<div class="status-row"><span>No regional airspace signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
+        return;
+    }
+
+    const markup = rows.map((row) => {
+        const status = String(row.status || "unknown").toLowerCase();
+        const label = status.charAt(0).toUpperCase() + status.slice(1);
+
+        return `
+            <div class="status-row">
+                <span>${row.label}</span>
+                <strong class="status-pill status-pill--${status}">${label}</strong>
+            </div>
+        `;
+    }).join("");
+
+    container.innerHTML = markup;
+}
 function renderEscalation(events) {
     const critical = events.filter((e) => e.severity === "critical").length;
     const high = events.filter((e) => e.severity === "high").length;
@@ -517,21 +1097,42 @@ function renderEscalation(events) {
         <li>${events.length} total incidents in window</li>
     `;
 }
-
+function getLensLabel(lens) {
+    switch (lens) {
+        case "flashpoint": return "Global Flashpoints";
+        case "standoff": return "Long-Standing Standoffs";
+        case "all": return "All Events";
+        default: return "Current Ongoing Conflicts";
+    }
+}
 function renderSummary(events) {
     const p = document.getElementById("executive-summary");
     const meta = document.getElementById("intel-meta-line");
     if (!p || !meta) return;
 
-    const iran = events.filter((e) => e.actor_side === "iran").length;
-    const usisr = events.filter((e) => e.actor_side === "us_israel").length;
-    const topWeapons = countBy(events, "weapon_type").slice(0, 3).map(([k]) => k).join(", ");
+    const region = getActiveRegion?.();
+    const lens = getActiveLens?.() || "live";
+    const lensLabel = getLensLabel(lens);
+    const regionLabel = region?.label || "Global View";
 
-    p.textContent = `Over the current reporting window, the event stream indicates an elevated and highly fluid regional conflict picture. Iranian-attributed events total ${iran}, while US/Israel-attributed events total ${usisr}. Most frequently observed weapon categories in the current stream are ${topWeapons || "unknown systems"}. This summary is automatically derived from your current event dataset and should be treated as an OSINT-style operational overview rather than a verified intelligence product.`;
+    const topTheaters = deriveFocusTheaters(events, getActiveLens?.() || "live", 3)
+        .map(t => t.label)
+        .join(", ");
+    const topWeapons = countBy(events, "weapon_type")
+        .filter(([name]) => name && name !== "unknown")
+        .slice(0, 3)
+        .map(([name]) => name)
+        .join(", ");
 
-    meta.textContent = `Generated: ${new Date().toLocaleString()} | Incidents analyzed: ${events.length} | Coverage: live rolling dataset`;
+    const criticalCount = events.filter((e) => String(e.severity || "").toLowerCase() === "critical").length;
+    const highCount = events.filter((e) => String(e.severity || "").toLowerCase() === "high").length;
+    const alertCount = events.filter((e) => String(e.category || "").toLowerCase() === "alert").length;
+    const strikeCount = events.filter((e) => String(e.category || "").toLowerCase() === "strike").length;
+
+    p.textContent = `${lensLabel} view is currently focused on ${regionLabel}. The active event picture shows ${events.length} mapped incidents, including ${strikeCount} strike-related events and ${alertCount} alert-driven signals. High-severity activity remains elevated with ${criticalCount} critical and ${highCount} high-severity records in the current filtered stream. Primary theaters currently surfacing in this view are ${topTheaters || "mixed strategic areas"}, while the most frequently observed weapon categories are ${topWeapons || "mixed systems"}.`;
+
+    meta.textContent = `Generated: ${new Date().toLocaleString()} | Lens: ${lensLabel} | Region: ${regionLabel} | Incidents analyzed: ${events.length}`;
 }
-
 function renderTimeline(events) {
     const wrap = document.getElementById("timeline-list");
     if (!wrap) return;
@@ -542,14 +1143,13 @@ function renderTimeline(events) {
             <div class="timeline-body">
                 <strong>${event.title}</strong>
                 <p>${event.summary || "No summary available."}</p>
-                <small>[${event.location_label || "Unknown location"}]</small>
+                <small>[${compactEventPlaceLabel(event)}]</small>
             </div>
         </div>
     `).join("");
 
     wrap.innerHTML = items || '<div class="feed-empty">No timeline items.</div>';
 }
-
 function renderBars(targetId, rows) {
     const el = document.getElementById(targetId);
     if (!el) return;
@@ -562,7 +1162,6 @@ function renderBars(targetId, rows) {
         </div>
     `).join("");
 }
-
 function renderAnalytics(events) {
     const side = countBy(events, "actor_side");
     const weapons = countBy(events, "weapon_type").slice(0, 12);
@@ -581,7 +1180,6 @@ function renderAnalytics(events) {
     renderBars("analytics-weapons", weapons);
     renderBars("analytics-targets", targets);
 }
-
 function renderRecon(events) {
     const regionGrid = document.getElementById("recon-region-grid");
     const alertList = document.getElementById("recon-alert-list");
@@ -589,34 +1187,25 @@ function renderRecon(events) {
     const banner = document.getElementById("recon-closure-banner");
 
     if (banner) {
-        const closedCount = events.filter((e) => e.airspace_status === "closed").length;
+        const closedCount = events.filter((e) => String(e.airspace_status || "").toLowerCase() === "closed").length;
         banner.textContent = `Regional Airspace Closure Detected — ${closedCount} alerts in dataset`;
     }
 
-    const regions = [
-        ["Iran", "OIIX"],
-        ["Israel", "LLLL"],
-        ["Lebanon", "OLBB"],
-        ["Syria", "OSTT"],
-        ["Iraq", "ORBB"],
-        ["Jordan", "OJAC"],
-        ["Saudi Arabia", "OEJD"],
-        ["UAE", "OMAE"],
-        ["Bahrain", "OBBB"],
-        ["Oman", "OOMM"],
-        ["Qatar", "OTBD"],
-        ["Kuwait", "OKAC"],
-    ];
+    const focusCountries = deriveFocusCountries(events, 12);
 
     if (regionGrid) {
-        regionGrid.innerHTML = regions.map(([name, fir]) => {
-            const hit = events.find((e) => String(e.location_label).toLowerCase().includes(name.toLowerCase()));
-            const status = hit?.airspace_status || "unknown";
+        regionGrid.innerHTML = focusCountries.map((name) => {
+            const status = deriveCountryStatus(events, name, "airspace");
+            const firHit = events.find((e) =>
+                eventPlaceText(e).includes(String(name).toLowerCase()) &&
+                e.fir_code
+            );
+
             return `
                 <div class="region-card">
                     <h4>${name}</h4>
-                    <small>${fir}</small>
-                    <strong class="status-pill status-pill--${status}">${status}</strong>
+                    <small>${firHit?.fir_code || "Regional FIR"}</small>
+                    <strong class="status-pill status-pill--${String(status || "unknown").toLowerCase()}">${String(status || "unknown").toUpperCase()}</strong>
                 </div>
             `;
         }).join("");
@@ -624,11 +1213,11 @@ function renderRecon(events) {
 
     if (alertList) {
         alertList.innerHTML = events
-            .filter((e) => e.airspace_status !== "unknown")
+            .filter((e) => String(e.airspace_status || "").toLowerCase() !== "unknown")
             .slice(0, 16)
             .map((e) => `
                 <div class="recon-alert-row">
-                    <strong>${e.fir_code || "FIR"} | ${e.location_label}</strong>
+                    <strong>${e.fir_code || "FIR"} | ${e.location_label || e.impact_label || e.country || "Unknown location"}</strong>
                     <span>${e.airspace_status}</span>
                     <small>${formatTime(e.occurred_at)}</small>
                 </div>
@@ -649,27 +1238,31 @@ function renderRecon(events) {
             .join("");
     }
 }
-
 function renderWeapons(events) {
     const grid = document.getElementById("weapons-grid");
     if (!grid) return;
 
     const rows = countBy(events, "weapon_type").slice(0, 16);
 
-    grid.innerHTML = rows.map(([name, count], index) => `
-        <article class="weapon-card">
-            <div class="weapon-card__top">
-                <h3>${name}</h3>
-                <span>${index % 2 === 0 ? "IRAN" : "US/ISR"}</span>
-            </div>
-            <div class="weapon-badges">
-                <span class="weapon-tag">${name}</span>
-            </div>
-            <p>Observed in current stream ${count} times. Detailed range, CEP, speed, and warhead data can be filled from your curated database later.</p>
-        </article>
-    `).join("");
-}
+    grid.innerHTML = rows.map(([name, count]) => {
+        const related = events.filter((e) => String(e.weapon_type || "") === String(name));
+        const topSide = countBy(related, (e) => e.actor_side || "unknown")
+            .filter(([label]) => label !== "unknown")[0]?.[0] || "mixed";
 
+        return `
+            <article class="weapon-card">
+                <div class="weapon-card__top">
+                    <h3>${name}</h3>
+                    <span>${topSide}</span>
+                </div>
+                <div class="weapon-badges">
+                    <span class="weapon-tag">${name}</span>
+                </div>
+                <p>Observed in current stream ${count} times. Detailed range, CEP, speed, and warhead data can be filled from your curated database later.</p>
+            </article>
+        `;
+    }).join("");
+}
 function renderKillChain(events) {
     const list = document.getElementById("killchain-list");
     if (!list) return;
@@ -690,13 +1283,11 @@ function renderKillChain(events) {
         </article>
     `).join("");
 }
-
 function ensureAlertAudio() {
     if (__alertAudio) return __alertAudio;
     __alertAudio = document.getElementById("warzone-alert-audio");
     return __alertAudio;
 }
-
 export function triggerWarzoneAlert({ title, location, level = "high", playSound = true } = {}) {
     const alertLevel = level === "critical" ? "red" : level === "high" ? "orange" : "yellow";
     showSirenAlert({
@@ -706,22 +1297,30 @@ export function triggerWarzoneAlert({ title, location, level = "high", playSound
         sound: playSound,
     });
 }
-
 function flashFeedCard(eventId) {
     const card = document.querySelector(`[data-event-id="${eventId}"]`);
     if (!card) return;
     card.classList.add("is-flash");
     setTimeout(() => card.classList.remove("is-flash"), 1200);
 }
-
 function renderAll(events) {
-    __eventsCache = sortEvents(events.map(normalizeEvent));
+    __eventsCache = sortEvents(
+        events.map((event) => {
+            const normalized = normalizeEvent(event);
+            return {
+                ...normalized,
+                theater: resolveEventTheater(normalized)
+            };
+        })
+    );
 
-    debouncedRenderFeed(__eventsCache);
-    debouncedRenderUI(__eventsCache);
-    debouncedRenderHeavy(__eventsCache);
+    const filtered = applyAllFilters(__eventsCache);
+
+    updateTheaterPanel(filtered);
+    debouncedRenderFeed(filtered);
+    debouncedRenderUI(filtered);
+    debouncedRenderHeavy(filtered);
 }
-
 function syncFilteredUi(events) {
     const filtered = applyAllFilters(events);
     debouncedRenderFeed(filtered);
@@ -732,7 +1331,6 @@ function syncFilteredUi(events) {
 
 const GLOBE_CLUSTER_RADIUS_DEG = 1;
 const GLOBE_CLUSTER_THRESHOLD = 60;
-
 function getGlobeClusterRadiusDeg() {
     const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
     if (height > 7000000) return 1.1;
@@ -753,12 +1351,10 @@ const CAT_PRIORITY = {
     seismic: 3,
     signal: 2,
 };
-
 function catScore(e) {
     return (CAT_PRIORITY[String(e.category || "").toLowerCase()] || 1) +
         (e.severity === "critical" ? 4 : e.severity === "high" ? 2 : 0);
 }
-
 function clusterEventsForGlobe(events) {
     if (!Array.isArray(events) || !events.length) return [];
     if (events.length < GLOBE_CLUSTER_THRESHOLD) {
@@ -812,7 +1408,6 @@ function clusterEventsForGlobe(events) {
         _clusterEvents: c.events,
     }));
 }
-
 function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
@@ -824,6 +1419,10 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     if (!visible.length) {
         __militaryTracks?.setTracks([]);
         __hotspotLayer?.setEvents([]);
+        if (window.__warzoneViewer) {
+            clearRanges(window.__warzoneViewer);
+            clearSweepers(window.__warzoneViewer);
+        }
         window.__warzoneViewer?.scene?.requestRender?.();
         return;
     }
@@ -847,11 +1446,26 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         __hotspotLayer.setEvents(isLayerEnabled("hotspots") ? visible : []);
     }
 
+    if (window.__warzoneViewer) {
+        if (isLayerEnabled("ranges")) {
+            clearRanges(window.__warzoneViewer);
+            clearSweepers(window.__warzoneViewer);
+            renderRanges(window.__warzoneViewer, visible);
+            renderSweepers(window.__warzoneViewer, visible);
+        } else {
+            clearRanges(window.__warzoneViewer);
+            clearSweepers(window.__warzoneViewer);
+        }
+    }
+
     if (animateTracks) {
-        for (const event of visible) {
-            if (isTrackLikeEvent(event)) {
-                globe.animateMissileTrack?.(event);
-            }
+        const recentTracks = visible
+            .filter((event) => isTrackLikeEvent(event))
+            .sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0))
+            .slice(0, 3);
+
+        for (const event of recentTracks) {
+            globe.animateMissileTrack?.(event);
         }
     }
 
@@ -869,9 +1483,11 @@ export async function initWarzoneApp() {
         return [];
     }
 
-    const events = Array.isArray(data) ? data.map(normalizeEvent) : [];
+    const events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
+
     renderAll(events);
-    syncInitialEventsToGlobe(events);
+
+    syncInitialEventsToGlobe(events, { animateTracks: true });
 
     const hotspotRoot = document.getElementById("warzone-hotspot-layer");
     const viewer = window.__warzoneViewer;
@@ -885,6 +1501,8 @@ export async function initWarzoneApp() {
             maxVisiblePerHotspot: 3,
             minItemsForCluster: 1,
         });
+
+        window.__hotspotLayer = __hotspotLayer;
     }
 
     __hotspotLayer?.setEvents(isLayerEnabled("hotspots") ? applyAllFilters(events) : []);
@@ -972,7 +1590,7 @@ async function pollLatestEvents() {
             return;
         }
 
-        const rows = Array.isArray(data) ? data.map(normalizeEvent) : [];
+        const rows = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
         if (!rows.length) return;
 
         rows
@@ -987,18 +1605,19 @@ async function pollLatestEvents() {
         console.error("Polling latest events failed:", err);
     }
 }
-
 export function startEventPollingFallback() {
     if (__pollTimer) return;
     __pollTimer = setInterval(() => {
         pollLatestEvents();
     }, 30000);
 }
-
 export function handleIncomingEvent(event) {
-    const normalized = normalizeEvent(event);
+    let normalized = normalizeEvent(event);
+    normalized = resolveStrikeGeometry(normalized);
+    if (!isMilitaryRelevant(normalized)) return;
 
     __liveRecentEvents.unshift(normalized);
+
     if (__liveRecentEvents.length > 300) {
         __liveRecentEvents.length = 300;
     }
@@ -1050,7 +1669,6 @@ export function handleIncomingEvent(event) {
         }
     }
 }
-
 function initFloatingPanels() {
     const panels = document.querySelectorAll(".warzone-panel--floating");
 
@@ -1141,23 +1759,19 @@ function initFloatingPanels() {
         });
     });
 }
-
 export function initGlobal() {
     bindScrollClassToggles();
     bindScrollToTargets();
     initSmoothHomeAnchors();
-    initSiteLoader();
     initNav();
     initFloatingPanels();
 }
-
 export function initBoot() {
     document.addEventListener("DOMContentLoaded", () => {
         initGlobal();
         window.SiteLoader?.forceHide?.();
     });
 }
-
 export function initAudio() {
     const audio = document.getElementById("bg-audio");
     const toggle = document.getElementById("audio-toggle");

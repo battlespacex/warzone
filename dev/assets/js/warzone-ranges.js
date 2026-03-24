@@ -25,17 +25,25 @@ const RANGE_PRESETS = {
 };
 
 function getRangePreset(event) {
+    const sub = String(
+        event.subcategory ||
+        event.subtype ||
+        event.type ||
+        ""
+    ).toLowerCase();
 
-    const sub = String(event.subcategory || "").toLowerCase();
     const weapon = String(event.weapon_type || "").toLowerCase();
+    const title = String(event.title || "").toLowerCase();
+    const text = `${sub} ${weapon} ${title}`;
 
-    if (sub.includes("awacs")) return RANGE_PRESETS.awacs;
-    if (sub.includes("fighter")) return RANGE_PRESETS.fighter;
-    if (sub.includes("carrier")) return RANGE_PRESETS.carrier;
-    if (sub.includes("destroyer")) return RANGE_PRESETS.destroyer;
+    if (text.includes("awacs")) return RANGE_PRESETS.awacs;
+    if (text.includes("fighter")) return RANGE_PRESETS.fighter;
+    if (text.includes("carrier")) return RANGE_PRESETS.carrier;
+    if (text.includes("destroyer") || text.includes("frigate")) return RANGE_PRESETS.destroyer;
 
-    if (weapon.includes("sam") || weapon.includes("air defense"))
+    if (text.includes("sam") || text.includes("air defense")) {
         return RANGE_PRESETS.sam;
+    }
 
     return null;
 }

@@ -1,85 +1,5 @@
 ﻿/* assets/css/navigation.css */
 
-/* #region =========== NAVIGATION HEADER =========== */
-
-.brand_header {
-    position: absolute;
-    top: 2rem;
-    left: 0;
-    right: 0;
-    z-index: 5;
-}
-
-.site-header {
-    position: sticky;
-    top: 1.6rem;
-    z-index: 30;
-    width: var(--min-width);
-    margin: 0 auto 2rem;
-    transition: 0.4s ease;
-}
-
-.on--scroll .site-header {
-    backdrop-filter: blur(0.5rem);
-}
-
-.nav {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    min-height: 7.2rem;
-    margin-inline: auto;
-    padding: 0 1.6rem;
-    overflow: hidden;
-    background: rgba(10, 12, 16, 0.88);
-    border: .2rem solid var(--color-border-gray);
-    box-shadow: var(--box-shadow);
-}
-
-.nav__brand {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.nav__logo {
-    width: auto;
-    height: 4rem;
-}
-
-.nav__menu {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-    padding: 0;
-    font-size: 1.3rem;
-    text-transform: uppercase;
-}
-
-    .nav__menu a {
-        position: relative;
-        line-height: 2rem;
-        transition: 0.3s ease;
-    }
-
-        .nav__menu a.active {
-            color: var(--color-white);
-        }
-
-.nav__underline {
-    position: absolute;
-    bottom: -0.5rem;
-    height: 0.5rem;
-    background: var(--color-teal);
-    pointer-events: none;
-    transition: left 0.3s ease, width 0.3s ease;
-}
-
-/* #endregion =========== */
-
 /* #region =========== COMMAND CENTER HEADER =========== */
 
 .warzone-commandbar {
@@ -97,46 +17,67 @@
     filter: var(--header-shadow);
     position: fixed;
     width: 100%;
-    opacity: 0;
     transform: translateY(-10rem);
-    transition: opacity 0.7s ease, transform 0.7s ease;
+    opacity: 0;
+    transition: opacity 1s ease, transform 1s ease;
     will-change: opacity, transform;
 }
 
-body.is-ui-ready .warzone-brand {
+.is-ui-visible .warzone-brand {
     opacity: 1;
     transform: translateY(0);
     transition-delay: 0.5s;
 }
 
 .warzone-logo {
-    clip-path: polygon(0 0, 100% 0, calc(100% - 8rem) 100%, 8rem 100%);
-    background: var(--color-teal-glow);
-    padding: 2rem 9rem;
     transform: translateX(-50%);
     left: 50%;
     position: absolute;
-    top: -1.5rem;
+    top: 2rem;
+    opacity: 0;
+    transition: opacity 1s ease;
+    will-change: opacity;
 }
 
-    .warzone-logo h1 {
-        font-size: 3rem;
-        line-height: 1;
-        margin: 0;
-        letter-spacing: 1rem;
-        color: var(--color-gray);
-    }
+.is-ui-visible .warzone-logo {
+    opacity: 1;
+    transition-delay: 1.5s;
+}
 
-        .warzone-logo h1 span {
-            color: var(--color-bg-modal);
-        }
+.warzone-logo img {
+    z-index: 1;
+    width: auto;
+    height: 7rem;
+}
+
+.warzone-bg {
+    clip-path: polygon(0 -.4rem, 100% -.4rem, calc(100% - 8rem) 100%, 8rem 100%);
+    background: var(--color-black);
+    padding: 2rem 9rem;
+    left: 50%;
+    position: relative;
+    position: absolute;
+    top: 0;
+    left: .1rem;
+    right: .1rem;
+    bottom: 0.2rem;
+    z-index: 1;
+}
 
 .warzone-region-bar, .warzone-actions {
     gap: .5rem;
-    position: absolute;
+    position: fixed;
     top: 4rem;
     display: flex;
     align-items: center;
+    opacity: 0;
+    transition: opacity 1s ease;
+    will-change: opacity;
+}
+
+.is-ui-visible .warzone-region-bar, .is-ui-visible .warzone-actions {
+    opacity: 1;
+    transition-delay: 2.5s;
 }
 
 .warzone-region-bar {
@@ -149,8 +90,19 @@ body.is-ui-ready .warzone-brand {
 
 .warzone-actions {
     right: 2rem;
-    flex-direction: row-reverse;
+    display: flex;
+    align-items: center;
 }
+
+    .warzone-actions ul {
+        display: flex;
+        align-items: center;
+        list-style: none
+    }
+
+    .warzone-actions .action-icon {
+        font-size: var(--icon-lg)
+    }
 
 .icon-chip, .support-chip, .top-tab, .toolbar-select, .dock-chip {
     border: 0.2rem solid rgba(255, 255, 255, 0.1);
@@ -220,12 +172,15 @@ body.is-ui-ready .warzone-brand {
     transition: opacity 0.7s ease, transform 0.7s ease;
     will-change: opacity, transform;
     filter: var(--widget-shadow);
+    z-index: 60
 }
 
-body.is-ui-ready .wz-dock {
+
+
+.is-ui-visible .wz-dock {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
-    transition-delay: 1s;
+    transition-delay: 3.5s;
 }
 
 .wz-btn-container {
@@ -234,34 +189,33 @@ body.is-ui-ready .wz-dock {
     display: flex;
     align-items: center;
     padding: 0 9rem;
+    transition: padding 0.45s ease, clip-path 0.45s ease;
 }
 
 .wz-dock__btn {
     cursor: pointer;
     flex-shrink: 0;
     overflow: hidden;
-    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), background 180ms ease, border-color 180ms ease, opacity 300ms ease, width 320ms cubic-bezier(0.4, 0, 0.2, 1), padding 320ms cubic-bezier(0.4, 0, 0.2, 1), margin 320ms cubic-bezier(0.4, 0, 0.2, 1), border-width 320ms cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: transform, opacity, width;
     border: 0;
     background: transparent;
-    margin: 0 .5rem;
+    margin: 0 0.5rem;
     padding: 0;
+    opacity: 1;
+    width: 6rem;
+    max-width: 6rem;
+    transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, margin 0.45s ease, transform 0.25s ease;
 }
 
     .wz-dock__btn:hover {
-        transform: scale(1) translateY(-.5rem);
+        transform: translateY(-0.5rem);
     }
 
     .wz-dock__btn.wz-dock--gone {
         opacity: 0;
         pointer-events: none;
-        width: 0 !important;
-        min-width: 0 !important;
-        height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border-width: 0 !important;
-        overflow: hidden;
+        width: 0;
+        max-width: 0;
+        margin: 0;
     }
 
 .wz-dock__icon {
@@ -282,6 +236,10 @@ body.is-ui-ready .wz-dock {
         pointer-events: none;
         height: auto;
     }
+
+.wz-dock__btn.is-active .wz-dock__icon .static-icon {
+    color: var(--color-teal-glow);
+}
 
 .wz-dock__label {
     position: absolute;
@@ -307,26 +265,6 @@ body.is-ui-ready .wz-dock {
     transform: translateX(-50%) translateY(0);
 }
 
-.wz-dock__btn.is-active {
-    background: rgba(25, 216, 179, 0.18);
-    border-color: rgba(25, 216, 179, 0.45);
-}
-
-.wz-dock__sep {
-    width: .1rem;
-    height: 3rem;
-    flex-shrink: 0;
-    overflow: hidden;
-    transition: width 320ms cubic-bezier(0.4, 0, 0.2, 1), margin 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease;
-}
-
-    .wz-dock__sep.wz-dock--gone {
-        width: 0 !important;
-        height: 0 !important;
-        margin: 0 !important;
-        opacity: 0;
-        overflow: hidden;
-    }
 
 @media (max-width: 768px) {
     .wz-dock {
@@ -380,20 +318,6 @@ body.is-ui-ready .wz-dock {
 }
 
 /* #endregion =========== */
-
-
-/*.mobile-logo-tray { background-image: url(/assets/images/web/logo-aerocism-mob.png); pointer-events: none; transform: translateY(-100%); background-size: contain; background-repeat: no-repeat; background-position: center; align-items: center; height: 9rem; padding: 2.5rem 0 3.7rem; top: -1rem; }
-    .mobile-logo-tray span { background-image: url(/assets/images/web/logo-aerocism-2.svg); background-position: 50%; background-repeat: no-repeat; background-size: contain; max-height: 3.5rem; max-width: 12rem; width: 100%; height: 100%; }
-
-.mobile-tab-tray button, .mobile-tab-tray button:last-child { bottom: unset; display: flex !important; position: relative; right: unset; height: 4.4rem; width: 4.4rem; }
-
-.mobile-tab-tray { align-items: center; background: var(--color-bg-modal); border-radius: 4rem; bottom: 0; box-shadow: 0 1.5rem 2.5rem rgb(1 1 1 / 75%); gap: 0.5rem; margin: 0 auto 2rem; transform: translateY(100%); padding: 0.6rem; width: auto; justify-self: flex-start; max-width: var(--sec-width); backdrop-filter: blur(3px); }
-
-    .mobile-tab-tray .static-icon { font-size: 2.6rem; }
-        .mobile-tab-tray .static-icon span { min-height: auto; min-width: auto; }
-
-    .mobile-tab-tray .audio-fab { background: var(--color-teal); }
-        .mobile-tab-tray .audio-fab .static-icon span { color: #000; }*/
 
 
 

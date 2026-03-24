@@ -14,9 +14,6 @@ function sendPage(res, name, status = 200) {
 }
 
 app.get(`${BASE}/`, (req, res) => sendPage(res, "index"));
-app.get(`${BASE}/about`, (req, res) => sendPage(res, "about"));
-app.get(`${BASE}/report`, (req, res) => sendPage(res, "report"));
-app.get(`${BASE}/sources`, (req, res) => sendPage(res, "sources"));
 app.get(`${BASE}/404`, (req, res) => sendPage(res, "404", 404));
 app.use((req, res) => sendPage(res, "404", 404));
 

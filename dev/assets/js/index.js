@@ -9,7 +9,6 @@ import {
     subscribeToLiveEvents, subscribeToActiveAlerts,
     startActiveAlertsPollingFallback
 } from "./warzone-realtime.js";
-import { bindWarzoneUi } from "./warzone-ui.js";
 import { initDevPanel } from "./warzone-dev-panel.js";
 
 
@@ -17,15 +16,18 @@ initBoot();
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        bindWarzoneUi();
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
+
         initDevPanel();
         await initWarzoneApp();
+
         await subscribeToLiveEvents();
         await subscribeToActiveAlerts();
         startActiveAlertsPollingFallback();
+
         initAudio();
+
     } catch (error) {
         console.error("App init failed:", error);
     }

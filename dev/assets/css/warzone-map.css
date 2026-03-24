@@ -45,37 +45,6 @@
 
 /* #endregion =========== */
 
-/* #region =========== TILE LOADED PROGRESS INDICATOR =========== */
-
-.wz-map-loader {
-    position: absolute;
-    inset: 0;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(2, 5, 11, 0.35);
-    pointer-events: none;
-    opacity: 1;
-    transition: opacity 200ms ease;
-}
-    .wz-map-loader[hidden] {
-        display: none;
-    }
-.wz-map-loader__gif {
-    width: 40vh;
-    aspect-ratio: 1 / 1;
-    object-fit: contain;
-}
-
-@media (max-width: 768px) {
-    .wz-map-loader__gif {
-        width: 60vmin;
-    }
-}
-
-/* #endregion =========== */
-
 /* #region =========== CESIUM JS GLOBE =========== */
 
 .warzone-globe {
