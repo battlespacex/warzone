@@ -1,9 +1,6 @@
 ﻿/* assets/css/warzone-components.css */
 @import url("./root.css");
-
-
 /* #region =========== HOT-SPOTS =========== */
-
 .wzhs {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -16,7 +13,6 @@
     animation: wzhs-in 0.6s ease both;
     /*filter: var(--widget-shadow);*/
 }
-
 .wzhs__body {
     position: relative;
     display: flex;
@@ -31,7 +27,6 @@
     transform: none;
     /*backdrop-filter: blur(2px);*/
 }
-
 .wzhs__top {
     display: flex;
     align-items: center;
@@ -40,7 +35,6 @@
     transition: background-color 180ms ease, color 180ms ease;
     padding-right: 0.5rem;
 }
-
 .wzhs__title {
     display: flex;
     gap: 1rem;
@@ -49,27 +43,25 @@
     padding: 0 .5rem;
     height: 3.5rem;
 }
-
-    .wzhs__icon {
-        position: absolute;
-        width: 3rem;
-        height: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-shrink: 0;
-        font-size: var(--icon-lg);
-        color: var(--text-heading);
-        transition: background-color 180ms ease, transform 220ms ease;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        height: 100%;
-    }
-
-
-.wzhs--open .wzhs__icon { position: relative }
-
+.wzhs__icon {
+    position: absolute;
+    width: 3rem;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: var(--icon-lg);
+    color: var(--text-heading);
+    transition: background-color 180ms ease, transform 220ms ease;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    height: 100%;
+}
+.wzhs--open .wzhs__icon {
+    position: relative
+}
 .wzhs__count {
     margin-left: 3.5rem;
     font-size: var(--text-xl);
@@ -77,7 +69,6 @@
     color: var(--color-text-heading);
     transition: color 180ms ease, margin-left 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .wzhs__label {
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -85,7 +76,6 @@
     font-weight: 600;
     transition: color 180ms ease;
 }
-
 .wzhs__arr {
     margin-left: auto;
     flex-shrink: 0;
@@ -93,16 +83,13 @@
     transform: rotate(180deg);
     transition: transform 220ms ease, color 180ms ease, opacity 180ms ease;
 }
-
 .wzhs--open .wzhs__arr {
     transform: rotate(0deg);
 }
-
 .wzhs__detail {
     display: flex;
     flex-direction: column;
 }
-
 .wzhs__header {
     display: flex;
     justify-content: space-between;
@@ -112,23 +99,19 @@
     background: var(--color-bg-header);
     gap: 1rem;
 }
-
 .wzhs__loc, .wzhs__time {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     font-size: var(--text-sm);
 }
-
 .wzhs__loc {
     color: var(--color-text-dim);
 }
-
 .wzhs__time {
     display: inline-table;
     color: var(--color-text-heading);
 }
-
 .wzhs__items {
     display: flex;
     flex-direction: column;
@@ -141,163 +124,127 @@
     transform: none;
     transition: opacity 140ms ease;
 }
-
 .wzhs--open .wzhs__items {
     opacity: 1;
 }
-
 .wzhs-item {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
-
 .wzhs-item__row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
 }
-
 .wzhs-item__sev {
     padding: 0.8rem 0.8rem 0.4rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
     margin-bottom: .5rem;
 }
-
 .wzhs-item__sev--critical {
     color: var(--criticality-level-ex-cl);
     background: var(--criticality-level-ex-bg);
 }
-
 .wzhs-item__sev--high {
     color: var(--criticality-level-hi-cl);
     background: var(--criticality-level-hi-bg);
 }
-
 .wzhs-item__sev--medium {
     color: var(--criticality-level-med-cl);
     background: var(--criticality-level-med-bg);
 }
-
 .wzhs-item__sev--low {
     color: var(--criticality-level-lo-cl);
     background: var(--criticality-level-lo-bg);
 }
-
 .wzhs-item__time {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
 }
-
 .wzhs-item__title {
     color: var(--color-text-heading);
 }
-
 .wzhs-item__loc {
     display: block;
     font-size: var(--text-xs);
     color: var(--color-text-dim);
 }
-
 .wzhs--strike .wzhs__count {
     color: var(--warzone-strike-color);
 }
-
 .wzhs--open.wzhs--strike .wzhs__top, .wzhs--strike .wzhs__icon {
     background: var(--warzone-strike-color);
 }
-
 .wzhs--alert .wzhs__count {
     color: var(--warzone-alert-color);
 }
-
 .wzhs--open.wzhs--alert .wzhs__top, .wzhs--alert .wzhs__icon {
     background: var(--warzone-alert-color);
 }
-
 .wzhs--military .wzhs__count {
     color: var(--warzone-military-color);
 }
-
 .wzhs--open.wzhs--military .wzhs__top, .wzhs--military .wzhs__icon {
     background: var(--warzone-military-color);
 }
-
 .wzhs--recon .wzhs__count {
     color: var(--warzone-recon-color);
 }
-
 .wzhs--open.wzhs--recon .wzhs__top, .wzhs--recon .wzhs__icon {
     background: var(--warzone-recon-color);
 }
-
 .wzhs--airspace .wzhs__count {
     color: var(--warzone-airspace-color);
 }
-
 .wzhs--open.wzhs--airspace .wzhs__top, .wzhs--airspace .wzhs__icon {
     background: var(--warzone-airspace-color);
 }
-
 .wzhs--cyber .wzhs__count {
     color: var(--warzone-cyber-color);
 }
-
 .wzhs--open.wzhs--cyber .wzhs__top, .wzhs--cyber .wzhs__icon {
     background: var(--warzone-cyber-color);
 }
-
 .wzhs--thermal .wzhs__count {
     color: var(--warzone-thermal-color);
 }
-
 .wzhs--open.wzhs--thermal .wzhs__top, .wzhs--thermal .wzhs__icon {
     background: var(--warzone-thermal-color);
 }
-
 .wzhs--default .wzhs__count {
     color: var(--warzone-default-color);
 }
-
 .wzhs--open.wzhs--default .wzhs__top, .wzhs--default .wzhs__icon {
     background: var(--warzone-default-color);
 }
-
 .wzhs--open {
     z-index: 30 !important;
 }
-
-
     .wzhs--open .wzhs__count {
         margin-left: -0.5rem;
     }
-
     .wzhs--open .wzhs__count,
     .wzhs--open .wzhs__label,
     .wzhs--open .wzhs__arr {
         color: var(--color-text-heading) !important;
     }
-
     .wzhs--open .wzhs__body {
         min-width: 22rem;
         max-width: 28rem;
         transform: none !important;
         clip-path: var(--clippath-shape-1);
     }
-
 /* #endregion =========== */
-
 /* #region =========== DEV - TESTER PANEL =========== */
-
 .wz-dev-panel {
     position: fixed;
     bottom: 1.5rem;
     right: 1.5rem;
     z-index: 9999;
 }
-
 .wz-dev-toggle {
     padding: 0.5rem 1rem;
     color: var(--color-text-heading);
@@ -305,7 +252,6 @@
     background: #111;
     border: 0.2rem solid var(--color-border-gray);
 }
-
 .wz-dev-body {
     position: absolute;
     right: 0;
@@ -316,31 +262,41 @@
     background: var(--color-bg-dark);
     border: 0.2rem solid var(--color-border-gray);
 }
-
 .wz-dev-toggle:hover {
     background: rgba(255, 7, 83, 0.28);
 }
-
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-heading
+   classes: wz-dev-heading
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-heading {
-    color: #ff0753;
+color: #ff0753;
     font-size: 1rem;
     letter-spacing: 0.15em;
     margin-bottom: 1rem;
     border-bottom: .2rem solid var(--color-border-gray);
     padding-bottom: 1rem;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-grid
+   classes: wz-dev-grid
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-grid {
-    display: grid;
+display: grid;
     gap: 0.5rem;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-label
+   classes: wz-dev-label
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-label {
-    color: hotpink;
+color: hotpink;
     font-size: 0.75rem;
     margin-top: 0.5rem;
 }
-
+UNUSED CANDIDATE END */
 .wz-dev-btn {
     background: green;
     border: .2rem solid var(--color-border-gray);
@@ -350,37 +306,51 @@
     cursor: pointer;
     transition: background 0.12s ease, border-color 0.12s ease;
 }
-
     .wz-dev-btn:hover {
         background: rgba(255, 255, 255, 0.07);
         border-left-color: var(--c, #ff0753);
     }
-
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-actions
+   classes: wz-dev-actions
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-actions {
-    margin-top: 1rem;
+margin-top: 1rem;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.4rem;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-action
+   classes: wz-dev-action
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-action {
-    padding: 0.5rem;
+padding: 0.5rem;
     font-size: 1rem;
     cursor: pointer;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-action--fire
+   classes: wz-dev-action--fire
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-action--fire {
-    background: pink;
+background: pink;
     border: .2rem solid var(--color-border-gray);
     color: #ff0753;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .wz-dev-action--clear
+   classes: wz-dev-action--clear
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-dev-action--clear {
-    background: yellow;
+background: yellow;
     border: .2rem solid var(--color-border-gray);
     color: rgba(255, 255, 255, 0.5);
 }
-
+UNUSED CANDIDATE END */
 .wz-dev-log {
     margin-top: 0.5rem;
     max-height: 6rem;
@@ -389,72 +359,55 @@
     border-top: .2rem solid var(--color-border-gray);
     padding-top: 0.5rem;
 }
-
 .wz-no-transitions .warzone-panel--floating, .wz-no-transitions .wz-dock__btn[data-dock-widget] {
     animation: none !important;
 }
-
 /* #endregion =========== */
-
 /* #region =========== UI LAYERS =========== */
-
 .warzone-ui-layer {
     position: absolute;
     inset: 0;
     z-index: 40;
     pointer-events: none;
 }
-
     .warzone-ui-layer .warzone-panel--floating,
     .warzone-ui-layer .warzone-alert,
     .warzone-ui-layer .wz-dock,
     .warzone-ui-layer .wz-modal {
         pointer-events: auto;
     }
-
-    .primary-content {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        box-sizing: border-box;
-    }
-
-    .secondary-content {
-        position: absolute;
-        width: calc(100% - 4rem);
-        height: calc(100% - 16rem);
-        margin: 14rem 2rem 2rem;
-        box-sizing: border-box;
-    }
-
-
+.primary-content {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    box-sizing: border-box;
+}
+.secondary-content {
+    position: absolute;
+    width: calc(100% - 4rem);
+    height: calc(100% - 16rem);
+    margin: 14rem 2rem 2rem;
+    box-sizing: border-box;
+}
 /* #endregion =========== */
-
 /* #region =========== LAYERS =========== */
-
 .wz-layers__toolbar {
     display: flex;
     gap: 1rem;
 }
-
 .wz-layers__all-on, .wz-layers__all-off {
     flex: 1;
     height: 3rem;
 }
-
-
 .wz-layers__all-off {
     background: var(--color-gray);
 }
-
-
 .wz-layers__list {
     display: flex;
     flex-direction: column;
     gap: 1rem;
 }
-
 .wz-layer-item {
     display: flex;
     align-items: center;
@@ -464,7 +417,6 @@
     user-select: none;
     transition: background 0.12s;
 }
-
 .wz-layer-dot {
     width: 1.5rem;
     height: 1.5rem;
@@ -473,7 +425,6 @@
     border-radius: 50%;
     transition: opacity 0.15s;
 }
-
 .wz-layer-icon {
     display: none;
     width: 2rem;
@@ -481,7 +432,6 @@
     font-size: var(--text-sm);
     text-align: center;
 }
-
 .wz-layer-label {
     flex: 1;
     overflow: hidden;
@@ -490,11 +440,14 @@
     text-overflow: ellipsis;
     color: var(--color-text-heading);
 }
-
+/* UNUSED CANDIDATE START
+   selector: .wz-layer-check
+   classes: wz-layer-check
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-layer-check {
-    display: none;
+display: none;
 }
-
+UNUSED CANDIDATE END */
 .wz-layer-toggle {
     position: relative;
     width: 3rem;
@@ -505,7 +458,6 @@
     border-radius: 9999px;
     transition: background 0.18s;
 }
-
     .wz-layer-toggle::after {
         content: "";
         position: absolute;
@@ -518,24 +470,23 @@
         border-radius: 50%;
         transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.18s;
     }
-
 .wz-layer-item.is-on .wz-layer-toggle {
     background: var(--color-teal-hover);
 }
-
     .wz-layer-item.is-on .wz-layer-toggle::after {
         transform: translateX(1rem);
         background: var(--color-teal-glow);
     }
-
+/* UNUSED CANDIDATE START
+   selector: .wz-layer-panel-wrap
+   classes: wz-layer-panel-wrap
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-layer-panel-wrap {
-    display: none !important;
+display: none !important;
 }
-
+UNUSED CANDIDATE END */
 /* #endregion =========== */
-
 /* #region =========== SHARED MODAL SYSTEM =========== */
-
 .wz-modal {
     position: fixed;
     inset: 0;
@@ -550,18 +501,15 @@
     filter: var(--widget-shadow);
     backdrop-filter: blur(8px)
 }
-
     .wz-modal[hidden] {
         display: none !important;
         opacity: 0 !important;
         pointer-events: none !important;
     }
-
     .wz-modal.is-visible {
         opacity: 1;
         pointer-events: auto;
     }
-
 .wz-modal__backdrop {
     position: absolute;
     inset: 0;
@@ -570,7 +518,6 @@
     backdrop-filter: blur(0.8rem);
     -webkit-backdrop-filter: blur(0.8rem);
 }
-
 .wz-modal__box {
     display: flex;
     align-items: center;
@@ -585,20 +532,16 @@
     transform: translateY(1rem) scale(0.98);
     transition: transform 220ms ease;
 }
-
 .wz-modal.is-visible .wz-modal__box {
     transform: translateY(0) scale(1);
 }
-
 .warzone-ui-shell {
     opacity: 0;
     transition: opacity 400ms ease;
 }
-
     .warzone-ui-shell.is-ui-visible {
         opacity: 1;
     }
-
 .wz-modal__container {
     position: relative;
     z-index: 1;
@@ -611,14 +554,17 @@
     background: var(--color-bg-dark);
     clip-path: var(--clippath-shape-2);
 }
-
+/* UNUSED CANDIDATE START
+   selector: .wz-modal__scroll
+   classes: wz-modal__scroll
+   reason: no references found outside defining CSS file(s) during static scan
 .wz-modal__scroll {
-    flex: 1 1 auto;
+flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     scrollbar-gutter: stable;
 }
-
+UNUSED CANDIDATE END */
 .wz-modal__head {
     flex: 0 0 auto;
     display: flex;
@@ -628,7 +574,6 @@
     padding: 3rem 2rem 1.5rem;
     background: var(--color-bg-header);
 }
-
     .wz-modal__head span {
         font-family: var(--text-font);
         font-size: var(--text-lg);
@@ -636,7 +581,6 @@
         text-transform: uppercase;
         color: var(--color-text-heading);
     }
-
 .wz-modal__body {
     flex: 1 1 auto;
     min-height: 0;
@@ -644,8 +588,6 @@
     padding: 2rem;
     scrollbar-gutter: stable;
 }
-
-
 .wz-modal__close {
     position: absolute;
     top: 1.2rem;
@@ -661,36 +603,27 @@
     background: transparent;
     transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
-
     .wz-modal__close:hover {
         color: var(--color-text-heading);
         border-color: var(--color-teal-glow);
         background: var(--color-teal-hover);
     }
-
 /* #endregion =========== */
-
 /* #region =========== MODAL - INTRO / DISCLAIMER =========== */
-
-
 .wz-intro__hero {
     flex: 0 0 auto;
     padding: 3.5rem 2.5rem 2.3rem;
     background: var(--color-bg-header);
 }
-
     .wz-intro__hero .warzone-logo {
         position: relative;
         top: 0;
         left: 0;
         transform: none;
-        opacity: 1;
     }
-
         .wz-intro__hero .warzone-logo img {
             height: 8rem;
         }
-
 .wz-intro__body {
     flex: 1 1 auto;
     min-height: 0;
@@ -701,24 +634,19 @@
     gap: 1.5rem;
     scrollbar-gutter: stable;
 }
-
-
 .wz-intro__title {
     color: var(--color-text-heading);
     font-size: var(--text-xxl);
     line-height: 5rem;
 }
-
 .wz-intro__disclaimer {
     background: var(--color-bg-overlay);
     clip-path: var(--clippath-shape-3);
     padding: 1.5rem;
 }
-
     .wz-intro__disclaimer h3 {
         margin-bottom: 1rem;
     }
-
 .wz-intro__actions {
     flex: 0 0 auto;
     display: flex;
@@ -730,7 +658,6 @@
     width: 100%;
     box-sizing: border-box;
 }
-
 .wz-intro__note {
     flex: 1 1 auto;
     min-width: 0;
@@ -738,18 +665,14 @@
     font-weight: var(--text-base-weight);
     color: var(--color-text-dim);
 }
-
 .wz-intro__actions .btn-primary,
 .wz-intro__accept,
 #wz-intro-accept {
     flex: 0 0 auto;
     white-space: normal;
 }
-
 /* #endregion =========== */
-
 /* #region =========== MODAL - ABOUT =========== */
-
 .wz-modal__tabs {
     display: flex;
     flex: 0 0 auto;
@@ -758,11 +681,9 @@
     scrollbar-width: none;
     background: var(--color-bg-dark);
 }
-
     .wz-modal__tabs::-webkit-scrollbar {
         display: none;
     }
-
 .wz-modal__tab {
     display: flex;
     flex: 1 1 20%;
@@ -783,37 +704,30 @@
     cursor: pointer;
     transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
-
     .wz-modal__tab:hover {
         color: var(--color-text-heading);
         background: var(--color-teal-hover);
     }
-
     .wz-modal__tab.is-active {
         color: var(--color-teal-glow);
         background: var(--color-teal-hover);
         border-bottom-color: var(--color-teal-glow);
     }
-
 .wz-modal__pane {
     display: none;
 }
-
     .wz-modal__pane.is-active {
         display: block;
     }
-
     .wz-modal__pane h3 + p,
     .wz-modal__pane h3 + ul,
     .wz-modal__pane p + h3,
     .wz-modal__pane ul + h3 {
         margin-top: 1.5rem;
     }
-
     .wz-modal__pane p {
         margin: 0 0 1rem;
     }
-
 .wz-terms-footer {
     margin-top: 1.5rem !important;
     padding-top: 1.5rem;
@@ -823,95 +737,87 @@
     color: var(--color-text-dim) !important;
     border-top: 0.2rem solid var(--color-border-gray);
 }
-
 /* #endregion =========== */
-
 /* #region =========== MODAL - REGION =========== */
-
 .wz-region-modal__container {
     display: flex;
     flex-direction: column;
 }
-
 .wz-region-modal__head {
     flex: 0 0 auto;
     padding: 3rem 2.5rem 1.8rem;
     background: var(--color-bg-header);
     border-bottom: 0.1rem solid var(--color-border-gray);
 }
-
 .wz-region-modal__title {
     margin-top: 1rem;
 }
-
 .wz-region-modal__sub {
     margin-top: 0.8rem;
     color: var(--color-text-dim);
 }
-
 .wz-region-modal__grid {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding: 2rem 2.5rem;
 }
-
 /* #endregion =========== */
-
 /* #region =========== WIDGETS POSITIONINGS/SIZES =========== */
-
 .warzone-widget--counter {
     left: 0;
-    top: calc(var(--wz-bar-h) + 1rem);
+    top: 0
 }
-
+    .warzone-widget--counter .panel-content {
+        max-height: unset
+    }
 .warzone-widget--airspace {
     left: 30rem;
     top: 0;
 }
-
 .warzone-widget--layers {
-    left: 30rem;
-    top: 0;
+    left: 0rem;
+    top: auto;
+    bottom: 0;
 }
-
 .warzone-widget--escalation {
     right: 0;
     top: calc(var(--wz-bar-h) + 1rem);
 }
-
 .warzone-widget--cyber {
     right: 0rem;
-    bottom: 0;
     top: auto;
+    bottom: 0;
 }
-
 /* #endregion =========== */
-
 /* #region =========== WIDGET INNER PANELS =========== */
-
 .panel-actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     flex-shrink: 0;
 }
-
+/* UNUSED CANDIDATE START
+   selector: .panel-action--close
+   classes: panel-action--close
+   reason: no references found outside defining CSS file(s) during static scan
 .panel-action--close {
-    color: red;
+color: red;
     font-size: 1.1rem;
     line-height: 1;
     transition: color 0.15s;
 }
-
-    .panel-action--close:hover {
-        color: #ff4444;
-    }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .panel-action--close:hover
+   classes: panel-action--close
+   reason: no references found outside defining CSS file(s) during static scan
+.panel-action--close:hover {
+color: #ff4444;
+}
+UNUSED CANDIDATE END */
 /* #endregion =========== */
-
 /* #region =========== WIDGET - COUNTER =========== */
-
 .compact-stats {
     overflow: hidden;
     min-height: 0;
@@ -921,7 +827,6 @@
     transition: 320ms ease;
     clip-path: var(--clippath-shape-1);
 }
-
 .mini-stat {
     display: flex;
     flex-direction: column;
@@ -933,44 +838,36 @@
     gap: .2rem;
     border-radius: .2rem
 }
-
     .mini-stat strong {
         font-family: var(--heading-font);
         font-size: 4rem;
         font-weight: 100;
         color: var(--color-text-heading);
     }
-
     .mini-stat:first-child {
         background: var(--color-red);
         color: var(--color-text-heading);
         font-weight: 600;
     }
-
     .mini-stat:last-child {
         background: var(--warzone-cluster-alert);
         color: var(--color-text-heading);
         font-weight: 600;
     }
-
 /* #endregion =========== */
-
 /* #region =========== WIDGET - CRITICALITY COLOR PILLS =========== */
-
 .status-list {
     display: grid;
     gap: 0.7rem;
     padding: 1.5rem;
     transition: 320ms ease;
 }
-
 .status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
 }
-
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -982,30 +879,24 @@
     text-transform: uppercase;
     clip-path: var(--clippath-shape-5);
 }
-
 .status-pill--closed, .status-pill--critical {
     color: var(--criticality-level-ex-cl);
     background: var(--criticality-level-ex-bg);
 }
-
 .status-pill--restricted, .status-pill--warning, .status-pill--high {
     color: var(--criticality-level-hi-cl);
     background: var(--criticality-level-hi-bg);
 }
-
 .status-pill--normal, .status-pill--minor, .status-pill--low {
     color: var(--criticality-level-lo-cl);
     background: var(--criticality-level-lo-bg);
 }
-
 .status-pill--unknown, .status-pill--medium {
     color: var(--criticality-level-de-cl);
     background: var(--criticality-level-de-bg);
 }
 /* #endregion =========== */
-
 /* #region =========== WIDGET - FLOATING =========== */
-
 .warzone-panel--floating {
     display: flex;
     flex-direction: column;
@@ -1021,7 +912,6 @@
     filter: var(--widget-shadow);
     visibility: visible;
 }
-
 .panel-container {
     display: flex;
     flex-direction: column;
@@ -1032,36 +922,29 @@
     transition: clip-path 260ms ease;
     border-radius: .2rem;
 }
-
 .warzone-panel--floating {
     transition: transform 280ms ease, opacity 220ms ease;
 }
-
     .warzone-panel--floating.wz-is-hidden {
         opacity: 0;
         transform: translateY(10px);
         pointer-events: none;
         visibility: hidden;
     }
-
-    .warzone-panel--floating.wz-is-hidden,
-    .warzone-panel--floating.wz-is-hidden * {
-        pointer-events: none !important;
-        cursor: default !important;
+        .warzone-panel--floating.wz-is-hidden,
+        .warzone-panel--floating.wz-is-hidden * {
+            pointer-events: none !important;
+            cursor: default !important;
+        }
+    .warzone-panel--floating.is-collapsed .panel-container {
+        clip-path: var(--clippath-shape-3);
     }
-
-.warzone-panel--floating.is-collapsed .panel-container {
-    clip-path: var(--clippath-shape-3);
-}
-
     .warzone-panel--floating .static-icon[data-panel-collapse] {
         transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
     }
-
     .warzone-panel--floating.is-collapsed .static-icon[data-panel-collapse] {
         transform: rotate(180deg);
     }
-
 .panel-content {
     height: auto;
     max-height: 30vh;
@@ -1070,36 +953,34 @@
     transition: height 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease;
     will-change: height, opacity;
 }
-
 .wz-layer-panel {
     padding: 1.5rem;
     gap: 1.5rem;
     display: flex;
     flex-direction: column;
 }
-
 .warzone-panel--floating.is-collapsed .panel-content {
     height: 0 !important;
     opacity: 0;
     margin: 0;
 }
-
+/* UNUSED CANDIDATE START
+   selector: .warzone-panel--feed
+   classes: warzone-panel--feed
+   reason: no references found outside defining CSS file(s) during static scan
 .warzone-panel--feed {
-    width: 32rem;
+width: 32rem;
 }
-
+UNUSED CANDIDATE END */
 .warzone-panel--floating:not(.wz-is-hidden) .panel-head {
     cursor: grab;
 }
-
 .warzone-panel--floating.is-dragging .panel-head {
     cursor: grabbing;
 }
-
 .warzone-panel--floating.is-dragging .panel-head {
     cursor: grabbing;
 }
-
 .panel-head {
     display: flex;
     align-items: center;
@@ -1109,7 +990,6 @@
     padding: 0 1rem 0 1.5rem;
     background: var(--color-bg-header);
 }
-
     .panel-head h2 {
         flex: 1;
         min-width: 0;
@@ -1119,29 +999,23 @@
         text-overflow: ellipsis;
         font-size: var(--text-lg);
     }
-
 .panel-action {
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 180ms ease, transform 220ms ease, color 180ms ease;
 }
-
 .warzone-panel--floating.wz-is-hidden .panel-action {
     pointer-events: none
 }
-
 /* #endregion =========== */
-
 /* #region =========== WIDGET - ESCALATION =========== */
-
 .escalation-box {
     padding: 1.5rem;
     gap: 1rem;
     display: flex;
     flex-direction: column;
 }
-
 .escalation-meter {
     display: flex;
     gap: 1rem;
@@ -1150,28 +1024,23 @@
     clip-path: var(--clippath-shape-3);
     align-items: center;
 }
-
     .escalation-meter .static-icon {
         height: 4.5rem;
         width: 4.5rem;
         font-size: var(--icon-xxl);
         color: var(--color-red-glow);
     }
-
     .escalation-meter small {
         color: var(--color-text);
         font-weight: 500;
         font-family: var(--heading-font);
         letter-spacing: .2rem;
     }
-
 .escalation-list {
     margin: 0;
     margin: 0;
 }
-
 /* #endregion =========== */
-
 /* #region =========== WIDGET - RADAR =========== */
 .wz-radar-label-layer {
     position: absolute;
@@ -1180,7 +1049,6 @@
     pointer-events: none;
     overflow: visible;
 }
-
 .wz-radar-label {
     position: absolute;
     transform: translate(40%, -100%);
@@ -1193,61 +1061,49 @@
     clip-path: var(--clippath-shape-3);
     border-left: .5rem solid var(--color-teal-glow);
 }
-
 /* #endregion =========== */
-
-
-
-
-
-
-
-
-
-
-
+/* #region =========== THREAT INTELLIGENCE =========== */
 .wz-theater-panel {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 1rem;
+    padding: 0 1.5rem 1.5rem;
 }
-
 .wz-theater-card {
-    padding: 0.6rem;
-    background: rgba(20, 30, 40, 0.7);
-    border: 1px solid rgba(80, 120, 160, 0.2);
-    border-radius: 6px;
+    background: var(--color-bg-row);
+    border-radius: .2rem;
     cursor: pointer;
-}
-
-.wz-theater-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.wz-theater-meta {
+    padding: 1rem;
+    clip-path: var(--clippath-shape-3);
     display: flex;
     justify-content: space-between;
-    font-size: 0.7rem;
-    opacity: 0.8;
+    gap: 1.5rem;
+}
+.wz-theater-meta {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    font-size: var(--text-base);
 }
 
+.wz-theater-risk {
+    font-size: var(--text-sm);
+}
+.wz-theater-score {
+    font-size: var(--text-lg);
+    font-weight: 600
+}
 .wz-theater-risk.is-high {
-    color: #ff4d4d;
+    color: var(--criticality-level-hi-cl);
 }
-
 .wz-theater-risk.is-mid {
-    color: #ffb84d;
+    color: var(--criticality-level-med-cl);
 }
-
 .wz-theater-risk.is-low {
-    color: #6cff8f;
+    color: var(--criticality-level-lo-cl);
 }
-
-
-
+/* #endregion =========== */
 /* #region =========== SIREN BANNER =========== */
-
 .wz-siren-stack {
     position: absolute;
     top: 1rem;
@@ -1261,7 +1117,6 @@
     pointer-events: none;
     transform: translateX(-50%);
 }
-
 .wz-siren-banner {
     width: 100%;
     cursor: default;
@@ -1269,7 +1124,6 @@
     animation: wz-siren-in 0.22s cubic-bezier(0.2, 0, 0, 1) both;
     filter: var(--widget-shadow)
 }
-
 .wz-siren__content {
     position: relative;
     isolation: isolate;
@@ -1280,16 +1134,13 @@
     min-height: 3.6rem;
     padding: 1.5rem;
 }
-
     .wz-siren__content > * {
         position: relative;
         z-index: 1;
     }
-
-    .wz-siren-banner.is-closing {
-        animation: wz-siren-out 0.18s ease-in both;
-    }
-
+.wz-siren-banner.is-closing {
+    animation: wz-siren-out 0.18s ease-in both;
+}
 .wz-siren__content::before {
     content: "";
     position: absolute;
@@ -1304,33 +1155,27 @@
     clip-path: var(--clippath-shape-1);
     border-radius: .2rem;
 }
-
 .wz-siren-banner--red .wz-siren__content {
     color: var(--color-red);
     filter: drop-shadow(0 .3rem 2rem var(--color-red-glow));
 }
-
 .wz-siren-banner--orange .wz-siren__content {
     color: var(--color-orange);
     filter: drop-shadow(0 .3rem 2rem var(--color-orange));
 }
-
 .wz-siren-banner--yellow .wz-siren__content {
     color: var(--color-yellow);
     filter: drop-shadow(0 .3rem 2rem var(--color-yellow));
 }
-
 .wz-siren-alert {
     flex-shrink: 0;
     font-size: var(--icon-xl);
     transform-origin: top center;
 }
-
 .wz-siren-body {
     flex: 1;
     min-width: 0;
 }
-
 .wz-siren-title {
     display: block;
     overflow: hidden;
@@ -1340,7 +1185,6 @@
     text-overflow: ellipsis;
     margin-bottom: .5rem;
 }
-
 .wz-siren-meta {
     display: block;
     overflow: hidden;
@@ -1350,7 +1194,6 @@
     text-overflow: ellipsis;
     color: var(--color-text-heading);
 }
-
 .wz-siren-close {
     display: flex;
     align-items: center;
@@ -1364,76 +1207,61 @@
     right: 1rem;
     top: 1rem;
 }
-
 .wz-no-transitions .warzone-panel--floating,
 .wz-no-transitions .wz-dock__btn[data-dock-widget],
 .wz-no-transitions .wz-dock__sep {
     transition: none !important;
     animation: none !important;
 }
-
 .warzone-panel--floating .panel-body,
 .warzone-panel--floating .feed-list {
 }
-
 /* #endregion =========== */
-
 /* #region =========== KEYFRAMES / ANIMATIONS =========== */
-
 @keyframes wzhs-in {
     from {
         opacity: 0;
         transform: translate(-50%, -56%) scale(0.88);
     }
-
     to {
         opacity: 1;
         transform: translate(-50%, -50%) scale(1);
     }
 }
-
 @keyframes wz-backdrop-in {
     from {
         opacity: 0;
     }
-
     to {
         opacity: 1;
     }
 }
-
 @keyframes wz-modal-in {
     from {
         transform: scale(0.94) translateY(12px);
     }
-
     to {
         transform: scale(1) translateY(0);
     }
 }
-
 @keyframes wz-animate-pulse {
     0%, 100% {
         opacity: 1;
     }
-
     50% {
         opacity: 0.6;
     }
 }
-
 @keyframes wz-siren-in {
     from {
         opacity: 0;
         transform: translateY(-12px) scaleY(0.92);
     }
-
     to {
         opacity: 1;
         transform: translateY(0) scaleY(1);
     }
 }
-
 @keyframes wz-siren-out {
     from {
         opacity: 1;
@@ -1441,7 +1269,6 @@
         margin-bottom: 0;
         transform: translateY(0);
     }
-
     to {
         opacity: 0;
         max-height: 0;
@@ -1449,83 +1276,69 @@
         transform: translateY(-8px);
     }
 }
-
-
 /* #endregion =========== */
-
 /* #region =========== MEDIA QUERIES =========== */
-
 @media (prefers-reduced-motion: reduce) {
     html {
         scroll-behavior: auto;
     }
 }
-
 @media (max-width: 980px) {
     .wz-modal__box {
         width: min(96vw, 72rem);
     }
 }
-
 @media (max-width: 600px) {
-
     .wzhs__body {
         min-width: 7rem;
         max-width: 16rem;
         padding: 0.5rem 0.85rem 0.5rem 1rem;
     }
-
     .wzhs__count {
         font-size: 1.8rem;
     }
-
     .wzhs__items {
         gap: 1.4rem;
         margin: 1rem 0;
         padding: 0 1rem;
         max-height: 18rem;
     }
-
     .wzhs--open .wzhs__body {
         min-width: 16rem;
         max-width: 90vw;
     }
 }
-
 @media (max-width: 768px) {
-
     .warzone-panel--floating {
         left: 0.8rem !important;
         right: 1rem !important;
         width: auto !important;
         max-width: none !important;
     }
-
     .wz-modal__box {
         width: 96vw;
         max-height: 90vh;
     }
-
     .wz-modal__head {
         padding-right: 5rem;
     }
-
     .wz-modal__body {
         padding: 1.5rem;
     }
-
     .wz-modal__tab {
         min-width: 11rem;
     }
-
-    .wz-intro__grid {
-        grid-template-columns: 1fr;
-    }
-
+    /* UNUSED CANDIDATE START
+   selector: .wz-intro__grid
+   classes: wz-intro__grid
+   reason: no references found outside defining CSS file(s) during static scan
+.wz-intro__grid {
+grid-template-columns: 1fr;
+}
+UNUSED CANDIDATE END */
     .wz-intro__actions {
         flex-direction: column;
         align-items: stretch;
     }
 }
-
 /* #endregion =========== */

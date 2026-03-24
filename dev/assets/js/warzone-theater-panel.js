@@ -54,15 +54,13 @@ function render(stats) {
 
         return `
             <div class="wz-theater-card" data-theater="${t.id}">
-                <div class="wz-theater-title">${t.label}</div>
                 <div class="wz-theater-meta">
-                    <span class="wz-theater-risk ${level.class}">
-                        ${level.label}
-                    </span>
-                    <span class="wz-theater-score">
-                        ${Math.round(t.score)}
-                    </span>
+                    <span class="wz-theater-title">${t.label}</span>
+                    <span class="wz-theater-risk ${level.class}">${level.label}</span>
                 </div>
+                <span class="wz-theater-score">
+                    ${Math.round(t.score)}
+                </span>
             </div>
         `;
     }).join("");

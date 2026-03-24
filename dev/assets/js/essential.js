@@ -11,6 +11,7 @@ import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
 import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
 import { theaterMatchesRegion } from "./warzone-theaters.js";
 import { updateTheaterPanel } from "./warzone-theater-panel.js";
+import { resolveDisplayCoordinates, eventMatchesBounds } from "./warzone-location-resolver.js";
 
 let __eventsCache = [];
 let __liveRecentEvents = [];
@@ -23,7 +24,6 @@ let __militaryTracks = null;
 let __pollTimer = null;
 let __viewportFetchTimer = null;
 let __lastViewportKey = "";
-
 
 function isEventInLens(event, lens) {
     if (!event) return false;
@@ -334,7 +334,12 @@ function formatTime(value) {
     }
 }
 function normalizeEvent(event = {}) {
-    const normalized = {
+    const sourceLat = event.source_lat ?? event.raw_lat ?? event.lat ?? event.latitude ?? null;
+    const sourceLon = event.source_lon ?? event.raw_lon ?? event.lon ?? event.longitude ?? null;
+    const impactLatRaw = event.impact_lat ?? event.impactLatitude ?? event.impactLat ?? null;
+    const impactLonRaw = event.impact_lon ?? event.impactLongitude ?? event.impactLon ?? null;
+
+    const base = {
         ...event,
 
         id: event.id || crypto.randomUUID?.() || `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -344,21 +349,54 @@ function normalizeEvent(event = {}) {
         subcategory: event.subcategory || "",
         weapon_type: event.weapon_type || "",
 
-        lat: Number(event.lat ?? event.latitude ?? event.impact_lat ?? 0),
-        lon: Number(event.lon ?? event.longitude ?? event.impact_lon ?? 0),
+        source_lat: sourceLat != null ? Number(sourceLat) : null,
+        source_lon: sourceLon != null ? Number(sourceLon) : null,
 
-        impact_lat: Number(event.impact_lat ?? event.lat ?? 0),
-        impact_lon: Number(event.impact_lon ?? event.lon ?? 0),
+        impact_lat: impactLatRaw != null ? Number(impactLatRaw) : null,
+        impact_lon: impactLonRaw != null ? Number(impactLonRaw) : null,
 
         origin_lat: event.origin_lat != null ? Number(event.origin_lat) : null,
         origin_lon: event.origin_lon != null ? Number(event.origin_lon) : null,
 
-        country: event.country || "",
+        country: event.country || event.countryName || "",
         city: event.city || "",
+        province: event.province || event.state || event.admin1 || "",
         location: event.location || "",
+        location_label: event.location_label || event.impact_label || event.country || "",
+        impact_label: event.impact_label || event.location_label || event.country || "",
 
         occurred_at: event.occurred_at || new Date().toISOString()
     };
+
+    const placement = resolveDisplayCoordinates(base);
+
+    const normalized = {
+        ...base,
+        display_lat: placement.lat,
+        display_lon: placement.lon,
+        display_source: placement.reason,
+        display_precision: placement.precision,
+        inferred_place_type: placement.placeType,
+        inferred_country_code: placement.countryCode,
+        inferred_country_name: placement.countryName,
+        inferred_place_name: placement.resolvedPlaceName,
+        location_mismatch: placement.mismatch,
+
+        lat: placement.lat,
+        lon: placement.lon
+    };
+
+    const impactFirstCategory = ["strike", "alert", "airspace", "thermal", "signal", "seismic", "cyber"].includes(
+        String(normalized.category || "").toLowerCase()
+    );
+
+    if (
+        impactFirstCategory &&
+        (!Number.isFinite(normalized.impact_lat) || !Number.isFinite(normalized.impact_lon))
+    ) {
+        normalized.impact_lat = normalized.display_lat;
+        normalized.impact_lon = normalized.display_lon;
+    }
 
     return normalized;
 }
@@ -385,66 +423,54 @@ function isTrackLikeEvent(event) {
 }
 
 async function fetchViewportEvents() {
-    const globe = window.__warzoneViewer?.__warzone;
-    const bounds = globe?.getViewportBounds?.();
     const region = getActiveRegion?.();
     const regionId = region?.id || "global";
 
-    if (!bounds) return;
-
+    const globe = window.__warzoneViewer?.__warzone;
+    const bounds = globe?.getViewportBounds?.();
     const viewportKey = makeViewportKey(bounds, regionId);
     if (viewportKey === __lastViewportKey) return;
     __lastViewportKey = viewportKey;
 
     try {
-        let query = supabase
+        const merged = [];
+        const seen = new Set();
+
+        const pushUnique = (evt) => {
+            const normalized = normalizeEvent(evt);
+            const key = String(normalized.id || `${normalized.title}-${normalized.occurred_at}`);
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(normalized);
+        };
+
+        __eventsCache.forEach(pushUnique);
+        __liveRecentEvents.forEach(pushUnique);
+
+        // Correctness first:
+        // rows can carry reporting/source coordinates that do not match the actual target country.
+        // Pull a recent working set, resolve location client-side, then filter by display coordinates.
+        const { data, error } = await supabase
             .from("events")
             .select("*")
-            .gte("lat", bounds.minLat)
-            .lte("lat", bounds.maxLat);
-
-        if (bounds.minLon <= bounds.maxLon) {
-            query = query
-                .gte("lon", bounds.minLon)
-                .lte("lon", bounds.maxLon);
-        } else {
-            query = query.or(`lon.gte.${bounds.minLon},lon.lte.${bounds.maxLon}`);
-        }
-
-        const { data, error } = await query
             .order("occurred_at", { ascending: false })
-            .limit(500);
+            .limit(1500);
 
-        if (error) {
-            console.error("Viewport events fetch error:", error);
-            return;
+        if (!error && Array.isArray(data)) {
+            data.forEach(pushUnique);
         }
 
-        const viewportRows = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
-        const merged = [...viewportRows];
-        const seen = new Set(merged.map((e) => String(e.id)));
+        const visible = merged.filter((evt) => {
+            if (!bounds) return true;
+            return eventMatchesBounds(evt, bounds);
+        });
 
-        for (const evt of __liveRecentEvents) {
-            if (seen.has(String(evt.id))) continue;
-
-            const lat = Number(evt.lat);
-            const lon = Number(evt.lon);
-            if (
-                lat >= bounds.minLat &&
-                lat <= bounds.maxLat &&
-                lon >= bounds.minLon &&
-                lon <= bounds.maxLon
-            ) {
-                merged.push(evt);
-            }
-        }
-
-        renderAll(merged);
-        syncInitialEventsToGlobe(merged, { animateTracks: false });
+        renderAll(visible);
+        syncInitialEventsToGlobe(visible, { animateTracks: false });
 
         if (__hotspotLayer) {
             __hotspotLayer.setEvents(
-                isLayerEnabled("hotspots") ? applyAllFilters(merged) : []
+                isLayerEnabled("hotspots") ? applyAllFilters(visible) : []
             );
         }
 
@@ -463,15 +489,65 @@ function sortEvents(events) {
 
 const REGION_COUNTRY_HINTS = {
     global: [],
-    middle_east: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Iraq", "Iran", "Saudi Arabia", "UAE", "Yemen", "Qatar", "Bahrain", "Oman", "Kuwait"],
+    middle_east: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Iraq", "Iran", "Saudi Arabia", "United Arab Emirates", "Yemen", "Qatar", "Bahrain", "Oman", "Kuwait", "Turkey", "Egypt"],
     levant: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Cyprus", "Turkey", "Egypt"],
     ukraine: ["Ukraine", "Russia", "Belarus", "Poland", "Romania", "Moldova", "Lithuania", "Latvia", "Estonia"],
-    south_asia: ["Pakistan", "India", "Kashmir", "Afghanistan", "China", "Bangladesh", "Sri Lanka", "Nepal"],
-    europe: ["Ukraine", "Russia", "Poland", "Romania", "Germany", "France", "UK", "Belarus", "Baltics"],
+    south_asia: ["Pakistan", "India", "Afghanistan", "China", "Bangladesh", "Sri Lanka", "Nepal"],
+    europe: ["Ukraine", "Russia", "Poland", "Romania", "Germany", "France", "United Kingdom", "Belarus", "Lithuania", "Latvia", "Estonia"],
     north_america: ["United States", "Canada", "Mexico", "Greenland"],
     east_asia: ["China", "Taiwan", "North Korea", "South Korea", "Japan", "Philippines", "Vietnam"],
-    africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "DR Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
+    africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "Democratic Republic of the Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
 };
+
+const COUNTRY_NAME_ALIASES = {
+    "us": "United States",
+    "u.s.": "United States",
+    "u.s.a.": "United States",
+    "usa": "United States",
+    "america": "United States",
+    "united states of america": "United States",
+
+    "uk": "United Kingdom",
+    "u.k.": "United Kingdom",
+    "britain": "United Kingdom",
+    "great britain": "United Kingdom",
+
+    "uae": "United Arab Emirates",
+    "u.a.e.": "United Arab Emirates",
+
+    "dr congo": "Democratic Republic of the Congo",
+    "drc": "Democratic Republic of the Congo",
+    "congo kinshasa": "Democratic Republic of the Congo",
+
+    "russian federation": "Russia",
+    "republic of korea": "South Korea",
+    "korea republic of": "South Korea",
+    "democratic people's republic of korea": "North Korea",
+    "dprk": "North Korea",
+
+    "czech republic": "Czechia",
+    "ivory coast": "Côte d’Ivoire",
+    "laos": "Lao People's Democratic Republic",
+    "syria": "Syrian Arab Republic",
+    "iran": "Iran, Islamic Republic of",
+    "moldova": "Moldova, Republic of",
+    "venezuela": "Venezuela, Bolivarian Republic of",
+    "bolivia": "Bolivia, Plurinational State of",
+    "tanzania": "Tanzania, United Republic of",
+    "vietnam": "Viet Nam"
+};
+
+function normalizeCountryName(value) {
+    const raw = String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (!raw) return "";
+
+    const lower = raw.toLowerCase();
+    return COUNTRY_NAME_ALIASES[lower] || raw;
+}
+
 function normalizePlace(value) {
     return String(value || "")
         .replace(/\s+/g, " ")
@@ -518,24 +594,53 @@ function eventPlaceText(event) {
         .join(" | ")
         .toLowerCase();
 }
-function countryMentionCount(events, country) {
-    const needle = String(country || "").toLowerCase();
-    if (!needle) return 0;
+
+function getEventResolvedCountry(event = {}) {
+    const direct = normalizeCountryName(
+        event.inferred_country_name ||
+        event.country ||
+        event.countryName ||
+        ""
+    );
+
+    if (direct) return direct;
+
+    const placeType = String(event.inferred_place_type || "").toLowerCase();
+    if (placeType === "country" || placeType === "capital" || placeType === "subdivision") {
+        const inferred = normalizeCountryName(event.inferred_place_name || "");
+        if (inferred) return inferred;
+    }
+
+    return "";
+}
+function getRegionCountryWhitelist(regionId = "global") {
+    return new Set((REGION_COUNTRY_HINTS[regionId] || []).map(normalizeCountryName).filter(Boolean));
+}
+function getCountryMatchCount(events, country) {
+    const canonical = normalizeCountryName(country);
+    if (!canonical) return 0;
 
     return events.reduce((count, event) => {
-        return count + (eventPlaceText(event).includes(needle) ? 1 : 0);
+        return count + (getEventResolvedCountry(event) === canonical ? 1 : 0);
     }, 0);
+}
+
+function countryMentionCount(events, country) {
+    const canonical = normalizeCountryName(country);
+    if (!canonical) return 0;
+    return getCountryMatchCount(events, canonical);
 }
 function deriveFocusCountries(events, max = 10) {
     const lens = getActiveLens?.() || "live";
+    const regionId = getActiveRegion?.()?.id || "global";
+    const whitelist = getRegionCountryWhitelist(regionId);
 
     const scoreCountry = (name) => {
-        const needle = String(name || "").toLowerCase().trim();
-        if (!needle) return 0;
+        const canonical = normalizeCountryName(name);
+        if (!canonical) return 0;
 
         return events.reduce((score, event) => {
-            const text = eventPlaceText(event);
-            if (!text.includes(needle)) return score;
+            if (getEventResolvedCountry(event) !== canonical) return score;
 
             const category = String(event.category || "").toLowerCase();
             const severity = String(event.severity || "").toLowerCase();
@@ -571,82 +676,30 @@ function deriveFocusCountries(events, max = 10) {
         }, 0);
     };
 
-    function extractTrailingPlace(value) {
-        const raw = String(value || "").trim();
-        if (!raw) return [];
-
-        return raw
-            .split(/[|/]/)
-            .map((part) => part.trim())
+    const dynamic = [...new Set(
+        events
+            .map((event) => getEventResolvedCountry(event))
             .filter(Boolean)
-            .flatMap((part) => {
-                const bits = part.split(",").map((x) => x.trim()).filter(Boolean);
-                if (!bits.length) return [];
-                return [bits[bits.length - 1]];
-            });
-    }
-
-    function isCleanCountryCandidate(value) {
-        const v = String(value || "").trim();
-
-        if (!v) return false;
-        if (v.length < 3 || v.length > 40) return false;
-        if (/\d/.test(v)) return false;
-        if (/unit|street|st\.|road|rd\.|avenue|ave|school|district|north york|toronto|ontario/i.test(v)) return false;
-        if (!/[a-z]/i.test(v)) return false;
-
-        return true;
-    }
-
-    const candidates = new Set();
-
-    events.forEach((event) => {
-        [
-            event.country,
-            event.countryName,
-            event.region
-        ]
-            .filter(Boolean)
-            .forEach((value) => {
-                String(value)
-                    .split(/[|,/]/)
-                    .map((part) => part.trim())
-                    .filter(Boolean)
-                    .forEach((part) => {
-                        if (isCleanCountryCandidate(part)) {
-                            candidates.add(part);
-                        }
-                    });
-            });
-
-        [
-            event.location_label,
-            event.impact_label,
-            event.origin_label
-        ]
-            .filter(Boolean)
-            .forEach((value) => {
-                extractTrailingPlace(value).forEach((part) => {
-                    if (isCleanCountryCandidate(part)) {
-                        candidates.add(part);
-                    }
-                });
-            });
-    });
-
-    const dynamic = [...candidates]
-        .map((name) => ({ name, score: scoreCountry(name) }))
-        .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score)
+            .filter((country) => !whitelist.size || whitelist.has(country))
+    )]
+        .map((name) => ({ name, score: scoreCountry(name), count: getCountryMatchCount(events, name) }))
+        .filter((item) => item.score > 0 || item.count > 0)
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (b.count !== a.count) return b.count - a.count;
+            return a.name.localeCompare(b.name);
+        })
         .map((item) => item.name);
 
-    const regionId = getActiveRegion?.()?.id || "global";
-    const hints = REGION_COUNTRY_HINTS[regionId] || [];
-
-    const fallbackHints = hints
+    const fallbackHints = [...whitelist]
         .filter((name) => !dynamic.includes(name))
-        .map((name) => ({ name, score: scoreCountry(name) }))
-        .sort((a, b) => b.score - a.score)
+        .map((name) => ({ name, score: scoreCountry(name), count: getCountryMatchCount(events, name) }))
+        .filter((item) => item.score > 0 || item.count > 0)
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (b.count !== a.count) return b.count - a.count;
+            return a.name.localeCompare(b.name);
+        })
         .map((item) => item.name);
 
     const merged = [...dynamic, ...fallbackHints];
@@ -822,8 +875,10 @@ export function deriveTheaterStatus(theaterItem = {}) {
     return "NORMAL";
 }
 function deriveCountryStatus(events, country, type = "airspace") {
+    const canonical = normalizeCountryName(country);
+
     const relevant = events.filter((event) =>
-        eventPlaceText(event).includes(String(country).toLowerCase())
+        getEventResolvedCountry(event) === canonical
     );
 
     if (!relevant.length) return "unknown";
@@ -981,17 +1036,19 @@ function statusPriority(status) {
     }
 }
 function rankCountryRows(events, type, max = 10) {
+    const regionId = getActiveRegion?.()?.id || "global";
+    const whitelist = getRegionCountryWhitelist(regionId);
     const countries = deriveFocusCountries(events, Math.max(max, 20));
 
     const rows = countries
+        .filter((country) => !whitelist.size || whitelist.has(normalizeCountryName(country)))
         .map((country) => {
-            const status = deriveCountryStatus(events, country, type);
-            const relatedCount = events.filter((e) =>
-                eventPlaceText(e).includes(String(country).toLowerCase())
-            ).length;
+            const canonical = normalizeCountryName(country);
+            const status = deriveCountryStatus(events, canonical, type);
+            const relatedCount = getCountryMatchCount(events, canonical);
 
             return {
-                label: country,
+                label: canonical,
                 status,
                 relatedCount,
                 priority: statusPriority(status),
@@ -1004,7 +1061,6 @@ function rankCountryRows(events, type, max = 10) {
         });
 
     const strongRows = rows.filter((row) => row.relatedCount > 0 || row.status !== "unknown");
-
     return (strongRows.length ? strongRows : rows).slice(0, max);
 }
 function renderCyberStatus(events) {
@@ -1191,7 +1247,7 @@ function renderRecon(events) {
         banner.textContent = `Regional Airspace Closure Detected — ${closedCount} alerts in dataset`;
     }
 
-    const focusCountries = deriveFocusCountries(events, 12);
+    const focusCountries = deriveFocusCountries(events, 12).map(normalizeCountryName).filter(Boolean);
 
     if (regionGrid) {
         regionGrid.innerHTML = focusCountries.map((name) => {
@@ -1639,12 +1695,7 @@ export function handleIncomingEvent(event) {
         !filterEventsByRegion ||
         !region ||
         region.id === "global" ||
-        (() => {
-            const b = region.bounds;
-            const lat = Number(normalized.lat);
-            const lon = Number(normalized.lon);
-            return lat >= b.minLat && lat <= b.maxLat && lon >= b.minLon && lon <= b.maxLon;
-        })();
+        eventMatchesBounds(normalized, region.bounds);
 
     const layerOk = isEventVisible(normalized);
 

@@ -1,13 +1,22 @@
 ﻿<!-- Command bar -->
-<header class="warzone-commandbar" role="banner">
-    <div class="warzone-region-bar" aria-label="Operational filters">
-        <span class="warzone-region-bar__label static-icon" aria-hidden="true">
+<header class="warzone-commandbar">
+    <button class="warzone-mobile-settings-trigger"
+            id="warzone-mobile-settings-trigger"
+            type="button"
+            aria-label="Open map settings"
+            aria-expanded="false"
+            aria-controls="warzone-mobile-settings-panel">
+        <span class="static-icon">
+            <span class="bx-web-ico-website-R1_0" aria-hidden="true"></span>
+        </span>
+    </button>
+    <div class="warzone-region-bar">
+        <span class="warzone-region-bar__label static-icon">
             <span class="bx-web-ico-website-R1_0" aria-hidden="true"></span>
         </span>
 
         <div class="wz-selector">
-            <label for="wz-lens-nav" class="sr-only">Select conflict lens</label>
-            <select id="wz-lens-nav" class="wz--dropdown" aria-label="Select conflict lens">
+            <select aria-label="Select conflict lens" class="wz--dropdown" id="wz-lens-nav">
                 <option value="live">Current Ongoing Conflicts</option>
                 <option value="standoff">Long-Standing Standoffs</option>
                 <option value="flashpoint">Global Flashpoints</option>
@@ -16,104 +25,66 @@
         </div>
 
         <div class="wz-selector">
-            <label for="wz-region-nav" class="sr-only">Select monitoring region</label>
-            <select id="wz-region-nav" class="wz--dropdown" aria-label="Select monitoring region" aria-required="true"></select>
+            <select aria-label="Select monitoring region" aria-required="true" class="wz--dropdown" id="wz-region-nav"></select>
         </div>
     </div>
-
     <div class="warzone-brand">
-        <a href="/"
-           class="warzone-logo"
-           aria-label="Go to StratOps home">
-            <img src="/assets/images/web/logo-stratops-battlespacex.svg"
-                 alt="StratOps by BattleSpaceX"
-                 class="nav__logo"
-                 width="380"
-                 height="100"
-                 fetchpriority="high"
-                 decoding="async" />
+        <a href="/" aria-label="stratops visualization board" class="warzone-logo">
+            <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="StratOps logo" class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async">
         </a>
     </div>
 
     <div class="warzone-actions">
-        <div class="warzone-top-tabs" role="tablist" aria-label="Primary views">
-            <button class="top-tab is-active"
+        <!--<div class="warzone-top-tabs">
+            <button class="top-tab is-active" data-view="strikes">Strikes</button>
+            <button class="top-tab" data-view="analytics">Analytics</button>
+        </div>-->
+        <div class="warzone-brand-actions">
+            <!-- <a class="icon-chip" href="https://t.me/strikemaplive" target="_blank" rel="noopener noreferrer" aria-label="Telegram">TG</a>-->
+            <ul itemscope="" itemtype="http://schema.org/SiteNavigationElement">
+                <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://twitter.com/battlespacex" itemprop="url" title="Twitter X page" class="action-icon bx-web-ico-X-1-0"></a></li>
+                <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.facebook.com/battlespacex" itemprop="url" title="Facebook page" class="action-icon bx-web-ico-fb-1-0"></a></li>
+                <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.instagram.com/battlespacex" itemprop="url" title="Instagram page" class="action-icon bx-web-ico-insta-1-0"></a></li>
+                <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.threads.net/@battlespacex" itemprop="url" title="Insta Thread page" class="action-icon bx-web-ico-th-1-1"></a></li>
+                <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.youtube.com/@battlespacex" itemprop="url" title="Youtube channel" class="action-icon bx-web-ico-yt-1-0"></a></li>
+                <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.linkedin.com/company/battlespacex/" itemprop="url" title="Linkedin page" class="action-icon bx-web-ico-in-1-1"></a></li>
+            </ul>
+        </div>
+    </div>
+
+
+    <div class="warzone-mobile-settings-panel"
+         id="warzone-mobile-settings-panel"
+         hidden
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="warzone-mobile-settings-title">
+        <div class="warzone-mobile-settings-panel__head">
+            <h2 id="warzone-mobile-settings-title">Map Settings</h2>
+            <button class="warzone-mobile-settings-panel__close"
+                    id="warzone-mobile-settings-close"
                     type="button"
-                    data-view="strikes"
-                    role="tab"
-                    id="tab-strikes"
-                    aria-selected="true"
-                    aria-controls="view-strikes">
-                Strikes
-            </button>
-            <button class="top-tab"
-                    type="button"
-                    data-view="analytics"
-                    role="tab"
-                    id="tab-analytics"
-                    aria-selected="false"
-                    aria-controls="view-analytics">
-                Analytics
+                    aria-label="Close map settings">
+                <span class="static-icon">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </span>
             </button>
         </div>
 
-        <nav class="warzone-brand-actions" aria-label="BattleSpaceX social links">
-            <ul itemscope itemtype="https://schema.org/SiteNavigationElement" role="list">
-                <li itemscope itemtype="https://schema.org/ListItem">
-                    <a href="https://twitter.com/battlespacex"
-                       itemprop="url"
-                       title="BattleSpaceX on X"
-                       aria-label="Visit BattleSpaceX on X"
-                       class="action-icon bx-web-ico-X-1-0"
-                       target="_blank"
-                       rel="noopener noreferrer"></a>
-                </li>
-                <li itemscope itemtype="https://schema.org/ListItem">
-                    <a href="https://www.facebook.com/battlespacex"
-                       itemprop="url"
-                       title="BattleSpaceX on Facebook"
-                       aria-label="Visit BattleSpaceX on Facebook"
-                       class="action-icon bx-web-ico-fb-1-0"
-                       target="_blank"
-                       rel="noopener noreferrer"></a>
-                </li>
-                <li itemscope itemtype="https://schema.org/ListItem">
-                    <a href="https://www.instagram.com/battlespacex"
-                       itemprop="url"
-                       title="BattleSpaceX on Instagram"
-                       aria-label="Visit BattleSpaceX on Instagram"
-                       class="action-icon bx-web-ico-insta-1-0"
-                       target="_blank"
-                       rel="noopener noreferrer"></a>
-                </li>
-                <li itemscope itemtype="https://schema.org/ListItem">
-                    <a href="https://www.threads.net/@battlespacex"
-                       itemprop="url"
-                       title="BattleSpaceX on Threads"
-                       aria-label="Visit BattleSpaceX on Threads"
-                       class="action-icon bx-web-ico-th-1-1"
-                       target="_blank"
-                       rel="noopener noreferrer"></a>
-                </li>
-                <li itemscope itemtype="https://schema.org/ListItem">
-                    <a href="https://www.youtube.com/@battlespacex"
-                       itemprop="url"
-                       title="BattleSpaceX on YouTube"
-                       aria-label="Visit BattleSpaceX on YouTube"
-                       class="action-icon bx-web-ico-yt-1-0"
-                       target="_blank"
-                       rel="noopener noreferrer"></a>
-                </li>
-                <li itemscope itemtype="https://schema.org/ListItem">
-                    <a href="https://www.linkedin.com/company/battlespacex/"
-                       itemprop="url"
-                       title="BattleSpaceX on LinkedIn"
-                       aria-label="Visit BattleSpaceX on LinkedIn"
-                       class="action-icon bx-web-ico-in-1-1"
-                       target="_blank"
-                       rel="noopener noreferrer"></a>
-                </li>
-            </ul>
-        </nav>
+        <div class="warzone-mobile-settings-panel__body">
+            <div class="wz-selector">
+                <label for="wz-lens-nav-mobile" class="sr-only">Select conflict lens</label>
+                <select aria-label="Select conflict lens" class="wz--dropdown" id="wz-lens-nav-mobile"></select>
+            </div>
+
+            <div class="wz-selector">
+                <label for="wz-region-nav-mobile" class="sr-only">Select monitoring region</label>
+                <select aria-label="Select monitoring region" class="wz--dropdown" id="wz-region-nav-mobile"></select>
+            </div>
+        </div>
+
+        <div class="warzone-mobile-settings-panel__footer">
+            <button class="btn-primary" id="warzone-mobile-settings-apply" type="button">Update</button>
+        </div>
     </div>
 </header>

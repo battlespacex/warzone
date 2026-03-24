@@ -3,11 +3,10 @@
 
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
                data-widget-id="counter"
-               aria-labelledby="widget-counter-title"
-               style="left: 0; top: 0;">
+               aria-labelledby="widget-counter-title">
             <div class="panel-container">
                 <div class="panel-head">
-                    <h2 id="widget-counter-title">Strike Counter</h2>
+                    <h2 id="widget-counter-title">Theater Intelligence</h2>
                     <div class="panel-actions">
                         <button type="button"
                                 class="static-icon"
@@ -27,18 +26,18 @@
                     </div>
                 </div>
                 <div class="panel-content" id="widget-counter-content">
-                    <div class="compact-stats" aria-live="polite">
+                    <section class="compact-stats" aria-live="polite">
                         <div class="mini-stat"><span>Total Strikes</span> <strong id="stat-total">00</strong></div>
                         <div class="mini-stat"><span>Mapped</span> <strong id="stat-mapped">00</strong></div>
-                    </div>
+                    </section>
+                    <div id="wz-theater-panel" class="wz-theater-panel" aria-live="polite"></div>
                 </div>
             </div>
         </aside>
 
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--airspace"
                data-widget-id="airspace"
-               aria-labelledby="widget-airspace-title"
-               style="left: 30rem; top: 0rem">
+               aria-labelledby="widget-airspace-title">
             <div class="panel-container">
                 <div class="panel-head">
                     <h2 id="widget-airspace-title">Airspace Status</h2>
@@ -68,8 +67,7 @@
 
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--layers"
                data-widget-id="layers"
-               aria-labelledby="widget-layers-title"
-               style="left: 0; top: 19rem">
+               aria-labelledby="widget-layers-title">
             <div class="panel-container">
                 <div class="panel-head">
                     <h2 id="widget-layers-title">Map Layers</h2>
@@ -99,8 +97,7 @@
 
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--escalation"
                data-widget-id="escalation"
-               aria-labelledby="widget-escalation-title"
-               style="right: 0; top: 0">
+               aria-labelledby="widget-escalation-title">
             <div class="panel-container">
                 <div class="panel-head">
                     <h2 id="widget-escalation-title">Escalation Meter</h2>
@@ -139,8 +136,7 @@
 
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--cyber"
                data-widget-id="cyber"
-               aria-labelledby="widget-cyber-title"
-               style="right: 0; bottom: 10rem">
+               aria-labelledby="widget-cyber-title">
             <div class="panel-container">
                 <div class="panel-head">
                     <h2 id="widget-cyber-title">Cyber Status</h2>
@@ -167,10 +163,5 @@
                 </div>
             </div>
         </aside>
-
-        <section class="wz-panels" style="top: 30rem; left: 30rem" aria-labelledby="theater-panel-title">
-            <h2 id="theater-panel-title" class="wz-panel__header">Theater Intelligence</h2>
-            <div id="wz-theater-panel" class="wz-theater-panel" aria-live="polite"></div>
-        </section>
     </div>
 </div>

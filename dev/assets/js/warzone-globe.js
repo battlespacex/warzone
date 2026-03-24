@@ -1,4 +1,5 @@
 import * as Cesium from "cesium";
+import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
     countries: "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
@@ -13,12 +14,10 @@ function rememberEventEntity(entity) {
     if (!entity?.id) return;
     __eventEntityIds.add(String(entity.id));
 }
-
 function forgetEventEntity(entityId) {
     if (!entityId) return;
     __eventEntityIds.delete(String(entityId));
 }
-
 function clearTrackedEventEntities(viewer) {
     const ids = Array.from(__eventEntityIds);
     for (const id of ids) {
@@ -130,32 +129,56 @@ function getHeatRadius(event) {
 function normalizeEvents(events) {
     if (!Array.isArray(events)) return [];
     return events
-        .map((item, index) => ({
-            id: item.id || `event-${index + 1}`,
-            title: item.title || "Untitled event",
-            summary: item.summary || "",
-            category: item.category || "strike",
-            severity: item.severity || "medium",
-            lat: Number(item.lat),
-            lon: Number(item.lon),
-            origin_lat: Number(item.origin_lat),
-            origin_lon: Number(item.origin_lon),
-            origin_label: item.origin_label || "",
-            impact_lat: Number(item.impact_lat ?? item.lat),
-            impact_lon: Number(item.impact_lon ?? item.lon),
-            impact_label: item.impact_label || item.location_label || "",
-            location_label: item.location_label || "Unknown location",
-            occurred_at: item.occurred_at || "",
-            confidence: Number(item.confidence ?? 50),
-            animation_duration_ms: Number(item.animation_duration_ms),
-            persist_ms: Number(item.persist_ms),
-            target_type: item.target_type || "",
-            target_scope: item.target_scope || "",
-            location_scope: item.location_scope || "",
-            highlight_radius_m: Number(item.highlight_radius_m),
-            target_radius_m: Number(item.target_radius_m),
-            incoming_highlight_radius_m: Number(item.incoming_highlight_radius_m),
-        }))
+        .map((item, index) => {
+            const base = {
+                id: item.id || `event-${index + 1}`,
+                title: item.title || "Untitled event",
+                summary: item.summary || "",
+                category: item.category || "strike",
+                severity: item.severity || "medium",
+                source_lat: Number(item.source_lat ?? item.lat),
+                source_lon: Number(item.source_lon ?? item.lon),
+                lat: Number(item.lat),
+                lon: Number(item.lon),
+                origin_lat: Number(item.origin_lat),
+                origin_lon: Number(item.origin_lon),
+                origin_label: item.origin_label || "",
+                impact_lat: Number(item.impact_lat ?? item.lat),
+                impact_lon: Number(item.impact_lon ?? item.lon),
+                impact_label: item.impact_label || item.location_label || "",
+                location_label: item.location_label || "Unknown location",
+                country: item.country || item.countryName || "",
+                city: item.city || "",
+                province: item.province || item.state || item.admin1 || "",
+                occurred_at: item.occurred_at || "",
+                confidence: Number(item.confidence ?? 50),
+                animation_duration_ms: Number(item.animation_duration_ms),
+                persist_ms: Number(item.persist_ms),
+                target_type: item.target_type || "",
+                target_scope: item.target_scope || "",
+                location_scope: item.location_scope || "",
+                highlight_radius_m: Number(item.highlight_radius_m),
+                target_radius_m: Number(item.target_radius_m),
+                incoming_highlight_radius_m: Number(item.incoming_highlight_radius_m),
+            };
+
+            const placement = resolveDisplayCoordinates(base);
+
+            return {
+                ...base,
+                display_lat: placement.lat,
+                display_lon: placement.lon,
+                display_source: placement.reason,
+                display_precision: placement.precision,
+                inferred_place_type: placement.placeType,
+                inferred_country_code: placement.countryCode,
+                inferred_country_name: placement.countryName,
+                inferred_place_name: placement.resolvedPlaceName,
+                location_mismatch: placement.mismatch,
+                lat: placement.lat,
+                lon: placement.lon
+            };
+        })
         .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon));
 }
 /* ---------- Marker canvases ---------- */
@@ -310,7 +333,6 @@ function addEventEntity(viewer, event) {
 
     return { entity, ringEntity };
 }
-
 
 /* ---------- Viewer style ---------- */
 function applyViewerStyle(viewer) {
@@ -1415,6 +1437,7 @@ function highlightAlertRegion(viewer, event) {
         viewer.scene.requestRender();
     }, 9000);
 }
+
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
@@ -1565,7 +1588,7 @@ export async function initWarzoneGlobe() {
             playImpactSound(viewer);
         },
 
- 
+
     };
 
     return viewer;
