@@ -20,7 +20,7 @@ module.exports = (env, argv) => {
     const PROD_DIR = path.resolve(ROOT_DIR, "production");
     const DEV_DIR = path.resolve(ROOT_DIR, "dev");
 
-    const pages = Object.keys(pageMeta);
+    const pages = ["index", "404"];
 
     // -----------------------------
     // helpers

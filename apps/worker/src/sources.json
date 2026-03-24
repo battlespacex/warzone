@@ -9,178 +9,191 @@
       "category": "strike"
     },
     {
-      "name": "GDELT Conflict Signals",
+      "name": "Telegram OSINT",
+      "parser": "telegram",
       "enabled": true,
-      "type": "gdelt-api",
-      "parser": "gdelt",
-      "url": "https://api.gdeltproject.org/api/v2/doc/doc",
-      "category": "signal"
+      "channels": [
+        "sentdefender",
+        "OSINTLive",
+        "OSINTdefender",
+        "WarMonitors",
+        "milinfolive",
+        "irannotam",
+        "U_S_CENTCOM",
+        "war_translated",
+        "mmirlb",
+        "ourwarstoday",
+        "wor_mil_news",
+        "strikemap"
+      ],
+      "limit": 30,
+      "category": "military",
+      "tags": [
+        "telegram",
+        "osint",
+        "military"
+      ]
     },
     {
-      "name": "Telegram OSINT",
+      "name": "GDELT Conflict Signals",
+      "parser": "gdelt",
       "enabled": false,
-      "type": "telegram",
-      "parser": "telegram",
+      "type": "gdelt-api",
+      "url": "https://api.gdeltproject.org/api/v2/doc/doc",
+      "poll_interval_ms": 60000,
       "category": "military",
-      "channels": [
-        "strikemap",
-        "OSINTLive",
-        "wor_mil_news",
-        "ClashReport",
-        "conflicthistoryandnews",
-        "mmirlb",
-        "war_translated",
-        "U_S_CENTCOM",
-        "ourwarstoday",
-        "irannotam"
-      ],
-      "limit": 25,
-      "tags": [ "telegram", "osint", "military" ]
+      "tags": [
+        "gdelt",
+        "signal"
+      ]
+    },
+    {
+      "name": "ACLED Conflict Feed",
+      "parser": "acled",
+      "enabled": false,
+      "url": "https://acleddata.com/api/acled/read",
+      "category": "conflict",
+      "tags": [
+        "acled",
+        "conflict"
+      ]
+    },
+    {
+      "name": "Reddit CombatFootage",
+      "parser": "reddit",
+      "enabled": true,
+      "url": "https://www.reddit.com/r/CombatFootage/new.json",
+      "category": "military",
+      "tags": [
+        "reddit",
+        "combat"
+      ]
+    },
+    {
+      "name": "Reddit UkraineWar",
+      "parser": "reddit",
+      "enabled": true,
+      "url": "https://www.reddit.com/r/UkraineWarVideoReport/new.json",
+      "category": "military",
+      "tags": [
+        "reddit",
+        "ukraine"
+      ]
+    },
+    {
+      "name": "ADS-B Military Aircraft",
+      "enabled": true,
+      "type": "adsb-opensky",
+      "category": "military",
+      "tags": [ "adsb", "opensky", "military", "aircraft", "airforce" ]
+    },
+    {
+      "name": "AIS Naval Vessels",
+      "enabled": true,
+      "type": "ais-stream",
+      "category": "naval",
+      "tags": [ "ais", "naval", "fleet" ]
     },
     {
       "name": "IsraelWarRoom Siren Feed",
       "enabled": true,
-      "type": "telegram",
       "parser": "telegram",
       "category": "alert",
       "channels": [
         "IsraelWarRoom"
       ],
       "limit": 10,
-      "tags": [ "telegram", "siren", "israel", "red-alert" ],
-      "notes": "Real-time siren/rocket alerts from Israel. Messages routed through handleIsraelWarRoomMessage() in warzone-siren-poller.js for geo-coding and Supabase broadcast."
+      "tags": [
+        "telegram",
+        "siren",
+        "israel"
+      ]
     },
     {
-      "name": "Tzevaadom English (Pikud HaOref mirror)",
+      "name": "Tzevaadom",
       "enabled": true,
-      "type": "telegram",
       "parser": "telegram",
       "category": "alert",
       "channels": [
         "tzevaadom_en"
       ],
       "limit": 10,
-      "tags": [ "telegram", "siren", "israel", "pikud-haoref", "red-alert" ],
-      "notes": "Mirrors official Pikud HaOref alerts in English. Used as fallback when oref.org.il is geo-blocking the EC2. Routed through handleIsraelWarRoomMessage() in warzone-siren-poller.js."
+      "tags": [
+        "telegram",
+        "siren",
+        "israel"
+      ]
     },
     {
       "name": "Pikud HaOref Real-Time Sirens",
-      "enabled": true,
+      "enabled": false,
       "type": "oref-poller",
       "parser": "oref",
       "url": "https://www.oref.org.il/WarningMessages/alert/alerts.json",
-      "category": "alert",
-      "poll_ms": 1500,
-      "tags": [ "siren", "israel", "pikud-haoref", "red-alert", "real-time" ],
-      "notes": "Handled by startOrefPoller() in warzone-siren-poller.js — NOT processed through the standard processFeed() loop. Requires EC2 in il-central-1 (Tel Aviv) or set OREF_PROXY env var."
-    },
-    {
-      "name": "Reddit CombatFootage",
-      "enabled": true,
-      "type": "reddit",
-      "parser": "reddit",
-      "url": "https://www.reddit.com/r/CombatFootage/new.json",
-      "category": "strike"
-    },
-    {
-      "name": "Reddit UkraineWarVideoReport",
-      "enabled": true,
-      "type": "reddit",
-      "parser": "reddit",
-      "url": "https://www.reddit.com/r/UkraineWarVideoReport/new.json",
-      "category": "strike"
-    },
-    {
-      "name": "USGS Earthquake Feed",
-      "enabled": true,
-      "type": "usgs",
-      "parser": "usgs",
-      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
-      "category": "signal"
-    },
-    {
-      "name": "NASA FIRMS Thermal Anomalies",
-      "enabled": true,
-      "type": "firms",
-      "parser": "firms",
-      "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/1",
-      "category": "thermal"
+      "category": "alert"
     },
     {
       "name": "Manual Siren Alerts",
       "enabled": false,
-      "type": "manual-json",
       "parser": "alerts-array",
       "url": "${MANUAL_ALERTS_FEED_URL}",
       "category": "alert"
     },
     {
-      "name": "Manual Airspace Status",
-      "enabled": false,
-      "type": "manual-json",
-      "parser": "airspace-manual",
-      "url": "${AIRSPACE_STATUS_FEED_URL}",
-      "category": "airspace"
-    },
-    {
-      "name": "AviationEdge NOTAM",
-      "enabled": false,
-      "type": "airspace-api",
-      "parser": "airspace-api",
-      "url": "https://aviation-edge.com/v2/public/notam",
-      "category": "airspace"
-    },
-    {
-      "name": "AviationEdge Military Flights",
-      "enabled": false,
-      "type": "adsb-like",
-      "parser": "adsb-military",
-      "url": "https://aviation-edge.com/v2/public/flights",
-      "category": "recon"
-    },
-    {
       "name": "CISA Cyber Threat Feed",
       "enabled": true,
-      "type": "cyber",
       "parser": "cyber",
       "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
-      "category": "cyber"
+      "category": "cyber",
+      "tags": [
+        "cyber",
+        "kev"
+      ]
     },
     {
-      "name": "ACLED Conflict Feed",
+      "name": "USGS Earthquake Feed",
       "enabled": false,
-      "type": "acled-api",
-      "parser": "acled",
-      "url": "https://acleddata.com/api/acled/read",
-      "category": "conflict"
+      "parser": "usgs",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
+      "category": "signal"
     },
     {
-      "name": "NASA EONET Wildfires",
+      "name": "NASA FIRMS Thermal",
       "enabled": false,
-      "type": "eonet-api",
+      "parser": "firms",
+      "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/1",
+      "category": "thermal"
+    },
+    {
+      "name": "NASA EONET",
+      "enabled": false,
       "parser": "eonet",
       "url": "https://eonet.gsfc.nasa.gov/api/v3/events",
       "category": "fire"
     },
     {
-      "name": "Curated Warzone Feed",
+      "name": "Cloudflare Radar Internet Outages",
+      "parser": "network-cloudflare",
       "enabled": false,
-      "type": "manual-json",
-      "parser": "events-array",
-      "url": "https://warzone.battlespacex.com/assets/others/warzone-live-events.json",
-      "category": "strike"
+      "url": "https://api.cloudflare.com/client/v4/radar/quality/outages/events?limit=50",
+      "category": "network",
+      "tags": [ "network", "internet-outage", "cloudflare-radar" ]
     },
     {
-      "name": "ADS-B Military Aircraft",
+      "name": "IODA Internet Outages",
+      "parser": "network-ioda",
       "enabled": true,
-      "type": "adsb-opensky",
-      "category": "military"
+      "url": "https://api.ioda.inetintel.cc.gatech.edu/v2/",
+      "category": "network",
+      "tags": [ "network", "internet-outage", "ioda" ]
     },
     {
-      "name": "AIS Naval Vessels",
+      "name": "OONI Network Blocking",
+      "parser": "network-ooni",
       "enabled": true,
-      "type": "ais-stream",
-      "category": "military"
+      "url": "https://api.ooni.io/api/v1/observations?limit=20",
+      "category": "network",
+      "tags": [ "network", "blocking", "throttling", "censorship", "ooni" ]
     }
   ]
 }

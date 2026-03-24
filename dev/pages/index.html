@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-CA">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -8,10 +8,18 @@
     <meta name="description" content="<%= meta.description %>" />
     <link rel="canonical" href="<%= meta.canonical %>" />
     <meta name="robots" content="<%= meta.robots %>" />
+    <meta name="application-name" content="StratOps | BattleSpaceX" />
+    <meta name="apple-mobile-web-app-title" content="StratOps" />
+    <meta name="theme-color" content="#07111b" />
+    <meta name="format-detection" content="telephone=no" />
     <link rel="alternate" hreflang="en-ca" href="<%= meta.hreflang %>" />
     <link rel="alternate" hreflang="x-default" href="<%= meta.hreflang %>" />
     <%= partials("head-base") %>
     <%= partials("head-verifications") %>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BattleSpaceX StratOps" />
+    <meta property="og:locale" content="en_CA" />
     <meta property="og:url" content="<%= meta.ogUrl %>" />
     <meta property="og:title" content="<%= meta.ogTitle %>" />
     <meta property="og:description" content="<%= meta.ogDescription %>" />
@@ -19,106 +27,61 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="<%= meta.ogAlt %>" />
+
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="<%= meta.twTitle %>" />
     <meta name="twitter:description" content="<%= meta.twDescription %>" />
     <meta name="twitter:image" content="<%= meta.twImage %>" />
     <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&display=swap" rel="stylesheet">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&display=swap" rel="stylesheet" />
+
     <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
 </head>
 
 <body class="home__page show-loader">
-    <a class="skip-link sr-only" href="#main">Skip to main content</a>
-    <main id="main">
-        <div id="warzone-app" class="warzone-app" data-api-base="https://api.battlespacex.com">
+    <noscript>
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-K794QCNB"
+                height="0"
+                width="0"
+                style="display:none;visibility:hidden"
+                title="Google Tag Manager"></iframe>
+    </noscript>
 
+    <a class="skip-link sr-only" href="#main">Skip to main content</a>
+
+    <main id="main" aria-label="StratOps live monitoring interface">
+        <h1 class="sr-only">StratOps by BattleSpaceX, live open-source conflict monitoring map and analytics dashboard</h1>
+
+        <div id="warzone-app" class="warzone-app" data-api-base="https://api.battlespacex.com">
             <%= partials("site-loader") %>
 
-            <section class="warzone-view is-active" data-view-panel="strikes">
-                <div class="warzone-map-shell">
-                    <div id="warzone-map-credits" class="warzone-map-credits"></div>
-                    <div id="warzone-globe" class="warzone-globe"></div>
-                </div>
+            <div id="wz-global-status" class="sr-only" aria-live="polite" aria-atomic="true">
+                StratOps interface is loading.
+            </div>
 
-                <div id="warzone-gate-layer" class="warzone-gate-layer">
-                    <%= partials("popups") %>
-                </div>
+            <section class="warzone-view is-active" id="view-strikes" data-view-panel="strikes" aria-labelledby="view-strikes-title">
+                <h2 id="view-strikes-title" class="sr-only">Live strikes and operations map</h2>
+                <%= partials("globe") %>
+                <%= partials("popups") %>
 
                 <div id="warzone-ui-shell" class="warzone-ui-shell" hidden>
                     <%= partials("header") %>
                     <%= partials("nav") %>
                     <%= partials("dev-panel") %>
-                    <div id="warzone-hotspot-layer" class="warzone-hotspot-layer"></div>
-                    <div id="wz-radar-label-layer" class="wz-radar-label-layer"></div>
+                    <%= partials("widgets") %>
+                    <div id="warzone-hotspot-layer" class="warzone-hotspot-layer" aria-hidden="true"></div>
+                    <div id="wz-radar-label-layer" class="wz-radar-label-layer" aria-hidden="true"></div>
                     <%= partials("lock-on") %>
-                    <div class="warzone-ui-layer">
-                        <%= partials("widgets") %>
-                    </div>
                 </div>
             </section>
 
-            <!-- ANALYTICS -->
-            <section class="warzone-view" data-view-panel="analytics">
-                <section class="intel-page">
-                    <div class="intel-banner">UNCLASSIFIED // OSINT DERIVED</div>
-
-                    <div class="intel-card">
-                        <div class="intel-card__head">
-                            <div>
-                                <small>StrikeMap Intelligence</small>
-                                <h2>Situation Report</h2>
-                            </div>
-                            <div class="period-tabs">
-                                <button class="period-tab">6H</button>
-                                <button class="period-tab">12H</button>
-                                <button class="period-tab is-active">24H</button>
-                            </div>
-                        </div>
-                        <div class="intel-meta" id="intel-meta-line">Generated from current event stream.</div>
-                    </div>
-
-                    <div class="analytics-grid analytics-grid--top">
-                        <div class="analytics-card"><span>Total Events</span><strong id="analytics-total">--</strong></div>
-                        <div class="analytics-card"><span>Primary Actor</span><strong id="analytics-iran">--</strong></div>
-                        <div class="analytics-card"><span>Secondary Actor</span><strong id="analytics-usisr">--</strong></div>
-                        <div class="analytics-card"><span>Date Range</span><strong id="analytics-range">--</strong></div>
-                    </div>
-
-                    <div class="analytics-grid analytics-grid--charts">
-                        <div class="analytics-panel">
-                            <h3>Strikes by Side</h3>
-                            <div id="analytics-side-breakdown" class="ring-stat-grid"></div>
-                        </div>
-                        <div class="analytics-panel">
-                            <h3>Weapons Breakdown</h3>
-                            <div id="analytics-weapons" class="bars-list"></div>
-                        </div>
-                        <div class="analytics-panel">
-                            <h3>Top Target Types</h3>
-                            <div id="analytics-targets" class="bars-list"></div>
-                        </div>
-                    </div>
-
-                    <div class="intel-card">
-                        <h3>Executive Summary</h3>
-                        <p id="executive-summary"></p>
-                    </div>
-
-                    <div class="intel-card">
-                        <h3>Chronological Timeline</h3>
-                        <div id="timeline-list" class="timeline-list"></div>
-                    </div>
-                </section>
-            </section>
+            <%= partials("tab-analytics") %>
         </div>
     </main>
-    <audio id="bg-audio" loop preload="auto">
-        <source src="/assets/audio/mil-chatter.mp3" type="audio/mpeg">
-    </audio>
-    <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false" aria-label="Toggle background audio">
-        <span class="audio-toggle__icon audio-toggle__icon--play is-active bx-play" aria-hidden="true"></span>
-        <span class="audio-toggle__icon audio-toggle__icon--pause bx-pause" aria-hidden="true"></span>
-    </button>
+
+    <%= partials("audio") %>
 </body>
 </html>

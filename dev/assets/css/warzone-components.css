@@ -547,7 +547,8 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 220ms ease;
-    filter: var(--widget-shadow)
+    filter: var(--widget-shadow);
+    backdrop-filter: blur(8px)
 }
 
     .wz-modal[hidden] {
@@ -683,6 +684,7 @@
         top: 0;
         left: 0;
         transform: none;
+        opacity: 1;
     }
 
         .wz-intro__hero .warzone-logo img {

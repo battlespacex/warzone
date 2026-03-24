@@ -81,7 +81,6 @@
 }
 
 .warzone-region-bar {
-    position: fixed;
     left: 2rem;
 }
 
@@ -90,10 +89,20 @@
     }
 
 .warzone-actions {
-    position: fixed;
     right: 2rem;
-    flex-direction: row-reverse;
+    display: flex;
+    align-items: center;
 }
+
+    .warzone-actions ul {
+        display: flex;
+        align-items: center;
+        list-style: none
+    }
+
+    .warzone-actions .action-icon {
+        font-size: var(--icon-lg)
+    }
 
 .icon-chip, .support-chip, .top-tab, .toolbar-select, .dock-chip {
     border: 0.2rem solid rgba(255, 255, 255, 0.1);
