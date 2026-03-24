@@ -1,14 +1,11 @@
 ﻿/* assets/css/navigation.css */
-
 /* #region =========== COMMAND CENTER HEADER =========== */
-
 .warzone-commandbar {
     position: fixed;
     z-index: 999;
     box-sizing: border-box;
     width: calc(100% - 0rem);
 }
-
 .warzone-brand {
     display: flex;
     align-items: center;
@@ -22,13 +19,11 @@
     transition: opacity 1s ease, transform 1s ease;
     will-change: opacity, transform;
 }
-
 .is-ui-visible .warzone-brand {
     opacity: 1;
     transform: translateY(0);
     transition-delay: 0.5s;
 }
-
 .warzone-logo {
     transform: translateX(-50%);
     left: 50%;
@@ -38,20 +33,21 @@
     transition: opacity 1s ease;
     will-change: opacity;
 }
-
 .is-ui-visible .warzone-logo {
     opacity: 1;
     transition-delay: 1.5s;
 }
-
 .warzone-logo img {
     z-index: 1;
     width: auto;
     height: 7rem;
 }
-
+/* UNUSED CANDIDATE START
+   selector: .warzone-bg
+   classes: warzone-bg
+   reason: no references found outside defining CSS file(s) during static scan
 .warzone-bg {
-    clip-path: polygon(0 -.4rem, 100% -.4rem, calc(100% - 8rem) 100%, 8rem 100%);
+clip-path: polygon(0 -.4rem, 100% -.4rem, calc(100% - 8rem) 100%, 8rem 100%);
     background: var(--color-black);
     padding: 2rem 9rem;
     left: 50%;
@@ -63,7 +59,7 @@
     bottom: 0.2rem;
     z-index: 1;
 }
-
+UNUSED CANDIDATE END */
 .warzone-region-bar, .warzone-actions {
     gap: .5rem;
     position: fixed;
@@ -74,36 +70,29 @@
     transition: opacity 1s ease;
     will-change: opacity;
 }
-
 .is-ui-visible .warzone-region-bar, .is-ui-visible .warzone-actions {
     opacity: 1;
     transition-delay: 2.5s;
 }
-
 .warzone-region-bar {
     left: 2rem;
 }
-
     .warzone-region-bar .static-icon {
         font-size: var(--icon-xl)
     }
-
 .warzone-actions {
     right: 2rem;
     display: flex;
     align-items: center;
 }
-
     .warzone-actions ul {
         display: flex;
         align-items: center;
         list-style: none
     }
-
     .warzone-actions .action-icon {
         font-size: var(--icon-lg)
     }
-
 .icon-chip, .support-chip, .top-tab, .toolbar-select, .dock-chip {
     border: 0.2rem solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.04);
@@ -111,27 +100,37 @@
     min-height: 3.8rem;
     padding: 0 1.2rem;
 }
-
+    /* UNUSED CANDIDATE START
+   selector: .support-chip
+   classes: support-chip
+   reason: no references found outside defining CSS file(s) during static scan
 .support-chip {
-    background: rgba(255, 215, 0, 0.12);
+background: rgba(255, 215, 0, 0.12);
     color: #ffd84d;
 }
-
-.top-tab.is-active, .toolbar-chip.is-active {
-    background: rgba(25, 216, 179, 0.12);
-    border-color: rgba(25, 216, 179, 0.35);
-    color: #19d8b3;
-}
-
+UNUSED CANDIDATE END */
+    .top-tab.is-active, .toolbar-chip.is-active {
+        background: rgba(25, 216, 179, 0.12);
+        border-color: rgba(25, 216, 179, 0.35);
+        color: #19d8b3;
+    }
+/* UNUSED CANDIDATE START
+   selector: .warzone-toolbar
+   classes: warzone-toolbar
+   reason: no references found outside defining CSS file(s) during static scan
 .warzone-toolbar {
-    display: flex;
+display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.8rem;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .toolbar-chip
+   classes: toolbar-chip
+   reason: no references found outside defining CSS file(s) during static scan
 .toolbar-chip {
-    border: 0.2rem solid var(--color-border-gray);
+border: 0.2rem solid var(--color-border-gray);
     background: rgba(255, 255, 255, 0.04);
     color: var(--color-white);
     padding: 0.8rem 1.2rem;
@@ -139,27 +138,32 @@
     line-height: 1;
     text-transform: uppercase;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .toolbar-chip--dev
+   classes: toolbar-chip--dev
+   reason: no references found outside defining CSS file(s) during static scan
 .toolbar-chip--dev {
-    border-color: rgba(255, 176, 32, 0.45);
+border-color: rgba(255, 176, 32, 0.45);
     color: #ffcf6b;
 }
-
+UNUSED CANDIDATE END */
 @media (max-width: 900px) {
     .warzone-commandbar {
         flex-direction: column;
         align-items: flex-start;
     }
-
-    .warzone-grid {
-        grid-template-columns: 1fr;
-    }
+    /* UNUSED CANDIDATE START
+   selector: .warzone-grid
+   classes: warzone-grid
+   reason: no references found outside defining CSS file(s) during static scan
+.warzone-grid {
+grid-template-columns: 1fr;
 }
-
+UNUSED CANDIDATE END */
+}
 /* #endregion =========== */
-
 /* #region =========== DOCK BUTTONS =========== */
-
 .wz-dock {
     position: absolute;
     bottom: 0;
@@ -174,15 +178,11 @@
     filter: var(--widget-shadow);
     z-index: 60
 }
-
-
-
 .is-ui-visible .wz-dock {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
     transition-delay: 3.5s;
 }
-
 .wz-btn-container {
     background: var(--color-bg-header);
     clip-path: polygon(100% 100%, 0 100%, 8rem 0, calc(100% - 8rem) 0);
@@ -191,7 +191,6 @@
     padding: 0 9rem;
     transition: padding 0.45s ease, clip-path 0.45s ease;
 }
-
 .wz-dock__btn {
     cursor: pointer;
     flex-shrink: 0;
@@ -205,11 +204,9 @@
     max-width: 6rem;
     transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, margin 0.45s ease, transform 0.25s ease;
 }
-
     .wz-dock__btn:hover {
         transform: translateY(-0.5rem);
     }
-
     .wz-dock__btn.wz-dock--gone {
         opacity: 0;
         pointer-events: none;
@@ -217,7 +214,6 @@
         max-width: 0;
         margin: 0;
     }
-
 .wz-dock__icon {
     position: relative;
     display: flex;
@@ -228,7 +224,6 @@
     min-width: 0;
     height: 6rem;
 }
-
     .wz-dock__icon .static-icon {
         font-size: 4rem;
         line-height: 1;
@@ -236,11 +231,9 @@
         pointer-events: none;
         height: auto;
     }
-
 .wz-dock__btn.is-active .wz-dock__icon .static-icon {
     color: var(--color-teal-glow);
 }
-
 .wz-dock__label {
     position: absolute;
     bottom: calc(100% + 1rem);
@@ -259,13 +252,10 @@
     transition: opacity 150ms ease, transform 150ms ease;
     transform: translateX(-50%) translateY(4px);
 }
-
 .wz-dock__btn:hover .wz-dock__label {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
-
-
 @media (max-width: 768px) {
     .wz-dock {
         padding: 0.5rem 1rem;
@@ -276,48 +266,36 @@
         overflow-y: visible;
         scrollbar-width: none;
     }
-
         .wz-dock::-webkit-scrollbar {
             display: none;
         }
-
     .wz-dock__btn {
         width: 4rem;
         height: 4rem;
         flex-shrink: 0;
     }
-
     .wz-dock__icon {
         font-size: 1.5rem;
     }
-
     .wz-dock__label {
         display: none;
     }
-
     .wz-dock__sep {
         height: 2.5rem;
     }
 }
-
 @media (max-width: 480px) {
     .wz-dock {
         gap: 0.3rem;
         padding: 0.5rem 0.8rem;
         bottom: 1rem;
     }
-
     .wz-dock__btn {
         width: 3.4rem;
         height: 3.4rem;
     }
-
     .wz-dock__icon {
         font-size: 1.2rem;
     }
 }
-
 /* #endregion =========== */
-
-
-

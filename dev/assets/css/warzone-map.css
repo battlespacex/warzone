@@ -1,5 +1,4 @@
-﻿/* assets/css/warzone-map.css */
-
+﻿﻿ /* assets/css/warzone-map.css */
 /* #region =========== Map Card =========== */
 .warzone-map-card {
     position: relative;
@@ -13,22 +12,8 @@
     box-shadow: var(--box-shadow);
     backdrop-filter: blur(8px);
 }
-.warzone-map-card__head {
-    position: relative;
-    z-index: 5;
-}
-.warzone-map-wrap {
-    position: relative;
-    flex: 1; /* fills remaining height in the flex column view */
-    min-height: 0; /* required for flex children to shrink below content size */
-    overflow: hidden;
-    background: radial-gradient(circle at center, rgba(10, 20, 32, 0.75) 0%, rgba(2, 5, 11, 1) 100%);
-}
-
 /* #endregion =========== */
-
 /* #region =========== MAP SHELL + HOTSPOT LAYER =========== */
-
 .warzone-map-shell {
     position: relative;
     width: 100%;
@@ -42,23 +27,18 @@
     pointer-events: none;
     overflow: visible;
 }
-
 /* #endregion =========== */
-
 /* #region =========== CESIUM JS GLOBE =========== */
-
 .warzone-globe {
     position: absolute;
     inset: 0;
 }
-
     .warzone-globe .cesium-widget,
     .warzone-globe canvas {
         display: block;
         width: 100% !important;
         height: 100% !important;
     }
-
     /* Hide all default Cesium UI chrome */
     .warzone-globe .cesium-viewer-toolbar,
     .warzone-globe .cesium-viewer-animationContainer,
@@ -66,11 +46,8 @@
     .warzone-globe .cesium-viewer-bottom {
         display: none !important;
     }
-
 /* #endregion =========== */
-
 /* #region =========== MAP CREDITS =========== */
-
 .warzone-map-credits {
     position: absolute;
     right: 1.2rem;
@@ -88,12 +65,8 @@
     .warzone-map-credits img {
         pointer-events: auto;
     }
-
 /* #endregion =========== */
-
 /* #region =========== LEGACY LIVE-MAP SHELL =========== */
-
-/* CesiumJS shell before map-card wrapper existed — kept for compatibility */
 .live-map {
     position: relative;
     width: 100%;
@@ -104,24 +77,24 @@
     background: #02060d;
     box-shadow: inset 0 0 6rem rgba(0, 140, 255, 0.08);
 }
+
 .live-map__globe {
     position: absolute;
     inset: 0;
 }
+
 .live-map .cesium-widget,
 .live-map canvas {
     display: block;
     width: 100% !important;
     height: 100% !important;
 }
+
 .live-map .cesium-viewer-bottom {
     display: none;
 }
-
 /* #endregion =========== */
-
 /* #region =========== LEGACY FLAT MAP (NON-CESIUM PLACEHOLDER) =========== */
-
 .warzone-map {
     position: relative;
     min-height: 0;
@@ -138,13 +111,14 @@
         pointer-events: none;
         background: radial-gradient(circle at 20% 25%, rgba(255, 255, 255, 0.05), transparent 12%), radial-gradient(circle at 45% 35%, rgba(255, 255, 255, 0.04), transparent 16%), radial-gradient(circle at 70% 58%, rgba(255, 255, 255, 0.035), transparent 18%), radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.025), transparent 14%);
     }
-
 /* #endregion =========== */
-
 /* #region =========== FLAT MAP MARKER =========== */
-
+/* UNUSED CANDIDATE START
+   selector: .warzone-marker
+   classes: warzone-marker
+   reason: no references found outside defining CSS file(s) during static scan
 .warzone-marker {
-    position: absolute;
+position: absolute;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -154,25 +128,45 @@
     font-weight: 700;
     font-size: 1.5rem;
 }
-    .warzone-marker.is-sm {
-        width: 3.2rem;
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .warzone-marker.is-sm
+   classes: is-sm, warzone-marker
+   reason: no references found outside defining CSS file(s) during static scan
+.warzone-marker.is-sm {
+width: 3.2rem;
         height: 3.2rem;
         background: #d14d3f;
-    }
-    .warzone-marker.is-md {
-        width: 4.4rem;
+}
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .warzone-marker.is-md
+   classes: is-md, warzone-marker
+   reason: no references found outside defining CSS file(s) during static scan
+.warzone-marker.is-md {
+width: 4.4rem;
         height: 4.4rem;
         background: #de8d27;
-    }
-    .warzone-marker.is-lg {
-        width: 5.8rem;
+}
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .warzone-marker.is-lg
+   classes: is-lg, warzone-marker
+   reason: no references found outside defining CSS file(s) during static scan
+.warzone-marker.is-lg {
+width: 5.8rem;
         height: 5.8rem;
         background: #d2ab18;
-    }
-    .warzone-marker.is-xl {
-        width: 7rem;
+}
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .warzone-marker.is-xl
+   classes: is-xl, warzone-marker
+   reason: no references found outside defining CSS file(s) during static scan
+.warzone-marker.is-xl {
+width: 7rem;
         height: 7rem;
         background: #cc9c10;
-    }
-
+}
+UNUSED CANDIDATE END */
 /* #endregion */

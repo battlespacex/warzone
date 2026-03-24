@@ -10,12 +10,15 @@ import {
     startActiveAlertsPollingFallback
 } from "./warzone-realtime.js";
 import { initDevPanel } from "./warzone-dev-panel.js";
+import { bindWarzoneUi } from "./warzone-ui.js";
 
 
 initBoot();
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
+        bindWarzoneUi();
+
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
 

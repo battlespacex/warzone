@@ -237,8 +237,8 @@ export function filterEventsByRegion(events, region) {
     const { minLat, maxLat, minLon, maxLon } = region.bounds;
 
     return events.filter((e) => {
-        const lat = Number(e.lat);
-        const lon = Number(e.lon);
+        const lat = Number(e.display_lat ?? e.lat ?? e.impact_lat);
+        const lon = Number(e.display_lon ?? e.lon ?? e.impact_lon);
 
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
 

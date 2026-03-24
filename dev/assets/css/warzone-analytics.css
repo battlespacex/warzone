@@ -1,13 +1,10 @@
 ﻿/* assets/css/warzone-analytics.css */
-
 /* #region =========== GENERAL ANALYTICS =========== */
-
 .intel-page {
     display: grid;
     gap: 2rem;
     padding: 1rem 0;
 }
-
 .intel-banner,
 .warning-banner {
     display: flex;
@@ -20,25 +17,34 @@
     text-transform: uppercase;
     font-size: var(--text-sm);
 }
-
+/* UNUSED CANDIDATE START
+   selector: .page-title
+   classes: page-title
+   reason: no references found outside defining CSS file(s) during static scan
 .page-title {
-    font-size: var(--text-xl);
+font-size: var(--text-xl);
     line-height: 1;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .recon-title
+   classes: recon-title
+   reason: no references found outside defining CSS file(s) during static scan
 .recon-title {
-    color: #57b8ff;
+color: #57b8ff;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .page-subtitle
+   classes: page-subtitle
+   reason: no references found outside defining CSS file(s) during static scan
 .page-subtitle {
-    color: var(--color-text-dim);
+color: var(--color-text-dim);
     max-width: 80rem;
 }
-
+UNUSED CANDIDATE END */
 /* #endregion =========== */
-
 /* #region =========== INTEL CARD / ANALYTICS PANEL ========== */
-
 .intel-card,
 .analytics-panel {
     border: 0.2rem solid var(--color-border-gray);
@@ -46,34 +52,27 @@
     box-shadow: var(--box-shadow);
     padding: 1.6rem;
 }
-
 .intel-card__head {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 2rem;
 }
-
     .intel-card__head h2 {
         font-size: var(--text-xl);
         line-height: 1;
     }
-
 .intel-meta {
     margin-top: 1rem;
     color: var(--color-text-dim);
     font-size: var(--text-sm);
 }
-
 /* #endregion =========== */
-
 /* #region =========== PERIOD TABS =========== */
-
 .period-tabs {
     display: flex;
     gap: 0.8rem;
 }
-
 .period-tab {
     border: 0.2rem solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.03);
@@ -81,43 +80,34 @@
     min-height: 3.6rem;
     padding: 0 1rem;
 }
-
     .period-tab.is-active {
         color: var(--color-accent);
         border-color: rgba(255, 207, 87, 0.3);
         background: rgba(255, 207, 87, 0.08);
     }
-
 /* #endregion =========== */
-
 /* #region =========== ANALYTICS GRID CARD =========== */
-
 .analytics-grid {
     display: grid;
     gap: 1.6rem;
 }
-
 .analytics-grid--top {
     grid-template-columns: repeat(4, 1fr);
 }
-
 .analytics-grid--charts {
     grid-template-columns: 1fr 1fr 1fr;
 }
-
 .analytics-card {
     padding: 1.6rem;
     border: 0.2rem solid var(--color-border-gray);
     background: rgba(14, 17, 24, 0.82);
 }
-
     .analytics-card span {
         display: block;
         color: var(--color-text-dim);
         text-transform: uppercase;
         font-size: var(--text-sm);
     }
-
     .analytics-card strong {
         display: block;
         margin-top: 0.8rem;
@@ -125,73 +115,57 @@
         font-size: var(--text-xl);
         line-height: 1;
     }
-
 /* #endregion =========== */
-
 /* #region =========== RING STAT GRID (STRIKE SIDE BREAKDOWN) =========== */
-
 .ring-stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
     gap: 1rem;
 }
-
 .ring-stat-card {
     border: 0.2rem solid rgba(255, 255, 255, 0.08);
     padding: 1.4rem;
     background: rgba(255, 255, 255, 0.02);
 }
-
     .ring-stat-card strong {
         display: block;
         color: var(--color-text-heading);
         font-size: var(--text-xl);
     }
-
     .ring-stat-card span {
         color: var(--color-text-dim);
         text-transform: uppercase;
         font-size: var(--text-sm);
     }
-
 /* #endregion =========== */
-
 /* #region =========== BAR CHARTS =========== */
-
 .bars-list {
     display: grid;
     gap: 0.9rem;
 }
-
 .bar-row {
     display: grid;
     grid-template-columns: 20rem 1fr 5rem;
     gap: 1rem;
     align-items: center;
 }
-
 .bar-track {
     height: 1.5rem;
     background: yellow;
     overflow: hidden;
 }
-
     .bar-track i {
         display: block;
         height: 100%;
         border-radius: inherit;
         background: linear-gradient(90deg, #ff7a45, #ffb020);
     }
-
 /* #endregion =========== */
-
 /* #region =========== TIMELINE =========== */
-
 .timeline-list {
     display: grid;
     gap: 1rem;
 }
-
 .timeline-item {
     display: grid;
     grid-template-columns: 20rem 1fr;
@@ -199,100 +173,81 @@
     padding: 1rem 0;
     border-top: 0.2rem solid rgba(255, 255, 255, 0.06);
 }
-
     .timeline-item:first-child {
         border-top: 0;
     }
-
 .timeline-time {
     color: var(--color-accent);
     font-size: var(--text-sm);
     text-transform: uppercase;
 }
-
 .timeline-body strong {
     display: block;
     color: var(--color-text-heading);
     margin-bottom: 0.4rem;
 }
-
 /* #endregion =========== */
-
 /* #region =========== RECON / AIRSPACE VIEW =========== */
-
 .recon-region-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
     gap: 1.2rem;
 }
-
 .region-card {
     border: 0.2rem solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
     padding: 1.4rem;
 }
-
     .region-card h4 {
         font-size: var(--text-lg);
         line-height: 1;
         margin-bottom: 0.6rem;
     }
-
 .recon-alert-list,
 .correlation-list,
 .killchain-list {
     display: grid;
     gap: 1rem;
 }
-
 .recon-alert-row,
 .correlation-row {
     border: 0.2rem solid rgba(255, 255, 255, 0.08);
     padding: 1.2rem;
     background: rgba(255, 255, 255, 0.02);
 }
-
 /* #endregion =========== */
-
 /* #region =========== MILITARY - WEAPONS GRID =========== */
-
 .weapons-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
     gap: 1.4rem;
 }
-
 .weapon-card {
     border: 0.2rem solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
     padding: 1.6rem;
 }
-
 .weapon-card__top {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
     align-items: center;
 }
-
     .weapon-card__top h3 {
         font-size: var(--text-xl);
         line-height: 1;
     }
-
     .weapon-card__top span {
         color: #ff5a4f;
         font-size: var(--text-sm);
         text-transform: uppercase;
     }
-
 .weapon-badges {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
     margin: 1rem 0;
 }
-
 .weapon-tag {
     display: inline-flex;
     align-items: center;
@@ -302,43 +257,52 @@
     font-size: 1rem;
     text-transform: uppercase;
 }
-
 /* #endregion =========== */
-
 /* #region =========== MILITARY - SUB-PANEL SWITCHER =========== */
-
+/* UNUSED CANDIDATE START
+   selector: .military-switcher
+   classes: military-switcher
+   reason: no references found outside defining CSS file(s) during static scan
 .military-switcher {
-    display: flex;
+display: flex;
     gap: 1rem;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .military-panel
+   classes: military-panel
+   reason: no references found outside defining CSS file(s) during static scan
 .military-panel {
-    display: none;
+display: none;
 }
-
-    .military-panel.is-active {
-        display: block;
-    }
-
+UNUSED CANDIDATE END */
+.military-panel.is-active {
+    display: block;
+}
 /* #endregion =========== */
-
 /* #region =========== KILL-CHAIN CARD =========== */
-
 .killchain-card {
     border: 0.2rem solid rgba(255, 255, 255, 0.08);
     padding: 1.6rem;
 }
-
+/* UNUSED CANDIDATE START
+   selector: .killchain-card--iran
+   classes: killchain-card--iran
+   reason: no references found outside defining CSS file(s) during static scan
 .killchain-card--iran {
-    background: rgba(120, 0, 0, 0.18);
+background: rgba(120, 0, 0, 0.18);
     border-color: rgba(255, 80, 80, 0.18);
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .killchain-card--us_israel
+   classes: killchain-card--us_israel
+   reason: no references found outside defining CSS file(s) during static scan
 .killchain-card--us_israel {
-    background: rgba(0, 70, 90, 0.18);
+background: rgba(0, 70, 90, 0.18);
     border-color: rgba(87, 184, 255, 0.18);
 }
-
+UNUSED CANDIDATE END */
 .killchain-head {
     display: flex;
     justify-content: space-between;
@@ -346,19 +310,16 @@
     align-items: center;
     margin-bottom: 1rem;
 }
-
 .killchain-flow {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
     margin-bottom: 1rem;
 }
-
     .killchain-flow > div {
         border: 0.2rem solid rgba(255, 255, 255, 0.08);
         padding: 1rem;
         text-align: center;
         background: rgba(255, 255, 255, 0.03);
     }
-
 /* #endregion =========== */

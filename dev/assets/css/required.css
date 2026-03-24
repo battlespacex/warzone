@@ -1,9 +1,7 @@
 ﻿/* assets/css/required.css */
 @import url("./root.css");
-@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap');
-
+@import url("https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap");
 /* #region =========== GENERICS =========== */
-
 *, *::before, *::after {
     box-sizing: border-box;
 }
@@ -28,7 +26,6 @@ body {
     font-style: normal;
     height: 100%;
 }
-
 
 main {
     position: relative;
@@ -80,19 +77,15 @@ input, select, textarea {
 button {
     cursor: pointer
 }
-
 .text-stack {
     display: block;
     width: 100%;
     white-space: break-spaces;
 }
-
 [data-tooltip][data-tooltip]:not([data-tooltip=""]):hover:after {
     clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);
 }
-
 /* #endregion =========== */
-
 /* #region =========== FONT-FILE =========== */
 @font-face {
     font-family: 'BX-H';
@@ -103,9 +96,7 @@ button {
 }
 
 /* #endregion =========== */
-
 /* #region =========== HEADINGS / TEXT =========== */
-
 h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 {
     font-family: var(--heading-font);
     text-transform: uppercase;
@@ -125,7 +116,7 @@ small {
 }
 
 strong {
-   color:  var(--color-text-heading);
+    color: var(--color-text-heading);
 }
 
 .text-xs {
@@ -151,11 +142,8 @@ strong {
 .text-xxl {
     font-size: 5.4rem
 }
-
 /* #endregion =========== */
-
 /* #region =========== ICONS =========== */
-
 .action-icon, .static-icon {
     font-family: var(--font-icon);
     font-size: var(--icon-md);
@@ -174,15 +162,16 @@ strong {
     justify-content: center;
     background: transparent;
 }
-
 /* #endregion =========== */
-
 /* #region =========== BUTTONS =========== */
-
+/* UNUSED CANDIDATE START
+   selector: .btn--secondary
+   classes: btn--secondary
+   reason: no references found outside defining CSS file(s) during static scan
 .btn--secondary {
-    background: var(--color-gray);
+background: var(--color-gray);
 }
-
+UNUSED CANDIDATE END */
 .btn {
     transition: all 200ms linear;
     text-transform: uppercase;
@@ -343,11 +332,8 @@ strong {
     .btn-primary span {
         padding: 0 !important;
     }
-
 /* #endregion =========== */
-
 /* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
-
 .wz--dropdown {
     height: 4rem;
     padding: 0 4rem 0 1rem;
@@ -392,7 +378,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 }
 
     .wz-selector:after {
-        content: "\e92e";
+        content: "";
         font-family: var(--font-icon);
         font-size: var(--icon-lg);
         position: absolute;
@@ -416,34 +402,31 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         color: var(--color-red);
         font-size: 3rem;
     }
-
 /* #endregion =========== */
-
 /* #region =========== LISTVIEW =========== */
-
 .wz-list-view {
     display: flex;
     flex-direction: column;
     gap: 1rem;
 }
 
-.wz-list-view li {
-    list-style: none;
-    position: relative;
-    padding-left: 2rem;
-}
-
-    .wz-list-view li:before {
-        top: -.3rem;
-        font-family: "BX-Font-R1_1";
-        content: "\e914";
-        color: var(--color-teal-glow);
-        font-size: 2rem;
-        line-height: 2rem;
-        position: absolute;
-        display: block;
-        left: -.5rem;
+    .wz-list-view li {
+        list-style: none;
+        position: relative;
+        padding-left: 2rem;
     }
+
+        .wz-list-view li:before {
+            top: -.3rem;
+            font-family: "BX-Font-R1_1";
+            content: "";
+            color: var(--color-teal-glow);
+            font-size: 2rem;
+            line-height: 2rem;
+            position: absolute;
+            display: block;
+            left: -.5rem;
+        }
 
     .wz-list-view h4 {
         margin-right: 1.5rem;
@@ -452,37 +435,28 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     .wz-list-view .list-text {
         width: 75%;
     }
-
 /* #endregion =========== */
-
 /* #region =========== BROWSER DEFAULT SCROLLBAR REPLACEMENT =========== */
-
 /**::-webkit-scrollbar {
         all: unset;
     }
-
 ::-webkit-scrollbar {
     width: 0.8rem;
     height: 1rem;
 }
-
 ::-webkit-scrollbar-track {
     background: var(--color-bg-dark);
 }
-
 ::-webkit-scrollbar-thumb {
     background: var(--color-bg-header);
     border-radius: .2rem;
 }
-
     ::-webkit-scrollbar-thumb:hover {
         background: var(--color-teal-glow);
     }
 */
 /* #endregion =========== */
-
 /* #region =========== UI AUDIO =========== */
-
 .audio-toggle {
     position: fixed;
     right: 2rem;
@@ -525,11 +499,8 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         opacity: 1;
         transform: scale(1);
     }
-
 /* #endregion =========== */
-
 /* #region =========== LAYER - LOCK-ON =========== */
-
 .warzone-map-shell {
     position: relative;
 }
@@ -538,7 +509,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     position: absolute;
     inset: 0;
     z-index: 8;
-    pointer-events: none; 
+    pointer-events: none;
 }
 
 .wz-target-overlay__corner {
@@ -574,18 +545,15 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     right: 21%;
     border-width: 0 0.5rem 0.5rem 0;
 }
-
 /* #endregion =========== */
-
 /* #region =========== APP SHELL =========== */
-
 .warzone-app {
     position: relative;
     width: 100%;
     height: 100vh;
-    height: 100dvh; /* dynamic viewport — handles mobile URL bar */
+    height: 100dvh;
     max-height: 100dvh;
-    overflow: hidden; /* hard clip — no page scroll */
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -603,26 +571,29 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         min-height: 0;
         overflow: hidden;
     }
-
 /* #endregion =========== */
-
 /* #region =========== STAGE GRID =========== */
-
+/* UNUSED CANDIDATE START
+   selector: .warzone-stage
+   classes: warzone-stage
+   reason: no references found outside defining CSS file(s) during static scan
 .warzone-stage {
-    position: relative;
+position: relative;
 }
-
+UNUSED CANDIDATE END */
+/* UNUSED CANDIDATE START
+   selector: .warzone-grid
+   classes: warzone-grid
+   reason: no references found outside defining CSS file(s) during static scan
 .warzone-grid {
-    display: grid;
+display: grid;
     grid-template-columns: 28rem 1fr 34rem;
     gap: 1.6rem;
     align-items: start;
 }
-
+UNUSED CANDIDATE END */
 /* #endregion =========== */
-
 /* #region =========== LOADER =========== */
-
 .site-loader {
     position: fixed;
     inset: 0;
@@ -661,11 +632,8 @@ body.show-loader .site-loader {
     place-items: center;
     gap: 1.2rem;
 }
-
 /* #endregion =========== */
-
 /* #region =========== A11Y / ACCESSIBILITY =========== */
-
 .sr-only {
     position: absolute !important;
     width: 0.1rem;
@@ -692,9 +660,7 @@ body.show-loader .site-loader {
         outline: none;
         transform: translateY(5rem);
     }
-
 /* #endregion =========== */
-
 /* #region =========== GATE LAYER =========== */
 #warzone-gate-layer {
     position: absolute;

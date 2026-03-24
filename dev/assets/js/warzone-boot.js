@@ -53,10 +53,8 @@ window.SiteLoader = {
 document.addEventListener("DOMContentLoaded", () => {
     const INTRO_ACCEPT_KEY = "wz_intro_accepted";
     const WZ_WIDGET_KEY = "wz_widget_visibility";
-    const POPUP_BREAKPOINT = 980;
-
     function isMobileLayout() {
-        return window.innerWidth <= POPUP_BREAKPOINT;
+        return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
     }
 
     function bindTabs(selector, panelSelector, attrName, panelAttrName) {
