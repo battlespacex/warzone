@@ -21,11 +21,14 @@ function markUiReady(delay = 0) {
     }, delay);
 }
 
+let __siteLoaderHideTimer = 0;
+
 window.SiteLoader = {
     start() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
 
+        clearTimeout(__siteLoaderHideTimer);
         loader.classList.remove("is-gone");
         document.body.classList.add("show-loader");
         document.body.classList.remove("is-ui-ready");
@@ -35,9 +38,11 @@ window.SiteLoader = {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
 
-        setTimeout(() => {
+        clearTimeout(__siteLoaderHideTimer);
+        __siteLoaderHideTimer = window.setTimeout(() => {
             document.body.classList.remove("show-loader");
             loader.classList.add("is-gone");
+            markUiReady(0);
         }, 300);
     },
 
@@ -45,8 +50,10 @@ window.SiteLoader = {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
 
+        clearTimeout(__siteLoaderHideTimer);
         document.body.classList.remove("show-loader");
         loader.classList.add("is-gone");
+        markUiReady(0);
     },
 };
 
@@ -146,6 +153,15 @@ document.addEventListener("DOMContentLoaded", () => {
         uiShell.classList.remove("is-ui-visible");
         uiShell.hidden = true;
     }
+    function clearStaleLoaderState() {
+        if (document.visibilityState === "hidden") return;
+        window.SiteLoader?.forceHide?.();
+    }
+
+    document.addEventListener("visibilitychange", clearStaleLoaderState, { passive: true });
+    window.addEventListener("pageshow", clearStaleLoaderState, { passive: true });
+    window.addEventListener("focus", clearStaleLoaderState, { passive: true });
+
 
     document.getElementById("dock-about")?.addEventListener("click", () => openModal(aboutModal));
     document.getElementById("wz-about-close")?.addEventListener("click", () => closeModal(aboutModal));

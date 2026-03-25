@@ -40,7 +40,7 @@
 .warzone-logo img {
     z-index: 1;
     width: auto;
-    height: 7rem;
+    height: 5rem;
 }
 /* UNUSED CANDIDATE START
    selector: .warzone-bg
@@ -225,7 +225,7 @@ UNUSED CANDIDATE END */
     height: 6rem;
 }
     .wz-dock__icon .static-icon {
-        font-size: 4rem;
+        font-size: 5rem;
         line-height: 1;
         display: block;
         pointer-events: none;

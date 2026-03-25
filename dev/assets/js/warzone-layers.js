@@ -8,6 +8,7 @@ const LAYER_DEFS = [
     { id: "aircraft", label: "Military Aircraft", icon: "🛩️", color: "#33d90a" },
     { id: "naval", label: "Naval Activity", icon: "⚓", color: "#9b7bff" },
     { id: "ranges", label: "Detection / Threat Ranges", icon: "📡", color: "#33d9ff" },
+    { id: "sweepers", label: "Radar Sweepers", icon: "🌀", color: "#18e2db", uiOnly: true },
     { id: "alerts", label: "Alerts & Sirens", icon: "🔔", color: "#ff2a2a" },
     { id: "cyber", label: "Cyber Operations", icon: "💻", color: "#9b7bff" },
     { id: "thermal", label: "Thermal / Fires", icon: "🔥", color: "#ff6600" },

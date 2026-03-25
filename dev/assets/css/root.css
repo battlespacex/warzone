@@ -47,14 +47,13 @@
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
     --font-icon: "BX-Font-R1_1", system-ui, sans-serif;
-
     --text-xs: 1rem;
     --text-sm: 1.2rem;
     --text-base: 1.4rem;
     --text-lg: 1.7rem;
     --text-xl: 2.4rem;
-    --text-xxl: 5.4rem;
-    
+    --text-xxl: 3.4rem;
+    --text-xxxl: 5rem;
     --text-heading-weight: 700;
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
@@ -129,8 +128,8 @@
 
 :root {
     --warzone-map-brightness: 0.8;
-    --warzone-map-contrast: 1.35;
-    --warzone-map-gamma: 0.5;
+    --warzone-map-contrast: 1.2;
+    --warzone-map-gamma: 0.7;
     --warzone-map-saturation: 0.2;
     --warzone-map-hue: 170;
     --warzone-map-alpha: 0.5;

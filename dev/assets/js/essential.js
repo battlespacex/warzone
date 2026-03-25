@@ -14,6 +14,8 @@ import { updateTheaterPanel } from "./warzone-theater-panel.js";
 import { resolveDisplayCoordinates, eventMatchesBounds } from "./warzone-location-resolver.js";
 
 let __eventsCache = [];
+let __visibleEventsCache = [];
+let __viewportScoped = false;
 let __liveRecentEvents = [];
 let __alertAudio = null;
 let __scrollClassBound = false;
@@ -24,6 +26,9 @@ let __militaryTracks = null;
 let __pollTimer = null;
 let __viewportFetchTimer = null;
 let __lastViewportKey = "";
+let __lastGlobeSyncKey = "";
+let __lastRangesSyncKey = "";
+let __lastSweepersSyncKey = "";
 
 function isEventInLens(event, lens) {
     if (!event) return false;
@@ -224,6 +229,13 @@ function makeViewportKey(bounds, regionId = "global") {
         roundCoord(bounds.maxLon, 2),
     ].join("|");
 }
+
+function makeEventSignature(events = []) {
+    return events
+        .map((event) => `${event.id || ""}:${event.occurred_at || ""}`)
+        .join("|");
+}
+
 function debounce(fn, ms) {
     let timer;
     return (...args) => {
@@ -447,34 +459,29 @@ async function fetchViewportEvents() {
         __eventsCache.forEach(pushUnique);
         __liveRecentEvents.forEach(pushUnique);
 
-        // Correctness first:
-        // rows can carry reporting/source coordinates that do not match the actual target country.
-        // Pull a recent working set, resolve location client-side, then filter by display coordinates.
-        const { data, error } = await supabase
-            .from("events")
-            .select("*")
-            .order("occurred_at", { ascending: false })
-            .limit(1500);
-
-        if (!error && Array.isArray(data)) {
-            data.forEach(pushUnique);
-        }
-
         const visible = merged.filter((evt) => {
             if (!bounds) return true;
             return eventMatchesBounds(evt, bounds);
         });
 
-        renderAll(visible);
-        syncInitialEventsToGlobe(visible, { animateTracks: false });
+        const nextVisibleEvents = sortEvents(visible);
 
-        if (__hotspotLayer) {
-            __hotspotLayer.setEvents(
-                isLayerEnabled("hotspots") ? applyAllFilters(visible) : []
-            );
-        }
+        __viewportScoped = true;
+        __visibleEventsCache = nextVisibleEvents;
 
-        window.__warzoneViewer?.scene?.requestRender?.();
+        syncFilteredUi(nextVisibleEvents);
+
+        requestAnimationFrame(() => {
+            syncInitialEventsToGlobe(nextVisibleEvents, { animateTracks: false });
+
+            if (__hotspotLayer) {
+                __hotspotLayer.setEvents(
+                    isLayerEnabled("hotspots") ? applyAllFilters(nextVisibleEvents) : []
+                );
+            }
+
+            window.__warzoneViewer?.scene?.requestRender?.();
+        });
     } catch (err) {
         console.error("Viewport fetch failed:", err);
     }
@@ -1359,8 +1366,8 @@ function flashFeedCard(eventId) {
     card.classList.add("is-flash");
     setTimeout(() => card.classList.remove("is-flash"), 1200);
 }
-function renderAll(events) {
-    __eventsCache = sortEvents(
+function renderAll(events, { replaceCache = true } = {}) {
+    const normalizedEvents = sortEvents(
         events.map((event) => {
             const normalized = normalizeEvent(event);
             return {
@@ -1370,7 +1377,13 @@ function renderAll(events) {
         })
     );
 
-    const filtered = applyAllFilters(__eventsCache);
+    if (replaceCache) {
+        __eventsCache = normalizedEvents;
+    }
+
+    __visibleEventsCache = normalizedEvents;
+
+    const filtered = applyAllFilters(normalizedEvents);
 
     updateTheaterPanel(filtered);
     debouncedRenderFeed(filtered);
@@ -1469,33 +1482,48 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     if (!globe) return;
 
     const visible = applyAllFilters(events);
+    const visibleSignature = makeEventSignature(visible);
+    const rangesEnabled = isLayerEnabled("ranges");
+    const sweepersEnabled = isLayerEnabled("sweepers");
+
     globe.setPerformanceMode?.(visible.length);
-    globe.clearEventEntities?.();
 
     if (!visible.length) {
-        __militaryTracks?.setTracks([]);
-        __hotspotLayer?.setEvents([]);
-        if (window.__warzoneViewer) {
-            clearRanges(window.__warzoneViewer);
-            clearSweepers(window.__warzoneViewer);
+        if (__lastGlobeSyncKey !== "__empty__") {
+            globe.clearEventEntities?.();
+            __militaryTracks?.setTracks([]);
+            __hotspotLayer?.setEvents([]);
+            if (window.__warzoneViewer) {
+                clearRanges(window.__warzoneViewer);
+                clearSweepers(window.__warzoneViewer);
+            }
+            __lastGlobeSyncKey = "__empty__";
+            __lastRangesSyncKey = "__off__";
+            __lastSweepersSyncKey = "__off__";
         }
         window.__warzoneViewer?.scene?.requestRender?.();
         return;
     }
 
-    const clustered = clusterEventsForGlobe(
-        visible.map((event) => ({
-            ...event,
-            _layerId: getEventLayerId(event),
-        }))
-    );
+    if (visibleSignature !== __lastGlobeSyncKey) {
+        globe.clearEventEntities?.();
 
-    globe.addEvents?.(clustered);
-
-    if (__militaryTracks) {
-        __militaryTracks.setTracks(
-            visible.filter((event) => isMilitaryTrackEvent(event) && isEventVisible(event))
+        const clustered = clusterEventsForGlobe(
+            visible.map((event) => ({
+                ...event,
+                _layerId: getEventLayerId(event),
+            }))
         );
+
+        globe.addEvents?.(clustered);
+
+        if (__militaryTracks) {
+            __militaryTracks.setTracks(
+                visible.filter((event) => isMilitaryTrackEvent(event) && isEventVisible(event))
+            );
+        }
+
+        __lastGlobeSyncKey = visibleSignature;
     }
 
     if (__hotspotLayer) {
@@ -1503,14 +1531,22 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     }
 
     if (window.__warzoneViewer) {
-        if (isLayerEnabled("ranges")) {
+        const nextRangesKey = rangesEnabled ? visibleSignature : "__off__";
+        if (nextRangesKey !== __lastRangesSyncKey) {
             clearRanges(window.__warzoneViewer);
+            if (rangesEnabled) {
+                renderRanges(window.__warzoneViewer, visible);
+            }
+            __lastRangesSyncKey = nextRangesKey;
+        }
+
+        const nextSweepersKey = sweepersEnabled ? visibleSignature : "__off__";
+        if (nextSweepersKey !== __lastSweepersSyncKey) {
             clearSweepers(window.__warzoneViewer);
-            renderRanges(window.__warzoneViewer, visible);
-            renderSweepers(window.__warzoneViewer, visible);
-        } else {
-            clearRanges(window.__warzoneViewer);
-            clearSweepers(window.__warzoneViewer);
+            if (sweepersEnabled) {
+                renderSweepers(window.__warzoneViewer, visible);
+            }
+            __lastSweepersSyncKey = nextSweepersKey;
         }
     }
 
@@ -1541,6 +1577,7 @@ export async function initWarzoneApp() {
 
     const events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
 
+    __viewportScoped = false;
     renderAll(events);
 
     syncInitialEventsToGlobe(events, { animateTracks: true });
@@ -1573,7 +1610,7 @@ export async function initWarzoneApp() {
 
         onRegionChange(() => {
             __lastViewportKey = "";
-            scheduleViewportFetch(250);
+            scheduleViewportFetch(60);
         });
 
         if (viewer.camera?.moveEnd) {
@@ -1586,7 +1623,8 @@ export async function initWarzoneApp() {
     initLayerPanel();
     onLayerChange((id) => {
         const globe = window.__warzoneViewer?.__warzone;
-        const filtered = applyAllFilters(__eventsCache);
+        const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
+        const filtered = applyAllFilters(sourceEvents);
 
         if (id === "hotspots" || id === "*") {
             const hotspotRootEl = document.getElementById("warzone-hotspot-layer");
@@ -1605,12 +1643,13 @@ export async function initWarzoneApp() {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
         }
 
-        syncFilteredUi(__eventsCache);
-        syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
+        syncFilteredUi(sourceEvents);
+        syncInitialEventsToGlobe(sourceEvents, { animateTracks: false });
     });
 
     window.addEventListener("wz:recluster", () => {
-        syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
+        const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
+        syncInitialEventsToGlobe(sourceEvents, { animateTracks: false });
     });
 
     if (__militaryTracks) {
@@ -1622,6 +1661,7 @@ export async function initWarzoneApp() {
     }
 
     __lastViewportKey = "";
+    __viewportScoped = false;
     scheduleViewportFetch(150);
 
     return events;
@@ -1688,6 +1728,11 @@ export function handleIncomingEvent(event) {
 
     renderAll(__eventsCache);
     flashFeedCard(normalized.id);
+
+    if (__viewportScoped) {
+        __lastViewportKey = "";
+        scheduleViewportFetch(180);
+    }
 
     const globe = window.__warzoneViewer?.__warzone;
     const region = getActiveRegion?.();

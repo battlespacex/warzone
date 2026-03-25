@@ -21,19 +21,31 @@
             </div>
         </template>
 
+        <!-- popups.html -->
+        <!-- Keep a single sticky alert block and remove any older inline close script
+         that directly removes classes from #warzone-alert. -->
+
         <div id="warzone-alert"
              class="warzone-alert"
              role="status"
              aria-live="assertive"
              aria-atomic="true"
              data-alert-key=""
-             data-sticky="">
+             data-alert-version=""
+             data-sticky=""
+             data-dismissed="">
             <span class="warzone-alert__icon" aria-hidden="true">🔴</span>
             <span class="warzone-alert__text">
                 <strong id="warzone-alert-title">Air raid sirens active</strong>
                 <span id="warzone-alert-meta"></span>
             </span>
-            <button type="button" class="warzone-alert__close" id="warzone-alert-dismiss" aria-label="Dismiss alert">✕</button>
+            <button type="button"
+                    class="warzone-alert__close"
+                    id="warzone-alert-dismiss"
+                    aria-label="Dismiss alert banner"
+                    title="Dismiss alert banner">
+                ✕
+            </button>
         </div>
 
         <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite">
@@ -281,16 +293,16 @@
             <div class="wz-modal__box">
                 <div class="wz-modal__container wz-region-modal__container">
                     <div class="wz-region-modal__head">
-                        <div class="wz-region-modal__logo">⬡ StratOps</div>
                         <h2 class="wz-region-modal__title" id="wz-region-title">Select Monitoring Region</h2>
-                        <p class="wz-region-modal__sub" id="wz-region-sub">Live OSINT situational awareness. Choose your area of interest.</p>
+                        <p class="wz-region-modal__sub" id="wz-region-sub">Choose an initial theater to begin monitoring. StratOps provides real-time visibility into open-source conflict activity, alerts, and multi-domain signals.</p>
                     </div>
-
-                    <div class="wz-region-modal__grid" id="wz-region-modal-grid" role="listbox" aria-label="Available monitoring regions"></div>
-
-                    <button type="button" class="wz-region-modal__confirm" id="wz-region-confirm" disabled>
-                        Enter StratOps
-                    </button>
+                    <div class="wz-region-modal__content" >
+                        <div class="wz-region-modal__grid" id="wz-region-modal-grid" role="listbox" aria-label="Available monitoring regions"></div>
+                        <button type="button" class="wz-region-modal__confirm btn-primary" id="wz-region-confirm" disabled>
+                            <span aria-hidden="true"></span>
+                            Enter StratOps
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="wz-modal__backdrop"></div>

@@ -620,9 +620,10 @@ UNUSED CANDIDATE END */
         top: 0;
         left: 0;
         transform: none;
+        opacity: 1;
     }
         .wz-intro__hero .warzone-logo img {
-            height: 8rem;
+            height: 6rem;
         }
 .wz-intro__body {
     flex: 1 1 auto;
@@ -636,8 +637,8 @@ UNUSED CANDIDATE END */
 }
 .wz-intro__title {
     color: var(--color-text-heading);
-    font-size: var(--text-xxl);
-    line-height: 5rem;
+    font-size: var(--text-xxxl);
+    line-height: 4.7rem;
 }
 .wz-intro__disclaimer {
     background: var(--color-bg-overlay);
@@ -739,46 +740,126 @@ UNUSED CANDIDATE END */
 }
 /* #endregion =========== */
 /* #region =========== MODAL - REGION =========== */
-.wz-region-modal__container {
-    display: flex;
-    flex-direction: column;
+
+.wz-region-modal .wz-modal__box {
+    height: auto;
 }
+
 .wz-region-modal__head {
     flex: 0 0 auto;
     padding: 3rem 2.5rem 1.8rem;
     background: var(--color-bg-header);
-    border-bottom: 0.1rem solid var(--color-border-gray);
 }
 .wz-region-modal__title {
-    margin-top: 1rem;
+    font-size: var(--text-xxl)
 }
 .wz-region-modal__sub {
     margin-top: 0.8rem;
     color: var(--color-text-dim);
 }
-.wz-region-modal__grid {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 2rem 2.5rem;
+.wz-region-modal__content {
+    padding: 2.5rem;
+    text-align: center;
 }
+
+.wz-region-modal__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    align-content: flex-start;
+    margin-bottom: 2.5rem;
+}
+.wz-region-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    white-space: nowrap;
+    background: var(--color-bg-row);
+    white-space: normal;
+    height: 5.4rem;
+    text-align: center;
+    justify-content: center;
+}
+
+    .wz-region-btn:hover {
+        color: rgb(8 90 95 / 80%);
+    }
+
+    .wz-region-btn:hover span {
+        color: #fff
+    }
+
+.wz-region-btn__label {
+    display: inline-block;
+    line-height: 1.1;
+}
+
+.wz-region-btn.is-hot {
+    position: relative;
+}
+
+    .wz-region-btn.is-hot::after {
+        content: "";
+        position: absolute;
+        top: .5rem;
+        right: .5rem;
+        width: .8rem;
+        height: .8rem;
+        background: var(--color-teal-glow);
+        border-radius: 50%;
+        border: 0;
+    }
+
+.wz-region-btn.is-selected {
+    background: var(--color-teal-glow);
+    color: rgb(8 90 95 / 80%);
+}
+
+@media (max-width: 1024px) {
+    .wz-region-modal__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+    }
+}
+
+/* small mobile */
+@media (max-width: 580px) {
+    .wz-region-modal__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+    }
+
+    .wz-region-btn {
+        min-height: 4.2rem;
+        padding: 0.9rem 1rem;
+    }
+
+    .wz-region-btn__label {
+        font-size: 1.4rem;
+    }
+}
+
+/* very narrow phones only */
+@media (max-width: 420px) {
+    .wz-region-modal__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* #endregion =========== */
 /* #region =========== WIDGETS POSITIONINGS/SIZES =========== */
 .warzone-widget--counter {
     left: 0;
     top: 0
 }
-    .warzone-widget--counter .panel-content {
-        max-height: unset
-    }
 .warzone-widget--airspace {
     left: 30rem;
     top: 0;
 }
 .warzone-widget--layers {
     left: 0rem;
-    top: auto;
-    bottom: 0;
+    top: calc(30vh - -6rem) 
 }
 .warzone-widget--escalation {
     right: 0;
@@ -1012,7 +1093,7 @@ UNUSED CANDIDATE END */
 /* #region =========== WIDGET - ESCALATION =========== */
 .escalation-box {
     padding: 1.5rem;
-    gap: 1rem;
+    gap: 1.5rem;
     display: flex;
     flex-direction: column;
 }
@@ -1021,14 +1102,30 @@ UNUSED CANDIDATE END */
     gap: 1rem;
     font-family: var(--heading-font);
     color: var(--color-text-heading);
-    clip-path: var(--clippath-shape-3);
     align-items: center;
+    padding: .7rem 1.4rem;
+    position: relative;
 }
+
+    .escalation-meter:before {
+        clip-path: var(--clippath-shape-3);
+        background: var(--color-red-glow);
+        animation: wz-animate-pulse 2s infinite;
+        content: '';
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: -1;
+        border-radius: .2rem
+    }
     .escalation-meter .static-icon {
         height: 4.5rem;
         width: 4.5rem;
         font-size: var(--icon-xxl);
-        color: var(--color-red-glow);
     }
     .escalation-meter small {
         color: var(--color-text);
@@ -1085,7 +1182,6 @@ UNUSED CANDIDATE END */
     gap: .5rem;
     font-size: var(--text-base);
 }
-
 .wz-theater-risk {
     font-size: var(--text-sm);
 }
@@ -1249,7 +1345,7 @@ UNUSED CANDIDATE END */
         opacity: 1;
     }
     50% {
-        opacity: 0.6;
+        opacity: 0.5;
     }
 }
 @keyframes wz-siren-in {
@@ -1342,3 +1438,4 @@ UNUSED CANDIDATE END */
     }
 }
 /* #endregion =========== */
+

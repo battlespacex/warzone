@@ -1,54 +1,28 @@
 ﻿// assets/js/warzone-hotspots.js
-//
-// KEY ARCHITECTURE — no-blink DOM diff:
-//   • Cards are created ONCE and stored in a persistent Map<id → element>
-//   • On every render pass, we only update style.left / style.top
-//   • Cards are only removed/created when the cluster SET changes
-//   • Clicks directly mutate the clicked element's class — zero re-render
-//   • postRender throttled to ~8fps for the overlay — Cesium still runs at full fps
-
 import * as Cesium from "cesium";
 import { isEventVisible } from "./warzone-layers.js";
-
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
-
 function sanitizeText(v) {
     if (!v) return "";
-
     let t = String(v);
-
-    // remove emojis / pictographs
     t = t.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
-
-    // remove Arabic script + Arabic presentation forms + RTL marks
     t = t.replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g, "");
     t = t.replace(/[\u200E\u200F\u202A-\u202E]/g, "");
-
-    // remove repeated punctuation junk left behind
     t = t.replace(/[،؛ـ]+/g, " ");
     t = t.replace(/[^\p{L}\p{N}\s.,:;!?()\-\/&]/gu, " ");
-
-    // collapse spaces
     t = t.replace(/\s+/g, " ").trim();
-
     return t;
 }
-
 function norm(v) { return sanitizeText(v); }
-
 function compactPlaceLabel(v) {
     const clean = sanitizeText(v);
     if (!clean) return "";
-
     const parts = clean.split(",").map((x) => x.trim()).filter(Boolean);
     if (!parts.length) return "";
-
     const last = parts[parts.length - 1];
     if (/[a-z]/i.test(last) && !/\d/.test(last)) return last;
-
     return parts[0] || clean;
 }
-
 function timeAgo(d) {
     try {
         const m = Math.floor((Date.now() - new Date(d)) / 60000);
@@ -59,7 +33,6 @@ function timeAgo(d) {
         return `${Math.floor(h / 24)}d ago`;
     } catch { return ""; }
 }
-
 const ICONS = {
     strike: "bx-web-ico-conflict-1-0",
     military: "bx-web-ico-air-1-0",
@@ -71,22 +44,18 @@ const ICONS = {
     signal: "bx-web-ico-status-1-0",
     default: "bx-web-ico-Profile-1-0"
 };
-
 const LABELS = {
     strike: "STRIKE", military: "MILITARY", recon: "RECON", alert: "ALERT",
     airspace: "AIRSPACE", cyber: "CYBER", thermal: "THERMAL", signal: "SIGNAL", default: "ACTIVITY"
 };
-
 function icon(cat) {
     const key = String(cat || "").toLowerCase();
     return ICONS[key] || ICONS.default;
 }
 function label(cat) { return LABELS[String(cat || "").toLowerCase()] || LABELS.default; }
-
 function sevWeight(s) {
     return { critical: 4, high: 3, medium: 2, low: 1 }[String(s || "").toLowerCase()] || 1;
 }
-
 function dominantCat(items) {
     const sc = new Map();
     for (const e of items) {
@@ -97,47 +66,37 @@ function dominantCat(items) {
     for (const [k, v] of sc) if (v > top) { best = k; top = v; }
     return best;
 }
-
 function dominantSev(items) {
     for (const s of ["critical", "high", "medium", "low"])
         if (items.some(e => String(e.severity || "").toLowerCase() === s)) return s;
     return "medium";
 }
-
 function latestEvt(items) {
     return [...items].sort((a, b) =>
         new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0)
     )[0];
 }
-
 // ─── hemisphere cull + Cesium projection ──────────────────────────────────────
-
 function toScreen(scene, lon, lat) {
     try {
         const cart = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
-        // Cull points behind the globe
         const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, new Cesium.Cartesian3());
         const ptNorm = Cesium.Cartesian3.normalize(cart, new Cesium.Cartesian3());
         if (Cesium.Cartesian3.dot(camNorm, ptNorm) < 0.08) return null;
-
         const fn = Cesium.SceneTransforms.wgs84ToWindowCoordinates
             || Cesium.SceneTransforms.worldToWindowCoordinates;
         if (!fn) return null;
-
         const p = fn(scene, cart);
         if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
         return { x: p.x, y: p.y };
     } catch { return null; }
 }
-
 // ─── geo clustering ────────────────────────────────────────────────────────────
-
 function geoCluster(events, dLat, dLon, minCount, maxCards) {
     const groups = [];
     for (const e of events) {
         const lat = Number(e.lat), lon = Number(e.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
         let g = null;
         for (const gr of groups) {
             if (Math.abs(gr.lat - lat) <= dLat && Math.abs(gr.lon - lon) <= dLon) { g = gr; break; }
@@ -151,7 +110,6 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
             groups.push({ lat, lon, items: [e] });
         }
     }
-
     return groups
         .filter(g => g.items.length >= minCount)
         .map(g => {
@@ -173,11 +131,8 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
         .sort((a, b) => b.count - a.count)
         .slice(0, maxCards);
 }
-
 // ─── screen stacking ──────────────────────────────────────────────────────────
-
 const STACK_OFF = [{ x: 0, y: 0 }, { x: -18, y: -14 }, { x: 18, y: 14 }];
-
 function stackVisible(clusters, overlapPx, maxPer) {
     const stacks = [];
     for (const c of clusters) {
@@ -189,7 +144,6 @@ function stackVisible(clusters, overlapPx, maxPer) {
         if (found) found.items.push(c);
         else stacks.push({ x: c.screen.x, y: c.screen.y, items: [c] });
     }
-
     const out = [];
     for (const s of stacks) {
         [...s.items].sort((a, b) => b.count - a.count).slice(0, maxPer).forEach((c, i) => {
@@ -198,9 +152,7 @@ function stackVisible(clusters, overlapPx, maxPer) {
     }
     return out;
 }
-
 // ─── DOM builders ─────────────────────────────────────────────────────────────
-
 function buildExpandedHTML(items) {
     return items.slice(0, 6).map(e => {
         const sev = String(e.severity || "medium").toLowerCase();
@@ -217,18 +169,13 @@ function buildExpandedHTML(items) {
         </div>`;
     }).join("");
 }
-
-// Creates the card element for a cluster — called ONCE per cluster lifetime
 function createCardEl(cluster, onToggle) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.clusterId = cluster.id;
-
-    // Re-usable render function for this specific card element
     function refreshContent(isExpanded) {
         const loc = norm(cluster.latest?.location_label || "");
         const time = timeAgo(cluster.latest?.occurred_at);
-
         btn.className = [
             "wzhs",
             `wzhs--${cluster.cat}`,
@@ -237,7 +184,6 @@ function createCardEl(cluster, onToggle) {
             cluster.stackIdx === 2 ? "wzhs--s3" : "",
             isExpanded ? "wzhs--open" : "",
         ].filter(Boolean).join(" ");
-
         btn.innerHTML = `
             <div class="wzhs__body">
                 <div class="wzhs__top">
@@ -262,41 +208,28 @@ function createCardEl(cluster, onToggle) {
                 </div>` : ""}
             </div>`;
     }
-
     refreshContent(false);
     btn._refreshContent = refreshContent;
-
     btn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
         onToggle(cluster.id, btn);
     });
-
     return btn;
 }
-
 // ─── main export ──────────────────────────────────────────────────────────────
-
 export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     if (!viewer || !rootEl) return null;
-
     let allEvents = [];
     let expandedId = null;
     let destroyed = false;
-
-    // Dirty flags
     let clustersDirty = true;
-    let cachedClusters = [];   // geo clusters (recomputed only when events change)
-
-    // Persistent DOM node registry  id → { el, x, y }
+    let cachedClusters = []; 
     const nodeMap = new Map();
-
-    // Render scheduling
     let rafPending = false;
     let lastRenderMs = 0;
-    let cameraMoving = false;  // true while user pans/zooms — skip throttle
+    let cameraMoving = false; 
     let moveEndTimer = 0;
-
     const cfg = {
         maxCards: options.maxCards ?? 24,
         clusterDistanceLat: options.clusterDistanceLat ?? 2.6,
@@ -304,16 +237,12 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         stackDistancePx: options.stackDistancePx ?? 100,
         maxVisiblePerHotspot: options.maxVisiblePerHotspot ?? 3,
         minItemsForCluster: options.minItemsForCluster ?? 1,
-        // Only throttle when camera is idle — during movement update every frame
         throttleIdle: options.throttleIdle ?? 100,
     };
-
     // ── toggle handler — NO re-render, mutates clicked element directly ────────
     function handleToggle(id, el) {
         const wasOpen = expandedId === id;
         expandedId = wasOpen ? null : id;
-
-        // Close previously open card if different
         if (!wasOpen) {
             for (const [nid, node] of nodeMap) {
                 if (nid !== id && node.el.classList.contains("wzhs--open")) {
@@ -322,19 +251,12 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 }
             }
         }
-
-        // Toggle the clicked card — direct DOM mutation, zero re-render
         el._refreshContent(!wasOpen);
     }
-
     // ── core render — DOM diff, only moves existing nodes ─────────────────────
-    // Called two ways:
-    //   render(false) -- via RAF (idle updates, throttled)
-    //   render(true)  -- directly from postRender (camera moving, zero frame lag)
     function render(fromPostRender) {
         if (!fromPostRender) rafPending = false;
         if (destroyed || !viewer.scene || !rootEl) return;
-
         // Idle path: throttle to ~10fps to save CPU
         if (!fromPostRender) {
             const now = performance.now();
@@ -344,18 +266,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             }
             lastRenderMs = now;
         }
-
         const canvas = viewer.scene.canvas;
         if (!canvas) return;
-
         const canvasRect = canvas.getBoundingClientRect();
         const overlayRect = rootEl.getBoundingClientRect();
         if (!canvasRect.width || !canvasRect.height) return;
-
         const offX = canvasRect.left - overlayRect.left;
         const offY = canvasRect.top - overlayRect.top;
-
-        // Recompute geo clusters only when events changed
         if (clustersDirty) {
             cachedClusters = geoCluster(
                 allEvents,
@@ -366,7 +283,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             );
             clustersDirty = false;
         }
-
         // Project to screen
         const projected = [];
         for (const c of cachedClusters) {
@@ -377,10 +293,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             if (y < -140 || y > overlayRect.height + 140) continue;
             projected.push({ ...c, screen: { x, y } });
         }
-
         const visible = stackVisible(projected, cfg.stackDistancePx, cfg.maxVisiblePerHotspot);
         const visibleIds = new Set(visible.map(v => v.id));
-
         // ── REMOVE cards that are no longer visible ────────────────────────────
         for (const [id, node] of nodeMap) {
             if (!visibleIds.has(id)) {
@@ -388,14 +302,12 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 nodeMap.delete(id);
             }
         }
-
         // ── CREATE or MOVE cards ───────────────────────────────────────────────
         for (const cluster of visible) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
             const tx = Math.round(cluster.screen.x + off.x);
             const ty = Math.round(cluster.screen.y + off.y);
             const zi = 25 - cluster.stackIdx;
-
             if (nodeMap.has(cluster.id)) {
                 // Card already exists — just reposition (NO DOM recreation, NO blink)
                 const node = nodeMap.get(cluster.id);
@@ -418,7 +330,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             }
         }
     }
-
     function scheduleRender(delay = 0) {
         if (destroyed || rafPending) return;
         rafPending = true;
@@ -428,41 +339,26 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             setTimeout(() => { rafPending = false; scheduleRender(0); }, delay);
         }
     }
-
-    // ── Cesium event hooks ─────────────────────────────────────────────────────
-    // postRender fires AFTER Cesium draws a frame — projection coords are valid.
-    // During camera movement we render every postRender (no throttle).
-    // During idle we throttle to cfg.throttleIdle to save CPU.
-
     function onPostRender() {
-        // Camera moving: call render() DIRECTLY here, same synchronous callstack
-        // as Cesium's draw. Zero RAF delay = cards move with zero perceived lag.
-        // Idle: do nothing, scheduleRender handles periodic updates.
         if (cameraMoving) render(true);
     }
-
     function onCameraMoveStart() {
         cameraMoving = true;
         clearTimeout(moveEndTimer);
         scheduleRender(0);
     }
-
     function onCameraMoveEnd() {
-        // Small grace period so the final settled position renders correctly
         clearTimeout(moveEndTimer);
         moveEndTimer = setTimeout(() => {
             cameraMoving = false;
-            scheduleRender(0);   // one final accurate update
+            scheduleRender(0);
         }, 60);
     }
-
     function onResize() { scheduleRender(0); }
-
     viewer.scene.postRender.addEventListener(onPostRender);
     viewer.camera.moveStart.addEventListener(onCameraMoveStart);
     viewer.camera.moveEnd.addEventListener(onCameraMoveEnd);
     window.addEventListener("resize", onResize, { passive: true });
-
     // ── public API ─────────────────────────────────────────────────────────────
     return {
         setEvents(next = []) {
@@ -471,7 +367,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             viewer.scene.requestRender();
             scheduleRender(0);
         },
-
         addEvent(evt) {
             if (!evt) return;
             if (!isEventVisible(evt)) return;   // respect layer toggles
@@ -481,12 +376,10 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             viewer.scene.requestRender();
             scheduleRender(0);
         },
-
         clear() {
             for (const [, node] of nodeMap) node.el.remove();
             nodeMap.clear();
         },
-
         destroy() {
             destroyed = true;
             clearTimeout(moveEndTimer);

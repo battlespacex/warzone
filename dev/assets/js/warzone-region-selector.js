@@ -409,6 +409,7 @@ export function initRegionSelector(viewer) {
         flyToRegion(viewer, __activeRegion);
         window.setTimeout(() => {
             window.__warzoneEnterApp?.();
+            window.__warzoneStartDeferredApp?.();
         }, 1000);
     }
 
@@ -422,18 +423,22 @@ function showRegionModal(viewer) {
     const grid = document.getElementById("wz-region-modal-grid");
     if (!grid) return;
 
-    grid.innerHTML = REGIONS.map(r => {
+    const regions = getRegionsForLens(__activeLens);
+
+    grid.innerHTML = regions.map((r) => {
         const hotClass = r.hot ? " is-hot" : "";
         const selClass = r.id === __activeRegion.id ? " is-selected" : "";
-        const hotBadge = r.hot ? '<span class="wz-region-btn__hot">ACTIVE</span>' : "";
+
         return `
-            <button class="wz-region-btn${hotClass}${selClass}" data-region="${r.id}">
-                <span class="wz-region-btn__label">${r.label}</span>
-                ${hotBadge}
+            <button class="wz-region-btn${hotClass}${selClass} btn-primary"
+                    type="button"
+                    data-region="${r.id}"
+                    aria-pressed="${r.id === __activeRegion.id ? "true" : "false"}">
+                <span aria-hidden="true"></span>
+                ${getRegionLabelForLens(r, __activeLens)} 
             </button>`;
     }).join("");
 
-    // Replace confirm button first, then use the new one everywhere
     const oldConfirm = document.getElementById("wz-region-confirm");
     let confirmBtn = oldConfirm;
 
@@ -449,11 +454,17 @@ function showRegionModal(viewer) {
     overlay.classList.remove("is-closing");
     let chosen = __activeRegion.id;
 
-    overlay.querySelectorAll(".wz-region-btn").forEach(btn => {
+    overlay.querySelectorAll(".wz-region-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
-            overlay.querySelectorAll(".wz-region-btn").forEach(b => b.classList.remove("is-selected"));
+            overlay.querySelectorAll(".wz-region-btn").forEach((b) => {
+                b.classList.remove("is-selected");
+                b.setAttribute("aria-pressed", "false");
+            });
+
             btn.classList.add("is-selected");
+            btn.setAttribute("aria-pressed", "true");
             chosen = btn.dataset.region;
+
             if (confirmBtn) confirmBtn.disabled = false;
         });
     });
@@ -472,6 +483,7 @@ function showRegionModal(viewer) {
                 selectRegion(viewer, chosen);
 
                 window.__warzoneEnterApp?.();
+                window.__warzoneStartDeferredApp?.();
             }, 220);
         });
     }

@@ -366,3 +366,30 @@
 .bx-web-stratops-logo-1:before {
   content: "\e910";
 }
+.bx-web-ico-intel-1:before {
+    content: "\e912";
+}
+
+.bx-web-ico-airspace-1:before {
+    content: "\e915";
+}
+
+.bx-web-ico-cyber-1:before {
+    content: "\e916";
+}
+
+.bx-web-ico-layers-1:before {
+    content: "\e919";
+}
+
+.bx-web-ico-escalation-1:before {
+    content: "\e91a";
+}
+
+.bx-web-ico-fullscreen-1:before {
+    content: "\e926";
+}
+
+.bx-web-ico-stratops-1:before {
+    content: "\e927";
+}

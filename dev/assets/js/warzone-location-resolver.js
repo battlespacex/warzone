@@ -14,10 +14,97 @@ const SUBDIVISION_INDEX = { "canillo": "AD", "encamp": "AD", "la massana": "AD",
 
 const CAPITAL_INDEX = { "oranjestad": { "country": "AW", "lat": 12.526874, "lon": -70.035684, "name": "Oranjestad" }, "kabul": { "country": "AF", "lat": 34.526011, "lon": 69.177684, "name": "Kabul" }, "luanda": { "country": "AO", "lat": -8.82727, "lon": 13.243951, "name": "Luanda" }, "the valley": { "country": "AI", "lat": 41.559572, "lon": -98.980548, "name": "The Valley" }, "tirana": { "country": "AL", "lat": 41.326873, "lon": 19.818791, "name": "Tirana" }, "abu dhabi": { "country": "AE", "lat": 24.474796, "lon": 54.370576, "name": "Abu Dhabi" }, "buenos aires": { "country": "AR", "lat": -34.607568, "lon": -58.437089, "name": "Buenos Aires" }, "yerevan": { "country": "AM", "lat": 40.177612, "lon": 44.512585, "name": "Yerevan" }, "pago pago": { "country": "AS", "lat": -14.275479, "lon": -170.70483, "name": "Pago Pago" }, "saint john s": { "country": "AG", "lat": 47.561701, "lon": -52.715149, "name": "Saint John's" }, "canberra": { "country": "AU", "lat": -35.297591, "lon": 149.101268, "name": "Canberra" }, "vienna": { "country": "AT", "lat": 48.208354, "lon": 16.372504, "name": "Vienna" }, "baku": { "country": "AZ", "lat": 40.375443, "lon": 49.832675, "name": "Baku" }, "bujumbura": { "country": "BI", "lat": -3.363812, "lon": 29.367503, "name": "Bujumbura" }, "brussels": { "country": "BE", "lat": 50.846557, "lon": 4.351697, "name": "Brussels" }, "porto novo": { "country": "BJ", "lat": 6.499072, "lon": 2.625336, "name": "Porto-Novo" }, "ouagadougou": { "country": "BF", "lat": 12.368187, "lon": -1.527094, "name": "Ouagadougou" }, "dhaka": { "country": "BD", "lat": 23.759357, "lon": 90.378814, "name": "Dhaka" }, "sofia": { "country": "BG", "lat": -15.25384, "lon": 48.256216, "name": "Sofia" }, "manama": { "country": "BH", "lat": 26.223504, "lon": 50.582244, "name": "Manama" }, "nassau": { "country": "BS", "lat": 25.078346, "lon": -77.338333, "name": "Nassau" }, "sarajevo": { "country": "BA", "lat": 43.851977, "lon": 18.386687, "name": "Sarajevo" }, "minsk": { "country": "BY", "lat": 53.902334, "lon": 27.561879, "name": "Minsk" }, "belmopan": { "country": "BZ", "lat": 17.250199, "lon": -88.770018, "name": "Belmopan" }, "hamilton": { "country": "BM", "lat": 43.25608, "lon": -79.872858, "name": "Hamilton" }, "sucre": { "country": "BO", "lat": -19.047725, "lon": -65.259431, "name": "Sucre" }, "brasilia": { "country": "BR", "lat": -10.333333, "lon": -53.2, "name": "Brasília" }, "bridgetown": { "country": "BB", "lat": 13.097783, "lon": -59.618418, "name": "Bridgetown" }, "bandar seri begawan": { "country": "BN", "lat": 4.889545, "lon": 114.941757, "name": "Bandar Seri Begawan" }, "thimphu": { "country": "BT", "lat": 27.472762, "lon": 89.629548, "name": "Thimphu" }, "gaborone": { "country": "BW", "lat": -24.658136, "lon": 25.908847, "name": "Gaborone" }, "bangui": { "country": "CF", "lat": 4.390715, "lon": 18.550913, "name": "Bangui" }, "ottawa": { "country": "CA", "lat": 45.421106, "lon": -75.690308, "name": "Ottawa" }, "west island": { "country": "CC", "lat": -12.189848, "lon": 96.830449, "name": "West Island" }, "bern": { "country": "CH", "lat": 46.948271, "lon": 7.451451, "name": "Bern" }, "santiago": { "country": "CL", "lat": 9.869479, "lon": -83.798075, "name": "Santiago" }, "beijing": { "country": "CN", "lat": 39.906217, "lon": 116.391276, "name": "Beijing" }, "yamoussoukro": { "country": "CI", "lat": 6.809107, "lon": -5.273263, "name": "Yamoussoukro" }, "yaounde": { "country": "CM", "lat": 3.868987, "lon": 11.521334, "name": "Yaoundé" }, "kinshasa": { "country": "CD", "lat": -4.321706, "lon": 15.312597, "name": "Kinshasa" }, "brazzaville": { "country": "CG", "lat": -4.269441, "lon": 15.271226, "name": "Brazzaville" }, "avarua": { "country": "CK", "lat": -21.207474, "lon": -159.770814, "name": "Avarua" }, "bogota": { "country": "CO", "lat": 4.59808, "lon": -74.076044, "name": "Bogotá" }, "moroni": { "country": "KM", "lat": -11.693126, "lon": 43.254304, "name": "Moroni" }, "praia": { "country": "CV", "lat": 14.916017, "lon": -23.509613, "name": "Praia" }, "san jose": { "country": "CR", "lat": 9.932543, "lon": -84.079578, "name": "San José" }, "havana": { "country": "CU", "lat": 23.135305, "lon": -82.358963, "name": "Havana" }, "flying fish cove": { "country": "CX", "lat": -10.426665, "lon": 105.668672, "name": "Flying Fish Cove" }, "george town": { "country": "KY", "lat": 5.414568, "lon": 100.329804, "name": "George Town" }, "nicosia": { "country": "CY", "lat": 35.17393, "lon": 33.364726, "name": "Nicosia" }, "prague": { "country": "CZ", "lat": 50.087465, "lon": 14.421254, "name": "Prague" }, "berlin": { "country": "DE", "lat": 52.517036, "lon": 13.38886, "name": "Berlin" }, "djibouti": { "country": "DJ", "lat": 11.814597, "lon": 42.845306, "name": "Djibouti" }, "roseau": { "country": "DM", "lat": 48.771037, "lon": -95.769788, "name": "Roseau" }, "copenhagen": { "country": "DK", "lat": 55.686724, "lon": 12.570072, "name": "Copenhagen" }, "santo domingo": { "country": "DO", "lat": 18.480197, "lon": -69.942111, "name": "Santo Domingo" }, "algiers": { "country": "DZ", "lat": 36.775361, "lon": 3.060188, "name": "Algiers" }, "quito": { "country": "EC", "lat": -0.220164, "lon": -78.512327, "name": "Quito" }, "cairo": { "country": "EG", "lat": 30.048819, "lon": 31.243666, "name": "Cairo" }, "asmara": { "country": "ER", "lat": 15.338967, "lon": 38.932676, "name": "Asmara" }, "el aaiun": { "country": "EH", "lat": 27.154512, "lon": -13.195392, "name": "El Aaiún" }, "madrid": { "country": "ES", "lat": 40.416705, "lon": -3.703582, "name": "Madrid" }, "tallinn": { "country": "EE", "lat": 59.437216, "lon": 24.745369, "name": "Tallinn" }, "addis ababa": { "country": "ET", "lat": 9.010793, "lon": 38.761252, "name": "Addis Ababa" }, "helsinki": { "country": "FI", "lat": 60.16741, "lon": 24.942577, "name": "Helsinki" }, "suva": { "country": "FJ", "lat": -18.141588, "lon": 178.442166, "name": "Suva" }, "paris": { "country": "FR", "lat": 48.856697, "lon": 2.351462, "name": "Paris" }, "torshavn": { "country": "FO", "lat": 62.012, "lon": -6.768, "name": "Tórshavn" }, "palikir": { "country": "FM", "lat": 6.920744, "lon": 158.162714, "name": "Palikir" }, "libreville": { "country": "GA", "lat": 0.390002, "lon": 9.454001, "name": "Libreville" }, "london": { "country": "GB", "lat": 51.507322, "lon": -0.127647, "name": "London" }, "tbilisi": { "country": "GE", "lat": 41.693459, "lon": 44.80145, "name": "Tbilisi" }, "st peter port": { "country": "GG", "lat": 49.456814, "lon": -2.538998, "name": "St. Peter Port" }, "accra": { "country": "GH", "lat": 5.560014, "lon": -0.205744, "name": "Accra" }, "gibraltar": { "country": "GI", "lat": 36.140807, "lon": -5.35413, "name": "Gibraltar" }, "conakry": { "country": "GN", "lat": 9.51706, "lon": -13.699843, "name": "Conakry" }, "basse terre": { "country": "GP", "lat": 16.000078, "lon": -61.733337, "name": "Basse-Terre" }, "banjul": { "country": "GM", "lat": 13.441346, "lon": -16.562471, "name": "Banjul" }, "bissau": { "country": "GW", "lat": 11.861324, "lon": -15.583055, "name": "Bissau" }, "malabo": { "country": "GQ", "lat": 3.752828, "lon": 8.780061, "name": "Malabo" }, "athens": { "country": "GR", "lat": 37.983941, "lon": 23.728305, "name": "Athens" }, "st george s": { "country": "GD", "lat": 48.658138, "lon": 6.928099, "name": "St. George's" }, "nuuk": { "country": "GL", "lat": 64.175029, "lon": -51.735539, "name": "Nuuk" }, "guatemala city": { "country": "GT", "lat": 14.622233, "lon": -90.518519, "name": "Guatemala City" }, "cayenne": { "country": "GF", "lat": 4.937114, "lon": -52.325831, "name": "Cayenne" }, "hagatna": { "country": "GU", "lat": 13.472745, "lon": 144.752018, "name": "Hagåtña" }, "georgetown": { "country": "GY", "lat": 6.802577, "lon": -58.162861, "name": "Georgetown" }, "city of victoria": { "country": "HK", "lat": -36.59861, "lon": 144.678005, "name": "City of Victoria" }, "tegucigalpa": { "country": "HN", "lat": 14.105686, "lon": -87.204676, "name": "Tegucigalpa" }, "zagreb": { "country": "HR", "lat": 45.813177, "lon": 15.977048, "name": "Zagreb" }, "port au prince": { "country": "HT", "lat": 18.547327, "lon": -72.339593, "name": "Port-au-Prince" }, "budapest": { "country": "HU", "lat": 47.498382, "lon": 19.040471, "name": "Budapest" }, "jakarta": { "country": "ID", "lat": -6.175394, "lon": 106.827183, "name": "Jakarta" }, "douglas": { "country": "IM", "lat": 39.762842, "lon": -88.217052, "name": "Douglas" }, "new delhi": { "country": "IN", "lat": 28.614179, "lon": 77.202266, "name": "New Delhi" }, "diego garcia": { "country": "IO", "lat": -7.338358, "lon": 72.471815, "name": "Diego Garcia" }, "dublin": { "country": "IE", "lat": 53.349764, "lon": -6.260273, "name": "Dublin" }, "tehran": { "country": "IR", "lat": 35.700618, "lon": 51.401378, "name": "Tehran" }, "baghdad": { "country": "IQ", "lat": 33.302431, "lon": 44.378799, "name": "Baghdad" }, "reykjavik": { "country": "IS", "lat": 64.145981, "lon": -21.942237, "name": "Reykjavik" }, "jerusalem": { "country": "IL", "lat": 31.778345, "lon": 35.225079, "name": "Jerusalem" }, "rome": { "country": "IT", "lat": 41.89332, "lon": 12.482932, "name": "Rome" }, "kingston": { "country": "NF", "lat": 17.971215, "lon": -76.792813, "name": "Kingston" }, "saint helier": { "country": "JE", "lat": 47.384387, "lon": 4.683325, "name": "Saint Helier" }, "amman": { "country": "JO", "lat": 31.951569, "lon": 35.923962, "name": "Amman" }, "tokyo": { "country": "JP", "lat": 35.682839, "lon": 139.759455, "name": "Tokyo" }, "astana": { "country": "KZ", "lat": 51.12822, "lon": 71.430668, "name": "Astana" }, "nairobi": { "country": "KE", "lat": -1.283253, "lon": 36.817245, "name": "Nairobi" }, "bishkek": { "country": "KG", "lat": 42.876562, "lon": 74.607008, "name": "Bishkek" }, "phnom penh": { "country": "KH", "lat": 11.568271, "lon": 104.922443, "name": "Phnom Penh" }, "south tarawa": { "country": "KI", "lat": 1.349078, "lon": 173.038651, "name": "South Tarawa" }, "basseterre": { "country": "KN", "lat": 17.296092, "lon": -62.722301, "name": "Basseterre" }, "seoul": { "country": "KR", "lat": 37.566679, "lon": 126.978291, "name": "Seoul" }, "kuwait city": { "country": "KW", "lat": 29.379709, "lon": 47.973563, "name": "Kuwait City" }, "vientiane": { "country": "LA", "lat": 17.964099, "lon": 102.613371, "name": "Vientiane" }, "beirut": { "country": "LB", "lat": 33.89592, "lon": 35.47843, "name": "Beirut" }, "monrovia": { "country": "LR", "lat": 6.328034, "lon": -10.797788, "name": "Monrovia" }, "tripoli": { "country": "LY", "lat": 32.896672, "lon": 13.177792, "name": "Tripoli" }, "castries": { "country": "LC", "lat": 13.952589, "lon": -60.987824, "name": "Castries" }, "vaduz": { "country": "LI", "lat": 47.139286, "lon": 9.522796, "name": "Vaduz" }, "colombo": { "country": "LK", "lat": 6.934997, "lon": 79.853846, "name": "Colombo" }, "maseru": { "country": "LS", "lat": -29.310054, "lon": 27.478222, "name": "Maseru" }, "vilnius": { "country": "LT", "lat": 54.687046, "lon": 25.282911, "name": "Vilnius" }, "luxembourg": { "country": "LU", "lat": 49.815868, "lon": 6.129675, "name": "Luxembourg" }, "riga": { "country": "LV", "lat": 56.949398, "lon": 24.105185, "name": "Riga" }, "rabat": { "country": "MA", "lat": 34.022405, "lon": -6.834543, "name": "Rabat" }, "monaco": { "country": "MC", "lat": 43.732349, "lon": 7.427683, "name": "Monaco" }, "chisinau": { "country": "MD", "lat": 47.024471, "lon": 28.832253, "name": "Chișinău" }, "antananarivo": { "country": "MG", "lat": -18.910012, "lon": 47.525581, "name": "Antananarivo" }, "male": { "country": "MV", "lat": 16.370036, "lon": -2.290024, "name": "Malé" }, "mexico city": { "country": "MX", "lat": 19.43263, "lon": -99.133178, "name": "Mexico City" }, "majuro": { "country": "MH", "lat": 7.090992, "lon": 171.381635, "name": "Majuro" }, "bamako": { "country": "ML", "lat": 12.605033, "lon": -7.986514, "name": "Bamako" }, "valletta": { "country": "MT", "lat": 35.898982, "lon": 14.513676, "name": "Valletta" }, "ulan bator": { "country": "MN", "lat": 47.918468, "lon": 106.917702, "name": "Ulan Bator" }, "saipan": { "country": "MP", "lat": 15.190983, "lon": 145.746853, "name": "Saipan" }, "maputo": { "country": "MZ", "lat": -25.966213, "lon": 32.56745, "name": "Maputo" }, "nouakchott": { "country": "MR", "lat": 18.079238, "lon": -15.978007, "name": "Nouakchott" }, "plymouth": { "country": "MS", "lat": 50.371266, "lon": -4.142566, "name": "Plymouth" }, "fort de france": { "country": "MQ", "lat": 14.602796, "lon": -61.067672, "name": "Fort-de-France" }, "port louis": { "country": "MU", "lat": -20.163728, "lon": 57.504533, "name": "Port Louis" }, "lilongwe": { "country": "MW", "lat": -13.987511, "lon": 33.768144, "name": "Lilongwe" }, "kuala lumpur": { "country": "MY", "lat": 3.151696, "lon": 101.694237, "name": "Kuala Lumpur" }, "mamoudzou": { "country": "YT", "lat": -12.780586, "lon": 45.227991, "name": "Mamoudzou" }, "windhoek": { "country": "NA", "lat": -22.574392, "lon": 17.079069, "name": "Windhoek" }, "noumea": { "country": "NC", "lat": -22.274526, "lon": 166.442419, "name": "Nouméa" }, "niamey": { "country": "NE", "lat": 13.524834, "lon": 2.109823, "name": "Niamey" }, "abuja": { "country": "NG", "lat": 9.06433, "lon": 7.489297, "name": "Abuja" }, "managua": { "country": "NI", "lat": 12.145991, "lon": -86.274666, "name": "Managua" }, "alofi": { "country": "NU", "lat": -19.053416, "lon": -169.919199, "name": "Alofi" }, "amsterdam": { "country": "NL", "lat": 52.37276, "lon": 4.893604, "name": "Amsterdam" }, "oslo": { "country": "NO", "lat": 59.91333, "lon": 10.73897, "name": "Oslo" }, "kathmandu": { "country": "NP", "lat": 27.708317, "lon": 85.320582, "name": "Kathmandu" }, "yaren": { "country": "NR", "lat": -0.547101, "lon": 166.9164, "name": "Yaren" }, "wellington": { "country": "NZ", "lat": -41.288795, "lon": 174.777211, "name": "Wellington" }, "muscat": { "country": "OM", "lat": 23.599786, "lon": 58.54513, "name": "Muscat" }, "islamabad": { "country": "PK", "lat": 33.693812, "lon": 73.065151, "name": "Islamabad" }, "panama city": { "country": "PA", "lat": 8.971449, "lon": -79.53418, "name": "Panama City" }, "lima": { "country": "PE", "lat": -12.062106, "lon": -77.036526, "name": "Lima" }, "manila": { "country": "PH", "lat": 14.590622, "lon": 120.97997, "name": "Manila" }, "ngerulmud": { "country": "PW", "lat": 7.500619, "lon": 134.624301, "name": "Ngerulmud" }, "port moresby": { "country": "PG", "lat": -9.47433, "lon": 147.15995, "name": "Port Moresby" }, "warsaw": { "country": "PL", "lat": 52.233717, "lon": 21.071411, "name": "Warsaw" }, "san juan": { "country": "PR", "lat": 18.465299, "lon": -66.116666, "name": "San Juan" }, "pyongyang": { "country": "KP", "lat": 39.019474, "lon": 125.753388, "name": "Pyongyang" }, "lisbon": { "country": "PT", "lat": 38.707751, "lon": -9.136592, "name": "Lisbon" }, "asuncion": { "country": "PY", "lat": -25.280046, "lon": -57.634381, "name": "Asunción" }, "papeete": { "country": "PF", "lat": -17.537384, "lon": -149.565996, "name": "Papeetē" }, "doha": { "country": "QA", "lat": 25.285633, "lon": 51.526416, "name": "Doha" }, "saint denis": { "country": "RE", "lat": 48.935773, "lon": 2.358023, "name": "Saint-Denis" }, "bucharest": { "country": "RO", "lat": 44.436141, "lon": 26.10272, "name": "Bucharest" }, "moscow": { "country": "RU", "lat": 55.750446, "lon": 37.617494, "name": "Moscow" }, "kigali": { "country": "RW", "lat": -1.88596, "lon": 30.129675, "name": "Kigali" }, "riyadh": { "country": "SA", "lat": 24.631969, "lon": 46.715065, "name": "Riyadh" }, "khartoum": { "country": "SD", "lat": 15.593325, "lon": 32.53565, "name": "Khartoum" }, "dakar": { "country": "SN", "lat": 14.693425, "lon": -17.447938, "name": "Dakar" }, "singapore": { "country": "SG", "lat": 1.357107, "lon": 103.819499, "name": "Singapore" }, "king edward point": { "country": "GS", "lat": -54.283545, "lon": -36.494636, "name": "King Edward Point" }, "longyearbyen": { "country": "SJ", "lat": 78.223156, "lon": 15.646366, "name": "Longyearbyen" }, "honiara": { "country": "SB", "lat": -9.431077, "lon": 159.955255, "name": "Honiara" }, "freetown": { "country": "SL", "lat": 8.479004, "lon": -13.26795, "name": "Freetown" }, "san salvador": { "country": "SV", "lat": 13.698994, "lon": -89.191425, "name": "San Salvador" }, "city of san marino": { "country": "SM", "lat": 43.9364, "lon": 12.446699, "name": "City of San Marino" }, "mogadishu": { "country": "SO", "lat": 2.042778, "lon": 45.338564, "name": "Mogadishu" }, "saint pierre": { "country": "PM", "lat": 48.383272, "lon": 7.471873, "name": "Saint-Pierre" }, "belgrade": { "country": "RS", "lat": 44.817813, "lon": 20.456897, "name": "Belgrade" }, "juba": { "country": "SS", "lat": 4.847202, "lon": 31.595166, "name": "Juba" }, "paramaribo": { "country": "SR", "lat": 5.821609, "lon": -55.177043, "name": "Paramaribo" }, "bratislava": { "country": "SK", "lat": 48.151699, "lon": 17.109306, "name": "Bratislava" }, "ljubljana": { "country": "SI", "lat": 46.04998, "lon": 14.50686, "name": "Ljubljana" }, "stockholm": { "country": "SE", "lat": 59.325117, "lon": 18.071094, "name": "Stockholm" }, "lobamba": { "country": "SZ", "lat": -26.446285, "lon": 31.208378, "name": "Lobamba" }, "victoria": { "country": "SC", "lat": -36.59861, "lon": 144.678005, "name": "Victoria" }, "damascus": { "country": "SY", "lat": 33.51307, "lon": 36.309581, "name": "Damascus" }, "n djamena": { "country": "TD", "lat": 12.119154, "lon": 15.050276, "name": "N'Djamena" }, "lome": { "country": "TG", "lat": 6.130419, "lon": 1.215829, "name": "Lomé" }, "bangkok": { "country": "TH", "lat": 13.754253, "lon": 100.493087, "name": "Bangkok" }, "dushanbe": { "country": "TJ", "lat": 38.542584, "lon": 68.815214, "name": "Dushanbe" }, "fakaofo": { "country": "TK", "lat": -9.374305, "lon": -171.264536, "name": "Fakaofo" }, "ashgabat": { "country": "TM", "lat": 37.939668, "lon": 58.387426, "name": "Ashgabat" }, "dili": { "country": "TL", "lat": 28.651718, "lon": 77.221939, "name": "Dili" }, "nuku alofa": { "country": "TO", "lat": -21.13434, "lon": -175.201808, "name": "Nuku'alofa" }, "port of spain": { "country": "TT", "lat": 10.657268, "lon": -61.518017, "name": "Port of Spain" }, "tunis": { "country": "TN", "lat": 33.843941, "lon": 9.400138, "name": "Tunis" }, "ankara": { "country": "TR", "lat": 39.920777, "lon": 32.854067, "name": "Ankara" }, "funafuti": { "country": "TV", "lat": -8.534995, "lon": 179.11865, "name": "Funafuti" }, "taipei": { "country": "TW", "lat": 25.03752, "lon": 121.56368, "name": "Taipei" }, "dodoma": { "country": "TZ", "lat": -6.337282, "lon": 35.737177, "name": "Dodoma" }, "kampala": { "country": "UG", "lat": 0.317714, "lon": 32.581354, "name": "Kampala" }, "kiev": { "country": "UA", "lat": 50.450034, "lon": 30.524136, "name": "Kiev" }, "montevideo": { "country": "UY", "lat": -34.905904, "lon": -56.191357, "name": "Montevideo" }, "washington d c": { "country": "US", "lat": 38.894986, "lon": -77.036571, "name": "Washington D.C." }, "tashkent": { "country": "UZ", "lat": 41.312336, "lon": 69.278708, "name": "Tashkent" }, "kingstown": { "country": "VC", "lat": 13.156186, "lon": -61.227962, "name": "Kingstown" }, "caracas": { "country": "VE", "lat": 10.506098, "lon": -66.914602, "name": "Caracas" }, "hanoi": { "country": "VN", "lat": 21.02945, "lon": 105.854444, "name": "Hanoi" }, "port vila": { "country": "VU", "lat": -17.741497, "lon": 168.315016, "name": "Port Vila" }, "mata utu": { "country": "WF", "lat": -13.282042, "lon": -176.174022, "name": "Mata-Utu" }, "apia": { "country": "WS", "lat": -13.834369, "lon": -171.769279, "name": "Apia" }, "sana a": { "country": "YE", "lat": 15.353857, "lon": 44.205884, "name": "Sana'a" }, "pretoria": { "country": "ZA", "lat": -25.745937, "lon": 28.187944, "name": "Pretoria" }, "lusaka": { "country": "ZM", "lat": -15.416449, "lon": 28.282154, "name": "Lusaka" }, "harare": { "country": "ZW", "lat": -17.831773, "lon": 31.045686, "name": "Harare" } };
 
+
+
 // Optional exact city overrides for high-priority operational cities.
 // Add entries like:
 // "dhaka": { country: "BD", lat: 23.8103, lon: 90.4125, name: "Dhaka" }
 const CITY_OVERRIDES = {};
+
+const DEMONYM_TO_COUNTRY = {
+    ukrainian: "UA",
+    ukrainians: "UA",
+    russian: "RU",
+    russians: "RU",
+    israeli: "IL",
+    israelis: "IL",
+    iranian: "IR",
+    iranians: "IR",
+    palestinian: "PS",
+    palestinians: "PS",
+    pakistani: "PK",
+    pakistanis: "PK",
+    indian: "IN",
+    indians: "IN",
+    bangladeshi: "BD",
+    bangladeshis: "BD",
+    chinese: "CN",
+    american: "US",
+    americans: "US",
+    british: "GB",
+    turkish: "TR",
+    turks: "TR",
+    syrian: "SY",
+    syrians: "SY",
+    lebanese: "LB",
+    egyptian: "EG",
+    egyptians: "EG",
+    afghan: "AF",
+    afghans: "AF",
+    jordanian: "JO",
+    jordanians: "JO",
+    yemeni: "YE",
+    yemenis: "YE",
+    saudi: "SA",
+    saudis: "SA",
+    qatari: "QA",
+    qataris: "QA",
+    emirati: "AE",
+    emiratis: "AE",
+    iraqi: "IQ",
+    iraqis: "IQ"
+};
+
+const REGION_KEYWORDS = {
+    "middle east": { regionId: "middle_east", name: "Middle East" },
+    "middle eastern": { regionId: "middle_east", name: "Middle East" },
+    "gulf": { regionId: "middle_east", name: "Gulf" },
+    "gulf arab": { regionId: "middle_east", name: "Gulf" },
+    "levant": { regionId: "levant", name: "Levant" },
+    "levantine": { regionId: "levant", name: "Levant" },
+    "europe": { regionId: "europe", name: "Europe" },
+    "european": { regionId: "europe", name: "Europe" },
+    "africa": { regionId: "africa", name: "Africa" },
+    "african": { regionId: "africa", name: "Africa" },
+    "north africa": { regionId: "africa", name: "North Africa" },
+    "sub saharan africa": { regionId: "africa", name: "Sub-Saharan Africa" },
+    "asia": { regionId: "asia", name: "Asia" },
+    "asian": { regionId: "asia", name: "Asia" },
+    "south asia": { regionId: "south_asia", name: "South Asia" },
+    "south asian": { regionId: "south_asia", name: "South Asia" },
+    "east asia": { regionId: "east_asia", name: "East Asia" },
+    "east asian": { regionId: "east_asia", name: "East Asia" },
+    "southeast asia": { regionId: "southeast_asia", name: "Southeast Asia" },
+    "southeast asian": { regionId: "southeast_asia", name: "Southeast Asia" },
+    "central asia": { regionId: "central_asia", name: "Central Asia" },
+    "central asian": { regionId: "central_asia", name: "Central Asia" },
+    "balkans": { regionId: "europe", name: "Balkans" },
+    "balkan": { regionId: "europe", name: "Balkans" },
+    "nordic": { regionId: "europe", name: "Nordic" },
+    "scandinavian": { regionId: "europe", name: "Scandinavia" }
+};
+
+const GROUP_KEYWORDS = {
+    "arab": { groupId: "arab", name: "Arab" },
+    "arabs": { groupId: "arab", name: "Arab" },
+    "arab world": { groupId: "arab", name: "Arab World" },
+    "western": { groupId: "western", name: "Western" },
+    "westerners": { groupId: "western", name: "Western" },
+    "nato": { groupId: "nato", name: "NATO" },
+    "allied": { groupId: "allied", name: "Allied" },
+    "allies": { groupId: "allied", name: "Allied" }
+};
+
 
 function slugify(value) {
     return String(value || "")
@@ -77,6 +164,67 @@ function tryExactLookup(rawValue) {
     return null;
 }
 
+
+function tryDemonymLookup(text = "") {
+    const haystack = ` ${slugify(text)} `;
+    if (!haystack.trim()) return null;
+
+    const demonyms = Object.keys(DEMONYM_TO_COUNTRY).sort((a, b) => b.length - a.length);
+    for (const demonym of demonyms) {
+        if (!demonym) continue;
+        if (haystack.includes(` ${demonym} `)) {
+            const code = DEMONYM_TO_COUNTRY[demonym];
+            return {
+                type: "country",
+                country: code,
+                name: GLOBAL_COUNTRIES[code]?.name || demonym
+            };
+        }
+    }
+
+    return null;
+}
+
+function tryRegionKeywordLookup(text = "") {
+    const haystack = ` ${slugify(text)} `;
+    if (!haystack.trim()) return null;
+
+    const keys = Object.keys(REGION_KEYWORDS).sort((a, b) => b.length - a.length);
+    for (const key of keys) {
+        if (!key) continue;
+        if (haystack.includes(` ${key} `)) {
+            const hit = REGION_KEYWORDS[key];
+            return {
+                type: "region",
+                regionId: hit.regionId,
+                name: hit.name
+            };
+        }
+    }
+
+    return null;
+}
+
+function tryGroupKeywordLookup(text = "") {
+    const haystack = ` ${slugify(text)} `;
+    if (!haystack.trim()) return null;
+
+    const keys = Object.keys(GROUP_KEYWORDS).sort((a, b) => b.length - a.length);
+    for (const key of keys) {
+        if (!key) continue;
+        if (haystack.includes(` ${key} `)) {
+            const hit = GROUP_KEYWORDS[key];
+            return {
+                type: "group",
+                groupId: hit.groupId,
+                name: hit.name
+            };
+        }
+    }
+
+    return null;
+}
+
 function scanTextForCountry(text) {
     const haystack = ` ${slugify(text)} `;
     if (!haystack.trim()) return null;
@@ -90,6 +238,9 @@ function scanTextForCountry(text) {
         }
     }
 
+    const demonymHit = tryDemonymLookup(text);
+    if (demonymHit) return demonymHit;
+
     const capitals = Object.keys(CAPITAL_INDEX).sort((a, b) => b.length - a.length);
     for (const cap of capitals) {
         if (!cap) continue;
@@ -97,6 +248,12 @@ function scanTextForCountry(text) {
             return { type: "capital", ...CAPITAL_INDEX[cap] };
         }
     }
+
+    const regionHit = tryRegionKeywordLookup(text);
+    if (regionHit) return regionHit;
+
+    const groupHit = tryGroupKeywordLookup(text);
+    if (groupHit) return groupHit;
 
     return null;
 }
@@ -120,7 +277,7 @@ export function extractPlaceMatch(event = {}) {
     ];
 
     for (const value of priorityFields) {
-        const hit = tryExactLookup(value);
+        const hit = tryExactLookup(value) || tryDemonymLookup(value) || tryRegionKeywordLookup(value) || tryGroupKeywordLookup(value);
         if (hit) return hit;
     }
 
@@ -247,6 +404,8 @@ export function resolveDisplayCoordinates(event = {}) {
         placeType: place?.type || "",
         countryCode: place?.country || "",
         countryName: country?.name || "",
+        regionId: place?.regionId || "",
+        groupId: place?.groupId || "",
         resolvedPlaceName: place?.name || country?.name || ""
     };
 }
