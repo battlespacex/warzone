@@ -470,3 +470,15 @@
 }
 /* #endregion =========== */
 
+
+
+/* #region =========== LIVE FIGHTER =========== */
+:root {
+    --warzone-live-track-color: rgba(24,226,219,1);
+    --warzone-live-track-opacity: 0.85;
+    --warzone-live-track-width: 2.2;
+    --warzone-live-track-scale: 12;
+    --warzone-live-track-min-pixel-size: 96;
+    --warzone-live-track-max-scale: 280;
+}
+/* #endregion =========== */

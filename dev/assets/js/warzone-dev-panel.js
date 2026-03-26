@@ -13,7 +13,14 @@
 // Koi server ya database nahi chahiye — central event pipeline use karta hai
 
 import * as Cesium from "cesium";
-import { handleIncomingEvent, triggerWarzoneAlert } from "./essential.js";
+import {
+    handleIncomingEvent,
+    triggerWarzoneAlert
+} from "./essential.js";
+import {
+    startDevTrackSimulation,
+    stopDevTrackSimulation
+} from "./warzone-live-fighter.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 
 // ─── Test event templates ──────────────────────────────────────────────────────
@@ -292,6 +299,96 @@ const TEST_EVENTS = {
     },
 };
 
+const TEST_TRACK_ROUTES = {
+    fighter_gulf_run: {
+        track_key: "dev-track-fighter-1",
+        title: "F-22 Demo Patrol",
+        source_name: "DEV PANEL",
+        category: "military",
+        subcategory: "fighter",
+        country: "USA",
+        region: "Middle East",
+        from: {
+            lat: 26.7854,
+            lon: 51.5310,
+            altitude_ft: 32000,
+            heading_deg: 90,
+        },
+        to: {
+            lat: 27.3854,
+            lon: 52.4310,
+            altitude_ft: 34000,
+            heading_deg: 135,
+        },
+        steps: 80,
+        intervalMs: 180,
+        loop: false,
+    },
+
+    fighter_orbit_right: {
+        track_key: "dev-track-circle-right",
+        title: "F-22 101",
+        source_name: "DEV PANEL",
+        category: "military",
+        subcategory: "fighter",
+        country: "USA",
+        region: "Middle East",
+        mode: "orbit-right",
+        center: {
+            lat: 31.9,
+            lon: 35.2,
+        },
+        radiusMeters: 25000,
+        altitude_ft: 32000,
+        startAngleDeg: 0,
+        steps: 120,
+        intervalMs: 140,
+        loop: true,
+    },
+
+    fighter_orbit_left: {
+        track_key: "dev-track-circle-left",
+        title: "F-22 101",
+        source_name: "DEV PANEL",
+        category: "military",
+        subcategory: "fighter",
+        country: "USA",
+        region: "Middle East",
+        mode: "orbit-left",
+        center: {
+            lat: 31.9,
+            lon: 35.2,
+        },
+        radiusMeters: 25000,
+        altitude_ft: 32000,
+        startAngleDeg: 0,
+        steps: 120,
+        intervalMs: 140,
+        loop: true,
+    },
+
+    fighter_turn_test: {
+        track_key: "dev-track-turns",
+        title: "F-16 Sq Detected",
+        source_name: "DEV PANEL",
+        category: "military",
+        subcategory: "fighter",
+        country: "USA",
+        region: "Middle East",
+        mode: "route",
+        waypoints: [
+            { lat: 31.2, lon: 34.4, altitude_ft: 32000, heading_deg: 60 },
+            { lat: 31.8, lon: 35.0, altitude_ft: 32000, heading_deg: 90 },
+            { lat: 32.3, lon: 35.8, altitude_ft: 32000, heading_deg: 135 },
+            { lat: 31.9, lon: 36.5, altitude_ft: 32000, heading_deg: 210 },
+            { lat: 31.1, lon: 36.0, altitude_ft: 32000, heading_deg: 270 },
+        ],
+        steps: 140,
+        intervalMs: 140,
+        loop: true,
+    },
+};
+
 // ─── Log helper ───────────────────────────────────────────────────────────────
 
 function devLog(msg) {
@@ -535,6 +632,42 @@ export function initDevPanel() {
             });
 
             devLog(`🔴 Pulse highlight: ${loc.label} [${loc.severity}]`);
+        });
+    });
+
+    document.querySelectorAll(".wz-dev-btn[data-track-route]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const key = btn.dataset.trackRoute;
+            const route = TEST_TRACK_ROUTES[key];
+            if (!route) return;
+
+            startDevTrackSimulation(route);
+
+            const viewer = window.__warzoneViewer;
+            if (viewer) {
+                const focusPoint = route.center || route.from || route.waypoints?.[0];
+
+                if (focusPoint?.lon != null && focusPoint?.lat != null) {
+                    viewer.camera.flyTo({
+                        destination: Cesium.Cartesian3.fromDegrees(
+                            Number(focusPoint.lon),
+                            Number(focusPoint.lat),
+                            900000
+                        ),
+                        duration: 1.2,
+                    });
+                }
+            }
+
+            devLog(`✈ Route sim started: ${route.title}`);
+        });
+    });
+
+    document.querySelectorAll(".wz-dev-btn[data-track-stop]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const key = btn.dataset.trackStop || "dev-track-fighter-1";
+            stopDevTrackSimulation(key);
+            devLog(`✖ Route sim stopped: ${key}`);
         });
     });
 

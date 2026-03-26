@@ -470,6 +470,62 @@ async function upsertAdsbEvents(events) {
     }
 }
 
+function buildAdsbTrack(aircraft) {
+    const { icao, callsign, country, lon, lat, alt, speed, heading, squawk } = aircraft;
+
+    const subcat = classifyAircraft(callsign, icao, country);
+    const altFt = alt ? Math.round(alt * 3.28084) : null;
+    const speedKt = speed ? Math.round(speed * 1.944) : null;
+
+    const title = callsign
+        ? `${subcat.toUpperCase()} ${callsign} — ${country}`
+        : `${subcat.toUpperCase()} ${icao.toUpperCase()} — ${country}`;
+
+    return {
+        track_key: `adsb-${icao}`,
+        track_type: "aircraft",
+        category: "military",
+        subcategory: subcat,
+        source_name: "ADS-B / OpenSky Network",
+        title,
+        lat,
+        lon,
+        altitude_ft: altFt,
+        speed_kts: speedKt,
+        heading_deg: heading != null ? Math.round(heading) : null,
+        region: null,
+        country: country || null,
+        status: "active",
+        occurred_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {
+            icao,
+            callsign: callsign || null,
+            role: subcat,
+            altitude_ft: altFt,
+            speed_kts: speedKt,
+            heading: heading != null ? Math.round(heading) : null,
+            squawk: squawk || null,
+            country,
+            on_ground: false,
+        },
+    };
+}
+
+async function upsertAdsbTracks(tracks) {
+    if (!tracks.length) return;
+
+    const { error } = await supabase
+        .from("tracks")
+        .upsert(tracks, { onConflict: "track_key", ignoreDuplicates: false });
+
+    if (error) {
+        console.error("[adsb] Supabase tracks upsert error:", error.message);
+    } else {
+        console.log(`[adsb] Upserted ${tracks.length} military aircraft tracks`);
+    }
+}
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Main
 // ───────────────────────────────────────────────────────────────────────────────
@@ -512,5 +568,8 @@ export async function runAdsbWorker() {
     console.log(`${label} Detected ${military.length} military aircraft`);
 
     const toInsert = military.map(buildAdsbEvent);
+    const toTracks = military.map(buildAdsbTrack);
+
     await upsertAdsbEvents(toInsert);
+    await upsertAdsbTracks(toTracks);
 }

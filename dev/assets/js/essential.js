@@ -12,6 +12,12 @@ import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
 import { theaterMatchesRegion } from "./warzone-theaters.js";
 import { updateTheaterPanel } from "./warzone-theater-panel.js";
 import { resolveDisplayCoordinates, eventMatchesBounds } from "./warzone-location-resolver.js";
+import {
+    upsertLiveTrack,
+    clearLiveTrack,
+    startDevTrackSimulation,
+    stopDevTrackSimulation,
+} from "./warzone-live-fighter.js";
 
 let __eventsCache = [];
 let __visibleEventsCache = [];
@@ -1346,6 +1352,7 @@ function renderKillChain(events) {
         </article>
     `).join("");
 }
+
 function ensureAlertAudio() {
     if (__alertAudio) return __alertAudio;
     __alertAudio = document.getElementById("warzone-alert-audio");
@@ -1663,6 +1670,26 @@ export async function initWarzoneApp() {
     __lastViewportKey = "";
     __viewportScoped = false;
     scheduleViewportFetch(150);
+
+
+    supabase
+        .channel('tracks-live')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'tracks' },
+            (payload) => {
+                console.log("[TRACK LIVE]", payload);
+
+                const track = payload.new;
+                if (!track) return;
+
+                upsertLiveTrack(track);
+            }
+        )
+        .subscribe((status, err) => {
+            console.log("TRACK SUB STATUS:", status);
+            if (err) console.error("TRACK ERROR:", err);
+        });
 
     return events;
 }
