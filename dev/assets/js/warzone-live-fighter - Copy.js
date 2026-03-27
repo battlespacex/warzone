@@ -28,8 +28,6 @@ const LIVE_TRACK_MODEL_BY_SUBTYPE = {
     transport: "/assets/images/models/air/fighter.glb",
     logistics: "/assets/images/models/air/fighter.glb",
     logistic: "/assets/images/models/air/fighter.glb",
-    bomber: "/assets/images/models/air/fighter.glb",
-    trainer: "/assets/images/models/air/fighter.glb",
     drone: "/assets/images/models/air/uav.glb",
     uav: "/assets/images/models/air/uav.glb",
     helicopter: "/assets/images/models/air/fighter.glb",

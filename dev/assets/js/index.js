@@ -6,11 +6,13 @@ import { initBoot, initWarzoneApp, initAudio } from "./essential.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
 import { initRegionSelector } from "./warzone-region-selector.js";
 import {
-    subscribeToLiveEvents, subscribeToActiveAlerts,
-    startActiveAlertsPollingFallback
+    subscribeToLiveEvents,
+    subscribeToActiveAlerts,
+    startActiveAlertsPollingFallback,
 } from "./warzone-realtime.js";
 import { initDevPanel } from "./warzone-dev-panel.js";
 import { bindWarzoneUi } from "./warzone-ui.js";
+import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 
 initBoot();
 
@@ -20,6 +22,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
+
+        initWarzoneMilSats(viewer);
+        initRegionSelector(viewer);
+
+        setTimeout(() => {
+            try {
+                window.refreshWarzoneMilSatsScale?.();
+            } catch (error) {
+                console.warn("[warzone-mil-sats] scale refresh failed:", error);
+            }
+        }, 150);
 
         let started = false;
 
@@ -38,8 +51,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 console.error("Deferred app init failed:", error);
             }
         };
-
-        initRegionSelector(viewer);
     } catch (error) {
         console.error("App init failed:", error);
     }

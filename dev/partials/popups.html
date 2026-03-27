@@ -21,10 +21,6 @@
             </div>
         </template>
 
-        <!-- popups.html -->
-        <!-- Keep a single sticky alert block and remove any older inline close script
-         that directly removes classes from #warzone-alert. -->
-
         <div id="warzone-alert"
              class="warzone-alert"
              role="status"
@@ -90,23 +86,23 @@
                     </div>
 
                     <div class="wz-intro__body">
-                        <h2 id="wz-intro-title" class="wz-intro__title">Open-source conflict monitoring built for operational readability</h2>
+                        <h2 id="wz-intro-title" class="wz-intro__title">Live open-source conflict monitoring built for operational readability</h2>
                         <p id="wz-intro-summary">
-                            StratOps is BattleSpaceX's live monitoring environment for open-source conflict activity, strategic alerts, airspace changes, cyber indicators, and multi-domain event visualization.
-                            It is designed as a public situational-awareness interface, not an official warning network, intelligence product, or emergency instruction system.
+                            StratOps is BattleSpaceX's live operational interface for monitoring conflict activity, military air movement, strategic alerts, airspace changes, cyber-adjacent indicators, and multi-domain event patterns through a 3D battlespace environment.
+                            It is built for situational awareness, research, and structured OSINT visibility, not as an official warning system, emergency dispatch network, or classified intelligence product.
                         </p>
 
                         <ul class="wz-terms-list wz-list-view">
-                            <li><strong>Live monitoring interface</strong> for strike activity, alerts, airspace, cyber signals, and theater-level context</li>
-                            <li><strong>OSINT-informed workflow</strong> using public reporting, telemetry-visible movement, alerts, and structured event inputs</li>
-                            <li><strong>3D battlespace visualization</strong> with filters, overlays, widgets, hotspots, and analytics panels</li>
-                            <li><strong>For research and awareness</strong>, not for targeting, combat use, official warning, or mission-critical decisions</li>
+                            <li><strong>Near real-time operational map</strong> for strikes, alerts, aircraft activity, layered intelligence signals, and regional escalation context</li>
+                            <li><strong>OSINT-driven workflow</strong> using public telemetry, structured event feeds, open reporting, and normalized monitoring logic</li>
+                            <li><strong>Command-style visualization layer</strong> designed for clarity, speed, filtering, and multi-domain readability rather than headline noise</li>
+                            <li><strong>Public research interface</strong> intended for awareness and analysis, not targeting, emergency instruction, or mission-critical decision making</li>
                         </ul>
                     </div>
 
                     <div class="wz-intro__actions">
                         <p class="wz-intro__note">
-                            By continuing, you acknowledge that platform content is informational, observational, and OSINT-informed rather than an official or verified intelligence product.
+                            By continuing, you acknowledge that StratOps presents OSINT-informed monitoring data and derived visualization rather than official or verified military intelligence.
                         </p>
                         <button id="wz-intro-accept" class="btn-primary" type="button"><span aria-hidden="true"></span>Accept and Enter</button>
                     </div>
@@ -145,59 +141,58 @@
                         <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
                             <h3>About StratOps</h3>
                             <p>
-                                <strong>StratOps</strong> is BattleSpaceX's public-facing operational map environment for visualizing conflict activity, military movement indicators, alert conditions, airspace developments, cyber-adjacent signals, and theater-level patterns.
+                                <strong>StratOps</strong> is BattleSpaceX's live battlespace monitoring environment for visualizing conflict activity, military air movement, strategic alerts, escalation signals, airspace changes, cyber-adjacent indicators, and regional event concentration through a single operational map.
                             </p>
                             <p>
-                                The platform is built for users who want a cleaner operational picture than a traditional news feed, raw feed reader, or static conflict map can provide. It blends mapped events, filtered overlays, panel-driven summaries, and analytics views into one command-style interface.
+                                The platform is built for users who want a faster, cleaner, and more structured operational picture than a traditional news feed, raw Telegram stream, or static conflict map can provide. It brings mapped events, live movement, filters, alerts, overlays, and analysis panels into one command-style interface.
                             </p>
                             <p>
-                                The goal is not spectacle for its own sake. The goal is speed, readability, and situational context through a stronger OSINT presentation layer.
+                                The goal is not spectacle. The goal is speed, readability, context, and stronger visual interpretation of publicly observable signals.
                             </p>
 
                             <h3>What makes the platform different</h3>
                             <ul class="wz-terms-list wz-list-view">
-                                <li><strong>BattleSpaceX product</strong> with a distinct command-console visual language</li>
-                                <li><strong>Multi-domain awareness</strong> across strike, airspace, cyber, alert, aviation, and theater signals</li>
-                                <li><strong>Layered experience</strong> combining map overlays, widgets, live updates, and analytics panels</li>
-                                <li><strong>Public situational awareness</strong> rather than official intelligence, emergency dispatch, or government warning</li>
-                                <li><strong>Performance-oriented structure</strong> built to stay readable under dense event conditions</li>
+                                <li><strong>BattleSpaceX product</strong> with a dedicated operational interface rather than a generic news-style layout</li>
+                                <li><strong>Multi-domain awareness</strong> across strike, airspace, cyber, alerts, aviation, and theater-level activity</li>
+                                <li><strong>Layered experience</strong> combining map overlays, widgets, hotspots, and analytics in one continuous workflow</li>
+                                <li><strong>Near real-time signal visibility</strong> where public telemetry and open reporting support live or near-live updates</li>
+                                <li><strong>Performance-oriented presentation</strong> designed to remain usable under dense event conditions</li>
                             </ul>
 
                             <p class="wz-terms-footer">
-                                StratOps is a public OSINT-informed monitoring platform. It is not affiliated with any government, military, or emergency service.
+                                StratOps is an independent OSINT-informed monitoring platform and is not affiliated with any government, military, intelligence service, or emergency authority.
                             </p>
                         </div>
 
                         <div class="wz-modal__pane" data-pane="capabilities" role="tabpanel">
                             <h3>Operational Capabilities</h3>
                             <p>
-                                Depending on source visibility, current theater conditions, and active filters, StratOps may present a broad range of conflict-relevant signal types and operational overlays.
+                                Depending on source visibility, current theater conditions, and active filter state, StratOps can present a broad range of conflict-relevant signals and derived operational overlays.
                             </p>
 
                             <h3>Signal coverage</h3>
                             <ul class="wz-terms-list wz-list-view">
-                                <li><strong>Strike activity</strong> including missile, rocket, drone, UAV, artillery, and airstrike-linked incidents</li>
-                                <li><strong>Military aviation</strong> including fighter, tanker, patrol, transport, AWACS, ISR, and reconnaissance-relevant tracks where public visibility exists</li>
-                                <li><strong>Naval and maritime signals</strong> where public movement or theater context is available</li>
-                                <li><strong>Alerts and sirens</strong> tied to warning conditions or elevated threat states</li>
-                                <li><strong>Airspace changes</strong> such as closures, restrictions, or conflict-linked aviation notices</li>
+                                <li><strong>Strike activity</strong> including missile, rocket, drone, UAV, artillery, airstrike-linked, and impact-linked incidents</li>
+                                <li><strong>Military aviation</strong> including fighter, tanker, transport, AWACS, ISR, reconnaissance, helicopter, UAV, bomber, and trainer categories where public telemetry exists</li>
+                                <li><strong>Naval and maritime signals</strong> where public movement or theater-linked reporting supports display</li>
+                                <li><strong>Alert and siren conditions</strong> for elevated threat status and warning-linked activity</li>
+                                <li><strong>Airspace disruption</strong> including closures, restrictions, and aviation changes tied to conflict conditions</li>
                                 <li><strong>Cyber and strategic indicators</strong> where public reporting or structured event logic supports display</li>
-                                <li><strong>Anomaly, thermal, or fire-linked detections</strong> when relevant to battlespace monitoring</li>
+                                <li><strong>Hotspots and anomaly clusters</strong> for rapid scanning of concentrated activity</li>
                             </ul>
 
                             <h3>Visualization features</h3>
                             <ul class="wz-terms-list wz-list-view">
-                                <li><strong>Strike arcs and trajectories</strong> for visualizing event flow and impact direction</li>
-                                <li><strong>Hotspots and cluster views</strong> for dense activity concentration</li>
-                                <li><strong>Movement tracks</strong> where aircraft, drone, or maritime path logic is available</li>
-                                <li><strong>Heatmap and density views</strong> for rapid theater scanning</li>
-                                <li><strong>Layer toggles and theater widgets</strong> for domain-specific control</li>
-                                <li><strong>Regional filtering</strong> for switching operational focus quickly</li>
-                                <li><strong>Live update workflow</strong> for fresh event ingestion and interface refresh</li>
+                                <li><strong>Strike arcs and trajectories</strong> for visualizing attack direction and event flow</li>
+                                <li><strong>Live air tracks</strong> where telemetry-visible aircraft movement can be normalized and rendered on the globe</li>
+                                <li><strong>Theater filters and regional selection</strong> for rapid operational focus switching</li>
+                                <li><strong>Widgets and overlays</strong> for counter, cyber, airspace, escalation, and map-layer control</li>
+                                <li><strong>Clustered hotspots and event detail views</strong> for dense activity zones</li>
+                                <li><strong>Operational map workflow</strong> combining live feeds, derived context, and user-controlled visibility</li>
                             </ul>
 
                             <p class="wz-terms-footer">
-                                Coverage always depends on public visibility, telemetry, reporting quality, and current feed availability.
+                                Coverage always depends on public visibility, reporting quality, telemetry availability, and current operating conditions.
                             </p>
                         </div>
 
@@ -209,20 +204,21 @@
 
                             <h3>Workflow</h3>
                             <ul class="wz-terms-list wz-list-view">
-                                <li><strong>Collection</strong> of public reporting, alerts, telemetry-visible movement, and structured OSINT-style event inputs</li>
-                                <li><strong>Normalization</strong> so different source types can be mapped through one common event model</li>
-                                <li><strong>Filtering</strong> by region, viewport, time, active layer state, and user-selected mode</li>
-                                <li><strong>Rendering</strong> through hotspots, tracks, arcs, panels, alerts, and analytics views</li>
-                                <li><strong>Revision</strong> as records are updated, corrected, de-duplicated, or visually re-prioritized</li>
+                                <li><strong>Collection</strong> of public reporting, alert streams, telemetry-visible movement, and structured OSINT-style event inputs</li>
+                                <li><strong>Normalization</strong> so different signal types can be translated into one common event and track model</li>
+                                <li><strong>Classification</strong> for aircraft roles, alert types, strike patterns, and event categories where signals allow</li>
+                                <li><strong>Filtering</strong> by region, viewport, time, layer state, and user-selected operational mode</li>
+                                <li><strong>Rendering</strong> through hotspots, tracks, arcs, panels, alerts, and derived analytics views</li>
+                                <li><strong>Revision</strong> as records are corrected, refreshed, de-duplicated, grouped, or re-prioritized</li>
                             </ul>
 
                             <h3>Why the picture may change</h3>
                             <p>
-                                Displayed events may be delayed, grouped, inferred, clustered, or reclassified as better reporting becomes available. Visual overlays are built for readability and public awareness. They are not a literal replacement for primary-source verification.
+                                Displayed events may be delayed, clustered, inferred, normalized, or reclassified as better reporting becomes available. The platform is built for readability and situational awareness, not as a literal replacement for primary-source verification.
                             </p>
 
                             <p class="wz-terms-footer">
-                                StratOps explains what the platform does without exposing protected source composition or internal ranking logic.
+                                StratOps explains what the platform does without exposing protected source composition, ranking logic, or internal processing rules.
                             </p>
                         </div>
 
@@ -230,12 +226,12 @@
                             <h3>Terms of Use and Disclaimer</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li><strong>Informational use only.</strong> This platform is provided for informational, analytical, educational, and research use.</li>
-                                <li><strong>No operational use.</strong> It must not be used for combat decision-making, targeting, navigation, surveillance operations, or emergency direction.</li>
-                                <li><strong>No accuracy guarantee.</strong> Records may contain gaps, delays, duplicates, stale entries, inferred classifications, or conflicting reports.</li>
+                                <li><strong>No operational or combat use.</strong> It must not be used for targeting, mission execution, surveillance operations, navigation, emergency direction, or combat decision-making.</li>
+                                <li><strong>No accuracy guarantee.</strong> Records may contain gaps, duplicates, stale entries, inferred classifications, delays, incomplete summaries, or conflicting reports.</li>
                                 <li><strong>Independent verification required.</strong> Users remain responsible for verifying any information before relying on it.</li>
                                 <li><strong>No government affiliation.</strong> BattleSpaceX is an independent platform and not a substitute for official warning, aviation, maritime, emergency, or civil-defense channels.</li>
                                 <li><strong>Restricted reuse.</strong> Unauthorized scraping, bulk extraction, automated mirroring, systematic republication, resale, or abuse of platform content is prohibited.</li>
-                                <li><strong>Use at your own risk.</strong> Accessing the platform means you accept these limitations and use the service at your own discretion.</li>
+                                <li><strong>Use at your own risk.</strong> Accessing the platform means you accept these limits and use the service at your own discretion.</li>
                             </ul>
 
                             <p class="wz-terms-footer">
@@ -260,16 +256,16 @@
                             <h3>What remains protected</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li>Protected upstream source combinations</li>
-                                <li>Internal weighting, ranking, or confidence logic</li>
+                                <li>Internal weighting, ranking, confidence, and prioritization logic</li>
                                 <li>Private enrichment and ingestion workflows</li>
-                                <li>Confidential feed composition and prioritization rules</li>
+                                <li>Confidential feed composition and processing rules</li>
                             </ul>
 
                             <h3>Important limitations</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li>Coverage varies by region, public visibility, telemetry access, and current conditions</li>
-                                <li>Not every military, aviation, naval, cyber, or strike event is publicly visible</li>
-                                <li>Absence of a signal does not prove absence of an asset or event</li>
+                                <li>Not every military, aviation, naval, cyber, or strike event is publicly visible or continuously trackable</li>
+                                <li>Absence of a signal does not prove absence of an asset, action, or event</li>
                                 <li>Displayed visuals may represent normalized or derived indicators rather than confirmed ground truth</li>
                             </ul>
 
@@ -294,9 +290,9 @@
                 <div class="wz-modal__container wz-region-modal__container">
                     <div class="wz-region-modal__head">
                         <h2 class="wz-region-modal__title" id="wz-region-title">Select Monitoring Region</h2>
-                        <p class="wz-region-modal__sub" id="wz-region-sub">Choose an initial theater to begin monitoring. StratOps provides real-time visibility into open-source conflict activity, alerts, and multi-domain signals.</p>
+                        <p class="wz-region-modal__sub" id="wz-region-sub">Choose an initial theater to begin monitoring. StratOps provides near real-time visibility into open-source conflict activity, alerts, aviation signals, and multi-domain operational context.</p>
                     </div>
-                    <div class="wz-region-modal__content" >
+                    <div class="wz-region-modal__content">
                         <div class="wz-region-modal__grid" id="wz-region-modal-grid" role="listbox" aria-label="Available monitoring regions"></div>
                         <button type="button" class="wz-region-modal__confirm btn-primary" id="wz-region-confirm" disabled>
                             <span aria-hidden="true"></span>

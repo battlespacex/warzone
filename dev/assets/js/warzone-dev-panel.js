@@ -389,6 +389,379 @@ const TEST_TRACK_ROUTES = {
     },
 };
 
+
+
+const DEV_SIM_PRESETS = {
+    fighter: {
+        track_key: "dev-sim-fighter",
+        title: "Live Fighter Test",
+        country: "USA",
+        lat: 31.5,
+        lon: 34.9,
+        toLat: 31.95,
+        toLon: 35.45,
+        altitudeFt: 35000,
+        headingDeg: 45,
+        radiusMeters: 25000,
+        steps: 120,
+        intervalMs: 140,
+        loop: true,
+        motion: "route",
+    },
+    awacs: {
+        track_key: "dev-sim-awacs",
+        title: "Live AWACS Test",
+        country: "NATO",
+        lat: 50.06,
+        lon: 19.94,
+        toLat: 50.4,
+        toLon: 20.5,
+        altitudeFt: 29000,
+        headingDeg: 270,
+        radiusMeters: 38000,
+        steps: 140,
+        intervalMs: 170,
+        loop: true,
+        motion: "orbit-right",
+    },
+    recon: {
+        track_key: "dev-sim-recon",
+        title: "Live Recon Test",
+        country: "USA",
+        lat: 37.06,
+        lon: 36.16,
+        toLat: 37.8,
+        toLon: 37.2,
+        altitudeFt: 40000,
+        headingDeg: 180,
+        radiusMeters: 22000,
+        steps: 150,
+        intervalMs: 170,
+        loop: true,
+        motion: "route",
+    },
+    tanker: {
+        track_key: "dev-sim-tanker",
+        title: "Live Tanker Test",
+        country: "USA",
+        lat: 48.2,
+        lon: 16.37,
+        toLat: 48.9,
+        toLon: 17.2,
+        altitudeFt: 31000,
+        headingDeg: 90,
+        radiusMeters: 28000,
+        steps: 160,
+        intervalMs: 180,
+        loop: true,
+        motion: "route",
+    },
+    drone: {
+        track_key: "dev-sim-drone",
+        title: "Live UAV Test",
+        country: "Unknown",
+        lat: 33.8,
+        lon: 36.2,
+        toLat: 34.1,
+        toLon: 36.6,
+        altitudeFt: 18000,
+        headingDeg: 120,
+        radiusMeters: 18000,
+        steps: 150,
+        intervalMs: 190,
+        loop: true,
+        motion: "orbit-left",
+    },
+    uav: {
+        track_key: "dev-sim-uav",
+        title: "Live UAV Test",
+        country: "Unknown",
+        lat: 33.8,
+        lon: 36.2,
+        toLat: 34.1,
+        toLon: 36.6,
+        altitudeFt: 18000,
+        headingDeg: 120,
+        radiusMeters: 18000,
+        steps: 150,
+        intervalMs: 190,
+        loop: true,
+        motion: "orbit-left",
+    },
+    helicopter: {
+        track_key: "dev-sim-helicopter",
+        title: "Live Helicopter Test",
+        country: "Unknown",
+        lat: 34.3,
+        lon: 36.0,
+        toLat: 34.6,
+        toLon: 36.25,
+        altitudeFt: 9000,
+        headingDeg: 80,
+        radiusMeters: 12000,
+        steps: 140,
+        intervalMs: 170,
+        loop: true,
+        motion: "route",
+    },
+    transport: {
+        track_key: "dev-sim-transport",
+        title: "Live Transport Test",
+        country: "Unknown",
+        lat: 25.2,
+        lon: 55.3,
+        toLat: 26.1,
+        toLon: 56.1,
+        altitudeFt: 28000,
+        headingDeg: 60,
+        radiusMeters: 26000,
+        steps: 150,
+        intervalMs: 180,
+        loop: true,
+        motion: "route",
+    },
+    logistics: {
+        track_key: "dev-sim-logistics",
+        title: "Live Logistics Test",
+        country: "Unknown",
+        lat: 25.2,
+        lon: 55.3,
+        toLat: 26.1,
+        toLon: 56.1,
+        altitudeFt: 28000,
+        headingDeg: 60,
+        radiusMeters: 26000,
+        steps: 150,
+        intervalMs: 180,
+        loop: true,
+        motion: "route",
+    },
+};
+
+function getDevSimElements() {
+    return {
+        subtype: document.getElementById("wz-dev-sim-subtype"),
+        motion: document.getElementById("wz-dev-sim-motion"),
+        trackKey: document.getElementById("wz-dev-sim-trackkey"),
+        title: document.getElementById("wz-dev-sim-title"),
+        country: document.getElementById("wz-dev-sim-country"),
+        lat: document.getElementById("wz-dev-sim-lat"),
+        lon: document.getElementById("wz-dev-sim-lon"),
+        toLat: document.getElementById("wz-dev-sim-to-lat"),
+        toLon: document.getElementById("wz-dev-sim-to-lon"),
+        altitudeFt: document.getElementById("wz-dev-sim-altitude"),
+        headingDeg: document.getElementById("wz-dev-sim-heading"),
+        radiusMeters: document.getElementById("wz-dev-sim-radius"),
+        steps: document.getElementById("wz-dev-sim-steps"),
+        intervalMs: document.getElementById("wz-dev-sim-interval"),
+        loop: document.getElementById("wz-dev-sim-loop"),
+        startBtn: document.getElementById("wz-dev-sim-start"),
+        stopBtn: document.getElementById("wz-dev-sim-stop"),
+        focusBtn: document.getElementById("wz-dev-sim-focus"),
+        resetBtn: document.getElementById("wz-dev-sim-reset"),
+    };
+}
+
+function updateDevSimTrackKey(subtype) {
+    const els = getDevSimElements();
+    if (!els.trackKey) return;
+    const current = String(els.trackKey.value || "").trim();
+    if (!current || current.startsWith("dev-sim-")) {
+        els.trackKey.value = `dev-sim-${subtype}`;
+    }
+}
+
+function applyDevSimPreset(subtype = "fighter") {
+    const preset = DEV_SIM_PRESETS[subtype] || DEV_SIM_PRESETS.fighter;
+    const els = getDevSimElements();
+    if (!els.subtype) return;
+
+    els.subtype.value = subtype;
+    els.motion.value = preset.motion;
+    els.trackKey.value = preset.track_key;
+    els.title.value = preset.title;
+    els.country.value = preset.country;
+    els.lat.value = preset.lat;
+    els.lon.value = preset.lon;
+    els.toLat.value = preset.toLat;
+    els.toLon.value = preset.toLon;
+    els.altitudeFt.value = preset.altitudeFt;
+    els.headingDeg.value = preset.headingDeg;
+    els.radiusMeters.value = preset.radiusMeters;
+    els.steps.value = preset.steps;
+    els.intervalMs.value = preset.intervalMs;
+    els.loop.checked = Boolean(preset.loop);
+    syncDevSimFieldState();
+}
+
+function syncDevSimFieldState() {
+    const els = getDevSimElements();
+    if (!els.motion) return;
+
+    const motion = els.motion.value;
+    const isOrbit = motion === "orbit-right" || motion === "orbit-left";
+    const isTurn = motion === "turn-test";
+
+    [els.toLat, els.toLon].forEach((input) => {
+        if (!input) return;
+        input.disabled = isOrbit || isTurn;
+        input.closest(".wz-dev-field")?.classList.toggle("is-disabled", isOrbit || isTurn);
+    });
+
+    if (els.radiusMeters) {
+        els.radiusMeters.disabled = !isOrbit;
+        els.radiusMeters.closest(".wz-dev-field")?.classList.toggle("is-disabled", !isOrbit);
+    }
+}
+
+function buildGeneratedTurnWaypoints(baseLat, baseLon, altitudeFt, headingDeg) {
+    return [
+        { lat: baseLat, lon: baseLon, altitude_ft: altitudeFt, heading_deg: headingDeg },
+        { lat: baseLat + 0.45, lon: baseLon + 0.45, altitude_ft: altitudeFt, heading_deg: headingDeg + 35 },
+        { lat: baseLat + 0.95, lon: baseLon + 1.0, altitude_ft: altitudeFt, heading_deg: headingDeg + 80 },
+        { lat: baseLat + 0.35, lon: baseLon + 1.45, altitude_ft: altitudeFt, heading_deg: headingDeg + 155 },
+        { lat: baseLat - 0.25, lon: baseLon + 0.9, altitude_ft: altitudeFt, heading_deg: headingDeg + 240 },
+    ];
+}
+
+function buildDevSimConfigFromForm() {
+    const els = getDevSimElements();
+    if (!els.subtype) return null;
+
+    const subtype = String(els.subtype.value || "fighter").toLowerCase();
+    const motion = String(els.motion.value || "route").toLowerCase();
+    const trackKey = String(els.trackKey.value || `dev-sim-${subtype}`).trim();
+    const title = String(els.title.value || `Live ${subtype} Test`).trim();
+    const country = String(els.country.value || "Unknown").trim();
+
+    const lat = Number(els.lat.value);
+    const lon = Number(els.lon.value);
+    const toLat = Number(els.toLat.value);
+    const toLon = Number(els.toLon.value);
+    const altitudeFt = Number(els.altitudeFt.value || 32000);
+    const headingDeg = Number(els.headingDeg.value || 0);
+    const radiusMeters = Number(els.radiusMeters.value || 25000);
+    const steps = Number(els.steps.value || 120);
+    const intervalMs = Number(els.intervalMs.value || 140);
+    const loop = Boolean(els.loop.checked);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+    const base = {
+        track_key: trackKey,
+        title,
+        source_name: "DEV PANEL",
+        category: "military",
+        subcategory: subtype,
+        country,
+        region: "global",
+        steps,
+        intervalMs,
+        loop,
+    };
+
+    if (motion === "orbit-right" || motion === "orbit-left") {
+        return {
+            ...base,
+            mode: motion,
+            center: { lat, lon },
+            radiusMeters,
+            altitude_ft: altitudeFt,
+            startAngleDeg: headingDeg,
+        };
+    }
+
+    if (motion === "turn-test") {
+        return {
+            ...base,
+            mode: "route",
+            waypoints: buildGeneratedTurnWaypoints(lat, lon, altitudeFt, headingDeg),
+        };
+    }
+
+    return {
+        ...base,
+        mode: "route",
+        from: {
+            lat,
+            lon,
+            altitude_ft: altitudeFt,
+            heading_deg: headingDeg,
+        },
+        to: {
+            lat: Number.isFinite(toLat) ? toLat : lat + 0.5,
+            lon: Number.isFinite(toLon) ? toLon : lon + 0.6,
+            altitude_ft: altitudeFt,
+            heading_deg: headingDeg + 35,
+        },
+    };
+}
+
+function focusDevSimFromForm() {
+    const els = getDevSimElements();
+    const lat = Number(els.lat?.value);
+    const lon = Number(els.lon?.value);
+    const viewer = window.__warzoneViewer;
+
+    if (!viewer || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, 900000),
+        duration: 1.2,
+    });
+}
+
+function initDevSimulatorControls() {
+    const els = getDevSimElements();
+    if (!els.subtype) return;
+
+    els.subtype.addEventListener("change", () => {
+        const subtype = String(els.subtype.value || "fighter").toLowerCase();
+        applyDevSimPreset(subtype);
+        updateDevSimTrackKey(subtype);
+        devLog(`🧪 Preset loaded: ${subtype}`);
+    });
+
+    els.motion.addEventListener("change", () => {
+        syncDevSimFieldState();
+    });
+
+    els.resetBtn?.addEventListener("click", () => {
+        const subtype = String(els.subtype.value || "fighter").toLowerCase();
+        applyDevSimPreset(subtype);
+        devLog(`↺ Simulator reset: ${subtype}`);
+    });
+
+    els.focusBtn?.addEventListener("click", () => {
+        focusDevSimFromForm();
+        devLog("🎯 Simulator focus moved");
+    });
+
+    els.startBtn?.addEventListener("click", () => {
+        const config = buildDevSimConfigFromForm();
+        if (!config) {
+            devLog("⚠ Invalid simulator coordinates");
+            return;
+        }
+
+        startDevTrackSimulation(config);
+        focusDevSimFromForm();
+        devLog(`✈ Simulator started: ${config.title} [${config.subcategory}]`);
+    });
+
+    els.stopBtn?.addEventListener("click", () => {
+        const trackKey = String(els.trackKey?.value || "").trim();
+        if (!trackKey) {
+            devLog("⚠ No track key to stop");
+            return;
+        }
+
+        stopDevTrackSimulation(trackKey);
+        devLog(`✖ Simulator stopped: ${trackKey}`);
+    });
+
+    applyDevSimPreset("fighter");
+}
 // ─── Log helper ───────────────────────────────────────────────────────────────
 
 function devLog(msg) {
@@ -501,23 +874,147 @@ function fireTestEvent(key) {
         devLog(`🔴 Alert: ${event.title}`);
         return;
     }
-
-    // Military track logging + flyTo only
+    // ─── REAL AIRCRAFT SPAWN (SUBTYPE-AWARE) ───
     if (event.category === "military") {
-        devLog(`✈ Track: ${event.title}`);
+        const trackKey = `dev-track-${event.id}-${Date.now()}`;
+
+        const baseLat = Number(event.lat);
+        const baseLon = Number(event.lon);
+        const headingDeg = Number(event.metadata?.heading || 0);
+        const altitudeFt = Number(event.metadata?.altitude_ft || 32000);
+        const subtype = String(event.subcategory || "fighter").toLowerCase();
+
+        if (!Number.isFinite(baseLat) || !Number.isFinite(baseLon)) return;
 
         const viewer = window.__warzoneViewer;
-        if (viewer && event.lon != null && event.lat != null) {
+
+        if (subtype === "awacs") {
+            startDevTrackSimulation({
+                track_key: trackKey,
+                title: event.title,
+                source_name: "DEV PANEL",
+                category: "military",
+                subcategory: subtype,
+                country: event.metadata?.country || "Unknown",
+                region: "global",
+                mode: "orbit-right",
+                center: {
+                    lat: baseLat,
+                    lon: baseLon,
+                },
+                radiusMeters: 38000,
+                altitude_ft: altitudeFt,
+                startAngleDeg: headingDeg,
+                steps: 140,
+                intervalMs: 170,
+                loop: true,
+            });
+        } else if (subtype === "recon") {
+            startDevTrackSimulation({
+                track_key: trackKey,
+                title: event.title,
+                source_name: "DEV PANEL",
+                category: "military",
+                subcategory: subtype,
+                country: event.metadata?.country || "Unknown",
+                region: "global",
+                from: {
+                    lat: baseLat,
+                    lon: baseLon,
+                    altitude_ft: altitudeFt,
+                    heading_deg: headingDeg,
+                },
+                to: {
+                    lat: baseLat + 0.9,
+                    lon: baseLon + 1.1,
+                    altitude_ft: altitudeFt,
+                    heading_deg: headingDeg + 20,
+                },
+                steps: 150,
+                intervalMs: 170,
+                loop: true,
+            });
+        } else if (subtype === "tanker") {
+            startDevTrackSimulation({
+                track_key: trackKey,
+                title: event.title,
+                source_name: "DEV PANEL",
+                category: "military",
+                subcategory: subtype,
+                country: event.metadata?.country || "Unknown",
+                region: "global",
+                from: {
+                    lat: baseLat,
+                    lon: baseLon,
+                    altitude_ft: altitudeFt,
+                    heading_deg: headingDeg,
+                },
+                to: {
+                    lat: baseLat + 0.7,
+                    lon: baseLon + 0.9,
+                    altitude_ft: altitudeFt,
+                    heading_deg: headingDeg + 12,
+                },
+                steps: 160,
+                intervalMs: 180,
+                loop: true,
+            });
+        } else if (subtype === "drone" || subtype === "uav") {
+            startDevTrackSimulation({
+                track_key: trackKey,
+                title: event.title,
+                source_name: "DEV PANEL",
+                category: "military",
+                subcategory: subtype,
+                country: event.metadata?.country || "Unknown",
+                region: "global",
+                mode: "orbit-left",
+                center: {
+                    lat: baseLat,
+                    lon: baseLon,
+                },
+                radiusMeters: 18000,
+                altitude_ft: altitudeFt,
+                startAngleDeg: headingDeg,
+                steps: 150,
+                intervalMs: 190,
+                loop: true,
+            });
+        } else {
+            startDevTrackSimulation({
+                track_key: trackKey,
+                title: event.title,
+                source_name: "DEV PANEL",
+                category: "military",
+                subcategory: subtype,
+                country: event.metadata?.country || "Unknown",
+                region: "global",
+                from: {
+                    lat: baseLat,
+                    lon: baseLon,
+                    altitude_ft: altitudeFt,
+                    heading_deg: headingDeg,
+                },
+                to: {
+                    lat: baseLat + (Math.random() * 0.6 - 0.3),
+                    lon: baseLon + (Math.random() * 0.6 - 0.3),
+                    altitude_ft: altitudeFt,
+                    heading_deg: headingDeg + 45,
+                },
+                steps: 120,
+                intervalMs: 140,
+                loop: true,
+            });
+        }
+
+        if (viewer) {
             viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(
-                    Number(event.lon),
-                    Number(event.lat),
-                    800000
-                ),
+                destination: Cesium.Cartesian3.fromDegrees(baseLon, baseLat, 900000),
                 duration: 1.2,
             });
         }
 
+        devLog(`✈ LIVE AIRCRAFT: ${event.title} [${subtype}]`);
         return;
     }
 
@@ -566,7 +1063,7 @@ export function initDevPanel() {
         if (body) body.hidden = !body.hidden;
     });
 
-    document.querySelectorAll(".wz-dev-btn").forEach((btn) => {
+    document.querySelectorAll(".wz-dev-btn[data-event]").forEach((btn) => {
         btn.addEventListener("click", () => {
             fireTestEvent(btn.dataset.event);
         });
@@ -686,6 +1183,8 @@ export function initDevPanel() {
         const log = document.getElementById("wz-dev-log");
         if (log) log.innerHTML = "";
     });
+
+    initDevSimulatorControls();
 
     devLog("Dev panel ready");
     console.log("[dev] Warzone dev panel active — localhost only");

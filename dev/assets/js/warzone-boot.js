@@ -1,9 +1,10 @@
 ﻿// assets/js/warzone-boot.js
 // Site loader, modal handling, and Mac-style dock widget system.
 
+let __siteLoaderHideTimer = 0;
+
 window.__warzoneEnterApp = function () {
     const uiShell = document.getElementById("warzone-ui-shell");
-
     if (!uiShell) return;
 
     uiShell.hidden = false;
@@ -12,16 +13,8 @@ window.__warzoneEnterApp = function () {
         uiShell.classList.add("is-ui-visible");
     });
 
-    document.body.classList.add("is-ui-ready");
+    document.body.classList.add("is-app-active");
 };
-
-function markUiReady(delay = 0) {
-    window.setTimeout(() => {
-        document.body.classList.add("is-ui-ready");
-    }, delay);
-}
-
-let __siteLoaderHideTimer = 0;
 
 window.SiteLoader = {
     start() {
@@ -31,7 +24,6 @@ window.SiteLoader = {
         clearTimeout(__siteLoaderHideTimer);
         loader.classList.remove("is-gone");
         document.body.classList.add("show-loader");
-        document.body.classList.remove("is-ui-ready");
     },
 
     stop() {
@@ -42,7 +34,6 @@ window.SiteLoader = {
         __siteLoaderHideTimer = window.setTimeout(() => {
             document.body.classList.remove("show-loader");
             loader.classList.add("is-gone");
-            markUiReady(0);
         }, 300);
     },
 
@@ -53,13 +44,13 @@ window.SiteLoader = {
         clearTimeout(__siteLoaderHideTimer);
         document.body.classList.remove("show-loader");
         loader.classList.add("is-gone");
-        markUiReady(0);
     },
 };
 
 document.addEventListener("DOMContentLoaded", () => {
     const INTRO_ACCEPT_KEY = "wz_intro_accepted";
     const WZ_WIDGET_KEY = "wz_widget_visibility";
+
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
     }
@@ -68,9 +59,11 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll(selector).forEach((btn) => {
             btn.addEventListener("click", () => {
                 const target = btn.dataset[attrName];
+
                 document.querySelectorAll(selector).forEach((node) => {
                     node.classList.toggle("is-active", node === btn);
                 });
+
                 document.querySelectorAll(panelSelector).forEach((panel) => {
                     panel.classList.toggle("is-active", panel.dataset[panelAttrName] === target);
                 });
@@ -103,9 +96,18 @@ document.addEventListener("DOMContentLoaded", () => {
         alertEl.classList.remove("is-active", "is-red", "is-orange");
     });
 
+    function isAboutModal(modal) {
+        return modal?.id === "wz-about-modal";
+    }
+
     function openModal(modal) {
         if (!modal) return;
         modal.hidden = false;
+
+        if (modal.id === "wz-about-modal") {
+            document.body.classList.add("is-about-open");
+        }
+
         requestAnimationFrame(() => {
             modal.classList.add("is-visible");
         });
@@ -114,6 +116,26 @@ document.addEventListener("DOMContentLoaded", () => {
     function closeModal(modal, callback) {
         if (!modal) return;
         modal.classList.remove("is-visible");
+
+        if (modal.id === "wz-about-modal") {
+            document.body.classList.remove("is-about-open");
+        }
+
+        window.setTimeout(() => {
+            modal.hidden = true;
+            if (typeof callback === "function") callback();
+        }, 220);
+    }
+
+    function closeModal(modal, callback) {
+        if (!modal) return;
+
+        modal.classList.remove("is-visible");
+
+        if (isAboutModal(modal)) {
+            document.body.classList.remove("is-about-open");
+        }
+
         window.setTimeout(() => {
             modal.hidden = true;
             if (typeof callback === "function") callback();
@@ -123,17 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const aboutModal = document.getElementById("wz-about-modal");
     const introModal = document.getElementById("wz-intro-modal");
     const uiShell = document.getElementById("warzone-ui-shell");
-    window.__warzoneEnterApp = function () {
-        if (!uiShell) return;
 
-        uiShell.hidden = false;
-
-        requestAnimationFrame(() => {
-            uiShell.classList.add("is-ui-visible");
-        });
-
-        document.body.classList.add("is-ui-ready");
-    };
     const introAccepted = (() => {
         try {
             return localStorage.getItem(INTRO_ACCEPT_KEY) === "1";
@@ -142,17 +154,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     })();
 
-    /*if (introAccepted && uiShell) {
-        uiShell.hidden = false;
-        requestAnimationFrame(() => {
-            uiShell.classList.add("is-ui-visible");
-        });
-    }*/
-
-    if (introAccepted && uiShell) {
-        uiShell.classList.remove("is-ui-visible");
+    if (uiShell) {
         uiShell.hidden = true;
+        uiShell.classList.remove("is-ui-visible");
     }
+
     function clearStaleLoaderState() {
         if (document.visibilityState === "hidden") return;
         window.SiteLoader?.forceHide?.();
@@ -162,15 +168,12 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("pageshow", clearStaleLoaderState, { passive: true });
     window.addEventListener("focus", clearStaleLoaderState, { passive: true });
 
-
     document.getElementById("dock-about")?.addEventListener("click", () => openModal(aboutModal));
     document.getElementById("wz-about-close")?.addEventListener("click", () => closeModal(aboutModal));
-    aboutModal?.querySelector(".wz-modal__backdrop")?.addEventListener("click", () => closeModal(aboutModal));
 
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
         if (aboutModal && !aboutModal.hidden) closeModal(aboutModal);
-        if (introModal && !introModal.hidden) closeModal(introModal);
     });
 
     document.querySelectorAll(".wz-modal__tab").forEach((tab) => {
@@ -178,13 +181,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const target = tab.dataset.tab;
             const box = tab.closest(".wz-modal__box");
             if (!box) return;
+
             box.querySelectorAll(".wz-modal__tab").forEach((node) => node.classList.remove("is-active"));
             box.querySelectorAll(".wz-modal__pane").forEach((pane) => pane.classList.remove("is-active"));
+
             tab.classList.add("is-active");
             box.querySelector(`.wz-modal__pane[data-pane="${target}"]`)?.classList.add("is-active");
         });
     });
-
 
     if (!introAccepted && introModal) {
         openModal(introModal);
@@ -195,9 +199,12 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem(INTRO_ACCEPT_KEY, "1");
         } catch { }
 
-        closeModal(introModal, () => {
-            window.__warzoneShowRegionModal?.();
-        });
+        if (introModal) {
+            introModal.classList.remove("is-visible");
+            introModal.hidden = true;
+        }
+
+        window.__warzoneShowRegionModal?.(true);
     });
 
     const btnFullscreen = document.getElementById("dock-fullscreen");
@@ -209,6 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.exitFullscreen?.();
             }
         });
+
         document.addEventListener("fullscreenchange", () => {
             btnFullscreen.classList.toggle("is-active", !!document.fullscreenElement);
         });
@@ -220,10 +228,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateBackdrop() {
         if (!isMobileLayout()) return;
+
         const backdrop = getBackdrop();
         if (!backdrop) return;
+
         const anyVisible = Array.from(document.querySelectorAll(".warzone-widget[data-widget-id]"))
             .some((widget) => !widget.classList.contains("wz-is-hidden"));
+
         backdrop.hidden = !anyVisible;
     }
 
@@ -238,9 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         widget.classList.remove("is-collapsed");
 
-        if (collapseBtn) {
-            collapseBtn.setAttribute("aria-expanded", "true");
-        }
+        if (collapseBtn) collapseBtn.setAttribute("aria-expanded", "true");
 
         if (icon) {
             icon.classList.remove("bx-web-ico-close-1-2");
@@ -273,6 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => {
             state[widget.dataset.widgetId] = isWidgetVisible(widget);
         });
+
         try {
             localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(state));
         } catch { }
@@ -280,6 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function loadWidgetState() {
         let saved = {};
+
         try {
             saved = JSON.parse(localStorage.getItem(WZ_WIDGET_KEY) || "{}");
         } catch { }
@@ -295,8 +306,10 @@ document.addEventListener("DOMContentLoaded", () => {
     function syncSeparator() {
         const sep = document.querySelector(".wz-dock__sep");
         if (!sep) return;
+
         const anyVisible = Array.from(document.querySelectorAll(".wz-dock__btn[data-dock-widget]"))
             .some((btn) => !btn.classList.contains("wz-dock--gone"));
+
         sep.classList.toggle("wz-dock--gone", !anyVisible);
     }
 
@@ -307,6 +320,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!widget) return;
 
             const shouldBeGone = isWidgetVisible(widget);
+
             if (shouldBeGone && !btn.classList.contains("wz-dock--gone")) {
                 btn.classList.add("wz-dock--gone");
                 btn.setAttribute("aria-hidden", "true");
@@ -335,17 +349,17 @@ document.addEventListener("DOMContentLoaded", () => {
     loadWidgetState();
     syncDock();
     updateBackdrop();
+
     requestAnimationFrame(() => {
         document.documentElement.classList.remove("wz-no-transitions");
         document.body.classList.remove("wz-no-transitions");
     });
 
-
-
     document.querySelectorAll("[data-widget-close]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const widget = btn.closest(".warzone-widget");
             if (!widget) return;
+
             hideWidget(widget);
             saveWidgetState();
             syncDock();
@@ -356,11 +370,13 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.addEventListener("click", () => {
             const widget = document.querySelector(`.warzone-widget[data-widget-id="${btn.dataset.dockWidget}"]`);
             if (!widget) return;
+
             if (isWidgetVisible(widget)) {
                 hideWidget(widget);
             } else {
                 showWidget(widget);
             }
+
             saveWidgetState();
             syncDock();
         });
@@ -382,8 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const startHeight = content.scrollHeight;
                 content.style.height = `${startHeight}px`;
                 content.style.opacity = "1";
-
-                content.offsetHeight; // force reflow
+                content.offsetHeight;
 
                 panel.classList.add("is-collapsed");
                 content.style.height = "0px";
@@ -392,11 +407,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 btn.setAttribute("aria-expanded", "true");
 
                 panel.classList.remove("is-collapsed");
-
                 content.style.height = "0px";
                 content.style.opacity = "0";
-
-                content.offsetHeight; // force reflow
+                content.offsetHeight;
 
                 const endHeight = content.scrollHeight;
                 content.style.height = `${endHeight}px`;

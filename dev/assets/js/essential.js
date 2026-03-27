@@ -4,7 +4,7 @@ import { supabase } from "./supabase.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
-import { initRegionSelector, onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
+import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId } from "./warzone-layers.js";
 import { renderRanges, clearRanges } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
@@ -1613,8 +1613,6 @@ export async function initWarzoneApp() {
     }
 
     if (viewer) {
-        initRegionSelector(viewer);
-
         onRegionChange(() => {
             __lastViewportKey = "";
             scheduleViewportFetch(60);

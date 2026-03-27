@@ -2,187 +2,150 @@
 /* #region =========== COMMAND CENTER HEADER =========== */
 .warzone-commandbar {
     position: fixed;
-    z-index: 999;
+    inset: 0 0 auto 0;
+    z-index: 10000;
     box-sizing: border-box;
-    width: calc(100% - 0rem);
+    width: 100%;
+    pointer-events: none;
 }
+
+    .warzone-commandbar > * {
+        pointer-events: auto;
+    }
+
 .warzone-brand {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10020;
     display: flex;
     align-items: center;
-    top: 0;
+    justify-content: center;
+    width: 100%;
     border-top: 1rem solid var(--color-teal-glow);
     filter: var(--header-shadow);
-    position: fixed;
-    width: 100%;
-    transform: translateY(-10rem);
     opacity: 0;
-    transition: opacity 1s ease, transform 1s ease;
+    transform: translateY(-8rem);
+    transition: opacity 0.7s ease, transform 0.7s ease;
     will-change: opacity, transform;
 }
-.is-ui-visible .warzone-brand {
+
+body.is-app-active .warzone-brand {
     opacity: 1;
     transform: translateY(0);
-    transition-delay: 0.5s;
+    transition-delay: 0.1s;
 }
+
 .warzone-logo {
-    transform: translateX(-50%);
-    left: 50%;
     position: absolute;
     top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
     opacity: 0;
-    transition: opacity 1s ease;
+    transition: opacity 0.55s ease;
     will-change: opacity;
 }
-.is-ui-visible .warzone-logo {
+
+body.is-app-active .warzone-logo {
     opacity: 1;
-    transition-delay: 1.5s;
+    transition-delay: 0.35s;
 }
+
 .warzone-logo img {
     z-index: 1;
     width: auto;
-    height: 5rem;
+    height: 6rem;
 }
-/* UNUSED CANDIDATE START
-   selector: .warzone-bg
-   classes: warzone-bg
-   reason: no references found outside defining CSS file(s) during static scan
-.warzone-bg {
-clip-path: polygon(0 -.4rem, 100% -.4rem, calc(100% - 8rem) 100%, 8rem 100%);
-    background: var(--color-black);
-    padding: 2rem 9rem;
-    left: 50%;
-    position: relative;
+
+.warzone-region-bar,
+.warzone-actions {
     position: absolute;
-    top: 0;
-    left: .1rem;
-    right: .1rem;
-    bottom: 0.2rem;
-    z-index: 1;
-}
-UNUSED CANDIDATE END */
-.warzone-region-bar, .warzone-actions {
-    gap: .5rem;
-    position: fixed;
     top: 4rem;
     display: flex;
     align-items: center;
+    gap: .5rem;
     opacity: 0;
-    transition: opacity 1s ease;
+    transition: opacity 0.5s ease;
     will-change: opacity;
+    z-index: 9000
 }
-.is-ui-visible .warzone-region-bar, .is-ui-visible .warzone-actions {
+
+body.is-app-active .warzone-region-bar,
+body.is-app-active .warzone-actions {
     opacity: 1;
-    transition-delay: 2.5s;
+    transition-delay: 0.95s;
 }
+
 .warzone-region-bar {
     left: 2rem;
 }
+
     .warzone-region-bar .static-icon {
-        font-size: var(--icon-xl)
+        font-size: var(--icon-xl);
     }
+
 .warzone-actions {
     right: 2rem;
-    display: flex;
-    align-items: center;
 }
+
     .warzone-actions ul {
         display: flex;
         align-items: center;
-        list-style: none
+        list-style: none;
     }
+
     .warzone-actions .action-icon {
-        font-size: var(--icon-lg)
+        font-size: var(--icon-lg);
     }
-.icon-chip, .support-chip, .top-tab, .toolbar-select, .dock-chip {
+
+.icon-chip,
+.support-chip,
+.top-tab,
+.toolbar-select,
+.dock-chip {
     border: 0.2rem solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.04);
     color: #fff;
     min-height: 3.8rem;
     padding: 0 1.2rem;
 }
-    /* UNUSED CANDIDATE START
-   selector: .support-chip
-   classes: support-chip
-   reason: no references found outside defining CSS file(s) during static scan
-.support-chip {
-background: rgba(255, 215, 0, 0.12);
-    color: #ffd84d;
-}
-UNUSED CANDIDATE END */
-    .top-tab.is-active, .toolbar-chip.is-active {
+
+    .top-tab.is-active,
+    .toolbar-chip.is-active {
         background: rgba(25, 216, 179, 0.12);
         border-color: rgba(25, 216, 179, 0.35);
         color: #19d8b3;
     }
-/* UNUSED CANDIDATE START
-   selector: .warzone-toolbar
-   classes: warzone-toolbar
-   reason: no references found outside defining CSS file(s) during static scan
-.warzone-toolbar {
-display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.8rem;
-}
-UNUSED CANDIDATE END */
-/* UNUSED CANDIDATE START
-   selector: .toolbar-chip
-   classes: toolbar-chip
-   reason: no references found outside defining CSS file(s) during static scan
-.toolbar-chip {
-border: 0.2rem solid var(--color-border-gray);
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--color-white);
-    padding: 0.8rem 1.2rem;
-    font-size: 1.2rem;
-    line-height: 1;
-    text-transform: uppercase;
-}
-UNUSED CANDIDATE END */
-/* UNUSED CANDIDATE START
-   selector: .toolbar-chip--dev
-   classes: toolbar-chip--dev
-   reason: no references found outside defining CSS file(s) during static scan
-.toolbar-chip--dev {
-border-color: rgba(255, 176, 32, 0.45);
-    color: #ffcf6b;
-}
-UNUSED CANDIDATE END */
+
 @media (max-width: 900px) {
     .warzone-commandbar {
         flex-direction: column;
         align-items: flex-start;
     }
-    /* UNUSED CANDIDATE START
-   selector: .warzone-grid
-   classes: warzone-grid
-   reason: no references found outside defining CSS file(s) during static scan
-.warzone-grid {
-grid-template-columns: 1fr;
-}
-UNUSED CANDIDATE END */
 }
 /* #endregion =========== */
+
 /* #region =========== DOCK BUTTONS =========== */
 .wz-dock {
-    position: absolute;
+    position: fixed;
     bottom: 0;
     left: 50%;
-    z-index: 22;
+    z-index: 10010;
     pointer-events: auto;
     filter: var(--widget-shadow);
     opacity: 0;
     transform: translateX(-50%) translateY(6rem);
-    transition: opacity 0.7s ease, transform 0.7s ease;
+    transition: opacity 0.65s ease, transform 0.65s ease;
     will-change: opacity, transform;
-    filter: var(--widget-shadow);
-    z-index: 60
 }
-.is-ui-visible .wz-dock {
+
+body.is-app-active .wz-dock {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
-    transition-delay: 3.5s;
+    transition-delay: 0.5s;
 }
+
 .wz-btn-container {
     background: var(--color-bg-header);
     clip-path: polygon(100% 100%, 0 100%, 8rem 0, calc(100% - 8rem) 0);
@@ -191,6 +154,7 @@ UNUSED CANDIDATE END */
     padding: 0 9rem;
     transition: padding 0.45s ease, clip-path 0.45s ease;
 }
+
 .wz-dock__btn {
     cursor: pointer;
     flex-shrink: 0;
@@ -204,9 +168,11 @@ UNUSED CANDIDATE END */
     max-width: 6rem;
     transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, margin 0.45s ease, transform 0.25s ease;
 }
+
     .wz-dock__btn:hover {
         transform: translateY(-0.5rem);
     }
+
     .wz-dock__btn.wz-dock--gone {
         opacity: 0;
         pointer-events: none;
@@ -214,6 +180,7 @@ UNUSED CANDIDATE END */
         max-width: 0;
         margin: 0;
     }
+
 .wz-dock__icon {
     position: relative;
     display: flex;
@@ -224,6 +191,7 @@ UNUSED CANDIDATE END */
     min-width: 0;
     height: 6rem;
 }
+
     .wz-dock__icon .static-icon {
         font-size: 5rem;
         line-height: 1;
@@ -231,9 +199,11 @@ UNUSED CANDIDATE END */
         pointer-events: none;
         height: auto;
     }
+
 .wz-dock__btn.is-active .wz-dock__icon .static-icon {
     color: var(--color-teal-glow);
 }
+
 .wz-dock__label {
     position: absolute;
     bottom: calc(100% + 1rem);
@@ -252,10 +222,47 @@ UNUSED CANDIDATE END */
     transition: opacity 150ms ease, transform 150ms ease;
     transform: translateX(-50%) translateY(4px);
 }
+
 .wz-dock__btn:hover .wz-dock__label {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+/* loader keeps brand + dock visible, hides the rest */
+body.show-loader .warzone-brand,
+body.show-loader .wz-dock {
+    opacity: 1 !important;
+    pointer-events: auto;
+}
+
+body.show-loader .warzone-brand {
+    transform: translateY(0) !important;
+}
+
+body.show-loader .wz-dock {
+    transform: translateX(-50%) translateY(0) !important;
+}
+
+body.show-loader .warzone-panel--floating,
+body.show-loader .wz-dev-panel,
+body.show-loader .warzone-hotspot-layer,
+body.show-loader .wz-radar-label-layer {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* about modal keeps only top brand visible */
+body.is-about-open .wz-dock,
+body.is-about-open .warzone-region-bar,
+body.is-about-open .warzone-actions,
+body.is-about-open .warzone-panel--floating,
+body.is-about-open .wz-dev-panel,
+body.is-about-open .warzone-hotspot-layer,
+body.is-about-open .wz-radar-label-layer {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 @media (max-width: 768px) {
     .wz-dock {
         padding: 0.5rem 1rem;
@@ -266,34 +273,42 @@ UNUSED CANDIDATE END */
         overflow-y: visible;
         scrollbar-width: none;
     }
+
         .wz-dock::-webkit-scrollbar {
             display: none;
         }
+
     .wz-dock__btn {
         width: 4rem;
         height: 4rem;
         flex-shrink: 0;
     }
+
     .wz-dock__icon {
         font-size: 1.5rem;
     }
+
     .wz-dock__label {
         display: none;
     }
+
     .wz-dock__sep {
         height: 2.5rem;
     }
 }
+
 @media (max-width: 480px) {
     .wz-dock {
         gap: 0.3rem;
         padding: 0.5rem 0.8rem;
         bottom: 1rem;
     }
+
     .wz-dock__btn {
         width: 3.4rem;
         height: 3.4rem;
     }
+
     .wz-dock__icon {
         font-size: 1.2rem;
     }

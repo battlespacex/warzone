@@ -482,3 +482,58 @@
     --warzone-live-track-max-scale: 280;
 }
 /* #endregion =========== */
+
+/* #region =========== LIVE AIRCRAFT SUBTYPE SCALE =========== */
+:root {
+    --warzone-live-track-min-pixel-size: 5;
+    --warzone-live-track-scale-fighter: 350;
+    --warzone-live-track-scale-awacs: 200000;
+    --warzone-live-track-scale-recon: 20;
+    --warzone-live-track-scale-isr: 14;
+    --warzone-live-track-scale-tanker: 17;
+    --warzone-live-track-scale-refueler: 17;
+    --warzone-live-track-scale-transport: 18;
+    --warzone-live-track-scale-logistics: 18;
+    --warzone-live-track-scale-logistic: 18;
+    --warzone-live-track-scale-drone: 12;
+    --warzone-live-track-scale-uav: 20;
+    --warzone-live-track-scale-helicopter: 10;
+}
+/* #endregion =========== */
+
+/* #region =========== LIVE AIRCRAFT SUBTYPE TRAILS =========== */
+:root {
+    --warzone-live-track-trail-enabled-fighter: 1;
+    --warzone-live-track-trail-enabled-awacs: 1;
+    --warzone-live-track-trail-enabled-recon: 1;
+    --warzone-live-track-trail-enabled-isr: 1;
+    --warzone-live-track-trail-enabled-tanker: 1;
+    --warzone-live-track-trail-enabled-refueler: 1;
+    --warzone-live-track-trail-enabled-transport: 1;
+    --warzone-live-track-trail-enabled-logistics: 1;
+    --warzone-live-track-trail-enabled-logistic: 1;
+    --warzone-live-track-trail-enabled-drone: 1;
+    --warzone-live-track-trail-enabled-uav: 1;
+    --warzone-live-track-trail-enabled-helicopter: 1;
+    --warzone-live-track-trail-width-fighter: 2.2;
+    --warzone-live-track-trail-width-awacs: 2.8;
+    --warzone-live-track-trail-width-recon: 2.4;
+    --warzone-live-track-trail-width-isr: 2.4;
+    --warzone-live-track-trail-width-tanker: 2.6;
+    --warzone-live-track-trail-width-refueler: 2.6;
+    --warzone-live-track-trail-width-transport: 2.6;
+    --warzone-live-track-trail-width-logistics: 2.6;
+    --warzone-live-track-trail-width-logistic: 2.6;
+    --warzone-live-track-trail-width-drone: 1.6;
+    --warzone-live-track-trail-width-uav: 1.6;
+    --warzone-live-track-trail-width-helicopter: 1.8;
+}
+/* #endregion =========== */
+
+/* #region =========== SATELLITE SCALING =========== */
+:root {
+    --warzone-mil-sat-scale: 200000;
+    --warzone-mil-sat-min-px: 20;
+    --warzone-mil-sat-max-scale: 320000
+}
+/* #endregion =========== */
