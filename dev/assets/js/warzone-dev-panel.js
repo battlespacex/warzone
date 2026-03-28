@@ -1,16 +1,13 @@
 ﻿// assets/js/warzone-dev-panel.js
 //
-// DEV TEST PANEL — sirf development mein use karo
+// DEV TEST PANEL — development only
 // Production mein automatically disable ho jaata hai
-// (window.location.hostname === "localhost" ya "127.0.0.1" check karta hai)
 //
-// Kaise use karein:
-//   1. Page load ho
-//   2. Bottom-right corner mein "DEV" button dikhega
-//   3. Click karo — panel khulega
-//   4. Har button ek alag event type fire karta hai globe pe
-//
-// Koi server ya database nahi chahiye — central event pipeline use karta hai
+// IMPORTANT:
+// - Ye file sirf synthetic test harness hai
+// - Real production aircraft movement live telemetry / ADS-B style updates se aayega
+// - Is file mein "debug route preview" alag layer hai
+// - Live trail aur debug route preview ko confuse mat karo
 
 import * as Cesium from "cesium";
 import {
@@ -23,10 +20,13 @@ import {
 } from "./warzone-live-fighter.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 
-// ─── Test event templates ──────────────────────────────────────────────────────
+/* ================= DEV PREVIEW STATE ================= */
+
+const __devRoutePreviewEntities = new Map();
+
+/* ================= TEST EVENTS ================= */
 
 const TEST_EVENTS = {
-    // ── Missile arc (Iran → Israel) ────────────────────────────────────────
     missile_iran_israel: {
         id: "test-missile-1",
         title: "Ballistic Missile Launch Detected",
@@ -47,8 +47,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Missile arc (Russia → Ukraine) ─────────────────────────────────────
     missile_russia_ukraine: {
         id: "test-missile-2",
         title: "Cruise Missile Strike — Kyiv Oblast",
@@ -69,8 +67,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Drone (kamikaze) ────────────────────────────────────────────────────
     drone_kamikaze: {
         id: "test-drone-1",
         title: "Shahed-136 Drone Strike",
@@ -91,8 +87,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Air strike ──────────────────────────────────────────────────────────
     airstrike: {
         id: "test-airstrike-1",
         title: "IAF Air Strike — Southern Lebanon",
@@ -113,8 +107,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Siren / Air raid warning ────────────────────────────────────────────
     siren_israel: {
         id: "test-siren-1",
         title: "Red Alert — Air Raid Sirens Active",
@@ -131,8 +123,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Siren Ukraine ───────────────────────────────────────────────────────
     siren_ukraine: {
         id: "test-siren-2",
         title: "Air Raid Warning — Kyiv",
@@ -148,8 +138,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Military aircraft — Fighter ─────────────────────────────────────────
     aircraft_fighter: {
         id: "test-aircraft-fighter-1",
         title: "FIGHTER F-35I — IAF",
@@ -162,11 +150,9 @@ const TEST_EVENTS = {
         location_label: "Israel",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
-        metadata: { callsign: "IAF101", heading: 45, altitude_ft: 35000, speed_kts: 480, country: "Israel" },
+        metadata: { callsign: "IAF101", heading: 45, altitude_ft: 30000, speed_kts: 480, country: "Israel" },
         source_key: "adsb-test-fighter-1",
     },
-
-    // ── Military aircraft — AWACS ───────────────────────────────────────────
     aircraft_awacs: {
         id: "test-aircraft-awacs-1",
         title: "AWACS E-3 Sentry — NATO",
@@ -182,8 +168,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "NAEW01", heading: 270, altitude_ft: 29000, speed_kts: 380, country: "NATO" },
         source_key: "adsb-test-awacs-1",
     },
-
-    // ── Military aircraft — Recon ───────────────────────────────────────────
     aircraft_recon: {
         id: "test-aircraft-recon-1",
         title: "RECON RC-135 Rivet Joint — USAF",
@@ -199,8 +183,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "JAKE21", heading: 180, altitude_ft: 40000, speed_kts: 420, country: "USA" },
         source_key: "adsb-test-recon-1",
     },
-
-    // ── Military aircraft — Tanker ──────────────────────────────────────────
     aircraft_tanker: {
         id: "test-aircraft-tanker-1",
         title: "TANKER KC-135 — USAF AMC",
@@ -216,8 +198,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "RCH456", heading: 90, altitude_ft: 31000, speed_kts: 440, country: "USA" },
         source_key: "adsb-test-tanker-1",
     },
-
-    // ── Naval — Carrier ─────────────────────────────────────────────────────
     ship_carrier: {
         id: "test-ship-carrier-1",
         title: "CARRIER USS Gerald R. Ford — USN",
@@ -233,8 +213,6 @@ const TEST_EVENTS = {
         metadata: { vessel_name: "USS GERALD R FORD", mmsi: "338123456", heading: 135, speed_kts: 18, country: "USA" },
         source_key: "ais-test-carrier-1",
     },
-
-    // ── Naval — Destroyer ───────────────────────────────────────────────────
     ship_destroyer: {
         id: "test-ship-destroyer-1",
         title: "DESTROYER USS Arleigh Burke — USN",
@@ -250,8 +228,6 @@ const TEST_EVENTS = {
         metadata: { vessel_name: "USS ARLEIGH BURKE", mmsi: "338789012", heading: 200, speed_kts: 22, country: "USA" },
         source_key: "ais-test-destroyer-1",
     },
-
-    // ── Naval — Russian frigate ─────────────────────────────────────────────
     ship_russian: {
         id: "test-ship-russian-1",
         title: "FRIGATE Admiral Gorshkov — Russian Navy",
@@ -267,8 +243,6 @@ const TEST_EVENTS = {
         metadata: { vessel_name: "ADMIRAL GORSHKOV", mmsi: "273456789", heading: 90, speed_kts: 15, country: "Russia" },
         source_key: "ais-test-russian-1",
     },
-
-    // ── Cyber alert ─────────────────────────────────────────────────────────
     cyber: {
         id: "test-cyber-1",
         title: "Critical Infrastructure Attack — Iran",
@@ -282,8 +256,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
-    // ── Thermal / FIRMS ─────────────────────────────────────────────────────
     thermal: {
         id: "test-thermal-1",
         title: "Thermal Anomaly — Possible Strike Signature",
@@ -298,6 +270,212 @@ const TEST_EVENTS = {
         source_name: "DEV TEST",
     },
 };
+
+function normalizeDevHeading(deg = 0) {
+    return ((deg % 360) + 360) % 360;
+}
+
+function offsetPointByHeading(lat, lon, headingDeg, distanceKm) {
+    const headingRad = Cesium.Math.toRadians(normalizeDevHeading(headingDeg));
+    const meters = distanceKm * 1000;
+
+    const latOffset = (meters * Math.cos(headingRad)) / 110540;
+    const lonOffset =
+        (meters * Math.sin(headingRad)) /
+        Math.max(111320 * Math.cos(Cesium.Math.toRadians(lat)), 1);
+
+    return {
+        lat: lat + latOffset,
+        lon: lon + lonOffset,
+    };
+}
+
+function buildGeneratedTurnWaypoints(baseLat, baseLon, altitudeFt, headingDeg) {
+    const segments = [
+        { heading: headingDeg + 12, distanceKm: 22 },
+        { heading: headingDeg + 28, distanceKm: 28 },
+        { heading: headingDeg + 52, distanceKm: 34 },
+        { heading: headingDeg + 86, distanceKm: 32 },
+        { heading: headingDeg + 132, distanceKm: 27 },
+        { heading: headingDeg + 182, distanceKm: 21 },
+        { heading: headingDeg + 228, distanceKm: 18 },
+        { heading: headingDeg + 286, distanceKm: 20 },
+    ];
+
+    const points = [{
+        lat: baseLat,
+        lon: baseLon,
+        altitude_ft: altitudeFt,
+        heading_deg: normalizeDevHeading(headingDeg),
+    }];
+
+    let currentLat = baseLat;
+    let currentLon = baseLon;
+
+    segments.forEach((segment) => {
+        const next = offsetPointByHeading(
+            currentLat,
+            currentLon,
+            segment.heading,
+            segment.distanceKm
+        );
+
+        currentLat = next.lat;
+        currentLon = next.lon;
+
+        points.push({
+            lat: currentLat,
+            lon: currentLon,
+            altitude_ft: altitudeFt,
+            heading_deg: normalizeDevHeading(segment.heading),
+        });
+    });
+
+    return points;
+}
+
+function catmullRomScalar(p0, p1, p2, p3, t) {
+    return 0.5 * (
+        (2 * p1) +
+        (-p0 + p2) * t +
+        (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
+        (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t
+    );
+}
+
+function sampleSmoothWaypoint(waypoints, t) {
+    if (!Array.isArray(waypoints) || waypoints.length < 2) return null;
+
+    const n = waypoints.length;
+    const clampedT = Math.max(0, Math.min(1, t));
+    const scaled = clampedT * (n - 1);
+    const i = Math.floor(scaled);
+
+    const p0 = waypoints[Math.max(0, i - 1)];
+    const p1 = waypoints[Math.min(n - 1, i)];
+    const p2 = waypoints[Math.min(n - 1, i + 1)];
+    const p3 = waypoints[Math.min(n - 1, i + 2)];
+    const localT = scaled - i;
+
+    return {
+        lat: catmullRomScalar(p0.lat, p1.lat, p2.lat, p3.lat, localT),
+        lon: catmullRomScalar(p0.lon, p1.lon, p2.lon, p3.lon, localT),
+        altitude_ft:
+            (p1.altitude_ft || 0) +
+            (((p2.altitude_ft || 0) - (p1.altitude_ft || 0)) * localT),
+    };
+}
+
+function buildOrbitPreviewPositions(config, samples = 220) {
+    if (!config?.center) return [];
+
+    const positions = [];
+    const directionSign = config.mode === "orbit-left" ? -1 : 1;
+    const centerLat = Number(config.center.lat);
+    const centerLon = Number(config.center.lon);
+    const radiusMeters = Number(config.radiusMeters || 30000);
+    const altitudeMeters = Number(config.altitude_ft || 32000) * 0.3048;
+    const startAngleDeg = Number(config.startAngleDeg || 0);
+
+    for (let i = 0; i <= samples; i++) {
+        const t = i / samples;
+        const angleDeg = normalizeDevHeading(startAngleDeg + (directionSign * 360 * t));
+        const angleRad = Cesium.Math.toRadians(angleDeg);
+
+        const latOffsetDeg = (radiusMeters * Math.sin(angleRad)) / 110540;
+        const lonOffsetDeg =
+            (radiusMeters * Math.cos(angleRad)) /
+            Math.max(111320 * Math.cos(Cesium.Math.toRadians(centerLat)), 1);
+
+        positions.push(
+            Cesium.Cartesian3.fromDegrees(
+                centerLon + lonOffsetDeg,
+                centerLat + latOffsetDeg,
+                altitudeMeters
+            )
+        );
+    }
+
+    return positions;
+}
+
+function buildRoutePreviewPositions(config, samples = 180) {
+    if (Array.isArray(config?.waypoints) && config.waypoints.length >= 2) {
+        const positions = [];
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples;
+            const point = sampleSmoothWaypoint(config.waypoints, t);
+            if (!point) continue;
+
+            positions.push(
+                Cesium.Cartesian3.fromDegrees(
+                    Number(point.lon),
+                    Number(point.lat),
+                    Number(point.altitude_ft || 0) * 0.3048
+                )
+            );
+        }
+        return positions;
+    }
+
+    if (config?.from && config?.to) {
+        return [
+            Cesium.Cartesian3.fromDegrees(
+                Number(config.from.lon),
+                Number(config.from.lat),
+                Number(config.from.altitude_ft || 0) * 0.3048
+            ),
+            Cesium.Cartesian3.fromDegrees(
+                Number(config.to.lon),
+                Number(config.to.lat),
+                Number(config.to.altitude_ft || 0) * 0.3048
+            ),
+        ];
+    }
+
+    if (config?.center) {
+        return buildOrbitPreviewPositions(config, samples);
+    }
+
+    return [];
+}
+
+function clearDevTrackPreview(trackKey) {
+    const viewer = window.__warzoneViewer;
+    if (!viewer || !trackKey) return;
+
+    const entity = __devRoutePreviewEntities.get(trackKey);
+    if (entity) {
+        viewer.entities.remove(entity);
+        __devRoutePreviewEntities.delete(trackKey);
+    }
+}
+
+function renderDevTrackPreview(config) {
+    const viewer = window.__warzoneViewer;
+    if (!viewer || !config?.track_key) return;
+
+    clearDevTrackPreview(config.track_key);
+
+    const positions =
+        config.mode === "orbit-left" || config.mode === "orbit-right"
+            ? buildOrbitPreviewPositions(config)
+            : buildRoutePreviewPositions(config);
+
+    if (!positions.length) return;
+
+    const entity = viewer.entities.add({
+        id: `dev-route-preview-${config.track_key}`,
+        polyline: {
+            positions,
+            width: 1.8,
+            material: Cesium.Color.LIME.withAlpha(0.85),
+            clampToGround: false,
+        }
+    });
+
+    __devRoutePreviewEntities.set(config.track_key, entity);
+}
 
 const TEST_TRACK_ROUTES = {
     fighter_gulf_run: {
@@ -324,7 +502,6 @@ const TEST_TRACK_ROUTES = {
         intervalMs: 180,
         loop: false,
     },
-
     fighter_orbit_right: {
         track_key: "dev-track-circle-right",
         title: "F-22 101",
@@ -345,7 +522,6 @@ const TEST_TRACK_ROUTES = {
         intervalMs: 140,
         loop: true,
     },
-
     fighter_orbit_left: {
         track_key: "dev-track-circle-left",
         title: "F-22 101",
@@ -366,7 +542,6 @@ const TEST_TRACK_ROUTES = {
         intervalMs: 140,
         loop: true,
     },
-
     fighter_turn_test: {
         track_key: "dev-track-turns",
         title: "F-16 Sq Detected",
@@ -376,20 +551,12 @@ const TEST_TRACK_ROUTES = {
         country: "USA",
         region: "Middle East",
         mode: "route",
-        waypoints: [
-            { lat: 31.2, lon: 34.4, altitude_ft: 32000, heading_deg: 60 },
-            { lat: 31.8, lon: 35.0, altitude_ft: 32000, heading_deg: 90 },
-            { lat: 32.3, lon: 35.8, altitude_ft: 32000, heading_deg: 135 },
-            { lat: 31.9, lon: 36.5, altitude_ft: 32000, heading_deg: 210 },
-            { lat: 31.1, lon: 36.0, altitude_ft: 32000, heading_deg: 270 },
-        ],
-        steps: 140,
-        intervalMs: 140,
+        waypoints: buildGeneratedTurnWaypoints(31.2, 34.4, 32000, 58),
+        steps: 180,
+        intervalMs: 150,
         loop: true,
     },
 };
-
-
 
 const DEV_SIM_PRESETS = {
     fighter: {
@@ -614,16 +781,6 @@ function syncDevSimFieldState() {
     }
 }
 
-function buildGeneratedTurnWaypoints(baseLat, baseLon, altitudeFt, headingDeg) {
-    return [
-        { lat: baseLat, lon: baseLon, altitude_ft: altitudeFt, heading_deg: headingDeg },
-        { lat: baseLat + 0.45, lon: baseLon + 0.45, altitude_ft: altitudeFt, heading_deg: headingDeg + 35 },
-        { lat: baseLat + 0.95, lon: baseLon + 1.0, altitude_ft: altitudeFt, heading_deg: headingDeg + 80 },
-        { lat: baseLat + 0.35, lon: baseLon + 1.45, altitude_ft: altitudeFt, heading_deg: headingDeg + 155 },
-        { lat: baseLat - 0.25, lon: baseLon + 0.9, altitude_ft: altitudeFt, heading_deg: headingDeg + 240 },
-    ];
-}
-
 function buildDevSimConfigFromForm() {
     const els = getDevSimElements();
     if (!els.subtype) return null;
@@ -676,6 +833,8 @@ function buildDevSimConfigFromForm() {
             ...base,
             mode: "route",
             waypoints: buildGeneratedTurnWaypoints(lat, lon, altitudeFt, headingDeg),
+            steps: Math.max(steps, 180),
+            intervalMs: Math.max(intervalMs, 150),
         };
     }
 
@@ -728,6 +887,12 @@ function initDevSimulatorControls() {
 
     els.resetBtn?.addEventListener("click", () => {
         const subtype = String(els.subtype.value || "fighter").toLowerCase();
+        const previousTrackKey = String(els.trackKey?.value || "").trim();
+        if (previousTrackKey) {
+            stopDevTrackSimulation(previousTrackKey);
+            clearDevTrackPreview(previousTrackKey);
+        }
+
         applyDevSimPreset(subtype);
         devLog(`↺ Simulator reset: ${subtype}`);
     });
@@ -744,6 +909,7 @@ function initDevSimulatorControls() {
             return;
         }
 
+        renderDevTrackPreview(config);
         startDevTrackSimulation(config);
         focusDevSimFromForm();
         devLog(`✈ Simulator started: ${config.title} [${config.subcategory}]`);
@@ -757,12 +923,12 @@ function initDevSimulatorControls() {
         }
 
         stopDevTrackSimulation(trackKey);
+        clearDevTrackPreview(trackKey);
         devLog(`✖ Simulator stopped: ${trackKey}`);
     });
 
     applyDevSimPreset("fighter");
 }
-// ─── Log helper ───────────────────────────────────────────────────────────────
 
 function devLog(msg) {
     const log = document.getElementById("wz-dev-log");
@@ -776,8 +942,6 @@ function devLog(msg) {
         log.removeChild(log.lastChild);
     }
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isStrikeLikeEvent(event) {
     const weaponType = String(event.weapon_type || "").toLowerCase();
@@ -821,8 +985,6 @@ function getSirenLevel(severity) {
     return "yellow";
 }
 
-// ─── Fire a test event ────────────────────────────────────────────────────────
-
 function fireTestEvent(key) {
     const template = TEST_EVENTS[key];
     if (!template) return;
@@ -835,14 +997,8 @@ function fireTestEvent(key) {
 
     const globe = window.__warzoneViewer?.__warzone;
 
-    // Central pipeline handles:
-    // - globe.addEvent
-    // - missile animation
-    // - hotspot add
-    // - military tracks
     handleIncomingEvent(event);
 
-    // Custom dev-only siren popup text for strike-like test events
     if (isStrikeLikeEvent(event)) {
         const impactLabel = String(
             event.impact_label || event.location_label || "IMPACT ZONE"
@@ -858,7 +1014,6 @@ function fireTestEvent(key) {
         devLog(`🚀 Fired: ${event.title} → Siren: ${impactLabel}`);
     }
 
-    // Dedicated alert test events
     if (
         event.category === "alert" ||
         String(`${event.title} ${event.summary}`).toLowerCase().includes("siren")
@@ -874,10 +1029,9 @@ function fireTestEvent(key) {
         devLog(`🔴 Alert: ${event.title}`);
         return;
     }
-    // ─── REAL AIRCRAFT SPAWN (SUBTYPE-AWARE) ───
+
     if (event.category === "military") {
         const trackKey = `dev-track-${event.id}-${Date.now()}`;
-
         const baseLat = Number(event.lat);
         const baseLon = Number(event.lon);
         const headingDeg = Number(event.metadata?.heading || 0);
@@ -887,9 +1041,10 @@ function fireTestEvent(key) {
         if (!Number.isFinite(baseLat) || !Number.isFinite(baseLon)) return;
 
         const viewer = window.__warzoneViewer;
+        let config = null;
 
         if (subtype === "awacs") {
-            startDevTrackSimulation({
+            config = {
                 track_key: trackKey,
                 title: event.title,
                 source_name: "DEV PANEL",
@@ -908,9 +1063,9 @@ function fireTestEvent(key) {
                 steps: 140,
                 intervalMs: 170,
                 loop: true,
-            });
+            };
         } else if (subtype === "recon") {
-            startDevTrackSimulation({
+            config = {
                 track_key: trackKey,
                 title: event.title,
                 source_name: "DEV PANEL",
@@ -933,9 +1088,9 @@ function fireTestEvent(key) {
                 steps: 150,
                 intervalMs: 170,
                 loop: true,
-            });
+            };
         } else if (subtype === "tanker") {
-            startDevTrackSimulation({
+            config = {
                 track_key: trackKey,
                 title: event.title,
                 source_name: "DEV PANEL",
@@ -958,9 +1113,9 @@ function fireTestEvent(key) {
                 steps: 160,
                 intervalMs: 180,
                 loop: true,
-            });
+            };
         } else if (subtype === "drone" || subtype === "uav") {
-            startDevTrackSimulation({
+            config = {
                 track_key: trackKey,
                 title: event.title,
                 source_name: "DEV PANEL",
@@ -979,9 +1134,9 @@ function fireTestEvent(key) {
                 steps: 150,
                 intervalMs: 190,
                 loop: true,
-            });
+            };
         } else {
-            startDevTrackSimulation({
+            config = {
                 track_key: trackKey,
                 title: event.title,
                 source_name: "DEV PANEL",
@@ -1004,8 +1159,11 @@ function fireTestEvent(key) {
                 steps: 120,
                 intervalMs: 140,
                 loop: true,
-            });
+            };
         }
+
+        renderDevTrackPreview(config);
+        startDevTrackSimulation(config);
 
         if (viewer) {
             viewer.camera.flyTo({
@@ -1018,11 +1176,8 @@ function fireTestEvent(key) {
         return;
     }
 
-    // Generic event logging only
     devLog(`📍 Event: ${event.title}`);
 }
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function initDevPanel() {
     const isLocal =
@@ -1138,6 +1293,7 @@ export function initDevPanel() {
             const route = TEST_TRACK_ROUTES[key];
             if (!route) return;
 
+            renderDevTrackPreview(route);
             startDevTrackSimulation(route);
 
             const viewer = window.__warzoneViewer;
@@ -1164,6 +1320,7 @@ export function initDevPanel() {
         btn.addEventListener("click", () => {
             const key = btn.dataset.trackStop || "dev-track-fighter-1";
             stopDevTrackSimulation(key);
+            clearDevTrackPreview(key);
             devLog(`✖ Route sim stopped: ${key}`);
         });
     });

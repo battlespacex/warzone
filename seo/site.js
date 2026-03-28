@@ -5,8 +5,8 @@ const DEV_BASE = "http://localhost:4173";
 
 module.exports = {
     baseUrl: isProd ? PROD_BASE : DEV_BASE,
-    siteName: "StratOps | BattleSpaceX",
-    brandName: "StratOps",
+    siteName: "Stratops | BattleSpaceX",
+    brandName: "Stratops",
     defaultOg: "/assets/images/web/warzone-og-preview.jpg",
     defaultLocale: "en_CA",
     defaultThemeColor: "#07111b",

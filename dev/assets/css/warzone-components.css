@@ -760,9 +760,9 @@ UNUSED CANDIDATE END */
     .wz-intro__hero .warzone-logo {
         position: relative;
         top: 0;
-        left: 0;
         transform: none;
         opacity: 1;
+        justify-self: left
     }
 
 .wz-intro__body {

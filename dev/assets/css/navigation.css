@@ -40,11 +40,10 @@ body.is-app-active .warzone-brand {
 .warzone-logo {
     position: absolute;
     top: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
     opacity: 0;
     transition: opacity 0.55s ease;
     will-change: opacity;
+    justify-self: center;
 }
 
 body.is-app-active .warzone-logo {

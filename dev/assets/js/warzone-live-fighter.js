@@ -4,35 +4,50 @@
 
 let __liveTrackEntities = new Map();
 const __devTrackTimers = new Map();
-const __liveTrackTrails = new Map();
+const __liveTrackTrails = new Map(); // Map<trackKey, Array<{ position, ts }>>
 const __liveTrackLastPositions = new Map();
 const __liveTrackVisualState = new Map();
 
 /* ================= CONFIG ================= */
 
-
 const LIVE_TRACK_HEADING_OFFSET_DEG = -90;
 const LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS = 800;
-const LIVE_TRACK_TAIL_OFFSET_METERS = 1200;
-const LIVE_TRACK_MAX_TRAIL_POINTS = 80;
 
-const LIVE_TRACK_MODEL_URI = "/assets/images/models/air/fighter.glb";
+/*
+ * Trail anchor tuning:
+ * - TAIL offset = move line farther behind aircraft center
+ * - ENGINE offset = push line closer to burner / exhaust area
+ * - ALT offset   = slight visual drop so line does not appear to start from belly
+ */
+const LIVE_TRACK_TAIL_OFFSET_METERS = 700;
+const LIVE_TRACK_ENGINE_OFFSET_METERS = 165;
+const LIVE_TRACK_TRAIL_ALTITUDE_OFFSET_METERS = -18;
+
+const LIVE_TRACK_MAX_TRAIL_POINTS = 160;
+const LIVE_TRACK_TRAIL_MAX_AGE_MS = 18 * 60 * 1000;
+const LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS = 240;
+
+const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 60;
+const LIVE_TRACK_MIN_ANIM_MS = 140;
+const LIVE_TRACK_MAX_ANIM_MS = 520;
+
+const LIVE_TRACK_MODEL_URI = "/assets/images/models/air/fighter-1.glb";
 
 const LIVE_TRACK_MODEL_BY_SUBTYPE = {
     fighter: "/assets/images/models/air/fighter.glb",
     awacs: "/assets/images/models/air/awacs.glb",
     recon: "/assets/images/models/air/uav.glb",
-    isr: "/assets/images/models/air/uav.glb",
-    tanker: "/assets/images/models/air/fighter.glb",
-    refueler: "/assets/images/models/air/fighter.glb",
-    transport: "/assets/images/models/air/fighter.glb",
-    logistics: "/assets/images/models/air/fighter.glb",
-    logistic: "/assets/images/models/air/fighter.glb",
-    bomber: "/assets/images/models/air/fighter.glb",
+    isr: "/assets/images/models/air/awacs.glb",
+    tanker: "/assets/images/models/air/fighter-1.glb",
+    refueler: "/assets/images/models/air/fighter-1.glb",
+    transport: "/assets/images/models/air/fighter-1.glb",
+    logistics: "/assets/images/models/air/fighter-1.glb",
+    logistic: "/assets/images/models/air/fighter-1.glb",
+    bomber: "/assets/images/models/air/bomber.glb",
     trainer: "/assets/images/models/air/fighter.glb",
     drone: "/assets/images/models/air/uav.glb",
     uav: "/assets/images/models/air/uav.glb",
-    helicopter: "/assets/images/models/air/fighter.glb",
+    helicopter: "/assets/images/models/air/fighter-1.glb",
 };
 
 /* ================= CSS CONFIG ================= */
@@ -51,41 +66,41 @@ function getCssColor(varName, fallback = "rgba(255,255,255,1)") {
 function getLiveTrackStyleConfig() {
     return {
         trailColor: getCssColor("--warzone-live-track-color", "rgba(24,226,219,1)"),
-        trailOpacity: getCssNumber("--warzone-live-track-opacity", 0.85),
-        trailWidth: getCssNumber("--warzone-live-track-width", 2.2),
-        scale: getCssNumber("--warzone-live-track-scale", 12),
-        minimumPixelSize: getCssNumber("--warzone-live-track-min-pixel-size", 96),
-        maximumScale: getCssNumber("--warzone-live-track-max-scale", 280),
+        trailOpacity: getCssNumber("--warzone-live-track-opacity", 0.95),
+        trailWidth: getCssNumber("--warzone-live-track-width", 3.4),
+        scale: getCssNumber("--warzone-live-track-scale", 16),
+        minimumPixelSize: getCssNumber("--warzone-live-track-min-pixel-size", 140),
+        maximumScale: getCssNumber("--warzone-live-track-max-scale", 520),
     };
 }
 
-function getLiveTrackSubtypeScale(track = {}, fallbackScale = 12) {
-    const subtype = String(track.subcategory || track.subtype || "")
-        .trim()
-        .toLowerCase();
-
+function getLiveTrackSubtypeScale(track = {}, fallbackScale = 16) {
+    const subtype = String(track.subcategory || track.subtype || "").trim().toLowerCase();
     if (!subtype) return fallbackScale;
-
     return getCssNumber(`--warzone-live-track-scale-${subtype}`, fallbackScale);
 }
 
+function getLiveTrackSubtypeMinPixelSize(track = {}, fallbackValue = 140) {
+    const subtype = String(track.subcategory || track.subtype || "").trim().toLowerCase();
+    if (!subtype) return fallbackValue;
+    return getCssNumber(`--warzone-live-track-min-pixel-size-${subtype}`, fallbackValue);
+}
+
+function getLiveTrackSubtypeMaxScale(track = {}, fallbackValue = 520) {
+    const subtype = String(track.subcategory || track.subtype || "").trim().toLowerCase();
+    if (!subtype) return fallbackValue;
+    return getCssNumber(`--warzone-live-track-max-scale-${subtype}`, fallbackValue);
+}
+
 function getLiveTrackSubtypeTrailEnabled(track = {}) {
-    const subtype = String(track.subcategory || track.subtype || "")
-        .trim()
-        .toLowerCase();
-
+    const subtype = String(track.subcategory || track.subtype || "").trim().toLowerCase();
     if (!subtype) return true;
-
     return getCssNumber(`--warzone-live-track-trail-enabled-${subtype}`, 1) !== 0;
 }
 
-function getLiveTrackSubtypeTrailWidth(track = {}, fallbackWidth = 2.2) {
-    const subtype = String(track.subcategory || track.subtype || "")
-        .trim()
-        .toLowerCase();
-
+function getLiveTrackSubtypeTrailWidth(track = {}, fallbackWidth = 3.4) {
+    const subtype = String(track.subcategory || track.subtype || "").trim().toLowerCase();
     if (!subtype) return fallbackWidth;
-
     return getCssNumber(`--warzone-live-track-trail-width-${subtype}`, fallbackWidth);
 }
 
@@ -110,6 +125,40 @@ function getShortestAngleDeltaDeg(fromDeg = 0, toDeg = 0) {
     if (delta < -180) delta += 360;
 
     return delta;
+}
+
+function getCartesianDistanceMeters(a, b) {
+    if (!a || !b) return 0;
+    try {
+        return Cesium.Cartesian3.distance(a, b);
+    } catch {
+        return 0;
+    }
+}
+
+function getPositionCartesian(positionOrEntity) {
+    try {
+        const candidate =
+            positionOrEntity?.position?.getValue?.(Cesium.JulianDate.now()) ||
+            positionOrEntity?.getValue?.(Cesium.JulianDate.now()) ||
+            positionOrEntity?.position ||
+            positionOrEntity ||
+            null;
+
+        if (!candidate) return null;
+
+        if (
+            !Number.isFinite(candidate.x) ||
+            !Number.isFinite(candidate.y) ||
+            !Number.isFinite(candidate.z)
+        ) {
+            return null;
+        }
+
+        return candidate;
+    } catch {
+        return null;
+    }
 }
 
 /* ================= GEOMETRY / HEADING ================= */
@@ -225,64 +274,23 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
     };
 }
 
-/* ================= ANIMATION ================= */
-
-function animateTrackTo(entity, nextLon, nextLat, nextAlt = 0, duration = 220) {
-    if (!entity) return;
-
-    if (entity.__liveTrackAnimFrame) {
-        cancelAnimationFrame(entity.__liveTrackAnimFrame);
-        entity.__liveTrackAnimFrame = null;
-    }
-
-    const startTime = performance.now();
-
-    let startCartesian = null;
-
-    try {
-        startCartesian = entity.position?.getValue?.(Cesium.JulianDate.now()) || entity.position;
-    } catch {
-        startCartesian = entity.position;
-    }
-
-    if (!startCartesian) {
-        entity.position = Cesium.Cartesian3.fromDegrees(nextLon, nextLat, nextAlt);
-        requestWarzoneRender();
-        return;
-    }
-
-    const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
-    const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
-    const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
-    const startAlt = startCartographic.height || 0;
-
-    const step = (now) => {
-        const t = Math.min(1, (now - startTime) / duration);
-        const eased = t < 0.5
-            ? 4 * t * t * t
-            : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-        const lon = startLon + (nextLon - startLon) * eased;
-        const lat = startLat + (nextLat - startLat) * eased;
-        const alt = startAlt + (nextAlt - startAlt) * eased;
-
-        entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
-        requestWarzoneRender();
-
-        if (t < 1) {
-            entity.__liveTrackAnimFrame = requestAnimationFrame(step);
-        } else {
-            entity.__liveTrackAnimFrame = null;
-        }
-    };
-
-    entity.__liveTrackAnimFrame = requestAnimationFrame(step);
-}
-
 /* ================= TRAILS ================= */
 
+function trimTrailEntries(entries = []) {
+    const cutoff = Date.now() - LIVE_TRACK_TRAIL_MAX_AGE_MS;
+    const filtered = entries.filter((entry) => entry && entry.ts >= cutoff);
+
+    while (filtered.length > LIVE_TRACK_MAX_TRAIL_POINTS) {
+        filtered.shift();
+    }
+
+    return filtered;
+}
+
 function pushTrackTrailPoint(trackKey, lon, lat, alt, courseHeadingDeg = 0) {
-    const trail = __liveTrackTrails.get(trackKey) || [];
+    if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(alt)) {
+        return;
+    }
 
     const headingRad = Cesium.Math.toRadians(courseHeadingDeg);
     const metersPerDegLat = 110540;
@@ -294,13 +302,65 @@ function pushTrackTrailPoint(trackKey, lon, lat, alt, courseHeadingDeg = 0) {
     const tailLat =
         lat - ((LIVE_TRACK_TAIL_OFFSET_METERS * Math.cos(headingRad)) / metersPerDegLat);
 
-    trail.push(Cesium.Cartesian3.fromDegrees(tailLon, tailLat, alt));
+    const engineLon =
+        tailLon - ((LIVE_TRACK_ENGINE_OFFSET_METERS * Math.sin(headingRad)) / Math.max(metersPerDegLon, 1));
 
-    if (trail.length > LIVE_TRACK_MAX_TRAIL_POINTS) {
-        trail.shift();
+    const engineLat =
+        tailLat - ((LIVE_TRACK_ENGINE_OFFSET_METERS * Math.cos(headingRad)) / metersPerDegLat);
+
+    const newPosition = Cesium.Cartesian3.fromDegrees(
+        engineLon,
+        engineLat,
+        alt + LIVE_TRACK_TRAIL_ALTITUDE_OFFSET_METERS
+    );
+
+    const now = Date.now();
+    let trail = trimTrailEntries(__liveTrackTrails.get(trackKey) || []);
+
+    const lastEntry = trail[trail.length - 1];
+    const lastPosition = lastEntry?.position || null;
+    const movedMeters = getCartesianDistanceMeters(lastPosition, newPosition);
+
+    if (!lastEntry || movedMeters >= LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS) {
+        trail.push({
+            position: newPosition,
+            ts: now,
+        });
+    } else {
+        trail[trail.length - 1] = {
+            position: newPosition,
+            ts: now,
+        };
     }
 
-    __liveTrackTrails.set(trackKey, trail);
+    __liveTrackTrails.set(trackKey, trimTrailEntries(trail));
+}
+
+function pushTrackTrailPointFromCartesian(trackKey, cartesianPosition, headingDeg = 0) {
+    const currentPosition = getPositionCartesian(cartesianPosition);
+    if (!currentPosition) return;
+
+    let cartographic = null;
+    try {
+        cartographic = Cesium.Cartographic.fromCartesian(currentPosition);
+    } catch {
+        return;
+    }
+
+    if (
+        !cartographic ||
+        !Number.isFinite(cartographic.longitude) ||
+        !Number.isFinite(cartographic.latitude) ||
+        !Number.isFinite(cartographic.height)
+    ) {
+        return;
+    }
+
+    const lon = Cesium.Math.toDegrees(cartographic.longitude);
+    const lat = Cesium.Math.toDegrees(cartographic.latitude);
+    const alt = cartographic.height || 0;
+
+    pushTrackTrailPoint(trackKey, lon, lat, alt, headingDeg);
 }
 
 function getOrCreateTrackTrailEntity(viewer, trackKey, track = {}) {
@@ -317,10 +377,12 @@ function getOrCreateTrackTrailEntity(viewer, trackKey, track = {}) {
             polyline: {
                 show: trailEnabled,
                 positions: new Cesium.CallbackProperty(() => {
-                    return __liveTrackTrails.get(trackKey) || [];
+                    const entries = trimTrailEntries(__liveTrackTrails.get(trackKey) || []);
+                    return entries.map((entry) => entry.position);
                 }, false),
                 width: trailWidth,
-                material: Cesium.Color.fromCssColorString(style.trailColor).withAlpha(style.trailOpacity),
+                material: Cesium.Color.fromCssColorString(style.trailColor)
+                    .withAlpha(style.trailOpacity),
                 clampToGround: false,
             }
         });
@@ -334,19 +396,78 @@ function getOrCreateTrackTrailEntity(viewer, trackKey, track = {}) {
     return entity;
 }
 
-function updateTrackTrail(viewer, track) {
-    const trackKey = track.track_key;
-    if (!trackKey) return;
+/* ================= ANIMATION ================= */
 
-    const lon = Number(track.lon);
-    const lat = Number(track.lat);
-    const alt = Number(track.altitude_ft || 0) * 0.3048;
-    const courseHeadingDeg = getTrackResolvedHeading(track);
+function animateTrackTo(entity, nextLon, nextLat, nextAlt = 0) {
+    if (!entity) return;
 
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+    if (entity.__liveTrackAnimFrame) {
+        cancelAnimationFrame(entity.__liveTrackAnimFrame);
+        entity.__liveTrackAnimFrame = null;
+    }
 
-    pushTrackTrailPoint(trackKey, lon, lat, alt, courseHeadingDeg);
-    getOrCreateTrackTrailEntity(viewer, trackKey, track);
+    const startCartesian = getPositionCartesian(entity);
+    const nextCartesian = Cesium.Cartesian3.fromDegrees(nextLon, nextLat, nextAlt);
+
+    if (!startCartesian) {
+        entity.position = nextCartesian;
+        requestWarzoneRender();
+        return;
+    }
+
+    const distanceMeters = getCartesianDistanceMeters(startCartesian, nextCartesian);
+
+    if (distanceMeters <= LIVE_TRACK_MIN_ANIM_DISTANCE_METERS) {
+        entity.position = nextCartesian;
+
+        const trackKey = entity.__trackKey;
+        const headingDeg = entity.__currentHeadingDeg ?? 0;
+        if (trackKey) {
+            pushTrackTrailPointFromCartesian(trackKey, nextCartesian, headingDeg);
+        }
+
+        requestWarzoneRender();
+        return;
+    }
+
+    const duration = clamp(distanceMeters * 0.08, LIVE_TRACK_MIN_ANIM_MS, LIVE_TRACK_MAX_ANIM_MS);
+    const startTime = performance.now();
+
+    const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
+    const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
+    const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
+    const startAlt = startCartographic.height || 0;
+
+    const step = (now) => {
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = t < 0.5
+            ? 4 * t * t * t
+            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+        const lon = startLon + (nextLon - startLon) * eased;
+        const lat = startLat + (nextLat - startLat) * eased;
+        const alt = startAlt + (nextAlt - startAlt) * eased;
+
+        const currentCartesian = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+        entity.position = currentCartesian;
+
+        const trackKey = entity.__trackKey;
+        const headingDeg = entity.__currentHeadingDeg ?? 0;
+
+        if (trackKey) {
+            pushTrackTrailPointFromCartesian(trackKey, currentCartesian, headingDeg);
+        }
+
+        requestWarzoneRender();
+
+        if (t < 1) {
+            entity.__liveTrackAnimFrame = requestAnimationFrame(step);
+        } else {
+            entity.__liveTrackAnimFrame = null;
+        }
+    };
+
+    entity.__liveTrackAnimFrame = requestAnimationFrame(step);
 }
 
 /* ================= ROUTE / ORBIT DEV HELPERS ================= */
@@ -413,24 +534,47 @@ function buildOrbitPoint({
 function buildWaypointRoutePoint(waypoints, t) {
     if (!Array.isArray(waypoints) || waypoints.length < 2) return null;
 
-    const segments = waypoints.length - 1;
-    const scaled = Math.min(segments - 0.000001, Math.max(0, t * segments));
-    const index = Math.floor(scaled);
-    const localT = scaled - index;
+    const n = waypoints.length;
+    const clampedT = Math.max(0, Math.min(1, t));
+    const scaled = clampedT * (n - 1);
+    const i = Math.floor(scaled);
 
-    const from = waypoints[index];
-    const to = waypoints[index + 1];
+    const p0 = waypoints[Math.max(0, i - 1)];
+    const p1 = waypoints[Math.min(n - 1, i)];
+    const p2 = waypoints[Math.min(n - 1, i + 1)];
+    const p3 = waypoints[Math.min(n - 1, i + 2)];
+    const localT = scaled - i;
 
-    return interpolateRoutePoint(from, to, localT);
+    function interpolate(p0Value, p1Value, p2Value, p3Value, tt) {
+        return 0.5 * (
+            (2 * p1Value) +
+            (-p0Value + p2Value) * tt +
+            (2 * p0Value - 5 * p1Value + 4 * p2Value - p3Value) * tt * tt +
+            (-p0Value + 3 * p1Value - 3 * p2Value + p3Value) * tt * tt * tt
+        );
+    }
+
+    const lat = interpolate(p0.lat, p1.lat, p2.lat, p3.lat, localT);
+    const lon = interpolate(p0.lon, p1.lon, p2.lon, p3.lon, localT);
+
+    const altitude_ft =
+        (p1.altitude_ft || 0) +
+        (((p2.altitude_ft || 0) - (p1.altitude_ft || 0)) * localT);
+
+    const heading_deg = getHeadingDegreesFromPoints(p1.lon, p1.lat, p2.lon, p2.lat);
+
+    return {
+        lat,
+        lon,
+        altitude_ft,
+        heading_deg,
+    };
 }
 
 /* ================= PUBLIC API ================= */
 
 function resolveLiveTrackModelUri(track = {}) {
-    const subtype = String(track.subcategory || track.subtype || "")
-        .trim()
-        .toLowerCase();
-
+    const subtype = String(track.subcategory || track.subtype || "").trim().toLowerCase();
     return LIVE_TRACK_MODEL_BY_SUBTYPE[subtype] || LIVE_TRACK_MODEL_URI;
 }
 
@@ -442,7 +586,10 @@ export function upsertLiveTrack(track) {
     const id = `track-${track.track_key}`;
     const style = getLiveTrackStyleConfig();
     const modelUri = resolveLiveTrackModelUri(track);
+
     const subtypeScale = getLiveTrackSubtypeScale(track, style.scale);
+    const subtypeMinPixelSize = getLiveTrackSubtypeMinPixelSize(track, style.minimumPixelSize);
+    const subtypeMaxScale = getLiveTrackSubtypeMaxScale(track, style.maximumScale);
 
     const lat = Number(track.lat);
     const lon = Number(track.lon);
@@ -462,8 +609,8 @@ export function upsertLiveTrack(track) {
             model: {
                 uri: modelUri,
                 scale: subtypeScale,
-                minimumPixelSize: style.minimumPixelSize,
-                maximumScale: style.maximumScale,
+                minimumPixelSize: subtypeMinPixelSize,
+                maximumScale: subtypeMaxScale,
                 color: undefined,
                 colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
                 colorBlendAmount: 0,
@@ -478,16 +625,24 @@ export function upsertLiveTrack(track) {
             ),
             label: {
                 text: track.title || track.subcategory || "Aircraft",
-                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 800000),
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1800000),
                 font: "12px sans-serif",
                 pixelOffset: new Cesium.Cartesian2(0, -25),
                 fillColor: Cesium.Color.WHITE,
             }
         });
 
+        entity.__trackKey = track.track_key;
+        entity.__currentHeadingDeg = attitude.headingDeg;
+
         __liveTrackEntities.set(id, entity);
+
+        pushTrackTrailPointFromCartesian(track.track_key, entity.position, attitude.headingDeg);
     } else {
-        animateTrackTo(entity, lon, lat, alt, 220);
+        entity.__trackKey = track.track_key;
+        entity.__currentHeadingDeg = attitude.headingDeg;
+
+        animateTrackTo(entity, lon, lat, alt);
 
         entity.orientation = buildTrackOrientation(
             lon,
@@ -501,8 +656,8 @@ export function upsertLiveTrack(track) {
         if (entity.model) {
             entity.model.uri = modelUri;
             entity.model.scale = subtypeScale;
-            entity.model.minimumPixelSize = style.minimumPixelSize;
-            entity.model.maximumScale = style.maximumScale;
+            entity.model.minimumPixelSize = subtypeMinPixelSize;
+            entity.model.maximumScale = subtypeMaxScale;
             entity.model.color = Cesium.Color.WHITE;
             entity.model.colorBlendMode = Cesium.ColorBlendMode.MIX;
             entity.model.colorBlendAmount = 0.15;
@@ -513,7 +668,7 @@ export function upsertLiveTrack(track) {
         }
     }
 
-    updateTrackTrail(viewer, track);
+    getOrCreateTrackTrailEntity(viewer, track.track_key, track);
 
     __liveTrackLastPositions.set(track.track_key, {
         lon,
