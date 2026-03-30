@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 dotenv.config({
     path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
 });
+
 import http from "http";
 import cron from "node-cron";
 import axios from "axios";
@@ -13,9 +14,66 @@ import { fileURLToPath } from "url";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { supabase } from "./supabase.js";
+import crypto from "crypto";
+async function saveRawItem({
+    source_name,
+    source_type,
+    parser,
+    external_id,
+    url,
+    title,
+    text,
+    payload,
+    published_at,
+    location_hint
+}) {
+    try {
+        const hash = crypto
+            .createHash("md5")
+            .update((text || "") + (external_id || ""))
+            .digest("hex");
+
+        const { error } = await supabase
+            .from("raw_items")
+            .insert([
+                {
+                    source_name,
+                    source_type,
+                    parser,
+                    external_id,
+                    url,
+                    raw_title: title,
+                    raw_text: text,
+                    raw_payload: payload,
+                    published_at,
+                    location_hint,
+                    hash
+                }
+            ]);
+
+        if (error) {
+            console.error("RAW INSERT ERROR:", error);
+        }
+    } catch (err) {
+        console.error("RAW ITEM FAIL:", err);
+    }
+}
 import { runAdsbWorker } from "./adsb-worker.js";
 import { runAisWorker } from "./ais-worker.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
+
+async function getSourceConfig(sourceName) {
+    if (!sourceName) return null;
+
+    const { data, error } = await supabase
+        .from("source_registry")
+        .select("*")
+        .eq("source_name", sourceName)
+        .single();
+
+    if (error) return null;
+    return data;
+}
 
 const PORT = process.env.PORT || 3000;
 
@@ -688,15 +746,20 @@ async function resolveLocationFromText(text, options = {}) {
 }
 
 function makeDedupeKey(item, feed) {
-    if (item.dedupe_key) return item.dedupe_key;
+    const title = (item.title || "").toLowerCase().slice(0, 120);
+    const location = (item.location_label || "").toLowerCase();
+    const category = (item.category || "").toLowerCase();
+
+    const time = item.occurred_at
+        ? new Date(item.occurred_at).toISOString().slice(0, 16) // minute-level
+        : "";
 
     return [
         feed.name || "feed",
-        item.title || "untitled",
-        item.occurred_at || "",
-        item.location_label || "",
-        item.lat ?? "",
-        item.lon ?? ""
+        category,
+        title,
+        location,
+        time
     ].join("|");
 }
 
@@ -756,6 +819,29 @@ function derivePriorityScore(event) {
     return Math.min(100, score);
 }
 
+function deriveConfidence(event) {
+    if (!event) return 40;
+
+    let score = 40;
+
+    const source = (event.source_name || "").toLowerCase();
+    const summary = (event.summary || "").toLowerCase();
+    const category = (event.category || "").toLowerCase();
+
+    if (source.includes("official") || source.includes("alert")) score += 30;
+    else if (source.includes("adsb") || source.includes("ais")) score += 25;
+    else if (source.includes("telegram")) score += 10;
+    else if (source.includes("reddit")) score -= 10;
+
+    if (/missile|ballistic|airstrike|explosion/.test(summary)) score += 20;
+    if (/confirmed|intercepted|official/.test(summary)) score += 15;
+
+    if (category === "strike") score += 15;
+    if (category === "alert") score += 10;
+
+    return Math.max(10, Math.min(95, score));
+}
+
 function deriveNetworkSeverity(kind, scope = "unknown") {
     if (kind === "internet_outage" && scope === "country") return "critical";
     if (kind === "connectivity_loss" && scope === "asn") return "high";
@@ -763,26 +849,132 @@ function deriveNetworkSeverity(kind, scope = "unknown") {
     return "low";
 }
 
+function isGarbageEvent(event) {
+    if (!event) return true;
+
+    const title = normalizeText(event.title || "");
+    const summary = normalizeText(event.summary || "");
+    const combined = `${title} ${summary}`.toLowerCase();
+
+    if (!title || !summary) return true;
+    if (title.length < 10) return true;
+    if (summary.length < 15) return true;
+
+    if (/^(breaking|update|urgent|alert|reports?)$/i.test(title)) return true;
+    if (/^(breaking|update|urgent|alert|reports?)$/i.test(summary)) return true;
+
+    if (/^https?:\/\//i.test(summary)) return true;
+    if (/^(video|watch|more soon|details soon|developing)$/i.test(summary)) return true;
+
+    const garbagePhrases = [
+        "click here",
+        "subscribe",
+        "follow for more",
+        "more details soon",
+        "developing story",
+        "unconfirmed reports only",
+        "video in link",
+        "see thread",
+        "see above"
+    ];
+
+    if (garbagePhrases.some((phrase) => combined.includes(phrase))) return true;
+
+    const hasRelevant = containsRelevantKeyword(combined, TELEGRAM_RELEVANT_KEYWORDS) ||
+        HARD_MILITARY_TERMS.some((term) => combined.includes(term));
+
+    if (!hasRelevant) return true;
+
+    return false;
+}
+
+function deriveEventStatus(event) {
+    const confidence = Number(event?.confidence || 0);
+    const source = String(event?.source_name || "").toLowerCase();
+    const summary = String(event?.summary || "").toLowerCase();
+
+    if (confidence >= 85 || source.includes("official") || /confirmed|official|verified/.test(summary)) {
+        return "verified";
+    }
+
+    if (confidence >= 60) {
+        return "developing";
+    }
+
+    return "signal";
+}
+
+
+function applyEscalation(existing, incoming) {
+    const out = {};
+    const baseConf = Number(existing?.confidence || 50);
+    const inc = Number(incoming?.confidence || 50);
+
+    // boost confidence on corroboration
+    const boosted = Math.min(95, Math.max(baseConf, inc) + 5);
+    out.confidence = boosted;
+
+    // escalate status
+    const statusOrder = ["signal", "developing", "verified"];
+    const cur = String(existing?.status || "signal");
+    let idx = statusOrder.indexOf(cur);
+    if (boosted >= 85) idx = 2;
+    else if (boosted >= 60) idx = Math.max(idx, 1);
+    out.status = statusOrder[idx] || "signal";
+
+    // increment sources
+    out.source_count = (existing?.source_count || 1) + 1;
+
+    out.updated_at = new Date().toISOString();
+    return out;
+}
+
 /* ----------------------------------------
  * Supabase helpers
  * -------------------------------------- */
 async function insertEvent(event) {
-    let payload = { ...event };
-    let { error } = await supabase.from("events").insert([payload]);
+    try {
+        await saveRawItem({
+            source_name: event.source_name || "unknown",
+            source_type: "worker",
+            parser: "main",
+            external_id: event.dedupe_key || null,
+            url: event.source_url || null,
+            title: event.title || "",
+            text: event.summary || "",
+            payload: event,
+            published_at: event.occurred_at || new Date().toISOString(),
+            location_hint: event.location_label || null
+        });
 
-    if (error && /priority_score/i.test(error.message || "")) {
-        delete payload.priority_score;
-        const retry = await supabase.from("events").insert([payload]);
-        error = retry.error || null;
-    }
+        let payload = { ...event };
 
-    if (error) {
-        console.error("Insert error:", error.message);
+        // FIX: ensure confidence is numeric
+        if (typeof payload.confidence === "string") {
+            const map = { low: 30, medium: 50, high: 80, verified: 95 };
+            payload.confidence = map[payload.confidence.toLowerCase()] || 50;
+        }
+
+        let { error } = await supabase.from("events").insert([payload]);
+
+        if (error && /priority_score/i.test(error.message || "")) {
+            delete payload.priority_score;
+            const retry = await supabase.from("events").insert([payload]);
+            error = retry.error || null;
+        }
+
+        if (error) {
+            console.error("Insert error:", error.message);
+            return false;
+        }
+
+        console.log("Event inserted:", event.title);
+        return true;
+
+    } catch (err) {
+        console.error("InsertEvent FAIL:", err);
         return false;
     }
-
-    console.log("Event inserted:", event.title);
-    return true;
 }
 
 async function upsertActiveAlert(alert) {
@@ -898,22 +1090,19 @@ async function setWorkerState(stateKey, lastMessageId) {
 }
 
 async function similarEventExists(event) {
-    if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon) || !event.occurred_at) {
-        return false;
-    }
+    if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return false;
 
     const eventTime = new Date(event.occurred_at).getTime();
     if (!Number.isFinite(eventTime)) return false;
 
-    const fromTime = new Date(eventTime - 90 * 60 * 1000).toISOString();
-    const toTime = new Date(eventTime + 90 * 60 * 1000).toISOString();
+    const fromTime = new Date(eventTime - 60 * 60 * 1000).toISOString(); // 1 hr
+    const toTime = new Date(eventTime + 60 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
         .from("events")
-        .select("id, category, weapon_type, lat, lon, occurred_at, source_name")
+        .select("id, title, lat, lon")
         .gte("occurred_at", fromTime)
         .lte("occurred_at", toTime)
-        .eq("category", event.category)
         .limit(50);
 
     if (error) {
@@ -924,10 +1113,17 @@ async function similarEventExists(event) {
     for (const row of data || []) {
         const latDiff = Math.abs(Number(row.lat) - Number(event.lat));
         const lonDiff = Math.abs(Number(row.lon) - Number(event.lon));
-        const sameArea = latDiff <= 0.5 && lonDiff <= 0.5;
-        const sameWeapon = String(row.weapon_type || "unknown") === String(event.weapon_type || "unknown");
 
-        if (sameArea && sameWeapon) {
+        const sameArea = latDiff < 0.3 && lonDiff < 0.3;
+
+        const titleA = (row.title || "").toLowerCase();
+        const titleB = (event.title || "").toLowerCase();
+
+        const sameTitle =
+            titleA.includes(titleB.slice(0, 20)) ||
+            titleB.includes(titleA.slice(0, 20));
+
+        if (sameArea && sameTitle) {
             return true;
         }
     }
@@ -935,17 +1131,155 @@ async function similarEventExists(event) {
     return false;
 }
 
+async function findSimilarEvent(event) {
+    if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return null;
+
+    const eventTime = new Date(event.occurred_at).getTime();
+    if (!Number.isFinite(eventTime)) return null;
+
+    const fromTime = new Date(eventTime - 60 * 60 * 1000).toISOString();
+    const toTime = new Date(eventTime + 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .gte("occurred_at", fromTime)
+        .lte("occurred_at", toTime)
+        .limit(20);
+
+    if (error) {
+        console.error("Find similar error:", error.message);
+        return null;
+    }
+
+    for (const row of data || []) {
+        const latDiff = Math.abs(Number(row.lat) - Number(event.lat));
+        const lonDiff = Math.abs(Number(row.lon) - Number(event.lon));
+
+        const sameArea = latDiff < 0.3 && lonDiff < 0.3;
+
+        const titleA = (row.title || "").toLowerCase();
+        const titleB = (event.title || "").toLowerCase();
+
+        const sameTitle =
+            titleA.includes(titleB.slice(0, 20)) ||
+            titleB.includes(titleA.slice(0, 20));
+
+        if (sameArea && sameTitle) {
+            return row;
+        }
+    }
+
+    return null;
+}
+
+
+async function findOrCreateCluster(event) {
+    const lat = Number(event?.lat);
+    const lon = Number(event?.lon);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+    const { data, error } = await supabase
+        .from("event_clusters")
+        .select("*")
+        .limit(50);
+
+    if (error) {
+        console.error("Cluster fetch error:", error.message);
+        return null;
+    }
+
+    for (const cluster of data || []) {
+        const latDiff = Math.abs(Number(cluster.lat) - lat);
+        const lonDiff = Math.abs(Number(cluster.lon) - lon);
+
+        if (latDiff < 0.5 && lonDiff < 0.5) {
+            return cluster;
+        }
+    }
+
+    const { data: newCluster, error: createError } = await supabase
+        .from("event_clusters")
+        .insert([
+            {
+                lat,
+                lon,
+                event_count: 1,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }
+        ])
+        .select()
+        .single();
+
+    if (createError) {
+        console.error("Cluster create error:", createError.message);
+        return null;
+    }
+
+    return newCluster;
+}
+
 async function insertEventIfValid(event) {
     if (!event) return false;
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return false;
 
+    const sourceConfig = await getSourceConfig(event.source_name);
+
+    if (sourceConfig) {
+        if (sourceConfig.enabled === false) return false;
+        if (sourceConfig.publish_mode === "never_publish_direct") return false;
+        if (sourceConfig.publish_mode === "signal_only") return false;
+    }
+
+    if ((event.title || "").length < 10) return false;
+    if (!event.summary || event.summary.length < 15) return false;
+
+    if (isGarbageEvent(event)) return false;
+    if (!isMilitaryRelevantEvent(event)) return false;
+
     const exists = await eventExists(event.dedupe_key);
     if (exists) return false;
 
-    const similarExists = await similarEventExists(event);
-    if (similarExists) return false;
-
     event.priority_score = derivePriorityScore(event);
+    event.confidence = deriveConfidence(event);
+
+    if (sourceConfig && sourceConfig.trust_score) {
+        event.confidence = Math.min(95, event.confidence + Math.floor(sourceConfig.trust_score / 10));
+    }
+
+    if (typeof deriveEventStatus === "function") {
+        event.status = deriveEventStatus(event);
+    }
+
+    const existing = await findSimilarEvent(event);
+
+    if (existing) {
+        const update = applyEscalation(existing, event);
+
+        await supabase
+            .from("events")
+            .update(update)
+            .eq("id", existing.id);
+
+        // 🔥 ESCALATION ALERT
+        if (update.status === "verified" || update.confidence >= 85) {
+            await upsertActiveAlert({
+                alert_key: existing.id,
+                category: "escalation",
+                region: event.location_label || "unknown",
+                title: existing.title || event.title,
+                summary: event.summary,
+                source_name: event.source_name,
+                source_url: event.source_url,
+                started_at: existing.occurred_at
+            });
+        }
+
+        console.log("Merged+Escalated:", existing.title);
+        return true;
+    }
 
     return insertEvent(event);
 }

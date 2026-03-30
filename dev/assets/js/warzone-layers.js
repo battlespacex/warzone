@@ -21,24 +21,36 @@ const LAYER_DEFS = [
 
 const STORAGE_KEY = "wz_layer_state";
 let __layerState = {};
-LAYER_DEFS.forEach(l => { __layerState[l.id] = true; });
+LAYER_DEFS.forEach((l) => {
+    __layerState[l.id] = true;
+});
 
 function loadState() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-        LAYER_DEFS.forEach(l => {
-            if (l.id in saved) __layerState[l.id] = saved[l.id];
+
+        LAYER_DEFS.forEach((l) => {
+            if (l.id in saved) {
+                __layerState[l.id] = !!saved[l.id];
+            }
         });
-    } catch { }
+    } catch {
+        // keep defaults
+    }
 }
 
 function saveState() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(__layerState)); } catch { }
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(__layerState));
+    } catch {
+        // ignore storage failures
+    }
 }
 
 // ── Event classifier ───────────────────────────────────────────────────────────
 export function getEventLayerId(event) {
     if (!event) return "news";
+
     const cat = String(event.category || "").toLowerCase();
     const weapon = String(event.weapon_type || "").toLowerCase();
     const subcat = String(event.subcategory || "").toLowerCase();
@@ -64,7 +76,10 @@ export function getEventLayerId(event) {
         return "strikes";
     }
 
-    if (src.includes("telegram") || src.includes("reddit") || src.includes("gdelt") || src.includes("twitter")) return "news";
+    if (src.includes("telegram") || src.includes("reddit") || src.includes("gdelt") || src.includes("twitter")) {
+        return "news";
+    }
+
     return "strikes";
 }
 
@@ -73,10 +88,12 @@ export function isEventVisible(event) {
     return __layerState[layerId] !== false;
 }
 
-export function isLayerEnabled(id) { return __layerState[id] !== false; }
+export function isLayerEnabled(id) {
+    return __layerState[id] !== false;
+}
 
 export function setLayer(id, enabled) {
-    __layerState[id] = enabled;
+    __layerState[id] = !!enabled;
     saveState();
 }
 
@@ -88,21 +105,29 @@ export function toggleLayer(id) {
 
 // Callbacks
 let __callbacks = [];
-export function onLayerChange(cb) { __callbacks.push(cb); }
+
+export function onLayerChange(cb) {
+    __callbacks.push(cb);
+}
+
 function notifyChange(id, val) {
-    __callbacks.forEach(cb => { try { cb(id, val, __layerState); } catch { } });
+    __callbacks.forEach((cb) => {
+        try {
+            cb(id, val, { ...__layerState });
+        } catch {
+            // ignore callback errors
+        }
+    });
 }
 
 // ── Layer panel UI ─────────────────────────────────────────────────────────────
-// Panel chrome (panel-head, X button) lives in index.html as a proper .warzone-widget.
-// This function only populates the list body inside #wz-layer-panel.
 export function initLayerPanel() {
     loadState();
 
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
 
-    const rows = LAYER_DEFS.map(l => `
+    const rows = LAYER_DEFS.map((l) => `
         <div class="wz-layer-item${__layerState[l.id] ? " is-on" : ""}" data-layer="${l.id}">
             <span class="wz-layer-icon">${l.icon}</span>
             <span class="wz-layer-dot" style="background:${l.color}"></span>
@@ -119,8 +144,7 @@ export function initLayerPanel() {
         <div class="wz-layers__list">${rows}</div>
     `;
 
-    // Wire each row
-    container.querySelectorAll(".wz-layer-item").forEach(item => {
+    container.querySelectorAll(".wz-layer-item").forEach((item) => {
         item.addEventListener("click", () => {
             const id = item.dataset.layer;
             const newVal = toggleLayer(id);
@@ -129,28 +153,29 @@ export function initLayerPanel() {
         });
     });
 
-    // ALL ON
     document.getElementById("wz-layers-all-on")?.addEventListener("click", (e) => {
         e.stopPropagation();
-        LAYER_DEFS.forEach(l => {
+
+        LAYER_DEFS.forEach((l) => {
             __layerState[l.id] = true;
             container.querySelector(`[data-layer="${l.id}"]`)?.classList.add("is-on");
         });
+
         saveState();
         notifyChange("*", true);
     });
 
-    // ALL OFF
     document.getElementById("wz-layers-all-off")?.addEventListener("click", (e) => {
         e.stopPropagation();
-        LAYER_DEFS.forEach(l => {
+
+        LAYER_DEFS.forEach((l) => {
             __layerState[l.id] = false;
             container.querySelector(`[data-layer="${l.id}"]`)?.classList.remove("is-on");
         });
+
         saveState();
         notifyChange("*", false);
     });
 }
 
-export { LAYER_DEFS
-    };
+export { LAYER_DEFS };

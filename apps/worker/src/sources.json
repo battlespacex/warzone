@@ -37,25 +37,27 @@
     {
       "name": "GDELT Conflict Signals",
       "parser": "gdelt",
-      "enabled": false,
+      "enabled": true,
       "type": "gdelt-api",
       "url": "https://api.gdeltproject.org/api/v2/doc/doc",
       "poll_interval_ms": 60000,
       "category": "military",
       "tags": [
         "gdelt",
-        "signal"
+        "signal",
+        "conflict"
       ]
     },
     {
       "name": "ACLED Conflict Feed",
       "parser": "acled",
-      "enabled": false,
+      "enabled": true,
       "url": "https://acleddata.com/api/acled/read",
       "category": "conflict",
       "tags": [
         "acled",
-        "conflict"
+        "conflict",
+        "military"
       ]
     },
     {
@@ -85,14 +87,25 @@
       "enabled": true,
       "type": "adsb-opensky",
       "category": "military",
-      "tags": [ "adsb", "opensky", "military", "aircraft", "airforce" ]
+      "tags": [
+        "adsb",
+        "opensky",
+        "military",
+        "aircraft",
+        "airforce"
+      ]
     },
     {
       "name": "AIS Naval Vessels",
       "enabled": true,
       "type": "ais-stream",
       "category": "naval",
-      "tags": [ "ais", "naval", "fleet" ]
+      "tags": [
+        "ais",
+        "naval",
+        "fleet",
+        "military"
+      ]
     },
     {
       "name": "IsraelWarRoom Siren Feed",
@@ -106,7 +119,8 @@
       "tags": [
         "telegram",
         "siren",
-        "israel"
+        "israel",
+        "military"
       ]
     },
     {
@@ -121,16 +135,22 @@
       "tags": [
         "telegram",
         "siren",
-        "israel"
+        "israel",
+        "military"
       ]
     },
     {
       "name": "Pikud HaOref Real-Time Sirens",
-      "enabled": false,
+      "enabled": true,
       "type": "oref-poller",
       "parser": "oref",
       "url": "https://www.oref.org.il/WarningMessages/alert/alerts.json",
-      "category": "alert"
+      "category": "alert",
+      "tags": [
+        "siren",
+        "alert",
+        "military"
+      ]
     },
     {
       "name": "Manual Siren Alerts",
@@ -147,37 +167,34 @@
       "category": "cyber",
       "tags": [
         "cyber",
-        "kev"
+        "kev",
+        "critical-infra"
       ]
     },
     {
-      "name": "USGS Earthquake Feed",
-      "enabled": false,
-      "parser": "usgs",
-      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
-      "category": "signal"
-    },
-    {
       "name": "NASA FIRMS Thermal",
-      "enabled": false,
+      "enabled": true,
       "parser": "firms",
       "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/1",
-      "category": "thermal"
-    },
-    {
-      "name": "NASA EONET",
-      "enabled": false,
-      "parser": "eonet",
-      "url": "https://eonet.gsfc.nasa.gov/api/v3/events",
-      "category": "fire"
+      "category": "thermal",
+      "tags": [
+        "thermal",
+        "strike-signal",
+        "military"
+      ]
     },
     {
       "name": "Cloudflare Radar Internet Outages",
       "parser": "network-cloudflare",
-      "enabled": false,
+      "enabled": true,
       "url": "https://api.cloudflare.com/client/v4/radar/quality/outages/events?limit=50",
       "category": "network",
-      "tags": [ "network", "internet-outage", "cloudflare-radar" ]
+      "tags": [
+        "network",
+        "internet-outage",
+        "cloudflare-radar",
+        "critical-infra"
+      ]
     },
     {
       "name": "IODA Internet Outages",
@@ -185,7 +202,12 @@
       "enabled": true,
       "url": "https://api.ioda.inetintel.cc.gatech.edu/v2/",
       "category": "network",
-      "tags": [ "network", "internet-outage", "ioda" ]
+      "tags": [
+        "network",
+        "internet-outage",
+        "ioda",
+        "critical-infra"
+      ]
     },
     {
       "name": "OONI Network Blocking",
@@ -193,7 +215,27 @@
       "enabled": true,
       "url": "https://api.ooni.io/api/v1/observations?limit=20",
       "category": "network",
-      "tags": [ "network", "blocking", "throttling", "censorship", "ooni" ]
+      "tags": [
+        "network",
+        "blocking",
+        "throttling",
+        "censorship",
+        "ooni",
+        "critical-infra"
+      ]
+    },
+    {
+      "name": "Global NOTAM Alerts",
+      "parser": "notam",
+      "enabled": true,
+      "url": "https://api.flightaware.com/notams",
+      "category": "airspace",
+      "tags": [
+        "notam",
+        "airspace",
+        "aviation",
+        "military"
+      ]
     }
   ]
 }

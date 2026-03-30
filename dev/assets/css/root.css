@@ -490,10 +490,9 @@
     --warzone-live-track-min-pixel-size-fighter: 60;
     --warzone-live-track-max-scale-fighter: 190;
     /* awacs */
-
-    --warzone-live-track-scale-fighter: 200;
-    --warzone-live-track-min-pixel-size-fighter: 230;
-    --warzone-live-track-max-scale-fighter: 230;
+    --warzone-live-track-scale-awacs: 200;
+    --warzone-live-track-min-pixel-size-awacs: 230;
+    --warzone-live-track-max-scale-awacs: 230;
     /* recon / isr */
     --warzone-live-track-scale-recon: 120;
     --warzone-live-track-min-pixel-size-recon: 90;

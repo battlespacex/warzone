@@ -10,6 +10,186 @@ const markerCache = new Map();
 const ringCanvasCache = new Map();
 const __eventEntityIds = new Set();
 
+const __EVENT_LOD_STATE = {
+    mode: "map",
+    cameraHeight: 2350000,
+};
+
+function getEventEntityCount() {
+    return __eventEntityIds.size;
+}
+
+function getCameraHeight(viewer) {
+    try {
+        return Number(viewer?.camera?.positionCartographic?.height || 0);
+    } catch {
+        return 0;
+    }
+}
+
+function shouldClusterEvents(viewer) {
+    return getCameraHeight(viewer) > numberVar("--warzone-event-cluster-height", 1800000);
+}
+
+function shouldShowEventRingsAtCurrentZoom(viewer) {
+    // return getCameraHeight(viewer) <= numberVar("--warzone-event-ring-max-height", 2600000);
+    return true;
+}
+
+
+function shouldShowEventOutlinesAtCurrentZoom(viewer) {
+    return getCameraHeight(viewer) <= numberVar("--warzone-event-outline-max-height", 1800000);
+}
+
+function getMaxRenderableEvents() {
+    return Math.max(20, numberVar("--warzone-max-renderable-events", 180));
+}
+
+function clusterEventsForDisplay(events = [], precisionDeg = 0.55, maxItems = 120) {
+    const groups = new Map();
+
+    for (const event of events) {
+        const lat = Number(event?.lat);
+        const lon = Number(event?.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+        const key = `${Math.round(lat / precisionDeg)}:${Math.round(lon / precisionDeg)}`;
+        if (!groups.has(key)) {
+            groups.set(key, {
+                lat,
+                lon,
+                items: [event],
+            });
+        } else {
+            const group = groups.get(key);
+            const n = group.items.length;
+            group.lat = (group.lat * n + lat) / (n + 1);
+            group.lon = (group.lon * n + lon) / (n + 1);
+            group.items.push(event);
+        }
+    }
+
+    return Array.from(groups.values())
+        .map((group, index) => {
+            const items = group.items;
+            const critical = items.some((e) => String(e?.severity || "").toLowerCase() === "critical");
+            const high = items.some((e) => String(e?.severity || "").toLowerCase() === "high");
+            const latest = items
+                .slice()
+                .sort((a, b) => new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0))[0] || items[0];
+
+            return {
+                ...latest,
+                id: latest?.id || `cluster-${index + 1}`,
+                lat: group.lat,
+                lon: group.lon,
+                title: items.length > 1 ? `${items.length} events near ${latest?.location_label || "cluster"}` : latest?.title,
+                summary: items.length > 1 ? `Clustered ${items.length} nearby events for high-altitude rendering.` : latest?.summary,
+                severity: critical ? "critical" : (high ? "high" : (latest?.severity || "medium")),
+                cluster_count: items.length,
+            };
+        })
+        .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
+        .slice(0, maxItems);
+}
+
+function applyEventLod(viewer) {
+    if (!viewer) return;
+
+    const mode = viewer.__warzoneMapMode || __EVENT_LOD_STATE.mode || "map";
+    const cameraHeight = getCameraHeight(viewer);
+    const allowMarkers = boolVar("--warzone-event-markers-visible", true);
+    const allowRings = boolVar("--warzone-event-rings-visible", true);
+    const showRingsByZoom = shouldShowEventRingsAtCurrentZoom(viewer);
+    const showOutlinesByZoom = shouldShowEventOutlinesAtCurrentZoom(viewer);
+
+    __EVENT_LOD_STATE.mode = mode;
+    __EVENT_LOD_STATE.cameraHeight = cameraHeight;
+
+    const entities = viewer.entities.values;
+    for (const entity of entities) {
+        if (!entity?.properties) continue;
+
+        const isEventOutline = !!entity.properties?.isEventOutline?.getValue?.();
+        const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
+        const category = String(entity.properties?.category?.getValue?.() ?? "strike");
+        const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
+        const colorCss = getCategoryColorCss(category);
+        const color = Cesium.Color.fromCssColorString(colorCss);
+
+        if (entity.billboard) {
+            if (isEventOutline) {
+                entity.billboard.show = mode !== "heatmap" && allowRings && showOutlinesByZoom;
+            } else {
+                entity.billboard.show = mode !== "heatmap" && allowMarkers;
+            }
+        }
+
+        if (entity.ellipse) {
+            if (!allowRings || !showRingsByZoom) {
+                entity.ellipse.show = false;
+                continue;
+            }
+
+            entity.ellipse.show = true;
+
+            if (mode === "heatmap") {
+                entity.ellipse.semiMinorAxis = heatRadius;
+                entity.ellipse.semiMajorAxis = heatRadius;
+                entity.ellipse.material = color.withAlpha(0.24);
+                entity.ellipse.outline = false;
+            } else {
+                const baseRadius = getSeverityRadius({ severity });
+
+                const height = getCameraHeight(viewer);
+
+                let scale = 1;
+
+                if (height > 4000000) {
+                    scale = 0.4;
+                } else if (height > 2500000) {
+                    scale = 0.65;
+                } else {
+                    scale = 1;
+                }
+
+                const normalRadius = baseRadius * scale;
+                entity.ellipse.semiMinorAxis = normalRadius;
+                entity.ellipse.semiMajorAxis = normalRadius;
+                entity.ellipse.material = color.withAlpha(numberVar("--warzone-event-ring-fill-alpha", 0.14));
+                entity.ellipse.outline = true;
+                entity.ellipse.outlineColor = color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.82));
+            }
+        }
+    }
+
+    viewer.scene.requestRender();
+}
+
+function attachEventLodController(viewer) {
+    if (!viewer || viewer.__warzoneEventLodAttached) return;
+    viewer.__warzoneEventLodAttached = true;
+
+    let pending = false;
+    const run = () => {
+        pending = false;
+        applyEventLod(viewer);
+    };
+    const queue = () => {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(run);
+    };
+
+    viewer.camera.moveEnd.addEventListener(queue);
+    viewer.scene.postRender.addEventListener(() => {
+        const currentHeight = getCameraHeight(viewer);
+        if (Math.abs(currentHeight - (__EVENT_LOD_STATE.cameraHeight || 0)) > 250000) {
+            queue();
+        }
+    });
+}
+
 function rememberEventEntity(entity) {
     if (!entity?.id) return;
     __eventEntityIds.add(String(entity.id));
@@ -20,12 +200,14 @@ function forgetEventEntity(entityId) {
 }
 function clearTrackedEventEntities(viewer) {
     const ids = Array.from(__eventEntityIds);
+    if (viewer?.entities?.suspendEvents) viewer.entities.suspendEvents();
     for (const id of ids) {
         try {
             const entity = viewer.entities.getById(id);
             if (entity) viewer.entities.remove(entity);
         } catch { }
     }
+    if (viewer?.entities?.resumeEvents) viewer.entities.resumeEvents();
     __eventEntityIds.clear();
     viewer.scene.requestRender();
 }
@@ -299,37 +481,42 @@ function addEventEntity(viewer, event) {
     const outlineAlpha = numberVar("--warzone-event-ring-outline-alpha", 0.82);
     const outlineWidth = numberVar("--warzone-event-ring-outline-width", 3);
     const radius = getSeverityRadius(event);
-    const showEventRings = boolVar("--warzone-event-rings-visible", true);
+    const allowOutline = boolVar("--warzone-event-rings-visible", true)
+        && shouldShowEventOutlinesAtCurrentZoom(viewer)
+        && getEventEntityCount() < numberVar("--warzone-outline-max-entities", 220);
 
-    const ringImage = createRingCanvas(
-        colorCss,
-        512,
-        Math.max(2, Math.round(outlineWidth))
-    );
+    let ringEntity = null;
 
-    const ringEntity = viewer.entities.add({
-        id: `${event.id}-outline`,
-        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat, 10),
-        billboard: {
-            image: ringImage,
-            scale: radius / 256,
-            color: Cesium.Color.WHITE.withAlpha(outlineAlpha),
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: showEventRings,
-        },
-        properties: {
-            isEventOutline: true,
-            category: event.category,
-            severity: event.severity,
-            heatRadius: getHeatRadius(event),
-            radius,
-        },
-    });
+    if (allowOutline) {
+        const ringImage = createRingCanvas(
+            colorCss,
+            512,
+            Math.max(2, Math.round(outlineWidth))
+        );
 
-    // PASS 1: remember added entities so we can clear them later
+        ringEntity = viewer.entities.add({
+            id: `${event.id}-outline`,
+            position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat, 10),
+            billboard: {
+                image: ringImage,
+                scale: radius / 256,
+                color: Cesium.Color.WHITE.withAlpha(outlineAlpha),
+                verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                show: true,
+            },
+            properties: {
+                isEventOutline: true,
+                category: event.category,
+                severity: event.severity,
+                heatRadius: getHeatRadius(event),
+                radius,
+            },
+        });
+    }
+
     rememberEventEntity(entity);
-    rememberEventEntity(ringEntity);
+    if (ringEntity) rememberEventEntity(ringEntity);
 
     return { entity, ringEntity };
 }
@@ -550,48 +737,8 @@ async function addArcGisLayers(viewer) {
 }
 /* ---------- Map mode ---------- */
 function setMapMode(viewer, mode = "map") {
-    const entities = viewer.entities.values;
-    for (const entity of entities) {
-        if (!entity.properties) continue;
-
-        const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
-        const category = String(entity.properties?.category?.getValue?.() ?? "strike");
-        const colorCss = getCategoryColorCss(category);
-        const color = Cesium.Color.fromCssColorString(colorCss);
-
-        if (entity.billboard) {
-            const allowMarker = boolVar("--warzone-event-markers-visible", true);
-            entity.billboard.show = mode !== "heatmap" && allowMarker;
-        }
-
-        if (entity.ellipse) {
-            const allowRing = boolVar("--warzone-event-rings-visible", true);
-            if (!allowRing) {
-                entity.ellipse.show = false;
-                continue;
-            }
-
-            if (mode === "heatmap") {
-                entity.ellipse.show = true;
-                entity.ellipse.semiMinorAxis = heatRadius;
-                entity.ellipse.semiMajorAxis = heatRadius;
-                entity.ellipse.material = color.withAlpha(0.32);
-                entity.ellipse.outline = false;
-            } else {
-                const normalRadius = getSeverityRadius({
-                    severity: entity.properties?.severity?.getValue?.() ?? "medium",
-                });
-                entity.ellipse.show = true;
-                entity.ellipse.semiMinorAxis = normalRadius;
-                entity.ellipse.semiMajorAxis = normalRadius;
-                entity.ellipse.material = color.withAlpha(numberVar("--warzone-event-ring-fill-alpha", 0.14));
-                entity.ellipse.outline = true;
-                entity.ellipse.outlineColor = color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.82));
-            }
-        }
-    }
-
-    viewer.scene.requestRender();
+    viewer.__warzoneMapMode = mode;
+    applyEventLod(viewer);
 }
 /* ---------- Missile geometry ---------- */
 function buildArcState(originLon, originLat, impactLon, impactLat, peakHeight = 420000, steps = 96) {
@@ -1469,19 +1616,32 @@ export async function initWarzoneGlobe() {
 
     ensureMissileStore(viewer);
     ensureAudioStore(viewer);
+    attachEventLodController(viewer);
 
     viewer.scene.requestRender();
 
     viewer.__warzone = {
         addEvent(event) {
             const entity = addEventEntity(viewer, event);
+            applyEventLod(viewer);
             viewer.scene.requestRender();
             return entity;
         },
 
         addEvents(events = []) {
             const normalized = normalizeEvents(events);
-            normalized.forEach((event) => addEventEntity(viewer, event));
+            const maxItems = getMaxRenderableEvents();
+            const prepared = shouldClusterEvents(viewer)
+                ? clusterEventsForDisplay(normalized, numberVar("--warzone-event-cluster-precision", 0.55), maxItems)
+                : normalized.slice(0, maxItems);
+
+            if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
+            for (const event of prepared) {
+                addEventEntity(viewer, event);
+            }
+            if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
+
+            applyEventLod(viewer);
             viewer.scene.requestRender();
         },
 

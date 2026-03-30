@@ -7,14 +7,6 @@ let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
 
-const SWEEPER_RENDER = {
-    labelFrameSkip: 2,
-    requestRenderFrameSkip: 2,
-    polygonStepsNear: 28,
-    polygonStepsFar: 16,
-    maxHeight: 5500000,
-};
-
 function getSweepPreset(event = {}) {
     const sub = String(
         event.subcategory ||
@@ -37,24 +29,6 @@ function getSweepPreset(event = {}) {
     if (text.includes("air defense")) return { radius: 250000, widthDeg: 18, speed: 0.55, color: "#18e2db", label: "Air Defense Radar" };
 
     return null;
-}
-
-function getCameraHeight(viewer) {
-    try {
-        return Number(viewer?.camera?.positionCartographic?.height || 0);
-    } catch {
-        return 0;
-    }
-}
-
-function shouldRenderSweepers(viewer) {
-    return getCameraHeight(viewer) <= SWEEPER_RENDER.maxHeight;
-}
-
-function getPolygonSteps(viewer) {
-    return getCameraHeight(viewer) > 1800000
-        ? SWEEPER_RENDER.polygonStepsFar
-        : SWEEPER_RENDER.polygonStepsNear;
 }
 
 function buildSectorHierarchy(lon, lat, radiusMeters, headingDeg, widthDeg = 28, steps = 28) {
@@ -246,11 +220,6 @@ export function renderSweepers(viewer, events = []) {
 
     clearSweepers(viewer);
 
-    if (!shouldRenderSweepers(viewer)) {
-        viewer.scene.requestRender?.();
-        return;
-    }
-
     const candidates = selectRadarCandidates(events, 4, 0.35);
 
     if (!candidates.length) {
@@ -260,10 +229,6 @@ export function renderSweepers(viewer, events = []) {
 
     __radarViewer = viewer;
     __radarItems = [];
-
-    const polygonSteps = getPolygonSteps(viewer);
-
-    if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
 
     candidates.forEach((candidate, index) => {
         const preset = candidate.preset;
@@ -308,7 +273,7 @@ export function renderSweepers(viewer, events = []) {
                         preset.radius,
                         state.heading,
                         preset.widthDeg,
-                        polygonSteps
+                        28
                     );
                 }, false),
                 material: base.withAlpha(0.4),
@@ -335,24 +300,12 @@ export function renderSweepers(viewer, events = []) {
         });
     });
 
-    if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
-
     let lastTs = null;
-    let frameCount = 0;
 
     const tick = (ts) => {
-        if (!__radarViewer) return;
-
         if (lastTs == null) lastTs = ts;
         const dt = (ts - lastTs) / 1000;
         lastTs = ts;
-        frameCount += 1;
-
-        if (!shouldRenderSweepers(viewer)) {
-            clearSweepers(viewer);
-            viewer.scene.requestRender?.();
-            return;
-        }
 
         __radarItems.forEach((item) => {
             item.state.heading = (
@@ -360,14 +313,8 @@ export function renderSweepers(viewer, events = []) {
             ) % 360;
         });
 
-        if (frameCount % SWEEPER_RENDER.labelFrameSkip === 0) {
-            updateRadarLabels();
-        }
-
-        if (frameCount % SWEEPER_RENDER.requestRenderFrameSkip === 0) {
-            viewer.scene.requestRender?.();
-        }
-
+        updateRadarLabels();
+        viewer.scene.requestRender?.();
         __sweeperTicker = requestAnimationFrame(tick);
     };
 

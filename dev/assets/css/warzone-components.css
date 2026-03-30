@@ -508,6 +508,7 @@
 .wz-layers__all-on, .wz-layers__all-off {
     flex: 1;
     height: 3rem;
+    font-size: var(--text-sm);
 }
 
 .wz-layers__all-off {
@@ -1015,7 +1016,7 @@ UNUSED CANDIDATE END */
 }
 
 .warzone-widget--airspace {
-    left: 30rem;
+    left: 60rem;
     top: 0;
 }
 
@@ -1026,7 +1027,11 @@ UNUSED CANDIDATE END */
 
 .warzone-widget--escalation {
     right: 0;
-    top: calc(var(--wz-bar-h) + 1rem);
+    top: 0;
+}
+
+.warzone-panel--floating.warzone-widget--escalation {
+    max-height: unset
 }
 
 .warzone-widget--cyber {
@@ -1034,6 +1039,16 @@ UNUSED CANDIDATE END */
     top: auto;
     bottom: 0;
 }
+
+.warzone-widget--aircraft {
+    left: 30rem;
+    top: 0;
+}
+
+.warzone-panel--floating.warzone-widget--aircraft {
+    max-height: 65vh
+}
+
 /* #endregion =========== */
 /* #region =========== WIDGET INNER PANELS =========== */
 .panel-actions {
@@ -1159,6 +1174,8 @@ UNUSED CANDIDATE END */
     z-index: 20;
     width: 28rem;
     max-width: calc(100vw - 28rem);
+    height: auto;
+    max-height: 32vh;
     isolation: isolate;
     opacity: 1;
     pointer-events: auto;
@@ -1166,6 +1183,7 @@ UNUSED CANDIDATE END */
     transition: opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
     filter: var(--widget-shadow);
     visibility: visible;
+    border-radius: .2rem
 }
 
 .panel-container {
@@ -1176,7 +1194,6 @@ UNUSED CANDIDATE END */
     background: var(--color-bg-dark);
     clip-path: var(--clippath-shape-1);
     transition: clip-path 260ms ease;
-    border-radius: .2rem;
 }
 
 .warzone-panel--floating {
@@ -1210,7 +1227,6 @@ UNUSED CANDIDATE END */
 
 .panel-content {
     height: auto;
-    max-height: 30vh;
     overflow-y: auto;
     opacity: 1;
     transition: height 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease;
@@ -1255,6 +1271,7 @@ UNUSED CANDIDATE END */
     justify-content: space-between;
     gap: 1rem;
     height: 4rem;
+    min-height: 4rem;
     padding: 0 1rem 0 1.5rem;
     background: var(--color-bg-header);
 }
@@ -1401,6 +1418,134 @@ UNUSED CANDIDATE END */
     color: var(--criticality-level-lo-cl);
 }
 /* #endregion =========== */
+
+/* #region =========== WIDGET - AIRCRAFT MOVEMENTS =========== */
+.wz-aircraft-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem 1.5rem 0;
+}
+
+.wz-aircraft-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.wz-aircraft-filter,
+.wz-aircraft-select,
+.wz-aircraft-action {
+    background: var(--color-bg-row);
+}
+
+.wz-aircraft-filter {
+    height: 3rem;
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    padding: 0 .8rem;
+    min-width: unset !important;
+    flex: 1;
+}
+
+    .wz-aircraft-filter.is-active {
+        background: var(--color-teal);
+    }
+
+    .wz-aircraft-filter.is-active:hover {
+        background: var(--color-teal-glow);
+    }
+
+
+.wz-aircraft-type-filter {
+    width: 100%;
+}
+
+
+.wz-aircraft-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.wz-aircraft-empty {
+    color: var(--color-text-dim);
+    text-align: center;
+}
+
+.wz-aircraft-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 1rem;
+    color: var(--color-text-heading);
+    background: var(--color-bg-row);
+    clip-path: var(--clippath-shape-3);
+}
+
+.wz-aircraft-item__top,
+.wz-aircraft-item__meta,
+.wz-aircraft-item__stats,
+.wz-aircraft-item__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.wz-aircraft-item__title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.wz-aircraft-item__time,
+.wz-aircraft-item__meta,
+.wz-aircraft-item__stats {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+}
+
+.wz-aircraft-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 9rem;
+    height: 3rem;
+    padding: 0 0.3rem;
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    clip-path: var(--clippath-shape-5);
+}
+
+    .wz-aircraft-badge.is-active {
+        color: var(--criticality-level-lo-cl);
+        background: var(--criticality-level-lo-bg);
+    }
+
+    .wz-aircraft-badge.is-ended {
+        color: var(--criticality-level-de-cl);
+        background: var(--criticality-level-de-bg);
+    }
+
+.wz-aircraft-action {
+    padding: 0 1rem;
+    cursor: pointer;
+}
+
+@media (max-width: 640px) {
+    .wz-aircraft-item__meta,
+    .wz-aircraft-item__stats,
+    .wz-aircraft-item__foot {
+        flex-wrap: wrap;
+    }
+}
+/* #endregion =========== */
+
 /* #region =========== SIREN BANNER =========== */
 .wz-siren-stack {
     position: absolute;

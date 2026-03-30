@@ -163,5 +163,65 @@
                 </div>
             </div>
         </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--aircraft"
+               data-widget-id="aircraft"
+               aria-labelledby="widget-aircraft-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-aircraft-title">Aircraft Tracker</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse aircraft tracker widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide aircraft tracker widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="wz-aircraft-toolbar">
+                        <div class="wz-aircraft-filters" role="tablist" aria-label="Aircraft movement filters">
+
+                            <button type="button" class="wz-aircraft-filter btn-primary is-active" data-aircraft-filter="active">
+                                <span aria-hidden="true"></span>
+                                Active
+                            </button>
+
+                            <button type="button" class="wz-aircraft-filter btn-primary" data-aircraft-filter="recent">
+                                <span aria-hidden="true"></span>
+                                Recent
+                            </button>
+
+                            <button type="button" class="wz-aircraft-filter btn-primary" data-aircraft-filter="ended">
+                                <span aria-hidden="true"></span>
+                                Ended
+                            </button>
+
+                        </div>
+
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by type</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by type" aria-required="true" class="wz--dropdown" id="wz-aircraft-filter-subtype">
+                                    <option value="all">All Types</option>
+                                </select>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div id="wz-aircraft-panel" class="wz-aircraft-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
     </div>
 </div>

@@ -23,32 +23,30 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    border-top: 1rem solid var(--color-teal-glow);
+    border-top: .7rem solid var(--color-teal-glow);
     filter: var(--header-shadow);
-    opacity: 0;
     transform: translateY(-8rem);
-    transition: opacity 0.7s ease, transform 0.7s ease;
-    will-change: opacity, transform;
+    transition: transform 0.8s ease;
+    will-change: transform;
 }
 
-body.is-app-active .warzone-brand {
+.is-app-active .warzone-brand {
     opacity: 1;
     transform: translateY(0);
-    transition-delay: 0.1s;
 }
 
 .warzone-logo {
     position: absolute;
     top: 2rem;
-    opacity: 0;
-    transition: opacity 0.55s ease;
-    will-change: opacity;
     justify-self: center;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    will-change: opacity;
 }
 
-body.is-app-active .warzone-logo {
+.is-app-active .warzone-logo {
     opacity: 1;
-    transition-delay: 0.35s;
+    transition-delay: 1s;
 }
 
 .warzone-logo img {
@@ -264,52 +262,42 @@ body.is-about-open .wz-radar-label-layer {
 
 @media (max-width: 768px) {
     .wz-dock {
-        padding: 0.5rem 1rem;
-        gap: 0.5rem;
-        bottom: 1.5rem;
         max-width: calc(100vw - 2rem);
         overflow-x: auto;
         overflow-y: visible;
         scrollbar-width: none;
     }
 
-        .wz-dock::-webkit-scrollbar {
-            display: none;
-        }
-
-    .wz-dock__btn {
-        width: 4rem;
-        height: 4rem;
-        flex-shrink: 0;
-    }
-
-    .wz-dock__icon {
-        font-size: 1.5rem;
-    }
-
-    .wz-dock__label {
-        display: none;
-    }
-
-    .wz-dock__sep {
-        height: 2.5rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .wz-dock {
-        gap: 0.3rem;
-        padding: 0.5rem 0.8rem;
-        bottom: 1rem;
+    .wz-btn-container {
+        padding: 0 4rem;
+        clip-path: polygon(100% 100%, 0 100%, 5rem 0, calc(100% - 5rem) 0);
+        height: 5rem;
     }
 
     .wz-dock__btn {
         width: 3.4rem;
         height: 3.4rem;
+        flex-shrink: 0;
     }
 
     .wz-dock__icon {
-        font-size: 1.2rem;
+        width: auto;
+        min-width: auto;
+        height: auto;
+    }
+
+    .wz-dock::-webkit-scrollbar {
+        display: none;
+    }
+
+
+    .wz-dock__icon .static-icon {
+        font-size: 3.4rem;
+    }
+
+    .wz-dock__label {
+        display: none;
     }
 }
+
 /* #endregion =========== */

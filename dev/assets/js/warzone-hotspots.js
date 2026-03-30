@@ -163,8 +163,8 @@ const ICONS = {
     military: "bx-web-ico-air-1-0",
     recon: "bx-web-ico-warfare-1-0",
     alert: "bx-web-ico-alerts-1-2",
-    airspace: "bx-ico-airspace-1",
-    cyber: "bx-web-ico-c4isr-1-0",
+    airspace: "bx-ico-c4isr-1",
+    cyber: "bx-web-ico-website-1-0",
     thermal: "bx-web-ico-bookmark-1-0",
     signal: "bx-web-ico-status-1-0",
     default: "bx-web-ico-Profile-1-0",
@@ -330,6 +330,49 @@ function toScreen(scene, lon, lat) {
     } catch {
         return null;
     }
+}
+
+function getCameraHeight(viewer) {
+    try {
+        return Number(viewer?.camera?.positionCartographic?.height || 0);
+    } catch {
+        return 0;
+    }
+}
+
+function getZoomAwareHotspotConfig(viewer, cfg) {
+    const height = getCameraHeight(viewer);
+
+    if (height > 9000000) {
+        return {
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 4.8),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 5.8),
+            maxCards: Math.max(cfg.maxCards, 10),
+            maxVisiblePerHotspot: 1,
+            stackDistancePx: Math.max(cfg.stackDistancePx, 150),
+            edgePad: 220,
+        };
+    }
+
+    if (height > 4500000) {
+        return {
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 3.5),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 4.2),
+            maxCards: Math.max(cfg.maxCards, 14),
+            maxVisiblePerHotspot: 2,
+            stackDistancePx: Math.max(cfg.stackDistancePx, 120),
+            edgePad: 180,
+        };
+    }
+
+    return {
+        clusterDistanceLat: cfg.clusterDistanceLat,
+        clusterDistanceLon: cfg.clusterDistanceLon,
+        maxCards: cfg.maxCards,
+        maxVisiblePerHotspot: cfg.maxVisiblePerHotspot,
+        stackDistancePx: cfg.stackDistancePx,
+        edgePad: 140,
+    };
 }
 
 // ─── geo clustering ────────────────────────────────────────────────────────────
@@ -558,14 +601,15 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
 
         const offX = canvasRect.left - overlayRect.left;
         const offY = canvasRect.top - overlayRect.top;
+        const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
 
         if (clustersDirty) {
             cachedClusters = geoCluster(
                 allEvents,
-                cfg.clusterDistanceLat,
-                cfg.clusterDistanceLon,
+                zoomCfg.clusterDistanceLat,
+                zoomCfg.clusterDistanceLon,
                 cfg.minItemsForCluster,
-                cfg.maxCards
+                zoomCfg.maxCards
             );
             clustersDirty = false;
         }
@@ -577,13 +621,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
 
             const x = s.x + offX;
             const y = s.y + offY;
-            if (x < -140 || x > overlayRect.width + 140) continue;
-            if (y < -140 || y > overlayRect.height + 140) continue;
+            if (x < -zoomCfg.edgePad || x > overlayRect.width + zoomCfg.edgePad) continue;
+            if (y < -zoomCfg.edgePad || y > overlayRect.height + zoomCfg.edgePad) continue;
 
             projected.push({ ...c, screen: { x, y } });
         }
 
-        const visible = stackVisible(projected, cfg.stackDistancePx, cfg.maxVisiblePerHotspot);
+        const visible = stackVisible(projected, zoomCfg.stackDistancePx, zoomCfg.maxVisiblePerHotspot);
         const visibleIds = new Set(visible.map((v) => v.id));
 
         for (const [id, node] of nodeMap) {
@@ -595,8 +639,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
 
         for (const cluster of visible) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
-            const tx = Math.round(cluster.screen.x + off.x);
-            const ty = Math.round(cluster.screen.y + off.y);
+            const tx = cluster.screen.x + off.x;
+            const ty = cluster.screen.y + off.y;
             const zi = 25 - cluster.stackIdx;
 
             if (nodeMap.has(cluster.id)) {

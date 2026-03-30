@@ -17,7 +17,12 @@ import {
     clearLiveTrack,
     startDevTrackSimulation,
     stopDevTrackSimulation,
+    focusLiveTrack,
+    getAllLiveTrackSnapshots,
+    toggleLiveTrackSelection,
+    getLiveTrackSelection,
 } from "./warzone-live-fighter.js";
+import { startPublicAirIngestion } from "./warzone-air-ingestion.js";
 
 let __eventsCache = [];
 let __visibleEventsCache = [];
@@ -35,6 +40,15 @@ let __lastViewportKey = "";
 let __lastGlobeSyncKey = "";
 let __lastRangesSyncKey = "";
 let __lastSweepersSyncKey = "";
+let __aircraftWidgetBound = false;
+let __aircraftWidgetFilter = "active";
+let __aircraftWidgetSubtypeFilter = "all";
+let __aircraftHistoryCache = [];
+let __aircraftHistoryLastLoadedAt = 0;
+let __aircraftHistoryLoadingPromise = null;
+const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 30;
+const AIRCRAFT_HISTORY_WINDOW_MS = 72 * 60 * 60 * 1000;
+const AIRCRAFT_HISTORY_REFRESH_MS = 60 * 1000;
 
 function isEventInLens(event, lens) {
     if (!event) return false;
@@ -214,13 +228,8 @@ function applyAllFilters(events) {
     const regionalRaw = filterEventsByRegion ? filterEventsByRegion(events, region) : events;
     const regional = regionalRaw.filter(isMilitaryRelevant);
     const byLens = regional.filter((e) => isEventInLens(e, lens));
-    const visibleByLens = byLens.filter((e) => isEventVisible(e));
 
-    if (visibleByLens.length > 0) {
-        return visibleByLens;
-    }
-
-    return regional.filter((e) => isEventVisible(e));
+    return byLens.filter((e) => isEventVisible(e));
 }
 function roundCoord(value, step = 2) {
     return Math.round(Number(value) / step) * step;
@@ -481,9 +490,8 @@ async function fetchViewportEvents() {
             syncInitialEventsToGlobe(nextVisibleEvents, { animateTracks: false });
 
             if (__hotspotLayer) {
-                __hotspotLayer.setEvents(
-                    isLayerEnabled("hotspots") ? applyAllFilters(nextVisibleEvents) : []
-                );
+                const hotspotEvents = applyAllFilters(nextVisibleEvents);
+                __hotspotLayer.setEvents(hotspotEvents);
             }
 
             window.__warzoneViewer?.scene?.requestRender?.();
@@ -1353,6 +1361,441 @@ function renderKillChain(events) {
     `).join("");
 }
 
+function isAircraftTrackSubtype(subtype = "") {
+    return [
+        "fighter",
+        "awacs",
+        "recon",
+        "isr",
+        "tanker",
+        "refueler",
+        "transport",
+        "logistics",
+        "logistic",
+        "bomber",
+        "trainer",
+        "drone",
+        "uav",
+        "helicopter"
+    ].includes(String(subtype || "").toLowerCase());
+}
+
+function formatAircraftAltitude(altitudeFt = 0) {
+    const value = Number(altitudeFt || 0);
+    if (!Number.isFinite(value) || value <= 0) return "ALT N/A";
+    return `FL ${Math.round(value / 100)}`;
+}
+
+function formatAircraftSpeed(speedKts = 0) {
+    const value = Number(speedKts || 0);
+    if (!Number.isFinite(value) || value <= 0) return "SPD N/A";
+    return `${Math.round(value)} kt`;
+}
+
+function formatAircraftLastSeen(lastSeenAt = 0) {
+    const deltaMs = Date.now() - Number(lastSeenAt || 0);
+    if (!Number.isFinite(deltaMs) || deltaMs < 0) return "Now";
+    if (deltaMs < 15000) return "Now";
+    if (deltaMs < 60000) return `${Math.max(1, Math.round(deltaMs / 1000))}s ago`;
+    return `${Math.max(1, Math.round(deltaMs / 60000))}m ago`;
+}
+
+function formatAircraftEndedAt(endedAt = 0) {
+    const deltaMs = Date.now() - Number(endedAt || 0);
+    if (!Number.isFinite(deltaMs) || deltaMs <= 0) return "Ended";
+    if (deltaMs < 60000) return `Ended ${Math.max(1, Math.round(deltaMs / 1000))}s ago`;
+    if (deltaMs < 3600000) return `Ended ${Math.max(1, Math.round(deltaMs / 60000))}m ago`;
+    if (deltaMs < 86400000) return `Ended ${Math.max(1, Math.round(deltaMs / 3600000))}h ago`;
+    return `Ended ${Math.max(1, Math.round(deltaMs / 86400000))}d ago`;
+}
+
+function getAircraftSubtypeOptions(items = []) {
+    const options = [...new Set(items.map((track) => String(track.subcategory || "").toLowerCase()).filter(Boolean))];
+    return options.sort();
+}
+
+function getAircraftWidgetStatusLabel(track = {}) {
+    return track.active ? "Active" : "Ended";
+}
+
+function normalizeAircraftHistoryRow(row = {}) {
+    const subtype = String(row.subtype || row.subcategory || "aircraft").toLowerCase();
+    const title = String(
+        row.callsign ||
+        row.title ||
+        `${subtype.toUpperCase()} ${String(row.track_key || "").slice(0, 8)}`
+    ).trim();
+
+    const lastSeenAt = new Date(
+        row.last_seen_at ||
+        row.updated_at ||
+        row.created_at ||
+        Date.now()
+    ).getTime();
+
+    const endedAt = row.ended_at ? new Date(row.ended_at).getTime() : 0;
+    const active = String(row.status || "active").toLowerCase() !== "ended";
+
+    return {
+        track_key: String(row.track_key || ""),
+        title,
+        callsign: String(row.callsign || ""),
+        subcategory: subtype,
+        country: String(row.country || row.region || "Unknown"),
+        region: String(row.region || ""),
+        lat: Number(row.lat),
+        lon: Number(row.lon),
+        altitude_ft: Number(row.altitude_ft || 0),
+        speed_kts: Number(row.speed_kts || 0),
+        heading_deg: Number(row.heading_deg || 0),
+        active,
+        ended_at: endedAt,
+        last_seen_at: Number.isFinite(lastSeenAt) ? lastSeenAt : Date.now(),
+        occurred_at: row.created_at || row.last_seen_at || new Date().toISOString(),
+        __source: "history-db",
+    };
+}
+
+async function refreshAircraftHistoryCache(force = false) {
+    const now = Date.now();
+
+    if (!force && __aircraftHistoryLoadingPromise) return __aircraftHistoryLoadingPromise;
+    if (!force && __aircraftHistoryLastLoadedAt && (now - __aircraftHistoryLastLoadedAt) < AIRCRAFT_HISTORY_REFRESH_MS) {
+        return __aircraftHistoryCache;
+    }
+
+    const cutoffIso = new Date(now - AIRCRAFT_HISTORY_WINDOW_MS).toISOString();
+
+    __aircraftHistoryLoadingPromise = supabase
+        .from("aircraft_tracks_log")
+        .select("track_key,callsign,subtype,lat,lon,altitude_ft,speed_kts,heading_deg,status,last_seen_at,ended_at,created_at,updated_at")
+        .gte("last_seen_at", cutoffIso)
+        .order("last_seen_at", { ascending: false })
+        .limit(500)
+        .then(({ data, error }) => {
+            if (error) {
+                console.error("Aircraft history fetch error:", error);
+                return __aircraftHistoryCache;
+            }
+
+            __aircraftHistoryCache = Array.isArray(data)
+                ? data.map(normalizeAircraftHistoryRow).filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
+                : [];
+
+            __aircraftHistoryLastLoadedAt = Date.now();
+            return __aircraftHistoryCache;
+        })
+        .finally(() => {
+            __aircraftHistoryLoadingPromise = null;
+        });
+
+    return __aircraftHistoryLoadingPromise;
+}
+
+function mergeAircraftWidgetSources(liveItems = [], historyItems = []) {
+    const map = new Map();
+
+    historyItems.forEach((track) => {
+        if (!track?.track_key) return;
+        map.set(String(track.track_key), track);
+    });
+
+    liveItems.forEach((track) => {
+        if (!track?.track_key) return;
+        map.set(String(track.track_key), track);
+    });
+
+    return [...map.values()];
+}
+
+function syncAircraftWidgetFilterControls() {
+    const filterButtons = [...document.querySelectorAll("[data-aircraft-filter]")];
+    if (!filterButtons.length) return;
+
+    filterButtons.forEach((btn) => {
+        const value = String(btn.dataset.aircraftFilter || "").toLowerCase();
+        const isAll = value === "all";
+
+        if (isAll) {
+            btn.hidden = true;
+            btn.setAttribute("aria-hidden", "true");
+            btn.classList.remove("is-active");
+            return;
+        }
+
+        btn.hidden = false;
+        btn.removeAttribute("aria-hidden");
+        btn.classList.toggle("is-active", value === __aircraftWidgetFilter);
+    });
+}
+
+
+function getAircraftWidgetItems() {
+    const liveItems = getAllLiveTrackSnapshots()
+        .filter((track) => isAircraftTrackSubtype(track.subcategory));
+
+    const historyItems = (__aircraftHistoryCache || [])
+        .filter((track) => isAircraftTrackSubtype(track.subcategory));
+
+    const allItems = mergeAircraftWidgetSources(liveItems, historyItems);
+    let items = [];
+
+    if (__aircraftWidgetFilter === "recent") {
+        const recentCutoff = Date.now() - AIRCRAFT_HISTORY_WINDOW_MS;
+        items = historyItems.filter((track) =>
+            Number(track.last_seen_at || 0) >= recentCutoff
+        );
+    } else if (__aircraftWidgetFilter === "ended") {
+        items = historyItems.filter((track) => !track.active);
+    } else {
+        items = liveItems.filter((track) => track.active);
+    }
+
+    if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
+        items = items.filter(
+            (track) => String(track.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter
+        );
+    }
+
+    items = items
+        .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
+        .slice(0, LIVE_AIRCRAFT_WIDGET_MAX_ITEMS);
+
+    return {
+        allItems,
+        items
+    };
+}
+
+
+
+function ensureAircraftWidgetEmptyState(container, hasItems) {
+    let emptyEl = container.querySelector(".wz-aircraft-empty");
+
+    if (!hasItems) {
+        if (!emptyEl) {
+            emptyEl = document.createElement("div");
+            emptyEl.className = "wz-aircraft-empty";
+            emptyEl.textContent = "No aircraft logs in the current filter";
+            container.appendChild(emptyEl);
+        }
+        return;
+    }
+
+    if (emptyEl) {
+        emptyEl.remove();
+    }
+}
+
+function getAircraftWidgetActionLabel(track, selection) {
+    const isSelected = selection.track_key === track.track_key;
+    return track.active
+        ? (isSelected ? "Back" : "Focus")
+        : (isSelected ? "Hide" : "Replay");
+}
+
+function getAircraftWidgetTimeLabel(track) {
+    return track.active
+        ? formatAircraftLastSeen(track.last_seen_at)
+        : formatAircraftEndedAt(track.ended_at || track.last_seen_at);
+}
+
+function updateAircraftWidgetCard(card, track, selection) {
+    if (!card || !track) return;
+
+    const subtype = String(track.subcategory || "aircraft").toUpperCase();
+    const country = String(track.country || track.region || "Unknown");
+    const title = String(track.title || "Aircraft");
+    const isSelected = selection.track_key === track.track_key;
+    const statusLabel = getAircraftWidgetStatusLabel(track);
+    const timeLabel = getAircraftWidgetTimeLabel(track);
+    const actionLabel = getAircraftWidgetActionLabel(track, selection);
+
+    card.className = `wz-aircraft-item ${track.active ? "is-active" : "is-ended"} ${isSelected ? "is-selected" : ""}`;
+    card.dataset.trackKey = String(track.track_key || "");
+
+    let top = card.querySelector(".wz-aircraft-item__top");
+    let titleEl = card.querySelector(".wz-aircraft-item__title");
+    let timeEl = card.querySelector(".wz-aircraft-item__time");
+    let meta = card.querySelector(".wz-aircraft-item__meta");
+    let stats = card.querySelector(".wz-aircraft-item__stats");
+    let foot = card.querySelector(".wz-aircraft-item__foot");
+    let badge = card.querySelector(".wz-aircraft-badge");
+    let actionBtn = card.querySelector(".wz-aircraft-action");
+
+    if (!top) {
+        top = document.createElement("div");
+        top.className = "wz-aircraft-item__top";
+        titleEl = document.createElement("strong");
+        titleEl.className = "wz-aircraft-item__title";
+        timeEl = document.createElement("span");
+        timeEl.className = "wz-aircraft-item__time";
+        top.appendChild(titleEl)
+        top.appendChild(timeEl)
+        card.appendChild(top)
+    }
+
+    if (!meta) {
+        meta = document.createElement("div");
+        meta.className = "wz-aircraft-item__meta";
+        meta.appendChild(document.createElement("span"));
+        meta.appendChild(document.createElement("span"));
+        card.appendChild(meta)
+    }
+
+    if (!stats) {
+        stats = document.createElement("div");
+        stats.className = "wz-aircraft-item__stats";
+        stats.appendChild(document.createElement("span"));
+        stats.appendChild(document.createElement("span"));
+        stats.appendChild(document.createElement("span"));
+        card.appendChild(stats)
+    }
+
+    if (!foot) {
+        foot = document.createElement("div");
+        foot.className = "wz-aircraft-item__foot";
+        badge = document.createElement("span");
+        badge.className = "wz-aircraft-badge";
+        actionBtn = document.createElement("button");
+        actionBtn.type = "button";
+        actionBtn.className = "wz-aircraft-action";
+        foot.appendChild(badge)
+        foot.appendChild(actionBtn)
+        card.appendChild(foot)
+    }
+
+    titleEl = card.querySelector(".wz-aircraft-item__title");
+    timeEl = card.querySelector(".wz-aircraft-item__time");
+    badge = card.querySelector(".wz-aircraft-badge");
+    actionBtn = card.querySelector(".wz-aircraft-action");
+
+    titleEl.textContent = title
+    timeEl.textContent = timeLabel
+
+    const metaSpans = meta.querySelectorAll("span");
+    if (metaSpans[0]) metaSpans[0].textContent = subtype
+    if (metaSpans[1]) metaSpans[1].textContent = country
+
+    const statSpans = stats.querySelectorAll("span");
+    if (statSpans[0]) statSpans[0].textContent = formatAircraftAltitude(track.altitude_ft)
+    if (statSpans[1]) statSpans[1].textContent = formatAircraftSpeed(track.speed_kts)
+    if (statSpans[2]) statSpans[2].textContent = `HDG ${Math.round(Number(track.heading_deg || 0))}°`
+
+    badge.className = `wz-aircraft-badge ${track.active ? "is-active" : "is-ended"}`
+    badge.textContent = statusLabel
+
+    actionBtn.dataset.trackToggle = String(track.track_key || "")
+    actionBtn.textContent = actionLabel
+}
+
+function renderAircraftMovementsWidget() {
+    const container = document.getElementById("wz-aircraft-panel");
+    const subtypeSelect = document.getElementById("wz-aircraft-filter-subtype");
+    if (!container) return;
+
+    if (__aircraftWidgetFilter !== "active") {
+        refreshAircraftHistoryCache().then(() => {
+            if (document.getElementById("wz-aircraft-panel") === container) {
+                renderAircraftMovementsWidget();
+            }
+        }).catch(() => { });
+    }
+
+    syncAircraftWidgetFilterControls();
+
+    const { items, allItems } = getAircraftWidgetItems();
+    const selection = getLiveTrackSelection();
+
+    if (subtypeSelect) {
+        const currentValue = subtypeSelect.value || __aircraftWidgetSubtypeFilter;
+        const options = getAircraftSubtypeOptions(allItems);
+        subtypeSelect.innerHTML = ['<option value="all">All Types</option>']
+            .concat(options.map((value) => `<option value="${value}">${value.toUpperCase()}</option>`))
+            .join("");
+        subtypeSelect.value = options.includes(currentValue) || currentValue === "all" ? currentValue : "all";
+        __aircraftWidgetSubtypeFilter = subtypeSelect.value || "all";
+    }
+
+    ensureAircraftWidgetEmptyState(container, items.length > 0);
+    if (!items.length) return;
+
+    const wantedKeys = new Set(items.map((track) => String(track.track_key || "")));
+    [...container.querySelectorAll(".wz-aircraft-item")].forEach((card) => {
+        const key = String(card.dataset.trackKey || "");
+        if (!wantedKeys.has(key)) {
+            card.remove();
+        }
+    });
+
+    items.forEach((track) => {
+        const trackKey = String(track.track_key || "");
+        let card = container.querySelector(`.wz-aircraft-item[data-track-key="${CSS.escape(trackKey)}"]`);
+
+        if (!card) {
+            card = document.createElement("article");
+            if (!card) return;
+            card.className = "wz-aircraft-item";
+            card.dataset.trackKey = trackKey;
+        }
+
+        updateAircraftWidgetCard(card, track, selection);
+
+        if (!card.isConnected || card.parentElement !== container) {
+            container.appendChild(card);
+        }
+    });
+}
+
+function bindAircraftMovementsWidget() {
+    if (__aircraftWidgetBound) return;
+    __aircraftWidgetBound = true;
+
+    document.addEventListener("click", (event) => {
+        const toggleBtn = event.target.closest("[data-track-toggle]");
+        if (toggleBtn) {
+            const trackKey = String(toggleBtn.dataset.trackToggle || "").trim();
+            if (!trackKey) return;
+            toggleLiveTrackSelection(trackKey);
+            renderAircraftMovementsWidget();
+            return;
+        }
+
+        const filterBtn = event.target.closest("[data-aircraft-filter]");
+        if (filterBtn) {
+            const nextFilter = String(filterBtn.dataset.aircraftFilter || "active").toLowerCase();
+            if (nextFilter === "all") return;
+
+            __aircraftWidgetFilter = nextFilter;
+            syncAircraftWidgetFilterControls();
+            if (nextFilter !== "active") {
+                refreshAircraftHistoryCache(true).finally(() => renderAircraftMovementsWidget());
+                return;
+            }
+            renderAircraftMovementsWidget();
+            return;
+        }
+    });
+
+    document.addEventListener("change", (event) => {
+        const subtypeSelect = event.target.closest("#wz-aircraft-filter-subtype");
+        if (!subtypeSelect) return;
+        __aircraftWidgetSubtypeFilter = String(subtypeSelect.value || "all");
+        renderAircraftMovementsWidget();
+    });
+
+    document.addEventListener("wz:aircraft-log-updated", () => {
+        __aircraftHistoryLastLoadedAt = 0;
+
+        if (__aircraftWidgetFilter === "active") {
+            renderAircraftMovementsWidget();
+            return;
+        }
+
+        refreshAircraftHistoryCache(true).finally(() => renderAircraftMovementsWidget());
+    });
+}
+
 function ensureAlertAudio() {
     if (__alertAudio) return __alertAudio;
     __alertAudio = document.getElementById("warzone-alert-audio");
@@ -1534,7 +1977,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     }
 
     if (__hotspotLayer) {
-        __hotspotLayer.setEvents(isLayerEnabled("hotspots") ? visible : []);
+        __hotspotLayer.setEvents(visible);
     }
 
     if (window.__warzoneViewer) {
@@ -1605,7 +2048,8 @@ export async function initWarzoneApp() {
         window.__hotspotLayer = __hotspotLayer;
     }
 
-    __hotspotLayer?.setEvents(isLayerEnabled("hotspots") ? applyAllFilters(events) : []);
+    if (hotspotRoot) hotspotRoot.style.display = "";
+    __hotspotLayer?.setEvents(applyAllFilters(events));
 
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
@@ -1626,16 +2070,25 @@ export async function initWarzoneApp() {
     }
 
     initLayerPanel();
+    startPublicAirIngestion();
+    refreshAircraftHistoryCache(true).catch((err) => {
+        console.error("Initial aircraft history load failed:", err);
+    });
+
     onLayerChange((id) => {
         const globe = window.__warzoneViewer?.__warzone;
         const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
         const filtered = applyAllFilters(sourceEvents);
 
-        if (id === "hotspots" || id === "*") {
-            const hotspotRootEl = document.getElementById("warzone-hotspot-layer");
-            const enabled = isLayerEnabled("hotspots");
-            if (hotspotRootEl) hotspotRootEl.style.display = enabled ? "" : "none";
-            __hotspotLayer?.setEvents(enabled ? filtered : []);
+        const hotspotEnabled = isLayerEnabled("hotspots");
+        const hotspotRootEl = document.getElementById("warzone-hotspot-layer");
+
+        if (hotspotRootEl) {
+            hotspotRootEl.style.display = hotspotEnabled ? "" : "none";
+        }
+
+        if (__hotspotLayer) {
+            __hotspotLayer.setEvents(hotspotEnabled ? filtered : []);
         }
 
         if (id === "terrain") {
@@ -1669,7 +2122,6 @@ export async function initWarzoneApp() {
     __viewportScoped = false;
     scheduleViewportFetch(150);
 
-
     supabase
         .channel('tracks-live')
         .on(
@@ -1678,8 +2130,14 @@ export async function initWarzoneApp() {
             (payload) => {
                 console.log("[TRACK LIVE]", payload);
 
-                const track = payload.new;
+                const eventType = String(payload.eventType || payload.event || "").toUpperCase();
+                const track = payload.new || payload.old;
                 if (!track) return;
+
+                if (eventType === "DELETE") {
+                    clearLiveTrack(track.track_key);
+                    return;
+                }
 
                 upsertLiveTrack(track);
             }
@@ -1688,6 +2146,9 @@ export async function initWarzoneApp() {
             console.log("TRACK SUB STATUS:", status);
             if (err) console.error("TRACK ERROR:", err);
         });
+
+    await refreshAircraftHistoryCache(true).catch(() => { });
+    renderAircraftMovementsWidget();
 
     return events;
 }
@@ -1886,6 +2347,8 @@ export function initGlobal() {
     initSmoothHomeAnchors();
     initNav();
     initFloatingPanels();
+    bindAircraftMovementsWidget();
+    renderAircraftMovementsWidget();
 }
 export function initBoot() {
     document.addEventListener("DOMContentLoaded", () => {

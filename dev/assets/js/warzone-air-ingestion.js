@@ -1,5 +1,6 @@
 ﻿import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-fighter.js";
 import { isLayerEnabled } from "./warzone-layers.js";
+import { supabase } from "./supabase.js";
 
 const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
 const POLL_INTERVAL_MS = 15000;
@@ -17,6 +18,7 @@ let __isFetching = false;
 const __sourceTrackStore = new Map();
 const __canonicalTrackStore = new Map();
 const __activeTrackKeys = new Set();
+
 
 function nowMs() {
     return Date.now();
@@ -223,6 +225,7 @@ function cleanupStaleTracks() {
         if (track?.track_key) {
             __activeTrackKeys.delete(track.track_key);
             clearLiveTrack(track.track_key);
+            markAircraftEnded(track.track_key);
         }
     }
 }
@@ -263,6 +266,7 @@ async function refreshPublicAirTracks() {
             seenThisPass.add(merged.track_key);
 
             upsertLiveTrack(merged);
+            logAircraftTrack(merged);
             __activeTrackKeys.add(merged.track_key);
         }
 
@@ -281,6 +285,45 @@ async function refreshPublicAirTracks() {
         console.warn("[warzone-air-ingestion] refresh failed:", error);
     } finally {
         __isFetching = false;
+    }
+}
+
+async function logAircraftTrack(track) {
+    if (!track?.track_key) return;
+
+    try {
+        await supabase
+            .from("aircraft_tracks_log")
+            .upsert({
+                track_key: track.track_key,
+                callsign: track.callsign,
+                subtype: track.subcategory,
+                lat: track.lat,
+                lon: track.lon,
+                altitude_ft: track.altitude_ft,
+                speed_kts: track.speed_kts,
+                heading_deg: track.heading_deg,
+                status: "active",
+                last_seen_at: new Date().toISOString()
+            }, {
+                onConflict: "track_key"
+            });
+    } catch (err) {
+        console.warn("Aircraft log insert failed:", err);
+    }
+}
+
+async function markAircraftEnded(trackKey) {
+    try {
+        await supabase
+            .from("aircraft_tracks_log")
+            .update({
+                status: "ended",
+                ended_at: new Date().toISOString()
+            })
+            .eq("track_key", trackKey);
+    } catch (err) {
+        console.warn("Aircraft end update failed:", err);
     }
 }
 
