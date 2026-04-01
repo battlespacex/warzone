@@ -259,42 +259,8 @@ async function refreshPublicAirTracks() {
         __isFetching = false;
     }
 }
-async function logAircraftTrack(track) {
-    if (!track?.track_key) return;
-    try {
-        await supabase
-            .from("aircraft_tracks_log")
-            .upsert({
-                track_key: track.track_key,
-                callsign: track.callsign,
-                subtype: track.subcategory,
-                lat: track.lat,
-                lon: track.lon,
-                altitude_ft: track.altitude_ft,
-                speed_kts: track.speed_kts,
-                heading_deg: track.heading_deg,
-                status: "active",
-                last_seen_at: new Date().toISOString()
-            }, {
-                onConflict: "track_key"
-            });
-    } catch (err) {
-        console.warn("Aircraft log insert failed:", err);
-    }
-}
-async function markAircraftEnded(trackKey) {
-    try {
-        await supabase
-            .from("aircraft_tracks_log")
-            .update({
-                status: "ended",
-                ended_at: new Date().toISOString()
-            })
-            .eq("track_key", trackKey);
-    } catch (err) {
-        console.warn("Aircraft end update failed:", err);
-    }
-}
+async function logAircraftTrack(track) { }
+async function markAircraftEnded(trackKey) { }
 export function startPublicAirIngestion() {
     if (__pollTimer) return;
     refreshPublicAirTracks();
