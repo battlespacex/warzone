@@ -1,5 +1,10 @@
 ﻿// File Path: /assets/js/warzone-sticky-alert.js
 export function showStickyAlert(alert) {
+    // Siren alerts are handled by wz-siren-stack banners
+    // Only show sticky banner for non-siren alerts (escalation, airspace etc)
+    const category = String(alert.category || "").toLowerCase();
+    if (category === "siren" || category === "alert") return;
+
     const root = document.getElementById("warzone-alert");
     const titleEl = document.getElementById("warzone-alert-title");
     const metaEl = document.getElementById("warzone-alert-meta");

@@ -1215,18 +1215,27 @@ UNUSED CANDIDATE END */
 /* #endregion =========== */
 /* #region =========== SIREN BANNER =========== */
 .wz-siren-stack {
-    position: absolute;
-    top: 1rem;
+    position: fixed;
+    top: 6rem;
     left: 50%;
     z-index: 99999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    width: min(580px, calc(100vw - 1.5rem));
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    width: min(900px, calc(100vw - 2rem));
     pointer-events: none;
     transform: translateX(-50%);
 }
+
+    /* Single alert — full width */
+    .wz-siren-stack .wz-siren-banner:only-child {
+        grid-column: 1 / -1;
+    }
+
+    /* Odd last item when more than 2 — full width */
+    .wz-siren-stack .wz-siren-banner:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
 
 .wz-siren-banner {
     width: 100%;

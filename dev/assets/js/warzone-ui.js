@@ -1,12 +1,17 @@
 ﻿// File Path: /assets/js/warzone-ui.js
 import { initTheaterPanel } from "./warzone-theater-panel.js";
+
 export function bindWarzoneUi() {
     bindTopViews();
     bindAlertDismiss();
     bindMapModeButtons();
     bindMobileSettingsPanel();
     initTheaterPanel();
+    startUtcClock();
+    bindGlobeToggle();
+    initNewsTicker();
 }
+
 function bindTopViews() {
     const tabs = document.querySelectorAll(".top-tab");
     const panels = document.querySelectorAll(".warzone-view");
@@ -20,6 +25,7 @@ function bindTopViews() {
         });
     });
 }
+
 function bindAlertDismiss() {
     const closeBtn = document.querySelector(".warzone-alert__close");
     const alert = document.getElementById("warzone-alert");
@@ -30,6 +36,7 @@ function bindAlertDismiss() {
         alert.classList.remove("is-active");
     });
 }
+
 function bindMapModeButtons() {
     const buttons = document.querySelectorAll("[data-map-mode]");
     buttons.forEach((btn) => {
@@ -40,79 +47,126 @@ function bindMapModeButtons() {
         });
     });
 }
+
 function isMobileSettingsMode() {
     return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
 }
+
 function bindMobileSettingsPanel() {
     const trigger = document.getElementById("warzone-mobile-settings-trigger");
     const panel = document.getElementById("warzone-mobile-settings-panel");
     const closeBtn = document.getElementById("warzone-mobile-settings-close");
     const applyBtn = document.getElementById("warzone-mobile-settings-apply");
-    const desktopLens = document.getElementById("wz-lens-nav");
-    const desktopRegion = document.getElementById("wz-region-nav");
-    const mobileLens = document.getElementById("wz-lens-nav-mobile");
-    const mobileRegion = document.getElementById("wz-region-nav-mobile");
-    if (!trigger || !panel || !closeBtn || !applyBtn || !desktopLens || !desktopRegion || !mobileLens || !mobileRegion) {
-        return;
-    }
-    function syncMobileOptions() {
-        mobileLens.innerHTML = desktopLens.innerHTML;
-        mobileRegion.innerHTML = desktopRegion.innerHTML;
-        mobileLens.value = desktopLens.value;
-        mobileRegion.value = desktopRegion.value;
-    }
-    function openPanel() {
-        if (!isMobileSettingsMode()) return;
-        syncMobileOptions();
-        panel.hidden = false;
-        panel.classList.add("is-open");
-        trigger.setAttribute("aria-expanded", "true");
-    }
-    function closePanel() {
-        panel.classList.remove("is-open");
+    if (!trigger || !panel) return;
+    trigger.addEventListener("click", () => {
+        const isOpen = panel.hidden === false;
+        panel.hidden = isOpen;
+        trigger.setAttribute("aria-expanded", String(!isOpen));
+    });
+    closeBtn?.addEventListener("click", () => {
         panel.hidden = true;
         trigger.setAttribute("aria-expanded", "false");
+    });
+    applyBtn?.addEventListener("click", () => {
+        panel.hidden = true;
+        trigger.setAttribute("aria-expanded", "false");
+    });
+}
+
+// ── UTC Clock ──────────────────────────────────────────────────────────────────
+function startUtcClock() {
+    const el = document.getElementById("wz-utc-time");
+    if (!el) return;
+    function tick() {
+        const now = new Date();
+        const hh = String(now.getUTCHours()).padStart(2, "0");
+        const mm = String(now.getUTCMinutes()).padStart(2, "0");
+        const ss = String(now.getUTCSeconds()).padStart(2, "0");
+        el.textContent = `${hh}:${mm}:${ss}`;
     }
-    function applySettings() {
-        if (desktopLens.value !== mobileLens.value) {
-            desktopLens.value = mobileLens.value;
-            desktopLens.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-        const syncRegionAndClose = () => {
-            if (desktopRegion.value !== mobileRegion.value) {
-                desktopRegion.value = mobileRegion.value;
-                desktopRegion.dispatchEvent(new Event("change", { bubbles: true }));
-            }
-            closePanel();
-        };
-        requestAnimationFrame(syncRegionAndClose);
-    }
-    trigger.addEventListener("click", () => {
-        if (panel.hidden) openPanel();
-        else closePanel();
+    tick();
+    setInterval(tick, 1000);
+}
+
+// ── DEFCON — auto-calculated from escalation score ─────────────────────────────
+// Score 0-200 maps to DEFCON 5-1
+// Called from essential.js after renderEscalation
+export function updateDefcon(escalationScore) {
+    const badge = document.getElementById("wz-defcon-badge");
+    const levelEl = document.getElementById("wz-defcon-level");
+    if (!badge || !levelEl) return;
+
+    let level = 5;
+    if (escalationScore >= 180) level = 1;
+    else if (escalationScore >= 140) level = 2;
+    else if (escalationScore >= 100) level = 3;
+    else if (escalationScore >= 60) level = 4;
+    else level = 5;
+
+    levelEl.textContent = String(level);
+    badge.dataset.level = String(level);
+}
+
+// Manual override — call window.setDefcon(3) from dev panel anytime
+window.setDefcon = function (level) {
+    const badge = document.getElementById("wz-defcon-badge");
+    const levelEl = document.getElementById("wz-defcon-level");
+    if (!badge || !levelEl) return;
+    const n = Math.min(5, Math.max(1, Number(level) || 5));
+    levelEl.textContent = String(n);
+    badge.dataset.level = String(n);
+};
+
+// ── 2D/3D Globe Toggle ─────────────────────────────────────────────────────────
+function bindGlobeToggle() {
+    const btn3d = document.getElementById("wz-toggle-3d");
+    const btn2d = document.getElementById("wz-toggle-2d");
+    if (!btn3d || !btn2d) return;
+    btn3d.addEventListener("click", () => {
+        btn3d.classList.add("is-active");
+        btn2d.classList.remove("is-active");
+        window.__warzoneViewer?.__warzone?.setMapMode?.("3d");
     });
-    closeBtn.addEventListener("click", closePanel);
-    applyBtn.addEventListener("click", applySettings);
-    mobileLens.addEventListener("change", () => {
-        desktopLens.value = mobileLens.value;
-        desktopLens.dispatchEvent(new Event("change", { bubbles: true }));
-        requestAnimationFrame(() => {
-            mobileRegion.innerHTML = desktopRegion.innerHTML;
-            mobileRegion.value = desktopRegion.value;
-        });
+    btn2d.addEventListener("click", () => {
+        btn2d.classList.add("is-active");
+        btn3d.classList.remove("is-active");
+        window.__warzoneViewer?.__warzone?.setMapMode?.("2d");
     });
-    desktopLens.addEventListener("change", () => {
-        if (panel.classList.contains("is-open")) syncMobileOptions();
-    });
-    desktopRegion.addEventListener("change", () => {
-        if (panel.classList.contains("is-open")) syncMobileOptions();
-    });
-    window.addEventListener("resize", () => {
-        if (!isMobileSettingsMode()) closePanel();
-    }, { passive: true });
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && panel.classList.contains("is-open")) {
-            closePanel();
-        }
-    });
+}
+
+// ── News Ticker ────────────────────────────────────────────────────────────────
+function initNewsTicker() {
+    if (document.getElementById("wz-news-ticker")) return;
+    const ticker = document.createElement("div");
+    ticker.className = "wz-news-ticker";
+    ticker.id = "wz-news-ticker";
+    ticker.innerHTML = `
+        <span class="wz-news-ticker__label">LIVE</span>
+        <div class="wz-news-ticker__track">
+            <div class="wz-news-ticker__inner" id="wz-ticker-inner">
+                <span class="wz-ticker-item">
+                    <span class="wz-ticker-item__cat wz-ticker-item__cat--default">STANDBY</span>
+                    <span>Awaiting live intel feed...</span>
+                </span>
+            </div>
+        </div>`;
+    document.body.appendChild(ticker);
+}
+
+export function updateNewsTicker(events = []) {
+    const inner = document.getElementById("wz-ticker-inner");
+    if (!inner || !events.length) return;
+    const items = events.slice(0, 20).map((e) => {
+        const cat = String(e.category || "default").toLowerCase();
+        const title = String(e.title || "").slice(0, 120);
+        const loc = e.location_label ? ` — ${e.location_label}` : "";
+        return `<span class="wz-ticker-item">
+            <span class="wz-ticker-item__cat wz-ticker-item__cat--${cat}">${cat.toUpperCase()}</span>
+            <span>${title}${loc}</span>
+        </span>`;
+    }).join("");
+    inner.innerHTML = items + items;
+    inner.style.animation = "none";
+    inner.offsetHeight;
+    inner.style.animation = "";
 }

@@ -4,7 +4,14 @@ import { createClient } from "@supabase/supabase-js";
 // Supabase — realtime WebSocket subscriptions only
 export const supabase = createClient(
     "https://orlwfqmbeplzunqbvzjy.supabase.co",
-    "sb_publishable_PVVrl582oR3izZLSO-dnxA_MoPoeARN"
+    "sb_publishable_PVVrl582oR3izZLSO-dnxA_MoPoeARN",
+    {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+        }
+    }
 );
 
 // Dev = direct Supabase | Production = your EC2 API (Supabase hidden)

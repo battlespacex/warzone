@@ -1,6 +1,6 @@
 ﻿// File Path: /assets/js/warzone-siren-alert.js
 // ── Config ─────────────────────────────────────────────────────────────────────
-const MAX_VISIBLE = 3;       // max banners on screen at once
+const MAX_VISIBLE = 8; 
 const AUTO_DISMISS = {
     red: 15000,   // 12s
     orange: 12000,   // 10s

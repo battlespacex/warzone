@@ -12,7 +12,7 @@ import {
     subscribeToSirenBroadcast,
 } from "./warzone-realtime.js";
 import { initDevPanel } from "./warzone-dev-panel.js";
-import { bindWarzoneUi } from "./warzone-ui.js";
+import { bindWarzoneUi, updateNewsTicker, updateDefcon } from "./warzone-ui.js";
 import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 initBoot();
 document.addEventListener("DOMContentLoaded", async () => {

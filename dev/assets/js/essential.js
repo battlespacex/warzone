@@ -1,6 +1,7 @@
 ﻿// File Path: /assets/js/essential.js
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
+import { updateNewsTicker, updateDefcon } from "./warzone-ui.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
@@ -1011,6 +1012,7 @@ function renderEscalation(events) {
     else if (score >= 45) label = "Elevated";
     setText("escalation-score", score);
     setText("escalation-label", label);
+    updateDefcon(score);
     const list = document.getElementById("escalation-breakdown");
     if (!list) return;
     list.innerHTML = `
@@ -1833,6 +1835,7 @@ export async function initWarzoneApp() {
     const events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
     __viewportScoped = false;
     renderAll(events);
+    updateNewsTicker(events);
     syncInitialEventsToGlobe(events, { animateTracks: true });
     const hotspotRoot = document.getElementById("warzone-hotspot-layer");
     const viewer = window.__warzoneViewer;
@@ -2143,6 +2146,7 @@ export function handleIncomingEvent(event) {
     }
     renderAll(__eventsCache);
     flashFeedCard(normalized.id);
+    updateNewsTicker(__eventsCache.slice(0, 20));
     if (__viewportScoped) {
         __lastViewportKey = "";
         scheduleViewportFetch(180);
