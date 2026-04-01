@@ -11,7 +11,7 @@ export const supabase = createClient(
 const isLocalhost = window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-const API_BASE = isLocalhost ? null : "http://api.battlespacex.com:8080";
+const API_BASE = isLocalhost ? null : "https://api.battlespacex.com";
 
 export const api = {
     async getEvents() {
