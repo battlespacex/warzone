@@ -1,8 +1,4 @@
-﻿// dev/assets/js/warzone-theaters.js
-// Theater mapping layer
-// Step 1 only: standalone mapping + helpers
-// No existing pipeline replacement yet
-
+﻿// File Path: /assets/js/warzone-theaters.js
 const THEATER_DEFINITIONS = [
     {
         id: "levant",
@@ -202,7 +198,6 @@ const THEATER_DEFINITIONS = [
         weight: 1.05
     }
 ];
-
 function normalizeText(value) {
     return String(value || "")
         .toLowerCase()
@@ -210,7 +205,6 @@ function normalizeText(value) {
         .replace(/\s+/g, " ")
         .trim();
 }
-
 function uniqueStrings(values) {
     return [...new Set(values.filter(Boolean))];
 }
@@ -240,35 +234,26 @@ function collectEventText(event = {}) {
         event.target_side,
         Array.isArray(event.tags) ? event.tags.join(" ") : ""
     ];
-
     return normalizeText(uniqueStrings(fields).join(" "));
 }
-
 function getTheaterMatchScore(definition, haystack) {
     if (!haystack) return 0;
-
     let score = 0;
-
     for (const alias of definition.aliases || []) {
         const token = normalizeText(alias);
         if (token && haystack.includes(token)) score += 4;
     }
-
     for (const keyword of definition.keywords || []) {
         const token = normalizeText(keyword);
         if (token && haystack.includes(token)) score += 2;
     }
-
     return score;
 }
-
 export function resolveEventTheater(event = {}) {
     const haystack = collectEventText(event);
     if (!haystack) return null;
-
     let best = null;
     let bestScore = 0;
-
     for (const definition of THEATER_DEFINITIONS) {
         const score = getTheaterMatchScore(definition, haystack);
         if (score > bestScore) {
@@ -276,9 +261,7 @@ export function resolveEventTheater(event = {}) {
             bestScore = score;
         }
     }
-
     if (!best || bestScore <= 0) return null;
-
     return {
         id: best.id,
         label: best.label,
@@ -288,25 +271,18 @@ export function resolveEventTheater(event = {}) {
         score: bestScore
     };
 }
-
 export function theaterMatchesRegion(theater, activeRegion) {
     if (!activeRegion || activeRegion.id === "global") return true;
-
     const regionId = activeRegion.id;
     const theaterRegion = theater?.region;
-
     if (theaterRegion === regionId) return true;
-
     if (regionId === "levant" && theaterRegion === "middle_east") return true;
     if (regionId === "ukraine" && theaterRegion === "europe") return true;
-
     return false;
 }
-
 export function getTheaterDefinitions() {
     return THEATER_DEFINITIONS;
 }
-
 export function getTheaterById(theaterId) {
     return THEATER_DEFINITIONS.find((item) => item.id === theaterId) || null;
 }

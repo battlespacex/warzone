@@ -1,4 +1,4 @@
-﻿// assets/js/smooth-home-anchors.js
+﻿// File Path: /assets/js/smooth-home-anchors.js
 export function initSmoothHomeAnchors({
     homePaths = ["/warzone/", "/warzone/index.html"],
     behavior = "smooth"

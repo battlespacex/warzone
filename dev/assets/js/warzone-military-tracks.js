@@ -1,23 +1,17 @@
-﻿
-// assets/js/warzone-military-tracks.js
-
+﻿// File Path: /assets/js/warzone-military-tracks.js
 import * as Cesium from "cesium";
-
 /* =========================================================
    ROOT / CSS HELPERS
 ========================================================= */
-
 function cssVar(name, fallback = "") {
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return value || fallback;
 }
-
 function numberVar(name, fallback) {
     const raw = cssVar(name, String(fallback));
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
-
 function stripCssUrl(value = "") {
     return String(value)
         .trim()
@@ -25,21 +19,17 @@ function stripCssUrl(value = "") {
         .replace(/^["']|["']$/g, "")
         .trim();
 }
-
 /* =========================================================
    CONFIG
 ========================================================= */
-
 const CFG = {
     maxTracks: 90,
     trailSegments: 10,
     trailLengthDeg: 3.0,
     shipTrailLengthDeg: 1.5,
     trailFadeMs: 25 * 60 * 1000,
-
     iconSize: 64,
     iconScale: 0.72,
-
     awacOrbitRadiusKm: 280,
     altitudeAircraft: 9000,
     altitudeShip: 80,
@@ -47,12 +37,10 @@ const CFG = {
     droneOrbitRadiusKm: 8,
     droneOrbitSteps: 60,
 };
-
 /* =========================================================
    ICON PATHS
    Uses SVG first. If missing, falls back to canvas icon.
 ========================================================= */
-
 const ICONS = {
     fighter: "/assets/images/icons/fighter.svg",
     awacs: "/assets/images/icons/awacs.svg",
@@ -69,24 +57,19 @@ const ICONS = {
     shahed: "/assets/images/icons/drone.svg",
     naval: "/assets/images/icons/naval.svg",
 };
-
 function getIconImage(subcat, colorHex) {
     const s = String(subcat || "").toLowerCase();
     const path = ICONS[s];
-
     // If you have real SVGs, this will be used.
     // If not, it falls back to the canvas-generated icon.
     return path || makeIconCanvas(s, colorHex);
 }
-
 /* =========================================================
    SOUND
 ========================================================= */
-
 function playMilitaryAppearSound() {
     const src = stripCssUrl(cssVar("--warzone-military-sound", ""));
     if (!src) return;
-
     try {
         const audio = new Audio(src);
         audio.preload = "auto";
@@ -95,21 +78,16 @@ function playMilitaryAppearSound() {
         audio.play().catch(() => { });
     } catch { }
 }
-
 /* =========================================================
    UTILS
 ========================================================= */
-
 function hexToCs(hex, a = 1.0) {
     return Cesium.Color.fromCssColorString(hex).withAlpha(a);
 }
-
 function getColor(subcat) {
     const s = (subcat || "").toLowerCase();
-
     // Root-controlled generic fallback
     const militaryColor = cssVar("--warzone-military", "#56d80e");
-
     if (s === "awacs") return cssVar("--warzone-military-awacs-color", "#f0d060");
     if (s === "tanker" || s === "transport") return cssVar("--warzone-military-tanker-color", "#00d9b2");
     if (s === "recon" || s === "patrol") return cssVar("--warzone-military-recon-color", "#ff7820");
@@ -118,13 +96,10 @@ function getColor(subcat) {
     if (s === "submarine") return cssVar("--warzone-military-submarine-color", "#7bdcff");
     if (s === "naval" || s === "logistics") return cssVar("--warzone-military-naval-color", "#00d9b2");
     if (s === "drone" || s === "uav" || s === "shahed") return cssVar("--warzone-military-drone-color", "#ffcc00");
-
     return militaryColor;
 }
-
 function getTrailColor(subcat, fallback) {
     const s = String(subcat || "").toLowerCase();
-
     if (s === "awacs") return cssVar("--warzone-military-trail-awacs", fallback);
     if (s === "tanker" || s === "transport") return cssVar("--warzone-military-trail-tanker", fallback);
     if (s === "recon" || s === "patrol") return cssVar("--warzone-military-trail-recon", fallback);
@@ -134,13 +109,10 @@ function getTrailColor(subcat, fallback) {
     }
     if (s === "submarine") return cssVar("--warzone-military-trail-submarine", fallback);
     if (s === "drone" || s === "uav" || s === "shahed") return cssVar("--warzone-military-trail-drone", fallback);
-
     return cssVar("--warzone-military-trail-default", fallback);
 }
-
 function getHeadingOffset(subcat) {
     const s = (subcat || "").toLowerCase();
-
     if (s === "fighter") return numberVar("--warzone-military-heading-offset-fighter", 0);
     if (s === "awacs") return numberVar("--warzone-military-heading-offset-awacs", 0);
     if (s === "recon" || s === "patrol") return numberVar("--warzone-military-heading-offset-recon", 0);
@@ -150,22 +122,17 @@ function getHeadingOffset(subcat) {
     if (s === "frigate") return numberVar("--warzone-military-heading-offset-frigate", 0);
     if (s === "submarine") return numberVar("--warzone-military-heading-offset-submarine", 0);
     if (s === "drone" || s === "uav" || s === "shahed") return numberVar("--warzone-military-heading-offset-drone", 0);
-
     return numberVar("--warzone-military-heading-offset-default", 0);
 }
-
 function isNaval(subcat) {
     return ["carrier", "destroyer", "frigate", "submarine", "naval", "logistics", "patrol", "minesweeper"]
         .includes((subcat || "").toLowerCase());
 }
-
 function buildTrail(lon, lat, headingDeg, len, segs, altM) {
     const backRad = Cesium.Math.toRadians((headingDeg + 180) % 360);
-
     return Array.from({ length: segs + 1 }, (_, i) => {
         const t = i / segs;
         const dist = t * len;
-
         return Cesium.Cartesian3.fromDegrees(
             lon + dist * Math.sin(backRad),
             lat + dist * Math.cos(backRad),
@@ -173,34 +140,27 @@ function buildTrail(lon, lat, headingDeg, len, segs, altM) {
         );
     });
 }
-
 function buildCircle(lon, lat, radiusKm, altM, steps = 64) {
     return Array.from({ length: steps + 1 }, (_, i) => {
         const a = (i / steps) * Math.PI * 2;
         const dLon = (radiusKm / 111.32) * Math.sin(a) / Math.cos(Cesium.Math.toRadians(lat));
         const dLat = (radiusKm / 111.32) * Math.cos(a);
-
         return Cesium.Cartesian3.fromDegrees(lon + dLon, lat + dLat, altM);
     });
 }
-
 /* =========================================================
    CANVAS ICON FALLBACKS
 ========================================================= */
-
 const __iconCache = new Map();
-
 function makeIconCanvas(subcat, colorHex) {
     const cacheKey = `${subcat}::${colorHex}`;
     if (__iconCache.has(cacheKey)) return __iconCache.get(cacheKey);
-
     const S = CFG.iconSize;
     const cx = S / 2;
     const cy = S / 2;
     const c = document.createElement("canvas");
     c.width = S;
     c.height = S;
-
     const ctx = c.getContext("2d");
     ctx.clearRect(0, 0, S, S);
     ctx.fillStyle = colorHex;
@@ -209,9 +169,7 @@ function makeIconCanvas(subcat, colorHex) {
     ctx.shadowBlur = 10;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-
     const s = String(subcat || "").toLowerCase();
-
     if (s === "fighter" || s === "military") {
         ctx.beginPath();
         ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 6, cy - 4);
@@ -278,21 +236,17 @@ function makeIconCanvas(subcat, colorHex) {
         ctx.beginPath();
         ctx.roundRect(cx - 7, cy - 16, 14, 32, 3); ctx.fill();
     }
-
     const dataUrl = c.toDataURL("image/png");
     __iconCache.set(cacheKey, dataUrl);
     return dataUrl;
 }
-
 /* =========================================================
    DRONE LOITER
 ========================================================= */
-
 function animateDroneLoiter(viewer, lon, lat, colorHex) {
     const orbit = buildCircle(lon, lat, CFG.droneOrbitRadiusKm, CFG.droneAltitude, CFG.droneOrbitSteps);
     const color = hexToCs(colorHex, 0.9);
     let frame = 0;
-
     const billboard = viewer.entities.add({
         position: new Cesium.CallbackProperty(() => orbit[frame % orbit.length], false),
         billboard: {
@@ -305,11 +259,9 @@ function animateDroneLoiter(viewer, lon, lat, colorHex) {
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         },
     });
-
     const ringColor = cssVar("--warzone-military-drone-orbit-color", colorHex);
     const ringAlpha = numberVar("--warzone-military-drone-orbit-alpha", 0.32);
     const ringWidth = numberVar("--warzone-military-drone-orbit-width", 1.0);
-
     const ring = viewer.entities.add({
         polyline: {
             positions: orbit,
@@ -317,12 +269,10 @@ function animateDroneLoiter(viewer, lon, lat, colorHex) {
             material: hexToCs(ringColor, ringAlpha),
         },
     });
-
     const interval = setInterval(() => {
         frame = (frame + 1) % orbit.length;
         viewer.scene.requestRender();
     }, 700);
-
     return {
         billboard,
         ring,
@@ -332,61 +282,45 @@ function animateDroneLoiter(viewer, lon, lat, colorHex) {
         },
     };
 }
-
 /* =========================================================
    INIT / MANAGER
 ========================================================= */
-
 export function initMilitaryTracks(viewer) {
     if (!viewer) return null;
-
     const trackMap = new Map();
-
     function removeTrack(key) {
         const t = trackMap.get(key);
         if (!t) return;
-
         if (t.iconEntity) viewer.entities.remove(t.iconEntity);
         if (t.trailEntity) viewer.entities.remove(t.trailEntity);
         if (t.orbitEntity) viewer.entities.remove(t.orbitEntity);
-
         if (t.droneAnim) {
             t.droneAnim.stop();
             viewer.entities.remove(t.droneAnim.billboard);
             viewer.entities.remove(t.droneAnim.ring);
         }
-
         if (t.cleanupTimer) {
             clearTimeout(t.cleanupTimer);
         }
-
         trackMap.delete(key);
     }
-
     function enforceMax() {
         if (trackMap.size <= CFG.maxTracks) return;
-
         let oldestKey = null;
         let oldestTime = Infinity;
-
         for (const [k, t] of trackMap.entries()) {
             if (t.addedAt < oldestTime) {
                 oldestTime = t.addedAt;
                 oldestKey = k;
             }
         }
-
         if (oldestKey) removeTrack(oldestKey);
     }
-
     function addTrack(event) {
         if (!event) return;
-
         const lon = Number(event.lon);
         const lat = Number(event.lat);
-
         if (!Number.isFinite(lon) || !Number.isFinite(lat) || (lon === 0 && lat === 0)) return;
-
         const key = event.source_key || `mil-${event.id || Date.now()}`;
         const subcat = String(event.subcategory || event.category || "military").toLowerCase();
         const meta = event.metadata || {};
@@ -395,29 +329,22 @@ export function initMilitaryTracks(viewer) {
         const altM = naval ? CFG.altitudeShip : CFG.altitudeAircraft;
         const colorHex = getColor(subcat);
         const color = hexToCs(colorHex);
-
         if (trackMap.has(key)) removeTrack(key);
-
         // Drone: loiter animation
         if (["drone", "uav", "shahed"].includes(subcat)) {
             const droneAnim = animateDroneLoiter(viewer, lon, lat, colorHex);
-
             playMilitaryAppearSound();
-
             const lifespan = 45000 + Math.random() * 15000;
             const cleanupTimer = setTimeout(() => removeTrack(key), lifespan);
-
             trackMap.set(key, {
                 droneAnim,
                 addedAt: Date.now(),
                 cleanupTimer,
             });
-
             enforceMax();
             viewer.scene.requestRender();
             return;
         }
-
         const callsign = String(
             meta.callsign ||
             meta.vessel_name ||
@@ -425,7 +352,6 @@ export function initMilitaryTracks(viewer) {
             event.title ||
             subcat
         ).toUpperCase().slice(0, 14);
-
         const iconEntity = viewer.entities.add({
             position: Cesium.Cartesian3.fromDegrees(lon, lat, altM),
             billboard: {
@@ -459,25 +385,20 @@ export function initMilitaryTracks(viewer) {
                 title: event.title || "",
             },
         });
-
         const blinkMin = numberVar("--warzone-military-asset-blink-min", 0.55);
         const blinkMax = numberVar("--warzone-military-asset-blink-max", 1);
         const blinkSpeed = numberVar("--warzone-military-asset-blink-speed", 0.0028);
-
         iconEntity.billboard.color = new Cesium.CallbackProperty(() => {
             const alpha =
                 blinkMin +
                 (blinkMax - blinkMin) *
                 (0.5 + 0.5 * Math.sin(Date.now() * blinkSpeed));
-
             return color.withAlpha(alpha);
         }, false);
-
         const trailLen = naval ? CFG.shipTrailLengthDeg : CFG.trailLengthDeg;
         const trailPos = buildTrail(lon, lat, heading, trailLen, CFG.trailSegments, altM);
         const trailColor = getTrailColor(subcat, colorHex);
         const trailAlpha = numberVar("--warzone-military-trail-alpha", 0.9);
-
         const trailEntity = viewer.entities.add({
             polyline: {
                 positions: trailPos,
@@ -489,13 +410,11 @@ export function initMilitaryTracks(viewer) {
                 followSurface: false,
             },
         });
-
         let orbitEntity = null;
         if (subcat === "awacs") {
             const orbitColor = cssVar("--warzone-military-awacs-orbit-color", colorHex);
             const orbitAlpha = numberVar("--warzone-military-awacs-orbit-alpha", 0.28);
             const orbitWidth = numberVar("--warzone-military-awacs-orbit-width", 1.0);
-
             orbitEntity = viewer.entities.add({
                 polyline: {
                     positions: buildCircle(lon, lat, CFG.awacOrbitRadiusKm, altM),
@@ -504,15 +423,11 @@ export function initMilitaryTracks(viewer) {
                 },
             });
         }
-
         playMilitaryAppearSound();
-
         const lifespan = naval
             ? 90000 + Math.random() * 30000   // 90–120 sec
             : 45000 + Math.random() * 15000;  // 45–60 sec
-
         const cleanupTimer = setTimeout(() => removeTrack(key), lifespan);
-
         trackMap.set(key, {
             iconEntity,
             trailEntity,
@@ -520,18 +435,15 @@ export function initMilitaryTracks(viewer) {
             addedAt: Date.now(),
             cleanupTimer,
         });
-
         enforceMax();
         viewer.scene.requestRender();
     }
-
     const cleanupInterval = setInterval(() => {
         const cutoff = Date.now() - CFG.trailFadeMs;
         for (const [k, t] of trackMap.entries()) {
             if (t.addedAt < cutoff) removeTrack(k);
         }
     }, 5 * 60 * 1000);
-
     return {
         addTrack,
         setTracks(events = []) {
@@ -550,16 +462,12 @@ export function initMilitaryTracks(viewer) {
         },
     };
 }
-
 export function isMilitaryTrackEvent(event) {
     if (!event) return false;
-
     const cat = String(event.category || "").toLowerCase();
     const src = String(event.source_name || "").toLowerCase();
     const subcat = String(event.subcategory || "").toLowerCase();
-
     if (cat !== "military") return false;
-
     const valid = [
         "fighter",
         "tanker",
@@ -578,18 +486,14 @@ export function isMilitaryTrackEvent(event) {
         "uav",
         "shahed",
     ];
-
     const ok =
         src.includes("ads-b") ||
         src.includes("ais") ||
         src.includes("dev test") ||
         src.includes("dev_test") ||
         valid.includes(subcat);
-
     if (!ok) return false;
-
     const lat = Number(event.lat);
     const lon = Number(event.lon);
-
     return Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0);
 }

@@ -10,15 +10,15 @@
             {
                 "@type": "Organization",
                 "@id": `${baseUrl}/#org`,
-                name: site.brandName || "BattleSpaceX",
+                name: site.brandName || "BattlespaceX",
                 url: `${baseUrl}/`,
-                email: site.email || "contact@battlespacex.com",
+                email: site.email || "bravo@battlespacex.com",
                 sameAs: Array.isArray(site.sameAs) ? site.sameAs : []
             },
             {
                 "@type": "WebSite",
                 "@id": `${baseUrl}/#website`,
-                name: site.siteName || "Stratops | BattleSpaceX",
+                name: site.siteName || "StratOps | BattlespaceX",
                 url: `${baseUrl}/`,
                 publisher: { "@id": `${baseUrl}/#org` },
                 inLanguage: "en-CA"
@@ -27,7 +27,7 @@
                 "@type": "CollectionPage",
                 "@id": `${pageUrl}#webpage`,
                 url: pageUrl,
-                name: page.title || site.siteName || "Stratops | BattleSpaceX",
+                name: page.title || site.siteName || "StratOps | BattlespaceX",
                 description: page.description || "",
                 isPartOf: { "@id": `${baseUrl}/#website` },
                 about: { "@id": `${baseUrl}/#org` },
@@ -41,18 +41,18 @@
                 contentUrl: ogImageAbs,
                 width: 1200,
                 height: 630,
-                caption: page.title || site.siteName || "Stratops | BattleSpaceX",
+                caption: page.title || site.siteName || "StratOps | BattlespaceX",
                 representativeOfPage: true
             },
             {
                 "@type": "SoftwareApplication",
                 "@id": `${baseUrl}/#app`,
-                name: "Stratops",
+                name: "StratOps",
                 applicationCategory: "BusinessApplication",
                 operatingSystem: "Web",
                 url: `${baseUrl}/`,
                 publisher: { "@id": `${baseUrl}/#org` },
-                description: "Public-facing OSINT conflict monitoring interface with global map visualization, alerts, airspace status, cyber indicators, and analytics."
+                description: "StratOps, powered by Battlespacex, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace."
             },
             {
                 "@type": "BreadcrumbList",

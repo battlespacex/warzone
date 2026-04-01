@@ -1,27 +1,27 @@
 ﻿module.exports = {
     index: {
         path: "/",
-        title: "Stratops | Live OSINT Conflict Monitoring Map | BattleSpaceX",
-        description: "Stratops by BattleSpaceX is a live OSINT conflict monitoring interface with strike mapping, alerts, airspace awareness, cyber status, analytics, and theater-level situational context.",
+        title: "StratOps | Real-Time Multi-Domain Battlespace Intelligence | BattlespaceX",
+        description: "StratOps, powered by Battlespacex, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace.",
         robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
-        ogAlt: "Stratops by BattleSpaceX live conflict monitoring map and analytics dashboard",
+        ogAlt: "StratOps live multi-domain battlespace intelligence platform by BattlespaceX",
         breadcrumbs: [
-            { name: "Home", item: "https://battlespacex.com/stratops/" }
+            { name: "Home", item: "https://stratops.battlespacex.com/" }
         ],
         preload: [
-            { href: "/assets/images/web/warzone-og-preview.jpg" }
+            { href: "/assets/images/web/stratops-og-preview.jpg" }
         ]
     },
 
     "404": {
         path: "/404",
-        title: "404 | Stratops",
-        description: "The requested Stratops page could not be found.",
+        title: "404 | StratOps",
+        description: "The requested StratOps page could not be found.",
         robots: "noindex, nofollow",
-        ogAlt: "Stratops page not found",
+        ogAlt: "StratOps page not found",
         breadcrumbs: [
-            { name: "Home", item: "https://battlespacex.com/stratops/" },
-            { name: "404", item: "https://battlespacex.com/stratops/404" }
+            { name: "Home", item: "https://stratops.battlespacex.com/" },
+            { name: "404", item: "https://stratops.battlespacex.com/404" }
         ]
     }
 };

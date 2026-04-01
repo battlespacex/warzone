@@ -185,34 +185,56 @@ const GENERIC_RELEVANT_KEYWORDS = [
     "missile",
     "ballistic missile",
     "cruise missile",
-    "rocket",
-    "drone",
-    "uav",
+    "hypersonic missile",
+    "rocket attack",
+    "rocket barrage",
+    "drone strike",
+    "drone attack",
+    "uav strike",
     "shahed",
+    "kamikaze drone",
+    "loitering munition",
     "air strike",
     "airstrike",
+    "air raid",
     "bombardment",
-    "artillery",
+    "artillery strike",
+    "artillery barrage",
     "shelling",
     "barrage",
     "warship",
-    "fleet",
+    "naval strike",
+    "fleet deployment",
     "fighter jet",
+    "combat aircraft",
     "sortie",
+    "scramble",
+    "intercept",
+    "interception",
+    "air defense",
+    "air-defence",
     "siren",
     "sirens",
-    "air raid",
     "red alert",
-    "interception",
-    "explosion",
-    "blast",
-    "airport",
-    "airbase",
-    "refinery",
-    "radar",
+    "take shelter",
+    "military base attack",
+    "airbase attack",
+    "airbase strike",
     "notam",
+    "airspace closed",
     "airspace restricted",
-    "airspace closed"
+    "airspace violation",
+    "troop movement",
+    "military convoy",
+    "submarine spotted",
+    "carrier group",
+    "destroyer",
+    "frigate",
+    "military operation",
+    "special operation",
+    "ground offensive",
+    "cyber attack",
+    "cyberattack"
 ];
 
 const HARD_MILITARY_TERMS = [
@@ -849,6 +871,44 @@ function deriveNetworkSeverity(kind, scope = "unknown") {
     return "low";
 }
 
+// Civilian noise — if any of these appear, reject immediately
+const CIVILIAN_NOISE_TERMS = [
+    // Crime
+    "murder", "homicide", "manslaughter", "stabbing", "stab victim",
+    "robbery", "armed robbery", "carjacking", "kidnapping", "abduction",
+    "domestic violence", "domestic abuse", "sexual assault", "rape",
+    "gang shooting", "drive-by", "mass shooting", "school shooting",
+    "nightclub shooting", "bar fight", "brawl",
+    // Law enforcement civilian
+    "police chase", "police arrest", "drug bust", "drug raid",
+    "narcotics", "trafficking bust", "fbi raid", "swat team",
+    "sheriff", "deputy", "police officer killed", "cop shot",
+    "law enforcement", "criminal investigation", "crime scene",
+    "death toll", "civilians killed by police",
+    // Accidents
+    "car accident", "traffic accident", "road accident", "vehicle crash",
+    "train derailment", "plane crash", "bus crash",
+    "construction accident", "workplace accident", "industrial accident",
+    "gas leak", "gas explosion", "boiler explosion", "pipeline leak",
+    "house fire", "building fire", "apartment fire", "forest fire",
+    "wildfire update", "chemical spill",
+    // Civilian emergency
+    "earthquake", "flood", "hurricane", "typhoon", "tsunami warning",
+    "tornado", "landslide", "avalanche",
+    "hospital attack", "school attack", "church attack", "mosque attack",
+    // Politics / diplomacy / noise
+    "election", "vote", "ballot", "parliament", "congress", "senate",
+    "sanctions", "ceasefire talks", "peace talks", "diplomacy",
+    "trade war", "tariff", "stock market", "economy", "inflation",
+    "protest", "demonstration", "rally", "strike workers",
+    "refugee", "migrant", "immigration",
+    // Media noise
+    "opinion", "editorial", "analysis only", "podcast", "interview",
+    "subscribe", "follow us", "click here", "more details soon",
+    "developing story", "video in link", "see thread", "live now",
+    "breaking news alert", "just in", "weather alert", "storm warning"
+];
+
 function isGarbageEvent(event) {
     if (!event) return true;
 
@@ -856,34 +916,62 @@ function isGarbageEvent(event) {
     const summary = normalizeText(event.summary || "");
     const combined = `${title} ${summary}`.toLowerCase();
 
+    // Basic content checks
     if (!title || !summary) return true;
     if (title.length < 10) return true;
     if (summary.length < 15) return true;
 
-    if (/^(breaking|update|urgent|alert|reports?)$/i.test(title)) return true;
-    if (/^(breaking|update|urgent|alert|reports?)$/i.test(summary)) return true;
+    // Reject pure noise titles
+    if (/^(breaking|update|urgent|alert|reports?|video|watch|developing)$/i.test(title)) return true;
 
+    // Reject URL-only summaries
     if (/^https?:\/\//i.test(summary)) return true;
-    if (/^(video|watch|more soon|details soon|developing)$/i.test(summary)) return true;
 
-    const garbagePhrases = [
-        "click here",
-        "subscribe",
-        "follow for more",
-        "more details soon",
-        "developing story",
-        "unconfirmed reports only",
-        "video in link",
-        "see thread",
-        "see above"
-    ];
+    // Reject civilian noise — strict block
+    if (CIVILIAN_NOISE_TERMS.some((term) => combined.includes(term))) return true;
 
-    if (garbagePhrases.some((phrase) => combined.includes(phrase))) return true;
-
-    const hasRelevant = containsRelevantKeyword(combined, TELEGRAM_RELEVANT_KEYWORDS) ||
+    // Must contain at least one hard military signal
+    const hasRelevant =
+        containsRelevantKeyword(combined, TELEGRAM_RELEVANT_KEYWORDS) ||
         HARD_MILITARY_TERMS.some((term) => combined.includes(term));
 
     if (!hasRelevant) return true;
+
+    return false;
+}
+
+function isMilitaryRelevantEvent(event) {
+    if (!event) return false;
+
+    const category = String(event.category || "").toLowerCase();
+    const weapon = String(event.weapon_type || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
+    const title = String(event.title || "").toLowerCase();
+    const summary = String(event.summary || "").toLowerCase();
+    const combined = `${title} ${summary} ${weapon}`;
+
+    // Hard reject civilian noise first — takes priority over everything
+    if (CIVILIAN_NOISE_TERMS.some((term) => combined.includes(term))) return false;
+
+    // Trusted military report types always pass
+    if ([
+        "flight_tracking", "siren_alert", "notam",
+        "thermal_anomaly", "seismic", "cyber", "network",
+        "osint", "conflict"
+    ].includes(reportType)) return true;
+
+    // Trusted military categories always pass
+    if ([
+        "strike", "military", "alert", "airspace",
+        "cyber", "recon", "thermal", "signal", "network"
+    ].includes(category)) return true;
+
+    // Must contain hard military terms
+    if (HARD_MILITARY_TERMS.some((term) => combined.includes(term))) return true;
+
+    // Pass seismic only if near conflict zone
+    // (USGS already filters by bbox so this is fine)
+    if (category === "seismic") return true;
 
     return false;
 }
@@ -1173,7 +1261,6 @@ async function findSimilarEvent(event) {
     return null;
 }
 
-
 async function findOrCreateCluster(event) {
     const lat = Number(event?.lat);
     const lon = Number(event?.lon);
@@ -1225,12 +1312,11 @@ async function insertEventIfValid(event) {
     if (!event) return false;
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return false;
 
-    const sourceConfig = await getSourceConfig(event.source_name);
+    const sourceConfig = await getSourceConfig(event.feed_name || event.source_name);
 
     if (sourceConfig) {
         if (sourceConfig.enabled === false) return false;
-        if (sourceConfig.publish_mode === "never_publish_direct") return false;
-        if (sourceConfig.publish_mode === "signal_only") return false;
+        if (sourceConfig.promotion_mode === "restricted") return false;
     }
 
     if ((event.title || "").length < 10) return false;
@@ -1243,10 +1329,13 @@ async function insertEventIfValid(event) {
     if (exists) return false;
 
     event.priority_score = derivePriorityScore(event);
-    event.confidence = deriveConfidence(event);
 
-    if (sourceConfig && sourceConfig.trust_score) {
-        event.confidence = Math.min(95, event.confidence + Math.floor(sourceConfig.trust_score / 10));
+    if (!Number.isFinite(event.confidence)) {
+        event.confidence = deriveConfidence(event);
+    }
+
+    if (sourceConfig && Number.isFinite(Number(sourceConfig.default_confidence))) {
+        event.confidence = Number(sourceConfig.default_confidence);
     }
 
     if (typeof deriveEventStatus === "function") {
@@ -1282,6 +1371,46 @@ async function insertEventIfValid(event) {
     }
 
     return insertEvent(event);
+}
+
+async function pruneStaleData() {
+    const now = new Date();
+
+    // Events older than 7 days
+    const eventsCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: eventsError } = await supabase
+        .from("events")
+        .delete()
+        .lt("occurred_at", eventsCutoff);
+    if (eventsError) console.error("Events prune error:", eventsError.message);
+    else console.log("[prune] Events older than 7 days removed");
+
+    // Aircraft tracks older than 24 hours
+    const aircraftCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const { error: aircraftError } = await supabase
+        .from("aircraft_tracks_log")
+        .delete()
+        .lt("last_seen_at", aircraftCutoff);
+    if (aircraftError) console.error("Aircraft prune error:", aircraftError.message);
+    else console.log("[prune] Aircraft tracks older than 24 hours removed");
+
+    // Raw items older than 48 hours
+    const rawCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+    const { error: rawError } = await supabase
+        .from("raw_items")
+        .delete()
+        .lt("created_at", rawCutoff);
+    if (rawError) console.error("Raw items prune error:", rawError.message);
+    else console.log("[prune] Raw items older than 48 hours removed");
+
+    // Event clusters older than 7 days
+    const clusterCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: clusterError } = await supabase
+        .from("event_clusters")
+        .delete()
+        .lt("updated_at", clusterCutoff);
+    if (clusterError) console.error("Cluster prune error:", clusterError.message);
+    else console.log("[prune] Old event clusters removed");
 }
 
 /* ----------------------------------------
@@ -1358,6 +1487,244 @@ function normalizeAcledEvent(item, feed) {
             item.longitude || ""
         ].join("|")
     };
+}
+
+
+/* ----------------------------------------
+ * UCDP
+ * -------------------------------------- */
+function normalizeUcdpEvent(item, feed) {
+    const lat = Number(item.latitude);
+    const lon = Number(item.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+    const country = String(item.country || "");
+    const region = String(item.region || "");
+    const dyad = String(item.dyad_name || "");
+    const conflict = String(item.conflict_name || "");
+    const deaths = Number(item.best || 0);
+
+    let severity = "low";
+    if (deaths >= 25) severity = "critical";
+    else if (deaths >= 10) severity = "high";
+    else if (deaths >= 1) severity = "medium";
+
+    let category = "strike";
+    const text = `${dyad} ${conflict}`.toLowerCase();
+    if (text.includes("air") || text.includes("drone") || text.includes("missile")) category = "strike";
+    else if (text.includes("naval") || text.includes("sea")) category = "military";
+    else if (text.includes("cyber")) category = "cyber";
+
+    // Extract sides
+    const sides = dyad.split(" - ");
+    const actorSide = sides[0] || "unknown";
+    const targetSide = sides[1] || "unknown";
+
+    return {
+        category,
+        title: `${conflict || "Armed conflict"} — ${country}`,
+        summary: normalizeText(
+            `${dyad}. Conflict: ${conflict}. ` +
+            `Region: ${region}. ` +
+            `${deaths > 0 ? `Estimated casualties: ${deaths}.` : ""}`
+        ).slice(0, 1500),
+        source_name: "UCDP",
+        source_url: "https://ucdp.uu.se/",
+        occurred_at: normalizeOccurredAt(item.date_start || item.date_end),
+        lat,
+        lon,
+        location_label: [item.where_prec === 1 ? item.where_description : "", country]
+            .filter(Boolean).join(", ") || "Unknown location",
+        confidence: 78,
+        actor_side: actorSide,
+        target_side: targetSide,
+        weapon_type: text.includes("air") ? "air strike" :
+            text.includes("drone") ? "drone" :
+                text.includes("artillery") ? "artillery" :
+                    text.includes("missile") ? "missile" : "unknown",
+        target_type: "unknown",
+        impact_type: deaths > 0 ? "lethal" : "unknown",
+        report_type: "conflict",
+        severity,
+        country_code: item.country_id || "",
+        tags: uniqueTags(["ucdp", "conflict", country.toLowerCase()]),
+        airspace_status: "unknown",
+        cyber_status: "unknown",
+        fir_code: "",
+        dedupe_key: [
+            "UCDP",
+            item.id || "",
+            item.date_start || "",
+            lat,
+            lon
+        ].join("|")
+    };
+}
+
+async function processUcdpFeed(feed) {
+    try {
+        const response = await axios.get(feed.url, {
+            timeout: 20000,
+            headers: {
+                "User-Agent": "warzone-worker/1.0",
+                Accept: "application/json"
+            }
+        });
+
+        const items = Array.isArray(response.data?.Result)
+            ? response.data.Result
+            : [];
+
+        console.log(`[UCDP] Fetched ${items.length} events`);
+
+        for (const item of items) {
+            const event = normalizeUcdpEvent(item, feed);
+            if (!event) continue;
+            await insertEventIfValid(event);
+        }
+    } catch (error) {
+        console.error("UCDP feed error:", error.response?.status || error.message);
+    }
+}
+
+async function processNotamFeed(feed) {
+    // Uses the FAA NOTAM API — free, no key needed
+    // Fetches active NOTAMs relevant to military/conflict zones
+    const MILITARY_NOTAM_KEYWORDS = [
+        "restricted", "prohibited", "danger area",
+        "military", "air defense", "weapons",
+        "missile", "rocket", "drone", "uav",
+        "temporary flight restriction", "tfr",
+        "combat", "warzone", "conflict",
+        "interception", "scramble"
+    ];
+
+    // Use FAA Digital NOTAM Service — free REST API
+    const NOTAM_API_URL = "https://external-api.faa.gov/notamapi/v1/notams";
+
+    try {
+        const response = await axios.get(NOTAM_API_URL, {
+            timeout: 20000,
+            params: {
+                pageSize: 50,
+                pageNum: 1,
+                notamType: "NOTAM",
+            },
+            headers: {
+                "Accept": "application/json",
+                "User-Agent": "warzone-worker/1.0",
+                "client_id": process.env.FAA_CLIENT_ID || "",
+                "client_secret": process.env.FAA_CLIENT_SECRET || "",
+            }
+        });
+
+        const items = Array.isArray(response.data?.items)
+            ? response.data.items
+            : [];
+
+        console.log(`[NOTAM] Fetched ${items.length} NOTAMs`);
+
+        for (const item of items) {
+            try {
+                const text = String(
+                    item?.properties?.coreNOTAMData?.notam?.text ||
+                    item?.properties?.coreNOTAMData?.notam?.purpose ||
+                    ""
+                ).toLowerCase();
+
+                // Only process NOTAMs with military-relevant content
+                const isMilitaryNotam = MILITARY_NOTAM_KEYWORDS.some(
+                    (kw) => text.includes(kw)
+                );
+                if (!isMilitaryNotam) continue;
+
+                const location = item?.properties?.coreNOTAMData?.notam?.location || "";
+                const notamId = item?.properties?.coreNOTAMData?.notam?.id || "";
+                const startDate = item?.properties?.coreNOTAMData?.notam?.effectiveStart;
+                const endDate = item?.properties?.coreNOTAMData?.notam?.effectiveEnd;
+
+                // Try to get coordinates
+                const coords = item?.geometry?.coordinates;
+                let lat = null;
+                let lon = null;
+
+                if (Array.isArray(coords) && coords.length >= 2) {
+                    lon = Number(coords[0]);
+                    lat = Number(coords[1]);
+                }
+
+                if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                    // Try geocoding the location code
+                    const geocoded = await geocodeLocation(location);
+                    if (!geocoded) continue;
+                    lat = geocoded.lat;
+                    lon = geocoded.lon;
+                }
+
+                let status = "restricted";
+                if (text.includes("prohibited")) status = "closed";
+                else if (text.includes("danger")) status = "restricted";
+                else if (text.includes("temporary flight restriction") || text.includes("tfr")) status = "restricted";
+
+                const title = `NOTAM ${notamId} — ${location} ${status.toUpperCase()}`;
+                const summary = normalizeText(
+                    item?.properties?.coreNOTAMData?.notam?.text || "Military NOTAM active"
+                ).slice(0, 1500);
+
+                const event = {
+                    category: "airspace",
+                    title: title.slice(0, 160),
+                    summary,
+                    source_name: "FAA NOTAM",
+                    source_url: "https://notams.aim.faa.gov/",
+                    occurred_at: normalizeOccurredAt(startDate),
+                    lat,
+                    lon,
+                    location_label: location || "Unknown",
+                    confidence: 85,
+                    actor_side: "unknown",
+                    target_side: "unknown",
+                    weapon_type: "unknown",
+                    target_type: "airspace",
+                    impact_type: "infrastructure",
+                    report_type: "notam",
+                    severity: status === "closed" ? "critical" : "high",
+                    country_code: "",
+                    tags: uniqueTags(["notam", "airspace", status, location]),
+                    airspace_status: status,
+                    cyber_status: "unknown",
+                    fir_code: location,
+                    dedupe_key: [
+                        "NOTAM",
+                        notamId,
+                        startDate || "",
+                        lat,
+                        lon
+                    ].join("|")
+                };
+
+                await insertEventIfValid(event);
+                await upsertAirspaceStatus({
+                    region: location || "Unknown",
+                    country_code: "",
+                    status,
+                    title: event.title,
+                    summary: event.summary,
+                    source_name: "FAA NOTAM",
+                    source_url: "https://notams.aim.faa.gov/",
+                    fir_code: location,
+                    expires_at: normalizeOccurredAt(endDate),
+                    lat,
+                    lon
+                });
+
+            } catch (err) {
+                console.error("[NOTAM] Item parse error:", err.message);
+            }
+        }
+    } catch (error) {
+        console.warn("[NOTAM] Fetch failed:", error.response?.status || error.message);
+    }
 }
 
 /* ----------------------------------------
@@ -3032,6 +3399,7 @@ async function processOoniFeed(feed) {
 async function processFeed(feed) {
     console.log("Fetching:", feed.name, feed.url || "[telegram]");
 
+
     if (feed.parser === "telegram") {
         await processTelegramFeed(feed);
         return;
@@ -3103,10 +3471,15 @@ async function processFeed(feed) {
         return;
     }
 
+    if (feed.parser === "ucdp") {
+        await processUcdpFeed(feed);
+        return;
+    }
+
     if (feed.parser === "gdelt") {
         const response = await axios.get(feed.url, {
             params: {
-                query: '("missile" OR "ballistic missile" OR "cruise missile" OR "drone strike" OR "air strike" OR "airstrike" OR "fighter jet" OR "military base" OR "airbase" OR "air defense" OR "naval attack" OR "warship" OR "fleet" OR "artillery strike" OR "rocket attack" OR "siren" OR "air raid" OR "notam" OR "airspace closed" OR "airspace restricted" OR "cyberattack" OR "vulnerability" OR "ransomware")',
+                query: '("missile strike" OR "ballistic missile" OR "cruise missile" OR "hypersonic missile" OR "drone strike" OR "drone attack" OR "kamikaze drone" OR "shahed drone" OR "air strike" OR "airstrike" OR "air raid" OR "rocket attack" OR "rocket barrage" OR "artillery strike" OR "artillery barrage" OR "shelling" OR "bombardment" OR "fighter jet" OR "combat aircraft" OR "military aircraft" OR "warship" OR "naval attack" OR "carrier strike group" OR "submarine" OR "destroyer" OR "frigate" OR "military base attack" OR "airbase attack" OR "air defense" OR "missile defense" OR "interception" OR "scramble" OR "sortie" OR "red alert" OR "take shelter" OR "siren alert" OR "notam issued" OR "airspace closed" OR "airspace restricted" OR "cyberattack" OR "cyber attack" OR "military operation" OR "special operation" OR "ground offensive" OR "troop movement" OR "military convoy")',
                 mode: "ArtList",
                 format: "json",
                 maxrecords: 25,
@@ -3165,6 +3538,11 @@ async function processFeed(feed) {
         return;
     }
 
+    if (feed.parser === "notam-api") {
+        await processNotamFeed(feed);
+        return;
+    }
+
     console.log("Skipped unsupported parser:", feed.parser);
 }
 
@@ -3199,6 +3577,12 @@ async function runWorker() {
             await clearExpiredAlerts();
         } catch (err) {
             console.error("Alert cleanup error:", err.message);
+        }
+
+        try {
+            await pruneStaleData();
+        } catch (err) {
+            console.error("Data pruning error:", err.message);
         }
     } finally {
         isWorkerRunning = false;

@@ -1,11 +1,10 @@
-﻿// assets/js/warzone-layers.js
-
+﻿// File Path: /assets/js/warzone-layers.js
 const LAYER_DEFS = [
     { id: "strikes", label: "Strikes & Artillery", icon: "💥", color: "#ff2a2a" },
     { id: "missiles", label: "Missiles & Rockets", icon: "🚀", color: "#ff5500" },
     { id: "drones", label: "Drones / UAVs", icon: "🛸", color: "#ffcc00" },
     { id: "airstrikes", label: "Air Strikes", icon: "✈️", color: "#ff7820" },
-    { id: "aircraft", label: "Military Aircraft", icon: "🛩️", color: "#33d90a" },
+    { id: "aircraft", label: "Aircraft Tracker", icon: "🛩️", color: "#33d90a" },
     { id: "naval", label: "Naval Activity", icon: "⚓", color: "#9b7bff" },
     { id: "ranges", label: "Detection / Threat Ranges", icon: "📡", color: "#33d9ff" },
     { id: "sweepers", label: "Radar Sweepers", icon: "🌀", color: "#18e2db", uiOnly: true },
@@ -18,17 +17,14 @@ const LAYER_DEFS = [
     { id: "hotspots", label: "Hotspot Labels", icon: "📍", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", icon: "🛰️", color: "#4a9eff", uiOnly: true },
 ];
-
 const STORAGE_KEY = "wz_layer_state";
 let __layerState = {};
 LAYER_DEFS.forEach((l) => {
     __layerState[l.id] = true;
 });
-
 function loadState() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-
         LAYER_DEFS.forEach((l) => {
             if (l.id in saved) {
                 __layerState[l.id] = !!saved[l.id];
@@ -38,7 +34,6 @@ function loadState() {
         // keep defaults
     }
 }
-
 function saveState() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(__layerState));
@@ -46,70 +41,58 @@ function saveState() {
         // ignore storage failures
     }
 }
-
 // ── Event classifier ───────────────────────────────────────────────────────────
 export function getEventLayerId(event) {
     if (!event) return "news";
-
     const cat = String(event.category || "").toLowerCase();
     const weapon = String(event.weapon_type || "").toLowerCase();
     const subcat = String(event.subcategory || "").toLowerCase();
     const src = String(event.source_name || "").toLowerCase();
-
     if (cat === "alert") return "alerts";
     if (cat === "cyber") return "cyber";
     if (cat === "thermal") return "thermal";
     if (cat === "recon") return "recon";
     if (cat === "seismic" || cat === "signal") return "seismic";
-
     if (cat === "military") {
         if (["carrier", "destroyer", "frigate", "submarine", "naval", "logistics"].includes(subcat)) return "naval";
         if (["fighter", "awacs", "recon", "tanker", "transport", "patrol"].includes(subcat)) return "aircraft";
         if (["drone", "uav", "shahed"].includes(subcat)) return "drones";
         return "aircraft";
     }
-
     if (cat === "strike") {
         if (/drone|uav|shahed|kamikaze/.test(weapon)) return "drones";
         if (/air.?strike|bomb|f-\d+|jas/.test(weapon)) return "airstrikes";
         if (/missile|rocket|ballistic|cruise/.test(weapon)) return "missiles";
         return "strikes";
     }
-
     if (src.includes("telegram") || src.includes("reddit") || src.includes("gdelt") || src.includes("twitter")) {
         return "news";
     }
-
     return "strikes";
 }
-
 export function isEventVisible(event) {
     const layerId = getEventLayerId(event);
     return __layerState[layerId] !== false;
 }
-
 export function isLayerEnabled(id) {
     return __layerState[id] !== false;
 }
-
 export function setLayer(id, enabled) {
     __layerState[id] = !!enabled;
     saveState();
+    notifyChange(id, __layerState[id]);
 }
-
 export function toggleLayer(id) {
     __layerState[id] = !__layerState[id];
     saveState();
+    notifyChange(id, __layerState[id]);
     return __layerState[id];
 }
-
 // Callbacks
 let __callbacks = [];
-
 export function onLayerChange(cb) {
     __callbacks.push(cb);
 }
-
 function notifyChange(id, val) {
     __callbacks.forEach((cb) => {
         try {
@@ -119,14 +102,11 @@ function notifyChange(id, val) {
         }
     });
 }
-
 // ── Layer panel UI ─────────────────────────────────────────────────────────────
 export function initLayerPanel() {
     loadState();
-
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
-
     const rows = LAYER_DEFS.map((l) => `
         <div class="wz-layer-item${__layerState[l.id] ? " is-on" : ""}" data-layer="${l.id}">
             <span class="wz-layer-icon">${l.icon}</span>
@@ -135,7 +115,6 @@ export function initLayerPanel() {
             <span class="wz-layer-toggle"></span>
         </div>
     `).join("");
-
     container.innerHTML = `
         <div class="wz-layers__toolbar">
             <button class="wz-layers__all-on btn-primary" id="wz-layers-all-on">ALL ON<span aria-hidden="true"></span></button>
@@ -143,7 +122,6 @@ export function initLayerPanel() {
         </div>
         <div class="wz-layers__list">${rows}</div>
     `;
-
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
         item.addEventListener("click", () => {
             const id = item.dataset.layer;
@@ -152,30 +130,23 @@ export function initLayerPanel() {
             notifyChange(id, newVal);
         });
     });
-
     document.getElementById("wz-layers-all-on")?.addEventListener("click", (e) => {
         e.stopPropagation();
-
         LAYER_DEFS.forEach((l) => {
             __layerState[l.id] = true;
             container.querySelector(`[data-layer="${l.id}"]`)?.classList.add("is-on");
         });
-
         saveState();
         notifyChange("*", true);
     });
-
     document.getElementById("wz-layers-all-off")?.addEventListener("click", (e) => {
         e.stopPropagation();
-
         LAYER_DEFS.forEach((l) => {
             __layerState[l.id] = false;
             container.querySelector(`[data-layer="${l.id}"]`)?.classList.remove("is-on");
         });
-
         saveState();
         notifyChange("*", false);
     });
 }
-
 export { LAYER_DEFS };

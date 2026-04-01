@@ -1,26 +1,22 @@
 ﻿<div id="warzone-gate-layer" class="warzone-gate-layer">
     <div class="secondary-content">
         <div id="wz-siren-stack" class="wz-siren-stack" aria-live="assertive" aria-atomic="false"></div>
-
         <template id="tpl-siren-banner">
             <div class="wz-siren-banner" role="alert">
                 <div class="wz-siren__content">
                     <span class="wz-siren-alert static-icon" aria-hidden="true">
                         <span class="bx-web-ico-alert-1-0" aria-hidden="true"></span>
                     </span>
-
                     <span class="wz-siren-body">
                         <strong class="wz-siren-title"></strong>
                         <span class="wz-siren-meta"></span>
                     </span>
-
                     <button type="button" class="wz-siren-close static-icon" aria-label="Dismiss alert">
                         <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
                     </button>
                 </div>
             </div>
         </template>
-
         <div id="warzone-alert"
              class="warzone-alert"
              role="status"
@@ -43,7 +39,6 @@
                 ✕
             </button>
         </div>
-
         <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite">
             <div class="wz-event-popup__head">
                 <span id="wz-event-popup-cat" class="wz-event-popup__cat"></span>
@@ -62,7 +57,6 @@
             </div>
         </div>
     </div>
-
     <div class="primary-content">
         <div id="wz-intro-modal"
              class="wz-modal wz-intro"
@@ -84,33 +78,33 @@
                                  decoding="async" />
                         </div>
                     </div>
-
                     <div class="wz-intro__body">
-                        <h2 id="wz-intro-title" class="wz-intro__title">Live open-source conflict monitoring built for operational readability</h2>
-                        <p id="wz-intro-summary">
-                            Stratops is BattleSpaceX's live operational interface for monitoring conflict activity, military air movement, strategic alerts, airspace changes, cyber-adjacent indicators, and multi-domain event patterns through a 3D battlespace environment.
-                            It is built for situational awareness, research, and structured OSINT visibility, not as an official warning system, emergency dispatch network, or classified intelligence product.
-                        </p>
+                        <h2 id="wz-intro-title" class="wz-intro__title">
+                            Real-Time Multi-Domain Battlespace Intelligence
+                        </h2>
 
-                        <ul class="wz-terms-list wz-list-view">
-                            <li><strong>Near real-time operational map</strong> for strikes, alerts, aircraft activity, layered intelligence signals, and regional escalation context</li>
-                            <li><strong>OSINT-driven workflow</strong> using public telemetry, structured event feeds, open reporting, and normalized monitoring logic</li>
-                            <li><strong>Command-style visualization layer</strong> designed for clarity, speed, filtering, and multi-domain readability rather than headline noise</li>
-                            <li><strong>Public research interface</strong> intended for awareness and analysis, not targeting, emergency instruction, or mission-critical decision making</li>
-                        </ul>
+                        <div id="wz-intro-summary">
+                            <p>
+                                <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com" target="_blank">Battlespacex</a></strong>, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace.
+                            </p>
+                            <p>StratOps focuses on patterns, movement, escalation signals, and spatial context, enabling users to interpret how activity evolves across a theater in near real-time.
+                            </p>
+                            <p>Built as part of the Battlespacex ecosystem, it is designed as a public situational-awareness interface for tracking military air and naval movement, strategic alerts, airspace changes, cyber-adjacent indicators, and broader multi-domain activity analytics.
+                            </p>
+                        </div>
                     </div>
-
                     <div class="wz-intro__actions">
                         <p class="wz-intro__note">
-                            By continuing, you acknowledge that Stratops presents OSINT-informed monitoring data and derived visualization rather than official or verified military intelligence.
+                            By continuing, you acknowledge that StratOps presents OSINT-informed monitoring data and is not an official warning network, classified intelligence product, or emergency instruction system.
                         </p>
-                        <button id="wz-intro-accept" class="btn-primary" type="button"><span aria-hidden="true"></span>Accept and Enter</button>
+                        <button id="wz-intro-accept" class="btn-primary" type="button">
+                            <span aria-hidden="true"></span>Accept and Enter
+                        </button>
                     </div>
                 </div>
             </div>
             <div class="wz-modal__backdrop"></div>
         </div>
-
         <div id="wz-about-modal"
              class="wz-modal"
              aria-modal="true"
@@ -128,7 +122,6 @@
                             <span class="bx-web-close-1-1" aria-hidden="true"></span>
                         </button>
                     </div>
-
                     <div class="wz-modal__tabs" role="tablist" aria-label="About and policy tabs">
                         <button class="wz-modal__tab is-active" type="button" data-tab="about" role="tab" aria-selected="true">About</button>
                         <button class="wz-modal__tab" type="button" data-tab="capabilities" role="tab" aria-selected="false">Capabilities</button>
@@ -136,20 +129,18 @@
                         <button class="wz-modal__tab" type="button" data-tab="terms" role="tab" aria-selected="false">Terms of Use</button>
                         <button class="wz-modal__tab" type="button" data-tab="policy" role="tab" aria-selected="false">Data Policy</button>
                     </div>
-
                     <div class="wz-modal__body">
                         <div class="wz-modal__pane is-active" data-pane="about" role="tabpanel">
                             <h3>About Stratops</h3>
                             <p>
-                                <strong>Stratops</strong> is BattleSpaceX's live battlespace monitoring environment for visualizing conflict activity, military air movement, strategic alerts, escalation signals, airspace changes, cyber-adjacent indicators, and regional event concentration through a single operational map.
+                                <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com" target="_blank">Battlespacex</a></strong>, is a real-time, OSINT-based multi-domain situational intelligence visualization platform that transforms aggregated telemetry and event signals into a live, 3D layered battlespace environment across air, land, sea, space, and cyberspace.
                             </p>
                             <p>
-                                The platform is built for users who want a faster, cleaner, and more structured operational picture than a traditional news feed, raw Telegram stream, or static conflict map can provide. It brings mapped events, live movement, filters, alerts, overlays, and analysis panels into one command-style interface.
+                                StratOps focuses on patterns, movement, escalation signals, and spatial context, enabling users to interpret how activity evolves across a theater in near real-time.
                             </p>
                             <p>
-                                The goal is not spectacle. The goal is speed, readability, context, and stronger visual interpretation of publicly observable signals.
+                                Built as part of the Battlespacex ecosystem, it is designed as a public situational-awareness interface for tracking military air and naval movement, strategic alerts, airspace changes, cyber-adjacent indicators, and broader multi-domain activity analytics.
                             </p>
-
                             <h3>What makes the platform different</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li><strong>BattleSpaceX product</strong> with a dedicated operational interface rather than a generic news-style layout</li>
@@ -158,18 +149,15 @@
                                 <li><strong>Near real-time signal visibility</strong> where public telemetry and open reporting support live or near-live updates</li>
                                 <li><strong>Performance-oriented presentation</strong> designed to remain usable under dense event conditions</li>
                             </ul>
-
                             <p class="wz-terms-footer">
                                 Stratops is an independent OSINT-informed monitoring platform and is not affiliated with any government, military, intelligence service, or emergency authority.
                             </p>
                         </div>
-
                         <div class="wz-modal__pane" data-pane="capabilities" role="tabpanel">
                             <h3>Operational Capabilities</h3>
                             <p>
                                 Depending on source visibility, current theater conditions, and active filter state, Stratops can present a broad range of conflict-relevant signals and derived operational overlays.
                             </p>
-
                             <h3>Signal coverage</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li><strong>Strike activity</strong> including missile, rocket, drone, UAV, artillery, airstrike-linked, and impact-linked incidents</li>
@@ -180,7 +168,6 @@
                                 <li><strong>Cyber and strategic indicators</strong> where public reporting or structured event logic supports display</li>
                                 <li><strong>Hotspots and anomaly clusters</strong> for rapid scanning of concentrated activity</li>
                             </ul>
-
                             <h3>Visualization features</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li><strong>Strike arcs and trajectories</strong> for visualizing attack direction and event flow</li>
@@ -190,18 +177,15 @@
                                 <li><strong>Clustered hotspots and event detail views</strong> for dense activity zones</li>
                                 <li><strong>Operational map workflow</strong> combining live feeds, derived context, and user-controlled visibility</li>
                             </ul>
-
                             <p class="wz-terms-footer">
                                 Coverage always depends on public visibility, reporting quality, telemetry availability, and current operating conditions.
                             </p>
                         </div>
-
                         <div class="wz-modal__pane" data-pane="method" role="tabpanel">
                             <h3>How It Works</h3>
                             <p>
                                 Stratops ingests publicly visible signals and structured event inputs, normalizes them into a consistent internal model, and renders them through a Cesium-based globe with supporting widgets, filters, alerts, and analytics.
                             </p>
-
                             <h3>Workflow</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li><strong>Collection</strong> of public reporting, alert streams, telemetry-visible movement, and structured OSINT-style event inputs</li>
@@ -211,17 +195,14 @@
                                 <li><strong>Rendering</strong> through hotspots, tracks, arcs, panels, alerts, and derived analytics views</li>
                                 <li><strong>Revision</strong> as records are corrected, refreshed, de-duplicated, grouped, or re-prioritized</li>
                             </ul>
-
                             <h3>Why the picture may change</h3>
                             <p>
                                 Displayed events may be delayed, clustered, inferred, normalized, or reclassified as better reporting becomes available. The platform is built for readability and situational awareness, not as a literal replacement for primary-source verification.
                             </p>
-
                             <p class="wz-terms-footer">
                                 Stratops explains what the platform does without exposing protected source composition, ranking logic, or internal processing rules.
                             </p>
                         </div>
-
                         <div class="wz-modal__pane" data-pane="terms" role="tabpanel">
                             <h3>Terms of Use and Disclaimer</h3>
                             <ul class="wz-terms-list wz-list-view">
@@ -233,18 +214,15 @@
                                 <li><strong>Restricted reuse.</strong> Unauthorized scraping, bulk extraction, automated mirroring, systematic republication, resale, or abuse of platform content is prohibited.</li>
                                 <li><strong>Use at your own risk.</strong> Accessing the platform means you accept these limits and use the service at your own discretion.</li>
                             </ul>
-
                             <p class="wz-terms-footer">
                                 For verified alerts, emergency instructions, or official public-safety information, always refer to the relevant authority.
                             </p>
                         </div>
-
                         <div class="wz-modal__pane" data-pane="policy" role="tabpanel">
                             <h3>Data Policy</h3>
                             <p>
                                 BattleSpaceX aims to explain the platform clearly while protecting source integrity, system security, and internal processing logic.
                             </p>
-
                             <h3>What is made clear</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li>Stratops uses publicly accessible, alert-based, telemetry-visible, and structured event inputs</li>
@@ -252,7 +230,6 @@
                                 <li>Records may be normalized, ranked, grouped, filtered, clustered, delayed, or visually transformed before display</li>
                                 <li>The platform presents an OSINT-informed operational picture rather than raw source exhaust</li>
                             </ul>
-
                             <h3>What remains protected</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li>Protected upstream source combinations</li>
@@ -260,7 +237,6 @@
                                 <li>Private enrichment and ingestion workflows</li>
                                 <li>Confidential feed composition and processing rules</li>
                             </ul>
-
                             <h3>Important limitations</h3>
                             <ul class="wz-terms-list wz-list-view">
                                 <li>Coverage varies by region, public visibility, telemetry access, and current conditions</li>
@@ -268,7 +244,6 @@
                                 <li>Absence of a signal does not prove absence of an asset, action, or event</li>
                                 <li>Displayed visuals may represent normalized or derived indicators rather than confirmed ground truth</li>
                             </ul>
-
                             <p class="wz-terms-footer">
                                 StratOps balances public transparency with the need to protect source composition and internal platform logic.
                             </p>
@@ -278,7 +253,6 @@
             </div>
             <div class="wz-modal__backdrop"></div>
         </div>
-
         <div id="wz-region-modal"
              class="wz-modal wz-region-modal"
              aria-modal="true"
@@ -290,7 +264,7 @@
                 <div class="wz-modal__container wz-region-modal__container">
                     <div class="wz-region-modal__head">
                         <h2 class="wz-region-modal__title" id="wz-region-title">Select Monitoring Region</h2>
-                        <p class="wz-region-modal__sub" id="wz-region-sub">Choose an initial theater to begin monitoring. Stratops provides near real-time visibility into open-source conflict activity, alerts, aviation signals, and multi-domain operational context.</p>
+                        <p class="wz-region-modal__sub" id="wz-region-sub">Choose an initial theater to begin monitoring.</p>
                     </div>
                     <div class="wz-region-modal__content">
                         <div class="wz-region-modal__grid" id="wz-region-modal-grid" role="listbox" aria-label="Available monitoring regions"></div>

@@ -9,30 +9,56 @@
       "category": "strike"
     },
     {
-      "name": "Telegram OSINT",
+      "name": "Telegram OSINT High Signal",
+      "parser": "telegram",
+      "enabled": true,
+      "channels": [
+        "OSINTdefender",
+        "OSINT_defender",
+        "WarMonitors",
+        "milinfolive",
+        "war_translated",
+        "ourwarstoday",
+        "sitreports",
+        "irannotam"
+      ],
+      "limit": 30,
+      "category": "military",
+      "tags": [ "telegram", "osint", "military", "high-signal" ]
+    },
+    {
+      "name": "Telegram OSINT Mixed",
       "parser": "telegram",
       "enabled": true,
       "channels": [
         "sentdefender",
         "OSINTLive",
-        "OSINTdefender",
-        "WarMonitors",
-        "milinfolive",
-        "irannotam",
-        "U_S_CENTCOM",
-        "war_translated",
-        "mmirlb",
-        "ourwarstoday",
         "wor_mil_news",
-        "strikemap"
+        "CyberspecNews",
+        "mmirlb",
+        "i20028843",
+        "EurasianChoice"
       ],
-      "limit": 30,
+      "limit": 20,
       "category": "military",
-      "tags": [
-        "telegram",
-        "osint",
-        "military"
-      ]
+      "tags": [ "telegram", "osint", "military", "mixed" ]
+    },
+    {
+      "name": "Telegram Narrative / Official",
+      "parser": "telegram",
+      "enabled": true,
+      "channels": [
+        "U_S_CENTCOM",
+        "IranintlTV",
+        "RedLionCorps",
+        "china3army",
+        "farsivoa",
+        "euronewspe",
+        "intelslava"
+      ],
+      "limit": 15,
+      "category": "military",
+      "tags": [ "telegram", "osint", "military", "narrative" ]
     },
     {
       "name": "GDELT Conflict Signals",
@@ -42,23 +68,24 @@
       "url": "https://api.gdeltproject.org/api/v2/doc/doc",
       "poll_interval_ms": 60000,
       "category": "military",
-      "tags": [
-        "gdelt",
-        "signal",
-        "conflict"
-      ]
+      "tags": [ "gdelt", "signal", "conflict" ]
+    },
+    {
+      "name": "UCDP Conflict Events",
+      "type": "ucdp",
+      "parser": "ucdp",
+      "enabled": true,
+      "category": "strike",
+      "url": "https://ucdpapi.pcr.uu.se/api/gedevents/23.1?pagesize=100",
+      "tags": [ "ucdp", "conflict", "military" ]
     },
     {
       "name": "ACLED Conflict Feed",
       "parser": "acled",
-      "enabled": true,
+      "enabled": false,
       "url": "https://acleddata.com/api/acled/read",
       "category": "conflict",
-      "tags": [
-        "acled",
-        "conflict",
-        "military"
-      ]
+      "tags": [ "acled", "conflict", "military" ]
     },
     {
       "name": "Reddit CombatFootage",
@@ -66,10 +93,7 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/CombatFootage/new.json",
       "category": "military",
-      "tags": [
-        "reddit",
-        "combat"
-      ]
+      "tags": [ "reddit", "combat" ]
     },
     {
       "name": "Reddit UkraineWar",
@@ -77,67 +101,63 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/UkraineWarVideoReport/new.json",
       "category": "military",
-      "tags": [
-        "reddit",
-        "ukraine"
-      ]
+      "tags": [ "reddit", "ukraine" ]
+    },
+    {
+      "name": "Reddit MiddleEastNews",
+      "parser": "reddit",
+      "enabled": true,
+      "url": "https://www.reddit.com/r/MiddleEastNews/new.json",
+      "category": "military",
+      "tags": [ "reddit", "middle-east" ]
+    },
+    {
+      "name": "Reddit WorldNews Military",
+      "parser": "reddit",
+      "enabled": true,
+      "url": "https://www.reddit.com/r/worldnews/search.json?q=military+strike+missile+drone&sort=new&restrict_sr=1",
+      "category": "military",
+      "tags": [ "reddit", "worldnews", "military" ]
+    },
+    {
+      "name": "Reddit GeopoliticsConflict",
+      "parser": "reddit",
+      "enabled": true,
+      "url": "https://www.reddit.com/r/geopolitics/new.json",
+      "category": "military",
+      "tags": [ "reddit", "geopolitics" ]
     },
     {
       "name": "ADS-B Military Aircraft",
       "enabled": true,
       "type": "adsb-opensky",
       "category": "military",
-      "tags": [
-        "adsb",
-        "opensky",
-        "military",
-        "aircraft",
-        "airforce"
-      ]
+      "tags": [ "adsb", "opensky", "military", "aircraft", "airforce" ]
     },
     {
       "name": "AIS Naval Vessels",
       "enabled": true,
       "type": "ais-stream",
       "category": "naval",
-      "tags": [
-        "ais",
-        "naval",
-        "fleet",
-        "military"
-      ]
+      "tags": [ "ais", "naval", "fleet", "military" ]
     },
     {
       "name": "IsraelWarRoom Siren Feed",
       "enabled": true,
       "parser": "telegram",
       "category": "alert",
-      "channels": [
-        "IsraelWarRoom"
-      ],
+      "channels": [ "IsraelWarRoom" ],
       "limit": 10,
-      "tags": [
-        "telegram",
-        "siren",
-        "israel",
-        "military"
-      ]
+      "tags": [ "telegram", "siren", "israel", "military" ]
     },
     {
       "name": "Tzevaadom",
       "enabled": true,
       "parser": "telegram",
       "category": "alert",
-      "channels": [
-        "tzevaadom_en"
-      ],
+      "channels": [ "tzevaadom_en" ],
       "limit": 10,
-      "tags": [
-        "telegram",
-        "siren",
-        "israel",
-        "military"
-      ]
+      "tags": [ "telegram", "siren", "israel", "military" ]
     },
     {
       "name": "Pikud HaOref Real-Time Sirens",
@@ -146,11 +166,7 @@
       "parser": "oref",
       "url": "https://www.oref.org.il/WarningMessages/alert/alerts.json",
       "category": "alert",
-      "tags": [
-        "siren",
-        "alert",
-        "military"
-      ]
+      "tags": [ "siren", "alert", "military" ]
     },
     {
       "name": "Manual Siren Alerts",
@@ -165,11 +181,7 @@
       "parser": "cyber",
       "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
       "category": "cyber",
-      "tags": [
-        "cyber",
-        "kev",
-        "critical-infra"
-      ]
+      "tags": [ "cyber", "kev", "critical-infra" ]
     },
     {
       "name": "NASA FIRMS Thermal",
@@ -177,11 +189,15 @@
       "parser": "firms",
       "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/1",
       "category": "thermal",
-      "tags": [
-        "thermal",
-        "strike-signal",
-        "military"
-      ]
+      "tags": [ "thermal", "strike-signal", "military" ]
+    },
+    {
+      "name": "USGS Seismic Monitor",
+      "parser": "usgs",
+      "enabled": true,
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
+      "category": "seismic",
+      "tags": [ "usgs", "seismic", "explosion-signal" ]
     },
     {
       "name": "Cloudflare Radar Internet Outages",
@@ -189,12 +205,7 @@
       "enabled": true,
       "url": "https://api.cloudflare.com/client/v4/radar/quality/outages/events?limit=50",
       "category": "network",
-      "tags": [
-        "network",
-        "internet-outage",
-        "cloudflare-radar",
-        "critical-infra"
-      ]
+      "tags": [ "network", "internet-outage", "cloudflare-radar", "critical-infra" ]
     },
     {
       "name": "IODA Internet Outages",
@@ -202,12 +213,7 @@
       "enabled": true,
       "url": "https://api.ioda.inetintel.cc.gatech.edu/v2/",
       "category": "network",
-      "tags": [
-        "network",
-        "internet-outage",
-        "ioda",
-        "critical-infra"
-      ]
+      "tags": [ "network", "internet-outage", "ioda", "critical-infra" ]
     },
     {
       "name": "OONI Network Blocking",
@@ -215,27 +221,15 @@
       "enabled": true,
       "url": "https://api.ooni.io/api/v1/observations?limit=20",
       "category": "network",
-      "tags": [
-        "network",
-        "blocking",
-        "throttling",
-        "censorship",
-        "ooni",
-        "critical-infra"
-      ]
+      "tags": [ "network", "blocking", "censorship", "ooni", "critical-infra" ]
     },
     {
       "name": "Global NOTAM Alerts",
-      "parser": "notam",
+      "parser": "notam-api",
       "enabled": true,
-      "url": "https://api.flightaware.com/notams",
+      "url": "https://www.notams.faa.gov/dinsQueryWeb/queryRetrievalMapAction.do",
       "category": "airspace",
-      "tags": [
-        "notam",
-        "airspace",
-        "aviation",
-        "military"
-      ]
+      "tags": [ "notam", "airspace", "aviation", "military" ]
     }
   ]
 }

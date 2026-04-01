@@ -1,17 +1,4 @@
-﻿// assets/js/warzone-dev-panel.js
-//
-// DEV TEST PANEL — sirf development mein use karo
-// Production mein automatically disable ho jaata hai
-// (window.location.hostname === "localhost" ya "127.0.0.1" check karta hai)
-//
-// Kaise use karein:
-//   1. Page load ho
-//   2. Bottom-right corner mein "DEV" button dikhega
-//   3. Click karo — panel khulega
-//   4. Har button ek alag event type fire karta hai globe pe
-//
-// Koi server ya database nahi chahiye — central event pipeline use karta hai
-
+﻿// File Path: /assets/js/warzone-dev-panel.js
 import * as Cesium from "cesium";
 import {
     handleIncomingEvent,
@@ -22,9 +9,7 @@ import {
     stopDevTrackSimulation
 } from "./warzone-live-fighter.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
-
 /* ================= TEST EVENT TEMPLATES ================= */
-
 const TEST_EVENTS = {
     missile_iran_israel: {
         id: "test-missile-1",
@@ -46,7 +31,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     missile_russia_ukraine: {
         id: "test-missile-2",
         title: "Cruise Missile Strike — Kyiv Oblast",
@@ -67,7 +51,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     drone_kamikaze: {
         id: "test-drone-1",
         title: "Shahed-136 Drone Strike",
@@ -88,7 +71,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     airstrike: {
         id: "test-airstrike-1",
         title: "IAF Air Strike — Southern Lebanon",
@@ -109,7 +91,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     siren_israel: {
         id: "test-siren-1",
         title: "Red Alert — Air Raid Sirens Active",
@@ -126,7 +107,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     siren_ukraine: {
         id: "test-siren-2",
         title: "Air Raid Warning — Kyiv",
@@ -142,7 +122,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     aircraft_fighter: {
         id: "test-aircraft-fighter-1",
         title: "FIGHTER F-35I — IAF",
@@ -158,7 +137,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "IAF101", heading: 45, altitude_ft: 35000, speed_kts: 480, country: "Israel" },
         source_key: "adsb-test-fighter-1",
     },
-
     aircraft_awacs: {
         id: "test-aircraft-awacs-1",
         title: "AWACS E-3 Sentry — NATO",
@@ -174,7 +152,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "NAEW01", heading: 270, altitude_ft: 29000, speed_kts: 380, country: "NATO" },
         source_key: "adsb-test-awacs-1",
     },
-
     aircraft_recon: {
         id: "test-aircraft-recon-1",
         title: "RECON RC-135 Rivet Joint — USAF",
@@ -190,7 +167,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "JAKE21", heading: 180, altitude_ft: 40000, speed_kts: 420, country: "USA" },
         source_key: "adsb-test-recon-1",
     },
-
     aircraft_tanker: {
         id: "test-aircraft-tanker-1",
         title: "TANKER KC-135 — USAF AMC",
@@ -206,7 +182,6 @@ const TEST_EVENTS = {
         metadata: { callsign: "RCH456", heading: 90, altitude_ft: 31000, speed_kts: 440, country: "USA" },
         source_key: "adsb-test-tanker-1",
     },
-
     ship_carrier: {
         id: "test-ship-carrier-1",
         title: "CARRIER USS Gerald R. Ford — USN",
@@ -222,7 +197,6 @@ const TEST_EVENTS = {
         metadata: { vessel_name: "USS GERALD R FORD", mmsi: "338123456", heading: 135, speed_kts: 18, country: "USA" },
         source_key: "ais-test-carrier-1",
     },
-
     ship_destroyer: {
         id: "test-ship-destroyer-1",
         title: "DESTROYER USS Arleigh Burke — USN",
@@ -238,7 +212,6 @@ const TEST_EVENTS = {
         metadata: { vessel_name: "USS ARLEIGH BURKE", mmsi: "338789012", heading: 200, speed_kts: 22, country: "USA" },
         source_key: "ais-test-destroyer-1",
     },
-
     ship_russian: {
         id: "test-ship-russian-1",
         title: "FRIGATE Admiral Gorshkov — Russian Navy",
@@ -254,7 +227,6 @@ const TEST_EVENTS = {
         metadata: { vessel_name: "ADMIRAL GORSHKOV", mmsi: "273456789", heading: 90, speed_kts: 15, country: "Russia" },
         source_key: "ais-test-russian-1",
     },
-
     cyber: {
         id: "test-cyber-1",
         title: "Critical Infrastructure Attack — Iran",
@@ -268,7 +240,6 @@ const TEST_EVENTS = {
         occurred_at: new Date().toISOString(),
         source_name: "DEV TEST",
     },
-
     thermal: {
         id: "test-thermal-1",
         title: "Thermal Anomaly — Possible Strike Signature",
@@ -283,7 +254,6 @@ const TEST_EVENTS = {
         source_name: "DEV TEST",
     },
 };
-
 const TEST_TRACK_ROUTES = {
     fighter_gulf_run: {
         track_key: "dev-track-fighter-1",
@@ -309,7 +279,6 @@ const TEST_TRACK_ROUTES = {
         intervalMs: 180,
         loop: false,
     },
-
     fighter_orbit_right: {
         track_key: "dev-track-circle-right",
         title: "F-22 101",
@@ -330,7 +299,6 @@ const TEST_TRACK_ROUTES = {
         intervalMs: 140,
         loop: true,
     },
-
     fighter_orbit_left: {
         track_key: "dev-track-circle-left",
         title: "F-22 101",
@@ -351,7 +319,6 @@ const TEST_TRACK_ROUTES = {
         intervalMs: 140,
         loop: true,
     },
-
     fighter_turn_test: {
         track_key: "dev-track-turns",
         title: "F-16 Sq Detected",
@@ -373,7 +340,6 @@ const TEST_TRACK_ROUTES = {
         loop: true,
     },
 };
-
 const DEV_SIM_PRESETS = {
     fighter: {
         track_key: "dev-sim-fighter",
@@ -520,20 +486,16 @@ const DEV_SIM_PRESETS = {
         motion: "route",
     },
 };
-
 function devLog(msg) {
     const log = document.getElementById("wz-dev-log");
     if (!log) return;
-
     const line = document.createElement("div");
     line.textContent = `${new Date().toLocaleTimeString()} ${msg}`;
     log.prepend(line);
-
     while (log.children.length > 20) {
         log.removeChild(log.lastChild);
     }
 }
-
 function getDevSimElements() {
     return {
         subtype: document.getElementById("wz-dev-sim-subtype"),
@@ -557,7 +519,6 @@ function getDevSimElements() {
         resetBtn: document.getElementById("wz-dev-sim-reset"),
     };
 }
-
 function normalizeDevTrackKey(value = "") {
     return String(value || "")
         .trim()
@@ -566,47 +527,36 @@ function normalizeDevTrackKey(value = "") {
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "");
 }
-
 function getStableDevSimTrackKey(subtype = "fighter") {
     return `dev-sim-${normalizeDevTrackKey(subtype || "fighter")}`;
 }
-
 function getQuickAircraftTrackKey(event = {}) {
     const sourceKey = normalizeDevTrackKey(event.source_key || event.id || event.subcategory || "aircraft");
     return `dev-quick-${sourceKey}`;
 }
-
 function restartDevSimulation(config, logLabel = "") {
     if (!config?.track_key) return;
-
     stopDevTrackSimulation(config.track_key);
-
     setTimeout(() => {
         startDevTrackSimulation(config);
     }, 40);
-
     if (logLabel) {
         devLog(logLabel);
     }
-
     document.dispatchEvent(new CustomEvent("wz:aircraft-log-updated"));
 }
-
 function updateDevSimTrackKey(subtype) {
     const els = getDevSimElements();
     if (!els.trackKey) return;
-
     const current = String(els.trackKey.value || "").trim();
     if (!current || current.startsWith("dev-sim-")) {
         els.trackKey.value = getStableDevSimTrackKey(subtype);
     }
 }
-
 function applyDevSimPreset(subtype = "fighter") {
     const preset = DEV_SIM_PRESETS[subtype] || DEV_SIM_PRESETS.fighter;
     const els = getDevSimElements();
     if (!els.subtype) return;
-
     els.subtype.value = subtype;
     els.motion.value = preset.motion;
     els.trackKey.value = preset.track_key || getStableDevSimTrackKey(subtype);
@@ -624,27 +574,22 @@ function applyDevSimPreset(subtype = "fighter") {
     els.loop.checked = Boolean(preset.loop);
     syncDevSimFieldState();
 }
-
 function syncDevSimFieldState() {
     const els = getDevSimElements();
     if (!els.motion) return;
-
     const motion = els.motion.value;
     const isOrbit = motion === "orbit-right" || motion === "orbit-left";
     const isTurn = motion === "turn-test";
-
     [els.toLat, els.toLon].forEach((input) => {
         if (!input) return;
         input.disabled = isOrbit || isTurn;
         input.closest(".wz-dev-field")?.classList.toggle("is-disabled", isOrbit || isTurn);
     });
-
     if (els.radiusMeters) {
         els.radiusMeters.disabled = !isOrbit;
         els.radiusMeters.closest(".wz-dev-field")?.classList.toggle("is-disabled", !isOrbit);
     }
 }
-
 function buildGeneratedTurnWaypoints(baseLat, baseLon, altitudeFt, headingDeg) {
     return [
         { lat: baseLat, lon: baseLon, altitude_ft: altitudeFt, heading_deg: headingDeg },
@@ -654,17 +599,14 @@ function buildGeneratedTurnWaypoints(baseLat, baseLon, altitudeFt, headingDeg) {
         { lat: baseLat - 0.25, lon: baseLon + 0.9, altitude_ft: altitudeFt, heading_deg: headingDeg + 240 },
     ];
 }
-
 function buildDevSimConfigFromForm() {
     const els = getDevSimElements();
     if (!els.subtype) return null;
-
     const subtype = String(els.subtype.value || "fighter").toLowerCase();
     const motion = String(els.motion.value || "route").toLowerCase();
     const trackKey = normalizeDevTrackKey(els.trackKey.value) || getStableDevSimTrackKey(subtype);
     const title = String(els.title.value || `Live ${subtype} Test`).trim();
     const country = String(els.country.value || "Unknown").trim();
-
     const lat = Number(els.lat.value);
     const lon = Number(els.lon.value);
     const toLat = Number(els.toLat.value);
@@ -675,9 +617,7 @@ function buildDevSimConfigFromForm() {
     const steps = Number(els.steps.value || 120);
     const intervalMs = Number(els.intervalMs.value || 140);
     const loop = Boolean(els.loop.checked);
-
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-
     const base = {
         track_key: trackKey,
         title,
@@ -690,7 +630,6 @@ function buildDevSimConfigFromForm() {
         intervalMs,
         loop,
     };
-
     if (motion === "orbit-right" || motion === "orbit-left") {
         return {
             ...base,
@@ -701,7 +640,6 @@ function buildDevSimConfigFromForm() {
             startAngleDeg: headingDeg,
         };
     }
-
     if (motion === "turn-test") {
         return {
             ...base,
@@ -709,7 +647,6 @@ function buildDevSimConfigFromForm() {
             waypoints: buildGeneratedTurnWaypoints(lat, lon, altitudeFt, headingDeg),
         };
     }
-
     return {
         ...base,
         mode: "route",
@@ -727,26 +664,21 @@ function buildDevSimConfigFromForm() {
         },
     };
 }
-
 function focusDevSimFromForm() {
     const els = getDevSimElements();
     const lat = Number(els.lat?.value);
     const lon = Number(els.lon?.value);
     const viewer = window.__warzoneViewer;
-
     if (!viewer || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
     viewer.camera.cancelFlight?.();
     viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, 900000),
         duration: 1.2,
     });
 }
-
 function isStrikeLikeEvent(event) {
     const weaponType = String(event.weapon_type || "").toLowerCase();
     const subcategory = String(event.subcategory || "").toLowerCase();
-
     return (
         event.origin_lat != null &&
         event.origin_lon != null &&
@@ -759,41 +691,32 @@ function isStrikeLikeEvent(event) {
         )
     );
 }
-
 function buildDevSirenMeta(event) {
     const weaponType = String(event.weapon_type || "").toLowerCase();
     const subcategory = String(event.subcategory || "").toLowerCase();
-
     if (weaponType.includes("drone") || subcategory.includes("drone")) {
         return "via DEV TEST · INCOMING UAV / DRONE THREAT";
     }
-
     if (weaponType.includes("air_strike")) {
         return "via DEV TEST · AIR STRIKE WARNING";
     }
-
     if (weaponType.includes("missile") || subcategory.includes("missile")) {
         return "via DEV TEST · TAKE SHELTER IMMEDIATELY";
     }
-
     return "via DEV TEST · INCOMING STRIKE";
 }
-
 function getSirenLevel(severity) {
     if (severity === "critical") return "red";
     if (severity === "high") return "orange";
     return "yellow";
 }
-
 function buildQuickAircraftSimulationConfig(event, trackKey) {
     const baseLat = Number(event.lat);
     const baseLon = Number(event.lon);
     const headingDeg = Number(event.metadata?.heading || 0);
     const altitudeFt = Number(event.metadata?.altitude_ft || 32000);
     const subtype = String(event.subcategory || "fighter").toLowerCase();
-
     if (!Number.isFinite(baseLat) || !Number.isFinite(baseLon)) return null;
-
     const base = {
         track_key: trackKey,
         title: event.title,
@@ -803,7 +726,6 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
         country: event.metadata?.country || "Unknown",
         region: "global",
     };
-
     if (subtype === "awacs") {
         return {
             ...base,
@@ -817,7 +739,6 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
             loop: true,
         };
     }
-
     if (subtype === "recon") {
         return {
             ...base,
@@ -838,7 +759,6 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
             loop: true,
         };
     }
-
     if (subtype === "tanker") {
         return {
             ...base,
@@ -859,7 +779,6 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
             loop: true,
         };
     }
-
     if (subtype === "drone" || subtype === "uav") {
         return {
             ...base,
@@ -873,7 +792,6 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
             loop: true,
         };
     }
-
     return {
         ...base,
         from: {
@@ -893,36 +811,28 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
         loop: true,
     };
 }
-
 function fireTestEvent(key) {
     const template = TEST_EVENTS[key];
     if (!template) return;
-
     const event = {
         ...template,
         id: `${template.id}-${Date.now()}`,
         occurred_at: new Date().toISOString(),
     };
-
     const globe = window.__warzoneViewer?.__warzone;
-
     handleIncomingEvent(event);
-
     if (isStrikeLikeEvent(event)) {
         const impactLabel = String(
             event.impact_label || event.location_label || "IMPACT ZONE"
         ).toUpperCase();
-
         showSirenAlert({
             title: `SIRENS GOING OFF IN: ${impactLabel}`,
             meta: buildDevSirenMeta(event),
             level: getSirenLevel(event.severity),
             sound: true,
         });
-
         devLog(`🚀 Fired: ${event.title} → Siren: ${impactLabel}`);
     }
-
     if (
         event.category === "alert" ||
         String(`${event.title} ${event.summary}`).toLowerCase().includes("siren")
@@ -933,83 +843,68 @@ function fireTestEvent(key) {
             level: "critical",
             playSound: true,
         });
-
         globe?.highlightAlertRegion?.(event);
         devLog(`🔴 Alert: ${event.title}`);
         return;
     }
-
     if (event.category === "military") {
         const trackKey = getQuickAircraftTrackKey(event);
         const config = buildQuickAircraftSimulationConfig(event, trackKey);
         if (!config) return;
-
         restartDevSimulation(
             config,
             `✈ LIVE AIRCRAFT: ${event.title} [${config.subcategory}]`
         );
         return;
     }
-
     devLog(`📍 Event: ${event.title}`);
 }
-
 function initDevSimulatorControls() {
     const els = getDevSimElements();
     if (!els.subtype) return;
-
     els.subtype.addEventListener("change", () => {
         const subtype = String(els.subtype.value || "fighter").toLowerCase();
         applyDevSimPreset(subtype);
         updateDevSimTrackKey(subtype);
         devLog(`🧪 Preset loaded: ${subtype}`);
     });
-
     els.motion.addEventListener("change", () => {
         syncDevSimFieldState();
     });
-
     els.resetBtn?.addEventListener("click", () => {
         const subtype = String(els.subtype.value || "fighter").toLowerCase();
         applyDevSimPreset(subtype);
         updateDevSimTrackKey(subtype);
         devLog(`↺ Simulator reset: ${subtype}`);
     });
-
     els.focusBtn?.addEventListener("click", () => {
         focusDevSimFromForm();
         devLog("🎯 Simulator focus moved");
     });
-
     els.startBtn?.addEventListener("click", () => {
         const config = buildDevSimConfigFromForm();
         if (!config) {
             devLog("⚠ Invalid simulator coordinates");
             return;
         }
-
         els.trackKey.value = config.track_key;
         restartDevSimulation(
             config,
             `✈ Simulator started: ${config.title} [${config.subcategory}]`
         );
     });
-
     els.stopBtn?.addEventListener("click", () => {
         const trackKey = normalizeDevTrackKey(els.trackKey?.value || "");
         if (!trackKey) {
             devLog("⚠ No track key to stop");
             return;
         }
-
         stopDevTrackSimulation(trackKey);
         devLog(`✖ Simulator stopped: ${trackKey}`);
     });
-
     applyDevSimPreset("fighter");
     updateDevSimTrackKey("fighter");
 }
-
 export function initDevPanel() {
     const isLocal =
         window.location.hostname === "localhost" ||
@@ -1017,17 +912,14 @@ export function initDevPanel() {
         window.location.hostname === "" ||
         window.location.search.includes("devpanel=1") ||
         localStorage.getItem("wz_dev") === "1";
-
     const panel = document.getElementById("wz-dev-panel");
     if (!panel) {
         console.warn("[DevPanel] #wz-dev-panel not found — ensure partials/popups.html is loaded.");
         return;
     }
-
     document.addEventListener("keydown", (e) => {
         if (e.ctrlKey && e.shiftKey && (e.key === "`" || e.key === "~" || e.code === "Backquote")) {
             e.preventDefault();
-
             if (panel.hidden) {
                 panel.hidden = false;
                 localStorage.setItem("wz_dev", "1");
@@ -1039,96 +931,77 @@ export function initDevPanel() {
             }
         }
     });
-
     if (!isLocal) return;
-
     panel.hidden = false;
-
     document.getElementById("wz-dev-toggle")?.addEventListener("click", () => {
         const body = document.getElementById("wz-dev-body");
         if (body) body.hidden = !body.hidden;
     });
-
     document.querySelectorAll(".wz-dev-btn[data-event]").forEach((btn) => {
         btn.addEventListener("click", () => {
             fireTestEvent(btn.dataset.event);
         });
     });
-
     document.querySelectorAll(".wz-dev-btn[data-siren]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const level = btn.dataset.siren;
-
             const titles = {
                 red: "TEL AVIV, HAIFA, CENTRAL ISRAEL",
                 orange: "BEIRUT, SOUTHERN LEBANON, SIDON",
                 yellow: "NORTHERN ISRAEL, HAMIFRATZ, HAMAKIM",
             };
-
             const metas = {
                 red: "via Alert Feed",
                 orange: "via Telegram OSINT",
                 yellow: "via Alert Feed",
             };
-
             showSirenAlert({
                 title: titles[level],
                 meta: metas[level],
                 level,
                 sound: true,
             });
-
             devLog(`🔔 Siren [${level.toUpperCase()}]: ${titles[level]}`);
         });
     });
-
     const HIGHLIGHT_LOCATIONS = {
         israel: { lat: 31.5, lon: 34.8, severity: "critical", label: "Israel" },
         uae: { lat: 24.2, lon: 54.4, severity: "high", label: "UAE" },
         iran: { lat: 32.4, lon: 53.7, severity: "critical", label: "Iran" },
         ukraine: { lat: 49.0, lon: 32.0, severity: "high", label: "Ukraine" },
     };
-
     document.querySelectorAll(".wz-dev-btn[data-highlight]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.highlight;
             const globe = window.__warzoneViewer?.__warzone;
-
             if (key === "clear") {
                 globe?.clearAlertHighlight?.();
                 devLog("✖ Highlight cleared");
                 return;
             }
-
             const loc = HIGHLIGHT_LOCATIONS[key];
             if (!loc || !globe) return;
-
             globe.highlightAlertRegion({
                 lat: loc.lat,
                 lon: loc.lon,
                 severity: loc.severity,
             });
-
             window.__warzoneViewer?.camera.cancelFlight?.();
             window.__warzoneViewer?.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(loc.lon, loc.lat, 900000),
                 duration: 1.2,
             });
-
             devLog(`🔴 Pulse highlight: ${loc.label} [${loc.severity}]`);
         });
     });
-
     document.querySelectorAll(".wz-dev-btn[data-track-route]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.trackRoute;
             const route = TEST_TRACK_ROUTES[key];
             if (!route) return;
-
             restartDevSimulation(route, `✈ Route sim started: ${route.title}`);
         });
     });
-
     document.querySelectorAll(".wz-dev-btn[data-track-stop]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.trackStop || "dev-track-fighter-1";
@@ -1136,25 +1009,392 @@ export function initDevPanel() {
             devLog(`✖ Route sim stopped: ${key}`);
         });
     });
-
     document.getElementById("wz-dev-fire-all")?.addEventListener("click", () => {
         let delay = 0;
-
         Object.keys(TEST_EVENTS).forEach((key) => {
             setTimeout(() => fireTestEvent(key), delay);
             delay += 800;
         });
-
         devLog(`⚡ Firing all ${Object.keys(TEST_EVENTS).length} test events...`);
     });
-
     document.getElementById("wz-dev-clear")?.addEventListener("click", () => {
         const log = document.getElementById("wz-dev-log");
         if (log) log.innerHTML = "";
     });
-
     initDevSimulatorControls();
-
     devLog("Dev panel ready");
     console.log("[dev] Warzone dev panel active — localhost only");
 }
+
+
+/* ================= AIRCRAFT CALIBRATION MODE (GULF + LIVE TUNER) ================= */
+
+const DEV_AIRCRAFT_CALIBRATION = {
+    fighter: {
+        headingOffset: -90,
+        pitch: 0,
+        roll: 0,
+        scale: 44,
+        minimumPixelSize: 66,
+        maximumScale: 340,
+        tailOffset: 580,
+    },
+    awacs: {
+        headingOffset: -150,
+        pitch: 19,
+        roll: 0,
+        scale: 232,
+        minimumPixelSize: 89,
+        maximumScale: 1680,
+        tailOffset: 1200,
+    },
+    recon: {
+        headingOffset: -90,
+        pitch: 0,
+        roll: 0,
+        scale: 14,
+        minimumPixelSize: 120,
+        maximumScale: 220,
+        tailOffset: 500,
+    },
+    tanker: {
+        headingOffset: -90,
+        pitch: 0,
+        roll: 0,
+        scale: 18,
+        minimumPixelSize: 120,
+        maximumScale: 220,
+        tailOffset: 700,
+    },
+    transport: {
+        headingOffset: -90,
+        pitch: 0,
+        roll: 0,
+        scale: 20,
+        minimumPixelSize: 120,
+        maximumScale: 220,
+        tailOffset: 750,
+    },
+    drone: {
+        headingOffset: -90,
+        pitch: 0,
+        roll: 0,
+        scale: 246,
+        minimumPixelSize: 76,
+        maximumScale: 1870,
+        tailOffset: 400,
+    },
+};
+
+let __devCalibrationEntities = [];
+
+function getModelUriBySubtype(subtype) {
+    const map = {
+        fighter: "/assets/images/models/air/fighter.glb",
+        awacs: "/assets/images/models/air/awacs.glb",
+        recon: "/assets/images/models/air/uav.glb",
+        tanker: "/assets/images/models/air/fighter-1.glb",
+        transport: "/assets/images/models/air/fighter-1.glb",
+        drone: "/assets/images/models/air/uav.glb",
+    };
+    return map[subtype] || map.fighter;
+}
+
+function createCalibrationLine(viewer, position, headingDeg, lengthMeters = 8000) {
+    const headingRad = Cesium.Math.toRadians(Number(headingDeg || 0));
+    const cartographic = Cesium.Cartographic.fromCartesian(position);
+    if (!cartographic) return null;
+
+    const lon = Cesium.Math.toDegrees(cartographic.longitude);
+    const lat = Cesium.Math.toDegrees(cartographic.latitude);
+    const alt = Number(cartographic.height || 0);
+
+    const metersPerDegLat = 110540;
+    const metersPerDegLon = 111320 * Math.cos(Cesium.Math.toRadians(lat));
+    const endLon = lon + ((lengthMeters * Math.sin(headingRad)) / Math.max(metersPerDegLon, 1));
+    const endLat = lat + ((lengthMeters * Math.cos(headingRad)) / metersPerDegLat);
+
+    return viewer.entities.add({
+        polyline: {
+            positions: [
+                Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+                Cesium.Cartesian3.fromDegrees(endLon, endLat, alt)
+            ],
+            width: 3,
+            material: Cesium.Color.LIME.withAlpha(0.9),
+            clampToGround: false,
+        }
+    });
+}
+
+function createCalibrationAircraft(viewer, subtype, config, index) {
+    const calibrationSlots = [
+        { lat: 26.50, lon: 50.00 }, // fighter
+        { lat: 26.52, lon: 50.20 }, // awacs
+        { lat: 26.54, lon: 50.40 }, // recon
+        { lat: 26.50, lon: 50.60 }, // tanker
+        { lat: 26.48, lon: 50.80 }, // transport
+        { lat: 26.52, lon: 51.00 }, // drone
+    ];
+    const slot = calibrationSlots[index] || {
+        lat: 26.2,
+        lon: 49.6 + (index * 1.5),
+    };
+    const position = Cesium.Cartesian3.fromDegrees(slot.lon, slot.lat, 12000);
+
+    const hpr = new Cesium.HeadingPitchRoll(
+        Cesium.Math.toRadians(Number(config.headingOffset || 0)),
+        Cesium.Math.toRadians(Number(config.pitch || 0)),
+        Cesium.Math.toRadians(Number(config.roll || 0))
+    );
+
+    const entity = viewer.entities.add({
+        id: `wz-calibration-${subtype}`,
+        position,
+        orientation: Cesium.Transforms.headingPitchRollQuaternion(position, hpr),
+        model: {
+            uri: getModelUriBySubtype(subtype),
+            scale: Number(config.scale ?? 16),
+            minimumPixelSize: Number(config.minimumPixelSize ?? 120),
+            maximumScale: Number(config.maximumScale ?? 220),
+        },
+        label: {
+            text: subtype.toUpperCase(),
+            font: "12px sans-serif",
+            fillColor: Cesium.Color.WHITE,
+            pixelOffset: new Cesium.Cartesian2(0, -40),
+        }
+    });
+
+    entity.__isCalibrationAircraft = true;
+    entity.__subtype = subtype;
+
+    const line = createCalibrationLine(viewer, position, 0);
+    if (line) {
+        line.__isCalibrationLine = true;
+        line.__subtype = subtype;
+        line.__pairedCalibrationEntityId = entity.id;
+        __devCalibrationEntities.push(line);
+    }
+
+    __devCalibrationEntities.push(entity);
+    return entity;
+}
+
+function clearCalibration(viewer) {
+    if (!viewer) return;
+    __devCalibrationEntities.forEach((entity) => viewer.entities.remove(entity));
+    __devCalibrationEntities = [];
+    const tuner = document.getElementById("wz-aircraft-tuner");
+    if (tuner) tuner.style.display = "none";
+}
+
+function ensureAircraftTunerUI() {
+    let panel = document.getElementById("wz-aircraft-tuner");
+    if (panel) return panel;
+
+    panel = document.createElement("div");
+    panel.id = "wz-aircraft-tuner";
+    panel.style.cssText = [
+        "position:fixed",
+        "right:20px",
+        "top:180px",
+        "width:250px",
+        "padding:12px",
+        "background:rgba(8,10,16,.96)",
+        "border:1px solid rgba(255,255,255,.14)",
+        "box-shadow:0 10px 30px rgba(0,0,0,.35)",
+        "color:#fff",
+        "z-index:999999",
+        "font:12px/1.4 Arial,sans-serif",
+        "border-radius:8px",
+        "display:none"
+    ].join(";");
+
+    panel.innerHTML = `
+        <div style="font-weight:700;letter-spacing:.04em;margin-bottom:10px;">AIRCRAFT TUNER</div>
+
+        <label style="display:block;margin-bottom:8px;">
+            <div style="margin-bottom:4px;">Aircraft</div>
+            <select id="wz-tuner-type" style="width:100%;padding:6px;">
+                <option value="fighter">Fighter</option>
+                <option value="awacs">AWACS</option>
+                <option value="recon">Recon</option>
+                <option value="tanker">Tanker</option>
+                <option value="transport">Transport</option>
+                <option value="drone">Drone</option>
+            </select>
+        </label>
+
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Heading</span><strong id="wz-tuner-heading-value">0</strong></div>
+            <input id="wz-tuner-heading" type="range" min="-180" max="180" step="1" style="width:100%;" />
+        </label>
+
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Scale</span><strong id="wz-tuner-scale-value">0</strong></div>
+            <input id="wz-tuner-scale" type="range" min="1" max="3000" step="1" style="width:100%;" />
+        </label>
+
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Min Pixel</span><strong id="wz-tuner-min-value">0</strong></div>
+            <input id="wz-tuner-min" type="range" min="1" max="400" step="1" style="width:100%;" />
+        </label>
+
+        <label style="display:block;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;"><span>Max Scale</span><strong id="wz-tuner-max-value">0</strong></div>
+            <input id="wz-tuner-max" type="range" min="50" max="10000" step="10" style="width:100%;" />
+        </label>
+
+        <button id="wz-tuner-log" type="button" style="width:100%;padding:8px 10px;cursor:pointer;">Copy Config</button>
+    `;
+
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function getTunerSubtype() {
+    return document.getElementById("wz-tuner-type")?.value || "fighter";
+}
+
+function refreshTunerReadouts() {
+    const heading = document.getElementById("wz-tuner-heading");
+    const scale = document.getElementById("wz-tuner-scale");
+    const min = document.getElementById("wz-tuner-min");
+    const max = document.getElementById("wz-tuner-max");
+
+    if (heading) document.getElementById("wz-tuner-heading-value").textContent = heading.value;
+    if (scale) document.getElementById("wz-tuner-scale-value").textContent = scale.value;
+    if (min) document.getElementById("wz-tuner-min-value").textContent = min.value;
+    if (max) document.getElementById("wz-tuner-max-value").textContent = max.value;
+}
+
+function loadTunerValues() {
+    const subtype = getTunerSubtype();
+    const cfg = DEV_AIRCRAFT_CALIBRATION[subtype];
+    if (!cfg) return;
+
+    const heading = document.getElementById("wz-tuner-heading");
+    const scale = document.getElementById("wz-tuner-scale");
+    const min = document.getElementById("wz-tuner-min");
+    const max = document.getElementById("wz-tuner-max");
+
+    if (heading) heading.value = Number(cfg.headingOffset ?? 0);
+    if (scale) scale.value = Number(cfg.scale ?? 16);
+    if (min) min.value = Number(cfg.minimumPixelSize ?? 120);
+    if (max) max.value = Number(cfg.maximumScale ?? 220);
+
+    refreshTunerReadouts();
+}
+
+function applyAircraftCalibrationConfig() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer || !Array.isArray(__devCalibrationEntities)) return;
+
+    __devCalibrationEntities.forEach((entity) => {
+        if (!entity || !entity.__isCalibrationAircraft) return;
+
+        const subtype = entity.__subtype;
+        const config = DEV_AIRCRAFT_CALIBRATION[subtype];
+        if (!config) return;
+
+        const position = entity.position?.getValue?.(Cesium.JulianDate.now()) || entity.position;
+        if (!position) return;
+
+        entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+            position,
+            new Cesium.HeadingPitchRoll(
+                Cesium.Math.toRadians(Number(config.headingOffset || 0)),
+                Cesium.Math.toRadians(Number(config.pitch || 0)),
+                Cesium.Math.toRadians(Number(config.roll || 0))
+            )
+        );
+
+        if (entity.model) {
+            entity.model.scale = Number(config.scale ?? 16);
+            entity.model.minimumPixelSize = Number(config.minimumPixelSize ?? 120);
+            entity.model.maximumScale = Number(config.maximumScale ?? 220);
+        }
+    });
+
+    refreshTunerReadouts();
+    viewer.scene.requestRender();
+}
+
+function applyTunerValues() {
+    const subtype = getTunerSubtype();
+    const cfg = DEV_AIRCRAFT_CALIBRATION[subtype];
+    if (!cfg) return;
+
+    const heading = document.getElementById("wz-tuner-heading");
+    const scale = document.getElementById("wz-tuner-scale");
+    const min = document.getElementById("wz-tuner-min");
+    const max = document.getElementById("wz-tuner-max");
+
+    if (heading) cfg.headingOffset = Number(heading.value);
+    if (scale) cfg.scale = Number(scale.value);
+    if (min) cfg.minimumPixelSize = Number(min.value);
+    if (max) cfg.maximumScale = Number(max.value);
+
+    applyAircraftCalibrationConfig();
+}
+
+function bindAircraftTunerUI() {
+    const panel = ensureAircraftTunerUI();
+    if (panel.dataset.bound === "1") return;
+    panel.dataset.bound = "1";
+
+    document.getElementById("wz-tuner-type")?.addEventListener("change", loadTunerValues);
+    document.getElementById("wz-tuner-heading")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-scale")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-min")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-max")?.addEventListener("input", applyTunerValues);
+
+    document.getElementById("wz-tuner-log")?.addEventListener("click", () => {
+        const subtype = getTunerSubtype();
+        console.log(subtype, JSON.stringify(DEV_AIRCRAFT_CALIBRATION[subtype] || {}, null, 2));
+    });
+}
+
+function startAircraftCalibration() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer) return;
+
+    clearCalibration(viewer);
+
+    let i = 0;
+    for (const subtype in DEV_AIRCRAFT_CALIBRATION) {
+        createCalibrationAircraft(viewer, subtype, DEV_AIRCRAFT_CALIBRATION[subtype], i++);
+    }
+
+    const tuner = ensureAircraftTunerUI();
+    bindAircraftTunerUI();
+    tuner.style.display = "block";
+    loadTunerValues();
+
+    viewer.camera.cancelFlight?.();
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(53.4, 26.1, 1350000),
+        orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-78),
+            roll: 0,
+        },
+        duration: 1.2,
+    });
+
+    console.log("=== AIRCRAFT CALIBRATION ACTIVE ===");
+    console.log("Calibration aircraft moved to Gulf / Middle East.");
+    viewer.scene.requestRender();
+}
+
+window.__DEV_AIRCRAFT_CALIBRATION = DEV_AIRCRAFT_CALIBRATION;
+window.startAircraftCalibration = startAircraftCalibration;
+window.applyAircraftCalibrationConfig = applyAircraftCalibrationConfig;
+window.clearAircraftCalibration = () => clearCalibration(window.__warzoneViewer);
+
+document.addEventListener("click", (e) => {
+    if (e.target.closest("#wz-dev-aircraft-calibrate")) {
+        startAircraftCalibration();
+    }
+});

@@ -20,10 +20,11 @@ body {
     font-size: var(--text-base);
     color: var(--color-text);
     line-height: normal;
-    background: var(--color-bg-dark);
+    background: black;
     overflow: hidden;
     padding-bottom: env(safe-area-inset-bottom);
     font-style: normal;
+    font-weight: 500;
     height: 100%;
 }
 
@@ -107,7 +108,11 @@ h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 {
 p, label {
     margin: 0;
     font-size: var(--text-base);
-    line-height: 2rem
+    line-height: 1.9rem
+}
+
+p {
+    margin-bottom: 1rem;
 }
 
 small {
@@ -142,6 +147,10 @@ strong {
 .text-xxl {
     font-size: 5.4rem
 }
+.font-counter {
+    font-family: var(--heading-font)
+}
+
 /* #endregion =========== */
 /* #region =========== ICONS =========== */
 .action-icon, .static-icon {
@@ -221,14 +230,15 @@ UNUSED CANDIDATE END */
 }
 
 .btn-primary, .btn-secondary {
-    font-family: var(--text-base);
     font-weight: 600;
+    font-size: var(--text-base);
     text-align: center;
     min-width: 8rem !important;
     height: 4rem;
-    transition: .2s ease-in-out;
+    transition: .2s ease, opacity 220ms ease;
     position: relative;
     padding: 0 1.5rem;
+    opacity: 1;
     box-sizing: border-box;
     cursor: pointer;
     align-items: center;
@@ -332,6 +342,14 @@ UNUSED CANDIDATE END */
     .btn-primary span {
         padding: 0 !important;
     }
+
+    .btn-primary:disabled {
+        cursor: not-allowed;
+        pointer-events: none;
+        background: var(--color-bg-header);
+        opacity: 0.4;
+    }
+
 /* #endregion =========== */
 /* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
 .wz--dropdown {
@@ -414,6 +432,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         list-style: none;
         position: relative;
         padding-left: 2rem;
+        line-height: 1.9rem;
     }
 
         .wz-list-view li:before {

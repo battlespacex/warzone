@@ -1,7 +1,6 @@
-﻿// assets/js/warzone-hotspots.js
+﻿// File Path: /assets/js/warzone-hotspots.js
 import * as Cesium from "cesium";
 import { isEventVisible } from "./warzone-layers.js";
-
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 function sanitizeText(v) {
     if (!v) return "";
@@ -17,11 +16,9 @@ function sanitizeText(v) {
     t = t.replace(/\s+/g, " ").trim();
     return t;
 }
-
 function norm(v) {
     return sanitizeText(v);
 }
-
 function compactPlaceLabel(v) {
     const clean = sanitizeText(v);
     if (!clean) return "";
@@ -33,7 +30,6 @@ function compactPlaceLabel(v) {
     if (/[a-z]/i.test(last) && !/\d/.test(last)) return last;
     return clean;
 }
-
 function timeAgo(d) {
     try {
         const m = Math.floor((Date.now() - new Date(d)) / 60000);
@@ -46,37 +42,31 @@ function timeAgo(d) {
         return "";
     }
 }
-
 function truncateText(v, max = 90) {
     const clean = sanitizeText(v);
     if (!clean) return "";
     if (clean.length <= max) return clean;
     return `${clean.slice(0, max).trim()}…`;
 }
-
 function englishRatio(text) {
     const clean = sanitizeText(text);
     if (!clean) return 0;
     const letters = (clean.match(/[A-Za-z]/g) || []).length;
     return letters / Math.max(clean.length, 1);
 }
-
 function tokenCount(text) {
     const clean = sanitizeText(text);
     if (!clean) return 0;
     return clean.split(/\s+/).filter(Boolean).length;
 }
-
 function genericNoiseScore(text) {
     const clean = sanitizeText(text);
     const t = clean.toLowerCase();
     let score = 0;
-
     if (!clean) return 100;
     if (clean.length < 14) score += 3;
     if (tokenCount(clean) < 3) score += 3;
     if (englishRatio(clean) < 0.45) score += 3;
-
     const weakPhrases = [
         "live news",
         "breaking",
@@ -99,48 +89,36 @@ function genericNoiseScore(text) {
         "war and military news",
         "news",
     ];
-
     for (const phrase of weakPhrases) {
         if (t === phrase || t.includes(phrase)) score += 2;
     }
-
     if (!/[a-z]/i.test(clean)) score += 4;
     if (/^(https?:\/\/|t\.me\/|telegram\.me\/)/i.test(clean)) score += 6;
-
     return score;
 }
-
 function containsSignalWords(text) {
     const t = sanitizeText(text).toLowerCase();
     return /(strike|missile|drone|uav|rocket|launch|attack|aircraft|fighter|awacs|helicopter|bomber|alert|siren|explosion|intercept|raid|airspace|recon|military|troops|naval|ship|radar|defense|sam|closure|patrol|surveillance|fire|blast)/.test(t);
 }
-
 function looksUsefulText(v) {
     const clean = sanitizeText(v);
     if (!clean) return false;
     if (clean.length < 18) return false;
     if (!/[a-z]/i.test(clean)) return false;
     if (/^(https?:\/\/|t\.me\/|telegram\.me\/)/i.test(clean)) return false;
-
     const score = genericNoiseScore(clean);
     const useful = containsSignalWords(clean);
-
     if (score >= 7) return false;
     if (score >= 5 && !useful) return false;
-
     return true;
 }
-
 function cleanSourceName(v) {
     const clean = sanitizeText(v);
     if (!clean) return "OSINT Feed";
-
     const s = clean.toLowerCase();
-
     if (/reddit/i.test(clean)) return "Community Report";
     if (/twitter|x\.com/i.test(clean)) return "Social Feed";
     if (/facebook|instagram|threads|youtube/i.test(clean)) return "Social Feed";
-
     if (
         s.includes("telegram") ||
         s.includes("t.me") ||
@@ -154,10 +132,8 @@ function cleanSourceName(v) {
     ) {
         return "OSINT Feed";
     }
-
     return truncateText(clean, 24);
 }
-
 const ICONS = {
     strike: "bx-web-ico-conflict-1-0",
     military: "bx-web-ico-air-1-0",
@@ -169,7 +145,6 @@ const ICONS = {
     signal: "bx-web-ico-status-1-0",
     default: "bx-web-ico-Profile-1-0",
 };
-
 const LABELS = {
     strike: "STRIKE",
     military: "MILITARY",
@@ -181,27 +156,22 @@ const LABELS = {
     signal: "SIGNAL",
     default: "ACTIVITY",
 };
-
 function icon(cat) {
     const key = String(cat || "").toLowerCase();
     return ICONS[key] || ICONS.default;
 }
-
 function label(cat) {
     return LABELS[String(cat || "").toLowerCase()] || LABELS.default;
 }
-
 function sevWeight(s) {
     return { critical: 4, high: 3, medium: 2, low: 1 }[String(s || "").toLowerCase()] || 1;
 }
-
 function dominantCat(items) {
     const sc = new Map();
     for (const e of items) {
         const k = String(e.category || "default").toLowerCase();
         sc.set(k, (sc.get(k) || 0) + 1 + sevWeight(e.severity));
     }
-
     let best = "default";
     let top = -1;
     for (const [k, v] of sc) {
@@ -212,20 +182,17 @@ function dominantCat(items) {
     }
     return best;
 }
-
 function dominantSev(items) {
     for (const s of ["critical", "high", "medium", "low"]) {
         if (items.some((e) => String(e.severity || "").toLowerCase() === s)) return s;
     }
     return "medium";
 }
-
 function latestEvt(items) {
     return [...items].sort((a, b) =>
         new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0)
     )[0];
 }
-
 function buildFallbackHeadline(e = {}) {
     const cat = label(e.category);
     const place = compactPlaceLabel(
@@ -235,27 +202,21 @@ function buildFallbackHeadline(e = {}) {
         e.place ||
         ""
     );
-
     if (String(e.category || "").toLowerCase() === "strike") {
         return place ? `Strike activity detected near ${place}` : "Strike activity detected";
     }
-
     if (String(e.category || "").toLowerCase() === "military") {
         return place ? `Military activity detected near ${place}` : "Military activity detected";
     }
-
     if (String(e.category || "").toLowerCase() === "alert") {
         return place ? `Alert activity detected in ${place}` : "Alert activity detected";
     }
-
     if (String(e.category || "").toLowerCase() === "recon") {
         return place ? `Recon activity detected near ${place}` : "Recon activity detected";
     }
-
     if (place) return `${cat} activity near ${place}`;
     return `${cat} activity detected`;
 }
-
 function eventHeadline(e = {}) {
     const candidates = [
         e.title,
@@ -265,30 +226,24 @@ function eventHeadline(e = {}) {
         e.message,
         e.headline,
     ];
-
     let best = "";
     let bestScore = -Infinity;
-
     for (const candidate of candidates) {
         const clean = sanitizeText(candidate);
         if (!clean) continue;
-
         const useful = looksUsefulText(clean);
         const score = (useful ? 10 : 0)
             + (containsSignalWords(clean) ? 3 : 0)
             - genericNoiseScore(clean)
             + Math.min(tokenCount(clean), 12) * 0.2;
-
         if (useful && score > bestScore) {
             best = clean;
             bestScore = score;
         }
     }
-
     if (best) return truncateText(best, 82);
     return buildFallbackHeadline(e);
 }
-
 function eventSubline(e = {}) {
     const place = compactPlaceLabel(
         e.location_label ||
@@ -297,12 +252,10 @@ function eventSubline(e = {}) {
         e.place ||
         ""
     );
-
     const source = cleanSourceName(e.source_name || e.source || "");
     const bits = [place, source].filter(Boolean);
     return bits.join(" • ");
 }
-
 function normalizeEventForDisplay(e = {}) {
     return {
         ...e,
@@ -310,7 +263,6 @@ function normalizeEventForDisplay(e = {}) {
         __displaySubline: eventSubline(e),
     };
 }
-
 // ─── hemisphere cull + Cesium projection ──────────────────────────────────────
 function toScreen(scene, lon, lat) {
     try {
@@ -318,20 +270,16 @@ function toScreen(scene, lon, lat) {
         const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, new Cesium.Cartesian3());
         const ptNorm = Cesium.Cartesian3.normalize(cart, new Cesium.Cartesian3());
         if (Cesium.Cartesian3.dot(camNorm, ptNorm) < 0.08) return null;
-
-        const fn = Cesium.SceneTransforms.wgs84ToWindowCoordinates
-            || Cesium.SceneTransforms.worldToWindowCoordinates;
+        const fn = Cesium.SceneTransforms.worldToWindowCoordinates
+            || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
         if (!fn) return null;
-
         const p = fn(scene, cart);
         if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
-
         return { x: p.x, y: p.y };
     } catch {
         return null;
     }
 }
-
 function getCameraHeight(viewer) {
     try {
         return Number(viewer?.camera?.positionCartographic?.height || 0);
@@ -339,10 +287,8 @@ function getCameraHeight(viewer) {
         return 0;
     }
 }
-
 function getZoomAwareHotspotConfig(viewer, cfg) {
     const height = getCameraHeight(viewer);
-
     if (height > 9000000) {
         return {
             clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 4.8),
@@ -353,7 +299,6 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
             edgePad: 220,
         };
     }
-
     if (height > 4500000) {
         return {
             clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 3.5),
@@ -364,7 +309,6 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
             edgePad: 180,
         };
     }
-
     return {
         clusterDistanceLat: cfg.clusterDistanceLat,
         clusterDistanceLon: cfg.clusterDistanceLon,
@@ -374,16 +318,13 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
         edgePad: 140,
     };
 }
-
 // ─── geo clustering ────────────────────────────────────────────────────────────
 function geoCluster(events, dLat, dLon, minCount, maxCards) {
     const groups = [];
-
     for (const e of events) {
         const lat = Number(e.lat);
         const lon = Number(e.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
         let g = null;
         for (const gr of groups) {
             if (Math.abs(gr.lat - lat) <= dLat && Math.abs(gr.lon - lon) <= dLon) {
@@ -391,7 +332,6 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
                 break;
             }
         }
-
         if (g) {
             const n = g.items.length;
             g.lat = (g.lat * n + lat) / (n + 1);
@@ -401,7 +341,6 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
             groups.push({ lat, lon, items: [e] });
         }
     }
-
     return groups
         .filter((g) => g.items.length >= minCount)
         .map((g) => {
@@ -424,14 +363,12 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
         .sort((a, b) => b.count - a.count)
         .slice(0, maxCards);
 }
-
 // ─── screen stacking ──────────────────────────────────────────────────────────
 const STACK_OFF = [
     { x: 0, y: 0 },
     { x: -18, y: -14 },
     { x: 18, y: 14 },
 ];
-
 function stackVisible(clusters, overlapPx, maxPer) {
     const stacks = [];
     for (const c of clusters) {
@@ -447,7 +384,6 @@ function stackVisible(clusters, overlapPx, maxPer) {
         if (found) found.items.push(c);
         else stacks.push({ x: c.screen.x, y: c.screen.y, items: [c] });
     }
-
     const out = [];
     for (const s of stacks) {
         [...s.items]
@@ -459,7 +395,6 @@ function stackVisible(clusters, overlapPx, maxPer) {
     }
     return out;
 }
-
 // ─── DOM builders ─────────────────────────────────────────────────────────────
 function buildExpandedHTML(items) {
     return items.slice(0, 6).map((e) => {
@@ -467,7 +402,6 @@ function buildExpandedHTML(items) {
         const title = e.__displayTitle || eventHeadline(e);
         const subline = e.__displaySubline || eventSubline(e);
         const time = timeAgo(e.occurred_at);
-
         return `<div class="wzhs-item">
             <div class="wzhs-item__row">
                 <span class="wzhs-item__sev wzhs-item__sev--${sev}">${sev.toUpperCase()}</span>
@@ -478,12 +412,10 @@ function buildExpandedHTML(items) {
         </div>`;
     }).join("");
 }
-
 function createCardEl(cluster, onToggle) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.clusterId = cluster.id;
-
     function refreshContent(isExpanded) {
         const loc = compactPlaceLabel(
             cluster.latest?.location_label ||
@@ -493,7 +425,6 @@ function createCardEl(cluster, onToggle) {
             ""
         );
         const time = timeAgo(cluster.latest?.occurred_at);
-
         btn.className = [
             "wzhs",
             `wzhs--${cluster.cat}`,
@@ -502,7 +433,6 @@ function createCardEl(cluster, onToggle) {
             cluster.stackIdx === 2 ? "wzhs--s3" : "",
             isExpanded ? "wzhs--open" : "",
         ].filter(Boolean).join(" ");
-
         btn.innerHTML = `
             <div class="wzhs__body">
                 <div class="wzhs__top">
@@ -527,7 +457,6 @@ function createCardEl(cluster, onToggle) {
                 </div>` : ""}
             </div>`;
     }
-
     refreshContent(false);
     btn._refreshContent = refreshContent;
     btn.addEventListener("click", (e) => {
@@ -537,11 +466,9 @@ function createCardEl(cluster, onToggle) {
     });
     return btn;
 }
-
 // ─── main export ──────────────────────────────────────────────────────────────
 export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     if (!viewer || !rootEl) return null;
-
     let allEvents = [];
     let expandedId = null;
     let destroyed = false;
@@ -552,7 +479,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let lastRenderMs = 0;
     let cameraMoving = false;
     let moveEndTimer = 0;
-
     const cfg = {
         maxCards: options.maxCards ?? 24,
         clusterDistanceLat: options.clusterDistanceLat ?? 2.6,
@@ -562,11 +488,9 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         minItemsForCluster: options.minItemsForCluster ?? 1,
         throttleIdle: options.throttleIdle ?? 100,
     };
-
     function handleToggle(id, el) {
         const wasOpen = expandedId === id;
         expandedId = wasOpen ? null : id;
-
         if (!wasOpen) {
             for (const [nid, node] of nodeMap) {
                 if (nid !== id && node.el.classList.contains("wzhs--open")) {
@@ -575,14 +499,11 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 }
             }
         }
-
         el._refreshContent(!wasOpen);
     }
-
     function render(fromPostRender) {
         if (!fromPostRender) rafPending = false;
         if (destroyed || !viewer.scene || !rootEl) return;
-
         if (!fromPostRender) {
             const now = performance.now();
             if (now - lastRenderMs < cfg.throttleIdle) {
@@ -591,18 +512,14 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             }
             lastRenderMs = now;
         }
-
         const canvas = viewer.scene.canvas;
         if (!canvas) return;
-
         const canvasRect = canvas.getBoundingClientRect();
         const overlayRect = rootEl.getBoundingClientRect();
         if (!canvasRect.width || !canvasRect.height) return;
-
         const offX = canvasRect.left - overlayRect.left;
         const offY = canvasRect.top - overlayRect.top;
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
-
         if (clustersDirty) {
             cachedClusters = geoCluster(
                 allEvents,
@@ -613,36 +530,29 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             );
             clustersDirty = false;
         }
-
         const projected = [];
         for (const c of cachedClusters) {
             const s = toScreen(viewer.scene, c.lon, c.lat);
             if (!s) continue;
-
             const x = s.x + offX;
             const y = s.y + offY;
             if (x < -zoomCfg.edgePad || x > overlayRect.width + zoomCfg.edgePad) continue;
             if (y < -zoomCfg.edgePad || y > overlayRect.height + zoomCfg.edgePad) continue;
-
             projected.push({ ...c, screen: { x, y } });
         }
-
         const visible = stackVisible(projected, zoomCfg.stackDistancePx, zoomCfg.maxVisiblePerHotspot);
         const visibleIds = new Set(visible.map((v) => v.id));
-
         for (const [id, node] of nodeMap) {
             if (!visibleIds.has(id)) {
                 node.el.remove();
                 nodeMap.delete(id);
             }
         }
-
         for (const cluster of visible) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
             const tx = cluster.screen.x + off.x;
             const ty = cluster.screen.y + off.y;
             const zi = 25 - cluster.stackIdx;
-
             if (nodeMap.has(cluster.id)) {
                 const node = nodeMap.get(cluster.id);
                 if (node.x !== tx || node.y !== ty) {
@@ -652,7 +562,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.x = tx;
                     node.y = ty;
                 }
-
                 node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
                 node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
             } else {
@@ -663,11 +572,9 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             }
         }
     }
-
     function scheduleRender(delay = 0) {
         if (destroyed || rafPending) return;
         rafPending = true;
-
         if (delay <= 0) {
             requestAnimationFrame(() => render());
         } else {
@@ -677,17 +584,14 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             }, delay);
         }
     }
-
     function onPostRender() {
         if (cameraMoving) render(true);
     }
-
     function onCameraMoveStart() {
         cameraMoving = true;
         clearTimeout(moveEndTimer);
         scheduleRender(0);
     }
-
     function onCameraMoveEnd() {
         clearTimeout(moveEndTimer);
         moveEndTimer = setTimeout(() => {
@@ -695,16 +599,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             scheduleRender(0);
         }, 60);
     }
-
     function onResize() {
         scheduleRender(0);
     }
-
     viewer.scene.postRender.addEventListener(onPostRender);
     viewer.camera.moveStart.addEventListener(onCameraMoveStart);
     viewer.camera.moveEnd.addEventListener(onCameraMoveEnd);
     window.addEventListener("resize", onResize, { passive: true });
-
     return {
         setEvents(next = []) {
             const arr = Array.isArray(next) ? next : [];
@@ -715,24 +616,20 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             viewer.scene.requestRender();
             scheduleRender(0);
         },
-
         addEvent(evt) {
             if (!evt) return;
             if (!isEventVisible(evt)) return;
             if (!Number.isFinite(Number(evt.lat)) || !Number.isFinite(Number(evt.lon))) return;
             if (allEvents.some((e) => String(e.id) === String(evt.id))) return;
-
             allEvents.unshift(normalizeEventForDisplay(evt));
             clustersDirty = true;
             viewer.scene.requestRender();
             scheduleRender(0);
         },
-
         clear() {
             for (const [, node] of nodeMap) node.el.remove();
             nodeMap.clear();
         },
-
         destroy() {
             destroyed = true;
             clearTimeout(moveEndTimer);

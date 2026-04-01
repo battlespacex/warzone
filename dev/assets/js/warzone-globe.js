@@ -1,24 +1,22 @@
+// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
     countries: "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
-    provinces: "/assets/others/provinces.geojson",
-    cities: "/assets/others/cities.geojson",
+    provinces: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
+    cities: "https://raw.githubusercontent.com/drei01/geojson-world-cities/master/cities.geojson",
 };
 const markerCache = new Map();
 const ringCanvasCache = new Map();
 const __eventEntityIds = new Set();
-
 const __EVENT_LOD_STATE = {
     mode: "map",
     cameraHeight: 2350000,
 };
-
 function getEventEntityCount() {
     return __eventEntityIds.size;
 }
-
 function getCameraHeight(viewer) {
     try {
         return Number(viewer?.camera?.positionCartographic?.height || 0);
@@ -26,33 +24,25 @@ function getCameraHeight(viewer) {
         return 0;
     }
 }
-
 function shouldClusterEvents(viewer) {
     return getCameraHeight(viewer) > numberVar("--warzone-event-cluster-height", 1800000);
 }
-
 function shouldShowEventRingsAtCurrentZoom(viewer) {
     // return getCameraHeight(viewer) <= numberVar("--warzone-event-ring-max-height", 2600000);
     return true;
 }
-
-
 function shouldShowEventOutlinesAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-event-outline-max-height", 1800000);
 }
-
 function getMaxRenderableEvents() {
     return Math.max(20, numberVar("--warzone-max-renderable-events", 180));
 }
-
-function clusterEventsForDisplay(events = [], precisionDeg = 0.55, maxItems = 120) {
+function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520) {
     const groups = new Map();
-
     for (const event of events) {
         const lat = Number(event?.lat);
         const lon = Number(event?.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
         const key = `${Math.round(lat / precisionDeg)}:${Math.round(lon / precisionDeg)}`;
         if (!groups.has(key)) {
             groups.set(key, {
@@ -68,7 +58,6 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.55, maxItems = 12
             group.items.push(event);
         }
     }
-
     return Array.from(groups.values())
         .map((group, index) => {
             const items = group.items;
@@ -77,7 +66,6 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.55, maxItems = 12
             const latest = items
                 .slice()
                 .sort((a, b) => new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0))[0] || items[0];
-
             return {
                 ...latest,
                 id: latest?.id || `cluster-${index + 1}`,
@@ -92,31 +80,25 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.55, maxItems = 12
         .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
         .slice(0, maxItems);
 }
-
 function applyEventLod(viewer) {
     if (!viewer) return;
-
     const mode = viewer.__warzoneMapMode || __EVENT_LOD_STATE.mode || "map";
     const cameraHeight = getCameraHeight(viewer);
     const allowMarkers = boolVar("--warzone-event-markers-visible", true);
     const allowRings = boolVar("--warzone-event-rings-visible", true);
     const showRingsByZoom = shouldShowEventRingsAtCurrentZoom(viewer);
     const showOutlinesByZoom = shouldShowEventOutlinesAtCurrentZoom(viewer);
-
     __EVENT_LOD_STATE.mode = mode;
     __EVENT_LOD_STATE.cameraHeight = cameraHeight;
-
     const entities = viewer.entities.values;
     for (const entity of entities) {
         if (!entity?.properties) continue;
-
         const isEventOutline = !!entity.properties?.isEventOutline?.getValue?.();
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
         const colorCss = getCategoryColorCss(category);
         const color = Cesium.Color.fromCssColorString(colorCss);
-
         if (entity.billboard) {
             if (isEventOutline) {
                 entity.billboard.show = mode !== "heatmap" && allowRings && showOutlinesByZoom;
@@ -124,15 +106,12 @@ function applyEventLod(viewer) {
                 entity.billboard.show = mode !== "heatmap" && allowMarkers;
             }
         }
-
         if (entity.ellipse) {
             if (!allowRings || !showRingsByZoom) {
                 entity.ellipse.show = false;
                 continue;
             }
-
             entity.ellipse.show = true;
-
             if (mode === "heatmap") {
                 entity.ellipse.semiMinorAxis = heatRadius;
                 entity.ellipse.semiMajorAxis = heatRadius;
@@ -140,19 +119,17 @@ function applyEventLod(viewer) {
                 entity.ellipse.outline = false;
             } else {
                 const baseRadius = getSeverityRadius({ severity });
-
                 const height = getCameraHeight(viewer);
-
                 let scale = 1;
-
-                if (height > 4000000) {
-                    scale = 0.4;
+                if (height > 7000000) {
+                    scale = 0.95;
+                } else if (height > 4500000) {
+                    scale = 0.85;
                 } else if (height > 2500000) {
-                    scale = 0.65;
+                    scale = 0.75;
                 } else {
                     scale = 1;
                 }
-
                 const normalRadius = baseRadius * scale;
                 entity.ellipse.semiMinorAxis = normalRadius;
                 entity.ellipse.semiMajorAxis = normalRadius;
@@ -162,14 +139,11 @@ function applyEventLod(viewer) {
             }
         }
     }
-
     viewer.scene.requestRender();
 }
-
 function attachEventLodController(viewer) {
     if (!viewer || viewer.__warzoneEventLodAttached) return;
     viewer.__warzoneEventLodAttached = true;
-
     let pending = false;
     const run = () => {
         pending = false;
@@ -180,7 +154,6 @@ function attachEventLodController(viewer) {
         pending = true;
         requestAnimationFrame(run);
     };
-
     viewer.camera.moveEnd.addEventListener(queue);
     viewer.scene.postRender.addEventListener(() => {
         const currentHeight = getCameraHeight(viewer);
@@ -189,7 +162,6 @@ function attachEventLodController(viewer) {
         }
     });
 }
-
 function rememberEventEntity(entity) {
     if (!entity?.id) return;
     __eventEntityIds.add(String(entity.id));
@@ -211,7 +183,6 @@ function clearTrackedEventEntities(viewer) {
     __eventEntityIds.clear();
     viewer.scene.requestRender();
 }
-
 /* ---------- CSS helpers ---------- */
 function cssVar(name, fallback) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -343,9 +314,7 @@ function normalizeEvents(events) {
                 target_radius_m: Number(item.target_radius_m),
                 incoming_highlight_radius_m: Number(item.incoming_highlight_radius_m),
             };
-
             const placement = resolveDisplayCoordinates(base);
-
             return {
                 ...base,
                 display_lat: placement.lat,
@@ -369,34 +338,27 @@ function createMarkerCanvas(colorCss) {
     const canvas = document.createElement("canvas");
     canvas.width = 96;
     canvas.height = 96;
-
     const ctx = canvas.getContext("2d");
     const cx = 48;
     const cy = 48;
-
     ctx.clearRect(0, 0, 96, 96);
-
     const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, 30);
     glow.addColorStop(0, colorCss);
     glow.addColorStop(0.25, "rgba(255,255,255,0.15)");
     glow.addColorStop(1, "rgba(0,0,0,0)");
-
     ctx.fillStyle = glow;
     ctx.beginPath();
     ctx.arc(cx, cy, 30, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = colorCss;
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.strokeStyle = "rgba(255,255,255,0.75)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, 14, 0, Math.PI * 2);
     ctx.stroke();
-
     const dataUrl = canvas.toDataURL("image/png");
     markerCache.set(colorCss, dataUrl);
     return dataUrl;
@@ -407,19 +369,16 @@ function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
-
     const ctx = canvas.getContext("2d");
     const cx = size / 2;
     const cy = size / 2;
     const r = (size - lineWidth * 2) / 2;
-
     ctx.clearRect(0, 0, size, size);
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.lineWidth = lineWidth;
     ctx.strokeStyle = strokeCss;
     ctx.stroke();
-
     const dataUrl = canvas.toDataURL("image/png");
     ringCanvasCache.set(key, dataUrl);
     return dataUrl;
@@ -433,9 +392,7 @@ function createEventEntity(event) {
     const heatRadius = getHeatRadius(event);
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
     const showEventRings = boolVar("--warzone-event-rings-visible", true);
-
     const fillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.14);
-
     return {
         id: event.id,
         name: event.title,
@@ -476,7 +433,6 @@ function createEventEntity(event) {
 }
 function addEventEntity(viewer, event) {
     const entity = viewer.entities.add(createEventEntity(event));
-
     const colorCss = getCategoryColorCss(event.category);
     const outlineAlpha = numberVar("--warzone-event-ring-outline-alpha", 0.82);
     const outlineWidth = numberVar("--warzone-event-ring-outline-width", 3);
@@ -484,16 +440,13 @@ function addEventEntity(viewer, event) {
     const allowOutline = boolVar("--warzone-event-rings-visible", true)
         && shouldShowEventOutlinesAtCurrentZoom(viewer)
         && getEventEntityCount() < numberVar("--warzone-outline-max-entities", 220);
-
     let ringEntity = null;
-
     if (allowOutline) {
         const ringImage = createRingCanvas(
             colorCss,
             512,
             Math.max(2, Math.round(outlineWidth))
         );
-
         ringEntity = viewer.entities.add({
             id: `${event.id}-outline`,
             position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat, 10),
@@ -514,13 +467,10 @@ function addEventEntity(viewer, event) {
             },
         });
     }
-
     rememberEventEntity(entity);
     if (ringEntity) rememberEventEntity(ringEntity);
-
     return { entity, ringEntity };
 }
-
 /* ---------- Viewer style ---------- */
 function applyViewerStyle(viewer) {
     viewer.scene.skyBox.show = false;
@@ -532,9 +482,7 @@ function applyViewerStyle(viewer) {
     viewer.scene.globe.baseColor = colorFromCssVar("--warzone-globe-base", "#08111a", 1);
     viewer.scene.globe.depthTestAgainstTerrain = false;
     viewer.scene.globe.translucency.enabled = false;
-
     viewer.scene.fog.enabled = false;
-
     if (viewer.scene.screenSpaceCameraController) {
         const ctrl = viewer.scene.screenSpaceCameraController;
         ctrl.enableCollisionDetection = false;
@@ -544,15 +492,12 @@ function applyViewerStyle(viewer) {
         ctrl.maximumZoomDistance = numberVar("--warzone-camera-max-zoom", 22000000);
         ctrl.minimumZoomDistance = numberVar("--warzone-camera-min-zoom", 12000);
     }
-
     viewer.scene.requestRenderMode = true;
     viewer.scene.maximumRenderTimeChange = Infinity;
     viewer.resolutionScale = numberVar("--warzone-resolution-scale", 1);
-
     if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = boolVar("--warzone-fxaa-enabled", true);
     }
-
     viewer.scene.msaaSamples = numberVar("--warzone-msaa-samples", 1);
 }
 function tuneImageryLayer(layer, prefix = "--warzone-map") {
@@ -610,14 +555,11 @@ function flattenRingToDegrees(ring) {
     const out = [];
     for (const coord of ring) {
         if (!Array.isArray(coord) || coord.length < 2) continue;
-
         const lon = Number(coord[0]);
         const lat = Number(coord[1]);
-
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
         out.push(lon, lat);
     }
-
     return out;
 }
 function addPolylineForRing(viewer, ring, options) {
@@ -638,7 +580,6 @@ async function fetchGeoJson(url) {
     if (!response.ok) {
         throw new Error(`GeoJSON fetch failed: ${response.status}`);
     }
-
     return response.json();
 }
 async function addGeoJsonBorderLayer(viewer, config) {
@@ -652,11 +593,9 @@ async function addGeoJsonBorderLayer(viewer, config) {
             numberVar(config.alphaVar, config.fallbackAlpha)
         );
         const width = numberVar(config.widthVar, config.fallbackWidth);
-
         for (const feature of features) {
             const geometry = feature?.geometry;
             if (!geometry) continue;
-
             if (geometry.type === "Polygon") {
                 const rings = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
                 if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width });
@@ -673,13 +612,13 @@ async function addGeoJsonBorderLayer(viewer, config) {
                 for (const line of lines) addPolylineForRing(viewer, line, { color, width });
             }
         }
-
         console.log(`${config.name} borders added:`, features.length);
     } catch (error) {
         console.warn(`${config.name} borders skipped:`, error);
     }
 }
 async function addBorderLayers(viewer) {
+
     await addGeoJsonBorderLayer(viewer, {
         name: "Country",
         url: BORDER_SOURCES.countries,
@@ -690,49 +629,21 @@ async function addBorderLayers(viewer) {
         widthVar: "--warzone-country-border-width",
         fallbackWidth: 1.4,
     });
-    await addGeoJsonBorderLayer(viewer, {
-        name: "Province",
-        url: BORDER_SOURCES.provinces,
-        colorVar: "--warzone-province-border",
-        fallbackColor: "#2ab6ff",
-        alphaVar: "--warzone-province-border-alpha",
-        fallbackAlpha: 0.55,
-        widthVar: "--warzone-province-border-width",
-        fallbackWidth: 1,
-    });
-
-    await addGeoJsonBorderLayer(viewer, {
-        name: "City",
-        url: BORDER_SOURCES.cities,
-        colorVar: "--warzone-city-border",
-        fallbackColor: "#78d5ff",
-        alphaVar: "--warzone-city-border-alpha",
-        fallbackAlpha: 0.38,
-        widthVar: "--warzone-city-border-width",
-        fallbackWidth: 0.8,
-    });
 }
 async function addArcGisLayers(viewer) {
     viewer.imageryLayers.removeAll();
     const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
     );
-
     const labelsProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer"
     );
-
     const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
     tuneImageryLayer(baseLayer, "--warzone-map");
-
     const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
     tuneImageryLayer(labelsLayer, "--warzone-labels");
-    labelsLayer.alpha = numberVar("--warzone-labels-alpha", 0.95);
-
-    // PASS 1: keep refs for layer panel compatibility
     viewer.__imageryBase = baseLayer;
     viewer.__imageryLabels = labelsLayer;
-
     return { baseLayer, labelsLayer };
 }
 /* ---------- Map mode ---------- */
@@ -750,32 +661,26 @@ function buildArcState(originLon, originLat, impactLon, impactLat, peakHeight = 
         const lat = lerp(originLat, impactLat, t);
         const arc = Math.sin(Math.PI * t);
         const height = arc * peakHeight;
-
         const cart = Cesium.Cartesian3.fromDegrees(lon, lat, height);
         positions.push(cart);
         samples.push({ t, lon, lat, height, cart });
     }
-
     return { positions, samples };
 }
 function interpolateSample(samples, t) {
     const clamped = clamp01(t);
     if (clamped <= 0) return samples[0];
     if (clamped >= 1) return samples[samples.length - 1];
-
     const maxIndex = samples.length - 1;
     const scaled = clamped * maxIndex;
     const i0 = Math.floor(scaled);
     const i1 = Math.min(i0 + 1, maxIndex);
     const localT = scaled - i0;
-
     const a = samples[i0];
     const b = samples[i1];
-
     const lon = lerp(a.lon, b.lon, localT);
     const lat = lerp(a.lat, b.lat, localT);
     const height = lerp(a.height, b.height, localT);
-
     return {
         t: clamped,
         lon,
@@ -791,7 +696,6 @@ function alphaRampFromOrigin(t) {
     const alphaMax = numberVar("--warzone-missile-origin-alpha-max", 1);
     if (t <= fadeStart) return alphaMin;
     if (t >= fadeEnd) return alphaMax;
-
     const local = (t - fadeStart) / Math.max(0.0001, fadeEnd - fadeStart);
     return lerp(alphaMin, alphaMax, easeInOutCubic(local));
 }
@@ -811,14 +715,12 @@ function ensureAudioStore(viewer) {
     if (viewer.__warzoneAudio) return viewer.__warzoneAudio;
     const alertSrc = readCssAssetPath("--warzone-sound-alert-loop", "/assets/audio/warzone-alert-loop.mp3");
     const impactSrc = readCssAssetPath("--warzone-sound-impact", "/assets/audio/warzone-impact.mp3");
-
     viewer.__warzoneAudio = {
         alertLoop: safeCreateAudio(alertSrc, numberVar("--warzone-sound-alert-volume", 0.65), true),
         impactSrc,
         impactVolume: clamp01(numberVar("--warzone-sound-impact-volume", 0.9)),
         activeAlertCount: 0,
     };
-
     return viewer.__warzoneAudio;
 }
 function startMissileAlertSound(viewer) {
@@ -862,25 +764,21 @@ function clearOneMissileTrack(viewer, missileId) {
     ensureMissileStore(viewer);
     const track = viewer.__warzoneMissiles.get(missileId);
     if (!track) return;
-
     if (track.flightFrame) cancelAnimationFrame(track.flightFrame);
     if (track.launchFxFrame) cancelAnimationFrame(track.launchFxFrame);
     if (track.impactFxFrame) cancelAnimationFrame(track.impactFxFrame);
     if (track.fadeFrame) cancelAnimationFrame(track.fadeFrame);
     if (track.highlightFrame) cancelAnimationFrame(track.highlightFrame);
     if (track.cleanupTimer) clearTimeout(track.cleanupTimer);
-
     if (track.alertSoundActive) {
         stopMissileAlertSound(viewer);
         track.alertSoundActive = false;
     }
-
     for (const entity of track.entities || []) {
         try {
             viewer.entities.remove(entity);
         } catch { }
     }
-
     viewer.__warzoneMissiles.delete(missileId);
     viewer.__warzoneMissileOrder = viewer.__warzoneMissileOrder.filter((id) => id !== missileId);
 }
@@ -893,7 +791,6 @@ function clearAllMissileTracks(viewer) {
 function enforceMissileCap(viewer) {
     ensureMissileStore(viewer);
     const maxActive = Math.max(1, numberVar("--warzone-max-active-missiles", 12));
-
     while (viewer.__warzoneMissileOrder.length > maxActive) {
         const oldestId = viewer.__warzoneMissileOrder[0];
         if (!oldestId) break;
@@ -909,18 +806,15 @@ function getIncomingHighlightRadius(event) {
     if (Number.isFinite(explicitRadius) && explicitRadius > 0) {
         return explicitRadius;
     }
-
     const targetScope = String(
         event?.target_scope ||
         event?.target_type ||
         event?.location_scope ||
         ""
     ).toLowerCase();
-
     if (targetScope.includes("country") || targetScope.includes("national")) {
         return numberVar("--warzone-incoming-highlight-radius-country", 260000);
     }
-
     if (
         targetScope.includes("province") ||
         targetScope.includes("state") ||
@@ -929,7 +823,6 @@ function getIncomingHighlightRadius(event) {
     ) {
         return numberVar("--warzone-incoming-highlight-radius-region", 180000);
     }
-
     return numberVar("--warzone-incoming-highlight-radius-city", 120000);
 }
 function makeIncomingWarningEntity(viewer, missileId, event, lon, lat) {
@@ -950,7 +843,6 @@ function makeIncomingWarningEntity(viewer, missileId, event, lon, lat) {
             height,
         },
     });
-
     const inner = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, height),
         ellipse: {
@@ -963,7 +855,6 @@ function makeIncomingWarningEntity(viewer, missileId, event, lon, lat) {
             height,
         },
     });
-
     const core = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, height + 1000),
         billboard: {
@@ -974,7 +865,6 @@ function makeIncomingWarningEntity(viewer, missileId, event, lon, lat) {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
     });
-
     const track = viewer.__warzoneMissiles.get(missileId);
     if (track) {
         track.entities.push(warning, inner, core);
@@ -983,7 +873,6 @@ function makeIncomingWarningEntity(viewer, missileId, event, lon, lat) {
         track.warningCore = core;
         track.warningBaseRadius = radius;
     }
-
     return { warning, inner, core };
 }
 function hideIncomingWarning(track) {
@@ -999,30 +888,25 @@ function animateIncomingWarning(viewer, missileId) {
         const color = Cesium.Color.fromCssColorString(
             cssVar("--warzone-incoming-highlight-color", "#ff2a2a")
         );
-
         if (track.warningOuter?.ellipse) {
             const r = track.warningBaseRadius * (0.92 + pulse * 0.16);
             track.warningOuter.ellipse.semiMinorAxis = r;
             track.warningOuter.ellipse.semiMajorAxis = r;
             track.warningOuter.ellipse.outlineColor = color.withAlpha(0.72 + pulse * 0.28);
         }
-
         if (track.warningInner?.ellipse) {
             const r = track.warningBaseRadius * (0.5 + pulse * 0.12);
             track.warningInner.ellipse.semiMinorAxis = r;
             track.warningInner.ellipse.semiMajorAxis = r;
             track.warningInner.ellipse.outlineColor = color.withAlpha(0.5 + pulse * 0.35);
         }
-
         if (track.warningCore?.billboard) {
             track.warningCore.billboard.scale = 0.18 + pulse * 0.18;
             track.warningCore.billboard.color = Cesium.Color.WHITE.withAlpha(0.5 + pulse * 0.45);
         }
-
         viewer.scene.requestRender();
         track.highlightFrame = requestAnimationFrame(tick);
     };
-
     const track = viewer.__warzoneMissiles.get(missileId);
     if (track) {
         track.highlightFrame = requestAnimationFrame(tick);
@@ -1038,7 +922,6 @@ function makeImpactPulseEntities(viewer, missileId, lon, lat) {
     const height = numberVar("--warzone-missile-impact-height", 5000);
     const rings = [];
     const ringCount = Math.max(3, numberVar("--warzone-missile-impact-ring-count", 3));
-
     for (let i = 0; i < ringCount; i += 1) {
         const ring = viewer.entities.add({
             position: Cesium.Cartesian3.fromDegrees(lon, lat, height),
@@ -1052,12 +935,10 @@ function makeImpactPulseEntities(viewer, missileId, lon, lat) {
         });
         rings.push(ring);
     }
-
     const track = viewer.__warzoneMissiles.get(missileId);
     if (track) {
         track.entities.push(...rings);
     }
-
     return rings;
 }
 function animateImpactPulse(viewer, missileId, rings) {
@@ -1065,26 +946,20 @@ function animateImpactPulse(viewer, missileId, rings) {
     const cycles = Math.max(1, numberVar("--warzone-missile-impact-cycles", 3));
     const cycleDuration = Math.max(1200, numberVar("--warzone-missile-impact-cycle-duration", 5580));
     const staggerMs = Math.max(80, numberVar("--warzone-missile-impact-ring-stagger-ms", 620));
-
     const minScale = numberVar("--warzone-missile-impact-ring-min-scale", 0.02);
     const maxScale = numberVar("--warzone-missile-impact-ring-max-scale", 0.30);
     const alphaMax = clamp01(numberVar("--warzone-missile-impact-ring-alpha-max", 0.60));
-
     const totalDuration = cycles * cycleDuration;
-
     const tick = () => {
         const track = viewer.__warzoneMissiles.get(missileId);
         if (!track) return;
-
         const elapsed = performance.now() - startedAt;
-
         const globalFadeWindow = Math.min(1600, cycleDuration * 0.35);
         const globalFadeStart = totalDuration - globalFadeWindow;
         const globalFade =
             elapsed <= globalFadeStart
                 ? 1
                 : 1 - easeInOutCubic(clamp01((elapsed - globalFadeStart) / globalFadeWindow));
-
         if (elapsed >= totalDuration) {
             try {
                 for (const ring of rings) viewer.entities.remove(ring);
@@ -1094,26 +969,20 @@ function animateImpactPulse(viewer, missileId, rings) {
             viewer.scene.requestRender();
             return;
         }
-
         const cycleTime = elapsed % cycleDuration;
         const activeWindow = cycleDuration * 0.9;
-
         for (let i = 0; i < rings.length; i += 1) {
             const ring = rings[i];
             if (!ring?.billboard) continue;
-
             const localElapsed = cycleTime - (i * staggerMs);
-
             if (localElapsed <= 0 || localElapsed >= activeWindow) {
                 ring.billboard.scale = minScale;
                 ring.billboard.color = Cesium.Color.WHITE.withAlpha(0);
                 continue;
             }
-
             const t = clamp01(localElapsed / activeWindow);
             const grow = easeOutCubic(t);
             const scale = lerp(minScale, maxScale, grow);
-
             let alpha;
             if (t < 0.14) {
                 alpha = alphaMax * easeOutCubic(t / 0.14);
@@ -1121,17 +990,13 @@ function animateImpactPulse(viewer, missileId, rings) {
                 const fadeT = clamp01((t - 0.14) / 0.86);
                 alpha = alphaMax * Math.pow(1 - fadeT, 2.15);
             }
-
             alpha *= globalFade;
-
             ring.billboard.scale = scale;
             ring.billboard.color = Cesium.Color.WHITE.withAlpha(alpha);
         }
-
         viewer.scene.requestRender();
         track.impactFxFrame = requestAnimationFrame(tick);
     };
-
     const track = viewer.__warzoneMissiles.get(missileId);
     if (track) {
         track.impactFxFrame = requestAnimationFrame(tick);
@@ -1152,7 +1017,6 @@ function makeLaunchFlashEntity(viewer, missileId, lon, lat, color = Cesium.Color
             height: 0,
         },
     });
-
     const launchPoint = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat),
         point: {
@@ -1163,15 +1027,12 @@ function makeLaunchFlashEntity(viewer, missileId, lon, lat, color = Cesium.Color
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
     });
-
     const tick = () => {
         const activeTrack = viewer.__warzoneMissiles.get(missileId);
         if (!activeTrack) return;
-
         const elapsed = performance.now() - createdAt;
         const duration = Math.max(300, numberVar("--warzone-missile-launch-flash-duration", 900));
         const t = clamp01(elapsed / duration);
-
         if (t >= 1) {
             try {
                 viewer.entities.remove(launchRing);
@@ -1184,31 +1045,25 @@ function makeLaunchFlashEntity(viewer, missileId, lon, lat, color = Cesium.Color
             viewer.scene.requestRender();
             return;
         }
-
         const radius = Math.round(12000 + easeOutCubic(t) * numberVar("--warzone-missile-launch-ring-size", 65000));
         const alpha = Math.max(0, 0.28 - t * 0.24);
-
         if (launchRing.ellipse) {
             launchRing.ellipse.semiMinorAxis = radius;
             launchRing.ellipse.semiMajorAxis = radius;
             launchRing.ellipse.material = color.withAlpha(alpha * 0.35);
             launchRing.ellipse.outlineColor = color.withAlpha(alpha + 0.2);
         }
-
         if (launchPoint.point) {
             launchPoint.point.pixelSize = 8 + (1 - t) * 7;
             launchPoint.point.color = Cesium.Color.WHITE.withAlpha(0.45 + (1 - t) * 0.5);
             launchPoint.point.outlineColor = color.withAlpha(0.65 + (1 - t) * 0.25);
         }
-
         viewer.scene.requestRender();
         activeTrack.launchFxFrame = requestAnimationFrame(tick);
     };
-
     if (track) {
         track.launchFxFrame = requestAnimationFrame(tick);
     }
-
     return [launchRing, launchPoint];
 }
 function createMissileSegmentEntities(viewer, track, positions) {
@@ -1216,12 +1071,10 @@ function createMissileSegmentEntities(viewer, track, positions) {
     const width = numberVar("--warzone-missile-line-width", 5);
     const lineAlpha = numberVar("--warzone-missile-line-alpha", 1);
     const segments = [];
-
     for (let i = 0; i < segmentCount; i += 1) {
         const t0 = i / segmentCount;
         const t1 = (i + 1) / segmentCount;
         const baseAlpha = alphaRampFromOrigin((t0 + t1) * 0.5) * lineAlpha;
-
         const segment = viewer.entities.add({
             polyline: {
                 positions: new Cesium.CallbackProperty(() => {
@@ -1233,48 +1086,38 @@ function createMissileSegmentEntities(viewer, track, positions) {
                 clampToGround: false,
             },
         });
-
         segments.push({
             entity: segment,
             t0,
             t1,
             baseAlpha,
         });
-
         track.entities.push(segment);
     }
-
     track.segmentEntities = segments;
 }
 function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
     ensureMissileStore(viewer);
     const track = viewer.__warzoneMissiles.get(missileId);
     if (!track || track.isFading) return;
-
     track.isFading = true;
-
     if (track.cleanupTimer) {
         clearTimeout(track.cleanupTimer);
         track.cleanupTimer = null;
     }
-
     if (track.highlightFrame) {
         cancelAnimationFrame(track.highlightFrame);
         track.highlightFrame = null;
     }
-
     const startedAt = performance.now();
     const launchColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-launch-color", "#ff2a2a"));
     const impactColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-impact-color", "#ff2a2a"));
-
     const step = () => {
         const activeTrack = viewer.__warzoneMissiles.get(missileId);
         if (!activeTrack) return;
-
         const elapsed = performance.now() - startedAt;
         const t = clamp01(elapsed / durationMs);
         const fade = 1 - easeInOutCubic(t);
-
         if (Array.isArray(activeTrack.segmentEntities)) {
             for (const segment of activeTrack.segmentEntities) {
                 if (!segment?.entity?.polyline) continue;
@@ -1282,39 +1125,31 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
                     activeTrack.lineBaseColor.withAlpha(segment.baseAlpha * fade);
             }
         }
-
         if (activeTrack.launchMarker?.point) {
             activeTrack.launchMarker.point.color = launchColor.withAlpha(fade);
             activeTrack.launchMarker.point.outlineColor = Cesium.Color.WHITE.withAlpha(fade);
         }
-
         if (activeTrack.impactMarker?.point) {
             activeTrack.impactMarker.point.color = impactColor.withAlpha(0.92 * fade);
             activeTrack.impactMarker.point.outlineColor = impactColor.withAlpha(0.35 * fade);
         }
-
         if (activeTrack.launchMarker?.label) {
             activeTrack.launchMarker.label.fillColor = launchColor.withAlpha(fade);
             activeTrack.launchMarker.label.outlineColor = Cesium.Color.BLACK.withAlpha(fade);
         }
-
         if (activeTrack.impactMarker?.label) {
             activeTrack.impactMarker.label.fillColor = impactColor.withAlpha(fade);
             activeTrack.impactMarker.label.outlineColor = Cesium.Color.BLACK.withAlpha(fade);
         }
-
         viewer.scene.requestRender();
-
         if (t < 1) {
             activeTrack.fadeFrame = requestAnimationFrame(step);
             return;
         }
-
         activeTrack.fadeFrame = null;
         clearOneMissileTrack(viewer, missileId);
         viewer.scene.requestRender();
     };
-
     track.fadeFrame = requestAnimationFrame(step);
 }
 function animateMissileTrack(viewer, event) {
@@ -1330,22 +1165,17 @@ function animateMissileTrack(viewer, event) {
     ) {
         return null;
     }
-
     ensureMissileStore(viewer);
-
     const missileId = String(event.id || `missile-${++viewer.__warzoneMissileSeq}`);
-
     if (viewer.__warzoneMissiles.has(missileId)) {
         clearOneMissileTrack(viewer, missileId);
     }
-
     const peakHeight =
         event.severity === "critical"
             ? numberVar("--warzone-missile-peak-height-critical", 820000)
             : event.severity === "high"
                 ? numberVar("--warzone-missile-peak-height-high", 620000)
                 : numberVar("--warzone-missile-peak-height-medium", 460000);
-
     const durationMs = Number(
         event.animation_duration_ms ||
         (event.severity === "critical"
@@ -1354,7 +1184,6 @@ function animateMissileTrack(viewer, event) {
                 ? numberVar("--warzone-missile-duration-high", 7500)
                 : numberVar("--warzone-missile-duration-medium", 6200))
     );
-
     const persistMs = Number(
         event.persist_ms ||
         (event.severity === "critical"
@@ -1363,7 +1192,6 @@ function animateMissileTrack(viewer, event) {
                 ? numberVar("--warzone-missile-persist-high", 10000)
                 : numberVar("--warzone-missile-persist-medium", 8000))
     );
-
     const { positions, samples } = buildArcState(
         originLon,
         originLat,
@@ -1372,10 +1200,8 @@ function animateMissileTrack(viewer, event) {
         peakHeight,
         Math.max(64, numberVar("--warzone-missile-steps", 120))
     );
-
     const launchColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-launch-color", "#ff2a2a"));
     const impactColor = Cesium.Color.fromCssColorString(cssVar("--warzone-missile-impact-color", "#ff2a2a"));
-
     const track = {
         id: missileId,
         entities: [],
@@ -1400,13 +1226,10 @@ function animateMissileTrack(viewer, event) {
         alertSoundActive: false,
         impactSoundPlayed: false,
     };
-
     viewer.__warzoneMissiles.set(missileId, track);
     viewer.__warzoneMissileOrder.push(missileId);
     enforceMissileCap(viewer);
-
     createMissileSegmentEntities(viewer, track, positions);
-
     const launchMarker = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(originLon, originLat),
         point: {
@@ -1429,7 +1252,6 @@ function animateMissileTrack(viewer, event) {
     });
     track.entities.push(launchMarker);
     track.launchMarker = launchMarker;
-
     const impactMarker = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(impactLon, impactLat, numberVar("--warzone-impact-marker-height", 4000)),
         point: {
@@ -1452,15 +1274,11 @@ function animateMissileTrack(viewer, event) {
     });
     track.entities.push(impactMarker);
     track.impactMarker = impactMarker;
-
     makeIncomingWarningEntity(viewer, missileId, event, impactLon, impactLat);
-
     const launchFx = makeLaunchFlashEntity(viewer, missileId, originLon, originLat, launchColor);
     track.entities.push(...launchFx);
-
     startMissileAlertSound(viewer);
     track.alertSoundActive = true;
-
     if (boolVar("--warzone-missile-auto-focus", true)) {
         viewer.camera.flyTo({
             destination: Cesium.Rectangle.fromDegrees(
@@ -1472,69 +1290,50 @@ function animateMissileTrack(viewer, event) {
             duration: numberVar("--warzone-missile-focus-duration", 0.95),
         });
     }
-
     animateIncomingWarning(viewer, missileId);
-
     const startedAt = performance.now();
-
     const step = () => {
         const activeTrack = viewer.__warzoneMissiles.get(missileId);
         if (!activeTrack || activeTrack.isFading) return;
-
         const elapsed = performance.now() - startedAt;
         const t = clamp01(elapsed / durationMs);
         const eased = easeInOutCubic(t);
-
         const current = interpolateSample(samples, eased);
         activeTrack.lastImpactCart = current.cart;
-
         const segmentGap = clamp01(numberVar("--warzone-missile-segment-gap", 0.02));
-
         activeTrack.segmentPositions = activeTrack.segmentEntities.map((segment) => {
             if (eased <= segment.t0) {
                 return [positions[0], positions[0]];
             }
-
             const visibleEnd = Math.min(eased, segment.t1);
             const localEnd = interpolateSample(samples, visibleEnd).cart;
             const localStartT = Math.max(segment.t0, 0);
-
             if (visibleEnd <= localStartT + segmentGap) {
                 const p = interpolateSample(samples, visibleEnd).cart;
                 return [p, p];
             }
-
             const localStart = interpolateSample(samples, localStartT).cart;
             return [localStart, localEnd];
         });
-
         viewer.scene.requestRender();
-
         if (t < 1) {
             activeTrack.flightFrame = requestAnimationFrame(step);
             return;
         }
-
         activeTrack.flightFrame = null;
-
         if (activeTrack.alertSoundActive) {
             stopMissileAlertSound(viewer);
             activeTrack.alertSoundActive = false;
         }
-
         if (!activeTrack.impactSoundPlayed) {
             playImpactSound(viewer);
             activeTrack.impactSoundPlayed = true;
         }
-
         activeTrack.hasImpacted = true;
         hideIncomingWarning(activeTrack);
-
         const pulseEntities = makeImpactPulseEntities(viewer, missileId, impactLon, impactLat);
         animateImpactPulse(viewer, missileId, pulseEntities);
-
         viewer.scene.requestRender();
-
         activeTrack.cleanupTimer = setTimeout(() => {
             fadeOutMissileTrack(
                 viewer,
@@ -1543,53 +1342,93 @@ function animateMissileTrack(viewer, event) {
             );
         }, persistMs);
     };
-
     track.flightFrame = requestAnimationFrame(step);
     return missileId;
 }
 function clearAlertHighlight(viewer) {
+    if (viewer.__warzoneAlertEntities) {
+        viewer.__warzoneAlertEntities.forEach((e) => {
+            try { viewer.entities.remove(e); } catch { }
+        });
+        viewer.__warzoneAlertEntities = null;
+    }
     if (viewer.__warzoneAlertEntity) {
-        viewer.entities.remove(viewer.__warzoneAlertEntity);
+        try { viewer.entities.remove(viewer.__warzoneAlertEntity); } catch { }
         viewer.__warzoneAlertEntity = null;
     }
 }
 function highlightAlertRegion(viewer, event) {
     clearAlertHighlight(viewer);
     if (!event || !Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) return;
-
-    const radius =
-        event.severity === "critical" ? 420000 :
-            event.severity === "high" ? 320000 :
-                event.severity === "medium" ? 240000 :
-                    180000;
-
-    viewer.__warzoneAlertEntity = viewer.entities.add({
-        id: `alert-highlight-${Date.now()}`,
-        position: Cesium.Cartesian3.fromDegrees(Number(event.lon), Number(event.lat), 3000),
+    const lat = Number(event.lat);
+    const lon = Number(event.lon);
+    const severity = String(event.severity || "high").toLowerCase();
+    const baseRadius = severity === "critical" ? 180000 : severity === "high" ? 140000 : 100000;
+    const fillColor = Cesium.Color.fromCssColorString("#ff0a2a");
+    const outlineColor = Cesium.Color.fromCssColorString("#ff0a2a");
+    const entities = [];
+    // Pulsing filled region
+    const fill = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 2000),
         ellipse: {
-            semiMinorAxis: radius,
-            semiMajorAxis: radius,
+            semiMinorAxis: new Cesium.CallbackProperty(() => {
+                return baseRadius * (0.85 + 0.15 * Math.sin(Date.now() * 0.003));
+            }, false),
+            semiMajorAxis: new Cesium.CallbackProperty(() => {
+                return baseRadius * 1.3 * (0.85 + 0.15 * Math.sin(Date.now() * 0.003));
+            }, false),
+            material: fillColor.withAlpha(0.18),
+            outline: false,
+            height: 2000,
+        },
+    });
+    entities.push(fill);
+    // Outer pulsing ring
+    const outerRing = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 3000),
+        ellipse: {
+            semiMinorAxis: new Cesium.CallbackProperty(() => {
+                return baseRadius * 1.4 * (0.9 + 0.1 * Math.sin(Date.now() * 0.004 + 0.5));
+            }, false),
+            semiMajorAxis: new Cesium.CallbackProperty(() => {
+                return baseRadius * 1.8 * (0.9 + 0.1 * Math.sin(Date.now() * 0.004 + 0.5));
+            }, false),
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: Cesium.Color.RED.withAlpha(0.95),
-            outlineWidth: 4,
+            outlineColor: new Cesium.CallbackProperty(() => {
+                return outlineColor.withAlpha(0.5 + 0.5 * Math.sin(Date.now() * 0.005));
+            }, false),
+            outlineWidth: 3,
             height: 3000,
         },
     });
-
+    entities.push(outerRing);
+    // Inner bright ring
+    const innerRing = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 4000),
+        ellipse: {
+            semiMinorAxis: baseRadius * 0.5,
+            semiMajorAxis: baseRadius * 0.65,
+            material: Cesium.Color.TRANSPARENT,
+            outline: true,
+            outlineColor: outlineColor.withAlpha(0.95),
+            outlineWidth: 2,
+            height: 4000,
+        },
+    });
+    entities.push(innerRing);
+    viewer.__warzoneAlertEntities = entities;
+    viewer.__warzoneAlertEntity = entities[0];
     viewer.scene.requestRender();
-
     setTimeout(() => {
         clearAlertHighlight(viewer);
         viewer.scene.requestRender();
-    }, 9000);
+    }, 14000);
 }
-
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!globeEl) return null;
-
     const viewer = new Cesium.Viewer(globeEl, {
         animation: false,
         timeline: false,
@@ -1608,18 +1447,14 @@ export async function initWarzoneGlobe() {
         terrain: undefined,
         creditContainer: creditsEl || undefined,
     });
-
     applyViewerStyle(viewer);
     await addArcGisLayers(viewer);
     setInitialCamera(viewer);
     await addBorderLayers(viewer);
-
     ensureMissileStore(viewer);
     ensureAudioStore(viewer);
     attachEventLodController(viewer);
-
     viewer.scene.requestRender();
-
     viewer.__warzone = {
         addEvent(event) {
             const entity = addEventEntity(viewer, event);
@@ -1627,39 +1462,31 @@ export async function initWarzoneGlobe() {
             viewer.scene.requestRender();
             return entity;
         },
-
         addEvents(events = []) {
             const normalized = normalizeEvents(events);
             const maxItems = getMaxRenderableEvents();
             const prepared = shouldClusterEvents(viewer)
                 ? clusterEventsForDisplay(normalized, numberVar("--warzone-event-cluster-precision", 0.55), maxItems)
                 : normalized.slice(0, maxItems);
-
             if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
             for (const event of prepared) {
                 addEventEntity(viewer, event);
             }
             if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
-
             applyEventLod(viewer);
             viewer.scene.requestRender();
         },
-
         clearEventEntities() {
             clearTrackedEventEntities(viewer);
         },
-
         focusRegion,
-
         getViewportBounds() {
             const rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
             if (!rect) return null;
-
             const west = Cesium.Math.toDegrees(rect.west);
             const south = Cesium.Math.toDegrees(rect.south);
             const east = Cesium.Math.toDegrees(rect.east);
             const north = Cesium.Math.toDegrees(rect.north);
-
             return {
                 minLon: west,
                 minLat: south,
@@ -1667,42 +1494,33 @@ export async function initWarzoneGlobe() {
                 maxLat: north
             };
         },
-
         refocusMiddleEast() {
             const cam = getStartCameraConfig();
             focusRegion(viewer, cam.lon, cam.lat, numberVar("--warzone-focus-height", 2350000));
         },
-
         setMapMode(mode) {
             setMapMode(viewer, mode);
         },
-
         setTerrainVisible(visible) {
             const show = !!visible;
-
             if (viewer.__imageryBase) {
                 viewer.__imageryBase.show = show;
             }
-
             if (viewer.__imageryLabels) {
                 viewer.__imageryLabels.show = show;
             }
-
             viewer.scene.requestRender();
         },
-
         isTerrainVisible() {
             return !!(
                 viewer.__imageryBase &&
                 viewer.__imageryBase.show
             );
         },
-
         setPerformanceMode(visibleCount = 0) {
             const baseResolution = numberVar("--warzone-resolution-scale", 1);
             viewer.resolutionScale = baseResolution;
             viewer.scene.requestRenderMode = true;
-
             if (visibleCount <= 0) {
                 viewer.scene.maximumRenderTimeChange = Infinity;
             } else if (visibleCount <= 30) {
@@ -1711,19 +1529,15 @@ export async function initWarzoneGlobe() {
                 viewer.scene.maximumRenderTimeChange = 1.0;
             }
         },
-
         highlightAlertRegion(event) {
             highlightAlertRegion(viewer, event);
         },
-
         clearAlertHighlight() {
             clearAlertHighlight(viewer);
         },
-
         animateMissileTrack(event) {
             return animateMissileTrack(viewer, event);
         },
-
         clearMissileTrack(id) {
             if (id) {
                 clearOneMissileTrack(viewer, id);
@@ -1731,25 +1545,18 @@ export async function initWarzoneGlobe() {
                 clearAllMissileTracks(viewer);
             }
         },
-
         clearAllMissileTracks() {
             clearAllMissileTracks(viewer);
         },
-
         startAlertLoopSound() {
             startMissileAlertSound(viewer);
         },
-
         stopAlertLoopSound() {
             stopMissileAlertSound(viewer);
         },
-
         playImpactSound() {
             playImpactSound(viewer);
         },
-
-
     };
-
     return viewer;
 }
