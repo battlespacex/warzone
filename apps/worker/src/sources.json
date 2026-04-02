@@ -24,7 +24,12 @@
       ],
       "limit": 30,
       "category": "military",
-      "tags": [ "telegram", "osint", "military", "high-signal" ]
+      "tags": [
+        "telegram",
+        "osint",
+        "military",
+        "high-signal"
+      ]
     },
     {
       "name": "Telegram OSINT Mixed",
@@ -32,6 +37,7 @@
       "enabled": true,
       "channels": [
         "sentdefender",
+        "OSINTLive",
         "OSINTLive",
         "wor_mil_news",
         "CyberspecNews",
@@ -41,7 +47,12 @@
       ],
       "limit": 20,
       "category": "military",
-      "tags": [ "telegram", "osint", "military", "mixed" ]
+      "tags": [
+        "telegram",
+        "osint",
+        "military",
+        "mixed"
+      ]
     },
     {
       "name": "Telegram Narrative / Official",
@@ -58,7 +69,12 @@
       ],
       "limit": 15,
       "category": "military",
-      "tags": [ "telegram", "osint", "military", "narrative" ]
+      "tags": [
+        "telegram",
+        "osint",
+        "military",
+        "narrative"
+      ]
     },
     {
       "name": "GDELT Conflict Signals",
@@ -68,7 +84,11 @@
       "url": "https://api.gdeltproject.org/api/v2/doc/doc",
       "poll_interval_ms": 60000,
       "category": "military",
-      "tags": [ "gdelt", "signal", "conflict" ]
+      "tags": [
+        "gdelt",
+        "signal",
+        "conflict"
+      ]
     },
     {
       "name": "UCDP Conflict Events",
@@ -76,8 +96,14 @@
       "parser": "ucdp",
       "enabled": true,
       "category": "strike",
-      "url": "https://ucdpapi.pcr.uu.se/api/gedevents/23.1?pagesize=100",
-      "tags": [ "ucdp", "conflict", "military" ]
+      "url": "https://ucdpapi.pcr.uu.se/api/gedevents/25.1?pagesize=100",
+      "auth_header": "x-ucdp-access-token",
+      "auth_token_env": "UCDP_ACCESS_TOKEN",
+      "tags": [
+        "ucdp",
+        "conflict",
+        "military"
+      ]
     },
     {
       "name": "ACLED Conflict Feed",
@@ -85,7 +111,11 @@
       "enabled": false,
       "url": "https://acleddata.com/api/acled/read",
       "category": "conflict",
-      "tags": [ "acled", "conflict", "military" ]
+      "tags": [
+        "acled",
+        "conflict",
+        "military"
+      ]
     },
     {
       "name": "Reddit CombatFootage",
@@ -93,7 +123,10 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/CombatFootage/new.json",
       "category": "military",
-      "tags": [ "reddit", "combat" ]
+      "tags": [
+        "reddit",
+        "combat"
+      ]
     },
     {
       "name": "Reddit UkraineWar",
@@ -101,7 +134,10 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/UkraineWarVideoReport/new.json",
       "category": "military",
-      "tags": [ "reddit", "ukraine" ]
+      "tags": [
+        "reddit",
+        "ukraine"
+      ]
     },
     {
       "name": "Reddit MiddleEastNews",
@@ -109,7 +145,10 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/MiddleEastNews/new.json",
       "category": "military",
-      "tags": [ "reddit", "middle-east" ]
+      "tags": [
+        "reddit",
+        "middle-east"
+      ]
     },
     {
       "name": "Reddit WorldNews Military",
@@ -117,7 +156,11 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/worldnews/search.json?q=military+strike+missile+drone&sort=new&restrict_sr=1",
       "category": "military",
-      "tags": [ "reddit", "worldnews", "military" ]
+      "tags": [
+        "reddit",
+        "worldnews",
+        "military"
+      ]
     },
     {
       "name": "Reddit GeopoliticsConflict",
@@ -125,39 +168,67 @@
       "enabled": true,
       "url": "https://www.reddit.com/r/geopolitics/new.json",
       "category": "military",
-      "tags": [ "reddit", "geopolitics" ]
+      "tags": [
+        "reddit",
+        "geopolitics"
+      ]
     },
     {
       "name": "ADS-B Military Aircraft",
       "enabled": true,
       "type": "adsb-opensky",
       "category": "military",
-      "tags": [ "adsb", "opensky", "military", "aircraft", "airforce" ]
+      "tags": [
+        "adsb",
+        "opensky",
+        "military",
+        "aircraft",
+        "airforce"
+      ]
     },
     {
       "name": "AIS Naval Vessels",
       "enabled": true,
       "type": "ais-stream",
       "category": "naval",
-      "tags": [ "ais", "naval", "fleet", "military" ]
+      "tags": [
+        "ais",
+        "naval",
+        "fleet",
+        "military"
+      ]
     },
     {
       "name": "IsraelWarRoom Siren Feed",
       "enabled": true,
       "parser": "telegram",
       "category": "alert",
-      "channels": [ "IsraelWarRoom" ],
+      "channels": [
+        "IsraelWarRoom"
+      ],
       "limit": 10,
-      "tags": [ "telegram", "siren", "israel", "military" ]
+      "tags": [
+        "telegram",
+        "siren",
+        "israel",
+        "military"
+      ]
     },
     {
       "name": "Tzevaadom",
       "enabled": true,
       "parser": "telegram",
       "category": "alert",
-      "channels": [ "tzevaadom_en" ],
+      "channels": [
+        "tzevaadom_en"
+      ],
       "limit": 10,
-      "tags": [ "telegram", "siren", "israel", "military" ]
+      "tags": [
+        "telegram",
+        "siren",
+        "israel",
+        "military"
+      ]
     },
     {
       "name": "Pikud HaOref Real-Time Sirens",
@@ -166,7 +237,11 @@
       "parser": "oref",
       "url": "https://www.oref.org.il/WarningMessages/alert/alerts.json",
       "category": "alert",
-      "tags": [ "siren", "alert", "military" ]
+      "tags": [
+        "siren",
+        "alert",
+        "military"
+      ]
     },
     {
       "name": "Manual Siren Alerts",
@@ -181,7 +256,11 @@
       "parser": "cyber",
       "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
       "category": "cyber",
-      "tags": [ "cyber", "kev", "critical-infra" ]
+      "tags": [
+        "cyber",
+        "kev",
+        "critical-infra"
+      ]
     },
     {
       "name": "NASA FIRMS Thermal",
@@ -189,7 +268,11 @@
       "parser": "firms",
       "url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/1",
       "category": "thermal",
-      "tags": [ "thermal", "strike-signal", "military" ]
+      "tags": [
+        "thermal",
+        "strike-signal",
+        "military"
+      ]
     },
     {
       "name": "USGS Seismic Monitor",
@@ -197,7 +280,11 @@
       "enabled": true,
       "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
       "category": "seismic",
-      "tags": [ "usgs", "seismic", "explosion-signal" ]
+      "tags": [
+        "usgs",
+        "seismic",
+        "explosion-signal"
+      ]
     },
     {
       "name": "Cloudflare Radar Internet Outages",
@@ -205,7 +292,12 @@
       "enabled": true,
       "url": "https://api.cloudflare.com/client/v4/radar/quality/outages/events?limit=50",
       "category": "network",
-      "tags": [ "network", "internet-outage", "cloudflare-radar", "critical-infra" ]
+      "tags": [
+        "network",
+        "internet-outage",
+        "cloudflare-radar",
+        "critical-infra"
+      ]
     },
     {
       "name": "IODA Internet Outages",
@@ -213,7 +305,12 @@
       "enabled": true,
       "url": "https://api.ioda.inetintel.cc.gatech.edu/v2/",
       "category": "network",
-      "tags": [ "network", "internet-outage", "ioda", "critical-infra" ]
+      "tags": [
+        "network",
+        "internet-outage",
+        "ioda",
+        "critical-infra"
+      ]
     },
     {
       "name": "OONI Network Blocking",
@@ -221,7 +318,13 @@
       "enabled": true,
       "url": "https://api.ooni.io/api/v1/observations?limit=20",
       "category": "network",
-      "tags": [ "network", "blocking", "censorship", "ooni", "critical-infra" ]
+      "tags": [
+        "network",
+        "blocking",
+        "censorship",
+        "ooni",
+        "critical-infra"
+      ]
     },
     {
       "name": "Global NOTAM Alerts",
@@ -229,7 +332,385 @@
       "enabled": true,
       "url": "https://www.notams.faa.gov/dinsQueryWeb/queryRetrievalMapAction.do",
       "category": "airspace",
-      "tags": [ "notam", "airspace", "aviation", "military" ]
+      "tags": [
+        "notam",
+        "airspace",
+        "aviation",
+        "military"
+      ]
+    },
+    {
+      "_comment": "\u2500\u2500 RSS Military Feeds \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+    },
+    {
+      "name": "Reuters World News",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://feeds.reuters.com/reuters/worldnews",
+      "source_name": "Reuters",
+      "category": "strike",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "reuters",
+        "wire",
+        "global"
+      ]
+    },
+    {
+      "name": "AP Defense & Military",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://feeds.apnews.com/rss/topnews",
+      "source_name": "AP News",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "ap",
+        "wire",
+        "global"
+      ]
+    },
+    {
+      "name": "Breaking Defense",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://breakingdefense.com/feed/",
+      "source_name": "Breaking Defense",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "defense",
+        "military",
+        "specialist"
+      ]
+    },
+    {
+      "name": "Defense News",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.defensenews.com/arc/outboundfeeds/rss/",
+      "source_name": "Defense News",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "defense",
+        "military",
+        "specialist"
+      ]
+    },
+    {
+      "name": "The War Zone",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.thedrive.com/the-war-zone/feed",
+      "source_name": "The War Zone",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "military",
+        "aviation",
+        "specialist"
+      ]
+    },
+    {
+      "name": "USNI News",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://news.usni.org/feed",
+      "source_name": "USNI News",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "naval",
+        "military",
+        "usni"
+      ]
+    },
+    {
+      "name": "Naval News",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.navalnews.com/feed/",
+      "source_name": "Naval News",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "naval",
+        "military"
+      ]
+    },
+    {
+      "name": "Al Jazeera English",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.aljazeera.com/xml/rss/all.xml",
+      "source_name": "Al Jazeera",
+      "category": "strike",
+      "region": "Middle East",
+      "tags": [
+        "rss",
+        "aljazeera",
+        "middle-east"
+      ]
+    },
+    {
+      "name": "Kyiv Independent",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://kyivindependent.com/feed",
+      "source_name": "Kyiv Independent",
+      "category": "strike",
+      "region": "Ukraine",
+      "tags": [
+        "rss",
+        "ukraine",
+        "russia",
+        "conflict"
+      ]
+    },
+    {
+      "name": "Ukrinform",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.ukrinform.net/rss/block-lastnews",
+      "source_name": "Ukrinform",
+      "category": "strike",
+      "region": "Ukraine",
+      "tags": [
+        "rss",
+        "ukraine",
+        "military"
+      ]
+    },
+    {
+      "name": "Times of Israel",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.timesofisrael.com/feed/",
+      "source_name": "Times of Israel",
+      "category": "strike",
+      "region": "Middle East",
+      "tags": [
+        "rss",
+        "israel",
+        "middle-east"
+      ]
+    },
+    {
+      "name": "Jerusalem Post",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx",
+      "source_name": "Jerusalem Post",
+      "category": "strike",
+      "region": "Middle East",
+      "tags": [
+        "rss",
+        "israel",
+        "middle-east"
+      ]
+    },
+    {
+      "name": "ISW Russia-Ukraine",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://isw.pub/UkrainConflictUpdates",
+      "source_name": "ISW",
+      "category": "military",
+      "region": "Ukraine",
+      "tags": [
+        "rss",
+        "isw",
+        "ukraine",
+        "russia",
+        "analysis"
+      ]
+    },
+    {
+      "name": "Bellingcat",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.bellingcat.com/feed/",
+      "source_name": "Bellingcat",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "bellingcat",
+        "osint",
+        "investigation"
+      ]
+    },
+    {
+      "name": "Middle East Eye",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.middleeasteye.net/rss",
+      "source_name": "Middle East Eye",
+      "category": "strike",
+      "region": "Middle East",
+      "tags": [
+        "rss",
+        "middle-east",
+        "conflict"
+      ]
+    },
+    {
+      "name": "FlightGlobal Defense",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.flightglobal.com/rss/",
+      "source_name": "FlightGlobal",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "aviation",
+        "defense",
+        "military"
+      ]
+    },
+    {
+      "name": "Janes Defense",
+      "parser": "rss",
+      "enabled": false,
+      "url": "https://www.janes.com/feeds/news",
+      "source_name": "Janes",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "janes",
+        "defense",
+        "intelligence"
+      ]
+    },
+    {
+      "name": "France24 International",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.france24.com/en/rss",
+      "source_name": "France24",
+      "category": "strike",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "france24",
+        "wire",
+        "global"
+      ]
+    },
+    {
+      "name": "BBC World News",
+      "parser": "rss",
+      "enabled": true,
+      "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+      "source_name": "BBC News",
+      "category": "strike",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "bbc",
+        "wire",
+        "global"
+      ]
+    },
+    {
+      "name": "Deutsche Welle Military",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://rss.dw.com/xml/rss-en-world",
+      "source_name": "Deutsche Welle",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "dw",
+        "europe",
+        "global"
+      ]
+    },
+    {
+      "name": "Radio Free Europe",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.rferl.org/api/zvoybttuz",
+      "source_name": "RFE/RL",
+      "category": "military",
+      "region": "Eastern Europe",
+      "tags": [
+        "rss",
+        "rferl",
+        "russia",
+        "ukraine",
+        "central-asia"
+      ]
+    },
+    {
+      "name": "Iran International",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://iranintl.com/en/rss.xml",
+      "source_name": "Iran International",
+      "category": "strike",
+      "region": "Middle East",
+      "tags": [
+        "rss",
+        "iran",
+        "middle-east"
+      ]
+    },
+    {
+      "name": "South China Morning Post Defense",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://www.scmp.com/rss/91/feed",
+      "source_name": "SCMP",
+      "category": "military",
+      "region": "East Asia",
+      "tags": [
+        "rss",
+        "china",
+        "taiwan",
+        "east-asia"
+      ]
+    },
+    {
+      "name": "The Diplomat Security",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://thediplomat.com/feed/",
+      "source_name": "The Diplomat",
+      "category": "military",
+      "region": "Asia Pacific",
+      "tags": [
+        "rss",
+        "asia",
+        "pacific",
+        "security"
+      ]
+    },
+    {
+      "name": "War on the Rocks",
+      "parser": "rss",
+      "enabled": true,
+      "url": "https://warontherocks.com/feed/",
+      "source_name": "War on the Rocks",
+      "category": "military",
+      "region": "Global",
+      "tags": [
+        "rss",
+        "analysis",
+        "strategy",
+        "military"
+      ]
     }
   ]
 }

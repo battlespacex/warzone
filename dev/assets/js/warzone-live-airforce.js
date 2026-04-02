@@ -1,4 +1,4 @@
-﻿// File Path: /assets/js/warzone-live-fighter.js
+﻿// File Path: /assets/js/warzone-live-airforce.js
 import * as Cesium from "cesium";
 /* ================= STATE ================= */
 let __liveTrackEntities = new Map();
@@ -19,6 +19,9 @@ let __liveTrackOverlayRoot = null;
 let __liveTrackOverlayBound = false;
 let __liveTrackClickBound = false;
 let __liveTrackClickHandler = null;
+// True while a programmatic camera.flyTo() is in flight — prevents moveStart
+// from clearing the X-lines during the fly-to animation itself.
+let __liveTrackIsCameraFlying = false;
 
 
 const LIVE_TRACK_LABEL_CAMERA_HEIGHT_MAX = 420000;
@@ -133,6 +136,18 @@ function getLiveTrackSubtypeTrailWidth(track = {}, fallbackWidth = 3.4) {
 /* ================= UTILS ================= */
 function requestWarzoneRender() {
     window.__warzoneViewer?.scene?.requestRender?.();
+}
+
+// Debounced version — batches rapid-fire render requests from upsertLiveTrack
+// into a single Cesium render call. When 20 aircraft update in one poll cycle,
+// this turns 20 requestRender() calls into 1, reducing render pressure.
+let __renderDebounceTimer = null;
+function requestWarzoneRenderBatched() {
+    if (__renderDebounceTimer) return; // already queued
+    __renderDebounceTimer = setTimeout(() => {
+        __renderDebounceTimer = null;
+        window.__warzoneViewer?.scene?.requestRender?.();
+    }, 16); // ~1 frame at 60fps — coalesces all updates in the same tick
 }
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -437,6 +452,7 @@ function returnToRegionalFocus(options = {}) {
     if (!viewer) return false;
     const cfg = getRegionalFocusConfig();
     viewer.camera.cancelFlight?.();
+    __liveTrackIsCameraFlying = true;
     viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(
             cfg.lon,
@@ -449,6 +465,8 @@ function returnToRegionalFocus(options = {}) {
             roll: Cesium.Math.toRadians(cfg.roll),
         },
         duration: Number(options.duration || 1.2),
+        complete: () => { __liveTrackIsCameraFlying = false; },
+        cancel: () => { __liveTrackIsCameraFlying = false; },
     });
     return true;
 }
@@ -546,6 +564,14 @@ function bindLiveTrackOverlay(viewer) {
     __liveTrackOverlayBound = true;
     ensureLiveTrackOverlayRoot(viewer);
     viewer.scene.postRender.addEventListener(syncLiveTrackFocusOverlay);
+
+    // Clear X-lines when user manually drags/rotates the globe.
+    // __liveTrackIsCameraFlying guards against clearing during programmatic flyTo.
+    viewer.camera.moveStart.addEventListener(() => {
+        if (!__liveTrackIsCameraFlying && __liveTrackReplayState.selectedTrackKey) {
+            clearLiveTrackSelection({ animate: false });
+        }
+    });
 }
 function resolvePickedTrackKey(picked) {
     const entity =
@@ -620,6 +646,28 @@ function clearReplayEntities() {
     }
     __liveTrackReplayState.markerIndex = 0;
 }
+// ── Widget row highlight ──────────────────────────────────────────────────────
+// Finds the aircraft tracker widget and applies/removes the .is-selected class
+// on .wz-aircraft-item rows by matching [data-track-key]. Also scrolls the
+// selected row into view.
+// REQUIREMENT: Each rendered .wz-aircraft-item must have data-track-key="..."
+// matching its track_key — set this when building the widget list HTML.
+function syncWidgetRowHighlight(trackKey = "") {
+    try {
+        const widget = document.querySelector('[data-widget-id="aircraft"]');
+        if (!widget) return;
+        widget.querySelectorAll(".wz-aircraft-item[data-track-key]").forEach(row => {
+            const match = row.dataset.trackKey === trackKey;
+            row.classList.toggle("is-selected", match);
+            if (match) {
+                row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        });
+    } catch {
+        // Non-fatal — widget may not be rendered yet
+    }
+}
+
 function setSelectedTrack(trackKey = "", mode = "") {
     __liveTrackReplayState.selectedTrackKey = trackKey || "";
     __liveTrackReplayState.mode = mode || "";
@@ -631,6 +679,8 @@ function setSelectedTrack(trackKey = "", mode = "") {
     }));
     syncLiveTrackFocusOverlay();
     dispatchLiveTrackRegistryUpdate();
+    // Highlight matching row in Aircraft Tracker widget
+    syncWidgetRowHighlight(__liveTrackReplayState.selectedTrackKey);
 }
 
 function buildReplayPositions(pathHistory = []) {
@@ -1151,7 +1201,7 @@ export function upsertLiveTrack(track) {
         altitude_ft: Number(track.altitude_ft || 0),
     });
     syncLiveTrackFocusOverlay();
-    requestWarzoneRender();
+    requestWarzoneRenderBatched(); // batched — coalesces 20+ aircraft updates into 1 render
 }
 
 export function clearLiveTrack(trackKey) {
@@ -1189,7 +1239,7 @@ export function clearLiveTrack(trackKey) {
     }
     pruneTrackRegistry();
     dispatchLiveTrackRegistryUpdate();
-    requestWarzoneRender();
+    requestWarzoneRenderBatched(); // batched
     if (!trackKey) return null;
     const entry = __liveTrackRegistry.get(trackKey);
     return entry ? { ...entry } : null;
@@ -1228,9 +1278,12 @@ export function focusLiveTrack(trackKey, options = {}) {
     const height = Number(cartographic.height || 0);
     const focusHeight = Math.max(height + 160000, Number(options.cameraHeight || 220000));
     viewer.camera.cancelFlight?.();
+    __liveTrackIsCameraFlying = true;
     viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, focusHeight),
         duration: Number(options.duration || 1.35),
+        complete: () => { __liveTrackIsCameraFlying = false; },
+        cancel: () => { __liveTrackIsCameraFlying = false; },
     });
     setSelectedTrack(trackKey, "focus");
     bindFocusGuideTracking();

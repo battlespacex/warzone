@@ -1,7 +1,6 @@
-// File Path: /assets/js/warzone-globe.js
+﻿// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
-
 // --- Ion token from env (never hardcoded) ---
 Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 /* ---------- Data sources ---------- */
@@ -99,13 +98,17 @@ function applyEventLod(viewer) {
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
+        // Read cluster_count stored by createEventEntity — clusters keep their scaled radius
+        const clusterCount = Number(entity.properties?.cluster_count?.getValue?.() ?? 1);
+        const isCluster = clusterCount > 1;
         const colorCss = getCategoryColorCss(category);
         const color = Cesium.Color.fromCssColorString(colorCss);
         if (entity.billboard) {
             if (isEventOutline) {
                 entity.billboard.show = mode !== "heatmap" && allowRings && showOutlinesByZoom;
             } else {
-                entity.billboard.show = mode !== "heatmap" && allowMarkers;
+                // Cluster markers always visible — they carry the count badge
+                entity.billboard.show = mode !== "heatmap" && (isCluster || allowMarkers);
             }
         }
         if (entity.ellipse) {
@@ -120,22 +123,21 @@ function applyEventLod(viewer) {
                 entity.ellipse.material = color.withAlpha(0.24);
                 entity.ellipse.outline = false;
             } else {
-                const baseRadius = getSeverityRadius({ severity });
+                // Pass cluster_count so radius stays correctly scaled
+                const baseRadius = getSeverityRadius({ severity, cluster_count: clusterCount });
                 const height = getCameraHeight(viewer);
                 let scale = 1;
-                if (height > 7000000) {
-                    scale = 0.95;
-                } else if (height > 4500000) {
-                    scale = 0.85;
-                } else if (height > 2500000) {
-                    scale = 0.75;
-                } else {
-                    scale = 1;
-                }
+                if (height > 7000000) scale = 0.95;
+                else if (height > 4500000) scale = 0.85;
+                else if (height > 2500000) scale = 0.75;
+                else scale = 1;
                 const normalRadius = baseRadius * scale;
+                const fillAlpha = isCluster
+                    ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
+                    : numberVar("--warzone-event-ring-fill-alpha", 0.14);
                 entity.ellipse.semiMinorAxis = normalRadius;
                 entity.ellipse.semiMajorAxis = normalRadius;
-                entity.ellipse.material = color.withAlpha(numberVar("--warzone-event-ring-fill-alpha", 0.14));
+                entity.ellipse.material = color.withAlpha(fillAlpha);
                 entity.ellipse.outline = true;
                 entity.ellipse.outlineColor = color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.82));
             }
@@ -256,17 +258,16 @@ function getCategoryColorCss(category) {
 }
 function getSeverityRadius(event) {
     const base = numberVar("--warzone-event-ring-size", 70000);
+    const count = Number(event?.cluster_count || 1);
+    // Logarithmic cluster scaling — cluster of 10 → 1.5x, cluster of 100 → 2.0x, cluster of 500 → 2.5x
+    // This makes dense regions visually obvious at any zoom level
+    const countScale = count > 1 ? (1 + Math.log2(count) * 0.28) : 1;
     switch (event?.severity) {
-        case "critical":
-            return base * 4;
-        case "high":
-            return base * 3;
-        case "medium":
-            return base * 2.5;
-        case "low":
-            return base;
-        default:
-            return base * 1.8;
+        case "critical": return base * 4 * countScale;
+        case "high": return base * 3 * countScale;
+        case "medium": return base * 2.5 * countScale;
+        case "low": return base * countScale;
+        default: return base * 1.8 * countScale;
     }
 }
 function getHeatRadius(event) {
@@ -365,6 +366,53 @@ function createMarkerCanvas(colorCss) {
     markerCache.set(colorCss, dataUrl);
     return dataUrl;
 }
+// Cluster marker — bigger, shows event count, colorful pulse glow
+function createClusterMarkerCanvas(colorCss, count) {
+    const key = `cluster:${colorCss}:${Math.min(count, 999)}`;
+    if (markerCache.has(key)) return markerCache.get(key);
+    const sz = 128;
+    const cx = sz / 2;
+    const cy = sz / 2;
+    // Scale glow radius logarithmically — 2 events → 36px, 100 events → 54px
+    const glowR = Math.min(36 + Math.log2(count) * 5, 60);
+    const coreR = Math.min(14 + Math.log2(count) * 2.2, 26);
+    const canvas = document.createElement("canvas");
+    canvas.width = sz;
+    canvas.height = sz;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, sz, sz);
+    // Outer glow
+    const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, glowR);
+    glow.addColorStop(0, colorCss);
+    glow.addColorStop(0.35, colorCss.replace(/[\d.]+\)$/, "0.35)").replace(/^rgb\(/, "rgba("));
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+    ctx.fill();
+    // Solid core circle
+    ctx.fillStyle = colorCss;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+    ctx.fill();
+    // White ring around core
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR + 3, 0, Math.PI * 2);
+    ctx.stroke();
+    // Count text
+    const label = count > 999 ? "999+" : String(count);
+    const fontSize = count > 99 ? 13 : count > 9 ? 15 : 17;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, cx, cy);
+    const dataUrl = canvas.toDataURL("image/png");
+    markerCache.set(key, dataUrl);
+    return dataUrl;
+}
 function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
     const key = `${strokeCss}|${size}|${lineWidth}`;
     if (ringCanvasCache.has(key)) return ringCanvasCache.get(key);
@@ -389,22 +437,35 @@ function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
 function createEventEntity(event) {
     const colorCss = getCategoryColorCss(event.category);
     const color = Cesium.Color.fromCssColorString(colorCss);
-    const marker = createMarkerCanvas(colorCss);
-    const radius = getSeverityRadius(event);
+    const count = Number(event?.cluster_count || 1);
+    const isCluster = count > 1;
+    // Cluster events get a count-badge marker; single events get the regular dot
+    const marker = isCluster
+        ? createClusterMarkerCanvas(colorCss, count)
+        : createMarkerCanvas(colorCss);
+    const radius = getSeverityRadius(event); // already scaled by cluster_count
     const heatRadius = getHeatRadius(event);
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
     const showEventRings = boolVar("--warzone-event-rings-visible", true);
-    const fillAlpha = numberVar("--warzone-event-ring-fill-alpha", 0.14);
+    // Clusters always show their marker (count badge) regardless of zoom CSS var
+    const showMarker = isCluster || showEventMarkers;
+    const fillAlpha = isCluster
+        ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
+        : numberVar("--warzone-event-ring-fill-alpha", 0.14);
+    // Cluster billboard scale grows slightly with count (capped so it doesn't get huge)
+    const markerScale = isCluster
+        ? Math.min(0.52 + Math.log2(count) * 0.06, 0.95)
+        : numberVar("--warzone-marker-scale", 1);
     return {
         id: event.id,
         name: event.title,
         position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
         billboard: {
             image: marker,
-            scale: numberVar("--warzone-marker-scale", 1),
+            scale: markerScale,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: showEventMarkers,
+            show: showMarker,
         },
         ellipse: {
             semiMinorAxis: radius,
@@ -419,6 +480,7 @@ function createEventEntity(event) {
             summary: event.summary,
             category: event.category,
             severity: event.severity,
+            cluster_count: count,
             location_label: event.location_label,
             occurred_at: event.occurred_at,
             confidence: event.confidence,
@@ -620,7 +682,6 @@ async function addGeoJsonBorderLayer(viewer, config) {
     }
 }
 async function addBorderLayers(viewer) {
-
     await addGeoJsonBorderLayer(viewer, {
         name: "Country",
         url: BORDER_SOURCES.countries,
@@ -1367,7 +1428,6 @@ function highlightAlertRegion(viewer, event) {
     const severity = String(event.severity || "high").toLowerCase();
     const baseRadius = severity === "critical" ? 180000 : severity === "high" ? 140000 : 100000;
     const entities = [];
-
     // Static filled region   no CallbackProperty
     const fill = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 2000),
@@ -1380,7 +1440,6 @@ function highlightAlertRegion(viewer, event) {
         },
     });
     entities.push(fill);
-
     // Static outer ring
     const outerRing = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 3000),
@@ -1395,7 +1454,6 @@ function highlightAlertRegion(viewer, event) {
         },
     });
     entities.push(outerRing);
-
     // Static inner ring
     const innerRing = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 4000),
@@ -1410,7 +1468,6 @@ function highlightAlertRegion(viewer, event) {
         },
     });
     entities.push(innerRing);
-
     viewer.__warzoneAlertEntities = entities;
     viewer.__warzoneAlertEntity = entities[0];
     viewer.scene.requestRender();
@@ -1419,7 +1476,6 @@ function highlightAlertRegion(viewer, event) {
         viewer.scene.requestRender();
     }, 14000);
 }
-
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
@@ -1441,7 +1497,7 @@ export async function initWarzoneGlobe() {
         skyAtmosphere: false,
         terrain: undefined,
         creditContainer: creditsEl || undefined,
-        // Use Cesium Ion world imagery � eliminates Bing/virtualearth.net requests
+        // Use Cesium Ion world imagery   eliminates Bing/virtualearth.net requests
         imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
     });
     applyViewerStyle(viewer);

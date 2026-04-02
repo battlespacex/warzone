@@ -750,20 +750,18 @@ body.show-loader .site-loader {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    margin: 14px 0 12px;
-    font-size: 14px;
-    line-height: 1.45;
-    cursor: pointer;
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    line-height: var(--text-lg);
 }
 
     .wz-auth-disclaimer-check input[type="checkbox"] {
         appearance: auto;
         -webkit-appearance: checkbox;
-        width: 18px;
-        height: 18px;
-        margin-top: 2px;
-        flex: 0 0 18px;
-        accent-color: #16d3e0;
+        width: 2rem;
+        height: 2rem;
+        flex: 0 0 2rem;
+        accent-color: var(--color-teal-glow);
     }
 
 .wz-auth-btn[disabled] {
@@ -784,9 +782,7 @@ body.show-loader .site-loader {
 }
 
 .wz-auth-user {
-    font-size: 12px;
-    color: rgba(255,255,255,0.6);
-    margin: 4px 0 0;
+
 }
 
 

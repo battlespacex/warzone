@@ -13,6 +13,7 @@
     animation: wzhs-in 0.6s ease both;
     /*filter: var(--widget-shadow);*/
 }
+
 .wzhs__body {
     position: relative;
     display: flex;
@@ -27,6 +28,7 @@
     transform: none;
     /*backdrop-filter: blur(2px);*/
 }
+
 .wzhs__top {
     display: flex;
     align-items: center;
@@ -35,6 +37,7 @@
     transition: background-color 180ms ease, color 180ms ease;
     padding-right: 0.5rem;
 }
+
 .wzhs__title {
     display: flex;
     gap: 1rem;
@@ -43,6 +46,7 @@
     padding: 0 .5rem;
     height: 3.5rem;
 }
+
 .wzhs__icon {
     position: absolute;
     width: 3rem;
@@ -59,9 +63,11 @@
     left: 0;
     height: 100%;
 }
+
 .wzhs--open .wzhs__icon {
     position: relative
 }
+
 .wzhs__count {
     margin-left: 3.5rem;
     font-size: var(--text-xl);
@@ -69,6 +75,7 @@
     color: var(--color-text-heading);
     transition: color 180ms ease, margin-left 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 .wzhs__label {
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -76,6 +83,7 @@
     font-weight: 600;
     transition: color 180ms ease;
 }
+
 .wzhs__arr {
     margin-left: auto;
     flex-shrink: 0;
@@ -83,13 +91,16 @@
     transform: rotate(180deg);
     transition: transform 220ms ease, color 180ms ease, opacity 180ms ease;
 }
+
 .wzhs--open .wzhs__arr {
     transform: rotate(0deg);
 }
+
 .wzhs__detail {
     display: flex;
     flex-direction: column;
 }
+
 .wzhs__header {
     display: flex;
     justify-content: space-between;
@@ -99,19 +110,23 @@
     background: var(--color-bg-header);
     gap: 1rem;
 }
+
 .wzhs__loc, .wzhs__time {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     font-size: var(--text-sm);
 }
+
 .wzhs__loc {
     color: var(--color-text-dim);
 }
+
 .wzhs__time {
     display: inline-table;
     color: var(--color-text-heading);
 }
+
 .wzhs__items {
     display: flex;
     flex-direction: column;
@@ -124,113 +139,144 @@
     transform: none;
     transition: opacity 140ms ease;
 }
+
 .wzhs--open .wzhs__items {
     opacity: 1;
 }
+
 .wzhs-item {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
+
 .wzhs-item__row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
 }
+
 .wzhs-item__sev {
     padding: 0.8rem 0.8rem 0.4rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
     margin-bottom: .5rem;
 }
+
 .wzhs-item__sev--critical {
     color: var(--criticality-level-ex-cl);
     background: var(--criticality-level-ex-bg);
 }
+
 .wzhs-item__sev--high {
     color: var(--criticality-level-hi-cl);
     background: var(--criticality-level-hi-bg);
 }
+
 .wzhs-item__sev--medium {
     color: var(--criticality-level-med-cl);
     background: var(--criticality-level-med-bg);
 }
+
 .wzhs-item__sev--low {
     color: var(--criticality-level-lo-cl);
     background: var(--criticality-level-lo-bg);
 }
+
 .wzhs-item__time {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
 }
+
 .wzhs-item__title {
     color: var(--color-text-heading);
 }
+
 .wzhs-item__loc {
     display: block;
     font-size: var(--text-xs);
     color: var(--color-text-dim);
 }
+
 .wzhs--strike .wzhs__count {
     color: var(--warzone-strike-color);
 }
+
 .wzhs--open.wzhs--strike .wzhs__top, .wzhs--strike .wzhs__icon {
     background: var(--warzone-strike-color);
 }
+
 .wzhs--alert .wzhs__count {
     color: var(--warzone-alert-color);
 }
+
 .wzhs--open.wzhs--alert .wzhs__top, .wzhs--alert .wzhs__icon {
     background: var(--warzone-alert-color);
 }
+
 .wzhs--military .wzhs__count {
     color: var(--warzone-military-color);
 }
+
 .wzhs--open.wzhs--military .wzhs__top, .wzhs--military .wzhs__icon {
     background: var(--warzone-military-color);
 }
+
 .wzhs--recon .wzhs__count {
     color: var(--warzone-recon-color);
 }
+
 .wzhs--open.wzhs--recon .wzhs__top, .wzhs--recon .wzhs__icon {
     background: var(--warzone-recon-color);
 }
+
 .wzhs--airspace .wzhs__count {
     color: var(--warzone-airspace-color);
 }
+
 .wzhs--open.wzhs--airspace .wzhs__top, .wzhs--airspace .wzhs__icon {
     background: var(--warzone-airspace-color);
 }
+
 .wzhs--cyber .wzhs__count {
     color: var(--warzone-cyber-color);
 }
+
 .wzhs--open.wzhs--cyber .wzhs__top, .wzhs--cyber .wzhs__icon {
     background: var(--warzone-cyber-color);
 }
+
 .wzhs--thermal .wzhs__count {
     color: var(--warzone-thermal-color);
 }
+
 .wzhs--open.wzhs--thermal .wzhs__top, .wzhs--thermal .wzhs__icon {
     background: var(--warzone-thermal-color);
 }
+
 .wzhs--default .wzhs__count {
     color: var(--warzone-default-color);
 }
+
 .wzhs--open.wzhs--default .wzhs__top, .wzhs--default .wzhs__icon {
     background: var(--warzone-default-color);
 }
+
 .wzhs--open {
     z-index: 30 !important;
 }
+
     .wzhs--open .wzhs__count {
         margin-left: -0.5rem;
     }
+
     .wzhs--open .wzhs__count,
     .wzhs--open .wzhs__label,
     .wzhs--open .wzhs__arr {
         color: var(--color-text-heading) !important;
     }
+
     .wzhs--open .wzhs__body {
         min-width: 22rem;
         max-width: 28rem;
@@ -245,12 +291,14 @@
     z-index: 40;
     pointer-events: none;
 }
+
     .warzone-ui-layer .warzone-panel--floating,
     .warzone-ui-layer .warzone-alert,
     .warzone-ui-layer .wz-dock,
     .warzone-ui-layer .wz-modal {
         pointer-events: auto;
     }
+
 .primary-content {
     position: absolute;
     width: 100%;
@@ -258,6 +306,7 @@
     margin: 0;
     box-sizing: border-box;
 }
+
 .secondary-content {
     position: absolute;
     width: calc(100% - 4rem);
@@ -318,19 +367,23 @@
     display: flex;
     gap: 1rem;
 }
+
 .wz-layers__all-on, .wz-layers__all-off {
     flex: 1;
     height: 3rem;
     font-size: var(--text-sm);
 }
+
 .wz-layers__all-off {
     background: var(--color-gray);
 }
+
 .wz-layers__list {
     display: flex;
     flex-direction: column;
     gap: 1rem;
 }
+
 .wz-layer-item {
     display: flex;
     align-items: center;
@@ -340,6 +393,7 @@
     user-select: none;
     transition: background 0.12s;
 }
+
 .wz-layer-dot {
     width: 1.5rem;
     height: 1.5rem;
@@ -348,6 +402,7 @@
     border-radius: 50%;
     transition: opacity 0.15s;
 }
+
 .wz-layer-icon {
     display: none;
     width: 2rem;
@@ -355,6 +410,7 @@
     font-size: var(--text-sm);
     text-align: center;
 }
+
 .wz-layer-label {
     flex: 1;
     overflow: hidden;
@@ -363,6 +419,7 @@
     text-overflow: ellipsis;
     color: var(--color-text-heading);
 }
+
 .wz-layer-toggle {
     position: relative;
     width: 3rem;
@@ -373,6 +430,7 @@
     border-radius: 9999px;
     transition: background 0.18s;
 }
+
     .wz-layer-toggle::after {
         content: "";
         position: absolute;
@@ -385,9 +443,11 @@
         border-radius: 50%;
         transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.18s;
     }
+
 .wz-layer-item.is-on .wz-layer-toggle {
     background: var(--color-teal-hover);
 }
+
     .wz-layer-item.is-on .wz-layer-toggle::after {
         transform: translateX(1rem);
         background: var(--color-teal-glow);
@@ -408,11 +468,13 @@
     backdrop-filter: blur(.6rem);
     background: var(--color-bg-overlay);
 }
+
     .wz-modal[hidden] {
         display: none !important;
         opacity: 0 !important;
         pointer-events: none !important;
     }
+
     .wz-modal.is-visible {
         opacity: 1;
         pointer-events: auto;
@@ -438,24 +500,30 @@
     transition: transform 220ms ease;
     filter: var(--widget-shadow);
 }
+
 .wz-modal.is-visible .wz-modal__box {
     transform: translateY(0) scale(1);
 }
+
 #wz-about-modal {
     z-index: 11000;
 }
+
     #wz-about-modal.is-visible ~ .warzone-ui-shell .wz-dock,
     #wz-about-modal.is-visible ~ .warzone-ui-shell .warzone-region-bar,
     #wz-about-modal.is-visible ~ .warzone-ui-shell .warzone-actions {
         pointer-events: none;
     }
+
 .warzone-ui-shell {
     opacity: 0;
     transition: opacity 400ms ease;
 }
+
     .warzone-ui-shell.is-ui-visible {
         opacity: 1;
     }
+
 .wz-modal__container {
     position: relative;
     z-index: 1;
@@ -468,6 +536,7 @@
     clip-path: var(--clippath-shape-2);
     border-radius: .2rem
 }
+
 .wz-modal__head {
     flex: 0 0 auto;
     display: flex;
@@ -477,6 +546,7 @@
     padding: 3rem 2rem 1.5rem;
     background: var(--color-bg-header);
 }
+
     .wz-modal__head span {
         font-family: var(--text-font);
         font-size: var(--text-lg);
@@ -484,6 +554,7 @@
         text-transform: uppercase;
         color: var(--color-text-heading);
     }
+
 .wz-modal__body {
     flex: 1 1 auto;
     min-height: 0;
@@ -492,6 +563,7 @@
     scrollbar-gutter: stable;
     background: var(--color-bg-modal)
 }
+
 .wz-modal__close {
     position: absolute;
     top: 1.2rem;
@@ -507,6 +579,7 @@
     background: transparent;
     transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
+
     .wz-modal__close:hover {
         color: var(--color-text-heading);
         border-color: var(--color-teal-glow);
@@ -564,6 +637,7 @@
     padding: 3.5rem 2.5rem 2.3rem;
     background: var(--color-bg-header);
 }
+
     .wz-intro__hero .warzone-logo {
         position: relative;
         top: 0;
@@ -571,6 +645,8 @@
         opacity: 1;
         justify-self: left
     }
+
+/* Body is a position:relative container — panels stack inside it */
 .wz-intro__body {
     min-height: 0;
     overflow-y: auto;
@@ -579,7 +655,82 @@
     flex-direction: column;
     scrollbar-gutter: stable;
     background: var(--color-bg-modal);
+    /* Fix height so cross-fade doesn't collapse the box */
+    position: relative;
 }
+
+/* ── Panel cross-fade ── */
+/* Each panel fades independently. Both share the same space.
+   The inactive panel is opacity:0, pointer-events:none, and
+   position:absolute so it doesn't affect layout height.
+   The active panel is position:relative (takes up space). */
+.wz-intro__panel {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    width: 100%;
+}
+
+    .wz-intro__panel:not(.is-active) {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(6px);
+        position: absolute;
+        top: 2.5rem;
+        left: 2.5rem;
+        right: 2.5rem;
+    }
+
+    .wz-intro__panel.is-active {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+        position: relative;
+    }
+
+/* Login panel fade-in: starts slightly lower */
+#wz-intro-login-view:not(.is-active) {
+    transform: translateY(-6px);
+}
+
+/* ── Login hint (footer p) fade ── */
+#wz-intro-login-hint {
+    transition: opacity 0.25s ease;
+    margin-bottom: 1.2rem;
+}
+
+    #wz-intro-login-hint.is-hidden-hint {
+        opacity: 0;
+        pointer-events: none;
+        height: 0;
+        margin: 0;
+        overflow: hidden;
+    }
+
+/* ── Action row: back + accept side by side ── */
+.wz-intro__btns {
+    display: flex;
+    gap: 0.8rem;
+    flex: 0 0 auto;
+    align-items: center;
+}
+
+/* Back button — secondary style */
+.wz-intro__back-btn {
+    min-height: 4.4rem;
+    padding: 0 1.4rem;
+    background: transparent;
+    border: 0.2rem solid rgba(255, 255, 255, 0.18);
+    color: var(--color-text-heading);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+    .wz-intro__back-btn:hover {
+        border-color: rgba(255, 255, 255, 0.4);
+        color: #fff;
+    }
+
 .wz-intro__title {
     color: var(--color-text-heading);
     font-size: var(--text-xxxl);
@@ -587,25 +738,33 @@
     font-family: var(--heading-font);
     margin-bottom: 2rem
 }
+
 .wz-intro__disclaimer {
     background: var(--color-bg-overlay);
     clip-path: var(--clippath-shape-3);
     padding: 1.5rem;
 }
+
     .wz-intro__disclaimer h3 {
         margin-bottom: 1rem;
     }
-.wz-intro__actions {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 2rem;
-    padding: 1.5rem 2.5rem;
-    background: var(--color-bg-dark);
+
+.wz-intro__footer {
+    padding: 2.5rem;
+    background: var(--color-bg-header);
     width: 100%;
     box-sizing: border-box;
 }
+
+.wz-intro__action {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.wz-intro__login-hint {
+}
+
 .wz-intro__note {
     flex: 1 1 auto;
     min-width: 0;
@@ -614,11 +773,20 @@
     color: var(--color-text-dim);
     line-height: var(--text-lg);
 }
+
 .wz-intro__actions .btn-primary,
 .wz-intro__accept,
 #wz-intro-accept {
     flex: 0 0 auto;
     white-space: normal;
+}
+
+/* Inline auth fields inside intro modal */
+.wz-intro-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
 }
 
 .btx-logo {
@@ -636,9 +804,11 @@
     scrollbar-width: none;
     background: var(--color-bg-dark);
 }
+
     .wz-modal__tabs::-webkit-scrollbar {
         display: none;
     }
+
 .wz-modal__tab {
     display: flex;
     flex: 1 1 20%;
@@ -659,30 +829,37 @@
     cursor: pointer;
     transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
+
     .wz-modal__tab:hover {
         color: var(--color-text-heading);
         background: var(--color-teal-hover);
     }
+
     .wz-modal__tab.is-active {
         color: var(--color-teal-glow);
         background: var(--color-teal-hover);
         border-bottom-color: var(--color-teal-glow);
     }
+
 .wz-modal__pane {
     display: none;
 }
+
     .wz-modal__pane.is-active {
         display: block;
     }
+
     .wz-modal__pane h3 + p,
     .wz-modal__pane h3 + ul,
     .wz-modal__pane p + h3,
     .wz-modal__pane ul + h3 {
         margin-top: 1.5rem;
     }
+
     .wz-modal__pane p {
         margin: 0 0 1rem;
     }
+
 .wz-terms-footer {
     margin-top: 1.5rem !important;
     padding-top: 1.5rem;
@@ -697,24 +874,29 @@
 .wz-region-modal .wz-modal__box {
     height: auto;
 }
+
 .wz-region-modal__head {
     flex: 0 0 auto;
     padding: 3rem 2.5rem 1.8rem;
     background: var(--color-bg-header);
 }
+
 .wz-region-modal__title {
     font-size: var(--text-xxl)
 }
+
 .wz-region-modal__sub {
     margin: 1rem 0 0;
     color: var(--color-text-dim);
 }
+
 .wz-region-modal__content {
     text-align: center;
     overflow-y: auto;
     background: var(--color-bg-modal);
     padding-bottom: 2.5rem;
 }
+
 .wz-region-modal__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -722,6 +904,7 @@
     align-content: flex-start;
     padding: 2.5rem;
 }
+
 .wz-region-btn {
     position: relative;
     display: inline-flex;
@@ -734,12 +917,15 @@
     text-align: center;
     justify-content: center;
 }
+
     .wz-region-btn:hover {
         color: rgb(8 90 95 / 80%);
     }
+
         .wz-region-btn:hover span {
             color: #fff
         }
+
 .wz-region-btn__label {
     display: inline-block;
     line-height: 1.1;
@@ -748,6 +934,7 @@
 .wz-region-btn.is-hot {
     position: relative;
 }
+
     .wz-region-btn.is-hot::after {
         content: "";
         position: absolute;
@@ -759,6 +946,7 @@
         border-radius: 50%;
         border: 0;
     }
+
 .wz-region-btn.is-selected {
     background: var(--color-teal-glow);
     color: rgb(8 90 95 / 80%);
@@ -783,6 +971,7 @@
     transition: 320ms ease;
     clip-path: var(--clippath-shape-1);
 }
+
 .mini-stat {
     display: flex;
     flex-direction: column;
@@ -794,16 +983,19 @@
     gap: .2rem;
     border-radius: .2rem
 }
+
     .mini-stat strong {
         font-size: 4rem;
         font-weight: 100;
         color: var(--color-text-heading);
     }
+
     .mini-stat:first-child {
         background: var(--color-red);
         color: var(--color-text-heading);
         font-weight: 600;
     }
+
     .mini-stat:last-child {
         background: var(--warzone-cluster-alert);
         color: var(--color-text-heading);
@@ -817,12 +1009,14 @@
     padding: 1.5rem;
     transition: 320ms ease;
 }
+
 .status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
 }
+
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -834,18 +1028,22 @@
     text-transform: uppercase;
     clip-path: var(--clippath-shape-5);
 }
+
 .status-pill--closed, .status-pill--critical {
     color: var(--criticality-level-ex-cl);
     background: var(--criticality-level-ex-bg);
 }
+
 .status-pill--restricted, .status-pill--warning, .status-pill--high {
     color: var(--criticality-level-hi-cl);
     background: var(--criticality-level-hi-bg);
 }
+
 .status-pill--normal, .status-pill--minor, .status-pill--low {
     color: var(--criticality-level-lo-cl);
     background: var(--criticality-level-lo-bg);
 }
+
 .status-pill--unknown, .status-pill--medium {
     color: var(--criticality-level-de-cl);
     background: var(--criticality-level-de-bg);
@@ -867,54 +1065,65 @@
     transform: translateY(0) scale(1);
     transition: opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
     filter: var(--widget-shadow);
+    backdrop-filter: blur(.2rem);
     visibility: visible;
     border-radius: .2rem
 }
+
 .panel-container {
     display: flex;
     flex-direction: column;
     pointer-events: auto;
     overflow: hidden;
-    background: var(--color-bg-dark);
     clip-path: var(--clippath-shape-1);
     transition: clip-path 260ms ease;
 }
+
 .warzone-panel--floating {
     transition: transform 280ms ease, opacity 220ms ease;
 }
+
     .warzone-panel--floating.wz-is-hidden {
         opacity: 0;
         transform: translateY(10px);
         pointer-events: none;
         visibility: hidden;
     }
+
         .warzone-panel--floating.wz-is-hidden,
         .warzone-panel--floating.wz-is-hidden * {
             pointer-events: none !important;
             cursor: default !important;
         }
+
     .warzone-panel--floating.is-collapsed .panel-container {
         clip-path: var(--clippath-shape-3);
     }
+
     .warzone-panel--floating .static-icon[data-panel-collapse] {
         transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
     }
+
     .warzone-panel--floating.is-collapsed .static-icon[data-panel-collapse] {
         transform: rotate(180deg);
     }
+
 .panel-content {
     height: auto;
     overflow-y: auto;
     opacity: 1;
     transition: height 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease;
     will-change: height, opacity;
+    background: var(--color-bg-dark);
 }
+
 .wz-layer-panel {
     padding: 1.5rem;
     gap: 1.5rem;
     display: flex;
     flex-direction: column;
 }
+
 .warzone-panel--floating.is-collapsed .panel-content {
     height: 0 !important;
     opacity: 0;
@@ -931,12 +1140,15 @@ UNUSED CANDIDATE END */
 .warzone-panel--floating:not(.wz-is-hidden) .panel-head {
     cursor: grab;
 }
+
 .warzone-panel--floating.is-dragging .panel-head {
     cursor: grabbing;
 }
+
 .warzone-panel--floating.is-dragging .panel-head {
     cursor: grabbing;
 }
+
 .panel-head {
     display: flex;
     align-items: center;
@@ -947,6 +1159,7 @@ UNUSED CANDIDATE END */
     padding: 0 1rem 0 1.5rem;
     background: var(--color-bg-header);
 }
+
     .panel-head h2 {
         flex: 1;
         min-width: 0;
@@ -956,12 +1169,14 @@ UNUSED CANDIDATE END */
         text-overflow: ellipsis;
         font-size: var(--text-md);
     }
+
 .panel-action {
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 180ms ease, transform 220ms ease, color 180ms ease;
 }
+
 .warzone-panel--floating.wz-is-hidden .panel-action {
     pointer-events: none
 }
@@ -973,6 +1188,7 @@ UNUSED CANDIDATE END */
     display: flex;
     flex-direction: column;
 }
+
 .escalation-meter {
     display: flex;
     gap: 1rem;
@@ -982,6 +1198,7 @@ UNUSED CANDIDATE END */
     padding: .7rem 1.4rem;
     position: relative;
 }
+
     .escalation-meter:before {
         clip-path: var(--clippath-shape-3);
         background: var(--color-red-glow);
@@ -997,17 +1214,20 @@ UNUSED CANDIDATE END */
         z-index: -1;
         border-radius: .2rem
     }
+
     .escalation-meter .static-icon {
         height: 4.5rem;
         width: 4.5rem;
         font-size: var(--icon-xxl);
     }
+
     .escalation-meter small {
         color: var(--color-text);
         font-weight: 500;
         font-family: var(--heading-font);
         letter-spacing: .2rem;
     }
+
 .escalation-list {
     margin: 0;
     margin: 0;
@@ -1021,6 +1241,7 @@ UNUSED CANDIDATE END */
     pointer-events: none;
     overflow: visible;
 }
+
 .wz-radar-label {
     position: absolute;
     transform: translate(40%, -100%);
@@ -1041,15 +1262,18 @@ UNUSED CANDIDATE END */
     gap: 1rem;
     padding: 1.5rem 1.5rem 0;
 }
+
 .wz-aircraft-filters {
     display: flex;
     flex-wrap: wrap;
     gap: .5rem;
 }
+
 .wz-aircraft-filter,
 .wz-aircraft-select {
     background: var(--color-bg-row);
 }
+
 .wz-aircraft-filter {
     height: 3rem;
     font-size: var(--text-sm);
@@ -1058,25 +1282,31 @@ UNUSED CANDIDATE END */
     min-width: unset !important;
     flex: 1;
 }
+
     .wz-aircraft-filter.is-active {
         background: var(--color-teal);
     }
-    .wz-aircraft-filter.is-active:hover {
-        background: var(--color-teal-glow);
-    }
+
+        .wz-aircraft-filter.is-active:hover {
+            background: var(--color-teal-glow);
+        }
+
 .wz-aircraft-type-filter {
     width: 100%;
 }
+
 .wz-aircraft-panel {
     display: flex;
     flex-direction: column;
     gap: 1rem;
     padding: 1.5rem;
 }
+
 .wz-aircraft-empty {
     color: var(--color-text-dim);
     text-align: center;
 }
+
 .wz-aircraft-item {
     display: flex;
     flex-direction: column;
@@ -1086,18 +1316,19 @@ UNUSED CANDIDATE END */
     gap: .7rem
 }
 
-.wz-aircraft-item:before {
-    color: var(--color-text-heading);
-    background: var(--color-bg-row);
-    clip-path: var(--clippath-shape-3);
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    content: '';
-    z-index: -1;
-}
+    .wz-aircraft-item:before {
+        color: var(--color-text-heading);
+        background: var(--color-bg-row);
+        clip-path: var(--clippath-shape-3);
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        content: '';
+        z-index: -1;
+    }
+
 .is-active.is-selected.wz-aircraft-item:before {
     background: var(--color-teal-hover);
     animation: wz-animate-pulse 1s infinite;
@@ -1111,6 +1342,7 @@ UNUSED CANDIDATE END */
     justify-content: space-between;
     gap: 1rem;
 }
+
 .wz-aircraft-item__title {
     display: flex;
     flex: 1;
@@ -1121,12 +1353,14 @@ UNUSED CANDIDATE END */
     align-items: center;
     gap: .5rem;
 }
+
 .wz-aircraft-item__time,
 .wz-aircraft-item__meta,
 .wz-aircraft-item__stats {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
 }
+
 .wz-aircraft-badge {
     display: inline-flex;
     align-items: center;
@@ -1138,14 +1372,17 @@ UNUSED CANDIDATE END */
     text-transform: uppercase;
     clip-path: var(--clippath-shape-5);
 }
+
     .wz-aircraft-badge.is-active {
         color: var(--criticality-level-lo-cl);
         background: var(--criticality-level-lo-bg);
     }
+
     .wz-aircraft-badge.is-ended {
         color: var(--criticality-level-de-cl);
         background: var(--criticality-level-de-bg);
     }
+
 .wz-aircraft-action {
     height: 3rem;
     font-size: var(--text-sm);
@@ -1179,6 +1416,7 @@ UNUSED CANDIDATE END */
 .wz-aircraft-title__text {
     display: inline-block;
 }
+
 @media (max-width: 640px) {
     .wz-aircraft-item__meta,
     .wz-aircraft-item__stats {
@@ -1190,12 +1428,14 @@ UNUSED CANDIDATE END */
 .panel-content {
     position: relative;
 }
+
     .panel-content.is-loading > *:not(.wz-widget-loader) {
         opacity: 0.18;
         filter: blur(0.2rem);
         pointer-events: none;
         transition: opacity 180ms ease, filter 180ms ease;
     }
+
 .wz-widget-loader {
     position: absolute;
     inset: 0;
@@ -1205,9 +1445,11 @@ UNUSED CANDIDATE END */
     justify-content: center;
     pointer-events: none;
 }
+
 .panel-content.is-loading .wz-widget-loader {
     display: flex;
 }
+
 .wz-widget-loader img {
     width: 10rem;
     height: 10rem;
@@ -1650,3 +1892,221 @@ UNUSED CANDIDATE END */
         top: 8.2rem;
         transform: rotate(48deg);
     }
+
+
+
+/* Donate modal */
+.wz-donate-modal {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 300px;
+    background: rgba(10,14,26,0.96);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 16px;
+    z-index: 950;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    backdrop-filter: blur(8px);
+}
+
+    .wz-donate-modal[hidden] {
+        display: none;
+    }
+
+    .wz-donate-modal.is-visible {
+        animation: fadeInUp 0.3s ease;
+    }
+
+.wz-donate-modal__close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.wz-donate-modal__icon {
+    font-size: 24px;
+    text-align: center;
+}
+
+.wz-donate-modal__title {
+    color: #fff;
+    font-size: 14px;
+}
+
+.wz-donate-modal__text {
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    margin: 0;
+}
+
+.wz-donate-modal__btn {
+    text-align: center;
+    text-decoration: none;
+}
+
+/* Nav login + rotate buttons */
+.wz-nav-login-btn {
+    background: rgba(58,142,255,0.15);
+    border: 1px solid #3a8eff;
+    color: #3a8eff;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.wz-globe-rotate-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Freemium Lock Overlay ─────────────────────────────────────────────────── */
+/* Sits inside .panel-content, covers widget content for unauthenticated users.
+   Auto-hidden via body.is-authenticated — no JS toggle needed.               */
+.wz-lock-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 11, 18, 0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-top: 1px solid rgba(24, 226, 219, 0.08);
+    pointer-events: auto;
+}
+
+.wz-lock-overlay__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem 1.6rem;
+    gap: 0.8rem;
+}
+
+.wz-lock-overlay__icon {
+    font-size: 2.4rem;
+    line-height: 1;
+    opacity: 0.7;
+    margin-bottom: 0.4rem;
+}
+
+.wz-lock-overlay__title {
+    font-size: var(--text-lg, 1.4rem);
+    font-weight: 700;
+    color: var(--color-text-heading, #fff);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.wz-lock-overlay__msg {
+    font-size: var(--text-sm, 1.1rem);
+    color: var(--color-text-dim, rgba(255,255,255,0.45));
+    line-height: 1.4;
+    max-width: 22rem;
+    margin: 0;
+}
+
+.wz-lock-overlay__btn {
+    margin-top: 0.8rem;
+    min-height: 3.4rem;
+    padding: 0 2rem;
+    font-size: var(--text-sm, 1.1rem);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--color-teal, #18e2db);
+    color: #07111b;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.6rem), calc(100% - 0.6rem) 100%, 0 100%);
+}
+
+    .wz-lock-overlay__btn:hover {
+        opacity: 0.88;
+    }
+
+/* Auto-hide all overlays once authenticated — CSS owns this, no JS needed */
+body.is-authenticated .wz-lock-overlay {
+    display: none !important;
+}
+
+/* Ensure panel-content is positioned so overlay can fill it absolutely */
+.warzone-widget .panel-content {
+    position: relative;
+}
+
+
+/* ── Freemium: Block content behind lock overlay ───────────────────────────── */
+/* When not authenticated, locked widget panel-content:
+   - blocks overflow/scroll so user can't scroll past the overlay
+   - hides all children except the overlay itself (visibility:hidden keeps
+     layout intact so the panel doesn't collapse, but content is invisible)
+   - DevTools can remove the overlay div but content remains invisible       */
+body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content,
+body:not(.is-authenticated) [data-widget-id="airspace"] .panel-content,
+body:not(.is-authenticated) [data-widget-id="cyber"] .panel-content {
+    overflow: hidden !important;
+}
+
+    body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content > *:not(.wz-lock-overlay),
+    body:not(.is-authenticated) [data-widget-id="airspace"] .panel-content > *:not(.wz-lock-overlay),
+    body:not(.is-authenticated) [data-widget-id="cyber"] .panel-content > *:not(.wz-lock-overlay) {
+        visibility: hidden !important;
+        pointer-events: none !important;
+        user-select: none !important;
+    }
+
+/* ── Freemium: Premium layer items greyed out in layers panel ─────────────── */
+/* Toggles still work (for when user logs in) but visual signals locked state */
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-dot {
+    background: rgba(255, 255, 255, 0.15) !important;
+}
+
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label {
+    color: rgba(255, 255, 255, 0.28) !important;
+}
+
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-icon {
+    opacity: 0.3;
+}
+
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-toggle {
+    opacity: 0.35;
+}
+
+/* Small lock badge after the label */
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label::after {
+    content: " 🔒";
+    font-size: 0.85em;
+    opacity: 0.55;
+}

@@ -4,13 +4,17 @@ const LAYER_DEFS = [
     { id: "missiles", label: "Missiles & Rockets", icon: "🚀", color: "#ff5500" },
     { id: "drones", label: "Drones / UAVs", icon: "🛸", color: "#ffcc00" },
     { id: "airstrikes", label: "Air Strikes", icon: "✈️", color: "#ff7820" },
-    { id: "aircraft", label: "Aircraft Tracker", icon: "🛩️", color: "#33d90a" },
+    { id: "aircraft", label: "Aircraft Tracker", icon: "🛩️", color: "#33d90a", premium: true },
+    // airspace is uiOnly — it controls the Airspace Status widget visibility.
+    // It is intentionally decoupled from the "aircraft" layer so toggling
+    // live flight tracks on the globe does NOT affect the airspace panel.
+    { id: "airspace", label: "Airspace Status", icon: "🌐", color: "#33d9ff", uiOnly: true, premium: true },
     { id: "naval", label: "Naval Activity", icon: "⚓", color: "#9b7bff" },
-    { id: "military-bases", label: "Military Bases", icon: "🏛️", color: "#3a8eff", uiOnly: true },
+    { id: "military-bases", label: "Military Bases", icon: "🏛️", color: "#3a8eff", uiOnly: true, premium: true },
     { id: "ranges", label: "Detection / Threat Ranges", icon: "📡", color: "#33d9ff" },
     { id: "sweepers", label: "Radar Sweepers", icon: "🌀", color: "#18e2db", uiOnly: true },
     { id: "alerts", label: "Alerts & Sirens", icon: "🔔", color: "#ff2a2a" },
-    { id: "cyber", label: "Cyber Operations", icon: "💻", color: "#9b7bff" },
+    { id: "cyber", label: "Cyber Operations", icon: "💻", color: "#9b7bff", premium: true },
     { id: "thermal", label: "Thermal / Fires", icon: "🔥", color: "#ff6600" },
     { id: "recon", label: "Recon / Intelligence", icon: "👁️", color: "#00d9b2" },
     { id: "seismic", label: "Seismic / Explosions", icon: "📡", color: "#ffdd00" },
@@ -89,12 +93,50 @@ export function toggleLayer(id) {
     notifyChange(id, __layerState[id]);
     return __layerState[id];
 }
+// ── uiOnly layer → widget visibility sync ──────────────────────────────────────
+// When a uiOnly layer is toggled, find the matching widget by data-widget-id,
+// show/hide it, and keep the dock button in sync.
+// This is self-contained — no imports from warzone-boot.js needed.
+const WZ_WIDGET_KEY = "wz_widget_visibility";
+function syncUiOnlyLayerToWidget(layerId, enabled) {
+    try {
+        // Show/hide the widget panel
+        const widget = document.querySelector(`[data-widget-id="${layerId}"]`);
+        if (widget) {
+            widget.classList.toggle("wz-is-hidden", !enabled);
+        }
+        // Persist to same localStorage key warzone-boot.js uses
+        const saved = JSON.parse(localStorage.getItem(WZ_WIDGET_KEY) || "{}");
+        saved[layerId] = enabled;
+        localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(saved));
+        // Keep dock button in sync (gone when widget is visible, shown when hidden)
+        const dockBtn = document.querySelector(`[data-dock-widget="${layerId}"]`);
+        if (dockBtn) {
+            dockBtn.classList.toggle("wz-dock--gone", enabled);
+            dockBtn.setAttribute("aria-hidden", enabled ? "true" : "false");
+        }
+    } catch {
+        // Non-fatal
+    }
+}
+
 // Callbacks
 let __callbacks = [];
 export function onLayerChange(cb) {
     __callbacks.push(cb);
 }
 function notifyChange(id, val) {
+    // Sync uiOnly layers to widget visibility automatically
+    if (id === "*") {
+        LAYER_DEFS.filter(l => l.uiOnly).forEach(l => {
+            syncUiOnlyLayerToWidget(l.id, __layerState[l.id] !== false);
+        });
+    } else {
+        const layerDef = LAYER_DEFS.find(l => l.id === id);
+        if (layerDef?.uiOnly) {
+            syncUiOnlyLayerToWidget(id, val);
+        }
+    }
     __callbacks.forEach((cb) => {
         try {
             cb(id, val, { ...__layerState });
@@ -109,7 +151,7 @@ export function initLayerPanel() {
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
     const rows = LAYER_DEFS.map((l) => `
-        <div class="wz-layer-item${__layerState[l.id] ? " is-on" : ""}" data-layer="${l.id}">
+        <div class="wz-layer-item${__layerState[l.id] ? " is-on" : ""}${l.premium ? " is-premium" : ""}" data-layer="${l.id}">
             <span class="wz-layer-icon">${l.icon}</span>
             <span class="wz-layer-dot" style="background:${l.color}"></span>
             <span class="wz-layer-label">${l.label}</span>
@@ -149,5 +191,19 @@ export function initLayerPanel() {
         saveState();
         notifyChange("*", false);
     });
+
+    // ── Apply saved state to globe/widgets on init ────────────────────────────
+    // loadState() updates __layerState but fires no callbacks, so the globe
+    // entities and widgets would stay at default visibility. Notify all layers
+    // that differ from their ON default so the globe reflects the saved state.
+    // Use a small delay so onLayerChange callbacks are registered first.
+    setTimeout(() => {
+        LAYER_DEFS.forEach((l) => {
+            if (!__layerState[l.id]) {
+                // This layer is saved as OFF — notify so globe/widget hides it
+                notifyChange(l.id, false);
+            }
+        });
+    }, 200);
 }
 export { LAYER_DEFS };

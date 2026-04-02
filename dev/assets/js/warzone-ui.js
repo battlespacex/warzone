@@ -27,12 +27,16 @@ function bindTopViews() {
 }
 
 function bindAlertDismiss() {
+    // NOTE: sticky alerts are now dismissible via warzone-sticky-alert.js bindStickyDismiss().
+    // This legacy handler is kept for non-sticky alerts only.
     const closeBtn = document.querySelector(".warzone-alert__close");
     const alert = document.getElementById("warzone-alert");
     if (!closeBtn || !alert) return;
     closeBtn.addEventListener("click", () => {
+        // Only handle non-sticky (transient) alerts here — sticky ones are
+        // handled by warzone-sticky-alert.js which also tracks dismissed keys
         const isSticky = alert.dataset.sticky === "true";
-        if (isSticky) return;
+        if (isSticky) return; // sticky-alert.js handles this
         alert.classList.remove("is-active");
     });
 }
@@ -156,17 +160,52 @@ function initNewsTicker() {
 export function updateNewsTicker(events = []) {
     const inner = document.getElementById("wz-ticker-inner");
     if (!inner || !events.length) return;
-    const items = events.slice(0, 20).map((e) => {
+
+    // ── Clean title: remove repeated segments separated by — or –
+    function cleanTitle(raw = "") {
+        const t = String(raw).trim().slice(0, 140);
+        // Split on em-dash / en-dash / " - " and deduplicate consecutive segments
+        const parts = t.split(/\s*[—–]\s*/).map(s => s.trim()).filter(Boolean);
+        const seen = new Set();
+        const unique = [];
+        for (const p of parts) {
+            const key = p.toLowerCase();
+            if (!seen.has(key)) { seen.add(key); unique.push(p); }
+        }
+        return unique.join(" — ");
+    }
+
+    // ── Deduplicate events by cleaned title similarity
+    const seenTitles = new Set();
+    const deduped = [];
+    for (const e of events) {
+        const cleaned = cleanTitle(e.title || "");
+        // Use first 60 chars as dedup key — catches near-duplicates like
+        // "ALERT — Jerusalem — East" and "ALERT — Jerusalem — East — Jerusalem"
+        const key = cleaned.toLowerCase().slice(0, 60);
+        if (!key || seenTitles.has(key)) continue;
+        seenTitles.add(key);
+        deduped.push({ ...e, _cleanTitle: cleaned });
+        if (deduped.length >= 20) break;
+    }
+
+    if (!deduped.length) return;
+
+    const items = deduped.map((e) => {
         const cat = String(e.category || "default").toLowerCase();
-        const title = String(e.title || "").slice(0, 120);
-        const loc = e.location_label ? ` — ${e.location_label}` : "";
+        const title = e._cleanTitle || cleanTitle(e.title || "");
+        // Only append location if it adds real info not already in title
+        const loc = e.location_label &&
+            !title.toLowerCase().includes(e.location_label.toLowerCase())
+            ? ` — ${e.location_label}` : "";
         return `<span class="wz-ticker-item">
             <span class="wz-ticker-item__cat wz-ticker-item__cat--${cat}">${cat.toUpperCase()}</span>
             <span>${title}${loc}</span>
         </span>`;
     }).join("");
-    inner.innerHTML = items + items;
+
+    inner.innerHTML = items + items; // doubled for seamless CSS scroll loop
     inner.style.animation = "none";
-    inner.offsetHeight;
+    inner.offsetHeight; // force reflow
     inner.style.animation = "";
 }

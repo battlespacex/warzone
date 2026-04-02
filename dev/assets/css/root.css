@@ -1,5 +1,4 @@
 ﻿/* --- assets/css/root.css --- */
-
 /* #region =========== Backgrounds =========== */
 :root {
     --color-bg-dark: rgba(32,38,49,0.85);
@@ -9,7 +8,6 @@
     --color-bg-modal: rgba(32,38,49,0.5);
 }
 /* #endregion =========== */
-
 /* #region =========== Colors =========== */
 :root {
     --color-white: #ffffff;
@@ -30,18 +28,14 @@
     --color-border-gray: rgba(61, 72, 87, 0.8);
 }
 /* #endregion =========== */
-
 /* #region =========== Typography — Text Colors =========== */
-
 :root {
     --color-text-heading: #eff0f4; /* H1 — hero title, commandbar brand, large displays */
     --color-text-dim: #8fa3b8; /* Muted / secondary text, meta info, timestamps */
     --color-text: rgb(203 206 215);
 }
 /* #endregion =========== */
-
 /* #region =========== Typography — Fonts =========== */
-
 :root {
     --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
@@ -59,9 +53,7 @@
     --item-spacing: 0.5rem;
 }
 /* #endregion =========== */
-
 /* #region =========== Icon Sizes =========== */
-
 :root {
     --icon-xxl: 4.6rem;
     --icon-xl: 3.6rem;
@@ -70,34 +62,26 @@
     --icon-sm: 1rem;
 }
 /* #endregion =========== */
-
 /* #region =========== Spacing & Layout =========== */
-
 :root {
     --sec-width: calc(100% - 4rem);
     --min-width: calc(100% - 4rem);
     --max-width: 100%;
 }
 /* #endregion =========== */
-
 /* #region =========== Motion =========== */
-
 :root {
     --transition-fast: 160ms ease;
     --transition-med: 300ms ease;
 }
 /* #endregion =========== */
-
 /* #region =========== Shadows =========== */
-
 :root {
     --header-shadow: drop-shadow(0 0rem 2rem #0f1014e3);
     --widget-shadow: drop-shadow(0 0.5rem 1rem #0f1014e3);
 }
 /* #endregion =========== */
-
 /* #region =========== Clip Paths =========== */
-
 :root {
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
@@ -108,9 +92,7 @@
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
 }
 /* #endregion =========== */
-
 /* #region =========== Event Type Colors =========== */
-
 :root {
     --warzone-strike-color: #ff0753;
     --warzone-recon-color: #ff4d07;
@@ -123,9 +105,7 @@
     --warzone-signal-color: #ffd24d;
 }
 /* #endregion =========== */
-
 /* #region =========== Global Satellite Imagery =========== */
-
 :root {
     --warzone-map-brightness: 0.8;
     --warzone-map-contrast: 1.2;
@@ -135,9 +115,7 @@
     --warzone-map-alpha: 0.5;
 }
 /* #endregion =========== */
-
 /* #region =========== Labels Layer =========== */
-
 :root {
     --warzone-labels-brightness: 1;
     --warzone-labels-contrast: 1;
@@ -147,9 +125,7 @@
     --warzone-labels-alpha: 0.4;
 }
 /* #endregion =========== */
-
 /* #region =========== Country / Province Borders =========== */
-
 :root {
     --warzone-country-border: #00d8b2;
     --warzone-country-border-alpha: 1;
@@ -162,9 +138,7 @@
     --warzone-city-border-width: 0.8;
 }
 /* #endregion =========== */
-
 /* #region =========== Camera Defaults =========== */
-
 :root {
     --warzone-start-lon: 47.8;
     --warzone-start-lat: 30.2;
@@ -175,36 +149,35 @@
     --warzone-start-roll: 0;
 }
 /* #endregion =========== */
-
 /* #region =========== Globe Render Quality =========== */
-
 :root {
     --warzone-resolution-scale: 1;
     --warzone-msaa-samples: 1;
     --warzone-fxaa-enabled: 1;
     --warzone-camera-min-zoom: 200;
     --warzone-max-renderable-events: 300;
-    --warzone-event-cluster-height: 8000000;
+    --warzone-event-cluster-height: 6000000; /* was 8M — cluster sooner on zoom-out */
     --warzone-event-ring-max-height: 15000000;
-    --warzone-event-cluster-precision: 0.15;
+    --warzone-event-cluster-precision: 0.22; /* was 0.15 — slightly coarser = larger clusters = bigger circles */
 }
 /* #endregion =========== */
-
 /* #region =========== Event Markers =========== */
-
 :root {
-    --warzone-marker-scale: 0;
-    --warzone-event-markers-visible: 0;
+    /* Markers: cluster events always show their count badge (controlled in JS).
+       Single-event markers hidden at default zoom — JS reads this for non-clusters. */
+    --warzone-marker-scale: 0.55;
+    --warzone-event-markers-visible: 0; /* Single-event markers hidden by default; clusters override in JS */
     --warzone-event-rings-visible: 1;
-    --warzone-event-ring-size: 32000;
-    --warzone-event-ring-fill-alpha: 0.2;
-    --warzone-event-ring-outline-alpha: 0;
-    --warzone-event-ring-outline-width: 0;
+    /* Base ring size increased from 32km → 55km so clusters are clearly visible
+       at zoom-out. Single events still look right at normal zoom.
+       Cluster rings scale further via cluster_count in getSeverityRadius(). */
+    --warzone-event-ring-size: 55000;
+    --warzone-event-ring-fill-alpha: 0.22;
+    --warzone-event-ring-outline-alpha: 0.55; /* was 0 — subtle outline makes rings crisper */
+    --warzone-event-ring-outline-width: 1.5; /* was 0 */
 }
 /* #endregion =========== */
-
 /* #region =========== Country Pulse Highlight =========== */
-
 :root {
     --warzone-highlight-border-color: #ff2020; /* Border color */
     --warzone-highlight-fill-color: #cc0000; /* Fill color */
@@ -213,18 +186,14 @@
     --warzone-highlight-duration: 14000;
 }
 /* #endregion =========== */
-
 /* #region =========== Missile Colors =========== */
-
 :root {
     --warzone-missile-launch-color: #ff0753;
     --warzone-missile-impact-color: #ff0753;
     --warzone-missile-line-color: #ff0753;
 }
 /* #endregion =========== */
-
 /* #region =========== Missile Peak Heights (meters) =========== */
-
 :root {
     --warzone-missile-peak-height-critical: 450000;
     --warzone-missile-peak-height-high: 250000;
@@ -235,9 +204,7 @@
     --warzone-missile-launch-ring-size: 65000;
 }
 /* #endregion =========== */
-
 /* #region =========== Incoming Highlight =========== */
-
 :root {
     --warzone-incoming-highlight-color: #ff0753;
     --warzone-incoming-highlight-radius-city: 120000;
@@ -246,18 +213,14 @@
     --warzone-incoming-highlight-outline-width: 5;
 }
 /* #endregion =========== */
-
 /* #region =========== Warning / Impact Heights (meters) =========== */
-
 :root {
     --warzone-warning-height: 4000;
     --warzone-impact-marker-height: 4000;
     --warzone-missile-impact-height: 5000;
 }
 /* #endregion =========== */
-
 /* #region =========== Impact Ring Animation =========== */
-
 :root {
     --warzone-missile-impact-cycles: 4;
     --warzone-missile-impact-cycle-duration: 5580;
@@ -270,9 +233,7 @@
     --warzone-missile-impact-ring-stagger-ms: 620;
 }
 /* #endregion =========== */
-
 /* #region =========== Missile Track =========== */
-
 :root {
     --warzone-missile-steps: 120;
     --warzone-max-active-missiles: 12;
@@ -280,9 +241,7 @@
     --warzone-missile-focus-duration: 0.95;
 }
 /* #endregion =========== */
-
 /* #region =========== Missile Durations (ms) =========== */
-
 :root {
     --warzone-missile-duration-critical: 9000;
     --warzone-missile-duration-high: 7500;
@@ -292,9 +251,7 @@
     --warzone-missile-persist-medium: 16000;
 }
 /* #endregion =========== */
-
 /* #region =========== Missile Line Style =========== */
-
 :root {
     --warzone-missile-line-alpha: 1;
     --warzone-missile-line-width: 5;
@@ -306,9 +263,7 @@
     --warzone-missile-origin-alpha-max: 1;
 }
 /* #endregion =========== */
-
 /* #region =========== Cluster Appearance =========== */
-
 :root {
     --warzone-cluster-font: var(--text-font);
     --warzone-cluster-text: #ffffff;
@@ -318,29 +273,23 @@
     --warzone-cluster-padding-y: 0.85rem;
     --warzone-cluster-padding-x: 1rem;
     --warzone-cluster-gap: 0.85rem;
-
     --warzone-cluster-count-size: 2.1rem;
     --warzone-cluster-title-size: 1rem;
     --warzone-cluster-desc-size: 0.95rem;
     --warzone-cluster-icon-size: 1.4rem;
-
     --warzone-cluster-compact-min-width: 10rem;
     --warzone-cluster-expanded-width: 19rem;
     --warzone-cluster-expanded-min-height: 10rem;
 }
 /* #endregion =========== */
-
 /* #region =========== Cluster Interactions =========== */
-
 :root {
     --warzone-cluster-hover-scale: 1.03;
     --warzone-cluster-active-scale: 1.05;
     --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
 }
 /* #endregion =========== */
-
 /* #region =========== Cluster Stack Offsets =========== */
-
 :root {
     --warzone-cluster-stack-x-2: -16px;
     --warzone-cluster-stack-y-2: -14px;
@@ -348,9 +297,7 @@
     --warzone-cluster-stack-y-3: 14px;
 }
 /* #endregion =========== */
-
 /* #region =========== Cluster Event Colors =========== */
-
 :root {
     --warzone-cluster-strike: #ff0a5b;
     --warzone-cluster-recon: #ff6a00;
@@ -363,9 +310,7 @@
     --warzone-cluster-default: #ff7a45;
 }
 /* #endregion =========== */
-
 /* #region =========== Hotspot =========== */
-
 :root {
     --criticality-level-ex-bg: rgba(255 7 83 / 30%);
     --criticality-level-ex-cl: #ff3068;
@@ -379,9 +324,7 @@
     --criticality-level-de-cl: #8fa3b8;
 }
 /* #endregion =========== */
-
 /* #region =========== Military Track Controls =========== */
-
 :root {
     --warzone-military: #56d80e;
     --warzone-military-trail-default: #56d80e;
@@ -422,9 +365,7 @@
     --warzone-military-heading-offset-drone: 0;
 }
 /* #endregion =========== */
-
 /* #region =========== Audio =========== */
-
 :root {
     --warzone-sound-alert-loop: "/assets/audio/warzone-alert-loop.mp3";
     --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
@@ -434,9 +375,7 @@
     --warzone-sound-impact-volume: 0.9;
 }
 /* #endregion =========== */
-
 /* #region =========== Operational Range Tokens =========== */
-
 :root {
     /* AWACS detection */
     --range-awacs-color: #33d9ff;
@@ -462,9 +401,7 @@
     --range-outline-width: 1.4;
 }
 /* #endregion */
-
 /* #region =========== Radar Sweeper =========== */
-
 :root {
     --wz-radar-inner-ratio: 0.72;
     --wz-radar-outline-width: 6;
@@ -473,9 +410,6 @@
     --wz-radar-sweep-alpha: 0.4;
 }
 /* #endregion =========== */
-
-
-
 /* #region =========== LIVE FIGHTER =========== */
 :root {
     --warzone-live-track-color: #56d80e;
@@ -486,7 +420,6 @@
     --warzone-live-track-max-scale: 280;
 }
 /* #endregion =========== */
-
 /* #region =========== LIVE AIRCRAFT SIZE CONTROL =========== */
 :root {
     /* fighter */
@@ -533,7 +466,6 @@
     --warzone-live-track-max-scale-helicopter: 220;
 }
 /* #endregion =========== */
-
 /* #region =========== LIVE AIRCRAFT SUBTYPE TRAILS =========== */
 :root {
     --warzone-live-track-trail-enabled-fighter: 1;
@@ -562,7 +494,6 @@
     --warzone-live-track-trail-width-helicopter: 2.2;
 }
 /* #endregion =========== */
-
 /* #region =========== SATELLITE SCALING =========== */
 :root {
     --warzone-mil-sat-scale: 200000;

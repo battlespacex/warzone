@@ -2,7 +2,10 @@
 import "../css/style.css";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./warzone-boot.js";
-import { initBoot, initWarzoneApp, initAudio, startEventPollingFallback, stratopsCheckAuth, initStratopsAuth } from "./essential.js";
+import {
+    initBoot, initWarzoneApp, initAudio, startEventPollingFallback,
+    initStratopsIntro, initStratopsAuth, schedulePostEntryActions
+} from "./essential.js";
 import { initWarzoneMilitaryBases, setWarzoneMilitaryBasesVisible } from "./warzone-military-bases.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
 import { initRegionSelector } from "./warzone-region-selector.js";
@@ -13,23 +16,32 @@ import {
     subscribeToSirenBroadcast,
 } from "./warzone-realtime.js";
 import { initDevPanel } from "./warzone-dev-panel.js";
-import { bindWarzoneUi, updateNewsTicker, updateDefcon } from "./warzone-ui.js";
+import { bindWarzoneUi } from "./warzone-ui.js";
 import { initWarzoneMilSats } from "./warzone-mil-sats.js";
+
+
+window.__stratopsConfig = {
+    milSatsRotation: false, 
+    milSatsRotationSpeed: 5, 
+};
+
 initBoot();
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         bindWarzoneUi();
+
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
+
         initWarzoneMilSats(viewer);
         initRegionSelector(viewer);
+
         setTimeout(() => {
-            try {
-                window.refreshWarzoneMilSatsScale?.();
-            } catch (error) {
-                console.warn("[warzone-mil-sats] scale refresh failed:", error);
-            }
+            try { window.refreshWarzoneMilSatsScale?.(); }
+            catch (e) { console.warn("[warzone-mil-sats] scale refresh failed:", e); }
         }, 150);
+
         let started = false;
         window.__warzoneStartDeferredApp = async () => {
             if (started) return;
@@ -37,10 +49,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             try {
                 initDevPanel();
                 await initWarzoneApp();
-                // Init bases AFTER initWarzoneApp — prevents entity clear during app
-                // init from wiping bases that were added before the deferred app ran
+
+                // Init bases AFTER initWarzoneApp so entity clears don't wipe them
                 initWarzoneMilitaryBases(viewer);
                 window.__setWarzoneMilitaryBasesVisible = setWarzoneMilitaryBasesVisible;
+
                 await subscribeToLiveEvents();
                 await subscribeToActiveAlerts();
                 startActiveAlertsPollingFallback();
@@ -48,13 +61,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                 subscribeToSirenBroadcast();
                 initAudio();
                 window.__warzoneEnterApp?.();
+
+                // After app is fully running: globe rotation, delayed popups, nav button
+                schedulePostEntryActions(viewer);
             } catch (error) {
                 console.error("Deferred app init failed:", error);
             }
         };
 
+        // Wire login modal events (X button, submit, etc.)
         initStratopsAuth();
-        await stratopsCheckAuth();
+
+        // Show intro modal with disclaimer checkbox — no auth check needed to enter
+        initStratopsIntro();
+
     } catch (error) {
         console.error("App init failed:", error);
     }

@@ -22,7 +22,7 @@ import {
     getAllLiveTrackSnapshots,
     toggleLiveTrackSelection,
     getLiveTrackSelection,
-} from "./warzone-live-fighter.js";
+} from "./warzone-live-airforce.js";
 import { startPublicAirIngestion } from "./warzone-air-ingestion.js";
 let __eventsCache = [];
 let __visibleEventsCache = [];
@@ -253,11 +253,20 @@ function debounce(fn, ms) {
         timer = setTimeout(() => fn(...args), ms);
     };
 }
+// ── Layer-filtered widgets — only get events that pass layer toggles ──────────
 const debouncedRenderUI = debounce((events) => {
-    renderStrikeCounters(events);
     renderCyberStatus(events);
     renderAirspaceStatus(events);
-    renderEscalation(events);
+}, 800);
+
+// ── Raw widgets — ALWAYS use the full event cache, never filtered ─────────────
+// Theater Intelligence (strike counts) and Escalation Meter must reflect the
+// total event picture regardless of which map layers are toggled on/off.
+// Stored as a closure so it always reads the live cache at call time.
+const debouncedRenderRaw = debounce(() => {
+    const rawEvents = (__viewportScoped ? __visibleEventsCache : __eventsCache) || [];
+    renderStrikeCounters(rawEvents);
+    renderEscalation(rawEvents);
 }, 800);
 const debouncedRenderFeed = debounce((events) => {
     renderFeed(events);
@@ -1712,12 +1721,14 @@ function renderAll(events, { replaceCache = true } = {}) {
     debouncedRenderFeed(filtered);
     debouncedRenderUI(filtered);
     debouncedRenderHeavy(filtered);
+    debouncedRenderRaw(); // strike counters + escalation always use full cache
 }
 function syncFilteredUi(events) {
     const filtered = applyAllFilters(events);
     debouncedRenderFeed(filtered);
     debouncedRenderUI(filtered);
     debouncedRenderHeavy(filtered);
+    debouncedRenderRaw(); // strike counters + escalation always use full cache
     return filtered;
 }
 const GLOBE_CLUSTER_RADIUS_DEG = 1;
@@ -1940,6 +1951,13 @@ export async function initWarzoneApp() {
         }
         syncFilteredUi(sourceEvents);
         syncInitialEventsToGlobe(sourceEvents, { animateTracks: false });
+
+        // Airspace Status and Cyber Status widgets must always reflect the FULL
+        // event cache — they are independent of the "aircraft" layer.
+        // warzone-layers.js handles their widget visibility via the "airspace"
+        // uiOnly layer toggle. Here we ensure their DATA is never aircraft-filtered.
+        renderAirspaceStatus(sourceEvents);
+        renderCyberStatus(sourceEvents);
     });
     window.addEventListener("wz:recluster", () => {
         const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
@@ -2370,6 +2388,7 @@ export function initAudio() {
     syncUi(false);
 }
 
+
 const STRATOPS_AUTH_BASE =
     window.location.hostname === "localhost"
         ? "http://localhost:55147/api/auth"
@@ -2377,7 +2396,7 @@ const STRATOPS_AUTH_BASE =
 
 function getAuthModalElements() {
     return {
-        modal: document.getElementById("wz-intro-modal"),
+        modal: document.getElementById("wz-login-modal"),
         guestCopy: document.getElementById("auth-guest-copy"),
         authedCopy: document.getElementById("auth-authed-copy"),
         authedUser: document.getElementById("auth-authed-user"),
@@ -2396,159 +2415,261 @@ function getAuthModalElements() {
 function setAuthError(message) {
     const { error } = getAuthModalElements();
     if (!error) return;
-    if (!message) {
-        error.hidden = true;
-        error.textContent = "";
-        return;
-    }
-    error.hidden = false;
-    error.textContent = message;
+    if (!message) { error.hidden = true; error.textContent = ""; return; }
+    error.hidden = false; error.textContent = message;
 }
 
 function syncAuthButtonState() {
     const { loginBtn, consent } = getAuthModalElements();
     if (!loginBtn) return;
-
     const allowed = !!consent?.checked;
-
     loginBtn.disabled = !allowed;
     loginBtn.setAttribute("aria-disabled", String(!allowed));
-
-    if (allowed) {
-        loginBtn.classList.remove("is-locked");
-        loginBtn.style.pointerEvents = "";
-    } else {
-        loginBtn.classList.add("is-locked");
-        loginBtn.style.pointerEvents = "none";
-    }
+    if (allowed) { loginBtn.classList.remove("is-locked"); loginBtn.style.pointerEvents = ""; }
+    else { loginBtn.classList.add("is-locked"); loginBtn.style.pointerEvents = "none"; }
 }
 
 function setAuthLoading(isLoading) {
     const { loginBtn, loginBtnText } = getAuthModalElements();
     if (!loginBtn) return;
     loginBtn.classList.toggle("is-loading", isLoading);
-    if (loginBtnText) {
-        loginBtnText.textContent = isLoading ? "Verifying..." : loginBtn.dataset.mode === "authenticated" ? "Accept and Enter" : "Log In";
-    }
+    if (loginBtnText) loginBtnText.textContent = isLoading ? "Verifying..."
+        : loginBtn.dataset.mode === "authenticated" ? "Enter StratOps" : "Log In";
 }
 
 function setAuthMode(isAuthenticated, user = null) {
-    const {
-        guestCopy, authedCopy, authedUser,
-        loginFields, createAccount,
-        email, password, remember, loginBtn, loginBtnText,
-    } = getAuthModalElements();
-
+    const { guestCopy, authedCopy, authedUser, loginFields, createAccount,
+        email, password, remember, loginBtn, loginBtnText } = getAuthModalElements();
     if (guestCopy) guestCopy.hidden = !!isAuthenticated;
     if (authedCopy) authedCopy.hidden = !isAuthenticated;
     if (loginFields) loginFields.hidden = !!isAuthenticated;
     if (createAccount) createAccount.hidden = !!isAuthenticated;
-
-    // Show logged-in user's name/email in authenticated mode
     if (authedUser) {
-        const displayName = user?.username || user?.email || "";
-        authedUser.textContent = displayName ? `Logged in as: ${displayName}` : "";
-        authedUser.hidden = !displayName;
+        const n = user?.username || user?.email || "";
+        authedUser.textContent = n ? `Logged in as: ${n}` : "";
+        authedUser.hidden = !n;
     }
-
-    if (email) {
-        email.disabled = !!isAuthenticated;
-        if (isAuthenticated) email.value = "";
-    }
-    if (password) {
-        password.disabled = !!isAuthenticated;
-        if (isAuthenticated) password.value = "";
-    }
-    if (remember) {
-        remember.disabled = !!isAuthenticated;
-        if (isAuthenticated) remember.checked = false;
-    }
-
+    if (email) { email.disabled = !!isAuthenticated; if (isAuthenticated) email.value = ""; }
+    if (password) { password.disabled = !!isAuthenticated; if (isAuthenticated) password.value = ""; }
+    if (remember) { remember.disabled = !!isAuthenticated; if (isAuthenticated) remember.checked = false; }
     if (loginBtn) {
-        const label = isAuthenticated ? "Accept and Enter" : "Log In";
+        const label = isAuthenticated ? "Enter StratOps" : "Log In";
         loginBtn.dataset.mode = isAuthenticated ? "authenticated" : "guest";
-        if (loginBtnText) loginBtnText.textContent = label;
-        else loginBtn.textContent = label;
+        if (loginBtnText) loginBtnText.textContent = label; else loginBtn.textContent = label;
     }
 }
 
-function showAuthModal(mode = "guest", user = null) {
+export function showLoginModal(mode = "guest", user = null) {
     const { modal, email, consent } = getAuthModalElements();
     const isAuthenticated = mode === "authenticated";
-
     setAuthMode(isAuthenticated, user);
     syncAuthButtonState();
-
     if (!modal) return;
     modal.hidden = false;
-    modal.classList.add("is-visible");
-
+    requestAnimationFrame(() => {
+        modal.classList.add("is-visible");
+    });
     requestAnimationFrame(() => {
         if (isAuthenticated) consent?.focus();
         else email?.focus();
     });
 }
 
-function hideAuthModal() {
+export function hideLoginModal() {
     const { modal, password } = getAuthModalElements();
     if (!modal) return;
     modal.classList.remove("is-visible");
-    modal.hidden = true;
-    if (password) password.value = "";
-    setAuthError("");
+    setTimeout(() => {
+        modal.hidden = true;
+        if (password) password.value = "";
+        setAuthError("");
+    }, 220);
 }
 
-async function postAuthForm(url, body) {
-    const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "include",
-        body: body.toString(),
+function isLoginModalOpen() {
+    const m = document.getElementById("wz-login-modal");
+    return m && !m.hidden;
+}
+
+export function initStratopsIntro() {
+    // ── Elements ────────────────────────────────────────────────────────────
+    const introModal = document.getElementById("wz-intro-modal");
+    const acceptBtn = document.getElementById("wz-intro-accept");
+    const acceptLabel = document.getElementById("wz-intro-accept-label");
+    const checkbox = document.getElementById("intro-disclaimer-check");
+    const openLoginBtn = document.getElementById("wz-intro-open-login");
+    const backBtn = document.getElementById("wz-intro-back");
+    const loginHint = document.getElementById("wz-intro-login-hint");
+    const contentView = document.getElementById("wz-intro-content-view");
+    const loginView = document.getElementById("wz-intro-login-view");
+
+    // Inline login fields (live inside the intro modal — separate from #wz-login-modal)
+    const introEmail = document.getElementById("intro-auth-email");
+    const introPassword = document.getElementById("intro-auth-password");
+    const introRemember = document.getElementById("intro-auth-remember");
+    const introError = document.getElementById("intro-auth-error");
+
+    let isLoginMode = false;
+
+    // ── Helper: show/hide inline error ──────────────────────────────────────
+    function setIntroError(msg) {
+        if (!introError) return;
+        introError.hidden = !msg;
+        introError.textContent = msg || "";
+    }
+
+    // ── Helper: enable/disable accept button ────────────────────────────────
+    function syncIntroBtn() {
+        if (!acceptBtn) return;
+        const allowed = !!checkbox?.checked;
+        acceptBtn.disabled = !allowed;
+        acceptBtn.setAttribute("aria-disabled", String(!allowed));
+        if (allowed) { acceptBtn.classList.remove("is-locked"); acceptBtn.style.pointerEvents = ""; }
+        else { acceptBtn.classList.add("is-locked"); acceptBtn.style.pointerEvents = "none"; }
+    }
+
+    // ── Switch to login view ─────────────────────────────────────────────────
+    function showLoginView() {
+        isLoginMode = true;
+        setIntroError("");
+
+        // Cross-fade panels
+        contentView?.classList.remove("is-active");
+        contentView?.setAttribute("aria-hidden", "true");
+        loginView?.classList.add("is-active");
+        loginView?.removeAttribute("aria-hidden");
+
+        // Fade out login hint, show Back button, swap accept label
+        loginHint?.classList.add("is-hidden-hint");
+        if (backBtn) { backBtn.hidden = false; backBtn.style.display = ""; }
+        if (acceptLabel) acceptLabel.textContent = "Accept and Login";
+
+        // Focus first field
+        setTimeout(() => introEmail?.focus(), 320);
+    }
+
+    // ── Switch back to content view ──────────────────────────────────────────
+    function showContentView() {
+        isLoginMode = false;
+        setIntroError("");
+
+        // Cross-fade panels
+        loginView?.classList.remove("is-active");
+        loginView?.setAttribute("aria-hidden", "true");
+        contentView?.classList.add("is-active");
+        contentView?.removeAttribute("aria-hidden");
+
+        // Restore login hint, hide Back button, restore accept label
+        loginHint?.classList.remove("is-hidden-hint");
+        if (backBtn) { backBtn.hidden = true; backBtn.style.display = "none"; }
+        if (acceptLabel) acceptLabel.textContent = "Accept and Enter";
+
+        // Clear fields on back
+        if (introEmail) introEmail.value = "";
+        if (introPassword) introPassword.value = "";
+    }
+
+    // ── Accept and Enter (content mode) ─────────────────────────────────────
+    async function handleEnter() {
+        if (!checkbox?.checked) return;
+        // Mark intro as accepted so region modal shows on next visit
+        try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
+        if (introModal) { introModal.classList.remove("is-visible"); introModal.hidden = true; }
+        await window.__warzoneStartDeferredApp?.();
+    }
+
+    // ── Accept and Login (login mode) ────────────────────────────────────────
+    async function handleLogin() {
+        if (!checkbox?.checked) return;
+        setIntroError("");
+
+        const emailVal = String(introEmail?.value || "").trim();
+        const passwordVal = String(introPassword?.value || "");
+        const rememberVal = !!introRemember?.checked;
+
+        if (!emailVal || !passwordVal) {
+            setIntroError("Please enter your email and password.");
+            return;
+        }
+
+        // Disable button while loading
+        acceptBtn.disabled = true;
+        acceptBtn.style.pointerEvents = "none";
+        if (acceptLabel) acceptLabel.textContent = "Signing in…";
+
+        try {
+            const body = new URLSearchParams();
+            body.append("email", emailVal);
+            body.append("password", passwordVal);
+            body.append("rememberMe", String(rememberVal));
+
+            const data = await postAuthForm(`${STRATOPS_AUTH_BASE}/login`, body);
+            if (!data?.success) {
+                setIntroError(data?.message || "Invalid email or password.");
+                return;
+            }
+
+            // Success — mark authenticated and enter
+            if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
+            window.__stratopsAuthState.isAuthenticated = true;
+            document.body.classList.add("is-authenticated");
+            document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: "intro-login" } }));
+            try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
+            if (introModal) { introModal.classList.remove("is-visible"); introModal.hidden = true; }
+            await window.__warzoneStartDeferredApp?.();
+        } catch (err) {
+            setIntroError(err?.message || "Unable to sign in right now. Please try again.");
+        } finally {
+            // Re-enable button regardless of outcome
+            syncIntroBtn();
+            if (acceptLabel && isLoginMode) acceptLabel.textContent = "Accept and Login";
+        }
+    }
+
+    // ── Wire events ──────────────────────────────────────────────────────────
+    checkbox?.addEventListener("change", syncIntroBtn);
+    syncIntroBtn();
+
+    openLoginBtn?.addEventListener("click", showLoginView);
+    backBtn?.addEventListener("click", showContentView);
+
+    acceptBtn?.addEventListener("click", async () => {
+        if (!checkbox?.checked) return;
+        if (isLoginMode) {
+            await handleLogin();
+        } else {
+            await handleEnter();
+        }
     });
 
-    let data = null;
-    try { data = await res.json(); } catch { data = null; }
-
-    if (!res.ok) {
-        throw new Error(data?.message || "Authentication request failed.");
-    }
-    return data;
-}
-
-export async function stratopsCheckAuth() {
-    try {
-        const res = await fetch(`${STRATOPS_AUTH_BASE}/validate`, {
-            method: "GET",
-            headers: { "X-Requested-With": "XMLHttpRequest" },
-            credentials: "include",
+    // Allow Enter key in login fields to submit
+    [introEmail, introPassword].forEach(input => {
+        input?.addEventListener("keydown", async (e) => {
+            if (e.key === "Enter" && isLoginMode && checkbox?.checked) {
+                e.preventDefault();
+                await handleLogin();
+            }
         });
+    });
 
-        if (!res.ok) {
-            showAuthModal("guest");
-            return false;
+    // ── Auth state check — hide sign-in hint if already logged in ────────────
+    function applyAuthToIntro(isAuth) {
+        if (!loginHint) return;
+        if (isAuth) {
+            loginHint.innerHTML = `<span style="color:var(--color-teal-glow,#18e2db);font-weight:600;">✓ Signed in — full access enabled.</span>`;
         }
+    }
 
-        const data = await res.json();
-        const isAuthenticated = !!data?.isAuthenticated;
+    if (window.__stratopsAuthState?.isAuthenticated) {
+        applyAuthToIntro(true);
+    } else {
+        stratopsCheckAuth().then(applyAuthToIntro).catch(() => { });
+    }
 
-        if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
-        window.__stratopsAuthState.isAuthenticated = isAuthenticated;
-        window.__stratopsAuthState.user = data || null;
-
-        if (isAuthenticated) {
-            showAuthModal("authenticated", data);
-            return true;
-        }
-
-        showAuthModal("guest");
-        return false;
-    } catch (err) {
-        console.error("Auth check failed:", err);
-        showAuthModal("guest");
-        return false;
+    // ── Show modal ───────────────────────────────────────────────────────────
+    if (introModal) {
+        introModal.hidden = false;
+        introModal.classList.add("is-visible");
     }
 }
 
@@ -2556,39 +2677,24 @@ export function initStratopsAuth() {
     const { loginBtn, email, password, remember, consent } = getAuthModalElements();
     if (!loginBtn || loginBtn.dataset.authBound === "true") return;
 
+    document.getElementById("wz-login-close")?.addEventListener("click", hideLoginModal);
+    document.getElementById("wz-login-modal")?.addEventListener("click", (e) => {
+        if (e.target === e.currentTarget) hideLoginModal();
+    });
+
     const submit = async () => {
-        // ── Hard server-side guard — always re-check consent here ──────────
-        // This runs even if someone removes `disabled` via DevTools.
-        // Without consent checked, we never reach the API.
         const consentValue = !!consent?.checked;
         const isAuthenticated = loginBtn.dataset.mode === "authenticated";
-
         setAuthError("");
+        if (!consentValue) { setAuthError("Please acknowledge the disclaimer before continuing."); syncAuthButtonState(); return; }
+        if (isAuthenticated) { hideLoginModal(); return; }
 
-        if (!consentValue) {
-            setAuthError("Please acknowledge the StratOps disclaimer before continuing.");
-            syncAuthButtonState();
-            return;
-        }
-
-        // Already authenticated — just accept disclaimer and enter
-        if (isAuthenticated) {
-            hideAuthModal();
-            await window.__warzoneStartDeferredApp?.();
-            return;
-        }
-
-        // Guest mode — need credentials
         const emailValue = String(email?.value || "").trim();
         const passwordValue = String(password?.value || "");
         const rememberValue = !!remember?.checked;
 
-        if (!emailValue || !passwordValue) {
-            setAuthError("Enter your email and password.");
-            return;
-        }
+        if (!emailValue || !passwordValue) { setAuthError("Enter your email and password."); return; }
 
-        // Disable button and show loading during API call
         loginBtn.disabled = true;
         loginBtn.setAttribute("aria-disabled", "true");
         loginBtn.style.pointerEvents = "none";
@@ -2599,19 +2705,14 @@ export function initStratopsAuth() {
             body.append("email", emailValue);
             body.append("password", passwordValue);
             body.append("rememberMe", String(rememberValue));
-
             const data = await postAuthForm(`${STRATOPS_AUTH_BASE}/login`, body);
-
-            if (!data?.success) {
-                setAuthError(data?.message || "Invalid email or password.");
-                return;
-            }
-
+            if (!data?.success) { setAuthError(data?.message || "Invalid email or password."); return; }
             if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
             window.__stratopsAuthState.isAuthenticated = true;
-
-            hideAuthModal();
-            await window.__warzoneStartDeferredApp?.();
+            hideLoginModal();
+            document.body.classList.add("is-authenticated");
+            // Notify all gated features (military bases, layer locks, etc.)
+            document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: "login" } }));
         } catch (err) {
             console.error("Login failed:", err);
             setAuthError(err?.message || "Unable to log in right now. Please try again.");
@@ -2622,20 +2723,154 @@ export function initStratopsAuth() {
     };
 
     loginBtn.dataset.authBound = "true";
-
-    // Consent checkbox — the gate for the button
-    consent?.addEventListener("change", () => {
-        setAuthError("");
-        syncAuthButtonState();
-    });
-
+    consent?.addEventListener("change", () => { setAuthError(""); syncAuthButtonState(); });
     loginBtn.addEventListener("click", submit);
-
-    // Enter key support on email and password fields
     const onEnter = (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } };
     email?.addEventListener("keydown", onEnter);
     password?.addEventListener("keydown", onEnter);
-
-    // Initial state — button locked until checkbox checked
     syncAuthButtonState();
+}
+
+export async function stratopsCheckAuth() {
+    try {
+        const res = await fetch(`${STRATOPS_AUTH_BASE}/validate`, {
+            method: "GET",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "include",
+        });
+        if (!res.ok) { window.__stratopsAuthState = { isAuthenticated: false, user: null }; return false; }
+        const data = await res.json();
+        const isAuthenticated = !!data?.isAuthenticated;
+        window.__stratopsAuthState = { isAuthenticated, user: data || null };
+        if (isAuthenticated) document.body.classList.add("is-authenticated");
+        return isAuthenticated;
+    } catch (err) {
+        console.error("[auth] Check failed:", err);
+        window.__stratopsAuthState = { isAuthenticated: false, user: null };
+        return false;
+    }
+}
+
+async function postAuthForm(url, body) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+        credentials: "include",
+        body: body.toString(),
+    });
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    if (!res.ok) throw new Error(data?.message || "Authentication request failed.");
+    return data;
+}
+
+function injectNavLoginButton() {
+    if (document.getElementById("wz-nav-login-btn")) return;
+    const target = document.querySelector(".wz-header__right, .wz-nav__right, .warzone-header, [class*='header__right']");
+    if (!target) return;
+    const btn = document.createElement("button");
+    btn.id = "wz-nav-login-btn";
+    btn.type = "button";
+    btn.className = "wz-nav-login-btn";
+    btn.textContent = "Sign In";
+    btn.addEventListener("click", () => {
+        if (isLoginModalOpen()) return;
+        const s = window.__stratopsAuthState;
+        showLoginModal(s?.isAuthenticated ? "authenticated" : "guest", s?.user || null);
+    });
+    target.appendChild(btn);
+}
+
+export function initGlobeRotation(viewer) {
+    if (!viewer) return;
+    const SPEED_DEG = 0.3;
+    window.__globeRotation = { enabled: false, paused: false, speed: SPEED_DEG };
+    let lastTime = null, interacting = false;
+    const onStart = () => { interacting = true; lastTime = null; };
+    const onEnd = () => { interacting = false; };
+    viewer.scene.canvas.addEventListener("mousedown", onStart);
+    viewer.scene.canvas.addEventListener("mouseup", onEnd);
+    viewer.scene.canvas.addEventListener("touchstart", onStart, { passive: true });
+    viewer.scene.canvas.addEventListener("touchend", onEnd, { passive: true });
+    viewer.scene.postRender.addEventListener(() => {
+        const cfg = window.__globeRotation;
+        if (!cfg?.enabled || cfg.paused || interacting) { lastTime = null; return; }
+        const now = Date.now();
+        if (lastTime === null) { lastTime = now; return; }
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        const rad = (cfg.speed * Math.PI / 180) * dt;
+        viewer.scene.camera.rotate({ x: 0, y: 0, z: 1 }, -rad);
+        viewer.scene.requestRender();
+    });
+    // Inject pause/play button
+    setTimeout(() => {
+        if (document.getElementById("wz-globe-rotate-btn")) return;
+        const t = document.querySelector(".wz-header__right, [class*='utc'], .warzone-header");
+        if (!t) return;
+        const b = document.createElement("button");
+        b.id = "wz-globe-rotate-btn";
+        b.type = "button";
+        b.className = "wz-globe-rotate-btn";
+        b.title = "Pause/Resume globe rotation";
+        b.innerHTML = "<span id='wz-rotate-icon'>⏸</span>";
+        b.addEventListener("click", () => {
+            const cfg = window.__globeRotation;
+            if (!cfg) return;
+            cfg.paused = !cfg.paused;
+            document.getElementById("wz-rotate-icon").textContent = cfg.paused ? "▶" : "⏸";
+        });
+        t.appendChild(b);
+    }, 500);
+}
+
+function initDonatePopup() {
+    const modal = document.getElementById("wz-donate-modal");
+    if (!modal) return;
+    try { if (sessionStorage.getItem("wz_donate_dismissed") === "1") return; } catch { }
+    document.getElementById("wz-donate-close")?.addEventListener("click", () => {
+        modal.classList.remove("is-visible");
+        setTimeout(() => { modal.hidden = true; }, 300);
+        try { sessionStorage.setItem("wz_donate_dismissed", "1"); } catch { }
+    });
+    setTimeout(() => {
+        modal.hidden = false;
+        requestAnimationFrame(() => modal.classList.add("is-visible"));
+    }, 12000);
+}
+
+function scheduleDelayedLoginPopup() {
+    setTimeout(async () => {
+        if (window.__stratopsAuthState?.isAuthenticated) return;
+        if (isLoginModalOpen()) return;
+        try { if (sessionStorage.getItem("wz_login_dismissed") === "1") return; } catch { }
+        const isAuth = await stratopsCheckAuth();
+        if (isAuth) return;
+        showLoginModal("guest");
+
+        document.getElementById("wz-login-close")?.addEventListener("click", () => {
+            try { sessionStorage.setItem("wz_login_dismissed", "1"); } catch { }
+        }, { once: true });
+    }, 15000);
+}
+
+export function schedulePostEntryActions(viewer) {
+    stratopsCheckAuth().then((isAuth) => {
+        if (!isAuth) {
+            scheduleDelayedLoginPopup();
+        } else {
+            document.body.classList.add("is-authenticated");
+            // Silent auth check confirmed — unlock all gated features
+            document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: "silent-check" } }));
+        }
+    });
+    injectNavLoginButton();
+    initGlobeRotation(viewer);
+    initDonatePopup();
+
+    window.__openLoginModal = () => {
+        if (isLoginModalOpen()) return;
+        const s = window.__stratopsAuthState;
+        showLoginModal(s?.isAuthenticated ? "authenticated" : "guest", s?.user || null);
+    };
 }

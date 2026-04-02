@@ -7,7 +7,7 @@ import {
 import {
     startDevTrackSimulation,
     stopDevTrackSimulation
-} from "./warzone-live-fighter.js";
+} from "./warzone-live-airforce.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 /* ================= TEST EVENT TEMPLATES ================= */
 const TEST_EVENTS = {

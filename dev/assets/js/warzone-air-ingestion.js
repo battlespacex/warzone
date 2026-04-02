@@ -1,8 +1,8 @@
 ﻿// File Path: /assets/js/warzone-air-ingestion.js
 
-import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-fighter.js";
+import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-airforce.js";
 import { isLayerEnabled } from "./warzone-layers.js";
-import { supabase } from "./supabase.js";
+// Note: no direct Supabase writes from frontend — all track data is client-side only
 const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
 const POLL_INTERVAL_MS = 20000;
 const FETCH_TIMEOUT_MS = 9000;

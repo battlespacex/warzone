@@ -2,7 +2,14 @@
 import * as Cesium from "cesium";
 
 /* ─── State ─────────────────────────────────────────────────────────────── */
-const __state = { viewer: null, entities: [], dataSource: null, visible: true };
+const __state = {
+    viewer: null,
+    entities: [],
+    dataSource: null,
+    visible: true,
+    // authGated: true until wz:auth-success fires or user is already logged in
+    authGated: true,
+};
 
 /* ─── Type config ────────────────────────────────────────────────────────── */
 const TYPE_COLOR = {
@@ -259,10 +266,12 @@ function createBaseEntity(dataSource, base) {
 
 /* ─── Visibility ─────────────────────────────────────────────────────────── */
 function applyVisibility() {
+    // Hidden if layer toggled off OR user not yet authenticated
+    const shouldShow = __state.visible && !__state.authGated;
     if (__state.dataSource) {
-        __state.dataSource.show = __state.visible;
+        __state.dataSource.show = shouldShow;
     } else {
-        __state.entities.forEach(e => { e.show = __state.visible; });
+        __state.entities.forEach(e => { e.show = shouldShow; });
     }
     __state.viewer?.scene.requestRender();
 }
@@ -309,9 +318,27 @@ function showBasePanel(base, sx, sy) {
     });
 }
 
-/* ─── Click handler ──────────────────────────────────────────────────────── */
+/* ─── Click + hover handler ───────────────────────────────────────────────── */
 function bindClickHandler(viewer) {
-    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    const canvas = viewer.scene.canvas;
+    const handler = new Cesium.ScreenSpaceEventHandler(canvas);
+
+    // MOUSE_MOVE — show pointer cursor when hovering a base icon.
+    // Sets window.__wzBaseHover so the aircraft tracker's MOUSE_MOVE handler
+    // knows not to reset the cursor back to "" when it runs.
+    handler.setInputAction(movement => {
+        const picked = viewer.scene.pick(movement.endPosition);
+        const isBase = Cesium.defined(picked?.id) &&
+            picked.id?.properties?.milbase?.getValue?.() === true;
+        window.__wzBaseHover = isBase;
+        if (isBase) {
+            canvas.style.cursor = "pointer";
+        }
+        // Do NOT reset to "" here — aircraft handler owns the reset path.
+        // It checks window.__wzBaseHover before clearing (see warzone-live-airforce.js).
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    // LEFT_CLICK — open info panel next to click position
     handler.setInputAction(click => {
         const picked = viewer.scene.pick(click.position);
         if (Cesium.defined(picked?.id)) {
@@ -327,7 +354,7 @@ function bindClickHandler(viewer) {
                     lat: props.lat.getValue(),
                     lon: props.lon.getValue(),
                 }, click.position.x, click.position.y);
-                return; // don't close
+                return; // keep panel open
             }
         }
         document.getElementById("warzone-milbase-panel")?.remove();
@@ -339,6 +366,9 @@ export function initWarzoneMilitaryBases(viewer) {
     if (!viewer) return;
     __state.viewer = viewer;
 
+    // Gate behind authentication — check if already logged in at init time
+    __state.authGated = !document.body.classList.contains("is-authenticated");
+
     // Use a CustomDataSource so bases are isolated from viewer.entities.removeAll()
     // which gets called when events reload, wiping any entities added to the main collection
     const ds = new Cesium.CustomDataSource("military-bases");
@@ -348,6 +378,13 @@ export function initWarzoneMilitaryBases(viewer) {
     __state.entities = MILITARY_BASES.map(b => createBaseEntity(ds, b));
     viewer.camera.changed.addEventListener(() => viewer.scene.requestRender());
     bindClickHandler(viewer);
+
+    // When user logs in (either via form or silent check), unlock bases
+    document.addEventListener("wz:auth-success", () => {
+        __state.authGated = false;
+        applyVisibility();
+    }, { once: true });
+
     applyVisibility();
 }
 

@@ -3,7 +3,7 @@
 .warzone-commandbar {
     position: fixed;
     inset: 0 0 auto 0;
-    z-index: 10000;
+    z-index: 140;
     box-sizing: border-box;
     width: 100%;
     pointer-events: none;
@@ -333,102 +333,50 @@ body.is-about-open .wz-radar-label-layer {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: rgba(8,17,26,0.88);
-    border: 1px solid rgba(24,226,219,0.2);
-    padding: 0.35rem 0.9rem;
-    clip-path: polygon(0 0,100% 0,100% calc(100% - 0.5rem),calc(100% - 0.5rem) 100%,0 100%);
+    background: rgba(8, 17, 26, 0.88);
+    padding: .7rem 1rem;
+    clip-path: var(--clippath-shape-3);
+    font-family: var(--heading-font);
     transition: border-color 0.4s ease;
 }
 
 .wz-defcon__label {
-    font-size: 0.95rem;
-    color: var(--color-teal-glow);
-    font-family: var(--font-mono);
-    font-weight: 700;
     letter-spacing: 0.1em;
-    opacity: 0.7;
+    color: var(--color-text-heading);
 }
 
 .wz-defcon__level {
-    font-size: 1.3rem;
-    font-weight: 800;
-    font-family: var(--heading-font);
     min-width: 1rem;
     text-align: center;
     transition: color 0.4s ease;
 }
 
-.wz-defcon[data-level="1"] {
-    border-color: rgba(255,0,32,0.6);
+.wz-defcon[data-level="1"], .wz-defcon[data-level="1"] .wz-defcon__level {
+    background: var(--criticality-level-ex-bg);
+    color: var( --criticality-level-ex-cl)
 }
 
-    .wz-defcon[data-level="1"] .wz-defcon__level {
-        color: #ff0020;
-    }
-
-.wz-defcon[data-level="2"] {
-    border-color: rgba(255,68,0,0.6);
+.wz-defcon[data-level="2"], .wz-defcon[data-level="2"] .wz-defcon__level {
+    background: var(--criticality-level-ex-bg);
+    color: var( --criticality-level-ex-cl)
 }
 
-    .wz-defcon[data-level="2"] .wz-defcon__level {
-        color: #ff4400;
-    }
-
-.wz-defcon[data-level="3"] {
-    border-color: rgba(255,153,0,0.6);
+.wz-defcon[data-level="3"], .wz-defcon[data-level="3"] .wz-defcon__level {
+    background: var(--criticality-level-hi-bg);
+    color: var( --criticality-level-hi-bg)
 }
 
-    .wz-defcon[data-level="3"] .wz-defcon__level {
-        color: #ff9900;
-    }
-
-.wz-defcon[data-level="4"] {
-    border-color: rgba(255,204,0,0.5);
+.wz-defcon[data-level="4"], .wz-defcon[data-level="4"] .wz-defcon__level {
+    background: var(--criticality-level-med-bg);
+    color: var( --criticality-level-med-bg)
 }
 
-    .wz-defcon[data-level="4"] .wz-defcon__level {
-        color: #ffcc00;
-    }
-
-.wz-defcon[data-level="5"] {
-    border-color: rgba(24,226,219,0.2);
+.wz-defcon[data-level="5"], .wz-defcon[data-level="5"] .wz-defcon__level {
+    background: var(--criticality-level-lo-bg);
+    color: var( --criticality-level-lo-cl)
 }
 
-    .wz-defcon[data-level="5"] .wz-defcon__level {
-        color: var(--color-teal-glow);
-    }
 
-/* ── 2D/3D Toggle ── */
-.wz-globe-toggle {
-    display: flex;
-    align-items: center;
-    background: rgba(8,17,26,0.88);
-    border: 1px solid rgba(24,226,219,0.2);
-    padding: 0.2rem;
-    gap: 0.2rem;
-}
-
-.wz-globe-toggle__btn {
-    font-size: 1rem;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    padding: 0.25rem 0.8rem;
-    background: transparent;
-    border: none;
-    color: var(--color-text-dim);
-    cursor: pointer;
-    transition: all 160ms ease;
-    letter-spacing: 0.05em;
-}
-
-    .wz-globe-toggle__btn.is-active {
-        background: var(--color-teal);
-        color: var(--color-text-heading);
-    }
-
-    .wz-globe-toggle__btn:hover:not(.is-active) {
-        color: var(--color-text-heading);
-    }
 
 /* ── News Ticker ── */
 .wz-news-ticker {
