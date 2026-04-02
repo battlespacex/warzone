@@ -143,8 +143,8 @@
     --warzone-labels-contrast: 1;
     --warzone-labels-gamma: 1;
     --warzone-labels-saturation: 0;
-    --warzone-labels-hue: 0;
-    --warzone-labels-alpha: 0.8;
+    --warzone-labels-hue: 50;
+    --warzone-labels-alpha: 0.4;
 }
 /* #endregion =========== */
 
@@ -183,6 +183,10 @@
     --warzone-msaa-samples: 1;
     --warzone-fxaa-enabled: 1;
     --warzone-camera-min-zoom: 200;
+    --warzone-max-renderable-events: 300;
+    --warzone-event-cluster-height: 8000000;
+    --warzone-event-ring-max-height: 15000000;
+    --warzone-event-cluster-precision: 0.15;
 }
 /* #endregion =========== */
 

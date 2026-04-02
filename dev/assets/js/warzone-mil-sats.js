@@ -101,12 +101,11 @@ function createSatellite(viewer, sat) {
 }
 function updateVisibility(viewer) {
     const cam = viewer.camera;
-    const visibilityDistance = getCssVarNumber("--warzone-mil-sat-visibility-distance", 12000000);
     __warzoneMilSatsState.entities.forEach(group => {
         const entity = group[0];
         const pos = entity.position.getValue(Cesium.JulianDate.now());
         const d = Cesium.Cartesian3.distance(cam.positionWC, pos);
-        const visible = d < visibilityDistance;
+        const visible = d < 12000000;
         group.forEach(e => e.show = visible);
     });
 }

@@ -590,7 +590,13 @@ function bindLiveTrackPicking(viewer) {
     __liveTrackClickHandler.setInputAction((movement) => {
         const picked = viewer.scene.pick(movement.position);
         const trackKey = resolvePickedTrackKey(picked);
-        if (!trackKey) return;
+        if (!trackKey) {
+            // Clicked empty space — clear X lines and deselect
+            if (__liveTrackReplayState.selectedTrackKey) {
+                clearLiveTrackSelection({ animate: false });
+            }
+            return;
+        }
         toggleLiveTrackSelection(trackKey);
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }

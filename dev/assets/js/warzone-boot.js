@@ -35,7 +35,6 @@ window.SiteLoader = {
     },
 };
 document.addEventListener("DOMContentLoaded", () => {
-    const INTRO_ACCEPT_KEY = "wz_intro_accepted";
     const WZ_WIDGET_KEY = "wz_widget_visibility";
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
@@ -97,13 +96,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const aboutModal = document.getElementById("wz-about-modal");
     const introModal = document.getElementById("wz-intro-modal");
     const uiShell = document.getElementById("warzone-ui-shell");
-    const introAccepted = (() => {
-        try {
-            return localStorage.getItem(INTRO_ACCEPT_KEY) === "1";
-        } catch {
-            return false;
-        }
-    })();
     if (uiShell) {
         uiShell.hidden = true;
         uiShell.classList.remove("is-ui-visible");
@@ -131,19 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
             tab.classList.add("is-active");
             box.querySelector(`.wz-modal__pane[data-pane="${target}"]`)?.classList.add("is-active");
         });
-    });
-    if (!introAccepted && introModal) {
-        openModal(introModal);
-    }
-    document.getElementById("wz-intro-accept")?.addEventListener("click", () => {
-        try {
-            localStorage.setItem(INTRO_ACCEPT_KEY, "1");
-        } catch { }
-        if (introModal) {
-            introModal.classList.remove("is-visible");
-            introModal.hidden = true;
-        }
-        window.__warzoneShowRegionModal?.(true);
     });
     const btnFullscreen = document.getElementById("dock-fullscreen");
     if (btnFullscreen) {

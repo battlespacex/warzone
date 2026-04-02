@@ -82,29 +82,84 @@
                         <h2 id="wz-intro-title" class="wz-intro__title">
                             Real-Time Multi-Domain Battlespace Intelligence
                         </h2>
+                        <div class="wz-intro__content">
+                            <div id="wz-intro-summary">
+                                <p>
+                                    <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com" target="_blank">Battlespacex</a></strong>, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace.
+                                </p>
+                                <p>
+                                    StratOps focuses on patterns, movement, escalation signals, and spatial context, enabling users to interpret how activity evolves across a theater in near real-time.
+                                </p>
+                                <p>
+                                    Built as part of the Battlespacex ecosystem, it is designed as a public situational-awareness interface for tracking military air and naval movement, strategic alerts, airspace changes, cyber-adjacent indicators, and broader multi-domain activity analytics.
+                                </p>
+                            </div>
 
-                        <div id="wz-intro-summary">
-                            <p>
-                                <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com" target="_blank">Battlespacex</a></strong>, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace.
-                            </p>
-                            <p>StratOps focuses on patterns, movement, escalation signals, and spatial context, enabling users to interpret how activity evolves across a theater in near real-time.
-                            </p>
-                            <p>Built as part of the Battlespacex ecosystem, it is designed as a public situational-awareness interface for tracking military air and naval movement, strategic alerts, airspace changes, cyber-adjacent indicators, and broader multi-domain activity analytics.
-                            </p>
+                            <div class="wz-auth-body">
+                                <p id="auth-guest-copy" class="wz-auth-copy">
+                                    Log in with your <strong>BattleSpacex</strong> account to access StratOps.
+                                </p>
+
+                                <p id="auth-authed-copy" class="wz-auth-copy" hidden>
+                                    You are already logged in to BattleSpacex.
+                                    Review the acknowledgment below, then continue into StratOps.
+                                </p>
+                                <p id="auth-authed-user" class="wz-auth-user" hidden></p>
+
+                                <div id="auth-login-fields">
+                                    <label class="wz-auth-label" for="auth-email">E-mail</label>
+                                    <input id="auth-email"
+                                           type="email"
+                                           autocomplete="username"
+                                           inputmode="email"
+                                           class="wz--input" />
+
+                                    <label class="wz-auth-label" for="auth-password">Password</label>
+                                    <input id="auth-password"
+                                           type="password"
+                                           autocomplete="current-password"
+                                           class="wz--input"/>
+
+                                    <label id="auth-remember-row" class="wz-auth-remember">
+                                        <input id="auth-remember" type="checkbox" />
+                                        <span>Stay connected</span>
+                                    </label>
+                                </div>
+
+                                <p id="auth-error" class="wz-auth-error" hidden></p>
+
+                                <label class="wz-auth-disclaimer-check" for="auth-disclaimer-check">
+                                    <input id="auth-disclaimer-check" type="checkbox" />
+                                    <span>
+                                        I understand that StratOps presents OSINT-informed monitoring data and is not
+                                        an official warning network, classified intelligence product, or emergency instruction system.
+                                    </span>
+                                </label>
+                                <button id="auth-login-btn"
+                                        class="btn-primary wz-auth-btn is-locked"
+                                        type="button"
+                                        data-mode="guest"
+                                        disabled
+                                        aria-disabled="true"
+                                        style="pointer-events:none">
+                                    <span class="wz-auth-btn__icon" aria-hidden="true"></span>
+                                    <span id="auth-login-btn-text">Log In</span>
+                                </button>
+                                <div id="auth-create-account" class="wz-auth-footer">
+                                    <span>Need an account?</span>
+                                    <a href="https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com"
+                                       target="_self"
+                                       rel="noopener">Create Account</a>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="wz-intro__actions">
-                        <p class="wz-intro__note">
-                            By continuing, you acknowledge that StratOps presents OSINT-informed monitoring data and is not an official warning network, classified intelligence product, or emergency instruction system.
-                        </p>
-                        <button id="wz-intro-accept" class="btn-primary" type="button">
-                            <span aria-hidden="true"></span>Accept and Enter
-                        </button>
+
                     </div>
                 </div>
             </div>
             <div class="wz-modal__backdrop"></div>
         </div>
+
         <div id="wz-about-modal"
              class="wz-modal"
              aria-modal="true"

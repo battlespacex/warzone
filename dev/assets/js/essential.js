@@ -43,6 +43,7 @@ let __lastSweepersSyncKey = "";
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
+let __aircraftWidgetPage = 1;
 let __aircraftHistoryCache = [];
 let __aircraftHistoryLastLoadedAt = 0;
 let __aircraftHistoryLoadingPromise = null;
@@ -50,7 +51,7 @@ let __aircraftWidgetRenderTimer = 0;
 let __aircraftHistoryRefreshTimer = 0;
 let __aircraftSubtypeOptionsKey = "";
 let __widgetLoadingState = new Map();
-const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 18;
+const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 8;
 const AIRCRAFT_HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AIRCRAFT_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_REFRESH_MS = 3 * 60 * 1000;
@@ -1441,7 +1442,7 @@ function getAircraftWidgetItems() {
     }
     items = items
         .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
-        .slice(0, LIVE_AIRCRAFT_WIDGET_MAX_ITEMS);
+        .slice(0, LIVE_AIRCRAFT_WIDGET_MAX_ITEMS * __aircraftWidgetPage);
     return {
         allItems,
         items
@@ -1590,11 +1591,45 @@ function renderAircraftMovementsWidget() {
             container.appendChild(card);
         }
     });
+
+    // Load More button
+    let loadMoreBtn = container.querySelector(".wz-aircraft-load-more");
+    const allForCount = (() => {
+        let all = getAllLiveTrackSnapshots().filter(t => t.active && isAircraftTrackSubtype(t.subcategory));
+        if (__aircraftWidgetFilter === "recent" || __aircraftWidgetFilter === "ended") {
+            all = (__aircraftHistoryCache || []).filter(t => isAircraftTrackSubtype(t.subcategory) && (__aircraftWidgetFilter === "ended" ? !t.active : true));
+        }
+        if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
+            all = all.filter(t => String(t.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter);
+        }
+        return all.length;
+    })();
+    const shownCount = LIVE_AIRCRAFT_WIDGET_MAX_ITEMS * __aircraftWidgetPage;
+    const hasMore = allForCount > shownCount;
+    if (hasMore) {
+        if (!loadMoreBtn) {
+            loadMoreBtn = document.createElement("button");
+            loadMoreBtn.type = "button";
+            loadMoreBtn.className = "wz-aircraft-load-more";
+            loadMoreBtn.dataset.aircraftLoadMore = "1";
+        }
+        const remaining = Math.min(LIVE_AIRCRAFT_WIDGET_MAX_ITEMS, allForCount - shownCount);
+        loadMoreBtn.textContent = `Load More (${remaining} more)`;
+        if (!loadMoreBtn.isConnected) container.appendChild(loadMoreBtn);
+    } else {
+        loadMoreBtn?.remove();
+    }
 }
 function bindAircraftMovementsWidget() {
     if (__aircraftWidgetBound) return;
     __aircraftWidgetBound = true;
     document.addEventListener("click", (event) => {
+        const loadMoreBtn = event.target.closest("[data-aircraft-load-more]");
+        if (loadMoreBtn) {
+            __aircraftWidgetPage += 1;
+            requestAircraftMovementsWidgetRender(0);
+            return;
+        }
         const toggleBtn = event.target.closest("[data-track-toggle]");
         if (toggleBtn) {
             const trackKey = String(toggleBtn.dataset.trackToggle || "").trim();
@@ -1608,6 +1643,7 @@ function bindAircraftMovementsWidget() {
             const nextFilter = String(filterBtn.dataset.aircraftFilter || "active").toLowerCase();
             if (nextFilter === "all") return;
             __aircraftWidgetFilter = nextFilter;
+            __aircraftWidgetPage = 1;
             syncAircraftWidgetFilterControls();
             if (nextFilter !== "active") {
                 scheduleAircraftHistoryRefresh(true);
@@ -1621,6 +1657,7 @@ function bindAircraftMovementsWidget() {
         const subtypeSelect = event.target.closest("#wz-aircraft-filter-subtype");
         if (!subtypeSelect) return;
         __aircraftWidgetSubtypeFilter = String(subtypeSelect.value || "all");
+        __aircraftWidgetPage = 1;
         if (__aircraftWidgetFilter !== "active") {
             scheduleAircraftHistoryRefresh(true);
             return;
@@ -1894,6 +1931,9 @@ export async function initWarzoneApp() {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
+        }
+        if (id === "military-bases" || id === "*") {
+            window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
         }
         if (id === "*") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
@@ -2270,6 +2310,16 @@ export function initGlobal() {
     renderAircraftMovementsWidget();
 }
 export function initBoot() {
+    // Hide news ticker until user passes auth — injected immediately so it
+    // takes effect before DOMContentLoaded and before the ticker is rendered
+    const style = document.createElement("style");
+    style.id = "wz-auth-pre-styles";
+    style.textContent = `
+        .wz-news-ticker { display: none !important; }
+        body.is-app-active .wz-news-ticker { display: flex !important; }
+    `;
+    document.head.appendChild(style);
+
     document.addEventListener("DOMContentLoaded", () => {
         initGlobal();
         window.SiteLoader?.forceHide?.();
@@ -2318,4 +2368,274 @@ export function initAudio() {
     document.addEventListener("click", unlock);
     document.addEventListener("keydown", unlock);
     syncUi(false);
+}
+
+const STRATOPS_AUTH_BASE =
+    window.location.hostname === "localhost"
+        ? "http://localhost:55147/api/auth"
+        : "https://www.battlespacex.com/api/auth";
+
+function getAuthModalElements() {
+    return {
+        modal: document.getElementById("wz-intro-modal"),
+        guestCopy: document.getElementById("auth-guest-copy"),
+        authedCopy: document.getElementById("auth-authed-copy"),
+        authedUser: document.getElementById("auth-authed-user"),
+        loginFields: document.getElementById("auth-login-fields"),
+        createAccount: document.getElementById("auth-create-account"),
+        email: document.getElementById("auth-email"),
+        password: document.getElementById("auth-password"),
+        remember: document.getElementById("auth-remember"),
+        consent: document.getElementById("auth-disclaimer-check"),
+        loginBtn: document.getElementById("auth-login-btn"),
+        loginBtnText: document.getElementById("auth-login-btn-text"),
+        error: document.getElementById("auth-error"),
+    };
+}
+
+function setAuthError(message) {
+    const { error } = getAuthModalElements();
+    if (!error) return;
+    if (!message) {
+        error.hidden = true;
+        error.textContent = "";
+        return;
+    }
+    error.hidden = false;
+    error.textContent = message;
+}
+
+function syncAuthButtonState() {
+    const { loginBtn, consent } = getAuthModalElements();
+    if (!loginBtn) return;
+
+    const allowed = !!consent?.checked;
+
+    loginBtn.disabled = !allowed;
+    loginBtn.setAttribute("aria-disabled", String(!allowed));
+
+    if (allowed) {
+        loginBtn.classList.remove("is-locked");
+        loginBtn.style.pointerEvents = "";
+    } else {
+        loginBtn.classList.add("is-locked");
+        loginBtn.style.pointerEvents = "none";
+    }
+}
+
+function setAuthLoading(isLoading) {
+    const { loginBtn, loginBtnText } = getAuthModalElements();
+    if (!loginBtn) return;
+    loginBtn.classList.toggle("is-loading", isLoading);
+    if (loginBtnText) {
+        loginBtnText.textContent = isLoading ? "Verifying..." : loginBtn.dataset.mode === "authenticated" ? "Accept and Enter" : "Log In";
+    }
+}
+
+function setAuthMode(isAuthenticated, user = null) {
+    const {
+        guestCopy, authedCopy, authedUser,
+        loginFields, createAccount,
+        email, password, remember, loginBtn, loginBtnText,
+    } = getAuthModalElements();
+
+    if (guestCopy) guestCopy.hidden = !!isAuthenticated;
+    if (authedCopy) authedCopy.hidden = !isAuthenticated;
+    if (loginFields) loginFields.hidden = !!isAuthenticated;
+    if (createAccount) createAccount.hidden = !!isAuthenticated;
+
+    // Show logged-in user's name/email in authenticated mode
+    if (authedUser) {
+        const displayName = user?.username || user?.email || "";
+        authedUser.textContent = displayName ? `Logged in as: ${displayName}` : "";
+        authedUser.hidden = !displayName;
+    }
+
+    if (email) {
+        email.disabled = !!isAuthenticated;
+        if (isAuthenticated) email.value = "";
+    }
+    if (password) {
+        password.disabled = !!isAuthenticated;
+        if (isAuthenticated) password.value = "";
+    }
+    if (remember) {
+        remember.disabled = !!isAuthenticated;
+        if (isAuthenticated) remember.checked = false;
+    }
+
+    if (loginBtn) {
+        const label = isAuthenticated ? "Accept and Enter" : "Log In";
+        loginBtn.dataset.mode = isAuthenticated ? "authenticated" : "guest";
+        if (loginBtnText) loginBtnText.textContent = label;
+        else loginBtn.textContent = label;
+    }
+}
+
+function showAuthModal(mode = "guest", user = null) {
+    const { modal, email, consent } = getAuthModalElements();
+    const isAuthenticated = mode === "authenticated";
+
+    setAuthMode(isAuthenticated, user);
+    syncAuthButtonState();
+
+    if (!modal) return;
+    modal.hidden = false;
+    modal.classList.add("is-visible");
+
+    requestAnimationFrame(() => {
+        if (isAuthenticated) consent?.focus();
+        else email?.focus();
+    });
+}
+
+function hideAuthModal() {
+    const { modal, password } = getAuthModalElements();
+    if (!modal) return;
+    modal.classList.remove("is-visible");
+    modal.hidden = true;
+    if (password) password.value = "";
+    setAuthError("");
+}
+
+async function postAuthForm(url, body) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+        },
+        credentials: "include",
+        body: body.toString(),
+    });
+
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+
+    if (!res.ok) {
+        throw new Error(data?.message || "Authentication request failed.");
+    }
+    return data;
+}
+
+export async function stratopsCheckAuth() {
+    try {
+        const res = await fetch(`${STRATOPS_AUTH_BASE}/validate`, {
+            method: "GET",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "include",
+        });
+
+        if (!res.ok) {
+            showAuthModal("guest");
+            return false;
+        }
+
+        const data = await res.json();
+        const isAuthenticated = !!data?.isAuthenticated;
+
+        if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
+        window.__stratopsAuthState.isAuthenticated = isAuthenticated;
+        window.__stratopsAuthState.user = data || null;
+
+        if (isAuthenticated) {
+            showAuthModal("authenticated", data);
+            return true;
+        }
+
+        showAuthModal("guest");
+        return false;
+    } catch (err) {
+        console.error("Auth check failed:", err);
+        showAuthModal("guest");
+        return false;
+    }
+}
+
+export function initStratopsAuth() {
+    const { loginBtn, email, password, remember, consent } = getAuthModalElements();
+    if (!loginBtn || loginBtn.dataset.authBound === "true") return;
+
+    const submit = async () => {
+        // ── Hard server-side guard — always re-check consent here ──────────
+        // This runs even if someone removes `disabled` via DevTools.
+        // Without consent checked, we never reach the API.
+        const consentValue = !!consent?.checked;
+        const isAuthenticated = loginBtn.dataset.mode === "authenticated";
+
+        setAuthError("");
+
+        if (!consentValue) {
+            setAuthError("Please acknowledge the StratOps disclaimer before continuing.");
+            syncAuthButtonState();
+            return;
+        }
+
+        // Already authenticated — just accept disclaimer and enter
+        if (isAuthenticated) {
+            hideAuthModal();
+            await window.__warzoneStartDeferredApp?.();
+            return;
+        }
+
+        // Guest mode — need credentials
+        const emailValue = String(email?.value || "").trim();
+        const passwordValue = String(password?.value || "");
+        const rememberValue = !!remember?.checked;
+
+        if (!emailValue || !passwordValue) {
+            setAuthError("Enter your email and password.");
+            return;
+        }
+
+        // Disable button and show loading during API call
+        loginBtn.disabled = true;
+        loginBtn.setAttribute("aria-disabled", "true");
+        loginBtn.style.pointerEvents = "none";
+        setAuthLoading(true);
+
+        try {
+            const body = new URLSearchParams();
+            body.append("email", emailValue);
+            body.append("password", passwordValue);
+            body.append("rememberMe", String(rememberValue));
+
+            const data = await postAuthForm(`${STRATOPS_AUTH_BASE}/login`, body);
+
+            if (!data?.success) {
+                setAuthError(data?.message || "Invalid email or password.");
+                return;
+            }
+
+            if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
+            window.__stratopsAuthState.isAuthenticated = true;
+
+            hideAuthModal();
+            await window.__warzoneStartDeferredApp?.();
+        } catch (err) {
+            console.error("Login failed:", err);
+            setAuthError(err?.message || "Unable to log in right now. Please try again.");
+        } finally {
+            setAuthLoading(false);
+            syncAuthButtonState();
+        }
+    };
+
+    loginBtn.dataset.authBound = "true";
+
+    // Consent checkbox — the gate for the button
+    consent?.addEventListener("change", () => {
+        setAuthError("");
+        syncAuthButtonState();
+    });
+
+    loginBtn.addEventListener("click", submit);
+
+    // Enter key support on email and password fields
+    const onEnter = (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } };
+    email?.addEventListener("keydown", onEnter);
+    password?.addEventListener("keydown", onEnter);
+
+    // Initial state — button locked until checkbox checked
+    syncAuthButtonState();
 }

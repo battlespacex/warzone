@@ -2,6 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 const webpack = require("webpack");
+const dotenv = require("dotenv");
 
 const SITE = require("./seo/site");
 const pageMeta = require("./seo/pages");
@@ -15,6 +16,12 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 module.exports = (env, argv) => {
     const isDev = argv.mode === "development";
+
+    // Load .env.local for dev, .env.production for prod
+    const envFile = isDev ? ".env.local" : ".env.production";
+    const envPath = path.resolve(__dirname, envFile);
+    const envVars = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {};
+    const cesiumToken = envVars.CESIUM_ION_TOKEN || "";
 
     const ROOT_DIR = __dirname;
     const PROD_DIR = path.resolve(ROOT_DIR, "production");
@@ -68,8 +75,7 @@ module.exports = (env, argv) => {
                     if (
                         p === "robots.txt" ||
                         p === "sitemap.xml" ||
-                        p === "web.config" ||
-                        p === "favicon.ico"
+                        p === "web.config"
                     ) {
                         return true;
                     }
@@ -112,6 +118,7 @@ module.exports = (env, argv) => {
         plugins: [
             new webpack.DefinePlugin({
                 CESIUM_BASE_URL: JSON.stringify("/assets/cesium"),
+                CESIUM_ION_TOKEN: JSON.stringify(cesiumToken),
             }),
 
             new MiniCssExtractPlugin({

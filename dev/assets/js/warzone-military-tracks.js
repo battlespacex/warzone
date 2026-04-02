@@ -388,13 +388,7 @@ export function initMilitaryTracks(viewer) {
         const blinkMin = numberVar("--warzone-military-asset-blink-min", 0.55);
         const blinkMax = numberVar("--warzone-military-asset-blink-max", 1);
         const blinkSpeed = numberVar("--warzone-military-asset-blink-speed", 0.0028);
-        iconEntity.billboard.color = new Cesium.CallbackProperty(() => {
-            const alpha =
-                blinkMin +
-                (blinkMax - blinkMin) *
-                (0.5 + 0.5 * Math.sin(Date.now() * blinkSpeed));
-            return color.withAlpha(alpha);
-        }, false);
+        iconEntity.billboard.color = color.withAlpha(blinkMax);
         const trailLen = naval ? CFG.shipTrailLengthDeg : CFG.trailLengthDeg;
         const trailPos = buildTrail(lon, lat, heading, trailLen, CFG.trailSegments, altM);
         const trailColor = getTrailColor(subcat, colorHex);

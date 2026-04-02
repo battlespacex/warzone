@@ -2,7 +2,8 @@
 import "../css/style.css";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./warzone-boot.js";
-import { initBoot, initWarzoneApp, initAudio, startEventPollingFallback } from "./essential.js";
+import { initBoot, initWarzoneApp, initAudio, startEventPollingFallback, stratopsCheckAuth, initStratopsAuth } from "./essential.js";
+import { initWarzoneMilitaryBases, setWarzoneMilitaryBasesVisible } from "./warzone-military-bases.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
 import { initRegionSelector } from "./warzone-region-selector.js";
 import {
@@ -36,16 +37,24 @@ document.addEventListener("DOMContentLoaded", async () => {
             try {
                 initDevPanel();
                 await initWarzoneApp();
+                // Init bases AFTER initWarzoneApp — prevents entity clear during app
+                // init from wiping bases that were added before the deferred app ran
+                initWarzoneMilitaryBases(viewer);
+                window.__setWarzoneMilitaryBasesVisible = setWarzoneMilitaryBasesVisible;
                 await subscribeToLiveEvents();
                 await subscribeToActiveAlerts();
                 startActiveAlertsPollingFallback();
                 startEventPollingFallback();
                 subscribeToSirenBroadcast();
                 initAudio();
+                window.__warzoneEnterApp?.();
             } catch (error) {
                 console.error("Deferred app init failed:", error);
             }
         };
+
+        initStratopsAuth();
+        await stratopsCheckAuth();
     } catch (error) {
         console.error("App init failed:", error);
     }

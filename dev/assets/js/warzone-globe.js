@@ -1,6 +1,9 @@
 // File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
+
+// --- Ion token from env (never hardcoded) ---
+Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
     countries: "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
@@ -28,8 +31,7 @@ function shouldClusterEvents(viewer) {
     return getCameraHeight(viewer) > numberVar("--warzone-event-cluster-height", 1800000);
 }
 function shouldShowEventRingsAtCurrentZoom(viewer) {
-    // return getCameraHeight(viewer) <= numberVar("--warzone-event-ring-max-height", 2600000);
-    return true;
+    return getCameraHeight(viewer) <= numberVar("--warzone-event-ring-max-height", 2600000);
 }
 function shouldShowEventOutlinesAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-event-outline-max-height", 1800000);
@@ -1364,46 +1366,37 @@ function highlightAlertRegion(viewer, event) {
     const lon = Number(event.lon);
     const severity = String(event.severity || "high").toLowerCase();
     const baseRadius = severity === "critical" ? 180000 : severity === "high" ? 140000 : 100000;
-    const fillColor = Cesium.Color.fromCssColorString("#ff0a2a");
-    const outlineColor = Cesium.Color.fromCssColorString("#ff0a2a");
     const entities = [];
-    // Pulsing filled region
+
+    // Static filled region   no CallbackProperty
     const fill = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 2000),
         ellipse: {
-            semiMinorAxis: new Cesium.CallbackProperty(() => {
-                return baseRadius * (0.85 + 0.15 * Math.sin(Date.now() * 0.003));
-            }, false),
-            semiMajorAxis: new Cesium.CallbackProperty(() => {
-                return baseRadius * 1.3 * (0.85 + 0.15 * Math.sin(Date.now() * 0.003));
-            }, false),
-            material: fillColor.withAlpha(0.18),
+            semiMinorAxis: baseRadius,
+            semiMajorAxis: baseRadius * 1.3,
+            material: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.15),
             outline: false,
             height: 2000,
         },
     });
     entities.push(fill);
-    // Outer pulsing ring
+
+    // Static outer ring
     const outerRing = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 3000),
         ellipse: {
-            semiMinorAxis: new Cesium.CallbackProperty(() => {
-                return baseRadius * 1.4 * (0.9 + 0.1 * Math.sin(Date.now() * 0.004 + 0.5));
-            }, false),
-            semiMajorAxis: new Cesium.CallbackProperty(() => {
-                return baseRadius * 1.8 * (0.9 + 0.1 * Math.sin(Date.now() * 0.004 + 0.5));
-            }, false),
+            semiMinorAxis: baseRadius * 1.5,
+            semiMajorAxis: baseRadius * 1.9,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: new Cesium.CallbackProperty(() => {
-                return outlineColor.withAlpha(0.5 + 0.5 * Math.sin(Date.now() * 0.005));
-            }, false),
+            outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.7),
             outlineWidth: 3,
             height: 3000,
         },
     });
     entities.push(outerRing);
-    // Inner bright ring
+
+    // Static inner ring
     const innerRing = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 4000),
         ellipse: {
@@ -1411,12 +1404,13 @@ function highlightAlertRegion(viewer, event) {
             semiMajorAxis: baseRadius * 0.65,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: outlineColor.withAlpha(0.95),
+            outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.95),
             outlineWidth: 2,
             height: 4000,
         },
     });
     entities.push(innerRing);
+
     viewer.__warzoneAlertEntities = entities;
     viewer.__warzoneAlertEntity = entities[0];
     viewer.scene.requestRender();
@@ -1425,6 +1419,7 @@ function highlightAlertRegion(viewer, event) {
         viewer.scene.requestRender();
     }, 14000);
 }
+
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
@@ -1446,6 +1441,8 @@ export async function initWarzoneGlobe() {
         skyAtmosphere: false,
         terrain: undefined,
         creditContainer: creditsEl || undefined,
+        // Use Cesium Ion world imagery — eliminates Bing/virtualearth.net requests
+        imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
     });
     applyViewerStyle(viewer);
     await addArcGisLayers(viewer);

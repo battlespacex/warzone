@@ -405,8 +405,8 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 220ms ease;
-    filter: var(--widget-shadow);
-    backdrop-filter: blur(.6rem)
+    backdrop-filter: blur(.6rem);
+    background: var(--color-bg-overlay);
 }
     .wz-modal[hidden] {
         display: none !important;
@@ -417,12 +417,12 @@
         opacity: 1;
         pointer-events: auto;
     }
-.wz-modal__backdrop {
+/*.wz-modal__backdrop {
     position: absolute;
     inset: 0;
     z-index: -1;
     background: var(--color-bg-overlay)
-}
+}*/
 .wz-modal__box {
     display: flex;
     align-items: center;
@@ -436,6 +436,7 @@
     max-height: 70vh;
     transform: translateY(1rem) scale(0.98);
     transition: transform 220ms ease;
+    filter: var(--widget-shadow);
 }
 .wz-modal.is-visible .wz-modal__box {
     transform: translateY(0) scale(1);

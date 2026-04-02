@@ -6,10 +6,10 @@ let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
 const SWEEPER_RENDER = {
-    labelFrameSkip: 2,
-    requestRenderFrameSkip: 2,
-    polygonStepsNear: 28,
-    polygonStepsFar: 16,
+    labelFrameSkip: 8,
+    requestRenderFrameSkip: 6,
+    polygonStepsNear: 18,
+    polygonStepsFar: 10,
     maxHeight: 5500000,
 };
 function getSweepPreset(event = {}) {

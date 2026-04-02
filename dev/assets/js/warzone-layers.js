@@ -6,6 +6,7 @@ const LAYER_DEFS = [
     { id: "airstrikes", label: "Air Strikes", icon: "✈️", color: "#ff7820" },
     { id: "aircraft", label: "Aircraft Tracker", icon: "🛩️", color: "#33d90a" },
     { id: "naval", label: "Naval Activity", icon: "⚓", color: "#9b7bff" },
+    { id: "military-bases", label: "Military Bases", icon: "🏛️", color: "#3a8eff", uiOnly: true },
     { id: "ranges", label: "Detection / Threat Ranges", icon: "📡", color: "#33d9ff" },
     { id: "sweepers", label: "Radar Sweepers", icon: "🌀", color: "#18e2db", uiOnly: true },
     { id: "alerts", label: "Alerts & Sirens", icon: "🔔", color: "#ff2a2a" },

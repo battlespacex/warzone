@@ -702,7 +702,8 @@ async function geocodeLocation(query) {
             params: {
                 q: query,
                 format: "jsonv2",
-                limit: 1
+                limit: 1,
+                addressdetails: 1,
             },
             headers: {
                 "User-Agent": "warzone-worker/1.0",
@@ -719,17 +720,30 @@ async function geocodeLocation(query) {
             return null;
         }
 
-        const result = {
-            lat: Number(item.lat),
-            lon: Number(item.lon),
-            label: item.display_name || query
-        };
+        const lat = Number(item.lat);
+        const lon = Number(item.lon);
 
-        if (!Number.isFinite(result.lat) || !Number.isFinite(result.lon)) {
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
             geocodeCache.set(key, null);
             return null;
         }
 
+        // Build short clean label: "City, Country" — not full Nominatim display_name
+        const addr = item.address || {};
+        const city =
+            addr.city ||
+            addr.town ||
+            addr.village ||
+            addr.municipality ||
+            addr.county ||
+            addr.state_district ||
+            addr.state ||
+            item.name ||
+            "";
+        const country = addr.country || "";
+        const label = [city, country].filter(Boolean).join(", ") || query;
+
+        const result = { lat, lon, label };
         geocodeCache.set(key, result);
         return result;
     } catch (error) {
@@ -862,6 +876,30 @@ function deriveConfidence(event) {
     if (category === "alert") score += 10;
 
     return Math.max(10, Math.min(95, score));
+}
+
+// ── Source / location helpers ─────────────────────────────────────────────────
+function cleanSourceName(raw) {
+    if (!raw) return "Unknown";
+    let s = String(raw).trim();
+    s = s.replace(/^https?:\/\/(www\.)?/i, "");
+    s = s.replace(/\.(com|org|net|io|gov|mil)(\/.*)?$/i, "");
+    s = s.replace(/^Telegram\s*\/\s*/i, "TG / ");
+    s = s.replace(/^Reddit\s+/i, "r/");
+    return s.slice(0, 40).trim();
+}
+
+async function resolveRedditLocation(post) {
+    const titleLocation = await resolveLocationFromText(post.title || "", { requireBBox: false });
+    if (titleLocation) return titleLocation;
+    return resolveLocationFromText((post.selftext || "").slice(0, 500), { requireBBox: false });
+}
+
+function extractGdeltCoords(item) {
+    const lat = Number(item.actiongeo_lat || item.locationlat || 0);
+    const lon = Number(item.actiongeo_long || item.locationlon || 0);
+    const label = item.actiongeo_fullname || item.locationname || "";
+    return { lat, lon, label };
 }
 
 function deriveNetworkSeverity(kind, scope = "unknown") {
@@ -1773,8 +1811,7 @@ function normalizeEonetEvent(item, feed) {
  * GDELT
  * -------------------------------------- */
 function normalizeGdeltEvent(item, feed) {
-    const lat = Number(item.locationlat);
-    const lon = Number(item.locationlon);
+    const { lat, lon, label: gdeltLabel } = extractGdeltCoords(item);
     const title = item.title || "GDELT event";
     const summary = item.seendate || "GDELT detected news signal";
     const sourceUrl = item.url || "https://gdeltproject.org";
@@ -1857,7 +1894,7 @@ function normalizeGdeltEvent(item, feed) {
         occurred_at: normalizeOccurredAt(item.seendate),
         lat,
         lon,
-        location_label: item.locationname || "Unknown location",
+        location_label: gdeltLabel || "Unknown location",
         confidence: 40,
         actor_side: actorSide,
         target_side: "unknown",
@@ -2199,7 +2236,7 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         category,
         title,
         summary,
-        source_name: `Telegram / ${channelKey}`,
+        source_name: cleanSourceName(`Telegram / ${channelKey}`),
         source_url: buildTelegramMessageUrl(channelKey, msg.id),
         occurred_at: msg.date?.toISOString?.() || new Date().toISOString(),
         lat: Number(location.lat),
@@ -2381,7 +2418,7 @@ async function normalizeRedditPost(post, feed) {
     if (!post || !isRelevantRedditPost(post)) return null;
 
     const text = `${post.title || ""} ${post.selftext || ""}`;
-    const location = await resolveLocationFromText(text, { requireBBox: false });
+    const location = await resolveRedditLocation(post);
     if (!location) return null;
 
     const lower = text.toLowerCase();
@@ -2410,7 +2447,7 @@ async function normalizeRedditPost(post, feed) {
         category: feed.category || "strike",
         title: normalizeText(post.title || "Reddit report").slice(0, 160),
         summary: normalizeText(post.selftext || post.title || "Reddit conflict report").slice(0, 1500),
-        source_name: feed.name,
+        source_name: cleanSourceName(feed.name),
         source_url: post.permalink ? `https://www.reddit.com${post.permalink}` : feed.url,
         occurred_at: post.created_utc
             ? new Date(post.created_utc * 1000).toISOString()
