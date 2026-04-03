@@ -158,27 +158,19 @@ export function initRegionSelector(viewer) {
     try {
         const savedRegion = localStorage.getItem(STORAGE_KEY);
         __activeRegion = savedRegion ? getRegionById(savedRegion) : getRegionById("middle_east");
+
         const savedLens = localStorage.getItem(LENS_KEY);
         __activeLens = savedLens || "live";
+
         ensureRegionAllowedForLens();
     } catch {
         __activeRegion = getRegionById("middle_east");
         __activeLens = "live";
     }
+
     window.__warzoneShowRegionModal = (instant = false) => showRegionModal(viewer, instant);
-    const visited = (() => { try { return localStorage.getItem(VISITED_KEY) === "1"; } catch { return false; } })();
-    const introAccepted = (() => { try { return localStorage.getItem(INTRO_ACCEPT_KEY) === "1"; } catch { return false; } })();
-    if (!introAccepted) {
-        flyToRegion(viewer, __activeRegion);
-    } else if (!visited) {
-        showRegionModal(viewer);
-    } else {
-        window.__warzoneEnterApp?.();
-        flyToRegion(viewer, __activeRegion);
-        window.setTimeout(() => {
-            window.__warzoneStartDeferredApp?.();
-        }, 120);
-    }
+
+    flyToRegion(viewer, __activeRegion);
     initRegionNav(viewer);
 }
 function showRegionModal(viewer, instant = false) {

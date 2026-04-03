@@ -2389,8 +2389,15 @@ export function initAudio() {
 }
 
 
+//const STRATOPS_AUTH_BASE =
+   // window.location.hostname === "localhost"
+       // ? "http://localhost:55147/api/auth"
+// : "https://www.battlespacex.com/api/auth";
+
+const USE_PROD_AUTH_ON_LOCAL = true;
+
 const STRATOPS_AUTH_BASE =
-    window.location.hostname === "localhost"
+    window.location.hostname === "localhost" && !USE_PROD_AUTH_ON_LOCAL
         ? "http://localhost:55147/api/auth"
         : "https://www.battlespacex.com/api/auth";
 
@@ -2572,10 +2579,12 @@ export function initStratopsIntro() {
     // ── Accept and Enter (content mode) ─────────────────────────────────────
     async function handleEnter() {
         if (!checkbox?.checked) return;
-        // Mark intro as accepted so region modal shows on next visit
         try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
-        if (introModal) { introModal.classList.remove("is-visible"); introModal.hidden = true; }
-        await window.__warzoneStartDeferredApp?.();
+        if (introModal) {
+            introModal.classList.remove("is-visible");
+            introModal.hidden = true;
+        }
+        window.__warzoneShowRegionModal?.();
     }
 
     // ── Accept and Login (login mode) ────────────────────────────────────────
@@ -2592,7 +2601,6 @@ export function initStratopsIntro() {
             return;
         }
 
-        // Disable button while loading
         acceptBtn.disabled = true;
         acceptBtn.style.pointerEvents = "none";
         if (acceptLabel) acceptLabel.textContent = "Signing in…";
@@ -2609,18 +2617,22 @@ export function initStratopsIntro() {
                 return;
             }
 
-            // Success — mark authenticated and enter
             if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
             window.__stratopsAuthState.isAuthenticated = true;
             document.body.classList.add("is-authenticated");
             document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: "intro-login" } }));
+
             try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
-            if (introModal) { introModal.classList.remove("is-visible"); introModal.hidden = true; }
-            await window.__warzoneStartDeferredApp?.();
+
+            if (introModal) {
+                introModal.classList.remove("is-visible");
+                introModal.hidden = true;
+            }
+
+            window.__warzoneShowRegionModal?.();
         } catch (err) {
             setIntroError(err?.message || "Unable to sign in right now. Please try again.");
         } finally {
-            // Re-enable button regardless of outcome
             syncIntroBtn();
             if (acceptLabel && isLoginMode) acceptLabel.textContent = "Accept and Login";
         }
