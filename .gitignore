@@ -26,3 +26,6 @@ Thumbs.db
 
 # misc
 *.map
+
+# Claude Code
+.claude/

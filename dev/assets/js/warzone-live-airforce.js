@@ -1294,7 +1294,6 @@ export function clearLiveTrackSelection(options = {}) {
     clearReplayEntities();
     setSelectedTrack("", "");
     hideFocusGuideElement();
-    returnToRegionalFocus(options);
     return true;
 }
 export function getLiveTrackSelection() {

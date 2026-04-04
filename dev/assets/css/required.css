@@ -368,7 +368,7 @@ UNUSED CANDIDATE END */
 .wz--dropdown, .wz--input {
     height: 4rem;
     line-height: 2.6rem;
-    max-width: 100%;
+    max-width: 24rem;
     min-width: 15rem;
     width: 100%;
 }
@@ -376,12 +376,11 @@ UNUSED CANDIDATE END */
 .wz--textarea, .wz--dropdown, .wz--input, option {
     font-family: var(--text-font-v2) !important;
     box-sizing: border-box;
-    border: 0.2rem solid var(--color-bg-dark);
-    background: var(--color-bg-row);
+    border: 0.2rem solid var(--color-border-gray);
+    background: var(--color-bg-overlay);
     color: var(--color-text-heading);
     resize: none;
     display: flex;
-    min-width: 20rem;
     position: relative;
 }
 
@@ -420,6 +419,78 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         color: var(--color-red);
         font-size: 3rem;
     }
+
+
+.wz-check {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 1rem;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.5;
+}
+
+    .wz-check input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        flex: 0 0 2.2rem;
+        width: 2.2rem;
+        height: 2.2rem;
+        margin: -.4rem 0 0;
+        border: 0.2rem solid var(--color-teal-glow);
+        border-radius: .1rem;
+        background: var(--color-bg-dark);
+        position: relative;
+        display: inline-grid;
+        place-content: center;
+        cursor: pointer;
+        transition: 0.3s ease;
+    }
+
+    .wz-check:hover input[type="checkbox"] {
+        border-color: var(--color-teal);
+    }
+
+    .wz-check input[type="checkbox"]::after {
+        content: "";
+        width: .8rem;
+        height: 1.5rem;
+        border: solid var(--color-bg-dark);
+        border-width: 0 0.4rem 0.4rem 0;
+        transform: rotate(45deg) scale(0);
+        transform-origin: center;
+        transition: transform 0.3s ease;
+    }
+
+    .wz-check input[type="checkbox"]:checked {
+        background: var(--color-teal-glow);
+        border-color: var(--color-teal-glow);
+    }
+
+        .wz-check input[type="checkbox"]:checked::after {
+            transform: rotate(45deg) scale(1);
+        }
+
+    .wz-check input[type="checkbox"]:focus-visible {
+        border: 0.2rem solid var(--color-teal-glow);
+        outline-offset: 0.2rem;
+    }
+
+    .wz-check span {
+        display: block;
+        color: var(--color-text);
+        font-size: var(--text-sm);
+    }
+
+    .wz-check input[type="checkbox"]:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+        .wz-check input[type="checkbox"]:disabled + span {
+            opacity: 0.5;
+        }
 /* #endregion =========== */
 /* #region =========== LISTVIEW =========== */
 .wz-list-view {
@@ -538,7 +609,6 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     border-color: var(--color-text-heading);
     border-style: solid;
     opacity: 0.9;
-    filter: blur(1px) drop-shadow(0 0 0.7rem var(--color-text-heading));
 }
 
 .wz-target-overlay__corner--tl {
@@ -620,7 +690,7 @@ UNUSED CANDIDATE END */
     display: grid;
     place-items: center;
     background: var(--color-bg-overlay);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(1rem);
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -708,32 +778,18 @@ body.show-loader .site-loader {
 
 
 .wz-auth-box {
-    max-width: 380px;
     margin: auto;
     padding: 2rem;
-    background: #0b1622;
-    border: 1px solid #1e2c3a;
 }
 
 .wz-auth-title {
-    font-size: 22px;
     margin-bottom: 1rem;
     text-transform: uppercase;
 }
 
-.wz-input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 12px;
-    background: #0f1c2a;
-    border: 1px solid #243547;
-    color: #fff;
-}
 
 .wz-auth-remember {
-    font-size: 13px;
     display: block;
-    margin-bottom: 12px;
 }
 
 .wz-auth-btn {
@@ -741,35 +797,14 @@ body.show-loader .site-loader {
 }
 
 .wz-auth-footer {
-    margin-top: 15px;
-    font-size: 13px;
 }
 
-
-.wz-auth-disclaimer-check {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-size: var(--text-sm);
-    color: var(--color-text-dim);
-    line-height: var(--text-lg);
-}
-
-    .wz-auth-disclaimer-check input[type="checkbox"] {
-        appearance: auto;
-        -webkit-appearance: checkbox;
-        width: 2rem;
-        height: 2rem;
-        flex: 0 0 2rem;
-        accent-color: var(--color-teal-glow);
-    }
 
 .wz-auth-btn[disabled] {
     opacity: .45;
     cursor: not-allowed;
     pointer-events: none;
 }
-
 
 .wz-auth-btn.is-locked {
     opacity: 0.45;
@@ -788,13 +823,9 @@ body.show-loader .site-loader {
 
 .wz-aircraft-load-more {
     width: 100%;
-    padding: 8px;
     background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
     color: rgba(255,255,255,0.6);
     cursor: pointer;
-    font-size: 11px;
-    margin-top: 6px;
 }
 
 .wz-auth-btn.is-locked {

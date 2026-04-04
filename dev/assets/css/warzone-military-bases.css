@@ -1,26 +1,20 @@
 ﻿/* ── Military Base Click Panel ──────────────────────────────────── */
 #warzone-milbase-panel {
     position: fixed;
-    bottom: 80px;
     right: 20px;
     width: 300px;
     background: var(--warzone-panel-bg, rgba(10, 12, 18, 0.95));
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 14px 16px;
+    padding: 2.5rem;
     z-index: 900;
     color: #fff;
-    font-family: var(--warzone-font, 'Barlow Condensed', sans-serif);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     animation: milbase-fadein 0.18s ease;
 }
 
 @keyframes milbase-fadein {
     from {
         opacity: 0;
-        transform: translateY(6px);
+        transform: translateY(.5rem);
     }
 
     to {
@@ -32,14 +26,14 @@
 .milbase-panel__header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .milbase-panel__dot {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 1rem;
+    height: 1rem;
     border-radius: 50%;
     flex-shrink: 0;
     border: 1px solid rgba(255,255,255,0.25);

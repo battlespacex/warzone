@@ -10,7 +10,7 @@
     border: 0.2rem solid var(--color-border-gray);
     background: rgba(14, 17, 24, 0.82);
     box-shadow: var(--box-shadow);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(1rem);
 }
 /* #endregion =========== */
 /* #region =========== MAP SHELL + HOTSPOT LAYER =========== */

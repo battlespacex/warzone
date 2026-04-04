@@ -245,7 +245,7 @@ function createBaseEntity(dataSource, base) {
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             heightReference: Cesium.HeightReference.NONE,
-            scaleByDistance: new Cesium.NearFarScalar(1e4, 1.3, 8e6, 0.45),
+            scaleByDistance: new Cesium.NearFarScalar(1.5e5, 0.55, 8e6, 0.45),
             translucencyByDistance: new Cesium.NearFarScalar(7e6, 1.0, 1.4e7, 0.0),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
             eyeOffset: new Cesium.Cartesian3(0, 0, -400),

@@ -38,7 +38,6 @@
       "channels": [
         "sentdefender",
         "OSINTLive",
-        "OSINTLive",
         "wor_mil_news",
         "CyberspecNews",
         "mmirlb",
@@ -84,11 +83,13 @@
       "url": "https://api.gdeltproject.org/api/v2/doc/doc",
       "poll_interval_ms": 60000,
       "category": "military",
-      "tags": [
-        "gdelt",
-        "signal",
-        "conflict"
-      ]
+      "query": "(missile OR drone OR airstrike OR warship OR artillery OR fighter) AND (Israel OR Iran OR Lebanon OR Syria OR Iraq OR Yemen OR Ukraine OR Russia)",
+      "mode": "ArtList",
+      "format": "json",
+      "maxrecords": 15,
+      "sort": "DateDesc",
+      "timespan": "3h",
+      "tags": [ "gdelt", "signal", "conflict", "doc-api" ]
     },
     {
       "name": "UCDP Conflict Events",

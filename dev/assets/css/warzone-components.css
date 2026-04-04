@@ -646,24 +646,19 @@
         justify-self: left
     }
 
-/* Body is a position:relative container — panels stack inside it */
 .wz-intro__body {
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 2.5rem 2.5rem 1rem;
     display: flex;
     flex-direction: column;
     scrollbar-gutter: stable;
     background: var(--color-bg-modal);
-    /* Fix height so cross-fade doesn't collapse the box */
     position: relative;
 }
 
 /* ── Panel cross-fade ── */
-/* Each panel fades independently. Both share the same space.
-   The inactive panel is opacity:0, pointer-events:none, and
-   position:absolute so it doesn't affect layout height.
-   The active panel is position:relative (takes up space). */
 .wz-intro__panel {
     transition: opacity 0.3s ease, transform 0.3s ease;
     width: 100%;
@@ -672,7 +667,7 @@
     .wz-intro__panel:not(.is-active) {
         opacity: 0;
         pointer-events: none;
-        transform: translateY(6px);
+        transform: translateY(.5rem);
         position: absolute;
         top: 2.5rem;
         left: 2.5rem;
@@ -686,12 +681,10 @@
         position: relative;
     }
 
-/* Login panel fade-in: starts slightly lower */
 #wz-intro-login-view:not(.is-active) {
-    transform: translateY(-6px);
+    transform: translateY(-.5rem);
 }
 
-/* ── Login hint (footer p) fade ── */
 #wz-intro-login-hint {
     transition: opacity 0.25s ease;
     margin-bottom: 1.2rem;
@@ -705,7 +698,6 @@
         overflow: hidden;
     }
 
-/* ── Action row: back + accept side by side ── */
 .wz-intro__btns {
     display: flex;
     gap: 0.8rem;
@@ -713,7 +705,6 @@
     align-items: center;
 }
 
-/* Back button — secondary style */
 .wz-intro__back-btn {
     min-height: 4.4rem;
     padding: 0 1.4rem;
@@ -1085,7 +1076,7 @@
 
     .warzone-panel--floating.wz-is-hidden {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(1rem);
         pointer-events: none;
         visibility: hidden;
     }
@@ -1197,24 +1188,9 @@ UNUSED CANDIDATE END */
     align-items: center;
     padding: .7rem 1.4rem;
     position: relative;
+    clip-path: var(--clippath-shape-3);
+    background: var(--color-red-glow);
 }
-
-    .escalation-meter:before {
-        clip-path: var(--clippath-shape-3);
-        background: var(--color-red-glow);
-        animation: wz-animate-pulse 2s infinite;
-        content: '';
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        z-index: -1;
-        border-radius: .2rem
-    }
-
     .escalation-meter .static-icon {
         height: 4.5rem;
         width: 4.5rem;
@@ -1458,8 +1434,7 @@ UNUSED CANDIDATE END */
 /* #endregion =========== */
 /* #region =========== SIREN BANNER =========== */
 .wz-siren-stack {
-    position: fixed;
-    top: 6rem;
+    position: absolute;
     left: 50%;
     z-index: 99999;
     display: grid;
@@ -1470,12 +1445,10 @@ UNUSED CANDIDATE END */
     transform: translateX(-50%);
 }
 
-    /* Single alert — full width */
     .wz-siren-stack .wz-siren-banner:only-child {
         grid-column: 1 / -1;
     }
 
-    /* Odd last item when more than 2 — full width */
     .wz-siren-stack .wz-siren-banner:last-child:nth-child(odd) {
         grid-column: 1 / -1;
     }
@@ -1619,7 +1592,7 @@ UNUSED CANDIDATE END */
 
 @keyframes wz-modal-in {
     from {
-        transform: scale(0.94) translateY(12px);
+        transform: scale(0.94) translateY(1rem);
     }
 
     to {
@@ -1640,7 +1613,7 @@ UNUSED CANDIDATE END */
 @keyframes wz-siren-in {
     from {
         opacity: 0;
-        transform: translateY(-12px) scaleY(0.92);
+        transform: translateY(-12px) scaleY(0.9);
     }
 
     to {
@@ -1652,7 +1625,7 @@ UNUSED CANDIDATE END */
 @keyframes wz-siren-out {
     from {
         opacity: 1;
-        max-height: 80px;
+        max-height: 8rem;
         margin-bottom: 0;
         transform: translateY(0);
     }
@@ -1660,8 +1633,8 @@ UNUSED CANDIDATE END */
     to {
         opacity: 0;
         max-height: 0;
-        margin-bottom: -0.45rem;
-        transform: translateY(-8px);
+        margin-bottom: -0.5rem;
+        transform: translateY(-1rem);
     }
 }
 /* #endregion =========== */
@@ -1902,14 +1875,13 @@ UNUSED CANDIDATE END */
     right: 24px;
     width: 300px;
     background: rgba(10,14,26,0.96);
-    border: 1px solid rgba(255,255,255,0.1);
     border-radius: 8px;
-    padding: 16px;
+    padding: 2.5rem;
     z-index: 950;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    backdrop-filter: blur(8px);
+    gap: 1rem;
+    backdrop-filter: blur(1rem);
 }
 
     .wz-donate-modal[hidden] {
@@ -1922,28 +1894,24 @@ UNUSED CANDIDATE END */
 
 .wz-donate-modal__close {
     position: absolute;
-    top: 8px;
-    right: 10px;
+    top: 1rem;
+    right: 1rem;
     background: none;
     border: none;
     color: rgba(255,255,255,0.4);
     cursor: pointer;
-    font-size: 14px;
 }
 
 .wz-donate-modal__icon {
-    font-size: 24px;
     text-align: center;
 }
 
 .wz-donate-modal__title {
     color: #fff;
-    font-size: 14px;
 }
 
 .wz-donate-modal__text {
     color: rgba(255,255,255,0.6);
-    font-size: 12px;
     margin: 0;
 }
 
@@ -1955,12 +1923,12 @@ UNUSED CANDIDATE END */
 /* Nav login + rotate buttons */
 .wz-nav-login-btn {
     background: rgba(58,142,255,0.15);
-    border: 1px solid #3a8eff;
     color: #3a8eff;
-    padding: 4px 12px;
-    border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+}
+
+body.is-authenticated .wz-nav-login-btn {
+    display: none;
 }
 
 .wz-globe-rotate-btn {
@@ -1968,14 +1936,13 @@ UNUSED CANDIDATE END */
     border: none;
     color: rgba(255,255,255,0.5);
     cursor: pointer;
-    font-size: 16px;
     padding: 4px 8px;
 }
 
 @keyframes fadeInUp {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(1rem);
     }
 
     to {
@@ -1995,9 +1962,7 @@ UNUSED CANDIDATE END */
     align-items: center;
     justify-content: center;
     background: rgba(7, 11, 18, 0.88);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border-top: 1px solid rgba(24, 226, 219, 0.08);
+    backdrop-filter: blur(.5rem);
     pointer-events: auto;
 }
 

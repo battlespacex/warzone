@@ -217,7 +217,7 @@ body.is-app-active .wz-dock {
     pointer-events: none;
     opacity: 0;
     transition: opacity 150ms ease, transform 150ms ease;
-    transform: translateX(-50%) translateY(4px);
+    transform: translateX(-50%) translateY(.4rem);
 }
 
 .wz-dock__btn:hover .wz-dock__label {
@@ -317,10 +317,6 @@ body.is-about-open .wz-radar-label-layer {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: rgba(8,17,26,0.88);
-    border: 1px solid rgba(24,226,219,0.2);
-    padding: 0.35rem 0.9rem;
-    clip-path: polygon(0 0,100% 0,100% calc(100% - 0.5rem),calc(100% - 0.5rem) 100%,0 100%);
 }
 
 .wz-utc-clock__label, .wz-utc-clock__time {
@@ -333,16 +329,27 @@ body.is-about-open .wz-radar-label-layer {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: rgba(8, 17, 26, 0.88);
     padding: .7rem 1rem;
-    clip-path: var(--clippath-shape-3);
     font-family: var(--heading-font);
-    transition: border-color 0.4s ease;
+    clip-path: var(--clippath-shape-3);
+    border-radius: .2rem
 }
+
+    .wz-defcon:before {
+        animation: wz-animate-pulse 1.4s infinite;
+        content: '';
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: -1;
+    }
 
 .wz-defcon__label {
     letter-spacing: 0.1em;
-    color: var(--color-text-heading);
 }
 
 .wz-defcon__level {
@@ -351,28 +358,43 @@ body.is-about-open .wz-radar-label-layer {
     transition: color 0.4s ease;
 }
 
-.wz-defcon[data-level="1"], .wz-defcon[data-level="1"] .wz-defcon__level {
+.wz-defcon[data-level="1"]:before {
     background: var(--criticality-level-ex-bg);
+}
+
+.wz-defcon[data-level="1"] .wz-defcon__level, .wz-defcon[data-level="1"] .wz-defcon__label {
     color: var( --criticality-level-ex-cl)
 }
 
-.wz-defcon[data-level="2"], .wz-defcon[data-level="2"] .wz-defcon__level {
+.wz-defcon[data-level="2"]:before {
     background: var(--criticality-level-ex-bg);
+}
+
+.wz-defcon[data-level="2"] .wz-defcon__level, .wz-defcon[data-level="2"] .wz-defcon__label {
     color: var( --criticality-level-ex-cl)
 }
 
-.wz-defcon[data-level="3"], .wz-defcon[data-level="3"] .wz-defcon__level {
+.wz-defcon[data-level="3"]:before {
     background: var(--criticality-level-hi-bg);
+}
+
+.wz-defcon[data-level="3"] .wz-defcon__level, .wz-defcon[data-level="3"] .wz-defcon__label {
     color: var( --criticality-level-hi-bg)
 }
 
-.wz-defcon[data-level="4"], .wz-defcon[data-level="4"] .wz-defcon__level {
+.wz-defcon[data-level="4"]:before {
     background: var(--criticality-level-med-bg);
+}
+
+.wz-defcon[data-level="4"] .wz-defcon__level, .wz-defcon[data-level="4"] .wz-defcon__label {
     color: var( --criticality-level-med-bg)
 }
 
-.wz-defcon[data-level="5"], .wz-defcon[data-level="5"] .wz-defcon__level {
+.wz-defcon[data-level="5"]:before {
     background: var(--criticality-level-lo-bg);
+}
+
+.wz-defcon[data-level="5"] .wz-defcon__level, .wz-defcon[data-level="5"] .wz-defcon__label {
     color: var( --criticality-level-lo-cl)
 }
 
@@ -387,7 +409,6 @@ body.is-about-open .wz-radar-label-layer {
     z-index: 10000;
     height: 3rem;
     background: rgba(8,17,26,0.94);
-    border-top: 1px solid rgba(24,226,219,0.15);
     display: flex;
     align-items: center;
     overflow: hidden;

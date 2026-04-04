@@ -22,11 +22,47 @@ const LAYER_DEFS = [
     { id: "hotspots", label: "Hotspot Labels", icon: "📍", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", icon: "🛰️", color: "#4a9eff", uiOnly: true },
 ];
+
 const STORAGE_KEY = "wz_layer_state";
+const WZ_WIDGET_KEY = "wz_widget_visibility";
+
 let __layerState = {};
+let __callbacks = [];
+
 LAYER_DEFS.forEach((l) => {
     __layerState[l.id] = true;
 });
+
+function getLayerDef(id) {
+    return LAYER_DEFS.find((l) => l.id === id) || null;
+}
+
+function hasPremiumAccess() {
+    return !!window.__stratopsAuthState?.isAuthenticated;
+}
+
+function isPremiumLayer(id) {
+    return !!getLayerDef(id)?.premium;
+}
+
+function canUseLayer(id) {
+    if (!isPremiumLayer(id)) return true;
+    return hasPremiumAccess();
+}
+
+function openLoginForPremiumLayer() {
+    try {
+        window.__openLoginModal?.();
+    } catch {
+        // ignore
+    }
+}
+
+function getEffectiveLayerState(id) {
+    if (!canUseLayer(id)) return false;
+    return __layerState[id] !== false;
+}
+
 function loadState() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -39,6 +75,7 @@ function loadState() {
         // keep defaults
     }
 }
+
 function saveState() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(__layerState));
@@ -46,6 +83,7 @@ function saveState() {
         // ignore storage failures
     }
 }
+
 // ── Event classifier ───────────────────────────────────────────────────────────
 export function getEventLayerId(event) {
     if (!event) return "news";
@@ -75,41 +113,52 @@ export function getEventLayerId(event) {
     }
     return "strikes";
 }
+
 export function isEventVisible(event) {
     const layerId = getEventLayerId(event);
-    return __layerState[layerId] !== false;
+    return getEffectiveLayerState(layerId);
 }
+
 export function isLayerEnabled(id) {
-    return __layerState[id] !== false;
+    return getEffectiveLayerState(id);
 }
+
 export function setLayer(id, enabled) {
+    if (!getLayerDef(id)) return false;
+    if (!canUseLayer(id)) {
+        notifyChange(id, false);
+        return false;
+    }
     __layerState[id] = !!enabled;
     saveState();
     notifyChange(id, __layerState[id]);
+    return __layerState[id];
 }
+
 export function toggleLayer(id) {
+    if (!getLayerDef(id)) return false;
+    if (!canUseLayer(id)) {
+        openLoginForPremiumLayer();
+        notifyChange(id, false);
+        return false;
+    }
     __layerState[id] = !__layerState[id];
     saveState();
     notifyChange(id, __layerState[id]);
     return __layerState[id];
 }
-// ── uiOnly layer → widget visibility sync ──────────────────────────────────────
-// When a uiOnly layer is toggled, find the matching widget by data-widget-id,
-// show/hide it, and keep the dock button in sync.
-// This is self-contained — no imports from warzone-boot.js needed.
-const WZ_WIDGET_KEY = "wz_widget_visibility";
+
 function syncUiOnlyLayerToWidget(layerId, enabled) {
     try {
-        // Show/hide the widget panel
         const widget = document.querySelector(`[data-widget-id="${layerId}"]`);
         if (widget) {
             widget.classList.toggle("wz-is-hidden", !enabled);
         }
-        // Persist to same localStorage key warzone-boot.js uses
+
         const saved = JSON.parse(localStorage.getItem(WZ_WIDGET_KEY) || "{}");
         saved[layerId] = enabled;
         localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(saved));
-        // Keep dock button in sync (gone when widget is visible, shown when hidden)
+
         const dockBtn = document.querySelector(`[data-dock-widget="${layerId}"]`);
         if (dockBtn) {
             dockBtn.classList.toggle("wz-dock--gone", enabled);
@@ -120,44 +169,86 @@ function syncUiOnlyLayerToWidget(layerId, enabled) {
     }
 }
 
-// Callbacks
-let __callbacks = [];
 export function onLayerChange(cb) {
     __callbacks.push(cb);
 }
+
 function notifyChange(id, val) {
-    // Sync uiOnly layers to widget visibility automatically
     if (id === "*") {
-        LAYER_DEFS.filter(l => l.uiOnly).forEach(l => {
-            syncUiOnlyLayerToWidget(l.id, __layerState[l.id] !== false);
+        LAYER_DEFS.filter((l) => l.uiOnly).forEach((l) => {
+            syncUiOnlyLayerToWidget(l.id, getEffectiveLayerState(l.id));
         });
     } else {
-        const layerDef = LAYER_DEFS.find(l => l.id === id);
+        const layerDef = getLayerDef(id);
         if (layerDef?.uiOnly) {
-            syncUiOnlyLayerToWidget(id, val);
+            syncUiOnlyLayerToWidget(id, getEffectiveLayerState(id));
         }
     }
+
     __callbacks.forEach((cb) => {
         try {
-            cb(id, val, { ...__layerState });
+            cb(id, id === "*" ? val : getEffectiveLayerState(id), { ...__layerState });
         } catch {
             // ignore callback errors
         }
     });
 }
+
+function syncLayerItemState(item, id) {
+    const def = getLayerDef(id);
+    const enabled = getEffectiveLayerState(id);
+    const locked = !!def?.premium && !hasPremiumAccess();
+
+    item.classList.toggle("is-on", enabled);
+    item.classList.toggle("is-locked", locked);
+    item.classList.toggle("is-premium", !!def?.premium);
+    item.setAttribute("aria-disabled", locked ? "true" : "false");
+    item.setAttribute("data-locked", locked ? "true" : "false");
+
+    const toggle = item.querySelector(".wz-layer-toggle");
+    if (toggle) {
+        toggle.classList.toggle("is-locked", locked);
+    }
+}
+
+function syncAllLayerItemStates(container) {
+    container.querySelectorAll(".wz-layer-item").forEach((item) => {
+        syncLayerItemState(item, item.dataset.layer);
+    });
+}
+
+function setAllLayers(enabled, container) {
+    LAYER_DEFS.forEach((l) => {
+        if (!canUseLayer(l.id)) return;
+        __layerState[l.id] = !!enabled;
+    });
+    saveState();
+    syncAllLayerItemStates(container);
+    notifyChange("*", !!enabled);
+}
+
+export function refreshLayerAccessUi() {
+    const container = document.getElementById("wz-layer-panel");
+    if (!container) return;
+    syncAllLayerItemStates(container);
+    notifyChange("*", true);
+}
+
 // ── Layer panel UI ─────────────────────────────────────────────────────────────
 export function initLayerPanel() {
     loadState();
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
+
     const rows = LAYER_DEFS.map((l) => `
-        <div class="wz-layer-item${__layerState[l.id] ? " is-on" : ""}${l.premium ? " is-premium" : ""}" data-layer="${l.id}">
+        <div class="wz-layer-item${getEffectiveLayerState(l.id) ? " is-on" : ""}${l.premium ? " is-premium" : ""}${l.premium && !hasPremiumAccess() ? " is-locked" : ""}" data-layer="${l.id}" aria-disabled="${l.premium && !hasPremiumAccess() ? "true" : "false"}" data-locked="${l.premium && !hasPremiumAccess() ? "true" : "false"}">
             <span class="wz-layer-icon">${l.icon}</span>
             <span class="wz-layer-dot" style="background:${l.color}"></span>
             <span class="wz-layer-label">${l.label}</span>
-            <span class="wz-layer-toggle"></span>
+            <span class="wz-layer-toggle${l.premium && !hasPremiumAccess() ? " is-locked" : ""}"></span>
         </div>
     `).join("");
+
     container.innerHTML = `
         <div class="wz-layers__toolbar">
             <button class="wz-layers__all-on btn-primary" id="wz-layers-all-on">ALL ON<span aria-hidden="true"></span></button>
@@ -165,45 +256,39 @@ export function initLayerPanel() {
         </div>
         <div class="wz-layers__list">${rows}</div>
     `;
+
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
         item.addEventListener("click", () => {
             const id = item.dataset.layer;
             const newVal = toggleLayer(id);
-            item.classList.toggle("is-on", newVal);
-            notifyChange(id, newVal);
+            syncLayerItemState(item, id);
+            if (!newVal && isPremiumLayer(id) && !hasPremiumAccess()) {
+                openLoginForPremiumLayer();
+            }
         });
-    });
-    document.getElementById("wz-layers-all-on")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        LAYER_DEFS.forEach((l) => {
-            __layerState[l.id] = true;
-            container.querySelector(`[data-layer="${l.id}"]`)?.classList.add("is-on");
-        });
-        saveState();
-        notifyChange("*", true);
-    });
-    document.getElementById("wz-layers-all-off")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        LAYER_DEFS.forEach((l) => {
-            __layerState[l.id] = false;
-            container.querySelector(`[data-layer="${l.id}"]`)?.classList.remove("is-on");
-        });
-        saveState();
-        notifyChange("*", false);
     });
 
-    // ── Apply saved state to globe/widgets on init ────────────────────────────
-    // loadState() updates __layerState but fires no callbacks, so the globe
-    // entities and widgets would stay at default visibility. Notify all layers
-    // that differ from their ON default so the globe reflects the saved state.
-    // Use a small delay so onLayerChange callbacks are registered first.
+    document.getElementById("wz-layers-all-on")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setAllLayers(true, container);
+    });
+
+    document.getElementById("wz-layers-all-off")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setAllLayers(false, container);
+    });
+
     setTimeout(() => {
         LAYER_DEFS.forEach((l) => {
-            if (!__layerState[l.id]) {
-                // This layer is saved as OFF — notify so globe/widget hides it
+            if (!getEffectiveLayerState(l.id)) {
                 notifyChange(l.id, false);
             }
         });
     }, 200);
+
+    window.addEventListener("stratops-auth-changed", () => {
+        refreshLayerAccessUi();
+    });
 }
+
 export { LAYER_DEFS };

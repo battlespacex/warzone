@@ -155,6 +155,7 @@
     --warzone-msaa-samples: 1;
     --warzone-fxaa-enabled: 1;
     --warzone-camera-min-zoom: 200;
+    --warzone-camera-max-zoom: 18000000;
     --warzone-max-renderable-events: 300;
     --warzone-event-cluster-height: 6000000; /* was 8M — cluster sooner on zoom-out */
     --warzone-event-ring-max-height: 15000000;

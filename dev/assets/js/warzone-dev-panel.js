@@ -134,7 +134,7 @@ const TEST_EVENTS = {
         location_label: "Israel",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
-        metadata: { callsign: "IAF101", heading: 45, altitude_ft: 35000, speed_kts: 480, country: "Israel" },
+        metadata: { callsign: "IAF101", heading: 45, altitude_ft: 35000, speed_kts: 80, country: "Israel" },
         source_key: "adsb-test-fighter-1",
     },
     aircraft_awacs: {
@@ -149,7 +149,7 @@ const TEST_EVENTS = {
         location_label: "Poland",
         source_name: "ADS-B / OpenSky Network",
         occurred_at: new Date().toISOString(),
-        metadata: { callsign: "NAEW01", heading: 270, altitude_ft: 29000, speed_kts: 380, country: "NATO" },
+        metadata: { callsign: "NAEW01", heading: 270, altitude_ft: 29000, speed_kts: 80, country: "NATO" },
         source_key: "adsb-test-awacs-1",
     },
     aircraft_recon: {

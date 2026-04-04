@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 dotenv.config({
     path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
 });
+console.log("RUNNING WORKER INDEX FROM apps/worker/src/index.js");
 import http from "http";
 import cron from "node-cron";
 import axios from "axios";
@@ -1692,7 +1693,17 @@ function normalizeGdeltEvent(item, feed) {
     const sourceUrl = item.url || "https://gdeltproject.org";
     const text = `${title} ${summary}`.toLowerCase();
     const hasHardMilitaryTerm = HARD_MILITARY_TERMS.some((term) => text.includes(term));
-    if (!hasHardMilitaryTerm) return null;
+    const hasFeedKeyword =
+        text.includes("military") ||
+        text.includes("missile") ||
+        text.includes("drone") ||
+        text.includes("airspace") ||
+        text.includes("naval") ||
+        text.includes("fighter") ||
+        text.includes("artillery") ||
+        text.includes("cyber");
+
+    if (!hasHardMilitaryTerm && !hasFeedKeyword) return null;
     let actorSide = "unknown";
     if (text.includes("military") || text.includes("army") || text.includes("air force") || text.includes("navy")) {
         actorSide = "state_actor";
@@ -3188,24 +3199,37 @@ async function processFeed(feed) {
         return;
     }
     if (feed.parser === "gdelt") {
-        const response = await axios.get(feed.url, {
-            params: {
-                query: '("missile strike" OR "ballistic missile" OR "cruise missile" OR "hypersonic missile" OR "drone strike" OR "drone attack" OR "kamikaze drone" OR "shahed drone" OR "air strike" OR "airstrike" OR "air raid" OR "rocket attack" OR "rocket barrage" OR "artillery strike" OR "artillery barrage" OR "shelling" OR "bombardment" OR "fighter jet" OR "combat aircraft" OR "military aircraft" OR "warship" OR "naval attack" OR "carrier strike group" OR "submarine" OR "destroyer" OR "frigate" OR "military base attack" OR "airbase attack" OR "air defense" OR "missile defense" OR "interception" OR "scramble" OR "sortie" OR "red alert" OR "take shelter" OR "siren alert" OR "notam issued" OR "airspace closed" OR "airspace restricted" OR "cyberattack" OR "cyber attack" OR "military operation" OR "special operation" OR "ground offensive" OR "troop movement" OR "military convoy")',
-                mode: "ArtList",
-                format: "json",
-                maxrecords: 25,
-                sort: "DateDesc",
-                timespan: "24h"
-            },
-            timeout: 45000
-        });
-        const items = Array.isArray(response.data?.articles) ? response.data.articles : [];
-        for (const item of items) {
-            const event = normalizeGdeltEvent(item, feed);
-            if (!event) continue;
-            await insertEventIfValid(event);
+        try {
+            const response = await axios.get(feed.url, {
+                params: {
+                    query: feed.query,
+                    mode: feed.mode || "ArtList",
+                    format: feed.format || "json",
+                    maxrecords: Number(feed.maxrecords || 50),
+                    sort: feed.sort || "DateDesc",
+                    timespan: feed.timespan || "12h"
+                },
+                timeout: 45000,
+                headers: {
+                    Accept: "application/json"
+                }
+            });
+
+            const items = Array.isArray(response.data?.articles) ? response.data.articles : [];
+
+            console.log(`[GDELT] fetched ${items.length} article candidates`);
+
+            for (const item of items) {
+                const event = normalizeGdeltEvent(item, feed);
+                if (!event) continue;
+                await insertEventIfValid(event);
+            }
+
+            return;
+        } catch (error) {
+            console.warn("[GDELT] Fetch failed:", error.response?.status || error.message);
+            return;
         }
-        return;
     }
     if (feed.parser === "eonet") {
         try {
@@ -3266,7 +3290,11 @@ async function runWorker() {
             await runAdsbWorker().catch(err => console.error("[adsb]", err.message));
         if (aisFeed?.enabled !== false)
             await runAisWorker().catch(err => console.error("[ais]", err.message));
-        const activeFeeds = toArray(sources.feeds).filter((feed) => feed.enabled !== false);
+        const activeFeeds = toArray(sources.feeds).filter((feed) =>
+            feed.enabled !== false &&
+            feed.type !== "adsb-opensky" &&
+            feed.type !== "ais-stream"
+        );
         for (const feed of activeFeeds) {
             try {
                 await processFeed(feed);

@@ -17,3 +17,7 @@ if (!supabaseServiceRoleKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+console.log("WORKER SUPABASE URL:", supabaseUrl);
+console.log("WORKER SERVICE ROLE PRESENT:", !!supabaseServiceRoleKey);
+console.log("WORKER SERVICE ROLE PREFIX:", String(supabaseServiceRoleKey || "").slice(0, 20));

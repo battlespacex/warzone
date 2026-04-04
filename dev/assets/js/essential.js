@@ -1624,7 +1624,7 @@ function renderAircraftMovementsWidget() {
         }
         const remaining = Math.min(LIVE_AIRCRAFT_WIDGET_MAX_ITEMS, allForCount - shownCount);
         loadMoreBtn.textContent = `Load More (${remaining} more)`;
-        if (!loadMoreBtn.isConnected) container.appendChild(loadMoreBtn);
+        container.appendChild(loadMoreBtn); // always move to end after cards
     } else {
         loadMoreBtn?.remove();
     }
@@ -1893,7 +1893,7 @@ export async function initWarzoneApp() {
             clusterDistanceLat: 2.6,
             clusterDistanceLon: 3.2,
             stackDistancePx: 90,
-            maxVisiblePerHotspot: 3,
+            maxVisiblePerHotspot: 5,
             minItemsForCluster: 1,
         });
         window.__hotspotLayer = __hotspotLayer;
@@ -2389,17 +2389,109 @@ export function initAudio() {
 }
 
 
-//const STRATOPS_AUTH_BASE =
-   // window.location.hostname === "localhost"
-       // ? "http://localhost:55147/api/auth"
-// : "https://www.battlespacex.com/api/auth";
+const LOCAL_AUTH_BASES = [
+    "http://localhost:55147/api/auth",
+    "http://127.0.0.1:55147/api/auth",
+];
 
-const USE_PROD_AUTH_ON_LOCAL = true;
+const PROD_AUTH_BASES = [
+    "https://www.battlespacex.com/api/auth",
+    "https://battlespacex.com/api/auth",
+];
 
-const STRATOPS_AUTH_BASE =
-    window.location.hostname === "localhost" && !USE_PROD_AUTH_ON_LOCAL
-        ? "http://localhost:55147/api/auth"
-        : "https://www.battlespacex.com/api/auth";
+function isLocalHostName(hostname) {
+    const host = String(hostname || "").toLowerCase();
+    return host === "localhost" || host === "127.0.0.1";
+}
+
+function getAuthBases() {
+    return isLocalHostName(window.location.hostname)
+        ? [...LOCAL_AUTH_BASES, ...PROD_AUTH_BASES]
+        : [...PROD_AUTH_BASES];
+}
+
+function getPreferredLoginBase() {
+    return isLocalHostName(window.location.hostname)
+        ? LOCAL_AUTH_BASES[0]
+        : PROD_AUTH_BASES[0];
+}
+
+function applyResolvedAuthState(isAuthenticated, user = null, resolvedBase = null) {
+    window.__stratopsResolvedAuthBase = resolvedBase || null;
+    window.__stratopsAuthState = {
+        isAuthenticated: !!isAuthenticated,
+        user: isAuthenticated ? (user || null) : null,
+    };
+
+    document.body.classList.toggle("is-authenticated", !!isAuthenticated);
+
+    const btn = document.getElementById("wz-nav-login-btn");
+    if (btn) btn.hidden = !!isAuthenticated;
+
+    return !!isAuthenticated;
+}
+
+async function fetchAuthJson(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: "include",
+        cache: "no-store",
+        ...options,
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            ...(options.headers || {}),
+        },
+    });
+
+    let data = null;
+    try {
+        data = await response.json();
+    } catch {
+        data = null;
+    }
+
+    return { response, data };
+}
+
+async function validateAgainstBase(baseUrl) {
+    try {
+        const { response, data } = await fetchAuthJson(`${baseUrl}/validate`, {
+            method: "GET",
+        });
+
+        if (!response.ok) {
+            return { ok: false, isAuthenticated: false, user: null, baseUrl };
+        }
+
+        return {
+            ok: true,
+            isAuthenticated: !!data?.isAuthenticated,
+            user: data || null,
+            baseUrl,
+        };
+    } catch (err) {
+        console.warn(`[auth] Validate failed for ${baseUrl}:`, err);
+        return { ok: false, isAuthenticated: false, user: null, baseUrl };
+    }
+}
+
+async function confirmAuthSession(maxPasses = 2) {
+    const bases = getAuthBases();
+
+    for (let pass = 0; pass < maxPasses; pass += 1) {
+        for (const baseUrl of bases) {
+            const result = await validateAgainstBase(baseUrl);
+            if (result.isAuthenticated) {
+                return applyResolvedAuthState(true, result.user, baseUrl);
+            }
+        }
+
+        if (pass < maxPasses - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+    }
+
+    return applyResolvedAuthState(false, null, null);
+}
 
 function getAuthModalElements() {
     return {
@@ -2611,15 +2703,19 @@ export function initStratopsIntro() {
             body.append("password", passwordVal);
             body.append("rememberMe", String(rememberVal));
 
-            const data = await postAuthForm(`${STRATOPS_AUTH_BASE}/login`, body);
+            const loginBase = getPreferredLoginBase();
+            const data = await postAuthForm(`${loginBase}/login`, body);
             if (!data?.success) {
                 setIntroError(data?.message || "Invalid email or password.");
                 return;
             }
 
-            if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
-            window.__stratopsAuthState.isAuthenticated = true;
-            document.body.classList.add("is-authenticated");
+            const confirmed = await confirmAuthSession(3);
+            if (!confirmed) {
+                setIntroError("Login succeeded but your BattleSpaceX session could not be confirmed yet. Please try again.");
+                return;
+            }
+
             document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: "intro-login" } }));
 
             try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
@@ -2717,12 +2813,17 @@ export function initStratopsAuth() {
             body.append("email", emailValue);
             body.append("password", passwordValue);
             body.append("rememberMe", String(rememberValue));
-            const data = await postAuthForm(`${STRATOPS_AUTH_BASE}/login`, body);
+            const loginBase = getPreferredLoginBase();
+            const data = await postAuthForm(`${loginBase}/login`, body);
             if (!data?.success) { setAuthError(data?.message || "Invalid email or password."); return; }
-            if (window.__stratopsAuthState == null) window.__stratopsAuthState = {};
-            window.__stratopsAuthState.isAuthenticated = true;
+
+            const confirmed = await confirmAuthSession(3);
+            if (!confirmed) {
+                setAuthError("Login succeeded but your BattleSpaceX session could not be confirmed yet. Please try again.");
+                return;
+            }
+
             hideLoginModal();
-            document.body.classList.add("is-authenticated");
             // Notify all gated features (military bases, layer locks, etc.)
             document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: "login" } }));
         } catch (err) {
@@ -2745,21 +2846,10 @@ export function initStratopsAuth() {
 
 export async function stratopsCheckAuth() {
     try {
-        const res = await fetch(`${STRATOPS_AUTH_BASE}/validate`, {
-            method: "GET",
-            headers: { "X-Requested-With": "XMLHttpRequest" },
-            credentials: "include",
-        });
-        if (!res.ok) { window.__stratopsAuthState = { isAuthenticated: false, user: null }; return false; }
-        const data = await res.json();
-        const isAuthenticated = !!data?.isAuthenticated;
-        window.__stratopsAuthState = { isAuthenticated, user: data || null };
-        if (isAuthenticated) document.body.classList.add("is-authenticated");
-        return isAuthenticated;
+        return await confirmAuthSession(1);
     } catch (err) {
         console.error("[auth] Check failed:", err);
-        window.__stratopsAuthState = { isAuthenticated: false, user: null };
-        return false;
+        return applyResolvedAuthState(false, null, null);
     }
 }
 
@@ -2791,14 +2881,15 @@ function injectNavLoginButton() {
         showLoginModal(s?.isAuthenticated ? "authenticated" : "guest", s?.user || null);
     });
     target.appendChild(btn);
+    btn.hidden = !!window.__stratopsAuthState?.isAuthenticated;
 }
 
 export function initGlobeRotation(viewer) {
     if (!viewer) return;
-    const SPEED_DEG = 0.3;
-    window.__globeRotation = { enabled: false, paused: false, speed: SPEED_DEG };
+    const SPEED_DEG = 0.2;
+    window.__globeRotation = { enabled: true, paused: false, speed: SPEED_DEG };
     let lastTime = null, interacting = false;
-    const onStart = () => { interacting = true; lastTime = null; };
+    const onStart = () => { interacting = false; lastTime = null; };
     const onEnd = () => { interacting = false; };
     viewer.scene.canvas.addEventListener("mousedown", onStart);
     viewer.scene.canvas.addEventListener("mouseup", onEnd);
