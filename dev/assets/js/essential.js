@@ -1893,7 +1893,7 @@ export async function initWarzoneApp() {
             clusterDistanceLat: 2.6,
             clusterDistanceLon: 3.2,
             stackDistancePx: 90,
-            maxVisiblePerHotspot: 5,
+            maxVisiblePerHotspot: 3,
             minItemsForCluster: 1,
         });
         window.__hotspotLayer = __hotspotLayer;
@@ -2388,15 +2388,12 @@ export function initAudio() {
     syncUi(false);
 }
 
-
 const LOCAL_AUTH_BASES = [
     "http://localhost:55147/api/auth",
-    "http://127.0.0.1:55147/api/auth",
 ];
 
 const PROD_AUTH_BASES = [
     "https://www.battlespacex.com/api/auth",
-    "https://battlespacex.com/api/auth",
 ];
 
 function isLocalHostName(hostname) {
@@ -2410,17 +2407,12 @@ function getAuthBases() {
         : [...PROD_AUTH_BASES];
 }
 
-function getPreferredLoginBase() {
-    return isLocalHostName(window.location.hostname)
-        ? LOCAL_AUTH_BASES[0]
-        : PROD_AUTH_BASES[0];
-}
 
 function applyResolvedAuthState(isAuthenticated, user = null, resolvedBase = null) {
     window.__stratopsResolvedAuthBase = resolvedBase || null;
     window.__stratopsAuthState = {
         isAuthenticated: !!isAuthenticated,
-        user: isAuthenticated ? (user || null) : null,
+        user: !!isAuthenticated ? (user || null) : null,
     };
 
     document.body.classList.toggle("is-authenticated", !!isAuthenticated);
@@ -2703,8 +2695,7 @@ export function initStratopsIntro() {
             body.append("password", passwordVal);
             body.append("rememberMe", String(rememberVal));
 
-            const loginBase = getPreferredLoginBase();
-            const data = await postAuthForm(`${loginBase}/login`, body);
+            const data = await postAuthFormWithFallback("/login", body);
             if (!data?.success) {
                 setIntroError(data?.message || "Invalid email or password.");
                 return;
@@ -2813,8 +2804,7 @@ export function initStratopsAuth() {
             body.append("email", emailValue);
             body.append("password", passwordValue);
             body.append("rememberMe", String(rememberValue));
-            const loginBase = getPreferredLoginBase();
-            const data = await postAuthForm(`${loginBase}/login`, body);
+            const data = await postAuthFormWithFallback("/login", body);
             if (!data?.success) { setAuthError(data?.message || "Invalid email or password."); return; }
 
             const confirmed = await confirmAuthSession(3);
@@ -2866,6 +2856,24 @@ async function postAuthForm(url, body) {
     return data;
 }
 
+async function postAuthFormWithFallback(path, body) {
+    const bases = getAuthBases();
+    let lastError = null;
+
+    for (const baseUrl of bases) {
+        try {
+            const data = await postAuthForm(`${baseUrl}${path}`, body);
+            window.__stratopsResolvedAuthBase = baseUrl;
+            return data;
+        } catch (err) {
+            lastError = err;
+            console.warn(`[auth] POST failed for ${baseUrl}${path}:`, err);
+        }
+    }
+
+    throw lastError || new Error("Authentication request failed.");
+}
+
 function injectNavLoginButton() {
     if (document.getElementById("wz-nav-login-btn")) return;
     const target = document.querySelector(".wz-header__right, .wz-nav__right, .warzone-header, [class*='header__right']");
@@ -2881,7 +2889,6 @@ function injectNavLoginButton() {
         showLoginModal(s?.isAuthenticated ? "authenticated" : "guest", s?.user || null);
     });
     target.appendChild(btn);
-    btn.hidden = !!window.__stratopsAuthState?.isAuthenticated;
 }
 
 export function initGlobeRotation(viewer) {
@@ -2889,7 +2896,7 @@ export function initGlobeRotation(viewer) {
     const SPEED_DEG = 0.2;
     window.__globeRotation = { enabled: true, paused: false, speed: SPEED_DEG };
     let lastTime = null, interacting = false;
-    const onStart = () => { interacting = false; lastTime = null; };
+    const onStart = () => { interacting = true; lastTime = null; };
     const onEnd = () => { interacting = false; };
     viewer.scene.canvas.addEventListener("mousedown", onStart);
     viewer.scene.canvas.addEventListener("mouseup", onEnd);
