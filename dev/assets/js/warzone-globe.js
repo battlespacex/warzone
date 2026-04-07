@@ -676,9 +676,8 @@ async function addGeoJsonBorderLayer(viewer, config) {
                 for (const line of lines) addPolylineForRing(viewer, line, { color, width });
             }
         }
-        console.log(`${config.name} borders added:`, features.length);
     } catch (error) {
-        console.warn(`${config.name} borders skipped:`, error);
+        void error;
     }
 }
 async function addBorderLayers(viewer) {
@@ -1501,13 +1500,21 @@ export async function initWarzoneGlobe() {
         imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
     });
     applyViewerStyle(viewer);
-    await addArcGisLayers(viewer);
     setInitialCamera(viewer);
-    await addBorderLayers(viewer);
     ensureMissileStore(viewer);
     ensureAudioStore(viewer);
     attachEventLodController(viewer);
     viewer.scene.requestRender();
+    addArcGisLayers(viewer)
+        .then(() => {
+            viewer.scene.requestRender();
+        })
+        .catch(() => { });
+    addBorderLayers(viewer)
+        .then(() => {
+            viewer.scene.requestRender();
+        })
+        .catch(() => { });
     viewer.__warzone = {
         addEvent(event) {
             const entity = addEventEntity(viewer, event);

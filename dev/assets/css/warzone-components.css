@@ -76,6 +76,14 @@
     transition: color 180ms ease, margin-left 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.wzhs--fresh .wzhs__count {
+    animation: wz-animate-pulse 1.2s ease-in-out infinite;
+}
+
+.wzhs--fresh .wzhs__icon {
+    box-shadow: 0 0 1.4rem rgba(24, 226, 219, 0.28);
+}
+
 .wzhs__label {
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -625,6 +633,15 @@
     top: calc(30vh - -6rem)
 }
 
+.warzone-widget--feed {
+    right: 30rem;
+    top: 0;
+}
+
+.warzone-panel--floating.warzone-widget--feed {
+    max-height: 65vh;
+}
+
 .warzone-widget--escalation {
     right: 0;
     top: 0;
@@ -646,6 +663,16 @@
 }
 
 .warzone-panel--floating.warzone-widget--aircraft {
+    max-height: 65vh
+}
+
+.warzone-widget--naval {
+    left: 30rem;
+    top: auto;
+    bottom: 0;
+}
+
+.warzone-panel--floating.warzone-widget--naval {
     max-height: 65vh
 }
 /* #endregion =========== */
@@ -1433,6 +1460,48 @@ UNUSED CANDIDATE END */
 /* #region =========== WIDGET LOADER =========== */
 .panel-content {
     position: relative;
+}
+
+.wz-feed-list {
+    display: grid;
+    gap: 0;
+    padding: 0.8rem 1.2rem 1rem;
+}
+
+.wz-feed-list .timeline-item {
+    grid-template-columns: 8rem 1fr;
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+.wz-feed-time {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.wz-feed-time small,
+.wz-feed-list .timeline-body small {
+    color: var(--color-text-dim);
+}
+
+.feed-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    padding: 0.4rem 0.7rem 0.3rem;
+    border: 0.1rem solid rgba(24, 226, 219, 0.28);
+    color: var(--color-accent);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    background: rgba(24, 226, 219, 0.08);
+}
+
+.feed-empty {
+    padding: 1.2rem 0;
+    color: var(--color-text-dim);
 }
 
     .panel-content.is-loading > *:not(.wz-widget-loader) {

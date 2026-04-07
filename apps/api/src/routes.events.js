@@ -69,10 +69,12 @@ export function eventsRouter({ broadcast }) {
             const supabase = getSupabase();
             const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const { data, error } = await supabase
-                .from("aircraft_tracks_log")
-                .select("track_key,callsign,subtype,lat,lon,altitude_ft,speed_kts,heading_deg,status,last_seen_at,ended_at,created_at")
-                .gte("last_seen_at", cutoff)
-                .order("last_seen_at", { ascending: false })
+                .from("tracks")
+                .select("*")
+                .eq("track_type", "aircraft")
+                .eq("category", "military")
+                .gte("updated_at", cutoff)
+                .order("updated_at", { ascending: false })
                 .limit(500);
             if (error) return res.status(500).json({ error: "Failed" });
             res.json({ tracks: data || [] });

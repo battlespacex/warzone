@@ -9,12 +9,16 @@ export async function subscribeToLiveEvents() {
         .on(
             "postgres_changes",
             {
-                event: "INSERT",
+                event: "*",
                 schema: "public",
                 table: "events",
             },
             (payload) => {
-                handleIncomingEvent(payload.new);
+                const eventType = String(payload.eventType || payload.event || "").toUpperCase();
+                if (eventType === "DELETE") return;
+                const row = payload.new || payload.old;
+                if (!row) return;
+                handleIncomingEvent(row);
             }
         )
         .subscribe();

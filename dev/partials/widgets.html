@@ -99,6 +99,36 @@
             </div>
         </aside>
 
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--feed"
+               data-widget-id="feed"
+               aria-labelledby="widget-feed-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-feed-title">Breaking News</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse breaking news widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide breaking news widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="live-feed-list" class="timeline-list wz-feed-list" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--escalation"
                data-widget-id="escalation"
                aria-labelledby="widget-escalation-title">
@@ -232,6 +262,36 @@
                     </div>
 
                     <div id="wz-aircraft-panel" class="wz-aircraft-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--naval"
+               data-widget-id="naval"
+               aria-labelledby="widget-naval-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-naval-title">Naval Tracker</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse naval tracker widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide naval tracker widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="wz-naval-panel-list" class="wz-aircraft-panel" aria-live="polite"></div>
                 </div>
             </div>
         </aside>

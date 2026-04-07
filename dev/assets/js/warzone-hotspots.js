@@ -48,6 +48,10 @@ function truncateText(v, max = 90) {
     if (clean.length <= max) return clean;
     return `${clean.slice(0, max).trim()}…`;
 }
+function isRecentActivity(occurredAt, windowMs = 60 * 60 * 1000) {
+    const ts = new Date(occurredAt || 0).getTime();
+    return Number.isFinite(ts) && (Date.now() - ts) <= windowMs;
+}
 function englishRatio(text) {
     const clean = sanitizeText(text);
     if (!clean) return 0;
@@ -241,7 +245,7 @@ function eventHeadline(e = {}) {
             bestScore = score;
         }
     }
-    if (best) return truncateText(best, 82);
+    if (best) return truncateText(best, 110);
     return buildFallbackHeadline(e);
 }
 function eventSubline(e = {}) {
@@ -425,10 +429,12 @@ function createCardEl(cluster, onToggle) {
             ""
         );
         const time = timeAgo(cluster.latest?.occurred_at);
+        const isFresh = cluster.items.some((item) => isRecentActivity(item?.occurred_at));
         btn.className = [
             "wzhs",
             `wzhs--${cluster.cat}`,
             `wzhs--sev-${cluster.sev}`,
+            isFresh ? "wzhs--fresh" : "",
             cluster.stackIdx === 1 ? "wzhs--s2" : "",
             cluster.stackIdx === 2 ? "wzhs--s3" : "",
             isExpanded ? "wzhs--open" : "",

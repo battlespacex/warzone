@@ -19,6 +19,7 @@ let __liveTrackOverlayRoot = null;
 let __liveTrackOverlayBound = false;
 let __liveTrackClickBound = false;
 let __liveTrackClickHandler = null;
+let __liveTrackRegistryDispatchTimer = null;
 // True while a programmatic camera.flyTo() is in flight — prevents moveStart
 // from clearing the X-lines during the fly-to animation itself.
 let __liveTrackIsCameraFlying = false;
@@ -54,9 +55,9 @@ const LIVE_TRACK_ENGINE_OFFSET_METERS = 120;
 const LIVE_TRACK_MAX_TRAIL_POINTS = 160;
 const LIVE_TRACK_TRAIL_MAX_AGE_MS = 18 * 60 * 1000;
 const LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS = 240;
-const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 60;
-const LIVE_TRACK_MIN_ANIM_MS = 140;
-const LIVE_TRACK_MAX_ANIM_MS = 520;
+const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 24;
+const LIVE_TRACK_MIN_ANIM_MS = 1800;
+const LIVE_TRACK_MAX_ANIM_MS = 14000;
 const LIVE_TRACK_HISTORY_RETENTION_MS = 72 * 60 * 60 * 1000;
 const LIVE_TRACK_HISTORY_MAX_POINTS = 720;
 const LIVE_TRACK_REPLAY_STEP_MS = 180;
@@ -99,35 +100,35 @@ function getLiveTrackStyleConfig() {
     };
 }
 function getLiveTrackSubtypeScale(track = {}, fallbackScale = 16) {
-    const subtype = String(track.subcategory || track.subtype || "")
+    const subtype = resolveTrackSubtype(track)
         .trim()
         .toLowerCase();
     if (!subtype) return fallbackScale;
     return getCssNumber(`--warzone-live-track-scale-${subtype}`, fallbackScale);
 }
 function getLiveTrackSubtypeMinPixelSize(track = {}, fallbackValue = 140) {
-    const subtype = String(track.subcategory || track.subtype || "")
+    const subtype = resolveTrackSubtype(track)
         .trim()
         .toLowerCase();
     if (!subtype) return fallbackValue;
     return getCssNumber(`--warzone-live-track-min-pixel-size-${subtype}`, fallbackValue);
 }
 function getLiveTrackSubtypeMaxScale(track = {}, fallbackValue = 520) {
-    const subtype = String(track.subcategory || track.subtype || "")
+    const subtype = resolveTrackSubtype(track)
         .trim()
         .toLowerCase();
     if (!subtype) return fallbackValue;
     return getCssNumber(`--warzone-live-track-max-scale-${subtype}`, fallbackValue);
 }
 function getLiveTrackSubtypeTrailEnabled(track = {}) {
-    const subtype = String(track.subcategory || track.subtype || "")
+    const subtype = resolveTrackSubtype(track)
         .trim()
         .toLowerCase();
     if (!subtype) return true;
     return getCssNumber(`--warzone-live-track-trail-enabled-${subtype}`, 1) !== 0;
 }
 function getLiveTrackSubtypeTrailWidth(track = {}, fallbackWidth = 3.4) {
-    const subtype = String(track.subcategory || track.subtype || "")
+    const subtype = resolveTrackSubtype(track)
         .trim()
         .toLowerCase();
     if (!subtype) return fallbackWidth;
@@ -211,18 +212,143 @@ function formatTrackSubtypeLabel(subtype = "") {
     if (!key) return "Aircraft";
     return key.charAt(0).toUpperCase() + key.slice(1);
 }
+function resolveTrackSubtype(track = {}) {
+    const metadata = getTrackMetadata(track);
+    const raw = String(track.subcategory || track.subtype || metadata.role || "")
+        .trim()
+        .toLowerCase();
+    if (raw && !["military", "aircraft", "unknown"].includes(raw)) {
+        return raw;
+    }
+    const haystack = [
+        track.type_code,
+        metadata.type_code,
+        track.model_name,
+        track.model,
+        track.variant,
+        metadata.model_name,
+        track.description,
+        track.title,
+        track.callsign,
+        track.flight,
+        metadata.callsign,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    if (/(awacs|aew|wedgetail|hawkeye|sentry|e-3\b|e3\b|e-7\b|e7\b|a-50\b|a50\b|phalcon|erieye|kj-200\b|kj200\b|kj-500\b|kj500\b|kj-2000\b|kj2000\b)/.test(haystack)) return "awacs";
+    if (/(rivet joint|cobra ball|combat sent|recon|reconnaissance|surveillance|poseidon|orion|rc-135\b|rc135\b|ep-3\b|ep3\b|p-8\b|p8\b|p-3\b|p3\b)/.test(haystack)) return "recon";
+    if (/(isr\b|global hawk|triton|jstars|e-8\b|e8\b|rq-4\b|rq4\b|special mission)/.test(haystack)) return "isr";
+    if (/(tanker|refuel|refueller|pegasus|extender|stratotanker|kc-135\b|kc135\b|kc-46\b|kc46\b|kc-10\b|kc10\b|a330 mrtt\b|mrtt\b|voyager\b|il-78\b|il78\b|yy-20\b|yy20\b)/.test(haystack)) return "tanker";
+    if (/(transport|airlift|cargo|logistics|globemaster|hercules|atlas\b|a400m\b|c-17\b|c17\b|c-5\b|c5\b|c-130\b|hc-130\b|mc-130\b|c130\b|c-40\b|c40\b|an-124\b|an124\b|an-12\b|an12\b|il-76\b|il76\b|y-20\b|y20\b|cn-235\b|cn235\b|c295\b)/.test(haystack)) return "transport";
+    if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28\b|mi28\b|ka-27\b|ka27\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
+    if (/(bomber|b-1\b|b1\b|b-2\b|b2\b|b-52\b|b52\b|tu-95\b|tu95\b|tu-160\b|tu160\b|h-6\b|h6\b|ac-130\b|ac130\b|spectre|spooky)/.test(haystack)) return "bomber";
+    if (/(uav\b|drone\b|ucav\b|reaper\b|predator\b|mq-9\b|mq9\b|rq-4\b|rq4\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
+    if (/(trainer\b|t-6\b|t6\b|t-38\b|t38\b|hawk\b|m-346\b|m346\b|yak-130\b|yak130\b|pc-21\b|pc21\b)/.test(haystack)) return "trainer";
+    if (/(fighter\b|interceptor\b|multirole\b|hornet\b|super hornet\b|strike eagle\b|raptor\b|lightning ii\b|warthog\b|typhoon\b|eurofighter\b|rafale\b|gripen\b|mirage\b|tomcat\b|f-15\b|f15\b|f-16\b|f16\b|f-18\b|f18\b|fa-18\b|f\/a-18\b|f-22\b|f22\b|f-35\b|f35\b|a-10\b|a10\b|su-27\b|su27\b|su-30\b|su30\b|su-35\b|su35\b|mig-29\b|mig29\b|mig-31\b|mig31\b|j-10\b|j10\b|j-16\b|j16\b|j-20\b|j20\b|tejas\b|jf-17\b|jf17\b)/.test(haystack)) return "fighter";
+    if (raw && !["military", "aircraft", "unknown"].includes(raw)) return raw;
+    return "aircraft";
+}
+function getTrackMetadata(track = {}) {
+    const raw = track?.metadata;
+    if (!raw) return {};
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+}
+function getTrackRegistrationLabel(track = {}) {
+    const metadata = getTrackMetadata(track);
+    const registration = sanitizeTrackText(
+        track.registration ||
+        track.reg ||
+        metadata.registration ||
+        ""
+    );
+    return isTrackTextUsable(registration) ? registration : "";
+}
+function getTrackModelLabel(track = {}) {
+    const metadata = getTrackMetadata(track);
+    const model = sanitizeTrackText(
+        track.model_name ||
+        track.model ||
+        track.variant ||
+        metadata.model_name ||
+        ""
+    );
+    return isTrackTextUsable(model) ? model : "";
+}
+function getTrackOperatorLabel(track = {}) {
+    const metadata = getTrackMetadata(track);
+    const operator = sanitizeTrackText(
+        track.operator ||
+        track.owner ||
+        metadata.operator ||
+        ""
+    );
+    return isTrackTextUsable(operator) ? operator : "";
+}
+function doesTrackTitleLookRich(rawTitle = "", model = "", identity = "", affiliation = "") {
+    const raw = sanitizeTrackText(rawTitle);
+    if (!isTrackTextUsable(raw)) return false;
+    const normalized = raw.toLowerCase();
+    const modelLabel = sanitizeTrackText(model).toLowerCase();
+    const identityLabel = sanitizeTrackText(identity).toLowerCase();
+    const affiliationLabel = sanitizeTrackText(affiliation).toLowerCase();
+    if (modelLabel && normalized.includes(modelLabel)) return true;
+    if (identityLabel && normalized !== identityLabel && raw.length >= Math.max(identityLabel.length + 8, 18)) return true;
+    if (affiliationLabel && normalized.includes(affiliationLabel) && raw.length >= 18) return true;
+    return raw.length >= 26 && raw.split(/\s+/).length >= 3;
+}
 function getTrackDisplayTitle(track = {}) {
-    const primary = sanitizeTrackText(
+    const metadata = getTrackMetadata(track);
+    const rawTitle = sanitizeTrackText(
         track.title ||
-        track.callsign ||
-        track.flight ||
         track.name ||
         ""
     );
-    if (isTrackTextUsable(primary)) {
-        return primary;
+    const model = getTrackModelLabel(track);
+    const callsign = sanitizeTrackText(
+        track.callsign ||
+        track.flight ||
+        metadata.callsign ||
+        ""
+    );
+    const registration = getTrackRegistrationLabel(track);
+    const identity = isTrackTextUsable(callsign) ? callsign : registration;
+    const operator = getTrackOperatorLabel(track);
+    const country = sanitizeTrackText(track.country || metadata.country || "");
+    const affiliation = operator || country;
+    if (model) {
+        if (doesTrackTitleLookRich(rawTitle, model, identity, affiliation)) {
+            return rawTitle;
+        }
+        if (identity && affiliation) {
+            return `${model} — ${identity} (${affiliation})`;
+        }
+        if (identity) {
+            return `${model} — ${identity}`;
+        }
+        if (affiliation) {
+            return `${model} (${affiliation})`;
+        }
+        return model;
     }
-    const subtype = formatTrackSubtypeLabel(track.subcategory || track.subtype || "aircraft");
+    if (isTrackTextUsable(rawTitle)) {
+        return rawTitle;
+    }
+    if (identity && affiliation) {
+        return `${identity} (${affiliation})`;
+    }
+    if (identity) {
+        return identity;
+    }
+    const subtype = formatTrackSubtypeLabel(resolveTrackSubtype(track));
     const shortKey = String(track.track_key || "").slice(-6).toUpperCase();
     return shortKey ? `${subtype} ${shortKey}` : subtype;
 }
@@ -347,7 +473,8 @@ function bindFocusGuideTracking() {
 }
 
 function buildLiveTrackRegistryEntry(track = {}, entity = null) {
-    const subtype = String(track.subcategory || track.subtype || "unknown").trim().toLowerCase();
+    const metadata = getTrackMetadata(track);
+    const subtype = resolveTrackSubtype(track);
     const lat = Number(track.lat);
     const lon = Number(track.lon);
     const altitudeFt = Number(track.altitude_ft || 0);
@@ -365,9 +492,15 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
     }
     return {
         track_key: String(track.track_key || ""),
+        icao24: String(track.icao24 || track.icao || metadata.icao || "").trim().toLowerCase(),
         title: getTrackDisplayTitle(track),
         subcategory: subtype,
-        country: String(track.country || track.operator_country || track.metadata?.country || "Unknown"),
+        country: String(track.country || track.operator_country || metadata.country || "Unknown"),
+        operator: getTrackOperatorLabel(track),
+        model_name: getTrackModelLabel(track),
+        type_code: sanitizeTrackText(track.type_code || metadata.type_code || ""),
+        registration: getTrackRegistrationLabel(track),
+        metadata,
         region: String(track.region || ""),
         lat: Number.isFinite(lat) ? lat : null,
         lon: Number.isFinite(lon) ? lon : null,
@@ -384,7 +517,11 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
 }
 function dispatchLiveTrackRegistryUpdate() {
     window.__liveTrackRegistrySize = __liveTrackRegistry.size;
-    document.dispatchEvent(new CustomEvent("wz:aircraft-log-updated"));
+    if (__liveTrackRegistryDispatchTimer) return;
+    __liveTrackRegistryDispatchTimer = setTimeout(() => {
+        __liveTrackRegistryDispatchTimer = null;
+        document.dispatchEvent(new CustomEvent("wz:aircraft-log-updated"));
+    }, 120);
 }
 function pruneHistoryPoints(points = []) {
     const cutoff = Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS;
@@ -1085,7 +1222,7 @@ function buildWaypointRoutePoint(waypoints, t) {
 }
 /* ================= PUBLIC API ================= */
 function resolveLiveTrackModelUri(track = {}) {
-    const subtype = String(track.subcategory || track.subtype || "")
+    const subtype = resolveTrackSubtype(track)
         .trim()
         .toLowerCase();
     return LIVE_TRACK_MODEL_BY_SUBTYPE[subtype] || LIVE_TRACK_MODEL_URI;
@@ -1244,14 +1381,15 @@ export function clearLiveTrack(trackKey) {
     const entry = __liveTrackRegistry.get(trackKey);
     return entry ? { ...entry } : null;
 }
-export function getAllLiveTrackSnapshots() {
+export function getAllLiveTrackSnapshots(options = {}) {
+    const includePathHistory = options?.includePathHistory === true;
     pruneTrackRegistry();
     markStaleTracksAsEnded();
     return [...__liveTrackRegistry.values()]
         .filter((entry) => Number(entry.last_seen_at || 0) >= Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS)
         .map((entry) => ({
             ...entry,
-            path_history: [...(entry.path_history || [])],
+            path_history: includePathHistory ? [...(entry.path_history || [])] : [],
         }))
         .sort((a, b) => {
             if (Boolean(b.active) !== Boolean(a.active)) return Number(b.active) - Number(a.active);

@@ -54,6 +54,9 @@ function formatSubtypeTitle(subtype = "") {
 function getSourcePriority(source = "") {
     return SOURCE_PRIORITY[source] || 0;
 }
+function isPublicAirFallbackEnabled() {
+    return window.__stratopsConfig?.enablePublicAirFallback === true;
+}
 function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -133,11 +136,19 @@ function normalizeAirplanesLiveRecord(record = {}) {
     const subtype = classifySubtype(record);
     const callsign = normalizeCallsign(record.flight || "");
     const altitudeFeet = asFiniteNumber(record.alt_baro, 0);
-    const titleBase = isDisplayTextUsable(callsign)
+    const typeCode = normalizeString(record.t || record.type || "").toUpperCase();
+    const modelName = sanitizeDisplayText(record.desc || "");
+    const registration = normalizeString(record.r || "");
+    const identity = isDisplayTextUsable(callsign)
         ? sanitizeDisplayText(callsign)
-        : (isDisplayTextUsable(record.r || record.hex || "")
-            ? sanitizeDisplayText(record.r || record.hex || "")
-            : `${formatSubtypeTitle(subtype)} ${trackKey.slice(-6).toUpperCase()}`);
+        : (isDisplayTextUsable(registration || record.hex || "")
+            ? sanitizeDisplayText(registration || record.hex || "")
+            : "");
+    const titleBase = isDisplayTextUsable(modelName)
+        ? (identity ? `${modelName} — ${identity}` : modelName)
+        : (isDisplayTextUsable(typeCode)
+            ? (identity ? `${typeCode} — ${identity}` : typeCode)
+            : (identity || `${formatSubtypeTitle(subtype)} ${trackKey.slice(-6).toUpperCase()}`));
     return {
         track_key: trackKey,
         icao24: normalizeString(record.hex || "").toLowerCase(),
@@ -147,6 +158,9 @@ function normalizeAirplanesLiveRecord(record = {}) {
         source: "airplanes_live",
         category: "military",
         subcategory: subtype,
+        registration,
+        type_code: typeCode,
+        model_name: modelName,
         lat: asFiniteNumber(record.lat, NaN),
         lon: asFiniteNumber(record.lon, NaN),
         altitude_ft: altitudeFeet,
@@ -155,8 +169,13 @@ function normalizeAirplanesLiveRecord(record = {}) {
         occurred_at: new Date().toISOString(),
         timestamp: nowMs(),
         metadata: {
+            icao: normalizeString(record.hex || "").toLowerCase(),
+            callsign,
             type: normalizeString(record.t || record.type || ""),
-            registration: normalizeString(record.r || ""),
+            registration,
+            type_code: typeCode || null,
+            model_name: modelName || null,
+            country: null,
             source_type: normalizeString(record.type || ""),
             seen_seconds: asFiniteNumber(record.seen, 0),
             seen_pos_seconds: asFiniteNumber(record.seen_pos, 0),
@@ -223,6 +242,10 @@ async function fetchAirplanesLiveRecords() {
 }
 async function refreshPublicAirTracks() {
     if (__isFetching) return;
+    if (!isPublicAirFallbackEnabled()) {
+        clearAllPublicAirTracks();
+        return;
+    }
     __isFetching = true;
     try {
         if (!isLayerEnabled("aircraft")) {
@@ -254,14 +277,19 @@ async function refreshPublicAirTracks() {
         }
         cleanupStaleTracks();
     } catch (error) {
-        console.warn("[warzone-air-ingestion] refresh failed:", error);
+        void error;
     } finally {
         __isFetching = false;
     }
 }
 async function logAircraftTrack(track) { }
 async function markAircraftEnded(trackKey) { }
+export async function refreshPublicAirTracksNow() {
+    if (!isPublicAirFallbackEnabled()) return;
+    await refreshPublicAirTracks();
+}
 export function startPublicAirIngestion() {
+    if (!isPublicAirFallbackEnabled()) return;
     if (__pollTimer) return;
     refreshPublicAirTracks();
     __pollTimer = window.setInterval(refreshPublicAirTracks, POLL_INTERVAL_MS);

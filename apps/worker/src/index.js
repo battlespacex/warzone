@@ -1,8 +1,6 @@
 ﻿// apps/worker/src/index.js
-import dotenv from "dotenv";
-dotenv.config({
-    path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
-});
+import { loadWorkerEnv } from "./env.js";
+loadWorkerEnv();
 console.log("RUNNING WORKER INDEX FROM apps/worker/src/index.js");
 import http from "http";
 import cron from "node-cron";
@@ -94,6 +92,9 @@ const TELEGRAM_DEFAULT_CHANNELS = String(process.env.TELEGRAM_CHANNELS || "")
     .filter(Boolean);
 let telegramClient = null;
 let telegramReady = false;
+let telegramInitPromise = null;
+let telegramDisabledReason = "";
+let telegramDisabledLogged = false;
 /* ----------------------------------------
  * Shared caches / constants
  * -------------------------------------- */
@@ -1829,33 +1830,71 @@ function buildSeedEvent(item, feed) {
  * Telegram helpers
  * -------------------------------------- */
 async function ensureTelegramClient() {
+    if (telegramDisabledReason) {
+        throw new Error(telegramDisabledReason);
+    }
     if (telegramReady && telegramClient) return telegramClient;
+    if (telegramInitPromise) return telegramInitPromise;
     if (!TELEGRAM_API_ID || !TELEGRAM_API_HASH || !TELEGRAM_SESSION) {
         throw new Error("Telegram env vars missing: TELEGRAM_API_ID / TELEGRAM_API_HASH / TELEGRAM_SESSION");
     }
-    telegramClient = new TelegramClient(
-        new StringSession(TELEGRAM_SESSION),
-        TELEGRAM_API_ID,
-        TELEGRAM_API_HASH,
-        { connectionRetries: 5 }
-    );
-    try {
-        await telegramClient.connect();
-    } catch (err) {
-        console.error("Telegram connection failed, retrying...", err.message);
+    telegramInitPromise = (async () => {
+        telegramClient = new TelegramClient(
+            new StringSession(TELEGRAM_SESSION),
+            TELEGRAM_API_ID,
+            TELEGRAM_API_HASH,
+            { connectionRetries: 5 }
+        );
+        try {
+            await telegramClient.connect();
+        } catch (err) {
+            console.error("Telegram connection failed, retrying...", err.message);
+            try {
+                await telegramClient.disconnect();
+            } catch { }
+            await new Promise((r) => setTimeout(r, 3000));
+            await telegramClient.connect();
+        }
+        const authorized = await telegramClient.isUserAuthorized();
+        if (!authorized) {
+            throw new Error("Telegram client is not authorized. Recreate TELEGRAM_SESSION.");
+        }
+        telegramReady = true;
+        console.log("Telegram connected");
+        return telegramClient;
+    })().catch(async (err) => {
+        await disableTelegramClientIfNeeded(err);
+        throw err;
+    }).finally(() => {
+        telegramInitPromise = null;
+    });
+    return telegramInitPromise;
+}
+function getTelegramErrorMessage(err) {
+    return String(err?.message || err || "").trim();
+}
+function isTelegramDuplicateAuthError(err) {
+    return /AUTH_KEY_DUPLICATED/i.test(getTelegramErrorMessage(err));
+}
+async function resetTelegramClient() {
+    telegramReady = false;
+    if (telegramClient) {
         try {
             await telegramClient.disconnect();
         } catch { }
-        await new Promise((r) => setTimeout(r, 3000));
-        await telegramClient.connect();
     }
-    const authorized = await telegramClient.isUserAuthorized();
-    if (!authorized) {
-        throw new Error("Telegram client is not authorized. Recreate TELEGRAM_SESSION.");
+    telegramClient = null;
+}
+async function disableTelegramClientIfNeeded(err) {
+    if (!isTelegramDuplicateAuthError(err)) return false;
+    telegramDisabledReason =
+        "Telegram session rejected: AUTH_KEY_DUPLICATED. This worker session is already active somewhere else. Regenerate a unique TELEGRAM_SESSION for this worker.";
+    if (!telegramDisabledLogged) {
+        telegramDisabledLogged = true;
+        console.error(telegramDisabledReason);
     }
-    telegramReady = true;
-    console.log("Telegram connected");
-    return telegramClient;
+    await resetTelegramClient();
+    return true;
 }
 function isRelevantTelegramText(text, feed) {
     const lower = normalizeText(text).toLowerCase();
@@ -2098,7 +2137,15 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
     };
 }
 async function processTelegramFeed(feed) {
-    const client = await ensureTelegramClient();
+    let client;
+    try {
+        client = await ensureTelegramClient();
+    } catch (error) {
+        if (telegramDisabledReason) {
+            return;
+        }
+        throw error;
+    }
     const channels = getTelegramChannels(feed);
     const limit = Number(feed.limit || 25);
     if (!channels.length) {
@@ -2115,6 +2162,7 @@ async function processTelegramFeed(feed) {
                 rawChannel.startsWith("@") ? rawChannel : channelKey
             );
         } catch (error) {
+            if (await disableTelegramClientIfNeeded(error)) return;
             console.error("Telegram entity resolve failed:", channelKey, error.message);
             continue;
         }
@@ -2175,6 +2223,7 @@ async function processTelegramFeed(feed) {
                 await setWorkerState(stateKey, newestSeenId);
             }
         } catch (error) {
+            if (await disableTelegramClientIfNeeded(error)) return;
             console.error("Telegram channel read failed:", channelKey, error.message);
         }
     }
@@ -3291,7 +3340,10 @@ async function runWorker() {
         if (aisFeed?.enabled !== false)
             await runAisWorker().catch(err => console.error("[ais]", err.message));
         const activeFeeds = toArray(sources.feeds).filter((feed) =>
+            feed &&
+            typeof feed === "object" &&
             feed.enabled !== false &&
+            (feed.parser || feed.type) &&
             feed.type !== "adsb-opensky" &&
             feed.type !== "ais-stream"
         );

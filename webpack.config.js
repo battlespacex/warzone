@@ -278,6 +278,7 @@ module.exports = (env, argv) => {
                     },
 
                     client: {
+                        logging: "none",
                         overlay: true,
                     },
 

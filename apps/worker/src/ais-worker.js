@@ -4,7 +4,7 @@
 // Requires: AISSTREAM_API_KEY in .env (free at https://aisstream.io)
 //
 // Ship type 35 = Military vessel (IMO standard)
-// Also catches known naval vessel names + MMSI ranges for military
+// Name / hull-prefix matching is kept intentionally strict to avoid civilian traffic.
 //
 // Runs as a time-boxed WebSocket session (60 seconds) every cron cycle.
 // Collects naval contacts → deduplicates → inserts into Supabase.
@@ -12,87 +12,68 @@
 import WebSocket from "ws";
 import { supabase } from "./supabase.js";
 
-// ─── Military MMSI ranges ─────────────────────────────────────────────────────
-// Global coverage — all major naval powers. Ship type 35 is the primary filter;
-// MMSI ranges catch vessels that don't broadcast type 35.
-const MILITARY_MMSI_RANGES = [
-    [0, 9999999],            // 00xxxxxxx = group/military special
-    [970000000, 979999999],  // NATO exercise callsigns
-    // Americas
-    [338000000, 338999999], [316000000, 316999999], [725000000, 725999999],
-    [701000000, 701999999], [720000000, 720999999],
-    // Europe
-    [232000000, 235999999], [226000000, 227999999], [211000000, 218999999],
-    [247000000, 247999999], [224000000, 225999999], [244000000, 245999999],
-    [265000000, 266999999], [257000000, 259999999], [219000000, 219999999],
-    [240000000, 241999999], [271000000, 271999999], [278000000, 278999999],
-    [230000000, 230999999], [248000000, 248999999], [261000000, 261999999],
-    // Russia
-    [273000000, 273999999],
-    // Middle East
-    [422000000, 422999999], [428000000, 428999999], [447000000, 447999999],
-    [453000000, 453999999], [466000000, 466999999],
-    // Asia Pacific
-    [412000000, 412999999], [431000000, 432999999], [440000000, 441999999],
-    [419000000, 419999999], [463000000, 463999999], [503000000, 503999999],
-    [525000000, 525999999], [533000000, 533999999], [567000000, 567999999],
-    [574000000, 574999999], [576000000, 576999999], [445000000, 445999999],
-    [548000000, 548999999], [512000000, 512999999],
-    // Africa / Other
-    [620000000, 620999999], [672000000, 672999999], [654000000, 654999999],
-];
-
-// Global bounding boxes — full world coverage in 2 halves
+// AISStream expects each bounding box as [[minLat, minLon], [maxLat, maxLon]].
 const MONITORING_BOXES = [
-    [-180, -90, 0, 90],   // Western hemisphere
-    [0, -90, 180, 90],    // Eastern hemisphere
+    [[-90, -180], [90, 180]],
 ];
-function isMilitaryMmsi(mmsi) {
-    if (!mmsi) return false;
-    const n = parseInt(mmsi, 10);
-    if (!Number.isFinite(n)) return false;
-    return MILITARY_MMSI_RANGES.some(([lo, hi]) => n >= lo && n <= hi);
-}
 
 // ─── Naval vessel name patterns ───────────────────────────────────────────────
 
 const NAVAL_NAME_PATTERNS = [
     /\bUSS\b/i,      // US Navy
+    /\bUSNS\b/i,     // US Navy auxiliary / Military Sealift Command
     /\bHMS\b/i,      // Royal Navy
+    /\bRFA\b/i,      // Royal Fleet Auxiliary
     /\bRFS\b/i,      // Russian Federation Ship
     /\bRFN\b/i,
     /\bBNS\b/i,
     /\bINS\b/i,      // Indian Navy Ship
     /\bPNS\b/i,      // Pakistan Navy Ship
     /\bCNS\b/i,      // Chinese Navy Ship
-    /\bFFG[-\s]?\d/i,   // Frigate designation
-    /\bDDG[-\s]?\d/i,   // Destroyer
-    /\bSSN[-\s]?\d/i,   // Nuclear sub
-    /\bCVN[-\s]?\d/i,   // Carrier
-    /\bLHD[-\s]?\d/i,   // Amphibious assault
+    /\bTCG\b/i,      // Turkish Navy
+    /\bJS\s+[A-Z0-9]/i, // Japan Maritime Self-Defense Force
+    /\bFFG[-\s]?\d+\b/i,
+    /\bDDG[-\s]?\d+\b/i,
+    /\bSSN[-\s]?\d+\b/i,
+    /\bSSBN[-\s]?\d+\b/i,
+    /\bCVN[-\s]?\d+\b/i,
+    /\bLHD[-\s]?\d+\b/i,
+    /\bLHA[-\s]?\d+\b/i,
+    /\bLPD[-\s]?\d+\b/i,
+    /\bAOR[-\s]?\d+\b/i,
+    /\bAOE[-\s]?\d+\b/i,
+    /\bT-AO[-\s]?\d+\b/i,
+    /\bT-AKE[-\s]?\d+\b/i,
     /CARRIER/i,
     /DESTROYER/i,
     /FRIGATE/i,
     /CORVETTE/i,
     /CRUISER/i,
     /SUBMARINE/i,
-    /PATROL\s?VESSEL/i,
+    /AMPHIBIOUS ASSAULT/i,
+    /MINE COUNTERMEASURE/i,
     /MINESWEEPER/i,
     /REPLENISHMENT/i,
+    /FLEET OILER/i,
+    /COMBAT SUPPORT SHIP/i,
 ];
 
-function isMilitaryVesselName(name) {
-    if (!name) return false;
-    return NAVAL_NAME_PATTERNS.some(r => r.test(name));
+function normalizeString(value) {
+    return String(value || "").trim();
+}
+
+function isMilitaryVesselName(name, callSign = "") {
+    const haystacks = [normalizeString(name), normalizeString(callSign)].filter(Boolean);
+    return haystacks.some((value) => NAVAL_NAME_PATTERNS.some((pattern) => pattern.test(value)));
 }
 
 // ─── Ship type 35 = military ──────────────────────────────────────────────────
-// AIS ship types: https://www.itu.int/rec/R-REC-M.1371/en
-// 35 = Military ops. We also include 50-59 (special craft) when MMSI matches.
+// AIS ship types: 35 = Military ops.
+// Keep this strict so we do not ingest civilian pilot boats, service craft, or cargo.
 
 function isMilitaryShipType(shipType) {
     const t = Number(shipType);
-    return t === 35 || (t >= 50 && t <= 57);  // 50-57 = special craft, pilot vessels etc
+    return t === 35;
 }
 
 // ─── Vessel type classification ───────────────────────────────────────────────
@@ -103,43 +84,83 @@ function classifyVessel(name, shipType) {
     if (/DDG|DESTROYER/.test(n)) return "destroyer";
     if (/FFG|CG|CRUISER|FRIGATE/.test(n)) return "frigate";
     if (/SSN|SUBMARINE|SUB/.test(n)) return "submarine";
-    if (/REPLENISHMENT|SUPPLY|AOR|AOE/.test(n)) return "logistics";
-    if (/PATROL|PC|PG/.test(n)) return "patrol";
-    if (/MINE|MCM/.test(n)) return "minesweeper";
+    if (/REPLENISHMENT|AOR|AOE|T-AO|T-AKE|FLEET OILER|COMBAT SUPPORT/.test(n)) return "logistics";
+    if (/PATROL|OPV|PC|PG/.test(n)) return "patrol";
+    if (/MINE|MCM|MINESWEEPER/.test(n)) return "minesweeper";
+    if (Number(shipType) === 35) return "naval";
     return "naval";
 }
 
-// ─── Seen cache ───────────────────────────────────────────────────────────────
-
-const SEEN_CACHE = new Map();
-const SEEN_TTL_MS = 60 * 60 * 1000;  // 1 hour for naval (slower moving)
-
-function pruneSeen() {
-    const cutoff = Date.now() - SEEN_TTL_MS;
-    for (const [k, v] of SEEN_CACHE) {
-        if (v < cutoff) SEEN_CACHE.delete(k);
-    }
+function getMessageMeta(msg) {
+    return msg.MetaData || msg.Metadata || {};
 }
 
-function wasSeen(mmsi) {
-    const t = SEEN_CACHE.get(mmsi);
-    return t && (Date.now() - t) < SEEN_TTL_MS;
+function getMessageMmsi(msg, meta) {
+    return String(
+        meta.MMSI ||
+        msg.Message?.PositionReport?.UserID ||
+        msg.Message?.ShipStaticData?.UserID ||
+        ""
+    );
 }
 
-function markSeen(mmsi) {
-    SEEN_CACHE.set(mmsi, Date.now());
+function readStaticFields(info, meta) {
+    const reportA = info?.ReportA || {};
+    const reportB = info?.ReportB || {};
+
+    return {
+        name: normalizeString(
+            info?.Name ||
+            reportA?.Name ||
+            meta.ShipName
+        ),
+        country: normalizeString(info?.Country || meta.Country),
+        shipType: info?.Type ?? reportB?.ShipType ?? meta.ShipType ?? null,
+        callSign: normalizeString(info?.CallSign || reportB?.CallSign || meta.CallSign),
+        imoNumber: info?.ImoNumber ?? reportB?.ImoNumber ?? null,
+    };
+}
+
+function readPositionFields(pos, meta) {
+    return {
+        lat: pos?.Latitude,
+        lon: pos?.Longitude,
+        speed: pos?.Sog,
+        heading: pos?.TrueHeading ?? pos?.Cog,
+        shipType: pos?.ShipType ?? meta.ShipType ?? null,
+        name: normalizeString(meta.ShipName),
+    };
+}
+
+function isStrictMilitaryNavalContact(vessel) {
+    return (
+        isMilitaryShipType(vessel.shipType) ||
+        isMilitaryVesselName(vessel.name, vessel.callSign)
+    );
+}
+
+function mergeVesselState(position = {}, staticInfo = {}, previous = {}) {
+    return {
+        ...previous,
+        ...position,
+        ...staticInfo,
+        name: staticInfo.name || position.name || previous.name || "",
+        shipType: staticInfo.shipType ?? position.shipType ?? previous.shipType ?? null,
+        country: staticInfo.country || previous.country || "",
+        callSign: staticInfo.callSign || previous.callSign || "",
+        imoNumber: staticInfo.imoNumber ?? previous.imoNumber ?? null,
+    };
 }
 
 // ─── Supabase upsert ──────────────────────────────────────────────────────────
 
 function buildNavalEvent(vessel) {
-    const { mmsi, name, shipType, lat, lon, speed, heading, country } = vessel;
+    const { mmsi, name, shipType, lat, lon, speed, heading, country, callSign, imoNumber } = vessel;
     const subcat = classifyVessel(name, shipType);
-    const speedKt = speed ? speed.toFixed(1) : null;
+    const speedKt = Number.isFinite(speed) ? speed.toFixed(1) : null;
 
-    const displayName = name
-        ? `${subcat.toUpperCase()} ${name}`
-        : `Military Vessel MMSI:${mmsi}`;
+    const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;
+    const displayName = `${subcat.toUpperCase()} ${vesselLabel}`;
 
     const title = country
         ? `${displayName} — ${country}`
@@ -150,6 +171,8 @@ function buildNavalEvent(vessel) {
         speedKt ? `Speed: ${speedKt} kt` : null,
         heading != null ? `Heading: ${Math.round(heading)}°` : null,
         country ? `Flag: ${country}` : null,
+        callSign ? `Call Sign: ${callSign}` : null,
+        imoNumber ? `IMO: ${imoNumber}` : null,
         `MMSI: ${mmsi}`,
     ].filter(Boolean).join(" · ");
 
@@ -176,6 +199,8 @@ function buildNavalEvent(vessel) {
             speed_kts: speedKt ? parseFloat(speedKt) : null,
             heading: heading != null ? Math.round(heading) : null,
             country: country || null,
+            call_sign: callSign || null,
+            imo_number: imoNumber || null,
         },
     };
 }
@@ -202,8 +227,7 @@ async function upsertNavalEvents(events) {
 const SESSION_DURATION_MS = 60 * 1000;   // 60 seconds per cron cycle
 const AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream";
 
-// Bounding boxes to monitor. Covers key naval operational zones.
-// Add / remove as needed. Each box: [minLon, minLat, maxLon, maxLat]
+// Bounding boxes to monitor. Each box is [[minLat, minLon], [maxLat, maxLon]].
 
 
 export async function runAisWorker() {
@@ -216,8 +240,8 @@ export async function runAisWorker() {
         return;
     }
 
-    pruneSeen();
-
+    const positionsByMmsi = new Map();
+    const staticByMmsi = new Map();
     const collected = new Map();   // mmsi → vessel object
 
     return new Promise((resolve) => {
@@ -254,45 +278,42 @@ export async function runAisWorker() {
         ws.on("message", (raw) => {
             try {
                 const msg = JSON.parse(raw.toString());
-                const mtype = msg.MessageType;
-                const meta = msg.MetaData || {};
-                const mmsi = String(meta.MMSI || "");
+                if (msg?.error) {
+                    console.error(`${label} Subscription error:`, msg.error);
+                    return;
+                }
 
-                if (!mmsi || wasSeen(mmsi)) return;
+                const mtype = msg.MessageType;
+                const meta = getMessageMeta(msg);
+                const mmsi = getMessageMmsi(msg, meta);
+
+                if (!mmsi) return;
 
                 // Extract position from PositionReport
                 if (mtype === "PositionReport") {
                     const pos = msg.Message?.PositionReport;
                     if (!pos) return;
 
-                    const lat = pos.Latitude;
-                    const lon = pos.Longitude;
-                    const speed = pos.Sog;    // speed over ground in knots
-                    const heading = pos.TrueHeading ?? pos.Cog;
-                    const shipType = pos.ShipType ?? meta.ShipType;
+                    const position = readPositionFields(pos, meta);
+                    if (!Number.isFinite(position.lat) || !Number.isFinite(position.lon)) return;
 
-                    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-                    const name = meta.ShipName || "";
-                    const country = meta.ShipName ? "" : "";   // not in PositionReport
-
-                    const isMil =
-                        isMilitaryShipType(shipType) ||
-                        isMilitaryMmsi(mmsi) ||
-                        isMilitaryVesselName(name);
-
-                    if (!isMil) return;
-
-                    // Merge with existing entry if ShipStaticData arrived first
-                    const existing = collected.get(mmsi) || {};
-                    collected.set(mmsi, {
-                        ...existing,
-                        mmsi, lat, lon, speed, heading,
-                        name: name || existing.name || "",
-                        shipType: shipType ?? existing.shipType,
-                        country: existing.country || "",
+                    positionsByMmsi.set(mmsi, {
+                        ...(positionsByMmsi.get(mmsi) || {}),
+                        ...position,
                     });
-                    markSeen(mmsi);
+
+                    const merged = mergeVesselState(
+                        positionsByMmsi.get(mmsi),
+                        staticByMmsi.get(mmsi),
+                        collected.get(mmsi)
+                    );
+
+                    if (!isStrictMilitaryNavalContact(merged)) return;
+
+                    collected.set(mmsi, {
+                        ...merged,
+                        mmsi,
+                    });
                 }
 
                 // Enrich with ShipStaticData (name, country, ship type)
@@ -300,28 +321,24 @@ export async function runAisWorker() {
                     const info = msg.Message?.ShipStaticData;
                     if (!info) return;
 
-                    const name = info.Name?.trim() || meta.ShipName?.trim() || "";
-                    const country = info.Country || "";
-                    const shipType = info.Type ?? meta.ShipType;
+                    staticByMmsi.set(mmsi, {
+                        ...(staticByMmsi.get(mmsi) || {}),
+                        ...readStaticFields(info, meta),
+                    });
 
-                    const isMil =
-                        isMilitaryShipType(shipType) ||
-                        isMilitaryMmsi(mmsi) ||
-                        isMilitaryVesselName(name);
+                    const merged = mergeVesselState(
+                        positionsByMmsi.get(mmsi),
+                        staticByMmsi.get(mmsi),
+                        collected.get(mmsi)
+                    );
 
-                    if (!isMil) return;
-
-                    const existing = collected.get(mmsi) || {};
-                    if (existing.lat == null) return;   // no position yet, skip
+                    if (!Number.isFinite(merged.lat) || !Number.isFinite(merged.lon)) return;
+                    if (!isStrictMilitaryNavalContact(merged)) return;
 
                     collected.set(mmsi, {
-                        ...existing,
+                        ...merged,
                         mmsi,
-                        name: name || existing.name || "",
-                        shipType: shipType ?? existing.shipType,
-                        country: country || existing.country || "",
                     });
-                    markSeen(mmsi);
                 }
 
             } catch (err) {

@@ -93,27 +93,29 @@
                                 Log in with your <strong>BattleSpacex</strong> account to unlock full capabilities.
                             </p>
                             <p id="intro-auth-error" class="wz-error-container" hidden></p>
-                            <div class="wz-auth-body wz-form-container">
-                                <div class="wz-form-fieldbox">
-                                    <label class="wz-auth-label" for="intro-auth-email">E-mail</label>
-                                    <input id="intro-auth-email"
-                                           type="email"
-                                           autocomplete="username"
-                                           inputmode="email"
-                                           class="wz--input" />
+                            <form id="intro-auth-form" novalidate>
+                                <div class="wz-auth-body wz-form-container">
+                                    <div class="wz-form-fieldbox">
+                                        <label class="wz-auth-label" for="intro-auth-email">E-mail</label>
+                                        <input id="intro-auth-email"
+                                               type="email"
+                                               autocomplete="username"
+                                               inputmode="email"
+                                               class="wz--input" />
+                                    </div>
+                                    <div class="wz-form-fieldbox">
+                                        <label class="wz-auth-label" for="intro-auth-password">Password</label>
+                                        <input id="intro-auth-password"
+                                               type="password"
+                                               autocomplete="current-password"
+                                               class="wz--input" />
+                                    </div>
                                 </div>
-                                <div class="wz-form-fieldbox">
-                                    <label class="wz-auth-label" for="intro-auth-password">Password</label>
-                                    <input id="intro-auth-password"
-                                           type="password"
-                                           autocomplete="current-password"
-                                           class="wz--input" />
-                                </div>
-                            </div>
-                            <label class="wz-check" for="intro-auth-remember">
-                                <input id="intro-auth-remember" type="checkbox" />
-                                <span>Stay connected</span>
-                            </label>
+                                <label class="wz-check" for="intro-auth-remember">
+                                    <input id="intro-auth-remember" type="checkbox" />
+                                    <span>Stay connected</span>
+                                </label>
+                            </form>
                             <div class="wz-auth-footer">
                                 <span>New to StratOps?</span>
                                 <button class="btn-secondary purple"
@@ -372,7 +374,7 @@
                                 </p>
                             </div>
 
-                            <div class="wz-auth-body">
+                            <form id="auth-login-form" class="wz-auth-body" novalidate>
                                 <p id="auth-guest-copy" class="wz-auth-copy">
                                     Log in with your <strong>BattleSpacex</strong> account to access StratOps.
                                 </p>
@@ -426,7 +428,7 @@
                                        target="_self"
                                        rel="noopener">Create Account</a>
                                 </div>
-                            </div>
+                            </form>
                         </div>
 
                     </div>

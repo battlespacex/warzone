@@ -356,8 +356,11 @@
     .warzone-widget--counter,
     .warzone-widget--airspace,
     .warzone-widget--layers,
+    .warzone-widget--feed,
     .warzone-widget--escalation,
-    .warzone-widget--cyber {
+    .warzone-widget--cyber,
+    .warzone-widget--aircraft,
+    .warzone-widget--naval {
         top: 50% !important;
         right: var(--wz-mobile-widget-gap) !important;
         bottom: auto !important;

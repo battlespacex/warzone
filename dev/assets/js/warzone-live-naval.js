@@ -23,6 +23,9 @@ const __navalState = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NAVAL_LABEL_HEIGHT_MAX = 3500000;  // Show labels below this camera altitude
 const NAVAL_FOCUS_GUIDE_COLOR = "rgba(51, 217, 255, 0.75)";
+const NAVAL_MIN_ANIM_DISTANCE_METERS = 40;
+const NAVAL_MIN_ANIM_MS = 1800;
+const NAVAL_MAX_ANIM_MS = 12000;
 
 // ─── Ship icon canvases (cached) ──────────────────────────────────────────────
 const __navalIconCache = new Map();
@@ -98,6 +101,65 @@ function shouldShowNavalLabel(trackKey) {
     const h = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
     return h > 0 && h <= NAVAL_LABEL_HEIGHT_MAX;
 }
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+function getEntityPosition(entity) {
+    if (!entity?.position) return null;
+    try {
+        if (typeof entity.position.getValue === "function") {
+            return entity.position.getValue(Cesium.JulianDate.now());
+        }
+        return entity.position || null;
+    } catch {
+        return null;
+    }
+}
+function animateVesselTo(entity, vessel) {
+    if (!entity) return;
+    if (entity.__navalAnimFrame) {
+        cancelAnimationFrame(entity.__navalAnimFrame);
+        entity.__navalAnimFrame = null;
+    }
+    const nextCartesian = Cesium.Cartesian3.fromDegrees(vessel.lon, vessel.lat, 0);
+    const startCartesian = getEntityPosition(entity);
+    if (!startCartesian) {
+        entity.position = nextCartesian;
+        return;
+    }
+    const distanceMeters = Cesium.Cartesian3.distance(startCartesian, nextCartesian);
+    if (!Number.isFinite(distanceMeters) || distanceMeters <= NAVAL_MIN_ANIM_DISTANCE_METERS) {
+        entity.position = nextCartesian;
+        return;
+    }
+    const duration = clamp(distanceMeters * 0.2, NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
+    const startTime = performance.now();
+    const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
+    const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
+    const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
+    const startHeading = Number(entity.__navalHeadingDeg || 0);
+    const endHeading = Number(vessel.heading_deg || 0);
+    const step = (now) => {
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = t < 0.5
+            ? 4 * t * t * t
+            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        const lon = startLon + ((vessel.lon - startLon) * eased);
+        const lat = startLat + ((vessel.lat - startLat) * eased);
+        entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+        if (entity.billboard) {
+            entity.billboard.rotation = Cesium.Math.toRadians(-(startHeading + ((endHeading - startHeading) * eased)));
+        }
+        window.__warzoneViewer?.scene?.requestRender?.();
+        if (t < 1) {
+            entity.__navalAnimFrame = requestAnimationFrame(step);
+        } else {
+            entity.__navalAnimFrame = null;
+            entity.__navalHeadingDeg = endHeading;
+        }
+    };
+    entity.__navalAnimFrame = requestAnimationFrame(step);
+}
 
 // ─── Create vessel entity ─────────────────────────────────────────────────────
 function createVesselEntity(viewer, vessel) {
@@ -142,19 +204,18 @@ function createVesselEntity(viewer, vessel) {
 
     entity.__navalKey = track_key;
     entity.__navalData = vessel;
+    entity.__navalHeadingDeg = heading_deg || 0;
     return entity;
 }
 
 // ─── Update vessel position ───────────────────────────────────────────────────
 function updateVesselEntity(entity, vessel) {
-    const { lat, lon, heading_deg = 0 } = vessel;
-    entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
-    if (entity.billboard) {
-        entity.billboard.rotation = Cesium.Math.toRadians(-(heading_deg || 0));
-    }
+    const { heading_deg = 0 } = vessel;
+    animateVesselTo(entity, vessel);
     if (entity.label) {
         entity.label.text = vessel.vessel_name || vessel.title || vessel.subcategory || "Naval";
     }
+    entity.__navalHeadingDeg = heading_deg || 0;
     entity.__navalData = vessel;
 }
 
@@ -392,6 +453,10 @@ export function upsertNavalVessel(event) {
 export function clearNavalVessel(trackKey) {
     const viewer = window.__warzoneViewer;
     const entry = __navalState.vessels.get(trackKey);
+    if (entry?.entity?.__navalAnimFrame) {
+        cancelAnimationFrame(entry.entity.__navalAnimFrame);
+        entry.entity.__navalAnimFrame = null;
+    }
     if (entry?.entity && viewer) viewer.entities.remove(entry.entity);
     __navalState.vessels.delete(trackKey);
     if (__navalState.selectedKey === trackKey) clearNavalSelection();

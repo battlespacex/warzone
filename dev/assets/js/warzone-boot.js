@@ -36,6 +36,18 @@ window.SiteLoader = {
 };
 document.addEventListener("DOMContentLoaded", () => {
     const WZ_WIDGET_KEY = "wz_widget_visibility";
+    const WZ_WIDGET_LAYOUT_VERSION_KEY = "wz_widget_layout_version";
+    const WZ_WIDGET_LAYOUT_VERSION = "2026-04-clean-defaults";
+    const DEFAULT_WIDGET_VISIBILITY = {
+        counter: true,
+        layers: true,
+        escalation: true,
+        aircraft: false,
+        naval: false,
+        feed: false,
+        airspace: false,
+        cyber: false,
+    };
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
     }
@@ -189,13 +201,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     function loadWidgetState() {
         let saved = {};
+        let savedVersion = "";
         try {
             saved = JSON.parse(localStorage.getItem(WZ_WIDGET_KEY) || "{}");
+            savedVersion = String(localStorage.getItem(WZ_WIDGET_LAYOUT_VERSION_KEY) || "");
         } catch { }
+        const shouldResetLayout = savedVersion !== WZ_WIDGET_LAYOUT_VERSION;
+        const effectiveState = shouldResetLayout
+            ? { ...DEFAULT_WIDGET_VISIBILITY }
+            : { ...DEFAULT_WIDGET_VISIBILITY, ...(saved || {}) };
+        if (shouldResetLayout) {
+            try {
+                localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(effectiveState));
+                localStorage.setItem(WZ_WIDGET_LAYOUT_VERSION_KEY, WZ_WIDGET_LAYOUT_VERSION);
+            } catch { }
+        }
         const forceHiddenMobile = isMobileLayout();
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => {
             const id = widget.dataset.widgetId;
-            const visible = forceHiddenMobile ? false : (id in saved ? saved[id] : true);
+            const visible = forceHiddenMobile ? false : (id in effectiveState ? effectiveState[id] : true);
             widget.classList.toggle("wz-is-hidden", !visible);
         });
     }

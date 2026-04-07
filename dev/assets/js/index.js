@@ -11,8 +11,6 @@ import { initWarzoneGlobe } from "./warzone-globe.js";
 import { initRegionSelector } from "./warzone-region-selector.js";
 import {
     subscribeToLiveEvents,
-    subscribeToActiveAlerts,
-    startActiveAlertsPollingFallback,
     subscribeToSirenBroadcast,
 } from "./warzone-realtime.js";
 import { initDevPanel } from "./warzone-dev-panel.js";
@@ -30,16 +28,35 @@ initBoot();
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         bindWarzoneUi();
+        initStratopsAuth();
+
+        let pendingRegionModal = null;
+        window.__warzoneShowRegionModal = (instant = false) => {
+            pendingRegionModal = { instant: !!instant };
+        };
+
+        initStratopsIntro();
+
+        await new Promise((resolve) => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(resolve);
+            });
+        });
 
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
 
         initWarzoneMilSats(viewer);
         initRegionSelector(viewer);
+        if (pendingRegionModal) {
+            const { instant } = pendingRegionModal;
+            pendingRegionModal = null;
+            window.__warzoneShowRegionModal?.(instant);
+        }
 
         setTimeout(() => {
             try { window.refreshWarzoneMilSatsScale?.(); }
-            catch (e) { console.warn("[warzone-mil-sats] scale refresh failed:", e); }
+            catch { }
         }, 150);
 
         let started = false;
@@ -55,8 +72,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 window.__setWarzoneMilitaryBasesVisible = setWarzoneMilitaryBasesVisible;
 
                 await subscribeToLiveEvents();
-                await subscribeToActiveAlerts();
-                startActiveAlertsPollingFallback();
                 startEventPollingFallback();
                 subscribeToSirenBroadcast();
                 initAudio();
@@ -68,12 +83,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 console.error("Deferred app init failed:", error);
             }
         };
-
-        // Wire login modal events (X button, submit, etc.)
-        initStratopsAuth();
-
-        // Show intro modal with disclaimer checkbox — no auth check needed to enter
-        initStratopsIntro();
 
     } catch (error) {
         console.error("App init failed:", error);

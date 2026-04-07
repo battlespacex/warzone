@@ -1,9 +1,7 @@
-import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { loadWorkerEnv } from "./env.js";
 
-dotenv.config({
-    path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
-});
+loadWorkerEnv();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,7 +15,3 @@ if (!supabaseServiceRoleKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-console.log("WORKER SUPABASE URL:", supabaseUrl);
-console.log("WORKER SERVICE ROLE PRESENT:", !!supabaseServiceRoleKey);
-console.log("WORKER SERVICE ROLE PREFIX:", String(supabaseServiceRoleKey || "").slice(0, 20));
