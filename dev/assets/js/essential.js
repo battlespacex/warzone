@@ -2633,7 +2633,7 @@ export function initStratopsIntro() {
         // Fade out login hint, show Back button, swap accept label
         loginHint?.classList.add("is-hidden-hint");
         if (backBtn) { backBtn.hidden = false; backBtn.style.display = ""; }
-        if (acceptLabel) acceptLabel.textContent = "Accept and Login";
+        if (acceptLabel) acceptLabel.textContent = "Login";
 
         // Focus first field
         setTimeout(() => introEmail?.focus(), 320);
@@ -2653,7 +2653,7 @@ export function initStratopsIntro() {
         // Restore login hint, hide Back button, restore accept label
         loginHint?.classList.remove("is-hidden-hint");
         if (backBtn) { backBtn.hidden = true; backBtn.style.display = "none"; }
-        if (acceptLabel) acceptLabel.textContent = "Accept and Enter";
+        if (acceptLabel) acceptLabel.textContent = "Enter";
 
         // Clear fields on back
         if (introEmail) introEmail.value = "";
@@ -2721,7 +2721,7 @@ export function initStratopsIntro() {
             setIntroError(err?.message || "Unable to sign in right now. Please try again.");
         } finally {
             syncIntroBtn();
-            if (acceptLabel && isLoginMode) acceptLabel.textContent = "Accept and Login";
+            if (acceptLabel && isLoginMode) acceptLabel.textContent = "Login";
         }
     }
 
@@ -2755,7 +2755,7 @@ export function initStratopsIntro() {
     function applyAuthToIntro(isAuth) {
         if (!loginHint) return;
         if (isAuth) {
-            loginHint.innerHTML = `<span style="color:var(--color-teal-glow,#18e2db);font-weight:600;">✓ Signed in — full access enabled.</span>`;
+            loginHint.innerHTML = `<span class="static-icon bx-web-ico-checked-1-0 color-teal-glow"></span><span>Active session detected via BattlespaceX. Continue to StratOps.</span>`;
         }
     }
 
@@ -2894,7 +2894,7 @@ function injectNavLoginButton() {
 export function initGlobeRotation(viewer) {
     if (!viewer) return;
     const SPEED_DEG = 0.2;
-    window.__globeRotation = { enabled: true, paused: false, speed: SPEED_DEG };
+    window.__globeRotation = { enabled: false, paused: false, speed: SPEED_DEG };
     let lastTime = null, interacting = false;
     const onStart = () => { interacting = true; lastTime = null; };
     const onEnd = () => { interacting = false; };

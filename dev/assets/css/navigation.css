@@ -37,7 +37,7 @@
 
 .warzone-logo {
     position: absolute;
-    top: 2rem;
+    top: 2.5rem;
     justify-self: center;
     opacity: 0;
     transition: opacity 0.8s ease;
@@ -75,7 +75,7 @@ body.is-app-active .warzone-actions {
 }
 
 .warzone-region-bar {
-    left: 2rem;
+    left: 2.5rem;
 }
 
     .warzone-region-bar .static-icon {
@@ -83,7 +83,7 @@ body.is-app-active .warzone-actions {
     }
 
 .warzone-actions {
-    right: 2rem;
+    right: 2.5rem;
 }
 
     .warzone-actions ul {
@@ -101,7 +101,6 @@ body.is-app-active .warzone-actions {
 .top-tab,
 .toolbar-select,
 .dock-chip {
-    border: 0.2rem solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.04);
     color: #fff;
     min-height: 3.8rem;
@@ -207,9 +206,7 @@ body.is-app-active .wz-dock {
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
-    border: .2rem solid var(--color-border-gray);
     color: yellow;
-    font-family: "Rajdhani", sans-serif;
     font-size: 1rem;
     font-weight: 600;
     letter-spacing: 0.07em;
@@ -260,46 +257,6 @@ body.is-about-open .wz-radar-label-layer {
     pointer-events: none !important;
 }
 
-@media (max-width: 768px) {
-    .wz-dock {
-        max-width: calc(100vw - 2rem);
-        overflow-x: auto;
-        overflow-y: visible;
-        scrollbar-width: none;
-    }
-
-    .wz-btn-container {
-        padding: 0 4rem;
-        clip-path: polygon(100% 100%, 0 100%, 5rem 0, calc(100% - 5rem) 0);
-        height: 5rem;
-    }
-
-    .wz-dock__btn {
-        width: 3.4rem;
-        height: 3.4rem;
-        flex-shrink: 0;
-    }
-
-    .wz-dock__icon {
-        width: auto;
-        min-width: auto;
-        height: auto;
-    }
-
-    .wz-dock::-webkit-scrollbar {
-        display: none;
-    }
-
-
-    .wz-dock__icon .static-icon {
-        font-size: 3.4rem;
-    }
-
-    .wz-dock__label {
-        display: none;
-    }
-}
-
 /* #endregion =========== */
 
 
@@ -332,7 +289,6 @@ body.is-about-open .wz-radar-label-layer {
     padding: .7rem 1rem;
     font-family: var(--heading-font);
     clip-path: var(--clippath-shape-3);
-    border-radius: .2rem
 }
 
     .wz-defcon:before {
@@ -485,12 +441,10 @@ body.is-about-open .wz-radar-label-layer {
 .wz-ticker-item {
     display: inline-flex;
     align-items: center;
-    gap: 0.7rem;
-    padding: 0 2rem;
-    font-size: 1.05rem;
+    gap: 1rem;
+    padding: 0 2.5rem;
     color: var(--color-text);
     font-family: var(--text-font);
-    border-right: 1px solid rgba(24,226,219,0.08);
 }
 
 .wz-ticker-item__cat {

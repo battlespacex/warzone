@@ -87,7 +87,6 @@ function saveState() {
 // ── Event classifier ───────────────────────────────────────────────────────────
 export function getEventLayerId(event) {
     if (!event) return "news";
-
     const cat = String(event.category || "").toLowerCase();
     const weapon = String(event.weapon_type || "").toLowerCase();
     const subcat = String(event.subcategory || "").toLowerCase();
@@ -233,16 +232,19 @@ function updateBulkToggleState(container) {
     const allOnBtn = container.querySelector("#wz-layers-all-on");
     const allOffBtn = container.querySelector("#wz-layers-all-off");
 
-    if (!allOnBtn || !allOffBtn) return;
-
     const usableLayers = LAYER_DEFS.filter((l) => canUseLayer(l.id));
-    const effectiveStates = usableLayers.map((l) => getEffectiveLayerState(l.id));
 
-    const allOn = effectiveStates.length > 0 && effectiveStates.every(Boolean);
-    const allOff = effectiveStates.length > 0 && effectiveStates.every((v) => !v);
+    if (!usableLayers.length) {
+        allOnBtn?.classList.remove("is-active");
+        allOffBtn?.classList.add("is-active");
+        return;
+    }
 
-    allOnBtn.classList.toggle("is-active", allOn);
-    allOffBtn.classList.toggle("is-active", allOff);
+    const allOn = usableLayers.every((l) => getEffectiveLayerState(l.id));
+    const allOff = usableLayers.every((l) => !getEffectiveLayerState(l.id));
+
+    allOnBtn?.classList.toggle("is-active", allOn);
+    allOffBtn?.classList.toggle("is-active", allOff);
 }
 
 function setAllLayers(enabled, container) {
@@ -253,8 +255,8 @@ function setAllLayers(enabled, container) {
 
     saveState();
     syncAllLayerItemStates(container);
-    notifyChange("*", !!enabled);
     updateBulkToggleState(container);
+    notifyChange("*", !!enabled);
 }
 
 export function refreshLayerAccessUi() {
@@ -262,14 +264,13 @@ export function refreshLayerAccessUi() {
     if (!container) return;
 
     syncAllLayerItemStates(container);
-    notifyChange("*", true);
     updateBulkToggleState(container);
+    notifyChange("*", true);
 }
 
 // ── Layer panel UI ─────────────────────────────────────────────────────────────
 export function initLayerPanel() {
     loadState();
-
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
 
@@ -284,14 +285,11 @@ export function initLayerPanel() {
 
     container.innerHTML = `
         <div class="wz-layers__toolbar">
-            <button class="btn-secondary white" id="wz-layers-all-on">All On<span aria-hidden="true"></span></button>
-            <button class="btn-secondary white" id="wz-layers-all-off">All Off<span aria-hidden="true"></span></button>
+            <button class="btn-secondary white" id="wz-layers-all-on">ALL ON<span aria-hidden="true"></span></button>
+            <button class="btn-secondary white" id="wz-layers-all-off">ALL OFF<span aria-hidden="true"></span></button>
         </div>
         <div class="wz-layers__list">${rows}</div>
     `;
-
-    syncAllLayerItemStates(container);
-    updateBulkToggleState(container);
 
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
         item.addEventListener("click", () => {
@@ -316,6 +314,8 @@ export function initLayerPanel() {
         e.stopPropagation();
         setAllLayers(false, container);
     });
+
+    updateBulkToggleState(container);
 
     setTimeout(() => {
         LAYER_DEFS.forEach((l) => {

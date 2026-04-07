@@ -325,9 +325,8 @@
 
 .wz-theater-card {
     background: var(--color-bg-row);
-    border-radius: .2rem;
     cursor: pointer;
-    padding: 1rem;
+    padding: 1.5rem;
     clip-path: var(--clippath-shape-3);
     display: flex;
     justify-content: space-between;
@@ -368,20 +367,23 @@
     gap: 1rem;
 }
 
-.wz-layers__all-on, .wz-layers__all-off {
-    flex: 1;
-    height: 3rem;
-    font-size: var(--text-sm);
-}
+    .wz-layers__toolbar .btn-secondary {
+        flex: 1;
+        height: 3rem;
+        font-size: var(--text-sm);
+        color: var(--color-white);
+        background: var(--color-bg-header)
+    }
 
-.wz-layers__all-off {
-    background: var(--color-gray);
-}
+        .wz-layers__toolbar .btn-secondary.is-active {
+            color: var(--color-black);
+            background: var(--color-white);
+        }
 
 .wz-layers__list {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
 }
 
 .wz-layer-item {
@@ -405,7 +407,7 @@
 
 .wz-layer-icon {
     display: none;
-    width: 2rem;
+    width: 2.5rem;
     flex-shrink: 0;
     font-size: var(--text-sm);
     text-align: center;
@@ -428,7 +430,7 @@
     flex-shrink: 0;
     background: var(--color-gray);
     border-radius: 9999px;
-    transition: background 0.18s;
+    transition: background 0.3s;
 }
 
     .wz-layer-toggle::after {
@@ -468,6 +470,28 @@
     backdrop-filter: blur(.6rem);
     background: var(--color-bg-overlay);
 }
+
+    .wz-modal:before {
+        border-top: .7rem solid var(--color-teal-glow);
+        position: absolute;
+        width: 100%;
+        top: 0;
+        content: '';
+        box-shadow: 0 -1rem 5rem 1rem var(--color-teal-glow);
+    }
+
+    .wz-modal:after {
+        background: url(../images/web/Battlespacex-full-logo.svg) no-repeat;
+        content: '';
+        position: absolute;
+        bottom: 2.5rem;
+        right: 2.5rem;
+        height: 3.5rem;
+        background-size: contain;
+        left: auto;
+        aspect-ratio: 6 / 1;
+        opacity: 0.6;
+    }
 
     .wz-modal[hidden] {
         display: none !important;
@@ -530,11 +554,10 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: 100%;
+    height: auto;
     min-height: 0;
     overflow: hidden;
     clip-path: var(--clippath-shape-2);
-    border-radius: .2rem
 }
 
 .wz-modal__head {
@@ -543,7 +566,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 3rem 2rem 1.5rem;
+    padding: 3rem 2.5rem 1.5rem;
     background: var(--color-bg-header);
 }
 
@@ -575,7 +598,6 @@
     height: 3.2rem;
     font-size: 2.4rem;
     cursor: pointer;
-    border: 0.2rem solid var(--color-border-gray);
     background: transparent;
     transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
@@ -648,86 +670,71 @@
 
 .wz-intro__body {
     min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 2.5rem 2.5rem 1rem;
+    padding: 2.5rem;
     display: flex;
     flex-direction: column;
     scrollbar-gutter: stable;
     background: var(--color-bg-modal);
-    position: relative;
+    scroll-behavior: auto;
+    overflow-x: hidden;
+    box-sizing:border-box
 }
 
 /* ── Panel cross-fade ── */
 .wz-intro__panel {
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.3s ease;
     width: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
     .wz-intro__panel:not(.is-active) {
         opacity: 0;
         pointer-events: none;
-        transform: translateY(.5rem);
         position: absolute;
-        top: 2.5rem;
         left: 2.5rem;
         right: 2.5rem;
+        top: 2.5rem;
+        width: auto;
     }
 
     .wz-intro__panel.is-active {
         opacity: 1;
         pointer-events: auto;
-        transform: translateY(0);
         position: relative;
+        display: flex;
+        flex-direction: column;
     }
-
-#wz-intro-login-view:not(.is-active) {
-    transform: translateY(-.5rem);
-}
 
 #wz-intro-login-hint {
     transition: opacity 0.25s ease;
-    margin-bottom: 1.2rem;
+    position: relative;
 }
 
     #wz-intro-login-hint.is-hidden-hint {
+        position: absolute;
+        left: 2.5rem;
+        right: 2.5rem;
+        top: 2.5rem;
         opacity: 0;
-        pointer-events: none;
-        height: 0;
         margin: 0;
+        pointer-events: none;
         overflow: hidden;
     }
 
 .wz-intro__btns {
     display: flex;
-    gap: 0.8rem;
+    gap: 1rem;
     flex: 0 0 auto;
     align-items: center;
 }
 
-.wz-intro__back-btn {
-    min-height: 4.4rem;
-    padding: 0 1.4rem;
-    background: transparent;
-    border: 0.2rem solid rgba(255, 255, 255, 0.18);
-    color: var(--color-text-heading);
-    font-size: var(--text-sm);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s;
-}
-
-    .wz-intro__back-btn:hover {
-        border-color: rgba(255, 255, 255, 0.4);
-        color: #fff;
-    }
-
 .wz-intro__title {
     color: var(--color-text-heading);
     font-size: var(--text-xxxl);
-    line-height: 4.4rem;
+    line-height: 4rem;
     font-family: var(--heading-font);
-    margin-bottom: 2rem
+    margin-bottom: 1.5rem
 }
 
 .wz-intro__disclaimer {
@@ -741,20 +748,44 @@
     }
 
 .wz-intro__footer {
-    padding: 2.5rem;
     background: var(--color-bg-header);
     width: 100%;
     box-sizing: border-box;
+    z-index: 1;
 }
 
 .wz-intro__action {
     display: flex;
     gap: 1rem;
     align-items: flex-start;
+    padding: 2.5rem 2.5rem 2rem;
 }
 
 .wz-intro__login-hint {
+    background: var(--color-teal-hover);
+    padding: 1rem 2.5rem;
+    color: var(--color-text-heading);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
 }
+
+    .wz-intro__login-hint .static-icon {
+        font-size: var(--icon-lg);
+        min-width: 3rem;
+        height: 2rem;
+        animation: wz-animate-pulse 1.5s infinite;
+    }
+
+    .wz-intro__login-hint a, .wz-intro__login-hint button {
+        background: transparent;
+        outline: none;
+        border: 0;
+        height: var(--text-base);
+        text-decoration: underline;
+        color: var(--color-teal-glow);
+    }
 
 .wz-intro__note {
     flex: 1 1 auto;
@@ -772,12 +803,17 @@
     white-space: normal;
 }
 
-/* Inline auth fields inside intro modal */
-.wz-intro-auth {
+.wz-form-container {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    margin-top: 0.4rem;
+    gap: 1rem;
+}
+
+.wz-form-fieldbox {
+    margin-bottom: 1rem;
+    gap: .5rem;
+    display: flex;
+    flex-direction: column;
 }
 
 .btx-logo {
@@ -816,7 +852,7 @@
     color: var(--color-text-dim);
     background: transparent;
     border: none;
-    border-bottom: 0.2rem solid var(--color-gray);
+    border-bottom: 0.3rem solid var(--color-gray);
     cursor: pointer;
     transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
@@ -881,67 +917,62 @@
     color: var(--color-text-dim);
 }
 
-.wz-region-modal__content {
-    text-align: center;
-    overflow-y: auto;
-    background: var(--color-bg-modal);
-    padding-bottom: 2.5rem;
-}
-
 .wz-region-modal__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
     align-content: flex-start;
     padding: 2.5rem;
+    scrollbar-gutter: stable;
+    background: var(--color-bg-modal);
+    scroll-behavior: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
 }
 
-.wz-region-btn {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    white-space: nowrap;
+.wz-region-btn.btn-secondary {
     background: var(--color-bg-row);
-    white-space: normal;
-    height: 5.4rem;
-    text-align: center;
-    justify-content: center;
+    max-width: 100%;
+    height: 5.5rem;
+    position: relative;
+    color: var(--color-white);
+    padding: 0 2.5rem
 }
-
-    .wz-region-btn:hover {
-        color: rgb(8 90 95 / 80%);
-    }
-
-        .wz-region-btn:hover span {
-            color: #fff
-        }
 
 .wz-region-btn__label {
     display: inline-block;
     line-height: 1.1;
 }
 
-.wz-region-btn.is-hot {
-    position: relative;
+.wz-region-btn .hot-dot {
+    display: none;
 }
 
-    .wz-region-btn.is-hot::after {
-        content: "";
-        position: absolute;
-        top: .5rem;
-        right: .5rem;
-        width: .8rem;
-        height: .8rem;
-        background: var(--color-teal-glow);
-        border-radius: 50%;
-        border: 0;
-    }
+.wz-region-btn.is-hot .hot-dot {
+    position: absolute;
+    top: .7rem;
+    right: .7rem;
+    width: 1rem;
+    height: 1rem;
+    background: var(--color-error);
+    border-radius: 50%;
+    border: 0;
+    animation: wz-animate-pulse 1.5s infinite;
+    z-index: 1;
+    display: block;
+}
 
 .wz-region-btn.is-selected {
-    background: var(--color-teal-glow);
-    color: rgb(8 90 95 / 80%);
-    animation: wz-animate-pulse 1s infinite;
+    background: var(--color-teal);
+}
+
+.wz-region-modal__footer {
+    background: var(--color-bg-header);
+    width: 100%;
+    box-sizing: border-box;
+    z-index: 1;
+    padding: 1.5rem;
+    text-align: right;
 }
 /* #endregion =========== */
 /* #region =========== WIDGET INNER PANELS =========== */
@@ -957,7 +988,7 @@
     overflow: hidden;
     min-height: 0;
     display: flex;
-    gap: 0.5rem;
+    gap: 1rem;
     padding: 1.5rem;
     transition: 320ms ease;
     clip-path: var(--clippath-shape-1);
@@ -972,7 +1003,6 @@
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-5);
     gap: .2rem;
-    border-radius: .2rem
 }
 
     .mini-stat strong {
@@ -1552,7 +1582,7 @@ UNUSED CANDIDATE END */
     padding: 0;
     font-size: var(--icon-lg);
     position: absolute;
-    right: 1rem;
+    right: 1.5rem;
     top: 1rem;
 }
 
@@ -1662,9 +1692,9 @@ UNUSED CANDIDATE END */
 .wz-dev-body {
     position: absolute;
     right: 0;
-    bottom: 4.2rem;
+    bottom: 4.5rem;
     width: 100%;
-    max-height: 78vh;
+    max-height: 70vh;
     overflow: auto;
     padding: 1.2rem;
     background: var(--color-bg-dark);
@@ -1809,10 +1839,63 @@ UNUSED CANDIDATE END */
 }
 
 /* #endregion =========== */
+/* #region =========== LOGIN POPUP =========== */
+.wz-auth-box {
+    margin: auto;
+    padding: 2.5rem;
+}
 
+.wz-auth-title {
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+}
 
+.wz-auth-remember {
+    display: block;
+}
 
+.wz-auth-btn {
+    width: 100%;
+}
 
+.wz-auth-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem
+}
+
+.wz-auth-btn[disabled] {
+    opacity: .45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.wz-auth-btn.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.wz-auth-btn.is-loading {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.wz-auth-user {
+}
+
+.wz-auth-btn.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.wz-auth-btn.is-loading {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+/* #endregion =========== */
+/* #region =========== MIL ASSETS FOCUS GRID =========== */
 .wz-aircraft-focus-guides {
     position: absolute;
     left: 0;
@@ -1865,10 +1948,8 @@ UNUSED CANDIDATE END */
         top: 8.2rem;
         transform: rotate(48deg);
     }
-
-
-
-/* Donate modal */
+/* #endregion =========== */
+/* #region =========== DONATE POPUP =========== */
 .wz-donate-modal {
     position: fixed;
     bottom: 24px;
@@ -1920,13 +2001,13 @@ UNUSED CANDIDATE END */
     text-decoration: none;
 }
 
-/* Nav login + rotate buttons */
 .wz-nav-login-btn {
     background: rgba(58,142,255,0.15);
     color: #3a8eff;
     cursor: pointer;
 }
-
+/* #endregion =========== */
+/* #region =========== SUBSCRIPTION LEVELS LOCK =========== */
 body.is-authenticated .wz-nav-login-btn {
     display: none;
 }
@@ -1951,28 +2032,17 @@ body.is-authenticated .wz-nav-login-btn {
     }
 }
 
-/* ── Freemium Lock Overlay ─────────────────────────────────────────────────── */
-/* Sits inside .panel-content, covers widget content for unauthenticated users.
-   Auto-hidden via body.is-authenticated — no JS toggle needed.               */
 .wz-lock-overlay {
     position: absolute;
     inset: 0;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(7, 11, 18, 0.88);
-    backdrop-filter: blur(.5rem);
+    z-index: 5;
     pointer-events: auto;
-}
-
-.wz-lock-overlay__inner {
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 2rem 1.6rem;
-    gap: 0.8rem;
+    padding: 2.5rem;
+    gap: 1rem
 }
 
 .wz-lock-overlay__icon {
@@ -2001,9 +2071,9 @@ body.is-authenticated .wz-nav-login-btn {
 }
 
 .wz-lock-overlay__btn {
-    margin-top: 0.8rem;
-    min-height: 3.4rem;
-    padding: 0 2rem;
+    margin-top: 1rem;
+    min-height: 2.5rem;
+    padding: 0 2.5rem;
     font-size: var(--text-sm, 1.1rem);
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -2013,30 +2083,20 @@ body.is-authenticated .wz-nav-login-btn {
     border: none;
     cursor: pointer;
     transition: opacity 0.15s ease;
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0.6rem), calc(100% - 0.6rem) 100%, 0 100%);
 }
 
     .wz-lock-overlay__btn:hover {
         opacity: 0.88;
     }
 
-/* Auto-hide all overlays once authenticated — CSS owns this, no JS needed */
 body.is-authenticated .wz-lock-overlay {
     display: none !important;
 }
 
-/* Ensure panel-content is positioned so overlay can fill it absolutely */
 .warzone-widget .panel-content {
     position: relative;
 }
 
-
-/* ── Freemium: Block content behind lock overlay ───────────────────────────── */
-/* When not authenticated, locked widget panel-content:
-   - blocks overflow/scroll so user can't scroll past the overlay
-   - hides all children except the overlay itself (visibility:hidden keeps
-     layout intact so the panel doesn't collapse, but content is invisible)
-   - DevTools can remove the overlay div but content remains invisible       */
 body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content,
 body:not(.is-authenticated) [data-widget-id="airspace"] .panel-content,
 body:not(.is-authenticated) [data-widget-id="cyber"] .panel-content {
@@ -2051,8 +2111,6 @@ body:not(.is-authenticated) [data-widget-id="cyber"] .panel-content {
         user-select: none !important;
     }
 
-/* ── Freemium: Premium layer items greyed out in layers panel ─────────────── */
-/* Toggles still work (for when user logs in) but visual signals locked state */
 body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-dot {
     background: rgba(255, 255, 255, 0.15) !important;
 }
@@ -2069,9 +2127,113 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-toggle {
     opacity: 0.35;
 }
 
-/* Small lock badge after the label */
 body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label::after {
     content: " 🔒";
     font-size: 0.85em;
     opacity: 0.55;
 }
+/* #endregion =========== */
+/* #region =========== LOGIN POPUP =========== */
+#warzone-milbase-panel {
+    position: fixed;
+    right: 20px;
+    width: 300px;
+    background: var(--warzone-panel-bg, rgba(10, 12, 18, 0.95));
+    padding: 2.5rem;
+    z-index: 900;
+    color: #fff;
+    backdrop-filter: blur(8px);
+    animation: milbase-fadein 0.18s ease;
+}
+
+@keyframes milbase-fadein {
+    from {
+        opacity: 0;
+        transform: translateY(.5rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.milbase-panel__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.milbase-panel__dot {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.25);
+}
+
+.milbase-panel__type {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    flex: 1;
+}
+
+.milbase-panel__close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+    .milbase-panel__close:hover {
+        color: #fff;
+    }
+
+.milbase-panel__name {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 12px;
+    color: #fff;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding-bottom: 10px;
+}
+
+.milbase-panel__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.milbase-panel__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.milbase-panel__label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.4);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.milbase-panel__value {
+    font-size: 12px;
+    color: rgba(255,255,255,0.85);
+    text-align: right;
+    line-height: 1.3;
+}
+/* #endregion */

@@ -185,11 +185,12 @@ function showRegionModal(viewer, instant = false) {
     grid.innerHTML = regions.map((r) => {
         const hotClass = r.hot ? " is-hot" : "";
         return `
-            <button class="wz-region-btn${hotClass} btn-primary"
+            <button class="wz-region-btn${hotClass} btn-secondary white"
                     type="button"
                     data-region="${r.id}"
                     aria-pressed="false">
                 <span aria-hidden="true"></span>
+                <div class="hot-dot"></div>
                 ${getRegionLabelForLens(r, __activeLens)}
             </button>`;
     }).join("");

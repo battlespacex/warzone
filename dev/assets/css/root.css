@@ -19,6 +19,7 @@
     --color-red: rgba(174, 15, 68, 0.9);
     --color-red-glow: rgb(239 29 85 / 90%);
     --color-orange: rgba(255, 106, 0, 1);
+    --color-purple: rgb(101 47 188);
     --color-yellow: rgb(207, 188, 36);
     --color-teal: rgba(15,140,147,0.8); /* Primary accent */
     --color-teal-hover: rgba(22, 147, 159, 0.3);
@@ -47,7 +48,7 @@
     --text-lg: 1.7rem;
     --text-xl: 2.4rem;
     --text-xxl: 3.4rem;
-    --text-xxxl: 5rem;
+    --text-xxxl: 4.5rem;
     --text-heading-weight: 700;
     --text-base-weight: 500;
     --item-spacing: 0.5rem;

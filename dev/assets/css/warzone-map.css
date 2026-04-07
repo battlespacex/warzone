@@ -7,8 +7,6 @@
     display: grid;
     grid-template-rows: auto 1fr;
     overflow: hidden;
-    border: 0.2rem solid var(--color-border-gray);
-    background: rgba(14, 17, 24, 0.82);
     box-shadow: var(--box-shadow);
     backdrop-filter: blur(1rem);
 }
@@ -50,7 +48,7 @@
 /* #region =========== MAP CREDITS =========== */
 .warzone-map-credits {
     position: absolute;
-    right: 1.2rem;
+    right: 1.5rem;
     bottom: 1rem;
     z-index: 10;
     max-width: 40%;

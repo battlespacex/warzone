@@ -78,11 +78,13 @@ input, select, textarea {
 button {
     cursor: pointer
 }
+
 .text-stack {
     display: block;
     width: 100%;
     white-space: break-spaces;
 }
+
 [data-tooltip][data-tooltip]:not([data-tooltip=""]):hover:after {
     clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);
 }
@@ -125,28 +127,33 @@ strong {
 }
 
 .text-xs {
-    font-size: 1rem
+    font-size: var(--text-xs)
 }
 
 .text-sm {
-    font-size: 1.2rem
+    font-size: var(--text-sm)
 }
 
 .text-base {
-    font-size: 1.45rem
+    font-size: var(--text-base)
 }
 
 .text-lg {
-    font-size: 1.8rem
+    font-size: var(--text-lg)
 }
 
 .text-xl {
-    font-size: 2.4rem
+    font-size: var(--text-xl)
 }
 
 .text-xxl {
-    font-size: 5.4rem
+    font-size: var(--text-xxl)
 }
+
+.text-xxl {
+    font-size: var(--text-xxxl)
+}
+
 .font-counter {
     font-family: var(--heading-font)
 }
@@ -186,7 +193,6 @@ UNUSED CANDIDATE END */
     text-transform: uppercase;
     position: relative;
     padding: 1.4rem 2.4rem;
-    margin-right: 2rem;
     background: var(--color-teal);
     border: 0.1rem solid var(--color-teal);
     box-sizing: border-box;
@@ -229,11 +235,25 @@ UNUSED CANDIDATE END */
     animation: .2s fadeIn all;
 }
 
+.btn-secondary {
+    border: 0;
+    -webkit-appearance: none;
+    animation: .2s fadeIn all;
+}
+
+    .btn-primary .static-icon, .btn-secondary .static-icon {
+        font-size: 4rem;
+        height: 3rem;
+        padding-right: .5rem;
+        margin-left: -.5rem;
+    }
+
 .btn-primary, .btn-secondary {
     font-weight: 600;
     font-size: var(--text-base);
     text-align: center;
     min-width: 8rem !important;
+    max-width: fit-content;
     height: 4rem;
     transition: .2s ease, opacity 220ms ease;
     position: relative;
@@ -249,62 +269,63 @@ UNUSED CANDIDATE END */
 }
 
     .btn-primary:before, .btn-primary:after, .btn-primary span:before, .btn-primary span:after,
+    .btn-secondary:before, .btn-secondary:after, .btn-secondary span:before, .btn-secondary span:after,
     .btn-icon:before, .btn-icon:after, .btn-icon span:before, .btn-icon span:after {
         content: "";
         position: absolute;
         width: 0;
         height: 0;
         background: transparent;
-        transition: 0.3s;
+        transition: 0.3s ease;
     }
 
-    .btn-primary:before, .btn-icon:before {
+    .btn-primary:before, .btn-secondary:before, .btn-icon:before {
         top: -0.1rem;
         left: -0.1rem;
         border-top: 0;
         border-left: 0;
     }
 
-    .btn-primary:after, .btn-icon:after {
+    .btn-primary:after, .btn-secondary:after, .btn-icon:after {
         top: -0.1rem;
         right: -0.1rem;
         border-top: 0;
         border-right: 0;
     }
 
-    .btn-primary span:before, .btn-icon span:before {
+    .btn-primary span:before, .btn-secondary span:before, .btn-icon span:before {
         bottom: -0.1rem;
         left: -0.1rem;
         border-bottom: 0;
         border-left: 0;
     }
 
-    .btn-primary span:after, .btn-icon span:after {
+    .btn-primary span:after, .btn-secondary span:after, .btn-icon span:after {
         bottom: -0.1rem;
         right: -0.1rem;
         border-bottom: 0;
         border-right: 0;
     }
 
-    .btn-primary:hover:before, .btn-icon:hover:before {
+    .btn-primary:hover:before, .btn-secondary:hover:before, .btn-icon:hover:before {
         border-top: 0.2rem solid;
         border-left: 0.2rem solid;
         clip-path: unset
     }
 
-    .btn-primary:hover:after, .btn-icon:hover:after {
+    .btn-primary:hover:after, .btn-secondary:hover:after, .btn-icon:hover:after {
         border-top: 0.2rem solid;
         border-right: 0.2rem solid;
         clip-path: unset
     }
 
-    .btn-primary:hover span:before, .btn-icon:hover span:before {
+    .btn-primary:hover span:before, .btn-secondary:hover span:before, .btn-icon:hover span:before {
         border-bottom: 0.2rem solid;
         border-left: 0.2rem solid;
         clip-path: unset
     }
 
-    .btn-primary:hover span:after, .btn-icon:hover span:after {
+    .btn-primary:hover span:after, .btn-secondary:hover span:after, .btn-icon:hover span:after {
         border-bottom: 0.2rem solid;
         border-right: 0.2rem solid;
         clip-path: unset
@@ -314,21 +335,30 @@ UNUSED CANDIDATE END */
     .btn-icon:before, .btn-icon:after, .btn-icon span:before, .btn-icon span:after {
         width: calc(100% / 2);
         height: calc(100% / 2);
-        border-color: var(--color-teal)
+        border-color: transparent;
+        transition: 0.3s ease;
     }
 
+    .btn-secondary:before, .btn-secondary:after, .btn-secondary span:before, .btn-secondary span:after {
+        width: calc(100% / 2);
+        height: calc(100% / 2);
+        border-color: var(--color-white);
+        transition: 0.3s ease;
+    }
+
+
     .btn-primary:hover:before, .btn-primary:hover:after, .btn-primary:hover span:before, .btn-primary:hover span:after,
+    .btn-secondary:hover:before, .btn-secondary:hover:after, .btn-secondary:hover span:before, .btn-secondary:hover span:after,
     .btn-icon:hover:before, .btn-icon:hover:after, .btn-icon:hover span:before, .btn-icon:hover span:after {
         width: calc(1.5rem / 2);
         height: calc(1.5rem / 2);
         margin: -0.5rem;
         opacity: 1;
-        border-color: var(--text-color-heading);
+        border-color: var(--color-white);
         clip-path: unset
     }
 
-    .btn-primary:hover, .btn-icon:hover, .btn-add:hover, button.pressed {
-        transform: scale(1.1);
+    .btn-primary:hover, .btn-secondary:hover, .btn-icon:hover, .btn-add:hover, button.pressed {
         transition: .1s all;
         clip-path: unset !important;
         z-index: 3;
@@ -339,11 +369,48 @@ UNUSED CANDIDATE END */
         background: var(--color-teal-glow);
     }
 
-    .btn-primary span {
+    .btn-secondary.white {
+        background: var(--color-white);
+        color: var(--color-black);
+    }
+
+        .btn-secondary.white:hover {
+            box-shadow: 0 0 2rem 0 var(--color-white);
+            background: var(--color-white);
+            color: var(--color-black);
+        }
+
+    .btn-secondary.orange {
+        background: var(--color-orange);
+        color: var(--color-white);
+    }
+
+        .btn-secondary.orange:hover {
+            box-shadow: 0 0 2rem 0 var(--color-orange);
+            background: var(--color-orange);
+            color: var(--color-white);
+        }
+
+    .btn-secondary.purple {
+        background: var(--color-purple);
+        color: var(--color-white);
+    }
+
+        .btn-secondary.purple:hover {
+            box-shadow: 0 0 2rem 0 var(--color-purple);
+            background: var(--color-purple);
+            color: var(--color-white);
+        }
+
+    .btn-secondary span {
+        color: var(--color-white);
+    }
+
+    .btn-primary span, .btn-secondary span {
         padding: 0 !important;
     }
 
-    .btn-primary:disabled {
+    .btn-primary:disabled, .btn-secondary:disabled {
         cursor: not-allowed;
         pointer-events: none;
         background: var(--color-bg-header);
@@ -352,17 +419,29 @@ UNUSED CANDIDATE END */
 
 /* #endregion =========== */
 /* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
-.wz--dropdown {
-    height: 4rem;
-    padding: 0 4rem 0 1rem;
-    max-width: 100%;
-    min-width: 12rem;
-    width: 100%;
-    background: linear-gradient(90deg, var(--color-input-gray) calc(100% - 3.2rem), transparent 3.2rem);
-    cursor: pointer;
+.wz--textarea, .wz--dropdown, .wz--input, option {
+    font-family: var(--text-base) !important;
+    box-sizing: border-box;
+    border: 0.2rem solid var(--color-border-gray);
+    background: var(--color-bg-overlay);
+    color: var(--color-text-heading);
+    resize: none;
+    display: flex;
+    position: relative;
+    transition: .2s ease;
+    outline: none;
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
+}
+
+.wz--dropdown {
+    padding: 0 4rem 0 1rem;
+    cursor: pointer;
+}
+
+.wz--input {
+    padding: 0 1rem;
 }
 
 .wz--dropdown, .wz--input {
@@ -373,21 +452,19 @@ UNUSED CANDIDATE END */
     width: 100%;
 }
 
-.wz--textarea, .wz--dropdown, .wz--input, option {
-    font-family: var(--text-font-v2) !important;
-    box-sizing: border-box;
-    border: 0.2rem solid var(--color-border-gray);
-    background: var(--color-bg-overlay);
-    color: var(--color-text-heading);
-    resize: none;
-    display: flex;
-    position: relative;
-}
+    .wz--textarea:focus-visible, .wz--textarea:hover, .wz--textarea:active,
+    .wz--dropdown:focus-visible, .wz--dropdown:hover, .wz--dropdown:active,
+    .wz--input:focus-visible, .wz--input:hover, .wz--input:active {
+        border-color: var(--color-teal-glow);
+        outline: none;
+    }
 
 input.text, input[type=button], input[type=checkbox], input[type=submit], input[type=text], select, textarea {
     -webkit-appearance: inherit;
     border-radius: 0;
 }
+
+
 
 .wz-selector {
     position: relative;
@@ -428,16 +505,16 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     position: relative;
     cursor: pointer;
     user-select: none;
-    line-height: 1.5;
+    line-height: 1.5rem;
 }
 
     .wz-check input[type="checkbox"] {
         appearance: none;
         -webkit-appearance: none;
-        flex: 0 0 2.2rem;
-        width: 2.2rem;
-        height: 2.2rem;
-        margin: -.4rem 0 0;
+        flex: 0 0 2rem;
+        width: 2rem;
+        height: 2rem;
+        margin: -.2rem 0 0;
         border: 0.2rem solid var(--color-teal-glow);
         border-radius: .1rem;
         background: var(--color-bg-dark);
@@ -461,6 +538,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         transform: rotate(45deg) scale(0);
         transform-origin: center;
         transition: transform 0.3s ease;
+        margin-top: -.2rem
     }
 
     .wz-check input[type="checkbox"]:checked {
@@ -503,7 +581,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         list-style: none;
         position: relative;
         padding-left: 2rem;
-        line-height: 1.9rem;
+        line-height: 2rem;
     }
 
         .wz-list-view li:before {
@@ -549,7 +627,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 /* #region =========== UI AUDIO =========== */
 .audio-toggle {
     position: fixed;
-    right: 2rem;
+    right: 2.5rem;
     bottom: 8rem; /* adjust if needed above dock */
     z-index: 999;
     width: 4.4rem;
@@ -719,7 +797,7 @@ body.show-loader .site-loader {
 .site-loader__inner {
     display: grid;
     place-items: center;
-    gap: 1.2rem;
+    gap: 1rem;
 }
 /* #endregion =========== */
 /* #region =========== A11Y / ACCESSIBILITY =========== */
@@ -766,74 +844,64 @@ body.show-loader .site-loader {
             pointer-events: auto;
         }
 /* #endregion =========== */
-
-
-
-
-
-
-
-
-
-
-
-.wz-auth-box {
-    margin: auto;
-    padding: 2rem;
+/* #region =========== GENERIC =========== */
+.no-margin {
+    margin: 0 !important;
 }
 
-.wz-auth-title {
-    margin-bottom: 1rem;
-    text-transform: uppercase;
+.no-padding {
+    padding: 0 !important;
 }
 
-
-.wz-auth-remember {
-    display: block;
+.wz-error-container {
+    color: var(--color-white);
+    background: var(--color-red);
+    padding: .5rem 1rem;
+    clip-path: var(--clippath-shape-3);
+}
+/* #endregion =========== */
+/* #region =========== COLOR CODES =========== */
+.color-teal {
+    color: var(--color-teaL)
 }
 
-.wz-auth-btn {
-    width: 100%;
+.bg-teal {
+    background: var(--color-teal)
+}
+.color-teal-glow {
+    color: var(--color-teal-glow)
 }
 
-.wz-auth-footer {
+.bg-teal-glow {
+    background: var(--color-teal-glow)
 }
 
-
-.wz-auth-btn[disabled] {
-    opacity: .45;
-    cursor: not-allowed;
-    pointer-events: none;
+.color-grace-red {
+    color: var(--color-error)
 }
 
-.wz-auth-btn.is-locked {
-    opacity: 0.45;
-    cursor: not-allowed;
+.bg-grace-red {
+    background: var(--color-error)
 }
 
-.wz-auth-btn.is-loading {
-    opacity: 0.7;
-    cursor: wait;
+.color-red {
+    color: var(--color-red)
 }
 
-.wz-auth-user {
-
+.bg-red {
+    background: var(--color-red)
 }
 
-
-.wz-aircraft-load-more {
-    width: 100%;
-    background: rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.6);
-    cursor: pointer;
+.color-red-glow {
+    color: var(--color-red-glow)
 }
 
-.wz-auth-btn.is-locked {
-    opacity: 0.45;
-    cursor: not-allowed;
+.bg-red-glow {
+    background: var(--color-red-glow)
 }
+/* #endregion =========== */
 
-.wz-auth-btn.is-loading {
-    opacity: 0.7;
-    cursor: wait;
-}
+
+
+
+
