@@ -4,10 +4,6 @@ const path = require("path");
 const webpack = require("webpack");
 const dotenv = require("dotenv");
 
-const SITE = require("./seo/site");
-const pageMeta = require("./seo/pages");
-const { buildJsonLd } = require("./seo/schema");
-
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
 const TerserPlugin = require("terser-webpack-plugin");
@@ -26,6 +22,11 @@ module.exports = (env, argv) => {
     const ROOT_DIR = __dirname;
     const PROD_DIR = path.resolve(ROOT_DIR, "production");
     const DEV_DIR = path.resolve(ROOT_DIR, "dev");
+    const SEO_DIR = path.resolve(ROOT_DIR, "seo");
+    const PARTIALS_DIR = path.resolve(DEV_DIR, "partials");
+    const SITE_PATH = path.resolve(SEO_DIR, "site.js");
+    const PAGE_META_PATH = path.resolve(SEO_DIR, "pages.js");
+    const SCHEMA_PATH = path.resolve(SEO_DIR, "schema.js");
 
     const pages = ["index", "404"];
 
@@ -50,7 +51,19 @@ module.exports = (env, argv) => {
 
     const partials = (name) => readPartial(`partials/${name}.html`);
 
-    const defaultOg = SITE.defaultOg || SITE.defaultOgImage || "/assets/images/web/warzone-og-preview.jpg";
+    const loadFreshModule = (modulePath) => {
+        const resolvedPath = require.resolve(modulePath);
+        delete require.cache[resolvedPath];
+        return require(resolvedPath);
+    };
+
+    const registerHtmlDependencies = (compilation) => {
+        compilation.contextDependencies.add(PARTIALS_DIR);
+        compilation.contextDependencies.add(SEO_DIR);
+        compilation.fileDependencies.add(SITE_PATH);
+        compilation.fileDependencies.add(PAGE_META_PATH);
+        compilation.fileDependencies.add(SCHEMA_PATH);
+    };
 
     return {
         mode: isDev ? "development" : "production",
@@ -169,65 +182,73 @@ module.exports = (env, argv) => {
             }),
 
             ...pages.map((name) => {
-                const m = pageMeta[name] || {};
-                const canonical = joinUrl(SITE.baseUrl, m.path || "/");
-
-                const robots =
-                    m.robots ||
-                    "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
-
-                const ogCandidate = m.ogImage || defaultOg;
-                const ogImageAbs = String(ogCandidate).startsWith("http")
-                    ? ogCandidate
-                    : joinUrl(SITE.baseUrl, ensureSlashStart(ogCandidate));
-
-                const meta = {
-                    title: m.title || "Warzone",
-                    description: m.description || "",
-
-                    canonical,
-                    robots,
-                    hreflang: canonical,
-
-                    ogUrl: canonical,
-                    ogTitle: m.title || "Warzone",
-                    ogDescription: m.description || "",
-                    ogImage: ogImageAbs,
-                    ogAlt: m.ogAlt || "Warzone",
-
-                    twTitle: m.title || "Warzone",
-                    twDescription: m.description || "",
-                    twImage: ogImageAbs,
-                    twAlt: m.ogAlt || "Warzone",
-
-                    preload: m.preload || [],
-
-                    jsonLd: buildJsonLd({
-                        site: SITE,
-                        page: m,
-                        ogImageAbs,
-                    }),
-                };
-
-                const preloadLinks = (meta.preload || [])
-                    .map((p) => {
-                        const href = p && p.href ? String(p.href) : "";
-                        if (!href) return "";
-                        const mediaAttr = p.media ? ` media="${String(p.media)}"` : "";
-                        return `<link rel="preload" as="image" href="${href}"${mediaAttr} fetchpriority="high" />`;
-                    })
-                    .filter(Boolean)
-                    .join("\n");
-
                 return new HtmlWebpackPlugin({
                     filename: `pages/${name}.html`,
                     template: path.resolve(DEV_DIR, "pages", `${name}.html`),
                     inject: "head",
                     scriptLoading: "defer",
-                    templateParameters: {
-                        meta,
-                        partials,
-                        preloadLinks,
+                    templateParameters: (compilation) => {
+                        registerHtmlDependencies(compilation);
+
+                        const SITE = loadFreshModule(SITE_PATH);
+                        const pageMeta = loadFreshModule(PAGE_META_PATH);
+                        const { buildJsonLd } = loadFreshModule(SCHEMA_PATH);
+
+                        const m = pageMeta[name] || {};
+                        const defaultOg = SITE.defaultOg || SITE.defaultOgImage || "/assets/images/web/warzone-og-preview.jpg";
+                        const canonical = joinUrl(SITE.baseUrl, m.path || "/");
+                        const robots =
+                            m.robots ||
+                            "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
+
+                        const ogCandidate = m.ogImage || defaultOg;
+                        const ogImageAbs = String(ogCandidate).startsWith("http")
+                            ? ogCandidate
+                            : joinUrl(SITE.baseUrl, ensureSlashStart(ogCandidate));
+
+                        const meta = {
+                            title: m.title || "Warzone",
+                            description: m.description || "",
+
+                            canonical,
+                            robots,
+                            hreflang: canonical,
+
+                            ogUrl: canonical,
+                            ogTitle: m.title || "Warzone",
+                            ogDescription: m.description || "",
+                            ogImage: ogImageAbs,
+                            ogAlt: m.ogAlt || "Warzone",
+
+                            twTitle: m.title || "Warzone",
+                            twDescription: m.description || "",
+                            twImage: ogImageAbs,
+                            twAlt: m.ogAlt || "Warzone",
+
+                            preload: m.preload || [],
+
+                            jsonLd: buildJsonLd({
+                                site: SITE,
+                                page: m,
+                                ogImageAbs,
+                            }),
+                        };
+
+                        const preloadLinks = (meta.preload || [])
+                            .map((p) => {
+                                const href = p && p.href ? String(p.href) : "";
+                                if (!href) return "";
+                                const mediaAttr = p.media ? ` media="${String(p.media)}"` : "";
+                                return `<link rel="preload" as="image" href="${href}"${mediaAttr} fetchpriority="high" />`;
+                            })
+                            .filter(Boolean)
+                            .join("\n");
+
+                        return {
+                            meta,
+                            partials,
+                            preloadLinks,
+                        };
                     },
                 });
             }),
@@ -293,6 +314,7 @@ module.exports = (env, argv) => {
                             path.resolve(DEV_DIR, "assets/audio/**/*"),
                             path.resolve(DEV_DIR, "assets/others/**/*"),
                             path.resolve(DEV_DIR, "public/**/*"),
+                            path.resolve(ROOT_DIR, "seo/**/*.js"),
                         ],
                         options: {
                             usePolling: true,

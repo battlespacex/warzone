@@ -235,11 +235,13 @@ function updateBulkToggleState(container) {
 
     if (!allOnBtn || !allOffBtn) return;
 
-    const usableLayers = LAYER_DEFS.filter((l) => canUseLayer(l.id));
-    const effectiveStates = usableLayers.map((l) => getEffectiveLayerState(l.id));
+    const actionableItems = Array.from(container.querySelectorAll(".wz-layer-item"))
+        .filter((item) => item.getAttribute("aria-disabled") !== "true");
 
-    const allOn = effectiveStates.length > 0 && effectiveStates.every(Boolean);
-    const allOff = effectiveStates.length > 0 && effectiveStates.every((v) => !v);
+    const allOn = actionableItems.length > 0
+        && actionableItems.every((item) => item.classList.contains("is-on"));
+    const allOff = actionableItems.length > 0
+        && actionableItems.every((item) => !item.classList.contains("is-on"));
 
     allOnBtn.classList.toggle("is-active", allOn);
     allOffBtn.classList.toggle("is-active", allOff);
@@ -327,9 +329,12 @@ export function initLayerPanel() {
         updateBulkToggleState(container);
     }, 200);
 
-    window.addEventListener("stratops-auth-changed", () => {
+    const handleAuthRefresh = () => {
         refreshLayerAccessUi();
-    });
+    };
+
+    window.addEventListener("stratops-auth-changed", handleAuthRefresh);
+    document.addEventListener("wz:auth-success", handleAuthRefresh);
 }
 
 export { LAYER_DEFS };

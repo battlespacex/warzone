@@ -2553,6 +2553,7 @@ function setAuthMode(isAuthenticated, user = null) {
 export function showLoginModal(mode = "guest", user = null) {
     const { modal, email, consent } = getAuthModalElements();
     const isAuthenticated = mode === "authenticated";
+    setAuthError("");
     setAuthMode(isAuthenticated, user);
     syncAuthButtonState();
     if (!modal) return;
@@ -2954,6 +2955,8 @@ function scheduleDelayedLoginPopup() {
         if (window.__stratopsAuthState?.isAuthenticated) return;
         if (isLoginModalOpen()) return;
         try { if (sessionStorage.getItem("wz_login_dismissed") === "1") return; } catch { }
+        const introModal = document.getElementById("wz-intro-modal");
+        if (introModal && !introModal.hidden) return;
         const isAuth = await stratopsCheckAuth();
         if (isAuth) return;
         showLoginModal("guest");

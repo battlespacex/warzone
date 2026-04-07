@@ -78,64 +78,59 @@
                                  decoding="async" />
                         </div>
                     </div>
-
                     <div class="wz-intro__body">
                         <div id="wz-intro-content-view" class="wz-intro__panel is-active">
                             <h2 id="wz-intro-title" class="wz-intro__title">
                                 Real-Time Multi-Domain Battlespace Intelligence
                             </h2>
-                            <div id="wz-intro-summary">
-                                <p>
-                                    <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com" target="_blank">Battlespacex</a></strong>, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace.
-                                </p>
-                                <p>
-                                    Built within the Battlespacex ecosystem, it serves as a public-facing situational awareness interface for monitoring military air and naval movements, escalation signals, and evolving spatial context. By integrating airspace changes, cyber-adjacent indicators, and cross-domain analytics, it enables users to interpret how activity evolves across a theater of operations in near real time.
-                                </p>
-                            </div>
+                            <p id="wz-intro-summary">
+                                <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com" target="_blank">Battlespacex</a></strong>, is a real-time, multi-domain intelligence visualization platform that leverages OSINT to synthesize aggregated telemetry streams and event signals into a live, 3D layered battlespace spanning air, land, sea, space, and cyberspace. It supports tracking of military movements, assessment of escalation dynamics, and continuous interpretation of operational changes within a theater of operations, in near real time.
+                            </p>
                         </div>
-
                         <div id="wz-intro-login-view" class="wz-intro__panel" aria-hidden="true">
                             <h2 class="wz-intro__title">Sign In to StratOps</h2>
                             <p class="wz-auth-copy">
-                                Log in with your <strong>BattleSpacex</strong> account to unlock live military tracking and aircraft data.
+                                Log in with your <strong>BattleSpacex</strong> account to unlock full capabilities.
                             </p>
-                            <div class="wz-auth-body wz-intro-auth">
-                                <label class="wz-auth-label" for="intro-auth-email">E-mail</label>
-                                <input id="intro-auth-email"
-                                       type="email"
-                                       autocomplete="username"
-                                       inputmode="email"
-                                       class="wz--input" />
-
-                                <label class="wz-auth-label" for="intro-auth-password">Password</label>
-                                <input id="intro-auth-password"
-                                       type="password"
-                                       autocomplete="current-password"
-                                       class="wz--input" />
-
-                                <label class="wz-auth-remember">
-                                    <input id="intro-auth-remember" type="checkbox" />
-                                    <span>Stay connected</span>
-                                </label>
+                            <p id="intro-auth-error" class="wz-error-container" hidden></p>
+                            <div class="wz-auth-body wz-form-container">
+                                <div class="wz-form-fieldbox">
+                                    <label class="wz-auth-label" for="intro-auth-email">E-mail</label>
+                                    <input id="intro-auth-email"
+                                           type="email"
+                                           autocomplete="username"
+                                           inputmode="email"
+                                           class="wz--input" />
+                                </div>
+                                <div class="wz-form-fieldbox">
+                                    <label class="wz-auth-label" for="intro-auth-password">Password</label>
+                                    <input id="intro-auth-password"
+                                           type="password"
+                                           autocomplete="current-password"
+                                           class="wz--input" />
+                                </div>
                             </div>
-                            <p id="intro-auth-error" class="wz-auth-error" hidden></p>
+                            <label class="wz-check" for="intro-auth-remember">
+                                <input id="intro-auth-remember" type="checkbox" />
+                                <span>Stay connected</span>
+                            </label>
                             <div class="wz-auth-footer">
-                                <span>Need an account?</span>
-                                <a href="https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com"
-                                   target="_self" rel="noopener">Create Account</a>
+                                <span>New to StratOps?</span>
+                                <button class="btn-secondary purple"
+                                        type="button"
+                                        onclick="window.location.href='https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com'"
+                                        aria-label="Create a Battlespacex account to access StratOps">
+                                    <span aria-hidden="true"></span>
+                                    <i class="static-icon bx-web-ico-c4isr-1-0" aria-hidden="true"></i>
+                                    Create Account
+                                </button>
                             </div>
                         </div>
-
-                    </div><!-- /.wz-intro__body -->
-                    <!-- ── Footer: shared disclaimer + actions ── -->
+                    </div>
                     <div class="wz-intro__footer">
-                        <!-- Sign-in hint (visible in content view only) -->
-                        <p id="wz-intro-login-hint" class="wz-intro__login-hint">
-                            Want full access to live military tracking and aircraft data?
-                            <button type="button" id="wz-intro-open-login" class="wz-intro__login-link">Sign In</button>
-                            or
-                            <a href="https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com" target="_self" rel="noopener">Register</a>
-                        </p>
+                        <div id="wz-intro-login-hint" class="wz-intro__login-hint">
+                            <span class="static-icon bx-web-ico-top-1-0 color-grace-red"></span><span>Enter as a guest or <button type="button" id="wz-intro-open-login">Sign In</button> to unlock full capabilities.</span>
+                        </div>
 
                         <div class="wz-intro__action">
                             <label class="wz-check" for="intro-disclaimer-check">
@@ -147,11 +142,10 @@
                             </label>
                             <div class="wz-intro__btns">
                                 <button id="wz-intro-back"
-                                        class="btn-secondary wz-intro__back-btn"
-                                        type="button"
-                                        hidden
-                                        style="display:none">
-                                    ← Back
+                                        class="btn-secondary white"
+                                        type="button" hidden style="display:none">
+                                    <span aria-hidden="true"></span>
+                                    Back
                                 </button>
                                 <button id="wz-intro-accept"
                                         class="btn-primary is-locked"
@@ -160,12 +154,11 @@
                                         aria-disabled="true"
                                         style="pointer-events:none">
                                     <span aria-hidden="true"></span>
-                                    <span id="wz-intro-accept-label">Accept and Enter</span>
+                                    <span id="wz-intro-accept-label">Enter</span>
                                 </button>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -324,14 +317,14 @@
              aria-describedby="wz-region-sub"
              hidden>
             <div class="wz-modal__box">
-                <div class="wz-modal__container wz-region-modal__container">
+                <div class="wz-modal__container">
                     <div class="wz-region-modal__head">
                         <h2 class="wz-region-modal__title" id="wz-region-title">Select Monitoring Region</h2>
                         <p class="wz-region-modal__sub" id="wz-region-sub">Choose an initial theater to begin monitoring.</p>
                     </div>
-                    <div class="wz-region-modal__content">
-                        <div class="wz-region-modal__grid" id="wz-region-modal-grid" role="listbox" aria-label="Available monitoring regions"></div>
-                        <button type="button" class="wz-region-modal__confirm btn-primary" id="wz-region-confirm" disabled>
+                    <div class="wz-region-modal__grid" id="wz-region-modal-grid" role="listbox" aria-label="Available monitoring regions"></div>
+                    <div class="wz-region-modal__footer">
+                        <button type="button" class="btn-primary" id="wz-region-confirm" disabled>
                             <span aria-hidden="true"></span>
                             Enter Stratops
                         </button>
@@ -389,7 +382,7 @@
                                     Review the acknowledgment below, then continue into StratOps.
                                 </p>
                                 <p id="auth-authed-user" class="wz-auth-user" hidden></p>
-
+                                <p id="auth-error" class="wz-error-container" hidden></p>
                                 <div id="auth-login-fields">
                                     <label class="wz-auth-label" for="auth-email">E-mail</label>
                                     <input id="auth-email"
@@ -409,8 +402,6 @@
                                         <span>Stay connected</span>
                                     </label>
                                 </div>
-
-                                <p id="auth-error" class="wz-auth-error" hidden></p>
 
                                 <label class="wz-check" for="auth-disclaimer-check">
                                     <input id="auth-disclaimer-check" type="checkbox" />
@@ -442,10 +433,7 @@
                 </div>
             </div>
         </div>
-        <div id="wz-donate-modal"
-             class="wz-donate-modal"
-             aria-live="polite"
-             hidden>
+        <div id="wz-donate-modal" class="wz-donate-modal" aria-live="polite" hidden>
             <button type="button" class="wz-donate-modal__close" id="wz-donate-close" aria-label="Dismiss">✕</button>
             <div class="wz-donate-modal__icon">🛡</div>
             <div class="wz-donate-modal__body">
