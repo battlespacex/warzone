@@ -29,7 +29,7 @@ function normalizeSrc(value = "") {
 function getColor(subcat) {
     const s = normalizeSubcat(subcat);
     if (s === "carrier") return cssVar("--warzone-military-carrier-color", "#ff3c3c");
-    if (s === "destroyer" || s === "frigate" || s === "naval") return cssVar("--warzone-military-naval-color", "#9b7bff");
+    if (s === "destroyer" || s === "frigate" || s === "corvette" || s === "naval") return cssVar("--warzone-military-naval-color", "#9b7bff");
     if (s === "submarine") return cssVar("--warzone-military-submarine-color", "#7bdcff");
     if (s === "logistics") return cssVar("--warzone-military-logistics-color", "#00d9b2");
     return cssVar("--warzone-military-naval-color", "#56d80e");
@@ -37,7 +37,7 @@ function getColor(subcat) {
 function getTrailColor(subcat, fallback) {
     const s = normalizeSubcat(subcat);
     if (s === "carrier") return cssVar("--warzone-military-trail-carrier", fallback);
-    if (s === "destroyer" || s === "frigate" || s === "naval") {
+    if (s === "destroyer" || s === "frigate" || s === "corvette" || s === "naval") {
         return cssVar("--warzone-military-trail-naval", fallback);
     }
     if (s === "submarine") return cssVar("--warzone-military-trail-submarine", fallback);
@@ -45,7 +45,7 @@ function getTrailColor(subcat, fallback) {
     return cssVar("--warzone-military-trail-default", fallback);
 }
 function isNaval(subcat) {
-    return ["carrier", "destroyer", "frigate", "submarine", "naval", "logistics", "minesweeper"].includes(normalizeSubcat(subcat));
+    return ["carrier", "destroyer", "frigate", "corvette", "submarine", "naval", "logistics", "minesweeper"].includes(normalizeSubcat(subcat));
 }
 function buildHeadingOrientation(lon, lat, altM, headingDeg, subcat) {
     const offset = normalizeSubcat(subcat) === "submarine" ? 0 : -90;
@@ -107,6 +107,7 @@ const MODELS = {
     carrier: "/assets/images/models/air/frigate.glb",
     destroyer: "/assets/images/models/air/frigate.glb",
     frigate: "/assets/images/models/air/frigate.glb",
+    corvette: "/assets/images/models/air/frigate.glb",
     naval: "/assets/images/models/air/frigate.glb",
     submarine: "/assets/images/models/air/submarine.glb",
     logistics: "/assets/images/models/air/frigate.glb",
@@ -257,7 +258,7 @@ export function isMilitaryTrackEvent(event) {
 
     // Air activity is already handled by warzone-air-ingestion.js + warzone-live-airforce.js.
     // Keep this file only for naval / vessel-like event tracks so fake aircraft disappear.
-    const isAllowedNavalSubtype = ["carrier", "destroyer", "frigate", "submarine", "naval", "logistics", "minesweeper"].includes(subcat);
+    const isAllowedNavalSubtype = ["carrier", "destroyer", "frigate", "corvette", "submarine", "naval", "logistics", "patrol", "minesweeper"].includes(subcat);
     const isAllowedSource = src.includes("ais") || src.includes("naval") || src.includes("ship") || src.includes("vessel");
 
     return isAllowedNavalSubtype || isAllowedSource;

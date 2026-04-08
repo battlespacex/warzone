@@ -6,7 +6,7 @@ import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
-import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId } from "./warzone-layers.js";
+import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS } from "./warzone-layers.js";
 import { renderRanges, clearRanges } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
 import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
@@ -30,6 +30,7 @@ import {
     getAllNavalSnapshots,
 } from "./warzone-live-naval.js";
 import { startPublicAirIngestion, refreshPublicAirTracksNow } from "./warzone-air-ingestion.js";
+import { setWarzoneMilSatsEnabled } from "./warzone-mil-sats.js";
 let __eventsCache = [];
 let __visibleEventsCache = [];
 let __viewportScoped = false;
@@ -55,26 +56,204 @@ let __aircraftHistoryLastLoadedAt = 0;
 let __aircraftHistoryLoadingPromise = null;
 let __aircraftWidgetRenderTimer = 0;
 let __aircraftHistoryRefreshTimer = 0;
+let __aircraftLiveSyncTimer = 0;
 let __aircraftSubtypeOptionsKey = "";
 let __widgetLoadingState = new Map();
 let __navalWidgetRenderTimer = 0;
+let __seededAircraftTrackKeys = new Set();
 const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 8;
 const AIRCRAFT_HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AIRCRAFT_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_REFRESH_MS = 3 * 60 * 1000;
 const AIRCRAFT_HISTORY_ACTIVE_WINDOW_MS = 8 * 60 * 1000;
+const AIRCRAFT_LIVE_SYNC_MS = 8 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
+const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS.map((layer) => layer.id);
 const NAVAL_EVENT_SUBTYPES = new Set([
     "carrier",
     "destroyer",
     "frigate",
+    "corvette",
     "submarine",
     "logistics",
     "patrol",
     "minesweeper",
     "naval",
 ]);
+const AIS_CIVILIAN_VESSEL_PATTERNS = [
+    /\bMV\b/i,
+    /\bM\/V\b/i,
+    /\bMT\b/i,
+    /\bFV\b/i,
+    /\bSV\b/i,
+    /\bMY\b/i,
+    /\bRV\b/i,
+    /\bGENERAL CARGO\b/i,
+    /\bBULK CARRIER\b/i,
+    /\bCAR CARRIER\b/i,
+    /\bVEHICLE CARRIER\b/i,
+    /\bCONTAINER\b/i,
+    /\bCONTAINER SHIP\b/i,
+    /\bTANKER\b/i,
+    /\bCHEMICAL TANKER\b/i,
+    /\bCRUDE OIL\b/i,
+    /\bLNG\b/i,
+    /\bLPG\b/i,
+    /\bCARGO\b/i,
+    /\bFERRY\b/i,
+    /\bCRUISE\b/i,
+    /\bPASSENGER\b/i,
+    /\bYACHT\b/i,
+    /\bDREDGER\b/i,
+    /\bTUG\b/i,
+    /\bTRAWLER\b/i,
+    /\bFREIGHTER\b/i,
+    /\bFEEDER\b/i,
+    /\bCOASTER\b/i,
+    /\bLIVESTOCK\b/i,
+    /\bREEFER\b/i,
+    /\bHOPPER\b/i,
+    /\bRO-RO\b/i,
+    /\bROLL ON ROLL OFF\b/i,
+    /\bSUPPLY VESSEL\b/i,
+    /\bOFFSHORE SUPPORT\b/i,
+    /\bPLATFORM SUPPLY\b/i,
+    /\bANCHOR HANDLING\b/i,
+    /\bWORKBOAT\b/i,
+    /\bRESEARCH VESSEL\b/i,
+    /\bSURVEY VESSEL\b/i,
+    /\bCABLE LAYER\b/i,
+    /\bPILOT\b/i,
+];
+const AIS_MILITARY_VESSEL_PATTERNS = [
+    /\bUSS\b/i,
+    /\bUSNS\b/i,
+    /\bHMS\b/i,
+    /\bRFA\b/i,
+    /\bHMAS\b/i,
+    /\bHMCS\b/i,
+    /\bHMNZS\b/i,
+    /\bHNLMS\b/i,
+    /\bORP\b/i,
+    /\bNRP\b/i,
+    /\bBRP\b/i,
+    /\bBAP\b/i,
+    /\bARA\b/i,
+    /\bROKS\b/i,
+    /\bKRI\b/i,
+    /\bKDB\b/i,
+    /\bRFS\b/i,
+    /\bINS\b/i,
+    /\bPNS\b/i,
+    /\bTCG\b/i,
+    /\bJDS\b/i,
+    /\bJS\s+[A-Z0-9]/i,
+    /\bFGS\b/i,
+    /\bIRIS\b/i,
+    /\bSLNS\b/i,
+    /\bRBNS\b/i,
+    /\bHSWMS\b/i,
+    /\bITS\b/i,
+    /\bSPS\b/i,
+    /\bBNS\b/i,
+    /\bFFG[-\s]?\d+\b/i,
+    /\bDDG[-\s]?\d+\b/i,
+    /\bCG[-\s]?\d+\b/i,
+    /\bSSN[-\s]?\d+\b/i,
+    /\bSSBN[-\s]?\d+\b/i,
+    /\bSSK[-\s]?\d+\b/i,
+    /\bCVN[-\s]?\d+\b/i,
+    /\bCV[-\s]?\d+\b/i,
+    /\bLHD[-\s]?\d+\b/i,
+    /\bLHA[-\s]?\d+\b/i,
+    /\bLPD[-\s]?\d+\b/i,
+    /\bLPH[-\s]?\d+\b/i,
+    /\bLSD[-\s]?\d+\b/i,
+    /\bLST[-\s]?\d+\b/i,
+    /\bAOR[-\s]?\d+\b/i,
+    /\bAOE[-\s]?\d+\b/i,
+    /\bT-AO[-\s]?\d+\b/i,
+    /\bT-AKE[-\s]?\d+\b/i,
+    /\bT-AKR[-\s]?\d+\b/i,
+    /\bUS NAVY\b/i,
+    /\bMILITARY SEALIFT COMMAND\b/i,
+    /\bROYAL NAVY\b/i,
+    /\bROYAL AUSTRALIAN NAVY\b/i,
+    /\bROYAL CANADIAN NAVY\b/i,
+    /\bROYAL NEW ZEALAND NAVY\b/i,
+    /\bROYAL NETHERLANDS NAVY\b/i,
+    /\bDUTCH NAVY\b/i,
+    /\bGERMAN NAVY\b/i,
+    /\bFRENCH NAVY\b/i,
+    /\bITALIAN NAVY\b/i,
+    /\bSPANISH NAVY\b/i,
+    /\bPORTUGUESE NAVY\b/i,
+    /\bPOLISH NAVY\b/i,
+    /\bINDIAN NAVY\b/i,
+    /\bPAKISTAN NAVY\b/i,
+    /\bJMSDF\b/i,
+    /\bJAPAN MARITIME SELF[- ]DEFENSE FORCE\b/i,
+    /\bREPUBLIC OF KOREA NAVY\b/i,
+    /\bROK NAVY\b/i,
+    /\bPLA NAVY\b/i,
+    /\bPLAN\b/i,
+    /\bTURKISH NAVY\b/i,
+    /\bRUSSIAN NAVY\b/i,
+    /\bIRIN\b/i,
+    /\bIRGCN\b/i,
+    /\bSINGAPORE NAVY\b/i,
+    /\bRSN\b/i,
+    /\bROYAL SAUDI NAVAL FORCES\b/i,
+    /\bEGYPTIAN NAVY\b/i,
+    /\bBRAZILIAN NAVY\b/i,
+    /\bARGENTINE NAVY\b/i,
+    /\bPERUVIAN NAVY\b/i,
+    /\bPHILIPPINE NAVY\b/i,
+    /\bBANGLADESH NAVY\b/i,
+    /\bBELGIAN NAVY\b/i,
+    /\bROYAL BRUNEI NAVY\b/i,
+    /\bINDONESIAN NAVY\b/i,
+    /\bUKRAINIAN NAVY\b/i,
+    /\bGUIDED MISSILE DESTROYER\b/i,
+    /AIRCRAFT CARRIER/i,
+    /HELICOPTER CARRIER/i,
+    /LIGHT CARRIER/i,
+    /DESTROYER/i,
+    /GUIDED MISSILE CRUISER/i,
+    /FRIGATE/i,
+    /CORVETTE/i,
+    /SUBMARINE/i,
+    /AMPHIBIOUS ASSAULT/i,
+    /LANDING HELICOPTER DOCK/i,
+    /LANDING PLATFORM DOCK/i,
+    /AMPHIBIOUS TRANSPORT DOCK/i,
+    /MINE COUNTERMEASURE/i,
+    /MINEHUNTER/i,
+    /MINESWEEPER/i,
+    /REPLENISHMENT/i,
+    /FLEET OILER/i,
+    /COMBAT SUPPORT SHIP/i,
+    /OFFSHORE PATROL VESSEL/i,
+    /MISSILE BOAT/i,
+    /FAST ATTACK CRAFT/i,
+];
+function isStrictAisMilitaryNavalEvent(event = {}) {
+    const metadata = getEventMetadata(event);
+    const sourceName = String(event.source_name || "").toLowerCase();
+    if (!sourceName.includes("ais")) return true;
+    const shipType = Number(metadata.ship_type ?? metadata.shipType ?? null);
+    const vesselName = String(metadata.vessel_name || event.title || "");
+    const callSign = String(metadata.call_sign || metadata.callSign || "");
+    const haystack = [vesselName, callSign].filter(Boolean).join(" ");
+    const hasCivilianIdentity = AIS_CIVILIAN_VESSEL_PATTERNS.some((pattern) => pattern.test(haystack));
+    const hasMilitaryIdentity = AIS_MILITARY_VESSEL_PATTERNS.some((pattern) => pattern.test(haystack));
+    if (hasCivilianIdentity && !hasMilitaryIdentity) {
+        return false;
+    }
+    if (hasMilitaryIdentity) return true;
+    return shipType === 35 && !hasCivilianIdentity;
+}
 function isEventInLens(event, lens) {
     if (!event) return false;
     const category = String(event.category || "").toLowerCase();
@@ -139,6 +318,7 @@ const FRONTEND_CIVILIAN_NOISE = [
 
 function isMilitaryRelevant(event) {
     const category = String(event.category || "").toLowerCase();
+    if (!isStrictAisMilitaryNavalEvent(event)) return false;
     const text = [
         event.title,
         event.summary,
@@ -247,6 +427,101 @@ function applyAllFilters(events) {
     const byLens = regional.filter((e) => isEventInLens(e, lens));
     return byLens.filter((e) => isEventVisible(e));
 }
+function getHotspotSourceEvents(events = []) {
+    return (Array.isArray(events) ? events : []).filter((event) => {
+        if (!event) return false;
+        if (isAircraftTelemetryEvent(event)) return false;
+        if (isMilitaryTrackEvent(event)) return false;
+        if (isNavalSignalEvent(event)) return false;
+        return true;
+    });
+}
+function getFeedSourceEvents() {
+    const seen = new Set();
+    const merged = [];
+    const pushUnique = (event) => {
+        if (!event) return;
+        const key = String(event.id || `${event.title}-${event.occurred_at}`);
+        if (seen.has(key)) return;
+        seen.add(key);
+        merged.push(event);
+    };
+    __liveRecentEvents.forEach(pushUnique);
+    __eventsCache.forEach(pushUnique);
+    return sortEvents(merged);
+}
+function getEventTags(event = {}) {
+    const raw = event.tags;
+    if (Array.isArray(raw)) {
+        return raw.map((tag) => String(tag || "").toLowerCase()).filter(Boolean);
+    }
+    if (typeof raw === "string") {
+        return raw.split(",").map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean);
+    }
+    return [];
+}
+const BREAKING_NEWS_ALLOWED_REPORT_TYPES = new Set([
+    "news",
+    "osint",
+    "reddit",
+    "conflict",
+    "signal",
+]);
+const BREAKING_NEWS_BLOCKED_REPORT_TYPES = new Set([
+    "flight_tracking",
+    "airspace_status",
+    "notam",
+    "siren_alert",
+    "thermal_anomaly",
+    "seismic",
+    "hazard",
+    "internet_outage",
+    "network",
+    "network_blocking",
+]);
+function isBreakingNewsEvent(event = {}) {
+    const sourceName = String(event.source_name || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
+    const tags = getEventTags(event);
+    if (
+        sourceName.includes("ads-b") ||
+        sourceName.includes("airplanes.live") ||
+        sourceName.includes("aviation edge") ||
+        sourceName.includes("opensky") ||
+        sourceName.includes("ais")
+    ) {
+        return false;
+    }
+    if (BREAKING_NEWS_BLOCKED_REPORT_TYPES.has(reportType)) return false;
+    if (tags.includes("adsb") || tags.includes("ais") || tags.includes("flight-tracking")) return false;
+    if (BREAKING_NEWS_ALLOWED_REPORT_TYPES.has(reportType)) return true;
+    if (tags.includes("rss")) return true;
+    return (
+        sourceName.includes("telegram") ||
+        sourceName.includes("reddit") ||
+        sourceName.includes("gdelt") ||
+        sourceName.includes("acled") ||
+        sourceName.includes("ucdp")
+    );
+}
+function isAircraftTelemetryEvent(event = {}) {
+    const sourceName = String(event.source_name || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
+    const tags = getEventTags(event);
+    return (
+        reportType === "flight_tracking" ||
+        tags.includes("adsb") ||
+        tags.includes("flight-tracking") ||
+        sourceName.includes("ads-b") ||
+        sourceName.includes("airplanes.live") ||
+        sourceName.includes("aviation edge") ||
+        sourceName.includes("opensky")
+    );
+}
+function getFeedEvents() {
+    return getFeedSourceEvents()
+        .filter((event) => isMilitaryRelevant(event) && isBreakingNewsEvent(event));
+}
 function roundCoord(value, step = 2) {
     return Math.round(Number(value) / step) * step;
 }
@@ -287,8 +562,8 @@ const debouncedRenderRaw = debounce(() => {
     renderStrikeCounters(rawEvents);
     renderEscalation(rawEvents);
 }, 800);
-const debouncedRenderFeed = debounce((events) => {
-    renderFeed(events);
+const debouncedRenderFeed = debounce(() => {
+    renderFeed(getFeedEvents());
 }, 400);
 const debouncedRenderHeavy = debounce((events) => {
     renderSummary(events);
@@ -300,9 +575,30 @@ const debouncedRenderHeavy = debounce((events) => {
 }, 2000);
 function scheduleViewportFetch(delay = 500) {
     clearTimeout(__viewportFetchTimer);
+    if (shouldSuspendMapWork()) {
+        __viewportFetchTimer = null;
+        return;
+    }
     __viewportFetchTimer = setTimeout(() => {
         fetchViewportEvents();
     }, delay);
+}
+function shouldSuspendMapWork() {
+    return IDLE_SUSPEND_LAYER_IDS.every((id) => !isLayerEnabled(id));
+}
+function syncIdleSceneState() {
+    setWarzoneMilSatsEnabled(!shouldSuspendMapWork());
+}
+function syncHotspotRootVisibility(enabled) {
+    const hotspotRootEl = document.getElementById("warzone-hotspot-layer");
+    if (!hotspotRootEl) return;
+    const show = !!enabled;
+    const active = document.activeElement;
+    if (!show && active && hotspotRootEl.contains(active) && typeof active.blur === "function") {
+        active.blur();
+    }
+    hotspotRootEl.style.display = show ? "" : "none";
+    hotspotRootEl.setAttribute("aria-hidden", show ? "false" : "true");
 }
 function bindScrollClassToggles() {
     if (__scrollClassBound) return;
@@ -398,6 +694,7 @@ function isNavalSignalEvent(event = {}) {
     const subcategory = String(event.subcategory || metadata.vessel_class || "").toLowerCase();
     const sourceName = String(event.source_name || "").toLowerCase();
     const title = String(event.title || "").toLowerCase();
+    if (!isStrictAisMilitaryNavalEvent(event)) return false;
     if (NAVAL_EVENT_SUBTYPES.has(subcategory)) return true;
     if (metadata.mmsi || metadata.vessel_name) return true;
     if (sourceName.includes("ais") || sourceName.includes("vessel") || sourceName.includes("naval")) return true;
@@ -500,6 +797,7 @@ function isTrackLikeEvent(event) {
     return true;
 }
 async function fetchViewportEvents() {
+    if (shouldSuspendMapWork()) return;
     const region = getActiveRegion?.();
     const regionId = region?.id || "global";
     const globe = window.__warzoneViewer?.__warzone;
@@ -530,7 +828,7 @@ async function fetchViewportEvents() {
         requestAnimationFrame(() => {
             syncInitialEventsToGlobe(nextVisibleEvents, { animateTracks: false });
             if (__hotspotLayer) {
-                const hotspotEvents = applyAllFilters(nextVisibleEvents);
+                const hotspotEvents = getHotspotSourceEvents(applyAllFilters(nextVisibleEvents));
                 __hotspotLayer.setEvents(hotspotEvents);
             }
             window.__warzoneViewer?.scene?.requestRender?.();
@@ -956,7 +1254,7 @@ function renderFeed(events) {
     feed.innerHTML = "";
     const rows = events.slice(0, 18);
     if (!rows.length) {
-        feed.innerHTML = '<div class="feed-empty">No events available yet.</div>';
+        feed.innerHTML = '<div class="feed-empty">No news feed items available yet.</div>';
         return;
     }
     rows.forEach((event) => {
@@ -1303,6 +1601,130 @@ function isAircraftTrackSubtype(subtype = "") {
         "helicopter"
     ].includes(String(subtype || "").toLowerCase());
 }
+const FRONTEND_CIVILIAN_AIRLINER_CODES = new Set([
+    "A220", "A318", "A319", "A320", "A20N", "A21N", "A321", "A330", "A332", "A333", "A338",
+    "A339", "A340", "A342", "A343", "A345", "A346", "A350", "A359", "A35K", "A380", "A388",
+    "B712", "B717", "B721", "B722", "B731", "B732", "B733", "B734", "B735", "B736", "B737",
+    "B738", "B739", "B37M", "B38M", "B39M", "B3XM", "B741", "B742", "B743", "B744", "B748",
+    "B752", "B753", "B762", "B763", "B764", "B772", "B77L", "B77W", "B778", "B779", "B787",
+    "B788", "B789", "B78X", "E170", "E175", "E190", "E195", "CRJ2", "CRJ7", "CRJ9", "CRJX",
+    "AT72", "AT75", "DH8A", "DH8B", "DH8C", "DH8D", "BCS1", "BCS3",
+]);
+const FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS = [
+    /AIR FORCE/i,
+    /\bUSAF\b/i,
+    /\bRAF\b/i,
+    /\bRCAF\b/i,
+    /\bIAF\b/i,
+    /\bPAF\b/i,
+    /NAVY/i,
+    /NAVAL/i,
+    /ARMY/i,
+    /MARINES/i,
+    /COAST GUARD/i,
+    /MRTT/i,
+    /VOYAGER/i,
+    /STRATOTANKER/i,
+    /EXTENDER/i,
+    /PEGASUS/i,
+    /AWACS/i,
+    /\bAEW\b/i,
+    /WEDGETAIL/i,
+    /SENTRY/i,
+    /PHALCON/i,
+    /ERIEYE/i,
+    /POSEIDON/i,
+    /ORION/i,
+    /RIVET JOINT/i,
+    /COBRA BALL/i,
+    /GLOBAL HAWK/i,
+    /TRITON/i,
+    /SPECIAL MISSION/i,
+    /HERCULES/i,
+    /GLOBEMASTER/i,
+    /BLACK HAWK/i,
+    /BLACKHAWK/i,
+    /APACHE/i,
+    /CHINOOK/i,
+    /SEAHAWK/i,
+    /OSPREY/i,
+    /HAWKEYE/i,
+    /STALLION/i,
+    /\bC-17\b/i,
+    /\bC17\b/i,
+    /\bC-130\b/i,
+    /\bC130\b/i,
+    /\bKC-135\b/i,
+    /\bKC135\b/i,
+    /\bKC-46\b/i,
+    /\bKC46\b/i,
+    /\bKC-10\b/i,
+    /\bKC10\b/i,
+    /\bP-8\b/i,
+    /\bP8\b/i,
+    /\bE-3\b/i,
+    /\bE3\b/i,
+    /\bE-7\b/i,
+    /\bE7\b/i,
+    /\bRC-135\b/i,
+    /\bRC135\b/i,
+    /\bF-35\b/i,
+    /\bF35\b/i,
+    /\bF-16\b/i,
+    /\bF16\b/i,
+];
+function hasMilitaryAircraftOverride(track = {}) {
+    const metadata = getAircraftMetadata(track);
+    const rawSubtype = String(track.subtype || track.subcategory || metadata.role || "")
+        .trim()
+        .toLowerCase();
+    if (["fighter", "bomber", "awacs", "isr", "recon", "tanker", "helicopter", "uav", "drone"].includes(rawSubtype)) {
+        return true;
+    }
+    const haystack = [
+        track.type_code,
+        track.icao_type,
+        metadata.type_code,
+        track.model_name,
+        track.model,
+        track.variant,
+        track.aircraft_type,
+        track.description,
+        metadata.model_name,
+        track.operator,
+        metadata.operator,
+        track.title,
+        track.callsign,
+        track.flight,
+        metadata.callsign,
+    ]
+        .filter(Boolean)
+        .join(" ");
+    return FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+function isLikelyCivilianPassengerAircraftTrack(track = {}) {
+    const metadata = getAircraftMetadata(track);
+    const typeCode = String(track.type_code || track.icao_type || metadata.type_code || "")
+        .trim()
+        .toUpperCase();
+    const haystack = [
+        track.model_name,
+        track.model,
+        track.variant,
+        track.aircraft_type,
+        track.description,
+        metadata.model_name,
+        track.title,
+        track.operator,
+        metadata.operator,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toUpperCase();
+    if (hasMilitaryAircraftOverride(track)) return false;
+    if (FRONTEND_CIVILIAN_AIRLINER_CODES.has(typeCode)) return true;
+    return /(AIRBUS\s+A-?(220|318|319|320|321|330|340|350|380)\b|BOEING\s+7(17|27|37|47|57|67|77|87)\b|EMBRAER\s+E-?(170|175|190|195)\b|CRJ[- ]?(200|700|900|1000)\b|ATR[- ]?7(2|5)\b|DASH ?8\b)/.test(haystack);
+}
 function formatAircraftAltitude(altitudeFt = 0) {
     const value = Number(altitudeFt || 0);
     if (!Number.isFinite(value) || value <= 0) return "ALT N/A";
@@ -1599,6 +2021,28 @@ function scheduleAircraftHistoryRefresh(force = false) {
             });
     }, force ? 0 : 350);
 }
+function syncLiveAircraftFromHistoryRows(rows = __aircraftHistoryCache) {
+    if (!isLayerEnabled("aircraft")) {
+        __seededAircraftTrackKeys.forEach((trackKey) => {
+            if (trackKey) clearLiveTrack(trackKey);
+        });
+        __seededAircraftTrackKeys = new Set();
+        return;
+    }
+    const nextSeededTrackKeys = new Set();
+    (Array.isArray(rows) ? rows : [])
+        .filter((row) => row?.track_key && row.active && Number.isFinite(row.lat) && Number.isFinite(row.lon))
+        .forEach((row) => {
+            upsertLiveTrack(row);
+            nextSeededTrackKeys.add(String(row.track_key || ""));
+        });
+    __seededAircraftTrackKeys.forEach((trackKey) => {
+        if (!nextSeededTrackKeys.has(trackKey)) {
+            clearLiveTrack(trackKey);
+        }
+    });
+    __seededAircraftTrackKeys = nextSeededTrackKeys;
+}
 function normalizeAircraftHistoryRow(row = {}) {
     const metadata = getAircraftMetadata(row);
     const subtype = resolveAircraftSubtype(row);
@@ -1656,15 +2100,27 @@ async function refreshAircraftHistoryCache(force = false) {
                 return __aircraftHistoryCache;
             }
             __aircraftHistoryCache = Array.isArray(data)
-                ? data.map(normalizeAircraftHistoryRow).filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
+                ? data
+                    .map(normalizeAircraftHistoryRow)
+                    .filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
+                    .filter((row) => !isLikelyCivilianPassengerAircraftTrack(row))
                 : [];
             __aircraftHistoryLastLoadedAt = Date.now();
+            syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
             return __aircraftHistoryCache;
         })
         .finally(() => {
             __aircraftHistoryLoadingPromise = null;
         });
     return __aircraftHistoryLoadingPromise;
+}
+function startAircraftLiveSync() {
+    if (__aircraftLiveSyncTimer) return;
+    refreshAircraftHistoryCache(true).catch(() => { });
+    __aircraftLiveSyncTimer = window.setInterval(() => {
+        if (!isLayerEnabled("aircraft")) return;
+        refreshAircraftHistoryCache(true).catch(() => { });
+    }, AIRCRAFT_LIVE_SYNC_MS);
 }
 function getAircraftMergeKey(track = {}) {
     const metadata = getAircraftMetadata(track);
@@ -1739,26 +2195,38 @@ function syncAircraftWidgetFilterControls() {
     });
 }
 function getAircraftWidgetItems() {
+    if (!isLayerEnabled("aircraft")) {
+        return {
+            allItems: [],
+            baseItems: [],
+            items: [],
+            emptyMessage: "Aircraft layer is off",
+        };
+    }
     const liveItems = getAllLiveTrackSnapshots({ includePathHistory: false })
         .map((track) => ({ ...track, subcategory: resolveAircraftSubtype(track) }))
         .filter((track) => isAircraftTrackSubtype(track.subcategory))
+        .filter((track) => !isLikelyCivilianPassengerAircraftTrack(track))
         .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer");
     const historyItems = (__aircraftHistoryCache || [])
         .map((track) => ({ ...track, subcategory: resolveAircraftSubtype(track) }))
         .filter((track) => isAircraftTrackSubtype(track.subcategory))
+        .filter((track) => !isLikelyCivilianPassengerAircraftTrack(track))
         .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer");
     const allItems = mergeAircraftWidgetSources(liveItems, historyItems);
-    let items = [];
+    const liveKeys = new Set(liveItems.map((track) => getAircraftMergeKey(track)));
+    let baseItems = [];
     if (__aircraftWidgetFilter === "recent") {
         const recentCutoff = Date.now() - AIRCRAFT_RECENT_WINDOW_MS;
-        items = allItems.filter((track) =>
+        baseItems = allItems.filter((track) =>
             Number(track.last_seen_at || 0) >= recentCutoff
         );
     } else if (__aircraftWidgetFilter === "ended") {
-        items = allItems.filter((track) => !track.active);
+        baseItems = allItems.filter((track) => !track.active);
     } else {
-        items = allItems.filter((track) => track.active);
+        baseItems = allItems.filter((track) => track.active && liveKeys.has(getAircraftMergeKey(track)));
     }
+    let items = baseItems;
     if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
         items = items.filter(
             (track) => String(track.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter
@@ -1769,18 +2237,20 @@ function getAircraftWidgetItems() {
         .slice(0, LIVE_AIRCRAFT_WIDGET_MAX_ITEMS * __aircraftWidgetPage);
     return {
         allItems,
-        items
+        baseItems,
+        items,
+        emptyMessage: "No aircraft logs in the current filter",
     };
 }
-function ensureAircraftWidgetEmptyState(container, hasItems) {
+function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircraft logs in the current filter") {
     let emptyEl = container.querySelector(".wz-aircraft-empty");
     if (!hasItems) {
         if (!emptyEl) {
             emptyEl = document.createElement("div");
             emptyEl.className = "wz-aircraft-empty";
-            emptyEl.textContent = "No aircraft logs in the current filter";
             container.appendChild(emptyEl);
         }
+        emptyEl.textContent = message;
         return;
     }
     if (emptyEl) {
@@ -1877,11 +2347,11 @@ function renderAircraftMovementsWidget() {
     const subtypeSelect = document.getElementById("wz-aircraft-filter-subtype");
     if (!container) return;
     syncAircraftWidgetFilterControls();
-    const { items, allItems } = getAircraftWidgetItems();
+    const { items, allItems, baseItems, emptyMessage } = getAircraftWidgetItems();
     const selection = getLiveTrackSelection();
     if (subtypeSelect) {
         const currentValue = subtypeSelect.value || __aircraftWidgetSubtypeFilter;
-        const options = getAircraftSubtypeOptions(allItems);
+        const options = getAircraftSubtypeOptions(baseItems);
         const optionsKey = options.join("|");
         if (__aircraftSubtypeOptionsKey !== optionsKey) {
             subtypeSelect.innerHTML = ['<option value="all">All Types</option>']
@@ -1904,7 +2374,8 @@ function renderAircraftMovementsWidget() {
             existingCardMap.delete(key);
         }
     });
-    ensureAircraftWidgetEmptyState(container, items.length > 0);
+    container.querySelector(".wz-aircraft-load-more")?.remove();
+    ensureAircraftWidgetEmptyState(container, items.length > 0, emptyMessage);
     if (!items.length) return;
     const cardsInOrder = [];
     items.forEach((track) => {
@@ -1931,15 +2402,7 @@ function renderAircraftMovementsWidget() {
     // Load More button
     let nextLoadMoreBtn = loadMoreBtn;
     const allForCount = (() => {
-        let all = allItems.filter(t => isAircraftTrackSubtype(resolveAircraftSubtype(t)));
-        if (__aircraftWidgetFilter === "active") {
-            all = all.filter(t => t.active);
-        } else if (__aircraftWidgetFilter === "recent") {
-            const recentCutoff = Date.now() - AIRCRAFT_RECENT_WINDOW_MS;
-            all = all.filter(t => Number(t.last_seen_at || 0) >= recentCutoff);
-        } else if (__aircraftWidgetFilter === "ended") {
-            all = all.filter(t => !t.active);
-        }
+        let all = baseItems.filter(t => isAircraftTrackSubtype(resolveAircraftSubtype(t)));
         if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
             all = all.filter(t => String(t.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter);
         }
@@ -2141,7 +2604,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     const sweepersEnabled = isLayerEnabled("sweepers");
     globe.setPerformanceMode?.(globeVisible.length);
     if (!globeVisible.length) {
-        __hotspotLayer?.setEvents(visible);
+        __hotspotLayer?.setEvents(getHotspotSourceEvents(visible));
         if (__lastGlobeSyncKey !== "__empty__") {
             globe.clearEventEntities?.();
             __militaryTracks?.setTracks([]);
@@ -2173,7 +2636,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         __lastGlobeSyncKey = visibleSignature;
     }
     if (__hotspotLayer) {
-        __hotspotLayer.setEvents(visible);
+        __hotspotLayer.setEvents(getHotspotSourceEvents(visible));
     }
     if (window.__warzoneViewer) {
         const nextRangesKey = rangesEnabled ? visibleSignature : "__off__";
@@ -2228,8 +2691,8 @@ export async function initWarzoneApp() {
         });
         window.__hotspotLayer = __hotspotLayer;
     }
-    if (hotspotRoot) hotspotRoot.style.display = "";
-    __hotspotLayer?.setEvents(applyAllFilters(events));
+    syncHotspotRootVisibility(true);
+    __hotspotLayer?.setEvents(getHotspotSourceEvents(applyAllFilters(events)));
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
         window.__militaryTracks = __militaryTracks;
@@ -2246,7 +2709,9 @@ export async function initWarzoneApp() {
         }
     }
     initLayerPanel();
+    syncIdleSceneState();
     startPublicAirIngestion();
+    startAircraftLiveSync();
     setWidgetLoading("aircraft", true);
     refreshAircraftHistoryCache(true)
         .catch((err) => {
@@ -2257,16 +2722,14 @@ export async function initWarzoneApp() {
             requestAircraftMovementsWidgetRender(0);
         });
     onLayerChange((id) => {
+        syncIdleSceneState();
         const globe = window.__warzoneViewer?.__warzone;
         const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
         const filtered = applyAllFilters(sourceEvents);
         const hotspotEnabled = isLayerEnabled("hotspots");
-        const hotspotRootEl = document.getElementById("warzone-hotspot-layer");
-        if (hotspotRootEl) {
-            hotspotRootEl.style.display = hotspotEnabled ? "" : "none";
-        }
+        syncHotspotRootVisibility(hotspotEnabled);
         if (__hotspotLayer) {
-            __hotspotLayer.setEvents(hotspotEnabled ? filtered : []);
+            __hotspotLayer.setEvents(hotspotEnabled ? getHotspotSourceEvents(filtered) : []);
         }
         if (id === "terrain") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
@@ -2278,10 +2741,15 @@ export async function initWarzoneApp() {
         }
         if (id === "aircraft" || id === "*") {
             if (!isLayerEnabled("aircraft")) {
+                __seededAircraftTrackKeys.forEach((trackKey) => {
+                    if (trackKey) clearLiveTrack(trackKey);
+                });
+                __seededAircraftTrackKeys = new Set();
                 getAllLiveTrackSnapshots({ includePathHistory: false }).forEach((track) => {
                     if (track?.track_key) clearLiveTrack(track.track_key);
                 });
             } else {
+                refreshAircraftHistoryCache(true).catch(() => { });
                 refreshPublicAirTracksNow().catch(() => { });
             }
             requestAircraftMovementsWidgetRender(0);
@@ -2546,6 +3014,9 @@ export function handleIncomingEvent(event) {
     } else {
         __eventsCache.unshift(normalized);
     }
+    if (shouldSuspendMapWork()) {
+        return;
+    }
     renderAll(__eventsCache);
     flashFeedCard(normalized.id);
     updateNewsTicker(__eventsCache.slice(0, 20));
@@ -2571,13 +3042,13 @@ export function handleIncomingEvent(event) {
         requestNavalWidgetRender(0);
     } else if (isMilitaryTrackEvent(normalized) && __militaryTracks) {
         if (inRegion && layerOk) __militaryTracks.addTrack(normalized);
-    } else if (inRegion && layerOk) {
+    } else if (inRegion && layerOk && !isAircraftTelemetryEvent(normalized)) {
         globe?.addEvent?.({ ...normalized, _layerId: getEventLayerId(normalized) });
     }
     if (isTrackLikeEvent(normalized) && inRegion && layerOk) {
         globe?.animateMissileTrack?.(normalized);
     }
-    if (isLayerEnabled("hotspots") && inRegion && layerOk) {
+    if (isLayerEnabled("hotspots") && inRegion && layerOk && !isAircraftTelemetryEvent(normalized) && !isMilitaryTrackEvent(normalized) && !isNavalSignalEvent(normalized)) {
         __hotspotLayer?.addEvent?.(normalized);
     }
     if (isSirenEvent(normalized)) {
@@ -2611,12 +3082,37 @@ function initFloatingPanels() {
         let activePointerId = null;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
+        let dragParentRect = null;
+        let dragMaxLeft = 0;
+        let dragMaxTop = 0;
+        let pendingLeft = 0;
+        let pendingTop = 0;
+        let dragFrame = 0;
+        function applyPanelPosition() {
+            dragFrame = 0;
+            panel.style.left = `${pendingLeft}px`;
+            panel.style.top = `${pendingTop}px`;
+            panel.style.right = "auto";
+            panel.style.bottom = "auto";
+        }
+        function queuePanelPosition(left, top) {
+            pendingLeft = left;
+            pendingTop = top;
+            if (dragFrame) return;
+            dragFrame = requestAnimationFrame(applyPanelPosition);
+        }
         function stopDrag() {
             dragging = false;
+            if (dragFrame) {
+                cancelAnimationFrame(dragFrame);
+                dragFrame = 0;
+                applyPanelPosition();
+            }
             if (activePointerId !== null) {
                 try { head.releasePointerCapture(activePointerId); } catch { }
             }
             activePointerId = null;
+            dragParentRect = null;
             panel.classList.remove("is-dragging");
             document.removeEventListener("pointermove", onPointerMove);
             document.removeEventListener("pointerup", onPointerUp);
@@ -2626,18 +3122,12 @@ function initFloatingPanels() {
         function onPointerMove(e) {
             if (!dragging) return;
             if (activePointerId !== null && e.pointerId !== activePointerId) return;
-            const parent = panel.offsetParent || panel.parentElement;
-            if (!parent) return;
-            let nextLeft = e.clientX - parent.getBoundingClientRect().left - dragOffsetX;
-            let nextTop = e.clientY - parent.getBoundingClientRect().top - dragOffsetY;
-            const maxLeft = parent.clientWidth - panel.offsetWidth;
-            const maxTop = parent.clientHeight - panel.offsetHeight;
-            nextLeft = Math.max(0, Math.min(nextLeft, maxLeft));
-            nextTop = Math.max(0, Math.min(nextTop, maxTop));
-            panel.style.left = `${nextLeft}px`;
-            panel.style.top = `${nextTop}px`;
-            panel.style.right = "auto";
-            panel.style.bottom = "auto";
+            if (!dragParentRect) return;
+            let nextLeft = e.clientX - dragParentRect.left - dragOffsetX;
+            let nextTop = e.clientY - dragParentRect.top - dragOffsetY;
+            nextLeft = Math.max(0, Math.min(nextLeft, dragMaxLeft));
+            nextTop = Math.max(0, Math.min(nextTop, dragMaxTop));
+            queuePanelPosition(nextLeft, nextTop);
         }
         function onPointerUp(e) {
             if (activePointerId !== null && e.pointerId !== activePointerId) return;
@@ -2652,10 +3142,12 @@ function initFloatingPanels() {
             const panelRect = panel.getBoundingClientRect();
             const currentLeft = panelRect.left - parentRect.left;
             const currentTop = panelRect.top - parentRect.top;
-            panel.style.left = `${currentLeft}px`;
-            panel.style.top = `${currentTop}px`;
-            panel.style.right = "auto";
-            panel.style.bottom = "auto";
+            dragParentRect = parentRect;
+            dragMaxLeft = Math.max(0, parent.clientWidth - panel.offsetWidth);
+            dragMaxTop = Math.max(0, parent.clientHeight - panel.offsetHeight);
+            pendingLeft = currentLeft;
+            pendingTop = currentTop;
+            applyPanelPosition();
             dragOffsetX = e.clientX - panelRect.left;
             dragOffsetY = e.clientY - panelRect.top;
             dragging = true;
@@ -3263,10 +3755,22 @@ function injectNavLoginButton() {
 export function initGlobeRotation(viewer) {
     if (!viewer) return;
     const SPEED_DEG = 0.2;
-    window.__globeRotation = { enabled: false, paused: false, speed: SPEED_DEG };
+    window.__globeRotation = { enabled: true, paused: true, speed: SPEED_DEG };
     let lastTime = null, interacting = false;
     const onStart = () => { interacting = true; lastTime = null; };
     const onEnd = () => { interacting = false; };
+    const syncRotationButtonUi = () => {
+        const cfg = window.__globeRotation;
+        const icon = document.getElementById("wz-rotate-icon");
+        const button = document.getElementById("wz-globe-rotate-btn");
+        if (!cfg || !icon || !button) return;
+        const isPaused = cfg.paused !== false;
+        icon.textContent = isPaused ? "▶" : "⏸";
+        const label = isPaused ? "Start globe rotation" : "Pause globe rotation";
+        button.title = label;
+        button.setAttribute("aria-label", label);
+        button.setAttribute("aria-pressed", String(!isPaused));
+    };
     viewer.scene.canvas.addEventListener("mousedown", onStart);
     viewer.scene.canvas.addEventListener("mouseup", onEnd);
     viewer.scene.canvas.addEventListener("touchstart", onStart, { passive: true });
@@ -3291,15 +3795,16 @@ export function initGlobeRotation(viewer) {
         b.id = "wz-globe-rotate-btn";
         b.type = "button";
         b.className = "wz-globe-rotate-btn";
-        b.title = "Pause/Resume globe rotation";
-        b.innerHTML = "<span id='wz-rotate-icon'>⏸</span>";
+        b.innerHTML = "<span id='wz-rotate-icon'>▶</span>";
         b.addEventListener("click", () => {
             const cfg = window.__globeRotation;
             if (!cfg) return;
             cfg.paused = !cfg.paused;
-            document.getElementById("wz-rotate-icon").textContent = cfg.paused ? "▶" : "⏸";
+            syncRotationButtonUi();
+            viewer.scene.requestRender?.();
         });
         t.appendChild(b);
+        syncRotationButtonUi();
     }, 500);
 }
 

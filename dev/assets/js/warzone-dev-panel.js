@@ -1023,7 +1023,6 @@ export function initDevPanel() {
     });
     initDevSimulatorControls();
     devLog("Dev panel ready");
-    console.log("[dev] Warzone dev panel active — localhost only");
 }
 
 

@@ -266,6 +266,16 @@ const HELI_CODES = new Set([
     "AS532", "EC725", "NH90", "H225", "EC665", "H145",
 ]);
 
+const CIVILIAN_AIRLINER_CODES = new Set([
+    "A220", "A318", "A319", "A320", "A20N", "A21N", "A321", "A330", "A332", "A333", "A338",
+    "A339", "A340", "A342", "A343", "A345", "A346", "A350", "A359", "A35K", "A380", "A388",
+    "B712", "B717", "B721", "B722", "B731", "B732", "B733", "B734", "B735", "B736", "B737",
+    "B738", "B739", "B37M", "B38M", "B39M", "B3XM", "B741", "B742", "B743", "B744", "B748",
+    "B752", "B753", "B762", "B763", "B764", "B772", "B77L", "B77W", "B778", "B779", "B787",
+    "B788", "B789", "B78X", "E170", "E175", "E190", "E195", "CRJ2", "CRJ7", "CRJ9", "CRJX",
+    "AT72", "AT75", "DH8A", "DH8B", "DH8C", "DH8D", "BCS1", "BCS3",
+]);
+
 function classifyByTypeCode(typeCode) {
     if (!typeCode) return null;
     const t = typeCode.toUpperCase();
@@ -318,6 +328,107 @@ function classifyAircraft(typeCode, callsign, icao, modelName = "") {
         || classifyByCallsign(callsign)
         || classifyByModelName(modelName)
         || "military";
+}
+
+const MILITARY_AIRCRAFT_OVERRIDE_PATTERNS = [
+    /AIR FORCE/i,
+    /\bUSAF\b/i,
+    /\bRAF\b/i,
+    /\bRCAF\b/i,
+    /\bRNAF\b/i,
+    /\bIAF\b/i,
+    /\bPAF\b/i,
+    /\bUAEAF\b/i,
+    /NAVY/i,
+    /NAVAL/i,
+    /ARMY/i,
+    /MARINES/i,
+    /COAST GUARD/i,
+    /MRTT/i,
+    /VOYAGER/i,
+    /STRATOTANKER/i,
+    /EXTENDER/i,
+    /PEGASUS/i,
+    /AWACS/i,
+    /\bAEW\b/i,
+    /WEDGETAIL/i,
+    /SENTRY/i,
+    /PHALCON/i,
+    /ERIEYE/i,
+    /POSEIDON/i,
+    /ORION/i,
+    /RIVET JOINT/i,
+    /COBRA BALL/i,
+    /GLOBAL HAWK/i,
+    /TRITON/i,
+    /SPECIAL MISSION/i,
+    /HERCULES/i,
+    /GLOBEMASTER/i,
+    /BLACK HAWK/i,
+    /BLACKHAWK/i,
+    /APACHE/i,
+    /CHINOOK/i,
+    /SEAHAWK/i,
+    /OSPREY/i,
+    /HAWKEYE/i,
+    /STALLION/i,
+    /\bC-17\b/i,
+    /\bC17\b/i,
+    /\bC-130\b/i,
+    /\bC130\b/i,
+    /\bKC-135\b/i,
+    /\bKC135\b/i,
+    /\bKC-46\b/i,
+    /\bKC46\b/i,
+    /\bKC-10\b/i,
+    /\bKC10\b/i,
+    /\bP-8\b/i,
+    /\bP8\b/i,
+    /\bE-3\b/i,
+    /\bE3\b/i,
+    /\bE-7\b/i,
+    /\bE7\b/i,
+    /\bRC-135\b/i,
+    /\bRC135\b/i,
+    /\bF-35\b/i,
+    /\bF35\b/i,
+    /\bF-16\b/i,
+    /\bF16\b/i,
+];
+
+function hasMilitaryAircraftOverride(a = {}, role = "") {
+    if (["fighter", "bomber", "awacs", "isr", "recon", "tanker", "helicopter", "uav", "drone"].includes(String(role || "").toLowerCase())) {
+        return true;
+    }
+    const haystack = [
+        a.typeCode,
+        a.modelName,
+        a.operator,
+        a.callsign,
+        a.reg,
+    ]
+        .filter(Boolean)
+        .join(" ");
+    return MILITARY_AIRCRAFT_OVERRIDE_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+
+function isLikelyCivilianAirliner(a = {}, role = "") {
+    const typeCode = String(a.typeCode || "").trim().toUpperCase();
+    const haystack = [
+        a.modelName,
+        a.operator,
+        a.callsign,
+        a.reg,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toUpperCase();
+
+    if (hasMilitaryAircraftOverride(a, role)) return false;
+
+    if (CIVILIAN_AIRLINER_CODES.has(typeCode)) return true;
+
+    return /(AIRBUS\s+A-?(220|318|319|320|321|330|340|350|380)\b|BOEING\s+7(17|27|37|47|57|67|77|87)\b|EMBRAER\s+E-?(170|175|190|195)\b|CRJ[- ]?(200|700|900|1000)\b|ATR[- ]?7(2|5)\b|DASH ?8\b)/.test(haystack);
 }
 
 // ─── ADS-B One Fetch ────────────────────────────────────────────────────────
@@ -579,6 +690,7 @@ export async function runAdsbWorker() {
     const processed = [];
     for (const ac of rawAircraft) {
         const a = parseAdsbOneAircraft(ac);
+        const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName);
 
         // Skip invalid positions
         if (!Number.isFinite(a.lat) || !Number.isFinite(a.lon)) continue;
@@ -586,6 +698,10 @@ export async function runAdsbWorker() {
 
         // Skip ground traffic
         if (a.onGround) continue;
+
+        // ADS-B One /mil still leaks civilian airliners sometimes. Reject those here
+        // unless there is a strong military-specific marker.
+        if (isLikelyCivilianAirliner(a, role)) continue;
 
         // Skip if seen recently (45 min TTL)
         if (wasSeen(a.icao)) continue;

@@ -197,11 +197,18 @@ function showRegionModal(viewer, instant = false) {
 
     const oldConfirm = document.getElementById("wz-region-confirm");
     let confirmBtn = oldConfirm;
+    const oldBack = document.getElementById("wz-region-back");
+    let backBtn = oldBack;
 
     if (oldConfirm) {
         const newConfirm = oldConfirm.cloneNode(true);
         oldConfirm.replaceWith(newConfirm);
         confirmBtn = newConfirm;
+    }
+    if (oldBack) {
+        const newBack = oldBack.cloneNode(true);
+        oldBack.replaceWith(newBack);
+        backBtn = newBack;
     }
 
     let chosen = null;
@@ -253,6 +260,23 @@ function showRegionModal(viewer, instant = false) {
                 overlay.classList.remove("is-closing");
                 selectRegion(viewer, chosen);
                 window.__warzoneStartDeferredApp?.();
+            }, 220);
+        });
+    }
+
+    if (backBtn) {
+        backBtn.addEventListener("click", () => {
+            const introModal = document.getElementById("wz-intro-modal");
+            overlay.classList.remove("is-visible");
+            overlay.classList.add("is-closing");
+            window.setTimeout(() => {
+                overlay.hidden = true;
+                overlay.classList.remove("is-closing");
+                if (!introModal) return;
+                introModal.hidden = false;
+                requestAnimationFrame(() => {
+                    introModal.classList.add("is-visible");
+                });
             }, 220);
         });
     }

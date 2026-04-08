@@ -404,6 +404,14 @@
     transition: background 0.12s;
 }
 
+.wz-layer-copy {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
 .wz-layer-dot {
     width: 1.5rem;
     height: 1.5rem;
@@ -422,12 +430,19 @@
 }
 
 .wz-layer-label {
-    flex: 1;
     overflow: hidden;
     font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
     color: var(--color-text-heading);
+}
+
+.wz-layer-desc {
+    overflow: hidden;
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .wz-layer-toggle {
@@ -994,12 +1009,15 @@
 }
 
 .wz-region-modal__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     background: var(--color-bg-header);
     width: 100%;
     box-sizing: border-box;
     z-index: 1;
     padding: 1.5rem;
-    text-align: right;
 }
 /* #endregion =========== */
 /* #region =========== WIDGET INNER PANELS =========== */

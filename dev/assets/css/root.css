@@ -156,11 +156,11 @@
     --warzone-msaa-samples: 1;
     --warzone-fxaa-enabled: 1;
     --warzone-camera-min-zoom: 200;
-    --warzone-camera-max-zoom: 18000000;
+    --warzone-camera-max-zoom: 20000000;
     --warzone-max-renderable-events: 300;
     --warzone-event-cluster-height: 6000000; /* was 8M — cluster sooner on zoom-out */
     --warzone-event-ring-max-height: 15000000;
-    --warzone-event-cluster-precision: 0.22; /* was 0.15 — slightly coarser = larger clusters = bigger circles */
+    --warzone-event-cluster-precision: 0.33; /* was 0.15 — slightly coarser = larger clusters = bigger circles */
 }
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
@@ -420,6 +420,19 @@
     --warzone-live-track-scale: 12;
     --warzone-live-track-min-pixel-size: 96;
     --warzone-live-track-max-scale: 280;
+}
+/* #endregion =========== */
+/* #region =========== LIVE LABELS =========== */
+:root {
+    --warzone-live-label-scale: 0.42;
+    --warzone-live-label-offset-y: -18;
+    --warzone-live-label-fill: #d7dee7;
+    --warzone-live-label-background: rgba(8, 12, 20, 0.84);
+    --warzone-live-label-padding-x: 6;
+    --warzone-live-label-padding-y: 3;
+    --warzone-live-label-distance: 180000;
+    --warzone-live-track-anim-height-max: 1600000;
+    --warzone-live-naval-anim-height-max: 2200000;
 }
 /* #endregion =========== */
 /* #region =========== LIVE AIRCRAFT SIZE CONTROL =========== */

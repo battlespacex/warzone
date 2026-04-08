@@ -19,6 +19,7 @@ import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 
 
 window.__stratopsConfig = {
+    enableMilSatsLayer: false,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 
 };
@@ -46,7 +47,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
 
-        initWarzoneMilSats(viewer);
+        if (window.__stratopsConfig?.enableMilSatsLayer !== false) {
+            initWarzoneMilSats(viewer);
+        }
         initRegionSelector(viewer);
         if (pendingRegionModal) {
             const { instant } = pendingRegionModal;
@@ -54,10 +57,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.__warzoneShowRegionModal?.(instant);
         }
 
-        setTimeout(() => {
-            try { window.refreshWarzoneMilSatsScale?.(); }
-            catch { }
-        }, 150);
+        if (window.__stratopsConfig?.enableMilSatsLayer !== false) {
+            setTimeout(() => {
+                try { window.refreshWarzoneMilSatsScale?.(); }
+                catch { }
+            }, 150);
+        }
 
         let started = false;
         window.__warzoneStartDeferredApp = async () => {

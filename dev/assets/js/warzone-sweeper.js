@@ -11,6 +11,9 @@ const SWEEPER_RENDER = {
     polygonStepsNear: 18,
     polygonStepsFar: 10,
     maxHeight: 5500000,
+    maxCount: 4,
+    maxOverlap: 0.22,
+    maxFilledRings: 2,
 };
 function getSweepPreset(event = {}) {
     const sub = String(
@@ -190,7 +193,11 @@ export function renderSweepers(viewer, events = []) {
         viewer.scene.requestRender?.();
         return;
     }
-    const candidates = selectRadarCandidates(events, 4, 0.35);
+    const candidates = selectRadarCandidates(
+        events,
+        SWEEPER_RENDER.maxCount,
+        SWEEPER_RENDER.maxOverlap
+    );
     if (!candidates.length) {
         viewer.scene.requestRender?.();
         return;
@@ -207,12 +214,13 @@ export function renderSweepers(viewer, events = []) {
         const state = {
             heading: 320 + (index * 40)
         };
+        const shouldRenderFilledRing = index < SWEEPER_RENDER.maxFilledRings;
         const outerRing = viewer.entities.add({
             position: Cesium.Cartesian3.fromDegrees(lon, lat),
             ellipse: {
                 semiMajorAxis: preset.radius,
                 semiMinorAxis: preset.radius,
-                material: base.withAlpha(0.2),
+                material: shouldRenderFilledRing ? base.withAlpha(0.2) : Cesium.Color.TRANSPARENT,
                 outline: false,
                 outlineColor: base.withAlpha(0.03),
                 outlineWidth: 1,

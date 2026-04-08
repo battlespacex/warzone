@@ -8,6 +8,7 @@ const __warzoneMilSatsState = {
     postRenderBound: false,
     lastFrameTime: null,
     updateTimer: null,   // setInterval handle — cleared on re-init
+    enabled: true,
 };
 
 // ─── Model Config ─────────────────────────────────────────────────────────────
@@ -142,6 +143,7 @@ function createSatellite(viewer, sat) {
 
 // ─── Visibility culling ───────────────────────────────────────────────────────
 function updateVisibility(viewer) {
+    if (!__warzoneMilSatsState.enabled) return;
     const cam = viewer.camera;
     __warzoneMilSatsState.groups.forEach(group => {
         const entity = group.entities[0];
@@ -154,9 +156,26 @@ function updateVisibility(viewer) {
     });
 }
 
+export function setWarzoneMilSatsEnabled(enabled) {
+    const nextEnabled = enabled !== false;
+    __warzoneMilSatsState.enabled = nextEnabled;
+
+    __warzoneMilSatsState.groups.forEach((group) => {
+        group.entities.forEach((entity) => {
+            entity.show = nextEnabled;
+        });
+    });
+
+    __warzoneMilSatsState.viewer?.scene?.requestRender?.();
+}
+
 // ─── Public init ──────────────────────────────────────────────────────────────
 export function initWarzoneMilSats(viewer) {
     if (!viewer) return;
+    if (window.__stratopsConfig?.enableMilSatsLayer === false) {
+        __warzoneMilSatsState.enabled = false;
+        return;
+    }
 
     __warzoneMilSatsState.viewer = viewer;
     __warzoneMilSatsState.lastFrameTime = Date.now();
@@ -182,6 +201,7 @@ export function initWarzoneMilSats(viewer) {
     }
     __warzoneMilSatsState.updateTimer = setInterval(() => {
         if (!__warzoneMilSatsState.viewer) return;
+        if (!__warzoneMilSatsState.enabled) return;
 
         const now = Date.now();
         const last = __warzoneMilSatsState.lastFrameTime;
@@ -213,6 +233,7 @@ export function initWarzoneMilSats(viewer) {
 
     // Also re-check visibility when camera zooms in/out (no render cost)
     viewer.camera.changed.addEventListener(() => {
+        if (!__warzoneMilSatsState.enabled) return;
         updateVisibility(viewer);
     });
 

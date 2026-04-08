@@ -174,6 +174,17 @@ function forgetEventEntity(entityId) {
     if (!entityId) return;
     __eventEntityIds.delete(String(entityId));
 }
+function removeExistingEventEntity(viewer, entityId) {
+    if (!viewer || !entityId) return;
+    const ids = [String(entityId), `${String(entityId)}-outline`];
+    for (const id of ids) {
+        try {
+            const existing = viewer.entities.getById(id);
+            if (existing) viewer.entities.remove(existing);
+        } catch { }
+        forgetEventEntity(id);
+    }
+}
 function clearTrackedEventEntities(viewer) {
     const ids = Array.from(__eventEntityIds);
     if (viewer?.entities?.suspendEvents) viewer.entities.suspendEvents();
@@ -496,6 +507,7 @@ function createEventEntity(event) {
     };
 }
 function addEventEntity(viewer, event) {
+    removeExistingEventEntity(viewer, event?.id);
     const entity = viewer.entities.add(createEventEntity(event));
     const colorCss = getCategoryColorCss(event.category);
     const outlineAlpha = numberVar("--warzone-event-ring-outline-alpha", 0.82);
@@ -564,6 +576,52 @@ function applyViewerStyle(viewer) {
     }
     viewer.scene.msaaSamples = numberVar("--warzone-msaa-samples", 1);
 }
+function clampCameraZoomDistance(viewer) {
+    if (!viewer?.camera?.positionCartographic) return;
+    const maxZoomDistance = numberVar("--warzone-camera-max-zoom", 9000000);
+    const minZoomDistance = numberVar("--warzone-camera-min-zoom", 200);
+    const cartographic = viewer.camera.positionCartographic;
+    const currentHeight = Number(cartographic.height || 0);
+    if (!Number.isFinite(currentHeight)) return;
+    const nextHeight = Math.max(minZoomDistance, Math.min(maxZoomDistance, currentHeight));
+    if (Math.abs(nextHeight - currentHeight) < 1) return;
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(
+            cartographic.longitude,
+            cartographic.latitude,
+            nextHeight
+        ),
+        orientation: {
+            heading: viewer.camera.heading,
+            pitch: viewer.camera.pitch,
+            roll: viewer.camera.roll,
+        },
+    });
+    viewer.scene.requestRender?.();
+}
+function attachCameraZoomLimiter(viewer) {
+    if (!viewer || viewer.__warzoneCameraZoomLimiterBound) return;
+    viewer.__warzoneCameraZoomLimiterBound = true;
+    let queued = false;
+    const queueClamp = () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+            queued = false;
+            clampCameraZoomDistance(viewer);
+        });
+    };
+    viewer.camera.moveEnd.addEventListener(queueClamp);
+    viewer.scene.postRender.addEventListener(() => {
+        const height = getCameraHeight(viewer);
+        const maxZoomDistance = numberVar("--warzone-camera-max-zoom", 9000000);
+        const minZoomDistance = numberVar("--warzone-camera-min-zoom", 200);
+        if (height > maxZoomDistance + 1000 || height < minZoomDistance - 1000) {
+            queueClamp();
+        }
+    });
+    queueClamp();
+}
 function tuneImageryLayer(layer, prefix = "--warzone-map") {
     if (!layer) return;
     layer.brightness = numberVar(`${prefix}-brightness`, 0.65);
@@ -626,16 +684,38 @@ function flattenRingToDegrees(ring) {
     }
     return out;
 }
+function getBorderEntityCollection(viewer) {
+    if (viewer.__borderDataSource?.entities) {
+        return viewer.__borderDataSource.entities;
+    }
+    return viewer.entities;
+}
 function addPolylineForRing(viewer, ring, options) {
     const coords = flattenRingToDegrees(ring);
     if (coords.length < 4) return;
-    viewer.entities.add({
+    const entity = getBorderEntityCollection(viewer).add({
         polyline: {
             positions: Cesium.Cartesian3.fromDegreesArray(coords),
             width: options.width,
             material: options.color,
             clampToGround: false,
         },
+    });
+    if (!Array.isArray(viewer.__borderEntities)) {
+        viewer.__borderEntities = [];
+    }
+    entity.show = viewer.__borderLayersVisible !== false;
+    viewer.__borderEntities.push(entity);
+}
+function setBorderLayersVisible(viewer, visible) {
+    const show = !!visible;
+    viewer.__borderLayersVisible = show;
+    if (viewer.__borderDataSource) {
+        viewer.__borderDataSource.show = show;
+    }
+    if (!Array.isArray(viewer.__borderEntities)) return;
+    viewer.__borderEntities.forEach((entity) => {
+        entity.show = show;
     });
 }
 async function fetchGeoJson(url) {
@@ -681,6 +761,16 @@ async function addGeoJsonBorderLayer(viewer, config) {
     }
 }
 async function addBorderLayers(viewer) {
+    if (!Array.isArray(viewer.__borderEntities)) {
+        viewer.__borderEntities = [];
+    }
+    if (!viewer.__borderDataSource) {
+        viewer.__borderDataSource = new Cesium.CustomDataSource("warzone-borders");
+        viewer.dataSources.add(viewer.__borderDataSource);
+        viewer.__borderDataSource.show = viewer.__borderLayersVisible !== false;
+    }
+    const entities = viewer.__borderDataSource.entities;
+    entities.suspendEvents?.();
     await addGeoJsonBorderLayer(viewer, {
         name: "Country",
         url: BORDER_SOURCES.countries,
@@ -691,6 +781,7 @@ async function addBorderLayers(viewer) {
         widthVar: "--warzone-country-border-width",
         fallbackWidth: 1.4,
     });
+    entities.resumeEvents?.();
 }
 async function addArcGisLayers(viewer) {
     viewer.imageryLayers.removeAll();
@@ -704,6 +795,9 @@ async function addArcGisLayers(viewer) {
     tuneImageryLayer(baseLayer, "--warzone-map");
     const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
     tuneImageryLayer(labelsLayer, "--warzone-labels");
+    const show = viewer.__terrainVisible !== false;
+    baseLayer.show = show;
+    labelsLayer.show = show;
     viewer.__imageryBase = baseLayer;
     viewer.__imageryLabels = labelsLayer;
     return { baseLayer, labelsLayer };
@@ -1408,6 +1502,14 @@ function animateMissileTrack(viewer, event) {
     return missileId;
 }
 function clearAlertHighlight(viewer) {
+    if (viewer.__warzoneAlertPulseFrame) {
+        try { cancelAnimationFrame(viewer.__warzoneAlertPulseFrame); } catch { }
+        viewer.__warzoneAlertPulseFrame = null;
+    }
+    if (viewer.__warzoneAlertCleanupTimer) {
+        clearTimeout(viewer.__warzoneAlertCleanupTimer);
+        viewer.__warzoneAlertCleanupTimer = null;
+    }
     if (viewer.__warzoneAlertEntities) {
         viewer.__warzoneAlertEntities.forEach((e) => {
             try { viewer.entities.remove(e); } catch { }
@@ -1426,54 +1528,79 @@ function highlightAlertRegion(viewer, event) {
     const lon = Number(event.lon);
     const severity = String(event.severity || "high").toLowerCase();
     const baseRadius = severity === "critical" ? 180000 : severity === "high" ? 140000 : 100000;
+    const pulseDurationMs = Math.max(280, numberVar("--warzone-highlight-pulse-speed", 700));
+    const highlightDurationMs = Math.max(1000, numberVar("--warzone-highlight-duration", 14000));
     const entities = [];
-    // Static filled region   no CallbackProperty
     const fill = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 2000),
         ellipse: {
             semiMinorAxis: baseRadius,
-            semiMajorAxis: baseRadius * 1.3,
+            semiMajorAxis: baseRadius,
             material: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.15),
             outline: false,
             height: 2000,
         },
     });
     entities.push(fill);
-    // Static outer ring
     const outerRing = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 3000),
         ellipse: {
-            semiMinorAxis: baseRadius * 1.5,
-            semiMajorAxis: baseRadius * 1.9,
+            semiMinorAxis: baseRadius * 1.45,
+            semiMajorAxis: baseRadius * 1.45,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
             outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.7),
-            outlineWidth: 3,
+            outlineWidth: 5,
             height: 3000,
         },
     });
     entities.push(outerRing);
-    // Static inner ring
     const innerRing = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat, 4000),
         ellipse: {
-            semiMinorAxis: baseRadius * 0.5,
-            semiMajorAxis: baseRadius * 0.65,
+            semiMinorAxis: baseRadius * 0.56,
+            semiMajorAxis: baseRadius * 0.56,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.95),
-            outlineWidth: 2,
+            outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.9),
+            outlineWidth: 5,
             height: 4000,
         },
     });
     entities.push(innerRing);
     viewer.__warzoneAlertEntities = entities;
     viewer.__warzoneAlertEntity = entities[0];
+    const alertColor = Cesium.Color.fromCssColorString("#ff0a2a");
+    const tick = () => {
+        if (!viewer.__warzoneAlertEntities?.length) return;
+        const pulse = 0.5 + 0.5 * Math.sin((performance.now() / pulseDurationMs) * Math.PI * 2);
+        if (fill?.ellipse) {
+            const r = baseRadius * (0.92 + pulse * 0.16);
+            fill.ellipse.semiMinorAxis = r;
+            fill.ellipse.semiMajorAxis = r;
+            fill.ellipse.material = alertColor.withAlpha(0.06 + pulse * 0.14);
+        }
+        if (outerRing?.ellipse) {
+            const r = baseRadius * (1.18 + pulse * 0.40);
+            outerRing.ellipse.semiMinorAxis = r;
+            outerRing.ellipse.semiMajorAxis = r;
+            outerRing.ellipse.outlineColor = alertColor.withAlpha(0.28 + pulse * 0.54);
+        }
+        if (innerRing?.ellipse) {
+            const r = baseRadius * (0.36 + pulse * 0.28);
+            innerRing.ellipse.semiMinorAxis = r;
+            innerRing.ellipse.semiMajorAxis = r;
+            innerRing.ellipse.outlineColor = alertColor.withAlpha(0.24 + pulse * 0.62);
+        }
+        viewer.scene.requestRender();
+        viewer.__warzoneAlertPulseFrame = requestAnimationFrame(tick);
+    };
+    viewer.__warzoneAlertPulseFrame = requestAnimationFrame(tick);
     viewer.scene.requestRender();
-    setTimeout(() => {
+    viewer.__warzoneAlertCleanupTimer = setTimeout(() => {
         clearAlertHighlight(viewer);
         viewer.scene.requestRender();
-    }, 14000);
+    }, highlightDurationMs);
 }
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
@@ -1499,8 +1626,12 @@ export async function initWarzoneGlobe() {
         // Use Cesium Ion world imagery   eliminates Bing/virtualearth.net requests
         imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
     });
+    viewer.__terrainVisible = true;
+    viewer.__borderLayersVisible = true;
+    viewer.__borderEntities = [];
     applyViewerStyle(viewer);
     setInitialCamera(viewer);
+    attachCameraZoomLimiter(viewer);
     ensureMissileStore(viewer);
     ensureAudioStore(viewer);
     attachEventLodController(viewer);
@@ -1563,6 +1694,7 @@ export async function initWarzoneGlobe() {
         },
         setTerrainVisible(visible) {
             const show = !!visible;
+            viewer.__terrainVisible = show;
             if (viewer.__imageryBase) {
                 viewer.__imageryBase.show = show;
             }

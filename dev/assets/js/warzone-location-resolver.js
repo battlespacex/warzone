@@ -249,7 +249,7 @@ export function isMovingTrackEvent(event = {}) {
     const weapon = slugify(event.weapon_type || "");
     const meta = slugify(JSON.stringify(event.metadata || {}));
     if (src.includes("ads b") || src.includes("opensky") || src.includes("ais")) return true;
-    if (category === "military" && /fighter|awacs|tanker|carrier|destroyer|frigate|patrol|transport|recon|isr|naval|aircraft/.test(`${sub} ${weapon} ${meta}`)) {
+    if (category === "military" && /fighter|awacs|tanker|carrier|destroyer|frigate|corvette|submarine|patrol|logistics|minesweeper|transport|recon|isr|naval|aircraft/.test(`${sub} ${weapon} ${meta}`)) {
         return true;
     }
     return false;

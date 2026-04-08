@@ -3,6 +3,11 @@ import * as Cesium from "cesium";
 
 let __rangeEntities = [];
 const __rangeImageCache = new Map();
+const RANGE_RENDER = {
+    maxHeight: 2200000,
+    maxCount: 2,
+    maxOverlap: 0.18,
+};
 
 function cssVar(name, fallback) {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -84,6 +89,99 @@ function getSoftRangeImage(colorCss, opacity) {
     __rangeImageCache.set(key, dataUrl);
     return dataUrl;
 }
+function getCameraHeight(viewer) {
+    try {
+        return Number(viewer?.camera?.positionCartographic?.height || 0);
+    } catch {
+        return 0;
+    }
+}
+function shouldRenderRanges(viewer) {
+    return getCameraHeight(viewer) <= RANGE_RENDER.maxHeight;
+}
+function getDistanceMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = Cesium.Math.toRadians(lat2 - lat1);
+    const dLon = Cesium.Math.toRadians(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(Cesium.Math.toRadians(lat1)) *
+        Math.cos(Cesium.Math.toRadians(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+function getCircleOverlapRatio(r1, r2, d) {
+    if (d >= r1 + r2) return 0;
+    const smaller = Math.min(r1, r2);
+    if (d <= Math.abs(r1 - r2)) return 1;
+    const r1Sq = r1 * r1;
+    const r2Sq = r2 * r2;
+    const alpha = 2 * Math.acos((d * d + r1Sq - r2Sq) / (2 * d * r1));
+    const beta = 2 * Math.acos((d * d + r2Sq - r1Sq) / (2 * d * r2));
+    const area1 = 0.5 * r1Sq * (alpha - Math.sin(alpha));
+    const area2 = 0.5 * r2Sq * (beta - Math.sin(beta));
+    const overlapArea = area1 + area2;
+    const smallerArea = Math.PI * smaller * smaller;
+    return overlapArea / smallerArea;
+}
+function getRangePriority(candidate) {
+    const text = String(
+        candidate?.event?.subcategory ||
+        candidate?.event?.subtype ||
+        candidate?.event?.title ||
+        ""
+    ).toLowerCase();
+    if (text.includes("awacs")) return 6;
+    if (text.includes("fighter")) return 5;
+    if (text.includes("sam") || text.includes("air defense")) return 4;
+    if (text.includes("carrier")) return 3;
+    if (text.includes("destroyer") || text.includes("frigate")) return 2;
+    return 1;
+}
+function getSpatialBucketKey(lat, lon, radiusMeters = 0) {
+    const bucketDeg = Math.max(1.4, (radiusMeters / 111320) * 0.85);
+    return `${Math.round(lat / bucketDeg)}:${Math.round(lon / bucketDeg)}`;
+}
+function selectRangeCandidates(events = []) {
+    const candidates = events
+        .map((event) => {
+            const preset = getRangePreset(event);
+            const lat = Number(event.lat);
+            const lon = Number(event.lon);
+            if (!preset || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+            return { event, preset, lat, lon };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+            const priorityDelta = getRangePriority(b) - getRangePriority(a);
+            if (priorityDelta !== 0) return priorityDelta;
+            return b.preset.radius - a.preset.radius;
+        });
+    const selected = [];
+    const usedBuckets = new Set();
+    for (const candidate of candidates) {
+        const bucketKey = getSpatialBucketKey(candidate.lat, candidate.lon, candidate.preset.radius);
+        if (usedBuckets.has(bucketKey)) {
+            continue;
+        }
+        let shouldSkip = false;
+        for (const existing of selected) {
+            const distance = getDistanceMeters(candidate.lat, candidate.lon, existing.lat, existing.lon);
+            const overlap = getCircleOverlapRatio(candidate.preset.radius, existing.preset.radius, distance);
+            if (overlap > RANGE_RENDER.maxOverlap) {
+                shouldSkip = true;
+                break;
+            }
+        }
+        if (!shouldSkip) {
+            selected.push(candidate);
+            usedBuckets.add(bucketKey);
+        }
+        if (selected.length >= RANGE_RENDER.maxCount) break;
+    }
+    return selected;
+}
 
 export function clearRanges(viewer) {
     if (viewer) {
@@ -101,14 +199,18 @@ export function clearRanges(viewer) {
 export function renderRanges(viewer, events) {
     clearRanges(viewer);
     if (!viewer || !Array.isArray(events) || !events.length) return;
+    if (!shouldRenderRanges(viewer)) {
+        viewer.scene?.requestRender?.();
+        return;
+    }
 
-    events.forEach((event) => {
-        const preset = getRangePreset(event);
-        if (!preset) return;
+    const candidates = selectRangeCandidates(events);
+    if (!candidates.length) {
+        viewer.scene?.requestRender?.();
+        return;
+    }
 
-        const lat = Number(event.lat);
-        const lon = Number(event.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    candidates.forEach(({ event, preset, lat, lon }) => {
 
         const colorCss = cssVar(preset.color, "#33d9ff");
         const baseColor = cssColor(preset.color, "#33d9ff");

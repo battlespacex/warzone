@@ -36,8 +36,10 @@ window.SiteLoader = {
 };
 document.addEventListener("DOMContentLoaded", () => {
     const WZ_WIDGET_KEY = "wz_widget_visibility";
+    const WZ_LAYER_KEY = "wz_layer_state";
     const WZ_WIDGET_LAYOUT_VERSION_KEY = "wz_widget_layout_version";
     const WZ_WIDGET_LAYOUT_VERSION = "2026-04-clean-defaults";
+    const UI_ONLY_WIDGET_IDS = new Set(["airspace"]);
     const DEFAULT_WIDGET_VISIBILITY = {
         counter: true,
         layers: true,
@@ -50,6 +52,18 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
+    }
+    function getSavedLayerState() {
+        try {
+            return JSON.parse(localStorage.getItem(WZ_LAYER_KEY) || "{}");
+        } catch {
+            return {};
+        }
+    }
+    function isUiOnlyWidgetLayerEnabled(widgetId = "") {
+        if (!UI_ONLY_WIDGET_IDS.has(widgetId)) return true;
+        const layerState = getSavedLayerState();
+        return layerState[widgetId] !== false;
     }
     function bindTabs(selector, panelSelector, attrName, panelAttrName) {
         document.querySelectorAll(selector).forEach((btn) => {
@@ -219,7 +233,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const forceHiddenMobile = isMobileLayout();
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => {
             const id = widget.dataset.widgetId;
-            const visible = forceHiddenMobile ? false : (id in effectiveState ? effectiveState[id] : true);
+            let visible = forceHiddenMobile ? false : (id in effectiveState ? effectiveState[id] : true);
+            if (!isUiOnlyWidgetLayerEnabled(id)) {
+                visible = false;
+            }
             widget.classList.toggle("wz-is-hidden", !visible);
         });
     }
@@ -233,6 +250,11 @@ document.addEventListener("DOMContentLoaded", () => {
     function syncDock() {
         document.querySelectorAll(".wz-dock__btn[data-dock-widget]").forEach((btn) => {
             const id = btn.dataset.dockWidget;
+            if (!isUiOnlyWidgetLayerEnabled(id)) {
+                btn.classList.add("wz-dock--gone");
+                btn.setAttribute("aria-hidden", "true");
+                return;
+            }
             const widget = document.querySelector(`.warzone-widget[data-widget-id="${id}"]`);
             if (!widget) return;
             const shouldBeGone = isWidgetVisible(widget);
@@ -252,15 +274,29 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         syncSeparator();
     }
+    function syncWidgetChrome() {
+        syncDock();
+        updateBackdrop();
+    }
+    window.__syncWarzoneDock = syncWidgetChrome;
     getBackdrop()?.addEventListener("click", () => {
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => hideWidget(widget));
         saveWidgetState();
-        syncDock();
+        syncWidgetChrome();
     });
     document.documentElement.classList.add("wz-no-transitions");
     loadWidgetState();
-    syncDock();
-    updateBackdrop();
+    syncWidgetChrome();
+    const widgetObserver = new MutationObserver(() => {
+        saveWidgetState();
+        syncWidgetChrome();
+    });
+    document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => {
+        widgetObserver.observe(widget, {
+            attributes: true,
+            attributeFilter: ["class"],
+        });
+    });
     requestAnimationFrame(() => {
         document.documentElement.classList.remove("wz-no-transitions");
         document.body.classList.remove("wz-no-transitions");
@@ -271,11 +307,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!widget) return;
             hideWidget(widget);
             saveWidgetState();
-            syncDock();
+            syncWidgetChrome();
         });
     });
     document.querySelectorAll(".wz-dock__btn[data-dock-widget]").forEach((btn) => {
         btn.addEventListener("click", () => {
+            if (!isUiOnlyWidgetLayerEnabled(btn.dataset.dockWidget || "")) return;
             const widget = document.querySelector(`.warzone-widget[data-widget-id="${btn.dataset.dockWidget}"]`);
             if (!widget) return;
             if (isWidgetVisible(widget)) {
@@ -284,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 showWidget(widget);
             }
             saveWidgetState();
-            syncDock();
+            syncWidgetChrome();
         });
     });
     document.querySelectorAll("[data-panel-collapse]").forEach((btn) => {
@@ -325,7 +362,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     window.addEventListener("resize", () => {
         loadWidgetState();
-        syncDock();
-        updateBackdrop();
+        syncWidgetChrome();
     }, { passive: true });
 });

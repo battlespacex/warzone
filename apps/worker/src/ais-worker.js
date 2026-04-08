@@ -20,51 +20,191 @@ const MONITORING_BOXES = [
 // ─── Naval vessel name patterns ───────────────────────────────────────────────
 
 const NAVAL_NAME_PATTERNS = [
-    /\bUSS\b/i,      // US Navy
-    /\bUSNS\b/i,     // US Navy auxiliary / Military Sealift Command
-    /\bHMS\b/i,      // Royal Navy
-    /\bRFA\b/i,      // Royal Fleet Auxiliary
-    /\bRFS\b/i,      // Russian Federation Ship
-    /\bRFN\b/i,
+    /\bUSS\b/i,
+    /\bUSNS\b/i,
+    /\bHMS\b/i,
+    /\bRFA\b/i,
+    /\bHMAS\b/i,
+    /\bHMCS\b/i,
+    /\bHMNZS\b/i,
+    /\bHNLMS\b/i,
+    /\bORP\b/i,
+    /\bNRP\b/i,
+    /\bBRP\b/i,
+    /\bBAP\b/i,
+    /\bARA\b/i,
+    /\bROKS\b/i,
+    /\bKRI\b/i,
+    /\bKDB\b/i,
+    /\bINS\b/i,
+    /\bPNS\b/i,
+    /\bTCG\b/i,
+    /\bJDS\b/i,
+    /\bJS\s+[A-Z0-9]/i,
+    /\bFGS\b/i,
+    /\bIRIS\b/i,
+    /\bRFS\b/i,
+    /\bSLNS\b/i,
+    /\bRBNS\b/i,
+    /\bHSWMS\b/i,
+    /\bITS\b/i,
+    /\bSPS\b/i,
     /\bBNS\b/i,
-    /\bINS\b/i,      // Indian Navy Ship
-    /\bPNS\b/i,      // Pakistan Navy Ship
-    /\bCNS\b/i,      // Chinese Navy Ship
-    /\bTCG\b/i,      // Turkish Navy
-    /\bJS\s+[A-Z0-9]/i, // Japan Maritime Self-Defense Force
     /\bFFG[-\s]?\d+\b/i,
     /\bDDG[-\s]?\d+\b/i,
+    /\bCG[-\s]?\d+\b/i,
     /\bSSN[-\s]?\d+\b/i,
     /\bSSBN[-\s]?\d+\b/i,
+    /\bSSK[-\s]?\d+\b/i,
     /\bCVN[-\s]?\d+\b/i,
+    /\bCV[-\s]?\d+\b/i,
     /\bLHD[-\s]?\d+\b/i,
     /\bLHA[-\s]?\d+\b/i,
     /\bLPD[-\s]?\d+\b/i,
+    /\bLPH[-\s]?\d+\b/i,
+    /\bLSD[-\s]?\d+\b/i,
+    /\bLST[-\s]?\d+\b/i,
     /\bAOR[-\s]?\d+\b/i,
     /\bAOE[-\s]?\d+\b/i,
     /\bT-AO[-\s]?\d+\b/i,
     /\bT-AKE[-\s]?\d+\b/i,
-    /CARRIER/i,
-    /DESTROYER/i,
-    /FRIGATE/i,
-    /CORVETTE/i,
-    /CRUISER/i,
-    /SUBMARINE/i,
-    /AMPHIBIOUS ASSAULT/i,
-    /MINE COUNTERMEASURE/i,
-    /MINESWEEPER/i,
-    /REPLENISHMENT/i,
-    /FLEET OILER/i,
-    /COMBAT SUPPORT SHIP/i,
+    /\bT-AKR[-\s]?\d+\b/i,
+    /\bUS NAVY\b/i,
+    /\bMILITARY SEALIFT COMMAND\b/i,
+    /\bROYAL NAVY\b/i,
+    /\bROYAL AUSTRALIAN NAVY\b/i,
+    /\bROYAL CANADIAN NAVY\b/i,
+    /\bROYAL NEW ZEALAND NAVY\b/i,
+    /\bROYAL NETHERLANDS NAVY\b/i,
+    /\bDUTCH NAVY\b/i,
+    /\bGERMAN NAVY\b/i,
+    /\bFRENCH NAVY\b/i,
+    /\bITALIAN NAVY\b/i,
+    /\bSPANISH NAVY\b/i,
+    /\bPORTUGUESE NAVY\b/i,
+    /\bPOLISH NAVY\b/i,
+    /\bINDIAN NAVY\b/i,
+    /\bPAKISTAN NAVY\b/i,
+    /\bJMSDF\b/i,
+    /\bJAPAN MARITIME SELF[- ]DEFENSE FORCE\b/i,
+    /\bREPUBLIC OF KOREA NAVY\b/i,
+    /\bROK NAVY\b/i,
+    /\bPLA NAVY\b/i,
+    /\bPLAN\b/i,
+    /\bTURKISH NAVY\b/i,
+    /\bRUSSIAN NAVY\b/i,
+    /\bIRIN\b/i,
+    /\bIRGCN\b/i,
+    /\bSINGAPORE NAVY\b/i,
+    /\bRSN\b/i,
+    /\bROYAL SAUDI NAVAL FORCES\b/i,
+    /\bEGYPTIAN NAVY\b/i,
+    /\bBRAZILIAN NAVY\b/i,
+    /\bARGENTINE NAVY\b/i,
+    /\bPERUVIAN NAVY\b/i,
+    /\bPHILIPPINE NAVY\b/i,
+    /\bBANGLADESH NAVY\b/i,
+    /\bBELGIAN NAVY\b/i,
+    /\bROYAL BRUNEI NAVY\b/i,
+    /\bINDONESIAN NAVY\b/i,
+    /\bUKRAINIAN NAVY\b/i,
+    /\bGUIDED MISSILE DESTROYER\b/i,
+    /\bDESTROYER\b/i,
+    /\bGUIDED MISSILE CRUISER\b/i,
+    /\bFRIGATE\b/i,
+    /\bCORVETTE\b/i,
+    /\bSUBMARINE\b/i,
+    /\bAIRCRAFT CARRIER\b/i,
+    /\bHELICOPTER CARRIER\b/i,
+    /\bLIGHT CARRIER\b/i,
+    /\bAMPHIBIOUS ASSAULT\b/i,
+    /\bLANDING HELICOPTER DOCK\b/i,
+    /\bLANDING PLATFORM DOCK\b/i,
+    /\bAMPHIBIOUS TRANSPORT DOCK\b/i,
+    /\bMINE COUNTERMEASURE\b/i,
+    /\bMINEHUNTER\b/i,
+    /\bMINESWEEPER\b/i,
+    /\bREPLENISHMENT\b/i,
+    /\bFLEET OILER\b/i,
+    /\bCOMBAT SUPPORT SHIP\b/i,
+    /\bOFFSHORE PATROL VESSEL\b/i,
+    /\bMISSILE BOAT\b/i,
+    /\bFAST ATTACK CRAFT\b/i,
 ];
+const CIVILIAN_VESSEL_PATTERNS = [
+    /\bMV\b/i,
+    /\bM\/V\b/i,
+    /\bMT\b/i,
+    /\bFV\b/i,
+    /\bSV\b/i,
+    /\bMY\b/i,
+    /\bRV\b/i,
+    /\bGENERAL CARGO\b/i,
+    /\bBULK CARRIER\b/i,
+    /\bCAR CARRIER\b/i,
+    /\bVEHICLE CARRIER\b/i,
+    /\bCONTAINER\b/i,
+    /\bCONTAINER SHIP\b/i,
+    /\bTANKER\b/i,
+    /\bCHEMICAL TANKER\b/i,
+    /\bCRUDE OIL\b/i,
+    /\bLNG\b/i,
+    /\bLPG\b/i,
+    /\bCARGO\b/i,
+    /\bFERRY\b/i,
+    /\bCRUISE\b/i,
+    /\bPASSENGER\b/i,
+    /\bYACHT\b/i,
+    /\bDREDGER\b/i,
+    /\bTUG\b/i,
+    /\bTRAWLER\b/i,
+    /\bFREIGHTER\b/i,
+    /\bFEEDER\b/i,
+    /\bCOASTER\b/i,
+    /\bLIVESTOCK\b/i,
+    /\bREEFER\b/i,
+    /\bHOPPER\b/i,
+    /\bRO-RO\b/i,
+    /\bROLL ON ROLL OFF\b/i,
+    /\bSUPPLY VESSEL\b/i,
+    /\bOFFSHORE SUPPORT\b/i,
+    /\bPLATFORM SUPPLY\b/i,
+    /\bANCHOR HANDLING\b/i,
+    /\bWORKBOAT\b/i,
+    /\bRESEARCH VESSEL\b/i,
+    /\bSURVEY VESSEL\b/i,
+    /\bCABLE LAYER\b/i,
+    /\bPILOT\b/i,
+];
+const NAVAL_CLASS_PATTERNS = {
+    carrier: /\bCVN[-\s]?\d+\b|\bCV[-\s]?\d+\b|AIRCRAFT CARRIER|HELICOPTER CARRIER|LIGHT CARRIER/i,
+    destroyer: /\bDDG[-\s]?\d+\b|DESTROYER|GUIDED MISSILE DESTROYER/i,
+    frigate: /\bFFG[-\s]?\d+\b|FRIGATE/i,
+    corvette: /CORVETTE/i,
+    cruiser: /\bCG[-\s]?\d+\b|CRUISER|GUIDED MISSILE CRUISER/i,
+    submarine: /\bSSN[-\s]?\d+\b|\bSSBN[-\s]?\d+\b|\bSSK[-\s]?\d+\b|SUBMARINE/i,
+    logistics: /\bAOR[-\s]?\d+\b|\bAOE[-\s]?\d+\b|\bT-AO[-\s]?\d+\b|\bT-AKE[-\s]?\d+\b|\bT-AKR[-\s]?\d+\b|REPLENISHMENT|FLEET OILER|COMBAT SUPPORT|SUPPLY SHIP/i,
+    patrol: /PATROL|OFFSHORE PATROL VESSEL|\bOPV\b|FAST ATTACK|FAST ATTACK CRAFT|MISSILE BOAT|GUNBOAT/i,
+    minesweeper: /MINE COUNTERMEASURE|MINEHUNTER|MINESWEEPER|\bMCM\b|\bMHC\b/i,
+    amphibious: /\bLHD[-\s]?\d+\b|\bLHA[-\s]?\d+\b|\bLPD[-\s]?\d+\b|\bLPH[-\s]?\d+\b|\bLSD[-\s]?\d+\b|\bLST[-\s]?\d+\b|AMPHIBIOUS ASSAULT|LANDING HELICOPTER DOCK|LANDING PLATFORM DOCK|AMPHIBIOUS TRANSPORT DOCK|LANDING SHIP/i,
+};
 
 function normalizeString(value) {
     return String(value || "").trim();
 }
 
+function matchesPatternList(patterns, values) {
+    return values.some((value) => patterns.some((pattern) => pattern.test(value)));
+}
+
+function isCivilianVesselName(name, callSign = "") {
+    const haystacks = [normalizeString(name), normalizeString(callSign)].filter(Boolean);
+    return matchesPatternList(CIVILIAN_VESSEL_PATTERNS, haystacks);
+}
+
 function isMilitaryVesselName(name, callSign = "") {
     const haystacks = [normalizeString(name), normalizeString(callSign)].filter(Boolean);
-    return haystacks.some((value) => NAVAL_NAME_PATTERNS.some((pattern) => pattern.test(value)));
+    return matchesPatternList(NAVAL_NAME_PATTERNS, haystacks);
 }
 
 // ─── Ship type 35 = military ──────────────────────────────────────────────────
@@ -78,15 +218,20 @@ function isMilitaryShipType(shipType) {
 
 // ─── Vessel type classification ───────────────────────────────────────────────
 
-function classifyVessel(name, shipType) {
+function classifyVessel(name, shipType, callSign = "") {
     const n = (name || "").toUpperCase();
-    if (/CVN|CARRIER|LHD|LHA/.test(n)) return "carrier";
-    if (/DDG|DESTROYER/.test(n)) return "destroyer";
-    if (/FFG|CG|CRUISER|FRIGATE/.test(n)) return "frigate";
-    if (/SSN|SUBMARINE|SUB/.test(n)) return "submarine";
-    if (/REPLENISHMENT|AOR|AOE|T-AO|T-AKE|FLEET OILER|COMBAT SUPPORT/.test(n)) return "logistics";
-    if (/PATROL|OPV|PC|PG/.test(n)) return "patrol";
-    if (/MINE|MCM|MINESWEEPER/.test(n)) return "minesweeper";
+    const c = (callSign || "").toUpperCase();
+    const haystack = `${n} ${c}`.trim();
+    if (NAVAL_CLASS_PATTERNS.carrier.test(haystack)) return "carrier";
+    if (NAVAL_CLASS_PATTERNS.destroyer.test(haystack)) return "destroyer";
+    if (NAVAL_CLASS_PATTERNS.cruiser.test(haystack)) return "destroyer";
+    if (NAVAL_CLASS_PATTERNS.frigate.test(haystack)) return "frigate";
+    if (NAVAL_CLASS_PATTERNS.corvette.test(haystack)) return "corvette";
+    if (NAVAL_CLASS_PATTERNS.submarine.test(haystack)) return "submarine";
+    if (NAVAL_CLASS_PATTERNS.logistics.test(haystack)) return "logistics";
+    if (NAVAL_CLASS_PATTERNS.patrol.test(haystack)) return "patrol";
+    if (NAVAL_CLASS_PATTERNS.minesweeper.test(haystack)) return "minesweeper";
+    if (NAVAL_CLASS_PATTERNS.amphibious.test(haystack)) return "naval";
     if (Number(shipType) === 35) return "naval";
     return "naval";
 }
@@ -133,10 +278,13 @@ function readPositionFields(pos, meta) {
 }
 
 function isStrictMilitaryNavalContact(vessel) {
-    return (
-        isMilitaryShipType(vessel.shipType) ||
-        isMilitaryVesselName(vessel.name, vessel.callSign)
-    );
+    const hasCivilianIdentity = isCivilianVesselName(vessel.name, vessel.callSign);
+    const hasMilitaryIdentity = isMilitaryVesselName(vessel.name, vessel.callSign);
+    if (hasCivilianIdentity && !hasMilitaryIdentity) {
+        return false;
+    }
+    if (hasMilitaryIdentity) return true;
+    return isMilitaryShipType(vessel.shipType) && !hasCivilianIdentity;
 }
 
 function mergeVesselState(position = {}, staticInfo = {}, previous = {}) {
@@ -156,7 +304,7 @@ function mergeVesselState(position = {}, staticInfo = {}, previous = {}) {
 
 function buildNavalEvent(vessel) {
     const { mmsi, name, shipType, lat, lon, speed, heading, country, callSign, imoNumber } = vessel;
-    const subcat = classifyVessel(name, shipType);
+    const subcat = classifyVessel(name, shipType, callSign);
     const speedKt = Number.isFinite(speed) ? speed.toFixed(1) : null;
 
     const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;

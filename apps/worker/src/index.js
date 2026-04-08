@@ -86,6 +86,7 @@ let isWorkerRunning = false;
 const TELEGRAM_API_ID = Number(process.env.TELEGRAM_API_ID || 0);
 const TELEGRAM_API_HASH = process.env.TELEGRAM_API_HASH || "";
 const TELEGRAM_SESSION = process.env.TELEGRAM_SESSION || "";
+const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN || process.env.TWITTER_BEARER_TOKEN || "";
 const TELEGRAM_DEFAULT_CHANNELS = String(process.env.TELEGRAM_CHANNELS || "")
     .split(",")
     .map((s) => s.trim())
@@ -1964,6 +1965,47 @@ function getTelegramChannels(feed) {
     const channels = feedChannels.length ? feedChannels : TELEGRAM_DEFAULT_CHANNELS;
     return [...new Set(channels)];
 }
+function toXUsernameKey(value = "") {
+    return String(value || "")
+        .trim()
+        .replace(/^@/, "")
+        .replace(/^https?:\/\/(?:www\.)?x\.com\//i, "")
+        .replace(/^https?:\/\/(?:www\.)?twitter\.com\//i, "")
+        .replace(/\/+$/, "")
+        .split("/")[0]
+        .trim();
+}
+function getXUsernames(feed = {}) {
+    return [...new Set(
+        toArray(feed.usernames)
+            .map(toXUsernameKey)
+            .filter(Boolean)
+    )];
+}
+function makeXStateKey(feed = {}) {
+    return `x-search:${sanitizeTag(feed.name || "default")}`;
+}
+function buildXSearchQuery(feed = {}) {
+    if (String(feed.query || "").trim()) {
+        return String(feed.query || "").trim();
+    }
+    const usernames = getXUsernames(feed);
+    const keywords = toArray(feed.keywords)
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+    const accountClause = usernames.length
+        ? (usernames.length === 1
+            ? `from:${usernames[0]}`
+            : `(${usernames.map((username) => `from:${username}`).join(" OR ")})`)
+        : "";
+    const keywordClause = keywords.length
+        ? `(${keywords.map((keyword) => /\s/.test(keyword) ? `"${keyword}"` : keyword).join(" OR ")})`
+        : "";
+    return [accountClause, keywordClause, "-is:retweet"]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+}
 function extractTelegramText(msg) {
     return String(msg?.message || msg?.rawText || msg?.text || "").trim();
 }
@@ -2226,6 +2268,176 @@ async function processTelegramFeed(feed) {
             if (await disableTelegramClientIfNeeded(error)) return;
             console.error("Telegram channel read failed:", channelKey, error.message);
         }
+    }
+}
+/* ----------------------------------------
+ * X / Twitter
+ * -------------------------------------- */
+function extractXText(post = {}) {
+    return String(
+        post?.note_tweet?.text ||
+        post?.note_tweet?.note_tweet_results?.result?.text ||
+        post?.text ||
+        ""
+    ).trim();
+}
+function buildXAuthorMap(includes = {}) {
+    const users = toArray(includes?.users);
+    const map = new Map();
+    users.forEach((user) => {
+        const id = String(user?.id || "").trim();
+        if (id) map.set(id, user);
+    });
+    return map;
+}
+function buildXPlaceMap(includes = {}) {
+    const places = toArray(includes?.places);
+    const map = new Map();
+    places.forEach((place) => {
+        const id = String(place?.id || "").trim();
+        if (id) map.set(id, place);
+    });
+    return map;
+}
+function getXPlaceLocation(place = null) {
+    if (!place || typeof place !== "object") return null;
+    const bbox = toArray(place?.geo?.bbox).map(Number);
+    if (bbox.length === 4 && bbox.every(Number.isFinite)) {
+        const [west, south, east, north] = bbox;
+        return {
+            lat: (south + north) / 2,
+            lon: (west + east) / 2,
+            label: place.full_name || place.name || place.country || "Unknown location"
+        };
+    }
+    const label = [place.full_name, place.name, place.country].filter(Boolean).join(", ");
+    return label ? { lat: NaN, lon: NaN, label } : null;
+}
+async function resolveXLocation(post = {}, placeMap = new Map()) {
+    const placeId = String(post?.geo?.place_id || "").trim();
+    if (placeId && placeMap.has(placeId)) {
+        const placeLocation = getXPlaceLocation(placeMap.get(placeId));
+        if (placeLocation && Number.isFinite(placeLocation.lat) && Number.isFinite(placeLocation.lon)) {
+            return placeLocation;
+        }
+        if (placeLocation?.label) {
+            const geocoded = await resolveLocationFromText(placeLocation.label, { requireBBox: false });
+            if (geocoded) return geocoded;
+        }
+    }
+    return resolveLocationFromText(extractXText(post), { requireBBox: false });
+}
+async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new Map()) {
+    const rawText = extractXText(post);
+    if (!rawText) return null;
+    if (!isRelevantTelegramText(rawText, feed)) return null;
+    const location = await resolveXLocation(post, placeMap);
+    if (!location || !Number.isFinite(Number(location.lat)) || !Number.isFinite(Number(location.lon))) return null;
+    const author = authorMap.get(String(post?.author_id || "").trim()) || {};
+    const normalizedText = normalizeText(rawText);
+    const category = detectTelegramCategory(rawText);
+    const severity = detectTelegramSeverity(rawText);
+    const weaponType = detectTelegramWeaponType(rawText);
+    const targetType = detectTelegramTargetType(rawText);
+    const impactType = detectTelegramImpactType(targetType);
+    const actorSide = detectTelegramActorSide(rawText);
+    const confidence = detectTelegramConfidence(rawText);
+    const username = String(author?.username || "").trim();
+    const title = normalizedText.slice(0, 160) || "X OSINT event";
+    return {
+        category,
+        title,
+        summary: normalizedText.slice(0, 1500),
+        source_name: cleanSourceName(`X / ${username || feed.name || "unknown"}`),
+        source_url: username
+            ? `https://x.com/${username}/status/${post.id}`
+            : `https://x.com/i/web/status/${post.id}`,
+        occurred_at: post?.created_at || new Date().toISOString(),
+        lat: Number(location.lat),
+        lon: Number(location.lon),
+        location_label: location.label || "Unknown location",
+        confidence,
+        actor_side: actorSide,
+        target_side: "unknown",
+        weapon_type: weaponType,
+        target_type: targetType,
+        impact_type: impactType,
+        report_type: "osint",
+        severity,
+        country_code: "",
+        tags: uniqueTags([
+            "x",
+            "twitter",
+            ...(feed.tags || []),
+            username ? `x-${sanitizeTag(username)}` : ""
+        ]),
+        airspace_status: category === "airspace" ? "restricted" : "unknown",
+        cyber_status: category === "cyber" ? "elevated" : "unknown",
+        fir_code: "",
+        dedupe_key: [
+            "X",
+            post?.id || "",
+            post?.created_at || ""
+        ].join("|")
+    };
+}
+async function processXFeed(feed) {
+    if (!X_BEARER_TOKEN) {
+        console.log(`X feed skipped (${feed.name}): X_BEARER_TOKEN missing`);
+        return;
+    }
+    const query = buildXSearchQuery(feed);
+    if (!query) {
+        console.log(`X feed skipped (${feed.name}): no query/usernames configured`);
+        return;
+    }
+    const stateKey = makeXStateKey(feed);
+    const state = await getWorkerState(stateKey);
+    const lastSeenAtMs = Number(state?.last_message_id || 0);
+    const initialLookbackMinutes = Math.max(5, Number(feed.initial_lookback_minutes || 180));
+    const overlapMs = 2 * 60 * 1000;
+    const startTime = new Date(
+        lastSeenAtMs > 0
+            ? Math.max(0, lastSeenAtMs - overlapMs)
+            : Date.now() - (initialLookbackMinutes * 60 * 1000)
+    ).toISOString();
+    const response = await axios.get("https://api.x.com/2/tweets/search/recent", {
+        params: {
+            query,
+            start_time: startTime,
+            max_results: Math.min(100, Math.max(10, Number(feed.max_results || 15))),
+            sort_order: "recency",
+            "tweet.fields": "author_id,created_at,geo,lang,public_metrics,text",
+            expansions: "author_id,geo.place_id",
+            "user.fields": "id,name,username,verified",
+            "place.fields": "id,full_name,name,country,geo"
+        },
+        timeout: 25000,
+        headers: {
+            Authorization: `Bearer ${X_BEARER_TOKEN}`,
+            Accept: "application/json",
+            "User-Agent": "warzone-worker/1.0"
+        }
+    });
+    const posts = toArray(response.data?.data);
+    const authorMap = buildXAuthorMap(response.data?.includes || {});
+    const placeMap = buildXPlaceMap(response.data?.includes || {});
+    let newestSeenAtMs = lastSeenAtMs;
+    for (const post of posts) {
+        try {
+            const event = await normalizeXPost(post, feed, authorMap, placeMap);
+            if (!event) continue;
+            await insertEventIfValid(event);
+            const createdAtMs = new Date(post?.created_at || 0).getTime();
+            if (Number.isFinite(createdAtMs) && createdAtMs > newestSeenAtMs) {
+                newestSeenAtMs = createdAtMs;
+            }
+        } catch (error) {
+            console.error("X parse error:", feed.name, post?.id, error.message);
+        }
+    }
+    if (newestSeenAtMs > lastSeenAtMs) {
+        await setWorkerState(stateKey, newestSeenAtMs);
     }
 }
 /* ----------------------------------------
@@ -3188,6 +3400,10 @@ async function processFeed(feed) {
     console.log("Fetching:", feed.name, feed.url || "[telegram]");
     if (feed.parser === "telegram") {
         await processTelegramFeed(feed);
+        return;
+    }
+    if (feed.parser === "x-search") {
+        await processXFeed(feed);
         return;
     }
     if (feed.parser === "reddit") {

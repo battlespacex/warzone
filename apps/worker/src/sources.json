@@ -76,6 +76,42 @@
       ]
     },
     {
+      "name": "X OSINT High Signal",
+      "parser": "x-search",
+      "enabled": false,
+      "usernames": [
+        "OSINTdefender",
+        "OSINT_defender",
+        "sentdefender"
+      ],
+      "keywords": [
+        "missile",
+        "drone",
+        "airstrike",
+        "air strike",
+        "explosion",
+        "refinery",
+        "warship",
+        "frigate",
+        "destroyer",
+        "submarine",
+        "fighter jet",
+        "intercept",
+        "siren",
+        "notam"
+      ],
+      "max_results": 15,
+      "initial_lookback_minutes": 180,
+      "category": "military",
+      "tags": [
+        "x",
+        "twitter",
+        "osint",
+        "military",
+        "high-signal"
+      ]
+    },
+    {
       "name": "GDELT Conflict Signals",
       "parser": "gdelt",
       "enabled": true,
