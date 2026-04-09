@@ -122,6 +122,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const aboutModal = document.getElementById("wz-about-modal");
     const introModal = document.getElementById("wz-intro-modal");
     const uiShell = document.getElementById("warzone-ui-shell");
+    if (aboutModal) {
+        aboutModal.hidden = true;
+        aboutModal.classList.remove("is-visible");
+        document.body.classList.remove("is-about-open");
+    }
     if (uiShell) {
         uiShell.hidden = true;
         uiShell.classList.remove("is-ui-visible");

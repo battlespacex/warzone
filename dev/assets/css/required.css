@@ -735,8 +735,10 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         display: flex;
         flex-direction: column;
         flex: 1;
-        min-height: 0;
+        min-height: 100%;
+        width: 100%;
         overflow: hidden;
+
     }
 /* #endregion =========== */
 /* #region =========== STAGE GRID =========== */
