@@ -11,7 +11,7 @@
     {
       "name": "Telegram OSINT High Signal",
       "parser": "telegram",
-      "enabled": true,
+      "enabled": false,
       "channels": [
         "OSINTdefender",
         "OSINT_defender",
@@ -34,7 +34,7 @@
     {
       "name": "Telegram OSINT Mixed",
       "parser": "telegram",
-      "enabled": true,
+      "enabled": false,
       "channels": [
         "sentdefender",
         "OSINTLive",
@@ -56,7 +56,7 @@
     {
       "name": "Telegram Narrative / Official",
       "parser": "telegram",
-      "enabled": true,
+      "enabled": false,
       "channels": [
         "U_S_CENTCOM",
         "IranintlTV",

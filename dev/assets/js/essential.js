@@ -2668,31 +2668,35 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     window.__warzoneViewer?.scene?.requestRender?.();
 }
 export async function initWarzoneApp() {
-    const { data, error } = await api.getEvents();
-    if (error) {
-        console.error("Supabase events error:", error);
-        return [];
-    }
-    const events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
-    __viewportScoped = false;
-    renderAll(events);
-    updateNewsTicker(events);
-    syncInitialEventsToGlobe(events, { animateTracks: true });
-    const hotspotRoot = document.getElementById("warzone-hotspot-layer");
-    const viewer = window.__warzoneViewer;
-    if (hotspotRoot && viewer && !__hotspotLayer) {
-        __hotspotLayer = createWarzoneHotspotLayer(viewer, hotspotRoot, {
-            maxCards: 20,
-            clusterDistanceLat: 2.6,
-            clusterDistanceLon: 3.2,
-            stackDistancePx: 90,
-            maxVisiblePerHotspot: 3,
-            minItemsForCluster: 1,
-        });
-        window.__hotspotLayer = __hotspotLayer;
-    }
-    syncHotspotRootVisibility(true);
-    __hotspotLayer?.setEvents(getHotspotSourceEvents(applyAllFilters(events)));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for events
+    
+    try {
+        const { data, error } = await api.getEvents({ signal: controller.signal });
+        if (error) {
+            console.error("Supabase events error:", error);
+            return [];
+        }
+        const events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
+        __viewportScoped = false;
+        renderAll(events);
+        updateNewsTicker(events);
+        syncInitialEventsToGlobe(events, { animateTracks: true });
+        const hotspotRoot = document.getElementById("warzone-hotspot-layer");
+        const viewer = window.__warzoneViewer;
+        if (hotspotRoot && viewer && !__hotspotLayer) {
+            __hotspotLayer = createWarzoneHotspotLayer(viewer, hotspotRoot, {
+                maxCards: 20,
+                clusterDistanceLat: 2.6,
+                clusterDistanceLon: 3.2,
+                stackDistancePx: 90,
+                maxVisiblePerHotspot: 3,
+                minItemsForCluster: 1,
+            });
+            window.__hotspotLayer = __hotspotLayer;
+        }
+        syncHotspotRootVisibility(true);
+        __hotspotLayer?.setEvents(getHotspotSourceEvents(applyAllFilters(events)));
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
         window.__militaryTracks = __militaryTracks;
@@ -2805,7 +2809,13 @@ export async function initWarzoneApp() {
         .subscribe((status, err) => {
             if (status === "CHANNEL_ERROR" && err) console.error("TRACK ERROR:", err);
         });
-    return events;
+        return events;
+    } catch (err) {
+        console.error("initWarzoneApp failed:", err);
+        return [];
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 async function pollLatestEvents() {
     try {
@@ -3422,7 +3432,7 @@ export function initStratopsIntro() {
     const checkbox = document.getElementById("intro-disclaimer-check");
     const openLoginBtn = document.getElementById("wz-intro-open-login");
     const backBtn = document.getElementById("wz-intro-back");
-    const loginHint = document.getElementById("wz-intro-login-hint");
+    const loginHint = document.getElementById("wz-hint");
     const contentView = document.getElementById("wz-intro-content-view");
     const loginView = document.getElementById("wz-intro-login-view");
 
@@ -3688,16 +3698,29 @@ export async function stratopsCheckAuth() {
 }
 
 async function postAuthForm(url, body) {
-    const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
-        credentials: "include",
-        body: body.toString(),
-    });
-    let data = null;
-    try { data = await res.json(); } catch { data = null; }
-    if (!res.ok) throw new Error(data?.message || "Authentication request failed.");
-    return data;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+            credentials: "include",
+            body: body.toString(),
+            signal: controller.signal,
+        });
+        let data = null;
+        try { data = await res.json(); } catch { data = null; }
+        if (!res.ok) throw new Error(data?.message || "Authentication request failed.");
+        return data;
+    } catch (err) {
+        if (err.name === "AbortError") {
+            throw new Error("Login request timed out. Please check your connection and try again.");
+        }
+        throw err;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 async function postAuthFormWithFallback(path, body) {

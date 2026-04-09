@@ -267,6 +267,37 @@ function normalizeEventForDisplay(e = {}) {
         __displaySubline: eventSubline(e),
     };
 }
+function makeDisplayDuplicateKey(e = {}) {
+    const title = sanitizeText(e.__displayTitle || eventHeadline(e)).toLowerCase();
+    const source = sanitizeText(e.source_name || e.source || "").toLowerCase();
+    const category = sanitizeText(e.category || "").toLowerCase();
+    const place = compactPlaceLabel(
+        e.location_label ||
+        e.impact_label ||
+        e.origin_label ||
+        e.place ||
+        ""
+    ).toLowerCase();
+    return [category, source, place, title].filter(Boolean).join("|");
+}
+function dedupeDisplayItems(items = []) {
+    const ordered = [...items].sort((a, b) =>
+        new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0)
+    );
+    const seen = new Set();
+    const out = [];
+    for (const item of ordered) {
+        const key = makeDisplayDuplicateKey(item);
+        if (!key) {
+            out.push(item);
+            continue;
+        }
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(item);
+    }
+    return out;
+}
 // ─── hemisphere cull + Cesium projection ──────────────────────────────────────
 function toScreen(scene, lon, lat) {
     try {
@@ -346,6 +377,10 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
         }
     }
     return groups
+        .map((g) => ({
+            ...g,
+            items: dedupeDisplayItems(g.items),
+        }))
         .filter((g) => g.items.length >= minCount)
         .map((g) => {
             const cat = dominantCat(g.items);
@@ -401,7 +436,7 @@ function stackVisible(clusters, overlapPx, maxPer) {
 }
 // ─── DOM builders ─────────────────────────────────────────────────────────────
 function buildExpandedHTML(items) {
-    return items.slice(0, 6).map((e) => {
+    return dedupeDisplayItems(items).slice(0, 6).map((e) => {
         const sev = String(e.severity || "medium").toLowerCase();
         const title = e.__displayTitle || eventHeadline(e);
         const subline = e.__displaySubline || eventSubline(e);

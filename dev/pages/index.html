@@ -59,46 +59,32 @@
                 style="display:none;visibility:hidden"
                 title="Google Tag Manager"></iframe>
     </noscript>
-
     <a class="skip-link sr-only" href="#main">Skip to main content</a>
-
     <main id="main" aria-label="StratOps live situational awareness interface">
-
-        <!-- SEO H1 -->
         <h1 class="sr-only">
             StratOps, powered by BattlespaceX, real-time multi-domain OSINT battlespace intelligence platform
         </h1>
-
         <div id="warzone-app" class="warzone-app" data-api-base="https://api.battlespacex.com">
-
             <%= partials("popups") %>
             <%= partials("site-loader") %>
-
             <div id="wz-global-status" class="sr-only" aria-live="polite" aria-atomic="true">
                 StratOps interface is loading.
             </div>
-
             <section class="warzone-view is-active"
                      id="view-strikes"
                      data-view-panel="strikes"
                      aria-labelledby="view-strikes-title">
-
                 <h2 id="view-strikes-title" class="sr-only">
                     Live multi-domain operations and battlespace visualization
                 </h2>
-
                 <%= partials("globe") %>
-
                 <div id="warzone-ui-shell" class="warzone-ui-shell" hidden>
                     <%= partials("nav") %>
                     <%= partials("header") %>
                     <%= partials("dev-panel") %>
                     <%= partials("widgets") %>
-
                     <div id="warzone-hotspot-layer" class="warzone-hotspot-layer" aria-hidden="true"></div>
                     <div id="wz-radar-label-layer" class="wz-radar-label-layer" aria-hidden="true"></div>
-
-                    <%= partials("lock-on") %>
                 </div>
             </section>
         </div>

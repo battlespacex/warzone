@@ -11,6 +11,7 @@
 }
 
 [class^="bx-"], [class*=" bx-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
   font-family: 'BX-Font-R1_1' !important;
   speak: never;
   font-style: normal;
@@ -367,29 +368,29 @@
   content: "\e910";
 }
 .bx-web-ico-intel-1:before {
-    content: "\e912";
+  content: "\e912";
 }
-
 .bx-web-ico-airspace-1:before {
-    content: "\e915";
+  content: "\e915";
 }
-
 .bx-web-ico-cyber-1:before {
-    content: "\e916";
+  content: "\e916";
 }
-
 .bx-web-ico-layers-1:before {
-    content: "\e919";
+  content: "\e919";
 }
-
 .bx-web-ico-escalation-1:before {
-    content: "\e91a";
+  content: "\e91a";
 }
-
 .bx-web-ico-fullscreen-1:before {
-    content: "\e926";
+  content: "\e926";
 }
-
 .bx-web-ico-stratops-1:before {
-    content: "\e927";
+  content: "\e927";
+}
+.bx-web-ico-naval-1:before {
+  content: "\e935";
+}
+.bx-web-ico-aircraft-1:before {
+  content: "\e939";
 }

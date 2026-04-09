@@ -285,20 +285,33 @@ function showBasePanel(base, sx, sy) {
 
     const panel = document.createElement("div");
     panel.id = "warzone-milbase-panel";
-    panel.style.cssText = "position:fixed;width:300px;z-index:900;";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "base-name");
+    panel.setAttribute("aria-describedby", "base-info");
+    panel.setAttribute("tabindex", "-1");
+    panel.style.cssText = "position:fixed; width:28rem; z-index:900;";
     panel.innerHTML = `
-        <div class="milbase-panel__header">
-            <span class="milbase-panel__dot" style="background:${tc}"></span>
-            <span class="milbase-panel__type">${tl}</span>
-            <button class="milbase-panel__close" id="milbase-close">✕</button>
-        </div>
-        <div class="milbase-panel__name">${base.name}</div>
-        <div class="milbase-panel__rows">
-            <div class="milbase-panel__row"><span class="milbase-panel__label">Country</span><span class="milbase-panel__value">${base.country}</span></div>
-            <div class="milbase-panel__row"><span class="milbase-panel__label">Operator</span><span class="milbase-panel__value">${base.operator}</span></div>
-            <div class="milbase-panel__row"><span class="milbase-panel__label">Classification</span><span class="milbase-panel__value">${base.size.charAt(0).toUpperCase() + base.size.slice(1)}</span></div>
-            <div class="milbase-panel__row"><span class="milbase-panel__label">Coordinates</span><span class="milbase-panel__value">${base.lat.toFixed(4)}°, ${base.lon.toFixed(4)}°</span></div>
-        </div>`;
+    <div class="wz-widget-milbase">
+        <header class="wz-widget-header">
+            <span class="static-dot" style="background:${tc}" aria-hidden="true"></span>
+            <span>${tl}</span>
+            <div class="wz-widget-header-actions">
+                <button type="button" id="milbase-close" class="static-icon" data-widget-close aria-label="Close military base information panel">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+        <section class="wz-widget-body">
+            <h3 id="base-name">${base.name}</h2>
+            <ul id="base-info">
+                <li><strong>Country:</strong> <span>${base.country}</span></li>
+                <li><strong>Operator:</strong> <span>${base.operator}</span></li>
+                <li><strong>Classification:</strong> <span>${base.size.charAt(0).toUpperCase() + base.size.slice(1)}</span></li>
+                <li><strong>Coordinates:</strong> <span>${base.lat.toFixed(4)}°, ${base.lon.toFixed(4)}°</span></li>
+            </ul>
+        </section>
+    </div>`;
     document.body.appendChild(panel);
 
     // Position near click, auto-adjust to stay on screen
@@ -312,9 +325,21 @@ function showBasePanel(base, sx, sy) {
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
 
+    // Focus management
+    panel.focus();
+
+    // Close on Esc key
+    const closePanel = () => panel.remove();
+    document.addEventListener("keydown", function escHandler(e) {
+        if (e.key === "Escape") {
+            closePanel();
+            document.removeEventListener("keydown", escHandler);
+        }
+    });
+
     document.getElementById("milbase-close")?.addEventListener("click", e => {
         e.stopPropagation();
-        panel.remove();
+        closePanel();
     });
 }
 
