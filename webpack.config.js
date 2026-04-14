@@ -185,6 +185,7 @@ module.exports = (env, argv) => {
                 return new HtmlWebpackPlugin({
                     filename: `pages/${name}.html`,
                     template: path.resolve(DEV_DIR, "pages", `${name}.html`),
+                    cache: !isDev,
                     inject: "head",
                     scriptLoading: "defer",
                     templateParameters: (compilation) => {

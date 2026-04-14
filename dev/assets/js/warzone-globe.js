@@ -786,10 +786,12 @@ async function addBorderLayers(viewer) {
 async function addArcGisLayers(viewer) {
     viewer.imageryLayers.removeAll();
     const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
-        "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+        "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
+        { enablePickFeatures: false }
     );
     const labelsProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
-        "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer"
+        "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+        { enablePickFeatures: false }
     );
     const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
     tuneImageryLayer(baseLayer, "--warzone-map");

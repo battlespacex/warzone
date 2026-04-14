@@ -35,10 +35,11 @@ const ICON = {
     naval: "/assets/images/bases/naval-1.png",
     army: "/assets/images/bases/army-1.svg",
     missile: "/assets/images/bases/missile-1.svg",
-    cyber: "/assets/images/bases/cyber-1.svg",
-    joint: "/assets/images/bases/joint-1.svg",
+    // Fallback to existing shipped assets (missing custom cyber/joint icons caused billboard load errors)
+    cyber: "/assets/images/bases/hq-1.svg",
+    joint: "/assets/images/bases/hq-1.svg",
     hq: "/assets/images/bases/hq-1.svg",
-    unknown: "/assets/images/bases/unknown-1.svg",
+    unknown: "/assets/images/bases/hq-1.svg",
 
 };
 function getIcon(t) { return ICON[t] || ICON.unknown; }

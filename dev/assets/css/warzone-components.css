@@ -479,7 +479,7 @@
     margin: 0.2rem;
     background: var(--color-text-dim);
     border-radius: 50%;
-    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.18s;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s;
 }
 
 .wz-layer-item.is-on .wz-layer-toggle {
@@ -547,7 +547,6 @@
     z-index: -1;
     background: var(--color-bg-overlay)
 }*/
-.wz-modal__box,
 .wz-modal-box {
     display: flex;
     align-items: center;
@@ -557,16 +556,31 @@
     pointer-events: auto;
     width: 100%;
     max-width: 70rem;
-    height: 70vh;
+    height: auto;
     max-height: 70vh;
+    overflow: hidden;
+    opacity: 0;
     transform: translateY(1rem) scale(0.98);
-    transition: transform 220ms ease;
+    transition: height 820ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms ease, opacity 220ms ease;
+    will-change: height;
+    flex-direction: column;
     filter: var(--widget-shadow);
 }
 
-.wz-modal.is-visible .wz-modal__box,
 .wz-modal.is-visible .wz-modal-box {
+    opacity: 1;
     transform: translateY(0) scale(1);
+}
+
+.wz-modal-inner {
+    width: 100%;
+    height: auto;
+    max-height: inherit;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    clip-path: var(--clippath-shape-2);
 }
 
 #wz-about-modal {
@@ -581,25 +595,14 @@
 
 .warzone-ui-shell {
     opacity: 0;
-    transition: opacity 400ms ease;
+    transition: opacity .6s ease;
 }
 
 .warzone-ui-shell.is-ui-visible {
     opacity: 1;
 }
 
-.wz-modal__container,
-.wz-modal-box {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    overflow: hidden;
-    clip-path: var(--clippath-shape-2);
-}
+
 
 .wz-modal__head {
     flex: 0 0 auto;
@@ -611,42 +614,260 @@
     background: var(--color-bg-header);
 }
 
-.wz-modal__head span {
-    font-family: var(--text-font);
-    font-size: var(--text-lg);
-    font-weight: var(--text-heading-weight);
-    text-transform: uppercase;
-    color: var(--color-text-heading);
+
+.wz-intro.wz-modal h2 {
+    font-size: var(--text-xxxl);
 }
 
-.wz-modal__body {
+.wz-modal header {
+    flex: 0 0 auto;
+    padding: 3.5rem 2.5rem 2.3rem;
+    background: var(--color-bg-header);
+    width: 100%;
+}
+
+.wz-modal header .warzone-logo {
+    position: relative;
+    top: 0;
+    transform: none;
+    opacity: 1;
+    justify-self: left
+}
+
+.wz-layer-warning .wz-modal-box {
+    max-width: 52rem;
+}
+
+.wz-layer-warning header {
+    position: relative;
+    padding-right: 7rem;
+}
+
+#wz-layer-warning-close {
+    position: absolute;
+    top: 2.2rem;
+    right: 2rem;
+    min-width: 3.6rem;
+    width: 3.6rem;
+    height: 3.6rem;
+    opacity: 0.85;
+}
+
+#wz-layer-warning-close:hover,
+#wz-layer-warning-close:focus-visible {
+    opacity: 1;
+    color: var(--color-teal-glow);
+}
+
+.wz-layer-warning .wz-modal-body {
+    gap: 1rem;
+}
+
+.wz-layer-warning .wz-modal-body p:last-child {
+    margin-bottom: 0;
+}
+
+.wz-layer-warning__footer {
+    padding: 0 2.5rem 2.5rem;
+}
+
+.wz-layer-warning__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.wz-modal h2 {
+    color: var(--color-text-heading);
+    font-size: var(--text-xxl);
+    line-height: 4rem;
+    font-family: var(--heading-font);
+    margin-bottom: 1.5rem
+}
+
+.wz-modal header h2 {
+    margin-bottom: 0
+}
+
+.wz-modal h3 {}
+
+
+.wz-modal header p {
+    margin: 1rem 0 0;
+    color: var(--color-text-dim);
+}
+
+
+.wz-modal-body {
+    position: relative;
+    background: var(--color-bg-modal);
+    display: flex;
+    flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
     overflow-y: auto;
-    padding: 2.5rem;
+    overflow-x: hidden;
     scrollbar-gutter: stable;
-    background: var(--color-bg-modal)
+    scrollbar-gutter: stable;
+    scroll-behavior: auto;
+    pointer-events: auto;
+    padding: 2.5rem;
 }
 
-.wz-modal__close {
+.wz-intro .wz-modal-body {
+    padding: 0;
+}
+
+
+.wz-modal-body:has(.wz-content) {
+    scrollbar-gutter: auto;
+}
+
+.wz-content {
+    display: none;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    overflow: visible;
+    padding: 2.5rem;
+}
+
+.wz-content.is-active,
+.wz-content.is-leaving {
+    display: flex;
+}
+
+.wz-content.is-active {
+    position: relative;
+    visibility: visible;
+    pointer-events: auto;
+    flex: 0 0 auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: visible;
+}
+
+.wz-content.is-leaving {
     position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    visibility: visible;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.wz-hint {
+    position: relative;
+    max-height: 8rem;
+    opacity: 1;
+    overflow: hidden;
+    transition: opacity 220ms ease, max-height 320ms ease, padding-top 320ms ease, padding-bottom 320ms ease;
+    background: var(--color-teal-hover);
+    padding: 1rem 2.5rem;
+    color: var(--color-text-heading);
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 3.2rem;
-    height: 3.2rem;
-    font-size: 2.4rem;
-    cursor: pointer;
-    background: transparent;
-    transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+    gap: .5rem;
+    overflow: hidden;
 }
 
-.wz-modal__close:hover {
-    color: var(--color-text-heading);
-    border-color: var(--color-teal-glow);
-    background: var(--color-teal-hover);
+.wz-modal-box.is-height-animating .wz-modal-body {
+    overflow-y: hidden;
+}
+
+.wz-hint.is-hidden-hint {
+    height: 0;
+    min-height: 0;
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.wz-hint .static-icon {
+    font-size: var(--icon-lg);
+    min-width: 3rem;
+    height: 2rem;
+    animation: wz-animate-pulse 1.5s infinite;
+}
+
+.wz-hint a,
+.wz-hint button {
+    background: transparent;
+    outline: none;
+    border: 0;
+    height: var(--text-base);
+    text-decoration: underline;
+    color: var(--color-teal-glow);
+}
+
+
+.wz-btns {
+    display: flex;
+    gap: 1rem;
+    flex: 0 0 auto;
+    align-items: center;
+}
+
+
+.wz-intro__disclaimer {
+    background: var(--color-bg-overlay);
+    clip-path: var(--clippath-shape-3);
+    padding: 1.5rem;
+}
+
+.wz-intro__disclaimer h3 {
+    margin-bottom: 1rem;
+}
+
+.wz-modal footer {
+    background: var(--color-bg-header);
+    width: 100%;
+    box-sizing: border-box;
+    z-index: 1;
+}
+
+.wz-action {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 2.5rem 2.5rem 2rem;
+}
+
+.wz-intro__actions .btn-primary {
+    flex: 0 0 auto;
+    white-space: normal;
+}
+
+.wz-modal-body form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.wz-form-fieldbox {
+    margin-bottom: 1rem;
+    gap: .5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.btx-logo {
+    height: 5rem;
+    margin-bottom: 1rem;
+    aspect-ratio: 6 / 1;
 }
 
 /* #endregion =========== */
@@ -711,186 +932,6 @@
 }
 
 /* #endregion =========== */
-/* #region =========== MODAL - =========== */
-
-.wz-intro.wz-modal .wz-hint {
-    background: var(--color-teal-hover);
-    padding: 1rem 2.5rem;
-    color: var(--color-text-heading);
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-}
-
-.wz-intro.wz-modal h2 {
-    font-size: var(--text-xxxl);
-}
-
-.wz-modal header {
-    flex: 0 0 auto;
-    padding: 3.5rem 2.5rem 2.3rem;
-    background: var(--color-bg-header);
-    width: 100%;
-}
-
-.wz-modal header .warzone-logo {
-    position: relative;
-    top: 0;
-    transform: none;
-    opacity: 1;
-    justify-self: left
-}
-
-.wz-modal h2 {
-    color: var(--color-text-heading);
-    font-size: var(--text-xxl);
-    line-height: 4rem;
-    font-family: var(--heading-font);
-    margin-bottom: 1.5rem
-}
-
-.wz-modal header h2 {
-    margin-bottom: 0
-}
-
-.wz-modal h3 {}
-
-
-.wz-modal header p {
-    margin: 1rem 0 0;
-    color: var(--color-text-dim);
-}
-
-
-.wz-body {
-    min-height: 0;
-    padding: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    scrollbar-gutter: stable;
-    background: var(--color-bg-modal);
-    scroll-behavior: auto;
-    overflow-x: hidden;
-    box-sizing: border-box
-}
-
-.wz-body {
-    transition: opacity 0.3s ease;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.wz-body:not(.is-active) {
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    left: 2.5rem;
-    right: 2.5rem;
-    top: 2.5rem;
-    width: auto;
-}
-
-.wz-body.is-active {
-    opacity: 1;
-    pointer-events: auto;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-
-.wz-hint {
-    transition: opacity 0.25s ease;
-    position: relative;
-}
-
-.wz-hint.is-hidden-hint {
-    position: absolute;
-    left: 2.5rem;
-    right: 2.5rem;
-    top: 2.5rem;
-    opacity: 0;
-    margin: 0;
-    pointer-events: none;
-    overflow: hidden;
-}
-
-.wz-hint .static-icon {
-    font-size: var(--icon-lg);
-    min-width: 3rem;
-    height: 2rem;
-    animation: wz-animate-pulse 1.5s infinite;
-}
-
-.wz-hint a,
-.wz-hint button {
-    background: transparent;
-    outline: none;
-    border: 0;
-    height: var(--text-base);
-    text-decoration: underline;
-    color: var(--color-teal-glow);
-}
-
-
-.wz-btns {
-    display: flex;
-    gap: 1rem;
-    flex: 0 0 auto;
-    align-items: center;
-}
-
-
-.wz-intro__disclaimer {
-    background: var(--color-bg-overlay);
-    clip-path: var(--clippath-shape-3);
-    padding: 1.5rem;
-}
-
-.wz-intro__disclaimer h3 {
-    margin-bottom: 1rem;
-}
-
-.wz-modal footer {
-    background: var(--color-bg-header);
-    width: 100%;
-    box-sizing: border-box;
-    z-index: 1;
-}
-
-.wz-action {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-    padding: 2.5rem 2.5rem 2rem;
-}
-
-.wz-intro__actions .btn-primary {
-    flex: 0 0 auto;
-    white-space: normal;
-}
-
-.wz-form-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.wz-form-fieldbox {
-    margin-bottom: 1rem;
-    gap: .5rem;
-    display: flex;
-    flex-direction: column;
-}
-
-.btx-logo {
-    height: 5rem;
-    margin-bottom: 1rem;
-    aspect-ratio: 6 / 1;
-}
-
-/* #endregion =========== */
 /* #region =========== MODAL - ABOUT =========== */
 #wz-about-modal .wz-modal__tabs {
     display: flex;
@@ -914,8 +955,9 @@
     justify-content: center;
     padding: 1rem;
     font-family: var(--text-font);
-    font-size: var(--text-md);
+    font-size: var(--text-sm);
     font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
     color: var(--color-text-dim);
@@ -937,12 +979,27 @@
     border-bottom-color: var(--color-teal-glow);
 }
 
+#wz-about-modal .wz-modal__body {
+    position: relative;
+    overflow: hidden;
+}
+
 #wz-about-modal .wz-modal__pane {
     display: none;
+    opacity: 0;
+    will-change: opacity, transform;
 }
 
 #wz-about-modal .wz-modal__pane.is-active {
     display: block;
+    opacity: 1;
+}
+
+#wz-about-modal .wz-modal__pane.is-leaving {
+    position: absolute;
+    inset: 0;
+    display: block;
+    pointer-events: none;
 }
 
 #wz-about-modal .wz-modal__pane h3+p,
@@ -1017,7 +1074,7 @@
     background: var(--color-teal);
 }
 
-.wz-region footer {
+.wz-region footer, .wz-layer-warning footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1469,6 +1526,49 @@ UNUSED CANDIDATE END */
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    gap: .6rem;
+}
+
+.wz-aircraft-lock-btn {
+    min-width: 8.6rem;
+    color: var(--color-text-dim);
+    border: 1px solid rgba(56, 74, 102, 0.9);
+    background: rgba(14, 20, 34, 0.92);
+}
+
+.wz-aircraft-lock-btn[aria-pressed="true"] {
+    color: var(--color-teal-glow);
+    border-color: rgba(24, 226, 219, 0.66);
+    box-shadow: 0 0 0 1px rgba(24, 226, 219, 0.18) inset;
+}
+
+.wz-aircraft-lock-indicator {
+    display: inline-block;
+    position: relative;
+    width: .92rem;
+    height: .72rem;
+    margin-right: .45rem;
+    border: 1px solid currentColor;
+    border-radius: .12rem;
+    vertical-align: -0.08rem;
+}
+
+.wz-aircraft-lock-indicator:before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -.55rem;
+    width: .6rem;
+    height: .46rem;
+    border: 1px solid currentColor;
+    border-bottom: none;
+    border-radius: .4rem .4rem 0 0;
+    transform-origin: left center;
+    transform: translateX(-50%);
+}
+
+.wz-aircraft-lock-indicator.is-unlocked:before {
+    transform: translateX(-5%) rotate(-26deg);
 }
 
 .wz-aircraft-title__status {
@@ -1492,84 +1592,6 @@ UNUSED CANDIDATE END */
     display: inline-block;
 }
 
-@media (max-width: 640px) {
-    .wz-modal {
-        padding: 1rem;
-    }
-
-    .wz-modal__box,
-    .wz-modal-box {
-        width: 100%;
-        max-width: 100%;
-        height: auto;
-        max-height: calc(100vh - 2rem);
-        margin: 0 auto;
-    }
-
-    .wz-modal__container,
-    .wz-modal-box {
-        clip-path: none;
-        border-radius: 0.9rem;
-    }
-
-    .wz-modal header {
-        padding: 2rem 1.5rem 1.3rem;
-    }
-
-    .wz-modal__close {
-        top: 1rem;
-        right: 1rem;
-    }
-
-    #wz-about-modal .wz-modal__tabs {
-        gap: 0.5rem;
-        padding: 0.5rem 0 0;
-    }
-
-    #wz-about-modal .wz-modal__tab {
-        min-width: 9rem;
-        padding: 0.85rem 1rem;
-        font-size: var(--text-sm);
-    }
-
-    .wz-body,
-    .wz-region-grid,
-    #wz-region-modal main {
-        padding: 1.5rem;
-    }
-
-    .wz-region-grid,
-    .wz-region-modal__grid {
-        grid-template-columns: 1fr;
-    }
-
-    .wz-btns,
-    .wz-action {
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .wz-action {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .wz-hint,
-    .wz-modal header p {
-        margin: 0;
-        padding: 1rem 1.5rem 0;
-    }
-
-    .wz-modal h2 {
-        font-size: var(--text-xl);
-        line-height: 1.2;
-    }
-
-    .wz-aircraft-item__meta,
-    .wz-aircraft-item__stats {
-        flex-wrap: wrap;
-    }
-}
 
 /* #endregion =========== */
 /* #region =========== WIDGET LOADER =========== */
@@ -2052,7 +2074,7 @@ UNUSED CANDIDATE END */
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    margin-top: 1rem
+    margin-top: 1.5rem
 }
 
 .wz-auth-btn[disabled] {

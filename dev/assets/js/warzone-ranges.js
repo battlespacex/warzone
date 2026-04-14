@@ -4,9 +4,9 @@ import * as Cesium from "cesium";
 let __rangeEntities = [];
 const __rangeImageCache = new Map();
 const RANGE_RENDER = {
-    maxHeight: 2200000,
-    maxCount: 2,
-    maxOverlap: 0.18,
+    maxHeight: 9000000,
+    maxCount: 1,
+    maxOverlap: 0.2,
 };
 
 function cssVar(name, fallback) {
@@ -71,12 +71,10 @@ function getSoftRangeImage(colorCss, opacity) {
     };
 
     const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
-    gradient.addColorStop(0.00, toRgba(opacity * 0.00));
-    gradient.addColorStop(0.22, toRgba(opacity * 0.10));
-    gradient.addColorStop(0.48, toRgba(opacity * 0.30));
-    gradient.addColorStop(0.68, toRgba(opacity * 0.55));
-    gradient.addColorStop(0.82, toRgba(opacity * 0.34));
-    gradient.addColorStop(0.92, toRgba(opacity * 0.14));
+    gradient.addColorStop(0.00, toRgba(opacity * 0.10));
+    gradient.addColorStop(0.55, toRgba(opacity * 0.10));
+    gradient.addColorStop(0.82, toRgba(opacity * 0.07));
+    gradient.addColorStop(0.94, toRgba(opacity * 0.02));
     gradient.addColorStop(1.00, toRgba(0));
 
     ctx.clearRect(0, 0, size, size);

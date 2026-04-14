@@ -28,8 +28,9 @@
 /* #endregion =========== */
 /* #region =========== CESIUM JS GLOBE =========== */
 .warzone-globe {
-    position: absolute;
+    position: fixed;
     inset: 0;
+
 }
     .warzone-globe .cesium-widget,
     .warzone-globe canvas {

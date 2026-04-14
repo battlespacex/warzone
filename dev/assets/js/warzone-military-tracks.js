@@ -26,29 +26,50 @@ function normalizeSubcat(value = "") {
 function normalizeSrc(value = "") {
     return String(value || "").trim().toLowerCase();
 }
+const SUBMARINE_SUBTYPES = new Set(["submarine", "ssbn", "ssn", "ssk", "aip_submarine"]);
+const NAVAL_TRACK_SUBTYPES = new Set([
+    "carrier",
+    "amphibious",
+    "cruiser",
+    "destroyer",
+    "frigate",
+    "corvette",
+    "submarine",
+    "ssbn",
+    "ssn",
+    "ssk",
+    "aip_submarine",
+    "missile_boat",
+    "naval",
+    "logistics",
+    "patrol",
+    "minesweeper",
+]);
 function getColor(subcat) {
     const s = normalizeSubcat(subcat);
     if (s === "carrier") return cssVar("--warzone-military-carrier-color", "#ff3c3c");
-    if (s === "destroyer" || s === "frigate" || s === "corvette" || s === "naval") return cssVar("--warzone-military-naval-color", "#9b7bff");
-    if (s === "submarine") return cssVar("--warzone-military-submarine-color", "#7bdcff");
+    if (s === "amphibious" || s === "cruiser" || s === "destroyer" || s === "frigate" || s === "corvette" || s === "naval" || s === "missile_boat") {
+        return cssVar("--warzone-military-naval-color", "#9b7bff");
+    }
+    if (SUBMARINE_SUBTYPES.has(s)) return cssVar("--warzone-military-submarine-color", "#7bdcff");
     if (s === "logistics") return cssVar("--warzone-military-logistics-color", "#00d9b2");
     return cssVar("--warzone-military-naval-color", "#56d80e");
 }
 function getTrailColor(subcat, fallback) {
     const s = normalizeSubcat(subcat);
     if (s === "carrier") return cssVar("--warzone-military-trail-carrier", fallback);
-    if (s === "destroyer" || s === "frigate" || s === "corvette" || s === "naval") {
+    if (s === "amphibious" || s === "cruiser" || s === "destroyer" || s === "frigate" || s === "corvette" || s === "naval" || s === "missile_boat") {
         return cssVar("--warzone-military-trail-naval", fallback);
     }
-    if (s === "submarine") return cssVar("--warzone-military-trail-submarine", fallback);
+    if (SUBMARINE_SUBTYPES.has(s)) return cssVar("--warzone-military-trail-submarine", fallback);
     if (s === "logistics") return cssVar("--warzone-military-trail-logistics", fallback);
     return cssVar("--warzone-military-trail-default", fallback);
 }
 function isNaval(subcat) {
-    return ["carrier", "destroyer", "frigate", "corvette", "submarine", "naval", "logistics", "minesweeper"].includes(normalizeSubcat(subcat));
+    return NAVAL_TRACK_SUBTYPES.has(normalizeSubcat(subcat));
 }
 function buildHeadingOrientation(lon, lat, altM, headingDeg, subcat) {
-    const offset = normalizeSubcat(subcat) === "submarine" ? 0 : -90;
+    const offset = SUBMARINE_SUBTYPES.has(normalizeSubcat(subcat)) ? 0 : -90;
     const hpr = new Cesium.HeadingPitchRoll(
         Cesium.Math.toRadians((Number(headingDeg || 0) + offset + 360) % 360),
         0,
@@ -105,11 +126,18 @@ const CFG = {
 };
 const MODELS = {
     carrier: "/assets/images/models/air/frigate.glb",
+    amphibious: "/assets/images/models/air/frigate.glb",
+    cruiser: "/assets/images/models/air/frigate.glb",
     destroyer: "/assets/images/models/air/frigate.glb",
     frigate: "/assets/images/models/air/frigate.glb",
     corvette: "/assets/images/models/air/frigate.glb",
+    missile_boat: "/assets/images/models/air/frigate.glb",
     naval: "/assets/images/models/air/frigate.glb",
     submarine: "/assets/images/models/air/submarine.glb",
+    ssbn: "/assets/images/models/air/submarine.glb",
+    ssn: "/assets/images/models/air/submarine.glb",
+    ssk: "/assets/images/models/air/submarine.glb",
+    aip_submarine: "/assets/images/models/air/submarine.glb",
     logistics: "/assets/images/models/air/frigate.glb",
 };
 const MODEL_DEFAULT = "/assets/images/models/air/frigate.glb";
@@ -143,7 +171,11 @@ export function initMilitaryTracks(viewer) {
     }
 
     function addTrack(event = {}) {
-        const subcat = normalizeSubcat(event.subcategory || event.subtype || event.type || "");
+        const sourceName = normalizeSrc(event.source_name || "");
+        const rawSubcat = normalizeSubcat(event.subcategory || event.subtype || event.type || "");
+        const subcat = isNaval(rawSubcat)
+            ? rawSubcat
+            : ((sourceName.includes("ais") || sourceName.includes("naval") || sourceName.includes("ship") || sourceName.includes("vessel")) ? "naval" : rawSubcat);
         if (!isNaval(subcat)) return;
 
         const lat = Number(event.lat);
@@ -258,7 +290,7 @@ export function isMilitaryTrackEvent(event) {
 
     // Air activity is already handled by warzone-air-ingestion.js + warzone-live-airforce.js.
     // Keep this file only for naval / vessel-like event tracks so fake aircraft disappear.
-    const isAllowedNavalSubtype = ["carrier", "destroyer", "frigate", "corvette", "submarine", "naval", "logistics", "patrol", "minesweeper"].includes(subcat);
+    const isAllowedNavalSubtype = NAVAL_TRACK_SUBTYPES.has(subcat);
     const isAllowedSource = src.includes("ais") || src.includes("naval") || src.includes("ship") || src.includes("vessel");
 
     return isAllowedNavalSubtype || isAllowedSource;

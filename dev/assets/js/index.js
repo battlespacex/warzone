@@ -19,6 +19,8 @@ import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 
 
 window.__stratopsConfig = {
+    enablePublicAirFallback: true,
+    useAircraftBillboards: false,
     enableMilSatsLayer: false,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 

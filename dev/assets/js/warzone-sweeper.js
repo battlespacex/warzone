@@ -10,10 +10,10 @@ const SWEEPER_RENDER = {
     requestRenderFrameSkip: 6,
     polygonStepsNear: 18,
     polygonStepsFar: 10,
-    maxHeight: 5500000,
-    maxCount: 4,
-    maxOverlap: 0.22,
-    maxFilledRings: 2,
+    maxHeight: 10000000,
+    maxCount: 1,
+    maxOverlap: 0.2,
+    maxFilledRings: 1,
 };
 function getSweepPreset(event = {}) {
     const sub = String(
@@ -139,6 +139,10 @@ function getCircleOverlapRatio(r1, r2, d) {
     const smallerArea = Math.PI * smaller * smaller;
     return overlapArea / smallerArea;
 }
+function getSpatialBucketKey(lat, lon, radiusMeters = 0) {
+    const bucketDeg = Math.max(1.8, (radiusMeters / 111320) * 0.95);
+    return `${Math.round(lat / bucketDeg)}:${Math.round(lon / bucketDeg)}`;
+}
 function selectRadarCandidates(events = [], maxCount = 3, maxOverlap = 0.50) {
     const valid = events
         .map((event) => {
@@ -156,7 +160,12 @@ function selectRadarCandidates(events = [], maxCount = 3, maxOverlap = 0.50) {
         .filter(Boolean)
         .sort((a, b) => b.preset.radius - a.preset.radius);
     const selected = [];
+    const usedBuckets = new Set();
     for (const item of valid) {
+        const bucketKey = getSpatialBucketKey(item.lat, item.lon, item.preset.radius);
+        if (usedBuckets.has(bucketKey)) {
+            continue;
+        }
         let shouldSkip = false;
         for (const existing of selected) {
             const d = getDistanceMeters(item.lat, item.lon, existing.lat, existing.lon);
@@ -168,6 +177,7 @@ function selectRadarCandidates(events = [], maxCount = 3, maxOverlap = 0.50) {
         }
         if (!shouldSkip) {
             selected.push(item);
+            usedBuckets.add(bucketKey);
         }
         if (selected.length >= maxCount) break;
     }
@@ -275,6 +285,11 @@ export function renderSweepers(viewer, events = []) {
     const tick = (ts) => {
         if (!__radarViewer) return;
         if (lastTs == null) lastTs = ts;
+        if (document.visibilityState === "hidden") {
+            lastTs = ts;
+            __sweeperTicker = requestAnimationFrame(tick);
+            return;
+        }
         const dt = (ts - lastTs) / 1000;
         lastTs = ts;
         frameCount += 1;

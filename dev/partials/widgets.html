@@ -259,6 +259,15 @@
                                 </select>
                             </span>
                         </label>
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by scope</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by scope" class="wz--dropdown" id="wz-aircraft-filter-scope">
+                                    <option value="region">Current Region</option>
+                                    <option value="all">All Regions</option>
+                                </select>
+                            </span>
+                        </label>
                     </div>
 
                     <div id="wz-aircraft-panel" class="wz-aircraft-panel" aria-live="polite"></div>
@@ -291,6 +300,25 @@
                     </div>
                 </div>
                 <div class="panel-content">
+                    <div class="wz-aircraft-toolbar">
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter naval contacts by type</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter naval contacts by type" class="wz--dropdown" id="wz-naval-filter-subtype">
+                                    <option value="all">All Types</option>
+                                </select>
+                            </span>
+                        </label>
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter naval contacts by scope</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter naval contacts by scope" class="wz--dropdown" id="wz-naval-filter-scope">
+                                    <option value="region">Current Region</option>
+                                    <option value="all">All Regions</option>
+                                </select>
+                            </span>
+                        </label>
+                    </div>
                     <div id="wz-naval-panel-list" class="wz-aircraft-panel" aria-live="polite"></div>
                 </div>
             </div>

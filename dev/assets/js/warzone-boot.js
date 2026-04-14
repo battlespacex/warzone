@@ -38,12 +38,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const WZ_WIDGET_KEY = "wz_widget_visibility";
     const WZ_LAYER_KEY = "wz_layer_state";
     const WZ_WIDGET_LAYOUT_VERSION_KEY = "wz_widget_layout_version";
-    const WZ_WIDGET_LAYOUT_VERSION = "2026-04-clean-defaults";
+    const WZ_WIDGET_LAYOUT_VERSION = "2026-04-performance-entry";
     const UI_ONLY_WIDGET_IDS = new Set(["airspace"]);
     const DEFAULT_WIDGET_VISIBILITY = {
         counter: true,
         layers: true,
-        escalation: true,
+        escalation: false,
         aircraft: false,
         naval: false,
         feed: false,
@@ -98,6 +98,155 @@ document.addEventListener("DOMContentLoaded", () => {
     function isAboutModal(modal) {
         return modal?.id === "wz-about-modal";
     }
+    const MODAL_HEIGHT_ANIM_MS = 820;
+    const modalBoxHeightFrames = new WeakMap();
+    const modalBoxHeightCommitFrames = new WeakMap();
+    const modalBoxLastHeights = new WeakMap();
+    const modalBoxHeightLocks = new WeakMap();
+    const modalBoxHeightFinishers = new WeakMap();
+    function clearModalBoxHeightTimer(box, preserveCurrentHeight = false) {
+        const cleanup = modalBoxHeightFinishers.get(box);
+        if (cleanup) {
+            cleanup();
+            modalBoxHeightFinishers.delete(box);
+        }
+        const activeFrame = modalBoxHeightFrames.get(box);
+        if (activeFrame) {
+            cancelAnimationFrame(activeFrame);
+            modalBoxHeightFrames.delete(box);
+        }
+        const commitFrame = modalBoxHeightCommitFrames.get(box);
+        if (commitFrame) {
+            cancelAnimationFrame(commitFrame);
+            modalBoxHeightCommitFrames.delete(box);
+        }
+        if (preserveCurrentHeight && box) {
+            const liveHeight = Math.ceil(box.getBoundingClientRect().height || 0);
+            if (liveHeight > 0) {
+                box.style.height = `${liveHeight}px`;
+                modalBoxLastHeights.set(box, liveHeight);
+                box.offsetHeight;
+            }
+        }
+        box?.classList.remove("is-height-animating");
+    }
+    function readModalBoxTargetHeight(box) {
+        const inner = box?.querySelector(".wz-modal-inner");
+        if (!inner) return 0;
+        const body = Array.from(inner.children).find((node) => node.classList?.contains("wz-modal-body"));
+        let contentHeight = Math.max(
+            Math.ceil(inner.scrollHeight || 0),
+            Math.ceil(inner.getBoundingClientRect().height || 0),
+        );
+        if (body) {
+            const header = Array.from(inner.children).find((node) => node.tagName === "HEADER");
+            const footer = Array.from(inner.children).find((node) => node.tagName === "FOOTER");
+            const activeView = Array.from(body.querySelectorAll(".wz-content.is-active"))
+                .find((node) => !node.classList.contains("is-leaving"));
+            const headerHeight = Math.ceil(header?.getBoundingClientRect().height || 0);
+            const footerHeight = Math.ceil(footer?.getBoundingClientRect().height || 0);
+            const bodyHeight = activeView
+                ? Math.max(
+                    Math.ceil(activeView.scrollHeight || 0),
+                    Math.ceil(activeView.getBoundingClientRect().height || 0),
+                )
+                : Math.max(
+                    Math.ceil(body.scrollHeight || 0),
+                    Math.ceil(body.getBoundingClientRect().height || 0),
+                );
+            contentHeight = Math.max(contentHeight, headerHeight + bodyHeight + footerHeight);
+        }
+        const computedMaxHeight = parseFloat(window.getComputedStyle(box).maxHeight || "");
+        const maxHeight = Number.isFinite(computedMaxHeight) ? computedMaxHeight : Number.POSITIVE_INFINITY;
+        return Math.min(contentHeight, maxHeight);
+    }
+    function primeModalBoxHeight(box) {
+        if (!box) return;
+        clearModalBoxHeightTimer(box);
+        modalBoxHeightLocks.delete(box);
+        box.style.height = "";
+        const target = readModalBoxTargetHeight(box);
+        if (target > 0) {
+            modalBoxLastHeights.set(box, target);
+        }
+    }
+    function lockModalBoxHeight(box) {
+        if (!box) return;
+        clearModalBoxHeightTimer(box, true);
+        const currentHeight = Math.ceil(box.getBoundingClientRect().height || 0);
+        if (currentHeight <= 0) return;
+        box.style.height = `${currentHeight}px`;
+        modalBoxHeightLocks.set(box, true);
+        modalBoxLastHeights.set(box, currentHeight);
+        box.offsetHeight;
+    }
+    function animateModalBoxHeight(box) {
+        const modal = box?.closest(".wz-modal");
+        if (!box || !modal || modal.hidden) return;
+        const previousHeight = Math.max(
+            Math.ceil(box.getBoundingClientRect().height || 0),
+            modalBoxLastHeights.get(box) || 0,
+        );
+        const targetHeight = readModalBoxTargetHeight(box);
+        if (!Number.isFinite(targetHeight) || targetHeight <= 0) return;
+        if (Math.abs(previousHeight - targetHeight) < 2) {
+            clearModalBoxHeightTimer(box);
+            modalBoxHeightLocks.delete(box);
+            modalBoxLastHeights.set(box, targetHeight);
+            box.style.height = "";
+            return;
+        }
+        clearModalBoxHeightTimer(box, true);
+        modalBoxHeightLocks.delete(box);
+        box.classList.add("is-height-animating");
+        box.style.height = `${previousHeight}px`;
+        box.offsetHeight;
+        const commitFrame = requestAnimationFrame(() => {
+            modalBoxHeightCommitFrames.delete(box);
+            box.style.height = `${targetHeight}px`;
+        });
+        modalBoxHeightCommitFrames.set(box, commitFrame);
+        const finalizeAnimation = () => {
+            if (modalBoxHeightFinishers.get(box) !== cleanup) return;
+            modalBoxHeightFinishers.delete(box);
+            modalBoxHeightCommitFrames.delete(box);
+            box.removeEventListener("transitionend", onTransitionEnd);
+            clearTimeout(fallbackTimer);
+            box.style.height = "";
+            box.classList.remove("is-height-animating");
+            modalBoxLastHeights.set(box, readModalBoxTargetHeight(box));
+        };
+        const onTransitionEnd = (event) => {
+            if (event.target !== box || event.propertyName !== "height") return;
+            finalizeAnimation();
+        };
+        const fallbackTimer = window.setTimeout(() => {
+            finalizeAnimation();
+        }, MODAL_HEIGHT_ANIM_MS + 80);
+        const cleanup = () => {
+            box.removeEventListener("transitionend", onTransitionEnd);
+            clearTimeout(fallbackTimer);
+        };
+        modalBoxHeightFinishers.set(box, cleanup);
+        box.addEventListener("transitionend", onTransitionEnd);
+        modalBoxLastHeights.set(box, targetHeight);
+    }
+    function scheduleModalBoxHeight(box, force = false) {
+        if (!box) return;
+        if (!force && modalBoxHeightLocks.get(box)) return;
+        const activeFrame = modalBoxHeightFrames.get(box);
+        if (activeFrame) {
+            cancelAnimationFrame(activeFrame);
+            modalBoxHeightFrames.delete(box);
+        }
+        const frame = requestAnimationFrame(() => {
+            modalBoxHeightFrames.delete(box);
+            animateModalBoxHeight(box);
+        });
+        modalBoxHeightFrames.set(box, frame);
+    }
+    window.__warzoneLockModalBoxHeight = lockModalBoxHeight;
+    window.__warzoneScheduleModalBoxHeight = (box) => scheduleModalBoxHeight(box, true);
     function openModal(modal) {
         if (!modal) return;
         modal.hidden = false;
@@ -106,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         requestAnimationFrame(() => {
             modal.classList.add("is-visible");
+            modal.querySelectorAll(".wz-modal-box").forEach(primeModalBoxHeight);
         });
     }
     function closeModal(modal, callback) {
@@ -115,10 +265,17 @@ document.addEventListener("DOMContentLoaded", () => {
             document.body.classList.remove("is-about-open");
         }
         window.setTimeout(() => {
+            modal.querySelectorAll(".wz-modal-box").forEach((box) => {
+                clearModalBoxHeightTimer(box);
+                box.style.height = "";
+                primeModalBoxHeight(box);
+            });
             modal.hidden = true;
             if (typeof callback === "function") callback();
         }, 220);
     }
+    window.__warzoneOpenSharedModal = openModal;
+    window.__warzoneCloseSharedModal = closeModal;
     const aboutModal = document.getElementById("wz-about-modal");
     const introModal = document.getElementById("wz-intro-modal");
     const uiShell = document.getElementById("warzone-ui-shell");
@@ -131,8 +288,23 @@ document.addEventListener("DOMContentLoaded", () => {
         uiShell.hidden = true;
         uiShell.classList.remove("is-ui-visible");
     }
+    document.querySelectorAll(".wz-modal-box").forEach((box) => {
+        primeModalBoxHeight(box);
+        const inner = box.querySelector(".wz-modal-inner");
+        if (!inner) return;
+        const observer = new MutationObserver(() => {
+            scheduleModalBoxHeight(box);
+        });
+        observer.observe(inner, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            attributeFilter: ["class", "style", "hidden", "aria-hidden"],
+        });
+    });
     function clearStaleLoaderState() {
         if (document.visibilityState === "hidden") return;
+        if (window.__wzKeepSiteLoaderVisible === true) return;
         window.SiteLoader?.forceHide?.();
     }
     document.addEventListener("visibilitychange", clearStaleLoaderState, { passive: true });
@@ -144,17 +316,148 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.key !== "Escape") return;
         if (aboutModal && !aboutModal.hidden) closeModal(aboutModal);
     });
-    document.querySelectorAll(".wz-modal__tab").forEach((tab) => {
-        tab.addEventListener("click", () => {
-            const target = tab.dataset.tab;
-            const box = tab.closest(".wz-modal__box");
-            if (!box) return;
-            box.querySelectorAll(".wz-modal__tab").forEach((node) => node.classList.remove("is-active"));
-            box.querySelectorAll(".wz-modal__pane").forEach((pane) => pane.classList.remove("is-active"));
-            tab.classList.add("is-active");
-            box.querySelector(`.wz-modal__pane[data-pane="${target}"]`)?.classList.add("is-active");
+    const ABOUT_TAB_FADE_MS = 220;
+    const aboutPaneAnimations = new WeakMap();
+    const aboutPaneFrames = new WeakMap();
+    function clearAboutPaneAnimation(pane) {
+        if (!pane) return;
+        const activeAnimation = aboutPaneAnimations.get(pane);
+        if (activeAnimation) {
+            activeAnimation.cancel();
+            aboutPaneAnimations.delete(pane);
+        }
+        const activeFrame = aboutPaneFrames.get(pane);
+        if (activeFrame) {
+            cancelAnimationFrame(activeFrame);
+            aboutPaneFrames.delete(pane);
+        }
+        pane.style.opacity = "";
+        pane.style.transform = "";
+    }
+    function fadeInAboutPane(pane) {
+        if (!pane) return;
+        clearAboutPaneAnimation(pane);
+        pane.classList.add("is-active");
+        pane.classList.remove("is-leaving");
+        pane.setAttribute("aria-hidden", "false");
+        pane.style.opacity = "0";
+        pane.style.transform = "translateY(6px)";
+        const frame = requestAnimationFrame(() => {
+            aboutPaneFrames.delete(pane);
+            const animation = pane.animate(
+                [
+                    { opacity: 0, transform: "translateY(6px)" },
+                    { opacity: 1, transform: "translateY(0)" },
+                ],
+                { duration: ABOUT_TAB_FADE_MS, easing: "ease", fill: "both" },
+            );
+            aboutPaneAnimations.set(pane, animation);
+            animation.onfinish = animation.oncancel = () => {
+                if (aboutPaneAnimations.get(pane) === animation) {
+                    aboutPaneAnimations.delete(pane);
+                }
+                pane.style.opacity = "";
+                pane.style.transform = "";
+            };
         });
-    });
+        aboutPaneFrames.set(pane, frame);
+    }
+    function fadeOutAboutPane(pane) {
+        if (!pane) return;
+        clearAboutPaneAnimation(pane);
+        pane.classList.remove("is-active");
+        pane.classList.add("is-leaving");
+        pane.setAttribute("aria-hidden", "true");
+        pane.style.opacity = "1";
+        pane.style.transform = "translateY(0)";
+        const animation = pane.animate(
+            [
+                { opacity: 1, transform: "translateY(0)" },
+                { opacity: 0, transform: "translateY(6px)" },
+            ],
+            { duration: ABOUT_TAB_FADE_MS, easing: "ease", fill: "both" },
+        );
+        aboutPaneAnimations.set(pane, animation);
+        animation.onfinish = animation.oncancel = () => {
+            if (aboutPaneAnimations.get(pane) === animation) {
+                aboutPaneAnimations.delete(pane);
+            }
+            pane.classList.remove("is-leaving");
+            pane.style.opacity = "";
+            pane.style.transform = "";
+        };
+    }
+    function activateAboutTab(nextTab, { animate = true } = {}) {
+        if (!nextTab) return;
+        const box = nextTab.closest(".wz-modal-box");
+        if (!box) return;
+        const target = String(nextTab.dataset.tab || "");
+        if (!target) return;
+        const tabs = [...box.querySelectorAll(".wz-modal__tab")];
+        const panes = [...box.querySelectorAll(".wz-modal__pane")];
+        const currentTab = tabs.find((tab) => tab.classList.contains("is-active")) || null;
+        const currentPane = panes.find((pane) => pane.classList.contains("is-active")) || null;
+        const nextPane = box.querySelector(`.wz-modal__pane[data-pane="${target}"]`);
+        if (!nextPane) return;
+        if (currentTab === nextTab && currentPane === nextPane) return;
+        lockModalBoxHeight(box);
+        tabs.forEach((tab) => {
+            const active = tab === nextTab;
+            tab.classList.toggle("is-active", active);
+            tab.setAttribute("aria-selected", String(active));
+            tab.tabIndex = active ? 0 : -1;
+        });
+        panes.forEach((pane) => {
+            if (pane !== currentPane && pane !== nextPane) {
+                clearAboutPaneAnimation(pane);
+                pane.classList.remove("is-active", "is-leaving");
+                pane.setAttribute("aria-hidden", "true");
+            }
+        });
+        if (!animate) {
+            if (currentPane && currentPane !== nextPane) {
+                clearAboutPaneAnimation(currentPane);
+                currentPane.classList.remove("is-active", "is-leaving");
+                currentPane.setAttribute("aria-hidden", "true");
+            }
+            clearAboutPaneAnimation(nextPane);
+            nextPane.classList.add("is-active");
+            nextPane.classList.remove("is-leaving");
+            nextPane.setAttribute("aria-hidden", "false");
+            scheduleModalBoxHeight(box, true);
+            return;
+        }
+        fadeInAboutPane(nextPane);
+        if (currentPane && currentPane !== nextPane) {
+            fadeOutAboutPane(currentPane);
+        }
+        scheduleModalBoxHeight(box, true);
+    }
+    const aboutTabs = [...document.querySelectorAll("#wz-about-modal .wz-modal__tab")];
+    if (aboutTabs.length) {
+        aboutTabs.forEach((tab) => {
+            tab.addEventListener("click", () => {
+                activateAboutTab(tab, { animate: true });
+            });
+            tab.addEventListener("keydown", (event) => {
+                const key = event.key;
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
+                event.preventDefault();
+                const currentIndex = aboutTabs.indexOf(tab);
+                if (currentIndex < 0) return;
+                let nextIndex = currentIndex;
+                if (key === "ArrowRight") nextIndex = (currentIndex + 1) % aboutTabs.length;
+                if (key === "ArrowLeft") nextIndex = (currentIndex - 1 + aboutTabs.length) % aboutTabs.length;
+                if (key === "Home") nextIndex = 0;
+                if (key === "End") nextIndex = aboutTabs.length - 1;
+                const nextTab = aboutTabs[nextIndex];
+                activateAboutTab(nextTab, { animate: true });
+                nextTab?.focus();
+            });
+        });
+        const initiallyActive = aboutTabs.find((tab) => tab.classList.contains("is-active")) || aboutTabs[0];
+        activateAboutTab(initiallyActive, { animate: false });
+    }
     const btnFullscreen = document.getElementById("dock-fullscreen");
     if (btnFullscreen) {
         btnFullscreen.addEventListener("click", () => {
@@ -283,6 +586,31 @@ document.addEventListener("DOMContentLoaded", () => {
         syncDock();
         updateBackdrop();
     }
+    function bindUiInteractionIsolation() {
+        const selectors = [
+            ".warzone-panel--floating",
+            ".wz-modal-box",
+            ".wz-dock",
+            ".warzone-alert",
+            "#wz-event-popup",
+            "#wz-siren-stack",
+            ".wz-donate-modal",
+        ];
+        const stopBubble = (e) => {
+            e.stopPropagation();
+        };
+        selectors.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((node) => {
+                if (!node || node.dataset.wzInteractionIsolated === "true") return;
+                node.dataset.wzInteractionIsolated = "true";
+                node.addEventListener("wheel", stopBubble, { passive: true });
+                node.addEventListener("touchstart", stopBubble, { passive: true });
+                node.addEventListener("touchmove", stopBubble, { passive: true });
+                node.addEventListener("pointerdown", stopBubble);
+                node.addEventListener("dblclick", stopBubble);
+            });
+        });
+    }
     window.__syncWarzoneDock = syncWidgetChrome;
     getBackdrop()?.addEventListener("click", () => {
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => hideWidget(widget));
@@ -306,6 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.documentElement.classList.remove("wz-no-transitions");
         document.body.classList.remove("wz-no-transitions");
     });
+    bindUiInteractionIsolation();
     document.querySelectorAll("[data-widget-close]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const widget = btn.closest(".warzone-widget");

@@ -435,40 +435,11 @@ UNUSED CANDIDATE END */
     white-space: nowrap;
 }
 
-.wz--dropdown {
-    padding: 0 4rem 0 1rem;
-    cursor: pointer;
-}
-
-.wz--input {
-    padding: 0 1rem;
-}
-
-.wz--dropdown, .wz--input {
-    height: 4rem;
-    line-height: 2.6rem;
-    max-width: 24rem;
-    min-width: 15rem;
-    width: 100%;
-}
-
-    .wz--textarea:focus-visible, .wz--textarea:hover, .wz--textarea:active,
-    .wz--dropdown:focus-visible, .wz--dropdown:hover, .wz--dropdown:active,
-    .wz--input:focus-visible, .wz--input:hover, .wz--input:active {
-        border-color: var(--color-teal-glow);
-        outline: none;
-    }
-
-input.text, input[type=button], input[type=checkbox], input[type=submit], input[type=text], select, textarea {
-    -webkit-appearance: inherit;
-    border-radius: 0;
-}
-
-
-
 .wz-selector {
     position: relative;
     z-index: 1;
+    max-width: 24rem;
+    min-width: 15rem;
 }
 
     .wz-selector:after {
@@ -498,6 +469,39 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     }
 
 
+.wz--dropdown {
+    height: 4rem;
+    line-height: 2.6rem;
+    width: 100%;
+    max-width:100%;
+    min-width: 100%;
+    padding: 0 4rem 0 1rem;
+    cursor: pointer;
+}
+
+.wz--input {
+    height: 4rem;
+    line-height: 2.6rem;
+    width: 100%;
+    max-width: 24rem;
+    min-width: 15rem;
+    padding: 0 1rem;
+}
+
+    .wz--textarea:focus-visible, .wz--textarea:hover, .wz--textarea:active,
+    .wz--dropdown:focus-visible, .wz--dropdown:hover, .wz--dropdown:active,
+    .wz--input:focus-visible, .wz--input:hover, .wz--input:active {
+        border-color: var(--color-teal-glow);
+        outline: none;
+    }
+
+input.text, input[type=button], input[type=checkbox], input[type=submit], input[type=text], select, textarea {
+    -webkit-appearance: inherit;
+    border-radius: 0;
+}
+
+
+
 .wz-check {
     display: inline-flex;
     align-items: flex-start;
@@ -514,7 +518,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
         flex: 0 0 2rem;
         width: 2rem;
         height: 2rem;
-        margin: -.2rem 0 0;
+        margin: -.4rem 0 0;
         border: 0.2rem solid var(--color-teal-glow);
         border-radius: .1rem;
         background: var(--color-bg-dark);

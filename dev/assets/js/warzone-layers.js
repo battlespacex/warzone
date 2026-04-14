@@ -11,8 +11,8 @@ const LAYER_DEFS = [
     { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "🌐", color: "#33d9ff", uiOnly: true, premium: true },
     { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "⚓", color: "#9b7bff" },
     { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "🏛️", color: "#3a8eff", uiOnly: true, premium: true },
-    { id: "ranges", label: "Detection / Threat Ranges", description: "Sensor, radar, and threat radius overlays", icon: "📡", color: "#33d9ff" },
-    { id: "sweepers", label: "Radar Sweepers", description: "Animated radar sweep visualization layer", icon: "🌀", color: "#18e2db", uiOnly: true },
+    { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "📡", color: "#33d9ff" },
+    { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "🌀", color: "#18e2db", uiOnly: true },
     { id: "alerts", label: "Alerts & Sirens", description: "Warning banners, sirens, and alert signals", icon: "🔔", color: "#ff2a2a" },
     { id: "cyber", label: "Cyber Operations", description: "Cyber threat and network disruption signals", icon: "💻", color: "#9b7bff", premium: true },
     { id: "thermal", label: "Thermal / Fires", description: "Thermal anomalies, fires, and heat events", icon: "🔥", color: "#ff6600" },
@@ -25,12 +25,53 @@ const LAYER_DEFS = [
 
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
+const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
+const WZ_LAYER_LAYOUT_VERSION = "2026-04-live-recovery";
+const DEFAULT_LAYER_STATE = {
+    strikes: true,
+    missiles: true,
+    drones: true,
+    airstrikes: true,
+    aircraft: true,
+    airspace: false,
+    naval: true,
+    "military-bases": false,
+    ranges: false,
+    sweepers: false,
+    alerts: true,
+    cyber: false,
+    thermal: true,
+    recon: true,
+    seismic: true,
+    hotspots: true,
+    terrain: true,
+};
 
 let __layerState = {};
 let __callbacks = [];
+const PERFORMANCE_WARNING_LIMIT = 3;
+const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain"]);
+const NAVAL_LAYER_SUBTYPES = new Set([
+    "carrier",
+    "amphibious",
+    "cruiser",
+    "destroyer",
+    "frigate",
+    "corvette",
+    "submarine",
+    "ssbn",
+    "ssn",
+    "ssk",
+    "aip_submarine",
+    "missile_boat",
+    "naval",
+    "logistics",
+    "patrol",
+    "minesweeper",
+]);
 
 LAYER_DEFS.forEach((l) => {
-    __layerState[l.id] = true;
+    __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
 });
 
 function getLayerDef(id) {
@@ -66,6 +107,22 @@ function getEffectiveLayerState(id) {
 function loadState() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        const savedVersion = String(localStorage.getItem(WZ_LAYER_LAYOUT_VERSION_KEY) || "");
+        const shouldResetLayout = savedVersion !== WZ_LAYER_LAYOUT_VERSION;
+
+        if (shouldResetLayout) {
+            LAYER_DEFS.forEach((l) => {
+                __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
+            });
+            saveState();
+            try {
+                localStorage.setItem(WZ_LAYER_LAYOUT_VERSION_KEY, WZ_LAYER_LAYOUT_VERSION);
+            } catch {
+                // ignore storage failures
+            }
+            return;
+        }
+
         LAYER_DEFS.forEach((l) => {
             if (l.id in saved) {
                 __layerState[l.id] = !!saved[l.id];
@@ -79,6 +136,7 @@ function loadState() {
 function saveState() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(__layerState));
+        localStorage.setItem(WZ_LAYER_LAYOUT_VERSION_KEY, WZ_LAYER_LAYOUT_VERSION);
     } catch {
         // ignore storage failures
     }
@@ -100,7 +158,7 @@ export function getEventLayerId(event) {
     if (cat === "seismic" || cat === "signal") return "seismic";
 
     if (cat === "military") {
-        if (["carrier", "destroyer", "frigate", "corvette", "submarine", "naval", "logistics"].includes(subcat)) return "naval";
+        if (NAVAL_LAYER_SUBTYPES.has(subcat)) return "naval";
         if (["fighter", "awacs", "recon", "tanker", "transport", "patrol"].includes(subcat)) return "aircraft";
         if (["drone", "uav", "shahed"].includes(subcat)) return "drones";
         return "aircraft";
@@ -127,6 +185,108 @@ export function isEventVisible(event) {
 
 export function isLayerEnabled(id) {
     return getEffectiveLayerState(id);
+}
+
+function countWarnableEnabledLayers(state = __layerState) {
+    return LAYER_DEFS.reduce((count, layer) => {
+        if (PERFORMANCE_WARNING_EXCLUDED.has(layer.id)) return count;
+        if (!canUseLayer(layer.id)) return count;
+        return count + (state[layer.id] ? 1 : 0);
+    }, 0);
+}
+
+function buildSingleToggleState(id, enabled) {
+    return {
+        ...__layerState,
+        [id]: !!enabled,
+    };
+}
+
+function buildAllEnabledState() {
+    const nextState = { ...__layerState };
+    LAYER_DEFS.forEach((layer) => {
+        if (!canUseLayer(layer.id)) return;
+        nextState[layer.id] = true;
+    });
+    return nextState;
+}
+
+function shouldWarnForLayerTransition(nextState) {
+    const currentCount = countWarnableEnabledLayers(__layerState);
+    const nextCount = countWarnableEnabledLayers(nextState);
+    return nextCount > PERFORMANCE_WARNING_LIMIT && nextCount > currentCount;
+}
+
+function openSharedModal(modal) {
+    if (!modal) return;
+    if (typeof window.__warzoneOpenSharedModal === "function") {
+        window.__warzoneOpenSharedModal(modal);
+        return;
+    }
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add("is-visible"));
+}
+
+function closeSharedModal(modal, callback) {
+    if (!modal) {
+        if (typeof callback === "function") callback();
+        return;
+    }
+    if (typeof window.__warzoneCloseSharedModal === "function") {
+        window.__warzoneCloseSharedModal(modal, callback);
+        return;
+    }
+    modal.classList.remove("is-visible");
+    window.setTimeout(() => {
+        modal.hidden = true;
+        if (typeof callback === "function") callback();
+    }, 220);
+}
+
+function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount = 0 } = {}) {
+    const modal = document.getElementById("wz-layer-warning-modal");
+    if (!modal) return Promise.resolve(true);
+
+    const titleEl = document.getElementById("wz-layer-warning-title");
+    const summaryEl = document.getElementById("wz-layer-warning-summary");
+    const detailEl = document.getElementById("wz-layer-warning-detail");
+    const closeBtn = document.getElementById("wz-layer-warning-close");
+    const backBtn = document.getElementById("wz-layer-warning-back");
+    const confirmBtn = document.getElementById("wz-layer-warning-confirm");
+    const pendingDef = getLayerDef(pendingId);
+    const nextLabel = pendingDef?.label || "additional layer";
+
+    if (titleEl) {
+        titleEl.textContent = mode === "all"
+            ? "Maximum Sensor Loadout"
+            : "High-Load Layer Activation";
+    }
+    if (summaryEl) {
+        summaryEl.textContent = mode === "all"
+            ? "Activating the full multi-domain stack will increase render load and can slow battlespace responsiveness across the globe."
+            : `Enabling ${nextLabel} will raise the live stack to ${nextCount} active layers and can slow tactical map performance.`;
+    }
+    if (detailEl) {
+        detailEl.textContent = "Heavy radar envelopes, sweeper sectors, hotspot labels, and dense event overlays increase processing load. Proceed only if you want the expanded operational picture despite the slower response time.";
+    }
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (approved) => {
+            if (settled) return;
+            settled = true;
+            closeBtn?.removeEventListener("click", handleCancel);
+            backBtn?.removeEventListener("click", handleCancel);
+            confirmBtn?.removeEventListener("click", handleApprove);
+            closeSharedModal(modal, () => resolve(approved));
+        };
+        const handleCancel = () => finish(false);
+        const handleApprove = () => finish(true);
+        closeBtn?.addEventListener("click", handleCancel);
+        backBtn?.addEventListener("click", handleCancel);
+        confirmBtn?.addEventListener("click", handleApprove);
+        openSharedModal(modal);
+    });
 }
 
 export function setLayer(id, enabled) {
@@ -299,9 +459,29 @@ export function initLayerPanel() {
     updateBulkToggleState(container);
 
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
-        item.addEventListener("click", () => {
+        item.addEventListener("click", async () => {
             const id = item.dataset.layer;
-            const newVal = toggleLayer(id);
+            const currentlyEnabled = getEffectiveLayerState(id);
+            let newVal = currentlyEnabled;
+
+            if (currentlyEnabled) {
+                newVal = setLayer(id, false);
+            } else {
+                const nextState = buildSingleToggleState(id, true);
+                if (shouldWarnForLayerTransition(nextState)) {
+                    const approved = await requestPerformanceApproval({
+                        mode: "toggle",
+                        pendingId: id,
+                        nextCount: countWarnableEnabledLayers(nextState),
+                    });
+                    if (!approved) {
+                        syncLayerItemState(item, id);
+                        updateBulkToggleState(container);
+                        return;
+                    }
+                }
+                newVal = setLayer(id, true);
+            }
 
             syncLayerItemState(item, id);
             updateBulkToggleState(container);
@@ -312,8 +492,20 @@ export function initLayerPanel() {
         });
     });
 
-    document.getElementById("wz-layers-all-on")?.addEventListener("click", (e) => {
+    document.getElementById("wz-layers-all-on")?.addEventListener("click", async (e) => {
         e.stopPropagation();
+        const nextState = buildAllEnabledState();
+        if (shouldWarnForLayerTransition(nextState)) {
+            const approved = await requestPerformanceApproval({
+                mode: "all",
+                nextCount: countWarnableEnabledLayers(nextState),
+            });
+            if (!approved) {
+                syncAllLayerItemStates(container);
+                updateBulkToggleState(container);
+                return;
+            }
+        }
         setAllLayers(true, container);
     });
 

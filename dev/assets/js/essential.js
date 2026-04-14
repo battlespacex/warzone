@@ -22,6 +22,8 @@ import {
     getAllLiveTrackSnapshots,
     toggleLiveTrackSelection,
     getLiveTrackSelection,
+    toggleLiveTrackHardLock,
+    isLiveTrackHardLockEnabled,
 } from "./warzone-live-airforce.js";
 import {
     upsertNavalVessel,
@@ -42,7 +44,11 @@ let __lastSeenOccurredAt = null;
 let __hotspotLayer = null;
 let __militaryTracks = null;
 let __pollTimer = null;
+let __pollInFlight = false;
+let __pollInFlightSince = 0;
+let __pollRequestSeq = 0;
 let __viewportFetchTimer = null;
+let __viewportFetchInFlight = false;
 let __lastViewportKey = "";
 let __lastGlobeSyncKey = "";
 let __lastRangesSyncKey = "";
@@ -50,6 +56,7 @@ let __lastSweepersSyncKey = "";
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
+let __aircraftWidgetScopeFilter = "region";
 let __aircraftWidgetPage = 1;
 let __aircraftHistoryCache = [];
 let __aircraftHistoryLastLoadedAt = 0;
@@ -60,7 +67,17 @@ let __aircraftLiveSyncTimer = 0;
 let __aircraftSubtypeOptionsKey = "";
 let __widgetLoadingState = new Map();
 let __navalWidgetRenderTimer = 0;
+let __navalWidgetScopeFilter = "region";
+let __navalWidgetSubtypeFilter = "all";
+let __navalSubtypeOptionsKey = "";
 let __seededAircraftTrackKeys = new Set();
+let __visibilityRecoveryBound = false;
+let __foregroundRenderWakeRaf = 0;
+let __foregroundRecoveryLoaderTimer = 0;
+let __foregroundRecoveryLoaderShownAt = 0;
+let __foregroundRecoverySeq = 0;
+const FOREGROUND_RECOVERY_LOADER_MIN_MS = 320;
+const FOREGROUND_RECOVERY_LOADER_MAX_MS = 4200;
 const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 8;
 const AIRCRAFT_HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AIRCRAFT_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -72,10 +89,17 @@ const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
 const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS.map((layer) => layer.id);
 const NAVAL_EVENT_SUBTYPES = new Set([
     "carrier",
+    "amphibious",
+    "cruiser",
     "destroyer",
     "frigate",
     "corvette",
     "submarine",
+    "ssbn",
+    "ssn",
+    "ssk",
+    "aip_submarine",
+    "missile_boat",
     "logistics",
     "patrol",
     "minesweeper",
@@ -163,6 +187,8 @@ const AIS_MILITARY_VESSEL_PATTERNS = [
     /\bSSN[-\s]?\d+\b/i,
     /\bSSBN[-\s]?\d+\b/i,
     /\bSSK[-\s]?\d+\b/i,
+    /\bAIP\b/i,
+    /AIR INDEPENDENT PROPULSION/i,
     /\bCVN[-\s]?\d+\b/i,
     /\bCV[-\s]?\d+\b/i,
     /\bLHD[-\s]?\d+\b/i,
@@ -238,6 +264,63 @@ const AIS_MILITARY_VESSEL_PATTERNS = [
     /MISSILE BOAT/i,
     /FAST ATTACK CRAFT/i,
 ];
+function isDocumentHidden() {
+    return document.visibilityState === "hidden";
+}
+function clearForegroundRecoveryLoaderTimer() {
+    if (__foregroundRecoveryLoaderTimer) {
+        clearTimeout(__foregroundRecoveryLoaderTimer);
+        __foregroundRecoveryLoaderTimer = 0;
+    }
+}
+function endForegroundRecoveryLoader({ force = false } = {}) {
+    const finish = () => {
+        clearForegroundRecoveryLoaderTimer();
+        window.__wzKeepSiteLoaderVisible = false;
+        window.SiteLoader?.stop?.();
+    };
+    const elapsed = performance.now() - (__foregroundRecoveryLoaderShownAt || 0);
+    if (force || elapsed >= FOREGROUND_RECOVERY_LOADER_MIN_MS) {
+        finish();
+        return;
+    }
+    clearForegroundRecoveryLoaderTimer();
+    __foregroundRecoveryLoaderTimer = window.setTimeout(
+        finish,
+        Math.max(0, Math.ceil(FOREGROUND_RECOVERY_LOADER_MIN_MS - elapsed))
+    );
+}
+function beginForegroundRecoveryLoader() {
+    clearForegroundRecoveryLoaderTimer();
+    __foregroundRecoveryLoaderShownAt = performance.now();
+    window.__wzKeepSiteLoaderVisible = true;
+    window.SiteLoader?.start?.();
+    __foregroundRecoveryLoaderTimer = window.setTimeout(() => {
+        endForegroundRecoveryLoader({ force: true });
+    }, FOREGROUND_RECOVERY_LOADER_MAX_MS);
+}
+function startForegroundRenderWakeBurst(durationMs = 1200) {
+    const viewer = window.__warzoneViewer;
+    if (!viewer?.scene?.requestRender) return;
+    if (__foregroundRenderWakeRaf) {
+        cancelAnimationFrame(__foregroundRenderWakeRaf);
+        __foregroundRenderWakeRaf = 0;
+    }
+    const start = performance.now();
+    const step = () => {
+        if (isDocumentHidden()) {
+            __foregroundRenderWakeRaf = 0;
+            return;
+        }
+        viewer.scene.requestRender?.();
+        if (performance.now() - start >= durationMs) {
+            __foregroundRenderWakeRaf = 0;
+            return;
+        }
+        __foregroundRenderWakeRaf = requestAnimationFrame(step);
+    };
+    __foregroundRenderWakeRaf = requestAnimationFrame(step);
+}
 function isStrictAisMilitaryNavalEvent(event = {}) {
     const metadata = getEventMetadata(event);
     const sourceName = String(event.source_name || "").toLowerCase();
@@ -426,6 +509,39 @@ function applyAllFilters(events) {
     const regional = regionalRaw.filter(isMilitaryRelevant);
     const byLens = regional.filter((e) => isEventInLens(e, lens));
     return byLens.filter((e) => isEventVisible(e));
+}
+function isPointInsideRegion(lat, lon, region = getActiveRegion?.()) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+    if (!region || region.id === "global") return true;
+    const bounds = region.bounds || {};
+    return (
+        lat >= Number(bounds.minLat) &&
+        lat <= Number(bounds.maxLat) &&
+        lon >= Number(bounds.minLon) &&
+        lon <= Number(bounds.maxLon)
+    );
+}
+function isTrackerItemVisibleInScope(item = {}, scope = "region") {
+    if (scope === "all") return true;
+    const lat = Number(item.lat);
+    const lon = Number(item.lon);
+    return isPointInsideRegion(lat, lon, getActiveRegion?.());
+}
+function getTrackerScopeRegionLabel() {
+    const region = getActiveRegion?.();
+    if (!region) return "Current Region";
+    return region.id === "global"
+        ? "Current Region (Global)"
+        : `Current Region (${region.label})`;
+}
+function syncScopeSelectLabel(selectEl, mode = "region") {
+    if (!selectEl) return;
+    const regionOption = selectEl.querySelector('option[value="region"]');
+    if (regionOption) {
+        regionOption.textContent = getTrackerScopeRegionLabel();
+    }
+    const safeMode = mode === "all" ? "all" : "region";
+    selectEl.value = safeMode;
 }
 function getHotspotSourceEvents(events = []) {
     return (Array.isArray(events) ? events : []).filter((event) => {
@@ -688,17 +804,63 @@ function getNavalTrackKey(event = {}) {
         ""
     ).trim();
 }
+const NAVAL_SUBTYPE_ALIAS_MAP = new Map([
+    ["aircraft_carrier", "carrier"],
+    ["helicopter_carrier", "carrier"],
+    ["amphibious_assault", "amphibious"],
+    ["landing_platform_dock", "amphibious"],
+    ["landing_helicopter_dock", "amphibious"],
+    ["guided_missile_cruiser", "cruiser"],
+    ["guided_missile_destroyer", "destroyer"],
+    ["guided_missile_frigate", "frigate"],
+    ["attack_submarine", "ssn"],
+    ["ballistic_missile_submarine", "ssbn"],
+    ["diesel_electric_submarine", "ssk"],
+    ["aip_sub", "aip_submarine"],
+    ["missile_boat", "missile_boat"],
+    ["fast_attack_craft", "missile_boat"],
+    ["sub", "submarine"],
+]);
+function normalizeNavalSubtype(value = "") {
+    const normalized = String(value || "")
+        .toLowerCase()
+        .replace(/[/-]+/g, " ")
+        .replace(/\s+/g, "_")
+        .trim();
+    if (!normalized) return "";
+    if (NAVAL_EVENT_SUBTYPES.has(normalized)) return normalized;
+    return NAVAL_SUBTYPE_ALIAS_MAP.get(normalized) || normalized;
+}
+function formatNavalSubtypeLabel(subtype = "") {
+    const key = normalizeNavalSubtype(subtype);
+    if (!key) return "Naval";
+    if (key === "ssbn") return "SSBN";
+    if (key === "ssn") return "SSN";
+    if (key === "ssk") return "SSK";
+    if (key === "aip_submarine") return "AIP Sub";
+    if (key === "missile_boat") return "Missile Boat";
+    if (key === "amphibious") return "Amphibious";
+    return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+}
+function getNavalSubtypeOptions(items = []) {
+    return [...new Set(
+        items
+            .map((item) => normalizeNavalSubtype(item?.subcategory))
+            .filter((value) => value && value !== "naval")
+            .filter((value) => NAVAL_EVENT_SUBTYPES.has(value))
+    )].sort((a, b) => formatNavalSubtypeLabel(a).localeCompare(formatNavalSubtypeLabel(b)));
+}
 function isNavalSignalEvent(event = {}) {
     const metadata = getEventMetadata(event);
     const category = String(event.category || "").toLowerCase();
-    const subcategory = String(event.subcategory || metadata.vessel_class || "").toLowerCase();
+    const subcategory = normalizeNavalSubtype(String(event.subcategory || metadata.vessel_class || ""));
     const sourceName = String(event.source_name || "").toLowerCase();
     const title = String(event.title || "").toLowerCase();
     if (!isStrictAisMilitaryNavalEvent(event)) return false;
     if (NAVAL_EVENT_SUBTYPES.has(subcategory)) return true;
     if (metadata.mmsi || metadata.vessel_name) return true;
     if (sourceName.includes("ais") || sourceName.includes("vessel") || sourceName.includes("naval")) return true;
-    return category === "military" && /warship|vessel|frigate|destroyer|carrier|submarine|patrol ship|naval/.test(title);
+    return category === "military" && /warship|vessel|frigate|destroyer|carrier|submarine|ssbn|ssn|ssk|aip|cruiser|amphibious|missile boat|patrol ship|naval/.test(title);
 }
 function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
     if (__navalWidgetRenderTimer) {
@@ -707,7 +869,39 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
     }
     __navalWidgetRenderTimer = window.setTimeout(() => {
         __navalWidgetRenderTimer = 0;
-        renderNavalTrackerWidget();
+        const navalScopeSelect = document.getElementById("wz-naval-filter-scope");
+        const navalSubtypeSelect = document.getElementById("wz-naval-filter-subtype");
+        if (navalScopeSelect) {
+            syncScopeSelectLabel(navalScopeSelect, __navalWidgetScopeFilter);
+            __navalWidgetScopeFilter = navalScopeSelect.value === "all" ? "all" : "region";
+        }
+        const allVessels = getAllNavalSnapshots();
+        const scopedVessels = allVessels
+            .filter((vessel) => isTrackerItemVisibleInScope(vessel, __navalWidgetScopeFilter));
+        if (navalSubtypeSelect) {
+            const currentValue = navalSubtypeSelect.value || __navalWidgetSubtypeFilter;
+            const subtypeOptions = getNavalSubtypeOptions(scopedVessels);
+            const optionsKey = subtypeOptions.join("|");
+            if (__navalSubtypeOptionsKey !== optionsKey) {
+                navalSubtypeSelect.innerHTML = ['<option value="all">All Types</option>']
+                    .concat(subtypeOptions.map((value) => `<option value="${value}">${formatNavalSubtypeLabel(value)}</option>`))
+                    .join("");
+                __navalSubtypeOptionsKey = optionsKey;
+            }
+            navalSubtypeSelect.value = subtypeOptions.includes(currentValue) || currentValue === "all"
+                ? currentValue
+                : "all";
+            __navalWidgetSubtypeFilter = navalSubtypeSelect.value || "all";
+        }
+        const vessels = __navalWidgetSubtypeFilter && __navalWidgetSubtypeFilter !== "all"
+            ? scopedVessels.filter((vessel) => normalizeNavalSubtype(vessel.subcategory) === __navalWidgetSubtypeFilter)
+            : scopedVessels;
+        renderNavalTrackerWidget({
+            vessels,
+            emptyMessage: __navalWidgetScopeFilter === "all"
+                ? "No naval contacts in current filter"
+                : "No naval contacts in selected region",
+        });
     }, Math.max(0, delay));
 }
 function syncNavalSignals(events = []) {
@@ -797,13 +991,18 @@ function isTrackLikeEvent(event) {
     return true;
 }
 async function fetchViewportEvents() {
-    if (shouldSuspendMapWork()) return;
+    if (shouldSuspendMapWork() || isDocumentHidden()) return;
+    if (__viewportFetchInFlight) return;
+    __viewportFetchInFlight = true;
     const region = getActiveRegion?.();
     const regionId = region?.id || "global";
     const globe = window.__warzoneViewer?.__warzone;
     const bounds = globe?.getViewportBounds?.();
     const viewportKey = makeViewportKey(bounds, regionId);
-    if (viewportKey === __lastViewportKey) return;
+    if (viewportKey === __lastViewportKey) {
+        __viewportFetchInFlight = false;
+        return;
+    }
     __lastViewportKey = viewportKey;
     try {
         const merged = [];
@@ -835,6 +1034,8 @@ async function fetchViewportEvents() {
         });
     } catch (err) {
         console.error("Viewport fetch failed:", err);
+    } finally {
+        __viewportFetchInFlight = false;
     }
 }
 function sortEvents(events) {
@@ -1586,6 +1787,7 @@ function isAircraftTrackSubtype(subtype = "") {
     return [
         "aircraft",
         "military",
+        "vip",
         "fighter",
         "awacs",
         "recon",
@@ -1673,12 +1875,51 @@ const FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS = [
     /\bF-16\b/i,
     /\bF16\b/i,
 ];
+const FRONTEND_SPECIAL_ISR_COMMAND_PATTERNS = [
+    /DOOMSDAY/i,
+    /NIGHTWATCH/i,
+    /LOOKING GLASS/i,
+    /TACAMO/i,
+    /MERCURY/i,
+    /\bE-?4B?\b/i,
+    /\bE-?6B?\b/i,
+    /\bIL-?80\b/i,
+    /\bIL-?82\b/i,
+];
+const FRONTEND_SPECIAL_VIP_GOV_PATTERNS = [
+    /AIR FORCE ONE/i,
+    /AIR FORCE TWO/i,
+    /AIR INDIA ONE/i,
+    /\bSAM\d{2,6}\b/i,
+    /\bVENUS\d+\b/i,
+    /\bEXEC1[FVP]\b/i,
+    /\bVC-?25A?\b/i,
+    /\bVC-?32A?\b/i,
+    /\bC-?32A?\b/i,
+    /\bC-?40B?\b/i,
+    /\bA319CJ\b/i,
+    /\bA320CJ\b/i,
+    /\bBBJ\b/i,
+    /\bACJ\b/i,
+    /\bVVIP\b/i,
+    /VIP TRANSPORT/i,
+    /PRESIDENTIAL/i,
+    /HEAD OF STATE/i,
+    /PRIME MINISTER/i,
+    /STATE FLIGHT/i,
+    /\bCOTAM\d+\b/i,
+    /SLO ROSSIYA/i,
+    /\bIL-?96-?300PU\b/i,
+    /\bIL-?96PU\b/i,
+    /\bTU-?214PU\b/i,
+    /KONRAD ADENAUER/i,
+];
 function hasMilitaryAircraftOverride(track = {}) {
     const metadata = getAircraftMetadata(track);
     const rawSubtype = String(track.subtype || track.subcategory || metadata.role || "")
         .trim()
         .toLowerCase();
-    if (["fighter", "bomber", "awacs", "isr", "recon", "tanker", "helicopter", "uav", "drone"].includes(rawSubtype)) {
+    if (["vip", "bomber", "awacs", "isr", "recon", "tanker", "refueler", "transport", "logistics", "helicopter", "uav", "drone"].includes(rawSubtype)) {
         return true;
     }
     const haystack = [
@@ -1700,7 +1941,11 @@ function hasMilitaryAircraftOverride(track = {}) {
     ]
         .filter(Boolean)
         .join(" ");
-    return FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS.some((pattern) => pattern.test(haystack));
+    return (
+        FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS.some((pattern) => pattern.test(haystack)) ||
+        FRONTEND_SPECIAL_ISR_COMMAND_PATTERNS.some((pattern) => pattern.test(haystack)) ||
+        FRONTEND_SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack))
+    );
 }
 function isLikelyCivilianPassengerAircraftTrack(track = {}) {
     const metadata = getAircraftMetadata(track);
@@ -1780,6 +2025,7 @@ function isAircraftDisplayTextUsable(value = "") {
 }
 function formatAircraftSubtypeLabel(subtype = "") {
     const key = String(subtype || "").trim().toLowerCase();
+    if (key === "vip") return "VIP/GOV";
     if (key === "awacs") return "AWACS";
     if (key === "isr") return "ISR";
     if (key === "uav") return "UAV";
@@ -1797,6 +2043,9 @@ function formatAircraftSubtypeLabel(subtype = "") {
     return key.charAt(0).toUpperCase() + key.slice(1);
 }
 function resolveAircraftSubtype(track = {}) {
+    if (isLikelyCivilianPassengerAircraftTrack(track)) {
+        return "civilian";
+    }
     const metadata = getAircraftMetadata(track);
     const raw = String(track.subtype || track.subcategory || metadata.role || "")
         .trim()
@@ -1822,11 +2071,13 @@ function resolveAircraftSubtype(track = {}) {
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
+    if (FRONTEND_SPECIAL_ISR_COMMAND_PATTERNS.some((pattern) => pattern.test(haystack))) return "isr";
+    if (FRONTEND_SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack))) return "vip";
     if (/(awacs|aew|wedgetail|hawkeye|sentry|e-3\b|e3\b|e-7\b|e7\b|a-50\b|a50\b|phalcon|erieye|kj-200\b|kj200\b|kj-500\b|kj500\b|kj-2000\b|kj2000\b)/.test(haystack)) return "awacs";
     if (/(rivet joint|cobra ball|combat sent|recon|reconnaissance|surveillance|poseidon|orion|rc-135\b|rc135\b|ep-3\b|ep3\b|p-8\b|p8\b|p-3\b|p3\b)/.test(haystack)) return "recon";
     if (/(isr\b|global hawk|triton|jstars|e-8\b|e8\b|rq-4\b|rq4\b|special mission)/.test(haystack)) return "isr";
     if (/(tanker|refuel|refueller|pegasus|extender|stratotanker|kc-135\b|kc135\b|kc-46\b|kc46\b|kc-10\b|kc10\b|a330 mrtt\b|mrtt\b|voyager\b|il-78\b|il78\b|yy-20\b|yy20\b)/.test(haystack)) return "tanker";
-    if (/(transport|airlift|cargo|logistics|globemaster|hercules|atlas\b|a400m\b|c-17\b|c17\b|c-5\b|c5\b|c-130\b|hc-130\b|mc-130\b|c130\b|c-40\b|c40\b|an-124\b|an124\b|an-12\b|an12\b|il-76\b|il76\b|y-20\b|y20\b|cn-235\b|cn235\b|c295\b)/.test(haystack)) return "transport";
+    if (/(transport|airlift|cargo|logistics|globemaster|hercules|atlas\b|a-?400m\b|c-17\b|c17\b|c-5\b|c5\b|c-130\b|hc-130\b|mc-130\b|c130\b|c-40\b|c40\b|an-124\b|an124\b|an-12\b|an12\b|il-76\b|il76\b|y-20\b|y20\b|cn-235\b|cn235\b|c295\b)/.test(haystack)) return "transport";
     if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28\b|mi28\b|ka-27\b|ka27\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
     if (/(bomber|b-1\b|b1\b|b-2\b|b2\b|b-52\b|b52\b|tu-95\b|tu95\b|tu-160\b|tu160\b|h-6\b|h6\b|ac-130\b|ac130\b|spectre|spooky)/.test(haystack)) return "bomber";
     if (/(uav\b|drone\b|ucav\b|reaper\b|predator\b|mq-9\b|mq9\b|rq-4\b|rq4\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
@@ -2022,26 +2273,14 @@ function scheduleAircraftHistoryRefresh(force = false) {
     }, force ? 0 : 350);
 }
 function syncLiveAircraftFromHistoryRows(rows = __aircraftHistoryCache) {
-    if (!isLayerEnabled("aircraft")) {
-        __seededAircraftTrackKeys.forEach((trackKey) => {
-            if (trackKey) clearLiveTrack(trackKey);
-        });
-        __seededAircraftTrackKeys = new Set();
-        return;
-    }
-    const nextSeededTrackKeys = new Set();
-    (Array.isArray(rows) ? rows : [])
-        .filter((row) => row?.track_key && row.active && Number.isFinite(row.lat) && Number.isFinite(row.lon))
-        .forEach((row) => {
-            upsertLiveTrack(row);
-            nextSeededTrackKeys.add(String(row.track_key || ""));
-        });
+    void rows;
+    // Keep tracks table for widget history only.
+    // Live aircraft motion is sourced by the dedicated public-air ingestion pipeline.
+    if (!__seededAircraftTrackKeys.size) return;
     __seededAircraftTrackKeys.forEach((trackKey) => {
-        if (!nextSeededTrackKeys.has(trackKey)) {
-            clearLiveTrack(trackKey);
-        }
+        if (trackKey) clearLiveTrack(trackKey);
     });
-    __seededAircraftTrackKeys = nextSeededTrackKeys;
+    __seededAircraftTrackKeys = new Set();
 }
 function normalizeAircraftHistoryRow(row = {}) {
     const metadata = getAircraftMetadata(row);
@@ -2116,7 +2355,9 @@ async function refreshAircraftHistoryCache(force = false) {
 }
 function startAircraftLiveSync() {
     if (__aircraftLiveSyncTimer) return;
-    refreshAircraftHistoryCache(true).catch(() => { });
+    if (isLayerEnabled("aircraft")) {
+        refreshAircraftHistoryCache(true).catch(() => { });
+    }
     __aircraftLiveSyncTimer = window.setInterval(() => {
         if (!isLayerEnabled("aircraft")) return;
         refreshAircraftHistoryCache(true).catch(() => { });
@@ -2207,12 +2448,14 @@ function getAircraftWidgetItems() {
         .map((track) => ({ ...track, subcategory: resolveAircraftSubtype(track) }))
         .filter((track) => isAircraftTrackSubtype(track.subcategory))
         .filter((track) => !isLikelyCivilianPassengerAircraftTrack(track))
-        .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer");
+        .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer")
+        .filter((track) => isTrackerItemVisibleInScope(track, __aircraftWidgetScopeFilter));
     const historyItems = (__aircraftHistoryCache || [])
         .map((track) => ({ ...track, subcategory: resolveAircraftSubtype(track) }))
         .filter((track) => isAircraftTrackSubtype(track.subcategory))
         .filter((track) => !isLikelyCivilianPassengerAircraftTrack(track))
-        .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer");
+        .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer")
+        .filter((track) => isTrackerItemVisibleInScope(track, __aircraftWidgetScopeFilter));
     const allItems = mergeAircraftWidgetSources(liveItems, historyItems);
     const liveKeys = new Set(liveItems.map((track) => getAircraftMergeKey(track)));
     let baseItems = [];
@@ -2239,7 +2482,9 @@ function getAircraftWidgetItems() {
         allItems,
         baseItems,
         items,
-        emptyMessage: "No aircraft logs in the current filter",
+        emptyMessage: __aircraftWidgetScopeFilter === "all"
+            ? "No aircraft logs in the current filter"
+            : "No aircraft logs in selected region",
     };
 }
 function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircraft logs in the current filter") {
@@ -2286,6 +2531,7 @@ function updateAircraftWidgetCard(card, track, selection) {
     let stats = card.querySelector(".wz-aircraft-item__stats");
     let foot = card.querySelector(".wz-aircraft-item__foot");
     let actionBtn = card.querySelector(".wz-aircraft-action");
+    let lockBtn = card.querySelector(".wz-aircraft-lock-btn");
     if (!top) {
         top = document.createElement("div");
         top.className = "wz-aircraft-item__top";
@@ -2324,6 +2570,7 @@ function updateAircraftWidgetCard(card, track, selection) {
     titleEl = card.querySelector(".wz-aircraft-item__title");
     timeEl = card.querySelector(".wz-aircraft-item__time");
     actionBtn = card.querySelector(".wz-aircraft-action");
+    lockBtn = card.querySelector(".wz-aircraft-lock-btn");
     titleEl.innerHTML = `
         <span class="wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}" aria-label="${statusLabel}">
             <span class="bx-web-ico-status-1-0" aria-hidden="true"></span>
@@ -2340,14 +2587,40 @@ function updateAircraftWidgetCard(card, track, selection) {
     if (statSpans[2]) statSpans[2].textContent = `HDG ${Math.round(Number(track.heading_deg || 0))}°`;
     actionBtn.dataset.trackToggle = String(track.track_key || "");
     actionBtn.innerHTML = `<span aria-hidden="true"></span>${actionLabel}`;
+    const shouldShowLock = Boolean(track.active && isSelected);
+    if (shouldShowLock) {
+        const lockEnabled = isLiveTrackHardLockEnabled();
+        if (!lockBtn) {
+            lockBtn = document.createElement("button");
+            lockBtn.type = "button";
+            lockBtn.className = "wz-aircraft-action wz-aircraft-lock-btn";
+            foot.appendChild(lockBtn);
+        }
+        lockBtn.dataset.trackHardLock = "1";
+        lockBtn.setAttribute("aria-pressed", String(lockEnabled));
+        lockBtn.title = lockEnabled
+            ? "Unlock map controls for focused aircraft"
+            : "Lock map controls to focused aircraft";
+        lockBtn.innerHTML = `
+            <span class="wz-aircraft-lock-indicator ${lockEnabled ? "is-locked" : "is-unlocked"}" aria-hidden="true"></span>
+            ${lockEnabled ? "Unlock" : "Lock"}
+        `;
+    } else if (lockBtn) {
+        lockBtn.remove();
+    }
 }
 
 function renderAircraftMovementsWidget() {
     const container = document.getElementById("wz-aircraft-panel");
     const subtypeSelect = document.getElementById("wz-aircraft-filter-subtype");
+    const scopeSelect = document.getElementById("wz-aircraft-filter-scope");
     if (!container) return;
     syncAircraftWidgetFilterControls();
-    const { items, allItems, baseItems, emptyMessage } = getAircraftWidgetItems();
+    if (scopeSelect) {
+        syncScopeSelectLabel(scopeSelect, __aircraftWidgetScopeFilter);
+        __aircraftWidgetScopeFilter = scopeSelect.value === "all" ? "all" : "region";
+    }
+    const { items, baseItems, emptyMessage } = getAircraftWidgetItems();
     const selection = getLiveTrackSelection();
     if (subtypeSelect) {
         const currentValue = subtypeSelect.value || __aircraftWidgetSubtypeFilter;
@@ -2434,6 +2707,12 @@ function bindAircraftMovementsWidget() {
             requestAircraftMovementsWidgetRender(0);
             return;
         }
+        const hardLockBtn = event.target.closest("[data-track-hard-lock]");
+        if (hardLockBtn) {
+            toggleLiveTrackHardLock();
+            requestAircraftMovementsWidgetRender(0);
+            return;
+        }
         const toggleBtn = event.target.closest("[data-track-toggle]");
         if (toggleBtn) {
             const trackKey = String(toggleBtn.dataset.trackToggle || "").trim();
@@ -2458,18 +2737,44 @@ function bindAircraftMovementsWidget() {
         }
     });
     document.addEventListener("change", (event) => {
-        const subtypeSelect = event.target.closest("#wz-aircraft-filter-subtype");
-        if (!subtypeSelect) return;
-        __aircraftWidgetSubtypeFilter = String(subtypeSelect.value || "all");
-        __aircraftWidgetPage = 1;
-        if (__aircraftWidgetFilter !== "active") {
-            scheduleAircraftHistoryRefresh(true);
+        const scopeSelect = event.target.closest("#wz-aircraft-filter-scope");
+        if (scopeSelect) {
+            __aircraftWidgetScopeFilter = String(scopeSelect.value || "region").toLowerCase() === "all"
+                ? "all"
+                : "region";
+            __aircraftWidgetPage = 1;
+            requestAircraftMovementsWidgetRender(0);
             return;
         }
-        requestAircraftMovementsWidgetRender(0);
+        const subtypeSelect = event.target.closest("#wz-aircraft-filter-subtype");
+        if (subtypeSelect) {
+            __aircraftWidgetSubtypeFilter = String(subtypeSelect.value || "all");
+            __aircraftWidgetPage = 1;
+            if (__aircraftWidgetFilter !== "active") {
+                scheduleAircraftHistoryRefresh(true);
+                return;
+            }
+            requestAircraftMovementsWidgetRender(0);
+            return;
+        }
+        const navalSubtypeSelect = event.target.closest("#wz-naval-filter-subtype");
+        if (navalSubtypeSelect) {
+            __navalWidgetSubtypeFilter = normalizeNavalSubtype(String(navalSubtypeSelect.value || "all")) || "all";
+            requestNavalWidgetRender(0);
+            return;
+        }
+        const navalScopeSelect = event.target.closest("#wz-naval-filter-scope");
+        if (!navalScopeSelect) return;
+        __navalWidgetScopeFilter = String(navalScopeSelect.value || "region").toLowerCase() === "all"
+            ? "all"
+            : "region";
+        requestNavalWidgetRender(0);
     });
     document.addEventListener("wz:aircraft-log-updated", () => {
         requestAircraftMovementsWidgetRender();
+    });
+    document.addEventListener("wz:aircraft-focus-lock-changed", () => {
+        requestAircraftMovementsWidgetRender(0);
     });
 }
 function ensureAlertAudio() {
@@ -2546,6 +2851,35 @@ function catScore(e) {
     return (CAT_PRIORITY[String(e.category || "").toLowerCase()] || 1) +
         (e.severity === "critical" ? 4 : e.severity === "high" ? 2 : 0);
 }
+function isOverlayCircleEvent(event = {}) {
+    const sub = String(
+        event.subcategory ||
+        event.subtype ||
+        event.type ||
+        ""
+    ).toLowerCase();
+    const weapon = String(event.weapon_type || "").toLowerCase();
+    const title = String(event.title || "").toLowerCase();
+    const text = `${sub} ${weapon} ${title}`;
+    return (
+        text.includes("awacs") ||
+        text.includes("fighter") ||
+        text.includes("carrier") ||
+        text.includes("destroyer") ||
+        text.includes("frigate") ||
+        text.includes("submarine") ||
+        text.includes("sam") ||
+        text.includes("air defense")
+    );
+}
+function getOverlayClusterRadiusDeg() {
+    const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
+    if (height > 7000000) return 2.2;
+    if (height > 4500000) return 1.6;
+    if (height > 2800000) return 1.15;
+    if (height > 1600000) return 0.85;
+    return 0.65;
+}
 function clusterEventsForGlobe(events) {
     if (!Array.isArray(events) || !events.length) return [];
     if (events.length < GLOBE_CLUSTER_THRESHOLD) {
@@ -2592,14 +2926,66 @@ function clusterEventsForGlobe(events) {
         _clusterEvents: c.events,
     }));
 }
+function clusterEventsForOverlays(events) {
+    if (!Array.isArray(events) || !events.length) return [];
+    const clusterRadiusDeg = getOverlayClusterRadiusDeg();
+    const clusters = [];
+    for (const event of events) {
+        const lat = Number(event.lat);
+        const lon = Number(event.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        let nearest = null;
+        let nearestDist = Infinity;
+        for (const cluster of clusters) {
+            const dLat = cluster.rep.lat - lat;
+            const dLon = cluster.rep.lon - lon;
+            const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = cluster;
+            }
+        }
+        if (nearest && nearestDist <= clusterRadiusDeg) {
+            nearest.events.push(event);
+            nearest.count++;
+            if (catScore(event) > catScore(nearest.rep)) {
+                nearest.rep = event;
+            }
+        } else {
+            clusters.push({ rep: event, count: 1, events: [event] });
+        }
+    }
+    return clusters.map((c) => ({
+        ...c.rep,
+        _clusterCount: c.count,
+        _clusterEvents: c.events,
+    }));
+}
+function makeOverlaySignature(events) {
+    if (!Array.isArray(events) || !events.length) return "__empty__";
+    return events
+        .map((event) => {
+            const lat = Number(event.lat || 0);
+            const lon = Number(event.lon || 0);
+            const id = String(event.id || event.track_key || event.title || event.weapon_type || "overlay");
+            return `${id}:${Number(event._clusterCount || 1)}:${lat.toFixed(2)}:${lon.toFixed(2)}`;
+        })
+        .join("|");
+}
 function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const visible = applyAllFilters(events);
     const navalVisible = visible.filter(isNavalSignalEvent);
     syncNavalSignals(navalVisible);
-    const globeVisible = visible.filter((event) => !isNavalSignalEvent(event));
+    const globeVisible = visible.filter(
+        (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
+    );
     const visibleSignature = makeEventSignature(globeVisible);
+    const overlaySource = globeVisible.filter(isOverlayCircleEvent);
+    const overlayVisible = clusterEventsForOverlays(overlaySource);
+    const overlaySignature = makeOverlaySignature(overlayVisible);
+    const sweeperSignature = makeOverlaySignature(overlaySource);
     const rangesEnabled = isLayerEnabled("ranges");
     const sweepersEnabled = isLayerEnabled("sweepers");
     globe.setPerformanceMode?.(globeVisible.length);
@@ -2639,19 +3025,19 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         __hotspotLayer.setEvents(getHotspotSourceEvents(visible));
     }
     if (window.__warzoneViewer) {
-        const nextRangesKey = rangesEnabled ? visibleSignature : "__off__";
+        const nextRangesKey = rangesEnabled ? overlaySignature : "__off__";
         if (nextRangesKey !== __lastRangesSyncKey) {
             clearRanges(window.__warzoneViewer);
             if (rangesEnabled) {
-                renderRanges(window.__warzoneViewer, globeVisible);
+                renderRanges(window.__warzoneViewer, overlayVisible);
             }
             __lastRangesSyncKey = nextRangesKey;
         }
-        const nextSweepersKey = sweepersEnabled ? visibleSignature : "__off__";
+        const nextSweepersKey = sweepersEnabled ? sweeperSignature : "__off__";
         if (nextSweepersKey !== __lastSweepersSyncKey) {
             clearSweepers(window.__warzoneViewer);
             if (sweepersEnabled) {
-                renderSweepers(window.__warzoneViewer, globeVisible);
+                renderSweepers(window.__warzoneViewer, overlaySource);
             }
             __lastSweepersSyncKey = nextSweepersKey;
         }
@@ -2705,6 +3091,8 @@ export async function initWarzoneApp() {
         onRegionChange(() => {
             __lastViewportKey = "";
             scheduleViewportFetch(60);
+            requestAircraftMovementsWidgetRender(0);
+            requestNavalWidgetRender(0);
         });
         if (viewer.camera?.moveEnd) {
             viewer.camera.moveEnd.addEventListener(() => {
@@ -2716,15 +3104,67 @@ export async function initWarzoneApp() {
     syncIdleSceneState();
     startPublicAirIngestion();
     startAircraftLiveSync();
-    setWidgetLoading("aircraft", true);
-    refreshAircraftHistoryCache(true)
-        .catch((err) => {
-            console.error("Initial aircraft history load failed:", err);
-        })
-        .finally(() => {
-            setWidgetLoading("aircraft", false);
+    if (!__visibilityRecoveryBound) {
+        __visibilityRecoveryBound = true;
+        const onForeground = () => {
+            if (isDocumentHidden()) return;
+            const recoverySeq = ++__foregroundRecoverySeq;
+            beginForegroundRecoveryLoader();
+            const pollLooksStale =
+                __pollInFlight &&
+                __pollInFlightSince > 0 &&
+                (Date.now() - __pollInFlightSince) > 12000;
+            if (pollLooksStale) {
+                __pollInFlight = false;
+                __pollInFlightSince = 0;
+            }
+            __lastViewportKey = "";
+            scheduleViewportFetch(90);
+            const recoveryTasks = [pollLatestEvents({ force: true })];
+            if (isLayerEnabled("aircraft")) {
+                recoveryTasks.push(refreshAircraftHistoryCache(true));
+            }
+            recoveryTasks.push(refreshPublicAirTracksNow({ force: true }));
             requestAircraftMovementsWidgetRender(0);
-        });
+            requestNavalWidgetRender(0);
+            const foregroundSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
+            if (__hotspotLayer) {
+                __hotspotLayer.setEvents(getHotspotSourceEvents(applyAllFilters(foregroundSource)));
+            }
+            startForegroundRenderWakeBurst(1400);
+            window.__warzoneViewer?.scene?.requestRender?.();
+            Promise.allSettled(recoveryTasks).finally(() => {
+                if (recoverySeq !== __foregroundRecoverySeq) return;
+                endForegroundRecoveryLoader();
+            });
+        };
+        document.addEventListener("visibilitychange", () => {
+            if (isDocumentHidden()) {
+                __foregroundRecoverySeq += 1;
+                endForegroundRecoveryLoader({ force: true });
+                clearTimeout(__viewportFetchTimer);
+                __viewportFetchTimer = null;
+                return;
+            }
+            onForeground();
+        }, { passive: true });
+        window.addEventListener("focus", onForeground, { passive: true });
+        window.addEventListener("pageshow", onForeground, { passive: true });
+    }
+    if (isLayerEnabled("aircraft")) {
+        setWidgetLoading("aircraft", true);
+        refreshAircraftHistoryCache(true)
+            .catch((err) => {
+                console.error("Initial aircraft history load failed:", err);
+            })
+            .finally(() => {
+                setWidgetLoading("aircraft", false);
+                requestAircraftMovementsWidgetRender(0);
+            });
+    } else {
+        setWidgetLoading("aircraft", false);
+        requestAircraftMovementsWidgetRender(0);
+    }
     onLayerChange((id) => {
         syncIdleSceneState();
         const globe = window.__warzoneViewer?.__warzone;
@@ -2793,10 +3233,16 @@ export async function initWarzoneApp() {
                 const eventType = String(payload.eventType || payload.event || "").toUpperCase();
                 const track = payload.new || payload.old;
                 if (!track) return;
+                const useDatabaseAsLiveSource = window.__stratopsConfig?.enablePublicAirFallback !== true;
                 if (!isLayerEnabled("aircraft")) {
                     if (track.track_key) {
                         clearLiveTrack(track.track_key);
                     }
+                    return;
+                }
+                if (!useDatabaseAsLiveSource) {
+                    refreshAircraftHistoryCache(true).catch(() => { });
+                    requestAircraftMovementsWidgetRender(0);
                     return;
                 }
                 if (eventType === "DELETE") {
@@ -2817,7 +3263,21 @@ export async function initWarzoneApp() {
         clearTimeout(timeoutId);
     }
 }
-async function pollLatestEvents() {
+async function pollLatestEvents(options = {}) {
+    const force = options?.force === true;
+    if (isDocumentHidden() && !force) return;
+    if (__pollInFlight && !force) return;
+    if (__pollInFlight && force) {
+        const staleInFlight =
+            __pollInFlightSince > 0 &&
+            (Date.now() - __pollInFlightSince) > 12000;
+        if (!staleInFlight) return;
+        __pollInFlight = false;
+        __pollInFlightSince = 0;
+    }
+    const requestSeq = ++__pollRequestSeq;
+    __pollInFlight = true;
+    __pollInFlightSince = Date.now();
     try {
         const since = __lastSeenOccurredAt || new Date(Date.now() - 30000).toISOString();
         const { data, error } = await api.getEventsSince(since);
@@ -2830,17 +3290,23 @@ async function pollLatestEvents() {
         rows
             .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at))
             .forEach(handleIncomingEvent);
-        const newest = rows[0];
+        const newest = rows[rows.length - 1];
         if (newest?.occurred_at) {
             __lastSeenOccurredAt = newest.occurred_at;
         }
     } catch (err) {
         console.error("Polling latest events failed:", err);
+    } finally {
+        if (__pollRequestSeq === requestSeq) {
+            __pollInFlight = false;
+            __pollInFlightSince = 0;
+        }
     }
 }
 export function startEventPollingFallback() {
     if (__pollTimer) return;
     __pollTimer = setInterval(() => {
+        if (isDocumentHidden()) return;
         pollLatestEvents();
     }, 30000);
 }
@@ -3435,6 +3901,8 @@ export function initStratopsIntro() {
     const loginHint = document.getElementById("wz-hint");
     const contentView = document.getElementById("wz-intro-content-view");
     const loginView = document.getElementById("wz-intro-login-view");
+    const introBox = introModal?.querySelector(".wz-modal-box");
+    const INTRO_VIEW_FADE_MS = 220;
 
     // Inline login fields (live inside the intro modal — separate from #wz-login-modal)
     const introEmail = document.getElementById("intro-auth-email");
@@ -3444,6 +3912,10 @@ export function initStratopsIntro() {
     const introForm = document.getElementById("intro-auth-form");
 
     let isLoginMode = false;
+    let introHeightFrame = 0;
+    let introHeightCommitFrame = 0;
+    const introViewAnimations = new WeakMap();
+    const introViewFrames = new WeakMap();
 
     // ── Helper: show/hide inline error ──────────────────────────────────────
     function setIntroError(msg) {
@@ -3462,21 +3934,99 @@ export function initStratopsIntro() {
         else { acceptBtn.classList.add("is-locked"); acceptBtn.style.pointerEvents = "none"; }
     }
 
+    function clearIntroViewAnimation(view) {
+        if (!view) return;
+        const activeAnimation = introViewAnimations.get(view);
+        if (activeAnimation) {
+            activeAnimation.cancel();
+            introViewAnimations.delete(view);
+        }
+        const activeFrame = introViewFrames.get(view);
+        if (activeFrame) {
+            cancelAnimationFrame(activeFrame);
+            introViewFrames.delete(view);
+        }
+        view.style.opacity = "";
+        view.classList.remove("is-leaving");
+    }
+    function fadeInIntroView(view) {
+        if (!view) return;
+        clearIntroViewAnimation(view);
+        view.classList.add("is-active");
+        view.removeAttribute("aria-hidden");
+        view.style.opacity = "0";
+        const frame = requestAnimationFrame(() => {
+            introViewFrames.delete(view);
+            const animation = view.animate(
+                [{ opacity: 0 }, { opacity: 1 }],
+                { duration: INTRO_VIEW_FADE_MS, easing: "ease", fill: "both" },
+            );
+            introViewAnimations.set(view, animation);
+            animation.onfinish = animation.oncancel = () => {
+                if (introViewAnimations.get(view) === animation) {
+                    introViewAnimations.delete(view);
+                }
+                view.style.opacity = "";
+            };
+        });
+        introViewFrames.set(view, frame);
+    }
+    function fadeOutIntroView(view) {
+        if (!view) return;
+        clearIntroViewAnimation(view);
+        view.classList.remove("is-active");
+        view.classList.add("is-leaving");
+        view.setAttribute("aria-hidden", "true");
+        view.style.opacity = "1";
+        const animation = view.animate(
+            [{ opacity: 1 }, { opacity: 0 }],
+            { duration: INTRO_VIEW_FADE_MS, easing: "ease", fill: "both" },
+        );
+        introViewAnimations.set(view, animation);
+        animation.onfinish = animation.oncancel = () => {
+            if (introViewAnimations.get(view) === animation) {
+                introViewAnimations.delete(view);
+            }
+            view.classList.remove("is-leaving");
+            view.style.opacity = "";
+        };
+    }
+    function crossfadeIntroViews(hideView, showView) {
+        if (!hideView || !showView || hideView === showView) return;
+        fadeInIntroView(showView);
+        fadeOutIntroView(hideView);
+    }
+    function lockIntroModalHeight() {
+        window.__warzoneLockModalBoxHeight?.(introBox);
+    }
+    function animateIntroModalHeight() {
+        if (!introBox) return;
+        if (introHeightFrame) cancelAnimationFrame(introHeightFrame);
+        if (introHeightCommitFrame) cancelAnimationFrame(introHeightCommitFrame);
+        introHeightFrame = requestAnimationFrame(() => {
+            introHeightFrame = 0;
+            introHeightCommitFrame = requestAnimationFrame(() => {
+                introHeightCommitFrame = 0;
+                window.__warzoneScheduleModalBoxHeight?.(introBox);
+            });
+        });
+    }
+
     // ── Switch to login view ─────────────────────────────────────────────────
     function showLoginView() {
+        if (isLoginMode) return;
         isLoginMode = true;
         setIntroError("");
-
-        // Cross-fade panels
-        contentView?.classList.remove("is-active");
-        contentView?.setAttribute("aria-hidden", "true");
-        loginView?.classList.add("is-active");
-        loginView?.removeAttribute("aria-hidden");
+        lockIntroModalHeight();
 
         // Fade out login hint, show Back button, swap accept label
         loginHint?.classList.add("is-hidden-hint");
         if (backBtn) { backBtn.hidden = false; backBtn.style.display = ""; }
         if (acceptLabel) acceptLabel.textContent = "Login";
+
+        // Cross-fade panels after footer state is settled
+        crossfadeIntroViews(contentView, loginView);
+        animateIntroModalHeight();
 
         // Focus first field
         setTimeout(() => introEmail?.focus(), 320);
@@ -3484,19 +4034,19 @@ export function initStratopsIntro() {
 
     // ── Switch back to content view ──────────────────────────────────────────
     function showContentView() {
+        if (!isLoginMode) return;
         isLoginMode = false;
         setIntroError("");
-
-        // Cross-fade panels
-        loginView?.classList.remove("is-active");
-        loginView?.setAttribute("aria-hidden", "true");
-        contentView?.classList.add("is-active");
-        contentView?.removeAttribute("aria-hidden");
+        lockIntroModalHeight();
 
         // Restore login hint, hide Back button, restore accept label
         loginHint?.classList.remove("is-hidden-hint");
         if (backBtn) { backBtn.hidden = true; backBtn.style.display = "none"; }
         if (acceptLabel) acceptLabel.textContent = "Enter";
+
+        // Cross-fade panels after footer state is settled
+        crossfadeIntroViews(loginView, contentView);
+        animateIntroModalHeight();
 
         // Clear fields on back
         if (introEmail) introEmail.value = "";

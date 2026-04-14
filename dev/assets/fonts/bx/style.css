@@ -394,3 +394,12 @@
 .bx-web-ico-aircraft-1:before {
   content: "\e939";
 }
+.bx-web-ico-news-1:before {
+  content: "\e93e";
+}
+.bx-web-ico-warning-1:before {
+  content: "\e940";
+}
+.bx-web-ico-warning-2:before {
+  content: "\e949";
+}
