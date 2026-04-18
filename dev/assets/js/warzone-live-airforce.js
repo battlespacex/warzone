@@ -4,10 +4,12 @@ import * as Cesium from "cesium";
 let __liveTrackEntities = new Map();
 const __devTrackTimers = new Map();
 const __liveTrackTrails = new Map();
+const __liveTrackTrailPositionsCache = new Map();
 const __liveTrackLastPositions = new Map();
 const __liveTrackVisualState = new Map();
 const __liveTrackRegistry = new Map();
 const __liveTrackBillboardCache = new Map();
+const __liveTrackIconCodeCache = new Map();
 const __liveTrackReplayState = {
     selectedTrackKey: "",
     mode: "", // "focus" | "replay"
@@ -18,6 +20,9 @@ const __liveTrackReplayState = {
 };
 let __liveTrackOverlayRoot = null;
 let __liveTrackOverlayBound = false;
+let __liveTrackOverlayLastVisible = false;
+let __liveTrackOverlayLastX = Number.NaN;
+let __liveTrackOverlayLastY = Number.NaN;
 let __liveTrackClickBound = false;
 let __liveTrackClickHandler = null;
 let __liveTrackRegistryDispatchTimer = null;
@@ -28,6 +33,9 @@ let __liveTrackManualCameraIntent = false;
 let __liveTrackHardLockEnabled = false;
 let __liveTrackFocusInputBound = false;
 let __liveTrackFocusRangeMeters = 95000;
+let __liveTrackFocusHeadingDeg = 0;
+let __liveTrackFocusPitchDeg = -89;
+let __liveTrackCtrlTiltDragState = null;
 
 
 const LIVE_TRACK_LABEL_CAMERA_HEIGHT_MAX = 420000;
@@ -39,6 +47,10 @@ const LIVE_TRACK_FOCUS_GUIDE_GAP_PX = 42;
 const LIVE_TRACK_FOCUS_GUIDE_THICKNESS_PX = 4;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_METERS = 95000;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG = -89;
+const LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG = -89;
+const LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG = -20;
+const LIVE_TRACK_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.28;
+const LIVE_TRACK_FOCUS_CAMERA_PITCH_SENSITIVITY_DEG_PER_PX = 0.18;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS = 12000;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS = 3200000;
 let __liveTrackFocusGuideEl = null;
@@ -54,7 +66,25 @@ const LIVE_TRACK_MODEL_OFFSETS = {
     transport: -90,
     vip: -90,
 };
-const LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS = 800;
+const LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS = 18;
+const LIVE_TRACK_FALLBACK_ALTITUDE_FT_BY_SUBTYPE = Object.freeze({
+    fighter: 26000,
+    awacs: 31000,
+    recon: 24000,
+    isr: 28000,
+    tanker: 30000,
+    refueler: 30000,
+    transport: 22000,
+    logistics: 22000,
+    logistic: 22000,
+    vip: 18000,
+    bomber: 28000,
+    trainer: 12000,
+    drone: 14000,
+    uav: 14000,
+    helicopter: 1800,
+    aircraft: 16000,
+});
 const LIVE_TRACK_TAIL_OFFSET_BY_SUBTYPE = {
     fighter: 180,
     awacs: 260,
@@ -62,10 +92,12 @@ const LIVE_TRACK_TAIL_OFFSET_BY_SUBTYPE = {
     drone: 120,
     vip: 240,
 };
-const LIVE_TRACK_ENGINE_OFFSET_METERS = 40;
 const LIVE_TRACK_MAX_TRAIL_POINTS = 280;
 const LIVE_TRACK_TRAIL_MAX_AGE_MS = 30 * 60 * 1000;
 const LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS = 80;
+const LIVE_TRACK_SEED_HISTORY_MAX_POINTS = 120;
+const LIVE_TRACK_HISTORY_MAX_JUMP_METERS = 220000;
+const LIVE_TRACK_HISTORY_MAX_SPEED_MPS = 1900;
 const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 2;
 const LIVE_TRACK_MIN_ANIM_MS = 700;
 const LIVE_TRACK_MAX_ANIM_MS = 4400;
@@ -74,8 +106,6 @@ const LIVE_TRACK_HISTORY_RETENTION_MS = 72 * 60 * 60 * 1000;
 const LIVE_TRACK_HISTORY_MAX_POINTS = 720;
 const LIVE_TRACK_REPLAY_STEP_MS = 180;
 const LIVE_TRACK_BILLBOARD_CANVAS_SIZE = 96;
-const LIVE_TRACK_BILLBOARD_NEAR_DISTANCE = 150000;
-const LIVE_TRACK_BILLBOARD_FAR_DISTANCE = 9000000;
 const LIVE_TRACK_MODEL_URI = "/assets/images/models/air/fighter-1.glb";
 const LIVE_TRACK_MODEL_BY_SUBTYPE = {
     fighter: "/assets/images/models/air/fighter.glb",
@@ -95,6 +125,589 @@ const LIVE_TRACK_MODEL_BY_SUBTYPE = {
     helicopter: "/assets/images/models/air/fighter-1.glb",
 };
 const LIVE_TRACK_STALE_TIMEOUT_MS = 90 * 1000;
+const LIVE_TRACK_RENDER_MODE = Object.freeze({
+    PNG: "png",
+    CHAR: "char",
+    MODEL: "model",
+});
+const LIVE_TRACK_MODEL_DEFAULT_MAX_ACTIVE = 16;
+const LIVE_TRACK_MODEL_DEFAULT_ZOOM_HEIGHT = 280000;
+const LIVE_TRACK_CHAR_FALLBACK_DEFAULT_COUNT = 90;
+const LIVE_AIRCRAFT_ICON_BASE_PATH = "/assets/images/live";
+const LIVE_AIRCRAFT_ICON_DEFAULT_CODE = "ff-5";
+const LIVE_AIRCRAFT_ICON_CODES = new Set([
+    "bb-1", "bb-2",
+    "ff-1", "ff-2", "ff-3", "ff-4", "ff-5",
+    "aw-1", "aw-2",
+    "tn-1", "tn-2",
+    "tp-1", "tp-2",
+    "hh-1", "hh-2",
+    "rr-1",
+    "dd-1",
+    "sp-1", "sp-2",
+]);
+const LIVE_AIRCRAFT_US_TOKENS = [
+    "united states",
+    "united states of america",
+    "usa",
+    "american",
+    "us air force",
+    "usaf",
+    "u s air force",
+    "us navy",
+    "u s navy",
+    "usn",
+    "us marine corps",
+    "u s marine corps",
+    "usmc",
+    "air national guard",
+];
+const LIVE_AIRCRAFT_PAKISTAN_TOKENS = [
+    "pakistan",
+    "pakistani",
+    "pakistan air force",
+];
+const LIVE_AIRCRAFT_TURKEY_TOKENS = [
+    "turkey",
+    "turkish",
+];
+const LIVE_AIRCRAFT_CHINA_TOKENS = [
+    "china",
+    "chinese",
+    "prc",
+    "people s republic of china",
+    "people s liberation army",
+    "pla",
+    "plaf",
+];
+const LIVE_AIRCRAFT_EUROPEAN_TOKENS = [
+    "europe",
+    "european",
+    "united kingdom",
+    "uk",
+    "england",
+    "great britain",
+    "france",
+    "french",
+    "italy",
+    "italian",
+    "germany",
+    "german",
+    "spain",
+    "spanish",
+    "greece",
+    "greek",
+    "netherlands",
+    "dutch",
+    "belgium",
+    "belgian",
+    "denmark",
+    "danish",
+    "norway",
+    "norwegian",
+    "sweden",
+    "swedish",
+    "finland",
+    "finnish",
+    "poland",
+    "polish",
+    "portugal",
+    "portuguese",
+    "romania",
+    "romanian",
+    "czech republic",
+    "czech",
+    "slovakia",
+    "hungary",
+    "austria",
+    "switzerland",
+    "croatia",
+    "slovenia",
+    "serbia",
+    "bulgaria",
+    "estonia",
+    "latvia",
+    "lithuania",
+    "iceland",
+];
+const LIVE_AIRCRAFT_NATO_TOKENS = [
+    "nato",
+    "north atlantic treaty organization",
+    "united states",
+    "canada",
+    "united kingdom",
+    "uk",
+    "france",
+    "germany",
+    "italy",
+    "spain",
+    "portugal",
+    "netherlands",
+    "belgium",
+    "denmark",
+    "norway",
+    "poland",
+    "greece",
+    "turkey",
+    "romania",
+    "czech republic",
+    "hungary",
+    "slovakia",
+    "bulgaria",
+    "croatia",
+    "slovenia",
+    "albania",
+    "montenegro",
+    "north macedonia",
+    "estonia",
+    "latvia",
+    "lithuania",
+    "finland",
+    "sweden",
+];
+const LIVE_AIRCRAFT_GULF_TOKENS = [
+    "saudi arabia",
+    "united arab emirates",
+    "uae",
+    "qatar",
+    "kuwait",
+    "bahrain",
+    "oman",
+];
+const LIVE_AIRCRAFT_RUSSIAN_STYLE_TOKENS = [
+    "russia",
+    "russian",
+    "india",
+    "indian",
+    "malaysia",
+    "malaysian",
+    "algeria",
+    "algerian",
+    "syria",
+    "syrian",
+    "egypt",
+    "egyptian",
+    "vietnam",
+    "vietnamese",
+    "iran",
+    "iranian",
+    "iraq",
+    "belarus",
+    "belarusian",
+    "kazakhstan",
+    "armenia",
+    "myanmar",
+    "ethiopia",
+    "angola",
+    "venezuela",
+    "north korea",
+    "dprk",
+];
+const LIVE_AIRCRAFT_EX_SOVIET_TOKENS = [
+    "russia",
+    "belarus",
+    "kazakhstan",
+    "uzbekistan",
+    "turkmenistan",
+    "tajikistan",
+    "kyrgyzstan",
+    "armenia",
+    "azerbaijan",
+    "georgia",
+    "ukraine",
+    "moldova",
+];
+const LIVE_AIRCRAFT_DRONE_PATTERNS = [
+    /\b(drone|uav|ucav|uas)\b/i,
+    /\b(mq ?1|mq ?9|rq ?1|rq ?4|rq ?7|rq ?170|mq ?4c|tb ?2|bayraktar|anka|aksungur|wing loong|wingloong|ch ?4|ch ?5|shahed|mohajer|heron|hermes|switchblade|lancet|orlan|forpost|okhotnik)\b/i,
+];
+const LIVE_AIRCRAFT_RECON_PATTERNS = [
+    /\b(recon|reconnaissance|isr|surveillance|patrol|sigint|elint|maritime patrol)\b/i,
+    /\b(rc ?135|ep ?3|p ?3|p ?8|u ?2|il ?20|tu ?214r|rivet joint|cobra ball|combat sent|poseidon|orion|global hawk)\b/i,
+];
+const LIVE_AIRCRAFT_AWACS_PATTERNS = [
+    /\b(awacs|aew|aewc|early warning|wedgetail|sentry|hawkeye|erieye|phalcon|netra|command and control|c2)\b/i,
+    /\b(e ?2|e ?3|e ?7|a ?50|a ?100|kj ?200|kj ?500|kj ?2000|saab ?2000)\b/i,
+];
+const LIVE_AIRCRAFT_TANKER_PATTERNS = [
+    /\b(tanker|refuel|refueller|refueling|air to air refuel|boom refuel)\b/i,
+    /\b(kc ?10|kc ?46|kc ?135|il ?78|yy ?20|mrtt|voyager)\b/i,
+];
+const LIVE_AIRCRAFT_TRANSPORT_PATTERNS = [
+    /\b(transport|airlift|cargo|airlifter|logistics)\b/i,
+    /\b(c ?17|c ?130|c ?5|c ?27j|cn ?235|c ?295|a ?400m|an ?12|an ?22|an ?26|an ?72|an ?124|il ?76|y ?20|globemaster|hercules|galaxy|spartan|ruslan)\b/i,
+];
+const LIVE_AIRCRAFT_HELICOPTER_PATTERNS = [
+    /\b(helicopter|rotary|rotorcraft|gunship|utility helicopter|attack helicopter|lift helicopter)\b/i,
+    /\b(ah ?1|ah ?64|mi ?8|mi ?17|mi ?24|mi ?25|mi ?28|mi ?35|ka ?52|z ?10|t ?129|uh ?60|s ?70|ch ?47|nh ?90|aw ?101|h ?225|bell)\b/i,
+];
+const LIVE_AIRCRAFT_BOMBER_PATTERNS = [
+    /\b(bomber|strategic bomber|strike bomber|gunship)\b/i,
+    /\b(b ?1|b ?2|b ?52|tu ?22|tu ?95|tu ?160|h ?6|h ?6k|ac ?130)\b/i,
+];
+const LIVE_AIRCRAFT_FIGHTER_PATTERNS = [
+    /\b(fighter|interceptor|multirole|air superiority|combat aircraft)\b/i,
+    /\b(f ?14|f ?15|f ?16|f ?18|fa ?18|f a 18|f ?22|f ?35|a ?10|su ?24|su ?25|su ?27|su ?30|su ?33|su ?34|su ?35|su ?57|mig ?21|mig ?23|mig ?29|mig ?31|j ?7|j ?8|j ?10|j ?11|j ?15|j ?16|j ?20|jh ?7|jf ?17|fc ?1|tejas|eurofighter|typhoon|rafale|gripen|mirage|tornado)\b/i,
+];
+const LIVE_AIRCRAFT_US_BOMBER_PATTERNS = [
+    /\b(b ?1|b ?2|b ?52)\b/i,
+];
+const LIVE_AIRCRAFT_US_FIGHTER_PATTERNS = [
+    /\b(f ?14|f ?15|f ?16|f ?18|fa ?18|f a 18|f ?22|f ?35|a ?10)\b/i,
+];
+const LIVE_AIRCRAFT_EU_FIGHTER_PATTERNS = [
+    /\b(eurofighter|typhoon|rafale|gripen|tornado|mirage ?2000|mirage ?f ?1|mirage)\b/i,
+];
+const LIVE_AIRCRAFT_RU_FIGHTER_PATTERNS = [
+    /\b(su ?24|su ?25|su ?27|su ?30|su ?33|su ?34|su ?35|su ?57|mig ?21|mig ?23|mig ?29|mig ?31)\b/i,
+];
+const LIVE_AIRCRAFT_CN_FIGHTER_PATTERNS = [
+    /\b(j ?7|j ?8|j ?10|j ?11|j ?15|j ?16|j ?20|jh ?7)\b/i,
+];
+const LIVE_AIRCRAFT_FF5_FIGHTER_PATTERNS = [
+    /\b(jf ?17|fc ?1)\b/i,
+];
+const LIVE_AIRCRAFT_AWACS_AW1_PATTERNS = [
+    /\b(e ?3|e ?7|wedgetail|sentry|hawkeye|saab ?2000|erieye)\b/i,
+];
+const LIVE_AIRCRAFT_TANKER_TN1_PATTERNS = [
+    /\b(kc ?10|kc ?46|kc ?135|stratotanker|extender|pegasus|boom refuel)\b/i,
+];
+const LIVE_AIRCRAFT_TRANSPORT_TP1_PATTERNS = [
+    /\b(c ?17|c ?130|c ?5|c ?27j|cn ?235|c ?295|a ?400m|globemaster|hercules|galaxy|spartan)\b/i,
+];
+const LIVE_AIRCRAFT_TRANSPORT_TP2_PATTERNS = [
+    /\b(il ?76|an ?12|an ?22|an ?26|an ?72|an ?124|y ?20|ruslan)\b/i,
+];
+const LIVE_AIRCRAFT_HELO_ATTACK_PATTERNS = [
+    /\b(ah ?1[a-z]?|ah ?64[a-z]?|apache|mi ?24|mi ?25|mi ?28|mi ?35|ka ?52|z ?10|t ?129|tiger|rooivalk|gunship|attack helicopter)\b/i,
+];
+const LIVE_AIRCRAFT_SPECIAL_VIP_CONTEXT_PATTERNS = [
+    /\b(vip|state|government|govt|president|presidential|royal|official|head of state|executive|air force one)\b/i,
+];
+const LIVE_AIRCRAFT_SPECIAL_SP1_PATTERNS = [
+    /\b(vc ?25[a-z]?|boeing vc ?25[a-z]?)\b/i,
+    /\b(boeing business jet|boeing business jets|boeing bbj|bbj ?1|bbj ?2|bbj ?3|bbj)\b/i,
+    /\b(boeing 737 bbj|boeing 737 ?700 bbj|boeing 737 ?800 bbj|737 bbj|737 ?700 bbj|737 ?800 bbj)\b/i,
+    /\b(airbus a319cj|airbus acj ?319|a319cj|acj ?319|airbus a320cj|airbus acj ?320|a320cj|acj ?320|airbus acj|acj family|airbus corporate jet|airbus corporate jets)\b/i,
+];
+const LIVE_AIRCRAFT_SPECIAL_SP2_PATTERNS = [
+    /\b(gulfstream|g ?500|g ?550|g ?600|g ?650|g ?iv ?sp|g ?iv|giv ?sp|giv|gulfstream gv|gulfstream g ?v|gv|c ?37[a-z]?|c ?20[a-z]?)\b/i,
+];
+
+function normalizeAircraftIconText(value = "") {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function hasAnyToken(paddedHaystack = " ", tokens = []) {
+    return tokens.some((token) => token && paddedHaystack.includes(` ${token} `));
+}
+function hasAnyPattern(haystack = "", patterns = []) {
+    return patterns.some((pattern) => pattern.test(haystack));
+}
+function buildLiveAircraftIconSignature(track = {}) {
+    const metadata = getTrackMetadata(track);
+    return [
+        track.subcategory,
+        track.subtype,
+        metadata.role,
+        track.type_code,
+        track.icao_type,
+        metadata.type_code,
+        track.model_name,
+        track.model,
+        track.variant,
+        metadata.model_name,
+        track.aircraft_type,
+        track.description,
+        track.title,
+        track.callsign,
+        track.flight,
+        metadata.callsign,
+        track.operator,
+        track.owner,
+        metadata.operator,
+        track.country,
+        track.region,
+        metadata.country,
+        track.origin,
+        metadata.origin,
+        metadata.platform_origin,
+        metadata.country_of_origin,
+        metadata.manufacturer,
+        metadata.manufacturer_origin,
+    ]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .join("|");
+}
+function buildLiveAircraftIconContext(track = {}) {
+    const metadata = getTrackMetadata(track);
+    const subtype = String(resolveTrackSubtype(track) || "")
+        .trim()
+        .toLowerCase();
+    const values = [
+        subtype,
+        track.subcategory,
+        track.subtype,
+        metadata.role,
+        track.type_code,
+        track.icao_type,
+        metadata.type_code,
+        track.model_name,
+        track.model,
+        track.variant,
+        metadata.model_name,
+        track.aircraft_type,
+        track.description,
+        track.title,
+        track.callsign,
+        track.flight,
+        metadata.callsign,
+        track.operator,
+        track.owner,
+        metadata.operator,
+        track.country,
+        track.region,
+        metadata.country,
+        track.origin,
+        metadata.origin,
+        metadata.platform_origin,
+        metadata.country_of_origin,
+        metadata.manufacturer,
+        metadata.manufacturer_origin,
+    ]
+        .map(normalizeAircraftIconText)
+        .filter(Boolean);
+    const haystack = values.join(" ").trim();
+    const paddedHaystack = haystack ? ` ${haystack} ` : " ";
+    const country = normalizeAircraftIconText(track.country || metadata.country || track.region || "");
+    const operator = normalizeAircraftIconText(track.operator || track.owner || metadata.operator || "");
+    const origin = normalizeAircraftIconText(
+        track.origin ||
+        metadata.origin ||
+        metadata.platform_origin ||
+        metadata.country_of_origin ||
+        metadata.manufacturer_origin
+    );
+    const affiliation = [country, operator, origin]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    const paddedAffiliation = affiliation ? ` ${affiliation} ` : " ";
+    return {
+        subtype,
+        haystack,
+        paddedHaystack,
+        paddedAffiliation,
+    };
+}
+function hasAircraftTokens(context = {}, tokens = []) {
+    return (
+        hasAnyToken(context.paddedAffiliation || " ", tokens) ||
+        hasAnyToken(context.paddedHaystack || " ", tokens)
+    );
+}
+function isUsAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_US_TOKENS);
+}
+function isPakistanAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_PAKISTAN_TOKENS);
+}
+function isTurkeyAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_TURKEY_TOKENS);
+}
+function isChinaAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_CHINA_TOKENS);
+}
+function isEuropeanAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_EUROPEAN_TOKENS);
+}
+function isNatoAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_NATO_TOKENS);
+}
+function isGulfAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_GULF_TOKENS);
+}
+function isRussianStyleAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_RUSSIAN_STYLE_TOKENS);
+}
+function isExSovietAffiliation(context = {}) {
+    return hasAircraftTokens(context, LIVE_AIRCRAFT_EX_SOVIET_TOKENS);
+}
+function resolveLiveAircraftRole(context = {}) {
+    const subtype = String(context.subtype || "").trim().toLowerCase();
+    if (["uav", "drone", "ucav"].includes(subtype)) return "drone";
+    if (["recon", "isr", "patrol", "surveillance"].includes(subtype)) return "recon";
+    if (["awacs", "aew", "aewc"].includes(subtype)) return "awacs";
+    if (["tanker", "refueler", "refueller"].includes(subtype)) return "tanker";
+    if (["transport", "logistics", "logistic"].includes(subtype)) return "transport";
+    if (["helicopter", "rotary"].includes(subtype)) return "helicopter";
+    if (["bomber"].includes(subtype)) return "bomber";
+    if (["fighter", "interceptor", "multirole"].includes(subtype)) return "fighter";
+
+    const haystack = String(context.haystack || "");
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_DRONE_PATTERNS)) return "drone";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_AWACS_PATTERNS)) return "awacs";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_TANKER_PATTERNS)) return "tanker";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_TRANSPORT_PATTERNS)) return "transport";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_HELICOPTER_PATTERNS)) return "helicopter";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_BOMBER_PATTERNS)) return "bomber";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_RECON_PATTERNS)) return "recon";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_FIGHTER_PATTERNS)) return "fighter";
+    return "";
+}
+function resolveBomberIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_US_BOMBER_PATTERNS) || isUsAffiliation(context)) {
+        return "bb-1";
+    }
+    return "bb-2";
+}
+function resolveFighterIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (isPakistanAffiliation(context) || hasAnyPattern(haystack, LIVE_AIRCRAFT_FF5_FIGHTER_PATTERNS)) {
+        return "ff-5";
+    }
+    // Exact platform family takes priority over operator fallback.
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_CN_FIGHTER_PATTERNS)) return "ff-4";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_US_FIGHTER_PATTERNS)) return "ff-1";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_EU_FIGHTER_PATTERNS)) return "ff-2";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_RU_FIGHTER_PATTERNS)) return "ff-3";
+
+    if (isUsAffiliation(context)) return "ff-1";
+    if (isEuropeanAffiliation(context)) return "ff-2";
+    if (isChinaAffiliation(context)) return "ff-4";
+    if (isRussianStyleAffiliation(context)) return "ff-3";
+    return "ff-5";
+}
+function resolveAwacsIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (
+        hasAnyPattern(haystack, LIVE_AIRCRAFT_AWACS_AW1_PATTERNS) ||
+        isUsAffiliation(context) ||
+        isTurkeyAffiliation(context) ||
+        isPakistanAffiliation(context)
+    ) {
+        return "aw-1";
+    }
+    return "aw-2";
+}
+function resolveTankerIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (
+        hasAnyPattern(haystack, LIVE_AIRCRAFT_TANKER_TN1_PATTERNS) ||
+        isUsAffiliation(context) ||
+        isTurkeyAffiliation(context) ||
+        isNatoAffiliation(context)
+    ) {
+        return "tn-1";
+    }
+    return "tn-2";
+}
+function resolveTransportIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    // Prefer exact model clues first, then operator/country fallback.
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_TRANSPORT_TP2_PATTERNS)) return "tp-2";
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_TRANSPORT_TP1_PATTERNS)) return "tp-1";
+
+    if (isPakistanAffiliation(context)) return "tp-1";
+    if (isUsAffiliation(context) || isEuropeanAffiliation(context) || isNatoAffiliation(context) || isGulfAffiliation(context)) {
+        return "tp-1";
+    }
+    if (isChinaAffiliation(context) || isRussianStyleAffiliation(context) || isExSovietAffiliation(context)) {
+        return "tp-2";
+    }
+    return "tp-2";
+}
+function resolveHelicopterIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_HELO_ATTACK_PATTERNS)) return "hh-1";
+    return "hh-2";
+}
+function resolveSpecialMovementIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (!haystack) return "";
+
+    // SP-1: larger state/presidential transports (VC-25, BBJ, ACJ families).
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_SPECIAL_SP1_PATTERNS)) return "sp-1";
+    const hasBoeing747 = /\b((boeing|b) ?747|747)\b/i.test(haystack);
+    if (hasBoeing747 && hasAnyPattern(haystack, LIVE_AIRCRAFT_SPECIAL_VIP_CONTEXT_PATTERNS)) {
+        return "sp-1";
+    }
+
+    // SP-2: executive/government transport jets (Gulfstream family and military VIP variants).
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_SPECIAL_SP2_PATTERNS)) return "sp-2";
+    return "";
+}
+function resolveLiveAircraftIconCode(track = {}) {
+    const trackCacheKey = String(track.track_key || "").trim();
+    const iconSignature = trackCacheKey
+        ? buildLiveAircraftIconSignature(track)
+        : "";
+    if (trackCacheKey && iconSignature) {
+        const cached = __liveTrackIconCodeCache.get(trackCacheKey);
+        if (cached && cached.signature === iconSignature && LIVE_AIRCRAFT_ICON_CODES.has(cached.iconCode)) {
+            return cached.iconCode;
+        }
+    }
+
+    const context = buildLiveAircraftIconContext(track);
+    const specialMovementIconCode = resolveSpecialMovementIconCode(context);
+    let iconCode = LIVE_AIRCRAFT_ICON_DEFAULT_CODE;
+    if (specialMovementIconCode) {
+        iconCode = specialMovementIconCode;
+    } else {
+        const role = resolveLiveAircraftRole(context);
+        switch (role) {
+            case "bomber":
+                iconCode = resolveBomberIconCode(context);
+                break;
+            case "fighter":
+                iconCode = resolveFighterIconCode(context);
+                break;
+            case "awacs":
+                iconCode = resolveAwacsIconCode(context);
+                break;
+            case "tanker":
+                iconCode = resolveTankerIconCode(context);
+                break;
+            case "transport":
+                iconCode = resolveTransportIconCode(context);
+                break;
+            case "helicopter":
+                iconCode = resolveHelicopterIconCode(context);
+                break;
+            case "recon":
+                iconCode = "rr-1";
+                break;
+            case "drone":
+                iconCode = "dd-1";
+                break;
+            default:
+                iconCode = LIVE_AIRCRAFT_ICON_DEFAULT_CODE;
+                break;
+        }
+    }
+    const resolvedIconCode = LIVE_AIRCRAFT_ICON_CODES.has(iconCode)
+        ? iconCode
+        : LIVE_AIRCRAFT_ICON_DEFAULT_CODE;
+    if (trackCacheKey && iconSignature) {
+        __liveTrackIconCodeCache.set(trackCacheKey, {
+            signature: iconSignature,
+            iconCode: resolvedIconCode,
+        });
+    }
+    return resolvedIconCode;
+}
+function getLiveAircraftIconPath(iconCode = LIVE_AIRCRAFT_ICON_DEFAULT_CODE) {
+    const safeCode = LIVE_AIRCRAFT_ICON_CODES.has(iconCode)
+        ? iconCode
+        : LIVE_AIRCRAFT_ICON_DEFAULT_CODE;
+    return `${LIVE_AIRCRAFT_ICON_BASE_PATH}/live-aircraft-${safeCode}.png`;
+}
 /* ================= CSS CONFIG ================= */
 function getCssNumber(varName, fallback) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(varName);
@@ -105,36 +718,33 @@ function getCssColor(varName, fallback = "rgba(255,255,255,1)") {
     const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return value || fallback;
 }
+function getCssText(varName, fallback = "") {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return value || fallback;
+}
 function getLiveTrackStyleConfig() {
     return {
         trailColor: getCssColor("--warzone-live-track-color", "rgba(24,226,219,1)"),
         trailOpacity: getCssNumber("--warzone-live-track-opacity", 0.95),
         trailWidth: getCssNumber("--warzone-live-track-width", 3.4),
-        scale: getCssNumber("--warzone-live-track-scale", 16),
+        scale: getCssNumber("--warzone-live-aircraft-model-scale", getCssNumber("--warzone-live-track-scale", 16)),
         minimumPixelSize: getCssNumber("--warzone-live-track-min-pixel-size", 140),
         maximumScale: getCssNumber("--warzone-live-track-max-scale", 520),
+        depthTestDisableDistance: getCssNumber("--warzone-live-aircraft-depth-test-disable-distance", 0),
     };
 }
 function getLiveTrackSubtypeScale(track = {}, fallbackScale = 16) {
-    const subtype = resolveTrackSubtype(track)
-        .trim()
-        .toLowerCase();
-    if (!subtype) return fallbackScale;
-    return getCssNumber(`--warzone-live-track-scale-${subtype}`, fallbackScale);
+    const fixedScale = getCssNumber("--warzone-live-aircraft-model-scale", Number.NaN);
+    if (Number.isFinite(fixedScale) && fixedScale > 0) {
+        return clamp(fixedScale, 1, 3000);
+    }
+    return clamp(getCssNumber("--warzone-live-track-scale", fallbackScale), 1, 3000);
 }
 function getLiveTrackSubtypeMinPixelSize(track = {}, fallbackValue = 140) {
-    const subtype = resolveTrackSubtype(track)
-        .trim()
-        .toLowerCase();
-    if (!subtype) return fallbackValue;
-    return getCssNumber(`--warzone-live-track-min-pixel-size-${subtype}`, fallbackValue);
+    return 0;
 }
 function getLiveTrackSubtypeMaxScale(track = {}, fallbackValue = 520) {
-    const subtype = resolveTrackSubtype(track)
-        .trim()
-        .toLowerCase();
-    if (!subtype) return fallbackValue;
-    return getCssNumber(`--warzone-live-track-max-scale-${subtype}`, fallbackValue);
+    return Math.max(getLiveTrackSubtypeScale(track, fallbackValue) * 10, 2000);
 }
 function getLiveTrackSubtypeTrailEnabled(track = {}) {
     const subtype = resolveTrackSubtype(track)
@@ -150,9 +760,16 @@ function getLiveTrackSubtypeTrailWidth(track = {}, fallbackWidth = 3.4) {
     if (!subtype) return fallbackWidth;
     return getCssNumber(`--warzone-live-track-trail-width-${subtype}`, fallbackWidth);
 }
-function getLiveTrackBillboardScale(track = {}, fallbackMinPixelSize = 96) {
-    const minPixelSize = getLiveTrackSubtypeMinPixelSize(track, fallbackMinPixelSize);
-    return clamp(minPixelSize / LIVE_TRACK_BILLBOARD_CANVAS_SIZE, 0.58, 1.85);
+function getLiveTrackBillboardScale(mode = LIVE_TRACK_RENDER_MODE.PNG) {
+    if (mode === LIVE_TRACK_RENDER_MODE.CHAR) {
+        return clamp(getCssNumber("--warzone-live-aircraft-char-scale", 0.95), 0.14, 2.8);
+    }
+    // PNG assets can be high-resolution, so allow much smaller global scales.
+    return clamp(
+        getCssNumber("--warzone-live-aircraft-png-scale", getCssNumber("--warzone-live-aircraft-icon-scale", 1)),
+        0.01,
+        2.8
+    );
 }
 function getLiveTrackBillboardColor(subtype = "") {
     const key = String(subtype || "").trim().toLowerCase();
@@ -176,9 +793,35 @@ function getLiveTrackBillboardColor(subtype = "") {
     };
     return palette[key] || palette.aircraft;
 }
-function createAircraftBillboardImage(subtype = "aircraft") {
+function getLiveTrackGlyphIconChar() {
+    const raw = getCssText("--warzone-live-aircraft-icon-char", "Δ")
+        .replace(/^['"]|['"]$/g, "")
+        .trim();
+    return raw || "Δ";
+}
+function getLiveTrackGlyphIconColor(subtype = "") {
+    return getCssColor("--warzone-live-aircraft-icon-color", getLiveTrackBillboardColor(subtype));
+}
+function getLiveTrackGlyphFontSizePx() {
+    return clamp(getCssNumber("--warzone-live-aircraft-icon-font-size", 66), 28, 120);
+}
+function createAircraftPngIcon(track = {}) {
+    const iconCode = resolveLiveAircraftIconCode(track);
+    const cacheKey = `png|asset|${iconCode}`;
+    if (__liveTrackBillboardCache.has(cacheKey)) {
+        return __liveTrackBillboardCache.get(cacheKey);
+    }
+    const iconPath = getLiveAircraftIconPath(iconCode);
+    __liveTrackBillboardCache.set(cacheKey, iconPath);
+    return iconPath;
+}
+function createAircraftCharIcon(subtype = "aircraft") {
     const key = String(subtype || "aircraft").trim().toLowerCase() || "aircraft";
-    if (__liveTrackBillboardCache.has(key)) return __liveTrackBillboardCache.get(key);
+    const glyphChar = getLiveTrackGlyphIconChar();
+    const glyphColorCss = getLiveTrackGlyphIconColor(key);
+    const glyphFontPx = getLiveTrackGlyphFontSizePx();
+    const cacheKey = `char|${key}|${glyphChar}|${glyphColorCss}|${glyphFontPx}`;
+    if (__liveTrackBillboardCache.has(cacheKey)) return __liveTrackBillboardCache.get(cacheKey);
 
     const size = LIVE_TRACK_BILLBOARD_CANVAS_SIZE;
     const half = size / 2;
@@ -188,142 +831,20 @@ function createAircraftBillboardImage(subtype = "aircraft") {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    const colorCss = getLiveTrackBillboardColor(key);
-    const color = Cesium.Color.fromCssColorString(colorCss);
-    const toRgba = (alpha) => (
-        `rgba(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)}, ${Math.max(0, Math.min(alpha, 1))})`
-    );
-    const stroke = "rgba(255,255,255,0.94)";
-
     ctx.clearRect(0, 0, size, size);
 
-    const glow = ctx.createRadialGradient(half, half, 6, half, half, size * 0.38);
-    glow.addColorStop(0, toRgba(0.58));
-    glow.addColorStop(0.34, toRgba(0.22));
-    glow.addColorStop(1, toRgba(0));
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(half, half, size * 0.38, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.font = `900 ${glyphFontPx}px 'Barlow Condensed', 'Rajdhani', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = glyphColorCss;
+    ctx.fillText(glyphChar, half, half + 1);
 
-    ctx.save();
-    ctx.translate(half, half);
-    ctx.fillStyle = colorCss;
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1.4;
-    ctx.lineJoin = "round";
-
-    if (key === "awacs" || key === "isr" || key === "recon") {
-        ctx.beginPath();
-        ctx.arc(0, -6, 14, 0, Math.PI * 2);
-        ctx.fillStyle = toRgba(0.26);
-        ctx.fill();
-        ctx.strokeStyle = toRgba(0.88);
-        ctx.stroke();
-        ctx.fillStyle = colorCss;
-        ctx.strokeStyle = stroke;
-    }
-
-    if (key === "helicopter") {
-        ctx.beginPath();
-        ctx.moveTo(0, -22);
-        ctx.lineTo(8, -6);
-        ctx.lineTo(9, 8);
-        ctx.lineTo(4, 18);
-        ctx.lineTo(4, 26);
-        ctx.lineTo(-4, 26);
-        ctx.lineTo(-4, 18);
-        ctx.lineTo(-9, 8);
-        ctx.lineTo(-8, -6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(-20, -12);
-        ctx.lineTo(20, -12);
-        ctx.moveTo(0, -19);
-        ctx.lineTo(0, -6);
-        ctx.moveTo(4, 20);
-        ctx.lineTo(16, 28);
-        ctx.stroke();
-    } else if (key === "uav" || key === "drone") {
-        ctx.beginPath();
-        ctx.moveTo(0, -24);
-        ctx.lineTo(10, -6);
-        ctx.lineTo(24, 2);
-        ctx.lineTo(10, 8);
-        ctx.lineTo(4, 22);
-        ctx.lineTo(0, 26);
-        ctx.lineTo(-4, 22);
-        ctx.lineTo(-10, 8);
-        ctx.lineTo(-24, 2);
-        ctx.lineTo(-10, -6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-    } else if (key === "transport" || key === "logistics" || key === "logistic" || key === "tanker" || key === "refueler") {
-        ctx.beginPath();
-        ctx.moveTo(0, -28);
-        ctx.lineTo(7, -10);
-        ctx.lineTo(28, -3);
-        ctx.lineTo(28, 6);
-        ctx.lineTo(8, 6);
-        ctx.lineTo(6, 24);
-        ctx.lineTo(12, 30);
-        ctx.lineTo(12, 34);
-        ctx.lineTo(0, 29);
-        ctx.lineTo(-12, 34);
-        ctx.lineTo(-12, 30);
-        ctx.lineTo(-6, 24);
-        ctx.lineTo(-8, 6);
-        ctx.lineTo(-28, 6);
-        ctx.lineTo(-28, -3);
-        ctx.lineTo(-7, -10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-    } else if (key === "bomber") {
-        ctx.beginPath();
-        ctx.moveTo(0, -28);
-        ctx.lineTo(24, 10);
-        ctx.lineTo(12, 10);
-        ctx.lineTo(4, 28);
-        ctx.lineTo(0, 32);
-        ctx.lineTo(-4, 28);
-        ctx.lineTo(-12, 10);
-        ctx.lineTo(-24, 10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-    } else {
-        ctx.beginPath();
-        ctx.moveTo(0, -30);
-        ctx.lineTo(7, -9);
-        ctx.lineTo(23, -4);
-        ctx.lineTo(23, 4);
-        ctx.lineTo(6, 5);
-        ctx.lineTo(2, 22);
-        ctx.lineTo(10, 30);
-        ctx.lineTo(10, 34);
-        ctx.lineTo(0, 28);
-        ctx.lineTo(-10, 34);
-        ctx.lineTo(-10, 30);
-        ctx.lineTo(-2, 22);
-        ctx.lineTo(-6, 5);
-        ctx.lineTo(-23, 4);
-        ctx.lineTo(-23, -4);
-        ctx.lineTo(-7, -9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-    }
-
-    ctx.restore();
     const dataUrl = canvas.toDataURL("image/png");
-    __liveTrackBillboardCache.set(key, dataUrl);
+    __liveTrackBillboardCache.set(cacheKey, dataUrl);
     return dataUrl;
 }
-function resolveLiveTrackBillboardImage(track = {}) {
+function resolveLiveTrackBillboardImage(track = {}, mode = LIVE_TRACK_RENDER_MODE.PNG) {
     const metadata = getTrackMetadata(track);
     const directImage = [
         track.icon_url,
@@ -333,16 +854,69 @@ function resolveLiveTrackBillboardImage(track = {}) {
     ]
         .map((value) => String(value || "").trim())
         .find((value) => value && (/^data:image\//i.test(value) || /\.(png|svg|webp|jpe?g)(\?|#|$)/i.test(value)));
+    if (mode === LIVE_TRACK_RENDER_MODE.PNG && directImage) return directImage;
 
-    if (directImage) return directImage;
-    return createAircraftBillboardImage(resolveTrackSubtype(track));
+    if (mode === LIVE_TRACK_RENDER_MODE.CHAR) {
+        return createAircraftCharIcon(resolveTrackSubtype(track));
+    }
+    return directImage || createAircraftPngIcon(track) || getLiveAircraftIconPath();
 }
-function buildLiveTrackBillboard(track = {}, headingDeg = 0) {
+function getAircraftVisualPolicy() {
+    const config = window.__stratopsConfig?.aircraftVisualPolicy;
+    return config && typeof config === "object" ? config : {};
+}
+function resolveAircraftRenderMode(track = {}) {
+    if (window.__stratopsConfig?.useAircraftBillboards === false) {
+        return LIVE_TRACK_RENDER_MODE.MODEL;
+    }
+    const policy = getAircraftVisualPolicy();
+    const activeCount = __liveTrackEntities.size;
+    // Keep live-aircraft PNG assets visible by default. Char fallback is now
+    // opt-in only via `aircraftVisualPolicy.enableCharFallback === true`.
+    if (policy.enableCharFallback === true) {
+        const charFallbackCount = Math.max(
+            1,
+            Number(policy.charFallbackCount || LIVE_TRACK_CHAR_FALLBACK_DEFAULT_COUNT)
+        );
+        if (activeCount >= charFallbackCount) {
+            return LIVE_TRACK_RENDER_MODE.CHAR;
+        }
+    }
+    const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
+    if (
+        selectedTrackKey &&
+        selectedTrackKey === String(track.track_key || "") &&
+        String(__liveTrackReplayState.mode || "") === "focus"
+    ) {
+        return LIVE_TRACK_RENDER_MODE.MODEL;
+    }
+    const zoomModelEnabled = policy.zoomModel !== false;
+    if (!zoomModelEnabled) {
+        return LIVE_TRACK_RENDER_MODE.PNG;
+    }
+    const modelMaxActive = Math.max(
+        1,
+        Number(policy.modelMaxActive || LIVE_TRACK_MODEL_DEFAULT_MAX_ACTIVE)
+    );
+    if (activeCount > modelMaxActive) {
+        return LIVE_TRACK_RENDER_MODE.PNG;
+    }
+    const viewer = window.__warzoneViewer;
+    const height = Number(viewer?.camera?.positionCartographic?.height || Number.POSITIVE_INFINITY);
+    const modelZoomHeight = Math.max(
+        10000,
+        Number(policy.modelZoomHeight || LIVE_TRACK_MODEL_DEFAULT_ZOOM_HEIGHT)
+    );
+    return height <= modelZoomHeight
+        ? LIVE_TRACK_RENDER_MODE.MODEL
+        : LIVE_TRACK_RENDER_MODE.PNG;
+}
+function buildLiveTrackBillboard(track = {}, headingDeg = 0, mode = LIVE_TRACK_RENDER_MODE.PNG) {
     if (!shouldUseLiveTrackBillboards()) return null;
-    const image = resolveLiveTrackBillboardImage(track);
+    const style = getLiveTrackStyleConfig();
+    const image = resolveLiveTrackBillboardImage(track, mode);
     if (!image) return null;
-    const scale = getLiveTrackBillboardScale(track, 96);
-    const farScale = Math.max(scale * 0.7, 0.42);
+    const scale = getLiveTrackBillboardScale(mode);
     return {
         image,
         scale,
@@ -350,17 +924,11 @@ function buildLiveTrackBillboard(track = {}, headingDeg = 0) {
         alignedAxis: Cesium.Cartesian3.UNIT_Z,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        scaleByDistance: new Cesium.NearFarScalar(
-            LIVE_TRACK_BILLBOARD_NEAR_DISTANCE,
-            scale,
-            LIVE_TRACK_BILLBOARD_FAR_DISTANCE,
-            farScale
-        ),
+        disableDepthTestDistance: style.depthTestDisableDistance,
     };
 }
 function shouldUseLiveTrackBillboards() {
-    return window.__stratopsConfig?.useAircraftBillboards === true;
+    return window.__stratopsConfig?.useAircraftBillboards !== false;
 }
 function buildLiveTrackModelGraphics(modelUri, subtypeScale, subtypeMinPixelSize, subtypeMaxScale) {
     return {
@@ -388,7 +956,6 @@ function applyLiveTrackBillboard(entity, next) {
     entity.billboard.horizontalOrigin = next.horizontalOrigin;
     entity.billboard.verticalOrigin = next.verticalOrigin;
     entity.billboard.disableDepthTestDistance = next.disableDepthTestDistance;
-    entity.billboard.scaleByDistance = next.scaleByDistance;
     entity.model = undefined;
     entity.orientation = undefined;
     return true;
@@ -431,6 +998,7 @@ function getLiveLabelStyleConfig() {
         paddingY: getCssNumber("--warzone-live-label-padding-y", 3),
         maxDistance: getCssNumber("--warzone-live-label-distance", 180000),
         animHeightMax: getCssNumber("--warzone-live-track-anim-height-max", 1600000),
+        depthTestDisableDistance: getCssNumber("--warzone-live-label-depth-test-disable-distance", 0),
     };
 }
 /* ================= UTILS ================= */
@@ -444,10 +1012,10 @@ function requestWarzoneRender() {
 let __renderDebounceTimer = null;
 function requestWarzoneRenderBatched() {
     if (__renderDebounceTimer) return; // already queued
-    __renderDebounceTimer = setTimeout(() => {
+    __renderDebounceTimer = requestAnimationFrame(() => {
         __renderDebounceTimer = null;
         window.__warzoneViewer?.scene?.requestRender?.();
-    }, 16); // ~1 frame at 60fps — coalesces all updates in the same tick
+    }); // coalesces all updates in the same paint frame
 }
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -610,6 +1178,63 @@ function getTrackMetadata(track = {}) {
     }
     return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
 }
+function parseNonNegativeNumber(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+function feetToMeters(feet = 0) {
+    const parsed = Number(feet);
+    return Number.isFinite(parsed) ? parsed * 0.3048 : 0;
+}
+function isGroundState(value) {
+    if (value === true || value === 1) return true;
+    const normalized = String(value ?? "").trim().toLowerCase();
+    return normalized === "ground" || normalized === "true";
+}
+function getTrackReportedAltitudeFt(track = {}) {
+    const metadata = getTrackMetadata(track);
+    return parseNonNegativeNumber(track.altitude_ft ?? metadata.altitude_ft ?? null);
+}
+function getTrackPointReportedAltitudeFt(point = {}) {
+    return parseNonNegativeNumber(point?.altitude_ft ?? null);
+}
+function isTrackOnGround(track = {}) {
+    const metadata = getTrackMetadata(track);
+    return isGroundState(track.on_ground) || isGroundState(metadata.on_ground);
+}
+function isTrackPointOnGround(point = {}) {
+    return isGroundState(point?.on_ground);
+}
+function getTrackFallbackAltitudeFt(track = {}) {
+    const subtype = resolveTrackSubtype(track).trim().toLowerCase() || "aircraft";
+    return LIVE_TRACK_FALLBACK_ALTITUDE_FT_BY_SUBTYPE[subtype]
+        ?? LIVE_TRACK_FALLBACK_ALTITUDE_FT_BY_SUBTYPE.aircraft;
+}
+function getTrackResolvedAltitudeFt(track = {}) {
+    if (isTrackOnGround(track)) return 0;
+    const reportedAltitudeFt = getTrackReportedAltitudeFt(track);
+    if (reportedAltitudeFt != null) return reportedAltitudeFt;
+    return getTrackFallbackAltitudeFt(track);
+}
+function getTrackPointResolvedAltitudeFt(point = {}, track = {}) {
+    if (isTrackPointOnGround(point)) return 0;
+    const reportedAltitudeFt = getTrackPointReportedAltitudeFt(point);
+    if (reportedAltitudeFt != null) return reportedAltitudeFt;
+    return getTrackResolvedAltitudeFt(track);
+}
+function getRenderAltitudeClearanceMeters(altitudeFt = 0) {
+    return Number(altitudeFt || 0) > 0
+        ? LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS
+        : Math.min(LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS, 8);
+}
+function getTrackRenderAltitudeMeters(track = {}) {
+    const altitudeFt = getTrackResolvedAltitudeFt(track);
+    return feetToMeters(altitudeFt) + getRenderAltitudeClearanceMeters(altitudeFt);
+}
+function getTrackPointRenderAltitudeMeters(point = {}, track = {}) {
+    const altitudeFt = getTrackPointResolvedAltitudeFt(point, track);
+    return feetToMeters(altitudeFt) + getRenderAltitudeClearanceMeters(altitudeFt);
+}
 function getTrackRegistrationLabel(track = {}) {
     const metadata = getTrackMetadata(track);
     const registration = sanitizeTrackText(
@@ -740,7 +1365,7 @@ function buildTrackLabel(track = {}, trackKey = "") {
         style: Cesium.LabelStyle.FILL,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: labelStyle.depthTestDisableDistance,
     };
 }
 function applyTrackLabel(label, track = {}, trackKey = "") {
@@ -780,6 +1405,7 @@ function applyFocusCameraControllerLock(enabled = false) {
     void enabled;
     // Keep camera controls available; hard-lock behavior is enforced by
     // maintaining focus target tracking and suppressing unlock clicks.
+    controller.enableInputs = true;
     controller.enableRotate = true;
     controller.enableTranslate = true;
     controller.enableZoom = true;
@@ -791,6 +1417,10 @@ function setLiveTrackHardLockInternal(enabled = false, options = {}) {
     const nextValue = Boolean(enabled) && canLock;
     const hasChanged = nextValue !== __liveTrackHardLockEnabled;
     __liveTrackHardLockEnabled = nextValue;
+    if (!__liveTrackHardLockEnabled) {
+        __liveTrackCtrlTiltDragState = null;
+        clearFocusedTrackCameraLock();
+    }
     applyFocusCameraControllerLock(__liveTrackHardLockEnabled);
     if (hasChanged && !options.silent) {
         document.dispatchEvent(new CustomEvent("wz:aircraft-focus-lock-changed", {
@@ -829,6 +1459,18 @@ function hideFocusGuideElement() {
     if (__liveTrackFocusGuideEl) {
         __liveTrackFocusGuideEl.classList.remove("is-visible");
     }
+}
+
+function hideLiveTrackFocusVisuals() {
+    hideFocusGuideElement();
+    if (__liveTrackOverlayRoot) {
+        if (__liveTrackOverlayLastVisible) {
+            __liveTrackOverlayRoot.style.display = "none";
+        }
+    }
+    __liveTrackOverlayLastVisible = false;
+    __liveTrackOverlayLastX = Number.NaN;
+    __liveTrackOverlayLastY = Number.NaN;
 }
 
 function updateFocusGuideElement() {
@@ -877,8 +1519,13 @@ function bindFocusInteractionTracking(viewer) {
     __liveTrackFocusInputBound = true;
     const canvas = viewer.scene?.canvas;
     if (!canvas) return;
+    const hasFocusCameraModifier = (event) => Boolean(event?.ctrlKey || event?.metaKey);
     const markManualIntent = (event) => {
         if (!isFocusSelectionActive()) return;
+        if (__liveTrackHardLockEnabled) {
+            __liveTrackManualCameraIntent = false;
+            return;
+        }
         // Double-click is commonly used for zoom gestures; do not treat it as
         // manual "unlock focus" intent.
         if (Number(event?.detail || 0) > 1) {
@@ -890,11 +1537,39 @@ function bindFocusInteractionTracking(viewer) {
     const clearManualIntent = () => {
         __liveTrackManualCameraIntent = false;
     };
+    const startCtrlTiltDrag = (event) => {
+        if (!isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
+        if (!hasFocusCameraModifier(event) || Number(event.button) !== 0) return;
+        __liveTrackCtrlTiltDragState = { active: true };
+        __liveTrackManualCameraIntent = false;
+        requestWarzoneRender();
+    };
+    const updateCtrlTiltDrag = (event) => {
+        if (!__liveTrackCtrlTiltDragState || !isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
+        const buttons = Number(event?.buttons || 0);
+        if (!hasFocusCameraModifier(event) || (buttons & 1) !== 1) {
+            stopCtrlTiltDrag();
+            return;
+        }
+        __liveTrackManualCameraIntent = false;
+    };
+    const stopCtrlTiltDrag = () => {
+        __liveTrackCtrlTiltDragState = null;
+    };
+    canvas.addEventListener("mousedown", startCtrlTiltDrag, { passive: true });
     canvas.addEventListener("mousedown", markManualIntent, { passive: true });
     canvas.addEventListener("touchstart", markManualIntent, { passive: true });
     canvas.addEventListener("dblclick", clearManualIntent, { passive: true });
+    window.addEventListener("mousemove", updateCtrlTiltDrag, { passive: true });
     window.addEventListener("mouseup", clearManualIntent, { passive: true });
     window.addEventListener("touchend", clearManualIntent, { passive: true });
+    window.addEventListener("mouseup", stopCtrlTiltDrag, { passive: true });
+    window.addEventListener("blur", stopCtrlTiltDrag, { passive: true });
+    window.addEventListener("keyup", (event) => {
+        if (String(event?.key || "") === "Control" || String(event?.key || "") === "Meta") {
+            stopCtrlTiltDrag();
+        }
+    }, { passive: true });
 }
 
 function buildLiveTrackRegistryEntry(track = {}, entity = null) {
@@ -902,11 +1577,11 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
     const subtype = resolveTrackSubtype(track);
     const lat = Number(track.lat);
     const lon = Number(track.lon);
-    const altitudeFt = Number(track.altitude_ft || 0);
+    const altitudeFt = getTrackReportedAltitudeFt(track);
     const headingDeg = normalizeDegrees(Number(track.heading_deg || 0));
     const speedKts = Number(track.speed_kts || track.ground_speed_kts || 0);
     const currentPosition = getPositionCartesian(entity);
-    let altitudeMeters = altitudeFt * 0.3048;
+    let altitudeMeters = feetToMeters(getTrackResolvedAltitudeFt(track));
     if (currentPosition) {
         try {
             const cartographic = Cesium.Cartographic.fromCartesian(currentPosition);
@@ -929,7 +1604,7 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
         region: String(track.region || ""),
         lat: Number.isFinite(lat) ? lat : null,
         lon: Number.isFinite(lon) ? lon : null,
-        altitude_ft: Number.isFinite(altitudeFt) ? altitudeFt : 0,
+        altitude_ft: altitudeFt ?? 0,
         altitude_m: Number.isFinite(altitudeMeters) ? altitudeMeters : 0,
         heading_deg: headingDeg,
         speed_kts: Number.isFinite(speedKts) ? speedKts : 0,
@@ -937,6 +1612,7 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
         ended_at: null,
         last_seen_at: Date.now(),
         entity_id: entity?.id || `track-${track.track_key}`,
+        on_ground: isTrackOnGround(track),
         path_history: []
     };
 }
@@ -962,17 +1638,44 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
     if (!entry) return;
     const lon = Number(track.lon);
     const lat = Number(track.lat);
-    const altitudeFt = Number(track.altitude_ft || 0);
+    const altitudeFt = getTrackResolvedAltitudeFt(track);
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
     const point = {
         lon,
         lat,
         altitude_ft: Number.isFinite(altitudeFt) ? altitudeFt : 0,
         heading_deg: normalizeDegrees(Number(track.heading_deg || entry.heading_deg || 0)),
+        on_ground: isTrackOnGround(track),
         ts: Date.now(),
     };
-    const pathHistory = pruneHistoryPoints([...(entry.path_history || []), point]);
-    entry.path_history = pathHistory;
+    const history = [...(entry.path_history || [])];
+    const minTrailDistanceMeters = getTrackTrailMinDistanceMeters(track);
+    const previousPoint = history.length ? history[history.length - 1] : null;
+    if (previousPoint) {
+        try {
+            const previousCartesian = Cesium.Cartesian3.fromDegrees(
+                Number(previousPoint.lon),
+                Number(previousPoint.lat),
+                getTrackPointRenderAltitudeMeters(previousPoint, track)
+            );
+            const nextCartesian = Cesium.Cartesian3.fromDegrees(
+                lon,
+                lat,
+                getTrackPointRenderAltitudeMeters(point, track)
+            );
+            const movedMeters = getCartesianDistanceMeters(previousCartesian, nextCartesian);
+            if (movedMeters < minTrailDistanceMeters) {
+                history[history.length - 1] = point;
+            } else {
+                history.push(point);
+            }
+        } catch {
+            history.push(point);
+        }
+    } else {
+        history.push(point);
+    }
+    entry.path_history = pruneHistoryPoints(history);
     entry.last_seen_at = point.ts;
 }
 function pruneTrackRegistry() {
@@ -981,6 +1684,7 @@ function pruneTrackRegistry() {
         const lastSeenAt = Number(entry?.last_seen_at || 0);
         if (lastSeenAt < cutoff && !entry?.active) {
             __liveTrackRegistry.delete(trackKey);
+            __liveTrackIconCodeCache.delete(trackKey);
         } else if (entry?.path_history) {
             entry.path_history = pruneHistoryPoints(entry.path_history);
         }
@@ -1109,33 +1813,121 @@ function syncLiveTrackFocusOverlay() {
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";
     if (!selectedTrackKey || !isFocusMode) {
-        root.style.display = "none";
+        if (__liveTrackOverlayLastVisible) {
+            root.style.display = "none";
+            __liveTrackOverlayLastVisible = false;
+            __liveTrackOverlayLastX = Number.NaN;
+            __liveTrackOverlayLastY = Number.NaN;
+        }
         return;
     }
     const screen = getScreenPositionForTrack(selectedTrackKey);
     if (!screen) {
-        root.style.display = "none";
+        if (__liveTrackOverlayLastVisible) {
+            root.style.display = "none";
+            __liveTrackOverlayLastVisible = false;
+            __liveTrackOverlayLastX = Number.NaN;
+            __liveTrackOverlayLastY = Number.NaN;
+        }
         return;
     }
-    root.style.display = "block";
-    root.style.left = `${screen.x}px`;
-    root.style.top = `${screen.y}px`;
+    if (!__liveTrackOverlayLastVisible) {
+        root.style.display = "block";
+        __liveTrackOverlayLastVisible = true;
+    }
+    if (
+        !Number.isFinite(__liveTrackOverlayLastX) ||
+        Math.abs(screen.x - __liveTrackOverlayLastX) >= 0.5
+    ) {
+        root.style.left = `${screen.x}px`;
+        __liveTrackOverlayLastX = screen.x;
+    }
+    if (
+        !Number.isFinite(__liveTrackOverlayLastY) ||
+        Math.abs(screen.y - __liveTrackOverlayLastY) >= 0.5
+    ) {
+        root.style.top = `${screen.y}px`;
+        __liveTrackOverlayLastY = screen.y;
+    }
 }
 function clearFocusedTrackCameraLock() {
     const viewer = window.__warzoneViewer;
-    if (!viewer) return;
+    const camera = viewer?.camera;
+    if (!viewer || !camera) return;
+    const worldPosition = camera.positionWC
+        ? Cesium.Cartesian3.clone(camera.positionWC)
+        : null;
+    const worldDirection = camera.directionWC
+        ? Cesium.Cartesian3.clone(camera.directionWC)
+        : null;
+    const worldUp = camera.upWC
+        ? Cesium.Cartesian3.clone(camera.upWC)
+        : null;
     try {
-        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        viewer.trackedEntity = undefined;
     } catch { }
+    try {
+        camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        if (worldPosition && worldDirection && worldUp) {
+            camera.setView({
+                destination: worldPosition,
+                orientation: {
+                    direction: worldDirection,
+                    up: worldUp,
+                },
+            });
+        }
+    } catch {
+        try {
+            camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        } catch { }
+    }
+    requestWarzoneRenderBatched();
+}
+function resetFocusedTrackCameraOrientation() {
+    __liveTrackFocusHeadingDeg = 0;
+    __liveTrackFocusPitchDeg = LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG;
+}
+function syncFocusedTrackCameraOrientationFromViewer(position) {
+    const viewer = window.__warzoneViewer;
+    const camera = viewer?.camera;
+    if (!camera || !position) return;
+    const headingDeg = Cesium.Math.toDegrees(Number(camera.heading));
+    const pitchDeg = Cesium.Math.toDegrees(Number(camera.pitch));
+    if (Number.isFinite(headingDeg)) {
+        __liveTrackFocusHeadingDeg = normalizeDegrees(headingDeg);
+    }
+    if (Number.isFinite(pitchDeg)) {
+        __liveTrackFocusPitchDeg = clamp(
+            pitchDeg,
+            LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG,
+            LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG
+        );
+    }
+    const measuredRange = getCartesianDistanceMeters(camera.positionWC, position);
+    if (Number.isFinite(measuredRange) && measuredRange > 0) {
+        __liveTrackFocusRangeMeters = clamp(
+            measuredRange,
+            LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS,
+            LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS
+        );
+    }
 }
 function syncFocusedTrackCamera() {
     const viewer = window.__warzoneViewer;
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";
-    if (!viewer || !selectedTrackKey || !isFocusMode || __liveTrackIsCameraFlying) return;
+    if (
+        !viewer ||
+        !selectedTrackKey ||
+        !isFocusMode ||
+        __liveTrackIsCameraFlying ||
+        !__liveTrackHardLockEnabled
+    ) return;
     const entity = viewer.entities.getById(`track-${selectedTrackKey}`);
     const position = getPositionCartesian(entity);
     if (!position) return;
+    syncFocusedTrackCameraOrientationFromViewer(position);
     try {
         const measuredRange = getCartesianDistanceMeters(viewer.camera?.positionWC, position);
         if (Number.isFinite(measuredRange) && measuredRange > 0) {
@@ -1148,8 +1940,8 @@ function syncFocusedTrackCamera() {
         viewer.camera.lookAt(
             position,
             new Cesium.HeadingPitchRange(
-                0,
-                Cesium.Math.toRadians(LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG),
+                Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
+                Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
                 __liveTrackFocusRangeMeters
             )
         );
@@ -1205,6 +1997,9 @@ function bindLiveTrackPicking(viewer) {
     if (!viewer || __liveTrackClickBound) return;
     __liveTrackClickBound = true;
     let pendingSelectionClearTimer = null;
+    let hoverPickFrame = 0;
+    let hoverPickPosition = null;
+    let hoverTrackKey = "";
     const cancelPendingSelectionClear = () => {
         if (pendingSelectionClearTimer) {
             clearTimeout(pendingSelectionClearTimer);
@@ -1231,13 +2026,40 @@ function bindLiveTrackPicking(viewer) {
         Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK
     );
 
-    __liveTrackClickHandler.setInputAction((movement) => {
-        const picked = viewer.scene.pick(movement.endPosition);
+    const runHoverPick = () => {
+        hoverPickFrame = 0;
+        if (!hoverPickPosition) return;
+        const hasActiveTrackEntities =
+            __liveTrackEntities.size > 0 ||
+            Boolean(__liveTrackReplayState.selectedTrackKey);
+        if (!hasActiveTrackEntities) {
+            if (hoverTrackKey) {
+                viewer.container.style.cursor = "";
+                hoverTrackKey = "";
+            }
+            return;
+        }
+        const picked = viewer.scene.pick(hoverPickPosition);
         const trackKey = resolvePickedTrackKey(picked);
-        viewer.container.style.cursor = trackKey ? "pointer" : "";
+        if (trackKey !== hoverTrackKey) {
+            viewer.container.style.cursor = trackKey ? "pointer" : "";
+            hoverTrackKey = trackKey;
+        }
+    };
+
+    __liveTrackClickHandler.setInputAction((movement) => {
+        if (!movement?.endPosition) return;
+        if (!hoverPickPosition) hoverPickPosition = new Cesium.Cartesian2();
+        Cesium.Cartesian2.clone(movement.endPosition, hoverPickPosition);
+        if (hoverPickFrame) return;
+        hoverPickFrame = requestAnimationFrame(runHoverPick);
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
     __liveTrackClickHandler.setInputAction((movement) => {
+        const hasActiveTrackEntities =
+            __liveTrackEntities.size > 0 ||
+            Boolean(__liveTrackReplayState.selectedTrackKey);
+        if (!hasActiveTrackEntities) return;
         if (__liveTrackHardLockEnabled && isFocusSelectionActive()) {
             cancelPendingSelectionClear();
             return;
@@ -1310,6 +2132,7 @@ function setSelectedTrack(trackKey = "", mode = "") {
     if (!__liveTrackReplayState.selectedTrackKey || __liveTrackReplayState.mode !== "focus") {
         setLiveTrackHardLockInternal(false, { silent: true });
         clearFocusedTrackCameraLock();
+        hideLiveTrackFocusVisuals();
     }
     document.dispatchEvent(new CustomEvent("wz:aircraft-track-selected", {
         detail: {
@@ -1323,13 +2146,13 @@ function setSelectedTrack(trackKey = "", mode = "") {
     syncWidgetRowHighlight(__liveTrackReplayState.selectedTrackKey);
 }
 
-function buildReplayPositions(pathHistory = []) {
+function buildReplayPositions(pathHistory = [], track = {}) {
     return pathHistory
         .filter((point) => Number.isFinite(point.lon) && Number.isFinite(point.lat))
         .map((point) => Cesium.Cartesian3.fromDegrees(
             Number(point.lon),
             Number(point.lat),
-            Number(point.altitude_ft || 0) * 0.3048 + LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS
+            getTrackPointRenderAltitudeMeters(point, track)
         ));
 }
 function startReplayForTrack(trackKey, options = {}) {
@@ -1341,7 +2164,7 @@ function startReplayForTrack(trackKey, options = {}) {
     const pathHistory = pruneHistoryPoints(entry.path_history || []);
     if (pathHistory.length < 2) return false;
     clearReplayEntities();
-    const positions = buildReplayPositions(pathHistory);
+    const positions = buildReplayPositions(pathHistory, entry);
     if (positions.length < 2) return false;
     __liveTrackReplayState.routeEntity = viewer.entities.add({
         id: `track-replay-route-${trackKey}`,
@@ -1358,7 +2181,7 @@ function startReplayForTrack(trackKey, options = {}) {
         position: Cesium.Cartesian3.fromDegrees(
             Number(firstPoint.lon),
             Number(firstPoint.lat),
-            Number(firstPoint.altitude_ft || 0) * 0.3048 + LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS
+            getTrackPointRenderAltitudeMeters(firstPoint, entry)
         ),
         model: {
             uri: resolveLiveTrackModelUri(entry),
@@ -1370,7 +2193,7 @@ function startReplayForTrack(trackKey, options = {}) {
             entry,
             Number(firstPoint.lon),
             Number(firstPoint.lat),
-            Number(firstPoint.altitude_ft || 0) * 0.3048 + LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS,
+            getTrackPointRenderAltitudeMeters(firstPoint, entry),
             Number(firstPoint.heading_deg || 0),
             0,
             0
@@ -1382,7 +2205,7 @@ function startReplayForTrack(trackKey, options = {}) {
         if (path.length < 2 || !__liveTrackReplayState.markerEntity) return;
         __liveTrackReplayState.markerIndex = (__liveTrackReplayState.markerIndex + 1) % path.length;
         const point = path[__liveTrackReplayState.markerIndex];
-        const alt = Number(point.altitude_ft || 0) * 0.3048 + LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS;
+        const alt = getTrackPointRenderAltitudeMeters(point, entry);
         __liveTrackReplayState.markerEntity.position = Cesium.Cartesian3.fromDegrees(
             Number(point.lon),
             Number(point.lat),
@@ -1404,7 +2227,7 @@ function startReplayForTrack(trackKey, options = {}) {
         destination: Cesium.Cartesian3.fromDegrees(
             Number(lastPoint.lon),
             Number(lastPoint.lat),
-            Math.max(Number(lastPoint.altitude_ft || 0) * 0.3048 + 140000, 180000)
+            Math.max(getTrackPointRenderAltitudeMeters(lastPoint, entry) + 140000, 180000)
         ),
         duration: Number(options.duration || 1.25),
     });
@@ -1431,6 +2254,33 @@ function getTrackSubtypeKey(track = {}) {
 function getLiveTrackModelHeadingOffsetDeg(track = {}) {
     const subtype = getTrackSubtypeKey(track);
     return LIVE_TRACK_MODEL_OFFSETS[subtype] ?? -90;
+}
+export function setAircraftModelHeadingOffset(subtype = "", headingOffsetDeg = -90) {
+    const key = getTrackSubtypeKey({ subcategory: subtype });
+    if (!key) return;
+    const next = Number(headingOffsetDeg);
+    if (!Number.isFinite(next)) return;
+    LIVE_TRACK_MODEL_OFFSETS[key] = next;
+    const viewer = window.__warzoneViewer;
+    if (!viewer) return;
+    __liveTrackEntities.forEach((entity) => {
+        if (!entity?.model || !entity?.__trackKey) return;
+        const entry = __liveTrackRegistry.get(entity.__trackKey);
+        if (!entry) return;
+        const lon = Number(entry.lon);
+        const lat = Number(entry.lat);
+        const alt = getTrackRenderAltitudeMeters(entry);
+        const headingDeg = Number(entity.__currentHeadingDeg || entry.heading_deg || 0);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+        entity.orientation = buildTrackOrientation(entry, lon, lat, alt, headingDeg, 0, 0);
+    });
+    requestWarzoneRenderBatched();
+}
+export function setAircraftModelHeadingOffsets(offsetMap = {}) {
+    if (!offsetMap || typeof offsetMap !== "object") return;
+    Object.entries(offsetMap).forEach(([subtype, value]) => {
+        setAircraftModelHeadingOffset(subtype, value);
+    });
 }
 function getLiveTrackTailOffsetMeters(track = {}) {
     const subtype = getTrackSubtypeKey(track);
@@ -1503,7 +2353,7 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
     let targetPitchDeg = 0;
     if (previous) {
         const previousAltFt = Number(previous.altitude_ft || 0);
-        const nextAltFt = Number(track.altitude_ft || 0);
+        const nextAltFt = getTrackResolvedAltitudeFt(track);
         const climbDeltaFt = nextAltFt - previousAltFt;
         targetPitchDeg = clamp(climbDeltaFt / 900, -8, 8);
     }
@@ -1531,23 +2381,56 @@ function buildTrackTrailCartesian(track = {}, lon, lat, alt, courseHeadingDeg = 
     ) {
         return null;
     }
-    const headingRad = Cesium.Math.toRadians(courseHeadingDeg);
-    const tailOffsetMeters = getLiveTrackTailOffsetMeters(track);
-    const metersPerDegLat = 110540;
-    const metersPerDegLon = 111320 * Math.cos(Cesium.Math.toRadians(lat));
-    const tailLon =
-        lon - ((tailOffsetMeters * Math.sin(headingRad)) / Math.max(metersPerDegLon, 1));
-    const tailLat =
-        lat - ((tailOffsetMeters * Math.cos(headingRad)) / metersPerDegLat);
-    const engineLon =
-        tailLon - ((LIVE_TRACK_ENGINE_OFFSET_METERS * Math.sin(headingRad)) / Math.max(metersPerDegLon, 1));
-    const engineLat =
-        tailLat - ((LIVE_TRACK_ENGINE_OFFSET_METERS * Math.cos(headingRad)) / metersPerDegLat);
     try {
-        return Cesium.Cartesian3.fromDegrees(engineLon, engineLat, alt);
+        void track;
+        void courseHeadingDeg;
+        // Keep trail anchored on exact aircraft coordinates so we avoid
+        // multi-line offset artifacts and lagging trails behind the model.
+        return Cesium.Cartesian3.fromDegrees(lon, lat, alt);
     } catch {
         return null;
     }
+}
+function updateTrackTrailPositionsCache(trackKey, trailEntries = []) {
+    if (!trackKey) return [];
+    const trail = Array.isArray(trailEntries) ? trailEntries : [];
+    const lastTs = Number(trail[trail.length - 1]?.ts || 0);
+    const cache = __liveTrackTrailPositionsCache.get(trackKey);
+    if (cache && cache.lastTs === lastTs && cache.length === trail.length) {
+        return cache.positions;
+    }
+    const positions = trail
+        .map((entry) => entry?.position || null)
+        .filter(Boolean);
+    __liveTrackTrailPositionsCache.set(trackKey, {
+        lastTs,
+        length: trail.length,
+        positions,
+    });
+    return positions;
+}
+function getTrackTrailPositions(trackKey) {
+    return updateTrackTrailPositionsCache(trackKey, __liveTrackTrails.get(trackKey) || []);
+}
+function getTrackTrailMinDistanceMeters(track = {}) {
+    const subtype = resolveTrackSubtype(track)
+        .trim()
+        .toLowerCase();
+    if (subtype === "helicopter") return 6;
+    if (subtype === "drone" || subtype === "uav") return 10;
+    if (subtype === "fighter" || subtype === "recon" || subtype === "isr") return 24;
+    if (
+        subtype === "awacs" ||
+        subtype === "tanker" ||
+        subtype === "refueler" ||
+        subtype === "transport" ||
+        subtype === "logistics" ||
+        subtype === "logistic" ||
+        subtype === "bomber"
+    ) {
+        return 36;
+    }
+    return LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS;
 }
 function pushTrackTrailPoint(trackKey, track = {}, lon, lat, alt, courseHeadingDeg = 0) {
     if (
@@ -1564,7 +2447,8 @@ function pushTrackTrailPoint(trackKey, track = {}, lon, lat, alt, courseHeadingD
     const lastEntry = trail[trail.length - 1];
     const lastPosition = lastEntry?.position || null;
     const movedMeters = getCartesianDistanceMeters(lastPosition, newPosition);
-    if (!lastEntry || movedMeters >= LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS) {
+    const minTrailDistanceMeters = getTrackTrailMinDistanceMeters(track);
+    if (!lastEntry || movedMeters >= minTrailDistanceMeters) {
         trail.push({
             position: newPosition,
             ts: now,
@@ -1577,30 +2461,72 @@ function pushTrackTrailPoint(trackKey, track = {}, lon, lat, alt, courseHeadingD
     }
     trail = trimTrailEntries(trail);
     __liveTrackTrails.set(trackKey, trail);
+    updateTrackTrailPositionsCache(trackKey, trail);
+}
+function parseTrailPointTimestamp(rawTs) {
+    const numeric = Number(rawTs);
+    if (Number.isFinite(numeric) && numeric > 0) {
+        return numeric < 1e11 ? numeric * 1000 : numeric;
+    }
+    const parsed = new Date(rawTs || 0).getTime();
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    return Date.now();
+}
+function sanitizeSeedTrailEntries(entries = []) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    if (safeEntries.length <= 2) return safeEntries;
+    const sanitized = [];
+    for (const entry of safeEntries) {
+        if (!entry?.position || !Number.isFinite(Number(entry?.ts))) continue;
+        const next = {
+            position: entry.position,
+            ts: Number(entry.ts),
+        };
+        if (!sanitized.length) {
+            sanitized.push(next);
+            continue;
+        }
+        const previous = sanitized[sanitized.length - 1];
+        const movedMeters = getCartesianDistanceMeters(previous.position, next.position);
+        if (!Number.isFinite(movedMeters)) continue;
+        const dtMs = Math.max(0, Number(next.ts) - Number(previous.ts));
+        if (dtMs === 0) {
+            if (movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS) continue;
+            sanitized.push(next);
+            continue;
+        }
+        const speedMps = movedMeters / (dtMs / 1000);
+        if (
+            movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS &&
+            speedMps > LIVE_TRACK_HISTORY_MAX_SPEED_MPS
+        ) {
+            continue;
+        }
+        sanitized.push(next);
+    }
+    return sanitized;
 }
 function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
-    const entries = trimTrailEntries(
-        (Array.isArray(historyPoints) ? historyPoints : [])
-            .slice(-24)
-            .map((point) => {
-                const lon = Number(point?.lon);
-                const lat = Number(point?.lat);
-                const altitudeFt = Number(point?.altitude_ft || 0);
-                const altitudeMeters = Number.isFinite(altitudeFt)
-                    ? (altitudeFt * 0.3048) + LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS
-                    : LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS;
-                const headingDeg = normalizeDegrees(Number(point?.heading_deg || track.heading_deg || 0));
-                const position = buildTrackTrailCartesian(track, lon, lat, altitudeMeters, headingDeg);
-                if (!position) return null;
-                return {
-                    position,
-                    ts: Number(point?.ts || Date.now()),
-                };
-            })
-            .filter(Boolean)
-    );
+    const sortedEntries = (Array.isArray(historyPoints) ? historyPoints : [])
+        .map((point) => {
+            const lon = Number(point?.lon);
+            const lat = Number(point?.lat);
+            const altitudeMeters = getTrackPointRenderAltitudeMeters(point, track);
+            const headingDeg = normalizeDegrees(Number(point?.heading_deg || track.heading_deg || 0));
+            const position = buildTrackTrailCartesian(track, lon, lat, altitudeMeters, headingDeg);
+            if (!position) return null;
+            return {
+                position,
+                ts: parseTrailPointTimestamp(point?.ts),
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0))
+        .slice(-LIVE_TRACK_SEED_HISTORY_MAX_POINTS);
+    const entries = trimTrailEntries(sanitizeSeedTrailEntries(sortedEntries));
     if (entries.length >= 2) {
         __liveTrackTrails.set(trackKey, entries);
+        updateTrackTrailPositionsCache(trackKey, entries);
     }
 }
 function ensureTrackTrailVisible(trackKey, track = {}, lon, lat, alt, headingDeg = 0) {
@@ -1612,27 +2538,13 @@ function ensureTrackTrailVisible(trackKey, track = {}, lon, lat, alt, headingDeg
         trail = trimTrailEntries(__liveTrackTrails.get(trackKey) || []);
         if (trail.length >= 2) return;
     }
-    const seedDistanceMeters = Math.max(900, getLiveTrackTailOffsetMeters(track) * 2.4);
-    const headingRad = Cesium.Math.toRadians(headingDeg);
-    const metersPerDegLat = 110540;
-    const metersPerDegLon = 111320 * Math.cos(Cesium.Math.toRadians(lat));
-    const seedLon =
-        lon - ((seedDistanceMeters * Math.sin(headingRad)) / Math.max(metersPerDegLon, 1));
-    const seedLat =
-        lat - ((seedDistanceMeters * Math.cos(headingRad)) / metersPerDegLat);
-    const now = Date.now();
-    const seedEntries = trimTrailEntries([
-        {
-            position: buildTrackTrailCartesian(track, seedLon, seedLat, alt, headingDeg),
-            ts: now - 6000,
-        },
-        {
-            position: buildTrackTrailCartesian(track, lon, lat, alt, headingDeg),
-            ts: now,
-        },
-    ].filter((entry) => entry.position));
-    if (seedEntries.length >= 2) {
+    // Do not create synthetic "tail anchors". Seed only from real history data.
+    if (!trail.length) {
+        const position = buildTrackTrailCartesian(track, lon, lat, alt, headingDeg);
+        if (!position) return;
+        const seedEntries = trimTrailEntries([{ position, ts: Date.now() }]);
         __liveTrackTrails.set(trackKey, seedEntries);
+        updateTrackTrailPositionsCache(trackKey, seedEntries);
     }
 }
 function pushTrackTrailPointFromCartesian(trackKey, track = {}, cartesianPosition, headingDeg = 0) {
@@ -1669,8 +2581,7 @@ function getOrCreateTrackTrailEntity(viewer, trackKey, track = {}) {
             polyline: {
                 show: trailEnabled,
                 positions: new Cesium.CallbackProperty(() => {
-                    const entries = trimTrailEntries(__liveTrackTrails.get(trackKey) || []);
-                    return entries.map((entry) => entry.position);
+                    return getTrackTrailPositions(trackKey);
                 }, false),
                 width: trailWidth,
                 material: Cesium.Color.fromCssColorString(style.trailColor)
@@ -1832,15 +2743,17 @@ export function upsertLiveTrack(track) {
     const subtypeMaxScale = getLiveTrackSubtypeMaxScale(track, style.maximumScale);
     const lat = Number(track.lat);
     const lon = Number(track.lon);
-    const alt = (Number(track.altitude_ft || 0) * 0.3048) + LIVE_TRACK_ENTITY_ALTITUDE_OFFSET_METERS;
+    const alt = getTrackRenderAltitudeMeters(track);
+    const resolvedAltitudeFt = getTrackResolvedAltitudeFt(track);
     const sourceTimestamp = getTrackSourceTimestamp(track);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
     const resolvedHeadingDeg = getTrackResolvedHeading(track);
     const attitude = getTrackAttitude(track, resolvedHeadingDeg);
-    const billboard = shouldUseLiveTrackBillboards()
-        ? buildLiveTrackBillboard(track, attitude.headingDeg)
-        : null;
+    const renderMode = resolveAircraftRenderMode(track);
+    const billboard = renderMode === LIVE_TRACK_RENDER_MODE.MODEL
+        ? null
+        : buildLiveTrackBillboard(track, attitude.headingDeg, renderMode);
     let entity = viewer.entities.getById(id);
 
     if (!entity) {
@@ -1871,12 +2784,14 @@ export function upsertLiveTrack(track) {
         entity = viewer.entities.add(entitySpec);
         entity.__trackKey = track.track_key;
         entity.__trackPickable = true;
+        entity.__renderMode = renderMode;
         entity.__currentHeadingDeg = attitude.headingDeg;
         entity.__lastSourceTimestamp = sourceTimestamp;
         __liveTrackEntities.set(id, entity);
     } else {
         entity.__trackKey = track.track_key;
         entity.__trackPickable = true;
+        entity.__renderMode = renderMode;
         entity.__currentHeadingDeg = attitude.headingDeg;
         animateTrackTo(entity, track, lon, lat, alt, sourceTimestamp);
         entity.__lastSourceTimestamp = sourceTimestamp;
@@ -1933,7 +2848,7 @@ export function upsertLiveTrack(track) {
     __liveTrackLastPositions.set(track.track_key, {
         lon,
         lat,
-        altitude_ft: Number(track.altitude_ft || 0),
+        altitude_ft: resolvedAltitudeFt,
     });
     syncLiveTrackFocusOverlay();
     requestWarzoneRenderBatched(); // batched — coalesces 20+ aircraft updates into 1 render
@@ -1959,8 +2874,10 @@ export function clearLiveTrack(trackKey) {
     }
     __liveTrackEntities.delete(entityId);
     __liveTrackTrails.delete(trackKey);
+    __liveTrackTrailPositionsCache.delete(trackKey);
     __liveTrackLastPositions.delete(trackKey);
     __liveTrackVisualState.delete(trackKey);
+    __liveTrackIconCodeCache.delete(trackKey);
     const existingRegistryEntry = __liveTrackRegistry.get(trackKey);
     if (existingRegistryEntry) {
         existingRegistryEntry.active = false;
@@ -1970,7 +2887,7 @@ export function clearLiveTrack(trackKey) {
     }
     if (__liveTrackReplayState.selectedTrackKey === trackKey && __liveTrackReplayState.mode === "focus") {
         setSelectedTrack("", "");
-        hideFocusGuideElement();
+        hideLiveTrackFocusVisuals();
     }
     pruneTrackRegistry();
     dispatchLiveTrackRegistryUpdate();
@@ -2013,14 +2930,16 @@ export function focusLiveTrack(trackKey, options = {}) {
     __liveTrackManualCameraIntent = false;
     viewer.camera.cancelFlight?.();
     __liveTrackIsCameraFlying = true;
+    resetFocusedTrackCameraOrientation();
     setSelectedTrack(trackKey, "focus");
+    setLiveTrackHardLockInternal(true);
     bindFocusGuideTracking();
     updateFocusGuideElement();
     viewer.flyTo(entity, {
         duration: Number(options.duration || 1.15),
         offset: new Cesium.HeadingPitchRange(
-            0,
-            Cesium.Math.toRadians(LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG),
+            Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
+            Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
             focusRange
         ),
     }).then(() => {
@@ -2032,13 +2951,20 @@ export function focusLiveTrack(trackKey, options = {}) {
     return true;
 }
 export function clearLiveTrackSelection(options = {}) {
+    const viewer = window.__warzoneViewer;
+    if (viewer) {
+        viewer.camera.cancelFlight?.();
+    }
+    __liveTrackIsCameraFlying = false;
     setLiveTrackHardLockInternal(false);
     __liveTrackManualCameraIntent = false;
     __liveTrackFocusRangeMeters = LIVE_TRACK_FOCUS_CAMERA_RANGE_METERS;
+    resetFocusedTrackCameraOrientation();
     clearReplayEntities();
     setSelectedTrack("", "");
     clearFocusedTrackCameraLock();
-    hideFocusGuideElement();
+    hideLiveTrackFocusVisuals();
+    requestWarzoneRenderBatched();
     return true;
 }
 export function getLiveTrackSelection() {

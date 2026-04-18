@@ -391,6 +391,7 @@
 .wz-layers__toolbar .btn-secondary {
     flex: 1;
     height: 3rem;
+    padding: 0.6rem 1.5rem 0.4rem;
     font-size: var(--text-sm);
     color: var(--color-white);
     background: var(--color-bg-header)
@@ -554,8 +555,6 @@
     position: relative;
     z-index: 2;
     pointer-events: auto;
-    width: 100%;
-    max-width: 70rem;
     height: auto;
     max-height: 70vh;
     overflow: hidden;
@@ -565,6 +564,17 @@
     will-change: height;
     flex-direction: column;
     filter: var(--widget-shadow);
+}
+
+.wz-modal-box.wz-max-modal {
+    width: 100%;
+    max-width: 70rem;
+}
+
+.wz-modal-box.wz-min-modal {
+    min-width: 40rem;
+    max-width: 50vh;
+    width: auto;
 }
 
 .wz-modal.is-visible .wz-modal-box {
@@ -583,13 +593,46 @@
     clip-path: var(--clippath-shape-2);
 }
 
-#wz-about-modal {
+.wz-header-title {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.wz-layer-warning .wz-header-title .static-icon {
+        font-size: var(--icon-xl);
+    color: var(--color-red-slate);
+    height: 3rem;
+    width: 3rem;
+    animation: wz-animate-pulse 1.5s infinite;
+}
+
+.wz-header-title h2 {
+    font-size: var(--text-xxl);
+    letter-spacing: .5rem;
+    text-transform: capitalize;
+}
+
+.wz-modal .wz-close-modal  {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+}
+
+.wz-modal .wz-close-modal .static-icon {
+    font-size: var(--icon-lg);
+    min-width: 3rem;
+    width: 3rem;
+    height: 3rem;
+}
+
+.wz-about {
     z-index: 11000;
 }
 
-#wz-about-modal.is-visible~.warzone-ui-shell .wz-dock,
-#wz-about-modal.is-visible~.warzone-ui-shell .warzone-region-bar,
-#wz-about-modal.is-visible~.warzone-ui-shell .warzone-actions {
+.wz-about.is-visible~.warzone-ui-shell .wz-dock,
+.wz-about.is-visible~.warzone-ui-shell .warzone-region-bar,
+.wz-about.is-visible~.warzone-ui-shell .warzone-actions {
     pointer-events: none;
 }
 
@@ -619,16 +662,19 @@
     font-size: var(--text-xxxl);
 }
 
+
 .wz-modal header {
     flex: 0 0 auto;
-    padding: 3.5rem 2.5rem 2.3rem;
+    padding: 2.7rem 2.5rem 1.5rem;
     background: var(--color-bg-header);
     width: 100%;
 }
 
+
 .wz-modal header .warzone-logo {
     position: relative;
     top: 0;
+    margin: 1rem 0;
     transform: none;
     opacity: 1;
     justify-self: left
@@ -640,23 +686,6 @@
 
 .wz-layer-warning header {
     position: relative;
-    padding-right: 7rem;
-}
-
-#wz-layer-warning-close {
-    position: absolute;
-    top: 2.2rem;
-    right: 2rem;
-    min-width: 3.6rem;
-    width: 3.6rem;
-    height: 3.6rem;
-    opacity: 0.85;
-}
-
-#wz-layer-warning-close:hover,
-#wz-layer-warning-close:focus-visible {
-    opacity: 1;
-    color: var(--color-teal-glow);
 }
 
 .wz-layer-warning .wz-modal-body {
@@ -690,7 +719,10 @@
     margin-bottom: 0
 }
 
-.wz-modal h3 {}
+.wz-modal.wz-layer-warning h3 { 
+    font-size: var(--text-xl);
+    margin-bottom: 1rem
+}
 
 
 .wz-modal header p {
@@ -933,7 +965,7 @@
 
 /* #endregion =========== */
 /* #region =========== MODAL - ABOUT =========== */
-#wz-about-modal .wz-modal__tabs {
+.wz-about .wz-modal__tabs {
     display: flex;
     flex: 0 0 auto;
     overflow-x: auto;
@@ -942,19 +974,18 @@
     background: var(--color-bg-dark);
 }
 
-#wz-about-modal .wz-modal__tabs::-webkit-scrollbar {
+.wz-about .wz-modal__tabs::-webkit-scrollbar {
     display: none;
 }
 
-#wz-about-modal .wz-modal__tab {
-    display: flex;
+.wz-about .wz-modal__tab {
+display: flex;
     flex: 1 1 20%;
     flex-wrap: nowrap;
     min-width: 12rem;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
-    font-family: var(--text-font);
+    padding: 1rem 1.5rem .7rem;
     font-size: var(--text-sm);
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -966,54 +997,47 @@
     border-bottom: 0.3rem solid var(--color-gray);
     cursor: pointer;
     transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    word-break: break-word;
+    white-space: normal;
+    text-align: center;
 }
 
-#wz-about-modal .wz-modal__tab:hover {
+.wz-about .wz-modal__tab:hover {
     color: var(--color-text-heading);
     background: var(--color-teal-hover);
 }
 
-#wz-about-modal .wz-modal__tab.is-active {
+.wz-about .wz-modal__tab.is-active {
     color: var(--color-teal-glow);
     background: var(--color-teal-hover);
     border-bottom-color: var(--color-teal-glow);
 }
 
-#wz-about-modal .wz-modal__body {
-    position: relative;
-    overflow: hidden;
+.wz-about .wz-modal-body {
+    padding: 0;
 }
 
-#wz-about-modal .wz-modal__pane {
-    display: none;
+.wz-about .wz-content[data-pane] {
     opacity: 0;
     will-change: opacity, transform;
 }
 
-#wz-about-modal .wz-modal__pane.is-active {
-    display: block;
+.wz-about .wz-content[data-pane].is-active {
     opacity: 1;
 }
 
-#wz-about-modal .wz-modal__pane.is-leaving {
-    position: absolute;
-    inset: 0;
-    display: block;
-    pointer-events: none;
-}
-
-#wz-about-modal .wz-modal__pane h3+p,
-#wz-about-modal .wz-modal__pane h3+ul,
-#wz-about-modal .wz-modal__pane p+h3,
-#wz-about-modal .wz-modal__pane ul+h3 {
+.wz-about .wz-content[data-pane] h3+p,
+.wz-about .wz-content[data-pane] h3+ul,
+.wz-about .wz-content[data-pane] p+h3,
+.wz-about .wz-content[data-pane] ul+h3 {
     margin-top: 1.5rem;
 }
 
-#wz-about-modal .wz-modal__pane p {
+.wz-about .wz-content[data-pane] p {
     margin: 0 0 1rem;
 }
 
-#wz-about-modal .wz-terms-footer {
+.wz-about .wz-terms-footer {
     margin-top: 1.5rem !important;
     padding-top: 1.5rem;
     font-size: var(--text-sm);
@@ -1062,7 +1086,7 @@
     right: .7rem;
     width: 1rem;
     height: 1rem;
-    background: var(--color-error);
+    background: var(--color-red-slate);
     border-radius: 50%;
     border: 0;
     animation: wz-animate-pulse 1.5s infinite;
@@ -1125,7 +1149,7 @@
 }
 
 .mini-stat:first-child {
-    background: var(--color-red);
+    background: var(--color-magenta);
     color: var(--color-text-heading);
     font-weight: 600;
 }
@@ -1342,7 +1366,7 @@ UNUSED CANDIDATE END */
     padding: .7rem 1.4rem;
     position: relative;
     clip-path: var(--clippath-shape-3);
-    background: var(--color-red-glow);
+    background: var(--color-magenta-glow);
 }
 
 .escalation-meter .static-icon {
@@ -1734,8 +1758,8 @@ UNUSED CANDIDATE END */
 }
 
 .wz-siren-banner--red .wz-siren__content {
-    color: var(--color-red);
-    filter: drop-shadow(0 .3rem 2rem var(--color-red-glow));
+    color: var(--color-magenta);
+    filter: drop-shadow(0 .3rem 2rem var(--color-magenta-glow));
 }
 
 .wz-siren-banner--orange .wz-siren__content {
@@ -1960,6 +1984,49 @@ UNUSED CANDIDATE END */
     border: 0.2rem solid var(--color-border-gray);
 }
 
+.wz-dev-map-tuner {
+    margin-top: 0.2rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 0.2rem solid var(--color-border-gray);
+    display: grid;
+    gap: 0.65rem;
+}
+
+.wz-dev-map-row {
+    display: grid;
+    grid-template-columns: 9rem 1fr 8rem;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.wz-dev-map-row span {
+    font-size: 0.9rem;
+    color: var(--color-text-dim);
+}
+
+.wz-dev-map-row input[type="range"] {
+    width: 100%;
+}
+
+.wz-dev-map-value {
+    min-height: 3rem;
+}
+
+.wz-dev-map-actions {
+    margin-top: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.wz-dev-map-output {
+    min-height: 14rem;
+    resize: vertical;
+    font-family: var(--font-mono, "JetBrains Mono", "Consolas", monospace);
+    white-space: pre;
+}
+
 .wz-dev-form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2028,11 +2095,7 @@ UNUSED CANDIDATE END */
 }
 
 .wz-dev-action--fire {
-    color: var(--color-red-glow);
-}
-
-.wz-dev-action--clear {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-magenta-glow);
 }
 
 .wz-dev-log {
@@ -2311,14 +2374,12 @@ body.is-authenticated .wz-lock-overlay {
 }
 
 body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content,
-body:not(.is-authenticated) [data-widget-id="airspace"] .panel-content,
-body:not(.is-authenticated) [data-widget-id="cyber"] .panel-content {
+body:not(.is-authenticated) [data-widget-id="naval"] .panel-content {
     overflow: hidden !important;
 }
 
 body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content>*:not(.wz-lock-overlay),
-body:not(.is-authenticated) [data-widget-id="airspace"] .panel-content>*:not(.wz-lock-overlay),
-body:not(.is-authenticated) [data-widget-id="cyber"] .panel-content>*:not(.wz-lock-overlay) {
+body:not(.is-authenticated) [data-widget-id="naval"] .panel-content>*:not(.wz-lock-overlay) {
     visibility: hidden !important;
     pointer-events: none !important;
     user-select: none !important;

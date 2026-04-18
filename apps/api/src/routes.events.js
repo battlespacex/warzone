@@ -1,6 +1,20 @@
 ﻿import express from "express";
 import { query } from "./db.js";
 import { createClient } from "@supabase/supabase-js";
+const DEFAULT_EVENTS_WINDOW_HOURS = 48;
+const MIN_EVENTS_WINDOW_HOURS = 6;
+const MAX_EVENTS_WINDOW_HOURS = 168;
+const DEFAULT_EVENTS_LIMIT = 2000;
+const MIN_EVENTS_LIMIT = 200;
+const MAX_EVENTS_LIMIT = 4000;
+const DEFAULT_EVENTS_SINCE_LIMIT = 200;
+const MAX_EVENTS_SINCE_LIMIT = 500;
+const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
+const AIRCRAFT_HISTORY_LIMIT = 1000;
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
 
 function getSupabase() {
     return createClient(
@@ -15,12 +29,22 @@ export function eventsRouter({ broadcast }) {
     // ── Events — initial load ──────────────────────────────────────
     router.get("/", async (req, res) => {
         try {
+            const requestedWindowHours = Number(req.query.window_hours);
+            const windowHours = Number.isFinite(requestedWindowHours)
+                ? clamp(requestedWindowHours, MIN_EVENTS_WINDOW_HOURS, MAX_EVENTS_WINDOW_HOURS)
+                : DEFAULT_EVENTS_WINDOW_HOURS;
+            const requestedLimit = Number(req.query.limit);
+            const limit = Number.isFinite(requestedLimit)
+                ? clamp(Math.floor(requestedLimit), MIN_EVENTS_LIMIT, MAX_EVENTS_LIMIT)
+                : DEFAULT_EVENTS_LIMIT;
+            const cutoffIso = new Date(Date.now() - (windowHours * 60 * 60 * 1000)).toISOString();
             const supabase = getSupabase();
             const { data, error } = await supabase
                 .from("events")
                 .select("*")
+                .gte("occurred_at", cutoffIso)
                 .order("occurred_at", { ascending: false })
-                .limit(500);
+                .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
             res.json({ events: data || [] });
         } catch {
@@ -33,13 +57,17 @@ export function eventsRouter({ broadcast }) {
         try {
             const since = req.query.t;
             if (!since) return res.status(400).json({ error: "Missing t param" });
+            const requestedLimit = Number(req.query.limit);
+            const limit = Number.isFinite(requestedLimit)
+                ? clamp(Math.floor(requestedLimit), 25, MAX_EVENTS_SINCE_LIMIT)
+                : DEFAULT_EVENTS_SINCE_LIMIT;
             const supabase = getSupabase();
             const { data, error } = await supabase
                 .from("events")
                 .select("*")
                 .gt("occurred_at", since)
                 .order("occurred_at", { ascending: false })
-                .limit(25);
+                .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
             res.json({ events: data || [] });
         } catch {
@@ -67,7 +95,7 @@ export function eventsRouter({ broadcast }) {
     router.get("/aircraft", async (req, res) => {
         try {
             const supabase = getSupabase();
-            const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const cutoff = new Date(Date.now() - AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
             const { data, error } = await supabase
                 .from("tracks")
                 .select("*")
@@ -75,7 +103,7 @@ export function eventsRouter({ broadcast }) {
                 .eq("category", "military")
                 .gte("updated_at", cutoff)
                 .order("updated_at", { ascending: false })
-                .limit(500);
+                .limit(AIRCRAFT_HISTORY_LIMIT);
             if (error) return res.status(500).json({ error: "Failed" });
             res.json({ tracks: data || [] });
         } catch {

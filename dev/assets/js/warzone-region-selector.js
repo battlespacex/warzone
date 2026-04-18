@@ -27,6 +27,7 @@ const STORAGE_KEY = "wz_selected_region";
 const LENS_KEY = "wz_selected_lens";
 const VISITED_KEY = "wz_region_visited";
 const INTRO_ACCEPT_KEY = "wz_intro_accepted";
+let __regionFlyLoaderTimer = 0;
 let __activeRegion = getRegionById("middle_east");
 let __activeLens = "live";
 let __onChangeCallbacks = [];
@@ -72,11 +73,41 @@ function detectRegionFromCamera(viewer) {
 export function filterEventsByRegion(events, region) {
     if (!region || region.id === "global") return events;
     const { minLat, maxLat, minLon, maxLon } = region.bounds;
+    const metersToLatDeg = (meters) => meters / 111320;
+    const metersToLonDeg = (meters, atLatDeg) => {
+        const cosLat = Math.cos((Number(atLatDeg) * Math.PI) / 180);
+        return meters / Math.max(111320 * Math.abs(cosLat), 1);
+    };
+    const getEventRadiusMeters = (event = {}) => {
+        const value =
+            Number(event?.highlight_radius_m) ||
+            Number(event?.target_radius_m) ||
+            Number(event?.incoming_highlight_radius_m) ||
+            0;
+        return Number.isFinite(value) && value > 0 ? value : 0;
+    };
     return events.filter((e) => {
         const lat = Number(e.display_lat ?? e.lat ?? e.impact_lat);
         const lon = Number(e.display_lon ?? e.lon ?? e.impact_lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-        return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+        if (lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon) {
+            return true;
+        }
+        // Keep radius-based overlays if their footprint intersects the region.
+        const radiusMeters = getEventRadiusMeters(e);
+        if (radiusMeters <= 0) return false;
+        const latPad = metersToLatDeg(radiusMeters);
+        const lonPad = metersToLonDeg(radiusMeters, lat);
+        const eventMinLat = lat - latPad;
+        const eventMaxLat = lat + latPad;
+        const eventMinLon = lon - lonPad;
+        const eventMaxLon = lon + lonPad;
+        const intersects =
+            eventMaxLat >= minLat &&
+            eventMinLat <= maxLat &&
+            eventMaxLon >= minLon &&
+            eventMinLon <= maxLon;
+        return intersects;
     });
 }
 export function getActiveRegion() { return __activeRegion; }
@@ -97,27 +128,46 @@ export function setActiveLens(lensId) {
 }
 export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
 function notifyChange(region) { __activeRegion = region; notifyScopeChange(); }
-export function flyToRegion(viewer, region) {
+export function flyToRegion(viewer, region, options = {}) {
     if (!viewer || !region) return;
-    window.SiteLoader?.start?.();
+    const showLoader = options?.showLoader === true;
+    if (__regionFlyLoaderTimer) {
+        clearTimeout(__regionFlyLoaderTimer);
+        __regionFlyLoaderTimer = 0;
+    }
+    const finalizeLoader = () => {
+        if (__regionFlyLoaderTimer) {
+            clearTimeout(__regionFlyLoaderTimer);
+            __regionFlyLoaderTimer = 0;
+        }
+        if (showLoader) {
+            window.SiteLoader?.stop?.();
+        }
+    };
+    if (showLoader) {
+        window.SiteLoader?.start?.();
+        __regionFlyLoaderTimer = window.setTimeout(finalizeLoader, 5200);
+    }
     const { minLon, minLat, maxLon, maxLat } = region.bounds;
     if (region.id === "global") {
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(20, 20, 18000000),
             duration: 1.8,
-            complete: () => { window.SiteLoader?.stop?.(); },
+            complete: finalizeLoader,
+            cancel: finalizeLoader,
         });
         return;
     }
     viewer.camera.flyTo({
         destination: Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
         duration: 1.8,
-        complete: () => { window.SiteLoader?.stop?.(); },
+        complete: finalizeLoader,
+        cancel: finalizeLoader,
     });
 }
-export function selectRegion(viewer, regionId) {
+export function selectRegion(viewer, regionId, options = {}) {
     const region = getRegionById(regionId);
-    flyToRegion(viewer, region);
+    flyToRegion(viewer, region, options);
     notifyChange(region);
 }
 function updateNavDropdown(region) {
@@ -258,7 +308,7 @@ function showRegionModal(viewer, instant = false) {
             setTimeout(() => {
                 overlay.hidden = true;
                 overlay.classList.remove("is-closing");
-                selectRegion(viewer, chosen);
+                selectRegion(viewer, chosen, { showLoader: true });
                 window.__warzoneStartDeferredApp?.();
             }, 220);
         });

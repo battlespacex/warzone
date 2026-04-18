@@ -30,7 +30,8 @@
                 ✕
             </button>
         </div>
-        <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite">
+        <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite" role="dialog"
+            aria-modal="false" aria-labelledby="wz-event-popup-title" aria-describedby="wz-event-popup-summary">
             <div class="wz-event-popup__head">
                 <span id="wz-event-popup-cat" class="wz-event-popup__cat"></span>
                 <span id="wz-event-popup-sev" class="wz-event-popup__sev"></span>
@@ -53,7 +54,7 @@
     <div class="primary-content">
         <div id="wz-intro-modal" class="wz-modal wz-intro" aria-modal="true" role="dialog"
             aria-labelledby="wz-intro-title" aria-describedby="wz-intro-summary" hidden>
-            <div class="wz-modal-box">
+            <div class="wz-modal-box wz-max-modal">
                 <div class="wz-modal-inner">
                     <header>
                         <div aria-label="Stratops visualization board" class="warzone-logo">
@@ -61,14 +62,14 @@
                                 class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async" />
                         </div>
                     </header>
-                    <main class="wz-modal-body">
+                    <section class="wz-modal-body">
                         <div id="wz-intro-content-view" class="wz-content is-active">
                             <h2 id="wz-intro-title">
                                 Real-Time Multi-Domain Battlespace Intelligence
                             </h2>
                             <p id="wz-intro-summary" class="no-margin">
                                 <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
-                                        target="_blank">Battlespacex</a></strong>, is a real-time, multi-domain
+                                        target="_blank" rel="noopener noreferrer">Battlespacex</a></strong>, is a real-time, multi-domain
                                 intelligence visualization platform that leverages OSINT to synthesize aggregated
                                 telemetry streams and event signals into a live, 3D layered battlespace spanning air,
                                 land, sea, space, and cyberspace. It supports tracking of military movements, assessment
@@ -121,7 +122,7 @@
                                 </button>
                             </div>
                         </div>
-                    </main>
+                    </section>
                     <footer>
                         <div id="wz-hint" class="wz-hint">
                             <span class="static-icon bx-web-ico-top-1-0 color-grace-red"></span><span>Enter as a guest
@@ -156,14 +157,14 @@
         </div>
         <div id="wz-region-modal" class="wz-modal wz-region" aria-modal="true" role="dialog"
             aria-labelledby="wz-region-title" aria-describedby="wz-region-sub" hidden>
-            <div class="wz-modal-box">
+            <div class="wz-modal-box wz-max-modal">
                 <div class="wz-modal-inner">
                     <header>
                         <h2 id="wz-region-title">Select Monitoring Region</h2>
                         <p id="wz-region-sub">Choose an initial theater to begin monitoring.</p>
                     </header>
-                    <main class="wz-region-grid" id="wz-region-modal-grid" role="listbox"
-                        aria-label="Available monitoring regions"></main>
+                    <section class="wz-region-grid" id="wz-region-modal-grid" role="listbox"
+                        aria-label="Available monitoring regions"></section>
                     <footer>
                         <button type="button" class="btn-secondary white" id="wz-region-back">
                             <span aria-hidden="true"></span>
@@ -179,28 +180,30 @@
         </div>
         <div id="wz-login-modal" class="wz-modal wz-login" aria-modal="true" role="dialog"
             aria-labelledby="wz-login-title" aria-describedby="wz-login-summary" hidden>
-            <div class="wz-modal-box">
+            <div class="wz-modal-box wz-min-modal">
                 <div class="wz-modal-inner">
                     <header>
                         <div aria-label="Stratops visualization board" class="warzone-logo wz-intro__hero">
                             <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="Stratops by BattleSpaceX"
                                 class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async" />
                         </div>
-                        <button type="button" class="static-icon" id="wz-login-close" aria-label="Close login dialog">
-                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-                        </button>
+                        <span class="wz-close-modal">
+                            <button type="button" class="static-icon" id="wz-login-close" aria-label="Close login dialog">
+                                <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                            </button>
+                        </span>
                     </header>
-                    <main class="wz-modal-body is-active">
+                    <section class="wz-modal-body is-active">
                         <h2 id="wz-login-title">
                             Sign In to StratOps
                         </h2>
                         <div id="wz-login-summary">
-                            <p>
+                            <p id="auth-guest-copy">
                                 Log in with your <strong>BattleSpacex</strong> account to unlock full capabilities.
                             </p>
                             <p id="auth-authed-copy" hidden>
                                 You are already logged in to BattleSpacex.
-                                Review the acknowledgment below, then continue into StratOps.
+                                Continue into StratOps.
                             </p>
                             <p id="auth-authed-user" class="wz-auth-user" hidden aria-live="polite"></p>
                             <p id="auth-error" class="wz-error-container" hidden aria-live="assertive" role="alert"></p>
@@ -227,54 +230,48 @@
                                     <input id="auth-remember" type="checkbox" />
                                     <span>Stay connected</span>
                                 </label>
-                                <label class="wz-check" for="auth-disclaimer-check">
-                                    <input id="auth-disclaimer-check" type="checkbox" />
-                                    <span>I understand that StratOps presents OSINT-informed monitoring data and is not
-                                        an
-                                        official warning network, classified intelligence product, or emergency
-                                        instruction
-                                        system.</span>
-                                </label>
-                                <button id="auth-login-btn" class="btn-primary is-locked" type="button"
-                                    data-mode="guest" disabled aria-disabled="true" style="pointer-events:none">
+                                <button id="auth-login-btn" class="btn-primary" type="button"
+                                    data-mode="guest" aria-disabled="false">
                                     <span class="wz-auth-btn__icon" aria-hidden="true"></span>
                                     <span id="auth-login-btn-text">Log In</span>
                                 </button>
                             </form>
                         </div>
-                    </main>
+                    </section>
                     <footer role="group" aria-label="Account creation option">
-                        <span>New to StratOps?</span>
-                        <button class="btn-secondary purple" type="button"
-                            onclick="window.location.href='https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com'"
-                            aria-label="Create a Battlespacex account to access StratOps">
-                            <span aria-hidden="true"></span>
-                            <i class="static-icon bx-web-ico-c4isr-1-0" aria-hidden="true"></i>
-                            Create Account
-                        </button>
-                    </footer>
+                            <span>New to StratOps?</span>
+                            <button id="auth-create-account" class="btn-secondary purple" type="button"
+                                onclick="window.location.href='https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com'"
+                                aria-label="Create a Battlespacex account to access StratOps">
+                                <span aria-hidden="true"></span>
+                                <i class="static-icon bx-web-ico-c4isr-1-0" aria-hidden="true"></i>
+                                Create Account
+                            </button>
+                        </footer>
                 </div>
             </div>
         </div>
         <div id="wz-layer-warning-modal" class="wz-modal wz-layer-warning" aria-modal="true" role="dialog"
             aria-labelledby="wz-layer-warning-title"
             aria-describedby="wz-layer-warning-summary wz-layer-warning-detail" hidden>
-            <div class="wz-modal-box">
+            <div class="wz-modal-box wz-min-modal">
                 <div class="wz-modal-inner">
                     <header>
                         <span class="wz-header-title">
-                            <span class="static-icon bx-web-ico-warning-1"></span>
-                            <h2 id="wz-layer-warning-title">High-Load Alert</h2>
+                            <span class="static-icon bx-web-ico-warning-2"></span>
+                            <h2>Alert</h2>
                         </span>
-                        <button type="button" class="static-icon" id="wz-layer-warning-close"
-                            aria-label="Close performance warning">
+                        <span class="wz-close-modal">
+                            <button type="button" class="static-icon" id="wz-layer-warning-close" aria-label="Close performance warning">
                             <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-                        </button>
+                            </button>
+                        </span>
                     </header>
-                    <main class="wz-modal-body">
+                    <section class="wz-modal-body">
+                        <h3 id="wz-layer-warning-title">High-Load Alert</h3>
                         <p id="wz-layer-warning-summary"></p>
                         <p id="wz-layer-warning-detail" class="no-margin"></p>
-                    </main>
+                    </section>
                     <footer>
                         <button type="button" class="btn-secondary white" id="wz-layer-warning-back">
                             <span aria-hidden="true"></span>
@@ -290,11 +287,12 @@
         </div>
         <div id="wz-about-modal" class="wz-modal wz-about" aria-modal="true" role="dialog"
             aria-labelledby="wz-about-title" hidden>
-            <div class="wz-modal-box">
-                <header>
+            <div class="wz-modal-box wz-max-modal">
+                <div class="wz-modal-inner">
+                                    <header>
                     <h2 id="wz-about-title">StratOps Intelligence Brief</h2>
                     <button type="button" class="static-icon" id="wz-about-close" aria-label="Close about dialog">
-                        <span class="bx-web-close-1-1" aria-hidden="true"></span>
+                        <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
                     </button>
                 </header>
                 <nav class="wz-modal__tabs" role="tablist" aria-label="About and policy tabs">
@@ -319,13 +317,13 @@
                         Data Governance
                     </button>
                 </nav>
-                <main class="wz-modal__body">
-                    <div class="wz-modal__pane is-active" data-pane="about" id="wz-about-pane-overview" role="tabpanel"
+                <section class="wz-modal-body">
+                    <div class="wz-content is-active" data-pane="about" id="wz-about-pane-overview" role="tabpanel"
                         aria-labelledby="wz-about-tab-overview" aria-hidden="false">
                         <h3>Strategic Overview</h3>
                         <p>
                             <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
-                                    target="_blank">Battlespacex</a></strong>, is a real-time, OSINT-based
+                                    target="_blank" rel="noopener noreferrer">Battlespacex</a></strong>, is a real-time, OSINT-based
                             multi-domain intelligence visualization platform built to map operational tempo across
                             air, land, sea, space, and cyberspace.
                         </p>
@@ -353,7 +351,7 @@
                             any government, military, intelligence service, or emergency authority.
                         </small>
                     </div>
-                    <div class="wz-modal__pane" data-pane="capabilities" id="wz-about-pane-coverage" role="tabpanel"
+                    <div class="wz-content" data-pane="capabilities" id="wz-about-pane-coverage" role="tabpanel"
                         aria-labelledby="wz-about-tab-coverage" aria-hidden="true">
                         <h3>Domain Coverage</h3>
                         <p>
@@ -389,7 +387,7 @@
                             given time.
                         </small>
                     </div>
-                    <div class="wz-modal__pane" data-pane="method" id="wz-about-pane-workflow" role="tabpanel"
+                    <div class="wz-content" data-pane="method" id="wz-about-pane-workflow" role="tabpanel"
                         aria-labelledby="wz-about-tab-workflow" aria-hidden="true">
                         <h3>Intelligence Workflow</h3>
                         <p>
@@ -421,7 +419,7 @@
                             ranking parameters, and internal enrichment logic.
                         </small>
                     </div>
-                    <div class="wz-modal__pane" data-pane="terms" id="wz-about-pane-compliance" role="tabpanel"
+                    <div class="wz-content" data-pane="terms" id="wz-about-pane-compliance" role="tabpanel"
                         aria-labelledby="wz-about-tab-compliance" aria-hidden="true">
                         <h3>Use & Compliance</h3>
                         <ul class="wz-list-view">
@@ -443,7 +441,7 @@
                             For verified alerts or official emergency direction, always refer to authorized agencies.
                         </small>
                     </div>
-                    <div class="wz-modal__pane" data-pane="policy" id="wz-about-pane-governance" role="tabpanel"
+                    <div class="wz-content" data-pane="policy" id="wz-about-pane-governance" role="tabpanel"
                         aria-labelledby="wz-about-tab-governance" aria-hidden="true">
                         <h3>Data Governance</h3>
                         <p>
@@ -475,7 +473,8 @@
                             source and system internals.
                         </small>
                     </div>
-                </main>
+                </section>
+                </div>
             </div>
         </div>
     </div>

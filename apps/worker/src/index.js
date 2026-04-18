@@ -1202,14 +1202,14 @@ async function pruneStaleData() {
         .lt("occurred_at", eventsCutoff);
     if (eventsError) console.error("Events prune error:", eventsError.message);
     else console.log("[prune] Events older than 7 days removed");
-    // Aircraft tracks older than 24 hours
-    const aircraftCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    // Aircraft tracks older than 72 hours
+    const aircraftCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
     const { error: aircraftError } = await supabase
         .from("aircraft_tracks_log")
         .delete()
         .lt("last_seen_at", aircraftCutoff);
     if (aircraftError) console.error("Aircraft prune error:", aircraftError.message);
-    else console.log("[prune] Aircraft tracks older than 24 hours removed");
+    else console.log("[prune] Aircraft tracks older than 72 hours removed");
     // Raw items older than 48 hours
     const rawCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
     const { error: rawError } = await supabase

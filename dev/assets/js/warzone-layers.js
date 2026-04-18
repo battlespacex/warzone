@@ -8,13 +8,13 @@ const LAYER_DEFS = [
     // airspace is uiOnly — it controls the Airspace Status widget visibility.
     // It is intentionally decoupled from the "aircraft" layer so toggling
     // live flight tracks on the globe does NOT affect the airspace panel.
-    { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "🌐", color: "#33d9ff", uiOnly: true, premium: true },
-    { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "⚓", color: "#9b7bff" },
+    { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "🌐", color: "#33d9ff", uiOnly: true },
+    { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "⚓", color: "#9b7bff", premium: true },
     { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "🏛️", color: "#3a8eff", uiOnly: true, premium: true },
     { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "📡", color: "#33d9ff" },
     { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "🌀", color: "#18e2db", uiOnly: true },
     { id: "alerts", label: "Alerts & Sirens", description: "Warning banners, sirens, and alert signals", icon: "🔔", color: "#ff2a2a" },
-    { id: "cyber", label: "Cyber Operations", description: "Cyber threat and network disruption signals", icon: "💻", color: "#9b7bff", premium: true },
+    { id: "cyber", label: "Cyber Operations", description: "Cyber threat and network disruption signals", icon: "💻", color: "#9b7bff" },
     { id: "thermal", label: "Thermal / Fires", description: "Thermal anomalies, fires, and heat events", icon: "🔥", color: "#ff6600" },
     { id: "recon", label: "Recon / Intelligence", description: "Reconnaissance and intelligence-linked events", icon: "👁️", color: "#00d9b2" },
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "📡", color: "#ffdd00" },
@@ -26,14 +26,14 @@ const LAYER_DEFS = [
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
-const WZ_LAYER_LAYOUT_VERSION = "2026-04-live-recovery";
+const WZ_LAYER_LAYOUT_VERSION = "2026-04-airspace-default-open";
 const DEFAULT_LAYER_STATE = {
     strikes: true,
     missiles: true,
     drones: true,
     airstrikes: true,
     aircraft: true,
-    airspace: false,
+    airspace: true,
     naval: true,
     "military-bases": false,
     ranges: false,
@@ -105,14 +105,17 @@ function getEffectiveLayerState(id) {
 }
 
 function loadState() {
+    let saved = {};
+    let savedVersion = "";
     try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-        const savedVersion = String(localStorage.getItem(WZ_LAYER_LAYOUT_VERSION_KEY) || "");
+        saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        savedVersion = String(localStorage.getItem(WZ_LAYER_LAYOUT_VERSION_KEY) || "");
         const shouldResetLayout = savedVersion !== WZ_LAYER_LAYOUT_VERSION;
 
         if (shouldResetLayout) {
+            const migratedState = { ...DEFAULT_LAYER_STATE, ...(saved || {}), airspace: true };
             LAYER_DEFS.forEach((l) => {
-                __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
+                __layerState[l.id] = migratedState[l.id] !== false;
             });
             saveState();
             try {
@@ -144,7 +147,7 @@ function saveState() {
 
 // ── Event classifier ───────────────────────────────────────────────────────────
 export function getEventLayerId(event) {
-    if (!event) return "news";
+    if (!event) return "strikes";
 
     const cat = String(event.category || "").toLowerCase();
     const weapon = String(event.weapon_type || "").toLowerCase();
@@ -172,7 +175,9 @@ export function getEventLayerId(event) {
     }
 
     if (src.includes("telegram") || src.includes("reddit") || src.includes("gdelt") || src.includes("twitter")) {
-        return "news";
+        // "news" is not an active layer toggle in the current UI, so keep
+        // these events on the default combat layer instead of hiding them.
+        return "strikes";
     }
 
     return "strikes";
@@ -180,6 +185,9 @@ export function getEventLayerId(event) {
 
 export function isEventVisible(event) {
     const layerId = getEventLayerId(event);
+    if (!getLayerDef(layerId)) {
+        return getEffectiveLayerState("strikes");
+    }
     return getEffectiveLayerState(layerId);
 }
 
@@ -321,19 +329,19 @@ export function toggleLayer(id) {
 function syncUiOnlyLayerToWidget(layerId, enabled) {
     try {
         const widget = document.querySelector(`[data-widget-id="${layerId}"]`);
-        if (widget) {
-            widget.classList.toggle("wz-is-hidden", !enabled);
-        }
+        // Respect user-close state when a uiOnly layer is enabled.
+        // Only force-hide the widget when the layer itself is disabled.
+        if (widget && !enabled) widget.classList.add("wz-is-hidden");
 
         const saved = JSON.parse(localStorage.getItem(WZ_WIDGET_KEY) || "{}");
-        saved[layerId] = enabled;
+        if (widget) {
+            saved[layerId] = !widget.classList.contains("wz-is-hidden");
+        } else if (!enabled) {
+            saved[layerId] = false;
+        }
         localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(saved));
 
-        const dockBtn = document.querySelector(`[data-dock-widget="${layerId}"]`);
-        if (dockBtn) {
-            dockBtn.classList.toggle("wz-dock--gone", enabled);
-            dockBtn.setAttribute("aria-hidden", enabled ? "true" : "false");
-        }
+        window.__syncWarzoneDock?.();
     } catch {
         // Non-fatal
     }

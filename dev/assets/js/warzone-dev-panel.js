@@ -6,8 +6,10 @@ import {
 } from "./essential.js";
 import {
     startDevTrackSimulation,
-    stopDevTrackSimulation
+    stopDevTrackSimulation,
+    setAircraftModelHeadingOffset
 } from "./warzone-live-airforce.js";
+import { setNavalModelHeadingOffset } from "./warzone-live-naval.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 /* ================= TEST EVENT TEMPLATES ================= */
 const TEST_EVENTS = {
@@ -905,6 +907,152 @@ function initDevSimulatorControls() {
     applyDevSimPreset("fighter");
     updateDevSimTrackKey("fighter");
 }
+
+const DEV_MAP_TUNER_FIELDS = [
+    { key: "saturation", cssVar: "--warzone-map-saturation", min: 0, max: 2, step: 0.01, fallback: 0.2 },
+    { key: "brightness", cssVar: "--warzone-map-brightness", min: 0, max: 2, step: 0.01, fallback: 0.8 },
+    { key: "contrast", cssVar: "--warzone-map-contrast", min: 0, max: 3, step: 0.01, fallback: 1.2 },
+    { key: "gamma", cssVar: "--warzone-map-gamma", min: 0, max: 2, step: 0.01, fallback: 0.7 },
+    { key: "hue", cssVar: "--warzone-map-hue", min: -360, max: 360, step: 1, fallback: 170 },
+    { key: "tint", cssVar: "--warzone-map-tint", min: -1, max: 1, step: 0.01, fallback: 0 },
+    { key: "warmth", cssVar: "--warzone-map-warmth", min: -1, max: 1, step: 0.01, fallback: 0 },
+    { key: "red", cssVar: "--warzone-map-red-level", min: 0, max: 2, step: 0.01, fallback: 1 },
+    { key: "green", cssVar: "--warzone-map-green-level", min: 0, max: 2, step: 0.01, fallback: 1 },
+    { key: "blue", cssVar: "--warzone-map-blue-level", min: 0, max: 2, step: 0.01, fallback: 1 },
+    { key: "cyan", cssVar: "--warzone-map-cyan-level", min: -1, max: 1, step: 0.01, fallback: 0 },
+    { key: "magenta", cssVar: "--warzone-map-magenta-level", min: -1, max: 1, step: 0.01, fallback: 0 },
+    { key: "yellow", cssVar: "--warzone-map-yellow-level", min: -1, max: 1, step: 0.01, fallback: 0 },
+    { key: "alpha", cssVar: "--warzone-map-alpha", min: 0, max: 1, step: 0.01, fallback: 1 },
+];
+
+let __devMapRefreshRaf = 0;
+
+function getStepPrecision(step = 1) {
+    const text = String(step);
+    const dot = text.indexOf(".");
+    return dot >= 0 ? text.length - dot - 1 : 0;
+}
+function clampDevMapValue(value, def) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) return Number(def.fallback);
+    return Math.max(def.min, Math.min(def.max, next));
+}
+function formatDevMapValue(value, def) {
+    const precision = getStepPrecision(def.step);
+    const rounded = Number(clampDevMapValue(value, def).toFixed(precision));
+    return precision > 0 ? rounded.toFixed(precision) : String(Math.round(rounded));
+}
+function getRootCssNumber(varName, fallback = 0) {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+function refreshMapOnlyNow() {
+    const viewer = window.__warzoneViewer;
+    viewer?.__warzone?.refreshMapTuning?.();
+    viewer?.scene?.requestRender?.();
+}
+function requestMapOnlyRefresh() {
+    if (__devMapRefreshRaf) return;
+    __devMapRefreshRaf = requestAnimationFrame(() => {
+        __devMapRefreshRaf = 0;
+        refreshMapOnlyNow();
+    });
+}
+function buildMapRootCssBlock(values = {}) {
+    const lines = [":root {"];
+    DEV_MAP_TUNER_FIELDS.forEach((def) => {
+        const value = values[def.key] ?? getRootCssNumber(def.cssVar, def.fallback);
+        lines.push(`    ${def.cssVar}: ${formatDevMapValue(value, def)};`);
+    });
+    lines.push("}");
+    return lines.join("\n");
+}
+function initMapTunerControls() {
+    const root = document.documentElement;
+    const tunerRoot = document.getElementById("wz-dev-map-tuner");
+    if (!tunerRoot || tunerRoot.dataset.bound === "1") return;
+    tunerRoot.dataset.bound = "1";
+
+    const output = document.getElementById("wz-map-css-output");
+    const refreshBtn = document.getElementById("wz-map-refresh-only");
+    const loadCurrentBtn = document.getElementById("wz-map-load-current");
+    const copyBtn = document.getElementById("wz-map-copy-css");
+    const controls = new Map();
+
+    const updateOutput = () => {
+        if (!output) return;
+        const values = {};
+        DEV_MAP_TUNER_FIELDS.forEach((def) => {
+            const entry = controls.get(def.key);
+            if (!entry) return;
+            values[def.key] = Number(entry.input.value);
+        });
+        output.value = buildMapRootCssBlock(values);
+    };
+    const applyControlValue = (def, nextValue, source = "") => {
+        const entry = controls.get(def.key);
+        if (!entry) return;
+        const clamped = clampDevMapValue(nextValue, def);
+        const formatted = formatDevMapValue(clamped, def);
+        if (source !== "range") entry.range.value = formatted;
+        if (source !== "input") entry.input.value = formatted;
+        root.style.setProperty(def.cssVar, formatted);
+        updateOutput();
+        requestMapOnlyRefresh();
+    };
+    const loadCurrentValues = () => {
+        DEV_MAP_TUNER_FIELDS.forEach((def) => {
+            const current = getRootCssNumber(def.cssVar, def.fallback);
+            applyControlValue(def, current);
+        });
+    };
+
+    DEV_MAP_TUNER_FIELDS.forEach((def) => {
+        const range = document.getElementById(`wz-map-${def.key}-range`);
+        const input = document.getElementById(`wz-map-${def.key}-input`);
+        if (!range || !input) return;
+        range.min = String(def.min);
+        range.max = String(def.max);
+        range.step = String(def.step);
+        input.min = String(def.min);
+        input.max = String(def.max);
+        input.step = String(def.step);
+        controls.set(def.key, { range, input });
+        const initial = getRootCssNumber(def.cssVar, def.fallback);
+        applyControlValue(def, initial);
+        range.addEventListener("input", () => applyControlValue(def, range.value, "range"));
+        input.addEventListener("input", () => applyControlValue(def, input.value, "input"));
+        input.addEventListener("change", () => applyControlValue(def, input.value, "input"));
+    });
+
+    refreshBtn?.addEventListener("click", () => {
+        refreshMapOnlyNow();
+        devLog("🗺 Map-only refresh triggered");
+    });
+    loadCurrentBtn?.addEventListener("click", () => {
+        loadCurrentValues();
+        devLog("↺ Loaded current map CSS values");
+    });
+    copyBtn?.addEventListener("click", async () => {
+        const text = output?.value || buildMapRootCssBlock();
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                output?.focus();
+                output?.select();
+                document.execCommand("copy");
+            }
+            devLog("📋 Copied :root map block");
+        } catch {
+            devLog("⚠ Copy blocked — select and copy manually");
+        }
+    });
+
+    updateOutput();
+    refreshMapOnlyNow();
+}
 export function initDevPanel() {
     const isLocal =
         window.location.hostname === "localhost" ||
@@ -1022,6 +1170,7 @@ export function initDevPanel() {
         if (log) log.innerHTML = "";
     });
     initDevSimulatorControls();
+    initMapTunerControls();
     devLog("Dev panel ready");
 }
 
@@ -1335,6 +1484,11 @@ function applyTunerValues() {
     if (min) cfg.minimumPixelSize = Number(min.value);
     if (max) cfg.maximumScale = Number(max.value);
 
+    // Live renderer keeps one shared aircraft model scale as requested.
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale", String(Number(cfg.scale || 16)));
+    document.documentElement.style.setProperty("--warzone-live-track-scale", String(Number(cfg.scale || 16)));
+    setAircraftModelHeadingOffset(subtype, Number(cfg.headingOffset || 0));
+
     applyAircraftCalibrationConfig();
 }
 
@@ -1364,6 +1518,7 @@ function startAircraftCalibration() {
     let i = 0;
     for (const subtype in DEV_AIRCRAFT_CALIBRATION) {
         createCalibrationAircraft(viewer, subtype, DEV_AIRCRAFT_CALIBRATION[subtype], i++);
+        setAircraftModelHeadingOffset(subtype, Number(DEV_AIRCRAFT_CALIBRATION[subtype]?.headingOffset || 0));
     }
 
     const tuner = ensureAircraftTunerUI();
@@ -1395,5 +1550,258 @@ window.clearAircraftCalibration = () => clearCalibration(window.__warzoneViewer)
 document.addEventListener("click", (e) => {
     if (e.target.closest("#wz-dev-aircraft-calibrate")) {
         startAircraftCalibration();
+    }
+});
+
+/* ================= NAVAL CALIBRATION MODE ================= */
+const DEV_NAVAL_CALIBRATION = {
+    carrier: { headingOffset: 0, scale: 130, minimumPixelSize: 90, maximumScale: 1200 },
+    destroyer: { headingOffset: 0, scale: 130, minimumPixelSize: 90, maximumScale: 1200 },
+    frigate: { headingOffset: 0, scale: 130, minimumPixelSize: 90, maximumScale: 1200 },
+    submarine: { headingOffset: 0, scale: 118, minimumPixelSize: 90, maximumScale: 1200 },
+    ssn: { headingOffset: 0, scale: 118, minimumPixelSize: 90, maximumScale: 1200 },
+    ssbn: { headingOffset: 0, scale: 118, minimumPixelSize: 90, maximumScale: 1200 },
+};
+let __devNavalCalibrationEntities = [];
+function getNavalModelUriBySubtype(subtype) {
+    const map = {
+        carrier: "/assets/images/models/air/frigate.glb",
+        destroyer: "/assets/images/models/air/frigate.glb",
+        frigate: "/assets/images/models/air/frigate.glb",
+        submarine: "/assets/images/models/air/submarine.glb",
+        ssn: "/assets/images/models/air/submarine.glb",
+        ssbn: "/assets/images/models/air/submarine.glb",
+        naval: "/assets/images/models/air/frigate.glb",
+    };
+    return map[subtype] || map.naval;
+}
+function createCalibrationNaval(viewer, subtype, config, index) {
+    const slots = [
+        { lat: 24.30, lon: 55.10 },
+        { lat: 24.55, lon: 55.40 },
+        { lat: 24.78, lon: 55.70 },
+        { lat: 24.08, lon: 55.95 },
+        { lat: 24.40, lon: 56.20 },
+        { lat: 24.72, lon: 56.45 },
+    ];
+    const slot = slots[index] || { lat: 24.2 + (index * 0.22), lon: 54.8 + (index * 0.3) };
+    const position = Cesium.Cartesian3.fromDegrees(slot.lon, slot.lat, 0);
+    const hpr = new Cesium.HeadingPitchRoll(
+        Cesium.Math.toRadians(Number(config.headingOffset || 0)),
+        0,
+        0
+    );
+    const entity = viewer.entities.add({
+        id: `wz-calibration-naval-${subtype}`,
+        position,
+        orientation: Cesium.Transforms.headingPitchRollQuaternion(position, hpr),
+        model: {
+            uri: getNavalModelUriBySubtype(subtype),
+            scale: Number(config.scale ?? 120),
+            minimumPixelSize: Number(config.minimumPixelSize ?? 90),
+            maximumScale: Number(config.maximumScale ?? 1200),
+        },
+        label: {
+            text: subtype.toUpperCase(),
+            font: "12px sans-serif",
+            fillColor: Cesium.Color.WHITE,
+            pixelOffset: new Cesium.Cartesian2(0, -35),
+        }
+    });
+    entity.__isCalibrationNaval = true;
+    entity.__subtype = subtype;
+
+    const line = createCalibrationLine(viewer, position, 0, 12000);
+    if (line) {
+        line.__isCalibrationLine = true;
+        line.__subtype = subtype;
+        line.__pairedCalibrationEntityId = entity.id;
+        __devNavalCalibrationEntities.push(line);
+    }
+    __devNavalCalibrationEntities.push(entity);
+    return entity;
+}
+function clearNavalCalibration(viewer) {
+    if (!viewer) return;
+    __devNavalCalibrationEntities.forEach((entity) => viewer.entities.remove(entity));
+    __devNavalCalibrationEntities = [];
+    const tuner = document.getElementById("wz-naval-tuner");
+    if (tuner) tuner.style.display = "none";
+}
+function ensureNavalTunerUI() {
+    let panel = document.getElementById("wz-naval-tuner");
+    if (panel) return panel;
+
+    panel = document.createElement("div");
+    panel.id = "wz-naval-tuner";
+    panel.style.cssText = [
+        "position:fixed",
+        "right:284px",
+        "top:180px",
+        "width:250px",
+        "padding:12px",
+        "background:rgba(8,10,16,.96)",
+        "border:1px solid rgba(255,255,255,.14)",
+        "box-shadow:0 10px 30px rgba(0,0,0,.35)",
+        "color:#fff",
+        "z-index:999998",
+        "font:12px/1.4 Arial,sans-serif",
+        "border-radius:8px",
+        "display:none"
+    ].join(";");
+    panel.innerHTML = `
+        <div style="font-weight:700;letter-spacing:.04em;margin-bottom:10px;">NAVAL TUNER</div>
+        <label style="display:block;margin-bottom:8px;">
+            <div style="margin-bottom:4px;">Asset</div>
+            <select id="wz-naval-tuner-type" style="width:100%;padding:6px;">
+                <option value="carrier">Carrier</option>
+                <option value="destroyer">Destroyer</option>
+                <option value="frigate">Frigate</option>
+                <option value="submarine">Submarine</option>
+                <option value="ssn">SSN</option>
+                <option value="ssbn">SSBN</option>
+            </select>
+        </label>
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Heading</span><strong id="wz-naval-tuner-heading-value">0</strong></div>
+            <input id="wz-naval-tuner-heading" type="range" min="-180" max="180" step="1" style="width:100%;" />
+        </label>
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Scale</span><strong id="wz-naval-tuner-scale-value">0</strong></div>
+            <input id="wz-naval-tuner-scale" type="range" min="1" max="3000" step="1" style="width:100%;" />
+        </label>
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Min Pixel</span><strong id="wz-naval-tuner-min-value">0</strong></div>
+            <input id="wz-naval-tuner-min" type="range" min="1" max="400" step="1" style="width:100%;" />
+        </label>
+        <label style="display:block;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;"><span>Max Scale</span><strong id="wz-naval-tuner-max-value">0</strong></div>
+            <input id="wz-naval-tuner-max" type="range" min="50" max="10000" step="10" style="width:100%;" />
+        </label>
+        <button id="wz-naval-tuner-log" type="button" style="width:100%;padding:8px 10px;cursor:pointer;">Copy Config</button>
+    `;
+    document.body.appendChild(panel);
+    return panel;
+}
+function getNavalTunerSubtype() {
+    return document.getElementById("wz-naval-tuner-type")?.value || "carrier";
+}
+function refreshNavalTunerReadouts() {
+    const heading = document.getElementById("wz-naval-tuner-heading");
+    const scale = document.getElementById("wz-naval-tuner-scale");
+    const min = document.getElementById("wz-naval-tuner-min");
+    const max = document.getElementById("wz-naval-tuner-max");
+    if (heading) document.getElementById("wz-naval-tuner-heading-value").textContent = heading.value;
+    if (scale) document.getElementById("wz-naval-tuner-scale-value").textContent = scale.value;
+    if (min) document.getElementById("wz-naval-tuner-min-value").textContent = min.value;
+    if (max) document.getElementById("wz-naval-tuner-max-value").textContent = max.value;
+}
+function loadNavalTunerValues() {
+    const subtype = getNavalTunerSubtype();
+    const cfg = DEV_NAVAL_CALIBRATION[subtype];
+    if (!cfg) return;
+    const heading = document.getElementById("wz-naval-tuner-heading");
+    const scale = document.getElementById("wz-naval-tuner-scale");
+    const min = document.getElementById("wz-naval-tuner-min");
+    const max = document.getElementById("wz-naval-tuner-max");
+    if (heading) heading.value = Number(cfg.headingOffset ?? 0);
+    if (scale) scale.value = Number(cfg.scale ?? 120);
+    if (min) min.value = Number(cfg.minimumPixelSize ?? 90);
+    if (max) max.value = Number(cfg.maximumScale ?? 1200);
+    refreshNavalTunerReadouts();
+}
+function applyNavalCalibrationConfig() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer || !Array.isArray(__devNavalCalibrationEntities)) return;
+    __devNavalCalibrationEntities.forEach((entity) => {
+        if (!entity || !entity.__isCalibrationNaval) return;
+        const subtype = entity.__subtype;
+        const config = DEV_NAVAL_CALIBRATION[subtype];
+        if (!config) return;
+        const position = entity.position?.getValue?.(Cesium.JulianDate.now()) || entity.position;
+        if (!position) return;
+        entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+            position,
+            new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(Number(config.headingOffset || 0)), 0, 0)
+        );
+        if (entity.model) {
+            entity.model.scale = Number(config.scale ?? 120);
+            entity.model.minimumPixelSize = Number(config.minimumPixelSize ?? 90);
+            entity.model.maximumScale = Number(config.maximumScale ?? 1200);
+        }
+    });
+    refreshNavalTunerReadouts();
+    viewer.scene.requestRender();
+}
+function applyNavalTunerValues() {
+    const subtype = getNavalTunerSubtype();
+    const cfg = DEV_NAVAL_CALIBRATION[subtype];
+    if (!cfg) return;
+    const heading = document.getElementById("wz-naval-tuner-heading");
+    const scale = document.getElementById("wz-naval-tuner-scale");
+    const min = document.getElementById("wz-naval-tuner-min");
+    const max = document.getElementById("wz-naval-tuner-max");
+    if (heading) cfg.headingOffset = Number(heading.value);
+    if (scale) cfg.scale = Number(scale.value);
+    if (min) cfg.minimumPixelSize = Number(min.value);
+    if (max) cfg.maximumScale = Number(max.value);
+
+    document.documentElement.style.setProperty("--warzone-live-naval-model-scale", String(Number(cfg.scale || 120)));
+    setNavalModelHeadingOffset(subtype, Number(cfg.headingOffset || 0));
+    applyNavalCalibrationConfig();
+}
+function bindNavalTunerUI() {
+    const panel = ensureNavalTunerUI();
+    if (panel.dataset.bound === "1") return;
+    panel.dataset.bound = "1";
+
+    document.getElementById("wz-naval-tuner-type")?.addEventListener("change", loadNavalTunerValues);
+    document.getElementById("wz-naval-tuner-heading")?.addEventListener("input", applyNavalTunerValues);
+    document.getElementById("wz-naval-tuner-scale")?.addEventListener("input", applyNavalTunerValues);
+    document.getElementById("wz-naval-tuner-min")?.addEventListener("input", applyNavalTunerValues);
+    document.getElementById("wz-naval-tuner-max")?.addEventListener("input", applyNavalTunerValues);
+    document.getElementById("wz-naval-tuner-log")?.addEventListener("click", () => {
+        const subtype = getNavalTunerSubtype();
+        console.log(subtype, JSON.stringify(DEV_NAVAL_CALIBRATION[subtype] || {}, null, 2));
+    });
+}
+function startNavalCalibration() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer) return;
+    clearNavalCalibration(viewer);
+
+    let i = 0;
+    Object.keys(DEV_NAVAL_CALIBRATION).forEach((subtype) => {
+        createCalibrationNaval(viewer, subtype, DEV_NAVAL_CALIBRATION[subtype], i++);
+        setNavalModelHeadingOffset(subtype, Number(DEV_NAVAL_CALIBRATION[subtype]?.headingOffset || 0));
+    });
+
+    const tuner = ensureNavalTunerUI();
+    bindNavalTunerUI();
+    tuner.style.display = "block";
+    loadNavalTunerValues();
+
+    viewer.camera.cancelFlight?.();
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(55.8, 24.45, 1500000),
+        orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-78),
+            roll: 0,
+        },
+        duration: 1.2,
+    });
+    console.log("=== NAVAL CALIBRATION ACTIVE ===");
+    viewer.scene.requestRender();
+}
+
+window.__DEV_NAVAL_CALIBRATION = DEV_NAVAL_CALIBRATION;
+window.startNavalCalibration = startNavalCalibration;
+window.applyNavalCalibrationConfig = applyNavalCalibrationConfig;
+window.clearNavalCalibration = () => clearNavalCalibration(window.__warzoneViewer);
+
+document.addEventListener("click", (e) => {
+    if (e.target.closest("#wz-dev-naval-calibrate")) {
+        startNavalCalibration();
     }
 });

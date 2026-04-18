@@ -14,13 +14,28 @@ export function bindWarzoneUi() {
 function bindTopViews() {
     const tabs = document.querySelectorAll(".top-tab");
     const panels = document.querySelectorAll(".warzone-view");
+    const applyTopViewState = (activeTab) => {
+        const target = String(activeTab?.dataset.view || "");
+        tabs.forEach((tab) => {
+            const active = tab === activeTab;
+            tab.classList.toggle("is-active", active);
+            tab.setAttribute("aria-selected", String(active));
+            tab.setAttribute("aria-pressed", String(active));
+            if (tab.getAttribute("role") === "tab") {
+                tab.tabIndex = active ? 0 : -1;
+            }
+        });
+        panels.forEach((panel) => {
+            const active = panel.dataset.viewPanel === target;
+            panel.classList.toggle("is-active", active);
+            panel.setAttribute("aria-hidden", String(!active));
+        });
+    };
+    const initialTab = Array.from(tabs).find((tab) => tab.classList.contains("is-active")) || tabs[0] || null;
+    if (initialTab) applyTopViewState(initialTab);
     tabs.forEach((tab) => {
         tab.addEventListener("click", () => {
-            const target = tab.dataset.view;
-            tabs.forEach((t) => t.classList.toggle("is-active", t === tab));
-            panels.forEach((p) =>
-                p.classList.toggle("is-active", p.dataset.viewPanel === target)
-            );
+            applyTopViewState(tab);
         });
     });
 }
@@ -46,10 +61,19 @@ function bindAlertDismiss() {
 
 function bindMapModeButtons() {
     const buttons = document.querySelectorAll("[data-map-mode]");
+    const applyMapModeState = (activeBtn) => {
+        buttons.forEach((btn) => {
+            const active = btn === activeBtn;
+            btn.classList.toggle("is-active", active);
+            btn.setAttribute("aria-pressed", String(active));
+        });
+    };
+    const initialBtn = Array.from(buttons).find((btn) => btn.classList.contains("is-active")) || buttons[0] || null;
+    if (initialBtn) applyMapModeState(initialBtn);
     buttons.forEach((btn) => {
         btn.addEventListener("click", () => {
             const mode = btn.dataset.mapMode;
-            buttons.forEach((b) => b.classList.toggle("is-active", b === btn));
+            applyMapModeState(btn);
             window.__warzoneViewer?.__warzone?.setMapMode?.(mode);
         });
     });
@@ -65,18 +89,26 @@ function bindMobileSettingsPanel() {
     const closeBtn = document.getElementById("warzone-mobile-settings-close");
     const applyBtn = document.getElementById("warzone-mobile-settings-apply");
     if (!trigger || !panel) return;
+    const setPanelOpen = (open, { focus = true } = {}) => {
+        panel.hidden = !open;
+        panel.setAttribute("aria-hidden", String(!open));
+        trigger.setAttribute("aria-expanded", String(open));
+        if (!focus) return;
+        if (open) {
+            requestAnimationFrame(() => closeBtn?.focus());
+        } else {
+            requestAnimationFrame(() => trigger.focus());
+        }
+    };
+    setPanelOpen(!panel.hidden, { focus: false });
     trigger.addEventListener("click", () => {
-        const isOpen = panel.hidden === false;
-        panel.hidden = isOpen;
-        trigger.setAttribute("aria-expanded", String(!isOpen));
+        setPanelOpen(panel.hidden);
     });
     closeBtn?.addEventListener("click", () => {
-        panel.hidden = true;
-        trigger.setAttribute("aria-expanded", "false");
+        setPanelOpen(false);
     });
     applyBtn?.addEventListener("click", () => {
-        panel.hidden = true;
-        trigger.setAttribute("aria-expanded", "false");
+        setPanelOpen(false);
     });
 }
 

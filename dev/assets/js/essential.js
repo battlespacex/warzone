@@ -18,12 +18,11 @@ import {
     clearLiveTrack,
     startDevTrackSimulation,
     stopDevTrackSimulation,
+    clearLiveTrackSelection,
     focusLiveTrack,
     getAllLiveTrackSnapshots,
     toggleLiveTrackSelection,
     getLiveTrackSelection,
-    toggleLiveTrackHardLock,
-    isLiveTrackHardLockEnabled,
 } from "./warzone-live-airforce.js";
 import {
     upsertNavalVessel,
@@ -31,7 +30,7 @@ import {
     renderNavalTrackerWidget,
     getAllNavalSnapshots,
 } from "./warzone-live-naval.js";
-import { startPublicAirIngestion, refreshPublicAirTracksNow } from "./warzone-air-ingestion.js";
+import { startPublicAirIngestion, refreshPublicAirTracksNow, stopPublicAirIngestion } from "./warzone-air-ingestion.js";
 import { setWarzoneMilSatsEnabled } from "./warzone-mil-sats.js";
 let __eventsCache = [];
 let __visibleEventsCache = [];
@@ -47,12 +46,16 @@ let __pollTimer = null;
 let __pollInFlight = false;
 let __pollInFlightSince = 0;
 let __pollRequestSeq = 0;
+let __pollEmptyStreak = 0;
 let __viewportFetchTimer = null;
 let __viewportFetchInFlight = false;
 let __lastViewportKey = "";
 let __lastGlobeSyncKey = "";
 let __lastRangesSyncKey = "";
 let __lastSweepersSyncKey = "";
+let __lastOverlaySourceKey = "__empty__";
+let __lastOverlayClusterRadiusBucket = "";
+let __cachedOverlayClusters = [];
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
@@ -76,17 +79,32 @@ let __foregroundRenderWakeRaf = 0;
 let __foregroundRecoveryLoaderTimer = 0;
 let __foregroundRecoveryLoaderShownAt = 0;
 let __foregroundRecoverySeq = 0;
+let __lastBackgroundAt = 0;
+let __lastForegroundRecoveryAt = 0;
 const FOREGROUND_RECOVERY_LOADER_MIN_MS = 320;
 const FOREGROUND_RECOVERY_LOADER_MAX_MS = 4200;
+const FOREGROUND_RECOVERY_LOADER_THRESHOLD_MS = 60 * 1000;
+const FOREGROUND_RECOVERY_THROTTLE_MS = 3000;
 const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 8;
-const AIRCRAFT_HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
-const AIRCRAFT_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const AIRCRAFT_HISTORY_WINDOW_MS = 72 * 60 * 60 * 1000;
+const AIRCRAFT_RECENT_WINDOW_MS = 72 * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_REFRESH_MS = 3 * 60 * 1000;
 const AIRCRAFT_HISTORY_ACTIVE_WINDOW_MS = 8 * 60 * 1000;
 const AIRCRAFT_LIVE_SYNC_MS = 8 * 1000;
+const AIRCRAFT_LIVE_SYNC_DB_MS = 2 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
-const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS.map((layer) => layer.id);
+const EVENT_POLL_INTERVAL_MS = 12 * 1000;
+const POLL_SINCE_MAX_FUTURE_SKEW_MS = 60 * 1000;
+const POLL_FULL_REFRESH_EMPTY_STREAK = 15;
+const IDLE_SUSPEND_EXCLUDED_LAYER_IDS = new Set([
+    // These toggles are visual/static-only and should not keep live polling active.
+    "terrain",
+    "military-bases",
+]);
+const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS
+    .map((layer) => layer.id)
+    .filter((id) => !IDLE_SUSPEND_EXCLUDED_LAYER_IDS.has(id));
 const NAVAL_EVENT_SUBTYPES = new Set([
     "carrier",
     "amphibious",
@@ -277,6 +295,7 @@ function endForegroundRecoveryLoader({ force = false } = {}) {
     const finish = () => {
         clearForegroundRecoveryLoaderTimer();
         window.__wzKeepSiteLoaderVisible = false;
+        window.__wzKeepSiteLoaderVisibleUntil = 0;
         window.SiteLoader?.stop?.();
     };
     const elapsed = performance.now() - (__foregroundRecoveryLoaderShownAt || 0);
@@ -294,6 +313,7 @@ function beginForegroundRecoveryLoader() {
     clearForegroundRecoveryLoaderTimer();
     __foregroundRecoveryLoaderShownAt = performance.now();
     window.__wzKeepSiteLoaderVisible = true;
+    window.__wzKeepSiteLoaderVisibleUntil = Date.now() + FOREGROUND_RECOVERY_LOADER_MAX_MS + 600;
     window.SiteLoader?.start?.();
     __foregroundRecoveryLoaderTimer = window.setTimeout(() => {
         endForegroundRecoveryLoader({ force: true });
@@ -324,7 +344,22 @@ function startForegroundRenderWakeBurst(durationMs = 1200) {
 function isStrictAisMilitaryNavalEvent(event = {}) {
     const metadata = getEventMetadata(event);
     const sourceName = String(event.source_name || "").toLowerCase();
-    if (!sourceName.includes("ais")) return true;
+    const dedupeKey = String(event.dedupe_key || event.source_key || "").toLowerCase();
+    const hasNavalTelemetrySignature = Boolean(
+        sourceName.includes("ais") ||
+        dedupeKey.startsWith("ais-") ||
+        metadata.mmsi ||
+        metadata.ship_type != null ||
+        metadata.shipType != null ||
+        metadata.vessel_name ||
+        metadata.vessel_class ||
+        metadata.ship_class ||
+        metadata.call_sign ||
+        metadata.callSign
+    );
+    // Critical: this gate should only classify AIS-like naval telemetry.
+    // Non-AIS events must pass through to normal relevance filters.
+    if (!hasNavalTelemetrySignature) return true;
     const shipType = Number(metadata.ship_type ?? metadata.shipType ?? null);
     const vesselName = String(metadata.vessel_name || event.title || "");
     const callSign = String(metadata.call_sign || metadata.callSign || "");
@@ -336,6 +371,45 @@ function isStrictAisMilitaryNavalEvent(event = {}) {
     }
     if (hasMilitaryIdentity) return true;
     return shipType === 35 && !hasCivilianIdentity;
+}
+function isClearlyAircraftContact(event = {}) {
+    const metadata = getEventMetadata(event);
+    const trackType = String(event.track_type || metadata.track_type || "").toLowerCase();
+    if (trackType === "aircraft") return true;
+    const sourceName = String(event.source_name || "").toLowerCase();
+    if (
+        sourceName.includes("ads-b") ||
+        sourceName.includes("airplanes.live") ||
+        sourceName.includes("aircraft")
+    ) {
+        return true;
+    }
+    if (
+        metadata.icao ||
+        metadata.callsign ||
+        metadata.registration ||
+        metadata.type_code ||
+        metadata.model_name ||
+        metadata.on_ground != null
+    ) {
+        return true;
+    }
+    const haystack = [
+        event.title,
+        event.summary,
+        event.description,
+        event.subcategory,
+        event.weapon_type,
+        metadata.model_name,
+        metadata.type_code,
+        metadata.callsign,
+        metadata.registration,
+        metadata.operator,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    return /\bcessna\b|\bcitation\b|\blearjet\b|\bgulfstream\b|\bembraer\b|\bbombardier\b|\bboeing\b|\bairbus\b|\bhelicopter\b|\bfighter\b|\bawacs\b|\brecon\b|\btanker\b|\btransport\b|\buav\b|\bdrone\b/.test(haystack);
 }
 function isEventInLens(event, lens) {
     if (!event) return false;
@@ -503,12 +577,15 @@ function resolveStrikeGeometry(event) {
     };
 }
 function applyAllFilters(events) {
+    const scoped = applyScopeFilters(events);
+    return scoped.filter((e) => isEventVisible(e));
+}
+function applyScopeFilters(events) {
     const region = getActiveRegion?.();
     const lens = getActiveLens?.() || "live";
     const regionalRaw = filterEventsByRegion ? filterEventsByRegion(events, region) : events;
     const regional = regionalRaw.filter(isMilitaryRelevant);
-    const byLens = regional.filter((e) => isEventInLens(e, lens));
-    return byLens.filter((e) => isEventVisible(e));
+    return regional.filter((e) => isEventInLens(e, lens));
 }
 function isPointInsideRegion(lat, lon, region = getActiveRegion?.()) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
@@ -542,6 +619,14 @@ function syncScopeSelectLabel(selectEl, mode = "region") {
     }
     const safeMode = mode === "all" ? "all" : "region";
     selectEl.value = safeMode;
+}
+function isDatabaseAircraftLiveSourceEnabled() {
+    return window.__stratopsConfig?.enablePublicAirFallback !== true;
+}
+function getAircraftLiveSyncIntervalMs() {
+    return isDatabaseAircraftLiveSourceEnabled()
+        ? AIRCRAFT_LIVE_SYNC_DB_MS
+        : AIRCRAFT_LIVE_SYNC_MS;
 }
 function getHotspotSourceEvents(events = []) {
     return (Array.isArray(events) ? events : []).filter((event) => {
@@ -635,8 +720,20 @@ function isAircraftTelemetryEvent(event = {}) {
     );
 }
 function getFeedEvents() {
-    return getFeedSourceEvents()
-        .filter((event) => isMilitaryRelevant(event) && isBreakingNewsEvent(event));
+    const source = getFeedSourceEvents();
+    const strict = source.filter((event) => isMilitaryRelevant(event) && isBreakingNewsEvent(event));
+    if (strict.length) return strict;
+    // Fallback: if upstream metadata/report_type is sparse, still keep the
+    // breaking-news panel populated with relevant conflict events.
+    return source.filter((event) => {
+        if (!isMilitaryRelevant(event)) return false;
+        if (isAircraftTelemetryEvent(event)) return false;
+        if (isNavalSignalEvent(event)) return false;
+        const reportType = String(event.report_type || "").toLowerCase();
+        if (BREAKING_NEWS_BLOCKED_REPORT_TYPES.has(reportType)) return false;
+        const category = String(event.category || "").toLowerCase();
+        return ["alert", "strike", "military", "cyber", "airspace", "signal", "recon"].includes(category);
+    });
 }
 function roundCoord(value, step = 2) {
     return Math.round(Number(value) / step) * step;
@@ -663,20 +760,20 @@ function debounce(fn, ms) {
         timer = setTimeout(() => fn(...args), ms);
     };
 }
-// ── Layer-filtered widgets — only get events that pass layer toggles ──────────
+// ── Region/Lens-scoped widgets (independent of map layer toggles) ─────────────
 const debouncedRenderUI = debounce((events) => {
     renderCyberStatus(events);
     renderAirspaceStatus(events);
 }, 800);
 
-// ── Raw widgets — ALWAYS use the full event cache, never filtered ─────────────
-// Theater Intelligence (strike counts) and Escalation Meter must reflect the
-// total event picture regardless of which map layers are toggled on/off.
+// ── Scope widgets — use current region/lens from full cache ────────────────────
+// Theater Intelligence (strike counts) and Escalation Meter should reflect
+// the currently selected theater scope, not camera zoom level.
 // Stored as a closure so it always reads the live cache at call time.
 const debouncedRenderRaw = debounce(() => {
-    const rawEvents = (__viewportScoped ? __visibleEventsCache : __eventsCache) || [];
-    renderStrikeCounters(rawEvents);
-    renderEscalation(rawEvents);
+    const scopedEvents = applyScopeFilters(__eventsCache || []);
+    renderStrikeCounters(scopedEvents);
+    renderEscalation(scopedEvents);
 }, 800);
 const debouncedRenderFeed = debounce(() => {
     renderFeed(getFeedEvents());
@@ -698,6 +795,18 @@ function scheduleViewportFetch(delay = 500) {
     __viewportFetchTimer = setTimeout(() => {
         fetchViewportEvents();
     }, delay);
+}
+function getSafePollSinceIso() {
+    const fallbackIso = new Date(Date.now() - 30000).toISOString();
+    const raw = String(__lastSeenOccurredAt || "").trim();
+    if (!raw) return fallbackIso;
+    const parsed = Date.parse(raw);
+    if (!Number.isFinite(parsed)) return fallbackIso;
+    const now = Date.now();
+    if (parsed > (now + POLL_SINCE_MAX_FUTURE_SKEW_MS)) {
+        return new Date(now - (5 * 60 * 1000)).toISOString();
+    }
+    return new Date(parsed).toISOString();
 }
 function shouldSuspendMapWork() {
     return IDLE_SUSPEND_LAYER_IDS.every((id) => !isLayerEnabled(id));
@@ -852,6 +961,7 @@ function getNavalSubtypeOptions(items = []) {
 }
 function isNavalSignalEvent(event = {}) {
     const metadata = getEventMetadata(event);
+    if (isClearlyAircraftContact(event)) return false;
     const category = String(event.category || "").toLowerCase();
     const subcategory = normalizeNavalSubtype(String(event.subcategory || metadata.vessel_class || ""));
     const sourceName = String(event.source_name || "").toLowerCase();
@@ -1008,11 +1118,11 @@ async function fetchViewportEvents() {
         const merged = [];
         const seen = new Set();
         const pushUnique = (evt) => {
-            const normalized = normalizeEvent(evt);
-            const key = String(normalized.id || `${normalized.title}-${normalized.occurred_at}`);
+            if (!evt) return;
+            const key = String(evt.id || `${evt.title}-${evt.occurred_at}`);
             if (seen.has(key)) return;
             seen.add(key);
-            merged.push(normalized);
+            merged.push(evt);
         };
         __eventsCache.forEach(pushUnique);
         __liveRecentEvents.forEach(pushUnique);
@@ -1023,13 +1133,11 @@ async function fetchViewportEvents() {
         const nextVisibleEvents = sortEvents(visible);
         __viewportScoped = true;
         __visibleEventsCache = nextVisibleEvents;
-        syncFilteredUi(nextVisibleEvents);
+        // Keep widgets stable across camera zoom/pan by sourcing them from the
+        // full cache (region/lens/layer filters still apply inside syncFilteredUi).
+        syncFilteredUi(__eventsCache);
         requestAnimationFrame(() => {
             syncInitialEventsToGlobe(nextVisibleEvents, { animateTracks: false });
-            if (__hotspotLayer) {
-                const hotspotEvents = getHotspotSourceEvents(applyAllFilters(nextVisibleEvents));
-                __hotspotLayer.setEvents(hotspotEvents);
-            }
             window.__warzoneViewer?.scene?.requestRender?.();
         });
     } catch (err) {
@@ -1142,13 +1250,15 @@ function eventPlaceText(event) {
         .toLowerCase();
 }
 function getEventResolvedCountry(event = {}) {
-    const direct = normalizeCountryName(
-        event.inferred_country_name ||
-        event.country ||
-        event.countryName ||
-        ""
-    );
-    if (direct) return direct;
+    const explicit = normalizeCountryName(event.country || event.countryName || "");
+    if (explicit) return explicit;
+    const inferredCountry = normalizeCountryName(event.inferred_country_name || "");
+    if (inferredCountry) {
+        const inferredType = String(event.inferred_place_type || "").toLowerCase();
+        if (["country", "capital", "subdivision", "city"].includes(inferredType)) {
+            return inferredCountry;
+        }
+    }
     const placeType = String(event.inferred_place_type || "").toLowerCase();
     if (placeType === "country" || placeType === "capital" || placeType === "subdivision") {
         const inferred = normalizeCountryName(event.inferred_place_name || "");
@@ -1377,6 +1487,45 @@ export function deriveTheaterStatus(theaterItem = {}) {
     }
     return "NORMAL";
 }
+function isStatusRelevantEvent(event = {}, type = "airspace") {
+    const category = String(event.category || "").toLowerCase();
+    const cyber = String(event.cyber_status || "").toLowerCase();
+    const airspace = String(event.airspace_status || "").toLowerCase();
+    if (type === "cyber") {
+        return (cyber && cyber !== "unknown") || category === "cyber";
+    }
+    return (
+        (airspace && airspace !== "unknown") ||
+        category === "airspace" ||
+        category === "alert" ||
+        category === "strike"
+    );
+}
+function isEventInsideRegionBounds(event = {}, region = getActiveRegion?.()) {
+    if (!region || region.id === "global") return true;
+    const bounds = region.bounds || {};
+    const lat = Number(event.display_lat ?? event.lat ?? event.impact_lat);
+    const lon = Number(event.display_lon ?? event.lon ?? event.impact_lon);
+    return Number.isFinite(lat) && Number.isFinite(lon) &&
+        lat >= Number(bounds.minLat) &&
+        lat <= Number(bounds.maxLat) &&
+        lon >= Number(bounds.minLon) &&
+        lon <= Number(bounds.maxLon);
+}
+function getStatusScopedEvents(events = [], type = "airspace") {
+    const base = (Array.isArray(events) ? events : [])
+        .filter((event) => isMilitaryRelevant(event))
+        .filter((event) => isStatusRelevantEvent(event, type));
+    const region = getActiveRegion?.();
+    if (!region || region.id === "global") return base;
+    const whitelist = getRegionCountryWhitelist(region.id);
+    return base.filter((event) => {
+        if (isEventInsideRegionBounds(event, region)) return true;
+        if (!whitelist.size) return false;
+        const country = normalizeCountryName(getEventResolvedCountry(event));
+        return !!country && whitelist.has(country);
+    });
+}
 function deriveCountryStatus(events, country, type = "airspace") {
     const canonical = normalizeCountryName(country);
     const relevant = events.filter((event) =>
@@ -1384,10 +1533,27 @@ function deriveCountryStatus(events, country, type = "airspace") {
     );
     if (!relevant.length) return "unknown";
     if (type === "cyber") {
+        const cyberExplicit = relevant
+            .map((e) => String(e.cyber_status || "").toLowerCase())
+            .filter((s) => s && s !== "unknown");
+        if (cyberExplicit.includes("critical")) return "critical";
+        if (
+            cyberExplicit.some((status) =>
+                ["high", "degraded", "disrupted", "restricted", "warning"].includes(status)
+            )
+        ) {
+            return "high";
+        }
+        if (cyberExplicit.some((status) => ["elevated", "medium"].includes(status))) {
+            return "elevated";
+        }
+        if (cyberExplicit.some((status) => ["normal", "low", "minor"].includes(status))) {
+            return "normal";
+        }
         const cyberEvents = relevant.filter(
             (e) => String(e.category || "").toLowerCase() === "cyber"
         );
-        if (!cyberEvents.length) return "normal";
+        if (!cyberEvents.length) return "unknown";
         if (
             cyberEvents.some((e) =>
                 ["critical", "high"].includes(String(e.severity || "").toLowerCase())
@@ -1425,6 +1591,49 @@ function deriveCountryStatus(events, country, type = "airspace") {
     if (alertsCount >= 5 || kineticCount >= 3) return "closed";
     if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
     return "normal";
+}
+function deriveAggregateStatus(events, type = "airspace") {
+    const relevant = getStatusScopedEvents(events, type);
+    if (!relevant.length) return "unknown";
+    if (type === "cyber") {
+        const cyberExplicit = relevant
+            .map((e) => String(e.cyber_status || "").toLowerCase())
+            .filter((s) => s && s !== "unknown");
+        if (cyberExplicit.includes("critical")) return "critical";
+        if (
+            cyberExplicit.some((status) =>
+                ["high", "degraded", "disrupted", "restricted", "warning"].includes(status)
+            )
+        ) {
+            return "high";
+        }
+        if (cyberExplicit.some((status) => ["elevated", "medium"].includes(status))) return "elevated";
+        if (cyberExplicit.some((status) => ["normal", "low", "minor"].includes(status))) return "normal";
+        const cyberEvents = relevant.filter((e) => String(e.category || "").toLowerCase() === "cyber");
+        if (!cyberEvents.length) return "unknown";
+        if (cyberEvents.some((e) => ["critical", "high"].includes(String(e.severity || "").toLowerCase()))) {
+            return "critical";
+        }
+        if (cyberEvents.some((e) => String(e.severity || "").toLowerCase() === "medium")) return "elevated";
+        return "normal";
+    }
+    const airspaceExplicit = relevant
+        .map((e) => String(e.airspace_status || "").toLowerCase())
+        .filter((s) => s && s !== "unknown");
+    if (airspaceExplicit.includes("closed")) return "closed";
+    if (airspaceExplicit.includes("restricted")) return "restricted";
+    if (airspaceExplicit.includes("elevated")) return "elevated";
+    if (airspaceExplicit.includes("normal")) return "normal";
+    const recentCutoff = Date.now() - 2 * 60 * 60 * 1000;
+    const alertsCount = relevant.filter((e) => String(e.category || "").toLowerCase() === "alert").length;
+    const kineticCount = relevant.filter((e) => {
+        const t = new Date(e.occurred_at).getTime();
+        const cat = String(e.category || "").toLowerCase();
+        return Number.isFinite(t) && t > recentCutoff && (cat === "strike" || cat === "military");
+    }).length;
+    if (alertsCount >= 5 || kineticCount >= 3) return "closed";
+    if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
+    return "unknown";
 }
 function topActors(events, max = 3) {
     return countBy(events, (e) => e.actor_side || "unknown")
@@ -1520,13 +1729,18 @@ function statusPriority(status) {
 function rankCountryRows(events, type, max = 10) {
     const regionId = getActiveRegion?.()?.id || "global";
     const whitelist = getRegionCountryWhitelist(regionId);
-    const countries = deriveFocusCountries(events, Math.max(max, 20));
-    const rows = countries
+    const scopedEvents = Array.isArray(events) ? events : [];
+    const statusEvents = getStatusScopedEvents(scopedEvents, type);
+    const countries = deriveFocusCountries(scopedEvents, Math.max(max, 20));
+    const countryCandidates = countries.length
+        ? countries
+        : (whitelist.size ? [...whitelist] : []);
+    const rows = countryCandidates
         .filter((country) => !whitelist.size || whitelist.has(normalizeCountryName(country)))
         .map((country) => {
             const canonical = normalizeCountryName(country);
-            const status = deriveCountryStatus(events, canonical, type);
-            const relatedCount = getCountryMatchCount(events, canonical);
+            const status = deriveCountryStatus(statusEvents, canonical, type);
+            const relatedCount = getCountryMatchCount(statusEvents, canonical);
             return {
                 label: canonical,
                 status,
@@ -1539,14 +1753,20 @@ function rankCountryRows(events, type, max = 10) {
             if (b.relatedCount !== a.relatedCount) return b.relatedCount - a.relatedCount;
             return a.label.localeCompare(b.label);
         });
-    const strongRows = rows.filter((row) => row.relatedCount > 0 || row.status !== "unknown");
-    return (strongRows.length ? strongRows : rows).slice(0, max);
+    return rows.slice(0, max);
 }
 function renderCyberStatus(events) {
     const container = document.getElementById("cyber-status-list");
     if (!container) return;
     const rows = rankCountryRows(events, "cyber", 8);
     if (!rows.length) {
+        const aggregate = deriveAggregateStatus(events, "cyber");
+        if (aggregate !== "unknown") {
+            const label = aggregate.charAt(0).toUpperCase() + aggregate.slice(1);
+            const regionLabel = getActiveRegion?.()?.id === "global" ? "Global" : "Current Region";
+            container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
+            return;
+        }
         container.innerHTML = '<div class="status-row"><span>No cyber signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
         return;
     }
@@ -1567,6 +1787,13 @@ function renderAirspaceStatus(events) {
     if (!container) return;
     const rows = rankCountryRows(events, "airspace", 10);
     if (!rows.length) {
+        const aggregate = deriveAggregateStatus(events, "airspace");
+        if (aggregate !== "unknown") {
+            const label = aggregate.charAt(0).toUpperCase() + aggregate.slice(1);
+            const regionLabel = getActiveRegion?.()?.id === "global" ? "Global" : "Current Region";
+            container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
+            return;
+        }
         container.innerHTML = '<div class="status-row"><span>No regional airspace signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
         return;
     }
@@ -2273,14 +2500,25 @@ function scheduleAircraftHistoryRefresh(force = false) {
     }, force ? 0 : 350);
 }
 function syncLiveAircraftFromHistoryRows(rows = __aircraftHistoryCache) {
-    void rows;
-    // Keep tracks table for widget history only.
-    // Live aircraft motion is sourced by the dedicated public-air ingestion pipeline.
-    if (!__seededAircraftTrackKeys.size) return;
+    const nextSeededTrackKeys = new Set();
+    const historyRows = Array.isArray(rows) ? rows : [];
+    if (isDatabaseAircraftLiveSourceEnabled()) {
+        historyRows
+            .filter((row) => row?.track_key && row.active)
+            .forEach((row) => {
+                upsertLiveTrack({
+                    ...row,
+                    updated_at: row.updated_at || row.occurred_at || new Date(Number(row.last_seen_at || Date.now())).toISOString(),
+                });
+                nextSeededTrackKeys.add(String(row.track_key || ""));
+            });
+    }
     __seededAircraftTrackKeys.forEach((trackKey) => {
-        if (trackKey) clearLiveTrack(trackKey);
+        if (trackKey && !nextSeededTrackKeys.has(trackKey)) {
+            clearLiveTrack(trackKey);
+        }
     });
-    __seededAircraftTrackKeys = new Set();
+    __seededAircraftTrackKeys = nextSeededTrackKeys;
 }
 function normalizeAircraftHistoryRow(row = {}) {
     const metadata = getAircraftMetadata(row);
@@ -2361,7 +2599,26 @@ function startAircraftLiveSync() {
     __aircraftLiveSyncTimer = window.setInterval(() => {
         if (!isLayerEnabled("aircraft")) return;
         refreshAircraftHistoryCache(true).catch(() => { });
-    }, AIRCRAFT_LIVE_SYNC_MS);
+    }, getAircraftLiveSyncIntervalMs());
+}
+function stopAircraftLiveSync() {
+    if (!__aircraftLiveSyncTimer) return;
+    window.clearInterval(__aircraftLiveSyncTimer);
+    __aircraftLiveSyncTimer = 0;
+}
+function syncAircraftLivePipelines({ forceRefresh = false } = {}) {
+    const aircraftEnabled = isLayerEnabled("aircraft");
+    if (!aircraftEnabled) {
+        stopPublicAirIngestion();
+        stopAircraftLiveSync();
+        return;
+    }
+    startPublicAirIngestion();
+    startAircraftLiveSync();
+    if (forceRefresh) {
+        refreshAircraftHistoryCache(true).catch(() => { });
+        refreshPublicAirTracksNow({ force: true }).catch(() => { });
+    }
 }
 function getAircraftMergeKey(track = {}) {
     const metadata = getAircraftMetadata(track);
@@ -2435,6 +2692,22 @@ function syncAircraftWidgetFilterControls() {
         btn.classList.toggle("is-active", value === __aircraftWidgetFilter);
     });
 }
+function prioritizeSelectedAircraftWidgetItem(items = [], trackKey = "") {
+    const selectedTrackKey = String(trackKey || "").trim();
+    if (!selectedTrackKey || !Array.isArray(items) || !items.length) {
+        return Array.isArray(items) ? items : [];
+    }
+    const selectedIndex = items.findIndex(
+        (track) => String(track?.track_key || "").trim() === selectedTrackKey
+    );
+    if (selectedIndex <= 0) {
+        return items;
+    }
+    const prioritizedItems = [...items];
+    const [selectedTrack] = prioritizedItems.splice(selectedIndex, 1);
+    prioritizedItems.unshift(selectedTrack);
+    return prioritizedItems;
+}
 function getAircraftWidgetItems() {
     if (!isLayerEnabled("aircraft")) {
         return {
@@ -2467,7 +2740,9 @@ function getAircraftWidgetItems() {
     } else if (__aircraftWidgetFilter === "ended") {
         baseItems = allItems.filter((track) => !track.active);
     } else {
-        baseItems = allItems.filter((track) => track.active && liveKeys.has(getAircraftMergeKey(track)));
+        baseItems = isDatabaseAircraftLiveSourceEnabled()
+            ? allItems.filter((track) => track.active)
+            : allItems.filter((track) => track.active && liveKeys.has(getAircraftMergeKey(track)));
     }
     let items = baseItems;
     if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
@@ -2475,9 +2750,11 @@ function getAircraftWidgetItems() {
             (track) => String(track.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter
         );
     }
-    items = items
-        .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
-        .slice(0, LIVE_AIRCRAFT_WIDGET_MAX_ITEMS * __aircraftWidgetPage);
+    const selection = getLiveTrackSelection();
+    items = prioritizeSelectedAircraftWidgetItem(
+        [...items].sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0)),
+        selection.track_key
+    ).slice(0, LIVE_AIRCRAFT_WIDGET_MAX_ITEMS * __aircraftWidgetPage);
     return {
         allItems,
         baseItems,
@@ -2505,7 +2782,7 @@ function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircr
 function getAircraftWidgetActionLabel(track, selection) {
     const isSelected = selection.track_key === track.track_key;
     return track.active
-        ? (isSelected ? "Back" : "Focus")
+        ? (isSelected ? "Unlock" : "Focus")
         : (isSelected ? "Hide" : "Replay");
 }
 function getAircraftWidgetTimeLabel(track) {
@@ -2531,7 +2808,6 @@ function updateAircraftWidgetCard(card, track, selection) {
     let stats = card.querySelector(".wz-aircraft-item__stats");
     let foot = card.querySelector(".wz-aircraft-item__foot");
     let actionBtn = card.querySelector(".wz-aircraft-action");
-    let lockBtn = card.querySelector(".wz-aircraft-lock-btn");
     if (!top) {
         top = document.createElement("div");
         top.className = "wz-aircraft-item__top";
@@ -2570,7 +2846,6 @@ function updateAircraftWidgetCard(card, track, selection) {
     titleEl = card.querySelector(".wz-aircraft-item__title");
     timeEl = card.querySelector(".wz-aircraft-item__time");
     actionBtn = card.querySelector(".wz-aircraft-action");
-    lockBtn = card.querySelector(".wz-aircraft-lock-btn");
     titleEl.innerHTML = `
         <span class="wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}" aria-label="${statusLabel}">
             <span class="bx-web-ico-status-1-0" aria-hidden="true"></span>
@@ -2585,29 +2860,11 @@ function updateAircraftWidgetCard(card, track, selection) {
     if (statSpans[0]) statSpans[0].textContent = formatAircraftAltitude(track.altitude_ft);
     if (statSpans[1]) statSpans[1].textContent = formatAircraftSpeed(track.speed_kts);
     if (statSpans[2]) statSpans[2].textContent = `HDG ${Math.round(Number(track.heading_deg || 0))}°`;
+    actionBtn.dataset.trackAction = track.active
+        ? (isSelected ? "unlock" : "focus")
+        : (isSelected ? "hide" : "replay");
     actionBtn.dataset.trackToggle = String(track.track_key || "");
     actionBtn.innerHTML = `<span aria-hidden="true"></span>${actionLabel}`;
-    const shouldShowLock = Boolean(track.active && isSelected);
-    if (shouldShowLock) {
-        const lockEnabled = isLiveTrackHardLockEnabled();
-        if (!lockBtn) {
-            lockBtn = document.createElement("button");
-            lockBtn.type = "button";
-            lockBtn.className = "wz-aircraft-action wz-aircraft-lock-btn";
-            foot.appendChild(lockBtn);
-        }
-        lockBtn.dataset.trackHardLock = "1";
-        lockBtn.setAttribute("aria-pressed", String(lockEnabled));
-        lockBtn.title = lockEnabled
-            ? "Unlock map controls for focused aircraft"
-            : "Lock map controls to focused aircraft";
-        lockBtn.innerHTML = `
-            <span class="wz-aircraft-lock-indicator ${lockEnabled ? "is-locked" : "is-unlocked"}" aria-hidden="true"></span>
-            ${lockEnabled ? "Unlock" : "Lock"}
-        `;
-    } else if (lockBtn) {
-        lockBtn.remove();
-    }
 }
 
 function renderAircraftMovementsWidget() {
@@ -2707,17 +2964,18 @@ function bindAircraftMovementsWidget() {
             requestAircraftMovementsWidgetRender(0);
             return;
         }
-        const hardLockBtn = event.target.closest("[data-track-hard-lock]");
-        if (hardLockBtn) {
-            toggleLiveTrackHardLock();
-            requestAircraftMovementsWidgetRender(0);
-            return;
-        }
-        const toggleBtn = event.target.closest("[data-track-toggle]");
-        if (toggleBtn) {
-            const trackKey = String(toggleBtn.dataset.trackToggle || "").trim();
+        const actionBtn = event.target.closest("[data-track-action]");
+        if (actionBtn) {
+            const trackKey = String(actionBtn.dataset.trackToggle || "").trim();
             if (!trackKey) return;
-            toggleLiveTrackSelection(trackKey);
+            const action = String(actionBtn.dataset.trackAction || "").trim().toLowerCase();
+            if (action === "focus") {
+                focusLiveTrack(trackKey);
+            } else if (action === "unlock") {
+                clearLiveTrackSelection();
+            } else {
+                toggleLiveTrackSelection(trackKey);
+            }
             requestAircraftMovementsWidgetRender(0);
             return;
         }
@@ -2811,20 +3069,27 @@ function renderAll(events, { replaceCache = true } = {}) {
         __eventsCache = normalizedEvents;
     }
     __visibleEventsCache = normalizedEvents;
+    const scoped = applyScopeFilters(normalizedEvents);
     const filtered = applyAllFilters(normalizedEvents);
-    updateTheaterPanel(filtered);
+    updateTheaterPanel(scoped);
     debouncedRenderFeed(filtered);
-    debouncedRenderUI(filtered);
+    debouncedRenderUI(scoped);
     debouncedRenderHeavy(filtered);
-    debouncedRenderRaw(); // strike counters + escalation always use full cache
+    debouncedRenderRaw();
 }
 function syncFilteredUi(events) {
+    const scoped = applyScopeFilters(events);
     const filtered = applyAllFilters(events);
     debouncedRenderFeed(filtered);
-    debouncedRenderUI(filtered);
+    updateTheaterPanel(scoped);
+    debouncedRenderUI(scoped);
     debouncedRenderHeavy(filtered);
-    debouncedRenderRaw(); // strike counters + escalation always use full cache
+    debouncedRenderRaw();
     return filtered;
+}
+function syncHotspotLayerEvents(events = []) {
+    if (!__hotspotLayer) return;
+    __hotspotLayer.setEvents(getHotspotSourceEvents(events));
 }
 const GLOBE_CLUSTER_RADIUS_DEG = 1;
 const GLOBE_CLUSTER_THRESHOLD = 60;
@@ -2879,6 +3144,14 @@ function getOverlayClusterRadiusDeg() {
     if (height > 2800000) return 1.15;
     if (height > 1600000) return 0.85;
     return 0.65;
+}
+function getOverlayClusterRadiusBucket() {
+    const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
+    if (height > 7000000) return "h4";
+    if (height > 4500000) return "h3";
+    if (height > 2800000) return "h2";
+    if (height > 1600000) return "h1";
+    return "h0";
 }
 function clusterEventsForGlobe(events) {
     if (!Array.isArray(events) || !events.length) return [];
@@ -2976,21 +3249,47 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const visible = applyAllFilters(events);
-    const navalVisible = visible.filter(isNavalSignalEvent);
+    const scopedCacheVisible = applyAllFilters(__eventsCache);
+    const hotspotStableSource = scopedCacheVisible;
+    // Naval tracker panel should follow selected region/lens, not camera bounds.
+    const navalVisible = scopedCacheVisible.filter(isNavalSignalEvent);
     syncNavalSignals(navalVisible);
     const globeVisible = visible.filter(
         (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
     );
     const visibleSignature = makeEventSignature(globeVisible);
-    const overlaySource = globeVisible.filter(isOverlayCircleEvent);
-    const overlayVisible = clusterEventsForOverlays(overlaySource);
-    const overlaySignature = makeOverlaySignature(overlayVisible);
-    const sweeperSignature = makeOverlaySignature(overlaySource);
     const rangesEnabled = isLayerEnabled("ranges");
     const sweepersEnabled = isLayerEnabled("sweepers");
+    const overlaysEnabled = rangesEnabled || sweepersEnabled;
+    let overlaySource = [];
+    let overlayVisible = [];
+    let overlaySignature = "__off__";
+    let sweeperSignature = "__off__";
+    if (overlaysEnabled) {
+        overlaySource = globeVisible.filter(isOverlayCircleEvent);
+        const overlaySourceKey = makeOverlaySignature(overlaySource);
+        if (sweepersEnabled) {
+            sweeperSignature = overlaySourceKey;
+        }
+        if (rangesEnabled) {
+            const clusterRadiusBucket = getOverlayClusterRadiusBucket();
+            const canReuseClusters =
+                overlaySourceKey === __lastOverlaySourceKey &&
+                clusterRadiusBucket === __lastOverlayClusterRadiusBucket;
+            if (canReuseClusters) {
+                overlayVisible = __cachedOverlayClusters;
+            } else {
+                overlayVisible = clusterEventsForOverlays(overlaySource);
+                __cachedOverlayClusters = overlayVisible;
+                __lastOverlaySourceKey = overlaySourceKey;
+                __lastOverlayClusterRadiusBucket = clusterRadiusBucket;
+            }
+            overlaySignature = makeOverlaySignature(overlayVisible);
+        }
+    }
     globe.setPerformanceMode?.(globeVisible.length);
     if (!globeVisible.length) {
-        __hotspotLayer?.setEvents(getHotspotSourceEvents(visible));
+        syncHotspotLayerEvents(hotspotStableSource);
         if (__lastGlobeSyncKey !== "__empty__") {
             globe.clearEventEntities?.();
             __militaryTracks?.setTracks([]);
@@ -3001,6 +3300,9 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
             __lastGlobeSyncKey = "__empty__";
             __lastRangesSyncKey = "__off__";
             __lastSweepersSyncKey = "__off__";
+            __lastOverlaySourceKey = "__empty__";
+            __lastOverlayClusterRadiusBucket = "";
+            __cachedOverlayClusters = [];
         }
         window.__warzoneViewer?.scene?.requestRender?.();
         return;
@@ -3022,7 +3324,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         __lastGlobeSyncKey = visibleSignature;
     }
     if (__hotspotLayer) {
-        __hotspotLayer.setEvents(getHotspotSourceEvents(visible));
+        syncHotspotLayerEvents(hotspotStableSource);
     }
     if (window.__warzoneViewer) {
         const nextRangesKey = rangesEnabled ? overlaySignature : "__off__";
@@ -3072,23 +3374,26 @@ export async function initWarzoneApp() {
         const viewer = window.__warzoneViewer;
         if (hotspotRoot && viewer && !__hotspotLayer) {
             __hotspotLayer = createWarzoneHotspotLayer(viewer, hotspotRoot, {
-                maxCards: 20,
-                clusterDistanceLat: 2.6,
-                clusterDistanceLon: 3.2,
-                stackDistancePx: 90,
+                maxCards: 24,
+                clusterDistanceLat: 1.9,
+                clusterDistanceLon: 2.4,
+                stackDistancePx: 86,
                 maxVisiblePerHotspot: 3,
                 minItemsForCluster: 1,
+                throttleMove: 48,
             });
             window.__hotspotLayer = __hotspotLayer;
         }
         syncHotspotRootVisibility(true);
-        __hotspotLayer?.setEvents(getHotspotSourceEvents(applyAllFilters(events)));
+        syncHotspotLayerEvents(applyAllFilters(__eventsCache));
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
         window.__militaryTracks = __militaryTracks;
     }
     if (viewer) {
         onRegionChange(() => {
+            syncScopeSelectLabel(document.getElementById("wz-aircraft-filter-scope"), __aircraftWidgetScopeFilter);
+            syncScopeSelectLabel(document.getElementById("wz-naval-filter-scope"), __navalWidgetScopeFilter);
             __lastViewportKey = "";
             scheduleViewportFetch(60);
             requestAircraftMovementsWidgetRender(0);
@@ -3102,14 +3407,26 @@ export async function initWarzoneApp() {
     }
     initLayerPanel();
     syncIdleSceneState();
-    startPublicAirIngestion();
-    startAircraftLiveSync();
+    syncAircraftLivePipelines();
     if (!__visibilityRecoveryBound) {
         __visibilityRecoveryBound = true;
         const onForeground = () => {
             if (isDocumentHidden()) return;
+            const now = Date.now();
+            if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
+                startForegroundRenderWakeBurst(650);
+                window.__warzoneViewer?.scene?.requestRender?.();
+                return;
+            }
+            __lastForegroundRecoveryAt = now;
+            const awayMs = __lastBackgroundAt > 0 ? (now - __lastBackgroundAt) : Number.POSITIVE_INFINITY;
+            const shouldShowRecoveryLoader = awayMs >= FOREGROUND_RECOVERY_LOADER_THRESHOLD_MS;
             const recoverySeq = ++__foregroundRecoverySeq;
-            beginForegroundRecoveryLoader();
+            if (shouldShowRecoveryLoader) {
+                beginForegroundRecoveryLoader();
+            } else {
+                endForegroundRecoveryLoader({ force: true });
+            }
             const pollLooksStale =
                 __pollInFlight &&
                 __pollInFlightSince > 0 &&
@@ -3120,26 +3437,31 @@ export async function initWarzoneApp() {
             }
             __lastViewportKey = "";
             scheduleViewportFetch(90);
-            const recoveryTasks = [pollLatestEvents({ force: true })];
+            const recoveryTasks = [];
+            if (!shouldSuspendMapWork()) {
+                recoveryTasks.push(pollLatestEvents({ force: true }));
+            }
             if (isLayerEnabled("aircraft")) {
                 recoveryTasks.push(refreshAircraftHistoryCache(true));
+                recoveryTasks.push(refreshPublicAirTracksNow({ force: true }));
             }
-            recoveryTasks.push(refreshPublicAirTracksNow({ force: true }));
             requestAircraftMovementsWidgetRender(0);
             requestNavalWidgetRender(0);
-            const foregroundSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
-            if (__hotspotLayer) {
-                __hotspotLayer.setEvents(getHotspotSourceEvents(applyAllFilters(foregroundSource)));
-            }
+            syncHotspotLayerEvents(applyAllFilters(__eventsCache));
             startForegroundRenderWakeBurst(1400);
             window.__warzoneViewer?.scene?.requestRender?.();
             Promise.allSettled(recoveryTasks).finally(() => {
                 if (recoverySeq !== __foregroundRecoverySeq) return;
-                endForegroundRecoveryLoader();
+                if (shouldShowRecoveryLoader) {
+                    endForegroundRecoveryLoader();
+                } else {
+                    endForegroundRecoveryLoader({ force: true });
+                }
             });
         };
         document.addEventListener("visibilitychange", () => {
             if (isDocumentHidden()) {
+                __lastBackgroundAt = Date.now();
                 __foregroundRecoverySeq += 1;
                 endForegroundRecoveryLoader({ force: true });
                 clearTimeout(__viewportFetchTimer);
@@ -3168,12 +3490,12 @@ export async function initWarzoneApp() {
     onLayerChange((id) => {
         syncIdleSceneState();
         const globe = window.__warzoneViewer?.__warzone;
-        const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
-        const filtered = applyAllFilters(sourceEvents);
+        const mapSourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
+        const filtered = applyAllFilters(mapSourceEvents);
         const hotspotEnabled = isLayerEnabled("hotspots");
         syncHotspotRootVisibility(hotspotEnabled);
         if (__hotspotLayer) {
-            __hotspotLayer.setEvents(hotspotEnabled ? getHotspotSourceEvents(filtered) : []);
+            syncHotspotLayerEvents(hotspotEnabled ? applyAllFilters(__eventsCache) : []);
         }
         if (id === "terrain") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
@@ -3184,7 +3506,8 @@ export async function initWarzoneApp() {
             window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
         }
         if (id === "aircraft" || id === "*") {
-            if (!isLayerEnabled("aircraft")) {
+            const aircraftEnabled = isLayerEnabled("aircraft");
+            if (!aircraftEnabled) {
                 __seededAircraftTrackKeys.forEach((trackKey) => {
                     if (trackKey) clearLiveTrack(trackKey);
                 });
@@ -3192,24 +3515,20 @@ export async function initWarzoneApp() {
                 getAllLiveTrackSnapshots({ includePathHistory: false }).forEach((track) => {
                     if (track?.track_key) clearLiveTrack(track.track_key);
                 });
-            } else {
-                refreshAircraftHistoryCache(true).catch(() => { });
-                refreshPublicAirTracksNow().catch(() => { });
             }
+            syncAircraftLivePipelines({ forceRefresh: aircraftEnabled });
             requestAircraftMovementsWidgetRender(0);
         }
         if (id === "*") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
         }
-        syncFilteredUi(sourceEvents);
-        syncInitialEventsToGlobe(sourceEvents, { animateTracks: false });
+        syncFilteredUi(__eventsCache);
+        syncInitialEventsToGlobe(mapSourceEvents, { animateTracks: false });
 
-        // Airspace Status and Cyber Status widgets must always reflect the FULL
-        // event cache — they are independent of the "aircraft" layer.
-        // warzone-layers.js handles their widget visibility via the "airspace"
-        // uiOnly layer toggle. Here we ensure their DATA is never aircraft-filtered.
-        renderAirspaceStatus(sourceEvents);
-        renderCyberStatus(sourceEvents);
+        // Keep status widgets stable on layer toggles by using region/lens scope.
+        const widgetScoped = applyScopeFilters(__eventsCache);
+        renderAirspaceStatus(widgetScoped);
+        renderCyberStatus(widgetScoped);
     });
     window.addEventListener("wz:recluster", () => {
         const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
@@ -3233,7 +3552,7 @@ export async function initWarzoneApp() {
                 const eventType = String(payload.eventType || payload.event || "").toUpperCase();
                 const track = payload.new || payload.old;
                 if (!track) return;
-                const useDatabaseAsLiveSource = window.__stratopsConfig?.enablePublicAirFallback !== true;
+                const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
                 if (!isLayerEnabled("aircraft")) {
                     if (track.track_key) {
                         clearLiveTrack(track.track_key);
@@ -3265,6 +3584,7 @@ export async function initWarzoneApp() {
 }
 async function pollLatestEvents(options = {}) {
     const force = options?.force === true;
+    if (shouldSuspendMapWork() && !force) return;
     if (isDocumentHidden() && !force) return;
     if (__pollInFlight && !force) return;
     if (__pollInFlight && force) {
@@ -3279,14 +3599,39 @@ async function pollLatestEvents(options = {}) {
     __pollInFlight = true;
     __pollInFlightSince = Date.now();
     try {
-        const since = __lastSeenOccurredAt || new Date(Date.now() - 30000).toISOString();
+        const since = getSafePollSinceIso();
+        __lastSeenOccurredAt = since;
         const { data, error } = await api.getEventsSince(since);
         if (error) {
             console.error("Polling latest events error:", error);
             return;
         }
         const rows = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
-        if (!rows.length) return;
+        if (!rows.length) {
+            __pollEmptyStreak += 1;
+            if (__pollEmptyStreak >= POLL_FULL_REFRESH_EMPTY_STREAK) {
+                __pollEmptyStreak = 0;
+                const { data: fullData, error: fullError } = await api.getEvents();
+                if (!fullError) {
+                    const fullEvents = Array.isArray(fullData)
+                        ? fullData.map((row) => normalizeEvent(row)).filter(Boolean)
+                        : [];
+                    if (fullEvents.length) {
+                        renderAll(fullEvents);
+                        syncInitialEventsToGlobe(fullEvents, { animateTracks: false });
+                        syncHotspotLayerEvents(applyAllFilters(__eventsCache));
+                        const newestTs = Date.parse(fullEvents[0]?.occurred_at || "");
+                        if (Number.isFinite(newestTs)) {
+                            __lastSeenOccurredAt = new Date(
+                                Math.min(newestTs, Date.now())
+                            ).toISOString();
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        __pollEmptyStreak = 0;
         rows
             .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at))
             .forEach(handleIncomingEvent);
@@ -3307,8 +3652,9 @@ export function startEventPollingFallback() {
     if (__pollTimer) return;
     __pollTimer = setInterval(() => {
         if (isDocumentHidden()) return;
+        if (shouldSuspendMapWork()) return;
         pollLatestEvents();
-    }, 30000);
+    }, EVENT_POLL_INTERVAL_MS);
 }
 // Global known aggressor origin points per theater
 // These are the known or most likely launch zones per active conflict theater
@@ -3820,7 +4166,7 @@ function setAuthError(message) {
 function syncAuthButtonState() {
     const { loginBtn, consent } = getAuthModalElements();
     if (!loginBtn) return;
-    const allowed = !!consent?.checked;
+    const allowed = consent ? !!consent.checked : true;
     loginBtn.disabled = !allowed;
     loginBtn.setAttribute("aria-disabled", String(!allowed));
     if (allowed) { loginBtn.classList.remove("is-locked"); loginBtn.style.pointerEvents = ""; }
@@ -3858,7 +4204,7 @@ function setAuthMode(isAuthenticated, user = null) {
 }
 
 export function showLoginModal(mode = "guest", user = null) {
-    const { modal, email, consent } = getAuthModalElements();
+    const { modal, email, consent, loginBtn } = getAuthModalElements();
     const isAuthenticated = mode === "authenticated";
     setAuthError("");
     setAuthMode(isAuthenticated, user);
@@ -3869,7 +4215,7 @@ export function showLoginModal(mode = "guest", user = null) {
         modal.classList.add("is-visible");
     });
     requestAnimationFrame(() => {
-        if (isAuthenticated) consent?.focus();
+        if (isAuthenticated) (consent || loginBtn)?.focus();
         else email?.focus();
     });
 }
@@ -4182,10 +4528,9 @@ export function initStratopsAuth() {
     });
 
     const submit = async () => {
-        const consentValue = !!consent?.checked;
         const isAuthenticated = loginBtn.dataset.mode === "authenticated";
         setAuthError("");
-        if (!consentValue) { setAuthError("Please acknowledge the disclaimer before continuing."); syncAuthButtonState(); return; }
+        if (consent && !consent.checked) { setAuthError("Please acknowledge the disclaimer before continuing."); syncAuthButtonState(); return; }
         if (isAuthenticated) { hideLoginModal(); return; }
 
         const emailValue = String(email?.value || "").trim();

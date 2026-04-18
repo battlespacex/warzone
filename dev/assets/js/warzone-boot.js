@@ -38,8 +38,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const WZ_WIDGET_KEY = "wz_widget_visibility";
     const WZ_LAYER_KEY = "wz_layer_state";
     const WZ_WIDGET_LAYOUT_VERSION_KEY = "wz_widget_layout_version";
-    const WZ_WIDGET_LAYOUT_VERSION = "2026-04-performance-entry";
-    const UI_ONLY_WIDGET_IDS = new Set(["airspace"]);
+    const WZ_WIDGET_LAYOUT_VERSION = "2026-04-airspace-default-open";
+    const UI_ONLY_WIDGET_IDS = new Set();
     const DEFAULT_WIDGET_VISIBILITY = {
         counter: true,
         layers: true,
@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
         aircraft: false,
         naval: false,
         feed: false,
-        airspace: false,
+        airspace: true,
         cyber: false,
     };
     function isMobileLayout() {
@@ -66,15 +66,31 @@ document.addEventListener("DOMContentLoaded", () => {
         return layerState[widgetId] !== false;
     }
     function bindTabs(selector, panelSelector, attrName, panelAttrName) {
-        document.querySelectorAll(selector).forEach((btn) => {
+        const tabs = [...document.querySelectorAll(selector)];
+        const panels = [...document.querySelectorAll(panelSelector)];
+        const applyState = (activeBtn) => {
+            const target = String(activeBtn?.dataset?.[attrName] || "");
+            tabs.forEach((tab) => {
+                const active = tab === activeBtn;
+                tab.classList.toggle("is-active", active);
+                tab.setAttribute("aria-selected", String(active));
+                tab.setAttribute("aria-pressed", String(active));
+                if (tab.getAttribute("role") === "tab") {
+                    tab.tabIndex = active ? 0 : -1;
+                }
+            });
+            panels.forEach((panel) => {
+                const active = panel.dataset[panelAttrName] === target;
+                panel.classList.toggle("is-active", active);
+                panel.hidden = !active;
+                panel.setAttribute("aria-hidden", String(!active));
+            });
+        };
+        const initial = tabs.find((tab) => tab.classList.contains("is-active")) || tabs[0] || null;
+        if (initial) applyState(initial);
+        tabs.forEach((btn) => {
             btn.addEventListener("click", () => {
-                const target = btn.dataset[attrName];
-                document.querySelectorAll(selector).forEach((node) => {
-                    node.classList.toggle("is-active", node === btn);
-                });
-                document.querySelectorAll(panelSelector).forEach((panel) => {
-                    panel.classList.toggle("is-active", panel.dataset[panelAttrName] === target);
-                });
+                applyState(btn);
             });
         });
     }
@@ -83,17 +99,27 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("[data-map-mode]").forEach((btn) => {
         btn.addEventListener("click", () => {
             document.querySelectorAll("[data-map-mode]").forEach((node) => {
-                node.classList.toggle("is-active", node === btn);
+                const active = node === btn;
+                node.classList.toggle("is-active", active);
+                node.setAttribute("aria-pressed", String(active));
             });
             window.__warzoneViewer?.__warzone?.setMapMode?.(btn.dataset.mapMode);
         });
     });
+    document.querySelectorAll("[data-map-mode]").forEach((node) => {
+        node.setAttribute("aria-pressed", String(node.classList.contains("is-active")));
+    });
     document.querySelectorAll(".period-tab").forEach((btn) => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".period-tab").forEach((node) => {
-                node.classList.toggle("is-active", node === btn);
+                const active = node === btn;
+                node.classList.toggle("is-active", active);
+                node.setAttribute("aria-pressed", String(active));
             });
         });
+    });
+    document.querySelectorAll(".period-tab").forEach((node) => {
+        node.setAttribute("aria-pressed", String(node.classList.contains("is-active")));
     });
     function isAboutModal(modal) {
         return modal?.id === "wz-about-modal";
@@ -250,12 +276,17 @@ document.addEventListener("DOMContentLoaded", () => {
     function openModal(modal) {
         if (!modal) return;
         modal.hidden = false;
+        modal.setAttribute("aria-hidden", "false");
         if (modal.id === "wz-about-modal") {
             document.body.classList.add("is-about-open");
         }
         requestAnimationFrame(() => {
             modal.classList.add("is-visible");
             modal.querySelectorAll(".wz-modal-box").forEach(primeModalBoxHeight);
+            const firstFocusable = modal.querySelector(
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            );
+            firstFocusable?.focus?.();
         });
     }
     function closeModal(modal, callback) {
@@ -271,16 +302,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 primeModalBoxHeight(box);
             });
             modal.hidden = true;
+            modal.setAttribute("aria-hidden", "true");
             if (typeof callback === "function") callback();
         }, 220);
     }
     window.__warzoneOpenSharedModal = openModal;
     window.__warzoneCloseSharedModal = closeModal;
     const aboutModal = document.getElementById("wz-about-modal");
+    let aboutModalTrigger = null;
     const introModal = document.getElementById("wz-intro-modal");
     const uiShell = document.getElementById("warzone-ui-shell");
     if (aboutModal) {
         aboutModal.hidden = true;
+        aboutModal.setAttribute("aria-hidden", "true");
         aboutModal.classList.remove("is-visible");
         document.body.classList.remove("is-about-open");
     }
@@ -310,11 +344,24 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("visibilitychange", clearStaleLoaderState, { passive: true });
     window.addEventListener("pageshow", clearStaleLoaderState, { passive: true });
     window.addEventListener("focus", clearStaleLoaderState, { passive: true });
-    document.getElementById("dock-about")?.addEventListener("click", () => openModal(aboutModal));
-    document.getElementById("wz-about-close")?.addEventListener("click", () => closeModal(aboutModal));
+    document.getElementById("dock-about")?.addEventListener("click", (event) => {
+        aboutModalTrigger = event.currentTarget;
+        openModal(aboutModal);
+    });
+    document.getElementById("wz-about-close")?.addEventListener("click", () => {
+        closeModal(aboutModal, () => {
+            aboutModalTrigger?.focus?.();
+            aboutModalTrigger = null;
+        });
+    });
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
-        if (aboutModal && !aboutModal.hidden) closeModal(aboutModal);
+        if (aboutModal && !aboutModal.hidden) {
+            closeModal(aboutModal, () => {
+                aboutModalTrigger?.focus?.();
+                aboutModalTrigger = null;
+            });
+        }
     });
     const ABOUT_TAB_FADE_MS = 220;
     const aboutPaneAnimations = new WeakMap();
@@ -394,10 +441,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const target = String(nextTab.dataset.tab || "");
         if (!target) return;
         const tabs = [...box.querySelectorAll(".wz-modal__tab")];
-        const panes = [...box.querySelectorAll(".wz-modal__pane")];
+        const panes = [...box.querySelectorAll(".wz-content[data-pane]")];
         const currentTab = tabs.find((tab) => tab.classList.contains("is-active")) || null;
         const currentPane = panes.find((pane) => pane.classList.contains("is-active")) || null;
-        const nextPane = box.querySelector(`.wz-modal__pane[data-pane="${target}"]`);
+        const nextPane = box.querySelector(`.wz-content[data-pane="${target}"]`);
         if (!nextPane) return;
         if (currentTab === nextTab && currentPane === nextPane) return;
         lockModalBoxHeight(box);
@@ -528,11 +575,11 @@ document.addEventListener("DOMContentLoaded", () => {
             saved = JSON.parse(localStorage.getItem(WZ_WIDGET_KEY) || "{}");
             savedVersion = String(localStorage.getItem(WZ_WIDGET_LAYOUT_VERSION_KEY) || "");
         } catch { }
-        const shouldResetLayout = savedVersion !== WZ_WIDGET_LAYOUT_VERSION;
-        const effectiveState = shouldResetLayout
-            ? { ...DEFAULT_WIDGET_VISIBILITY }
-            : { ...DEFAULT_WIDGET_VISIBILITY, ...(saved || {}) };
-        if (shouldResetLayout) {
+        const shouldMigrateLayout = savedVersion !== WZ_WIDGET_LAYOUT_VERSION;
+        const effectiveState = { ...DEFAULT_WIDGET_VISIBILITY, ...(saved || {}) };
+        if (shouldMigrateLayout) {
+            // Keep existing widget preferences, but migrate Airspace to open-by-default once.
+            effectiveState.airspace = true;
             try {
                 localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(effectiveState));
                 localStorage.setItem(WZ_WIDGET_LAYOUT_VERSION_KEY, WZ_WIDGET_LAYOUT_VERSION);

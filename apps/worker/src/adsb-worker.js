@@ -649,6 +649,21 @@ function buildAdsbTrack(a) {
     };
 }
 
+function buildAdsbTrackHistoryRow(track) {
+    return {
+        track_key: track.track_key,
+        subtype: track.subcategory || null,
+        lat: track.lat,
+        lon: track.lon,
+        altitude_ft: track.altitude_ft,
+        speed_kts: track.speed_kts,
+        heading_deg: track.heading_deg,
+        status: track.status || "active",
+        last_seen_at: track.updated_at || new Date().toISOString(),
+        ended_at: null,
+    };
+}
+
 // ─── Supabase Writes ────────────────────────────────────────────────────────
 
 async function upsertAdsbEvents(events) {
@@ -667,6 +682,15 @@ async function upsertAdsbTracks(tracks) {
         .upsert(tracks, { onConflict: "track_key", ignoreDuplicates: false });
     if (error) console.error("[adsb] Tracks upsert error:", error.message);
     else console.log(`[adsb] Upserted ${tracks.length} military aircraft tracks`);
+}
+
+async function upsertAdsbTrackHistory(rows) {
+    if (!rows.length) return;
+    const { error } = await supabase
+        .from("aircraft_tracks_log")
+        .upsert(rows, { onConflict: "track_key", ignoreDuplicates: false });
+    if (error) console.error("[adsb] Track history upsert error:", error.message);
+    else console.log(`[adsb] Upserted ${rows.length} recent aircraft history rows`);
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
@@ -688,6 +712,7 @@ export async function runAdsbWorker() {
     console.log(`${label} ADS-B One returned ${rawAircraft.length} military aircraft`);
 
     const processed = [];
+    const eventCandidates = [];
     for (const ac of rawAircraft) {
         const a = parseAdsbOneAircraft(ac);
         const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName);
@@ -703,25 +728,28 @@ export async function runAdsbWorker() {
         // unless there is a strong military-specific marker.
         if (isLikelyCivilianAirliner(a, role)) continue;
 
-        // Skip if seen recently (45 min TTL)
-        if (wasSeen(a.icao)) continue;
-
         processed.push(a);
-        markSeen(a.icao);
+        if (!wasSeen(a.icao)) {
+            eventCandidates.push(a);
+            markSeen(a.icao);
+        }
     }
 
-    console.log(`${label} Processing ${processed.length} new airborne military aircraft`);
+    console.log(`${label} Processing ${processed.length} airborne military aircraft`);
+    console.log(`${label} New event candidates ${eventCandidates.length}`);
 
     if (!processed.length) {
-        console.log(`${label} No new aircraft to insert`);
+        console.log(`${label} No aircraft tracks to upsert`);
         return;
     }
 
-    const events = processed.map(buildAdsbEvent);
+    const events = eventCandidates.map(buildAdsbEvent);
     const tracks = processed.map(buildAdsbTrack);
+    const historyRows = tracks.map(buildAdsbTrackHistoryRow);
 
     await upsertAdsbEvents(events);
     await upsertAdsbTracks(tracks);
+    await upsertAdsbTrackHistory(historyRows);
 
     // Log breakdown by role
     const roleCounts = {};

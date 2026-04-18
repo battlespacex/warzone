@@ -4,6 +4,7 @@ import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-airforce.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 // Note: no direct Supabase writes from frontend — all track data is client-side only
 const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
+const LOCAL_AIRCRAFT_PROXY_PATH = "/__warzone/aircraft-feed/mil";
 const POLL_INTERVAL_MS = 2000;
 const FETCH_TIMEOUT_MS = 9000;
 const TRACK_STALE_MS = 90000;
@@ -137,7 +138,22 @@ function isLikelyCivilianAirlinerRecord(record = {}) {
     return /(AIRBUS\s+A-?(220|318|319|320|321|330|340|350|380)\b|BOEING\s+7(17|27|37|47|57|67|77|87)\b|EMBRAER\s+E-?(170|175|190|195)\b|CRJ[- ]?(200|700|900|1000)\b|ATR[- ]?7(2|5)\b|DASH ?8\b)/i.test(haystack);
 }
 function isPublicAirFallbackEnabled() {
-    return window.__stratopsConfig?.enablePublicAirFallback === true;
+    const isLocalDevHost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname === "[::1]";
+    if (window.__stratopsConfig?.enablePublicAirFallback !== true) return false;
+    if (isLocalDevHost && window.__stratopsConfig?.allowLocalhostPublicAirFallback !== true) {
+        return false;
+    }
+    return true;
+}
+function getAirplanesLiveFeedUrl() {
+    const isLocalDevHost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname === "[::1]";
+    return isLocalDevHost ? LOCAL_AIRCRAFT_PROXY_PATH : AIRPLANES_LIVE_URL;
 }
 function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
     const timeoutController = new AbortController();
@@ -269,7 +285,14 @@ function normalizeAirplanesLiveRecord(record = {}) {
     const trackKey = buildTrackKey(record);
     const subtype = classifySubtype(record);
     const callsign = normalizeCallsign(record.flight || "");
-    const altitudeFeet = asFiniteNumber(record.alt_baro, 0);
+    const onGround =
+        String(record.alt_baro || "").trim().toLowerCase() === "ground" ||
+        record.on_ground === true ||
+        record.ground === true;
+    const parsedAltitudeFeet = Number(record.alt_baro);
+    const altitudeFeet = onGround
+        ? 0
+        : (Number.isFinite(parsedAltitudeFeet) ? parsedAltitudeFeet : null);
     const typeCode = normalizeString(record.t || record.type || "").toUpperCase();
     const modelName = sanitizeDisplayText(record.desc || "");
     const registration = normalizeString(record.r || "");
@@ -298,6 +321,7 @@ function normalizeAirplanesLiveRecord(record = {}) {
         lat: asFiniteNumber(record.lat, NaN),
         lon: asFiniteNumber(record.lon, NaN),
         altitude_ft: altitudeFeet,
+        on_ground: onGround,
         speed_kts: asFiniteNumber(record.gs, 0),
         heading_deg: asFiniteNumber(record.track, 0),
         occurred_at: new Date().toISOString(),
@@ -314,6 +338,7 @@ function normalizeAirplanesLiveRecord(record = {}) {
             seen_seconds: asFiniteNumber(record.seen, 0),
             seen_pos_seconds: asFiniteNumber(record.seen_pos, 0),
             db_flags: asFiniteNumber(record.dbFlags, 0),
+            on_ground: onGround,
         },
     };
 }
@@ -369,7 +394,7 @@ function cleanupStaleTracks() {
     }
 }
 async function fetchAirplanesLiveRecords(signal) {
-    const response = await fetchWithTimeout(AIRPLANES_LIVE_URL, { signal });
+    const response = await fetchWithTimeout(getAirplanesLiveFeedUrl(), { signal });
     if (!response.ok) {
         throw new Error(`airplanes.live request failed (${response.status})`);
     }

@@ -5,8 +5,72 @@ const app = express();
 const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
 const BASE = "/warzone";
+const AIRCRAFT_FEED_URL = "https://api.adsb.one/v2/mil";
+let cachedAircraftFeedPayload = "";
+let cachedAircraftFeedStatus = 0;
+let cachedAircraftFeedAt = 0;
+let aircraftFeedInFlight = null;
+const AIRCRAFT_FEED_CACHE_TTL_MS = 2500;
 
 app.disable("x-powered-by");
+
+app.get("/__warzone/aircraft-feed/mil", async (_req, res) => {
+    const now = Date.now();
+    if (
+        cachedAircraftFeedPayload &&
+        cachedAircraftFeedStatus === 200 &&
+        (now - cachedAircraftFeedAt) < AIRCRAFT_FEED_CACHE_TTL_MS
+    ) {
+        res.set("Cache-Control", "no-store, max-age=0");
+        res.type("application/json").send(cachedAircraftFeedPayload);
+        return;
+    }
+
+    if (!aircraftFeedInFlight) {
+        aircraftFeedInFlight = fetch(AIRCRAFT_FEED_URL, {
+            headers: {
+                Accept: "application/json",
+                "User-Agent": "stratops-warzone-local/1.0",
+                "Cache-Control": "no-store",
+            },
+        })
+            .then(async (response) => {
+                const payload = await response.text();
+                cachedAircraftFeedStatus = Number(response.status || 0);
+                if (response.ok && payload) {
+                    cachedAircraftFeedPayload = payload;
+                    cachedAircraftFeedAt = Date.now();
+                }
+                return { ok: response.ok, status: response.status, payload };
+            })
+            .finally(() => {
+                aircraftFeedInFlight = null;
+            });
+    }
+
+    try {
+        const result = await aircraftFeedInFlight;
+        if (result?.ok && result.payload) {
+            res.set("Cache-Control", "no-store, max-age=0");
+            res.type("application/json").send(result.payload);
+            return;
+        }
+        if (cachedAircraftFeedPayload && cachedAircraftFeedStatus === 200) {
+            res.set("Cache-Control", "no-store, max-age=0");
+            res.type("application/json").send(cachedAircraftFeedPayload);
+            return;
+        }
+        res.status(result?.status || 502).json({ error: "Aircraft feed unavailable" });
+    } catch {
+        if (cachedAircraftFeedPayload && cachedAircraftFeedStatus === 200) {
+            res.set("Cache-Control", "no-store, max-age=0");
+            res.type("application/json").send(cachedAircraftFeedPayload);
+            return;
+        }
+        res.status(502).json({ error: "Aircraft feed unavailable" });
+    }
+});
+
 app.use(express.static(ROOT));
 
 function sendPage(res, name, status = 200) {

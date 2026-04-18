@@ -306,6 +306,69 @@ module.exports = (env, argv) => {
                         },
                     ],
 
+                    setupMiddlewares: (middlewares, devServer) => {
+                        if (!devServer) return middlewares;
+                        const AIRCRAFT_FEED_URL = "https://api.adsb.one/v2/mil";
+                        let cachedPayload = "";
+                        let cachedStatus = 0;
+                        let cachedAt = 0;
+                        let inFlightPromise = null;
+                        const CACHE_TTL_MS = 2500;
+
+                        devServer.app.get("/__warzone/aircraft-feed/mil", async (_req, res) => {
+                            const now = Date.now();
+                            if (cachedPayload && cachedStatus === 200 && (now - cachedAt) < CACHE_TTL_MS) {
+                                res.set("Cache-Control", "no-store, max-age=0");
+                                res.type("application/json").send(cachedPayload);
+                                return;
+                            }
+                            if (!inFlightPromise) {
+                                inFlightPromise = fetch(AIRCRAFT_FEED_URL, {
+                                    headers: {
+                                        Accept: "application/json",
+                                        "User-Agent": "stratops-warzone-dev/1.0",
+                                        "Cache-Control": "no-store",
+                                    },
+                                })
+                                    .then(async (response) => {
+                                        const payload = await response.text();
+                                        cachedStatus = Number(response.status || 0);
+                                        if (response.ok && payload) {
+                                            cachedPayload = payload;
+                                            cachedAt = Date.now();
+                                        }
+                                        return { ok: response.ok, status: response.status, payload };
+                                    })
+                                    .finally(() => {
+                                        inFlightPromise = null;
+                                    });
+                            }
+                            try {
+                                const result = await inFlightPromise;
+                                if (result?.ok && result.payload) {
+                                    res.set("Cache-Control", "no-store, max-age=0");
+                                    res.type("application/json").send(result.payload);
+                                    return;
+                                }
+                                if (cachedPayload && cachedStatus === 200) {
+                                    res.set("Cache-Control", "no-store, max-age=0");
+                                    res.type("application/json").send(cachedPayload);
+                                    return;
+                                }
+                                res.status(result?.status || 502).json({ error: "Aircraft feed unavailable" });
+                            } catch {
+                                if (cachedPayload && cachedStatus === 200) {
+                                    res.set("Cache-Control", "no-store, max-age=0");
+                                    res.type("application/json").send(cachedPayload);
+                                    return;
+                                }
+                                res.status(502).json({ error: "Aircraft feed unavailable" });
+                            }
+                        });
+
+                        return middlewares;
+                    },
+
                     watchFiles: {
                         paths: [
                             path.resolve(DEV_DIR, "pages/**/*.html"),

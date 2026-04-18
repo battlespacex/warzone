@@ -18,10 +18,32 @@ import { bindWarzoneUi } from "./warzone-ui.js";
 import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 
 
+const isLocalDevHost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "[::1]";
+
 window.__stratopsConfig = {
+    // Localhost uses a same-origin cached proxy for live aircraft polling so
+    // we keep the old smooth movement path without direct third-party CORS calls.
     enablePublicAirFallback: true,
-    useAircraftBillboards: false,
-    enableMilSatsLayer: false,
+    allowLocalhostPublicAirFallback: true,
+    useAircraftBillboards: true,
+    useNavalBillboards: true,
+    aircraftVisualPolicy: {
+        // PNG default, model only when focused/close detail, char fallback for heavy counts
+        modelZoomHeight: 280000,
+        modelMaxActive: 16,
+        charFallbackCount: 90,
+        zoomModel: true,
+    },
+    navalVisualPolicy: {
+        modelZoomHeight: 280000,
+        modelMaxActive: 14,
+        charFallbackCount: 80,
+        zoomModel: true,
+    },
+    enableMilSatsLayer: true,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 
 };

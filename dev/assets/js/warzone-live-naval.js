@@ -13,6 +13,9 @@ const __navalState = {
     vessels: new Map(),    // track_key → { entity, data }
     overlayRoot: null,
     overlayBound: false,
+    overlayLastVisible: false,
+    overlayLastX: Number.NaN,
+    overlayLastY: Number.NaN,
     clickBound: false,
     clickHandler: null,
     selectedKey: null,
@@ -29,6 +32,34 @@ const NAVAL_MAX_ANIM_MS = 18000;
 const NAVAL_FOCUS_CAMERA_RANGE_METERS = 120000;
 const NAVAL_FOCUS_CAMERA_PITCH_DEG = -89;
 let __navalRenderDebounceTimer = null;
+const NAVAL_BILLBOARD_CANVAS_SIZE = 64;
+const NAVAL_RENDER_MODE = Object.freeze({
+    PNG: "png",
+    CHAR: "char",
+    MODEL: "model",
+});
+const NAVAL_MODEL_DEFAULT_MAX_ACTIVE = 14;
+const NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT = 280000;
+const NAVAL_CHAR_FALLBACK_DEFAULT_COUNT = 80;
+const NAVAL_MODEL_DEFAULT_URI = "/assets/images/models/air/frigate.glb";
+const NAVAL_MODEL_BY_SUBTYPE = {
+    carrier: "/assets/images/models/air/frigate.glb",
+    amphibious: "/assets/images/models/air/frigate.glb",
+    cruiser: "/assets/images/models/air/frigate.glb",
+    destroyer: "/assets/images/models/air/frigate.glb",
+    frigate: "/assets/images/models/air/frigate.glb",
+    corvette: "/assets/images/models/air/frigate.glb",
+    missile_boat: "/assets/images/models/air/frigate.glb",
+    patrol: "/assets/images/models/air/frigate.glb",
+    logistics: "/assets/images/models/air/frigate.glb",
+    minesweeper: "/assets/images/models/air/frigate.glb",
+    submarine: "/assets/images/models/air/submarine.glb",
+    ssbn: "/assets/images/models/air/submarine.glb",
+    ssn: "/assets/images/models/air/submarine.glb",
+    ssk: "/assets/images/models/air/submarine.glb",
+    aip_submarine: "/assets/images/models/air/submarine.glb",
+    naval: "/assets/images/models/air/frigate.glb",
+};
 
 // ─── Ship icon canvases (cached) ──────────────────────────────────────────────
 const __navalIconCache = new Map();
@@ -50,6 +81,7 @@ const NAVAL_SUBTYPE_META = {
     minesweeper: { label: "Minesweeper", color: "#00d9b2", priority: 14 },
     naval: { label: "Naval", color: "#33d9ff", priority: 15 },
 };
+const NAVAL_MODEL_HEADING_OFFSETS = Object.create(null);
 const NAVAL_SUBTYPE_ALIASES = new Map([
     ["aircraft_carrier", "carrier"],
     ["helicopter_carrier", "carrier"],
@@ -127,6 +159,59 @@ const NAVAL_OPERATOR_DIRECTORY = [
 function normalizeText(value = "") {
     return String(value || "").replace(/\s+/g, " ").trim();
 }
+function isProbablyAircraftContact(data = {}) {
+    const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata : {};
+    const trackType = String(data.track_type || metadata.track_type || "").toLowerCase();
+    if (trackType === "aircraft") return true;
+    const sourceName = String(data.source_name || metadata.source_name || "").toLowerCase();
+    if (
+        sourceName.includes("ads-b") ||
+        sourceName.includes("airplanes.live") ||
+        sourceName.includes("aircraft")
+    ) {
+        return true;
+    }
+    const haystack = [
+        data.vessel_name,
+        data.title,
+        data.subcategory,
+        metadata.model_name,
+        metadata.type_code,
+        metadata.callsign,
+        metadata.registration,
+        metadata.operator,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    return /\bcessna\b|\bcitation\b|\blearjet\b|\bgulfstream\b|\bembraer\b|\bbombardier\b|\bboeing\b|\bairbus\b|\bhelicopter\b|\bfighter\b|\bawacs\b|\brecon\b|\btanker\b|\btransport\b|\buav\b|\bdrone\b/.test(haystack);
+}
+function hasNavalTelemetrySignature(data = {}) {
+    const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata : {};
+    const sourceName = String(data.source_name || metadata.source_name || "").toLowerCase();
+    const trackKey = String(data.track_key || data.source_key || data.dedupe_key || "").toLowerCase();
+    return Boolean(
+        sourceName.includes("ais") ||
+        trackKey.startsWith("ais-") ||
+        data.mmsi ||
+        metadata.mmsi ||
+        metadata.ship_type != null ||
+        metadata.shipType != null ||
+        metadata.vessel_name ||
+        metadata.vessel_class ||
+        metadata.ship_class ||
+        metadata.call_sign ||
+        metadata.callSign
+    );
+}
+function purgeInvalidNavalContacts() {
+    for (const [trackKey, entry] of __navalState.vessels.entries()) {
+        const data = entry?.data || {};
+        if (isProbablyAircraftContact(data) || !hasNavalTelemetrySignature(data)) {
+            clearNavalVessel(trackKey);
+        }
+    }
+}
 function normalizeAffiliationText(value = "") {
     const clean = normalizeText(value);
     if (!clean) return "";
@@ -137,6 +222,64 @@ function toFiniteNumber(value, fallback = 0) {
     if (value === null || value === undefined || value === "") return fallback;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+}
+function parseCoordinate(value) {
+    if (value === null || value === undefined || value === "") return Number.NaN;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+function isValidCoordinatePair(lat, lon) {
+    return (
+        Number.isFinite(lat) &&
+        Number.isFinite(lon) &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lon >= -180 &&
+        lon <= 180
+    );
+}
+function isResolvedFallbackCoordinate(event = {}) {
+    const source = String(event.display_source || "").toLowerCase();
+    const precision = String(event.display_precision || "").toLowerCase();
+    if (/country|capital|city|subdivision|fallback/.test(source)) return true;
+    return precision === "country" || precision === "capital" || precision === "city";
+}
+function pickFirstFiniteCoordinate(values = []) {
+    for (const value of values) {
+        const parsed = parseCoordinate(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return Number.NaN;
+}
+function resolveNavalTelemetryCoordinates(event = {}, metadata = {}) {
+    const lat = pickFirstFiniteCoordinate([
+        event.source_lat,
+        event.raw_lat,
+        event.latitude,
+        metadata.lat,
+        metadata.latitude,
+        metadata.position_lat,
+        metadata.position?.lat,
+    ]);
+    const lon = pickFirstFiniteCoordinate([
+        event.source_lon,
+        event.raw_lon,
+        event.longitude,
+        metadata.lon,
+        metadata.longitude,
+        metadata.position_lon,
+        metadata.position?.lon,
+        metadata.position?.lng,
+    ]);
+    if (isValidCoordinatePair(lat, lon)) {
+        return { lat, lon, hasRawTelemetry: true };
+    }
+    const fallbackLat = parseCoordinate(event.lat);
+    const fallbackLon = parseCoordinate(event.lon);
+    if (!isResolvedFallbackCoordinate(event) && isValidCoordinatePair(fallbackLat, fallbackLon)) {
+        return { lat: fallbackLat, lon: fallbackLon, hasRawTelemetry: false };
+    }
+    return { lat: Number.NaN, lon: Number.NaN, hasRawTelemetry: false };
 }
 function parseEventMetadata(raw) {
     if (!raw) return {};
@@ -228,53 +371,78 @@ function getVesselColor(subcat = "naval") {
     return meta.color;
 }
 
-function createShipIcon(color = "#33d9ff", subcat = "naval") {
-    const key = `${color}:${subcat}`;
-    if (__navalIconCache.has(key)) return __navalIconCache.get(key);
+function createNavalPngIcon(color = "#33d9ff", subcat = "naval") {
+    const subtype = normalizeNavalSubtypeKey(subcat) || "naval";
+    const iconColor = getCssColor("--warzone-live-naval-icon-color", color || getVesselColor(subtype));
+    const cacheKey = `png|${subtype}|${iconColor}`;
+    if (__navalIconCache.has(cacheKey)) return __navalIconCache.get(cacheKey);
 
-    const sz = 64;
-    const cx = sz / 2;
-    const cy = sz / 2;
+    const size = NAVAL_BILLBOARD_CANVAS_SIZE;
     const canvas = document.createElement("canvas");
-    canvas.width = sz;
-    canvas.height = sz;
+    canvas.width = size;
+    canvas.height = size;
     const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, sz, sz);
+    if (!ctx) return null;
 
-    // Outer glow
-    const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, 26);
-    glow.addColorStop(0, color);
-    glow.addColorStop(0.4, color + "60");
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 26, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.clearRect(0, 0, size, size);
 
-    // Ship silhouette — top-facing arrow for heading
-    ctx.fillStyle = color;
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
-    ctx.lineWidth = 1.5;
+    const bodyColor = Cesium.Color.fromCssColorString(iconColor).withAlpha(0.96);
+    const bodyCss = `rgba(${Math.round(bodyColor.red * 255)}, ${Math.round(bodyColor.green * 255)}, ${Math.round(bodyColor.blue * 255)}, ${bodyColor.alpha})`;
+    const outlineCss = "rgba(10, 18, 26, 0.92)";
+
     ctx.beginPath();
-    // Hull: elongated diamond pointing up (north = ship bow)
-    ctx.moveTo(cx, cy - 14); // bow (top)
-    ctx.lineTo(cx + 6, cy + 2);
-    ctx.lineTo(cx + 4, cy + 14); // stern right
-    ctx.lineTo(cx, cy + 10);
-    ctx.lineTo(cx - 4, cy + 14); // stern left
-    ctx.lineTo(cx - 6, cy + 2);
+    ctx.moveTo(size * 0.5, size * 0.14);
+    ctx.lineTo(size * 0.76, size * 0.42);
+    ctx.lineTo(size * 0.66, size * 0.88);
+    ctx.lineTo(size * 0.34, size * 0.88);
+    ctx.lineTo(size * 0.24, size * 0.42);
     ctx.closePath();
+    ctx.fillStyle = bodyCss;
     ctx.fill();
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = outlineCss;
     ctx.stroke();
 
-    // Center dot
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    const mastColor = Cesium.Color.fromCssColorString(iconColor).withAlpha(0.86);
+    ctx.strokeStyle = `rgba(${Math.round(mastColor.red * 255)}, ${Math.round(mastColor.green * 255)}, ${Math.round(mastColor.blue * 255)}, ${mastColor.alpha})`;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(size * 0.5, size * 0.18);
+    ctx.lineTo(size * 0.5, size * 0.02);
+    ctx.stroke();
 
     const dataUrl = canvas.toDataURL("image/png");
-    __navalIconCache.set(key, dataUrl);
+    __navalIconCache.set(cacheKey, dataUrl);
+    return dataUrl;
+}
+function createNavalCharIcon(color = "#33d9ff", subcat = "naval") {
+    const subtype = normalizeNavalSubtypeKey(subcat) || "naval";
+    const glyphChar = getCssText("--warzone-live-naval-icon-char", "◊")
+        .replace(/^['"]|['"]$/g, "")
+        .trim() || "◊";
+    const iconColor = getCssColor("--warzone-live-naval-icon-color", color || getVesselColor(subtype));
+    const glyphFontPx = clamp(getCssNumber("--warzone-live-naval-icon-font-size", 58), 24, 120);
+    const cacheKey = `char|${subtype}|${glyphChar}|${iconColor}|${glyphFontPx}`;
+    if (__navalIconCache.has(cacheKey)) return __navalIconCache.get(cacheKey);
+
+    const size = NAVAL_BILLBOARD_CANVAS_SIZE;
+    const half = size / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, size, size);
+    ctx.font = `900 ${glyphFontPx}px 'Barlow Condensed', 'Rajdhani', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = iconColor;
+    ctx.fillText(glyphChar, half, half + 1);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    __navalIconCache.set(cacheKey, dataUrl);
     return dataUrl;
 }
 
@@ -286,6 +454,189 @@ function getCssNumber(varName, fallback) {
 function getCssColor(varName, fallback) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return value || fallback;
+}
+function getCssText(varName, fallback = "") {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return value || fallback;
+}
+function getNavalBillboardScale(mode = NAVAL_RENDER_MODE.PNG) {
+    if (mode === NAVAL_RENDER_MODE.CHAR) {
+        return clamp(getCssNumber("--warzone-live-naval-char-scale", 0.95), 0.14, 2.8);
+    }
+    return clamp(getCssNumber("--warzone-live-naval-png-scale", getCssNumber("--warzone-live-naval-icon-scale", 1)), 0.14, 2.8);
+}
+function resolveNavalModelUri(vessel = {}) {
+    const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
+    return NAVAL_MODEL_BY_SUBTYPE[subtype] || NAVAL_MODEL_DEFAULT_URI;
+}
+function getNavalModelScale(vessel = {}) {
+    return clamp(getCssNumber("--warzone-live-naval-model-scale", 120), 1, 4000);
+}
+function getNavalModelMinPixelSize(vessel = {}) {
+    return 0;
+}
+function getNavalModelMaxScale(vessel = {}) {
+    return Math.max(getNavalModelScale(vessel) * 10, 2000);
+}
+function getNavalModelHeadingOffsetDeg(vessel = {}) {
+    const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
+    const direct = Number(NAVAL_MODEL_HEADING_OFFSETS[subtype]);
+    if (Number.isFinite(direct)) return direct;
+    const generic = Number(NAVAL_MODEL_HEADING_OFFSETS.naval);
+    return Number.isFinite(generic) ? generic : 0;
+}
+export function setNavalModelHeadingOffset(subtype = "", headingOffsetDeg = 0) {
+    const key = normalizeNavalSubtypeKey(subtype || "naval") || "naval";
+    const next = Number(headingOffsetDeg);
+    if (!Number.isFinite(next)) return;
+    NAVAL_MODEL_HEADING_OFFSETS[key] = next;
+    __navalState.vessels.forEach((entry) => {
+        const entity = entry?.entity;
+        const vessel = entry?.data;
+        if (!entity || !vessel || !entity.model) return;
+        entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
+    });
+    requestNavalRenderBatched();
+}
+export function setNavalModelHeadingOffsets(offsetMap = {}) {
+    if (!offsetMap || typeof offsetMap !== "object") return;
+    Object.entries(offsetMap).forEach(([subtype, value]) => {
+        setNavalModelHeadingOffset(subtype, value);
+    });
+}
+function shouldUseNavalBillboards() {
+    return window.__stratopsConfig?.useNavalBillboards !== false;
+}
+function getNavalVisualPolicy() {
+    const config = window.__stratopsConfig?.navalVisualPolicy;
+    return config && typeof config === "object" ? config : {};
+}
+function resolveNavalRenderMode(vessel = {}) {
+    if (window.__stratopsConfig?.useNavalBillboards === false) {
+        return NAVAL_RENDER_MODE.MODEL;
+    }
+    const policy = getNavalVisualPolicy();
+    const activeCount = __navalState.vessels.size;
+    const charFallbackCount = Math.max(
+        1,
+        Number(policy.charFallbackCount || NAVAL_CHAR_FALLBACK_DEFAULT_COUNT)
+    );
+    if (activeCount >= charFallbackCount) {
+        return NAVAL_RENDER_MODE.CHAR;
+    }
+    const selectedKey = String(__navalState.selectedKey || "");
+    if (selectedKey && selectedKey === String(vessel.track_key || "")) {
+        return NAVAL_RENDER_MODE.MODEL;
+    }
+    const zoomModelEnabled = policy.zoomModel !== false;
+    if (!zoomModelEnabled) {
+        return NAVAL_RENDER_MODE.PNG;
+    }
+    const modelMaxActive = Math.max(
+        1,
+        Number(policy.modelMaxActive || NAVAL_MODEL_DEFAULT_MAX_ACTIVE)
+    );
+    if (activeCount > modelMaxActive) {
+        return NAVAL_RENDER_MODE.PNG;
+    }
+    const viewer = window.__warzoneViewer;
+    const height = Number(viewer?.camera?.positionCartographic?.height || Number.POSITIVE_INFINITY);
+    const modelZoomHeight = Math.max(
+        10000,
+        Number(policy.modelZoomHeight || NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT)
+    );
+    return height <= modelZoomHeight
+        ? NAVAL_RENDER_MODE.MODEL
+        : NAVAL_RENDER_MODE.PNG;
+}
+function resolveNavalBillboardImage(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
+    const metadata = vessel?.metadata && typeof vessel.metadata === "object" ? vessel.metadata : {};
+    const directImage = [
+        vessel.icon_url,
+        vessel.image_url,
+        metadata.icon_url,
+        metadata.image_url,
+    ]
+        .map((value) => String(value || "").trim())
+        .find((value) => value && (/^data:image\//i.test(value) || /\.(png|svg|webp|jpe?g)(\?|#|$)/i.test(value)));
+
+    if (mode === NAVAL_RENDER_MODE.PNG && directImage) return directImage;
+    const color = getVesselColor(vessel.subcategory || "naval");
+    if (mode === NAVAL_RENDER_MODE.CHAR) {
+        return createNavalCharIcon(color, vessel.subcategory || "naval");
+    }
+    return directImage || createNavalPngIcon(color, vessel.subcategory || "naval");
+}
+function buildNavalOrientation(lon, lat, headingDeg = 0, vessel = {}) {
+    const headingOffsetDeg = getNavalModelHeadingOffsetDeg(vessel);
+    return Cesium.Transforms.headingPitchRollQuaternion(
+        Cesium.Cartesian3.fromDegrees(Number(lon), Number(lat), 0),
+        new Cesium.HeadingPitchRoll(
+            Cesium.Math.toRadians(Number(headingDeg || 0) + headingOffsetDeg),
+            0,
+            0
+        )
+    );
+}
+function buildNavalBillboardVisual(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
+    const image = resolveNavalBillboardImage(vessel, mode);
+    if (!image) return null;
+    return {
+        image,
+        scale: getNavalBillboardScale(mode),
+        rotation: Cesium.Math.toRadians(-(Number(vessel.heading_deg || 0))),
+        alignedAxis: Cesium.Cartesian3.UNIT_Z,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+        disableDepthTestDistance: getCssNumber("--warzone-live-naval-depth-test-disable-distance", 0),
+    };
+}
+function applyNavalModelVisual(entity, vessel = {}) {
+    const modelUri = resolveNavalModelUri(vessel);
+    if (!entity.model) {
+        entity.model = {
+            uri: modelUri,
+            scale: getNavalModelScale(vessel),
+            minimumPixelSize: getNavalModelMinPixelSize(vessel),
+            maximumScale: getNavalModelMaxScale(vessel),
+            color: undefined,
+            colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
+            colorBlendAmount: 0,
+        };
+    } else {
+        entity.model.uri = modelUri;
+        entity.model.scale = getNavalModelScale(vessel);
+        entity.model.minimumPixelSize = getNavalModelMinPixelSize(vessel);
+        entity.model.maximumScale = getNavalModelMaxScale(vessel);
+    }
+    entity.billboard = undefined;
+    entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
+}
+function applyNavalBillboardVisual(entity, vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
+    const visual = buildNavalBillboardVisual(vessel, mode);
+    if (!visual) return false;
+    if (!entity.billboard) {
+        entity.billboard = { ...visual };
+    } else {
+        entity.billboard.image = visual.image;
+        entity.billboard.scale = visual.scale;
+        entity.billboard.rotation = visual.rotation;
+        entity.billboard.alignedAxis = visual.alignedAxis;
+        entity.billboard.verticalOrigin = visual.verticalOrigin;
+        entity.billboard.horizontalOrigin = visual.horizontalOrigin;
+        entity.billboard.disableDepthTestDistance = visual.disableDepthTestDistance;
+    }
+    entity.model = undefined;
+    entity.orientation = undefined;
+    return true;
+}
+function applyNavalVisual(entity, vessel = {}) {
+    const renderMode = resolveNavalRenderMode(vessel);
+    if (renderMode !== NAVAL_RENDER_MODE.MODEL && shouldUseNavalBillboards()) {
+        const didApplyBillboard = applyNavalBillboardVisual(entity, vessel, renderMode);
+        if (didApplyBillboard) return;
+    }
+    applyNavalModelVisual(entity, vessel);
 }
 function requestNavalRenderBatched() {
     if (__navalRenderDebounceTimer) return;
@@ -304,6 +655,7 @@ function getNavalLabelStyleConfig() {
         paddingY: getCssNumber("--warzone-live-label-padding-y", 3),
         maxDistance: getCssNumber("--warzone-live-label-distance", 180000),
         animHeightMax: getCssNumber("--warzone-live-naval-anim-height-max", 2200000),
+        depthTestDisableDistance: getCssNumber("--warzone-live-naval-label-depth-test-disable-distance", 0),
     };
 }
 function buildNavalLabel(vessel = {}, trackKey = "") {
@@ -322,7 +674,7 @@ function buildNavalLabel(vessel = {}, trackKey = "") {
         style: Cesium.LabelStyle.FILL,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: labelStyle.depthTestDisableDistance,
     };
 }
 function applyNavalLabel(label, vessel = {}, trackKey = "") {
@@ -377,6 +729,9 @@ function animateVesselTo(entity, vessel) {
         if (entity.billboard) {
             entity.billboard.rotation = Cesium.Math.toRadians(-(Number(vessel.heading_deg || 0)));
         }
+        if (entity.model) {
+            entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
+        }
         requestNavalRenderBatched();
     };
     if (!startCartesian) {
@@ -408,9 +763,13 @@ function animateVesselTo(entity, vessel) {
             : 1 - Math.pow(-2 * t + 2, 3) / 2;
         const lon = startLon + ((vessel.lon - startLon) * eased);
         const lat = startLat + ((vessel.lat - startLat) * eased);
+        const heading = startHeading + ((endHeading - startHeading) * eased);
         entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
         if (entity.billboard) {
-            entity.billboard.rotation = Cesium.Math.toRadians(-(startHeading + ((endHeading - startHeading) * eased)));
+            entity.billboard.rotation = Cesium.Math.toRadians(-heading);
+        }
+        if (entity.model) {
+            entity.orientation = buildNavalOrientation(lon, lat, heading, vessel);
         }
         requestNavalRenderBatched();
         if (t < 1) {
@@ -426,29 +785,14 @@ function animateVesselTo(entity, vessel) {
 // ─── Create vessel entity ─────────────────────────────────────────────────────
 function createVesselEntity(viewer, vessel) {
     const { track_key, lat, lon, heading_deg = 0, subcategory = "naval" } = vessel;
-    const color = getVesselColor(subcategory);
-    const icon = createShipIcon(color, subcategory);
     const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
-
-    // Heading: 0° = North. Convert to Cesium HPR.
-    const hpr = new Cesium.HeadingPitchRoll(
-        Cesium.Math.toRadians(heading_deg || 0),
-        0, 0
-    );
 
     const entity = viewer.entities.add({
         id: `naval-${track_key}`,
         position: pos,
-        billboard: {
-            image: icon,
-            scale: 0.7,
-            rotation: Cesium.Math.toRadians(-(heading_deg || 0)),
-            alignedAxis: Cesium.Cartesian3.UNIT_Z,
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
         label: buildNavalLabel(vessel, track_key),
     });
+    applyNavalVisual(entity, vessel);
 
     entity.__navalKey = track_key;
     entity.__navalData = vessel;
@@ -460,6 +804,7 @@ function createVesselEntity(viewer, vessel) {
 function updateVesselEntity(entity, vessel) {
     const { heading_deg = 0 } = vessel;
     animateVesselTo(entity, vessel);
+    applyNavalVisual(entity, vessel);
     if (entity.label) {
         applyNavalLabel(entity.label, vessel, vessel.track_key);
     }
@@ -515,12 +860,43 @@ function syncNavalOverlay() {
     const root = __navalState.overlayRoot;
     if (!root) return;
     const key = __navalState.selectedKey;
-    if (!key) { root.style.display = "none"; return; }
+    if (!key) {
+        if (__navalState.overlayLastVisible) {
+            root.style.display = "none";
+            __navalState.overlayLastVisible = false;
+            __navalState.overlayLastX = Number.NaN;
+            __navalState.overlayLastY = Number.NaN;
+        }
+        return;
+    }
     const screen = getScreenPosForVessel(key);
-    if (!screen) { root.style.display = "none"; return; }
-    root.style.display = "block";
-    root.style.left = `${screen.x}px`;
-    root.style.top = `${screen.y}px`;
+    if (!screen) {
+        if (__navalState.overlayLastVisible) {
+            root.style.display = "none";
+            __navalState.overlayLastVisible = false;
+            __navalState.overlayLastX = Number.NaN;
+            __navalState.overlayLastY = Number.NaN;
+        }
+        return;
+    }
+    if (!__navalState.overlayLastVisible) {
+        root.style.display = "block";
+        __navalState.overlayLastVisible = true;
+    }
+    if (
+        !Number.isFinite(__navalState.overlayLastX) ||
+        Math.abs(screen.x - __navalState.overlayLastX) >= 0.5
+    ) {
+        root.style.left = `${screen.x}px`;
+        __navalState.overlayLastX = screen.x;
+    }
+    if (
+        !Number.isFinite(__navalState.overlayLastY) ||
+        Math.abs(screen.y - __navalState.overlayLastY) >= 0.5
+    ) {
+        root.style.top = `${screen.y}px`;
+        __navalState.overlayLastY = screen.y;
+    }
 }
 function clearNavalCameraLock() {
     const viewer = window.__warzoneViewer;
@@ -551,7 +927,12 @@ function syncNavalCameraLock() {
 function clearNavalSelection() {
     __navalState.selectedKey = null;
     clearNavalCameraLock();
-    if (__navalState.overlayRoot) __navalState.overlayRoot.style.display = "none";
+    if (__navalState.overlayRoot && __navalState.overlayLastVisible) {
+        __navalState.overlayRoot.style.display = "none";
+    }
+    __navalState.overlayLastVisible = false;
+    __navalState.overlayLastX = Number.NaN;
+    __navalState.overlayLastY = Number.NaN;
     document.getElementById("warzone-naval-panel")?.remove();
     syncNavalWidgetHighlight(null);
 }
@@ -588,52 +969,139 @@ function focusNavalVessel(trackKey, options = {}) {
 function showNavalPanel(data, sx, sy) {
     document.getElementById("warzone-naval-panel")?.remove();
 
+    const escapeHTML = (value) => {
+        if (value === null || value === undefined) return "—";
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    };
+
+    const formatCoord = (value) => {
+        const num = Number(value);
+        return Number.isFinite(num) ? `${num.toFixed(4)}°` : "—";
+    };
+
     const sub = data.subcategory || data.vessel_class || "naval";
-    const subLabel = getNavalSubtypeLabel(sub);
-    const color = getVesselColor(sub);
+    const subLabel = getNavalSubtypeLabel(sub) || "Naval Asset";
+    const color = getVesselColor(sub) || "#6b7280";
     const name = data.vessel_name || data.title || "Unknown Vessel";
-    const speed = data.speed_kts != null ? `${Number(data.speed_kts).toFixed(1)} kt` : "—";
-    const hdg = data.heading_deg != null ? `${Math.round(data.heading_deg)}°` : "—";
+    const speed = data.speed_kts != null && Number.isFinite(Number(data.speed_kts))
+        ? `${Number(data.speed_kts).toFixed(1)} kt`
+        : "—";
+    const hdg = data.heading_deg != null && Number.isFinite(Number(data.heading_deg))
+        ? `${Math.round(Number(data.heading_deg))}°`
+        : "—";
     const mmsi = data.mmsi || data.metadata?.mmsi || "—";
     const flag = data.country || data.metadata?.country || data.flag_country || "—";
     const operator = data.operator || data.metadata?.operator || "—";
+    const lat = formatCoord(data.lat);
+    const lon = formatCoord(data.lon);
 
     const panel = document.createElement("div");
     panel.id = "warzone-naval-panel";
-    panel.style.cssText = "position:fixed;width:280px;z-index:900;background:rgba(8,12,20,0.96);border:1px solid rgba(51,217,255,0.18);border-radius:6px;padding:14px 16px;color:#fff;font-family:var(--warzone-font,'Barlow Condensed',sans-serif);box-shadow:0 4px 24px rgba(0,0,0,0.6);backdrop-filter:blur(8px);animation:milbase-fadein 0.18s ease";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "naval-asset-name");
+    panel.setAttribute("aria-describedby", "naval-asset-info naval-asset-desc");
+    panel.setAttribute("tabindex", "-1");
+    panel.style.cssText = "position:fixed; width:28rem; max-width:calc(100vw - 1rem); z-index:900;";
+
     panel.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
-            <span style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55);flex:1">${subLabel.toUpperCase()}</span>
-            <button id="wz-naval-panel-close" style="background:none;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:13px;padding:0;line-height:1">✕</button>
-        </div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:10px">${name}</div>
-        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
-            ${flag !== "—" ? `<div style="display:flex;justify-content:space-between"><span style="color:rgba(255,255,255,.4);text-transform:uppercase;font-size:10px">Flag</span><span style="color:rgba(255,255,255,.85)">${flag}</span></div>` : ""}
-            ${operator !== "—" ? `<div style="display:flex;justify-content:space-between"><span style="color:rgba(255,255,255,.4);text-transform:uppercase;font-size:10px">Operator</span><span style="color:rgba(255,255,255,.85)">${operator}</span></div>` : ""}
-            <div style="display:flex;justify-content:space-between"><span style="color:rgba(255,255,255,.4);text-transform:uppercase;font-size:10px">Speed</span><span style="color:rgba(255,255,255,.85)">${speed}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:rgba(255,255,255,.4);text-transform:uppercase;font-size:10px">Heading</span><span style="color:rgba(255,255,255,.85)">${hdg}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:rgba(255,255,255,.4);text-transform:uppercase;font-size:10px">MMSI</span><span style="color:rgba(255,255,255,.85);font-family:var(--font-mono,monospace)">${mmsi}</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="color:rgba(255,255,255,.4);text-transform:uppercase;font-size:10px">Lat / Lon</span><span style="color:rgba(255,255,255,.85)">${Number(data.lat).toFixed(4)}°, ${Number(data.lon).toFixed(4)}°</span></div>
-        </div>`;
+    <div class="wz-widget-naval" itemscope itemtype="https://schema.org/Vehicle">
+        <header class="wz-widget-header">
+            <span class="static-dot" style="background:${escapeHTML(color)}" aria-hidden="true"></span>
+            <span class="wz-widget-kicker" aria-hidden="true">${escapeHTML(subLabel.toUpperCase())}</span>
+            <div class="wz-widget-header-actions">
+                <button
+                    type="button"
+                    id="wz-naval-panel-close"
+                    class="static-icon"
+                    data-widget-close
+                    aria-label="Close naval asset information panel">
+                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+
+        <section class="wz-widget-body">
+            <p id="naval-asset-desc" class="sr-only">
+                Naval asset information dialog showing vessel identity, operator, speed, heading, MMSI, and coordinates.
+            </p>
+
+            <h3 id="naval-asset-name" itemprop="name">${escapeHTML(name)}</h3>
+
+            <ul id="naval-asset-info" class="wz-widget-data-list">
+                <li>
+                    <strong>Type</strong>
+                    <span itemprop="additionalType">${escapeHTML(subLabel)}</span>
+                </li>
+                ${flag !== "—" ? `
+                <li>
+                    <strong>Flag</strong>
+                    <span>${escapeHTML(flag)}</span>
+                </li>` : ""}
+                ${operator !== "—" ? `
+                <li>
+                    <strong>Operator</strong>
+                    <span>${escapeHTML(operator)}</span>
+                </li>` : ""}
+                <li>
+                    <strong>Speed</strong>
+                    <span>${escapeHTML(speed)}</span>
+                </li>
+                <li>
+                    <strong>Heading</strong>
+                    <span>${escapeHTML(hdg)}</span>
+                </li>
+                <li>
+                    <strong>MMSI</strong>
+                    <span>${escapeHTML(mmsi)}</span>
+                </li>
+                <li>
+                    <strong>Lat / Lon</strong>
+                    <span>${lat}, ${lon}</span>
+                </li>
+            </ul>
+        </section>
+    </div>`;
 
     document.body.appendChild(panel);
 
     // Position near click, auto-adjust to stay on screen
-    const W = 288, H = 200;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    let left = sx + 16, top = sy - 16;
-    if (left + W > vw - 8) left = sx - W - 16;
-    if (top + H > vh - 8) top = vh - H - 8;
+    const rectWidth = 448;
+    const rectHeight = 260;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = sx + 16;
+    let top = sy - 16;
+
+    if (left + rectWidth > vw - 8) left = sx - rectWidth - 16;
+    if (top + rectHeight > vh - 8) top = vh - rectHeight - 8;
     if (top < 8) top = 8;
     if (left < 8) left = 8;
+
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
 
-    document.getElementById("wz-naval-panel-close")?.addEventListener("click", e => {
+    const closeBtn = document.getElementById("wz-naval-panel-close");
+
+    closeBtn?.addEventListener("click", (e) => {
         e.stopPropagation();
         clearNavalSelection();
     });
+
+    panel.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            e.stopPropagation();
+            clearNavalSelection();
+        }
+    });
+
+    panel.focus();
 }
 
 // ─── Widget row highlight ─────────────────────────────────────────────────────
@@ -659,6 +1127,12 @@ function bindNavalPicking(viewer) {
 
     // Hover — cursor
     handler.setInputAction(movement => {
+        if (__navalState.vessels.size === 0) {
+            if (!window.__wzBaseHover) {
+                viewer.container.style.cursor = "";
+            }
+            return;
+        }
         const picked = viewer.scene.pick(movement.endPosition);
         const isNaval = picked?.id?.__navalKey;
         if (isNaval) {
@@ -670,6 +1144,10 @@ function bindNavalPicking(viewer) {
 
     // Click
     handler.setInputAction(movement => {
+        if (__navalState.vessels.size === 0) {
+            clearNavalSelection();
+            return;
+        }
         const picked = viewer.scene.pick(movement.position);
         const trackKey = picked?.id?.__navalKey;
 
@@ -707,6 +1185,14 @@ function bindNavalOverlay(viewer) {
 export function upsertNavalVessel(event) {
     const viewer = window.__warzoneViewer;
     if (!viewer) return;
+    if (isProbablyAircraftContact(event) || !hasNavalTelemetrySignature(event)) {
+        const metadata = parseEventMetadata(event.metadata);
+        const trackKey = event.dedupe_key || event.source_key || metadata.track_key || `naval-${event.id}`;
+        if (trackKey) {
+            clearNavalVessel(trackKey);
+        }
+        return;
+    }
 
     bindNavalOverlay(viewer);
     bindNavalPicking(viewer);
@@ -722,6 +1208,7 @@ export function upsertNavalVessel(event) {
         hintText,
     });
     const trackKey = event.dedupe_key || event.source_key || metadata.track_key || `naval-${event.id}`;
+    const telemetryCoords = resolveNavalTelemetryCoordinates(event, metadata);
     const vesselName = normalizeText(
         metadata.vessel_name ||
         metadata.name ||
@@ -734,8 +1221,8 @@ export function upsertNavalVessel(event) {
         vessel_name: vesselName,
         subcategory: resolvedSubtype,
         vessel_class: normalizeText(metadata.vessel_class || metadata.ship_class || getNavalSubtypeLabel(resolvedSubtype)),
-        lat: Number(event.lat),
-        lon: Number(event.lon),
+        lat: telemetryCoords.lat,
+        lon: telemetryCoords.lon,
         heading_deg: toFiniteNumber(metadata.heading ?? event.heading_deg ?? 0, 0),
         speed_kts: toFiniteNumber(metadata.speed_kts ?? event.speed_kts ?? null, null),
         mmsi: normalizeText(metadata.mmsi || metadata.MMSI || ""),
@@ -745,7 +1232,10 @@ export function upsertNavalVessel(event) {
         metadata,
     };
 
-    if (!Number.isFinite(vessel.lat) || !Number.isFinite(vessel.lon)) return;
+    if (!isValidCoordinatePair(vessel.lat, vessel.lon)) {
+        clearNavalVessel(trackKey);
+        return;
+    }
 
     const existing = __navalState.vessels.get(trackKey);
     const entityId = `naval-${trackKey}`;
@@ -781,6 +1271,7 @@ export function clearNavalVessel(trackKey) {
 
 // ─── Public: get all vessel snapshots (for widget) ────────────────────────────
 export function getAllNavalSnapshots() {
+    purgeInvalidNavalContacts();
     return [...__navalState.vessels.values()]
         .map(v => v.data)
         .sort((a, b) => {
@@ -802,18 +1293,20 @@ function dispatchNavalRegistryUpdate() {
 export function renderNavalTrackerWidget(options = {}) {
     const container = document.getElementById("wz-naval-panel-list");
     if (!container) return;
+    purgeInvalidNavalContacts();
 
     const vessels = Array.isArray(options?.vessels)
         ? options.vessels
         : getAllNavalSnapshots();
+    const safeVessels = vessels.filter((vessel) => !isProbablyAircraftContact(vessel));
     const emptyMessage = String(options?.emptyMessage || "No naval contacts in current filter");
 
-    if (!vessels.length) {
+    if (!safeVessels.length) {
         container.innerHTML = `<div class="wz-aircraft-empty">${emptyMessage}</div>`;
         return;
     }
 
-    container.innerHTML = vessels.slice(0, 20).map(v => {
+    container.innerHTML = safeVessels.slice(0, 20).map(v => {
         const color = getVesselColor(v.subcategory);
         const name = v.vessel_name || v.title || "Unknown Vessel";
         const sub = getNavalSubtypeLabel(v.subcategory).toUpperCase();

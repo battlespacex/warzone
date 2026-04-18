@@ -125,11 +125,11 @@ body.is-app-active .warzone-actions {
 /* #region =========== DOCK BUTTONS =========== */
 .wz-dock {
     position: fixed;
-    bottom: 0;
+    bottom: 3rem;
     left: 50%;
     z-index: 10010;
     pointer-events: auto;
-    filter: var(--widget-shadow);
+    /* filter: var(--widget-shadow); */
     opacity: 0;
     transform: translateX(-50%) translateY(6rem);
     transition: opacity 0.65s ease, transform 0.65s ease;
@@ -143,26 +143,31 @@ body.is-app-active .wz-dock {
 }
 
 .wz-btn-container {
-    background: var(--color-bg-header);
+    /* background: var(--color-bg-header);
     clip-path: polygon(100% 100%, 0 100%, 8rem 0, calc(100% - 8rem) 0);
+    padding: 0 9rem;
+    transition: padding 0.45s ease, clip-path 0.45s ease; */
     display: flex;
     align-items: center;
-    padding: 0 9rem;
-    transition: padding 0.45s ease, clip-path 0.45s ease;
+    gap: 2rem;
+    width: auto;
+    transition: width 0.25s ease;
 }
 
 .wz-dock__btn {
+    position: relative;
     cursor: pointer;
     flex-shrink: 0;
     overflow: hidden;
     border: 0;
     background: transparent;
-    margin: 0 0.5rem;
     padding: 0;
     opacity: 1;
-    width: 6rem;
-    max-width: 6rem;
-    transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, margin 0.45s ease, transform 0.25s ease;
+    transform: scale(1);
+    width: 4rem;
+    min-width: 4rem;
+    transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, transform 0.35s ease;
+    
 }
 
     .wz-dock__btn:hover {
@@ -172,9 +177,10 @@ body.is-app-active .wz-dock {
     .wz-dock__btn.wz-dock--gone {
         opacity: 0;
         pointer-events: none;
+        transform: scale(0);
+        min-width: 0;
         width: 0;
-        max-width: 0;
-        margin: 0;
+        position: absolute
     }
 
 .wz-dock__icon {
@@ -183,13 +189,11 @@ body.is-app-active .wz-dock {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 6rem;
-    min-width: 0;
-    height: 6rem;
+    height: 4rem;
 }
 
     .wz-dock__icon .static-icon {
-        font-size: 5rem;
+        font-size: 4rem;
         line-height: 1;
         display: block;
         pointer-events: none;

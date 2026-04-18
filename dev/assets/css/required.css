@@ -464,7 +464,7 @@ UNUSED CANDIDATE END */
     }
 
     .wz-selector select span {
-        color: var(--color-red);
+        color: var(--color-magenta);
         font-size: 3rem;
     }
 
@@ -500,8 +500,6 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     border-radius: 0;
 }
 
-
-
 .wz-check {
     display: inline-flex;
     align-items: flex-start;
@@ -509,7 +507,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     position: relative;
     cursor: pointer;
     user-select: none;
-    line-height: 1.5rem;
+    line-height: 1.7rem;
 }
 
     .wz-check input[type="checkbox"] {
@@ -676,6 +674,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 .warzone-map-shell {
     position: relative;
 }
+
 
 .wz-target-overlay {
     position: absolute;
@@ -861,7 +860,7 @@ body.show-loader .site-loader {
 
 .wz-error-container {
     color: var(--color-white);
-    background: var(--color-red);
+    background: var(--color-magenta);
     padding: .5rem 1rem;
     clip-path: var(--clippath-shape-3);
 }
@@ -883,27 +882,27 @@ body.show-loader .site-loader {
 }
 
 .color-grace-red {
-    color: var(--color-error)
+    color: var(--color-red-slate)
 }
 
 .bg-grace-red {
-    background: var(--color-error)
+    background: var(--color-red-slate)
 }
 
 .color-red {
-    color: var(--color-red)
+    color: var(--color-magenta)
 }
 
 .bg-red {
-    background: var(--color-red)
+    background: var(--color-magenta)
 }
 
 .color-red-glow {
-    color: var(--color-red-glow)
+    color: var(--color-magenta-glow)
 }
 
 .bg-red-glow {
-    background: var(--color-red-glow)
+    background: var(--color-magenta-glow)
 }
 /* #endregion =========== */
 

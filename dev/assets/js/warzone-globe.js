@@ -35,8 +35,16 @@ function shouldShowEventRingsAtCurrentZoom(viewer) {
 function shouldShowEventOutlinesAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-event-outline-max-height", 1800000);
 }
-function getMaxRenderableEvents() {
-    return Math.max(20, numberVar("--warzone-max-renderable-events", 180));
+function getMaxRenderableEventsAtHeight(cameraHeight = 0) {
+    const base = Math.max(40, numberVar("--warzone-max-renderable-events", 240));
+    if (cameraHeight > 8500000) return Math.max(base, 420);
+    if (cameraHeight > 5000000) return Math.max(base, 340);
+    if (cameraHeight > 2600000) return Math.max(base, 280);
+    return Math.max(base, 220);
+}
+function getMaxRenderableEvents(viewer) {
+    const height = getCameraHeight(viewer);
+    return getMaxRenderableEventsAtHeight(height);
 }
 function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520) {
     const groups = new Map();
@@ -87,8 +95,15 @@ function applyEventLod(viewer) {
     const cameraHeight = getCameraHeight(viewer);
     const allowMarkers = boolVar("--warzone-event-markers-visible", true);
     const allowRings = boolVar("--warzone-event-rings-visible", true);
-    const showRingsByZoom = shouldShowEventRingsAtCurrentZoom(viewer);
-    const showOutlinesByZoom = shouldShowEventOutlinesAtCurrentZoom(viewer);
+    const eventEntityCount = getEventEntityCount();
+    const ringBudget = Math.max(80, numberVar("--warzone-event-ring-budget", 200));
+    const outlineBudget = Math.max(60, numberVar("--warzone-event-outline-budget", 140));
+    const showRingsByZoom =
+        shouldShowEventRingsAtCurrentZoom(viewer) &&
+        eventEntityCount <= ringBudget;
+    const showOutlinesByZoom =
+        shouldShowEventOutlinesAtCurrentZoom(viewer) &&
+        eventEntityCount <= outlineBudget;
     __EVENT_LOD_STATE.mode = mode;
     __EVENT_LOD_STATE.cameraHeight = cameraHeight;
     const entities = viewer.entities.values;
@@ -565,8 +580,9 @@ function applyViewerStyle(viewer) {
         ctrl.inertiaSpin = numberVar("--warzone-camera-inertia-spin", 0.86);
         ctrl.inertiaTranslate = numberVar("--warzone-camera-inertia-translate", 0.82);
         ctrl.inertiaZoom = numberVar("--warzone-camera-inertia-zoom", 0.72);
-        ctrl.maximumZoomDistance = numberVar("--warzone-camera-max-zoom", 22000000);
-        ctrl.minimumZoomDistance = numberVar("--warzone-camera-min-zoom", 12000);
+        ctrl.zoomFactor = numberVar("--warzone-camera-zoom-factor", 7.5);
+        ctrl.maximumZoomDistance = numberVar("--warzone-camera-max-zoom", 20000000);
+        ctrl.minimumZoomDistance = numberVar("--warzone-camera-min-zoom", 100);
     }
     viewer.scene.requestRenderMode = true;
     viewer.scene.maximumRenderTimeChange = Infinity;
@@ -575,11 +591,12 @@ function applyViewerStyle(viewer) {
         viewer.scene.postProcessStages.fxaa.enabled = boolVar("--warzone-fxaa-enabled", true);
     }
     viewer.scene.msaaSamples = numberVar("--warzone-msaa-samples", 1);
+    applyMapColorMixer(viewer, "--warzone-map");
 }
 function clampCameraZoomDistance(viewer) {
     if (!viewer?.camera?.positionCartographic) return;
-    const maxZoomDistance = numberVar("--warzone-camera-max-zoom", 9000000);
-    const minZoomDistance = numberVar("--warzone-camera-min-zoom", 200);
+    const maxZoomDistance = numberVar("--warzone-camera-max-zoom", 20000000);
+    const minZoomDistance = numberVar("--warzone-camera-min-zoom", 100);
     const cartographic = viewer.camera.positionCartographic;
     const currentHeight = Number(cartographic.height || 0);
     if (!Number.isFinite(currentHeight)) return;
@@ -614,8 +631,9 @@ function attachCameraZoomLimiter(viewer) {
     viewer.camera.moveEnd.addEventListener(queueClamp);
     viewer.scene.postRender.addEventListener(() => {
         const height = getCameraHeight(viewer);
-        const maxZoomDistance = numberVar("--warzone-camera-max-zoom", 9000000);
-        const minZoomDistance = numberVar("--warzone-camera-min-zoom", 200);
+        const cameraCtrl = viewer.scene?.screenSpaceCameraController;
+        const maxZoomDistance = Number(cameraCtrl?.maximumZoomDistance || numberVar("--warzone-camera-max-zoom", 20000000));
+        const minZoomDistance = Number(cameraCtrl?.minimumZoomDistance || numberVar("--warzone-camera-min-zoom", 100));
         if (height > maxZoomDistance + 1000 || height < minZoomDistance - 1000) {
             queueClamp();
         }
@@ -624,12 +642,319 @@ function attachCameraZoomLimiter(viewer) {
 }
 function tuneImageryLayer(layer, prefix = "--warzone-map") {
     if (!layer) return;
-    layer.brightness = numberVar(`${prefix}-brightness`, 0.65);
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const baseBrightness = numberVar(`${prefix}-brightness`, 0.65);
+    const baseSaturation = numberVar(`${prefix}-saturation`, 0.2);
+    const baseHue = numberVar(`${prefix}-hue`, 0);
+    const tint = numberVar(`${prefix}-tint`, 0);
+    const warmth = numberVar(`${prefix}-warmth`, 0);
+    const warmthPositive = Math.max(0, warmth);
+    const warmthNegative = Math.max(0, -warmth);
+
+    layer.brightness = clamp(
+        baseBrightness + (warmthPositive * 0.1) - (warmthNegative * 0.08),
+        0,
+        3
+    );
     layer.contrast = numberVar(`${prefix}-contrast`, 1.2);
     layer.gamma = numberVar(`${prefix}-gamma`, 0.85);
-    layer.saturation = numberVar(`${prefix}-saturation`, 0.2);
-    layer.hue = numberVar(`${prefix}-hue`, 0);
+    layer.saturation = clamp(
+        baseSaturation + (tint * 0.25) + (warmthPositive * 0.18) - (warmthNegative * 0.12),
+        0,
+        3
+    );
+    layer.hue = baseHue + (tint * 0.35) - (warmth * 0.22);
     layer.alpha = numberVar(`${prefix}-alpha`, 1);
+}
+function shouldShowCityLabelsAtCurrentZoom(viewer) {
+    return getCameraHeight(viewer) <= numberVar("--warzone-labels-max-height", 3000000);
+}
+function updateLabelsLayerVisibility(viewer) {
+    if (!viewer) return;
+    const terrainVisible = viewer.__terrainVisible !== false;
+    const zoomVisible = shouldShowCityLabelsAtCurrentZoom(viewer);
+    const countryLabelsEnabled = boolVar("--warzone-country-labels-enabled", false);
+    viewer.__labelsVisibleByZoom = zoomVisible;
+    const hasDetailedPlaceLayer = !!viewer.__imageryLabels;
+    if (viewer.__imageryLabels) {
+        viewer.__imageryLabels.show = terrainVisible && zoomVisible;
+    }
+    if (viewer.__countryLabelDataSource) {
+        viewer.__countryLabelDataSource.show =
+            countryLabelsEnabled && terrainVisible && (!hasDetailedPlaceLayer || !zoomVisible);
+    }
+}
+function attachLabelsZoomController(viewer) {
+    if (!viewer || viewer.__warzoneLabelsZoomBound) return;
+    viewer.__warzoneLabelsZoomBound = true;
+    let raf = 0;
+    const queue = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+            raf = 0;
+            updateLabelsLayerVisibility(viewer);
+            viewer.scene.requestRender?.();
+        });
+    };
+    viewer.camera.moveEnd.addEventListener(queue);
+    viewer.scene.postRender.addEventListener(() => {
+        const h = getCameraHeight(viewer);
+        if (!Number.isFinite(h)) return;
+        const prev = Number(viewer.__labelsLastCameraHeight || 0);
+        if (Math.abs(h - prev) >= 120000) {
+            viewer.__labelsLastCameraHeight = h;
+            queue();
+        }
+    });
+    queue();
+}
+function getFeatureBoundsCenter(geometry) {
+    if (!geometry || !geometry.type) return null;
+    const getRingCenter = (ring) => {
+        if (!Array.isArray(ring) || ring.length < 3) return null;
+        let minLon = Infinity;
+        let maxLon = -Infinity;
+        let minLat = Infinity;
+        let maxLat = -Infinity;
+        let count = 0;
+        for (const coord of ring) {
+            if (!Array.isArray(coord) || coord.length < 2) continue;
+            const lon = Number(coord[0]);
+            const lat = Number(coord[1]);
+            if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+            minLon = Math.min(minLon, lon);
+            maxLon = Math.max(maxLon, lon);
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+            count += 1;
+        }
+        if (count < 3) return null;
+        return {
+            lon: (minLon + maxLon) / 2,
+            lat: (minLat + maxLat) / 2,
+        };
+    };
+    const getRingArea = (ring) => {
+        if (!Array.isArray(ring) || ring.length < 3) return 0;
+        let area = 0;
+        for (let i = 0; i < ring.length; i += 1) {
+            const curr = ring[i];
+            const next = ring[(i + 1) % ring.length];
+            const x1 = Number(curr?.[0]);
+            const y1 = Number(curr?.[1]);
+            const x2 = Number(next?.[0]);
+            const y2 = Number(next?.[1]);
+            if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+                continue;
+            }
+            area += (x1 * y2) - (x2 * y1);
+        }
+        return Math.abs(area) * 0.5;
+    };
+    if (geometry.type === "Polygon") {
+        const ring = Array.isArray(geometry.coordinates?.[0]) ? geometry.coordinates[0] : null;
+        const center = getRingCenter(ring);
+        if (center) return center;
+    }
+    if (geometry.type === "MultiPolygon") {
+        let bestRing = null;
+        let bestArea = 0;
+        const polygons = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
+        for (const polygon of polygons) {
+            const ring = Array.isArray(polygon?.[0]) ? polygon[0] : null;
+            if (!ring) continue;
+            const area = getRingArea(ring);
+            if (area > bestArea) {
+                bestArea = area;
+                bestRing = ring;
+            }
+        }
+        const center = getRingCenter(bestRing);
+        if (center) return center;
+    }
+    let minLon = Infinity;
+    let maxLon = -Infinity;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let count = 0;
+    const pushPoint = (coord) => {
+        if (!Array.isArray(coord) || coord.length < 2) return;
+        const lon = Number(coord[0]);
+        const lat = Number(coord[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+        minLon = Math.min(minLon, lon);
+        maxLon = Math.max(maxLon, lon);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+        count += 1;
+    };
+    const walkCoords = (coords) => {
+        if (!Array.isArray(coords)) return;
+        if (coords.length >= 2 && Number.isFinite(Number(coords[0])) && Number.isFinite(Number(coords[1]))) {
+            pushPoint(coords);
+            return;
+        }
+        for (const entry of coords) {
+            walkCoords(entry);
+        }
+    };
+    walkCoords(geometry.coordinates);
+    if (count === 0) return null;
+    return {
+        lon: (minLon + maxLon) / 2,
+        lat: (minLat + maxLat) / 2,
+    };
+}
+function readCountryName(feature) {
+    const props = feature?.properties || {};
+    return String(
+        props.ADMIN ||
+        props.NAME ||
+        props.name ||
+        props.COUNTRY ||
+        props.country ||
+        ""
+    ).trim();
+}
+async function addCountryNameLabels(viewer) {
+    if (!viewer) return;
+    if (!viewer.__countryLabelDataSource) {
+        viewer.__countryLabelDataSource = new Cesium.CustomDataSource("warzone-country-labels");
+        viewer.dataSources.add(viewer.__countryLabelDataSource);
+    }
+    const ds = viewer.__countryLabelDataSource;
+    const entities = ds.entities;
+    entities.removeAll();
+    try {
+        const geojson = await fetchGeoJson(BORDER_SOURCES.countries);
+        const features = Array.isArray(geojson?.features) ? geojson.features : [];
+        const labelScale = numberVar("--warzone-country-label-scale", 0.5);
+        const nearDistance = numberVar("--warzone-country-label-near-distance", 1600000);
+        const farDistance = numberVar("--warzone-country-label-far-distance", 22000000);
+        const nearMultiplier = numberVar("--warzone-country-label-near-multiplier", 0.9);
+        const farMultiplier = numberVar("--warzone-country-label-far-multiplier", 1.28);
+        const nearScale = Math.max(0.05, labelScale * nearMultiplier);
+        const farScale = Math.max(0.05, labelScale * farMultiplier);
+        const labelColor = colorFromCssVar("--warzone-country-label-color", "#b7c5d6", 0.92);
+        const outlineColor = colorFromCssVar("--warzone-country-label-outline", "#000000", 0.78);
+        const outlineWidth = numberVar("--warzone-country-label-outline-width", 2);
+        const labelFont = stringVar("--warzone-country-label-font", "600 15px Oxanium, sans-serif");
+        for (const feature of features) {
+            const name = readCountryName(feature);
+            if (!name) continue;
+            const center = getFeatureBoundsCenter(feature?.geometry);
+            if (!center) continue;
+            entities.add({
+                position: Cesium.Cartesian3.fromDegrees(center.lon, center.lat, 1000),
+                label: {
+                    text: name,
+                    font: labelFont,
+                    scale: labelScale,
+                    scaleByDistance: new Cesium.NearFarScalar(
+                        nearDistance,
+                        nearScale,
+                        farDistance,
+                        farScale
+                    ),
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    fillColor: labelColor,
+                    outlineColor,
+                    outlineWidth,
+                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                },
+            });
+        }
+    } catch (error) {
+        void error;
+    }
+    updateLabelsLayerVisibility(viewer);
+    viewer.scene.requestRender?.();
+}
+const MAP_COLOR_MIXER_FRAGMENT = `
+uniform sampler2D colorTexture;
+in vec2 v_textureCoordinates;
+uniform float u_red;
+uniform float u_green;
+uniform float u_blue;
+uniform float u_cyan;
+uniform float u_magenta;
+uniform float u_yellow;
+void main() {
+    vec4 source = texture(colorTexture, v_textureCoordinates);
+    vec3 rgb = source.rgb;
+
+    rgb.r *= max(u_red, 0.0);
+    rgb.g *= max(u_green, 0.0);
+    rgb.b *= max(u_blue, 0.0);
+
+    float cyan = u_cyan;
+    float magenta = u_magenta;
+    float yellow = u_yellow;
+
+    rgb.r = clamp(rgb.r + (-cyan * 0.24) + (magenta * 0.24) + (yellow * 0.16), 0.0, 1.0);
+    rgb.g = clamp(rgb.g + (cyan * 0.24) + (-magenta * 0.24) + (yellow * 0.16), 0.0, 1.0);
+    rgb.b = clamp(rgb.b + (cyan * 0.24) + (magenta * 0.24) + (-yellow * 0.24), 0.0, 1.0);
+
+    out_FragColor = vec4(rgb, source.a);
+}
+`;
+function getMapColorMixerSettings(prefix = "--warzone-map") {
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    return {
+        red: clamp(numberVar(`${prefix}-red-level`, 1), 0, 2),
+        green: clamp(numberVar(`${prefix}-green-level`, 1), 0, 2),
+        blue: clamp(numberVar(`${prefix}-blue-level`, 1), 0, 2),
+        cyan: clamp(numberVar(`${prefix}-cyan-level`, 0), -1, 1),
+        magenta: clamp(numberVar(`${prefix}-magenta-level`, 0), -1, 1),
+        yellow: clamp(numberVar(`${prefix}-yellow-level`, 0), -1, 1),
+    };
+}
+function hasMapColorMixerOverrides(settings) {
+    return (
+        Math.abs(settings.red - 1) > 0.0001 ||
+        Math.abs(settings.green - 1) > 0.0001 ||
+        Math.abs(settings.blue - 1) > 0.0001 ||
+        Math.abs(settings.cyan) > 0.0001 ||
+        Math.abs(settings.magenta) > 0.0001 ||
+        Math.abs(settings.yellow) > 0.0001
+    );
+}
+function ensureMapColorMixerStage(viewer) {
+    if (!viewer?.scene?.postProcessStages) return null;
+    const existing = viewer.__warzoneMapColorMixerStage;
+    if (existing && !existing.isDestroyed?.()) return existing;
+    try {
+        const stage = new Cesium.PostProcessStage({
+            name: "warzone-map-color-mixer",
+            fragmentShader: MAP_COLOR_MIXER_FRAGMENT,
+            uniforms: {
+                u_red: 1,
+                u_green: 1,
+                u_blue: 1,
+                u_cyan: 0,
+                u_magenta: 0,
+                u_yellow: 0,
+            },
+        });
+        viewer.scene.postProcessStages.add(stage);
+        viewer.__warzoneMapColorMixerStage = stage;
+        return stage;
+    } catch {
+        return null;
+    }
+}
+function applyMapColorMixer(viewer, prefix = "--warzone-map") {
+    const stage = ensureMapColorMixerStage(viewer);
+    if (!stage) return;
+    const settings = getMapColorMixerSettings(prefix);
+    stage.uniforms.u_red = settings.red;
+    stage.uniforms.u_green = settings.green;
+    stage.uniforms.u_blue = settings.blue;
+    stage.uniforms.u_cyan = settings.cyan;
+    stage.uniforms.u_magenta = settings.magenta;
+    stage.uniforms.u_yellow = settings.yellow;
+    stage.enabled = hasMapColorMixerOverrides(settings);
 }
 function getStartCameraConfig() {
     return {
@@ -789,19 +1114,23 @@ async function addArcGisLayers(viewer) {
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
         { enablePickFeatures: false }
     );
-    const labelsProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
-        "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
-        { enablePickFeatures: false }
-    );
     const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
     tuneImageryLayer(baseLayer, "--warzone-map");
-    const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-    tuneImageryLayer(labelsLayer, "--warzone-labels");
+    let labelsLayer = null;
+    if (boolVar("--warzone-places-layer-enabled", false)) {
+        const labelsProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+            "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+            { enablePickFeatures: false }
+        );
+        labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
+        tuneImageryLayer(labelsLayer, "--warzone-labels");
+    }
     const show = viewer.__terrainVisible !== false;
     baseLayer.show = show;
-    labelsLayer.show = show;
+    if (labelsLayer) labelsLayer.show = show;
     viewer.__imageryBase = baseLayer;
     viewer.__imageryLabels = labelsLayer;
+    updateLabelsLayerVisibility(viewer);
     return { baseLayer, labelsLayer };
 }
 /* ---------- Map mode ---------- */
@@ -1637,6 +1966,7 @@ export async function initWarzoneGlobe() {
     ensureMissileStore(viewer);
     ensureAudioStore(viewer);
     attachEventLodController(viewer);
+    attachLabelsZoomController(viewer);
     viewer.scene.requestRender();
     addArcGisLayers(viewer)
         .then(() => {
@@ -1648,6 +1978,13 @@ export async function initWarzoneGlobe() {
             viewer.scene.requestRender();
         })
         .catch(() => { });
+    if (boolVar("--warzone-country-labels-enabled", false)) {
+        addCountryNameLabels(viewer)
+            .then(() => {
+                viewer.scene.requestRender();
+            })
+            .catch(() => { });
+    }
     viewer.__warzone = {
         addEvent(event) {
             const entity = addEventEntity(viewer, event);
@@ -1657,7 +1994,7 @@ export async function initWarzoneGlobe() {
         },
         addEvents(events = []) {
             const normalized = normalizeEvents(events);
-            const maxItems = getMaxRenderableEvents();
+            const maxItems = getMaxRenderableEvents(viewer);
             const prepared = shouldClusterEvents(viewer)
                 ? clusterEventsForDisplay(normalized, numberVar("--warzone-event-cluster-precision", 0.55), maxItems)
                 : normalized.slice(0, maxItems);
@@ -1694,15 +2031,24 @@ export async function initWarzoneGlobe() {
         setMapMode(mode) {
             setMapMode(viewer, mode);
         },
+        refreshMapTuning() {
+            if (viewer.__imageryBase) {
+                tuneImageryLayer(viewer.__imageryBase, "--warzone-map");
+            }
+            if (viewer.__imageryLabels) {
+                tuneImageryLayer(viewer.__imageryLabels, "--warzone-labels");
+            }
+            updateLabelsLayerVisibility(viewer);
+            applyMapColorMixer(viewer, "--warzone-map");
+            viewer.scene.requestRender();
+        },
         setTerrainVisible(visible) {
             const show = !!visible;
             viewer.__terrainVisible = show;
             if (viewer.__imageryBase) {
                 viewer.__imageryBase.show = show;
             }
-            if (viewer.__imageryLabels) {
-                viewer.__imageryLabels.show = show;
-            }
+            updateLabelsLayerVisibility(viewer);
             viewer.scene.requestRender();
         },
         isTerrainVisible() {
@@ -1712,16 +2058,63 @@ export async function initWarzoneGlobe() {
             );
         },
         setPerformanceMode(visibleCount = 0) {
-            const baseResolution = numberVar("--warzone-resolution-scale", 1);
-            viewer.resolutionScale = baseResolution;
-            viewer.scene.requestRenderMode = true;
-            if (visibleCount <= 0) {
-                viewer.scene.maximumRenderTimeChange = Infinity;
-            } else if (visibleCount <= 30) {
-                viewer.scene.maximumRenderTimeChange = 1.5;
-            } else {
-                viewer.scene.maximumRenderTimeChange = 1.0;
+            const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+            const count = Math.max(0, Number(visibleCount || 0));
+            const baseResolution = clamp(numberVar("--warzone-resolution-scale", 1), 0.5, 2);
+            const baseMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-samples", 1)));
+            const baseFxaaEnabled = boolVar("--warzone-fxaa-enabled", true);
+            const cameraHeight = getCameraHeight(viewer);
+            const nearSharpHeight = Math.max(250000, numberVar("--warzone-near-sharp-height", 1800000));
+            let nextResolution = baseResolution;
+            let nextMaximumRenderTime = Infinity;
+            let nextMsaaSamples = baseMsaaSamples;
+            let nextFxaaEnabled = baseFxaaEnabled;
+            if (count > 0) {
+                if (count <= 60) {
+                    nextMaximumRenderTime = 1.4;
+                } else if (count <= 140) {
+                    nextMaximumRenderTime = 1.0;
+                    nextResolution = Math.max(0.86, baseResolution * 0.9);
+                    nextMsaaSamples = 1;
+                } else if (count <= 260) {
+                    nextMaximumRenderTime = 0.8;
+                    nextResolution = Math.max(0.74, baseResolution * 0.8);
+                    nextMsaaSamples = 1;
+                } else {
+                    nextMaximumRenderTime = 0.6;
+                    nextResolution = Math.max(0.68, baseResolution * 0.72);
+                    nextMsaaSamples = 1;
+                    nextFxaaEnabled = false;
+                }
             }
+            // Close zoom should stay crisp even with many active layers.
+            if (cameraHeight <= nearSharpHeight) {
+                nextResolution = Math.max(1, baseResolution);
+                nextMsaaSamples = Math.max(2, baseMsaaSamples);
+                nextFxaaEnabled = true;
+            }
+            const prevPerfState = viewer.__warzonePerformanceState || {};
+            if (prevPerfState.resolutionScale !== nextResolution) {
+                viewer.resolutionScale = nextResolution;
+            }
+            if (prevPerfState.maximumRenderTimeChange !== nextMaximumRenderTime) {
+                viewer.scene.maximumRenderTimeChange = nextMaximumRenderTime;
+            }
+            if (Number.isFinite(nextMsaaSamples) && prevPerfState.msaaSamples !== nextMsaaSamples) {
+                viewer.scene.msaaSamples = nextMsaaSamples;
+            }
+            if (viewer.scene.postProcessStages?.fxaa && prevPerfState.fxaaEnabled !== nextFxaaEnabled) {
+                viewer.scene.postProcessStages.fxaa.enabled = nextFxaaEnabled;
+            }
+            viewer.__warzonePerformanceState = {
+                resolutionScale: nextResolution,
+                maximumRenderTimeChange: nextMaximumRenderTime,
+                msaaSamples: nextMsaaSamples,
+                fxaaEnabled: nextFxaaEnabled,
+                visibleCount: count,
+                cameraHeight,
+            };
+            viewer.scene.requestRenderMode = true;
         },
         highlightAlertRegion(event) {
             highlightAlertRegion(viewer, event);
@@ -1752,5 +2145,19 @@ export async function initWarzoneGlobe() {
             playImpactSound(viewer);
         },
     };
+    if (!viewer.__warzonePerfZoomBound) {
+        viewer.__warzonePerfZoomBound = true;
+        let perfRaf = 0;
+        const queuePerfSync = () => {
+            if (perfRaf) return;
+            perfRaf = requestAnimationFrame(() => {
+                perfRaf = 0;
+                const count = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0));
+                viewer.__warzone?.setPerformanceMode?.(count);
+                viewer.scene.requestRender?.();
+            });
+        };
+        viewer.camera.moveEnd.addEventListener(queuePerfSync);
+    }
     return viewer;
 }

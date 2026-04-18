@@ -298,6 +298,30 @@ function dedupeDisplayItems(items = []) {
     }
     return out;
 }
+function makeHotspotEventSignature(events = []) {
+    const arr = Array.isArray(events) ? events : [];
+    if (!arr.length) return "0";
+    let hash = 2166136261 >>> 0;
+    for (const event of arr) {
+        const idLen = String(event?.id || "").length;
+        const ts = Date.parse(event?.occurred_at || event?.updated_at || "") || 0;
+        const lat = Number(event?.lat);
+        const lon = Number(event?.lon);
+        const latKey = Number.isFinite(lat) ? Math.round(lat * 1000) : 0;
+        const lonKey = Number.isFinite(lon) ? Math.round(lon * 1000) : 0;
+        hash ^= idLen;
+        hash = Math.imul(hash, 16777619);
+        hash ^= ts;
+        hash = Math.imul(hash, 16777619);
+        hash ^= latKey;
+        hash = Math.imul(hash, 16777619);
+        hash ^= lonKey;
+        hash = Math.imul(hash, 16777619);
+    }
+    const first = arr[0];
+    const last = arr[arr.length - 1];
+    return `${arr.length}:${String(first?.id || "")}:${String(last?.id || "")}:${(hash >>> 0).toString(16)}`;
+}
 // ─── hemisphere cull + Cesium projection ──────────────────────────────────────
 function toScreen(scene, lon, lat) {
     try {
@@ -326,8 +350,8 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
     const height = getCameraHeight(viewer);
     if (height > 9000000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 4.8),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 5.8),
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 3.8),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 4.6),
             maxCards: Math.max(cfg.maxCards, 10),
             maxVisiblePerHotspot: 1,
             stackDistancePx: Math.max(cfg.stackDistancePx, 150),
@@ -336,8 +360,8 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
     }
     if (height > 4500000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 3.5),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 4.2),
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 2.8),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 3.4),
             maxCards: Math.max(cfg.maxCards, 14),
             maxVisiblePerHotspot: 2,
             stackDistancePx: Math.max(cfg.stackDistancePx, 120),
@@ -515,9 +539,11 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let destroyed = false;
     let clustersDirty = true;
     let cachedClusters = [];
+    let lastEventsSignature = "";
     const nodeMap = new Map();
     let rafPending = false;
     let lastRenderMs = 0;
+    let lastMoveRenderMs = 0;
     let cameraMoving = false;
     let moveEndTimer = 0;
     const cfg = {
@@ -528,6 +554,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         maxVisiblePerHotspot: options.maxVisiblePerHotspot ?? 3,
         minItemsForCluster: options.minItemsForCluster ?? 1,
         throttleIdle: options.throttleIdle ?? 100,
+        throttleMove: options.throttleMove ?? 90,
     };
     function handleToggle(id, el) {
         const wasOpen = expandedId === id;
@@ -626,7 +653,16 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         }
     }
     function onPostRender() {
-        if (cameraMoving) render(true);
+        if (!cameraMoving) return;
+        const now = performance.now();
+        const moveThrottle = allEvents.length > 2000
+            ? Math.max(cfg.throttleMove, 96)
+            : allEvents.length > 1000
+                ? Math.max(cfg.throttleMove, 72)
+                : cfg.throttleMove;
+        if ((now - lastMoveRenderMs) < moveThrottle) return;
+        lastMoveRenderMs = now;
+        render(true);
     }
     function onCameraMoveStart() {
         cameraMoving = true;
@@ -650,9 +686,15 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     return {
         setEvents(next = []) {
             const arr = Array.isArray(next) ? next : [];
-            allEvents = arr
+            const nextSignature = makeHotspotEventSignature(arr);
+            if (nextSignature === lastEventsSignature) {
+                return;
+            }
+            const normalized = arr
                 .filter((evt) => evt && Number.isFinite(Number(evt.lat)) && Number.isFinite(Number(evt.lon)))
                 .map((evt) => normalizeEventForDisplay(evt));
+            allEvents = normalized;
+            lastEventsSignature = nextSignature;
             clustersDirty = true;
             viewer.scene.requestRender();
             scheduleRender(0);

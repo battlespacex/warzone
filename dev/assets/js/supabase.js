@@ -19,16 +19,30 @@ const isLocalhost = window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
 const API_BASE = isLocalhost ? null : "https://api.battlespacex.com";
+const EVENTS_HISTORY_WINDOW_HOURS = 48;
+const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
+const EVENTS_INITIAL_LIMIT = 2000;
+const EVENTS_SINCE_LIMIT = 200;
+const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
+const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
+const AIRCRAFT_HISTORY_LIMIT = 1000;
+
+function getEventsHistoryCutoffIso() {
+    return new Date(Date.now() - EVENTS_HISTORY_WINDOW_MS).toISOString();
+}
 
 export const api = {
     async getEvents() {
+        const cutoffIso = getEventsHistoryCutoffIso();
         if (!API_BASE) {
             const { data, error } = await supabase
                 .from("events").select("*")
-                .order("occurred_at", { ascending: false }).limit(500);
+                .gte("occurred_at", cutoffIso)
+                .order("occurred_at", { ascending: false })
+                .limit(EVENTS_INITIAL_LIMIT);
             return { data: data || [], error };
         }
-        const res = await fetch(`${API_BASE}/events`);
+        const res = await fetch(`${API_BASE}/events?window_hours=${EVENTS_HISTORY_WINDOW_HOURS}&limit=${EVENTS_INITIAL_LIMIT}`);
         if (!res.ok) throw new Error("Events fetch failed");
         const json = await res.json();
         return { data: json.events || [], error: null };
@@ -39,10 +53,11 @@ export const api = {
             const { data, error } = await supabase
                 .from("events").select("*")
                 .gt("occurred_at", since)
-                .order("occurred_at", { ascending: false }).limit(25);
+                .order("occurred_at", { ascending: false })
+                .limit(EVENTS_SINCE_LIMIT);
             return { data: data || [], error };
         }
-        const res = await fetch(`${API_BASE}/events/since?t=${encodeURIComponent(since)}`);
+        const res = await fetch(`${API_BASE}/events/since?t=${encodeURIComponent(since)}&limit=${EVENTS_SINCE_LIMIT}`);
         if (!res.ok) throw new Error("Events since fetch failed");
         const json = await res.json();
         return { data: json.events || [], error: null };
@@ -64,14 +79,14 @@ export const api = {
 
     async getAircraftTracks() {
         if (!API_BASE) {
-            const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const cutoff = new Date(Date.now() - AIRCRAFT_HISTORY_WINDOW_MS).toISOString();
             const { data, error } = await supabase
                 .from("tracks")
                 .select("*")
                 .eq("track_type", "aircraft")
                 .eq("category", "military")
                 .gte("updated_at", cutoff)
-                .order("updated_at", { ascending: false }).limit(500);
+                .order("updated_at", { ascending: false }).limit(AIRCRAFT_HISTORY_LIMIT);
             return { data: data || [], error };
         }
         const res = await fetch(`${API_BASE}/events/aircraft`);

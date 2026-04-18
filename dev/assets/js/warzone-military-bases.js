@@ -243,13 +243,13 @@ function createBaseEntity(dataSource, base) {
         billboard: {
             image: getIcon(base.type),
             scale: getScale(base.size),
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-            heightReference: Cesium.HeightReference.NONE,
+            pixelOffset: new Cesium.Cartesian2(0, 8),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             scaleByDistance: new Cesium.NearFarScalar(1.5e5, 0.55, 8e6, 0.45),
             translucencyByDistance: new Cesium.NearFarScalar(7e6, 1.0, 1.4e7, 0.0),
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            eyeOffset: new Cesium.Cartesian3(0, 0, -400),
+            disableDepthTestDistance: 0,
         },
         properties: {
             milbase: true,
@@ -281,67 +281,134 @@ function applyVisibility() {
 function showBasePanel(base, sx, sy) {
     document.getElementById("warzone-milbase-panel")?.remove();
 
-    const tc = TYPE_COLOR[base.type] || "#aaa";
-    const tl = TYPE_LABEL[base.type] || "Military Installation";
+    const escapeHTML = (value) => {
+        if (value === null || value === undefined || value === "") return "—";
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    };
+
+    const formatCoord = (value) => {
+        const num = Number(value);
+        return Number.isFinite(num) ? `${num.toFixed(4)}°` : "—";
+    };
+
+    const titleCase = (value) => {
+        if (!value) return "—";
+        const str = String(value).trim();
+        return str ? str.charAt(0).toUpperCase() + str.slice(1) : "—";
+    };
+
+    const tc = TYPE_COLOR?.[base?.type] || "#aaa";
+    const tl = TYPE_LABEL?.[base?.type] || "Military Installation";
+
+    const name = base?.name || "Unknown Installation";
+    const country = base?.country || "—";
+    const operator = base?.operator || "—";
+    const classification = titleCase(base?.size);
+    const lat = formatCoord(base?.lat);
+    const lon = formatCoord(base?.lon);
 
     const panel = document.createElement("div");
     panel.id = "warzone-milbase-panel";
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-modal", "true");
-    panel.setAttribute("aria-labelledby", "base-name");
-    panel.setAttribute("aria-describedby", "base-info");
+    panel.setAttribute("aria-labelledby", "milbase-name");
+    panel.setAttribute("aria-describedby", "milbase-desc milbase-info");
     panel.setAttribute("tabindex", "-1");
-    panel.style.cssText = "position:fixed; width:28rem; z-index:900;";
+    panel.style.cssText = "position:fixed; width:28rem; max-width:calc(100vw - 1rem); z-index:900;";
+
     panel.innerHTML = `
-    <div class="wz-widget-milbase">
+    <div class="wz-widget-milbase" itemscope itemtype="https://schema.org/Place">
         <header class="wz-widget-header">
-            <span class="static-dot" style="background:${tc}" aria-hidden="true"></span>
-            <span>${tl}</span>
+            <span class="static-dot" style="background:${escapeHTML(tc)}" aria-hidden="true"></span>
+            <span class="wz-widget-kicker" aria-hidden="true">${escapeHTML(tl)}</span>
             <div class="wz-widget-header-actions">
-                <button type="button" id="milbase-close" class="static-icon" data-widget-close aria-label="Close military base information panel">
+                <button
+                    type="button"
+                    id="milbase-close"
+                    class="static-icon"
+                    data-widget-close
+                    aria-label="Close military base information panel">
                     <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
                 </button>
             </div>
         </header>
+
         <section class="wz-widget-body">
-            <h3 id="base-name">${base.name}</h2>
-            <ul id="base-info">
-                <li><strong>Country:</strong> <span>${base.country}</span></li>
-                <li><strong>Operator:</strong> <span>${base.operator}</span></li>
-                <li><strong>Classification:</strong> <span>${base.size.charAt(0).toUpperCase() + base.size.slice(1)}</span></li>
-                <li><strong>Coordinates:</strong> <span>${base.lat.toFixed(4)}°, ${base.lon.toFixed(4)}°</span></li>
+            <p id="milbase-desc" class="sr-only">
+                Military base information dialog showing installation name, country, operator, classification, and coordinates.
+            </p>
+
+            <h3 id="milbase-name" itemprop="name">${escapeHTML(name)}</h3>
+
+            <ul id="milbase-info" class="wz-widget-data-list">
+                <li>
+                    <strong>Type</strong>
+                    <span>${escapeHTML(tl)}</span>
+                </li>
+                <li>
+                    <strong>Country</strong>
+                    <span>${escapeHTML(country)}</span>
+                </li>
+                <li>
+                    <strong>Operator</strong>
+                    <span>${escapeHTML(operator)}</span>
+                </li>
+                <li>
+                    <strong>Classification</strong>
+                    <span>${escapeHTML(classification)}</span>
+                </li>
+                <li>
+                    <strong>Coordinates</strong>
+                    <span>${lat}, ${lon}</span>
+                </li>
             </ul>
         </section>
     </div>`;
+
     document.body.appendChild(panel);
 
     // Position near click, auto-adjust to stay on screen
-    const W = 308, H = 170;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    let left = sx + 16, top = sy - 16;
+    const W = 448;
+    const H = 240;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = sx + 16;
+    let top = sy - 16;
+
     if (left + W > vw - 8) left = sx - W - 16;
     if (top + H > vh - 8) top = vh - H - 8;
     if (top < 8) top = 8;
     if (left < 8) left = 8;
+
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
 
-    // Focus management
-    panel.focus();
+    const closePanel = () => {
+        panel.remove();
+        document.removeEventListener("keydown", escHandler);
+    };
 
-    // Close on Esc key
-    const closePanel = () => panel.remove();
-    document.addEventListener("keydown", function escHandler(e) {
+    const escHandler = (e) => {
         if (e.key === "Escape") {
+            e.stopPropagation();
             closePanel();
-            document.removeEventListener("keydown", escHandler);
         }
-    });
+    };
 
-    document.getElementById("milbase-close")?.addEventListener("click", e => {
+    document.addEventListener("keydown", escHandler);
+
+    document.getElementById("milbase-close")?.addEventListener("click", (e) => {
         e.stopPropagation();
         closePanel();
     });
+
+    panel.focus();
 }
 
 /* ─── Click + hover handler ───────────────────────────────────────────────── */
