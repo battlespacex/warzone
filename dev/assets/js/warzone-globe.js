@@ -573,6 +573,12 @@ function applyViewerStyle(viewer) {
     viewer.scene.globe.baseColor = colorFromCssVar("--warzone-globe-base", "#08111a", 1);
     viewer.scene.globe.depthTestAgainstTerrain = false;
     viewer.scene.globe.translucency.enabled = false;
+    // Improve close-zoom imagery refinement and cache hit rate.
+    viewer.scene.globe.maximumScreenSpaceError = numberVar("--warzone-globe-max-screen-space-error", 1.6);
+    viewer.scene.globe.tileCacheSize = Math.max(300, Math.round(numberVar("--warzone-globe-tile-cache-size", 1800)));
+    viewer.scene.globe.loadingDescendantLimit = Math.max(10, Math.round(numberVar("--warzone-globe-loading-descendant-limit", 80)));
+    viewer.scene.globe.preloadAncestors = boolVar("--warzone-globe-preload-ancestors", true);
+    viewer.scene.globe.preloadSiblings = boolVar("--warzone-globe-preload-siblings", true);
     viewer.scene.fog.enabled = false;
     if (viewer.scene.screenSpaceCameraController) {
         const ctrl = viewer.scene.screenSpaceCameraController;
@@ -665,6 +671,7 @@ function tuneImageryLayer(layer, prefix = "--warzone-map") {
     );
     layer.hue = baseHue + (tint * 0.35) - (warmth * 0.22);
     layer.alpha = numberVar(`${prefix}-alpha`, 1);
+    layer.maximumAnisotropy = Math.max(1, numberVar("--warzone-imagery-max-anisotropy", 16));
 }
 function shouldShowCityLabelsAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-labels-max-height", 3000000);
@@ -1023,7 +1030,9 @@ function addPolylineForRing(viewer, ring, options) {
             positions: Cesium.Cartesian3.fromDegreesArray(coords),
             width: options.width,
             material: options.color,
-            clampToGround: false,
+            // Keep country borders at the lowest map layer.
+            clampToGround: true,
+            zIndex: 0,
         },
     });
     if (!Array.isArray(viewer.__borderEntities)) {
@@ -1951,6 +1960,12 @@ export async function initWarzoneGlobe() {
         shouldAnimate: false,
         scene3DOnly: true,
         requestRenderMode: true,
+        contextOptions: {
+            webgl: {
+                antialias: true,
+                powerPreference: "high-performance",
+            },
+        },
         skyAtmosphere: false,
         terrain: undefined,
         creditContainer: creditsEl || undefined,
@@ -2057,14 +2072,32 @@ export async function initWarzoneGlobe() {
                 viewer.__imageryBase.show
             );
         },
+        setBorderLayersVisible(visible) {
+            setBorderLayersVisible(viewer, visible);
+            viewer.scene.requestRender();
+        },
+        isBorderLayersVisible() {
+            return viewer.__borderLayersVisible !== false;
+        },
         setPerformanceMode(visibleCount = 0) {
             const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
             const count = Math.max(0, Number(visibleCount || 0));
             const baseResolution = clamp(numberVar("--warzone-resolution-scale", 1), 0.5, 2);
             const baseMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-samples", 1)));
             const baseFxaaEnabled = boolVar("--warzone-fxaa-enabled", true);
+            const idleResolutionMin = clamp(numberVar("--warzone-idle-resolution-min", 1.12), 0.8, 2);
+            const idleMsaaMin = Math.max(1, Math.round(numberVar("--warzone-idle-msaa-min", 4)));
+            const movingResolutionFloor = clamp(numberVar("--warzone-moving-resolution-scale", 1.0), 0.7, 2);
+            const movingMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-moving-msaa-samples", 2)));
             const cameraHeight = getCameraHeight(viewer);
+            const isCameraMoving = viewer.__warzoneCameraMoving === true;
+            const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
+            const closeSharpHeight = Math.max(focusSharpHeight, numberVar("--warzone-close-sharp-height", 450000));
             const nearSharpHeight = Math.max(250000, numberVar("--warzone-near-sharp-height", 1800000));
+            const focusResolutionScale = clamp(numberVar("--warzone-focus-resolution-scale", 1.16), 0.8, 2);
+            const closeResolutionScale = clamp(numberVar("--warzone-close-resolution-scale", 1.08), 0.8, 2);
+            const focusMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-msaa-samples", 4)));
+            const closeMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-close-msaa-samples", 3)));
             let nextResolution = baseResolution;
             let nextMaximumRenderTime = Infinity;
             let nextMsaaSamples = baseMsaaSamples;
@@ -2074,24 +2107,51 @@ export async function initWarzoneGlobe() {
                     nextMaximumRenderTime = 1.4;
                 } else if (count <= 140) {
                     nextMaximumRenderTime = 1.0;
-                    nextResolution = Math.max(0.86, baseResolution * 0.9);
+                    nextResolution = Math.max(0.9, baseResolution * 0.92);
                     nextMsaaSamples = 1;
                 } else if (count <= 260) {
                     nextMaximumRenderTime = 0.8;
-                    nextResolution = Math.max(0.74, baseResolution * 0.8);
+                    nextResolution = Math.max(0.82, baseResolution * 0.86);
                     nextMsaaSamples = 1;
                 } else {
                     nextMaximumRenderTime = 0.6;
-                    nextResolution = Math.max(0.68, baseResolution * 0.72);
+                    nextResolution = Math.max(0.76, baseResolution * 0.8);
                     nextMsaaSamples = 1;
-                    nextFxaaEnabled = false;
+                    nextFxaaEnabled = true;
                 }
             }
-            // Close zoom should stay crisp even with many active layers.
-            if (cameraHeight <= nearSharpHeight) {
+            // Keep icon edges readable when camera is settled.
+            if (!isCameraMoving) {
+                nextResolution = Math.max(nextResolution, Math.max(baseResolution, idleResolutionMin));
+                nextMsaaSamples = Math.max(nextMsaaSamples, baseMsaaSamples, idleMsaaMin);
+            }
+            // Focus zoom: prioritize clarity around very-close tracking views.
+            if (cameraHeight <= focusSharpHeight) {
+                nextResolution = Math.max(nextResolution, Math.max(baseResolution, focusResolutionScale));
+                nextMsaaSamples = Math.max(nextMsaaSamples, focusMsaaSamples);
+                nextFxaaEnabled = true;
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.28);
+            } else if (cameraHeight <= closeSharpHeight) {
+                // Close zoom (~30k-40k and nearby): keep map very clear without heavy overdraw.
+                nextResolution = Math.max(nextResolution, Math.max(baseResolution, closeResolutionScale));
+                nextMsaaSamples = Math.max(nextMsaaSamples, closeMsaaSamples);
+                nextFxaaEnabled = true;
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.42);
+            } else if (cameraHeight <= nearSharpHeight) {
+                // General near-zoom floor for readability.
                 nextResolution = Math.max(1, baseResolution);
                 nextMsaaSamples = Math.max(2, baseMsaaSamples);
                 nextFxaaEnabled = true;
+            }
+            if (isCameraMoving) {
+                // Keep map interaction smooth while dragging, but avoid harsh AA drop.
+                nextResolution = Math.max(
+                    movingResolutionFloor,
+                    Math.min(nextResolution, Math.max(movingResolutionFloor, baseResolution * 0.95))
+                );
+                nextMsaaSamples = Math.max(1, Math.min(nextMsaaSamples, movingMsaaSamples));
+                nextFxaaEnabled = true;
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.2);
             }
             const prevPerfState = viewer.__warzonePerformanceState || {};
             if (prevPerfState.resolutionScale !== nextResolution) {
@@ -2113,6 +2173,7 @@ export async function initWarzoneGlobe() {
                 fxaaEnabled: nextFxaaEnabled,
                 visibleCount: count,
                 cameraHeight,
+                isCameraMoving,
             };
             viewer.scene.requestRenderMode = true;
         },
@@ -2148,6 +2209,7 @@ export async function initWarzoneGlobe() {
     if (!viewer.__warzonePerfZoomBound) {
         viewer.__warzonePerfZoomBound = true;
         let perfRaf = 0;
+        let moveSettleTimer = 0;
         const queuePerfSync = () => {
             if (perfRaf) return;
             perfRaf = requestAnimationFrame(() => {
@@ -2157,7 +2219,19 @@ export async function initWarzoneGlobe() {
                 viewer.scene.requestRender?.();
             });
         };
+        viewer.camera.moveStart.addEventListener(() => {
+            clearTimeout(moveSettleTimer);
+            viewer.__warzoneCameraMoving = true;
+            queuePerfSync();
+        });
         viewer.camera.moveEnd.addEventListener(queuePerfSync);
+        viewer.camera.moveEnd.addEventListener(() => {
+            clearTimeout(moveSettleTimer);
+            moveSettleTimer = window.setTimeout(() => {
+                viewer.__warzoneCameraMoving = false;
+                queuePerfSync();
+            }, 120);
+        });
     }
     return viewer;
 }

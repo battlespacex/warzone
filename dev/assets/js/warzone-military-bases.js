@@ -249,7 +249,8 @@ function createBaseEntity(dataSource, base) {
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             scaleByDistance: new Cesium.NearFarScalar(1.5e5, 0.55, 8e6, 0.45),
             translucencyByDistance: new Cesium.NearFarScalar(7e6, 1.0, 1.4e7, 0.0),
-            disableDepthTestDistance: 0,
+            // Always render base icons above border/ground linework.
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         properties: {
             milbase: true,

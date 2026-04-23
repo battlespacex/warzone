@@ -85,10 +85,11 @@ function buildTrail(lon, lat, headingDeg, len, segs, altM) {
     return Array.from({ length: segs + 1 }, (_, i) => {
         const t = i / segs;
         const dist = t * len;
+        const trailAlt = Math.max(0, (altM * (1 - t * 0.1)) - CFG.trailAltitudeOffsetM);
         return Cesium.Cartesian3.fromDegrees(
             lon + dist * Math.sin(backRad),
             lat + dist * Math.cos(backRad),
-            altM * (1 - t * 0.1)
+            trailAlt
         );
     });
 }
@@ -123,24 +124,25 @@ const CFG = {
     shipTrailLengthDeg: 1.5,
     trailFadeMs: 25 * 60 * 1000,
     altitudeShip: 80,
+    trailAltitudeOffsetM: 24,
 };
 const MODELS = {
-    carrier: "/assets/images/models/air/frigate.glb",
-    amphibious: "/assets/images/models/air/frigate.glb",
-    cruiser: "/assets/images/models/air/frigate.glb",
-    destroyer: "/assets/images/models/air/frigate.glb",
-    frigate: "/assets/images/models/air/frigate.glb",
-    corvette: "/assets/images/models/air/frigate.glb",
-    missile_boat: "/assets/images/models/air/frigate.glb",
-    naval: "/assets/images/models/air/frigate.glb",
-    submarine: "/assets/images/models/air/submarine.glb",
-    ssbn: "/assets/images/models/air/submarine.glb",
-    ssn: "/assets/images/models/air/submarine.glb",
-    ssk: "/assets/images/models/air/submarine.glb",
-    aip_submarine: "/assets/images/models/air/submarine.glb",
-    logistics: "/assets/images/models/air/frigate.glb",
+    carrier: "/assets/images/models/naval/ac-rs-1.glb",
+    amphibious: "/assets/images/models/naval/hc-1.glb",
+    cruiser: "/assets/images/models/naval/ns-2.glb",
+    destroyer: "/assets/images/models/naval/ns-2.glb",
+    frigate: "/assets/images/models/naval/ns-2.glb",
+    corvette: "/assets/images/models/naval/ns-1.glb",
+    missile_boat: "/assets/images/models/naval/ns-1.glb",
+    naval: "/assets/images/models/naval/ns-2.glb",
+    submarine: "/assets/images/models/naval/sb-1.glb",
+    ssbn: "/assets/images/models/naval/sb-1.glb",
+    ssn: "/assets/images/models/naval/sb-1.glb",
+    ssk: "/assets/images/models/naval/sb-1.glb",
+    aip_submarine: "/assets/images/models/naval/sb-1.glb",
+    logistics: "/assets/images/models/naval/ns-3.glb",
 };
-const MODEL_DEFAULT = "/assets/images/models/air/frigate.glb";
+const MODEL_DEFAULT = "/assets/images/models/naval/ns-2.glb";
 function getModelUri(subcat) {
     return MODELS[normalizeSubcat(subcat)] || MODEL_DEFAULT;
 }

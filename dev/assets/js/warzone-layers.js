@@ -21,6 +21,7 @@ const LAYER_DEFS = [
     // { id: "news", label: "News / Reports", icon: "📰", color: "#888" },
     { id: "hotspots", label: "Hotspot Labels", description: "Cluster labels for active event concentrations", icon: "📍", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", description: "Satellite basemap imagery on the globe", icon: "🛰️", color: "#4a9eff", uiOnly: true },
+    { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "🗺️", color: "#33e1ff", uiOnly: true },
 ];
 
 const STORAGE_KEY = "wz_layer_state";
@@ -45,6 +46,7 @@ const DEFAULT_LAYER_STATE = {
     seismic: true,
     hotspots: true,
     terrain: true,
+    "country-borders": true,
 };
 
 let __layerState = {};

@@ -21,6 +21,20 @@ const CIVILIAN_AIRLINER_CODES = new Set([
     "B788", "B789", "B78X", "E170", "E175", "E190", "E195", "CRJ2", "CRJ7", "CRJ9", "CRJX",
     "AT72", "AT75", "DH8A", "DH8B", "DH8C", "DH8D", "BCS1", "BCS3",
 ]);
+const CIVILIAN_UTILITY_PATTERNS = [
+    /\bAIR TRACTOR\b/i,
+    /\bAT-?802\b/i,
+    /\bAT8T\b/i,
+    /\bCROP DUSTER\b/i,
+    /\bAGRICULT(URAL|URE)\b/i,
+    /\bAERIAL APPLICAT(ION|OR)\b/i,
+    /\bFIRE ?BOMBER\b/i,
+    /\bWATER ?BOMBER\b/i,
+    /\bFIREFIGHT(ING|ER)\b/i,
+    /\bAIR SPRAY\b/i,
+    /\bTHRUSH\b/i,
+    /\bDROMADER\b/i,
+];
 const MILITARY_OVERRIDE_PATTERNS = [
     /AIR FORCE/i, /\bUSAF\b/i, /\bRAF\b/i, /\bRCAF\b/i, /\bIAF\b/i, /\bPAF\b/i,
     /NAVY/i, /NAVAL/i, /ARMY/i, /MARINES/i, /COAST GUARD/i,
@@ -137,6 +151,20 @@ function isLikelyCivilianAirlinerRecord(record = {}) {
     if (CIVILIAN_AIRLINER_CODES.has(typeCode)) return true;
     return /(AIRBUS\s+A-?(220|318|319|320|321|330|340|350|380)\b|BOEING\s+7(17|27|37|47|57|67|77|87)\b|EMBRAER\s+E-?(170|175|190|195)\b|CRJ[- ]?(200|700|900|1000)\b|ATR[- ]?7(2|5)\b|DASH ?8\b)/i.test(haystack);
 }
+function isLikelyCivilianUtilityRecord(record = {}) {
+    const typeCode = normalizeString(record.t || record.type || "").toUpperCase();
+    const haystack = [
+        record.desc,
+        record.category,
+        record.r,
+        record.flight,
+        record.type,
+        record.t,
+    ].filter(Boolean).join(" ");
+    if (hasMilitaryOverrideText(haystack)) return false;
+    if (typeCode === "AT8T" || typeCode === "AT82") return true;
+    return CIVILIAN_UTILITY_PATTERNS.some((pattern) => pattern.test(haystack));
+}
 function isPublicAirFallbackEnabled() {
     const isLocalDevHost =
         window.location.hostname === "localhost" ||
@@ -185,6 +213,9 @@ function classifySubtype(record = {}) {
     }
     if (isSpecialVipGovernmentRecord(record)) {
         return "vip";
+    }
+    if (isLikelyCivilianUtilityRecord(record)) {
+        return "civilian";
     }
     if (isLikelyCivilianAirlinerRecord(record)) {
         return "civilian";

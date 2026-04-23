@@ -41,28 +41,44 @@ const NAVAL_RENDER_MODE = Object.freeze({
 const NAVAL_MODEL_DEFAULT_MAX_ACTIVE = 14;
 const NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT = 280000;
 const NAVAL_CHAR_FALLBACK_DEFAULT_COUNT = 80;
-const NAVAL_MODEL_DEFAULT_URI = "/assets/images/models/air/frigate.glb";
+const NAVAL_MODEL_DEFAULT_URI = "/assets/images/models/naval/ns-2.glb";
+const LIVE_NAVAL_ICON_BASE_PATH = "/assets/images/live";
+const LIVE_NAVAL_ICON_DEFAULT_CODE = "ns-2";
+const LIVE_NAVAL_ICON_CODES = new Set([
+    "ni-1",
+    "ns-1",
+    "ns-2",
+    "ns-3",
+    "sb-1",
+    "ac-us-1",
+    "ac-cn-1",
+    "ac-uk-1",
+    "ac-rs-1",
+    "hc-1",
+]);
 const NAVAL_MODEL_BY_SUBTYPE = {
-    carrier: "/assets/images/models/air/frigate.glb",
-    amphibious: "/assets/images/models/air/frigate.glb",
-    cruiser: "/assets/images/models/air/frigate.glb",
-    destroyer: "/assets/images/models/air/frigate.glb",
-    frigate: "/assets/images/models/air/frigate.glb",
-    corvette: "/assets/images/models/air/frigate.glb",
-    missile_boat: "/assets/images/models/air/frigate.glb",
-    patrol: "/assets/images/models/air/frigate.glb",
-    logistics: "/assets/images/models/air/frigate.glb",
-    minesweeper: "/assets/images/models/air/frigate.glb",
-    submarine: "/assets/images/models/air/submarine.glb",
-    ssbn: "/assets/images/models/air/submarine.glb",
-    ssn: "/assets/images/models/air/submarine.glb",
-    ssk: "/assets/images/models/air/submarine.glb",
-    aip_submarine: "/assets/images/models/air/submarine.glb",
-    naval: "/assets/images/models/air/frigate.glb",
+    carrier: "/assets/images/models/naval/ac-rs-1.glb",
+    amphibious: "/assets/images/models/naval/hc-1.glb",
+    cruiser: "/assets/images/models/naval/ns-2.glb",
+    destroyer: "/assets/images/models/naval/ns-2.glb",
+    frigate: "/assets/images/models/naval/ns-2.glb",
+    corvette: "/assets/images/models/naval/ns-1.glb",
+    missile_boat: "/assets/images/models/naval/ns-1.glb",
+    patrol: "/assets/images/models/naval/ns-1.glb",
+    logistics: "/assets/images/models/naval/ns-3.glb",
+    minesweeper: "/assets/images/models/naval/ns-1.glb",
+    intelligence: "/assets/images/models/naval/ni-1.glb",
+    submarine: "/assets/images/models/naval/sb-1.glb",
+    ssbn: "/assets/images/models/naval/sb-1.glb",
+    ssn: "/assets/images/models/naval/sb-1.glb",
+    ssk: "/assets/images/models/naval/sb-1.glb",
+    aip_submarine: "/assets/images/models/naval/sb-1.glb",
+    naval: "/assets/images/models/naval/ns-2.glb",
 };
 
 // ─── Ship icon canvases (cached) ──────────────────────────────────────────────
 const __navalIconCache = new Map();
+const __navalIconCodeCache = new Map();
 const NAVAL_SUBTYPE_META = {
     carrier: { label: "Carrier", color: "#ff3a3a", priority: 0 },
     amphibious: { label: "Amphibious", color: "#ff6a3d", priority: 1 },
@@ -70,16 +86,17 @@ const NAVAL_SUBTYPE_META = {
     destroyer: { label: "Destroyer", color: "#ff7820", priority: 3 },
     frigate: { label: "Frigate", color: "#ffcc00", priority: 4 },
     corvette: { label: "Corvette", color: "#f29f05", priority: 5 },
-    ssbn: { label: "SSBN", color: "#8d63ff", priority: 6 },
-    ssn: { label: "SSN", color: "#7b7cff", priority: 7 },
-    ssk: { label: "SSK", color: "#60a4ff", priority: 8 },
-    aip_submarine: { label: "AIP Sub", color: "#49b8ff", priority: 9 },
-    submarine: { label: "Submarine", color: "#9b7bff", priority: 10 },
-    missile_boat: { label: "Missile Boat", color: "#ff8d5a", priority: 11 },
-    patrol: { label: "Patrol", color: "#33d9ff", priority: 12 },
-    logistics: { label: "Logistics", color: "#57b8ff", priority: 13 },
-    minesweeper: { label: "Minesweeper", color: "#00d9b2", priority: 14 },
-    naval: { label: "Naval", color: "#33d9ff", priority: 15 },
+    intelligence: { label: "Intelligence", color: "#8dd8ff", priority: 6 },
+    ssbn: { label: "SSBN", color: "#8d63ff", priority: 7 },
+    ssn: { label: "SSN", color: "#7b7cff", priority: 8 },
+    ssk: { label: "SSK", color: "#60a4ff", priority: 9 },
+    aip_submarine: { label: "AIP Sub", color: "#49b8ff", priority: 10 },
+    submarine: { label: "Submarine", color: "#9b7bff", priority: 11 },
+    missile_boat: { label: "Missile Boat", color: "#ff8d5a", priority: 12 },
+    patrol: { label: "Patrol", color: "#33d9ff", priority: 13 },
+    logistics: { label: "Logistics", color: "#57b8ff", priority: 14 },
+    minesweeper: { label: "Minesweeper", color: "#00d9b2", priority: 15 },
+    naval: { label: "Naval", color: "#33d9ff", priority: 16 },
 };
 const NAVAL_MODEL_HEADING_OFFSETS = Object.create(null);
 const NAVAL_SUBTYPE_ALIASES = new Map([
@@ -94,6 +111,19 @@ const NAVAL_SUBTYPE_ALIASES = new Map([
     ["guided_missile_destroyer", "destroyer"],
     ["guided_missile_frigate", "frigate"],
     ["fast_attack_craft", "missile_boat"],
+    ["surveillance", "intelligence"],
+    ["reconnaissance_ship", "intelligence"],
+    ["tracking_ship", "intelligence"],
+    ["special_mission", "intelligence"],
+    ["sigint", "intelligence"],
+    ["elint", "intelligence"],
+    ["agi", "intelligence"],
+    ["isr", "intelligence"],
+    ["auxiliary", "logistics"],
+    ["fleet_oiler", "logistics"],
+    ["replenishment", "logistics"],
+    ["support_ship", "logistics"],
+    ["tanker", "logistics"],
     ["attack_submarine", "ssn"],
     ["nuclear_attack_submarine", "ssn"],
     ["ballistic_missile_submarine", "ssbn"],
@@ -111,6 +141,7 @@ const NAVAL_SUBTYPE_INFER_PATTERNS = [
     { subtype: "ssk", pattern: /\bssk\b|diesel[-\s]?electric submarine|kilo class|yuan class|type[-\s]?039|type[-\s]?041|agosta|dolphin class|collins class/i },
     { subtype: "carrier", pattern: /\bcvn[-\s]?\d+\b|\bcv[-\s]?\d+\b|aircraft carrier|helicopter carrier|light carrier|gerald r ford|nimitz|liaoning|shandong|fujian|queen elizabeth|charles de gaulle|cavour|kuznetsov|vikramaditya|vikrant|izumo|kaga|juan carlos/i },
     { subtype: "amphibious", pattern: /\blhd[-\s]?\d+\b|\blha[-\s]?\d+\b|\blpd[-\s]?\d+\b|\blph[-\s]?\d+\b|\blsd[-\s]?\d+\b|\blst[-\s]?\d+\b|amphibious assault|landing platform dock|landing helicopter dock|amphibious transport dock|mistral class|dokdo class|wasp class|america class|san antonio/i },
+    { subtype: "intelligence", pattern: /\b(intelligence|sigint|elint|agi|isr|tracking ship|telemetry|range instrumentation|reconnaissance ship|special mission|ocean surveillance|space tracking|missile tracking|yuan wang|vishnya|marshal krylov|howard o lorenzen)\b/i },
     { subtype: "cruiser", pattern: /\bcg[-\s]?\d+\b|guided missile cruiser|\bcruiser\b|slava class|kirov class|ticonderoga class|type[-\s]?055|renhai/i },
     { subtype: "destroyer", pattern: /\bddg[-\s]?\d+\b|\bdd[-\s]?\d+\b|guided missile destroyer|\bdestroyer\b|arleigh burke|zumwalt|daring class|type[-\s]?052|atago class|maya class|kongo class|sejong|kolkata class|visakhapatnam class|sovremenny|udaloy/i },
     { subtype: "frigate", pattern: /\bffg[-\s]?\d+\b|\bfrigate\b|admiral gorshkov|fremm|constellation class|type[-\s]?054|type[-\s]?26|type[-\s]?31|la fayette|talwar class|shivalik class/i },
@@ -154,6 +185,96 @@ const NAVAL_OPERATOR_DIRECTORY = [
     { pattern: /ARGENTINE NAVY|ARMADA ARGENTINA/i, operator: "Argentine Navy", country: "Argentina" },
     { pattern: /CHILEAN NAVY|ARMADA DE CHILE/i, operator: "Chilean Navy", country: "Chile" },
     { pattern: /PERUVIAN NAVY|MARINA DE GUERRA DEL PERU/i, operator: "Peruvian Navy", country: "Peru" },
+];
+const LIVE_NAVAL_US_CARRIER_TOKENS = [
+    "united states",
+    "united states of america",
+    "usa",
+    "american",
+    "us navy",
+    "u s navy",
+    "usn",
+    "uss",
+];
+const LIVE_NAVAL_CN_CARRIER_TOKENS = [
+    "china",
+    "chinese",
+    "prc",
+    "pla navy",
+    "plan",
+    "people s liberation army navy",
+];
+const LIVE_NAVAL_UK_CARRIER_TOKENS = [
+    "united kingdom",
+    "uk",
+    "british",
+    "great britain",
+    "royal navy",
+    "hms",
+];
+const LIVE_NAVAL_FIXED_WING_CARRIER_PATTERNS = [
+    /\bcvn ?\d+\b/i,
+    /\bcv ?\d+\b/i,
+    /\b(aircraft carrier|fleet carrier|supercarrier|catobar|stobar|stovl|ski jump)\b/i,
+    /\b(nimitz|gerald r ford|ford class|liaoning|shandong|fujian|queen elizabeth|prince of wales|charles de gaulle|admiral kuznetsov|vikramaditya|vikrant)\b/i,
+];
+const LIVE_NAVAL_AMPHIBIOUS_CARRIER_PATTERNS = [
+    /\b(lhd|lha|lph)\b/i,
+    /\b(landing helicopter dock|amphibious assault|helicopter carrier|helicopter destroyer|drone carrier|sea based aviation|aviation deck)\b/i,
+    /\b(type ?075|america class|wasp class|anadolu|juan carlos|trieste|mistral class|izumo class|hyuga class|dokdo class|canberra class|atlantico|giuseppe garibaldi|cavour)\b/i,
+];
+const LIVE_NAVAL_SUBMARINE_PATTERNS = [
+    /\b(ssbn|ssn|ssgn|ssk|aip)\b/i,
+    /\b(submarine|diesel electric|nuclear attack submarine|ballistic missile submarine|midget submarine|special mission submarine)\b/i,
+    /\b(borei|yasen|akula|kilo|lada|virginia class|los angeles class|seawolf|ohio class|astute|vanguard|arihant|scorpene|suffren|triomphant|taigei|soryu|oyashio|dosan ahn changho|kss)\b/i,
+];
+const LIVE_NAVAL_REPLENISHMENT_PATTERNS = [
+    /\b(fleet oiler|replenishment|underway replenishment|support tanker|naval tanker|auxiliary oiler|combat support ship|fast combat support|logistics support|fleet support|supply ship|auxiliary support)\b/i,
+    /\b(aor|aoe|ao)\b/i,
+    /\b(t ?ao|t ?ake)\b/i,
+];
+const LIVE_NAVAL_INTELLIGENCE_PATTERNS = [
+    /\b(intelligence|sigint|elint|agi|isr|special mission|reconnaissance ship|tracking ship|telemetry|range instrumentation|missile tracking|space tracking|satellite tracking|ocean surveillance|electronic intelligence|hydroacoustic|sonar intelligence)\b/i,
+    /\b(yuan wang|vishnya|marshal krylov|howard o lorenzen)\b/i,
+];
+const LIVE_NAVAL_LARGE_SURFACE_PATTERNS = [
+    /\b(destroyer|cruiser|frigate|guided missile|major surface combatant|escort|arsenal ship|stealth destroyer)\b/i,
+    /\b(type ?055|type ?052|type ?054|ticonderoga|arleigh burke|zumwalt|type ?45|type ?26|type ?23|slava|kirov|udaloy|sovremenny|gorshkov|grigorovich|kolkata|visakhapatnam|delhi|shivalik|talwar|horizon|fremm|la fayette|maya|atago|kongo|mogami|akizuki|sejong|kdx|barbaros|gabya|istanbul|alvaro de bazan|f ?110|hobart|hunter|anzac|niteroi|tamandare)\b/i,
+];
+const LIVE_NAVAL_SMALL_SURFACE_PATTERNS = [
+    /\b(corvette|patrol|offshore patrol vessel|opv|missile boat|fast attack|minehunter|minesweeper|coastal|littoral|gunboat|small combatant|coast guard|cutter)\b/i,
+    /\b(type ?056|steregushchiy|buyan|karakurt|kamorta|ada class|fac)\b/i,
+];
+const NAVAL_COUNTRY_ALIASES = new Map([
+    ["us", "United States"],
+    ["u s", "United States"],
+    ["usa", "United States"],
+    ["u s a", "United States"],
+    ["united states of america", "United States"],
+    ["uk", "United Kingdom"],
+    ["u k", "United Kingdom"],
+    ["great britain", "United Kingdom"],
+    ["prc", "China"],
+    ["people s republic of china", "China"],
+    ["rok", "South Korea"],
+    ["republic of korea", "South Korea"],
+    ["uae", "United Arab Emirates"],
+    ["u a e", "United Arab Emirates"],
+]);
+const LIVE_NAVAL_EXACT_ICON_RULES = [
+    // Fixed-wing carriers (country-specific variants first).
+    { iconCode: "ac-us-1", pattern: /\b(nimitz|gerald r ford|ford class|cvn[-\s]?(68|69|70|71|72|73|74|75|76|77|78|79|80|81)|uss gerald r ford|uss nimitz)\b/i },
+    { iconCode: "ac-cn-1", pattern: /\b(liaoning|shandong|fujian|type[-\s]?001|type[-\s]?002|type[-\s]?003)\b/i },
+    { iconCode: "ac-uk-1", pattern: /\b(queen elizabeth class|hms queen elizabeth|hms prince of wales)\b/i },
+    { iconCode: "ac-rs-1", pattern: /\b(admiral kuznetsov|vikramaditya|vikrant|charles de gaulle)\b/i },
+    // Helicopter / amphibious carriers.
+    { iconCode: "hc-1", pattern: /\b(america class|wasp class|anadolu|juan carlos|trieste|mistral class|izumo class|hyuga class|dokdo class|type[-\s]?075|canberra class|atlantico|giuseppe garibaldi|cavour)\b/i },
+    // Submarines.
+    { iconCode: "sb-1", pattern: /\b(ohio class|virginia class|los angeles class|seawolf|borei|yasen|akula|kilo|lada|astute|vanguard|arihant|scorpene|suffren|triomphant|taigei|soryu|oyashio|dosan ahn changho|kss)\b/i },
+    // Replenishment / logistics.
+    { iconCode: "ns-3", pattern: /\b(type[-\s]?901|type[-\s]?903|henry j kaiser|supply class|tide class|deepak|durance|jacques chevallier|etna|vulcano)\b/i },
+    // Intelligence / special-purpose.
+    { iconCode: "ni-1", pattern: /\b(howard o lorenzen|marshal krylov|yuan wang|vishnya)\b/i },
 ];
 
 function normalizeText(value = "") {
@@ -335,14 +456,161 @@ function inferNavalOperatorFromText(text = "") {
 }
 function resolveVesselAffiliation({ operator = "", country = "", hintText = "" } = {}) {
     const cleanOperator = normalizeAffiliationText(operator);
-    const cleanCountry = normalizeAffiliationText(country);
+    const cleanCountry = normalizeCountryName(normalizeAffiliationText(country));
     if (cleanOperator && cleanCountry) {
         return { operator: cleanOperator, country: cleanCountry };
     }
     const inferred = inferNavalOperatorFromText(hintText);
+    const inferredCountry = normalizeCountryName(inferred.country || "");
     return {
         operator: cleanOperator || inferred.operator || "",
-        country: cleanCountry || inferred.country || "",
+        country: cleanCountry || inferredCountry || "",
+    };
+}
+function getNestedFieldValue(source = {}, keyPath = "") {
+    if (!source || typeof source !== "object") return undefined;
+    const path = String(keyPath || "").trim();
+    if (!path) return undefined;
+    const parts = path.split(".");
+    let cursor = source;
+    for (const part of parts) {
+        if (!cursor || typeof cursor !== "object") return undefined;
+        cursor = cursor[part];
+    }
+    return cursor;
+}
+function pickFirstNavalValue(sources = [], keys = []) {
+    for (const key of keys) {
+        for (const source of sources) {
+            const value = getNestedFieldValue(source, key);
+            if (value !== undefined && value !== null && String(value).trim() !== "") {
+                return value;
+            }
+        }
+    }
+    return "";
+}
+function pickFirstNavalText(sources = [], keys = []) {
+    return normalizeText(pickFirstNavalValue(sources, keys));
+}
+function pickFirstNavalNumber(sources = [], keys = [], fallback = Number.NaN) {
+    const raw = pickFirstNavalValue(sources, keys);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+function normalizeCountryName(value = "") {
+    const clean = normalizeAffiliationText(value);
+    if (!clean) return "";
+    const alias = NAVAL_COUNTRY_ALIASES.get(normalizeNavalIconText(clean));
+    return alias || clean;
+}
+function resolveNavalLastSeenAt(event = {}, metadata = {}) {
+    const candidates = [
+        event.last_seen_at,
+        event.updated_at,
+        event.occurred_at,
+        metadata.last_seen_at,
+        metadata.updated_at,
+        metadata.occurred_at,
+        metadata.timestamp,
+        metadata.time,
+    ];
+    for (const candidate of candidates) {
+        const ms = Date.parse(candidate);
+        if (Number.isFinite(ms) && ms > 0) {
+            return ms;
+        }
+    }
+    return Date.now();
+}
+function resolveNavalDisplayDetails(event = {}, metadata = {}, resolvedSubtype = "naval", hintText = "") {
+    const objectSources = [
+        event,
+        metadata,
+        metadata.vessel,
+        metadata.ship,
+        metadata.platform,
+        metadata.details,
+    ].filter((item) => item && typeof item === "object");
+    const vesselName = pickFirstNavalText(objectSources, [
+        "vessel_name",
+        "vesselName",
+        "platform_name",
+        "platformName",
+        "ship_name",
+        "shipName",
+        "name",
+        "display_name",
+        "displayName",
+        "title",
+    ]);
+    const className = pickFirstNavalText(objectSources, [
+        "class_name",
+        "className",
+        "vessel_class",
+        "vesselClass",
+        "ship_class",
+        "shipClass",
+        "class",
+    ]);
+    const subclassName = pickFirstNavalText(objectSources, [
+        "subclass",
+        "sub_class",
+        "subClass",
+    ]);
+    const variantName = pickFirstNavalText(objectSources, [
+        "variant",
+        "variant_name",
+        "variantName",
+        "block",
+        "mod",
+    ]);
+    const versionName = pickFirstNavalText(objectSources, [
+        "version",
+        "version_name",
+        "versionName",
+        "mark",
+        "mk",
+    ]);
+    const designation = pickFirstNavalText(objectSources, [
+        "designation",
+        "hull_number",
+        "hullNumber",
+        "pennant_number",
+        "pennantNumber",
+        "hull",
+        "pennant",
+    ]);
+    const typeHintRaw = pickFirstNavalText(objectSources, [
+        "type_label",
+        "typeLabel",
+        "vessel_type",
+        "vesselType",
+        "ship_type_name",
+        "shipTypeName",
+        "ship_type",
+        "shipType",
+        "vessel_category",
+        "vesselCategory",
+        "category",
+        "type",
+        "role",
+    ]);
+    const subtypeSeed = typeHintRaw || subclassName || className || resolvedSubtype;
+    const nextSubtype = resolveNavalSubtype(
+        subtypeSeed,
+        `${hintText} ${typeHintRaw} ${className} ${subclassName} ${variantName} ${versionName}`
+    );
+    const typeLabel = typeHintRaw || getNavalSubtypeLabel(nextSubtype);
+    return {
+        subtype: nextSubtype,
+        type_label: normalizeText(typeLabel) || getNavalSubtypeLabel(nextSubtype),
+        class_name: normalizeText(className),
+        subclass_name: normalizeText(subclassName),
+        variant_name: normalizeText(variantName),
+        version_name: normalizeText(versionName),
+        designation: normalizeText(designation),
+        platform_name: normalizeText(vesselName),
     };
 }
 function buildVesselHintText(event = {}, metadata = {}) {
@@ -350,20 +618,346 @@ function buildVesselHintText(event = {}, metadata = {}) {
         event.title,
         event.summary,
         event.subcategory,
+        event.type,
+        event.category,
+        event.class,
+        event.subclass,
+        event.variant,
+        event.version,
+        event.designation,
+        event.operator,
+        event.country,
         event.weapon_type,
         metadata.vessel_name,
+        metadata.platform_name,
+        metadata.name,
+        metadata.type,
+        metadata.category,
+        metadata.class_name,
+        metadata.className,
         metadata.vessel_class,
         metadata.ship_class,
+        metadata.subclass,
+        metadata.variant,
+        metadata.version,
+        metadata.designation,
         metadata.ship_type_name,
         metadata.shipTypeName,
+        metadata.vessel_type,
+        metadata.vesselType,
+        metadata.vessel_category,
+        metadata.vesselCategory,
         metadata.operator,
         metadata.country,
+        metadata.flag_country,
+        metadata.flagCountry,
+        metadata.hull_number,
+        metadata.hullNumber,
+        metadata.pennant_number,
+        metadata.pennantNumber,
         metadata.call_sign,
         metadata.callSign,
     ]
         .map((value) => normalizeText(value))
         .filter(Boolean)
         .join(" ");
+}
+function normalizeNavalIconText(value = "") {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function hasAnyNavalToken(paddedHaystack = " ", tokens = []) {
+    return tokens.some((token) => token && paddedHaystack.includes(` ${token} `));
+}
+function hasAnyNavalPattern(haystack = "", patterns = []) {
+    return patterns.some((pattern) => pattern.test(haystack));
+}
+function getNavalMetadata(vessel = {}) {
+    return vessel?.metadata && typeof vessel.metadata === "object" ? vessel.metadata : {};
+}
+function buildLiveNavalIconSignature(vessel = {}) {
+    const metadata = getNavalMetadata(vessel);
+    return [
+        vessel.subcategory,
+        vessel.type_label,
+        vessel.class_name,
+        vessel.subclass_name,
+        vessel.variant_name,
+        vessel.version_name,
+        vessel.designation,
+        vessel.vessel_class,
+        vessel.vessel_name,
+        vessel.platform_name,
+        vessel.title,
+        vessel.operator,
+        vessel.country,
+        vessel.mmsi,
+        metadata.subtype,
+        metadata.subcategory,
+        metadata.vessel_class,
+        metadata.ship_class,
+        metadata.ship_type_name,
+        metadata.shipTypeName,
+        metadata.vessel_type,
+        metadata.vesselType,
+        metadata.vessel_category,
+        metadata.vesselCategory,
+        metadata.ship_type,
+        metadata.shipType,
+        metadata.ais_ship_type,
+        metadata.aisShipType,
+        metadata.type,
+        metadata.operator,
+        metadata.navy,
+        metadata.service_branch,
+        metadata.serviceBranch,
+        metadata.branch,
+        metadata.country,
+        metadata.flag_country,
+        metadata.flagCountry,
+        metadata.callsign,
+        metadata.call_sign,
+        metadata.callSign,
+        metadata.hull_number,
+        metadata.hullNumber,
+        metadata.pennant_number,
+        metadata.pennantNumber,
+        metadata.deck_type,
+        metadata.deckType,
+        metadata.class_name,
+        metadata.className,
+        metadata.subclass,
+        metadata.variant,
+        metadata.version,
+        metadata.designation,
+        metadata.name,
+        metadata.vessel_name,
+    ]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .join("|");
+}
+function buildLiveNavalIconContext(vessel = {}) {
+    const metadata = getNavalMetadata(vessel);
+    const subtype = normalizeNavalSubtypeKey(
+        vessel.subcategory ||
+        vessel.type_label ||
+        vessel.class_name ||
+        vessel.subclass_name ||
+        metadata.subcategory ||
+        metadata.subtype ||
+        metadata.vessel_class ||
+        metadata.ship_class ||
+        metadata.ship_type_name ||
+        metadata.shipTypeName ||
+        metadata.vessel_type ||
+        metadata.vesselType ||
+        metadata.vessel_category ||
+        metadata.vesselCategory ||
+        metadata.type ||
+        ""
+    ) || "naval";
+    const values = [
+        subtype,
+        vessel.type_label,
+        vessel.class_name,
+        vessel.subclass_name,
+        vessel.variant_name,
+        vessel.version_name,
+        vessel.designation,
+        vessel.vessel_class,
+        vessel.vessel_name,
+        vessel.platform_name,
+        vessel.title,
+        vessel.operator,
+        vessel.country,
+        vessel.mmsi,
+        metadata.vessel_class,
+        metadata.ship_class,
+        metadata.ship_type_name,
+        metadata.shipTypeName,
+        metadata.vessel_type,
+        metadata.vesselType,
+        metadata.vessel_category,
+        metadata.vesselCategory,
+        metadata.ship_type,
+        metadata.shipType,
+        metadata.ais_ship_type,
+        metadata.aisShipType,
+        metadata.type,
+        metadata.operator,
+        metadata.navy,
+        metadata.service_branch,
+        metadata.serviceBranch,
+        metadata.branch,
+        metadata.country,
+        metadata.flag_country,
+        metadata.flagCountry,
+        metadata.callsign,
+        metadata.call_sign,
+        metadata.callSign,
+        metadata.hull_number,
+        metadata.hullNumber,
+        metadata.pennant_number,
+        metadata.pennantNumber,
+        metadata.deck_type,
+        metadata.deckType,
+        metadata.class_name,
+        metadata.className,
+        metadata.subclass,
+        metadata.variant,
+        metadata.version,
+        metadata.designation,
+        metadata.name,
+        metadata.vessel_name,
+    ]
+        .map(normalizeNavalIconText)
+        .filter(Boolean);
+    const haystack = values.join(" ").trim();
+    const paddedHaystack = haystack ? ` ${haystack} ` : " ";
+    const affiliation = [
+        vessel.country,
+        vessel.operator,
+        metadata.country,
+        metadata.operator,
+        metadata.navy,
+        metadata.service_branch,
+        metadata.serviceBranch,
+        metadata.branch,
+        metadata.flag_country,
+        metadata.flagCountry,
+    ]
+        .map(normalizeNavalIconText)
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    const paddedAffiliation = affiliation ? ` ${affiliation} ` : " ";
+    return {
+        subtype,
+        haystack,
+        paddedHaystack,
+        paddedAffiliation,
+    };
+}
+function hasNavalTokens(context = {}, tokens = []) {
+    return (
+        hasAnyNavalToken(context.paddedAffiliation || " ", tokens) ||
+        hasAnyNavalToken(context.paddedHaystack || " ", tokens)
+    );
+}
+function isUsCarrierAffiliation(context = {}) {
+    return hasNavalTokens(context, LIVE_NAVAL_US_CARRIER_TOKENS);
+}
+function isChinaCarrierAffiliation(context = {}) {
+    return hasNavalTokens(context, LIVE_NAVAL_CN_CARRIER_TOKENS);
+}
+function isUkCarrierAffiliation(context = {}) {
+    return hasNavalTokens(context, LIVE_NAVAL_UK_CARRIER_TOKENS);
+}
+function resolveFixedWingCarrierIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    // Carrier bucket split: US, China, UK, then global fallback.
+    if (/\b(nimitz|gerald r ford|ford class|cvn ?7[0-9]|cvn ?8[0-9])\b/i.test(haystack) || isUsCarrierAffiliation(context)) {
+        return "ac-us-1";
+    }
+    if (/\b(liaoning|shandong|fujian|type ?001|type ?002|type ?003)\b/i.test(haystack) || isChinaCarrierAffiliation(context)) {
+        return "ac-cn-1";
+    }
+    if (/\b(queen elizabeth|prince of wales)\b/i.test(haystack) || isUkCarrierAffiliation(context)) {
+        return "ac-uk-1";
+    }
+    return "ac-rs-1";
+}
+function resolveExactNavalIconCode(context = {}) {
+    const haystack = String(context.haystack || "");
+    if (!haystack) return "";
+    const matched = LIVE_NAVAL_EXACT_ICON_RULES.find((rule) => rule.pattern.test(haystack));
+    return matched ? matched.iconCode : "";
+}
+function resolveLiveNavalIconCode(vessel = {}) {
+    const trackCacheKey = String(vessel.track_key || "").trim();
+    const iconSignature = trackCacheKey
+        ? buildLiveNavalIconSignature(vessel)
+        : "";
+    if (trackCacheKey && iconSignature) {
+        const cached = __navalIconCodeCache.get(trackCacheKey);
+        if (cached && cached.signature === iconSignature && LIVE_NAVAL_ICON_CODES.has(cached.iconCode)) {
+            return cached.iconCode;
+        }
+    }
+    const context = buildLiveNavalIconContext(vessel);
+    const subtype = String(context.subtype || "").trim().toLowerCase();
+    const haystack = String(context.haystack || "");
+    const hasFixedWingCarrierHints = (
+        subtype === "carrier" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_FIXED_WING_CARRIER_PATTERNS)
+    );
+    const hasAmphibiousCarrierHints = (
+        subtype === "amphibious" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_AMPHIBIOUS_CARRIER_PATTERNS)
+    );
+    let iconCode = LIVE_NAVAL_ICON_DEFAULT_CODE;
+
+    // Global naval icon mapping order:
+    // exact class/variant -> fixed-wing carrier -> amphib/helo carrier -> submarine -> replenishment
+    // -> intelligence/special -> large surface -> small surface -> default.
+    const exactIconCode = resolveExactNavalIconCode(context);
+    if (exactIconCode) {
+        iconCode = exactIconCode;
+    } else if (hasFixedWingCarrierHints && !hasAmphibiousCarrierHints) {
+        iconCode = resolveFixedWingCarrierIconCode(context);
+    } else if (hasAmphibiousCarrierHints) {
+        iconCode = "hc-1";
+    } else if (
+        ["submarine", "ssbn", "ssn", "ssk", "aip_submarine"].includes(subtype) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_SUBMARINE_PATTERNS)
+    ) {
+        iconCode = "sb-1";
+    } else if (
+        subtype === "logistics" ||
+        subtype === "auxiliary" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_REPLENISHMENT_PATTERNS)
+    ) {
+        iconCode = "ns-3";
+    } else if (
+        subtype === "intelligence" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_INTELLIGENCE_PATTERNS)
+    ) {
+        iconCode = "ni-1";
+    } else if (
+        ["cruiser", "destroyer", "frigate"].includes(subtype) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_LARGE_SURFACE_PATTERNS)
+    ) {
+        iconCode = "ns-2";
+    } else if (
+        ["corvette", "missile_boat", "patrol", "minesweeper"].includes(subtype) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_SMALL_SURFACE_PATTERNS)
+    ) {
+        iconCode = "ns-1";
+    } else if (subtype === "carrier") {
+        iconCode = resolveFixedWingCarrierIconCode(context);
+    } else if (subtype === "amphibious") {
+        iconCode = "hc-1";
+    }
+
+    const resolvedIconCode = LIVE_NAVAL_ICON_CODES.has(iconCode)
+        ? iconCode
+        : LIVE_NAVAL_ICON_DEFAULT_CODE;
+    if (trackCacheKey && iconSignature) {
+        __navalIconCodeCache.set(trackCacheKey, {
+            signature: iconSignature,
+            iconCode: resolvedIconCode,
+        });
+    }
+    return resolvedIconCode;
+}
+function getLiveNavalIconPath(iconCode = LIVE_NAVAL_ICON_DEFAULT_CODE) {
+    const safeCode = LIVE_NAVAL_ICON_CODES.has(iconCode)
+        ? iconCode
+        : LIVE_NAVAL_ICON_DEFAULT_CODE;
+    return `${LIVE_NAVAL_ICON_BASE_PATH}/live-naval-${safeCode}.png`;
 }
 function getVesselColor(subcat = "naval") {
     const key = normalizeNavalSubtypeKey(subcat);
@@ -459,11 +1053,31 @@ function getCssText(varName, fallback = "") {
     const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return value || fallback;
 }
+function getViewerCameraHeightMeters() {
+    const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height ?? Number.NaN);
+    return Number.isFinite(height) ? height : Number.NaN;
+}
+function getNavalPngScaleByZoomBand() {
+    const baseScale = getCssNumber("--warzone-live-naval-png-scale", 0.05);
+    const zoomInScale = getCssNumber("--warzone-live-naval-png-scale-zoom-in", baseScale);
+    const zoomOutScale = getCssNumber("--warzone-live-naval-png-scale-zoom-out", baseScale);
+    // Single split height for PNG zoom bands: <= split uses zoom-in scale, > split uses zoom-out scale.
+    const zoomSplitHeight = Math.max(
+        0,
+        getCssNumber("--warzone-live-naval-png-zoom-split-height", 20000)
+    );
+    const cameraHeight = getViewerCameraHeightMeters();
+    if (Number.isFinite(cameraHeight) && cameraHeight <= zoomSplitHeight) {
+        return zoomInScale;
+    }
+    return zoomOutScale;
+}
 function getNavalBillboardScale(mode = NAVAL_RENDER_MODE.PNG) {
     if (mode === NAVAL_RENDER_MODE.CHAR) {
         return clamp(getCssNumber("--warzone-live-naval-char-scale", 0.95), 0.14, 2.8);
     }
-    return clamp(getCssNumber("--warzone-live-naval-png-scale", getCssNumber("--warzone-live-naval-icon-scale", 1)), 0.14, 2.8);
+    // Allow smaller PNG naval icons so CSS can dial them down to compact HUD size.
+    return clamp(getNavalPngScaleByZoomBand(), 0.01, 2.8);
 }
 function resolveNavalModelUri(vessel = {}) {
     const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
@@ -505,67 +1119,30 @@ export function setNavalModelHeadingOffsets(offsetMap = {}) {
     });
 }
 function shouldUseNavalBillboards() {
-    return window.__stratopsConfig?.useNavalBillboards !== false;
+    // Keep naval contacts on billboard icons only (no model fallback).
+    return true;
 }
 function getNavalVisualPolicy() {
     const config = window.__stratopsConfig?.navalVisualPolicy;
     return config && typeof config === "object" ? config : {};
 }
 function resolveNavalRenderMode(vessel = {}) {
-    if (window.__stratopsConfig?.useNavalBillboards === false) {
-        return NAVAL_RENDER_MODE.MODEL;
-    }
-    const policy = getNavalVisualPolicy();
-    const activeCount = __navalState.vessels.size;
-    const charFallbackCount = Math.max(
-        1,
-        Number(policy.charFallbackCount || NAVAL_CHAR_FALLBACK_DEFAULT_COUNT)
-    );
-    if (activeCount >= charFallbackCount) {
-        return NAVAL_RENDER_MODE.CHAR;
-    }
-    const selectedKey = String(__navalState.selectedKey || "");
-    if (selectedKey && selectedKey === String(vessel.track_key || "")) {
-        return NAVAL_RENDER_MODE.MODEL;
-    }
-    const zoomModelEnabled = policy.zoomModel !== false;
-    if (!zoomModelEnabled) {
-        return NAVAL_RENDER_MODE.PNG;
-    }
-    const modelMaxActive = Math.max(
-        1,
-        Number(policy.modelMaxActive || NAVAL_MODEL_DEFAULT_MAX_ACTIVE)
-    );
-    if (activeCount > modelMaxActive) {
-        return NAVAL_RENDER_MODE.PNG;
-    }
-    const viewer = window.__warzoneViewer;
-    const height = Number(viewer?.camera?.positionCartographic?.height || Number.POSITIVE_INFINITY);
-    const modelZoomHeight = Math.max(
-        10000,
-        Number(policy.modelZoomHeight || NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT)
-    );
-    return height <= modelZoomHeight
-        ? NAVAL_RENDER_MODE.MODEL
-        : NAVAL_RENDER_MODE.PNG;
+    // GLB model rendering is disabled so focused/clicked naval assets stay on PNG icons.
+    return NAVAL_RENDER_MODE.PNG;
 }
 function resolveNavalBillboardImage(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
-    const metadata = vessel?.metadata && typeof vessel.metadata === "object" ? vessel.metadata : {};
-    const directImage = [
-        vessel.icon_url,
-        vessel.image_url,
-        metadata.icon_url,
-        metadata.image_url,
-    ]
-        .map((value) => String(value || "").trim())
-        .find((value) => value && (/^data:image\//i.test(value) || /\.(png|svg|webp|jpe?g)(\?|#|$)/i.test(value)));
-
-    if (mode === NAVAL_RENDER_MODE.PNG && directImage) return directImage;
     const color = getVesselColor(vessel.subcategory || "naval");
     if (mode === NAVAL_RENDER_MODE.CHAR) {
         return createNavalCharIcon(color, vessel.subcategory || "naval");
     }
-    return directImage || createNavalPngIcon(color, vessel.subcategory || "naval");
+    const iconCode = resolveLiveNavalIconCode(vessel);
+    const cacheKey = `png|asset|${iconCode}`;
+    if (__navalIconCache.has(cacheKey)) {
+        return __navalIconCache.get(cacheKey);
+    }
+    const iconPath = getLiveNavalIconPath(iconCode);
+    __navalIconCache.set(cacheKey, iconPath);
+    return iconPath;
 }
 function buildNavalOrientation(lon, lat, headingDeg = 0, vessel = {}) {
     const headingOffsetDeg = getNavalModelHeadingOffsetDeg(vessel);
@@ -588,7 +1165,7 @@ function buildNavalBillboardVisual(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
         alignedAxis: Cesium.Cartesian3.UNIT_Z,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-        disableDepthTestDistance: getCssNumber("--warzone-live-naval-depth-test-disable-distance", 0),
+        disableDepthTestDistance: getCssNumber("--warzone-live-naval-depth-test-disable-distance", Number.POSITIVE_INFINITY),
     };
 }
 function applyNavalModelVisual(entity, vessel = {}) {
@@ -655,13 +1232,13 @@ function getNavalLabelStyleConfig() {
         paddingY: getCssNumber("--warzone-live-label-padding-y", 3),
         maxDistance: getCssNumber("--warzone-live-label-distance", 180000),
         animHeightMax: getCssNumber("--warzone-live-naval-anim-height-max", 2200000),
-        depthTestDisableDistance: getCssNumber("--warzone-live-naval-label-depth-test-disable-distance", 0),
+        depthTestDisableDistance: getCssNumber("--warzone-live-naval-label-depth-test-disable-distance", Number.POSITIVE_INFINITY),
     };
 }
 function buildNavalLabel(vessel = {}, trackKey = "") {
     const labelStyle = getNavalLabelStyleConfig();
     return {
-        text: vessel.vessel_name || vessel.title || getNavalSubtypeLabel(vessel.subcategory) || "Naval",
+        text: getNavalDisplayName(vessel) || getNavalSubtypeLabel(vessel.subcategory) || "Naval",
         show: new Cesium.CallbackProperty(() => shouldShowNavalLabel(trackKey), false),
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, labelStyle.maxDistance),
         scale: labelStyle.scale,
@@ -965,40 +1542,150 @@ function focusNavalVessel(trackKey, options = {}) {
     return true;
 }
 
+function escapeNavalHtml(value) {
+    if (value === null || value === undefined) return "—";
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+function formatNavalCoord(value) {
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num.toFixed(4)}°` : "—";
+}
+function formatNavalHeading(value) {
+    const heading = Number(value);
+    if (!Number.isFinite(heading)) return "HDG —";
+    const normalized = ((heading % 360) + 360) % 360;
+    return `HDG ${Math.round(normalized)}°`;
+}
+function formatNavalSpeed(value) {
+    const speed = Number(value);
+    return Number.isFinite(speed) ? `${speed.toFixed(0)} kt` : "— kt";
+}
+function formatNavalTimeAgo(value) {
+    const ts = Number(value);
+    if (!Number.isFinite(ts) || ts <= 0) return "just now";
+    const deltaSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (deltaSec < 5) return "just now";
+    if (deltaSec < 60) return `${deltaSec}s ago`;
+    const mins = Math.floor(deltaSec / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+}
+function getNavalDisplayName(vessel = {}) {
+    return normalizeText(
+        vessel.platform_name ||
+        vessel.vessel_name ||
+        vessel.title ||
+        vessel.designation ||
+        ""
+    ) || "Unknown Vessel";
+}
+function getNavalAffiliationLabel(vessel = {}) {
+    return normalizeText(vessel.operator || vessel.country || "Unknown");
+}
+function getNavalTypeLabel(vessel = {}) {
+    const typeLabel = normalizeText(vessel.type_label || "");
+    if (typeLabel) return typeLabel;
+    return getNavalSubtypeLabel(vessel.subcategory || "naval");
+}
+function getNavalClassVariantLabel(vessel = {}) {
+    const pieces = [
+        vessel.class_name,
+        vessel.subclass_name,
+        vessel.variant_name,
+        vessel.version_name,
+    ]
+        .map((value) => normalizeText(value))
+        .filter(Boolean);
+    return pieces.join(" • ");
+}
+function getNavalCoordinatesLabel(vessel = {}) {
+    return `${formatNavalCoord(vessel.lat)}, ${formatNavalCoord(vessel.lon)}`;
+}
+function getNavalWidgetDetailLabel(vessel = {}) {
+    const typeLabel = getNavalTypeLabel(vessel);
+    const classVariant = getNavalClassVariantLabel(vessel);
+    if (classVariant) {
+        return `${typeLabel} • ${classVariant}`;
+    }
+    return typeLabel || "Naval";
+}
+function getNavalWidgetCountryOperatorLabel(vessel = {}) {
+    const country = normalizeText(vessel.country || vessel.flag_country || "");
+    const operator = normalizeText(vessel.operator || "");
+    if (country && operator && operator.toLowerCase().includes(country.toLowerCase())) {
+        return operator;
+    }
+    if (country && operator) {
+        return `${country} • ${operator}`;
+    }
+    return operator || country || "Unknown";
+}
+function mergeNavalVesselData(existing = {}, incoming = {}) {
+    const merged = {
+        ...existing,
+        ...incoming,
+        metadata: {
+            ...(existing.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+            ...(incoming.metadata && typeof incoming.metadata === "object" ? incoming.metadata : {}),
+        },
+    };
+    const keepFirstText = (nextValue, prevValue) => {
+        const next = normalizeText(nextValue);
+        if (next) return next;
+        return normalizeText(prevValue);
+    };
+    merged.platform_name = keepFirstText(incoming.platform_name, existing.platform_name);
+    merged.vessel_name = keepFirstText(incoming.vessel_name, existing.vessel_name);
+    merged.type_label = keepFirstText(incoming.type_label, existing.type_label);
+    merged.class_name = keepFirstText(incoming.class_name, existing.class_name);
+    merged.subclass_name = keepFirstText(incoming.subclass_name, existing.subclass_name);
+    merged.variant_name = keepFirstText(incoming.variant_name, existing.variant_name);
+    merged.version_name = keepFirstText(incoming.version_name, existing.version_name);
+    merged.designation = keepFirstText(incoming.designation, existing.designation);
+    merged.callsign = keepFirstText(incoming.callsign, existing.callsign);
+    merged.hull_number = keepFirstText(incoming.hull_number, existing.hull_number);
+    merged.flag_country = normalizeCountryName(keepFirstText(incoming.flag_country, existing.flag_country));
+    merged.country = normalizeCountryName(keepFirstText(incoming.country, existing.country));
+    merged.operator = keepFirstText(incoming.operator, existing.operator);
+    merged.last_seen_at = Math.max(
+        Number(existing.last_seen_at || 0),
+        Number(incoming.last_seen_at || 0),
+        Date.now()
+    );
+    return merged;
+}
+
 // ─── Info panel near vessel ───────────────────────────────────────────────────
 function showNavalPanel(data, sx, sy) {
     document.getElementById("warzone-naval-panel")?.remove();
-
-    const escapeHTML = (value) => {
-        if (value === null || value === undefined) return "—";
-        return String(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;");
-    };
-
-    const formatCoord = (value) => {
-        const num = Number(value);
-        return Number.isFinite(num) ? `${num.toFixed(4)}°` : "—";
-    };
-
     const sub = data.subcategory || data.vessel_class || "naval";
     const subLabel = getNavalSubtypeLabel(sub) || "Naval Asset";
     const color = getVesselColor(sub) || "#6b7280";
-    const name = data.vessel_name || data.title || "Unknown Vessel";
-    const speed = data.speed_kts != null && Number.isFinite(Number(data.speed_kts))
-        ? `${Number(data.speed_kts).toFixed(1)} kt`
+    const name = getNavalDisplayName(data);
+    const typeLabel = getNavalTypeLabel(data);
+    const classVariantLabel = getNavalClassVariantLabel(data);
+    const designation = normalizeText(data.designation || "");
+    const speed = formatNavalSpeed(data.speed_kts);
+    const hdg = formatNavalHeading(data.heading_deg);
+    const mmsi = normalizeText(data.mmsi || data.metadata?.mmsi || "");
+    const callsign = normalizeText(data.callsign || data.metadata?.callsign || data.metadata?.call_sign || data.metadata?.callSign || "");
+    const hull = normalizeText(data.hull_number || data.metadata?.hull_number || data.metadata?.hullNumber || data.metadata?.pennant_number || data.metadata?.pennantNumber || "");
+    const country = normalizeText(data.country || data.metadata?.country || data.flag_country || data.metadata?.flag_country || "");
+    const operator = normalizeText(data.operator || data.metadata?.operator || "");
+    const lat = formatNavalCoord(data.lat);
+    const lon = formatNavalCoord(data.lon);
+    const lastUpdate = formatNavalTimeAgo(data.last_seen_at);
+    const fullTimestamp = Number.isFinite(Number(data.last_seen_at))
+        ? new Date(Number(data.last_seen_at)).toLocaleString()
         : "—";
-    const hdg = data.heading_deg != null && Number.isFinite(Number(data.heading_deg))
-        ? `${Math.round(Number(data.heading_deg))}°`
-        : "—";
-    const mmsi = data.mmsi || data.metadata?.mmsi || "—";
-    const flag = data.country || data.metadata?.country || data.flag_country || "—";
-    const operator = data.operator || data.metadata?.operator || "—";
-    const lat = formatCoord(data.lat);
-    const lon = formatCoord(data.lon);
 
     const panel = document.createElement("div");
     panel.id = "warzone-naval-panel";
@@ -1012,8 +1699,8 @@ function showNavalPanel(data, sx, sy) {
     panel.innerHTML = `
     <div class="wz-widget-naval" itemscope itemtype="https://schema.org/Vehicle">
         <header class="wz-widget-header">
-            <span class="static-dot" style="background:${escapeHTML(color)}" aria-hidden="true"></span>
-            <span class="wz-widget-kicker" aria-hidden="true">${escapeHTML(subLabel.toUpperCase())}</span>
+            <span class="static-dot" style="background:${escapeNavalHtml(color)}" aria-hidden="true"></span>
+            <span class="wz-widget-kicker" aria-hidden="true">${escapeNavalHtml(subLabel.toUpperCase())}</span>
             <div class="wz-widget-header-actions">
                 <button
                     type="button"
@@ -1028,41 +1715,63 @@ function showNavalPanel(data, sx, sy) {
 
         <section class="wz-widget-body">
             <p id="naval-asset-desc" class="sr-only">
-                Naval asset information dialog showing vessel identity, operator, speed, heading, MMSI, and coordinates.
+                Naval asset information dialog showing platform identity, country, operator, type, class, variant, speed, heading, coordinates, and last update.
             </p>
 
-            <h3 id="naval-asset-name" itemprop="name">${escapeHTML(name)}</h3>
+            <h3 id="naval-asset-name" itemprop="name">${escapeNavalHtml(name)}</h3>
 
             <ul id="naval-asset-info" class="wz-widget-data-list">
                 <li>
                     <strong>Type</strong>
-                    <span itemprop="additionalType">${escapeHTML(subLabel)}</span>
+                    <span itemprop="additionalType">${escapeNavalHtml(typeLabel || subLabel)}</span>
                 </li>
-                ${flag !== "—" ? `
+                ${classVariantLabel ? `
                 <li>
-                    <strong>Flag</strong>
-                    <span>${escapeHTML(flag)}</span>
+                    <strong>Class / Variant</strong>
+                    <span>${escapeNavalHtml(classVariantLabel)}</span>
                 </li>` : ""}
-                ${operator !== "—" ? `
+                ${designation ? `
+                <li>
+                    <strong>Designation</strong>
+                    <span>${escapeNavalHtml(designation)}</span>
+                </li>` : ""}
+                ${country ? `
+                <li>
+                    <strong>Country</strong>
+                    <span>${escapeNavalHtml(country)}</span>
+                </li>` : ""}
+                ${operator ? `
                 <li>
                     <strong>Operator</strong>
-                    <span>${escapeHTML(operator)}</span>
+                    <span>${escapeNavalHtml(operator)}</span>
                 </li>` : ""}
                 <li>
                     <strong>Speed</strong>
-                    <span>${escapeHTML(speed)}</span>
+                    <span>${escapeNavalHtml(speed)}</span>
                 </li>
                 <li>
                     <strong>Heading</strong>
-                    <span>${escapeHTML(hdg)}</span>
+                    <span>${escapeNavalHtml(hdg)}</span>
                 </li>
-                <li>
+                ${mmsi ? `<li>
                     <strong>MMSI</strong>
-                    <span>${escapeHTML(mmsi)}</span>
-                </li>
+                    <span>${escapeNavalHtml(mmsi)}</span>
+                </li>` : ""}
+                ${callsign ? `<li>
+                    <strong>Callsign</strong>
+                    <span>${escapeNavalHtml(callsign)}</span>
+                </li>` : ""}
+                ${hull ? `<li>
+                    <strong>Hull / Pennant</strong>
+                    <span>${escapeNavalHtml(hull)}</span>
+                </li>` : ""}
                 <li>
                     <strong>Lat / Lon</strong>
                     <span>${lat}, ${lon}</span>
+                </li>
+                <li>
+                    <strong>Last Update</strong>
+                    <span title="${escapeNavalHtml(fullTimestamp)}">${escapeNavalHtml(lastUpdate)}</span>
                 </li>
             </ul>
         </section>
@@ -1070,9 +1779,10 @@ function showNavalPanel(data, sx, sy) {
 
     document.body.appendChild(panel);
 
-    // Position near click, auto-adjust to stay on screen
-    const rectWidth = 448;
-    const rectHeight = 260;
+    // Position near click, auto-adjust to stay on screen.
+    const panelRect = panel.getBoundingClientRect();
+    const rectWidth = Math.ceil(panelRect.width || 448);
+    const rectHeight = Math.ceil(panelRect.height || 360);
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
@@ -1199,36 +1909,130 @@ export function upsertNavalVessel(event) {
 
     // Build a unified vessel data object from event fields
     const metadata = parseEventMetadata(event.metadata);
+    const sourceObjects = [
+        event,
+        metadata,
+        metadata.vessel,
+        metadata.ship,
+        metadata.platform,
+        metadata.details,
+    ].filter((item) => item && typeof item === "object");
     const hintText = buildVesselHintText(event, metadata);
-    const rawSubtype = event.subcategory || metadata.vessel_class || metadata.ship_class || metadata.ship_type_name || metadata.shipTypeName || "";
+    const rawSubtype = pickFirstNavalText(sourceObjects, [
+        "subcategory",
+        "subtype",
+        "vessel_class",
+        "ship_class",
+        "ship_type_name",
+        "shipTypeName",
+        "vessel_type",
+        "vesselType",
+        "vessel_category",
+        "vesselCategory",
+        "type",
+        "category",
+    ]);
     const resolvedSubtype = resolveNavalSubtype(rawSubtype, hintText);
+    const displayDetails = resolveNavalDisplayDetails(event, metadata, resolvedSubtype, hintText);
     const affiliation = resolveVesselAffiliation({
-        operator: metadata.operator || event.operator || "",
-        country: metadata.country || event.country || "",
+        operator: pickFirstNavalText(sourceObjects, [
+            "operator",
+            "owner",
+            "navy",
+            "service_branch",
+            "serviceBranch",
+            "branch",
+        ]),
+        country: pickFirstNavalText(sourceObjects, [
+            "country",
+            "flag_country",
+            "flagCountry",
+            "operator_country",
+        ]),
         hintText,
     });
-    const trackKey = event.dedupe_key || event.source_key || metadata.track_key || `naval-${event.id}`;
+    const trackKey = String(
+        event.dedupe_key ||
+        event.source_key ||
+        metadata.track_key ||
+        `naval-${event.id}`
+    ).trim();
+    if (!trackKey) return;
     const telemetryCoords = resolveNavalTelemetryCoordinates(event, metadata);
     const vesselName = normalizeText(
+        displayDetails.platform_name ||
         metadata.vessel_name ||
         metadata.name ||
         event.title?.replace(/\s*[-—]\s.*$/, "") ||
         event.title ||
         ""
     );
+    const headingDeg = pickFirstNavalNumber(sourceObjects, [
+        "heading_deg",
+        "heading",
+        "course",
+        "course_deg",
+        "courseDeg",
+        "cog",
+        "track",
+    ], 0);
+    const speedKts = pickFirstNavalNumber(sourceObjects, [
+        "speed_kts",
+        "speed_knots",
+        "speedKnots",
+        "ground_speed_kts",
+        "sog",
+        "speed",
+    ], Number.NaN);
+    const mmsi = normalizeText(pickFirstNavalText(sourceObjects, [
+        "mmsi",
+        "MMSI",
+    ]));
+    const callsign = normalizeText(pickFirstNavalText(sourceObjects, [
+        "callsign",
+        "call_sign",
+        "callSign",
+    ]));
+    const hullNumber = normalizeText(pickFirstNavalText(sourceObjects, [
+        "hull_number",
+        "hullNumber",
+        "pennant_number",
+        "pennantNumber",
+        "designation",
+    ]));
+    const designation = normalizeText(displayDetails.designation || hullNumber);
+    const flagCountry = normalizeCountryName(pickFirstNavalText(sourceObjects, [
+        "flag_country",
+        "flagCountry",
+    ]));
+    const lastSeenAt = resolveNavalLastSeenAt(event, metadata);
     const vessel = {
         track_key: trackKey,
+        platform_name: vesselName,
         vessel_name: vesselName,
-        subcategory: resolvedSubtype,
-        vessel_class: normalizeText(metadata.vessel_class || metadata.ship_class || getNavalSubtypeLabel(resolvedSubtype)),
+        subcategory: displayDetails.subtype || resolvedSubtype,
+        type_label: displayDetails.type_label || getNavalSubtypeLabel(displayDetails.subtype || resolvedSubtype),
+        class_name: displayDetails.class_name,
+        subclass_name: displayDetails.subclass_name,
+        variant_name: displayDetails.variant_name,
+        version_name: displayDetails.version_name,
+        designation,
+        vessel_class: normalizeText(displayDetails.class_name || metadata.vessel_class || metadata.ship_class || getNavalSubtypeLabel(displayDetails.subtype || resolvedSubtype)),
         lat: telemetryCoords.lat,
         lon: telemetryCoords.lon,
-        heading_deg: toFiniteNumber(metadata.heading ?? event.heading_deg ?? 0, 0),
-        speed_kts: toFiniteNumber(metadata.speed_kts ?? event.speed_kts ?? null, null),
-        mmsi: normalizeText(metadata.mmsi || metadata.MMSI || ""),
+        heading_deg: toFiniteNumber(headingDeg, 0),
+        speed_kts: Number.isFinite(speedKts) ? speedKts : null,
+        mmsi,
+        callsign,
+        hull_number: hullNumber,
+        flag_country: flagCountry,
         country: affiliation.country,
         operator: affiliation.operator,
         title: event.title || "",
+        region: normalizeText(event.region || metadata.region || ""),
+        occurred_at: normalizeText(event.occurred_at || metadata.occurred_at || ""),
+        updated_at: normalizeText(event.updated_at || metadata.updated_at || ""),
+        last_seen_at: lastSeenAt,
         metadata,
     };
 
@@ -1238,17 +2042,20 @@ export function upsertNavalVessel(event) {
     }
 
     const existing = __navalState.vessels.get(trackKey);
+    const nextVessel = existing?.data
+        ? mergeNavalVesselData(existing.data, vessel)
+        : vessel;
     const entityId = `naval-${trackKey}`;
     const sceneEntity = viewer.entities.getById(entityId);
     if (existing?.entity && sceneEntity === existing.entity) {
-        updateVesselEntity(existing.entity, vessel);
-        existing.data = vessel;
+        updateVesselEntity(existing.entity, nextVessel);
+        existing.data = nextVessel;
     } else if (sceneEntity) {
-        updateVesselEntity(sceneEntity, vessel);
-        __navalState.vessels.set(trackKey, { entity: sceneEntity, data: vessel });
+        updateVesselEntity(sceneEntity, nextVessel);
+        __navalState.vessels.set(trackKey, { entity: sceneEntity, data: nextVessel });
     } else {
-        const entity = createVesselEntity(viewer, vessel);
-        __navalState.vessels.set(trackKey, { entity, data: vessel });
+        const entity = createVesselEntity(viewer, nextVessel);
+        __navalState.vessels.set(trackKey, { entity, data: nextVessel });
     }
 
     requestNavalRenderBatched();
@@ -1258,6 +2065,7 @@ export function upsertNavalVessel(event) {
 // ─── Public: clear vessel ─────────────────────────────────────────────────────
 export function clearNavalVessel(trackKey) {
     const viewer = window.__warzoneViewer;
+    const cacheKey = String(trackKey || "").trim();
     const entry = __navalState.vessels.get(trackKey);
     if (entry?.entity?.__navalAnimFrame) {
         cancelAnimationFrame(entry.entity.__navalAnimFrame);
@@ -1265,6 +2073,9 @@ export function clearNavalVessel(trackKey) {
     }
     if (entry?.entity && viewer) viewer.entities.remove(entry.entity);
     __navalState.vessels.delete(trackKey);
+    if (cacheKey) {
+        __navalIconCodeCache.delete(cacheKey);
+    }
     if (__navalState.selectedKey === trackKey) clearNavalSelection();
     requestNavalRenderBatched();
 }
@@ -1275,6 +2086,8 @@ export function getAllNavalSnapshots() {
     return [...__navalState.vessels.values()]
         .map(v => v.data)
         .sort((a, b) => {
+            const seenDiff = Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0);
+            if (seenDiff !== 0) return seenDiff;
             const priorityDiff = getNavalPriority(a.subcategory) - getNavalPriority(b.subcategory);
             if (priorityDiff !== 0) return priorityDiff;
             const nameA = normalizeText(a.vessel_name || a.title || "");
@@ -1306,25 +2119,47 @@ export function renderNavalTrackerWidget(options = {}) {
         return;
     }
 
-    container.innerHTML = safeVessels.slice(0, 20).map(v => {
-        const color = getVesselColor(v.subcategory);
-        const name = v.vessel_name || v.title || "Unknown Vessel";
-        const sub = getNavalSubtypeLabel(v.subcategory).toUpperCase();
-        const speed = v.speed_kts != null ? `${Number(v.speed_kts).toFixed(0)} kt` : "";
-        const operator = normalizeText(v.operator || "");
-        const flag = v.country ? `${v.country}` : "";
-
-        return `<div class="wz-aircraft-item wz-naval-item" data-track-key="${v.track_key}" style="cursor:pointer" onclick="window.__navalFocusVessel?.('${v.track_key}')">
+    const selectedKey = String(__navalState.selectedKey || "");
+    const cards = safeVessels.slice(0, 24).map((vessel) => {
+        const color = getVesselColor(vessel.subcategory);
+        const name = getNavalDisplayName(vessel);
+        const typeBadge = getNavalSubtypeLabel(vessel.subcategory).toUpperCase();
+        const detailLabel = getNavalWidgetDetailLabel(vessel);
+        const affiliationLabel = getNavalWidgetCountryOperatorLabel(vessel);
+        const speedLabel = formatNavalSpeed(vessel.speed_kts);
+        const headingLabel = formatNavalHeading(vessel.heading_deg);
+        const coordLabel = getNavalCoordinatesLabel(vessel);
+        const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
+        const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
+        return `<article class="wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}" data-track-key="${escapeNavalHtml(vessel.track_key)}" style="cursor:pointer" onclick="window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
             <div class="wz-aircraft-item__top">
-                <span class="wz-aircraft-badge" style="background:${color}22;color:${color};border-color:${color}44">${sub}</span>
-                <span class="wz-aircraft-title">
-                    <strong class="wz-aircraft-title__name">${name}</strong>
-                    ${flag ? `<span class="wz-aircraft-title__status">${flag}</span>` : ""}
-                </span>
+                <strong class="wz-aircraft-item__title">
+                    <span class="wz-aircraft-title__status is-active" aria-hidden="true">
+                        <span class="bx-web-ico-status-1-0" aria-hidden="true"></span>
+                    </span>
+                    <span class="wz-aircraft-title__text">${escapeNavalHtml(name)}</span>
+                </strong>
+                <span class="wz-aircraft-item__time">${escapeNavalHtml(timeLabel)}</span>
             </div>
-            ${(speed || operator) ? `<div class="wz-aircraft-item__stats">${speed ? `<span>${speed}</span>` : ""}${operator ? `<span>${operator}</span>` : ""}</div>` : ""}
-        </div>`;
-    }).join("");
+            <div class="wz-aircraft-item__meta">
+                <span>${escapeNavalHtml(detailLabel)}</span>
+                <span>${escapeNavalHtml(affiliationLabel)}</span>
+            </div>
+            <div class="wz-aircraft-item__stats">
+                <span>${escapeNavalHtml(speedLabel)}</span>
+                <span>${escapeNavalHtml(headingLabel)}</span>
+                <span>${escapeNavalHtml(coordLabel)}</span>
+            </div>
+            <div class="wz-aircraft-item__foot">
+                <span class="wz-aircraft-badge" style="background:${escapeNavalHtml(color)}22;color:${escapeNavalHtml(color)};border-color:${escapeNavalHtml(color)}44">${escapeNavalHtml(typeBadge)}</span>
+                <button type="button" class="wz-aircraft-action btn-primary" onclick="event.stopPropagation(); window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
+                    <span aria-hidden="true"></span>
+                    ${isSelected ? "Tracked" : "Focus"}
+                </button>
+            </div>
+        </article>`;
+    });
+    container.innerHTML = cards.join("");
 }
 
 // ─── Global focus helper (called from widget onclick) ─────────────────────────

@@ -1175,77 +1175,148 @@ export function initDevPanel() {
 }
 
 
-/* ================= AIRCRAFT CALIBRATION MODE (GULF + LIVE TUNER) ================= */
+/* ================= AIRCRAFT CALIBRATION MODE (INLAND + LIVE TUNER) ================= */
 
-const DEV_AIRCRAFT_CALIBRATION = {
-    fighter: {
+const DEV_AIRCRAFT_CALIBRATION_CODES = [
+    "aw-1", "aw-2", "aw-3",
+    "bb-1", "bb-2",
+    "dd-1",
+    "ff-1", "ff-2", "ff-3", "ff-4", "ff-5",
+    "hh-1", "hh-2",
+    "rr-1",
+    "tn-1", "tn-2",
+    "tp-1", "tp-2",
+];
+const DEV_AIRCRAFT_CALIBRATION_LABELS = Object.freeze({
+    "aw-1": "AW-1",
+    "aw-2": "AW-2",
+    "aw-3": "AW-3",
+    "bb-1": "BB-1",
+    "bb-2": "BB-2",
+    "dd-1": "DD-1",
+    "ff-1": "FF-1",
+    "ff-2": "FF-2",
+    "ff-3": "FF-3",
+    "ff-4": "FF-4",
+    "ff-5": "FF-5",
+    "hh-1": "HH-1",
+    "hh-2": "HH-2",
+    "rr-1": "RR-1",
+    "tn-1": "TN-1",
+    "tn-2": "TN-2",
+    "tp-1": "TP-1",
+    "tp-2": "TP-2",
+});
+const DEV_CALIBRATION_GRID_COLUMNS = 10;
+const DEV_CALIBRATION_GRID_BASE_LAT = 23.8;
+const DEV_CALIBRATION_GRID_BASE_LON = 43.4;
+const DEV_CALIBRATION_GRID_LAT_STEP = 0.32;
+const DEV_CALIBRATION_GRID_LON_STEP = 0.55;
+
+function getCalibrationGridSlot(index = 0) {
+    const safeIndex = Math.max(0, Number(index) || 0);
+    const row = Math.floor(safeIndex / DEV_CALIBRATION_GRID_COLUMNS);
+    const col = safeIndex % DEV_CALIBRATION_GRID_COLUMNS;
+    return {
+        lat: DEV_CALIBRATION_GRID_BASE_LAT + (row * DEV_CALIBRATION_GRID_LAT_STEP),
+        lon: DEV_CALIBRATION_GRID_BASE_LON + (col * DEV_CALIBRATION_GRID_LON_STEP),
+    };
+}
+function buildAircraftCalibrationDefaults(code = "ff-1") {
+    void code;
+    return {
         headingOffset: -90,
         pitch: 0,
         roll: 0,
-        scale: 44,
-        minimumPixelSize: 66,
-        maximumScale: 340,
-        tailOffset: 580,
-    },
-    awacs: {
-        headingOffset: -150,
-        pitch: 19,
-        roll: 0,
-        scale: 232,
-        minimumPixelSize: 89,
-        maximumScale: 1680,
-        tailOffset: 1200,
-    },
-    recon: {
-        headingOffset: -90,
-        pitch: 0,
-        roll: 0,
-        scale: 14,
-        minimumPixelSize: 120,
-        maximumScale: 220,
-        tailOffset: 500,
-    },
-    tanker: {
-        headingOffset: -90,
-        pitch: 0,
-        roll: 0,
-        scale: 18,
-        minimumPixelSize: 120,
-        maximumScale: 220,
-        tailOffset: 700,
-    },
-    transport: {
-        headingOffset: -90,
-        pitch: 0,
-        roll: 0,
-        scale: 20,
-        minimumPixelSize: 120,
-        maximumScale: 220,
-        tailOffset: 750,
-    },
-    drone: {
-        headingOffset: -90,
-        pitch: 0,
-        roll: 0,
-        scale: 246,
-        minimumPixelSize: 76,
-        maximumScale: 1870,
-        tailOffset: 400,
-    },
-};
+        scale: 1,
+        minimumPixelSize: 90,
+        maximumScale: 1200,
+        tailOffset: 600,
+    };
+}
+const DEV_AIRCRAFT_CALIBRATION = Object.fromEntries(
+    DEV_AIRCRAFT_CALIBRATION_CODES.map((code) => [code, buildAircraftCalibrationDefaults(code)])
+);
+function getSharedAircraftCalibrationConfig() {
+    const primaryCode = DEV_AIRCRAFT_CALIBRATION_CODES[0] || "ff-1";
+    if (!DEV_AIRCRAFT_CALIBRATION[primaryCode]) {
+        DEV_AIRCRAFT_CALIBRATION[primaryCode] = buildAircraftCalibrationDefaults(primaryCode);
+    }
+    return DEV_AIRCRAFT_CALIBRATION[primaryCode];
+}
+function applySharedAircraftCalibrationToAll(patch = {}) {
+    Object.values(DEV_AIRCRAFT_CALIBRATION).forEach((cfg) => {
+        if (!cfg || typeof cfg !== "object") return;
+        Object.assign(cfg, patch);
+    });
+}
+function resetAircraftCalibrationValues() {
+    DEV_AIRCRAFT_CALIBRATION_CODES.forEach((code) => {
+        DEV_AIRCRAFT_CALIBRATION[code] = buildAircraftCalibrationDefaults(code);
+    });
+}
 
 let __devCalibrationEntities = [];
+const DEV_AIRCRAFT_CALIBRATION_FOCUS_RANGE_METERS = 95000;
+const DEV_AIRCRAFT_CALIBRATION_FOCUS_PITCH_DEG = -89;
+const DEV_AIRCRAFT_CALIBRATION_FOCUS_HEADING_DEG = 0;
+
+function getCalibrationModelWhiteningConfig() {
+    const styles = getComputedStyle(document.documentElement);
+    const whiteness = Number.parseFloat(styles.getPropertyValue("--warzone-live-aircraft-model-whiteness"));
+    const alpha = Number.parseFloat(styles.getPropertyValue("--warzone-live-aircraft-model-color-alpha"));
+    const blendAmount = Number.parseFloat(styles.getPropertyValue("--warzone-live-aircraft-model-color-blend-amount"));
+    return {
+        alpha: Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 0.96,
+        blendAmount: Number.isFinite(whiteness)
+            ? Math.max(0, Math.min(1, whiteness))
+            : (Number.isFinite(blendAmount) ? Math.max(0, Math.min(1, blendAmount)) : 0.42),
+    };
+}
+
+function applyCalibrationModelWhitening(model) {
+    if (!model) return;
+    const tint = getCalibrationModelWhiteningConfig();
+    model.color = Cesium.Color.WHITE.withAlpha(tint.alpha);
+    model.colorBlendMode = Cesium.ColorBlendMode.MIX;
+    model.colorBlendAmount = tint.blendAmount;
+}
 
 function getModelUriBySubtype(subtype) {
+    const modelBase = "/assets/images/models/air";
+    const modelFilePrefix = "model-aircraft-";
+    const normalized = String(subtype || "").trim().toLowerCase();
     const map = {
-        fighter: "/assets/images/models/air/fighter.glb",
-        awacs: "/assets/images/models/air/awacs.glb",
-        recon: "/assets/images/models/air/uav.glb",
-        tanker: "/assets/images/models/air/fighter-1.glb",
-        transport: "/assets/images/models/air/fighter-1.glb",
-        drone: "/assets/images/models/air/uav.glb",
+        "aw-1": "aw-1",
+        "aw-2": "aw-2",
+        "aw-3": "aw-3",
+        "bb-1": "bb-1",
+        "bb-2": "bb-2",
+        "dd-1": "dd-1",
+        "ff-1": "ff-1",
+        "ff-2": "ff-2",
+        "ff-3": "ff-3",
+        "ff-4": "ff-4",
+        "ff-5": "ff-5",
+        "hh-1": "hh-1",
+        "hh-2": "hh-2",
+        "rr-1": "rr-1",
+        "tn-1": "tn-1",
+        "tn-2": "tn-2",
+        "tp-1": "tp-1",
+        "tp-2": "tp-2",
+        bomber: "bb-1",
+        fighter: "ff-1",
+        awacs: "aw-1",
+        recon: "aw-2",
+        tanker: "tn-2",
+        transport: "tp-2",
+        drone: "dd-1",
+        uav: "dd-1",
+        helicopter: "hh-1",
     };
-    return map[subtype] || map.fighter;
+    const code = map[normalized] || "ff-1";
+    return `${modelBase}/${modelFilePrefix}${code}.glb`;
 }
 
 function createCalibrationLine(viewer, position, headingDeg, lengthMeters = 8000) {
@@ -1276,18 +1347,8 @@ function createCalibrationLine(viewer, position, headingDeg, lengthMeters = 8000
 }
 
 function createCalibrationAircraft(viewer, subtype, config, index) {
-    const calibrationSlots = [
-        { lat: 26.50, lon: 50.00 }, // fighter
-        { lat: 26.52, lon: 50.20 }, // awacs
-        { lat: 26.54, lon: 50.40 }, // recon
-        { lat: 26.50, lon: 50.60 }, // tanker
-        { lat: 26.48, lon: 50.80 }, // transport
-        { lat: 26.52, lon: 51.00 }, // drone
-    ];
-    const slot = calibrationSlots[index] || {
-        lat: 26.2,
-        lon: 49.6 + (index * 1.5),
-    };
+    // All calibration models use inland grid slots (10 per row) for easier visual tuning.
+    const slot = getCalibrationGridSlot(index);
     const position = Cesium.Cartesian3.fromDegrees(slot.lon, slot.lat, 12000);
 
     const hpr = new Cesium.HeadingPitchRoll(
@@ -1302,9 +1363,9 @@ function createCalibrationAircraft(viewer, subtype, config, index) {
         orientation: Cesium.Transforms.headingPitchRollQuaternion(position, hpr),
         model: {
             uri: getModelUriBySubtype(subtype),
-            scale: Number(config.scale ?? 16),
-            minimumPixelSize: Number(config.minimumPixelSize ?? 120),
-            maximumScale: Number(config.maximumScale ?? 220),
+            scale: Number(config.scale ?? 1),
+            minimumPixelSize: Number(config.minimumPixelSize ?? 90),
+            maximumScale: Number(config.maximumScale ?? 1200),
         },
         label: {
             text: subtype.toUpperCase(),
@@ -1316,6 +1377,7 @@ function createCalibrationAircraft(viewer, subtype, config, index) {
 
     entity.__isCalibrationAircraft = true;
     entity.__subtype = subtype;
+    applyCalibrationModelWhitening(entity.model);
 
     const line = createCalibrationLine(viewer, position, 0);
     if (line) {
@@ -1329,9 +1391,83 @@ function createCalibrationAircraft(viewer, subtype, config, index) {
     return entity;
 }
 
+async function copyTextToClipboard(text = "") {
+    const payload = String(text || "");
+    if (!payload) return false;
+    if (navigator?.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(payload);
+            return true;
+        } catch {
+            // Fallback below.
+        }
+    }
+    try {
+        const textarea = document.createElement("textarea");
+        textarea.value = payload;
+        textarea.setAttribute("readonly", "readonly");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-99999px";
+        textarea.style.top = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        return copied;
+    } catch {
+        return false;
+    }
+}
+function showCopyButtonFeedback(button, ok = true) {
+    if (!button) return;
+    const defaultLabel = button.dataset.defaultLabel || button.textContent || "Copy Config";
+    button.dataset.defaultLabel = defaultLabel;
+    button.textContent = ok ? "Copied" : "Copy Failed";
+    button.disabled = true;
+    window.setTimeout(() => {
+        button.textContent = defaultLabel;
+        button.disabled = false;
+    }, 900);
+}
+function buildAircraftCalibrationCopySnippet(subtype = "ff-1") {
+    void subtype;
+    const cfg = getSharedAircraftCalibrationConfig();
+    const whiteness = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--warzone-live-aircraft-model-whiteness"));
+    const nextWhiteness = Number.isFinite(whiteness) ? Math.max(0, Math.min(1, whiteness)) : 0.28;
+    return [
+        `/* Aircraft Calibration: ${subtype.toUpperCase()} */`,
+        ":root {",
+        `  --warzone-live-aircraft-model-whiteness: ${nextWhiteness.toFixed(2)};`,
+        `  --warzone-live-aircraft-model-scale: ${Number(cfg.scale ?? 1)};`,
+        `  --warzone-live-aircraft-model-scale-zoom-in: ${Number(cfg.scale ?? 1)};`,
+        `  --warzone-live-aircraft-model-scale-zoom-out: ${Number(cfg.scale ?? 1)};`,
+        `  --warzone-live-aircraft-model-min-pixel-size: ${Number(cfg.minimumPixelSize ?? 90)};`,
+        `  --warzone-live-aircraft-model-max-scale: ${Number(cfg.maximumScale ?? 1200)};`,
+        `  --warzone-live-aircraft-model-heading-offset-default: ${Number(cfg.headingOffset ?? 0)};`,
+        `  --warzone-live-aircraft-model-pitch-offset-default: ${Number(cfg.pitch ?? 0)};`,
+        `  --warzone-live-aircraft-model-roll-offset-default: ${Number(cfg.roll ?? 0)};`,
+        "}",
+    ].join("\n");
+}
+function buildNavalCalibrationCopySnippet(subtype = "ns-2") {
+    const cfg = DEV_NAVAL_CALIBRATION[subtype] || {};
+    return [
+        `/* Naval Calibration: ${subtype.toUpperCase()} */`,
+        ":root {",
+        `  --warzone-live-naval-model-scale: ${Number(cfg.scale ?? 120)};`,
+        "}",
+        "",
+        `// Heading Offset (${subtype}): ${Number(cfg.headingOffset ?? 0)}`,
+        `// Min Pixel (${subtype}): ${Number(cfg.minimumPixelSize ?? 90)}`,
+        `// Max Scale (${subtype}): ${Number(cfg.maximumScale ?? 1200)}`,
+    ].join("\n");
+}
+
 function clearCalibration(viewer) {
-    if (!viewer) return;
-    __devCalibrationEntities.forEach((entity) => viewer.entities.remove(entity));
+    if (viewer) {
+        __devCalibrationEntities.forEach((entity) => viewer.entities.remove(entity));
+    }
     __devCalibrationEntities = [];
     const tuner = document.getElementById("wz-aircraft-tuner");
     if (tuner) tuner.style.display = "none";
@@ -1360,23 +1496,31 @@ function ensureAircraftTunerUI() {
     ].join(";");
 
     panel.innerHTML = `
-        <div style="font-weight:700;letter-spacing:.04em;margin-bottom:10px;">AIRCRAFT TUNER</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-weight:700;letter-spacing:.04em;">AIRCRAFT TUNER</div>
+            <button id="wz-tuner-close" type="button" aria-label="Close Aircraft Tuner" style="padding:2px 8px;cursor:pointer;line-height:1;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;border-radius:4px;">X</button>
+        </div>
 
         <label style="display:block;margin-bottom:8px;">
             <div style="margin-bottom:4px;">Aircraft</div>
             <select id="wz-tuner-type" style="width:100%;padding:6px;">
-                <option value="fighter">Fighter</option>
-                <option value="awacs">AWACS</option>
-                <option value="recon">Recon</option>
-                <option value="tanker">Tanker</option>
-                <option value="transport">Transport</option>
-                <option value="drone">Drone</option>
+                ${DEV_AIRCRAFT_CALIBRATION_CODES.map((code) => `<option value="${code}">${DEV_AIRCRAFT_CALIBRATION_LABELS[code] || code.toUpperCase()}</option>`).join("")}
             </select>
         </label>
 
         <label style="display:block;margin-bottom:8px;">
             <div style="display:flex;justify-content:space-between;"><span>Heading</span><strong id="wz-tuner-heading-value">0</strong></div>
             <input id="wz-tuner-heading" type="range" min="-180" max="180" step="1" style="width:100%;" />
+        </label>
+
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Pitch</span><strong id="wz-tuner-pitch-value">0</strong></div>
+            <input id="wz-tuner-pitch" type="range" min="-90" max="90" step="1" style="width:100%;" />
+        </label>
+
+        <label style="display:block;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;"><span>Roll</span><strong id="wz-tuner-roll-value">0</strong></div>
+            <input id="wz-tuner-roll" type="range" min="-90" max="90" step="1" style="width:100%;" />
         </label>
 
         <label style="display:block;margin-bottom:8px;">
@@ -1394,6 +1538,12 @@ function ensureAircraftTunerUI() {
             <input id="wz-tuner-max" type="range" min="50" max="10000" step="10" style="width:100%;" />
         </label>
 
+        <label style="display:block;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;"><span>Whiteness (All)</span><strong id="wz-tuner-whiteness-value">0</strong></div>
+            <input id="wz-tuner-whiteness" type="range" min="0" max="1" step="0.01" style="width:100%;" />
+        </label>
+
+        <button id="wz-tuner-zoom-focus" type="button" style="width:100%;padding:8px 10px;cursor:pointer;margin-bottom:8px;">Zoom Focus Level</button>
         <button id="wz-tuner-log" type="button" style="width:100%;padding:8px 10px;cursor:pointer;">Copy Config</button>
     `;
 
@@ -1402,35 +1552,53 @@ function ensureAircraftTunerUI() {
 }
 
 function getTunerSubtype() {
-    return document.getElementById("wz-tuner-type")?.value || "fighter";
+    return document.getElementById("wz-tuner-type")?.value || "ff-1";
 }
 
 function refreshTunerReadouts() {
     const heading = document.getElementById("wz-tuner-heading");
+    const pitch = document.getElementById("wz-tuner-pitch");
+    const roll = document.getElementById("wz-tuner-roll");
     const scale = document.getElementById("wz-tuner-scale");
     const min = document.getElementById("wz-tuner-min");
     const max = document.getElementById("wz-tuner-max");
+    const whiteness = document.getElementById("wz-tuner-whiteness");
 
     if (heading) document.getElementById("wz-tuner-heading-value").textContent = heading.value;
+    if (pitch) document.getElementById("wz-tuner-pitch-value").textContent = pitch.value;
+    if (roll) document.getElementById("wz-tuner-roll-value").textContent = roll.value;
     if (scale) document.getElementById("wz-tuner-scale-value").textContent = scale.value;
     if (min) document.getElementById("wz-tuner-min-value").textContent = min.value;
     if (max) document.getElementById("wz-tuner-max-value").textContent = max.value;
+    if (whiteness) document.getElementById("wz-tuner-whiteness-value").textContent = Number(whiteness.value).toFixed(2);
 }
 
 function loadTunerValues() {
     const subtype = getTunerSubtype();
     const cfg = DEV_AIRCRAFT_CALIBRATION[subtype];
     if (!cfg) return;
+    const sharedCfg = getSharedAircraftCalibrationConfig();
 
     const heading = document.getElementById("wz-tuner-heading");
+    const pitch = document.getElementById("wz-tuner-pitch");
+    const roll = document.getElementById("wz-tuner-roll");
     const scale = document.getElementById("wz-tuner-scale");
     const min = document.getElementById("wz-tuner-min");
     const max = document.getElementById("wz-tuner-max");
+    const whiteness = document.getElementById("wz-tuner-whiteness");
+    const cssWhiteness = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--warzone-live-aircraft-model-whiteness"));
+    const cssBlendFallback = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--warzone-live-aircraft-model-color-blend-amount"));
+    const nextWhiteness = Number.isFinite(cssWhiteness)
+        ? Math.max(0, Math.min(1, cssWhiteness))
+        : (Number.isFinite(cssBlendFallback) ? Math.max(0, Math.min(1, cssBlendFallback)) : 0.28);
 
-    if (heading) heading.value = Number(cfg.headingOffset ?? 0);
-    if (scale) scale.value = Number(cfg.scale ?? 16);
-    if (min) min.value = Number(cfg.minimumPixelSize ?? 120);
-    if (max) max.value = Number(cfg.maximumScale ?? 220);
+    if (heading) heading.value = Number(sharedCfg.headingOffset ?? cfg.headingOffset ?? 0);
+    if (pitch) pitch.value = Number(sharedCfg.pitch ?? cfg.pitch ?? 0);
+    if (roll) roll.value = Number(sharedCfg.roll ?? cfg.roll ?? 0);
+    if (scale) scale.value = Number(sharedCfg.scale ?? cfg.scale ?? 1);
+    if (min) min.value = Number(sharedCfg.minimumPixelSize ?? cfg.minimumPixelSize ?? 90);
+    if (max) max.value = Number(sharedCfg.maximumScale ?? cfg.maximumScale ?? 1200);
+    if (whiteness) whiteness.value = nextWhiteness.toFixed(2);
 
     refreshTunerReadouts();
 }
@@ -1438,6 +1606,7 @@ function loadTunerValues() {
 function applyAircraftCalibrationConfig() {
     const viewer = window.__warzoneViewer;
     if (!viewer || !Array.isArray(__devCalibrationEntities)) return;
+    const sharedCfg = getSharedAircraftCalibrationConfig();
 
     __devCalibrationEntities.forEach((entity) => {
         if (!entity || !entity.__isCalibrationAircraft) return;
@@ -1452,16 +1621,17 @@ function applyAircraftCalibrationConfig() {
         entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
             position,
             new Cesium.HeadingPitchRoll(
-                Cesium.Math.toRadians(Number(config.headingOffset || 0)),
-                Cesium.Math.toRadians(Number(config.pitch || 0)),
-                Cesium.Math.toRadians(Number(config.roll || 0))
+                Cesium.Math.toRadians(Number(sharedCfg.headingOffset || 0)),
+                Cesium.Math.toRadians(Number(sharedCfg.pitch || 0)),
+                Cesium.Math.toRadians(Number(sharedCfg.roll || 0))
             )
         );
 
         if (entity.model) {
-            entity.model.scale = Number(config.scale ?? 16);
-            entity.model.minimumPixelSize = Number(config.minimumPixelSize ?? 120);
-            entity.model.maximumScale = Number(config.maximumScale ?? 220);
+            entity.model.scale = Number(sharedCfg.scale ?? 1);
+            entity.model.minimumPixelSize = Number(sharedCfg.minimumPixelSize ?? 90);
+            entity.model.maximumScale = Number(sharedCfg.maximumScale ?? 1200);
+            applyCalibrationModelWhitening(entity.model);
         }
     });
 
@@ -1475,21 +1645,64 @@ function applyTunerValues() {
     if (!cfg) return;
 
     const heading = document.getElementById("wz-tuner-heading");
+    const pitch = document.getElementById("wz-tuner-pitch");
+    const roll = document.getElementById("wz-tuner-roll");
     const scale = document.getElementById("wz-tuner-scale");
     const min = document.getElementById("wz-tuner-min");
     const max = document.getElementById("wz-tuner-max");
+    const whiteness = document.getElementById("wz-tuner-whiteness");
 
-    if (heading) cfg.headingOffset = Number(heading.value);
-    if (scale) cfg.scale = Number(scale.value);
-    if (min) cfg.minimumPixelSize = Number(min.value);
-    if (max) cfg.maximumScale = Number(max.value);
+    if (heading) applySharedAircraftCalibrationToAll({ headingOffset: Number(heading.value) });
+    if (pitch) applySharedAircraftCalibrationToAll({ pitch: Number(pitch.value) });
+    if (roll) applySharedAircraftCalibrationToAll({ roll: Number(roll.value) });
+    if (scale) applySharedAircraftCalibrationToAll({ scale: Number(scale.value) });
+    if (min) applySharedAircraftCalibrationToAll({ minimumPixelSize: Number(min.value) });
+    if (max) applySharedAircraftCalibrationToAll({ maximumScale: Number(max.value) });
+    const sharedCfg = getSharedAircraftCalibrationConfig();
+    const globalWhiteness = whiteness
+        ? Math.max(0, Math.min(1, Number(whiteness.value)))
+        : 0.28;
 
-    // Live renderer keeps one shared aircraft model scale as requested.
-    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale", String(Number(cfg.scale || 16)));
-    document.documentElement.style.setProperty("--warzone-live-track-scale", String(Number(cfg.scale || 16)));
-    setAircraftModelHeadingOffset(subtype, Number(cfg.headingOffset || 0));
+    // Live renderer keeps one shared aircraft model scale band as requested.
+    const sharedScale = Number(sharedCfg.scale || 1);
+    const sharedMinPixel = Number(sharedCfg.minimumPixelSize || 90);
+    const sharedMaxScale = Number(sharedCfg.maximumScale || 1200);
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale", String(sharedScale));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale-zoom-in", String(sharedScale));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale-zoom-out", String(sharedScale));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-min-pixel-size", String(sharedMinPixel));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-max-scale", String(sharedMaxScale));
+    // Backward-compatible aliases used by older live-track style lookups.
+    document.documentElement.style.setProperty("--warzone-live-track-min-pixel-size", String(sharedMinPixel));
+    document.documentElement.style.setProperty("--warzone-live-track-max-scale", String(sharedMaxScale));
+    // One global control for all live aircraft model tint.
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-whiteness", String(globalWhiteness));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-color-blend-amount", String(globalWhiteness));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-heading-offset-default", String(Number(sharedCfg.headingOffset || 0)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-pitch-offset-default", String(Number(sharedCfg.pitch || 0)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-roll-offset-default", String(Number(sharedCfg.roll || 0)));
+    setAircraftModelHeadingOffset("default", Number(sharedCfg.headingOffset || 0));
 
     applyAircraftCalibrationConfig();
+}
+
+function zoomAircraftCalibrationToFocusLevel() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer) return;
+    const subtype = getTunerSubtype();
+    const target = __devCalibrationEntities.find(
+        (entity) => entity?.__isCalibrationAircraft && entity.__subtype === subtype
+    );
+    if (!target) return;
+    viewer.camera.cancelFlight?.();
+    viewer.flyTo(target, {
+        duration: 0.9,
+        offset: new Cesium.HeadingPitchRange(
+            Cesium.Math.toRadians(DEV_AIRCRAFT_CALIBRATION_FOCUS_HEADING_DEG),
+            Cesium.Math.toRadians(DEV_AIRCRAFT_CALIBRATION_FOCUS_PITCH_DEG),
+            DEV_AIRCRAFT_CALIBRATION_FOCUS_RANGE_METERS
+        ),
+    });
 }
 
 function bindAircraftTunerUI() {
@@ -1499,13 +1712,22 @@ function bindAircraftTunerUI() {
 
     document.getElementById("wz-tuner-type")?.addEventListener("change", loadTunerValues);
     document.getElementById("wz-tuner-heading")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-pitch")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-roll")?.addEventListener("input", applyTunerValues);
     document.getElementById("wz-tuner-scale")?.addEventListener("input", applyTunerValues);
     document.getElementById("wz-tuner-min")?.addEventListener("input", applyTunerValues);
     document.getElementById("wz-tuner-max")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-whiteness")?.addEventListener("input", applyTunerValues);
+    document.getElementById("wz-tuner-zoom-focus")?.addEventListener("click", zoomAircraftCalibrationToFocusLevel);
+    document.getElementById("wz-tuner-close")?.addEventListener("click", () => {
+        clearCalibration(window.__warzoneViewer);
+    });
 
-    document.getElementById("wz-tuner-log")?.addEventListener("click", () => {
+    document.getElementById("wz-tuner-log")?.addEventListener("click", async (event) => {
         const subtype = getTunerSubtype();
-        console.log(subtype, JSON.stringify(DEV_AIRCRAFT_CALIBRATION[subtype] || {}, null, 2));
+        const text = buildAircraftCalibrationCopySnippet(subtype);
+        const ok = await copyTextToClipboard(text);
+        showCopyButtonFeedback(event.currentTarget, ok);
     });
 }
 
@@ -1514,12 +1736,24 @@ function startAircraftCalibration() {
     if (!viewer) return;
 
     clearCalibration(viewer);
+    resetAircraftCalibrationValues();
 
     let i = 0;
     for (const subtype in DEV_AIRCRAFT_CALIBRATION) {
         createCalibrationAircraft(viewer, subtype, DEV_AIRCRAFT_CALIBRATION[subtype], i++);
-        setAircraftModelHeadingOffset(subtype, Number(DEV_AIRCRAFT_CALIBRATION[subtype]?.headingOffset || 0));
     }
+    const sharedCfg = getSharedAircraftCalibrationConfig();
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale", String(Number(sharedCfg.scale || 1)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale-zoom-in", String(Number(sharedCfg.scale || 1)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-scale-zoom-out", String(Number(sharedCfg.scale || 1)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-min-pixel-size", String(Number(sharedCfg.minimumPixelSize || 90)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-max-scale", String(Number(sharedCfg.maximumScale || 1200)));
+    document.documentElement.style.setProperty("--warzone-live-track-min-pixel-size", String(Number(sharedCfg.minimumPixelSize || 90)));
+    document.documentElement.style.setProperty("--warzone-live-track-max-scale", String(Number(sharedCfg.maximumScale || 1200)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-heading-offset-default", String(Number(sharedCfg.headingOffset || 0)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-pitch-offset-default", String(Number(sharedCfg.pitch || 0)));
+    document.documentElement.style.setProperty("--warzone-live-aircraft-model-roll-offset-default", String(Number(sharedCfg.roll || 0)));
+    setAircraftModelHeadingOffset("default", Number(sharedCfg.headingOffset || 0));
 
     const tuner = ensureAircraftTunerUI();
     bindAircraftTunerUI();
@@ -1528,7 +1762,7 @@ function startAircraftCalibration() {
 
     viewer.camera.cancelFlight?.();
     viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(53.4, 26.1, 1350000),
+        destination: Cesium.Cartesian3.fromDegrees(45.9, 24.15, 1200000),
         orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-78),
@@ -1538,7 +1772,7 @@ function startAircraftCalibration() {
     });
 
     console.log("=== AIRCRAFT CALIBRATION ACTIVE ===");
-    console.log("Calibration aircraft moved to Gulf / Middle East.");
+    console.log("Aircraft calibration grid loaded on inland terrain (10 columns per row).");
     viewer.scene.requestRender();
 }
 
@@ -1554,37 +1788,89 @@ document.addEventListener("click", (e) => {
 });
 
 /* ================= NAVAL CALIBRATION MODE ================= */
-const DEV_NAVAL_CALIBRATION = {
-    carrier: { headingOffset: 0, scale: 130, minimumPixelSize: 90, maximumScale: 1200 },
-    destroyer: { headingOffset: 0, scale: 130, minimumPixelSize: 90, maximumScale: 1200 },
-    frigate: { headingOffset: 0, scale: 130, minimumPixelSize: 90, maximumScale: 1200 },
-    submarine: { headingOffset: 0, scale: 118, minimumPixelSize: 90, maximumScale: 1200 },
-    ssn: { headingOffset: 0, scale: 118, minimumPixelSize: 90, maximumScale: 1200 },
-    ssbn: { headingOffset: 0, scale: 118, minimumPixelSize: 90, maximumScale: 1200 },
-};
+const DEV_NAVAL_CALIBRATION_CODES = [
+    "ac-us-1",
+    "ac-cn-1",
+    "ac-uk-1",
+    "ac-rs-1",
+    "hc-1",
+    "ni-1",
+    "ns-1",
+    "ns-2",
+    "ns-3",
+    "sb-1",
+];
+const DEV_NAVAL_CALIBRATION_LABELS = Object.freeze({
+    "ac-us-1": "AC-US-1",
+    "ac-cn-1": "AC-CN-1",
+    "ac-uk-1": "AC-UK-1",
+    "ac-rs-1": "AC-RS-1",
+    "hc-1": "HC-1",
+    "ni-1": "NI-1",
+    "ns-1": "NS-1",
+    "ns-2": "NS-2",
+    "ns-3": "NS-3",
+    "sb-1": "SB-1",
+});
+const DEV_NAVAL_LIVE_SUBTYPE_BY_CODE = Object.freeze({
+    "ac-us-1": "carrier",
+    "ac-cn-1": "carrier",
+    "ac-uk-1": "carrier",
+    "ac-rs-1": "carrier",
+    "hc-1": "amphibious",
+    "ni-1": "intelligence",
+    "ns-1": "patrol",
+    "ns-2": "naval",
+    "ns-3": "logistics",
+    "sb-1": "submarine",
+});
+const DEV_NAVAL_CALIBRATION = Object.fromEntries(
+    DEV_NAVAL_CALIBRATION_CODES.map((code) => {
+        const isSubmarine = code === "sb-1";
+        return [code, {
+            headingOffset: 0,
+            scale: isSubmarine ? 118 : 130,
+            minimumPixelSize: 90,
+            maximumScale: 1200,
+        }];
+    })
+);
+const DEV_CALIBRATION_NAVAL_INDEX_OFFSET = DEV_AIRCRAFT_CALIBRATION_CODES.length;
+
+function getNavalLiveSubtypeKey(code = "") {
+    return DEV_NAVAL_LIVE_SUBTYPE_BY_CODE[String(code || "").trim().toLowerCase()] || "naval";
+}
 let __devNavalCalibrationEntities = [];
 function getNavalModelUriBySubtype(subtype) {
+    const modelBase = "/assets/images/models/naval";
+    const normalized = String(subtype || "").trim().toLowerCase();
     const map = {
-        carrier: "/assets/images/models/air/frigate.glb",
-        destroyer: "/assets/images/models/air/frigate.glb",
-        frigate: "/assets/images/models/air/frigate.glb",
-        submarine: "/assets/images/models/air/submarine.glb",
-        ssn: "/assets/images/models/air/submarine.glb",
-        ssbn: "/assets/images/models/air/submarine.glb",
-        naval: "/assets/images/models/air/frigate.glb",
+        "ac-us-1": "ac-us-1",
+        "ac-cn-1": "ac-cn-1",
+        "ac-uk-1": "ac-uk-1",
+        "ac-rs-1": "ac-rs-1",
+        "hc-1": "hc-1",
+        "ni-1": "ni-1",
+        "ns-1": "ns-1",
+        "ns-2": "ns-2",
+        "ns-3": "ns-3",
+        "sb-1": "sb-1",
+        carrier: "ac-rs-1",
+        amphibious: "hc-1",
+        intelligence: "ni-1",
+        patrol: "ns-1",
+        naval: "ns-2",
+        logistics: "ns-3",
+        submarine: "sb-1",
+        ssn: "sb-1",
+        ssbn: "sb-1",
     };
-    return map[subtype] || map.naval;
+    const code = map[normalized] || "ns-2";
+    return `${modelBase}/${code}.glb`;
 }
 function createCalibrationNaval(viewer, subtype, config, index) {
-    const slots = [
-        { lat: 24.30, lon: 55.10 },
-        { lat: 24.55, lon: 55.40 },
-        { lat: 24.78, lon: 55.70 },
-        { lat: 24.08, lon: 55.95 },
-        { lat: 24.40, lon: 56.20 },
-        { lat: 24.72, lon: 56.45 },
-    ];
-    const slot = slots[index] || { lat: 24.2 + (index * 0.22), lon: 54.8 + (index * 0.3) };
+    // Continue the same 10-column inland grid after aircraft slots.
+    const slot = getCalibrationGridSlot(DEV_CALIBRATION_NAVAL_INDEX_OFFSET + index);
     const position = Cesium.Cartesian3.fromDegrees(slot.lon, slot.lat, 0);
     const hpr = new Cesium.HeadingPitchRoll(
         Cesium.Math.toRadians(Number(config.headingOffset || 0)),
@@ -1610,6 +1896,7 @@ function createCalibrationNaval(viewer, subtype, config, index) {
     });
     entity.__isCalibrationNaval = true;
     entity.__subtype = subtype;
+    applyCalibrationModelWhitening(entity.model);
 
     const line = createCalibrationLine(viewer, position, 0, 12000);
     if (line) {
@@ -1622,8 +1909,9 @@ function createCalibrationNaval(viewer, subtype, config, index) {
     return entity;
 }
 function clearNavalCalibration(viewer) {
-    if (!viewer) return;
-    __devNavalCalibrationEntities.forEach((entity) => viewer.entities.remove(entity));
+    if (viewer) {
+        __devNavalCalibrationEntities.forEach((entity) => viewer.entities.remove(entity));
+    }
     __devNavalCalibrationEntities = [];
     const tuner = document.getElementById("wz-naval-tuner");
     if (tuner) tuner.style.display = "none";
@@ -1650,16 +1938,14 @@ function ensureNavalTunerUI() {
         "display:none"
     ].join(";");
     panel.innerHTML = `
-        <div style="font-weight:700;letter-spacing:.04em;margin-bottom:10px;">NAVAL TUNER</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-weight:700;letter-spacing:.04em;">NAVAL TUNER</div>
+            <button id="wz-naval-tuner-close" type="button" aria-label="Close Naval Tuner" style="padding:2px 8px;cursor:pointer;line-height:1;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;border-radius:4px;">X</button>
+        </div>
         <label style="display:block;margin-bottom:8px;">
             <div style="margin-bottom:4px;">Asset</div>
             <select id="wz-naval-tuner-type" style="width:100%;padding:6px;">
-                <option value="carrier">Carrier</option>
-                <option value="destroyer">Destroyer</option>
-                <option value="frigate">Frigate</option>
-                <option value="submarine">Submarine</option>
-                <option value="ssn">SSN</option>
-                <option value="ssbn">SSBN</option>
+                ${DEV_NAVAL_CALIBRATION_CODES.map((code) => `<option value="${code}">${DEV_NAVAL_CALIBRATION_LABELS[code] || code.toUpperCase()}</option>`).join("")}
             </select>
         </label>
         <label style="display:block;margin-bottom:8px;">
@@ -1684,7 +1970,7 @@ function ensureNavalTunerUI() {
     return panel;
 }
 function getNavalTunerSubtype() {
-    return document.getElementById("wz-naval-tuner-type")?.value || "carrier";
+    return document.getElementById("wz-naval-tuner-type")?.value || "ns-2";
 }
 function refreshNavalTunerReadouts() {
     const heading = document.getElementById("wz-naval-tuner-heading");
@@ -1728,6 +2014,7 @@ function applyNavalCalibrationConfig() {
             entity.model.scale = Number(config.scale ?? 120);
             entity.model.minimumPixelSize = Number(config.minimumPixelSize ?? 90);
             entity.model.maximumScale = Number(config.maximumScale ?? 1200);
+            applyCalibrationModelWhitening(entity.model);
         }
     });
     refreshNavalTunerReadouts();
@@ -1746,8 +2033,10 @@ function applyNavalTunerValues() {
     if (min) cfg.minimumPixelSize = Number(min.value);
     if (max) cfg.maximumScale = Number(max.value);
 
+    const liveSubtype = getNavalLiveSubtypeKey(subtype);
     document.documentElement.style.setProperty("--warzone-live-naval-model-scale", String(Number(cfg.scale || 120)));
     setNavalModelHeadingOffset(subtype, Number(cfg.headingOffset || 0));
+    setNavalModelHeadingOffset(liveSubtype, Number(cfg.headingOffset || 0));
     applyNavalCalibrationConfig();
 }
 function bindNavalTunerUI() {
@@ -1760,9 +2049,14 @@ function bindNavalTunerUI() {
     document.getElementById("wz-naval-tuner-scale")?.addEventListener("input", applyNavalTunerValues);
     document.getElementById("wz-naval-tuner-min")?.addEventListener("input", applyNavalTunerValues);
     document.getElementById("wz-naval-tuner-max")?.addEventListener("input", applyNavalTunerValues);
-    document.getElementById("wz-naval-tuner-log")?.addEventListener("click", () => {
+    document.getElementById("wz-naval-tuner-close")?.addEventListener("click", () => {
+        clearNavalCalibration(window.__warzoneViewer);
+    });
+    document.getElementById("wz-naval-tuner-log")?.addEventListener("click", async (event) => {
         const subtype = getNavalTunerSubtype();
-        console.log(subtype, JSON.stringify(DEV_NAVAL_CALIBRATION[subtype] || {}, null, 2));
+        const text = buildNavalCalibrationCopySnippet(subtype);
+        const ok = await copyTextToClipboard(text);
+        showCopyButtonFeedback(event.currentTarget, ok);
     });
 }
 function startNavalCalibration() {
@@ -1773,7 +2067,10 @@ function startNavalCalibration() {
     let i = 0;
     Object.keys(DEV_NAVAL_CALIBRATION).forEach((subtype) => {
         createCalibrationNaval(viewer, subtype, DEV_NAVAL_CALIBRATION[subtype], i++);
-        setNavalModelHeadingOffset(subtype, Number(DEV_NAVAL_CALIBRATION[subtype]?.headingOffset || 0));
+        const headingOffset = Number(DEV_NAVAL_CALIBRATION[subtype]?.headingOffset || 0);
+        const liveSubtype = getNavalLiveSubtypeKey(subtype);
+        setNavalModelHeadingOffset(subtype, headingOffset);
+        setNavalModelHeadingOffset(liveSubtype, headingOffset);
     });
 
     const tuner = ensureNavalTunerUI();
@@ -1783,7 +2080,7 @@ function startNavalCalibration() {
 
     viewer.camera.cancelFlight?.();
     viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(55.8, 24.45, 1500000),
+        destination: Cesium.Cartesian3.fromDegrees(45.9, 24.15, 1500000),
         orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-78),
@@ -1792,6 +2089,7 @@ function startNavalCalibration() {
         duration: 1.2,
     });
     console.log("=== NAVAL CALIBRATION ACTIVE ===");
+    console.log("Naval calibration grid loaded on inland terrain (continues aircraft 10-column grid).");
     viewer.scene.requestRender();
 }
 

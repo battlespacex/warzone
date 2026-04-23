@@ -1,5 +1,23 @@
 ﻿// File Path: /assets/js/warzone-boot.js
 let __siteLoaderHideTimer = 0;
+let __siteLoaderHardStopTimer = 0;
+const SITE_LOADER_HARD_MAX_MS = 12000;
+function clearSiteLoaderTimers() {
+    clearTimeout(__siteLoaderHideTimer);
+    clearTimeout(__siteLoaderHardStopTimer);
+}
+function scheduleSiteLoaderHardStop() {
+    clearTimeout(__siteLoaderHardStopTimer);
+    __siteLoaderHardStopTimer = window.setTimeout(() => {
+        const keepVisible = window.__wzKeepSiteLoaderVisible === true;
+        const keepUntil = Number(window.__wzKeepSiteLoaderVisibleUntil || 0);
+        if (keepVisible && keepUntil > Date.now()) {
+            scheduleSiteLoaderHardStop();
+            return;
+        }
+        window.SiteLoader?.forceHide?.();
+    }, SITE_LOADER_HARD_MAX_MS);
+}
 window.__warzoneEnterApp = function () {
     const uiShell = document.getElementById("warzone-ui-shell");
     if (!uiShell) return;
@@ -13,14 +31,16 @@ window.SiteLoader = {
     start() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
-        clearTimeout(__siteLoaderHideTimer);
+        clearSiteLoaderTimers();
         loader.classList.remove("is-gone");
         document.body.classList.add("show-loader");
+        // Safety fallback so loader cannot remain visible forever.
+        scheduleSiteLoaderHardStop();
     },
     stop() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
-        clearTimeout(__siteLoaderHideTimer);
+        clearSiteLoaderTimers();
         __siteLoaderHideTimer = window.setTimeout(() => {
             document.body.classList.remove("show-loader");
             loader.classList.add("is-gone");
@@ -29,7 +49,7 @@ window.SiteLoader = {
     forceHide() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
-        clearTimeout(__siteLoaderHideTimer);
+        clearSiteLoaderTimers();
         document.body.classList.remove("show-loader");
         loader.classList.add("is-gone");
     },
@@ -338,7 +358,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     function clearStaleLoaderState() {
         if (document.visibilityState === "hidden") return;
-        if (window.__wzKeepSiteLoaderVisible === true) return;
+        const keepVisible = window.__wzKeepSiteLoaderVisible === true;
+        const keepUntil = Number(window.__wzKeepSiteLoaderVisibleUntil || 0);
+        if (keepVisible && keepUntil > Date.now()) return;
+        if (keepVisible) {
+            // Recovery keep-flag expired or became stale: clear it and hide loader.
+            window.__wzKeepSiteLoaderVisible = false;
+            window.__wzKeepSiteLoaderVisibleUntil = 0;
+        }
         window.SiteLoader?.forceHide?.();
     }
     document.addEventListener("visibilitychange", clearStaleLoaderState, { passive: true });

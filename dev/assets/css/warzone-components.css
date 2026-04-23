@@ -950,7 +950,9 @@
 }
 
 .warzone-panel--floating.warzone-widget--aircraft {
-    max-height: 65vh
+    max-height: 65vh;
+    max-width:none;
+    width: 60vh;
 }
 
 .warzone-widget--naval {
@@ -1451,6 +1453,90 @@ UNUSED CANDIDATE END */
     width: 100%;
 }
 
+.wz-aircraft-country {
+    position: relative;
+    width: 100%;
+}
+
+.wz-aircraft-country__trigger {
+    width: 100%;
+    height: 3rem;
+    justify-content: flex-start;
+    text-transform: none;
+    font-size: var(--text-sm);
+    padding: 0 .9rem;
+}
+
+.wz-aircraft-country__menu {
+    position: absolute;
+    top: calc(100% + .4rem);
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    padding: .8rem;
+    background: rgba(10, 16, 28, 0.96);
+    border: 1px solid rgba(24, 226, 219, 0.35);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+}
+
+.wz-aircraft-country__search {
+    width: 100%;
+    height: 2.8rem;
+    border: 1px solid rgba(65, 86, 120, 0.85);
+    background: rgba(18, 26, 42, 0.95);
+    color: var(--color-text-heading);
+    padding: 0 .8rem;
+    font-size: var(--text-sm);
+}
+
+.wz-aircraft-country__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem;
+}
+
+.wz-aircraft-country__actions>button {
+    height: 2.6rem;
+    border: 1px solid rgba(65, 86, 120, 0.85);
+    background: rgba(18, 26, 42, 0.95);
+    color: var(--color-text-heading);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.wz-aircraft-country__options {
+    max-height: 18rem;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    padding-right: .2rem;
+}
+
+.wz-aircraft-country__option {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    color: var(--color-text-heading);
+    font-size: var(--text-sm);
+}
+
+.wz-aircraft-country__option input[type="checkbox"] {
+    width: 1.4rem;
+    height: 1.4rem;
+    accent-color: var(--color-teal);
+}
+
+.wz-aircraft-country__empty {
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+    padding: .4rem 0;
+}
+
 .wz-aircraft-panel {
     display: flex;
     flex-direction: column;
@@ -1593,6 +1679,11 @@ UNUSED CANDIDATE END */
 
 .wz-aircraft-lock-indicator.is-unlocked:before {
     transform: translateX(-5%) rotate(-26deg);
+}
+
+.wz-aircraft-load-more {
+    cursor: pointer;
+    pointer-events: auto;
 }
 
 .wz-aircraft-title__status {

@@ -224,39 +224,29 @@
                         <button type="button" class="btn-primary" onclick="window.__openLoginModal?.()"><span aria-hidden="true"></span>Sign In</button>
                     </div>
                     <div class="wz-aircraft-toolbar">
-                        <div class="wz-aircraft-filters" role="tablist" aria-label="Aircraft movement filters">
-
-                            <button type="button" class="wz-aircraft-filter btn-primary is-active" data-aircraft-filter="active">
-                                <span aria-hidden="true"></span>
-                                Active
-                            </button>
-
-                            <button type="button" class="wz-aircraft-filter btn-primary" data-aircraft-filter="recent">
-                                <span aria-hidden="true"></span>
-                                Recent
-                            </button>
-
-                            <button type="button" class="wz-aircraft-filter btn-primary" data-aircraft-filter="ended">
-                                <span aria-hidden="true"></span>
-                                Ended
-                            </button>
-
-                        </div>
-
-                        <label class="wz-aircraft-type-filter">
-                            <span class="sr-only">Filter aircraft by type</span>
-                            <span class="wz-selector">
-                                <select aria-label="Filter aircraft by type" aria-required="true" class="wz--dropdown" id="wz-aircraft-filter-subtype">
-                                    <option value="all">All Types</option>
-                                </select>
-                            </span>
-                        </label>
                         <label class="wz-aircraft-type-filter">
                             <span class="sr-only">Filter aircraft by scope</span>
                             <span class="wz-selector">
                                 <select aria-label="Filter aircraft by scope" class="wz--dropdown" id="wz-aircraft-filter-scope">
                                     <option value="region">Current Region</option>
                                     <option value="all">All Regions</option>
+                                </select>
+                            </span>
+                        </label>
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by country</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by country" class="wz--dropdown" id="wz-aircraft-filter-country">
+                                    <option value="all">All Countries</option>
+                                </select>
+                            </span>
+                        </label>
+
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by type</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by type" aria-required="true" class="wz--dropdown" id="wz-aircraft-filter-subtype">
+                                    <option value="all">All Types</option>
                                 </select>
                             </span>
                         </label>

@@ -45,6 +45,27 @@ function getDefaultRegionForLens(lens) {
     const regions = getRegionsForLens(lens);
     return regions[0] || getRegionById("middle_east");
 }
+function isCoordinateInsideBounds(lon, lat, bounds = {}) {
+    return (
+        Number.isFinite(lon) &&
+        Number.isFinite(lat) &&
+        lon >= Number(bounds.minLon) &&
+        lon <= Number(bounds.maxLon) &&
+        lat >= Number(bounds.minLat) &&
+        lat <= Number(bounds.maxLat)
+    );
+}
+function isCameraInsideRegion(viewer, region) {
+    if (!viewer || !region || region.id === "global") return false;
+    try {
+        const pos = viewer.camera.positionCartographic;
+        const lon = Cesium.Math.toDegrees(pos.longitude);
+        const lat = Cesium.Math.toDegrees(pos.latitude);
+        return isCoordinateInsideBounds(lon, lat, region.bounds);
+    } catch {
+        return false;
+    }
+}
 function ensureRegionAllowedForLens() {
     const allowed = getRegionsForLens(__activeLens);
     const ok = allowed.some((r) => r.id === __activeRegion.id);
@@ -60,8 +81,7 @@ function detectRegionFromCamera(viewer) {
         if (alt > 8000000) return getRegionById("global");
         const matches = REGIONS.filter((r) => {
             if (r.id === "global") return false;
-            const b = r.bounds;
-            return lon >= b.minLon && lon <= b.maxLon && lat >= b.minLat && lat <= b.maxLat;
+            return isCoordinateInsideBounds(lon, lat, r.bounds);
         });
         if (!matches.length) return getRegionById("global");
         matches.sort((a, b) => ((a.bounds.maxLon - a.bounds.minLon) * (a.bounds.maxLat - a.bounds.minLat)) - ((b.bounds.maxLon - b.bounds.minLon) * (b.bounds.maxLat - b.bounds.minLat)));
@@ -199,8 +219,13 @@ export function initRegionNav(viewer) {
     viewer?.camera?.moveEnd?.addEventListener(() => {
         clearTimeout(detectTimer);
         detectTimer = setTimeout(() => {
+            const activeRegion = __activeRegion;
+            const keepCurrentRegion =
+                activeRegion?.id !== "global" &&
+                isCameraInsideRegion(viewer, activeRegion);
+            if (keepCurrentRegion) return;
             const detected = detectRegionFromCamera(viewer);
-            if (detected && detected.id !== __activeRegion.id) notifyChange(detected);
+            if (detected && detected.id !== activeRegion.id) notifyChange(detected);
         }, 600);
     });
 }
