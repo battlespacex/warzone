@@ -83,6 +83,7 @@ module.exports = (env, argv) => {
                     if (p.startsWith("assets/mp3/")) return true;
                     if (p.startsWith("assets/audio/")) return true;
                     if (p.startsWith("assets/others/")) return true;
+                    if (p.startsWith("assets/data/")) return true;
                     if (p.startsWith("assets/cesium/")) return true;
 
                     if (
@@ -158,6 +159,11 @@ module.exports = (env, argv) => {
                     {
                         from: path.resolve(DEV_DIR, "assets/others"),
                         to: path.resolve(PROD_DIR, "assets/others"),
+                        noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "assets/data"),
+                        to: path.resolve(PROD_DIR, "assets/data"),
                         noErrorOnMissing: true,
                     },
                     {

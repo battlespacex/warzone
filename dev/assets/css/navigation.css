@@ -284,6 +284,37 @@ body.is-about-open .wz-radar-label-layer {
 
 }
 
+/* ── 2D/3D Toggle ── */
+.wz-globe-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem;
+    border: 0.1rem solid rgba(255, 255, 255, 0.18);
+    background: rgba(8, 12, 20, 0.64);
+    clip-path: var(--clippath-shape-3);
+}
+
+.wz-globe-toggle__btn {
+    appearance: none;
+    border: 0;
+    min-width: 4rem;
+    height: 3rem;
+    padding: 0 0.9rem;
+    font-family: var(--heading-font);
+    font-size: 1.15rem;
+    letter-spacing: 0.08em;
+    color: var(--color-white-slate);
+    background: transparent;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.wz-globe-toggle__btn.is-active {
+    color: var(--color-black);
+    background: var(--color-teal-glow);
+}
+
 
 /* ── DEFCON Badge ── */
 .wz-defcon {

@@ -5,17 +5,79 @@ import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
 Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
-    countries: "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+    countries: [
+        "/assets/data/ne_110m_admin_0_countries.geojson",
+        "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson",
+    ],
     provinces: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
     cities: "https://raw.githubusercontent.com/drei01/geojson-world-cities/master/cities.geojson",
 };
 const markerCache = new Map();
 const ringCanvasCache = new Map();
+const MARKER_CACHE_MAX_ITEMS = 220;
+const RING_CACHE_MAX_ITEMS = 40;
 const __eventEntityIds = new Set();
 const __EVENT_LOD_STATE = {
     mode: "map",
     cameraHeight: 2350000,
 };
+const ADAPTIVE_QUALITY_PROFILES = ["normal", "balanced", "conservative", "safe"];
+function normalizeAdaptiveProfile(profile = "normal") {
+    const value = String(profile || "").toLowerCase();
+    return ADAPTIVE_QUALITY_PROFILES.includes(value) ? value : "normal";
+}
+function getAdaptiveProfileCaps(profile = "normal") {
+    switch (normalizeAdaptiveProfile(profile)) {
+        case "balanced":
+            return {
+                maxResolutionScale: 1.0,
+                maxMsaaSamples: 1,
+                minSse: 1.85,
+                maxTileCache: 520,
+                forcePreloadSiblingsFalse: true,
+                forceFxaaEnabled: true,
+            };
+        case "conservative":
+            return {
+                maxResolutionScale: 0.9,
+                maxMsaaSamples: 1,
+                minSse: 2.35,
+                maxTileCache: 420,
+                forcePreloadSiblingsFalse: true,
+                forceFxaaEnabled: true,
+            };
+        case "safe":
+            return {
+                maxResolutionScale: 0.8,
+                maxMsaaSamples: 1,
+                minSse: 2.9,
+                maxTileCache: 280,
+                forcePreloadSiblingsFalse: true,
+                forceFxaaEnabled: true,
+            };
+        default:
+            return {
+                maxResolutionScale: 2,
+                maxMsaaSamples: 8,
+                minSse: 0.8,
+                maxTileCache: 1200,
+                forcePreloadSiblingsFalse: false,
+                forceFxaaEnabled: false,
+            };
+    }
+}
+function setLimitedCache(map, key, value, maxItems = 200) {
+    if (!(map instanceof Map)) return value;
+    if (map.has(key)) map.delete(key);
+    map.set(key, value);
+    const max = Math.max(8, Number(maxItems || 200));
+    while (map.size > max) {
+        const oldestKey = map.keys().next().value;
+        if (oldestKey === undefined) break;
+        map.delete(oldestKey);
+    }
+    return value;
+}
 function getEventEntityCount() {
     return __eventEntityIds.size;
 }
@@ -70,6 +132,14 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
     return Array.from(groups.values())
         .map((group, index) => {
             const items = group.items;
+            const clusterCount = items.reduce((acc, item) => {
+                const itemCount = Number(item?.cluster_count || item?._clusterCount || 1);
+                return acc + (Number.isFinite(itemCount) && itemCount > 0 ? itemCount : 1);
+            }, 0);
+            const clusterEvents = items
+                .flatMap((item) => (Array.isArray(item?._clusterEvents) ? item._clusterEvents : [item]))
+                .filter(Boolean)
+                .slice(0, 24);
             const critical = items.some((e) => String(e?.severity || "").toLowerCase() === "critical");
             const high = items.some((e) => String(e?.severity || "").toLowerCase() === "high");
             const latest = items
@@ -80,10 +150,12 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
                 id: latest?.id || `cluster-${index + 1}`,
                 lat: group.lat,
                 lon: group.lon,
-                title: items.length > 1 ? `${items.length} events near ${latest?.location_label || "cluster"}` : latest?.title,
-                summary: items.length > 1 ? `Clustered ${items.length} nearby events for high-altitude rendering.` : latest?.summary,
+                title: clusterCount > 1 ? `${clusterCount} events near ${latest?.location_label || "cluster"}` : latest?.title,
+                summary: clusterCount > 1 ? `Clustered ${clusterCount} nearby events for high-altitude rendering.` : latest?.summary,
                 severity: critical ? "critical" : (high ? "high" : (latest?.severity || "medium")),
-                cluster_count: items.length,
+                cluster_count: clusterCount,
+                _clusterCount: clusterCount,
+                _clusterEvents: clusterEvents,
             };
         })
         .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
@@ -200,7 +272,106 @@ function removeExistingEventEntity(viewer, entityId) {
         forgetEventEntity(id);
     }
 }
+function cancelPendingEventSync(viewer) {
+    if (!viewer) return;
+    viewer.__warzoneEventSyncToken = Number(viewer.__warzoneEventSyncToken || 0) + 1;
+    if (viewer.__warzoneEventSyncRaf) {
+        try {
+            cancelAnimationFrame(viewer.__warzoneEventSyncRaf);
+        } catch {
+            // ignore
+        }
+        viewer.__warzoneEventSyncRaf = 0;
+    }
+}
+function buildEventRenderSignature(event = {}) {
+    const id = String(event.id || "");
+    const occurredAt = String(event.occurred_at || "");
+    const category = String(event.category || "");
+    const severity = String(event.severity || "");
+    const lat = Number(event.lat);
+    const lon = Number(event.lon);
+    const clusterCount = Number(event.cluster_count || event._clusterCount || 1);
+    const latKey = Number.isFinite(lat) ? lat.toFixed(4) : "x";
+    const lonKey = Number.isFinite(lon) ? lon.toFixed(4) : "x";
+    const clusterKey = Number.isFinite(clusterCount) ? String(clusterCount) : "1";
+    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${latKey}|${lonKey}`;
+}
+function reconcileEventEntities(viewer, events = [], options = {}) {
+    if (!viewer) return;
+    cancelPendingEventSync(viewer);
+    const token = Number(viewer.__warzoneEventSyncToken || 0);
+    const prevState =
+        viewer.__warzoneEventRenderState instanceof Map
+            ? viewer.__warzoneEventRenderState
+            : new Map();
+    const nextState = new Map();
+    const nextEventsById = new Map();
+    for (const event of Array.isArray(events) ? events : []) {
+        const id = String(event?.id || "").trim();
+        if (!id) continue;
+        nextEventsById.set(id, event);
+    }
+    for (const [id, event] of nextEventsById.entries()) {
+        nextState.set(id, buildEventRenderSignature(event));
+    }
+    const removeIds = [];
+    for (const prevId of prevState.keys()) {
+        if (!nextState.has(prevId)) {
+            removeIds.push(prevId);
+        }
+    }
+    const upsertEvents = [];
+    for (const event of nextEventsById.values()) {
+        const id = String(event?.id || "").trim();
+        if (!id) continue;
+        const nextSig = nextState.get(id);
+        const prevSig = prevState.get(id);
+        if (prevSig !== nextSig) {
+            upsertEvents.push(event);
+        }
+    }
+    if (!removeIds.length && !upsertEvents.length) {
+        applyEventLod(viewer);
+        viewer.scene.requestRender();
+        return;
+    }
+    const chunkSize = Math.max(20, Math.round(numberVar("--warzone-event-sync-chunk-size", 56)));
+    const disableEllipse = options?.disableEllipse === true;
+    const disableOutline = options?.disableOutline === true || disableEllipse;
+    const step = (removeIndex, upsertIndex) => {
+        if (Number(viewer.__warzoneEventSyncToken || 0) !== token) return;
+        let ops = 0;
+        if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
+        while (removeIndex < removeIds.length && ops < chunkSize) {
+            removeExistingEventEntity(viewer, removeIds[removeIndex]);
+            removeIndex += 1;
+            ops += 1;
+        }
+        while (upsertIndex < upsertEvents.length && ops < chunkSize) {
+            addEventEntity(viewer, upsertEvents[upsertIndex], {
+                disableEllipse,
+                disableOutline,
+            });
+            upsertIndex += 1;
+            ops += 1;
+        }
+        if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
+        const done = removeIndex >= removeIds.length && upsertIndex >= upsertEvents.length;
+        if (done) {
+            viewer.__warzoneEventSyncRaf = 0;
+            viewer.__warzoneEventRenderState = nextState;
+            applyEventLod(viewer);
+            viewer.scene.requestRender();
+            return;
+        }
+        viewer.scene.requestRender();
+        viewer.__warzoneEventSyncRaf = requestAnimationFrame(() => step(removeIndex, upsertIndex));
+    };
+    step(0, 0);
+}
 function clearTrackedEventEntities(viewer) {
+    cancelPendingEventSync(viewer);
     const ids = Array.from(__eventEntityIds);
     if (viewer?.entities?.suspendEvents) viewer.entities.suspendEvents();
     for (const id of ids) {
@@ -211,6 +382,9 @@ function clearTrackedEventEntities(viewer) {
     }
     if (viewer?.entities?.resumeEvents) viewer.entities.resumeEvents();
     __eventEntityIds.clear();
+    if (viewer) {
+        viewer.__warzoneEventRenderState = new Map();
+    }
     viewer.scene.requestRender();
 }
 /* ---------- CSS helpers ---------- */
@@ -389,7 +563,7 @@ function createMarkerCanvas(colorCss) {
     ctx.arc(cx, cy, 14, 0, Math.PI * 2);
     ctx.stroke();
     const dataUrl = canvas.toDataURL("image/png");
-    markerCache.set(colorCss, dataUrl);
+    setLimitedCache(markerCache, colorCss, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
 // Cluster marker — bigger, shows event count, colorful pulse glow
@@ -436,7 +610,7 @@ function createClusterMarkerCanvas(colorCss, count) {
     ctx.textBaseline = "middle";
     ctx.fillText(label, cx, cy);
     const dataUrl = canvas.toDataURL("image/png");
-    markerCache.set(key, dataUrl);
+    setLimitedCache(markerCache, key, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
 function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
@@ -456,15 +630,16 @@ function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
     ctx.strokeStyle = strokeCss;
     ctx.stroke();
     const dataUrl = canvas.toDataURL("image/png");
-    ringCanvasCache.set(key, dataUrl);
+    setLimitedCache(ringCanvasCache, key, dataUrl, RING_CACHE_MAX_ITEMS);
     return dataUrl;
 }
 /* ---------- Event entities ---------- */
-function createEventEntity(event) {
+function createEventEntity(event, options = {}) {
     const colorCss = getCategoryColorCss(event.category);
     const color = Cesium.Color.fromCssColorString(colorCss);
     const count = Number(event?.cluster_count || 1);
     const isCluster = count > 1;
+    const disableEllipse = options?.disableEllipse === true;
     // Cluster events get a count-badge marker; single events get the regular dot
     const marker = isCluster
         ? createClusterMarkerCanvas(colorCss, count)
@@ -472,7 +647,7 @@ function createEventEntity(event) {
     const radius = getSeverityRadius(event); // already scaled by cluster_count
     const heatRadius = getHeatRadius(event);
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
-    const showEventRings = boolVar("--warzone-event-rings-visible", true);
+    const showEventRings = !disableEllipse && boolVar("--warzone-event-rings-visible", true);
     // Clusters always show their marker (count badge) regardless of zoom CSS var
     const showMarker = isCluster || showEventMarkers;
     const fillAlpha = isCluster
@@ -482,6 +657,28 @@ function createEventEntity(event) {
     const markerScale = isCluster
         ? Math.min(0.52 + Math.log2(count) * 0.06, 0.95)
         : numberVar("--warzone-marker-scale", 1);
+    const sourceUrl = String(
+        event?.source_url ||
+        event?.source_link ||
+        event?.source ||
+        event?.url ||
+        event?.link ||
+        ""
+    ).trim();
+    const clusterEvents = Array.isArray(event?._clusterEvents)
+        ? event._clusterEvents
+            .filter(Boolean)
+            .slice(0, 24)
+            .map((item) => ({
+                id: item?.id || "",
+                title: item?.title || "",
+                summary: item?.summary || "",
+                category: item?.category || "",
+                severity: item?.severity || "",
+                location_label: item?.location_label || item?.impact_label || item?.country || "",
+                occurred_at: item?.occurred_at || "",
+            }))
+        : [];
     return {
         id: event.id,
         name: event.title,
@@ -493,25 +690,29 @@ function createEventEntity(event) {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
             show: showMarker,
         },
-        ellipse: {
+        ellipse: showEventRings ? {
             semiMinorAxis: radius,
             semiMajorAxis: radius,
             material: color.withAlpha(fillAlpha),
             outline: false,
             height: 0,
             show: showEventRings,
-        },
+        } : undefined,
         properties: {
+            event_id: event.id,
             title: event.title,
             summary: event.summary,
             category: event.category,
             severity: event.severity,
             cluster_count: count,
+            cluster_events: clusterEvents,
             location_label: event.location_label,
             occurred_at: event.occurred_at,
             confidence: event.confidence,
             heatRadius,
             radius,
+            weapon_type: event.weapon_type,
+            source_url: sourceUrl,
             origin_lat: event.origin_lat,
             origin_lon: event.origin_lon,
             origin_label: event.origin_label,
@@ -521,14 +722,16 @@ function createEventEntity(event) {
         },
     };
 }
-function addEventEntity(viewer, event) {
+function addEventEntity(viewer, event, options = {}) {
     removeExistingEventEntity(viewer, event?.id);
-    const entity = viewer.entities.add(createEventEntity(event));
+    const entity = viewer.entities.add(createEventEntity(event, options));
+    const disableOutline = options?.disableOutline === true || options?.disableEllipse === true;
     const colorCss = getCategoryColorCss(event.category);
     const outlineAlpha = numberVar("--warzone-event-ring-outline-alpha", 0.82);
     const outlineWidth = numberVar("--warzone-event-ring-outline-width", 3);
     const radius = getSeverityRadius(event);
-    const allowOutline = boolVar("--warzone-event-rings-visible", true)
+    const allowOutline = !disableOutline
+        && boolVar("--warzone-event-rings-visible", true)
         && shouldShowEventOutlinesAtCurrentZoom(viewer)
         && getEventEntityCount() < numberVar("--warzone-outline-max-entities", 220);
     let ringEntity = null;
@@ -562,6 +765,74 @@ function addEventEntity(viewer, event) {
     if (ringEntity) rememberEventEntity(ringEntity);
     return { entity, ringEntity };
 }
+function getEntityPropertyValue(entity, key, fallback = "") {
+    if (!entity?.properties) return fallback;
+    try {
+        const value = entity.properties?.[key]?.getValue?.();
+        return value == null ? fallback : value;
+    } catch {
+        return fallback;
+    }
+}
+function isEventMarkerEntity(entity) {
+    if (!entity) return false;
+    const isEventOutline = !!getEntityPropertyValue(entity, "isEventOutline", false);
+    if (isEventOutline) return false;
+    const clusterCount = Number(getEntityPropertyValue(entity, "cluster_count", NaN));
+    return Number.isFinite(clusterCount) && clusterCount > 0;
+}
+function resolvePickedEventMarkerEntity(viewer, picked) {
+    const pickedEntity = picked?.id;
+    if (!pickedEntity) return null;
+    if (isEventMarkerEntity(pickedEntity)) return pickedEntity;
+    const isEventOutline = !!getEntityPropertyValue(pickedEntity, "isEventOutline", false);
+    if (!isEventOutline) return null;
+    const outlineId = String(pickedEntity.id || "");
+    const markerId = outlineId.endsWith("-outline") ? outlineId.slice(0, -8) : outlineId;
+    if (!markerId || !viewer?.entities?.getById) return null;
+    const markerEntity = viewer.entities.getById(markerId);
+    if (!isEventMarkerEntity(markerEntity)) return null;
+    return markerEntity;
+}
+function buildPickedEventDetail(entity) {
+    const clusterCount = Math.max(1, Number(getEntityPropertyValue(entity, "cluster_count", 1) || 1));
+    const clusterEventsRaw = getEntityPropertyValue(entity, "cluster_events", []);
+    const clusterEvents = Array.isArray(clusterEventsRaw) ? clusterEventsRaw.slice(0, 8) : [];
+    return {
+        id: String(getEntityPropertyValue(entity, "event_id", entity.id || "")),
+        title: String(getEntityPropertyValue(entity, "title", "")),
+        summary: String(getEntityPropertyValue(entity, "summary", "")),
+        category: String(getEntityPropertyValue(entity, "category", "")),
+        severity: String(getEntityPropertyValue(entity, "severity", "")),
+        clusterCount,
+        locationLabel: String(getEntityPropertyValue(entity, "location_label", "")),
+        occurredAt: String(getEntityPropertyValue(entity, "occurred_at", "")),
+        weaponType: String(getEntityPropertyValue(entity, "weapon_type", "")),
+        sourceUrl: String(getEntityPropertyValue(entity, "source_url", "")),
+        clusterEvents,
+    };
+}
+function bindEventMarkerPicking(viewer) {
+    if (!viewer || viewer.__warzoneEventMarkerPickBound) return;
+    viewer.__warzoneEventMarkerPickBound = true;
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    viewer.__warzoneEventMarkerPickHandler = handler;
+    handler.setInputAction((movement) => {
+        if (!movement?.position) return;
+        const picked = viewer.scene.pick(movement.position);
+        const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
+        if (!eventEntity) {
+            document.dispatchEvent(new CustomEvent("wz:event-marker-cleared", {
+                detail: { source: "globe-click" },
+            }));
+            return;
+        }
+        document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
+            detail: buildPickedEventDetail(eventEntity),
+        }));
+        viewer.scene.requestRender();
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+}
 /* ---------- Viewer style ---------- */
 function applyViewerStyle(viewer) {
     viewer.scene.skyBox.show = false;
@@ -573,12 +844,19 @@ function applyViewerStyle(viewer) {
     viewer.scene.globe.baseColor = colorFromCssVar("--warzone-globe-base", "#08111a", 1);
     viewer.scene.globe.depthTestAgainstTerrain = false;
     viewer.scene.globe.translucency.enabled = false;
-    // Improve close-zoom imagery refinement and cache hit rate.
-    viewer.scene.globe.maximumScreenSpaceError = numberVar("--warzone-globe-max-screen-space-error", 1.6);
-    viewer.scene.globe.tileCacheSize = Math.max(300, Math.round(numberVar("--warzone-globe-tile-cache-size", 1800)));
-    viewer.scene.globe.loadingDescendantLimit = Math.max(10, Math.round(numberVar("--warzone-globe-loading-descendant-limit", 80)));
+    // Keep close-zoom detail sharp, then let performance mode raise SSE while moving.
+    const initialSse = Math.max(0.9, Math.min(4.5, numberVar("--warzone-globe-max-screen-space-error", 1.4)));
+    viewer.scene.globe.maximumScreenSpaceError = initialSse;
+    viewer.scene.globe.tileCacheSize = Math.max(
+        220,
+        Math.min(1200, Math.round(numberVar("--warzone-globe-tile-cache-size", 900)))
+    );
+    viewer.scene.globe.loadingDescendantLimit = Math.max(
+        8,
+        Math.min(72, Math.round(numberVar("--warzone-globe-loading-descendant-limit", 48)))
+    );
     viewer.scene.globe.preloadAncestors = boolVar("--warzone-globe-preload-ancestors", true);
-    viewer.scene.globe.preloadSiblings = boolVar("--warzone-globe-preload-siblings", true);
+    viewer.scene.globe.preloadSiblings = boolVar("--warzone-globe-preload-siblings", false);
     viewer.scene.fog.enabled = false;
     if (viewer.scene.screenSpaceCameraController) {
         const ctrl = viewer.scene.screenSpaceCameraController;
@@ -592,11 +870,11 @@ function applyViewerStyle(viewer) {
     }
     viewer.scene.requestRenderMode = true;
     viewer.scene.maximumRenderTimeChange = Infinity;
-    viewer.resolutionScale = numberVar("--warzone-resolution-scale", 1);
+    viewer.resolutionScale = Math.max(0.7, Math.min(numberVar("--warzone-resolution-scale", 1), 1.22));
     if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = boolVar("--warzone-fxaa-enabled", true);
     }
-    viewer.scene.msaaSamples = numberVar("--warzone-msaa-samples", 1);
+    viewer.scene.msaaSamples = Math.max(1, Math.min(Math.round(numberVar("--warzone-msaa-samples", 1)), 4));
     applyMapColorMixer(viewer, "--warzone-map");
 }
 function clampCameraZoomDistance(viewer) {
@@ -621,6 +899,94 @@ function clampCameraZoomDistance(viewer) {
         },
     });
     viewer.scene.requestRender?.();
+}
+function clamp2DCameraCenter(viewer) {
+    if (!viewer?.scene || getSceneMode(viewer) !== "2d") return;
+    const cartographic = viewer.camera?.positionCartographic;
+    if (!cartographic) return;
+    const maxLatDeg = Math.max(70, Math.min(85.04, numberVar("--warzone-2d-max-latitude", 84.9)));
+    const maxLatRad = Cesium.Math.toRadians(maxLatDeg);
+    const clampedLat = Cesium.Math.clamp(Number(cartographic.latitude || 0), -maxLatRad, maxLatRad);
+    const currentLat = Number(cartographic.latitude || 0);
+    if (!Number.isFinite(currentLat)) return;
+    if (Math.abs(clampedLat - currentLat) < 1e-7) return;
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(
+            Number(cartographic.longitude || 0),
+            clampedLat,
+            Number(cartographic.height || numberVar("--warzone-camera-min-zoom", 100))
+        ),
+        orientation: {
+            heading: viewer.camera.heading,
+            pitch: viewer.camera.pitch,
+            roll: viewer.camera.roll,
+        },
+    });
+    viewer.scene.requestRender?.();
+}
+function apply2DControllerBounds(viewer) {
+    const controller = viewer?.scene?.screenSpaceCameraController;
+    if (!controller) return;
+    if (!viewer.__warzone2DControllerDefaults) {
+        viewer.__warzone2DControllerDefaults = {
+            maximumTranslateFactor: Number(controller.maximumTranslateFactor),
+            maximumZoomFactor: Number(controller.maximumZoomFactor),
+        };
+    }
+    // Keep horizontal movement smooth while preventing empty-space drifting.
+    controller.maximumTranslateFactor = Math.max(0.92, Math.min(1.08, numberVar("--warzone-2d-max-translate-factor", 0.98)));
+    controller.maximumZoomFactor = Math.max(1, Math.min(4, numberVar("--warzone-2d-max-zoom-factor", 2.1)));
+}
+function restore2DControllerBounds(viewer) {
+    const controller = viewer?.scene?.screenSpaceCameraController;
+    const defaults = viewer?.__warzone2DControllerDefaults;
+    if (!controller || !defaults) return;
+    if (Number.isFinite(defaults.maximumTranslateFactor)) {
+        controller.maximumTranslateFactor = defaults.maximumTranslateFactor;
+    }
+    if (Number.isFinite(defaults.maximumZoomFactor)) {
+        controller.maximumZoomFactor = defaults.maximumZoomFactor;
+    }
+}
+function syncSceneModeBounds(viewer) {
+    if (!viewer?.scene) return;
+    const mode = getSceneMode(viewer);
+    if (mode === "2d") {
+        if (Cesium.MapMode2D?.INFINITE_SCROLL) {
+            viewer.scene.mapMode2D = Cesium.MapMode2D.INFINITE_SCROLL;
+        }
+        apply2DControllerBounds(viewer);
+        clamp2DCameraCenter(viewer);
+    } else {
+        restore2DControllerBounds(viewer);
+    }
+}
+function attach2DCameraBoundsGuard(viewer) {
+    if (!viewer || viewer.__warzone2DBoundsGuardBound) return;
+    viewer.__warzone2DBoundsGuardBound = true;
+    let queued = false;
+    const queueClamp = () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+            queued = false;
+            clamp2DCameraCenter(viewer);
+        });
+    };
+    viewer.camera.moveEnd.addEventListener(queueClamp);
+    viewer.scene.postRender.addEventListener(() => {
+        if (getSceneMode(viewer) !== "2d") return;
+        const cartographic = viewer.camera?.positionCartographic;
+        if (!cartographic) return;
+        const maxLatDeg = Math.max(70, Math.min(85.04, numberVar("--warzone-2d-max-latitude", 84.9)));
+        const maxLatRad = Cesium.Math.toRadians(maxLatDeg);
+        if (Math.abs(Number(cartographic.latitude || 0)) > (maxLatRad + 1e-6)) {
+            queueClamp();
+        }
+    });
+    viewer.scene.morphComplete.addEventListener(() => {
+        syncSceneModeBounds(viewer);
+    });
 }
 function attachCameraZoomLimiter(viewer) {
     if (!viewer || viewer.__warzoneCameraZoomLimiterBound) return;
@@ -1022,14 +1388,83 @@ function getBorderEntityCollection(viewer) {
     }
     return viewer.entities;
 }
+function stopBorderFadeAnimation(viewer) {
+    if (viewer?.__borderFadeRaf) {
+        cancelAnimationFrame(viewer.__borderFadeRaf);
+        viewer.__borderFadeRaf = 0;
+    }
+}
+function applyBorderVisibilityAlpha(viewer, visibilityAlpha) {
+    if (!viewer) return;
+    const alphaMultiplier = clamp01(Number(visibilityAlpha));
+    viewer.__borderVisibilityAlpha = alphaMultiplier;
+    const fallbackBaseColor =
+        viewer.__borderFallbackColor ||
+        (viewer.__borderFallbackColor = colorFromCssVar("--warzone-country-border", "#33e1ff", 1));
+    const hasVisibleAlpha = alphaMultiplier > 0.001;
+    if (viewer.__borderDataSource) {
+        viewer.__borderDataSource.show = hasVisibleAlpha;
+    }
+    if (!Array.isArray(viewer.__borderEntities)) return;
+    viewer.__borderEntities.forEach((entity) => {
+        if (!entity?.polyline) return;
+        const baseColor = entity.__borderBaseColor || fallbackBaseColor;
+        const baseAlphaRaw = Number(entity.__borderBaseAlpha);
+        const baseAlpha = Number.isFinite(baseAlphaRaw) ? clamp01(baseAlphaRaw) : 1;
+        const nextAlpha = clamp01(baseAlpha * alphaMultiplier);
+        entity.polyline.material = baseColor.withAlpha(nextAlpha);
+        entity.show = nextAlpha > 0.001;
+    });
+}
+function animateBorderVisibility(viewer, targetAlpha, options = {}) {
+    if (!viewer) return;
+    const startAlphaRaw = Number(viewer.__borderVisibilityAlpha);
+    const startAlpha = Number.isFinite(startAlphaRaw)
+        ? clamp01(startAlphaRaw)
+        : (viewer.__borderLayersVisible !== false ? 1 : 0);
+    const clampedTarget = clamp01(Number(targetAlpha));
+    const requestedDuration = Number(options?.duration);
+    const duration = Number.isFinite(requestedDuration)
+        ? Math.max(0, requestedDuration)
+        : Math.max(0, numberVar("--warzone-border-fade-duration", 620));
+    if (Math.abs(clampedTarget - startAlpha) < 0.001 || duration <= 0) {
+        stopBorderFadeAnimation(viewer);
+        applyBorderVisibilityAlpha(viewer, clampedTarget);
+        viewer.scene?.requestRender?.();
+        return;
+    }
+    stopBorderFadeAnimation(viewer);
+    const startedAt = performance.now();
+    const step = (now) => {
+        const t = clamp01((now - startedAt) / duration);
+        const eased = easeInOutCubic(t);
+        const next = lerp(startAlpha, clampedTarget, eased);
+        applyBorderVisibilityAlpha(viewer, next);
+        viewer.scene?.requestRender?.();
+        if (t >= 1) {
+            viewer.__borderFadeRaf = 0;
+            return;
+        }
+        viewer.__borderFadeRaf = requestAnimationFrame(step);
+    };
+    viewer.__borderFadeRaf = requestAnimationFrame(step);
+}
 function addPolylineForRing(viewer, ring, options) {
     const coords = flattenRingToDegrees(ring);
     if (coords.length < 4) return;
+    const baseColor = options?.baseColor || colorFromCssVar("--warzone-country-border", "#33e1ff", 1);
+    const baseAlphaRaw = Number(options?.alpha);
+    const baseAlpha = Number.isFinite(baseAlphaRaw) ? clamp01(baseAlphaRaw) : 1;
+    const visibilityAlphaRaw = Number(viewer.__borderVisibilityAlpha);
+    const visibilityAlpha = Number.isFinite(visibilityAlphaRaw)
+        ? clamp01(visibilityAlphaRaw)
+        : (viewer.__borderLayersVisible !== false ? 1 : 0);
+    const initialAlpha = clamp01(baseAlpha * visibilityAlpha);
     const entity = getBorderEntityCollection(viewer).add({
         polyline: {
             positions: Cesium.Cartesian3.fromDegreesArray(coords),
             width: options.width,
-            material: options.color,
+            material: baseColor.withAlpha(initialAlpha),
             // Keep country borders at the lowest map layer.
             clampToGround: true,
             zIndex: 0,
@@ -1038,56 +1473,85 @@ function addPolylineForRing(viewer, ring, options) {
     if (!Array.isArray(viewer.__borderEntities)) {
         viewer.__borderEntities = [];
     }
-    entity.show = viewer.__borderLayersVisible !== false;
+    entity.__borderBaseColor = baseColor.withAlpha(1);
+    entity.__borderBaseAlpha = baseAlpha;
+    entity.show = initialAlpha > 0.001;
     viewer.__borderEntities.push(entity);
 }
-function setBorderLayersVisible(viewer, visible) {
+function setBorderLayersVisible(viewer, visible, options = {}) {
+    if (!viewer) return;
     const show = !!visible;
     viewer.__borderLayersVisible = show;
-    if (viewer.__borderDataSource) {
-        viewer.__borderDataSource.show = show;
+    if (show && !viewer.__borderLayersLoaded) {
+        ensureBorderLayersLoaded(viewer).then(() => {
+            if (viewer.__borderLayersVisible !== show) return;
+            setBorderLayersVisible(viewer, show, options);
+            viewer.scene?.requestRender?.();
+        });
+        return;
     }
-    if (!Array.isArray(viewer.__borderEntities)) return;
-    viewer.__borderEntities.forEach((entity) => {
-        entity.show = show;
-    });
+    const animate = options?.animate !== false;
+    if (!animate) {
+        stopBorderFadeAnimation(viewer);
+        applyBorderVisibilityAlpha(viewer, show ? 1 : 0);
+        return;
+    }
+    animateBorderVisibility(viewer, show ? 1 : 0, options);
 }
 async function fetchGeoJson(url) {
-    if (!url) return null;
-    const response = await fetch(url, { cache: "force-cache" });
-    if (!response.ok) {
-        throw new Error(`GeoJSON fetch failed: ${response.status}`);
+    const candidates = Array.isArray(url) ? url.filter(Boolean) : [url];
+    if (!candidates.length) return null;
+    let lastError = null;
+    for (const candidate of candidates) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+        try {
+            const response = await fetch(candidate, {
+                cache: "force-cache",
+                signal: controller.signal,
+            });
+            if (!response.ok) {
+                lastError = new Error(`GeoJSON fetch failed: ${response.status} (${candidate})`);
+                continue;
+            }
+            return await response.json();
+        } catch (error) {
+            lastError = error;
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
     }
-    return response.json();
+    throw lastError || new Error("GeoJSON fetch failed");
 }
 async function addGeoJsonBorderLayer(viewer, config) {
     if (!config?.url) return;
     try {
         const geojson = await fetchGeoJson(config.url);
         const features = Array.isArray(geojson?.features) ? geojson.features : [];
-        const color = colorFromCssVar(
+        const baseColor = colorFromCssVar(
             config.colorVar,
             config.fallbackColor,
-            numberVar(config.alphaVar, config.fallbackAlpha)
+            1
         );
+        const baseAlpha = clamp01(numberVar(config.alphaVar, config.fallbackAlpha));
         const width = numberVar(config.widthVar, config.fallbackWidth);
         for (const feature of features) {
             const geometry = feature?.geometry;
             if (!geometry) continue;
             if (geometry.type === "Polygon") {
                 const rings = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
-                if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width });
+                if (rings[0]) addPolylineForRing(viewer, rings[0], { baseColor, alpha: baseAlpha, width });
             } else if (geometry.type === "MultiPolygon") {
                 const polygons = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
                 for (const polygon of polygons) {
                     const rings = Array.isArray(polygon) ? polygon : [];
-                    if (rings[0]) addPolylineForRing(viewer, rings[0], { color, width });
+                    if (rings[0]) addPolylineForRing(viewer, rings[0], { baseColor, alpha: baseAlpha, width });
                 }
             } else if (geometry.type === "LineString") {
-                addPolylineForRing(viewer, geometry.coordinates, { color, width });
+                addPolylineForRing(viewer, geometry.coordinates, { baseColor, alpha: baseAlpha, width });
             } else if (geometry.type === "MultiLineString") {
                 const lines = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
-                for (const line of lines) addPolylineForRing(viewer, line, { color, width });
+                for (const line of lines) addPolylineForRing(viewer, line, { baseColor, alpha: baseAlpha, width });
             }
         }
     } catch (error) {
@@ -1116,6 +1580,26 @@ async function addBorderLayers(viewer) {
         fallbackWidth: 1.4,
     });
     entities.resumeEvents?.();
+    const initialVisibility = Number.isFinite(Number(viewer.__borderVisibilityAlpha))
+        ? Number(viewer.__borderVisibilityAlpha)
+        : (viewer.__borderLayersVisible !== false ? 1 : 0);
+    applyBorderVisibilityAlpha(viewer, initialVisibility);
+}
+function ensureBorderLayersLoaded(viewer) {
+    if (!viewer) return Promise.resolve();
+    if (viewer.__borderLayersLoaded) return Promise.resolve();
+    if (viewer.__borderLayerLoadPromise) return viewer.__borderLayerLoadPromise;
+    viewer.__borderLayerLoadPromise = addBorderLayers(viewer)
+        .then(() => {
+            viewer.__borderLayersLoaded = true;
+        })
+        .catch(() => {
+            // keep retries possible on future toggles
+        })
+        .finally(() => {
+            viewer.__borderLayerLoadPromise = null;
+        });
+    return viewer.__borderLayerLoadPromise;
 }
 async function addArcGisLayers(viewer) {
     viewer.imageryLayers.removeAll();
@@ -1143,9 +1627,60 @@ async function addArcGisLayers(viewer) {
     return { baseLayer, labelsLayer };
 }
 /* ---------- Map mode ---------- */
+function normalizeSceneMode(mode = "") {
+    const raw = String(mode || "").trim().toLowerCase();
+    if (raw === "2d" || raw === "flat") return "2d";
+    if (raw === "3d" || raw === "globe") return "3d";
+    return "";
+}
+function getSceneMode(viewer) {
+    if (!viewer?.scene) return "3d";
+    const sceneMode = viewer.scene.mode;
+    if (sceneMode === Cesium.SceneMode.SCENE2D) return "2d";
+    return "3d";
+}
+function setSceneMode(viewer, mode = "3d", options = {}) {
+    if (!viewer?.scene) return "3d";
+    const nextMode = normalizeSceneMode(mode);
+    if (!nextMode) return getSceneMode(viewer);
+    const currentMode = getSceneMode(viewer);
+    if (currentMode === nextMode) {
+        viewer.__warzoneSceneMode = currentMode;
+        return currentMode;
+    }
+    const requestedDuration = Number(options?.duration);
+    const defaultDuration = Math.max(0.2, Math.min(numberVar("--warzone-scene-morph-duration", 0.72), 3));
+    const duration = Number.isFinite(requestedDuration)
+        ? Math.max(0, Math.min(requestedDuration, 3))
+        : defaultDuration;
+    try {
+        if (nextMode === "2d") {
+            viewer.scene.morphTo2D(duration);
+        } else {
+            viewer.scene.morphTo3D(duration);
+        }
+    } catch {
+        return currentMode;
+    }
+    viewer.__warzoneSceneMode = nextMode;
+    syncSceneModeBounds(viewer);
+    document.dispatchEvent(new CustomEvent("wz:scene-mode-changed", {
+        detail: {
+            mode: nextMode,
+            source: String(options?.source || "system"),
+        },
+    }));
+    viewer.scene.requestRender();
+    return nextMode;
+}
 function setMapMode(viewer, mode = "map") {
+    const sceneMode = normalizeSceneMode(mode);
+    if (sceneMode) {
+        return setSceneMode(viewer, sceneMode, { source: "map-mode" });
+    }
     viewer.__warzoneMapMode = mode;
     applyEventLod(viewer);
+    return viewer.__warzoneMapMode;
 }
 /* ---------- Missile geometry ---------- */
 function buildArcState(originLon, originLat, impactLon, impactLat, peakHeight = 420000, steps = 96) {
@@ -1958,7 +2493,7 @@ export async function initWarzoneGlobe() {
         infoBox: false,
         selectionIndicator: false,
         shouldAnimate: false,
-        scene3DOnly: true,
+        scene3DOnly: false,
         requestRenderMode: true,
         contextOptions: {
             webgl: {
@@ -1973,22 +2508,25 @@ export async function initWarzoneGlobe() {
         imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
     });
     viewer.__terrainVisible = true;
-    viewer.__borderLayersVisible = true;
+    viewer.__warzoneSceneMode = getSceneMode(viewer);
+    viewer.__warzoneAdaptiveProfile = "normal";
+    viewer.__borderLayersVisible = false;
+    viewer.__borderVisibilityAlpha = 0;
+    viewer.__borderLayersLoaded = false;
+    viewer.__borderLayerLoadPromise = null;
     viewer.__borderEntities = [];
     applyViewerStyle(viewer);
     setInitialCamera(viewer);
     attachCameraZoomLimiter(viewer);
+    attach2DCameraBoundsGuard(viewer);
+    syncSceneModeBounds(viewer);
     ensureMissileStore(viewer);
     ensureAudioStore(viewer);
     attachEventLodController(viewer);
     attachLabelsZoomController(viewer);
+    bindEventMarkerPicking(viewer);
     viewer.scene.requestRender();
     addArcGisLayers(viewer)
-        .then(() => {
-            viewer.scene.requestRender();
-        })
-        .catch(() => { });
-    addBorderLayers(viewer)
         .then(() => {
             viewer.scene.requestRender();
         })
@@ -2013,13 +2551,12 @@ export async function initWarzoneGlobe() {
             const prepared = shouldClusterEvents(viewer)
                 ? clusterEventsForDisplay(normalized, numberVar("--warzone-event-cluster-precision", 0.55), maxItems)
                 : normalized.slice(0, maxItems);
-            if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
-            for (const event of prepared) {
-                addEventEntity(viewer, event);
-            }
-            if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
-            applyEventLod(viewer);
-            viewer.scene.requestRender();
+            const ringEntityCap = Math.max(40, Math.round(numberVar("--warzone-event-ring-entity-cap", 160)));
+            const shouldDisableRingsForBatch = prepared.length > ringEntityCap;
+            reconcileEventEntities(viewer, prepared, {
+                disableEllipse: shouldDisableRingsForBatch,
+                disableOutline: shouldDisableRingsForBatch,
+            });
         },
         clearEventEntities() {
             clearTrackedEventEntities(viewer);
@@ -2045,6 +2582,12 @@ export async function initWarzoneGlobe() {
         },
         setMapMode(mode) {
             setMapMode(viewer, mode);
+        },
+        setSceneMode(mode, options = {}) {
+            return setSceneMode(viewer, mode, options);
+        },
+        getSceneMode() {
+            return getSceneMode(viewer);
         },
         refreshMapTuning() {
             if (viewer.__imageryBase) {
@@ -2072,23 +2615,51 @@ export async function initWarzoneGlobe() {
                 viewer.__imageryBase.show
             );
         },
-        setBorderLayersVisible(visible) {
-            setBorderLayersVisible(viewer, visible);
+        setBorderLayersVisible(visible, options = {}) {
+            setBorderLayersVisible(viewer, visible, options);
             viewer.scene.requestRender();
         },
         isBorderLayersVisible() {
             return viewer.__borderLayersVisible !== false;
         },
+        setAdaptiveQualityProfile(profile = "normal") {
+            const normalized = normalizeAdaptiveProfile(profile);
+            viewer.__warzoneAdaptiveProfile = normalized;
+            const count = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0));
+            this.setPerformanceMode(count);
+            viewer.scene.requestRender?.();
+            return normalized;
+        },
+        getAdaptiveQualityProfile() {
+            return normalizeAdaptiveProfile(viewer.__warzoneAdaptiveProfile);
+        },
         setPerformanceMode(visibleCount = 0) {
             const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
             const count = Math.max(0, Number(visibleCount || 0));
+            const adaptiveProfile = normalizeAdaptiveProfile(viewer.__warzoneAdaptiveProfile);
+            const adaptiveCaps = getAdaptiveProfileCaps(adaptiveProfile);
+            const hardMaxResolutionScale = clamp(numberVar("--warzone-resolution-hard-max", 1.22), 0.7, 1.4);
+            const hardMaxMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-hard-max", 2)));
             const baseResolution = clamp(numberVar("--warzone-resolution-scale", 1), 0.5, 2);
             const baseMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-samples", 1)));
             const baseFxaaEnabled = boolVar("--warzone-fxaa-enabled", true);
-            const idleResolutionMin = clamp(numberVar("--warzone-idle-resolution-min", 1.12), 0.8, 2);
-            const idleMsaaMin = Math.max(1, Math.round(numberVar("--warzone-idle-msaa-min", 4)));
-            const movingResolutionFloor = clamp(numberVar("--warzone-moving-resolution-scale", 1.0), 0.7, 2);
-            const movingMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-moving-msaa-samples", 2)));
+            const idleResolutionMin = clamp(numberVar("--warzone-idle-resolution-min", 1), 0.8, 2);
+            const idleMsaaMin = Math.max(1, Math.round(numberVar("--warzone-idle-msaa-min", 2)));
+            const movingResolutionFloor = clamp(numberVar("--warzone-moving-resolution-scale", 0.9), 0.68, 2);
+            const movingMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-moving-msaa-samples", 1)));
+            const baseTileCache = Math.max(
+                220,
+                Math.min(1200, Math.round(numberVar("--warzone-globe-tile-cache-size", 900)))
+            );
+            const movingTileCache = Math.max(
+                180,
+                Math.min(baseTileCache, Math.round(numberVar("--warzone-globe-tile-cache-moving", Math.max(220, baseTileCache * 0.66))))
+            );
+            const heavyTileCache = Math.max(
+                140,
+                Math.min(baseTileCache, Math.round(numberVar("--warzone-globe-tile-cache-heavy", Math.max(180, baseTileCache * 0.52))))
+            );
+            const basePreloadSiblings = boolVar("--warzone-globe-preload-siblings", false);
             const cameraHeight = getCameraHeight(viewer);
             const isCameraMoving = viewer.__warzoneCameraMoving === true;
             const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
@@ -2096,29 +2667,43 @@ export async function initWarzoneGlobe() {
             const nearSharpHeight = Math.max(250000, numberVar("--warzone-near-sharp-height", 1800000));
             const focusResolutionScale = clamp(numberVar("--warzone-focus-resolution-scale", 1.16), 0.8, 2);
             const closeResolutionScale = clamp(numberVar("--warzone-close-resolution-scale", 1.08), 0.8, 2);
-            const focusMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-msaa-samples", 4)));
-            const closeMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-close-msaa-samples", 3)));
+            const focusMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-msaa-samples", 2)));
+            const closeMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-close-msaa-samples", 2)));
+            const baseSse = clamp(numberVar("--warzone-globe-max-screen-space-error", 1.4), 0.9, 4.5);
+            const closeSse = clamp(numberVar("--warzone-globe-close-screen-space-error", 1.15), 0.8, 2.5);
+            const movingSse = clamp(numberVar("--warzone-globe-moving-screen-space-error", Math.max(baseSse * 1.45, 1.9)), 1.2, 6);
             let nextResolution = baseResolution;
             let nextMaximumRenderTime = Infinity;
             let nextMsaaSamples = baseMsaaSamples;
             let nextFxaaEnabled = baseFxaaEnabled;
+            let nextSse = baseSse;
+            let nextTileCache = baseTileCache;
+            let nextPreloadSiblings = basePreloadSiblings;
             if (count > 0) {
                 if (count <= 60) {
-                    nextMaximumRenderTime = 1.4;
+                    nextMaximumRenderTime = 1.25;
                 } else if (count <= 140) {
-                    nextMaximumRenderTime = 1.0;
-                    nextResolution = Math.max(0.9, baseResolution * 0.92);
+                    nextMaximumRenderTime = 0.95;
+                    nextResolution = Math.max(0.88, baseResolution * 0.9);
                     nextMsaaSamples = 1;
                 } else if (count <= 260) {
-                    nextMaximumRenderTime = 0.8;
-                    nextResolution = Math.max(0.82, baseResolution * 0.86);
+                    nextMaximumRenderTime = 0.78;
+                    nextResolution = Math.max(0.8, baseResolution * 0.84);
                     nextMsaaSamples = 1;
                 } else {
-                    nextMaximumRenderTime = 0.6;
-                    nextResolution = Math.max(0.76, baseResolution * 0.8);
+                    nextMaximumRenderTime = 0.58;
+                    nextResolution = Math.max(0.74, baseResolution * 0.76);
                     nextMsaaSamples = 1;
                     nextFxaaEnabled = true;
+                    nextSse = Math.max(nextSse, Math.max(1.7, baseSse));
                 }
+            }
+            if (count > 320) {
+                nextTileCache = Math.min(nextTileCache, heavyTileCache);
+                nextPreloadSiblings = false;
+            } else if (count > 160) {
+                nextTileCache = Math.min(nextTileCache, movingTileCache);
+                nextPreloadSiblings = false;
             }
             // Keep icon edges readable when camera is settled.
             if (!isCameraMoving) {
@@ -2130,29 +2715,49 @@ export async function initWarzoneGlobe() {
                 nextResolution = Math.max(nextResolution, Math.max(baseResolution, focusResolutionScale));
                 nextMsaaSamples = Math.max(nextMsaaSamples, focusMsaaSamples);
                 nextFxaaEnabled = true;
-                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.28);
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.24);
+                nextSse = Math.min(nextSse, Math.min(baseSse, closeSse));
             } else if (cameraHeight <= closeSharpHeight) {
                 // Close zoom (~30k-40k and nearby): keep map very clear without heavy overdraw.
                 nextResolution = Math.max(nextResolution, Math.max(baseResolution, closeResolutionScale));
                 nextMsaaSamples = Math.max(nextMsaaSamples, closeMsaaSamples);
                 nextFxaaEnabled = true;
-                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.42);
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.36);
+                nextSse = Math.min(nextSse, Math.min(baseSse, closeSse));
             } else if (cameraHeight <= nearSharpHeight) {
                 // General near-zoom floor for readability.
                 nextResolution = Math.max(1, baseResolution);
-                nextMsaaSamples = Math.max(2, baseMsaaSamples);
+                nextMsaaSamples = Math.max(1, Math.min(2, baseMsaaSamples));
                 nextFxaaEnabled = true;
+                nextSse = Math.min(nextSse, Math.max(1.25, baseSse));
             }
             if (isCameraMoving) {
-                // Keep map interaction smooth while dragging, but avoid harsh AA drop.
+                // While camera is moving, keep interaction responsive by easing quality cost.
                 nextResolution = Math.max(
                     movingResolutionFloor,
-                    Math.min(nextResolution, Math.max(movingResolutionFloor, baseResolution * 0.95))
+                    Math.min(nextResolution, Math.max(movingResolutionFloor, baseResolution * 0.88))
                 );
                 nextMsaaSamples = Math.max(1, Math.min(nextMsaaSamples, movingMsaaSamples));
                 nextFxaaEnabled = true;
-                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.2);
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.5);
+                nextSse = Math.max(nextSse, movingSse);
+                nextTileCache = Math.min(nextTileCache, movingTileCache);
+                nextPreloadSiblings = false;
             }
+            if (adaptiveCaps.forceFxaaEnabled) {
+                nextFxaaEnabled = true;
+            }
+            nextResolution = Math.min(nextResolution, adaptiveCaps.maxResolutionScale);
+            nextMsaaSamples = Math.min(nextMsaaSamples, adaptiveCaps.maxMsaaSamples);
+            nextSse = Math.max(nextSse, adaptiveCaps.minSse);
+            nextTileCache = Math.min(nextTileCache, adaptiveCaps.maxTileCache);
+            if (adaptiveCaps.forcePreloadSiblingsFalse) {
+                nextPreloadSiblings = false;
+            }
+            nextResolution = Math.min(nextResolution, hardMaxResolutionScale);
+            nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
+            nextSse = clamp(nextSse, 0.8, 6);
+            nextTileCache = Math.max(140, Math.min(1200, Math.round(nextTileCache)));
             const prevPerfState = viewer.__warzonePerformanceState || {};
             if (prevPerfState.resolutionScale !== nextResolution) {
                 viewer.resolutionScale = nextResolution;
@@ -2160,20 +2765,33 @@ export async function initWarzoneGlobe() {
             if (prevPerfState.maximumRenderTimeChange !== nextMaximumRenderTime) {
                 viewer.scene.maximumRenderTimeChange = nextMaximumRenderTime;
             }
+            if (prevPerfState.maximumScreenSpaceError !== nextSse) {
+                viewer.scene.globe.maximumScreenSpaceError = nextSse;
+            }
             if (Number.isFinite(nextMsaaSamples) && prevPerfState.msaaSamples !== nextMsaaSamples) {
                 viewer.scene.msaaSamples = nextMsaaSamples;
             }
             if (viewer.scene.postProcessStages?.fxaa && prevPerfState.fxaaEnabled !== nextFxaaEnabled) {
                 viewer.scene.postProcessStages.fxaa.enabled = nextFxaaEnabled;
             }
+            if (prevPerfState.tileCacheSize !== nextTileCache) {
+                viewer.scene.globe.tileCacheSize = nextTileCache;
+            }
+            if (prevPerfState.preloadSiblings !== nextPreloadSiblings) {
+                viewer.scene.globe.preloadSiblings = nextPreloadSiblings;
+            }
             viewer.__warzonePerformanceState = {
                 resolutionScale: nextResolution,
                 maximumRenderTimeChange: nextMaximumRenderTime,
+                maximumScreenSpaceError: nextSse,
                 msaaSamples: nextMsaaSamples,
                 fxaaEnabled: nextFxaaEnabled,
+                tileCacheSize: nextTileCache,
+                preloadSiblings: nextPreloadSiblings,
                 visibleCount: count,
                 cameraHeight,
                 isCameraMoving,
+                adaptiveProfile,
             };
             viewer.scene.requestRenderMode = true;
         },

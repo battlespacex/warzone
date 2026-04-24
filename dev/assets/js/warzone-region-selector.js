@@ -27,6 +27,9 @@ const STORAGE_KEY = "wz_selected_region";
 const LENS_KEY = "wz_selected_lens";
 const VISITED_KEY = "wz_region_visited";
 const INTRO_ACCEPT_KEY = "wz_intro_accepted";
+const LAYER_STATE_KEY = "wz_layer_state";
+const BORDER_LAYER_ID = "country-borders";
+const LANDING_CAMERA = { lon: 20, lat: 20, alt: 16200000 };
 let __regionFlyLoaderTimer = 0;
 let __activeRegion = getRegionById("middle_east");
 let __activeLens = "live";
@@ -44,6 +47,28 @@ function getRegionLabelForLens(region, lens) {
 function getDefaultRegionForLens(lens) {
     const regions = getRegionsForLens(lens);
     return regions[0] || getRegionById("middle_east");
+}
+function setLandingCamera(viewer) {
+    if (!viewer?.camera) return;
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(
+            LANDING_CAMERA.lon,
+            LANDING_CAMERA.lat,
+            LANDING_CAMERA.alt
+        ),
+    });
+    viewer.scene?.requestRender?.();
+}
+function getSavedCountryBorderLayerVisibility() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(LAYER_STATE_KEY) || "{}");
+        if (Object.prototype.hasOwnProperty.call(saved, BORDER_LAYER_ID)) {
+            return saved[BORDER_LAYER_ID] !== false;
+        }
+    } catch {
+        // keep defaults
+    }
+    return true;
 }
 function isCoordinateInsideBounds(lon, lat, bounds = {}) {
     return (
@@ -231,21 +256,20 @@ export function initRegionNav(viewer) {
 }
 export function initRegionSelector(viewer) {
     try {
-        const savedRegion = localStorage.getItem(STORAGE_KEY);
-        __activeRegion = savedRegion ? getRegionById(savedRegion) : getRegionById("middle_east");
-
         const savedLens = localStorage.getItem(LENS_KEY);
         __activeLens = savedLens || "live";
+        __activeRegion = getRegionById("global");
 
         ensureRegionAllowedForLens();
     } catch {
-        __activeRegion = getRegionById("middle_east");
+        __activeRegion = getRegionById("global");
         __activeLens = "live";
     }
 
     window.__warzoneShowRegionModal = (instant = false) => showRegionModal(viewer, instant);
 
-    flyToRegion(viewer, __activeRegion);
+    setLandingCamera(viewer);
+    viewer?.__warzone?.setBorderLayersVisible?.(false, { animate: false });
     initRegionNav(viewer);
 }
 function showRegionModal(viewer, instant = false) {
@@ -334,6 +358,10 @@ function showRegionModal(viewer, instant = false) {
                 overlay.hidden = true;
                 overlay.classList.remove("is-closing");
                 selectRegion(viewer, chosen, { showLoader: true });
+                viewer?.__warzone?.setBorderLayersVisible?.(
+                    getSavedCountryBorderLayerVisibility(),
+                    { animate: true, duration: 780 }
+                );
                 window.__warzoneStartDeferredApp?.();
             }, 220);
         });

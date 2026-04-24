@@ -64,7 +64,6 @@ let __isFetching = false;
 let __fetchInFlightSince = 0;
 let __activeFetchController = null;
 let __visibilitySyncBound = false;
-const __sourceTrackStore = new Map();
 const __canonicalTrackStore = new Map();
 const __identityCanonicalIndex = new Map();
 const __activeTrackKeys = new Set();
@@ -407,7 +406,6 @@ function clearAllPublicAirTracks() {
         clearLiveTrack(trackKey);
     }
     __activeTrackKeys.clear();
-    __sourceTrackStore.clear();
     __canonicalTrackStore.clear();
     __identityCanonicalIndex.clear();
 }
@@ -477,7 +475,6 @@ async function refreshPublicAirTracks(options = {}) {
                 normalized.track_key = String(existingCanonical.track_key);
             }
             const merged = mergeTrack(existingCanonical, normalized);
-            __sourceTrackStore.set(normalized.track_key, normalized);
             __canonicalTrackStore.set(canonicalKey, merged);
             indexCanonicalIdentities(canonicalKey, merged);
             seenThisPass.add(merged.track_key);

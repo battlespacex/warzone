@@ -27,8 +27,9 @@ const __navalState = {
 const NAVAL_LABEL_HEIGHT_MAX = 3500000;  // Show labels below this camera altitude
 const NAVAL_FOCUS_GUIDE_COLOR = "rgba(51, 217, 255, 0.75)";
 const NAVAL_MIN_ANIM_DISTANCE_METERS = 40;
-const NAVAL_MIN_ANIM_MS = 1800;
-const NAVAL_MAX_ANIM_MS = 18000;
+const NAVAL_MIN_ANIM_MS = 900;
+const NAVAL_MAX_ANIM_MS = 9000;
+const NAVAL_DEFAULT_ANIM_MS = 2600;
 const NAVAL_FOCUS_CAMERA_RANGE_METERS = 120000;
 const NAVAL_FOCUS_CAMERA_PITCH_DEG = -89;
 let __navalRenderDebounceTimer = null;
@@ -41,6 +42,9 @@ const NAVAL_RENDER_MODE = Object.freeze({
 const NAVAL_MODEL_DEFAULT_MAX_ACTIVE = 14;
 const NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT = 280000;
 const NAVAL_CHAR_FALLBACK_DEFAULT_COUNT = 80;
+const NAVAL_CONTACT_STALE_MS = 45 * 60 * 1000;
+const NAVAL_CONTACT_MAX_ITEMS = 320;
+const NAVAL_ICON_CACHE_MAX_ITEMS = 128;
 const NAVAL_MODEL_DEFAULT_URI = "/assets/images/models/naval/ns-2.glb";
 const LIVE_NAVAL_ICON_BASE_PATH = "/assets/images/live";
 const LIVE_NAVAL_ICON_DEFAULT_CODE = "ns-2";
@@ -79,6 +83,18 @@ const NAVAL_MODEL_BY_SUBTYPE = {
 // ─── Ship icon canvases (cached) ──────────────────────────────────────────────
 const __navalIconCache = new Map();
 const __navalIconCodeCache = new Map();
+function setLimitedMapCache(map, key, value, maxItems = NAVAL_ICON_CACHE_MAX_ITEMS) {
+    if (!(map instanceof Map)) return value;
+    if (map.has(key)) map.delete(key);
+    map.set(key, value);
+    const max = Math.max(16, Number(maxItems || NAVAL_ICON_CACHE_MAX_ITEMS));
+    while (map.size > max) {
+        const oldestKey = map.keys().next().value;
+        if (oldestKey === undefined) break;
+        map.delete(oldestKey);
+    }
+    return value;
+}
 const NAVAL_SUBTYPE_META = {
     carrier: { label: "Carrier", color: "#ff3a3a", priority: 0 },
     amphibious: { label: "Amphibious", color: "#ff6a3d", priority: 1 },
@@ -326,10 +342,23 @@ function hasNavalTelemetrySignature(data = {}) {
     );
 }
 function purgeInvalidNavalContacts() {
+    const staleCutoff = Date.now() - NAVAL_CONTACT_STALE_MS;
+    const purgeKeys = [];
     for (const [trackKey, entry] of __navalState.vessels.entries()) {
         const data = entry?.data || {};
-        if (isProbablyAircraftContact(data) || !hasNavalTelemetrySignature(data)) {
-            clearNavalVessel(trackKey);
+        const seenAt = Number(data.last_seen_at || entry?.entity?.__navalLastSeenAt || 0);
+        const stale = Number.isFinite(seenAt) && seenAt > 0 && seenAt < staleCutoff;
+        if (isProbablyAircraftContact(data) || !hasNavalTelemetrySignature(data) || stale) {
+            purgeKeys.push(trackKey);
+        }
+    }
+    purgeKeys.forEach((trackKey) => clearNavalVessel(trackKey));
+    const overflow = __navalState.vessels.size - NAVAL_CONTACT_MAX_ITEMS;
+    if (overflow > 0) {
+        const sorted = Array.from(__navalState.vessels.entries())
+            .sort((a, b) => Number(b?.[1]?.data?.last_seen_at || 0) - Number(a?.[1]?.data?.last_seen_at || 0));
+        for (let i = NAVAL_CONTACT_MAX_ITEMS; i < sorted.length; i += 1) {
+            clearNavalVessel(sorted[i][0]);
         }
     }
 }
@@ -1006,7 +1035,7 @@ function createNavalPngIcon(color = "#33d9ff", subcat = "naval") {
     ctx.stroke();
 
     const dataUrl = canvas.toDataURL("image/png");
-    __navalIconCache.set(cacheKey, dataUrl);
+    setLimitedMapCache(__navalIconCache, cacheKey, dataUrl);
     return dataUrl;
 }
 function createNavalCharIcon(color = "#33d9ff", subcat = "naval") {
@@ -1036,7 +1065,7 @@ function createNavalCharIcon(color = "#33d9ff", subcat = "naval") {
     ctx.fillText(glyphChar, half, half + 1);
 
     const dataUrl = canvas.toDataURL("image/png");
-    __navalIconCache.set(cacheKey, dataUrl);
+    setLimitedMapCache(__navalIconCache, cacheKey, dataUrl);
     return dataUrl;
 }
 
@@ -1141,7 +1170,7 @@ function resolveNavalBillboardImage(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
         return __navalIconCache.get(cacheKey);
     }
     const iconPath = getLiveNavalIconPath(iconCode);
-    __navalIconCache.set(cacheKey, iconPath);
+    setLimitedMapCache(__navalIconCache, cacheKey, iconPath);
     return iconPath;
 }
 function buildNavalOrientation(lon, lat, headingDeg = 0, vessel = {}) {
@@ -1282,6 +1311,17 @@ function shouldShowNavalLabel(trackKey) {
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
+function normalizeHeadingDegrees(value = 0) {
+    const num = Number(value || 0);
+    if (!Number.isFinite(num)) return 0;
+    return ((num % 360) + 360) % 360;
+}
+function shortestHeadingDeltaDegrees(fromDeg = 0, toDeg = 0) {
+    let delta = normalizeHeadingDegrees(toDeg) - normalizeHeadingDegrees(fromDeg);
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return delta;
+}
 function getEntityPosition(entity) {
     if (!entity?.position) return null;
     try {
@@ -1309,6 +1349,7 @@ function animateVesselTo(entity, vessel) {
         if (entity.model) {
             entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
         }
+        entity.__navalLastSeenAt = Number(vessel.last_seen_at || entity.__navalLastSeenAt || 0);
         requestNavalRenderBatched();
     };
     if (!startCartesian) {
@@ -1326,13 +1367,25 @@ function animateVesselTo(entity, vessel) {
         commitPosition(nextCartesian);
         return;
     }
-    const duration = clamp(distanceMeters * 0.2, NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
+    const prevSeenAt = Number(entity.__navalLastSeenAt || 0);
+    const nextSeenAt = Number(vessel.last_seen_at || 0);
+    const sourceGapMs =
+        Number.isFinite(prevSeenAt) &&
+            prevSeenAt > 0 &&
+            Number.isFinite(nextSeenAt) &&
+            nextSeenAt > prevSeenAt
+            ? nextSeenAt - prevSeenAt
+            : NAVAL_DEFAULT_ANIM_MS;
+    const cadenceDuration = clamp(sourceGapMs * 0.9, NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
+    const distanceDuration = clamp(distanceMeters * 0.12, NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
+    const duration = clamp(Math.max(cadenceDuration, distanceDuration), NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
     const startTime = performance.now();
     const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
     const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
     const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
-    const startHeading = Number(entity.__navalHeadingDeg || 0);
-    const endHeading = Number(vessel.heading_deg || 0);
+    const startHeading = normalizeHeadingDegrees(entity.__navalHeadingDeg || 0);
+    const endHeading = normalizeHeadingDegrees(vessel.heading_deg || 0);
+    const headingDelta = shortestHeadingDeltaDegrees(startHeading, endHeading);
     const step = (now) => {
         const t = Math.min(1, (now - startTime) / duration);
         const eased = t < 0.5
@@ -1340,7 +1393,7 @@ function animateVesselTo(entity, vessel) {
             : 1 - Math.pow(-2 * t + 2, 3) / 2;
         const lon = startLon + ((vessel.lon - startLon) * eased);
         const lat = startLat + ((vessel.lat - startLat) * eased);
-        const heading = startHeading + ((endHeading - startHeading) * eased);
+        const heading = normalizeHeadingDegrees(startHeading + (headingDelta * eased));
         entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
         if (entity.billboard) {
             entity.billboard.rotation = Cesium.Math.toRadians(-heading);
@@ -1354,6 +1407,7 @@ function animateVesselTo(entity, vessel) {
         } else {
             entity.__navalAnimFrame = null;
             entity.__navalHeadingDeg = endHeading;
+            entity.__navalLastSeenAt = Number(vessel.last_seen_at || entity.__navalLastSeenAt || 0);
         }
     };
     entity.__navalAnimFrame = requestAnimationFrame(step);
@@ -1374,6 +1428,7 @@ function createVesselEntity(viewer, vessel) {
     entity.__navalKey = track_key;
     entity.__navalData = vessel;
     entity.__navalHeadingDeg = heading_deg || 0;
+    entity.__navalLastSeenAt = Number(vessel.last_seen_at || 0);
     return entity;
 }
 
@@ -1385,7 +1440,8 @@ function updateVesselEntity(entity, vessel) {
     if (entity.label) {
         applyNavalLabel(entity.label, vessel, vessel.track_key);
     }
-    entity.__navalHeadingDeg = heading_deg || 0;
+    entity.__navalHeadingDeg = normalizeHeadingDegrees(heading_deg || 0);
+    entity.__navalLastSeenAt = Number(vessel.last_seen_at || entity.__navalLastSeenAt || 0);
     entity.__navalData = vessel;
 }
 
@@ -1485,6 +1541,7 @@ function clearNavalCameraLock() {
 function syncNavalCameraLock() {
     const viewer = window.__warzoneViewer;
     const trackKey = String(__navalState.selectedKey || "");
+    if (viewer?.scene?.mode !== Cesium.SceneMode.SCENE3D) return;
     if (!viewer || !trackKey || __navalState.isCameraFlying) return;
     const entry = __navalState.vessels.get(trackKey);
     const position = getEntityPosition(entry?.entity);
@@ -1500,6 +1557,14 @@ function syncNavalCameraLock() {
         );
     } catch { }
 }
+function emitNavalFocusChanged() {
+    document.dispatchEvent(new CustomEvent("wz:naval-track-selected", {
+        detail: {
+            trackKey: String(__navalState.selectedKey || ""),
+            focused: Boolean(__navalState.selectedKey),
+        },
+    }));
+}
 
 function clearNavalSelection() {
     __navalState.selectedKey = null;
@@ -1512,6 +1577,7 @@ function clearNavalSelection() {
     __navalState.overlayLastY = Number.NaN;
     document.getElementById("warzone-naval-panel")?.remove();
     syncNavalWidgetHighlight(null);
+    emitNavalFocusChanged();
 }
 function focusNavalVessel(trackKey, options = {}) {
     const viewer = window.__warzoneViewer;
@@ -1539,6 +1605,7 @@ function focusNavalVessel(trackKey, options = {}) {
     const panelY = Number.isFinite(options.screenY) ? options.screenY : (window.innerHeight / 2);
     showNavalPanel(entry.data, panelX, panelY);
     syncNavalWidgetHighlight(trackKey);
+    emitNavalFocusChanged();
     return true;
 }
 

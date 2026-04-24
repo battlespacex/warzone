@@ -350,22 +350,32 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
     const height = getCameraHeight(viewer);
     if (height > 9000000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 3.8),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 4.6),
-            maxCards: Math.max(cfg.maxCards, 10),
-            maxVisiblePerHotspot: 1,
-            stackDistancePx: Math.max(cfg.stackDistancePx, 150),
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 2.45),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 2.95),
+            maxCards: Math.max(cfg.maxCards, 26),
+            maxVisiblePerHotspot: 2,
+            stackDistancePx: Math.max(cfg.stackDistancePx, 124),
             edgePad: 220,
         };
     }
     if (height > 4500000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 2.8),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 3.4),
-            maxCards: Math.max(cfg.maxCards, 14),
-            maxVisiblePerHotspot: 2,
-            stackDistancePx: Math.max(cfg.stackDistancePx, 120),
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 1.95),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 2.35),
+            maxCards: Math.max(cfg.maxCards, 40),
+            maxVisiblePerHotspot: 3,
+            stackDistancePx: Math.max(cfg.stackDistancePx, 98),
             edgePad: 180,
+        };
+    }
+    if (height > 2200000) {
+        return {
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 1.55),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 1.9),
+            maxCards: Math.max(cfg.maxCards, 52),
+            maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 3),
+            stackDistancePx: Math.max(cfg.stackDistancePx, 90),
+            edgePad: 160,
         };
     }
     return {
@@ -547,11 +557,12 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let cameraMoving = false;
     let moveEndTimer = 0;
     const cfg = {
-        maxCards: options.maxCards ?? 24,
+        maxCards: options.maxCards ?? 52,
+        maxEvents: options.maxEvents ?? 1800,
         clusterDistanceLat: options.clusterDistanceLat ?? 2.6,
         clusterDistanceLon: options.clusterDistanceLon ?? 3.2,
         stackDistancePx: options.stackDistancePx ?? 100,
-        maxVisiblePerHotspot: options.maxVisiblePerHotspot ?? 3,
+        maxVisiblePerHotspot: options.maxVisiblePerHotspot ?? 4,
         minItemsForCluster: options.minItemsForCluster ?? 1,
         throttleIdle: options.throttleIdle ?? 100,
         throttleMove: options.throttleMove ?? 90,
@@ -692,7 +703,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             }
             const normalized = arr
                 .filter((evt) => evt && Number.isFinite(Number(evt.lat)) && Number.isFinite(Number(evt.lon)))
-                .map((evt) => normalizeEventForDisplay(evt));
+                .map((evt) => normalizeEventForDisplay(evt))
+                .slice(0, Math.max(120, Number(cfg.maxEvents || 1800)));
             allEvents = normalized;
             lastEventsSignature = nextSignature;
             clustersDirty = true;
@@ -705,6 +717,10 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             if (!Number.isFinite(Number(evt.lat)) || !Number.isFinite(Number(evt.lon))) return;
             if (allEvents.some((e) => String(e.id) === String(evt.id))) return;
             allEvents.unshift(normalizeEventForDisplay(evt));
+            const maxEvents = Math.max(120, Number(cfg.maxEvents || 1800));
+            if (allEvents.length > maxEvents) {
+                allEvents.length = maxEvents;
+            }
             clustersDirty = true;
             viewer.scene.requestRender();
             scheduleRender(0);

@@ -140,33 +140,33 @@
 /* #endregion =========== */
 /* #region =========== Globe Render Quality =========== */
 :root {
-    --warzone-resolution-scale: 1.12;
-    --warzone-msaa-samples: 4;
+    --warzone-resolution-scale: 1.0;
+    --warzone-msaa-samples: 2;
     --warzone-fxaa-enabled: 1;
-    --warzone-idle-resolution-min: 1.12;
-    --warzone-idle-msaa-min: 4;
-    --warzone-moving-resolution-scale: 1;
-    --warzone-moving-msaa-samples: 2;
-    --warzone-focus-resolution-scale: 1.24;
-    --warzone-close-resolution-scale: 1.16;
-    --warzone-focus-msaa-samples: 4;
-    --warzone-close-msaa-samples: 3;
+    --warzone-idle-resolution-min: 1.0;
+    --warzone-idle-msaa-min: 2;
+    --warzone-moving-resolution-scale: 0.88;
+    --warzone-moving-msaa-samples: 1;
+    --warzone-focus-resolution-scale: 1.08;
+    --warzone-close-resolution-scale: 1.04;
+    --warzone-focus-msaa-samples: 3;
+    --warzone-close-msaa-samples: 2;
     --warzone-camera-zoom-factor: 7.5;
     --warzone-focus-sharp-height: 120000;
     --warzone-close-sharp-height: 450000;
     --warzone-near-sharp-height: 1800000;
     --warzone-camera-min-zoom: 100;
     --warzone-camera-max-zoom: 20000000;
-    --warzone-globe-max-screen-space-error: 1.2;
-    --warzone-globe-tile-cache-size: 1800;
-    --warzone-globe-loading-descendant-limit: 80;
+    --warzone-globe-max-screen-space-error: 1.6;
+    --warzone-globe-tile-cache-size: 1200;
+    --warzone-globe-loading-descendant-limit: 64;
     --warzone-globe-preload-ancestors: 1;
     --warzone-globe-preload-siblings: 1;
     --warzone-imagery-max-anisotropy: 16;
-    --warzone-max-renderable-events: 300;
-    --warzone-event-cluster-height: 6000000; /* was 8M — cluster sooner on zoom-out */
+    --warzone-max-renderable-events: 380;
+    --warzone-event-cluster-height: 9000000; /* cluster later so normal zoom keeps more raw activity visible */
     --warzone-event-ring-max-height: 15000000;
-    --warzone-event-cluster-precision: 0.33; /* was 0.15 — slightly coarser = larger clusters = bigger circles */
+    --warzone-event-cluster-precision: 0.18; /* finer clustering keeps more individual hotspots/markers visible */
 }
 /* #endregion =========== */
 /* #region =========== Labels Layer =========== */
@@ -194,14 +194,15 @@
 /* #region =========== Country / Province Borders =========== */
 :root {
     --warzone-country-border: var(--color-teal-slate);
-    --warzone-country-border-alpha: 1;
-    --warzone-country-border-width: 3;
+    --warzone-country-border-alpha: 0.78;
+    --warzone-country-border-width: 2.2;
     --warzone-province-border: var(--color-teal-slate);
     --warzone-province-border-alpha: 1;
     --warzone-province-border-width: 1.2;
     --warzone-city-border: var(--color-teal-slate);
     --warzone-city-border-alpha: 1;
     --warzone-city-border-width: 0.8;
+    --warzone-border-fade-duration: 620;
 }
 /* #endregion =========== */
 /* #region =========== Camera Defaults =========== */
@@ -220,8 +221,9 @@
     /* Markers: cluster events always show their count badge (controlled in JS).
        Single-event markers hidden at default zoom — JS reads this for non-clusters. */
     --warzone-marker-scale: 0.55;
-    --warzone-event-markers-visible: 0; /* Single-event markers hidden by default; clusters override in JS */
+    --warzone-event-markers-visible: 1; /* show singles so map doesn't look empty when below cluster threshold */
     --warzone-event-rings-visible: 1;
+    --warzone-event-ring-entity-cap: 160;
     /* Base ring size increased from 32km → 55km so clusters are clearly visible
        at zoom-out. Single events still look right at normal zoom.
        Cluster rings scale further via cluster_count in getSeverityRadius(). */
@@ -469,7 +471,7 @@
     --warzone-live-track-color: var(--color-green-glow);
     --warzone-live-track-opacity: 0.85;
     --warzone-live-track-width: 3;
-    --warzone-live-track-trail-smoothing: 0.55;
+    --warzone-live-track-trail-smoothing: 0.68;
     --warzone-live-track-scale: 12;
     --warzone-live-track-min-pixel-size: 96;
     --warzone-live-track-max-scale: 280;
@@ -477,6 +479,9 @@
     /* Aircraft: model sizing + dev calibration controls */
     --warzone-live-aircraft-model-calibration-enabled: 0;
     --warzone-live-aircraft-model-primary-enabled: 1;
+    /* Aircraft render mode controls: auto | img | glb | char */
+    --warzone-live-aircraft-render-mode-default: img;
+    --warzone-live-aircraft-render-mode-focused: glb;
   --warzone-live-aircraft-model-scale: 1;
   --warzone-live-aircraft-model-scale-zoom-in: 1;
   --warzone-live-aircraft-model-scale-zoom-out: 1;
@@ -580,6 +585,11 @@
 :root {
     --warzone-mil-sat-scale: 200000;
     --warzone-mil-sat-min-px: 20;
-    --warzone-mil-sat-max-scale: 320000
+    --warzone-mil-sat-max-scale: 320000;
+    --warzone-mil-sat-near-height: 500000;
+    --warzone-mil-sat-far-height: 5000000;
+    --warzone-mil-sat-near-scale-multiplier: 0.22;
+    --warzone-mil-sat-far-scale-multiplier: 1;
+    --warzone-mil-sat-min-px-near: 6;
 }
 /* #endregion =========== */

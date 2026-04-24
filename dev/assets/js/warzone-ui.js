@@ -1,6 +1,15 @@
 ﻿// File Path: /assets/js/warzone-ui.js
 import { initTheaterPanel } from "./warzone-theater-panel.js";
 
+const __sceneModeUiState = {
+    currentMode: "3d",
+    snapshotModeBeforeFocus: null,
+    aircraftFocused: false,
+    navalFocused: false,
+    listenersBound: false,
+    bootstrapTimer: null,
+};
+
 export function bindWarzoneUi() {
     bindTopViews();
     bindAlertDismiss();
@@ -161,16 +170,109 @@ function bindGlobeToggle() {
     const btn3d = document.getElementById("wz-toggle-3d");
     const btn2d = document.getElementById("wz-toggle-2d");
     if (!btn3d || !btn2d) return;
-    btn3d.addEventListener("click", () => {
-        btn3d.classList.add("is-active");
-        btn2d.classList.remove("is-active");
-        window.__warzoneViewer?.__warzone?.setMapMode?.("3d");
-    });
-    btn2d.addEventListener("click", () => {
-        btn2d.classList.add("is-active");
-        btn3d.classList.remove("is-active");
-        window.__warzoneViewer?.__warzone?.setMapMode?.("2d");
-    });
+    const normalizeSceneMode = (value = "") => {
+        const mode = String(value || "").trim().toLowerCase();
+        if (mode === "2d" || mode === "flat") return "2d";
+        if (mode === "3d" || mode === "globe") return "3d";
+        return "";
+    };
+    // Auto scene-mode switching on focus can produce repeated morphs when
+    // focus signals flap under live updates. Keep it opt-in only.
+    const autoFocusSceneModeEnabled = window.__stratopsConfig?.autoSceneModeOnFocus === true;
+    const getWarzoneMapApi = () => window.__warzoneViewer?.__warzone || null;
+    const updateButtons = (mode = "3d") => {
+        const nextMode = normalizeSceneMode(mode) || "3d";
+        const is3d = nextMode === "3d";
+        btn3d.classList.toggle("is-active", is3d);
+        btn2d.classList.toggle("is-active", !is3d);
+        btn3d.setAttribute("aria-pressed", String(is3d));
+        btn2d.setAttribute("aria-pressed", String(!is3d));
+        __sceneModeUiState.currentMode = nextMode;
+    };
+    const readSceneMode = () => {
+        const mode = normalizeSceneMode(getWarzoneMapApi()?.getSceneMode?.());
+        if (mode) return mode;
+        return __sceneModeUiState.currentMode || "3d";
+    };
+    const applySceneMode = (mode, options = {}) => {
+        const nextMode = normalizeSceneMode(mode);
+        if (!nextMode) return readSceneMode();
+        const api = getWarzoneMapApi();
+        let appliedMode = nextMode;
+        if (api?.setSceneMode) {
+            const result = api.setSceneMode(nextMode, {
+                source: String(options.source || "ui"),
+                duration: Number.isFinite(Number(options.duration)) ? Number(options.duration) : undefined,
+            });
+            appliedMode = normalizeSceneMode(result) || nextMode;
+        } else if (api?.setMapMode) {
+            const result = api.setMapMode(nextMode);
+            appliedMode = normalizeSceneMode(result) || nextMode;
+        }
+        updateButtons(appliedMode);
+        return appliedMode;
+    };
+    const isAnyFocusActive = () => __sceneModeUiState.aircraftFocused || __sceneModeUiState.navalFocused;
+    const syncAutoFocusSceneMode = () => {
+        if (!autoFocusSceneModeEnabled) return;
+        const focusActive = isAnyFocusActive();
+        if (focusActive) {
+            if (!__sceneModeUiState.snapshotModeBeforeFocus) {
+                __sceneModeUiState.snapshotModeBeforeFocus = readSceneMode();
+            }
+            applySceneMode("2d", { source: "auto-focus", duration: 0.55 });
+            return;
+        }
+        if (__sceneModeUiState.snapshotModeBeforeFocus) {
+            const restoreMode = __sceneModeUiState.snapshotModeBeforeFocus;
+            __sceneModeUiState.snapshotModeBeforeFocus = null;
+            applySceneMode(restoreMode, { source: "auto-restore", duration: 0.72 });
+        }
+    };
+    const handleManualToggle = (nextMode) => {
+        applySceneMode(nextMode, { source: "manual", duration: 0.72 });
+        if (isAnyFocusActive()) {
+            syncAutoFocusSceneMode();
+        }
+    };
+    btn3d.addEventListener("click", () => handleManualToggle("3d"));
+    btn2d.addEventListener("click", () => handleManualToggle("2d"));
+    if (!__sceneModeUiState.listenersBound) {
+        __sceneModeUiState.listenersBound = true;
+        document.addEventListener("wz:scene-mode-changed", (event) => {
+            const mode = normalizeSceneMode(event?.detail?.mode);
+            if (!mode) return;
+            updateButtons(mode);
+        });
+        document.addEventListener("wz:aircraft-track-selected", (event) => {
+            const trackKey = String(event?.detail?.trackKey || "").trim();
+            const mode = String(event?.detail?.mode || "").trim().toLowerCase();
+            __sceneModeUiState.aircraftFocused = Boolean(trackKey) && mode === "focus";
+            syncAutoFocusSceneMode();
+        });
+        document.addEventListener("wz:naval-track-selected", (event) => {
+            const focused = Boolean(event?.detail?.focused) || Boolean(String(event?.detail?.trackKey || "").trim());
+            __sceneModeUiState.navalFocused = focused;
+            syncAutoFocusSceneMode();
+        });
+    }
+    updateButtons(readSceneMode());
+    if (__sceneModeUiState.bootstrapTimer) {
+        clearTimeout(__sceneModeUiState.bootstrapTimer);
+        __sceneModeUiState.bootstrapTimer = null;
+    }
+    const bootstrapFromViewer = (attempt = 0) => {
+        const mode = normalizeSceneMode(getWarzoneMapApi()?.getSceneMode?.());
+        if (mode) {
+            updateButtons(mode);
+            return;
+        }
+        if (attempt >= 50) return;
+        __sceneModeUiState.bootstrapTimer = setTimeout(() => {
+            bootstrapFromViewer(attempt + 1);
+        }, 120);
+    };
+    bootstrapFromViewer(0);
 }
 
 // ── News Ticker ────────────────────────────────────────────────────────────────

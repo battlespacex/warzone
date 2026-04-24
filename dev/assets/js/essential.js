@@ -6,7 +6,7 @@ import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
-import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS } from "./warzone-layers.js";
+import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage } from "./warzone-layers.js";
 import { renderRanges, clearRanges } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
 import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
@@ -43,11 +43,15 @@ let __scrollToTargetBound = false;
 let __lastSeenOccurredAt = null;
 let __hotspotLayer = null;
 let __militaryTracks = null;
+let __eventPopupBound = false;
 let __pollTimer = null;
 let __pollInFlight = false;
 let __pollInFlightSince = 0;
 let __pollRequestSeq = 0;
 let __pollEmptyStreak = 0;
+let __eventsApiRestrictedUntil = 0;
+let __eventsApiLastErrorKey = "";
+let __eventsApiLastErrorLoggedAt = 0;
 let __viewportFetchTimer = null;
 let __viewportFetchInFlight = false;
 let __lastViewportKey = "";
@@ -57,6 +61,7 @@ let __lastSweepersSyncKey = "";
 let __lastOverlaySourceKey = "__empty__";
 let __lastOverlayClusterRadiusBucket = "";
 let __cachedOverlayClusters = [];
+let __lastNavalSignalsSyncKey = "__empty__";
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
@@ -69,6 +74,7 @@ let __aircraftHistoryLoadingPromise = null;
 let __aircraftWidgetRenderTimer = 0;
 let __aircraftHistoryRefreshTimer = 0;
 let __aircraftLiveSyncTimer = 0;
+let __tracksRealtimeChannel = null;
 let __aircraftSubtypeOptionsKey = "";
 let __widgetLoadingState = new Map();
 let __navalWidgetRenderTimer = 0;
@@ -83,6 +89,7 @@ let __foregroundRecoveryLoaderShownAt = 0;
 let __foregroundRecoverySeq = 0;
 let __lastBackgroundAt = 0;
 let __lastForegroundRecoveryAt = 0;
+let __authModalRenderBudgetBackup = null;
 const FOREGROUND_RECOVERY_LOADER_MIN_MS = 320;
 const FOREGROUND_RECOVERY_LOADER_MAX_MS = 4200;
 const FOREGROUND_RECOVERY_LOADER_THRESHOLD_MS = 60 * 1000;
@@ -94,13 +101,24 @@ const AIRCRAFT_HISTORY_WINDOW_MS = 72 * 60 * 60 * 1000;
 const AIRCRAFT_RECENT_WINDOW_MS = 72 * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_REFRESH_MS = 3 * 60 * 1000;
 const AIRCRAFT_HISTORY_ACTIVE_WINDOW_MS = 8 * 60 * 1000;
+const AIRCRAFT_HISTORY_CACHE_MAX_ROWS = 1200;
 const AIRCRAFT_LIVE_SYNC_MS = 8 * 1000;
-const AIRCRAFT_LIVE_SYNC_DB_MS = 2 * 1000;
+const AIRCRAFT_LIVE_SYNC_DB_MS = 6 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
 const EVENT_POLL_INTERVAL_MS = 12 * 1000;
+const EVENT_CACHE_MAX_ITEMS = 2600;
+const EVENT_VISIBLE_CACHE_MAX_ITEMS = 1800;
+const EVENT_CACHE_RETENTION_MS = 48 * 60 * 60 * 1000;
 const POLL_SINCE_MAX_FUTURE_SKEW_MS = 60 * 1000;
 const POLL_FULL_REFRESH_EMPTY_STREAK = 15;
+const EVENTS_API_ERROR_LOG_THROTTLE_MS = 45 * 1000;
+const EVENTS_API_RESTRICTED_BACKOFF_MS = 2 * 60 * 1000;
+const WZ_PERF_ADVISORY_VERSION = "2026-04-adaptive-v1";
+const WZ_PERF_ADVISORY_OPTOUT_KEY = `wz_perf_advisory_optout_${WZ_PERF_ADVISORY_VERSION}`;
+const WZ_PERF_ADVISORY_SESSION_KEY = `wz_perf_advisory_session_${WZ_PERF_ADVISORY_VERSION}`;
+const WZ_PERF_ADVISORY_LAST_PROFILE_KEY = `wz_perf_advisory_profile_${WZ_PERF_ADVISORY_VERSION}`;
+const ADAPTIVE_PROFILE_ORDER = ["normal", "balanced", "conservative", "safe"];
 const IDLE_SUSPEND_EXCLUDED_LAYER_IDS = new Set([
     // These toggles are visual/static-only and should not keep live polling active.
     "terrain",
@@ -110,6 +128,11 @@ const IDLE_SUSPEND_EXCLUDED_LAYER_IDS = new Set([
 const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS
     .map((layer) => layer.id)
     .filter((id) => !IDLE_SUSPEND_EXCLUDED_LAYER_IDS.has(id));
+const GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS = new Set([
+    "naval",
+    "airspace",
+    "military-bases",
+]);
 const NAVAL_EVENT_SUBTYPES = new Set([
     "carrier",
     "amphibious",
@@ -577,6 +600,37 @@ function applyScopeFilters(events) {
     const regional = regionalRaw.filter(isMilitaryRelevant);
     return regional.filter((e) => isEventInLens(e, lens));
 }
+function applyHotspotFilters(events, { respectRegion = false } = {}) {
+    const lens = getActiveLens?.() || "live";
+    const region = getActiveRegion?.();
+    const source = Array.isArray(events) ? events : [];
+    let filtered = source
+        .filter((event) => isMilitaryRelevant(event))
+        .filter((event) => isEventInLens(event, lens));
+    if (respectRegion && filterEventsByRegion) {
+        filtered = filterEventsByRegion(filtered, region);
+    }
+    return getHotspotSourceEvents(filtered);
+}
+function isHotspotEventEligible(event, { respectRegion = false } = {}) {
+    if (!event) return false;
+    if (!isMilitaryRelevant(event)) return false;
+    const lens = getActiveLens?.() || "live";
+    if (!isEventInLens(event, lens)) return false;
+    if (respectRegion) {
+        const region = getActiveRegion?.();
+        const inRegion =
+            !filterEventsByRegion ||
+            !region ||
+            region.id === "global" ||
+            eventMatchesBounds(event, region.bounds);
+        if (!inRegion) return false;
+    }
+    if (isAircraftTelemetryEvent(event)) return false;
+    if (isMilitaryTrackEvent(event)) return false;
+    if (isNavalSignalEvent(event)) return false;
+    return true;
+}
 function isPointInsideRegion(lat, lon, region = getActiveRegion?.()) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
     if (!region || region.id === "global") return true;
@@ -798,11 +852,108 @@ function getSafePollSinceIso() {
     }
     return new Date(parsed).toISOString();
 }
+function describeEventsApiError(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    const message = String(error?.message || "").trim();
+    if (message) return message;
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return String(error);
+    }
+}
+function isEventsApiRestrictedError(error) {
+    const text = describeEventsApiError(error).toLowerCase();
+    return text.includes("service for this project is restricted");
+}
+function logEventsApiError(prefix, error) {
+    const now = Date.now();
+    const detail = describeEventsApiError(error) || "unknown_error";
+    const key = `${prefix}:${detail}`;
+    if (
+        __eventsApiLastErrorKey === key &&
+        (now - __eventsApiLastErrorLoggedAt) < EVENTS_API_ERROR_LOG_THROTTLE_MS
+    ) {
+        return;
+    }
+    __eventsApiLastErrorKey = key;
+    __eventsApiLastErrorLoggedAt = now;
+    console.error(prefix, error);
+}
+function setAuthModalRenderBudget(paused) {
+    const viewer = window.__warzoneViewer;
+    const scene = viewer?.scene;
+    const globe = scene?.globe;
+    if (!viewer || !scene || !globe) return;
+    if (paused) {
+        if (!__authModalRenderBudgetBackup) {
+            __authModalRenderBudgetBackup = {
+                resolutionScale: Number(viewer.resolutionScale || 1),
+                maximumRenderTimeChange: scene.maximumRenderTimeChange,
+                maximumScreenSpaceError: Number(globe.maximumScreenSpaceError || 1.6),
+                msaaSamples: Number(scene.msaaSamples || 1),
+                fxaaEnabled: !!scene.postProcessStages?.fxaa?.enabled,
+            };
+        }
+        viewer.resolutionScale = Math.min(0.72, Math.max(0.5, Number(viewer.resolutionScale || 1)));
+        scene.maximumRenderTimeChange = 1.6;
+        globe.maximumScreenSpaceError = Math.max(3.2, Number(globe.maximumScreenSpaceError || 1.6));
+        if (Number.isFinite(Number(scene.msaaSamples))) {
+            scene.msaaSamples = 1;
+        }
+        if (scene.postProcessStages?.fxaa) {
+            scene.postProcessStages.fxaa.enabled = false;
+        }
+        return;
+    }
+    if (__authModalRenderBudgetBackup) {
+        viewer.resolutionScale = __authModalRenderBudgetBackup.resolutionScale;
+        scene.maximumRenderTimeChange = __authModalRenderBudgetBackup.maximumRenderTimeChange;
+        globe.maximumScreenSpaceError = __authModalRenderBudgetBackup.maximumScreenSpaceError;
+        if (Number.isFinite(__authModalRenderBudgetBackup.msaaSamples)) {
+            scene.msaaSamples = __authModalRenderBudgetBackup.msaaSamples;
+        }
+        if (scene.postProcessStages?.fxaa) {
+            scene.postProcessStages.fxaa.enabled = __authModalRenderBudgetBackup.fxaaEnabled;
+        }
+        __authModalRenderBudgetBackup = null;
+    }
+    const visibleCount = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0));
+    viewer.__warzone?.setPerformanceMode?.(visibleCount);
+}
 function shouldSuspendMapWork() {
-    return IDLE_SUSPEND_LAYER_IDS.every((id) => !isLayerEnabled(id));
+    return IDLE_SUSPEND_LAYER_IDS.every((id) => !isLayerEnabled(id)) || isAuthModalVisible();
+}
+function shouldEnableMilSatsLayer() {
+    return window.__stratopsConfig?.enableMilSatsLayer !== false;
 }
 function syncIdleSceneState() {
-    setWarzoneMilSatsEnabled(!shouldSuspendMapWork());
+    // Keep MIL-SATS independent from map layer toggles.
+    setWarzoneMilSatsEnabled(shouldEnableMilSatsLayer());
+}
+function isAuthModalVisible() {
+    const introModal = document.getElementById("wz-intro-modal");
+    const loginModal = document.getElementById("wz-login-modal");
+    return Boolean(
+        (introModal && !introModal.hidden) ||
+        (loginModal && !loginModal.hidden)
+    );
+}
+function onAuthModalVisibilityChanged() {
+    const paused = isAuthModalVisible();
+    setAuthModalRenderBudget(paused);
+    const hotspotEnabled = isLayerEnabled("hotspots");
+    syncHotspotRootVisibility(!paused && hotspotEnabled);
+    if (paused) {
+        window.__warzoneViewer?.scene?.requestRender?.();
+        return;
+    }
+    __lastViewportKey = "";
+    scheduleViewportFetch(220);
+    requestAircraftMovementsWidgetRender(0);
+    requestNavalWidgetRender(0);
+    window.__warzoneViewer?.scene?.requestRender?.();
 }
 function syncHotspotRootVisibility(enabled) {
     const hotspotRootEl = document.getElementById("warzone-hotspot-layer");
@@ -878,6 +1029,107 @@ function formatTime(value) {
     } catch {
         return value || "";
     }
+}
+function toUiLabel(value, fallback = "Unknown") {
+    const raw = String(value || "").trim();
+    if (!raw) return fallback;
+    return raw
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+function buildEventPopupSummary(detail = {}, clusterCount = 1) {
+    const baseSummary = String(detail.summary || "").trim();
+    if (clusterCount <= 1) {
+        return baseSummary || "No additional summary available.";
+    }
+    const previewTitles = (Array.isArray(detail.clusterEvents) ? detail.clusterEvents : [])
+        .map((item) => String(item?.title || item?.summary || "").trim())
+        .filter(Boolean)
+        .slice(0, 3);
+    const previewText = previewTitles.length
+        ? ` Top reports: ${previewTitles.join(" | ")}.`
+        : "";
+    if (baseSummary) return `${baseSummary}${previewText}`;
+    return `${clusterCount} nearby hotspot events grouped in this location.${previewText}`;
+}
+function bindGlobeEventPopup() {
+    if (__eventPopupBound) return;
+    __eventPopupBound = true;
+    const popup = document.getElementById("wz-event-popup");
+    if (!popup) return;
+    const catEl = document.getElementById("wz-event-popup-cat");
+    const sevEl = document.getElementById("wz-event-popup-sev");
+    const titleEl = document.getElementById("wz-event-popup-title");
+    const summaryEl = document.getElementById("wz-event-popup-summary");
+    const locationEl = document.getElementById("wz-event-popup-location");
+    const timeEl = document.getElementById("wz-event-popup-time");
+    const weaponEl = document.getElementById("wz-event-popup-weapon");
+    const sourceEl = document.getElementById("wz-event-popup-source");
+    const closeBtn = document.getElementById("wz-event-popup-close");
+    const hidePopup = () => {
+        popup.hidden = true;
+        popup.classList.remove("is-visible");
+    };
+    const showPopup = (detail = {}) => {
+        const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
+        const categoryLabel = toUiLabel(detail.category, "Hotspot");
+        const severityLabel = toUiLabel(detail.severity, "Unknown");
+        const locationText = String(detail.locationLabel || "").trim();
+        const occurredAt = String(detail.occurredAt || "").trim();
+        const weaponType = String(detail.weaponType || "").trim();
+        const sourceUrl = String(detail.sourceUrl || "").trim();
+        if (catEl) {
+            catEl.textContent = clusterCount > 1
+                ? `${categoryLabel} • ${clusterCount}`
+                : categoryLabel;
+        }
+        if (sevEl) {
+            sevEl.textContent = severityLabel;
+        }
+        if (titleEl) {
+            titleEl.textContent = String(detail.title || "").trim()
+                || (clusterCount > 1 ? `${clusterCount} ${categoryLabel} hotspots` : `${categoryLabel} hotspot`);
+        }
+        if (summaryEl) {
+            summaryEl.textContent = buildEventPopupSummary(detail, clusterCount);
+        }
+        if (locationEl) {
+            const text = locationText ? `Location: ${locationText}` : "";
+            locationEl.textContent = text;
+            locationEl.hidden = !text;
+        }
+        if (timeEl) {
+            const text = occurredAt ? `Time: ${formatTime(occurredAt)}` : "";
+            timeEl.textContent = text;
+            timeEl.hidden = !text;
+        }
+        if (weaponEl) {
+            const text = weaponType ? `Type: ${toUiLabel(weaponType, weaponType)}` : "";
+            weaponEl.textContent = text;
+            weaponEl.hidden = !text;
+        }
+        if (sourceEl) {
+            const hasSource = /^https?:\/\//i.test(sourceUrl);
+            sourceEl.hidden = !hasSource;
+            if (hasSource) {
+                sourceEl.href = sourceUrl;
+            } else {
+                sourceEl.removeAttribute("href");
+            }
+        }
+        popup.hidden = false;
+        popup.classList.add("is-visible");
+    };
+    closeBtn?.addEventListener("click", hidePopup);
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") hidePopup();
+    });
+    document.addEventListener("wz:event-marker-selected", (event) => {
+        showPopup(event?.detail || {});
+    });
+    document.addEventListener("wz:event-marker-cleared", hidePopup);
 }
 function getEventMetadata(event = {}) {
     const raw = event?.metadata;
@@ -1017,15 +1269,33 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
     }, Math.max(0, delay));
 }
 function syncNavalSignals(events = []) {
+    const navalEvents = events
+        .filter((event) => isNavalSignalEvent(event) && isEventVisible(event));
+    const signature = navalEvents
+        .map((event) => {
+            const key = String(getNavalTrackKey(event) || "").trim();
+            if (!key) return "";
+            const seenTs = Date.parse(event.updated_at || event.occurred_at || "") || 0;
+            const lat = Number(event.lat);
+            const lon = Number(event.lon);
+            const latKey = Number.isFinite(lat) ? lat.toFixed(3) : "x";
+            const lonKey = Number.isFinite(lon) ? lon.toFixed(3) : "x";
+            return `${key}:${seenTs}:${latKey}:${lonKey}`;
+        })
+        .filter(Boolean)
+        .sort()
+        .join("|") || "__empty__";
+    if (signature === __lastNavalSignalsSyncKey) {
+        return;
+    }
+    __lastNavalSignalsSyncKey = signature;
     const activeKeys = new Set();
-    events
-        .filter((event) => isNavalSignalEvent(event) && isEventVisible(event))
-        .forEach((event) => {
-            const key = getNavalTrackKey(event);
-            if (!key) return;
-            activeKeys.add(key);
-            upsertNavalVessel(event);
-        });
+    navalEvents.forEach((event) => {
+        const key = getNavalTrackKey(event);
+        if (!key) return;
+        activeKeys.add(key);
+        upsertNavalVessel(event);
+    });
     getAllNavalSnapshots().forEach((entry) => {
         const key = String(entry?.track_key || "");
         if (!key || activeKeys.has(key)) return;
@@ -1132,7 +1402,7 @@ async function fetchViewportEvents() {
             if (!bounds) return true;
             return eventMatchesBounds(evt, bounds);
         });
-        const nextVisibleEvents = sortEvents(visible);
+        const nextVisibleEvents = trimSortedEventList(sortEvents(visible), EVENT_VISIBLE_CACHE_MAX_ITEMS);
         __viewportScoped = true;
         __visibleEventsCache = nextVisibleEvents;
         // Keep widgets stable across camera zoom/pan by sourcing them from the
@@ -1154,6 +1424,27 @@ function sortEvents(events) {
         const bb = new Date(b.occurred_at || 0).getTime();
         return bb - aa;
     });
+}
+function trimSortedEventList(events = [], maxItems = EVENT_CACHE_MAX_ITEMS) {
+    const list = Array.isArray(events) ? events : [];
+    const max = Math.max(200, Number(maxItems || EVENT_CACHE_MAX_ITEMS));
+    const cutoff = Date.now() - EVENT_CACHE_RETENTION_MS;
+    const trimmed = [];
+    const seen = new Set();
+    for (const event of list) {
+        if (!event) continue;
+        const idKey = String(
+            event.id ||
+            `${event.title || ""}:${event.occurred_at || ""}:${event.lat || ""}:${event.lon || ""}`
+        );
+        if (!idKey || seen.has(idKey)) continue;
+        seen.add(idKey);
+        const occurredAtMs = Date.parse(event.occurred_at || "");
+        if (Number.isFinite(occurredAtMs) && occurredAtMs < cutoff) continue;
+        trimmed.push(event);
+        if (trimmed.length >= max) break;
+    }
+    return trimmed;
 }
 const REGION_COUNTRY_HINTS = {
     global: [],
@@ -2702,6 +2993,8 @@ async function refreshAircraftHistoryCache(force = false) {
                     .map(normalizeAircraftHistoryRow)
                     .filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
                     .filter((row) => !shouldExcludeFromMilitaryAircraftTracker(row))
+                    .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
+                    .slice(0, AIRCRAFT_HISTORY_CACHE_MAX_ROWS)
                 : [];
             __aircraftHistoryLastLoadedAt = Date.now();
             syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
@@ -2732,13 +3025,75 @@ function syncAircraftLivePipelines({ forceRefresh = false } = {}) {
     if (!aircraftEnabled) {
         stopPublicAirIngestion();
         stopAircraftLiveSync();
+        stopTracksRealtimeChannel();
         return;
     }
     startPublicAirIngestion();
     startAircraftLiveSync();
+    startTracksRealtimeChannel();
     if (forceRefresh) {
         refreshAircraftHistoryCache(true).catch(() => { });
         refreshPublicAirTracksNow({ force: true }).catch(() => { });
+    }
+}
+function handleTracksRealtimePayload(payload) {
+    const eventType = String(payload?.eventType || payload?.event || "").toUpperCase();
+    const track = payload?.new || payload?.old;
+    if (!track) return;
+    // If the aircraft layer is disabled, ignore high-frequency realtime packets.
+    // Clearing/updating tracks while hidden adds avoidable main-thread pressure.
+    if (!isLayerEnabled("aircraft")) return;
+    const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
+    if (!useDatabaseAsLiveSource) {
+        refreshAircraftHistoryCache(true).catch(() => { });
+        requestAircraftMovementsWidgetRender(0);
+        return;
+    }
+    if (eventType === "DELETE") {
+        if (track.track_key) clearLiveTrack(track.track_key);
+        return;
+    }
+    if (shouldExcludeFromMilitaryAircraftTracker(track)) {
+        if (track.track_key) clearLiveTrack(track.track_key);
+        return;
+    }
+    upsertLiveTrack(track);
+}
+function stopTracksRealtimeChannel() {
+    const channel = __tracksRealtimeChannel;
+    if (!channel) return;
+    __tracksRealtimeChannel = null;
+    try {
+        channel.unsubscribe?.();
+    } catch {
+        // ignore
+    }
+    try {
+        supabase.removeChannel?.(channel);
+    } catch {
+        // ignore
+    }
+}
+function startTracksRealtimeChannel() {
+    if (__tracksRealtimeChannel) return;
+    if (!isLayerEnabled("aircraft")) return;
+    const channel = supabase
+        .channel("tracks-live")
+        .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "tracks" },
+            handleTracksRealtimePayload
+        )
+        .subscribe((status, err) => {
+            if (status === "CHANNEL_ERROR" && err) console.error("TRACK ERROR:", err);
+        });
+    __tracksRealtimeChannel = channel;
+}
+function syncTracksRealtimeChannel() {
+    if (isLayerEnabled("aircraft")) {
+        startTracksRealtimeChannel();
+    } else {
+        stopTracksRealtimeChannel();
     }
 }
 function getAircraftMergeKey(track = {}) {
@@ -3269,7 +3624,7 @@ function flashFeedCard(eventId) {
     setTimeout(() => card.classList.remove("is-flash"), 1200);
 }
 function renderAll(events, { replaceCache = true } = {}) {
-    const normalizedEvents = sortEvents(
+    const normalizedEvents = trimSortedEventList(sortEvents(
         events.map((event) => {
             const normalized = normalizeEvent(event);
             return {
@@ -3277,11 +3632,11 @@ function renderAll(events, { replaceCache = true } = {}) {
                 theater: resolveEventTheater(normalized)
             };
         })
-    );
+    ), EVENT_CACHE_MAX_ITEMS);
     if (replaceCache) {
         __eventsCache = normalizedEvents;
     }
-    __visibleEventsCache = normalizedEvents;
+    __visibleEventsCache = trimSortedEventList(normalizedEvents, EVENT_VISIBLE_CACHE_MAX_ITEMS);
     const scoped = applyScopeFilters(normalizedEvents);
     const filtered = applyAllFilters(normalizedEvents);
     updateTheaterPanel(scoped);
@@ -3304,15 +3659,30 @@ function syncHotspotLayerEvents(events = []) {
     if (!__hotspotLayer) return;
     __hotspotLayer.setEvents(getHotspotSourceEvents(events));
 }
-const GLOBE_CLUSTER_RADIUS_DEG = 1;
-const GLOBE_CLUSTER_THRESHOLD = 60;
+function ensureHotspotLayer(viewer, hotspotRoot) {
+    if (!viewer || !hotspotRoot || __hotspotLayer) return __hotspotLayer;
+    __hotspotLayer = createWarzoneHotspotLayer(viewer, hotspotRoot, {
+        maxCards: 56,
+        maxEvents: 1800,
+        clusterDistanceLat: 1.35,
+        clusterDistanceLon: 1.7,
+        stackDistancePx: 78,
+        maxVisiblePerHotspot: 4,
+        minItemsForCluster: 1,
+        throttleMove: 44,
+    });
+    window.__hotspotLayer = __hotspotLayer;
+    return __hotspotLayer;
+}
+const GLOBE_CLUSTER_RADIUS_DEG = 0.65;
+const GLOBE_CLUSTER_THRESHOLD = 140;
 function getGlobeClusterRadiusDeg() {
     const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
-    if (height > 7000000) return 1.1;
-    if (height > 4500000) return 0.8;
-    if (height > 2800000) return 0.6;
-    if (height > 1600000) return 0.45;
-    return 0.28;
+    if (height > 7000000) return 0.7;
+    if (height > 4500000) return 0.5;
+    if (height > 2800000) return 0.34;
+    if (height > 1600000) return 0.22;
+    return 0.14;
 }
 const CAT_PRIORITY = {
     alert: 10,
@@ -3408,6 +3778,7 @@ function clusterEventsForGlobe(events) {
     }
     return clusters.map((c) => ({
         ...c.rep,
+        cluster_count: c.count,
         _clusterCount: c.count,
         _clusterEvents: c.events,
     }));
@@ -3443,6 +3814,7 @@ function clusterEventsForOverlays(events) {
     }
     return clusters.map((c) => ({
         ...c.rep,
+        cluster_count: c.count,
         _clusterCount: c.count,
         _clusterEvents: c.events,
     }));
@@ -3458,19 +3830,28 @@ function makeOverlaySignature(events) {
         })
         .join("|");
 }
-function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
+function syncInitialEventsToGlobe(events, { animateTracks = false, updatePerformance = true } = {}) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
+    const hotspotsEnabled = isLayerEnabled("hotspots");
     const visible = applyAllFilters(events);
     const scopedCacheVisible = applyAllFilters(__eventsCache);
-    const hotspotStableSource = scopedCacheVisible;
+    const hotspotStableSource = hotspotsEnabled
+        ? applyHotspotFilters(events, { respectRegion: false })
+        : [];
     // Naval tracker panel should follow selected region/lens, not camera bounds.
     const navalVisible = scopedCacheVisible.filter(isNavalSignalEvent);
     syncNavalSignals(navalVisible);
     const globeVisible = visible.filter(
         (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
     );
-    const visibleSignature = makeEventSignature(globeVisible);
+    const hotspotGlobeVisible = hotspotsEnabled
+        ? hotspotStableSource.filter(
+            (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
+        )
+        : [];
+    const renderVisible = globeVisible.length ? globeVisible : hotspotGlobeVisible;
+    const visibleSignature = makeEventSignature(renderVisible);
     const rangesEnabled = isLayerEnabled("ranges");
     const sweepersEnabled = isLayerEnabled("sweepers");
     const overlaysEnabled = rangesEnabled || sweepersEnabled;
@@ -3500,9 +3881,11 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
             overlaySignature = makeOverlaySignature(overlayVisible);
         }
     }
-    globe.setPerformanceMode?.(globeVisible.length);
-    if (!globeVisible.length) {
-        syncHotspotLayerEvents(hotspotStableSource);
+    if (updatePerformance) {
+        globe.setPerformanceMode?.(renderVisible.length);
+    }
+    if (!renderVisible.length) {
+        syncHotspotLayerEvents(hotspotsEnabled ? hotspotStableSource : []);
         if (__lastGlobeSyncKey !== "__empty__") {
             globe.clearEventEntities?.();
             __militaryTracks?.setTracks([]);
@@ -3521,14 +3904,12 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         return;
     }
     if (visibleSignature !== __lastGlobeSyncKey) {
-        globe.clearEventEntities?.();
-        const clustered = clusterEventsForGlobe(
-            globeVisible.map((event) => ({
+        globe.addEvents?.(
+            renderVisible.map((event) => ({
                 ...event,
                 _layerId: getEventLayerId(event),
             }))
         );
-        globe.addEvents?.(clustered);
         if (__militaryTracks) {
             __militaryTracks.setTracks(
                 globeVisible.filter((event) => isMilitaryTrackEvent(event) && isEventVisible(event))
@@ -3537,7 +3918,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         __lastGlobeSyncKey = visibleSignature;
     }
     if (__hotspotLayer) {
-        syncHotspotLayerEvents(hotspotStableSource);
+        syncHotspotLayerEvents(hotspotsEnabled ? hotspotStableSource : []);
     }
     if (window.__warzoneViewer) {
         const nextRangesKey = rangesEnabled ? overlaySignature : "__off__";
@@ -3558,7 +3939,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
         }
     }
     if (animateTracks) {
-        const recentTracks = globeVisible
+        const recentTracks = renderVisible
             .filter((event) => isTrackLikeEvent(event))
             .sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0))
             .slice(0, 3);
@@ -3569,36 +3950,46 @@ function syncInitialEventsToGlobe(events, { animateTracks = false } = {}) {
     window.__warzoneViewer?.scene?.requestRender?.();
 }
 export async function initWarzoneApp() {
+    bindGlobeEventPopup();
+    hydrateLayerStateFromStorage();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for events
     
     try {
         const { data, error } = await api.getEvents({ signal: controller.signal });
+        let events = [];
         if (error) {
-            console.error("Supabase events error:", error);
-            return [];
+            logEventsApiError("Supabase events error:", error);
+            if (isEventsApiRestrictedError(error)) {
+                __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
+            }
+        } else {
+            events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
+            __eventsApiRestrictedUntil = 0;
         }
-        const events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
         __viewportScoped = false;
         renderAll(events);
         updateNewsTicker(events);
-        syncInitialEventsToGlobe(events, { animateTracks: true });
+        const authModalOpen = isAuthModalVisible();
+        setAuthModalRenderBudget(authModalOpen);
+        if (!authModalOpen) {
+            syncInitialEventsToGlobe(events, { animateTracks: true });
+        } else {
+            window.__warzoneViewer?.__warzone?.clearEventEntities?.();
+            window.__warzoneViewer?.scene?.requestRender?.();
+        }
         const hotspotRoot = document.getElementById("warzone-hotspot-layer");
         const viewer = window.__warzoneViewer;
-        if (hotspotRoot && viewer && !__hotspotLayer) {
-            __hotspotLayer = createWarzoneHotspotLayer(viewer, hotspotRoot, {
-                maxCards: 24,
-                clusterDistanceLat: 1.9,
-                clusterDistanceLon: 2.4,
-                stackDistancePx: 86,
-                maxVisiblePerHotspot: 3,
-                minItemsForCluster: 1,
-                throttleMove: 48,
-            });
-            window.__hotspotLayer = __hotspotLayer;
+        if (hotspotRoot && viewer && isLayerEnabled("hotspots")) {
+            ensureHotspotLayer(viewer, hotspotRoot);
         }
-        syncHotspotRootVisibility(true);
-        syncHotspotLayerEvents(applyAllFilters(__eventsCache));
+        const hotspotEnabled = !authModalOpen && isLayerEnabled("hotspots");
+        syncHotspotRootVisibility(hotspotEnabled);
+        syncHotspotLayerEvents(
+            hotspotEnabled
+                ? applyHotspotFilters(__eventsCache, { respectRegion: false })
+                : []
+        );
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
         window.__militaryTracks = __militaryTracks;
@@ -3648,7 +4039,12 @@ export async function initWarzoneApp() {
             scheduleViewportFetch(320);
             requestAircraftMovementsWidgetRender(0);
             requestNavalWidgetRender(0);
-            syncHotspotLayerEvents(applyAllFilters(__eventsCache));
+            if (isLayerEnabled("hotspots")) {
+                const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
+                syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: false }));
+            } else {
+                syncHotspotLayerEvents([]);
+            }
             startForegroundRenderWakeBurst(700);
             window.__warzoneViewer?.scene?.requestRender?.();
         };
@@ -3685,11 +4081,17 @@ export async function initWarzoneApp() {
         syncIdleSceneState();
         const globe = window.__warzoneViewer?.__warzone;
         const mapSourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
-        const filtered = applyAllFilters(mapSourceEvents);
         const hotspotEnabled = isLayerEnabled("hotspots");
+        if (hotspotEnabled) {
+            ensureHotspotLayer(window.__warzoneViewer, document.getElementById("warzone-hotspot-layer"));
+        }
         syncHotspotRootVisibility(hotspotEnabled);
         if (__hotspotLayer) {
-            syncHotspotLayerEvents(hotspotEnabled ? applyAllFilters(__eventsCache) : []);
+            syncHotspotLayerEvents(
+                hotspotEnabled
+                    ? applyHotspotFilters(mapSourceEvents, { respectRegion: false })
+                    : []
+            );
         }
         if (id === "terrain") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
@@ -3711,6 +4113,7 @@ export async function initWarzoneApp() {
                 __seededAircraftTrackKeys = new Set();
             }
             syncAircraftLivePipelines({ forceRefresh: aircraftEnabled });
+            syncTracksRealtimeChannel();
             requestAircraftMovementsWidgetRender(0);
         }
         if (id === "*") {
@@ -3718,13 +4121,31 @@ export async function initWarzoneApp() {
             globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"));
         }
         syncFilteredUi(__eventsCache);
-        syncInitialEventsToGlobe(mapSourceEvents, { animateTracks: false });
+        const shouldResyncGlobeEvents =
+            id === "*" || !GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS.has(id);
+        if (shouldResyncGlobeEvents) {
+            syncInitialEventsToGlobe(mapSourceEvents, { animateTracks: false, updatePerformance: false });
+        } else if (id === "naval") {
+            const scopedCacheVisible = applyAllFilters(__eventsCache);
+            syncNavalSignals(scopedCacheVisible.filter(isNavalSignalEvent));
+        }
+        const perfVisibleCount = applyAllFilters(mapSourceEvents).filter(
+            (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
+        ).length;
+        globe?.setPerformanceMode?.(perfVisibleCount);
 
         // Keep status widgets stable on layer toggles by using region/lens scope.
         const widgetScoped = applyScopeFilters(__eventsCache);
         renderAirspaceStatus(widgetScoped);
         renderCyberStatus(widgetScoped);
     });
+    {
+        const globe = window.__warzoneViewer?.__warzone;
+        globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
+        globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { animate: false });
+        window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
+        syncFilteredUi(__eventsCache);
+    }
     window.addEventListener("wz:recluster", () => {
         const sourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
         syncInitialEventsToGlobe(sourceEvents, { animateTracks: false });
@@ -3738,43 +4159,9 @@ export async function initWarzoneApp() {
     __lastViewportKey = "";
     __viewportScoped = false;
     scheduleViewportFetch(150);
-    supabase
-        .channel('tracks-live')
-        .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'tracks' },
-            (payload) => {
-                const eventType = String(payload.eventType || payload.event || "").toUpperCase();
-                const track = payload.new || payload.old;
-                if (!track) return;
-                const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
-                if (!isLayerEnabled("aircraft")) {
-                    if (track.track_key) {
-                        clearLiveTrack(track.track_key);
-                    }
-                    return;
-                }
-                if (!useDatabaseAsLiveSource) {
-                    refreshAircraftHistoryCache(true).catch(() => { });
-                    requestAircraftMovementsWidgetRender(0);
-                    return;
-                }
-                if (eventType === "DELETE") {
-                    clearLiveTrack(track.track_key);
-                    return;
-                }
-                if (shouldExcludeFromMilitaryAircraftTracker(track)) {
-                    if (track.track_key) clearLiveTrack(track.track_key);
-                    return;
-                }
-                upsertLiveTrack(track);
-            }
-        )
-        .subscribe((status, err) => {
-            if (status === "CHANNEL_ERROR" && err) console.error("TRACK ERROR:", err);
-        });
-        return events;
-    } catch (err) {
+    syncTracksRealtimeChannel();
+    return events;
+} catch (err) {
         console.error("initWarzoneApp failed:", err);
         return [];
     } finally {
@@ -3785,6 +4172,7 @@ async function pollLatestEvents(options = {}) {
     const force = options?.force === true;
     if (shouldSuspendMapWork() && !force) return;
     if (isDocumentHidden() && !force) return;
+    if (!force && __eventsApiRestrictedUntil > Date.now()) return;
     if (__pollInFlight && !force) return;
     if (__pollInFlight && force) {
         const staleInFlight =
@@ -3802,9 +4190,13 @@ async function pollLatestEvents(options = {}) {
         __lastSeenOccurredAt = since;
         const { data, error } = await api.getEventsSince(since);
         if (error) {
-            console.error("Polling latest events error:", error);
+            logEventsApiError("Polling latest events error:", error);
+            if (isEventsApiRestrictedError(error)) {
+                __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
+            }
             return;
         }
+        __eventsApiRestrictedUntil = 0;
         const rows = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
         if (!rows.length) {
             __pollEmptyStreak += 1;
@@ -3818,13 +4210,19 @@ async function pollLatestEvents(options = {}) {
                     if (fullEvents.length) {
                         renderAll(fullEvents);
                         syncInitialEventsToGlobe(fullEvents, { animateTracks: false });
-                        syncHotspotLayerEvents(applyAllFilters(__eventsCache));
+                        const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
+                        syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: false }));
                         const newestTs = Date.parse(fullEvents[0]?.occurred_at || "");
                         if (Number.isFinite(newestTs)) {
                             __lastSeenOccurredAt = new Date(
                                 Math.min(newestTs, Date.now())
                             ).toISOString();
                         }
+                    }
+                } else {
+                    logEventsApiError("Polling full refresh error:", fullError);
+                    if (isEventsApiRestrictedError(fullError)) {
+                        __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
                     }
                 }
             }
@@ -4031,9 +4429,14 @@ export function handleIncomingEvent(event) {
     }
     const exists = __eventsCache.findIndex((e) => String(e.id) === String(normalized.id));
     if (exists >= 0) {
-        __eventsCache[exists] = normalized;
+        __eventsCache.splice(exists, 1);
+        __eventsCache.unshift(normalized);
     } else {
         __eventsCache.unshift(normalized);
+    }
+    __eventsCache = trimSortedEventList(__eventsCache, EVENT_CACHE_MAX_ITEMS);
+    if (__viewportScoped) {
+        __visibleEventsCache = trimSortedEventList(__visibleEventsCache, EVENT_VISIBLE_CACHE_MAX_ITEMS);
     }
     if (shouldSuspendMapWork()) {
         return;
@@ -4069,7 +4472,7 @@ export function handleIncomingEvent(event) {
     if (isTrackLikeEvent(normalized) && inRegion && layerOk) {
         globe?.animateMissileTrack?.(normalized);
     }
-    if (isLayerEnabled("hotspots") && inRegion && layerOk && !isAircraftTelemetryEvent(normalized) && !isMilitaryTrackEvent(normalized) && !isNavalSignalEvent(normalized)) {
+    if (isLayerEnabled("hotspots") && isHotspotEventEligible(normalized, { respectRegion: false })) {
         __hotspotLayer?.addEvent?.(normalized);
     }
     if (isSirenEvent(normalized)) {
@@ -4412,6 +4815,7 @@ export function showLoginModal(mode = "guest", user = null) {
     modal.hidden = false;
     requestAnimationFrame(() => {
         modal.classList.add("is-visible");
+        onAuthModalVisibilityChanged();
     });
     requestAnimationFrame(() => {
         if (isAuthenticated) (consent || loginBtn)?.focus();
@@ -4427,6 +4831,7 @@ export function hideLoginModal() {
         modal.hidden = true;
         if (password) password.value = "";
         setAuthError("");
+        onAuthModalVisibilityChanged();
     }, 220);
 }
 
@@ -4605,6 +5010,7 @@ export function initStratopsIntro() {
         if (introModal) {
             introModal.classList.remove("is-visible");
             introModal.hidden = true;
+            onAuthModalVisibilityChanged();
         }
         window.__warzoneShowRegionModal?.();
     }
@@ -4652,6 +5058,7 @@ export function initStratopsIntro() {
             if (introModal) {
                 introModal.classList.remove("is-visible");
                 introModal.hidden = true;
+                onAuthModalVisibilityChanged();
             }
 
             window.__warzoneShowRegionModal?.();
@@ -4713,6 +5120,7 @@ export function initStratopsIntro() {
     if (introModal) {
         introModal.hidden = false;
         introModal.classList.add("is-visible");
+        onAuthModalVisibilityChanged();
     }
 }
 
@@ -4957,6 +5365,347 @@ function scheduleDelayedLoginPopup() {
     }, 15000);
 }
 
+function normalizeAdaptiveProfile(profile = "normal") {
+    const value = String(profile || "").toLowerCase();
+    return ADAPTIVE_PROFILE_ORDER.includes(value) ? value : "normal";
+}
+
+function increaseAdaptiveProfileSafety(profile = "normal", steps = 1) {
+    const current = ADAPTIVE_PROFILE_ORDER.indexOf(normalizeAdaptiveProfile(profile));
+    const nextIndex = Math.min(
+        ADAPTIVE_PROFILE_ORDER.length - 1,
+        Math.max(0, current) + Math.max(0, Math.round(Number(steps) || 0))
+    );
+    return ADAPTIVE_PROFILE_ORDER[nextIndex];
+}
+
+function readAdaptiveEnvironmentSnapshot() {
+    const nav = window.navigator || {};
+    const perfMemory = window.performance?.memory || null;
+    const deviceMemoryGbRaw = Number(nav.deviceMemory);
+    const hardwareThreadsRaw = Number(nav.hardwareConcurrency);
+    const usedHeapMbRaw = Number(perfMemory?.usedJSHeapSize) / (1024 * 1024);
+    const heapLimitMbRaw = Number(perfMemory?.jsHeapSizeLimit) / (1024 * 1024);
+    const deviceMemoryGb = Number.isFinite(deviceMemoryGbRaw) && deviceMemoryGbRaw > 0
+        ? deviceMemoryGbRaw
+        : null;
+    const hardwareThreads = Number.isFinite(hardwareThreadsRaw) && hardwareThreadsRaw > 0
+        ? Math.round(hardwareThreadsRaw)
+        : null;
+    const usedHeapMb = Number.isFinite(usedHeapMbRaw) && usedHeapMbRaw > 0
+        ? usedHeapMbRaw
+        : null;
+    const heapLimitMb = Number.isFinite(heapLimitMbRaw) && heapLimitMbRaw > 0
+        ? heapLimitMbRaw
+        : null;
+    const heapUsageRatio = usedHeapMb && heapLimitMb
+        ? usedHeapMb / heapLimitMb
+        : null;
+    return {
+        deviceMemoryGb,
+        hardwareThreads,
+        usedHeapMb,
+        heapLimitMb,
+        heapUsageRatio,
+        hasHeapTelemetry: !!perfMemory,
+    };
+}
+
+async function sampleAdaptiveFramePressure(durationMs = 1800) {
+    if (typeof requestAnimationFrame !== "function" || durationMs <= 0) {
+        return {
+            sampleCount: 0,
+            avgFrameMs: null,
+            maxFrameMs: null,
+            longFrameRatio: 0,
+            severeFrameRatio: 0,
+        };
+    }
+    return new Promise((resolve) => {
+        const deltas = [];
+        const start = performance.now();
+        let last = start;
+        const tick = (now) => {
+            const delta = now - last;
+            last = now;
+            if (delta > 0 && Number.isFinite(delta)) {
+                deltas.push(delta);
+            }
+            const elapsed = now - start;
+            if (elapsed >= durationMs || document.visibilityState === "hidden") {
+                const sampleCount = deltas.length;
+                const avgFrameMs = sampleCount
+                    ? deltas.reduce((sum, value) => sum + value, 0) / sampleCount
+                    : null;
+                const maxFrameMs = sampleCount
+                    ? deltas.reduce((max, value) => Math.max(max, value), 0)
+                    : null;
+                const longFrames = deltas.filter((value) => value >= 28).length;
+                const severeFrames = deltas.filter((value) => value >= 48).length;
+                resolve({
+                    sampleCount,
+                    avgFrameMs,
+                    maxFrameMs,
+                    longFrameRatio: sampleCount ? longFrames / sampleCount : 0,
+                    severeFrameRatio: sampleCount ? severeFrames / sampleCount : 0,
+                });
+                return;
+            }
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+}
+
+function decideAdaptiveQualityProfile(snapshot, framePressure) {
+    let profile = "normal";
+    const reasons = [];
+    const memoryGb = Number(snapshot?.deviceMemoryGb);
+    const threads = Number(snapshot?.hardwareThreads);
+    const heapRatio = Number(snapshot?.heapUsageRatio);
+    const usedHeapMb = Number(snapshot?.usedHeapMb);
+    const longFrameRatio = Number(framePressure?.longFrameRatio || 0);
+    const severeFrameRatio = Number(framePressure?.severeFrameRatio || 0);
+    const maxFrameMs = Number(framePressure?.maxFrameMs || 0);
+
+    if (Number.isFinite(memoryGb)) {
+        if (memoryGb <= 2) {
+            profile = increaseAdaptiveProfileSafety(profile, 2);
+            reasons.push("low system memory capacity detected");
+        } else if (memoryGb <= 4) {
+            profile = increaseAdaptiveProfileSafety(profile, 1);
+            reasons.push("limited device memory headroom");
+        }
+    }
+
+    if (Number.isFinite(threads)) {
+        if (threads <= 2) {
+            profile = increaseAdaptiveProfileSafety(profile, 2);
+            reasons.push("low CPU thread availability");
+        } else if (threads <= 4) {
+            profile = increaseAdaptiveProfileSafety(profile, 1);
+            reasons.push("moderate CPU thread availability");
+        }
+    }
+
+    if (Number.isFinite(heapRatio) && Number.isFinite(usedHeapMb)) {
+        if (heapRatio >= 0.84 || usedHeapMb >= 650) {
+            profile = increaseAdaptiveProfileSafety(profile, 2);
+            reasons.push("high JavaScript heap pressure");
+        } else if (heapRatio >= 0.72 || usedHeapMb >= 420) {
+            profile = increaseAdaptiveProfileSafety(profile, 1);
+            reasons.push("elevated JavaScript heap usage");
+        }
+    }
+
+    if (longFrameRatio >= 0.5 || severeFrameRatio >= 0.2 || maxFrameMs >= 120) {
+        profile = increaseAdaptiveProfileSafety(profile, 2);
+        reasons.push("high long-frame rendering pressure");
+    } else if (longFrameRatio >= 0.32 || severeFrameRatio >= 0.12 || maxFrameMs >= 80) {
+        profile = increaseAdaptiveProfileSafety(profile, 1);
+        reasons.push("moderate frame-time pressure");
+    }
+
+    return {
+        profile: normalizeAdaptiveProfile(profile),
+        reasons: reasons.slice(0, 3),
+    };
+}
+
+function openSharedModal(modal) {
+    if (!modal) return;
+    if (typeof window.__warzoneOpenSharedModal === "function") {
+        window.__warzoneOpenSharedModal(modal);
+        return;
+    }
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add("is-visible"));
+}
+
+function closeSharedModal(modal, callback) {
+    if (!modal) {
+        callback?.();
+        return;
+    }
+    if (typeof window.__warzoneCloseSharedModal === "function") {
+        window.__warzoneCloseSharedModal(modal, callback);
+        return;
+    }
+    modal.classList.remove("is-visible");
+    setTimeout(() => {
+        modal.hidden = true;
+        callback?.();
+    }, 220);
+}
+
+function isAnyOtherModalVisible(ignoreModalId = "") {
+    const visibleModal = document.querySelector(".wz-modal.is-visible:not([hidden])");
+    if (!visibleModal) return false;
+    if (ignoreModalId && visibleModal.id === ignoreModalId) return false;
+    return true;
+}
+
+function shouldShowAdaptiveAdvisory(profile = "normal") {
+    if (normalizeAdaptiveProfile(profile) === "normal") return false;
+    try {
+        if (localStorage.getItem(WZ_PERF_ADVISORY_OPTOUT_KEY) === "1") return false;
+    } catch {
+        // ignore storage errors
+    }
+    try {
+        if (sessionStorage.getItem(WZ_PERF_ADVISORY_SESSION_KEY) === "1") return false;
+    } catch {
+        // ignore storage errors
+    }
+    return true;
+}
+
+function formatAdaptiveEnvRows(snapshot, framePressure) {
+    const rows = [];
+    if (Number.isFinite(snapshot?.deviceMemoryGb)) {
+        rows.push(`Device memory: ${Number(snapshot.deviceMemoryGb).toFixed(1)} GB`);
+    } else {
+        rows.push("Device memory: unavailable (browser does not expose this metric)");
+    }
+    if (Number.isFinite(snapshot?.hardwareThreads)) {
+        rows.push(`CPU threads: ${Math.round(Number(snapshot.hardwareThreads))}`);
+    } else {
+        rows.push("CPU threads: unavailable");
+    }
+    if (Number.isFinite(snapshot?.usedHeapMb) && Number.isFinite(snapshot?.heapLimitMb)) {
+        const used = Number(snapshot.usedHeapMb).toFixed(0);
+        const limit = Number(snapshot.heapLimitMb).toFixed(0);
+        const ratio = Number(snapshot.heapUsageRatio || 0) * 100;
+        rows.push(`JS heap: ${used} MB / ${limit} MB (${ratio.toFixed(0)}%)`);
+    } else {
+        rows.push("JS heap: unavailable (non-Chromium browsers may hide heap telemetry)");
+    }
+    if (Number(framePressure?.sampleCount || 0) > 0) {
+        const avg = Number(framePressure?.avgFrameMs || 0).toFixed(1);
+        const max = Number(framePressure?.maxFrameMs || 0).toFixed(1);
+        const longRatio = (Number(framePressure?.longFrameRatio || 0) * 100).toFixed(0);
+        rows.push(`Frame timing: avg ${avg} ms, peak ${max} ms, long-frame ${longRatio}%`);
+    } else {
+        rows.push("Frame timing: unavailable (sampling skipped)");
+    }
+    return rows;
+}
+
+function profileHeading(profile = "normal") {
+    const normalized = normalizeAdaptiveProfile(profile);
+    if (normalized === "balanced") return "Balanced Quality Mode Enabled";
+    if (normalized === "conservative") return "Conservative Quality Mode Enabled";
+    if (normalized === "safe") return "Safe Quality Mode Enabled";
+    return "Adaptive Quality Mode Enabled";
+}
+
+function profileSummary(profile = "normal") {
+    const normalized = normalizeAdaptiveProfile(profile);
+    if (normalized === "balanced") {
+        return "We detected moderate resource limits and reduced a few render budgets to keep map movement smooth.";
+    }
+    if (normalized === "conservative") {
+        return "We detected elevated device/browser load and reduced render budgets to avoid freezing during interaction.";
+    }
+    if (normalized === "safe") {
+        return "We detected high runtime pressure and applied a safety quality profile to prioritize responsiveness over visual fidelity.";
+    }
+    return "Runtime quality is adapting based on your browser and system telemetry.";
+}
+
+function showAdaptivePerformanceAdvisory({ profile = "normal", reasons = [], snapshot = {}, framePressure = {} } = {}) {
+    const modal = document.getElementById("wz-performance-warning-modal");
+    if (!modal) return;
+    const titleEl = document.getElementById("wz-performance-warning-title");
+    const summaryEl = document.getElementById("wz-performance-warning-summary");
+    const detailEl = document.getElementById("wz-performance-warning-detail");
+    const envEl = document.getElementById("wz-performance-warning-env");
+    const closeBtn = document.getElementById("wz-performance-warning-close");
+    const backBtn = document.getElementById("wz-performance-warning-back");
+    const confirmBtn = document.getElementById("wz-performance-warning-confirm");
+    const optoutEl = document.getElementById("wz-performance-warning-optout");
+    if (titleEl) titleEl.textContent = profileHeading(profile);
+    if (summaryEl) summaryEl.textContent = profileSummary(profile);
+    if (detailEl) {
+        detailEl.textContent = reasons.length
+            ? `Signal check: ${reasons.join(", ")}.`
+            : "Signal check: browser and device telemetry reported constrained runtime headroom.";
+    }
+    if (envEl) {
+        envEl.innerHTML = "";
+        formatAdaptiveEnvRows(snapshot, framePressure).forEach((row) => {
+            const li = document.createElement("li");
+            li.textContent = row;
+            envEl.appendChild(li);
+        });
+    }
+    if (optoutEl) {
+        optoutEl.checked = false;
+    }
+    const finish = () => {
+        try {
+            sessionStorage.setItem(WZ_PERF_ADVISORY_SESSION_KEY, "1");
+            localStorage.setItem(WZ_PERF_ADVISORY_LAST_PROFILE_KEY, normalizeAdaptiveProfile(profile));
+            if (optoutEl?.checked) {
+                localStorage.setItem(WZ_PERF_ADVISORY_OPTOUT_KEY, "1");
+            }
+        } catch {
+            // ignore storage errors
+        }
+    };
+    const handleClose = () => {
+        closeBtn?.removeEventListener("click", handleClose);
+        backBtn?.removeEventListener("click", handleClose);
+        confirmBtn?.removeEventListener("click", handleClose);
+        closeSharedModal(modal, finish);
+    };
+    closeBtn?.addEventListener("click", handleClose);
+    backBtn?.addEventListener("click", handleClose);
+    confirmBtn?.addEventListener("click", handleClose);
+    openSharedModal(modal);
+}
+
+function scheduleAdaptivePerformanceAdvisory(payload, attempt = 0) {
+    const maxAttempts = 8;
+    const modalId = "wz-performance-warning-modal";
+    if (attempt > maxAttempts) return;
+    if (isAnyOtherModalVisible(modalId)) {
+        setTimeout(() => {
+            scheduleAdaptivePerformanceAdvisory(payload, attempt + 1);
+        }, 1200);
+        return;
+    }
+    showAdaptivePerformanceAdvisory(payload);
+}
+
+async function runAdaptivePerformanceGuard(viewer) {
+    const globe = viewer?.__warzone;
+    if (!viewer || !globe?.setAdaptiveQualityProfile) return;
+    const snapshot = readAdaptiveEnvironmentSnapshot();
+    const framePressure = await sampleAdaptiveFramePressure(1900);
+    const decision = decideAdaptiveQualityProfile(snapshot, framePressure);
+    const profile = normalizeAdaptiveProfile(decision.profile);
+    globe.setAdaptiveQualityProfile(profile);
+    const visibleCount = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0));
+    globe.setPerformanceMode?.(visibleCount);
+    if (shouldShowAdaptiveAdvisory(profile)) {
+        scheduleAdaptivePerformanceAdvisory({
+            profile,
+            reasons: decision.reasons,
+            snapshot,
+            framePressure,
+        });
+    }
+}
+
+function scheduleAdaptivePerformanceGuard(viewer) {
+    if (!viewer || viewer.__wzAdaptiveGuardScheduled) return;
+    viewer.__wzAdaptiveGuardScheduled = true;
+    setTimeout(() => {
+        void runAdaptivePerformanceGuard(viewer);
+    }, 2200);
+}
+
 export function schedulePostEntryActions(viewer) {
     stratopsCheckAuth().then((isAuth) => {
         if (!isAuth) {
@@ -4971,6 +5720,7 @@ export function schedulePostEntryActions(viewer) {
     injectNavLoginButton();
     initGlobeRotation(viewer);
     initDonatePopup();
+    scheduleAdaptivePerformanceGuard(viewer);
 
     window.__openLoginModal = () => {
         if (isLoginModalOpen()) return;

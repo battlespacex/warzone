@@ -27,23 +27,23 @@ const LAYER_DEFS = [
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
-const WZ_LAYER_LAYOUT_VERSION = "2026-04-airspace-default-open";
+const WZ_LAYER_LAYOUT_VERSION = "2026-04-minimal-defaults";
 const DEFAULT_LAYER_STATE = {
-    strikes: true,
-    missiles: true,
-    drones: true,
-    airstrikes: true,
-    aircraft: true,
-    airspace: true,
-    naval: true,
+    strikes: false,
+    missiles: false,
+    drones: false,
+    airstrikes: false,
+    aircraft: false,
+    airspace: false,
+    naval: false,
     "military-bases": false,
     ranges: false,
     sweepers: false,
-    alerts: true,
+    alerts: false,
     cyber: false,
-    thermal: true,
-    recon: true,
-    seismic: true,
+    thermal: false,
+    recon: false,
+    seismic: false,
     hotspots: true,
     terrain: true,
     "country-borders": true,
@@ -51,6 +51,7 @@ const DEFAULT_LAYER_STATE = {
 
 let __layerState = {};
 let __callbacks = [];
+let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
 const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain"]);
 const NAVAL_LAYER_SUBTYPES = new Set([
@@ -107,6 +108,7 @@ function getEffectiveLayerState(id) {
 }
 
 function loadState() {
+    if (__layerStateLoaded) return;
     let saved = {};
     let savedVersion = "";
     try {
@@ -115,9 +117,10 @@ function loadState() {
         const shouldResetLayout = savedVersion !== WZ_LAYER_LAYOUT_VERSION;
 
         if (shouldResetLayout) {
-            const migratedState = { ...DEFAULT_LAYER_STATE, ...(saved || {}), airspace: true };
+            // Hard reset to the new baseline defaults so old saved preferences
+            // do not keep enabling heavy layers unexpectedly.
             LAYER_DEFS.forEach((l) => {
-                __layerState[l.id] = migratedState[l.id] !== false;
+                __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
             });
             saveState();
             try {
@@ -125,6 +128,7 @@ function loadState() {
             } catch {
                 // ignore storage failures
             }
+            __layerStateLoaded = true;
             return;
         }
 
@@ -136,6 +140,11 @@ function loadState() {
     } catch {
         // keep defaults
     }
+    __layerStateLoaded = true;
+}
+
+export function hydrateLayerStateFromStorage() {
+    loadState();
 }
 
 function saveState() {

@@ -62,6 +62,17 @@ function getCssVarNumber(name, fallback) {
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
 }
+function getCssVarNumberFromStyle(style, name, fallback) {
+    const v = style?.getPropertyValue?.(name)?.trim?.() || "";
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+}
+function clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+}
+function lerp(a, b, t) {
+    return a + ((b - a) * t);
+}
 
 function getSatelliteModelConfig(sat) {
     const mod = String(sat?.mod || "sat-1").trim();
@@ -141,18 +152,40 @@ function createSatellite(viewer, sat) {
     return [model];
 }
 
-// ─── Visibility culling ───────────────────────────────────────────────────────
+// ─── Visibility + zoom-aware sizing ──────────────────────────────────────────
 function updateVisibility(viewer) {
-    if (!__warzoneMilSatsState.enabled) return;
-    const cam = viewer.camera;
+    const enabled = __warzoneMilSatsState.enabled;
+    const cameraHeight = Number(viewer?.camera?.positionCartographic?.height || 0);
+    const rootStyle = getComputedStyle(document.documentElement);
+    const nearHeight = Math.max(1000, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-near-height", 500000));
+    const farHeight = Math.max(nearHeight + 1000, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-far-height", 5000000));
+    const nearScaleMul = Math.max(0.05, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-near-scale-multiplier", 0.22));
+    const farScaleMul = Math.max(nearScaleMul, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-far-scale-multiplier", 1));
+    const nearMinPx = Math.max(1, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-min-px-near", 6));
+    const farMinPx = Math.max(nearMinPx, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-min-px", 20));
+    const t = clamp01((cameraHeight - nearHeight) / (farHeight - nearHeight));
+    const scaleMul = lerp(nearScaleMul, farScaleMul, t);
+    const currentMinPx = lerp(nearMinPx, farMinPx, t);
+
     __warzoneMilSatsState.groups.forEach(group => {
         const entity = group.entities[0];
-        if (!entity) return;
-        const pos = entity.position.getValue(Cesium.JulianDate.now());
-        if (!pos) return;
-        const d = Cesium.Cartesian3.distance(cam.positionWC, pos);
-        const visible = d < 12000000;
-        group.entities.forEach(e => { e.show = visible; });
+        if (!entity?.model) {
+            group.entities.forEach(e => { e.show = enabled; });
+            return;
+        }
+        const modelCfg = getSatelliteModelConfig(group.satDef);
+        const baseScale = Number.isFinite(Number(group.satDef?.scale))
+            ? Number(group.satDef.scale)
+            : getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-scale", modelCfg.scale);
+        const baseMaxScale = Number.isFinite(Number(group.satDef?.maximumScale))
+            ? Number(group.satDef.maximumScale)
+            : getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-max-scale", modelCfg.maximumScale);
+        const scaled = Math.max(1, baseScale * scaleMul);
+        const scaledMax = Math.max(scaled, baseMaxScale * scaleMul);
+        entity.model.scale = scaled;
+        entity.model.maximumScale = scaledMax;
+        entity.model.minimumPixelSize = currentMinPx;
+        group.entities.forEach(e => { e.show = enabled; });
     });
 }
 
@@ -227,14 +260,17 @@ export function initWarzoneMilSats(viewer) {
             // Single requestRender per interval — Cesium renders once, then sleeps
             viewer.scene.requestRender();
         }
-
-        updateVisibility(viewer);
     }, SAT_UPDATE_INTERVAL_MS);
 
     // Also re-check visibility when camera zooms in/out (no render cost)
+    let visibilityRaf = 0;
     viewer.camera.changed.addEventListener(() => {
         if (!__warzoneMilSatsState.enabled) return;
-        updateVisibility(viewer);
+        if (visibilityRaf) return;
+        visibilityRaf = requestAnimationFrame(() => {
+            visibilityRaf = 0;
+            updateVisibility(viewer);
+        });
     });
 
     // Expose scale refresh — called from index.js at 150ms after CSS vars settle

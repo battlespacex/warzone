@@ -1,0 +1,313 @@
+﻿<div class="warzone-ui-layer">
+    <div class="secondary-content">
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
+               data-widget-id="counter"
+               aria-labelledby="widget-counter-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-counter-title">Theater Intelligence</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse strike counter widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide strike counter widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content" id="widget-counter-content">
+                    <section class="compact-stats" aria-live="polite">
+                        <div class="mini-stat"><span>Total Strikes</span><strong id="stat-total" class="font-counter">00</strong></div>
+                        <div class="mini-stat"><span>Mapped</span> <strong id="stat-mapped" class="font-counter">00</strong></div>
+                    </section>
+                    <div id="wz-theater-panel" class="wz-theater-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--airspace"
+               data-widget-id="airspace"
+               aria-labelledby="widget-airspace-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-airspace-title">Airspace Status</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse airspace status widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide airspace status widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="airspace-status-list" class="status-list" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--layers"
+               data-widget-id="layers"
+               aria-labelledby="widget-layers-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-layers-title">Map Layers</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse map layers widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide map layers widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="wz-layer-panel" class="wz-layer-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--feed"
+               data-widget-id="feed"
+               aria-labelledby="widget-feed-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-feed-title">Breaking News</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse breaking news widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide breaking news widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="live-feed-list" class="timeline-list wz-feed-list" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--escalation"
+               data-widget-id="escalation"
+               aria-labelledby="widget-escalation-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-escalation-title">Escalation Meter</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse escalation meter widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide escalation meter widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="panel-body escalation-box">
+                        <div class="escalation-meter" aria-live="polite">
+                            <span class="static-icon" aria-hidden="true">
+                                <span class="bx-web-ico-alert-1-0" aria-hidden="true"></span>
+                            </span>
+                            <h3 id="escalation-score" class="text-xxl font-counter">00</h3>
+                        </div>
+                        <h3 id="escalation-label" class="text-lg">Moderate</h3>
+                        <ul id="escalation-breakdown" class="escalation-list wz-list-view"></ul>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--cyber"
+               data-widget-id="cyber"
+               aria-labelledby="widget-cyber-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-cyber-title">Cyber Status</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse cyber status widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide cyber status widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="cyber-status-list" class="status-list" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--aircraft"
+               data-widget-id="aircraft"
+               aria-labelledby="widget-aircraft-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-aircraft-title">Aircraft Tracker</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse aircraft tracker widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide aircraft tracker widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="wz-lock-overlay" aria-label="Sign in required">
+                        <p>Sign in to access real-time military aircraft data</p>
+                        <button type="button" class="btn-primary" onclick="window.__openLoginModal?.()"><span aria-hidden="true"></span>Sign In</button>
+                    </div>
+                    <div class="wz-aircraft-toolbar">
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by scope</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by scope" class="wz--dropdown" id="wz-aircraft-filter-scope">
+                                    <option value="region">Current Region</option>
+                                    <option value="all">All Regions</option>
+                                </select>
+                            </span>
+                        </label>
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by country</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by country" class="wz--dropdown" id="wz-aircraft-filter-country">
+                                    <option value="all">All Countries</option>
+                                </select>
+                            </span>
+                        </label>
+
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter aircraft by type</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter aircraft by type" aria-required="true" class="wz--dropdown" id="wz-aircraft-filter-subtype">
+                                    <option value="all">All Types</option>
+                                </select>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div id="wz-aircraft-panel" class="wz-aircraft-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--naval"
+               data-widget-id="naval"
+               aria-labelledby="widget-naval-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-naval-title">Naval Tracker</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse naval tracker widget"
+                                title="Collapse widget">
+                            <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                aria-label="Hide naval tracker widget"
+                                title="Hide widget">
+                            <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="wz-lock-overlay" aria-label="Sign in required">
+                        <p>Sign in to access live military naval tracking</p>
+                        <button type="button" class="btn-primary" onclick="window.__openLoginModal?.()"><span aria-hidden="true"></span>Sign In</button>
+                    </div>
+                    <div class="wz-aircraft-toolbar">
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter naval contacts by type</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter naval contacts by type" class="wz--dropdown" id="wz-naval-filter-subtype">
+                                    <option value="all">All Types</option>
+                                </select>
+                            </span>
+                        </label>
+                        <label class="wz-aircraft-type-filter">
+                            <span class="sr-only">Filter naval contacts by scope</span>
+                            <span class="wz-selector">
+                                <select aria-label="Filter naval contacts by scope" class="wz--dropdown" id="wz-naval-filter-scope">
+                                    <option value="region">Current Region</option>
+                                    <option value="all">All Regions</option>
+                                </select>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="wz-naval-panel-list" class="wz-aircraft-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>

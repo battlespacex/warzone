@@ -419,7 +419,7 @@ UNUSED CANDIDATE END */
 
 /* #endregion =========== */
 /* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
-.wz--textarea, .wz--dropdown, .wz--input, option {
+.wz--textarea, .wz--dropdown, .wz--input {
     font-family: var(--text-base) !important;
     box-sizing: border-box;
     border: 0.2rem solid var(--color-border-gray);
@@ -433,6 +433,16 @@ UNUSED CANDIDATE END */
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
+}
+
+.wz--dropdown option {
+    display: block;
+    position: static;
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+    color: var(--color-text-heading);
+    background: rgba(12, 18, 28, 0.98);
 }
 
 .wz-selector {
