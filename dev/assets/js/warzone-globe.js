@@ -918,64 +918,134 @@ function clamp2DCameraCenter(viewer) {
     if (!cartographic) return;
     const maxLatDeg = Math.max(70, Math.min(85.04, numberVar("--warzone-2d-max-latitude", 84.9)));
     const maxLatRad = Cesium.Math.toRadians(maxLatDeg);
+    const maxLonRad = Math.PI;
+    const currentLon = Number(cartographic.longitude || 0);
+    const clampedLon = Cesium.Math.clamp(currentLon, -maxLonRad, maxLonRad);
     const clampedLat = Cesium.Math.clamp(Number(cartographic.latitude || 0), -maxLatRad, maxLatRad);
     const currentLat = Number(cartographic.latitude || 0);
     if (!Number.isFinite(currentLat)) return;
-    if (Math.abs(clampedLat - currentLat) < 1e-7) return;
+    if (
+        Math.abs(clampedLon - currentLon) < 1e-7 &&
+        Math.abs(clampedLat - currentLat) < 1e-7
+    ) {
+        return;
+    }
     viewer.camera.setView({
         destination: Cesium.Cartesian3.fromRadians(
-            Number(cartographic.longitude || 0),
+            clampedLon,
             clampedLat,
             Number(cartographic.height || numberVar("--warzone-camera-min-zoom", 100))
         ),
         orientation: {
-            heading: viewer.camera.heading,
-            pitch: viewer.camera.pitch,
-            roll: viewer.camera.roll,
+            heading: 0,
+            pitch: -Cesium.Math.PI_OVER_TWO,
+            roll: 0,
         },
+    });
+    viewer.scene.requestRender?.();
+}
+function clamp2DProjectedViewport(viewer) {
+    if (!viewer?.scene || getSceneMode(viewer) !== "2d") return;
+    const camera = viewer.camera;
+    const projection = viewer.scene.mapProjection || camera?._projection;
+    const frustum = camera?.frustum?.offCenterFrustum || camera?.frustum;
+    if (!camera?.position || !projection || !frustum) return;
+    const maxLatDeg = Math.max(70, Math.min(85.04, numberVar("--warzone-2d-max-latitude", 84.9)));
+    const maxProjected = projection.project(
+        Cesium.Cartographic.fromDegrees(180, maxLatDeg, 0)
+    );
+    const maxX = Math.abs(Number(maxProjected?.x || 0));
+    const maxY = Math.abs(Number(maxProjected?.y || 0));
+    const halfWidth = Math.abs(Number(frustum.right || 0) - Number(frustum.left || 0)) * 0.5;
+    const halfHeight = Math.abs(Number(frustum.top || 0) - Number(frustum.bottom || 0)) * 0.5;
+    if (![maxX, maxY, halfWidth, halfHeight].every(Number.isFinite)) return;
+
+    const xLimit = Math.max(0, maxX - halfWidth);
+    const yLimit = Math.max(0, maxY - halfHeight);
+    const nextX = Cesium.Math.clamp(Number(camera.position.x || 0), -xLimit, xLimit);
+    const nextY = Cesium.Math.clamp(Number(camera.position.y || 0), -yLimit, yLimit);
+    if (
+        Math.abs(nextX - Number(camera.position.x || 0)) < 0.5 &&
+        Math.abs(nextY - Number(camera.position.y || 0)) < 0.5
+    ) {
+        return;
+    }
+    camera.position.x = nextX;
+    camera.position.y = nextY;
+    camera.setView({
+        destination: camera.position,
+        orientation: {
+            heading: 0,
+            pitch: -Cesium.Math.PI_OVER_TWO,
+            roll: 0,
+        },
+        convert: false,
+    });
+    viewer.scene.requestRender?.();
+}
+function normalize2DCameraOrientation(viewer) {
+    if (!viewer?.scene || getSceneMode(viewer) !== "2d") return;
+    const camera = viewer.camera;
+    const heading = Number(camera.heading || 0);
+    const pitch = Number(camera.pitch || 0);
+    const roll = Number(camera.roll || 0);
+    if (
+        Math.abs(heading) < 1e-5 &&
+        Math.abs(pitch + Cesium.Math.PI_OVER_TWO) < 1e-5 &&
+        Math.abs(roll) < 1e-5
+    ) {
+        return;
+    }
+    camera.setView({
+        destination: camera.position,
+        orientation: {
+            heading: 0,
+            pitch: -Cesium.Math.PI_OVER_TWO,
+            roll: 0,
+        },
+        convert: false,
     });
     viewer.scene.requestRender?.();
 }
 function apply2DControllerBounds(viewer) {
     const controller = viewer?.scene?.screenSpaceCameraController;
-    if (!controller) return;
+    if (!controller || !viewer?.camera) return;
     if (!viewer.__warzone2DControllerDefaults) {
         viewer.__warzone2DControllerDefaults = {
             maximumTranslateFactor: Number(controller.maximumTranslateFactor),
-            maximumZoomFactor: Number(controller.maximumZoomFactor),
+            maximumZoomFactor: Number(viewer.camera.maximumZoomFactor),
+            enableRotate: controller.enableRotate,
+            enableTilt: controller.enableTilt,
         };
     }
-    // Keep horizontal movement smooth while preventing empty-space drifting.
-    controller.maximumTranslateFactor = Math.max(0.92, Math.min(1.08, numberVar("--warzone-2d-max-translate-factor", 0.98)));
-    controller.maximumZoomFactor = Math.max(1, Math.min(4, numberVar("--warzone-2d-max-zoom-factor", 2.1)));
+    if ("maximumTranslateFactor" in controller) {
+        controller.maximumTranslateFactor = Math.max(0.92, Math.min(1.08, numberVar("--warzone-2d-max-translate-factor", 0.98)));
+    }
+    viewer.camera.maximumZoomFactor = Math.max(0.85, Math.min(1.15, numberVar("--warzone-2d-max-zoom-factor", 1)));
+    controller.enableRotate = false;
+    controller.enableTilt = false;
 }
 function restore2DControllerBounds(viewer) {
     const controller = viewer?.scene?.screenSpaceCameraController;
     const defaults = viewer?.__warzone2DControllerDefaults;
-    if (!controller || !defaults) return;
-    if (Number.isFinite(defaults.maximumTranslateFactor)) {
+    if (!controller || !defaults || !viewer?.camera) return;
+    if ("maximumTranslateFactor" in controller && Number.isFinite(defaults.maximumTranslateFactor)) {
         controller.maximumTranslateFactor = defaults.maximumTranslateFactor;
     }
     if (Number.isFinite(defaults.maximumZoomFactor)) {
-        controller.maximumZoomFactor = defaults.maximumZoomFactor;
+        viewer.camera.maximumZoomFactor = defaults.maximumZoomFactor;
     }
+    controller.enableRotate = defaults.enableRotate !== false;
+    controller.enableTilt = defaults.enableTilt !== false;
 }
 function syncSceneModeBounds(viewer) {
     if (!viewer?.scene) return;
     const mode = getSceneMode(viewer);
     if (mode === "2d") {
-        if (viewer.__warzoneCanSetMapMode2D !== false && Cesium.MapMode2D?.INFINITE_SCROLL) {
-            try {
-                viewer.scene.mapMode2D = Cesium.MapMode2D.INFINITE_SCROLL;
-                viewer.__warzoneCanSetMapMode2D = true;
-            } catch {
-                // Some Cesium builds expose mapMode2D as getter-only.
-                // Skip assignment to avoid 2D render crashes.
-                viewer.__warzoneCanSetMapMode2D = false;
-            }
-        }
         apply2DControllerBounds(viewer);
+        normalize2DCameraOrientation(viewer);
         clamp2DCameraCenter(viewer);
+        clamp2DProjectedViewport(viewer);
     } else {
         restore2DControllerBounds(viewer);
     }
@@ -990,6 +1060,7 @@ function attach2DCameraBoundsGuard(viewer) {
         requestAnimationFrame(() => {
             queued = false;
             clamp2DCameraCenter(viewer);
+            clamp2DProjectedViewport(viewer);
         });
     };
     viewer.camera.moveEnd.addEventListener(queueClamp);
@@ -1002,6 +1073,7 @@ function attach2DCameraBoundsGuard(viewer) {
         if (Math.abs(Number(cartographic.latitude || 0)) > (maxLatRad + 1e-6)) {
             queueClamp();
         }
+        clamp2DProjectedViewport(viewer);
     });
     viewer.scene.morphComplete.addEventListener(() => {
         syncSceneModeBounds(viewer);
@@ -2513,6 +2585,7 @@ export async function initWarzoneGlobe() {
         selectionIndicator: false,
         shouldAnimate: false,
         scene3DOnly: false,
+        mapMode2D: Cesium.MapMode2D.ROTATE,
         requestRenderMode: true,
         contextOptions: {
             webgl: {

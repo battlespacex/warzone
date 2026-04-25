@@ -64,9 +64,10 @@ let __regionCameraSyncTimer = 0;
 let __regionCameraSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionLastAutoSwitchAt = 0;
-const REGION_CAMERA_SYNC_DEBOUNCE_MS = 180;
-const REGION_CAMERA_SYNC_PAUSE_MS = 2200;
-const REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS = 2800;
+let __regionDeferredNotifyTimer = 0;
+const REGION_CAMERA_SYNC_DEBOUNCE_MS = 120;
+const REGION_CAMERA_SYNC_PAUSE_MS = 650;
+const REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS = 900;
 const REGION_CAMERA_SYNC_ENABLED = true;
 const REGION_GLOBAL_ALT_THRESHOLD = 8000000;
 function getRegionById(id) {
@@ -195,22 +196,24 @@ function applyRegionCameraLock(viewer, region = __activeRegion) {
     if (!controller) return;
     void region;
     // Region selection should only filter data; keep camera fully interactive.
+    const is2D = viewer?.scene?.mode === Cesium.SceneMode.SCENE2D;
     controller.enableInputs = true;
     controller.enableZoom = true;
-    controller.enableRotate = true;
+    controller.enableRotate = !is2D;
     controller.enableTranslate = true;
-    controller.enableTilt = true;
+    controller.enableTilt = !is2D;
     controller.enableLook = true;
 }
 function releaseRegionCameraLock(viewer) {
     const controller = viewer?.scene?.screenSpaceCameraController;
     if (!controller) return;
     // Keep controls open during transitions too.
+    const is2D = viewer?.scene?.mode === Cesium.SceneMode.SCENE2D;
     controller.enableInputs = true;
     controller.enableZoom = true;
-    controller.enableRotate = true;
+    controller.enableRotate = !is2D;
     controller.enableTranslate = true;
-    controller.enableTilt = true;
+    controller.enableTilt = !is2D;
     controller.enableLook = true;
 }
 function clampCameraToRegion(viewer, region, { animate = false } = {}) {
@@ -371,7 +374,11 @@ function scheduleRegionSyncFromCamera(viewer) {
         if (!resolved || resolved.id === __activeRegion.id) return;
         __regionLastAutoSwitchAt = now;
         __regionCameraSyncPauseUntil = now + REGION_CAMERA_SYNC_PAUSE_MS;
-        notifyChange(resolved);
+        notifyChange(resolved, {
+            source: "camera",
+            deferCallbacks: true,
+            callbackDelay: 180,
+        });
         viewer.scene?.requestRender?.();
     }, REGION_CAMERA_SYNC_DEBOUNCE_MS);
 }
@@ -418,22 +425,45 @@ export function filterEventsByRegion(events, region) {
 }
 export function getActiveRegion() { return __activeRegion; }
 export function getActiveLens() { return __activeLens; }
-function notifyScopeChange() {
+function notifyScopeChange(options = {}) {
     try { localStorage.setItem(STORAGE_KEY, __activeRegion.id); } catch { }
     try { localStorage.setItem(LENS_KEY, __activeLens); } catch { }
     updateNavDropdown(__activeRegion);
     updateLensDropdown(__activeLens);
-    __onChangeCallbacks.forEach((cb) => {
-        try { cb({ region: __activeRegion, lens: __activeLens }); } catch { }
-    });
+    const payload = {
+        region: __activeRegion,
+        lens: __activeLens,
+        source: String(options.source || "system"),
+    };
+    const runCallbacks = () => {
+        __regionDeferredNotifyTimer = 0;
+        __onChangeCallbacks.forEach((cb) => {
+            try { cb(payload); } catch { }
+        });
+    };
+    if (options.deferCallbacks) {
+        if (__regionDeferredNotifyTimer) {
+            clearTimeout(__regionDeferredNotifyTimer);
+        }
+        __regionDeferredNotifyTimer = window.setTimeout(
+            runCallbacks,
+            Math.max(0, Math.min(Number(options.callbackDelay ?? 160), 1000))
+        );
+        return;
+    }
+    if (__regionDeferredNotifyTimer) {
+        clearTimeout(__regionDeferredNotifyTimer);
+        __regionDeferredNotifyTimer = 0;
+    }
+    runCallbacks();
 }
 export function setActiveLens(lensId) {
     __activeLens = lensId || "live";
     ensureRegionAllowedForLens();
-    notifyScopeChange();
+    notifyScopeChange({ source: "lens" });
 }
 export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
-function notifyChange(region) { __activeRegion = region; notifyScopeChange(); }
+function notifyChange(region, options = {}) { __activeRegion = region; notifyScopeChange(options); }
 export function flyToRegion(viewer, region, options = {}) {
     if (!viewer || !region) return;
     const showLoader = options?.showLoader === true;
@@ -482,8 +512,8 @@ export function flyToRegion(viewer, region, options = {}) {
 }
 export function selectRegion(viewer, regionId, options = {}) {
     const region = resolveRegionForLens(regionId, __activeLens);
-    __regionCameraSyncPauseUntil = Date.now() + 4000;
-    notifyChange(region);
+    __regionCameraSyncPauseUntil = Date.now() + 1200;
+    notifyChange(region, { source: "manual" });
     flyToRegion(viewer, region, options);
 }
 function updateNavDropdown(region) {
