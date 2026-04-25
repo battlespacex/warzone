@@ -258,7 +258,6 @@
         padding: 0;
         gap: 0;
     }
-    .warzone-mobile-settings-trigger,
     .warzone-mobile-settings-panel {
         display: none !important;
     }
@@ -293,24 +292,6 @@
         right: 1rem;
         gap: 0.6rem;
     }
-    .warzone-mobile-settings-trigger {
-        position: fixed;
-        top: 1.8rem;
-        left: 1rem;
-        z-index: 1001;
-        width: 4.4rem;
-        height: 4.4rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 0.2rem solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.04);
-        color: var(--color-text-heading);
-        clip-path: var(--clippath-shape-5);
-    }
-        .warzone-mobile-settings-trigger .static-icon {
-            font-size: var(--icon-lg);
-        }
     .warzone-mobile-settings-panel {
         position: fixed;
         inset: 8rem 1rem auto 1rem;
@@ -513,12 +494,6 @@
         .warzone-logo img {
             height: 4.4rem;
         }
-    .warzone-mobile-settings-trigger {
-        width: 4rem;
-        height: 4rem;
-        top: 1.8rem;
-        left: 0.8rem;
-    }
     .warzone-actions {
         top: 1.8rem;
         right: 0.8rem;

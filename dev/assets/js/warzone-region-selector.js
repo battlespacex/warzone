@@ -60,6 +60,7 @@ let __regionCameraSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionDeferredNotifyTimer = 0;
 let __currentViewportRegion = __activeRegion;
+let __hasUserSelectedRegion = false;
 const REGION_HINT_SETTLED_DEBOUNCE_MS = 450;
 const REGION_HINT_ENABLED = true;
 const REGION_GLOBAL_ALT_THRESHOLD = 8000000;
@@ -665,26 +666,34 @@ export function selectRegion(viewer, regionId, options = {}) {
     }
     clearPendingRegionHintRefresh();
     setRegionButtonHintActive(false);
+    __hasUserSelectedRegion = true;
     __currentViewportRegion = region;
     __regionCameraSyncPauseUntil = Date.now() + 1200;
     notifyChange(region, { source: options?.source || "manual" });
     flyToRegion(viewer, region, options);
 }
 function updateNavDropdown(region) {
-    const label = getRegionLabelForLens(region || getDefaultRegionForLens(__activeLens), __activeLens);
+    const label = __hasUserSelectedRegion && region
+        ? getRegionLabelForLens(region, __activeLens)
+        : "Choose";
     const buttons = [
         document.getElementById("wz-region-nav"),
         document.getElementById("wz-region-nav-mobile"),
     ].filter(Boolean);
     buttons.forEach((button) => {
-        const labelEl = button.querySelector(".wz-region-select-btn__label");
+        const labelEl = button.querySelector("span");
         if (labelEl) {
             labelEl.textContent = label;
         } else {
             button.textContent = label;
         }
-        button.dataset.region = region?.id || "";
-        button.setAttribute("aria-label", `Open monitoring region selector. Current region: ${label}`);
+        button.dataset.region = __hasUserSelectedRegion ? (region?.id || "") : "";
+        button.setAttribute(
+            "aria-label",
+            __hasUserSelectedRegion
+                ? `Open monitoring region selector. Current region: ${label}`
+                : "Open monitoring region selector"
+        );
     });
 }
 function updateLensDropdown(lens) {
@@ -765,12 +774,14 @@ export function initRegionSelector(viewer) {
         const savedLens = localStorage.getItem(LENS_KEY);
         const savedRegionId = localStorage.getItem(STORAGE_KEY);
         __activeLens = savedLens || "live";
+        __hasUserSelectedRegion = !!savedRegionId;
         __activeRegion = resolveRegionForLens(savedRegionId || "", __activeLens);
         ensureRegionAllowedForLens();
         __currentViewportRegion = __activeRegion;
     } catch {
         __activeRegion = getDefaultRegionForLens("live");
         __activeLens = "live";
+        __hasUserSelectedRegion = false;
         __currentViewportRegion = __activeRegion;
     }
 

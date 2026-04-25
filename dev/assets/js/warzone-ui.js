@@ -14,7 +14,6 @@ export function bindWarzoneUi() {
     bindTopViews();
     bindAlertDismiss();
     bindMapModeButtons();
-    bindMobileSettingsPanel();
     initTheaterPanel();
     startUtcClock();
     startAltitudeReadout();
@@ -86,39 +85,6 @@ function bindMapModeButtons() {
             applyMapModeState(btn);
             window.__warzoneViewer?.__warzone?.setMapMode?.(mode);
         });
-    });
-}
-
-function isMobileSettingsMode() {
-    return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
-}
-
-function bindMobileSettingsPanel() {
-    const trigger = document.getElementById("warzone-mobile-settings-trigger");
-    const panel = document.getElementById("warzone-mobile-settings-panel");
-    const closeBtn = document.getElementById("warzone-mobile-settings-close");
-    const applyBtn = document.getElementById("warzone-mobile-settings-apply");
-    if (!trigger || !panel) return;
-    const setPanelOpen = (open, { focus = true } = {}) => {
-        panel.hidden = !open;
-        panel.setAttribute("aria-hidden", String(!open));
-        trigger.setAttribute("aria-expanded", String(open));
-        if (!focus) return;
-        if (open) {
-            requestAnimationFrame(() => closeBtn?.focus());
-        } else {
-            requestAnimationFrame(() => trigger.focus());
-        }
-    };
-    setPanelOpen(!panel.hidden, { focus: false });
-    trigger.addEventListener("click", () => {
-        setPanelOpen(panel.hidden);
-    });
-    closeBtn?.addEventListener("click", () => {
-        setPanelOpen(false);
-    });
-    applyBtn?.addEventListener("click", () => {
-        setPanelOpen(false);
     });
 }
 
