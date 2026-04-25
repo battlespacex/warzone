@@ -774,7 +774,7 @@
     justify-self: left
 }
 
-.wz-layer-warning .wz-modal-box {
+.wz-layer-warning .wz-modal-box, .wz-performance-warning .wz-modal-box {
     max-width: 52rem;
 }
 
@@ -801,31 +801,32 @@
     flex-wrap: wrap;
 }
 
-.wz-performance-warning .wz-modal-box {
-    max-width: 58rem;
-}
-
 .wz-performance-warning .wz-modal-body {
     gap: 0.8rem;
 }
 
+.wz-performance-warning {
+    background: rgba(5, 10, 18, 0.35);
+}
+
+.wz-performance-warning:before,
+.wz-performance-warning:after {
+    display: none;
+}
+
 .wz-performance-warning__env {
-    list-style: none;
-    margin: 0.2rem 0 0;
-    padding: 0.75rem 1rem;
-    border: 1px solid rgba(86, 215, 255, 0.22);
-    background: rgba(7, 17, 28, 0.55);
-    border-radius: 0.55rem;
+    background: var(--color-blue);
     display: grid;
-    gap: 0.35rem;
+    gap: .35rem;
+    list-style: none;
+    padding: 2rem;
+    color: var(--color-blue-glow);
+    font-family: var(--font-mono);
+    clip-path: var(--clippath-shape-1);
 }
 
 .wz-performance-warning__env li {
-    margin: 0;
     font-family: var(--code-font);
-    font-size: 1.3rem;
-    color: var(--color-text-dim);
-    line-height: 1.35;
 }
 
 .wz-modal h2 {
@@ -2702,6 +2703,32 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label::after {
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.55);
     flex: 1;
+}
+
+.wz-altitude-readout {
+    position: fixed;
+    right: 8.8rem;
+    bottom: 2rem;
+    z-index: 9800;
+    padding: 0.55rem 0.9rem;
+    color: var(--color-teal-glow);
+    font-size: 1.2rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+    background: rgba(2, 14, 23, 0.62);
+    border: 1px solid rgba(0, 239, 255, 0.45);
+    border-radius: 0.25rem;
+    box-shadow: 0 0 10px rgba(0, 239, 255, 0.25), inset 0 0 10px rgba(0, 239, 255, 0.12);
+    text-shadow: 0 0 4px rgba(0, 239, 255, 0.95), 0 0 12px rgba(0, 239, 255, 0.72);
+    pointer-events: none;
+}
+
+@media (max-width: 1024px) {
+    .wz-altitude-readout {
+        right: 1.2rem;
+        bottom: 7.6rem;
+    }
 }
 
 /* #endregion */
