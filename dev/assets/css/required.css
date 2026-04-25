@@ -452,6 +452,92 @@ UNUSED CANDIDATE END */
     min-width: 15rem;
 }
 
+.wz-region-control {
+    position: relative;
+    z-index: 1;
+    min-width: 18rem;
+}
+
+.wz-region-select-btn {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 18rem;
+    min-height: 4rem;
+    padding: 0.45rem 4rem 0.45rem 1rem;
+    border: 0.2rem solid var(--color-border-gray);
+    background: var(--color-bg-overlay);
+    color: var(--color-text-heading);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    text-align: left;
+    transition: .2s ease;
+}
+
+.wz-region-select-btn:after {
+    content: "";
+    font-family: var(--font-icon);
+    font-size: var(--icon-lg);
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4rem;
+    height: 4rem;
+    line-height: 4rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-color-heading);
+    transform: rotate(90deg);
+    background: var(--color-input-gray);
+    pointer-events: none;
+}
+
+.wz-region-select-btn:focus-visible,
+.wz-region-select-btn:hover,
+.wz-region-select-btn:active {
+    border-color: var(--color-teal-glow);
+    outline: none;
+}
+
+.wz-region-select-btn__kicker {
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.wz-region-select-btn__label {
+    color: var(--color-text-heading);
+    font-size: var(--text-sm);
+    line-height: 1.2;
+}
+
+.wz-region-hint {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    color: var(--color-teal-glow);
+    font-size: var(--text-xs);
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.2rem);
+    transition: opacity .2s ease, transform .2s ease;
+}
+
+.wz-region-control.is-region-outside .wz-region-select-btn {
+    border-color: var(--color-teal-glow);
+    animation: wz-animate-pulse 1.5s infinite;
+}
+
+.wz-region-control.is-region-outside .wz-region-hint {
+    opacity: 1;
+    transform: translateY(0);
+}
+
     .wz-selector:after {
         content: "";
         font-family: var(--font-icon);

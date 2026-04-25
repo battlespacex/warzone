@@ -1419,7 +1419,8 @@ async function fetchViewportEvents() {
         };
         __eventsCache.forEach(pushUnique);
         __liveRecentEvents.forEach(pushUnique);
-        const visible = merged.filter((evt) => {
+        const regionalMerged = filterEventsToActiveRegion(merged);
+        const visible = regionalMerged.filter((evt) => {
             if (!bounds) return true;
             return eventMatchesBounds(evt, bounds);
         });
@@ -3699,7 +3700,7 @@ function syncHotspotLayerEvents(events = []) {
     }
     // Fallback: viewport-scoped sources can occasionally be empty due bounds
     // edge cases while theater counters still have valid conflict events.
-    const fallback = applyHotspotFilters(__eventsCache, { respectRegion: false });
+    const fallback = applyHotspotFilters(__eventsCache, { respectRegion: true });
     __hotspotLayer.setEvents(getHotspotSourceEvents(fallback));
 }
 function ensureHotspotLayer(viewer, hotspotRoot) {
@@ -3881,7 +3882,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false, updatePerform
     const visible = applyAllFilters(events);
     const scopedCacheVisible = applyAllFilters(__eventsCache);
     const hotspotStableSource = hotspotsEnabled
-        ? applyHotspotFilters(events, { respectRegion: false })
+        ? applyHotspotFilters(events, { respectRegion: true })
         : [];
     // Naval tracker panel should follow selected region/lens, not camera bounds.
     const navalVisible = scopedCacheVisible.filter(isNavalSignalEvent);
@@ -4031,7 +4032,7 @@ export async function initWarzoneApp() {
         syncHotspotRootVisibility(hotspotEnabled);
         syncHotspotLayerEvents(
             hotspotEnabled
-                ? applyHotspotFilters(__eventsCache, { respectRegion: false })
+                ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                 : []
         );
     if (viewer && !__militaryTracks) {
@@ -4076,7 +4077,7 @@ export async function initWarzoneApp() {
             syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
             syncHotspotLayerEvents(
                 isLayerEnabled("hotspots")
-                    ? applyHotspotFilters(__eventsCache, { respectRegion: false })
+                    ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                     : []
             );
             scheduleViewportFetch(60);
@@ -4099,7 +4100,7 @@ export async function initWarzoneApp() {
                     syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
                     syncHotspotLayerEvents(
                         isLayerEnabled("hotspots")
-                            ? applyHotspotFilters(__eventsCache, { respectRegion: false })
+                            ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                             : []
                     );
                     if (__eventsCache[0]?.occurred_at) {
@@ -4153,7 +4154,7 @@ export async function initWarzoneApp() {
             requestNavalWidgetRender(0);
             if (isLayerEnabled("hotspots")) {
                 const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
-                syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: false }));
+                syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: true }));
             } else {
                 syncHotspotLayerEvents([]);
             }
@@ -4201,7 +4202,7 @@ export async function initWarzoneApp() {
         if (__hotspotLayer) {
             syncHotspotLayerEvents(
                 hotspotEnabled
-                    ? applyHotspotFilters(mapSourceEvents, { respectRegion: false })
+                    ? applyHotspotFilters(mapSourceEvents, { respectRegion: true })
                     : []
             );
         }
@@ -4324,7 +4325,7 @@ async function pollLatestEvents(options = {}) {
                         renderAll(filterEventsToActiveRegion(fullEvents));
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
                         const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
-                        syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: false }));
+                        syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: true }));
                         const newestTs = Date.parse(fullEvents[0]?.occurred_at || "");
                         if (Number.isFinite(newestTs)) {
                             __lastSeenOccurredAt = new Date(
@@ -4589,7 +4590,7 @@ export function handleIncomingEvent(event) {
     if (isTrackLikeEvent(normalized) && inRegion && layerOk) {
         globe?.animateMissileTrack?.(normalized);
     }
-    if (isLayerEnabled("hotspots") && isHotspotEventEligible(normalized, { respectRegion: false })) {
+    if (isLayerEnabled("hotspots") && isHotspotEventEligible(normalized, { respectRegion: true })) {
         __hotspotLayer?.addEvent?.(normalized);
     }
     if (isSirenEvent(normalized)) {

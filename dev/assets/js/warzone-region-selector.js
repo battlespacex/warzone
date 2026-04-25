@@ -55,18 +55,13 @@ let __onChangeCallbacks = [];
 let __regionTransitionInFlight = false;
 let __regionCountryBoundsPromise = null;
 const __regionCountryBoundsById = new Map();
-let __regionCameraSyncTimer = 0;
+let __regionHintTimer = 0;
 let __regionCameraSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
-let __regionLastAutoSwitchAt = 0;
 let __regionDeferredNotifyTimer = 0;
 let __currentViewportRegion = __activeRegion;
-let __regionPromptOpen = false;
-let __regionDismissedViewportRegionId = "";
-const REGION_CAMERA_SYNC_DEBOUNCE_MS = 700;
-const REGION_CAMERA_SYNC_PAUSE_MS = 650;
-const REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS = 900;
-const REGION_CAMERA_SYNC_ENABLED = true;
+const REGION_HINT_SETTLED_DEBOUNCE_MS = 450;
+const REGION_HINT_ENABLED = true;
 const REGION_GLOBAL_ALT_THRESHOLD = 8000000;
 function numberVar(name, fallback) {
     if (typeof window === "undefined" || !window.getComputedStyle) return fallback;
@@ -393,6 +388,25 @@ function getBoundsIntersectionArea(a = null, b = null) {
     if (maxLon <= minLon || maxLat <= minLat) return 0;
     return (maxLon - minLon) * (maxLat - minLat);
 }
+function isCameraViewInsideRegion(viewer, region, focusHint = null) {
+    if (!viewer || !region || region.id === "global") return true;
+    const bounds = getRegionBounds(region) || region.bounds;
+    if (!bounds) return false;
+    const viewportCenter = getBoundsCenter(getViewportBounds(viewer));
+    if (viewportCenter && isCoordinateInsideBounds(viewportCenter.lon, viewportCenter.lat, bounds)) {
+        return true;
+    }
+    const focus = focusHint || getCameraFocusCoordinates(viewer);
+    if (
+        focus &&
+        Number.isFinite(Number(focus.lon)) &&
+        Number.isFinite(Number(focus.lat)) &&
+        isCoordinateInsideBounds(Number(focus.lon), Number(focus.lat), bounds)
+    ) {
+        return true;
+    }
+    return false;
+}
 function ensureRegionAllowedForLens() {
     const allowed = getRegionsForLens(__activeLens);
     const ok = allowed.some((r) => r.id === __activeRegion.id);
@@ -459,14 +473,11 @@ function detectRegionFromCamera(viewer, focusHint = null) {
         return null;
     }
 }
-function clearPendingRegionCameraSync() {
-    if (__regionCameraSyncTimer) {
-        clearTimeout(__regionCameraSyncTimer);
-        __regionCameraSyncTimer = 0;
+function clearPendingRegionHintRefresh() {
+    if (__regionHintTimer) {
+        clearTimeout(__regionHintTimer);
+        __regionHintTimer = 0;
     }
-}
-function resetDismissedViewportRegion() {
-    __regionDismissedViewportRegionId = "";
 }
 function closeRegionModal(overlay, callback) {
     if (!overlay) {
@@ -481,55 +492,35 @@ function closeRegionModal(overlay, callback) {
         if (typeof callback === "function") callback();
     }, 220);
 }
-function dismissOpenRegionSwitchPrompt() {
-    if (!__regionPromptOpen) return;
-    const overlay = document.getElementById("wz-region-modal");
-    __regionPromptOpen = false;
-    closeRegionModal(overlay);
+function isRegionHintAllowed() {
+    if (typeof document === "undefined") return false;
+    if (!document.body?.classList?.contains("is-app-active")) return false;
+    const introModal = document.getElementById("wz-intro-modal");
+    if (introModal && !introModal.hidden) return false;
+    return true;
 }
-function scheduleRegionSyncFromCamera(viewer) {
-    if (!viewer || __regionTransitionInFlight) return;
-    if (Date.now() < __regionCameraSyncPauseUntil) return;
-    clearPendingRegionCameraSync();
-    __regionCameraSyncTimer = window.setTimeout(() => {
-        __regionCameraSyncTimer = 0;
-        if (!viewer || __regionTransitionInFlight) return;
-        if (Date.now() < __regionCameraSyncPauseUntil) return;
-        const now = Date.now();
-        if ((now - __regionLastAutoSwitchAt) < REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS) {
-            return;
-        }
-        const focus = getCameraFocusCoordinates(viewer);
-        if (!focus) return;
-        const focusAlt = Number(focus.alt || 0);
-        const activeRegion = __activeRegion;
-        __currentViewportRegion = activeRegion;
-        const detected = detectRegionFromCamera(viewer, focus);
-        if (!detected) return;
-        __currentViewportRegion = detected || activeRegion;
-        if (detected.id === __activeRegion.id) {
-            resetDismissedViewportRegion();
-            return;
-        }
-        if (__regionPromptOpen) return;
-        if (__regionDismissedViewportRegionId === detected.id) return;
-        if ((now - __regionLastAutoSwitchAt) < REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS) {
-            return;
-        }
-        __regionLastAutoSwitchAt = now;
-        showRegionModal(viewer, false, {
-            mode: "switch",
-            suggestedRegion: detected,
-            onConfirm: (regionId) => {
-                resetDismissedViewportRegion();
-                selectRegion(viewer, regionId, { source: "prompt", allowAnyRegion: true });
-            },
-            onCancel: () => {
-                __regionDismissedViewportRegionId = detected.id;
-                __regionCameraSyncPauseUntil = Date.now() + REGION_CAMERA_SYNC_PAUSE_MS;
-            },
-        });
-    }, REGION_CAMERA_SYNC_DEBOUNCE_MS);
+function setRegionButtonHintActive(active) {
+    const controls = [
+        document.getElementById("wz-region-control"),
+        document.getElementById("wz-region-control-mobile"),
+    ].filter(Boolean);
+    controls.forEach((control) => {
+        control.classList.toggle("is-region-outside", !!active);
+    });
+}
+function refreshRegionButtonHint(viewer) {
+    if (!viewer || __regionTransitionInFlight || !isRegionHintAllowed()) {
+        setRegionButtonHintActive(false);
+        return;
+    }
+    setRegionButtonHintActive(!isCameraViewInsideRegion(viewer, __activeRegion));
+}
+function scheduleRegionButtonHintRefresh(viewer, delayMs = REGION_HINT_SETTLED_DEBOUNCE_MS) {
+    clearPendingRegionHintRefresh();
+    __regionHintTimer = window.setTimeout(() => {
+        __regionHintTimer = 0;
+        refreshRegionButtonHint(viewer);
+    }, Math.max(0, Number(delayMs || 0)));
 }
 export function filterEventsByRegion(events, region) {
     if (!region || region.id === "global") return events;
@@ -607,9 +598,8 @@ function notifyScopeChange(options = {}) {
     runCallbacks();
 }
 export function setActiveLens(lensId) {
-    clearPendingRegionCameraSync();
-    dismissOpenRegionSwitchPrompt();
-    resetDismissedViewportRegion();
+    clearPendingRegionHintRefresh();
+    setRegionButtonHintActive(false);
     __activeLens = lensId || "live";
     ensureRegionAllowedForLens();
     notifyScopeChange({ source: "lens" });
@@ -673,25 +663,28 @@ export function selectRegion(viewer, regionId, options = {}) {
     } else {
         region = resolveRegionForLens(regionId, __activeLens);
     }
-    clearPendingRegionCameraSync();
-    dismissOpenRegionSwitchPrompt();
-    resetDismissedViewportRegion();
+    clearPendingRegionHintRefresh();
+    setRegionButtonHintActive(false);
     __currentViewportRegion = region;
     __regionCameraSyncPauseUntil = Date.now() + 1200;
     notifyChange(region, { source: options?.source || "manual" });
     flyToRegion(viewer, region, options);
 }
 function updateNavDropdown(region) {
-    const regions = getRegionsForLens(__activeLens);
-    const dropdowns = [
+    const label = getRegionLabelForLens(region || getDefaultRegionForLens(__activeLens), __activeLens);
+    const buttons = [
         document.getElementById("wz-region-nav"),
         document.getElementById("wz-region-nav-mobile"),
     ].filter(Boolean);
-    dropdowns.forEach((dropdown) => {
-        dropdown.innerHTML = regions
-            .map((r) => `<option value="${r.id}">${getRegionLabelForLens(r, __activeLens)}${r.hot ? " ◉" : ""}</option>`)
-            .join("");
-        dropdown.value = region && regions.some((r) => r.id === region.id) ? region.id : (regions[0]?.id || "");
+    buttons.forEach((button) => {
+        const labelEl = button.querySelector(".wz-region-select-btn__label");
+        if (labelEl) {
+            labelEl.textContent = label;
+        } else {
+            button.textContent = label;
+        }
+        button.dataset.region = region?.id || "";
+        button.setAttribute("aria-label", `Open monitoring region selector. Current region: ${label}`);
     });
 }
 function updateLensDropdown(lens) {
@@ -708,11 +701,20 @@ export function initRegionNav(viewer) {
     if (!dropdown && !mobileDropdown) return;
     updateNavDropdown(__activeRegion);
     applyRegionCameraLock(viewer, __activeRegion);
+    const openRegionSelector = () => {
+        showRegionModal(viewer, false, {
+            mode: "manual",
+            suggestedRegion: __activeRegion,
+            onConfirm: (regionId) => {
+                selectRegion(viewer, regionId, { source: "manual", allowAnyRegion: true });
+            },
+        });
+    };
     if (dropdown) {
-        dropdown.addEventListener("change", () => selectRegion(viewer, dropdown.value));
+        dropdown.addEventListener("click", openRegionSelector);
     }
     if (mobileDropdown) {
-        mobileDropdown.addEventListener("change", () => selectRegion(viewer, mobileDropdown.value));
+        mobileDropdown.addEventListener("click", openRegionSelector);
     }
     const lensDropdown = document.getElementById("wz-lens-nav");
     const lensDropdownMobile = document.getElementById("wz-lens-nav-mobile");
@@ -733,14 +735,29 @@ export function initRegionNav(viewer) {
     viewer?.scene?.morphComplete?.addEventListener?.(() => {
         applyRegionCameraLock(viewer, __activeRegion);
     });
-    if (REGION_CAMERA_SYNC_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
+    if (REGION_HINT_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
         __regionCameraSyncBound = true;
         viewer?.camera?.moveStart?.addEventListener?.(() => {
-            clearPendingRegionCameraSync();
+            clearPendingRegionHintRefresh();
         });
         viewer.camera.moveEnd.addEventListener(() => {
-            scheduleRegionSyncFromCamera(viewer);
+            scheduleRegionButtonHintRefresh(viewer);
         });
+        const canvas = viewer.scene?.canvas;
+        if (canvas?.addEventListener) {
+            const clearOnInputStart = () => {
+                clearPendingRegionHintRefresh();
+            };
+            const settleOnInputEnd = () => {
+                scheduleRegionButtonHintRefresh(viewer);
+            };
+            canvas.addEventListener("pointerdown", clearOnInputStart, { passive: true });
+            canvas.addEventListener("pointerup", settleOnInputEnd, { passive: true });
+            canvas.addEventListener("pointercancel", settleOnInputEnd, { passive: true });
+            canvas.addEventListener("mouseup", settleOnInputEnd, { passive: true });
+            canvas.addEventListener("touchend", settleOnInputEnd, { passive: true });
+            canvas.addEventListener("wheel", settleOnInputEnd, { passive: true });
+        }
     }
 }
 export function initRegionSelector(viewer) {
@@ -764,13 +781,6 @@ export function initRegionSelector(viewer) {
     setLandingCamera(viewer);
     viewer?.__warzone?.setBorderLayersVisible?.(false, { animate: false });
     initRegionNav(viewer);
-    try {
-        if (localStorage.getItem(VISITED_KEY) === "1") {
-            scheduleRegionSyncFromCamera(viewer);
-        }
-    } catch {
-        // Startup selection will handle first-entry region choice.
-    }
 }
 function showRegionModal(viewer, instant = false, options = {}) {
     const overlay = document.getElementById("wz-region-modal");
@@ -781,7 +791,7 @@ function showRegionModal(viewer, instant = false, options = {}) {
 
     const titleEl = document.getElementById("wz-region-title");
     const subEl = document.getElementById("wz-region-sub");
-    const mode = options?.mode === "switch" ? "switch" : "startup";
+    const mode = options?.mode === "manual" ? "manual" : "startup";
     const suggestedRegion = options?.suggestedRegion || null;
     const lensRegions = getRegionsForLens(__activeLens);
     const regions = REGIONS;
@@ -815,21 +825,19 @@ function showRegionModal(viewer, instant = false, options = {}) {
         backBtn = newBack;
     }
 
-    let chosen = mode === "switch" ? (suggestedRegion?.id || null) : null;
+    let chosen = mode === "manual" ? (suggestedRegion?.id || __activeRegion?.id || null) : null;
 
     if (titleEl) {
-        titleEl.textContent = mode === "switch"
-            ? "Switch Monitoring Region?"
-            : "Select Monitoring Region";
+        titleEl.textContent = "Select Monitoring Region";
     }
     if (subEl) {
-        subEl.textContent = mode === "switch"
-            ? `You are viewing ${getRegionLabelForLens(suggestedRegion || __currentViewportRegion || __activeRegion, __activeLens)}. Switch region?`
+        subEl.textContent = mode === "manual"
+            ? `Current region: ${getRegionLabelForLens(__activeRegion, __activeLens)}. Select a monitoring region.`
             : "Choose an initial theater to begin monitoring.";
     }
 
     if (confirmBtn) {
-        confirmBtn.innerHTML = mode === "switch"
+        confirmBtn.innerHTML = mode === "manual"
             ? '<span aria-hidden="true"></span>Switch Region'
             : '<span aria-hidden="true"></span>Enter Stratops';
         const disabled = !chosen;
@@ -838,14 +846,13 @@ function showRegionModal(viewer, instant = false, options = {}) {
         confirmBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
     }
     if (backBtn) {
-        backBtn.innerHTML = mode === "switch"
-            ? '<span aria-hidden="true"></span>Stay Here'
+        backBtn.innerHTML = mode === "manual"
+            ? '<span aria-hidden="true"></span>Close'
             : '<span aria-hidden="true"></span>Back';
     }
 
     overlay.hidden = false;
     overlay.classList.remove("is-closing");
-    __regionPromptOpen = mode === "switch";
 
     const regionButtons = overlay.querySelectorAll(".wz-region-btn");
 
@@ -875,8 +882,7 @@ function showRegionModal(viewer, instant = false, options = {}) {
         confirmBtn.addEventListener("click", () => {
             if (!chosen) return;
 
-            if (mode === "switch") {
-                __regionPromptOpen = false;
+            if (mode === "manual") {
                 closeRegionModal(overlay, () => {
                     options?.onConfirm?.(chosen);
                 });
@@ -889,7 +895,6 @@ function showRegionModal(viewer, instant = false, options = {}) {
             window.SiteLoader?.start?.();
 
             closeRegionModal(overlay, () => {
-                __regionPromptOpen = false;
                 if (!lensRegions.some((region) => region.id === chosen)) {
                     __activeLens = "all";
                 }
@@ -905,8 +910,7 @@ function showRegionModal(viewer, instant = false, options = {}) {
 
     if (backBtn) {
         backBtn.addEventListener("click", () => {
-            if (mode === "switch") {
-                __regionPromptOpen = false;
+            if (mode === "manual") {
                 closeRegionModal(overlay, () => {
                     options?.onCancel?.();
                 });
@@ -914,7 +918,6 @@ function showRegionModal(viewer, instant = false, options = {}) {
             }
             const introModal = document.getElementById("wz-intro-modal");
             closeRegionModal(overlay, () => {
-                __regionPromptOpen = false;
                 if (!introModal) return;
                 introModal.hidden = false;
                 requestAnimationFrame(() => {
