@@ -1,5 +1,6 @@
 ﻿// File Path: /assets/js/warzone-region-selector.js
 import * as Cesium from "cesium";
+import { getTheaterDefinitions } from "./warzone-theaters.js";
 const REGIONS = [
     { id: "global", label: "Global View", bounds: { minLat: -90, maxLat: 90, minLon: -180, maxLon: 180 }, camera: { lon: 40, lat: 25, alt: 12000000 } },
     { id: "middle_east", label: "Middle East & Gulf", bounds: { minLat: 12, maxLat: 42, minLon: 28, maxLon: 65 }, camera: { lon: 44, lat: 28, alt: 3800000 }, hot: true },
@@ -15,12 +16,6 @@ const REGIONS = [
     { id: "oceania", label: "Oceania", bounds: { minLat: -50, maxLat: 5, minLon: 110, maxLon: 180 }, camera: { lon: 146, lat: -23, alt: 7000000 } },
     { id: "africa", label: "Africa", bounds: { minLat: -35, maxLat: 38, minLon: -20, maxLon: 52 }, camera: { lon: 20, lat: 5, alt: 7000000 } },
 ];
-const LENS_THEATERS = {
-    live: ["global", "middle_east", "levant", "ukraine", "central_asia", "south_asia", "europe", "north_america", "latin_america", "south_america", "east_asia", "oceania", "africa"],
-    standoff: ["global", "middle_east", "levant", "ukraine", "central_asia", "south_asia", "europe", "north_america", "latin_america", "south_america", "east_asia", "oceania", "africa"],
-    flashpoint: ["global", "middle_east", "levant", "ukraine", "central_asia", "south_asia", "europe", "north_america", "latin_america", "south_america", "east_asia", "oceania", "africa"],
-    all: ["global", "middle_east", "levant", "ukraine", "central_asia", "south_asia", "europe", "north_america", "latin_america", "south_america", "east_asia", "oceania", "africa"]
-};
 const LENS_REGION_LABELS = {
     live: { global: "Global View", middle_east: "Middle East & Gulf", levant: "Levant & Eastern Med", ukraine: "Ukraine & Eastern Europe", central_asia: "Central Asia", south_asia: "South Asia", europe: "Europe", north_america: "North America", latin_america: "Central America & Caribbean", south_america: "South America", east_asia: "East Asia & Pacific", oceania: "Oceania", africa: "Africa" },
     standoff: { global: "Global View", middle_east: "Middle East & Gulf", levant: "Levant & Eastern Med", ukraine: "Ukraine & Eastern Europe", central_asia: "Central Asia", south_asia: "South Asia", europe: "Europe", north_america: "North America", latin_america: "Central America & Caribbean", south_america: "South America", east_asia: "East Asia & Pacific", oceania: "Oceania", africa: "Africa" },
@@ -33,7 +28,7 @@ const VISITED_KEY = "wz_region_visited";
 const INTRO_ACCEPT_KEY = "wz_intro_accepted";
 const LAYER_STATE_KEY = "wz_layer_state";
 const BORDER_LAYER_ID = "country-borders";
-const LANDING_CAMERA = { lon: 20, lat: 20, alt: 16200000 };
+const LANDING_CAMERA = { lon: 40, lat: 22, alt: 5800000, heading: 0, pitch: -90, roll: 0 };
 const REGION_COUNTRIES_URL = "/assets/data/ne_110m_admin_0_countries.geojson";
 const REGION_EXPLICIT_ISO2 = {
     middle_east: new Set(["AE", "BH", "CY", "EG", "IL", "IQ", "IR", "JO", "KW", "LB", "OM", "PS", "QA", "SA", "SY", "TR", "YE"]),
@@ -70,11 +65,45 @@ const REGION_CAMERA_SYNC_PAUSE_MS = 650;
 const REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS = 900;
 const REGION_CAMERA_SYNC_ENABLED = true;
 const REGION_GLOBAL_ALT_THRESHOLD = 8000000;
+function numberVar(name, fallback) {
+    if (typeof window === "undefined" || !window.getComputedStyle) return fallback;
+    const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+    return Number.isFinite(value) ? value : fallback;
+}
+function getLandingCameraConfig() {
+    return {
+        lon: numberVar("--warzone-start-lon", LANDING_CAMERA.lon),
+        lat: numberVar("--warzone-start-lat", LANDING_CAMERA.lat),
+        alt: numberVar("--warzone-start-height", LANDING_CAMERA.alt),
+        heading: numberVar("--warzone-start-heading", LANDING_CAMERA.heading),
+        pitch: numberVar("--warzone-start-pitch", LANDING_CAMERA.pitch),
+        roll: numberVar("--warzone-start-roll", LANDING_CAMERA.roll),
+    };
+}
 function getRegionById(id) {
     return REGIONS.find((r) => r.id === id) || REGIONS.find((r) => r.id === "middle_east") || REGIONS[0];
 }
+function getLensRegionIds(lens = "live") {
+    if (lens === "all") {
+        return REGIONS.map((region) => region.id);
+    }
+    const allowed = new Set(["global"]);
+    const orderedIds = REGIONS.map((region) => region.id);
+    getTheaterDefinitions().forEach((theater) => {
+        if (!theater?.region || !Array.isArray(theater.lenses)) return;
+        if (!theater.lenses.includes(lens)) return;
+        allowed.add(theater.region);
+        if (theater.region === "middle_east") {
+            allowed.add("levant");
+        }
+        if (theater.region === "europe") {
+            allowed.add("ukraine");
+        }
+    });
+    return orderedIds.filter((id) => allowed.has(id));
+}
 function getRegionsForLens(lens) {
-    const ids = LENS_THEATERS[lens] || LENS_THEATERS.live;
+    const ids = getLensRegionIds(lens);
     return ids.map((id) => getRegionById(id)).filter(Boolean);
 }
 function getRegionLabelForLens(region, lens) {
@@ -158,12 +187,18 @@ function getRegionBounds(region = __activeRegion) {
 }
 function setLandingCamera(viewer) {
     if (!viewer?.camera) return;
+    const camera = getLandingCameraConfig();
     viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(
-            LANDING_CAMERA.lon,
-            LANDING_CAMERA.lat,
-            LANDING_CAMERA.alt
+            camera.lon,
+            camera.lat,
+            camera.alt
         ),
+        orientation: {
+            heading: Cesium.Math.toRadians(camera.heading),
+            pitch: Cesium.Math.toRadians(camera.pitch),
+            roll: Cesium.Math.toRadians(camera.roll),
+        },
     });
     viewer.scene?.requestRender?.();
 }
@@ -467,6 +502,7 @@ function notifyChange(region, options = {}) { __activeRegion = region; notifySco
 export function flyToRegion(viewer, region, options = {}) {
     if (!viewer || !region) return;
     const showLoader = options?.showLoader === true;
+    viewer.__warzone?.stopStartupRotation?.();
     releaseRegionCameraLock(viewer);
     __regionTransitionInFlight = true;
     viewer.camera.cancelFlight?.();

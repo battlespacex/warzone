@@ -1053,6 +1053,116 @@ function initMapTunerControls() {
     updateOutput();
     refreshMapOnlyNow();
 }
+
+function openDevSharedModal(modal) {
+    if (!modal) return;
+    if (typeof window.__warzoneOpenSharedModal === "function") {
+        window.__warzoneOpenSharedModal(modal);
+        return;
+    }
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add("is-visible"));
+}
+
+function closeDevSharedModal(modal, callback) {
+    if (!modal) {
+        if (typeof callback === "function") callback();
+        return;
+    }
+    if (typeof window.__warzoneCloseSharedModal === "function") {
+        window.__warzoneCloseSharedModal(modal, callback);
+        return;
+    }
+    modal.classList.remove("is-visible");
+    window.setTimeout(() => {
+        modal.hidden = true;
+        if (typeof callback === "function") callback();
+    }, 220);
+}
+
+function wireDevModalDismiss({ modal, closeBtn, backBtn, confirmBtn, onClose } = {}) {
+    if (!modal) return;
+    const handleClose = () => {
+        closeBtn?.removeEventListener("click", handleClose);
+        backBtn?.removeEventListener("click", handleClose);
+        confirmBtn?.removeEventListener("click", handleClose);
+        closeDevSharedModal(modal, onClose);
+    };
+    closeBtn?.addEventListener("click", handleClose);
+    backBtn?.addEventListener("click", handleClose);
+    confirmBtn?.addEventListener("click", handleClose);
+    openDevSharedModal(modal);
+}
+
+function openDevLayerWarningModal() {
+    const modal = document.getElementById("wz-layer-warning-modal");
+    if (!modal) return false;
+    const titleEl = document.getElementById("wz-layer-warning-title");
+    const summaryEl = document.getElementById("wz-layer-warning-summary");
+    const detailEl = document.getElementById("wz-layer-warning-detail");
+    const closeBtn = document.getElementById("wz-layer-warning-close");
+    const backBtn = document.getElementById("wz-layer-warning-back");
+    const confirmBtn = document.getElementById("wz-layer-warning-confirm");
+
+    if (titleEl) titleEl.textContent = "High-Load Layer Activation";
+    if (summaryEl) {
+        summaryEl.textContent = "This is the warning popup used before enabling a heavier live layer stack.";
+    }
+    if (detailEl) {
+        detailEl.textContent = "Use this dev shortcut to preview spacing, copy, and modal behavior without changing live layer state.";
+    }
+    wireDevModalDismiss({ modal, closeBtn, backBtn, confirmBtn });
+    return true;
+}
+
+function openDevPerformanceWarningModal() {
+    const modal = document.getElementById("wz-performance-warning-modal");
+    if (!modal) return false;
+    const titleEl = document.getElementById("wz-performance-warning-title");
+    const summaryEl = document.getElementById("wz-performance-warning-summary");
+    const detailEl = document.getElementById("wz-performance-warning-detail");
+    const envEl = document.getElementById("wz-performance-warning-env");
+    const optoutEl = document.getElementById("wz-performance-warning-optout");
+    const closeBtn = document.getElementById("wz-performance-warning-close");
+    const backBtn = document.getElementById("wz-performance-warning-back");
+    const confirmBtn = document.getElementById("wz-performance-warning-confirm");
+
+    const cores = Number(navigator?.hardwareConcurrency || 0);
+    const memory = Number(navigator?.deviceMemory || 0);
+    const pixelRatio = Number(window.devicePixelRatio || 1).toFixed(2);
+
+    if (titleEl) titleEl.textContent = "Adaptive Quality Mode Enabled";
+    if (summaryEl) {
+        summaryEl.textContent = "This is the performance advisory shown when runtime pressure is detected.";
+    }
+    if (detailEl) {
+        detailEl.textContent = "Use this dev shortcut to review the popup layout and interaction without waiting for the adaptive guard to trigger.";
+    }
+    if (envEl) {
+        envEl.innerHTML = "";
+        [
+            `Viewport: ${window.innerWidth} x ${window.innerHeight}`,
+            `Device pixel ratio: ${pixelRatio}`,
+            `CPU threads: ${cores > 0 ? cores : "unavailable"}`,
+            `Device memory: ${memory > 0 ? `${memory} GB` : "unavailable"}`,
+        ].forEach((row) => {
+            const item = document.createElement("li");
+            item.textContent = row;
+            envEl.appendChild(item);
+        });
+    }
+    if (optoutEl) optoutEl.checked = false;
+    wireDevModalDismiss({
+        modal,
+        closeBtn,
+        backBtn,
+        confirmBtn,
+        onClose: () => {
+            if (optoutEl) optoutEl.checked = false;
+        },
+    });
+    return true;
+}
 export function initDevPanel() {
     const isLocal =
         window.location.hostname === "localhost" ||
@@ -1168,6 +1278,16 @@ export function initDevPanel() {
     document.getElementById("wz-dev-clear")?.addEventListener("click", () => {
         const log = document.getElementById("wz-dev-log");
         if (log) log.innerHTML = "";
+    });
+    document.getElementById("wz-dev-open-performance-warning")?.addEventListener("click", () => {
+        if (openDevPerformanceWarningModal()) {
+            devLog("⚙ Opened performance popup");
+        }
+    });
+    document.getElementById("wz-dev-open-layer-warning")?.addEventListener("click", () => {
+        if (openDevLayerWarningModal()) {
+            devLog("⚠ Opened warning popup");
+        }
     });
     initDevSimulatorControls();
     initMapTunerControls();

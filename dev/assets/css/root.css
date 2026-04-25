@@ -207,13 +207,14 @@
 /* #endregion =========== */
 /* #region =========== Camera Defaults =========== */
 :root {
-    --warzone-start-lon: 47.8;
-    --warzone-start-lat: 30.2;
-    --warzone-start-height: 2350000;
+    --warzone-start-lon: 40;
+    --warzone-start-lat: 26;
+    --warzone-start-height: 9200000;
     --warzone-focus-height: 2350000;
     --warzone-start-heading: 0;
-    --warzone-start-pitch: -82;
+    --warzone-start-pitch: -90;
     --warzone-start-roll: 0;
+    --warzone-startup-rotation-speed: 0.4;
 }
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */

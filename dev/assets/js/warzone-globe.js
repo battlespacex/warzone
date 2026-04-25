@@ -22,6 +22,14 @@ const __EVENT_LOD_STATE = {
     cameraHeight: 2350000,
 };
 const ADAPTIVE_QUALITY_PROFILES = ["normal", "balanced", "conservative", "safe"];
+const STARTUP_CAMERA = {
+    lon: 40,
+    lat: 22,
+    height: 5800000,
+    heading: 0,
+    pitch: -90,
+    roll: 0,
+};
 function normalizeAdaptiveProfile(profile = "normal") {
     const value = String(profile || "").toLowerCase();
     return ADAPTIVE_QUALITY_PROFILES.includes(value) ? value : "normal";
@@ -1422,25 +1430,26 @@ function applyMapColorMixer(viewer, prefix = "--warzone-map") {
 }
 function getStartCameraConfig() {
     return {
-        lon: numberVar("--warzone-start-lon", 47.8),
-        lat: numberVar("--warzone-start-lat", 30.2),
-        height: numberVar("--warzone-start-height", 2350000),
-        heading: numberVar("--warzone-start-heading", 0),
-        pitch: numberVar("--warzone-start-pitch", -82),
-        roll: numberVar("--warzone-start-roll", 0),
+        lon: numberVar("--warzone-start-lon", STARTUP_CAMERA.lon),
+        lat: numberVar("--warzone-start-lat", STARTUP_CAMERA.lat),
+        height: numberVar("--warzone-start-height", STARTUP_CAMERA.height),
+        heading: numberVar("--warzone-start-heading", STARTUP_CAMERA.heading),
+        pitch: numberVar("--warzone-start-pitch", STARTUP_CAMERA.pitch),
+        roll: numberVar("--warzone-start-roll", STARTUP_CAMERA.roll),
     };
 }
 function setInitialCamera(viewer) {
+    const camera = getStartCameraConfig();
     viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(
-            numberVar("--warzone-start-lon", 47.8),
-            numberVar("--warzone-start-lat", 30.2),
-            numberVar("--warzone-start-height", 2350000)
+            camera.lon,
+            camera.lat,
+            camera.height
         ),
         orientation: {
-            heading: Cesium.Math.toRadians(numberVar("--warzone-start-heading", 0)),
-            pitch: Cesium.Math.toRadians(numberVar("--warzone-start-pitch", -82)),
-            roll: Cesium.Math.toRadians(numberVar("--warzone-start-roll", 0)),
+            heading: Cesium.Math.toRadians(camera.heading),
+            pitch: Cesium.Math.toRadians(camera.pitch),
+            roll: Cesium.Math.toRadians(camera.roll),
         },
     });
     viewer.scene.requestRender();
@@ -1460,6 +1469,44 @@ function focusRegion(
         },
         duration: 0.9,
     });
+}
+function startStartupGlobeRotation(viewer) {
+    if (!viewer?.scene || viewer.__warzoneStartupRotation?.active) return;
+    const state = {
+        active: true,
+        lastTime: 0,
+        speedDeg: Math.max(0.01, Math.min(numberVar("--warzone-startup-rotation-speed", 0.045), 0.3)),
+    };
+    const rotate = () => {
+        if (!state.active) return;
+        if (getSceneMode(viewer) !== "3d") {
+            state.lastTime = 0;
+            return;
+        }
+        const now = Date.now();
+        if (!state.lastTime) {
+            state.lastTime = now;
+            return;
+        }
+        const dt = Math.min((now - state.lastTime) / 1000, 0.1);
+        state.lastTime = now;
+        viewer.camera.rotate(Cesium.Cartesian3.UNIT_Z, -(state.speedDeg * Cesium.Math.RADIANS_PER_DEGREE) * dt);
+        viewer.scene.requestRender?.();
+    };
+    state.rotate = rotate;
+    viewer.__warzoneStartupRotation = state;
+    viewer.scene.postRender.addEventListener(rotate);
+    viewer.scene.requestRender?.();
+}
+function stopStartupGlobeRotation(viewer) {
+    const state = viewer?.__warzoneStartupRotation;
+    if (!viewer?.scene || !state) return;
+    state.active = false;
+    if (state.rotate) {
+        viewer.scene.postRender.removeEventListener(state.rotate);
+    }
+    viewer.__warzoneStartupRotation = null;
+    viewer.scene.requestRender?.();
 }
 /* ---------- Borders ---------- */
 function flattenRingToDegrees(ring) {
@@ -1581,13 +1628,10 @@ function setBorderLayersVisible(viewer, visible, options = {}) {
         });
         return;
     }
-    const animate = options?.animate !== false;
-    if (!animate) {
-        stopBorderFadeAnimation(viewer);
-        applyBorderVisibilityAlpha(viewer, show ? 1 : 0);
-        return;
-    }
-    animateBorderVisibility(viewer, show ? 1 : 0, options);
+    void options;
+    stopBorderFadeAnimation(viewer);
+    applyBorderVisibilityAlpha(viewer, show ? 1 : 0);
+    viewer.scene?.requestRender?.();
 }
 async function fetchGeoJson(url) {
     const candidates = Array.isArray(url) ? url.filter(Boolean) : [url];
@@ -2610,6 +2654,7 @@ export async function initWarzoneGlobe() {
     viewer.__borderEntities = [];
     applyViewerStyle(viewer);
     setInitialCamera(viewer);
+    startStartupGlobeRotation(viewer);
     attachCameraZoomLimiter(viewer);
     attach2DCameraBoundsGuard(viewer);
     syncSceneModeBounds(viewer);
@@ -2686,6 +2731,9 @@ export async function initWarzoneGlobe() {
         },
         setSceneMode(mode, options = {}) {
             return setSceneMode(viewer, mode, options);
+        },
+        stopStartupRotation() {
+            stopStartupGlobeRotation(viewer);
         },
         getSceneMode() {
             return getSceneMode(viewer);
