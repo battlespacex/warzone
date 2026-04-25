@@ -60,7 +60,10 @@ let __regionCameraSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionLastAutoSwitchAt = 0;
 let __regionDeferredNotifyTimer = 0;
-const REGION_CAMERA_SYNC_DEBOUNCE_MS = 120;
+let __currentViewportRegion = __activeRegion;
+let __regionPromptOpen = false;
+let __regionDismissedViewportRegionId = "";
+const REGION_CAMERA_SYNC_DEBOUNCE_MS = 700;
 const REGION_CAMERA_SYNC_PAUSE_MS = 650;
 const REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS = 900;
 const REGION_CAMERA_SYNC_ENABLED = true;
@@ -345,6 +348,51 @@ function getCameraFocusCoordinates(viewer) {
         return null;
     }
 }
+function getViewportBounds(viewer) {
+    if (!viewer?.camera?.computeViewRectangle || !viewer?.scene?.globe?.ellipsoid) return null;
+    try {
+        const rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
+        if (!rect) return null;
+        const west = Cesium.Math.toDegrees(rect.west);
+        const south = Cesium.Math.toDegrees(rect.south);
+        const east = Cesium.Math.toDegrees(rect.east);
+        const north = Cesium.Math.toDegrees(rect.north);
+        if (![west, south, east, north].every(Number.isFinite)) return null;
+        if (east <= west || north <= south) return null;
+        return {
+            minLon: west,
+            minLat: south,
+            maxLon: east,
+            maxLat: north,
+        };
+    } catch {
+        return null;
+    }
+}
+function getBoundsCenter(bounds = null) {
+    if (!bounds) return null;
+    const lon = (Number(bounds.minLon) + Number(bounds.maxLon)) / 2;
+    const lat = (Number(bounds.minLat) + Number(bounds.maxLat)) / 2;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    return { lon, lat };
+}
+function getBoundsArea(bounds = null) {
+    if (!bounds) return 0;
+    const lonSpan = Number(bounds.maxLon) - Number(bounds.minLon);
+    const latSpan = Number(bounds.maxLat) - Number(bounds.minLat);
+    if (!Number.isFinite(lonSpan) || !Number.isFinite(latSpan) || lonSpan <= 0 || latSpan <= 0) return 0;
+    return lonSpan * latSpan;
+}
+function getBoundsIntersectionArea(a = null, b = null) {
+    if (!a || !b) return 0;
+    const minLon = Math.max(Number(a.minLon), Number(b.minLon));
+    const maxLon = Math.min(Number(a.maxLon), Number(b.maxLon));
+    const minLat = Math.max(Number(a.minLat), Number(b.minLat));
+    const maxLat = Math.min(Number(a.maxLat), Number(b.maxLat));
+    if (![minLon, maxLon, minLat, maxLat].every(Number.isFinite)) return 0;
+    if (maxLon <= minLon || maxLat <= minLat) return 0;
+    return (maxLon - minLon) * (maxLat - minLat);
+}
 function ensureRegionAllowedForLens() {
     const allowed = getRegionsForLens(__activeLens);
     const ok = allowed.some((r) => r.id === __activeRegion.id);
@@ -354,36 +402,95 @@ function detectRegionFromCamera(viewer, focusHint = null) {
     if (!viewer) return null;
     try {
         const focus = focusHint || getCameraFocusCoordinates(viewer);
-        if (!focus) return null;
-        const lon = Number(focus.lon);
-        const lat = Number(focus.lat);
-        const alt = Number(focus.alt || 0);
+        const alt = Number(focus?.alt || viewer?.camera?.positionCartographic?.height || 0);
+        const viewportBounds = getViewportBounds(viewer);
+        const viewportCenter = getBoundsCenter(viewportBounds);
+        if (viewportCenter) {
+            const centerMatches = REGIONS.filter((r) => {
+                if (r.id === "global") return false;
+                const bounds = getRegionBounds(r);
+                return bounds ? isCoordinateInsideBounds(viewportCenter.lon, viewportCenter.lat, bounds) : false;
+            });
+            if (centerMatches.length) {
+                centerMatches.sort((a, b) => {
+                    const aBounds = getRegionBounds(a) || a.bounds;
+                    const bBounds = getRegionBounds(b) || b.bounds;
+                    return getBoundsArea(aBounds) - getBoundsArea(bBounds);
+                });
+                return centerMatches[0];
+            }
+        }
+        if (focus && Number.isFinite(Number(focus.lon)) && Number.isFinite(Number(focus.lat))) {
+            const lon = Number(focus.lon);
+            const lat = Number(focus.lat);
+            const matches = REGIONS.filter((r) => {
+                if (r.id === "global") return false;
+                const bounds = getRegionBounds(r);
+                return bounds ? isCoordinateInsideBounds(lon, lat, bounds) : false;
+            });
+            if (matches.length) {
+                matches.sort((a, b) => {
+                    const aBounds = getRegionBounds(a) || a.bounds;
+                    const bBounds = getRegionBounds(b) || b.bounds;
+                    return getBoundsArea(aBounds) - getBoundsArea(bBounds);
+                });
+                return matches[0];
+            }
+        }
+        if (viewportBounds) {
+            let bestRegion = null;
+            let bestScore = 0;
+            REGIONS.forEach((region) => {
+                if (region.id === "global") return;
+                const bounds = getRegionBounds(region);
+                const score = getBoundsIntersectionArea(bounds, viewportBounds);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestRegion = region;
+                }
+            });
+            if (bestRegion && bestScore > 0) {
+                return bestRegion;
+            }
+        }
         if (alt > REGION_GLOBAL_ALT_THRESHOLD) return getRegionById("global");
-        const matches = REGIONS.filter((r) => {
-            if (r.id === "global") return false;
-            const bounds = getRegionBounds(r);
-            return bounds ? isCoordinateInsideBounds(lon, lat, bounds) : false;
-        });
-        if (!matches.length) return getRegionById("global");
-        matches.sort((a, b) => {
-            const aBounds = getRegionBounds(a) || a.bounds;
-            const bBounds = getRegionBounds(b) || b.bounds;
-            const aArea = (aBounds.maxLon - aBounds.minLon) * (aBounds.maxLat - aBounds.minLat);
-            const bArea = (bBounds.maxLon - bBounds.minLon) * (bBounds.maxLat - bBounds.minLat);
-            return aArea - bArea;
-        });
-        return matches[0];
+        return getRegionById("global");
     } catch {
         return null;
     }
 }
-function scheduleRegionSyncFromCamera(viewer) {
-    if (!viewer || __regionTransitionInFlight) return;
-    if (Date.now() < __regionCameraSyncPauseUntil) return;
+function clearPendingRegionCameraSync() {
     if (__regionCameraSyncTimer) {
         clearTimeout(__regionCameraSyncTimer);
         __regionCameraSyncTimer = 0;
     }
+}
+function resetDismissedViewportRegion() {
+    __regionDismissedViewportRegionId = "";
+}
+function closeRegionModal(overlay, callback) {
+    if (!overlay) {
+        if (typeof callback === "function") callback();
+        return;
+    }
+    overlay.classList.remove("is-visible");
+    overlay.classList.add("is-closing");
+    window.setTimeout(() => {
+        overlay.hidden = true;
+        overlay.classList.remove("is-closing");
+        if (typeof callback === "function") callback();
+    }, 220);
+}
+function dismissOpenRegionSwitchPrompt() {
+    if (!__regionPromptOpen) return;
+    const overlay = document.getElementById("wz-region-modal");
+    __regionPromptOpen = false;
+    closeRegionModal(overlay);
+}
+function scheduleRegionSyncFromCamera(viewer) {
+    if (!viewer || __regionTransitionInFlight) return;
+    if (Date.now() < __regionCameraSyncPauseUntil) return;
+    clearPendingRegionCameraSync();
     __regionCameraSyncTimer = window.setTimeout(() => {
         __regionCameraSyncTimer = 0;
         if (!viewer || __regionTransitionInFlight) return;
@@ -395,26 +502,33 @@ function scheduleRegionSyncFromCamera(viewer) {
         const focus = getCameraFocusCoordinates(viewer);
         if (!focus) return;
         const focusAlt = Number(focus.alt || 0);
-        const isHighAltitudeGlobal = Number.isFinite(focusAlt) && focusAlt > REGION_GLOBAL_ALT_THRESHOLD;
         const activeRegion = __activeRegion;
-        if (activeRegion && activeRegion.id !== "global" && !isHighAltitudeGlobal) {
-            const activeBounds = getRegionBounds(activeRegion) || activeRegion.bounds;
-            if (activeBounds && isCoordinateInsideBounds(Number(focus.lon), Number(focus.lat), activeBounds)) {
-                return;
-            }
-        }
+        __currentViewportRegion = activeRegion;
         const detected = detectRegionFromCamera(viewer, focus);
         if (!detected) return;
-        const resolved = resolveRegionForLens(detected.id, __activeLens);
-        if (!resolved || resolved.id === __activeRegion.id) return;
+        __currentViewportRegion = detected || activeRegion;
+        if (detected.id === __activeRegion.id) {
+            resetDismissedViewportRegion();
+            return;
+        }
+        if (__regionPromptOpen) return;
+        if (__regionDismissedViewportRegionId === detected.id) return;
+        if ((now - __regionLastAutoSwitchAt) < REGION_CAMERA_SYNC_MIN_SWITCH_INTERVAL_MS) {
+            return;
+        }
         __regionLastAutoSwitchAt = now;
-        __regionCameraSyncPauseUntil = now + REGION_CAMERA_SYNC_PAUSE_MS;
-        notifyChange(resolved, {
-            source: "camera",
-            deferCallbacks: true,
-            callbackDelay: 180,
+        showRegionModal(viewer, false, {
+            mode: "switch",
+            suggestedRegion: detected,
+            onConfirm: (regionId) => {
+                resetDismissedViewportRegion();
+                selectRegion(viewer, regionId, { source: "prompt", allowAnyRegion: true });
+            },
+            onCancel: () => {
+                __regionDismissedViewportRegionId = detected.id;
+                __regionCameraSyncPauseUntil = Date.now() + REGION_CAMERA_SYNC_PAUSE_MS;
+            },
         });
-        viewer.scene?.requestRender?.();
     }, REGION_CAMERA_SYNC_DEBOUNCE_MS);
 }
 export function filterEventsByRegion(events, region) {
@@ -493,6 +607,9 @@ function notifyScopeChange(options = {}) {
     runCallbacks();
 }
 export function setActiveLens(lensId) {
+    clearPendingRegionCameraSync();
+    dismissOpenRegionSwitchPrompt();
+    resetDismissedViewportRegion();
     __activeLens = lensId || "live";
     ensureRegionAllowedForLens();
     notifyScopeChange({ source: "lens" });
@@ -547,9 +664,21 @@ export function flyToRegion(viewer, region, options = {}) {
     });
 }
 export function selectRegion(viewer, regionId, options = {}) {
-    const region = resolveRegionForLens(regionId, __activeLens);
+    let region = null;
+    if (options?.allowAnyRegion) {
+        region = getRegionById(regionId);
+        if (!getRegionsForLens(__activeLens).some((entry) => entry.id === region.id)) {
+            __activeLens = "all";
+        }
+    } else {
+        region = resolveRegionForLens(regionId, __activeLens);
+    }
+    clearPendingRegionCameraSync();
+    dismissOpenRegionSwitchPrompt();
+    resetDismissedViewportRegion();
+    __currentViewportRegion = region;
     __regionCameraSyncPauseUntil = Date.now() + 1200;
-    notifyChange(region, { source: "manual" });
+    notifyChange(region, { source: options?.source || "manual" });
     flyToRegion(viewer, region, options);
 }
 function updateNavDropdown(region) {
@@ -606,6 +735,9 @@ export function initRegionNav(viewer) {
     });
     if (REGION_CAMERA_SYNC_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
         __regionCameraSyncBound = true;
+        viewer?.camera?.moveStart?.addEventListener?.(() => {
+            clearPendingRegionCameraSync();
+        });
         viewer.camera.moveEnd.addEventListener(() => {
             scheduleRegionSyncFromCamera(viewer);
         });
@@ -618,9 +750,11 @@ export function initRegionSelector(viewer) {
         __activeLens = savedLens || "live";
         __activeRegion = resolveRegionForLens(savedRegionId || "", __activeLens);
         ensureRegionAllowedForLens();
+        __currentViewportRegion = __activeRegion;
     } catch {
         __activeRegion = getDefaultRegionForLens("live");
         __activeLens = "live";
+        __currentViewportRegion = __activeRegion;
     }
 
     window.__warzoneShowRegionModal = (instant = false) => showRegionModal(viewer, instant);
@@ -630,15 +764,27 @@ export function initRegionSelector(viewer) {
     setLandingCamera(viewer);
     viewer?.__warzone?.setBorderLayersVisible?.(false, { animate: false });
     initRegionNav(viewer);
+    try {
+        if (localStorage.getItem(VISITED_KEY) === "1") {
+            scheduleRegionSyncFromCamera(viewer);
+        }
+    } catch {
+        // Startup selection will handle first-entry region choice.
+    }
 }
-function showRegionModal(viewer, instant = false) {
+function showRegionModal(viewer, instant = false, options = {}) {
     const overlay = document.getElementById("wz-region-modal");
     if (!overlay) return;
 
     const grid = document.getElementById("wz-region-modal-grid");
     if (!grid) return;
 
-    const regions = getRegionsForLens(__activeLens);
+    const titleEl = document.getElementById("wz-region-title");
+    const subEl = document.getElementById("wz-region-sub");
+    const mode = options?.mode === "switch" ? "switch" : "startup";
+    const suggestedRegion = options?.suggestedRegion || null;
+    const lensRegions = getRegionsForLens(__activeLens);
+    const regions = REGIONS;
 
     grid.innerHTML = regions.map((r) => {
         const hotClass = r.hot ? " is-hot" : "";
@@ -669,20 +815,44 @@ function showRegionModal(viewer, instant = false) {
         backBtn = newBack;
     }
 
-    let chosen = null;
+    let chosen = mode === "switch" ? (suggestedRegion?.id || null) : null;
+
+    if (titleEl) {
+        titleEl.textContent = mode === "switch"
+            ? "Switch Monitoring Region?"
+            : "Select Monitoring Region";
+    }
+    if (subEl) {
+        subEl.textContent = mode === "switch"
+            ? `You are viewing ${getRegionLabelForLens(suggestedRegion || __currentViewportRegion || __activeRegion, __activeLens)}. Switch region?`
+            : "Choose an initial theater to begin monitoring.";
+    }
 
     if (confirmBtn) {
-        confirmBtn.disabled = true;
-        confirmBtn.classList.add("is-disabled");
-        confirmBtn.setAttribute("aria-disabled", "true");
+        confirmBtn.innerHTML = mode === "switch"
+            ? '<span aria-hidden="true"></span>Switch Region'
+            : '<span aria-hidden="true"></span>Enter Stratops';
+        const disabled = !chosen;
+        confirmBtn.disabled = disabled;
+        confirmBtn.classList.toggle("is-disabled", disabled);
+        confirmBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
+    }
+    if (backBtn) {
+        backBtn.innerHTML = mode === "switch"
+            ? '<span aria-hidden="true"></span>Stay Here'
+            : '<span aria-hidden="true"></span>Back';
     }
 
     overlay.hidden = false;
     overlay.classList.remove("is-closing");
+    __regionPromptOpen = mode === "switch";
 
     const regionButtons = overlay.querySelectorAll(".wz-region-btn");
 
     regionButtons.forEach((btn) => {
+        const isSelected = chosen === btn.dataset.region;
+        btn.classList.toggle("is-selected", isSelected);
+        btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
         btn.addEventListener("click", () => {
             regionButtons.forEach((b) => {
                 b.classList.remove("is-selected");
@@ -705,41 +875,52 @@ function showRegionModal(viewer, instant = false) {
         confirmBtn.addEventListener("click", () => {
             if (!chosen) return;
 
+            if (mode === "switch") {
+                __regionPromptOpen = false;
+                closeRegionModal(overlay, () => {
+                    options?.onConfirm?.(chosen);
+                });
+                return;
+            }
+
             try { localStorage.setItem(VISITED_KEY, "1"); } catch { }
 
             window.__warzoneEnterApp?.();
             window.SiteLoader?.start?.();
 
-            overlay.classList.remove("is-visible");
-            overlay.classList.add("is-closing");
-
-            setTimeout(() => {
-                overlay.hidden = true;
-                overlay.classList.remove("is-closing");
+            closeRegionModal(overlay, () => {
+                __regionPromptOpen = false;
+                if (!lensRegions.some((region) => region.id === chosen)) {
+                    __activeLens = "all";
+                }
                 selectRegion(viewer, chosen, { showLoader: true });
                 viewer?.__warzone?.setBorderLayersVisible?.(
                     getSavedCountryBorderLayerVisibility(),
                     { animate: true, duration: 780 }
                 );
                 window.__warzoneStartDeferredApp?.();
-            }, 220);
+            });
         });
     }
 
     if (backBtn) {
         backBtn.addEventListener("click", () => {
+            if (mode === "switch") {
+                __regionPromptOpen = false;
+                closeRegionModal(overlay, () => {
+                    options?.onCancel?.();
+                });
+                return;
+            }
             const introModal = document.getElementById("wz-intro-modal");
-            overlay.classList.remove("is-visible");
-            overlay.classList.add("is-closing");
-            window.setTimeout(() => {
-                overlay.hidden = true;
-                overlay.classList.remove("is-closing");
+            closeRegionModal(overlay, () => {
+                __regionPromptOpen = false;
                 if (!introModal) return;
                 introModal.hidden = false;
                 requestAnimationFrame(() => {
                     introModal.classList.add("is-visible");
                 });
-            }, 220);
+            });
         });
     }
 

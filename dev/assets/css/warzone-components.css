@@ -517,7 +517,7 @@
     flex: 1;
     min-width: 0;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.3rem;
 }
 
 .wz-layer-dot {
@@ -543,6 +543,8 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     color: var(--color-text-heading);
+    display: flex;
+    gap: 0.3rem
 }
 
 .wz-layer-desc {
@@ -2543,7 +2545,7 @@ body.is-authenticated .wz-nav-login-btn {
 .wz-lock-overlay__title {
     font-size: var(--text-lg, 1.4rem);
     font-weight: 700;
-    color: var(--color-text-heading, #fff);
+    color: var(--color-text-heading);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     line-height: 1.2;
@@ -2552,7 +2554,7 @@ body.is-authenticated .wz-nav-login-btn {
 
 .wz-lock-overlay__msg {
     font-size: var(--text-sm, 1.1rem);
-    color: var(--color-text-dim, rgba(255, 255, 255, 0.45));
+    color: var(--color-text-dim);
     line-height: 1.4;
     max-width: 22rem;
     margin: 0;
@@ -2566,7 +2568,7 @@ body.is-authenticated .wz-nav-login-btn {
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    background: var(--color-teal, #18e2db);
+    background: var(--color-teal);
     color: #07111b;
     border: none;
     cursor: pointer;
@@ -2598,11 +2600,12 @@ body:not(.is-authenticated) [data-widget-id="naval"] .panel-content>*:not(.wz-lo
 }
 
 body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-dot {
-    background: rgba(255, 255, 255, 0.15) !important;
+    background: var(--color-gray-slate)
 }
 
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label {
-    color: rgba(255, 255, 255, 0.28) !important;
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label,
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-desc {
+    color: var(--color-gray-slate)
 }
 
 body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-icon {
@@ -2610,13 +2613,14 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-icon {
 }
 
 body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-toggle {
-    opacity: 0.35;
+    opacity: 0.3;
 }
 
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label::after {
-    content: " 🔒";
-    font-size: 0.85em;
-    opacity: 0.55;
+body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after {
+    font-family: var(--font-icon);
+    content: "\e94e";
+    font-size: var(--icon-md);
+    color: var(--color-teal-glow)
 }
 
 /* #endregion =========== */
