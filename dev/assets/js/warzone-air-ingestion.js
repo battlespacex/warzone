@@ -2,6 +2,7 @@
 
 import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-airforce.js";
 import { isLayerEnabled } from "./warzone-layers.js";
+import { getActiveRegion } from "./warzone-region-selector.js";
 // Note: no direct Supabase writes from frontend — all track data is client-side only
 const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
 const LOCAL_AIRCRAFT_PROXY_PATH = "/__warzone/aircraft-feed/mil";
@@ -401,6 +402,25 @@ function mergeTrack(existing, incoming) {
 function isTrackRenderable(track = {}) {
     return Number.isFinite(track.lat) && Number.isFinite(track.lon);
 }
+function isCoordinateInsideBounds(lon, lat, bounds = {}) {
+    return (
+        Number.isFinite(lon) &&
+        Number.isFinite(lat) &&
+        lon >= Number(bounds.minLon) &&
+        lon <= Number(bounds.maxLon) &&
+        lat >= Number(bounds.minLat) &&
+        lat <= Number(bounds.maxLat)
+    );
+}
+function isTrackInsideActiveRegion(track = {}) {
+    const region = getActiveRegion?.();
+    if (!region || region.id === "global") return true;
+    return isCoordinateInsideBounds(
+        Number(track.lon),
+        Number(track.lat),
+        region.bounds || {}
+    );
+}
 function clearAllPublicAirTracks() {
     for (const trackKey of __activeTrackKeys) {
         clearLiveTrack(trackKey);
@@ -457,6 +477,17 @@ async function refreshPublicAirTracks(options = {}) {
         for (const record of records) {
             const normalized = normalizeAirplanesLiveRecord(record);
             if (!isTrackRenderable(normalized)) continue;
+            if (!isTrackInsideActiveRegion(normalized)) {
+                const outsideCanonicalKey = resolveCanonicalKey(normalized);
+                const outsideExisting = __canonicalTrackStore.get(outsideCanonicalKey);
+                if (outsideExisting?.track_key) {
+                    __activeTrackKeys.delete(outsideExisting.track_key);
+                    clearLiveTrack(outsideExisting.track_key);
+                }
+                __canonicalTrackStore.delete(outsideCanonicalKey);
+                clearCanonicalIdentityIndex(outsideCanonicalKey);
+                continue;
+            }
             if (normalized.subcategory === "civilian") {
                 const civilianCanonicalKey = resolveCanonicalKey(normalized);
                 const civilianExisting = __canonicalTrackStore.get(civilianCanonicalKey);

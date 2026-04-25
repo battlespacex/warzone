@@ -118,9 +118,9 @@ const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 2;
 const LIVE_TRACK_MIN_ANIM_MS = 700;
 const LIVE_TRACK_MAX_ANIM_MS = 4400;
 const LIVE_TRACK_DEFAULT_ANIM_MS = 3600;
-const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 260;
-const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 2800;
-const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 1400;
+const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 140;
+const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 1700;
+const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 620;
 const LIVE_TRACK_ANIMATE_ONLY_SELECTED = true;
 const LIVE_TRACK_HISTORY_RETENTION_MS = 12 * 60 * 60 * 1000;
 const LIVE_TRACK_HISTORY_MAX_POINTS = 720;
@@ -3043,16 +3043,22 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
             ? sourceTimestamp - prevSourceTimestamp
             : fallbackAnimMs;
     const cadenceDuration = clamp(
-        sourceGapMs * (isFocusedTrack ? 0.86 : 0.94),
+        sourceGapMs * (isFocusedTrack ? 0.52 : 0.94),
         minAnimMs,
         maxAnimMs
     );
     const distanceDuration = clamp(
-        distanceMeters * (isFocusedTrack ? 0.05 : 0.07),
+        distanceMeters * (isFocusedTrack ? 0.028 : 0.07),
         minAnimMs,
         maxAnimMs
     );
-    const duration = clamp(Math.max(cadenceDuration, distanceDuration), minAnimMs, maxAnimMs);
+    const duration = clamp(
+        isFocusedTrack
+            ? ((cadenceDuration * 0.58) + (distanceDuration * 0.42))
+            : Math.max(cadenceDuration, distanceDuration),
+        minAnimMs,
+        maxAnimMs
+    );
     const startTime = performance.now();
     const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
     const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
@@ -3060,7 +3066,9 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     const startAlt = startCartographic.height || 0;
     const step = (now) => {
         const t = Math.min(1, (now - startTime) / duration);
-        const eased = t * t * (3 - 2 * t);
+        const eased = isFocusedTrack
+            ? (t * t * t * ((t * ((t * 6) - 15)) + 10))
+            : (t * t * (3 - 2 * t));
         const lon = startLon + (nextLon - startLon) * eased;
         const lat = startLat + (nextLat - startLat) * eased;
         const alt = startAlt + (nextAlt - startAlt) * eased;

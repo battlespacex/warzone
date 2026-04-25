@@ -90,6 +90,7 @@ let __foregroundRecoverySeq = 0;
 let __lastBackgroundAt = 0;
 let __lastForegroundRecoveryAt = 0;
 let __authModalRenderBudgetBackup = null;
+let __regionReloadSeq = 0;
 const FOREGROUND_RECOVERY_LOADER_MIN_MS = 320;
 const FOREGROUND_RECOVERY_LOADER_MAX_MS = 4200;
 const FOREGROUND_RECOVERY_LOADER_THRESHOLD_MS = 60 * 1000;
@@ -593,10 +594,19 @@ function applyAllFilters(events) {
     const scoped = applyScopeFilters(events);
     return scoped.filter((e) => isEventVisible(e));
 }
+function filterEventsToActiveRegion(events = [], region = getActiveRegion?.()) {
+    const source = Array.isArray(events) ? events : [];
+    if (!filterEventsByRegion || !region || region.id === "global") return source;
+    return filterEventsByRegion(source, region);
+}
+function isEventInsideActiveRegion(event = {}, region = getActiveRegion?.()) {
+    if (!event) return false;
+    if (!filterEventsByRegion || !region || region.id === "global") return true;
+    return filterEventsByRegion([event], region).length > 0;
+}
 function applyScopeFilters(events) {
-    const region = getActiveRegion?.();
     const lens = getActiveLens?.() || "live";
-    const regionalRaw = filterEventsByRegion ? filterEventsByRegion(events, region) : events;
+    const regionalRaw = filterEventsToActiveRegion(events);
     const regional = regionalRaw.filter(isMilitaryRelevant);
     return regional.filter((e) => isEventInLens(e, lens));
 }
@@ -1301,6 +1311,17 @@ function syncNavalSignals(events = []) {
         if (!key || activeKeys.has(key)) return;
         clearNavalVessel(key);
     });
+    requestNavalWidgetRender(0);
+}
+function clearAllNavalSignals() {
+    const snapshots = getAllNavalSnapshots();
+    snapshots.forEach((entry) => {
+        const key = String(entry?.track_key || "");
+        if (!key) return;
+        clearNavalVessel(key);
+    });
+    __lastNavalSignalsSyncKey = "__empty__";
+    __navalSubtypeOptionsKey = "";
     requestNavalWidgetRender(0);
 }
 function normalizeEvent(event = {}) {
@@ -2917,6 +2938,7 @@ function syncLiveAircraftFromHistoryRows(rows = __aircraftHistoryCache) {
     if (isDatabaseAircraftLiveSourceEnabled()) {
         historyRows
             .filter((row) => row?.track_key && row.active)
+            .filter((row) => isPointInsideRegion(Number(row.lat), Number(row.lon), getActiveRegion?.()))
             .forEach((row) => {
                 upsertLiveTrack({
                     ...row,
@@ -2993,6 +3015,7 @@ async function refreshAircraftHistoryCache(force = false) {
                     .map(normalizeAircraftHistoryRow)
                     .filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
                     .filter((row) => !shouldExcludeFromMilitaryAircraftTracker(row))
+                    .filter((row) => isPointInsideRegion(Number(row.lat), Number(row.lon), getActiveRegion?.()))
                     .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
                     .slice(0, AIRCRAFT_HISTORY_CACHE_MAX_ROWS)
                 : [];
@@ -3054,6 +3077,10 @@ function handleTracksRealtimePayload(payload) {
         return;
     }
     if (shouldExcludeFromMilitaryAircraftTracker(track)) {
+        if (track.track_key) clearLiveTrack(track.track_key);
+        return;
+    }
+    if (!isPointInsideRegion(Number(track.lat), Number(track.lon), getActiveRegion?.())) {
         if (track.track_key) clearLiveTrack(track.track_key);
         return;
     }
@@ -3633,12 +3660,16 @@ function renderAll(events, { replaceCache = true } = {}) {
             };
         })
     ), EVENT_CACHE_MAX_ITEMS);
+    const regionScopedEvents = trimSortedEventList(
+        sortEvents(filterEventsToActiveRegion(normalizedEvents)),
+        EVENT_CACHE_MAX_ITEMS
+    );
     if (replaceCache) {
-        __eventsCache = normalizedEvents;
+        __eventsCache = regionScopedEvents;
     }
-    __visibleEventsCache = trimSortedEventList(normalizedEvents, EVENT_VISIBLE_CACHE_MAX_ITEMS);
-    const scoped = applyScopeFilters(normalizedEvents);
-    const filtered = applyAllFilters(normalizedEvents);
+    __visibleEventsCache = trimSortedEventList(regionScopedEvents, EVENT_VISIBLE_CACHE_MAX_ITEMS);
+    const scoped = applyScopeFilters(regionScopedEvents);
+    const filtered = applyAllFilters(regionScopedEvents);
     updateTheaterPanel(scoped);
     debouncedRenderFeed(filtered);
     debouncedRenderUI(scoped);
@@ -3657,7 +3688,19 @@ function syncFilteredUi(events) {
 }
 function syncHotspotLayerEvents(events = []) {
     if (!__hotspotLayer) return;
-    __hotspotLayer.setEvents(getHotspotSourceEvents(events));
+    if (!isLayerEnabled("hotspots")) {
+        __hotspotLayer.setEvents([]);
+        return;
+    }
+    const primary = getHotspotSourceEvents(events);
+    if (primary.length) {
+        __hotspotLayer.setEvents(primary);
+        return;
+    }
+    // Fallback: viewport-scoped sources can occasionally be empty due bounds
+    // edge cases while theater counters still have valid conflict events.
+    const fallback = applyHotspotFilters(__eventsCache, { respectRegion: false });
+    __hotspotLayer.setEvents(getHotspotSourceEvents(fallback));
 }
 function ensureHotspotLayer(viewer, hotspotRoot) {
     if (!viewer || !hotspotRoot || __hotspotLayer) return __hotspotLayer;
@@ -3834,6 +3877,7 @@ function syncInitialEventsToGlobe(events, { animateTracks = false, updatePerform
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const hotspotsEnabled = isLayerEnabled("hotspots");
+    globe.setEventMarkersSuppressed?.(hotspotsEnabled);
     const visible = applyAllFilters(events);
     const scopedCacheVisible = applyAllFilters(__eventsCache);
     const hotspotStableSource = hotspotsEnabled
@@ -3968,12 +4012,12 @@ export async function initWarzoneApp() {
             __eventsApiRestrictedUntil = 0;
         }
         __viewportScoped = false;
-        renderAll(events);
-        updateNewsTicker(events);
+        renderAll(filterEventsToActiveRegion(events));
+        updateNewsTicker(__eventsCache.slice(0, 20));
         const authModalOpen = isAuthModalVisible();
         setAuthModalRenderBudget(authModalOpen);
         if (!authModalOpen) {
-            syncInitialEventsToGlobe(events, { animateTracks: true });
+            syncInitialEventsToGlobe(__eventsCache, { animateTracks: true });
         } else {
             window.__warzoneViewer?.__warzone?.clearEventEntities?.();
             window.__warzoneViewer?.scene?.requestRender?.();
@@ -3999,9 +4043,77 @@ export async function initWarzoneApp() {
             syncScopeSelectLabel(document.getElementById("wz-aircraft-filter-scope"), __aircraftWidgetScopeFilter);
             syncScopeSelectLabel(document.getElementById("wz-naval-filter-scope"), __navalWidgetScopeFilter);
             __lastViewportKey = "";
+            __viewportScoped = false;
+            __eventsCache = trimSortedEventList(
+                sortEvents(filterEventsToActiveRegion(__eventsCache)),
+                EVENT_CACHE_MAX_ITEMS
+            );
+            __liveRecentEvents = trimSortedEventList(
+                sortEvents(filterEventsToActiveRegion(__liveRecentEvents)),
+                300
+            );
+            __visibleEventsCache = trimSortedEventList(__eventsCache, EVENT_VISIBLE_CACHE_MAX_ITEMS);
+            clearAllLiveTracks();
+            clearLiveTrackSelection();
+            clearAllNavalSignals();
+            __aircraftHistoryCache = [];
+            __aircraftHistoryLastLoadedAt = 0;
+            __aircraftSubtypeOptionsKey = "";
+            __seededAircraftTrackKeys = new Set();
+            stopPublicAirIngestion();
+            window.__warzoneViewer?.__warzone?.clearEventEntities?.();
+            __militaryTracks?.setTracks([]);
+            if (window.__warzoneViewer) {
+                clearRanges(window.__warzoneViewer);
+                clearSweepers(window.__warzoneViewer);
+            }
+            if (isLayerEnabled("aircraft")) {
+                syncAircraftLivePipelines({ forceRefresh: true });
+                scheduleAircraftHistoryRefresh(true);
+            }
+            syncFilteredUi(__eventsCache);
+            updateNewsTicker(__eventsCache.slice(0, 20));
+            syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
+            syncHotspotLayerEvents(
+                isLayerEnabled("hotspots")
+                    ? applyHotspotFilters(__eventsCache, { respectRegion: false })
+                    : []
+            );
             scheduleViewportFetch(60);
             requestAircraftMovementsWidgetRender(0);
             requestNavalWidgetRender(0);
+            const reloadSeq = ++__regionReloadSeq;
+            api.getEvents()
+                .then(({ data, error }) => {
+                    if (reloadSeq !== __regionReloadSeq) return;
+                    if (error) {
+                        logEventsApiError("Region refresh events error:", error);
+                        return;
+                    }
+                    const freshEvents = Array.isArray(data)
+                        ? data.map((row) => normalizeEvent(row)).filter(Boolean)
+                        : [];
+                    const regionFreshEvents = filterEventsToActiveRegion(freshEvents);
+                    renderAll(regionFreshEvents);
+                    updateNewsTicker(__eventsCache.slice(0, 20));
+                    syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
+                    syncHotspotLayerEvents(
+                        isLayerEnabled("hotspots")
+                            ? applyHotspotFilters(__eventsCache, { respectRegion: false })
+                            : []
+                    );
+                    if (__eventsCache[0]?.occurred_at) {
+                        __lastSeenOccurredAt = __eventsCache[0].occurred_at;
+                    }
+                    __lastViewportKey = "";
+                    scheduleViewportFetch(60);
+                    requestAircraftMovementsWidgetRender(0);
+                    requestNavalWidgetRender(0);
+                })
+                .catch((err) => {
+                    if (reloadSeq !== __regionReloadSeq) return;
+                    console.error("Region refresh events failed:", err);
+                });
         });
         if (viewer.camera?.moveEnd) {
             viewer.camera.moveEnd.addEventListener(() => {
@@ -4093,13 +4205,14 @@ export async function initWarzoneApp() {
                     : []
             );
         }
+        globe?.setEventMarkersSuppressed?.(hotspotEnabled);
         if (id === "terrain") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
         }
         if (id === "country-borders") {
-            globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"));
+            globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
         }
@@ -4118,7 +4231,7 @@ export async function initWarzoneApp() {
         }
         if (id === "*") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
-            globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"));
+            globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
         }
         syncFilteredUi(__eventsCache);
         const shouldResyncGlobeEvents =
@@ -4151,7 +4264,7 @@ export async function initWarzoneApp() {
         syncInitialEventsToGlobe(sourceEvents, { animateTracks: false });
     });
     if (__militaryTracks) {
-        __militaryTracks.setTracks(applyAllFilters(events).filter(isMilitaryTrackEvent));
+        __militaryTracks.setTracks(applyAllFilters(__eventsCache).filter(isMilitaryTrackEvent));
     }
     if (events[0]?.occurred_at) {
         __lastSeenOccurredAt = events[0].occurred_at;
@@ -4208,8 +4321,8 @@ async function pollLatestEvents(options = {}) {
                         ? fullData.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     if (fullEvents.length) {
-                        renderAll(fullEvents);
-                        syncInitialEventsToGlobe(fullEvents, { animateTracks: false });
+                        renderAll(filterEventsToActiveRegion(fullEvents));
+                        syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
                         const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
                         syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: false }));
                         const newestTs = Date.parse(fullEvents[0]?.occurred_at || "");
@@ -4229,10 +4342,18 @@ async function pollLatestEvents(options = {}) {
             return;
         }
         __pollEmptyStreak = 0;
-        rows
+        const regionRows = filterEventsToActiveRegion(rows);
+        if (!regionRows.length) {
+            const newestAny = rows[rows.length - 1];
+            if (newestAny?.occurred_at) {
+                __lastSeenOccurredAt = newestAny.occurred_at;
+            }
+            return;
+        }
+        regionRows
             .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at))
             .forEach(handleIncomingEvent);
-        const newest = rows[rows.length - 1];
+        const newest = regionRows[regionRows.length - 1];
         if (newest?.occurred_at) {
             __lastSeenOccurredAt = newest.occurred_at;
         }
@@ -4423,6 +4544,8 @@ export function handleIncomingEvent(event) {
     let normalized = normalizeEvent(event);
     normalized = resolveStrikeGeometry(normalized);
     if (!isMilitaryRelevant(normalized)) return;
+    const inRegion = isEventInsideActiveRegion(normalized);
+    if (!inRegion) return;
     __liveRecentEvents.unshift(normalized);
     if (__liveRecentEvents.length > 300) {
         __liveRecentEvents.length = 300;
@@ -4449,12 +4572,6 @@ export function handleIncomingEvent(event) {
         scheduleViewportFetch(180);
     }
     const globe = window.__warzoneViewer?.__warzone;
-    const region = getActiveRegion?.();
-    const inRegion =
-        !filterEventsByRegion ||
-        !region ||
-        region.id === "global" ||
-        eventMatchesBounds(normalized, region.bounds);
     const layerOk = isEventVisible(normalized);
     if (isNavalSignalEvent(normalized)) {
         const trackKey = getNavalTrackKey(normalized);
@@ -5411,7 +5528,7 @@ function readAdaptiveEnvironmentSnapshot() {
     };
 }
 
-async function sampleAdaptiveFramePressure(durationMs = 1800) {
+async function sampleAdaptiveFramePressure(durationMs = 2400) {
     if (typeof requestAnimationFrame !== "function" || durationMs <= 0) {
         return {
             sampleCount: 0,
@@ -5424,11 +5541,12 @@ async function sampleAdaptiveFramePressure(durationMs = 1800) {
     return new Promise((resolve) => {
         const deltas = [];
         const start = performance.now();
+        const warmupMs = 500;
         let last = start;
         const tick = (now) => {
             const delta = now - last;
             last = now;
-            if (delta > 0 && Number.isFinite(delta)) {
+            if ((now - start) >= warmupMs && delta > 0 && Number.isFinite(delta)) {
                 deltas.push(delta);
             }
             const elapsed = now - start;
@@ -5467,6 +5585,13 @@ function decideAdaptiveQualityProfile(snapshot, framePressure) {
     const longFrameRatio = Number(framePressure?.longFrameRatio || 0);
     const severeFrameRatio = Number(framePressure?.severeFrameRatio || 0);
     const maxFrameMs = Number(framePressure?.maxFrameMs || 0);
+    const hasHighMemoryHeadroom = Number.isFinite(memoryGb) && memoryGb >= 8;
+    const hasGoodCpuHeadroom = Number.isFinite(threads) && threads >= 8;
+    const hasLowSystemHeadroom =
+        (Number.isFinite(memoryGb) && memoryGb <= 4) ||
+        (Number.isFinite(threads) && threads <= 4) ||
+        (Number.isFinite(heapRatio) && heapRatio >= 0.72) ||
+        (Number.isFinite(usedHeapMb) && usedHeapMb >= 420);
 
     if (Number.isFinite(memoryGb)) {
         if (memoryGb <= 2) {
@@ -5498,12 +5623,31 @@ function decideAdaptiveQualityProfile(snapshot, framePressure) {
         }
     }
 
-    if (longFrameRatio >= 0.5 || severeFrameRatio >= 0.2 || maxFrameMs >= 120) {
-        profile = increaseAdaptiveProfileSafety(profile, 2);
-        reasons.push("high long-frame rendering pressure");
-    } else if (longFrameRatio >= 0.32 || severeFrameRatio >= 0.12 || maxFrameMs >= 80) {
+    const severeFramePressure =
+        (longFrameRatio >= 0.2 && maxFrameMs >= 180) ||
+        (severeFrameRatio >= 0.12 && maxFrameMs >= 160);
+    const moderateFramePressure =
+        (longFrameRatio >= 0.3 && maxFrameMs >= 120) ||
+        (severeFrameRatio >= 0.08 && maxFrameMs >= 120);
+
+    if (severeFramePressure) {
+        profile = increaseAdaptiveProfileSafety(profile, hasLowSystemHeadroom ? 2 : 1);
+        reasons.push("sustained long-frame rendering pressure");
+    } else if (moderateFramePressure) {
         profile = increaseAdaptiveProfileSafety(profile, 1);
         reasons.push("moderate frame-time pressure");
+    }
+
+    // High-end systems with low heap usage should not be pushed into
+    // conservative/safe from transient startup spikes.
+    if (
+        hasHighMemoryHeadroom &&
+        hasGoodCpuHeadroom &&
+        Number.isFinite(heapRatio) &&
+        heapRatio < 0.6 &&
+        (profile === "conservative" || profile === "safe")
+    ) {
+        profile = "balanced";
     }
 
     return {
@@ -5545,8 +5689,21 @@ function isAnyOtherModalVisible(ignoreModalId = "") {
     return true;
 }
 
-function shouldShowAdaptiveAdvisory(profile = "normal") {
-    if (normalizeAdaptiveProfile(profile) === "normal") return false;
+function shouldShowAdaptiveAdvisory(profile = "normal", framePressure = {}) {
+    // Emergency safety default: never block the UI with an auto advisory modal
+    // unless explicitly re-enabled by config.
+    if (window.__stratopsConfig?.enableAdaptivePerfModal !== true) return false;
+    const normalized = normalizeAdaptiveProfile(profile);
+    if (normalized === "normal" || normalized === "balanced") return false;
+    if (normalized === "conservative") {
+        const longFrameRatio = Number(framePressure?.longFrameRatio || 0);
+        const severeFrameRatio = Number(framePressure?.severeFrameRatio || 0);
+        const maxFrameMs = Number(framePressure?.maxFrameMs || 0);
+        const sustainedConservativePressure =
+            (longFrameRatio >= 0.2 && maxFrameMs >= 180) ||
+            (severeFrameRatio >= 0.12 && maxFrameMs >= 160);
+        if (!sustainedConservativePressure) return false;
+    }
     try {
         if (localStorage.getItem(WZ_PERF_ADVISORY_OPTOUT_KEY) === "1") return false;
     } catch {
@@ -5688,7 +5845,7 @@ async function runAdaptivePerformanceGuard(viewer) {
     globe.setAdaptiveQualityProfile(profile);
     const visibleCount = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0));
     globe.setPerformanceMode?.(visibleCount);
-    if (shouldShowAdaptiveAdvisory(profile)) {
+    if (shouldShowAdaptiveAdvisory(profile, framePressure)) {
         scheduleAdaptivePerformanceAdvisory({
             profile,
             reasons: decision.reasons,
@@ -5703,7 +5860,7 @@ function scheduleAdaptivePerformanceGuard(viewer) {
     viewer.__wzAdaptiveGuardScheduled = true;
     setTimeout(() => {
         void runAdaptivePerformanceGuard(viewer);
-    }, 2200);
+    }, 6200);
 }
 
 export function schedulePostEntryActions(viewer) {

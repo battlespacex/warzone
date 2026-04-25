@@ -17,6 +17,7 @@ export function bindWarzoneUi() {
     bindMobileSettingsPanel();
     initTheaterPanel();
     startUtcClock();
+    startAltitudeReadout();
     bindGlobeToggle();
 }
 
@@ -134,6 +135,41 @@ function startUtcClock() {
     }
     tick();
     setInterval(tick, 1000);
+}
+
+function formatAltitude(heightMeters) {
+    const h = Number(heightMeters);
+    if (!Number.isFinite(h) || h < 0) return "--";
+    if (h >= 1000000) {
+        return `${Math.round(h / 1000).toLocaleString()} km`;
+    }
+    if (h >= 10000) {
+        return `${(h / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
+    }
+    if (h >= 1000) {
+        return `${(h / 1000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
+    }
+    return `${Math.round(h).toLocaleString()} m`;
+}
+
+function startAltitudeReadout() {
+    const el = document.getElementById("wz-altitude-readout");
+    if (!el) return;
+    let rafId = 0;
+    let lastValue = "";
+    const tick = () => {
+        const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height);
+        const next = `ALT ${formatAltitude(height)}`;
+        if (next !== lastValue) {
+            el.textContent = next;
+            lastValue = next;
+        }
+        rafId = requestAnimationFrame(tick);
+    };
+    tick();
+    window.addEventListener("beforeunload", () => {
+        if (rafId) cancelAnimationFrame(rafId);
+    }, { once: true });
 }
 
 // ── DEFCON — auto-calculated from escalation score ─────────────────────────────

@@ -167,6 +167,7 @@ function applyEventLod(viewer) {
     const cameraHeight = getCameraHeight(viewer);
     const allowMarkers = boolVar("--warzone-event-markers-visible", true);
     const allowRings = boolVar("--warzone-event-rings-visible", true);
+    const suppressMarkers = viewer.__warzoneSuppressEventMarkers === true;
     const eventEntityCount = getEventEntityCount();
     const ringBudget = Math.max(80, numberVar("--warzone-event-ring-budget", 200));
     const outlineBudget = Math.max(60, numberVar("--warzone-event-outline-budget", 140));
@@ -194,8 +195,8 @@ function applyEventLod(viewer) {
             if (isEventOutline) {
                 entity.billboard.show = mode !== "heatmap" && allowRings && showOutlinesByZoom;
             } else {
-                // Cluster markers always visible — they carry the count badge
-                entity.billboard.show = mode !== "heatmap" && (isCluster || allowMarkers);
+                // Cluster markers are normally always visible, unless hotspot mode suppresses dots/markers.
+                entity.billboard.show = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
             }
         }
         if (entity.ellipse) {
@@ -339,6 +340,7 @@ function reconcileEventEntities(viewer, events = [], options = {}) {
     const chunkSize = Math.max(20, Math.round(numberVar("--warzone-event-sync-chunk-size", 56)));
     const disableEllipse = options?.disableEllipse === true;
     const disableOutline = options?.disableOutline === true || disableEllipse;
+    const suppressMarkers = options?.suppressMarkers === true;
     const step = (removeIndex, upsertIndex) => {
         if (Number(viewer.__warzoneEventSyncToken || 0) !== token) return;
         let ops = 0;
@@ -352,6 +354,7 @@ function reconcileEventEntities(viewer, events = [], options = {}) {
             addEventEntity(viewer, upsertEvents[upsertIndex], {
                 disableEllipse,
                 disableOutline,
+                suppressMarkers,
             });
             upsertIndex += 1;
             ops += 1;
@@ -647,9 +650,10 @@ function createEventEntity(event, options = {}) {
     const radius = getSeverityRadius(event); // already scaled by cluster_count
     const heatRadius = getHeatRadius(event);
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
+    const suppressMarkers = options?.suppressMarkers === true;
     const showEventRings = !disableEllipse && boolVar("--warzone-event-rings-visible", true);
     // Clusters always show their marker (count badge) regardless of zoom CSS var
-    const showMarker = isCluster || showEventMarkers;
+    const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
     const fillAlpha = isCluster
         ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
         : numberVar("--warzone-event-ring-fill-alpha", 0.14);
@@ -858,6 +862,14 @@ function applyViewerStyle(viewer) {
     viewer.scene.globe.preloadAncestors = boolVar("--warzone-globe-preload-ancestors", true);
     viewer.scene.globe.preloadSiblings = boolVar("--warzone-globe-preload-siblings", false);
     viewer.scene.fog.enabled = false;
+    // Stabilize satellite tone: prevent HDR auto-exposure pumping during tile refresh/motion.
+    try {
+        if ("highDynamicRange" in viewer.scene) {
+            viewer.scene.highDynamicRange = false;
+        }
+    } catch {
+        // Older Cesium builds may expose this flag as read-only.
+    }
     if (viewer.scene.screenSpaceCameraController) {
         const ctrl = viewer.scene.screenSpaceCameraController;
         ctrl.enableCollisionDetection = false;
@@ -952,8 +964,15 @@ function syncSceneModeBounds(viewer) {
     if (!viewer?.scene) return;
     const mode = getSceneMode(viewer);
     if (mode === "2d") {
-        if (Cesium.MapMode2D?.INFINITE_SCROLL) {
-            viewer.scene.mapMode2D = Cesium.MapMode2D.INFINITE_SCROLL;
+        if (viewer.__warzoneCanSetMapMode2D !== false && Cesium.MapMode2D?.INFINITE_SCROLL) {
+            try {
+                viewer.scene.mapMode2D = Cesium.MapMode2D.INFINITE_SCROLL;
+                viewer.__warzoneCanSetMapMode2D = true;
+            } catch {
+                // Some Cesium builds expose mapMode2D as getter-only.
+                // Skip assignment to avoid 2D render crashes.
+                viewer.__warzoneCanSetMapMode2D = false;
+            }
         }
         apply2DControllerBounds(viewer);
         clamp2DCameraCenter(viewer);
@@ -2510,6 +2529,7 @@ export async function initWarzoneGlobe() {
     viewer.__terrainVisible = true;
     viewer.__warzoneSceneMode = getSceneMode(viewer);
     viewer.__warzoneAdaptiveProfile = "normal";
+    viewer.__warzoneSuppressEventMarkers = false;
     viewer.__borderLayersVisible = false;
     viewer.__borderVisibilityAlpha = 0;
     viewer.__borderLayersLoaded = false;
@@ -2556,7 +2576,15 @@ export async function initWarzoneGlobe() {
             reconcileEventEntities(viewer, prepared, {
                 disableEllipse: shouldDisableRingsForBatch,
                 disableOutline: shouldDisableRingsForBatch,
+                suppressMarkers: viewer.__warzoneSuppressEventMarkers === true,
             });
+        },
+        setEventMarkersSuppressed(suppressed) {
+            const next = !!suppressed;
+            if (viewer.__warzoneSuppressEventMarkers === next) return;
+            viewer.__warzoneSuppressEventMarkers = next;
+            applyEventLod(viewer);
+            viewer.scene.requestRender?.();
         },
         clearEventEntities() {
             clearTrackedEventEntities(viewer);
@@ -2661,6 +2689,7 @@ export async function initWarzoneGlobe() {
             );
             const basePreloadSiblings = boolVar("--warzone-globe-preload-siblings", false);
             const cameraHeight = getCameraHeight(viewer);
+            const is2DMode = getSceneMode(viewer) === "2d";
             const isCameraMoving = viewer.__warzoneCameraMoving === true;
             const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
             const closeSharpHeight = Math.max(focusSharpHeight, numberVar("--warzone-close-sharp-height", 450000));
@@ -2758,6 +2787,17 @@ export async function initWarzoneGlobe() {
             nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
             nextSse = clamp(nextSse, 0.8, 6);
             nextTileCache = Math.max(140, Math.min(1200, Math.round(nextTileCache)));
+            if (is2DMode) {
+                // Keep 2D map luminance stable: avoid adaptive quality oscillation that can look like
+                // dark/light pumping while tiles stream and counters update.
+                nextResolution = baseResolution;
+                nextMaximumRenderTime = Infinity;
+                nextMsaaSamples = baseMsaaSamples;
+                nextFxaaEnabled = baseFxaaEnabled;
+                nextSse = baseSse;
+                nextTileCache = baseTileCache;
+                nextPreloadSiblings = basePreloadSiblings;
+            }
             const prevPerfState = viewer.__warzonePerformanceState || {};
             if (prevPerfState.resolutionScale !== nextResolution) {
                 viewer.resolutionScale = nextResolution;

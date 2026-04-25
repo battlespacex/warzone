@@ -15,6 +15,142 @@ const SWEEPER_RENDER = {
     maxOverlap: 0.32,
     maxFilledRings: 2,
 };
+function parseEventMetadata(event = {}) {
+    const raw = event?.metadata;
+    if (!raw) return {};
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+}
+function toFiniteNumber(...values) {
+    for (const value of values) {
+        const num = Number(value);
+        if (Number.isFinite(num)) return num;
+    }
+    return null;
+}
+function normalizeHeading(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Math.round(((num % 360) + 360) % 360);
+}
+function sanitizeIdPart(value = "") {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
+}
+function makeOverlayEntityId(prefix, event = {}, index = 0) {
+    const base =
+        sanitizeIdPart(event?.id) ||
+        sanitizeIdPart(event?.track_key) ||
+        sanitizeIdPart(event?.title) ||
+        `item-${index + 1}`;
+    return `${prefix}-${base}-${index + 1}`;
+}
+function buildOverlayClusterEvents(event = {}) {
+    const source = Array.isArray(event?._clusterEvents) && event._clusterEvents.length
+        ? event._clusterEvents
+        : [event];
+    return source
+        .filter(Boolean)
+        .slice(0, 24)
+        .map((item) => ({
+            id: item?.id || "",
+            title: item?.title || "",
+            summary: item?.summary || "",
+            category: item?.category || "",
+            severity: item?.severity || "",
+            location_label: item?.location_label || item?.impact_label || item?.country || "",
+            occurred_at: item?.occurred_at || "",
+        }));
+}
+function resolveOverlaySourceUrl(event = {}) {
+    const raw = String(
+        event?.source_url ||
+        event?.source_link ||
+        event?.source ||
+        event?.url ||
+        event?.link ||
+        ""
+    ).trim();
+    return /^https?:\/\//i.test(raw) ? raw : "";
+}
+function buildOverlayMovementSummary(event = {}) {
+    const metadata = parseEventMetadata(event);
+    const callsignRaw = String(
+        event?.callsign ||
+        metadata?.callsign ||
+        metadata?.call_sign ||
+        ""
+    ).trim();
+    const callsign = callsignRaw ? callsignRaw.toUpperCase() : "";
+    const altitudeFt = toFiniteNumber(
+        event?.altitude_ft,
+        event?.altitude,
+        metadata?.altitude_ft,
+        metadata?.altitude
+    );
+    const speedKts = toFiniteNumber(
+        event?.speed_kts,
+        event?.ground_speed_kts,
+        event?.speed,
+        metadata?.speed_kts,
+        metadata?.ground_speed_kts,
+        metadata?.speed
+    );
+    const headingDeg = normalizeHeading(
+        toFiniteNumber(
+            event?.heading_deg,
+            event?.heading,
+            metadata?.heading_deg,
+            metadata?.heading
+        )
+    );
+    const parts = [];
+    if (callsign) parts.push(`Callsign ${callsign}`);
+    if (Number.isFinite(altitudeFt) && altitudeFt > 0) parts.push(`ALT ${Math.round(altitudeFt)} ft`);
+    if (Number.isFinite(speedKts) && speedKts > 0) parts.push(`SPD ${Math.round(speedKts)} kt`);
+    if (Number.isFinite(headingDeg)) parts.push(`HDG ${headingDeg} deg`);
+    if (!parts.length) return "";
+    return `Movement: ${parts.join(" | ")}.`;
+}
+function buildOverlayPopupProperties(event = {}, fallbackId = "") {
+    const clusterCountRaw = Number(event?.cluster_count || event?._clusterCount || 1);
+    const clusterCount = Number.isFinite(clusterCountRaw) && clusterCountRaw > 0 ? clusterCountRaw : 1;
+    const summaryBase = String(event?.summary || "").trim();
+    const movementSummary = buildOverlayMovementSummary(event);
+    const summary = summaryBase && movementSummary
+        ? `${summaryBase} ${movementSummary}`
+        : (summaryBase || movementSummary || "Operational coverage overlay.");
+    return {
+        event_id: String(event?.id || fallbackId || "").trim(),
+        title: String(event?.title || event?.subcategory || event?.weapon_type || "Coverage hotspot").trim(),
+        summary,
+        category: String(event?.category || "military").trim(),
+        severity: String(event?.severity || "medium").trim(),
+        cluster_count: clusterCount,
+        cluster_events: buildOverlayClusterEvents(event),
+        location_label: String(
+            event?.location_label ||
+            event?.impact_label ||
+            event?.origin_label ||
+            event?.country ||
+            ""
+        ).trim(),
+        occurred_at: String(event?.occurred_at || event?.updated_at || "").trim(),
+        weapon_type: String(event?.weapon_type || event?.subcategory || event?.type || "").trim(),
+        source_url: resolveOverlaySourceUrl(event),
+    };
+}
 function getSweepPreset(event = {}) {
     const sub = String(
         event.subcategory ||
@@ -221,33 +357,28 @@ export function renderSweepers(viewer, events = []) {
         const lat = candidate.lat;
         const lon = candidate.lon;
         const base = Cesium.Color.fromCssColorString(preset.color);
+        const overlayId = makeOverlayEntityId("sweeper", candidate.event, index);
+        const popupProps = buildOverlayPopupProperties(candidate.event, overlayId);
         const state = {
             heading: 320 + (index * 40)
         };
-        const shouldRenderFilledRing = index < SWEEPER_RENDER.maxFilledRings;
         const outerRing = viewer.entities.add({
+            id: `${overlayId}-ring`,
             position: Cesium.Cartesian3.fromDegrees(lon, lat),
             ellipse: {
                 semiMajorAxis: preset.radius,
                 semiMinorAxis: preset.radius,
-                material: shouldRenderFilledRing ? base.withAlpha(0.2) : Cesium.Color.TRANSPARENT,
+                // Keep a clearly visible full sweeper disk (no outline).
+                material: base.withAlpha(0.95),
                 outline: false,
                 outlineColor: base.withAlpha(0.03),
                 outlineWidth: 1,
                 height: 0
-            }
-        });
-        const centerDot = viewer.entities.add({
-            position: Cesium.Cartesian3.fromDegrees(lon, lat),
-            point: {
-                pixelSize: 5,
-                color: base.withAlpha(0.9),
-                outlineColor: base.withAlpha(0.18),
-                outlineWidth: 1,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY
-            }
+            },
+            properties: { ...popupProps },
         });
         const sweepCore = viewer.entities.add({
+            id: `${overlayId}-sector`,
             polygon: {
                 hierarchy: new Cesium.CallbackProperty(() => {
                     return buildSectorHierarchy(
@@ -263,12 +394,12 @@ export function renderSweepers(viewer, events = []) {
                 outline: false,
                 perPositionHeight: false,
                 height: 0
-            }
+            },
+            properties: { ...popupProps },
         });
         const labelEl = createRadarLabel(preset.label || "Radar Coverage");
         __sweeperEntities.push(
             outerRing,
-            centerDot,
             sweepCore
         );
         __radarItems.push({

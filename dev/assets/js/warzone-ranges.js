@@ -30,6 +30,142 @@ const RANGE_PRESETS = {
     destroyer: { radius: 120000, color: "--range-destroyer-color", opacity: "--range-destroyer-opacity" },
     sam: { radius: 250000, color: "--range-sam-color", opacity: "--range-sam-opacity" },
 };
+function parseEventMetadata(event = {}) {
+    const raw = event?.metadata;
+    if (!raw) return {};
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+}
+function toFiniteNumber(...values) {
+    for (const value of values) {
+        const num = Number(value);
+        if (Number.isFinite(num)) return num;
+    }
+    return null;
+}
+function normalizeHeading(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Math.round(((num % 360) + 360) % 360);
+}
+function sanitizeIdPart(value = "") {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
+}
+function makeOverlayEntityId(prefix, event = {}, index = 0) {
+    const base =
+        sanitizeIdPart(event?.id) ||
+        sanitizeIdPart(event?.track_key) ||
+        sanitizeIdPart(event?.title) ||
+        `item-${index + 1}`;
+    return `${prefix}-${base}-${index + 1}`;
+}
+function buildOverlayClusterEvents(event = {}) {
+    const source = Array.isArray(event?._clusterEvents) && event._clusterEvents.length
+        ? event._clusterEvents
+        : [event];
+    return source
+        .filter(Boolean)
+        .slice(0, 24)
+        .map((item) => ({
+            id: item?.id || "",
+            title: item?.title || "",
+            summary: item?.summary || "",
+            category: item?.category || "",
+            severity: item?.severity || "",
+            location_label: item?.location_label || item?.impact_label || item?.country || "",
+            occurred_at: item?.occurred_at || "",
+        }));
+}
+function resolveOverlaySourceUrl(event = {}) {
+    const raw = String(
+        event?.source_url ||
+        event?.source_link ||
+        event?.source ||
+        event?.url ||
+        event?.link ||
+        ""
+    ).trim();
+    return /^https?:\/\//i.test(raw) ? raw : "";
+}
+function buildOverlayMovementSummary(event = {}) {
+    const metadata = parseEventMetadata(event);
+    const callsignRaw = String(
+        event?.callsign ||
+        metadata?.callsign ||
+        metadata?.call_sign ||
+        ""
+    ).trim();
+    const callsign = callsignRaw ? callsignRaw.toUpperCase() : "";
+    const altitudeFt = toFiniteNumber(
+        event?.altitude_ft,
+        event?.altitude,
+        metadata?.altitude_ft,
+        metadata?.altitude
+    );
+    const speedKts = toFiniteNumber(
+        event?.speed_kts,
+        event?.ground_speed_kts,
+        event?.speed,
+        metadata?.speed_kts,
+        metadata?.ground_speed_kts,
+        metadata?.speed
+    );
+    const headingDeg = normalizeHeading(
+        toFiniteNumber(
+            event?.heading_deg,
+            event?.heading,
+            metadata?.heading_deg,
+            metadata?.heading
+        )
+    );
+    const parts = [];
+    if (callsign) parts.push(`Callsign ${callsign}`);
+    if (Number.isFinite(altitudeFt) && altitudeFt > 0) parts.push(`ALT ${Math.round(altitudeFt)} ft`);
+    if (Number.isFinite(speedKts) && speedKts > 0) parts.push(`SPD ${Math.round(speedKts)} kt`);
+    if (Number.isFinite(headingDeg)) parts.push(`HDG ${headingDeg} deg`);
+    if (!parts.length) return "";
+    return `Movement: ${parts.join(" | ")}.`;
+}
+function buildOverlayPopupProperties(event = {}, fallbackId = "") {
+    const clusterCountRaw = Number(event?.cluster_count || event?._clusterCount || 1);
+    const clusterCount = Number.isFinite(clusterCountRaw) && clusterCountRaw > 0 ? clusterCountRaw : 1;
+    const summaryBase = String(event?.summary || "").trim();
+    const movementSummary = buildOverlayMovementSummary(event);
+    const summary = summaryBase && movementSummary
+        ? `${summaryBase} ${movementSummary}`
+        : (summaryBase || movementSummary || "Operational coverage overlay.");
+    return {
+        event_id: String(event?.id || fallbackId || "").trim(),
+        title: String(event?.title || event?.subcategory || event?.weapon_type || "Coverage hotspot").trim(),
+        summary,
+        category: String(event?.category || "military").trim(),
+        severity: String(event?.severity || "medium").trim(),
+        cluster_count: clusterCount,
+        cluster_events: buildOverlayClusterEvents(event),
+        location_label: String(
+            event?.location_label ||
+            event?.impact_label ||
+            event?.origin_label ||
+            event?.country ||
+            ""
+        ).trim(),
+        occurred_at: String(event?.occurred_at || event?.updated_at || "").trim(),
+        weapon_type: String(event?.weapon_type || event?.subcategory || event?.type || "").trim(),
+        source_url: resolveOverlaySourceUrl(event),
+    };
+}
 
 function getRangePreset(event) {
     const sub = String(
@@ -208,14 +344,17 @@ export function renderRanges(viewer, events) {
         return;
     }
 
-    candidates.forEach(({ event, preset, lat, lon }) => {
+    candidates.forEach(({ event, preset, lat, lon }, index) => {
 
         const colorCss = cssVar(preset.color, "#33d9ff");
         const baseColor = cssColor(preset.color, "#33d9ff");
         const opacity = Math.max(0.04, Math.min(cssNum(preset.opacity, 0.08), 0.18));
         const image = getSoftRangeImage(colorCss, opacity);
+        const entityId = makeOverlayEntityId("range", event, index);
+        const popupProps = buildOverlayPopupProperties(event, entityId);
 
         const entity = viewer.entities.add({
+            id: entityId,
             position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
             ellipse: {
                 semiMajorAxis: preset.radius,
@@ -230,7 +369,8 @@ export function renderRanges(viewer, events) {
                 outlineColor: baseColor.withAlpha(0),
                 outlineWidth: 0,
                 classificationType: Cesium.ClassificationType.BOTH,
-            }
+            },
+            properties: popupProps,
         });
 
         __rangeEntities.push(entity);
