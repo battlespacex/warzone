@@ -13,37 +13,43 @@ const __state = {
 
 /* ─── Type config ────────────────────────────────────────────────────────── */
 const TYPE_COLOR = {
-    airbase: "#3a8eff", naval: "#ff3a3a", army: "#3aff6e",
-    missile: "#ff9d00", cyber: "#c03aff", joint: "#ffffff",
-    hq: "#ffec3a", unknown: "#aaaaaa",
+    airbase: "#0078ff", naval: "#f51e58", army: "#ff6309",
+    missile: "#eef0f5", cyber: "#8a43fe", joint: "#00d8b2",
+    hq: "#0de94f", unknown: "#08794d",
 };
 const TYPE_LABEL = {
-    airbase: "Air Base", naval: "Naval Base / Port", army: "Army Base / Installation",
-    missile: "Missile / ICBM Site", cyber: "Cyber / Space Operations",
+    airbase: "Air Base", naval: "Naval Base", army: "Army Base",
+    missile: "Missile / ICBM Site", cyber: "Cyber / Space Ops",
     joint: "Joint / Multi-Service Base", hq: "Military HQ / Command",
     unknown: "Military Installation",
 };
+const TYPE_PANEL_ICON = {
+    airbase: "bx-web-ico-bases-airbase-1",
+    naval: "bx-web-ico-bases-naval-1",
+    army: "bx-web-ico-bases-army-1",
+    missile: "bx-web-ico-bases-missile-1",
+    cyber: "bx-web-ico-bases-cyber-1",
+    joint: "bx-web-ico-bases-joint-1",
+    hq: "bx-web-ico-bases-hq-1",
+    unknown: "bx-web-ico-bases-unknown-1",
+};
 
-/* ─── SVG Icons (inline data URI — no font file needed) ─────────────────── */
-function b64svg(svg) {
-    // base64 — most reliable encoding for Cesium billboard images
-    return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
-}
-
+/* ─── PNG Icons ─────────────────────────────────────────────────────────── */
 const ICON = {
-    airbase: "/assets/images/bases/airbase-1.svg",
+    airbase: "/assets/images/bases/airbase-1.png",
     naval: "/assets/images/bases/naval-1.png",
-    army: "/assets/images/bases/army-1.svg",
-    missile: "/assets/images/bases/missile-1.svg",
-    // Fallback to existing shipped assets (missing custom cyber/joint icons caused billboard load errors)
-    cyber: "/assets/images/bases/hq-1.svg",
-    joint: "/assets/images/bases/hq-1.svg",
-    hq: "/assets/images/bases/hq-1.svg",
-    unknown: "/assets/images/bases/hq-1.svg",
-
+    army: "/assets/images/bases/army-1.png",
+    missile: "/assets/images/bases/missile-1.png",
+    cyber: "/assets/images/bases/cyber-1.png",
+    joint: "/assets/images/bases/joint-1.png",
+    hq: "/assets/images/bases/hq-1.png",
+    unknown: "/assets/images/bases/unknown-1.png",
 };
 function getIcon(t) { return ICON[t] || ICON.unknown; }
-function getScale(size) { return size === "major" ? 0.1 : size === "significant" ? 0.1 : 0.1; }
+function getScale(size) { return size === "major" ? 0.4 : size === "significant" ? 0.4 : 0.4; }
+function getBaseIconPixelSize(size) {
+    return Math.max(18, Math.round(70 * getScale(size)));
+}
 
 const MILITARY_BASES = [
     { id: "us-a01", name: "Ramstein Air Base", country: "Germany", operator: "USAF / USAFE HQ", type: "airbase", lat: 49.4369, lon: 7.6003, size: "major" },
@@ -236,18 +242,20 @@ const MILITARY_BASES = [
 
 /* ─── Entity creation ───────────────────────────────────────────────────── */
 function createBaseEntity(dataSource, base) {
-    const pos = Cesium.Cartesian3.fromDegrees(base.lon, base.lat, 0);
+    const pos = Cesium.Cartesian3.fromDegrees(base.lon, base.lat, 12);
+    const iconPixelSize = getBaseIconPixelSize(base.size);
     return dataSource.entities.add({
         id: `milbase:${base.id}`,
         position: pos,
         billboard: {
             image: getIcon(base.type),
-            scale: getScale(base.size),
+            scale: 1,
+            width: iconPixelSize,
+            height: iconPixelSize,
             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             pixelOffset: new Cesium.Cartesian2(0, 8),
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            scaleByDistance: new Cesium.NearFarScalar(1.5e5, 0.55, 8e6, 0.45),
+            heightReference: Cesium.HeightReference.NONE,
             translucencyByDistance: new Cesium.NearFarScalar(7e6, 1.0, 1.4e7, 0.0),
             // Always render base icons above border/ground linework.
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -312,6 +320,7 @@ function showBasePanel(base, sx, sy) {
     const classification = titleCase(base?.size);
     const lat = formatCoord(base?.lat);
     const lon = formatCoord(base?.lon);
+    const iconClass = TYPE_PANEL_ICON?.[base?.type] || TYPE_PANEL_ICON.unknown;
 
     const panel = document.createElement("div");
     panel.id = "warzone-milbase-panel";
@@ -325,8 +334,12 @@ function showBasePanel(base, sx, sy) {
     panel.innerHTML = `
     <div class="wz-widget-milbase" itemscope itemtype="https://schema.org/Place">
         <header class="wz-widget-header">
-            <span class="static-dot" style="background:${escapeHTML(tc)}" aria-hidden="true"></span>
-            <span class="wz-widget-kicker" aria-hidden="true">${escapeHTML(tl)}</span>
+            <div class="wz-widget-kicker">
+                <span class="static-icon ${escapeHTML(iconClass)}"
+                    style="color:${escapeHTML(tc)}"
+                    aria-hidden="true"></span>
+                <span >${escapeHTML(tl)}</span>
+            </div>
             <div class="wz-widget-header-actions">
                 <button
                     type="button"

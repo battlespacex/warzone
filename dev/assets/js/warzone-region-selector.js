@@ -59,10 +59,13 @@ let __regionHintTimer = 0;
 let __regionCameraSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionDeferredNotifyTimer = 0;
+let __regionHintLiveFrame = 0;
 let __currentViewportRegion = __activeRegion;
 let __hasUserSelectedRegion = false;
 const REGION_HINT_SETTLED_DEBOUNCE_MS = 450;
 const REGION_HINT_ENABLED = true;
+const REGION_HINT_CENTER_DRIFT_RATIO = 0.6;
+const REGION_OUTSIDE_PROMPT_ID = "wz-region-outside-prompt";
 const REGION_GLOBAL_ALT_THRESHOLD = 8000000;
 function numberVar(name, fallback) {
     if (typeof window === "undefined" || !window.getComputedStyle) return fallback;
@@ -389,13 +392,66 @@ function getBoundsIntersectionArea(a = null, b = null) {
     if (maxLon <= minLon || maxLat <= minLat) return 0;
     return (maxLon - minLon) * (maxLat - minLat);
 }
+function getViewerCanvasSize(viewer) {
+    const canvas = viewer?.scene?.canvas;
+    const width = Number(canvas?.clientWidth || canvas?.width || 0);
+    const height = Number(canvas?.clientHeight || canvas?.height || 0);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+    return { width, height };
+}
+function getScreenDriftFromCenter(viewer, lon, lat) {
+    if (!viewer?.scene || !Number.isFinite(Number(lon)) || !Number.isFinite(Number(lat))) return null;
+    const size = getViewerCanvasSize(viewer);
+    if (!size) return null;
+    try {
+        const cartesian = Cesium.Cartesian3.fromDegrees(Number(lon), Number(lat), 0);
+        const screen = Cesium.SceneTransforms.wgs84ToWindowCoordinates(viewer.scene, cartesian);
+        if (!screen || !Number.isFinite(Number(screen.x)) || !Number.isFinite(Number(screen.y))) return null;
+        return {
+            x: Math.abs(Number(screen.x) - (size.width / 2)) / (size.width / 2),
+            y: Math.abs(Number(screen.y) - (size.height / 2)) / (size.height / 2),
+        };
+    } catch {
+        return null;
+    }
+}
+function getRegionScreenDrift(viewer, bounds) {
+    const center = getBoundsCenter(bounds);
+    const centerDrift = center ? getScreenDriftFromCenter(viewer, center.lon, center.lat) : null;
+    if (centerDrift) return centerDrift;
+
+    const minLon = Number(bounds?.minLon);
+    const maxLon = Number(bounds?.maxLon);
+    const minLat = Number(bounds?.minLat);
+    const maxLat = Number(bounds?.maxLat);
+    if (![minLon, maxLon, minLat, maxLat].every(Number.isFinite)) return null;
+
+    let closestDrift = null;
+    [0, 0.25, 0.5, 0.75, 1].forEach((xStep) => {
+        [0, 0.25, 0.5, 0.75, 1].forEach((yStep) => {
+            const drift = getScreenDriftFromCenter(
+                viewer,
+                minLon + ((maxLon - minLon) * xStep),
+                minLat + ((maxLat - minLat) * yStep)
+            );
+            if (!drift) return;
+            if (!closestDrift || Math.max(drift.x, drift.y) < Math.max(closestDrift.x, closestDrift.y)) {
+                closestDrift = drift;
+            }
+        });
+    });
+    return closestDrift;
+}
 function isCameraViewInsideRegion(viewer, region, focusHint = null) {
     if (!viewer || !region || region.id === "global") return true;
     const bounds = getRegionBounds(region) || region.bounds;
     if (!bounds) return false;
-    const viewportCenter = getBoundsCenter(getViewportBounds(viewer));
-    if (viewportCenter && isCoordinateInsideBounds(viewportCenter.lon, viewportCenter.lat, bounds)) {
-        return true;
+    const screenDrift = getRegionScreenDrift(viewer, bounds);
+    if (screenDrift) {
+        return (
+            screenDrift.x <= REGION_HINT_CENTER_DRIFT_RATIO &&
+            screenDrift.y <= REGION_HINT_CENTER_DRIFT_RATIO
+        );
     }
     const focus = focusHint || getCameraFocusCoordinates(viewer);
     if (
@@ -480,9 +536,24 @@ function clearPendingRegionHintRefresh() {
         __regionHintTimer = 0;
     }
 }
+function refreshRegionButtonHintOnNextFrame(viewer) {
+    if (__regionHintLiveFrame) return;
+    __regionHintLiveFrame = requestAnimationFrame(() => {
+        __regionHintLiveFrame = 0;
+        refreshRegionButtonHint(viewer);
+    });
+}
 function closeRegionModal(overlay, callback) {
     if (!overlay) {
         if (typeof callback === "function") callback();
+        return;
+    }
+    if (typeof window.__warzoneCloseSharedModal === "function") {
+        overlay.classList.add("is-closing");
+        window.__warzoneCloseSharedModal(overlay, () => {
+            overlay.classList.remove("is-closing");
+            if (typeof callback === "function") callback();
+        });
         return;
     }
     overlay.classList.remove("is-visible");
@@ -509,12 +580,58 @@ function setRegionButtonHintActive(active) {
         control.classList.toggle("is-region-outside", !!active);
     });
 }
+function isAnyBlockingRegionModalVisible() {
+    return Boolean(document.querySelector(".wz-modal.is-visible:not([hidden])"));
+}
+function ensureRegionOutsidePrompt(viewer) {
+    let prompt = document.getElementById(REGION_OUTSIDE_PROMPT_ID);
+    if (prompt) return prompt;
+    prompt = document.createElement("div");
+    prompt.id = REGION_OUTSIDE_PROMPT_ID;
+    prompt.className = "wz-region-outside-prompt";
+    prompt.hidden = true;
+    prompt.innerHTML = `
+        <p>Please select region</p>
+        <button type="button" class="btn-primary">
+            <span aria-hidden="true"></span>
+            Select Region
+        </button>
+    `;
+    prompt.querySelector("button")?.addEventListener("click", () => {
+        setRegionHintState(false, viewer);
+        showRegionModal(viewer, false, {
+            mode: "manual",
+            suggestedRegion: __activeRegion,
+            onConfirm: (regionId) => {
+                selectRegion(viewer, regionId, { source: "manual", allowAnyRegion: true });
+            },
+            onCancel: () => {
+                scheduleRegionButtonHintRefresh(viewer, 300);
+            },
+        });
+    });
+    (document.getElementById("warzone-app") || document.body)?.appendChild(prompt);
+    return prompt;
+}
+function setRegionOutsidePromptActive(active, viewer) {
+    const prompt = active
+        ? ensureRegionOutsidePrompt(viewer)
+        : document.getElementById(REGION_OUTSIDE_PROMPT_ID);
+    if (!prompt) return;
+    const shouldShow = Boolean(active) && !isAnyBlockingRegionModalVisible();
+    prompt.hidden = !shouldShow;
+    prompt.classList.toggle("is-visible", shouldShow);
+}
+function setRegionHintState(active, viewer) {
+    setRegionButtonHintActive(active);
+    setRegionOutsidePromptActive(active, viewer);
+}
 function refreshRegionButtonHint(viewer) {
     if (!viewer || __regionTransitionInFlight || !isRegionHintAllowed()) {
-        setRegionButtonHintActive(false);
+        setRegionHintState(false, viewer);
         return;
     }
-    setRegionButtonHintActive(!isCameraViewInsideRegion(viewer, __activeRegion));
+    setRegionHintState(!isCameraViewInsideRegion(viewer, __activeRegion), viewer);
 }
 function scheduleRegionButtonHintRefresh(viewer, delayMs = REGION_HINT_SETTLED_DEBOUNCE_MS) {
     clearPendingRegionHintRefresh();
@@ -600,7 +717,7 @@ function notifyScopeChange(options = {}) {
 }
 export function setActiveLens(lensId) {
     clearPendingRegionHintRefresh();
-    setRegionButtonHintActive(false);
+    setRegionHintState(false);
     __activeLens = lensId || "live";
     ensureRegionAllowedForLens();
     notifyScopeChange({ source: "lens" });
@@ -631,6 +748,7 @@ export function flyToRegion(viewer, region, options = {}) {
             window.SiteLoader?.stop?.();
         }
         applyRegionCameraLock(viewer, region);
+        scheduleRegionButtonHintRefresh(viewer, 900);
     };
     if (showLoader) {
         window.SiteLoader?.start?.();
@@ -665,7 +783,7 @@ export function selectRegion(viewer, regionId, options = {}) {
         region = resolveRegionForLens(regionId, __activeLens);
     }
     clearPendingRegionHintRefresh();
-    setRegionButtonHintActive(false);
+    setRegionHintState(false, viewer);
     __hasUserSelectedRegion = true;
     __currentViewportRegion = region;
     __regionCameraSyncPauseUntil = Date.now() + 1200;
@@ -752,6 +870,9 @@ export function initRegionNav(viewer) {
         viewer.camera.moveEnd.addEventListener(() => {
             scheduleRegionButtonHintRefresh(viewer);
         });
+        viewer.camera.changed?.addEventListener?.(() => {
+            refreshRegionButtonHintOnNextFrame(viewer);
+        });
         const canvas = viewer.scene?.canvas;
         if (canvas?.addEventListener) {
             const clearOnInputStart = () => {
@@ -767,6 +888,7 @@ export function initRegionNav(viewer) {
             canvas.addEventListener("touchend", settleOnInputEnd, { passive: true });
             canvas.addEventListener("wheel", settleOnInputEnd, { passive: true });
         }
+        scheduleRegionButtonHintRefresh(viewer, 1200);
     }
 }
 export function initRegionSelector(viewer) {
@@ -857,12 +979,14 @@ function showRegionModal(viewer, instant = false, options = {}) {
         confirmBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
     }
     if (backBtn) {
-        backBtn.innerHTML = mode === "manual"
-            ? '<span aria-hidden="true"></span>Close'
-            : '<span aria-hidden="true"></span>Back';
+        const isManualMode = mode === "manual";
+        backBtn.innerHTML = '<span aria-hidden="true"></span>Back';
+        backBtn.hidden = isManualMode;
+        backBtn.style.display = isManualMode ? "none" : "";
+        backBtn.disabled = isManualMode;
+        backBtn.setAttribute("aria-hidden", isManualMode ? "true" : "false");
     }
 
-    overlay.hidden = false;
     overlay.classList.remove("is-closing");
 
     const regionButtons = overlay.querySelectorAll(".wz-region-btn");
@@ -922,9 +1046,6 @@ function showRegionModal(viewer, instant = false, options = {}) {
     if (backBtn) {
         backBtn.addEventListener("click", () => {
             if (mode === "manual") {
-                closeRegionModal(overlay, () => {
-                    options?.onCancel?.();
-                });
                 return;
             }
             const introModal = document.getElementById("wz-intro-modal");
@@ -938,9 +1059,13 @@ function showRegionModal(viewer, instant = false, options = {}) {
         });
     }
 
-    if (instant) {
+    if (typeof window.__warzoneOpenSharedModal === "function") {
+        window.__warzoneOpenSharedModal(overlay);
+    } else if (instant) {
+        overlay.hidden = false;
         overlay.classList.add("is-visible");
     } else {
+        overlay.hidden = false;
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 overlay.classList.add("is-visible");

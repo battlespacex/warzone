@@ -14,6 +14,7 @@ const SWEEPER_RENDER = {
     maxCount: 2,
     maxOverlap: 0.32,
     maxFilledRings: 2,
+    overlayHeight: 1200,
 };
 function parseEventMetadata(event = {}) {
     const raw = event?.metadata;
@@ -362,18 +363,18 @@ export function renderSweepers(viewer, events = []) {
         const state = {
             heading: 320 + (index * 40)
         };
+        const overlayHeight = SWEEPER_RENDER.overlayHeight;
         const outerRing = viewer.entities.add({
             id: `${overlayId}-ring`,
             position: Cesium.Cartesian3.fromDegrees(lon, lat),
             ellipse: {
                 semiMajorAxis: preset.radius,
                 semiMinorAxis: preset.radius,
-                // Keep a clearly visible full sweeper disk (no outline).
-                material: base.withAlpha(0.95),
-                outline: false,
-                outlineColor: base.withAlpha(0.03),
-                outlineWidth: 1,
-                height: 0
+                material: base.withAlpha(0.22),
+                outline: true,
+                outlineColor: base.withAlpha(0.92),
+                outlineWidth: 3,
+                height: overlayHeight
             },
             properties: { ...popupProps },
         });
@@ -393,7 +394,7 @@ export function renderSweepers(viewer, events = []) {
                 material: base.withAlpha(0.4),
                 outline: false,
                 perPositionHeight: false,
-                height: 0
+                height: overlayHeight + 20
             },
             properties: { ...popupProps },
         });

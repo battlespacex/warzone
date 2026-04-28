@@ -403,6 +403,30 @@
 .bx-web-ico-warning-2:before {
   content: "\e949";
 }
+.bx-web-ico-bases-army-1:before {
+  content: "\e94f";
+}
 .bx-web-ico-lock-1:before {
   content: "\e94e";
+}
+.bx-web-ico-bases-unknown-1:before {
+  content: "\e952";
+}
+.bx-web-ico-bases-cyber-1:before {
+  content: "\e953";
+}
+.bx-web-ico-bases-naval-1:before {
+  content: "\e954";
+}
+.bx-web-ico-bases-missile-1:before {
+  content: "\e95b";
+}
+.bx-web-ico-bases-joint-1:before {
+  content: "\e95c";
+}
+.bx-web-ico-bases-airbase-1:before {
+  content: "\e964";
+}
+.bx-web-ico-bases-hq-1:before {
+  content: "\e965";
 }

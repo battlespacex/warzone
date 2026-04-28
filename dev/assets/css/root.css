@@ -12,35 +12,37 @@
 :root {
     --color-white: #eef0f5;
     --color-white-glow: #ffffffc4;
-    --color-white-slate: rgb(203 206 215);
+    --color-white-slate: #cbced7;
     --color-black: #101111;
     --color-accent: #ffaa33;
     --color-red: #a30707; 
     --color-red-glow: #ff2a2a; 
     --color-red-slate: #fd3741;
-    --color-blue: rgb(51, 37, 179);
+    --color-blue: #3325b3;
     --color-blue-glow: #2ed9ff;
+    --color-blue-slate: #0078ff;
     --color-green: #08794d;
     --color-green-glow: #0de94f;
     --color-green-slate: #04cc6f;
-    --color-magenta: rgba(174, 15, 76, 0.9);
-    --color-magenta-glow: rgb(245, 30, 88);
+    --color-magenta: #ae0f4ce6;
+    --color-magenta-glow: #f51e58;
     --color-orange: #f34713;
-    --color-orange-glow: rgb(255, 99, 9);
+    --color-orange-glow: #ff6309;
     --color-orange-slate: #ff7a45;
-    --color-purple: rgb(97, 40, 189);
-    --color-purple-glow: #9b7bff;
+    --color-purple: #6128bd;
+    --color-purple-glow: #916dff;
+    --color-purple-slate: #8a43fe;
     --color-yellow: #f79c1c;
     --color-yellow-glow: #ffe81a;
     --color-yellow-slate: #ffd24d;
-    --color-teal: rgb(11, 120, 126); 
-    --color-teal-hover: rgba(8, 79, 85);
-    --color-teal-glow: rgba(24,226,219);
+    --color-teal: #0b787e; 
+    --color-teal-hover: #084f55;
+    --color-teal-glow: #18e2db;
     --color-teal-slate: #00d8b2;
-    --color-gray: rgba(69, 80, 94, 0.7);
+    --color-gray: #45505eb3;
     --color-gray-glow: #8fa3b8 ;
-    --color-gray-slate: rgb(100, 114, 133);
-    --color-border-gray: rgba(61, 72, 87, 0.8);
+    --color-gray-slate: #647285;
+    --color-border-gray: #3d4857cc;
 }
 /* #endregion =========== */
 /* #region =========== Typography — Text Colors =========== */
@@ -248,7 +250,7 @@
 :root {
     --warzone-missile-launch-color:  var(--color-magenta-glow);
     --warzone-missile-impact-color:  var(--color-magenta-glow);
-    --warzone-missile-line-color:  rgba(174, 15, 76, 0.9);
+    --warzone-missile-line-color:  var(--color-magenta);
 }
 /* #endregion =========== */
 /* #region =========== Missile Peak Heights (meters) =========== */
@@ -326,7 +328,7 @@
     --warzone-cluster-font: var(--text-font);
     --warzone-cluster-text: var(--color-white);
     --warzone-cluster-border: rgba(255, 255, 255, 0);
-    --warzone-cluster-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+    --warzone-cluster-shadow: 0 16px 34px rgba(0, 0, 0, 0.2);
     --warzone-cluster-radius: 1rem;
     --warzone-cluster-padding-y: 0.85rem;
     --warzone-cluster-padding-x: 1rem;
@@ -488,12 +490,14 @@
   --warzone-live-aircraft-model-scale-zoom-in: 1;
   --warzone-live-aircraft-model-scale-zoom-out: 1;
   --warzone-live-aircraft-model-min-pixel-size: 110;
+  --warzone-live-aircraft-model-focused-min-pixel-size: 150;
   --warzone-live-aircraft-model-max-scale: 2440;
     --warzone-live-aircraft-model-zoom-split-height: 20000;
     --warzone-live-aircraft-model-max-active: 16;
     --warzone-live-aircraft-model-max-zoom-height: 280000;
     /* One global aircraft model color control (0 = original model color, 1 = fully white mix). */
     --warzone-live-aircraft-model-whiteness: 0.50;
+    --warzone-live-aircraft-model-focused-whiteness: 0.12;
     --warzone-live-aircraft-model-color-alpha: 1;
     --warzone-live-aircraft-model-color-blend-amount: var(--warzone-live-aircraft-model-whiteness);
     --warzone-live-aircraft-model-dynamic-bank-enabled: 0;

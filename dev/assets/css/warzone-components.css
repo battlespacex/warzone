@@ -614,7 +614,7 @@
     box-shadow: 0 -1rem 5rem 1rem var(--color-teal-glow);
 }
 
-.wz-modal:after {
+.warzone-view:after {
     background: url(../images/web/Battlespacex-full-logo.svg) no-repeat;
     content: '';
     position: absolute;
@@ -624,7 +624,7 @@
     background-size: contain;
     left: auto;
     aspect-ratio: 6 / 1;
-    opacity: 0.6;
+    opacity: 1;
 }
 
 .wz-modal[hidden] {
@@ -1398,6 +1398,13 @@ display: flex;
     transform: rotate(180deg);
 }
 
+.warzone-widget.is-focus-locked [data-panel-collapse],
+.warzone-widget.is-focus-locked [data-widget-close] {
+    opacity: 0.42;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .panel-content {
     height: auto;
     overflow-y: auto;
@@ -1694,6 +1701,11 @@ UNUSED CANDIDATE END */
 }
 
 .is-active.is-selected.wz-aircraft-item:before {
+    background: var(--color-teal-hover);
+    animation: wz-animate-pulse 1s infinite;
+}
+
+.wz-naval-item.is-selected:before {
     background: var(--color-teal-hover);
     animation: wz-animate-pulse 1s infinite;
 }
@@ -2086,6 +2098,20 @@ UNUSED CANDIDATE END */
     }
 }
 
+@keyframes wz-aircraft-focus-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        filter: drop-shadow(0 0 .45rem rgba(24, 226, 219, 0.72));
+    }
+
+    50% {
+        opacity: 0.38;
+        filter: drop-shadow(0 0 1.1rem rgba(24, 226, 219, 1));
+    }
+}
+
 @keyframes wz-siren-in {
     from {
         opacity: 0;
@@ -2387,6 +2413,7 @@ UNUSED CANDIDATE END */
     position: absolute;
     left: 0;
     top: 0;
+    display: none;
     width: 0;
     height: 0;
     z-index: 28;
@@ -2398,7 +2425,12 @@ UNUSED CANDIDATE END */
 }
 
 .wz-aircraft-focus-guides.is-visible {
+    display: block;
     opacity: 1;
+}
+
+#wz-aircraft-focus-overlay.is-visible .wz-aircraft-focus-overlay__arm {
+    animation: wz-aircraft-focus-pulse 1.05s ease-in-out infinite;
 }
 
 .wz-aircraft-focus-guides__line {
@@ -2653,6 +2685,10 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after {
     transition: clip-path 260ms ease;
 }
 
+.wz-widget-milbase ul {
+    margin-top: 1rem;
+}
+
 .wz-widget-header {
     display: flex;
     align-items: center;
@@ -2662,6 +2698,19 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after {
     min-height: 4rem;
     padding: 0 1rem 0 1.5rem;
     background: var(--color-bg-header);
+}
+
+.wz-widget-header .wz-widget-kicker { 
+    display: flex;
+    flex-direction: row;
+    gap: .5rem;
+    align-items: center;
+}
+
+.wz-widget-header .wz-widget-kicker .static-icon { 
+    font-size: var(--icon-lg);
+    width: 1rem;
+    height: 2rem;
 }
 
 .wz-widget-header-actions {
@@ -2689,38 +2738,36 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after {
     font-size: var(--text-sm);
 }
 
-
 .milbase-panel__dot {
     display: inline-block;
     width: 1rem;
     height: 1rem;
     border-radius: 50%;
     flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .milbase-panel__type {
-    font-size: 10px;
+    font-size: var(--text-md);
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--color-text-dim);
     flex: 1;
 }
 
 .wz-altitude-readout {
     position: fixed;
     right: 2rem;
-    bottom: 2rem;
+    bottom: 8rem;
     z-index: 999;
     color: var(--color-teal-glow);
-    font-size: var(--text-md);
-    letter-spacing: 0.3rem;
+    font-size: var(--text-base);
+    letter-spacing: .5rem;
     font-family: var(--font-mono);
     text-transform: uppercase;
     line-height: 1;
-    text-shadow: 0 0 .3rem var(--color-teal-glow);
-        pointer-events: none
+    text-shadow: 0 0 .5rem var(--color-teal-glow);
+    pointer-events: none;
 }
 
 @media (max-width: 1024px) {

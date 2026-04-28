@@ -5,7 +5,7 @@ const app = express();
 const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
 const BASE = "/warzone";
-const AIRCRAFT_FEED_URL = "https://api.adsb.one/v2/mil";
+const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
 let cachedAircraftFeedPayload = "";
 let cachedAircraftFeedStatus = 0;
 let cachedAircraftFeedAt = 0;
@@ -14,7 +14,7 @@ const AIRCRAFT_FEED_CACHE_TTL_MS = 2500;
 
 app.disable("x-powered-by");
 
-app.get("/__warzone/aircraft-feed/mil", async (_req, res) => {
+async function handleAircraftFeedProxy(_req, res) {
     const now = Date.now();
     if (
         cachedAircraftFeedPayload &&
@@ -69,7 +69,10 @@ app.get("/__warzone/aircraft-feed/mil", async (_req, res) => {
         }
         res.status(502).json({ error: "Aircraft feed unavailable" });
     }
-});
+}
+
+app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
+app.get(`${BASE}/aircraft-feed/mil`, handleAircraftFeedProxy);
 
 app.use(express.static(ROOT));
 

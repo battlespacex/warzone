@@ -4,7 +4,7 @@
 // Renders AIS military vessels on the Cesium globe with:
 //  - Ship billboard icons with heading rotation
 //  - Zoom-level labels (vessel name + class)
-//  - Click → X-lines targeting reticle + info panel near vessel
+//  - Click → short-lived X-lines targeting reticle
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
 
@@ -19,7 +19,6 @@ const __navalState = {
     clickBound: false,
     clickHandler: null,
     selectedKey: null,
-    focusGuideEl: null,
     isCameraFlying: false,
 };
 
@@ -1516,46 +1515,10 @@ function syncNavalOverlay() {
         root.style.display = "block";
         __navalState.overlayLastVisible = true;
     }
-    if (
-        !Number.isFinite(__navalState.overlayLastX) ||
-        Math.abs(screen.x - __navalState.overlayLastX) >= 0.5
-    ) {
-        root.style.left = `${screen.x}px`;
-        __navalState.overlayLastX = screen.x;
-    }
-    if (
-        !Number.isFinite(__navalState.overlayLastY) ||
-        Math.abs(screen.y - __navalState.overlayLastY) >= 0.5
-    ) {
-        root.style.top = `${screen.y}px`;
-        __navalState.overlayLastY = screen.y;
-    }
-}
-function clearNavalCameraLock() {
-    const viewer = window.__warzoneViewer;
-    if (!viewer) return;
-    try {
-        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-    } catch { }
-}
-function syncNavalCameraLock() {
-    const viewer = window.__warzoneViewer;
-    const trackKey = String(__navalState.selectedKey || "");
-    if (viewer?.scene?.mode !== Cesium.SceneMode.SCENE3D) return;
-    if (!viewer || !trackKey || __navalState.isCameraFlying) return;
-    const entry = __navalState.vessels.get(trackKey);
-    const position = getEntityPosition(entry?.entity);
-    if (!position) return;
-    try {
-        viewer.camera.lookAt(
-            position,
-            new Cesium.HeadingPitchRange(
-                0,
-                Cesium.Math.toRadians(NAVAL_FOCUS_CAMERA_PITCH_DEG),
-                NAVAL_FOCUS_CAMERA_RANGE_METERS
-            )
-        );
-    } catch { }
+    root.style.left = `${screen.x}px`;
+    root.style.top = `${screen.y}px`;
+    __navalState.overlayLastX = screen.x;
+    __navalState.overlayLastY = screen.y;
 }
 function emitNavalFocusChanged() {
     document.dispatchEvent(new CustomEvent("wz:naval-track-selected", {
@@ -1568,14 +1531,12 @@ function emitNavalFocusChanged() {
 
 function clearNavalSelection() {
     __navalState.selectedKey = null;
-    clearNavalCameraLock();
     if (__navalState.overlayRoot && __navalState.overlayLastVisible) {
         __navalState.overlayRoot.style.display = "none";
     }
     __navalState.overlayLastVisible = false;
     __navalState.overlayLastX = Number.NaN;
     __navalState.overlayLastY = Number.NaN;
-    document.getElementById("warzone-naval-panel")?.remove();
     syncNavalWidgetHighlight(null);
     emitNavalFocusChanged();
 }
@@ -1596,14 +1557,16 @@ function focusNavalVessel(trackKey, options = {}) {
         ),
     }).then(() => {
         __navalState.isCameraFlying = false;
-        syncNavalCameraLock();
+        __navalState.overlayLastVisible = false;
+        syncNavalOverlay();
     }).catch(() => {
         __navalState.isCameraFlying = false;
+        __navalState.overlayLastVisible = false;
+        syncNavalOverlay();
     });
 
-    const panelX = Number.isFinite(options.screenX) ? options.screenX : (window.innerWidth / 2);
-    const panelY = Number.isFinite(options.screenY) ? options.screenY : (window.innerHeight / 2);
-    showNavalPanel(entry.data, panelX, panelY);
+    __navalState.overlayLastVisible = false;
+    syncNavalOverlay();
     syncNavalWidgetHighlight(trackKey);
     emitNavalFocusChanged();
     return true;
@@ -1730,157 +1693,6 @@ function mergeNavalVesselData(existing = {}, incoming = {}) {
     return merged;
 }
 
-// ─── Info panel near vessel ───────────────────────────────────────────────────
-function showNavalPanel(data, sx, sy) {
-    document.getElementById("warzone-naval-panel")?.remove();
-    const sub = data.subcategory || data.vessel_class || "naval";
-    const subLabel = getNavalSubtypeLabel(sub) || "Naval Asset";
-    const color = getVesselColor(sub) || "#6b7280";
-    const name = getNavalDisplayName(data);
-    const typeLabel = getNavalTypeLabel(data);
-    const classVariantLabel = getNavalClassVariantLabel(data);
-    const designation = normalizeText(data.designation || "");
-    const speed = formatNavalSpeed(data.speed_kts);
-    const hdg = formatNavalHeading(data.heading_deg);
-    const mmsi = normalizeText(data.mmsi || data.metadata?.mmsi || "");
-    const callsign = normalizeText(data.callsign || data.metadata?.callsign || data.metadata?.call_sign || data.metadata?.callSign || "");
-    const hull = normalizeText(data.hull_number || data.metadata?.hull_number || data.metadata?.hullNumber || data.metadata?.pennant_number || data.metadata?.pennantNumber || "");
-    const country = normalizeText(data.country || data.metadata?.country || data.flag_country || data.metadata?.flag_country || "");
-    const operator = normalizeText(data.operator || data.metadata?.operator || "");
-    const lat = formatNavalCoord(data.lat);
-    const lon = formatNavalCoord(data.lon);
-    const lastUpdate = formatNavalTimeAgo(data.last_seen_at);
-    const fullTimestamp = Number.isFinite(Number(data.last_seen_at))
-        ? new Date(Number(data.last_seen_at)).toLocaleString()
-        : "—";
-
-    const panel = document.createElement("div");
-    panel.id = "warzone-naval-panel";
-    panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-modal", "true");
-    panel.setAttribute("aria-labelledby", "naval-asset-name");
-    panel.setAttribute("aria-describedby", "naval-asset-info naval-asset-desc");
-    panel.setAttribute("tabindex", "-1");
-    panel.style.cssText = "position:fixed; width:28rem; max-width:calc(100vw - 1rem); z-index:900;";
-
-    panel.innerHTML = `
-    <div class="wz-widget-naval" itemscope itemtype="https://schema.org/Vehicle">
-        <header class="wz-widget-header">
-            <span class="static-dot" style="background:${escapeNavalHtml(color)}" aria-hidden="true"></span>
-            <span class="wz-widget-kicker" aria-hidden="true">${escapeNavalHtml(subLabel.toUpperCase())}</span>
-            <div class="wz-widget-header-actions">
-                <button
-                    type="button"
-                    id="wz-naval-panel-close"
-                    class="static-icon"
-                    data-widget-close
-                    aria-label="Close naval asset information panel">
-                    <span class="bx-web-ico-close-1-1" aria-hidden="true"></span>
-                </button>
-            </div>
-        </header>
-
-        <section class="wz-widget-body">
-            <p id="naval-asset-desc" class="sr-only">
-                Naval asset information dialog showing platform identity, country, operator, type, class, variant, speed, heading, coordinates, and last update.
-            </p>
-
-            <h3 id="naval-asset-name" itemprop="name">${escapeNavalHtml(name)}</h3>
-
-            <ul id="naval-asset-info" class="wz-widget-data-list">
-                <li>
-                    <strong>Type</strong>
-                    <span itemprop="additionalType">${escapeNavalHtml(typeLabel || subLabel)}</span>
-                </li>
-                ${classVariantLabel ? `
-                <li>
-                    <strong>Class / Variant</strong>
-                    <span>${escapeNavalHtml(classVariantLabel)}</span>
-                </li>` : ""}
-                ${designation ? `
-                <li>
-                    <strong>Designation</strong>
-                    <span>${escapeNavalHtml(designation)}</span>
-                </li>` : ""}
-                ${country ? `
-                <li>
-                    <strong>Country</strong>
-                    <span>${escapeNavalHtml(country)}</span>
-                </li>` : ""}
-                ${operator ? `
-                <li>
-                    <strong>Operator</strong>
-                    <span>${escapeNavalHtml(operator)}</span>
-                </li>` : ""}
-                <li>
-                    <strong>Speed</strong>
-                    <span>${escapeNavalHtml(speed)}</span>
-                </li>
-                <li>
-                    <strong>Heading</strong>
-                    <span>${escapeNavalHtml(hdg)}</span>
-                </li>
-                ${mmsi ? `<li>
-                    <strong>MMSI</strong>
-                    <span>${escapeNavalHtml(mmsi)}</span>
-                </li>` : ""}
-                ${callsign ? `<li>
-                    <strong>Callsign</strong>
-                    <span>${escapeNavalHtml(callsign)}</span>
-                </li>` : ""}
-                ${hull ? `<li>
-                    <strong>Hull / Pennant</strong>
-                    <span>${escapeNavalHtml(hull)}</span>
-                </li>` : ""}
-                <li>
-                    <strong>Lat / Lon</strong>
-                    <span>${lat}, ${lon}</span>
-                </li>
-                <li>
-                    <strong>Last Update</strong>
-                    <span title="${escapeNavalHtml(fullTimestamp)}">${escapeNavalHtml(lastUpdate)}</span>
-                </li>
-            </ul>
-        </section>
-    </div>`;
-
-    document.body.appendChild(panel);
-
-    // Position near click, auto-adjust to stay on screen.
-    const panelRect = panel.getBoundingClientRect();
-    const rectWidth = Math.ceil(panelRect.width || 448);
-    const rectHeight = Math.ceil(panelRect.height || 360);
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    let left = sx + 16;
-    let top = sy - 16;
-
-    if (left + rectWidth > vw - 8) left = sx - rectWidth - 16;
-    if (top + rectHeight > vh - 8) top = vh - rectHeight - 8;
-    if (top < 8) top = 8;
-    if (left < 8) left = 8;
-
-    panel.style.left = `${left}px`;
-    panel.style.top = `${top}px`;
-
-    const closeBtn = document.getElementById("wz-naval-panel-close");
-
-    closeBtn?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        clearNavalSelection();
-    });
-
-    panel.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-            e.stopPropagation();
-            clearNavalSelection();
-        }
-    });
-
-    panel.focus();
-}
-
 // ─── Widget row highlight ─────────────────────────────────────────────────────
 function syncNavalWidgetHighlight(trackKey) {
     try {
@@ -1921,17 +1733,11 @@ function bindNavalPicking(viewer) {
 
     // Click
     handler.setInputAction(movement => {
-        if (__navalState.vessels.size === 0) {
-            clearNavalSelection();
-            return;
-        }
+        if (__navalState.vessels.size === 0) return;
         const picked = viewer.scene.pick(movement.position);
         const trackKey = picked?.id?.__navalKey;
 
-        if (!trackKey) {
-            clearNavalSelection();
-            return;
-        }
+        if (!trackKey) return;
 
         const entry = __navalState.vessels.get(trackKey);
         if (!entry) return;
@@ -1954,7 +1760,6 @@ function bindNavalOverlay(viewer) {
     if (__navalState.overlayBound) return;
     __navalState.overlayBound = true;
     ensureNavalOverlayRoot(viewer);
-    viewer.scene.preRender.addEventListener(syncNavalCameraLock);
     viewer.scene.postRender.addEventListener(syncNavalOverlay);
 }
 
@@ -2221,7 +2026,7 @@ export function renderNavalTrackerWidget(options = {}) {
                 <span class="wz-aircraft-badge" style="background:${escapeNavalHtml(color)}22;color:${escapeNavalHtml(color)};border-color:${escapeNavalHtml(color)}44">${escapeNavalHtml(typeBadge)}</span>
                 <button type="button" class="wz-aircraft-action btn-primary" onclick="event.stopPropagation(); window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
                     <span aria-hidden="true"></span>
-                    ${isSelected ? "Tracked" : "Focus"}
+                    Focus
                 </button>
             </div>
         </article>`;

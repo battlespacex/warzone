@@ -481,6 +481,38 @@ UNUSED CANDIDATE END */
     color: var(--color-teal-glow);
 }
 
+.wz-region-outside-prompt {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    padding: 1.4rem 1.6rem;
+    color: var(--color-text-heading);
+    background: rgba(13, 20, 31, 0.92);
+    border: .1rem solid rgba(24, 226, 219, 0.72);
+    box-shadow: 0 0 2.2rem rgba(24, 226, 219, 0.22);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.wz-region-outside-prompt[hidden] {
+    display: none !important;
+}
+
+.wz-region-outside-prompt p {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: var(--text-md);
+    text-transform: uppercase;
+}
+
+.wz-region-outside-prompt button {
+    pointer-events: auto;
+}
+
     .wz-selector:after {
         content: "";
         font-family: var(--font-icon);

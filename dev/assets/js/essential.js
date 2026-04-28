@@ -3016,7 +3016,6 @@ async function refreshAircraftHistoryCache(force = false) {
                     .map(normalizeAircraftHistoryRow)
                     .filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
                     .filter((row) => !shouldExcludeFromMilitaryAircraftTracker(row))
-                    .filter((row) => isPointInsideRegion(Number(row.lat), Number(row.lon), getActiveRegion?.()))
                     .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
                     .slice(0, AIRCRAFT_HISTORY_CACHE_MAX_ROWS)
                 : [];
@@ -4930,26 +4929,40 @@ export function showLoginModal(mode = "guest", user = null) {
     setAuthMode(isAuthenticated, user);
     syncAuthButtonState();
     if (!modal) return;
+    const afterOpen = () => {
+        onAuthModalVisibilityChanged();
+        requestAnimationFrame(() => {
+            if (isAuthenticated) (consent || loginBtn)?.focus();
+            else email?.focus();
+        });
+    };
+    if (typeof window.__warzoneOpenSharedModal === "function") {
+        window.__warzoneOpenSharedModal(modal, afterOpen);
+        return;
+    }
     modal.hidden = false;
     requestAnimationFrame(() => {
         modal.classList.add("is-visible");
-        onAuthModalVisibilityChanged();
-    });
-    requestAnimationFrame(() => {
-        if (isAuthenticated) (consent || loginBtn)?.focus();
-        else email?.focus();
+        afterOpen();
     });
 }
 
 export function hideLoginModal() {
     const { modal, password } = getAuthModalElements();
     if (!modal) return;
-    modal.classList.remove("is-visible");
-    setTimeout(() => {
-        modal.hidden = true;
+    const afterClose = () => {
         if (password) password.value = "";
         setAuthError("");
         onAuthModalVisibilityChanged();
+    };
+    if (typeof window.__warzoneCloseSharedModal === "function") {
+        window.__warzoneCloseSharedModal(modal, afterClose);
+        return;
+    }
+    modal.classList.remove("is-visible");
+    setTimeout(() => {
+        modal.hidden = true;
+        afterClose();
     }, 220);
 }
 

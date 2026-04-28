@@ -72,6 +72,22 @@ const NAVAL_LAYER_SUBTYPES = new Set([
     "patrol",
     "minesweeper",
 ]);
+const AIRCRAFT_LAYER_SUBTYPES = new Set([
+    "aircraft",
+    "fighter",
+    "awacs",
+    "recon",
+    "isr",
+    "tanker",
+    "refueler",
+    "transport",
+    "logistics",
+    "logistic",
+    "patrol",
+    "bomber",
+    "vip",
+    "helicopter",
+]);
 
 LAYER_DEFS.forEach((l) => {
     __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
@@ -157,6 +173,42 @@ function saveState() {
 }
 
 // ── Event classifier ───────────────────────────────────────────────────────────
+function getEventMetadata(event = {}) {
+    const raw = event.metadata;
+    if (!raw) return {};
+    if (typeof raw === "object") return raw;
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return {};
+    }
+}
+
+function isAircraftTelemetryLayerEvent(event = {}, subcat = "") {
+    const metadata = getEventMetadata(event);
+    const sourceName = String(event.source_name || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
+    const trackType = String(event.track_type || metadata.track_type || "").toLowerCase();
+    const tags = Array.isArray(event.tags)
+        ? event.tags.map((tag) => String(tag || "").toLowerCase())
+        : String(event.tags || "").toLowerCase().split(/[,\s]+/).filter(Boolean);
+    return (
+        trackType === "aircraft" ||
+        reportType === "flight_tracking" ||
+        sourceName.includes("ads-b") ||
+        sourceName.includes("airplanes.live") ||
+        sourceName.includes("opensky") ||
+        tags.includes("adsb") ||
+        tags.includes("flight-tracking") ||
+        !!metadata.icao ||
+        !!metadata.callsign ||
+        !!metadata.registration ||
+        !!metadata.type_code ||
+        !!metadata.model_name ||
+        AIRCRAFT_LAYER_SUBTYPES.has(subcat)
+    );
+}
+
 export function getEventLayerId(event) {
     if (!event) return "strikes";
 
@@ -173,9 +225,9 @@ export function getEventLayerId(event) {
 
     if (cat === "military") {
         if (NAVAL_LAYER_SUBTYPES.has(subcat)) return "naval";
-        if (["fighter", "awacs", "recon", "tanker", "transport", "patrol"].includes(subcat)) return "aircraft";
+        if (isAircraftTelemetryLayerEvent(event, subcat)) return "aircraft";
         if (["drone", "uav", "shahed"].includes(subcat)) return "drones";
-        return "aircraft";
+        return "recon";
     }
 
     if (cat === "strike") {

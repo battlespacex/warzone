@@ -293,8 +293,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     window.__warzoneLockModalBoxHeight = lockModalBoxHeight;
     window.__warzoneScheduleModalBoxHeight = (box) => scheduleModalBoxHeight(box, true);
-    function openModal(modal) {
+    const sharedModalQueue = [];
+    let sharedModalActive = null;
+    let sharedModalClosing = false;
+    let sharedModalFlushTimer = 0;
+    function getVisibleModal(ignoreModal = null) {
+        return Array.from(document.querySelectorAll(".wz-modal.is-visible:not([hidden])"))
+            .find((item) => item !== ignoreModal) || null;
+    }
+    function openModalNow(modal, callback) {
         if (!modal) return;
+        sharedModalActive = modal;
         modal.hidden = false;
         modal.setAttribute("aria-hidden", "false");
         if (modal.id === "wz-about-modal") {
@@ -307,11 +316,44 @@ document.addEventListener("DOMContentLoaded", () => {
                 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
             );
             firstFocusable?.focus?.();
+            if (typeof callback === "function") callback();
         });
+    }
+    function flushSharedModalQueue() {
+        if (sharedModalClosing || getVisibleModal()) return;
+        const next = sharedModalQueue.shift();
+        if (!next) {
+            sharedModalActive = null;
+            return;
+        }
+        openModalNow(next.modal, next.callback);
+    }
+    function scheduleSharedModalQueueFlush() {
+        if (sharedModalFlushTimer) return;
+        sharedModalFlushTimer = window.setTimeout(() => {
+            sharedModalFlushTimer = 0;
+            flushSharedModalQueue();
+        }, 240);
+    }
+    function openModal(modal, callback) {
+        if (!modal) return;
+        const alreadyQueued = sharedModalQueue.some((entry) => entry.modal === modal);
+        if (alreadyQueued) return;
+        const visibleModal = getVisibleModal(modal);
+        if (visibleModal || (sharedModalActive && sharedModalActive !== modal && !sharedModalActive.hidden) || sharedModalClosing) {
+            sharedModalQueue.push({ modal, callback });
+            return;
+        }
+        if (sharedModalActive === modal && !modal.hidden) {
+            if (typeof callback === "function") callback();
+            return;
+        }
+        openModalNow(modal, callback);
     }
     function closeModal(modal, callback) {
         if (!modal) return;
         modal.classList.remove("is-visible");
+        sharedModalClosing = true;
         if (isAboutModal(modal)) {
             document.body.classList.remove("is-about-open");
         }
@@ -324,6 +366,11 @@ document.addEventListener("DOMContentLoaded", () => {
             modal.hidden = true;
             modal.setAttribute("aria-hidden", "true");
             if (typeof callback === "function") callback();
+            if (sharedModalActive === modal) {
+                sharedModalActive = null;
+            }
+            sharedModalClosing = false;
+            scheduleSharedModalQueueFlush();
         }, 220);
     }
     window.__warzoneOpenSharedModal = openModal;
@@ -354,6 +401,13 @@ document.addEventListener("DOMContentLoaded", () => {
             childList: true,
             attributes: true,
             attributeFilter: ["class", "style", "hidden", "aria-hidden"],
+        });
+    });
+    document.querySelectorAll(".wz-modal").forEach((modal) => {
+        const observer = new MutationObserver(scheduleSharedModalQueueFlush);
+        observer.observe(modal, {
+            attributes: true,
+            attributeFilter: ["class", "hidden", "aria-hidden"],
         });
     });
     function clearStaleLoaderState() {
@@ -582,7 +636,38 @@ document.addEventListener("DOMContentLoaded", () => {
         widget.classList.remove("wz-is-hidden");
         updateBackdrop();
     }
+    function setWidgetHeaderControlsDisabled(widget, disabled = false) {
+        widget?.querySelectorAll("[data-panel-collapse], [data-widget-close]").forEach((btn) => {
+            btn.disabled = Boolean(disabled);
+            btn.setAttribute("aria-disabled", String(Boolean(disabled)));
+            if (disabled) {
+                if (!btn.dataset.wzOriginalTitle) {
+                    btn.dataset.wzOriginalTitle = btn.getAttribute("title") || "";
+                }
+                btn.setAttribute("title", "Unlock focused aircraft before changing this widget");
+                return;
+            }
+            const originalTitle = btn.dataset.wzOriginalTitle;
+            if (originalTitle !== undefined) {
+                if (originalTitle) btn.setAttribute("title", originalTitle);
+                else btn.removeAttribute("title");
+                delete btn.dataset.wzOriginalTitle;
+            }
+        });
+    }
+    function setAircraftTrackerFocusLocked(enabled = false) {
+        const widget = document.querySelector('.warzone-widget[data-widget-id="aircraft"]');
+        if (!widget) return;
+        const locked = Boolean(enabled);
+        widget.classList.toggle("is-focus-locked", locked);
+        if (locked) {
+            showWidget(widget);
+        }
+        setWidgetHeaderControlsDisabled(widget, locked);
+        syncWidgetChrome();
+    }
     function hideWidget(widget) {
+        if (widget?.dataset?.widgetId === "aircraft" && widget.classList.contains("is-focus-locked")) return;
         widget.classList.add("wz-is-hidden");
         updateBackdrop();
     }
@@ -711,6 +796,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bindUiInteractionIsolation();
     document.querySelectorAll("[data-widget-close]").forEach((btn) => {
         btn.addEventListener("click", () => {
+            if (btn.disabled || btn.getAttribute("aria-disabled") === "true") return;
             const widget = btn.closest(".warzone-widget");
             if (!widget) return;
             hideWidget(widget);
@@ -723,6 +809,11 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!isUiOnlyWidgetLayerEnabled(btn.dataset.dockWidget || "")) return;
             const widget = document.querySelector(`.warzone-widget[data-widget-id="${btn.dataset.dockWidget}"]`);
             if (!widget) return;
+            if (widget.dataset.widgetId === "aircraft" && widget.classList.contains("is-focus-locked")) {
+                showWidget(widget);
+                syncWidgetChrome();
+                return;
+            }
             if (isWidgetVisible(widget)) {
                 hideWidget(widget);
             } else {
@@ -738,6 +829,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const content = panel.querySelector(".panel-content");
         if (!content) return;
         btn.addEventListener("click", () => {
+            if (btn.disabled || btn.getAttribute("aria-disabled") === "true") return;
             const willCollapse = !panel.classList.contains("is-collapsed");
             if (willCollapse) {
                 btn.setAttribute("aria-expanded", "false");
@@ -767,6 +859,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 content.style.height = "auto";
             }
         });
+    });
+    document.addEventListener("wz:aircraft-focus-lock-changed", (event) => {
+        setAircraftTrackerFocusLocked(Boolean(event?.detail?.enabled));
     });
     window.addEventListener("resize", () => {
         loadWidgetState();

@@ -314,14 +314,14 @@ module.exports = (env, argv) => {
 
                     setupMiddlewares: (middlewares, devServer) => {
                         if (!devServer) return middlewares;
-                        const AIRCRAFT_FEED_URL = "https://api.adsb.one/v2/mil";
+                        const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
                         let cachedPayload = "";
                         let cachedStatus = 0;
                         let cachedAt = 0;
                         let inFlightPromise = null;
                         const CACHE_TTL_MS = 2500;
 
-                        devServer.app.get("/__warzone/aircraft-feed/mil", async (_req, res) => {
+                        async function handleAircraftFeedProxy(_req, res) {
                             const now = Date.now();
                             if (cachedPayload && cachedStatus === 200 && (now - cachedAt) < CACHE_TTL_MS) {
                                 res.set("Cache-Control", "no-store, max-age=0");
@@ -370,7 +370,10 @@ module.exports = (env, argv) => {
                                 }
                                 res.status(502).json({ error: "Aircraft feed unavailable" });
                             }
-                        });
+                        }
+
+                        devServer.app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
+                        devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
 
                         return middlewares;
                     },

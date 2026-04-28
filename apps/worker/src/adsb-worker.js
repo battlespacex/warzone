@@ -433,28 +433,39 @@ function isLikelyCivilianAirliner(a = {}, role = "") {
 
 // ─── ADS-B One Fetch ────────────────────────────────────────────────────────
 
-const ADSB_ONE_MIL_URL = "https://api.adsb.one/v2/mil";
+const AIRCRAFT_FEED_URLS = [
+    process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil",
+    "https://api.adsb.one/v2/mil",
+];
 
 async function fetchAdsbOneMilitary() {
-    const res = await fetch(ADSB_ONE_MIL_URL, {
-        headers: {
-            "Accept": "application/json",
-            "User-Agent": "stratops-warzone/1.0",
-        },
-        timeout: 25000,
-    });
+    const errors = [];
+    for (const url of AIRCRAFT_FEED_URLS) {
+        try {
+            const res = await fetch(url, {
+                headers: {
+                    "Accept": "application/json",
+                    "User-Agent": "stratops-warzone/1.0",
+                },
+                timeout: 25000,
+            });
 
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(`ADS-B One HTTP ${res.status}: ${body.slice(0, 200)}`);
+            if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                throw new Error(`${url} HTTP ${res.status}: ${body.slice(0, 200)}`);
+            }
+
+            const data = await res.json();
+            if (data.msg && data.msg !== "No error") {
+                throw new Error(`${url} error: ${data.msg}`);
+            }
+
+            return Array.isArray(data.ac) ? data.ac : [];
+        } catch (err) {
+            errors.push(err.message);
+        }
     }
-
-    const data = await res.json();
-    if (data.msg && data.msg !== "No error") {
-        throw new Error(`ADS-B One error: ${data.msg}`);
-    }
-
-    return Array.isArray(data.ac) ? data.ac : [];
+    throw new Error(errors.join(" | "));
 }
 
 // ─── Parse ADS-B One Aircraft Record ──────────────────────────────────────
