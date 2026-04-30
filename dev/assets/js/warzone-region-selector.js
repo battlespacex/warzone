@@ -580,6 +580,16 @@ function setRegionButtonHintActive(active) {
         control.classList.toggle("is-region-outside", !!active);
     });
 }
+function setRegionPromptVisibleOnControls(active) {
+    const controls = [
+        document.getElementById("wz-region-control"),
+        document.getElementById("wz-region-control-mobile"),
+    ].filter(Boolean);
+    controls.forEach((control) => {
+        control.classList.toggle("is-region-prompt-visible", !!active);
+        control.closest(".warzone-region-bar")?.classList.toggle("is-region-prompt-visible", !!active);
+    });
+}
 function isAnyBlockingRegionModalVisible() {
     return Boolean(document.querySelector(".wz-modal.is-visible:not([hidden])"));
 }
@@ -621,6 +631,7 @@ function setRegionOutsidePromptActive(active, viewer) {
     const shouldShow = Boolean(active) && !isAnyBlockingRegionModalVisible();
     prompt.hidden = !shouldShow;
     prompt.classList.toggle("is-visible", shouldShow);
+    setRegionPromptVisibleOnControls(shouldShow);
 }
 function setRegionHintState(active, viewer) {
     setRegionButtonHintActive(active);

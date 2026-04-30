@@ -3377,10 +3377,12 @@ function updateAircraftWidgetCard(card, track, selection) {
     const affiliationLabel = getAircraftAffiliationLabel(track);
     const title = getAircraftDisplayTitle(track);
     const isSelected = selection.track_key === track.track_key;
+    const isAircraftFocusLocked = Boolean(selection.track_key && selection.mode === "focus");
+    const isFocusDisabled = isAircraftFocusLocked && !isSelected;
     const statusLabel = getAircraftWidgetStatusLabel(track);
     const timeLabel = getAircraftWidgetTimeLabel(track);
     const actionLabel = getAircraftWidgetActionLabel(track, selection);
-    card.className = `wz-aircraft-item ${track.active ? "is-active" : "is-ended"} ${isSelected ? "is-selected" : ""}`;
+    card.className = `wz-aircraft-item ${track.active ? "is-active" : "is-ended"} ${isSelected ? "is-selected" : ""} ${isFocusDisabled ? "is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(track.track_key || "");
     let top = card.querySelector(".wz-aircraft-item__top");
     let titleEl = card.querySelector(".wz-aircraft-item__title");
@@ -3445,6 +3447,9 @@ function updateAircraftWidgetCard(card, track, selection) {
         ? (isSelected ? "unlock" : "focus")
         : (isSelected ? "hide" : "replay");
     actionBtn.dataset.trackToggle = String(track.track_key || "");
+    actionBtn.disabled = isFocusDisabled;
+    actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");
+    actionBtn.classList.toggle("is-focus-disabled", isFocusDisabled);
     actionBtn.innerHTML = `<span aria-hidden="true"></span>${actionLabel}`;
 }
 
@@ -3550,6 +3555,7 @@ function bindAircraftMovementsWidget() {
         }
         const actionBtn = event.target.closest("[data-track-action]");
         if (actionBtn) {
+            if (actionBtn.disabled || actionBtn.getAttribute("aria-disabled") === "true") return;
             const trackKey = String(actionBtn.dataset.trackToggle || "").trim();
             if (!trackKey) return;
             const action = String(actionBtn.dataset.trackAction || "").trim().toLowerCase();
@@ -3628,6 +3634,10 @@ function bindAircraftMovementsWidget() {
     });
     document.addEventListener("wz:aircraft-focus-lock-changed", () => {
         requestAircraftMovementsWidgetRender(0);
+        requestNavalWidgetRender(0);
+    });
+    document.addEventListener("wz:aircraft-track-selected", () => {
+        requestNavalWidgetRender(0);
     });
 }
 function ensureAlertAudio() {

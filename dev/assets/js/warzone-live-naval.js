@@ -7,6 +7,7 @@
 //  - Click → short-lived X-lines targeting reticle
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
+import { getLiveTrackSelection } from "./warzone-live-airforce.js";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const __navalState = {
@@ -42,6 +43,7 @@ const NAVAL_MODEL_DEFAULT_MAX_ACTIVE = 14;
 const NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT = 280000;
 const NAVAL_CHAR_FALLBACK_DEFAULT_COUNT = 80;
 const NAVAL_CONTACT_STALE_MS = 45 * 60 * 1000;
+let __navalGlbMaterialShader = null;
 const NAVAL_CONTACT_MAX_ITEMS = 320;
 const NAVAL_ICON_CACHE_MAX_ITEMS = 128;
 const NAVAL_MODEL_DEFAULT_URI = "/assets/images/models/naval/ns-2.glb";
@@ -1081,6 +1083,73 @@ function getCssText(varName, fallback = "") {
     const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return value || fallback;
 }
+function isAircraftFocusLockActive() {
+    const selection = getLiveTrackSelection?.();
+    return Boolean(selection?.track_key && selection?.mode === "focus");
+}
+function getLiveGlbModelQualityConfig() {
+    const environment = clamp(
+        getCssNumber("--warzone-live-glb-environment-intensity", getCssNumber("--warzone-live-naval-model-ibl-x", 0.95)),
+        0,
+        1
+    );
+    const ambient = clamp(
+        getCssNumber("--warzone-live-glb-ambient-light-intensity", getCssNumber("--warzone-live-naval-model-ibl-y", 0.85)),
+        0,
+        1
+    );
+    const directional = clamp(getCssNumber("--warzone-live-glb-directional-light-intensity", 1), 0, 4);
+    const shadowEnabled = getCssNumber("--warzone-live-glb-shadow-enabled", 0) >= 0.5;
+    return {
+        imageBasedLightingFactor: new Cesium.Cartesian2(environment, ambient),
+        lightColor: new Cesium.Color(directional, directional, directional, 1),
+        maximumScreenSpaceError: clamp(getCssNumber("--warzone-live-glb-lod-distance", 2), 0, 64),
+        shadows: shadowEnabled ? Cesium.ShadowMode.ENABLED : Cesium.ShadowMode.DISABLED,
+    };
+}
+function getLiveGlbMaterialShader() {
+    if (typeof Cesium.CustomShader !== "function" || !Cesium.UniformType?.FLOAT) return undefined;
+    const roughness = clamp(getCssNumber("--warzone-live-glb-material-roughness", 0.5), 0, 1);
+    const metalness = clamp(getCssNumber("--warzone-live-glb-material-metalness", 0.2), 0, 1);
+    const anisotropy = clamp(getCssNumber("--warzone-live-glb-texture-anisotropy", 8), 1, 16);
+    try {
+        if (!__navalGlbMaterialShader) {
+            __navalGlbMaterialShader = new Cesium.CustomShader({
+                lightingModel: Cesium.LightingModel?.PBR,
+                uniforms: {
+                    u_wzRoughness: { type: Cesium.UniformType.FLOAT, value: roughness },
+                    u_wzMetalness: { type: Cesium.UniformType.FLOAT, value: metalness },
+                    u_wzAnisotropy: { type: Cesium.UniformType.FLOAT, value: anisotropy },
+                },
+                fragmentShaderText: `
+                    void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
+                        material.roughness = clamp(u_wzRoughness, 0.0, 1.0);
+                        material.specular = mix(material.specular, material.baseColor.rgb, clamp(u_wzMetalness, 0.0, 1.0));
+                        #ifdef USE_ANISOTROPY
+                        material.anisotropyStrength = clamp(u_wzAnisotropy / 16.0, 0.0, 1.0);
+                        #endif
+                    }
+                `,
+            });
+        } else {
+            __navalGlbMaterialShader.setUniform("u_wzRoughness", roughness);
+            __navalGlbMaterialShader.setUniform("u_wzMetalness", metalness);
+            __navalGlbMaterialShader.setUniform("u_wzAnisotropy", anisotropy);
+        }
+        return __navalGlbMaterialShader;
+    } catch {
+        return undefined;
+    }
+}
+function applyLiveGlbModelQuality(model) {
+    if (!model) return;
+    const quality = getLiveGlbModelQualityConfig();
+    model.imageBasedLightingFactor = quality.imageBasedLightingFactor;
+    model.lightColor = quality.lightColor;
+    model.maximumScreenSpaceError = quality.maximumScreenSpaceError;
+    model.shadows = quality.shadows;
+    model.customShader = getLiveGlbMaterialShader();
+}
 function getViewerCameraHeightMeters() {
     const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height ?? Number.NaN);
     return Number.isFinite(height) ? height : Number.NaN;
@@ -1154,9 +1223,20 @@ function getNavalVisualPolicy() {
     const config = window.__stratopsConfig?.navalVisualPolicy;
     return config && typeof config === "object" ? config : {};
 }
+function normalizeNavalRenderMode(value = "") {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "glb" || normalized === "gltf" || normalized === "model") return NAVAL_RENDER_MODE.MODEL;
+    if (normalized === "char" || normalized === "glyph") return NAVAL_RENDER_MODE.CHAR;
+    if (normalized === "png" || normalized === "img" || normalized === "image") return NAVAL_RENDER_MODE.PNG;
+    return "";
+}
 function resolveNavalRenderMode(vessel = {}) {
-    // GLB model rendering is disabled so focused/clicked naval assets stay on PNG icons.
-    return NAVAL_RENDER_MODE.PNG;
+    const focusedMode = normalizeNavalRenderMode(getCssText("--warzone-live-naval-render-mode-focused", "glb"));
+    const defaultMode = normalizeNavalRenderMode(getCssText("--warzone-live-naval-render-mode-default", "png")) || NAVAL_RENDER_MODE.PNG;
+    if (__navalState.selectedKey && String(__navalState.selectedKey) === String(vessel.track_key || "")) {
+        return focusedMode || defaultMode;
+    }
+    return defaultMode;
 }
 function resolveNavalBillboardImage(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
     const color = getVesselColor(vessel.subcategory || "naval");
@@ -1198,6 +1278,7 @@ function buildNavalBillboardVisual(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
 }
 function applyNavalModelVisual(entity, vessel = {}) {
     const modelUri = resolveNavalModelUri(vessel);
+    const modelQuality = getLiveGlbModelQualityConfig();
     if (!entity.model) {
         entity.model = {
             uri: modelUri,
@@ -1207,6 +1288,12 @@ function applyNavalModelVisual(entity, vessel = {}) {
             color: undefined,
             colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
             colorBlendAmount: 0,
+            imageBasedLightingFactor: modelQuality.imageBasedLightingFactor,
+            lightColor: modelQuality.lightColor,
+            maximumScreenSpaceError: modelQuality.maximumScreenSpaceError,
+            shadows: modelQuality.shadows,
+            runAnimations: true,
+            clampAnimations: true,
         };
     } else {
         entity.model.uri = modelUri;
@@ -1214,6 +1301,9 @@ function applyNavalModelVisual(entity, vessel = {}) {
         entity.model.minimumPixelSize = getNavalModelMinPixelSize(vessel);
         entity.model.maximumScale = getNavalModelMaxScale(vessel);
     }
+    applyLiveGlbModelQuality(entity.model);
+    entity.model.runAnimations = true;
+    entity.model.clampAnimations = true;
     entity.billboard = undefined;
     entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
 }
@@ -1530,6 +1620,7 @@ function emitNavalFocusChanged() {
 }
 
 function clearNavalSelection() {
+    const previousKey = __navalState.selectedKey;
     __navalState.selectedKey = null;
     if (__navalState.overlayRoot && __navalState.overlayLastVisible) {
         __navalState.overlayRoot.style.display = "none";
@@ -1538,14 +1629,20 @@ function clearNavalSelection() {
     __navalState.overlayLastX = Number.NaN;
     __navalState.overlayLastY = Number.NaN;
     syncNavalWidgetHighlight(null);
+    const previousEntry = previousKey ? __navalState.vessels.get(previousKey) : null;
+    if (previousEntry?.entity && previousEntry?.data) {
+        applyNavalVisual(previousEntry.entity, previousEntry.data);
+    }
     emitNavalFocusChanged();
 }
 function focusNavalVessel(trackKey, options = {}) {
+    if (isAircraftFocusLockActive()) return false;
     const viewer = window.__warzoneViewer;
     const entry = __navalState.vessels.get(trackKey);
     if (!viewer || !entry?.entity || !trackKey) return false;
 
     __navalState.selectedKey = trackKey;
+    applyNavalVisual(entry.entity, entry.data);
     __navalState.isCameraFlying = true;
     viewer.camera.cancelFlight?.();
     viewer.flyTo(entry.entity, {
@@ -1553,7 +1650,10 @@ function focusNavalVessel(trackKey, options = {}) {
         offset: new Cesium.HeadingPitchRange(
             0,
             Cesium.Math.toRadians(NAVAL_FOCUS_CAMERA_PITCH_DEG),
-            Math.max(NAVAL_FOCUS_CAMERA_RANGE_METERS, Number(options.cameraHeight || 0))
+            Math.max(
+                getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
+                Number(options.cameraHeight || 0)
+            )
         ),
     }).then(() => {
         __navalState.isCameraFlying = false;
@@ -1967,6 +2067,14 @@ export function getAllNavalSnapshots() {
             return nameA.localeCompare(nameB);
         });
 }
+export function refreshNavalVisualStyles() {
+    __navalState.vessels.forEach((entry) => {
+        if (entry?.entity?.model) {
+            applyLiveGlbModelQuality(entry.entity.model);
+        }
+    });
+    requestNavalRenderBatched();
+}
 
 // ─── Registry update event ────────────────────────────────────────────────────
 function dispatchNavalRegistryUpdate() {
@@ -1992,6 +2100,7 @@ export function renderNavalTrackerWidget(options = {}) {
     }
 
     const selectedKey = String(__navalState.selectedKey || "");
+    const aircraftFocusLocked = isAircraftFocusLockActive();
     const cards = safeVessels.slice(0, 24).map((vessel) => {
         const color = getVesselColor(vessel.subcategory);
         const name = getNavalDisplayName(vessel);
@@ -2003,7 +2112,11 @@ export function renderNavalTrackerWidget(options = {}) {
         const coordLabel = getNavalCoordinatesLabel(vessel);
         const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
         const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
-        return `<article class="wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}" data-track-key="${escapeNavalHtml(vessel.track_key)}" style="cursor:pointer" onclick="window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
+        const disabledAttr = aircraftFocusLocked ? ` disabled aria-disabled="true"` : "";
+        const disabledClass = aircraftFocusLocked ? " is-focus-disabled" : "";
+        const rowClick = aircraftFocusLocked ? "" : ` onclick="window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')"`;
+        const rowCursor = aircraftFocusLocked ? "default" : "pointer";
+        return `<article class="wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${disabledClass}" data-track-key="${escapeNavalHtml(vessel.track_key)}" style="cursor:${rowCursor}"${rowClick}>
             <div class="wz-aircraft-item__top">
                 <strong class="wz-aircraft-item__title">
                     <span class="wz-aircraft-title__status is-active" aria-hidden="true">
@@ -2024,7 +2137,7 @@ export function renderNavalTrackerWidget(options = {}) {
             </div>
             <div class="wz-aircraft-item__foot">
                 <span class="wz-aircraft-badge" style="background:${escapeNavalHtml(color)}22;color:${escapeNavalHtml(color)};border-color:${escapeNavalHtml(color)}44">${escapeNavalHtml(typeBadge)}</span>
-                <button type="button" class="wz-aircraft-action btn-primary" onclick="event.stopPropagation(); window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
+                <button type="button" class="wz-aircraft-action btn-primary${disabledClass}"${disabledAttr} onclick="event.stopPropagation(); window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
                     <span aria-hidden="true"></span>
                     Focus
                 </button>

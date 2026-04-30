@@ -63,7 +63,7 @@
     align-items: center;
     gap: .5rem;
     opacity: 0;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, transform 0.35s ease;
     will-change: opacity;
     z-index: 9000
 }
@@ -72,6 +72,13 @@ body.is-app-active .warzone-region-bar,
 body.is-app-active .warzone-actions {
     opacity: 1;
     transition-delay: 0.95s;
+}
+
+body.is-app-active .warzone-region-bar.is-region-prompt-visible {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.6rem);
+    transition-delay: 0s;
 }
 
 .warzone-region-bar {

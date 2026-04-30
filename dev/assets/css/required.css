@@ -458,6 +458,14 @@ UNUSED CANDIDATE END */
     display: inline-flex;
     align-items: center;
     gap: 0.8rem;
+    transition: opacity .35s ease, transform .35s ease;
+}
+
+.warzone-region-bar.is-region-prompt-visible,
+.wz-region-control.is-region-prompt-visible {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.6rem);
 }
 
 .wz-region-select-btn {

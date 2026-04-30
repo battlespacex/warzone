@@ -7,9 +7,10 @@ import {
 import {
     startDevTrackSimulation,
     stopDevTrackSimulation,
-    setAircraftModelHeadingOffset
+    setAircraftModelHeadingOffset,
+    refreshLiveTrackVisualStyles
 } from "./warzone-live-airforce.js";
-import { setNavalModelHeadingOffset } from "./warzone-live-naval.js";
+import { refreshNavalVisualStyles, setNavalModelHeadingOffset } from "./warzone-live-naval.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 /* ================= TEST EVENT TEMPLATES ================= */
 const TEST_EVENTS = {
@@ -947,6 +948,10 @@ function getRootCssNumber(varName, fallback = 0) {
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
+function getRootCssText(varName, fallback = "") {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return raw || fallback;
+}
 function refreshMapOnlyNow() {
     const viewer = window.__warzoneViewer;
     viewer?.__warzone?.refreshMapTuning?.();
@@ -1052,6 +1057,272 @@ function initMapTunerControls() {
 
     updateOutput();
     refreshMapOnlyNow();
+}
+
+const DEV_LIVE_ASSET_LABEL_FIELDS = [
+    { key: "label-max-chars", label: "Label max chars/line", cssVar: "--warzone-live-label-max-chars", min: 8, max: 80, step: 1, fallback: 24 },
+    { key: "label-align", label: "Label align", cssVar: "--warzone-live-label-align", fallback: "left", type: "select", options: ["left", "center", "right"] },
+    { key: "label-uppercase", label: "Uppercase label", cssVar: "--warzone-live-label-uppercase", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
+    { key: "focus-label-offset-x", label: "Focus label offset X", cssVar: "--warzone-live-focus-label-offset-x", min: -500, max: 500, step: 1, fallback: 0 },
+    { key: "focus-label-offset-y", label: "Focus label offset Y", cssVar: "--warzone-live-focus-label-offset-y", min: -500, max: 500, step: 1, fallback: 0 },
+    { key: "focus-label-offset-z", label: "Focus label offset Z", cssVar: "--warzone-live-focus-label-offset-z", min: -500, max: 500, step: 1, fallback: 0 },
+    { key: "focus-label-screen-x", label: "Screen offset X", cssVar: "--warzone-live-focus-label-screen-offset-x", min: -240, max: 240, step: 1, fallback: 0 },
+    { key: "focus-label-screen-y", label: "Screen offset Y", cssVar: "--warzone-live-focus-label-screen-offset-y", min: -240, max: 240, step: 1, fallback: 0 },
+];
+const DEV_LIVE_ASSET_GLB_FIELDS = [
+    {
+        key: "renderer-pixel-ratio",
+        label: "Renderer pixel ratio",
+        cssVar: "--warzone-focus-resolution-scale",
+        aliasVars: ["--warzone-resolution-scale", "--warzone-close-resolution-scale"],
+        min: 0.5,
+        max: 1.5,
+        step: 0.01,
+        fallback: 1.08
+    },
+    { key: "antialias", label: "Antialias", cssVar: "--warzone-fxaa-enabled", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
+    { key: "shadow-enabled", label: "Shadow enable", cssVar: "--warzone-live-glb-shadow-enabled", min: 0, max: 1, step: 1, fallback: 0, type: "toggle" },
+    { key: "shadow-quality", label: "Shadow quality", cssVar: "--warzone-live-glb-shadow-quality", min: 256, max: 4096, step: 256, fallback: 1024 },
+    { key: "ambient-light", label: "Ambient light intensity", cssVar: "--warzone-live-glb-ambient-light-intensity", min: 0, max: 1, step: 0.01, fallback: 0.85 },
+    { key: "directional-light", label: "Directional light intensity", cssVar: "--warzone-live-glb-directional-light-intensity", min: 0, max: 4, step: 0.01, fallback: 1 },
+    { key: "environment", label: "Environment intensity", cssVar: "--warzone-live-glb-environment-intensity", min: 0, max: 1, step: 0.01, fallback: 0.95 },
+    { key: "roughness", label: "Material roughness", cssVar: "--warzone-live-glb-material-roughness", min: 0, max: 1, step: 0.01, fallback: 0.5 },
+    { key: "metalness", label: "Material metalness", cssVar: "--warzone-live-glb-material-metalness", min: 0, max: 1, step: 0.01, fallback: 0.2 },
+    { key: "anisotropy", label: "Texture anisotropy", cssVar: "--warzone-live-glb-texture-anisotropy", min: 1, max: 16, step: 1, fallback: 8 },
+    { key: "exposure", label: "Tone mapping exposure", cssVar: "--warzone-live-glb-tone-mapping-exposure", min: 0.2, max: 2, step: 0.01, fallback: 1 },
+    { key: "lod-distance", label: "LOD distance", cssVar: "--warzone-live-glb-lod-distance", min: 0, max: 64, step: 1, fallback: 2 },
+    {
+        key: "smoothing",
+        label: "Animation smoothing",
+        cssVar: "--warzone-live-glb-animation-smoothing",
+        aliasVars: ["--warzone-live-aircraft-focus-anim-cadence-factor"],
+        min: 0.2,
+        max: 1.5,
+        step: 0.01,
+        fallback: 1.04
+    },
+];
+const DEV_LIVE_ASSET_FIELDS = [
+    ...DEV_LIVE_ASSET_LABEL_FIELDS,
+    ...DEV_LIVE_ASSET_GLB_FIELDS,
+];
+let __devLiveAssetRefreshRaf = 0;
+
+function buildDevLiveAssetTunerMarkup() {
+    const buildRow = (def) => {
+        if (def.type === "select") {
+            const options = (def.options || []).map((option) => `<option value="${option}">${option}</option>`).join("");
+            return `<label class="wz-dev-map-row" data-live-asset-row="${def.key}">
+                        <span>${def.label}</span>
+                        <select id="wz-live-asset-${def.key}-range" class="wz-dev-select">${options}</select>
+                        <select id="wz-live-asset-${def.key}-input" class="wz-dev-select">${options}</select>
+                    </label>`;
+        }
+        const inputType = def.type === "toggle" ? "checkbox" : "number";
+        const rangeType = def.type === "toggle" ? "checkbox" : "range";
+        const rangeAttrs = def.type === "toggle"
+            ? ""
+            : ` min="${def.min}" max="${def.max}" step="${def.step}"`;
+        const inputAttrs = def.type === "toggle"
+            ? ""
+            : ` min="${def.min}" max="${def.max}" step="${def.step}"`;
+        return `<label class="wz-dev-map-row" data-live-asset-row="${def.key}">
+                    <span>${def.label}</span>
+                    <input id="wz-live-asset-${def.key}-range" type="${rangeType}"${rangeAttrs}>
+                    <input id="wz-live-asset-${def.key}-input" class="wz-dev-input wz-dev-map-value" type="${inputType}"${inputAttrs}>
+                </label>`;
+    };
+    return `<div class="wz-dev-label">LIVE ASSET TUNER</div>
+            <div class="wz-dev-map-tuner" id="wz-dev-live-asset-tuner">
+                <div class="wz-dev-label">Focused aircraft label</div>
+                ${DEV_LIVE_ASSET_LABEL_FIELDS.map(buildRow).join("")}
+                <div class="wz-dev-label">GLB quality</div>
+                ${DEV_LIVE_ASSET_GLB_FIELDS.map(buildRow).join("")}
+                <div class="wz-dev-map-actions">
+                    <button id="wz-live-asset-refresh" type="button" class="wz-dev-action">Refresh Models</button>
+                    <button id="wz-live-asset-load-current" type="button" class="wz-dev-action">Load Current</button>
+                    <button id="wz-live-asset-copy-css" type="button" class="wz-dev-action wz-dev-action--fire">Copy :root Block</button>
+                </div>
+                <label class="wz-dev-field wz-dev-field--full">
+                    <span>Copy to <code>root.css</code></span>
+                    <textarea id="wz-live-asset-css-output" class="wz-dev-input wz-dev-map-output" rows="10" readonly></textarea>
+                </label>
+            </div>`;
+}
+function ensureDevLiveAssetTunerRoot() {
+    let tunerRoot = document.getElementById("wz-dev-live-asset-tuner");
+    if (tunerRoot) return tunerRoot;
+    const mapTuner = document.getElementById("wz-dev-map-tuner");
+    if (!mapTuner) return null;
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = buildDevLiveAssetTunerMarkup();
+    mapTuner.insertAdjacentElement("afterend", wrapper);
+    tunerRoot = document.getElementById("wz-dev-live-asset-tuner");
+    return tunerRoot;
+}
+function formatDevLiveAssetValue(value, def) {
+    if (def.type === "select") {
+        const normalized = String(value || def.fallback || "").trim().toLowerCase();
+        return (def.options || []).includes(normalized) ? normalized : String(def.fallback || "");
+    }
+    if (def.type === "toggle") return Number(value) >= 0.5 ? "1" : "0";
+    return formatDevMapValue(value, def);
+}
+function getDevLiveAssetFieldValue(def) {
+    if (def.type === "select") return getRootCssText(def.cssVar, def.fallback);
+    return getRootCssNumber(def.cssVar, def.fallback);
+}
+function buildLiveAssetRootCssBlock(values = {}) {
+    const lines = [":root {"];
+    DEV_LIVE_ASSET_FIELDS.forEach((def) => {
+        const value = values[def.key] ?? getDevLiveAssetFieldValue(def);
+        const formatted = formatDevLiveAssetValue(value, def);
+        lines.push(`    ${def.cssVar}: ${formatted};`);
+        (def.aliasVars || []).forEach((aliasVar) => {
+            lines.push(`    ${aliasVar}: ${formatted};`);
+        });
+    });
+    lines.push("}");
+    return lines.join("\n");
+}
+function applyLiveAssetRendererQuality() {
+    const viewer = window.__warzoneViewer;
+    const scene = viewer?.scene;
+    if (!viewer || !scene) return;
+    const pixelRatio = clampDevMapValue(
+        getRootCssNumber("--warzone-focus-resolution-scale", getRootCssNumber("--warzone-resolution-scale", 1)),
+        { min: 0.5, max: 1.5, fallback: 1.08 }
+    );
+    viewer.resolutionScale = pixelRatio;
+    if (scene.postProcessStages?.fxaa) {
+        scene.postProcessStages.fxaa.enabled = getRootCssNumber("--warzone-fxaa-enabled", 1) >= 0.5;
+    }
+    if (scene.shadowMap) {
+        const shadowEnabled = getRootCssNumber("--warzone-live-glb-shadow-enabled", 0) >= 0.5;
+        scene.shadowMap.enabled = shadowEnabled;
+        const shadowSize = Math.round(clampDevMapValue(
+            getRootCssNumber("--warzone-live-glb-shadow-quality", 1024),
+            { min: 256, max: 4096, fallback: 1024 }
+        ));
+        if ("size" in scene.shadowMap) scene.shadowMap.size = shadowSize;
+    }
+    const exposure = clampDevMapValue(
+        getRootCssNumber("--warzone-live-glb-tone-mapping-exposure", 1),
+        { min: 0.2, max: 2, fallback: 1 }
+    );
+    if ("exposure" in scene) scene.exposure = exposure;
+}
+function refreshLiveAssetVisualsNow() {
+    applyLiveAssetRendererQuality();
+    refreshLiveTrackVisualStyles?.();
+    refreshNavalVisualStyles?.();
+    window.__warzoneViewer?.scene?.requestRender?.();
+}
+function requestLiveAssetVisualRefresh() {
+    if (__devLiveAssetRefreshRaf) return;
+    __devLiveAssetRefreshRaf = requestAnimationFrame(() => {
+        __devLiveAssetRefreshRaf = 0;
+        refreshLiveAssetVisualsNow();
+    });
+}
+function initLiveAssetTunerControls() {
+    const root = document.documentElement;
+    const tunerRoot = ensureDevLiveAssetTunerRoot();
+    if (!tunerRoot || tunerRoot.dataset.bound === "1") return;
+    tunerRoot.dataset.bound = "1";
+
+    const output = document.getElementById("wz-live-asset-css-output");
+    const refreshBtn = document.getElementById("wz-live-asset-refresh");
+    const loadCurrentBtn = document.getElementById("wz-live-asset-load-current");
+    const copyBtn = document.getElementById("wz-live-asset-copy-css");
+    const controls = new Map();
+
+    const updateOutput = () => {
+        if (!output) return;
+        const values = {};
+        DEV_LIVE_ASSET_FIELDS.forEach((def) => {
+            const entry = controls.get(def.key);
+            if (!entry) return;
+            values[def.key] = def.type === "select"
+                ? entry.input.value
+                : def.type === "toggle"
+                ? (entry.input.checked ? 1 : 0)
+                : Number(entry.input.value);
+        });
+        output.value = buildLiveAssetRootCssBlock(values);
+    };
+    const applyControlValue = (def, nextValue, source = "") => {
+        const entry = controls.get(def.key);
+        if (!entry) return;
+        if (def.type === "select") {
+            const formattedSelect = formatDevLiveAssetValue(nextValue, def);
+            if (source !== "range") entry.range.value = formattedSelect;
+            if (source !== "input") entry.input.value = formattedSelect;
+            root.style.setProperty(def.cssVar, formattedSelect);
+            updateOutput();
+            requestLiveAssetVisualRefresh();
+            return;
+        }
+        const numericValue = def.type === "toggle"
+            ? (nextValue === true || nextValue === "1" || Number(nextValue) >= 0.5 ? 1 : 0)
+            : clampDevMapValue(nextValue, def);
+        const formatted = formatDevLiveAssetValue(numericValue, def);
+        if (def.type === "toggle") {
+            if (source !== "range") entry.range.checked = numericValue >= 0.5;
+            if (source !== "input") entry.input.checked = numericValue >= 0.5;
+        } else {
+            if (source !== "range") entry.range.value = formatted;
+            if (source !== "input") entry.input.value = formatted;
+        }
+        root.style.setProperty(def.cssVar, formatted);
+        (def.aliasVars || []).forEach((aliasVar) => {
+            root.style.setProperty(aliasVar, formatted);
+        });
+        updateOutput();
+        requestLiveAssetVisualRefresh();
+    };
+    const loadCurrentValues = () => {
+        DEV_LIVE_ASSET_FIELDS.forEach((def) => {
+            applyControlValue(def, getDevLiveAssetFieldValue(def));
+        });
+    };
+
+    DEV_LIVE_ASSET_FIELDS.forEach((def) => {
+        const range = document.getElementById(`wz-live-asset-${def.key}-range`);
+        const input = document.getElementById(`wz-live-asset-${def.key}-input`);
+        if (!range || !input) return;
+        controls.set(def.key, { range, input });
+        applyControlValue(def, getDevLiveAssetFieldValue(def));
+        if (def.type === "toggle") {
+            range.addEventListener("change", () => applyControlValue(def, range.checked ? 1 : 0, "range"));
+            input.addEventListener("change", () => applyControlValue(def, input.checked ? 1 : 0, "input"));
+        } else if (def.type === "select") {
+            range.addEventListener("change", () => applyControlValue(def, range.value, "range"));
+            input.addEventListener("change", () => applyControlValue(def, input.value, "input"));
+        } else {
+            range.addEventListener("input", () => applyControlValue(def, range.value, "range"));
+            input.addEventListener("input", () => applyControlValue(def, input.value, "input"));
+            input.addEventListener("change", () => applyControlValue(def, input.value, "input"));
+        }
+    });
+
+    refreshBtn?.addEventListener("click", () => {
+        refreshLiveAssetVisualsNow();
+        devLog("Live asset visuals refreshed");
+    });
+    loadCurrentBtn?.addEventListener("click", () => {
+        loadCurrentValues();
+        devLog("Loaded current live asset CSS values");
+    });
+    copyBtn?.addEventListener("click", async () => {
+        const text = output?.value || buildLiveAssetRootCssBlock();
+        const ok = await copyTextToClipboard(text);
+        showCopyButtonFeedback(copyBtn, ok);
+        devLog(ok ? "Copied live asset :root block" : "Copy blocked; select and copy manually");
+    });
+
+    updateOutput();
+    refreshLiveAssetVisualsNow();
 }
 
 function openDevSharedModal(modal) {
@@ -1291,6 +1562,7 @@ export function initDevPanel() {
     });
     initDevSimulatorControls();
     initMapTunerControls();
+    initLiveAssetTunerControls();
     devLog("Dev panel ready");
 }
 
