@@ -8,9 +8,13 @@ import {
     startDevTrackSimulation,
     stopDevTrackSimulation,
     setAircraftModelHeadingOffset,
+    upsertLiveTrack,
+    clearLiveTrack,
+    focusLiveTrack,
+    refreshLiveTrackFocusCamera,
     refreshLiveTrackVisualStyles
 } from "./warzone-live-airforce.js";
-import { refreshNavalVisualStyles, setNavalModelHeadingOffset } from "./warzone-live-naval.js";
+import { clearNavalVessel, refreshNavalVisualStyles, setNavalModelHeadingOffset, upsertNavalVessel } from "./warzone-live-naval.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
 /* ================= TEST EVENT TEMPLATES ================= */
 const TEST_EVENTS = {
@@ -1069,6 +1073,34 @@ const DEV_LIVE_ASSET_LABEL_FIELDS = [
     { key: "focus-label-screen-x", label: "Screen offset X", cssVar: "--warzone-live-focus-label-screen-offset-x", min: -240, max: 240, step: 1, fallback: 0 },
     { key: "focus-label-screen-y", label: "Screen offset Y", cssVar: "--warzone-live-focus-label-screen-offset-y", min: -240, max: 240, step: 1, fallback: 0 },
 ];
+const DEV_LIVE_ASSET_FOCUS_FIELDS = [
+    { key: "focus-model-scale", label: "Focus model scale", cssVar: "--warzone-live-aircraft-model-focused-scale", min: 0.05, max: 20, step: 0.05, fallback: 1.25 },
+    { key: "focus-min-pixel", label: "Focus min pixel size", cssVar: "--warzone-live-aircraft-model-focused-min-pixel-size", min: 0, max: 600, step: 1, fallback: 220 },
+    { key: "focus-camera-range", label: "Focus camera distance", cssVar: "--warzone-live-aircraft-focus-camera-range", min: 12000, max: 320000, step: 1000, fallback: 72000, focusCamera: "range" },
+    { key: "focus-camera-pitch", label: "Default focus tilt", cssVar: "--warzone-live-aircraft-focus-camera-pitch", min: -89, max: -20, step: 1, fallback: -58, focusCamera: "pitch" },
+    { key: "focus-zoom-range", label: "Focus zoom range", cssVar: "--warzone-live-aircraft-focus-zoom-range", min: 0, max: 300000, step: 1000, fallback: 60000, focusCamera: "bounds" },
+    { key: "focus-wheel-step", label: "Wheel zoom step", cssVar: "--warzone-live-aircraft-focus-wheel-zoom-step", min: 500, max: 50000, step: 500, fallback: 8000 },
+];
+const DEV_LIVE_AIRCRAFT_GLB_FIELDS = [
+    { key: "airborne-scale", label: "Airborne scale", cssVar: "--warzone-live-aircraft-model-airborne-scale", min: 0.05, max: 20, step: 0.05, fallback: 1 },
+    { key: "ground-scale", label: "Ground/parked scale", cssVar: "--warzone-live-aircraft-model-ground-scale", min: 0.05, max: 20, step: 0.05, fallback: 0.82 },
+    { key: "bank-factor", label: "Turn bank factor", cssVar: "--warzone-live-aircraft-model-bank-factor", min: -4, max: 4, step: 0.05, fallback: -1.2 },
+    { key: "bank-max", label: "Max bank degrees", cssVar: "--warzone-live-aircraft-model-bank-max-deg", min: 0, max: 75, step: 1, fallback: 18 },
+    { key: "preview-roll", label: "Preview tilt degrees", cssVar: "--warzone-live-aircraft-model-preview-roll", min: -75, max: 75, step: 1, fallback: 0 },
+];
+const DEV_LIVE_NAVAL_FOCUS_FIELDS = [
+    { key: "naval-focus-range", label: "Naval focus distance", cssVar: "--warzone-live-naval-focus-camera-range", min: 200, max: 200000, step: 100, fallback: 1800 },
+    { key: "naval-scale", label: "Naval model scale", cssVar: "--warzone-live-naval-model-scale", min: 1, max: 1000, step: 1, fallback: 150 },
+    { key: "naval-min-pixel", label: "Naval min pixel size", cssVar: "--warzone-live-naval-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 90 },
+    { key: "naval-max-scale", label: "Naval max scale", cssVar: "--warzone-live-naval-model-max-scale", min: 1, max: 4000, step: 1, fallback: 360 },
+];
+const DEV_LIVE_NAVAL_LABEL_FIELDS = [
+    { key: "naval-label-scale", label: "Naval label scale", cssVar: "--warzone-live-naval-label-scale", min: 0.1, max: 3, step: 0.05, fallback: 0.42 },
+    { key: "naval-label-offset-y", label: "Naval label offset Y", cssVar: "--warzone-live-naval-label-offset-y", min: -200, max: 200, step: 1, fallback: -26 },
+    { key: "naval-label-max-chars", label: "Naval max chars/line", cssVar: "--warzone-live-naval-label-max-chars", min: 8, max: 80, step: 1, fallback: 24 },
+    { key: "naval-label-align", label: "Naval label align", cssVar: "--warzone-live-naval-label-align", fallback: "center", type: "select", options: ["left", "center", "right"] },
+    { key: "naval-label-uppercase", label: "Uppercase naval label", cssVar: "--warzone-live-naval-label-uppercase", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
+];
 const DEV_LIVE_ASSET_GLB_FIELDS = [
     {
         key: "renderer-pixel-ratio",
@@ -1104,9 +1136,212 @@ const DEV_LIVE_ASSET_GLB_FIELDS = [
 ];
 const DEV_LIVE_ASSET_FIELDS = [
     ...DEV_LIVE_ASSET_LABEL_FIELDS,
+    ...DEV_LIVE_ASSET_FOCUS_FIELDS,
+    ...DEV_LIVE_AIRCRAFT_GLB_FIELDS,
+    ...DEV_LIVE_NAVAL_FOCUS_FIELDS,
+    ...DEV_LIVE_NAVAL_LABEL_FIELDS,
     ...DEV_LIVE_ASSET_GLB_FIELDS,
 ];
 let __devLiveAssetRefreshRaf = 0;
+const DEV_STATIC_TUNER_AIRCRAFT_KEY = "dev-live-tuner-aircraft";
+const DEV_STATIC_TUNER_NAVAL_KEY = "dev-live-tuner-naval";
+const DEV_STATIC_TUNER_CENTER = Object.freeze({ lat: 25.118, lon: 55.132 });
+let __devStaticTunerEnabled = false;
+let __devStaticTunerSelected = "aircraft";
+let __devStaticTunerHandler = null;
+let __devStaticTunerMarkerIds = [];
+
+function getDevStaticTunerAircraftTrack() {
+    return {
+        track_key: DEV_STATIC_TUNER_AIRCRAFT_KEY,
+        title: "USAF F-35 Lightning",
+        name: "USAF F-35 Lightning",
+        callsign: "USAF35",
+        country: "United States",
+        operator: "USAF",
+        subcategory: "fighter",
+        model_code: "ff-1",
+        asset_suffix: "ff-1",
+        lat: DEV_STATIC_TUNER_CENTER.lat + 0.018,
+        lon: DEV_STATIC_TUNER_CENTER.lon - 0.018,
+        altitude_ft: 12000,
+        speed_kts: 0,
+        heading_deg: 62,
+        active: true,
+        timestamp: Date.now(),
+        metadata: {
+            model_name: "F-35 Lightning",
+            model_code: "ff-1",
+            asset_suffix: "ff-1",
+            type_code: "F35",
+            country: "United States",
+            operator: "USAF",
+        },
+    };
+}
+function getDevStaticTunerNavalEvent() {
+    return {
+        id: DEV_STATIC_TUNER_NAVAL_KEY,
+        source_key: DEV_STATIC_TUNER_NAVAL_KEY,
+        dedupe_key: DEV_STATIC_TUNER_NAVAL_KEY,
+        source_name: "AIS DEV TUNER",
+        category: "military",
+        subcategory: "carrier",
+        title: "USS CVN-78 Gerald Ford Carrier",
+        lat: DEV_STATIC_TUNER_CENTER.lat - 0.018,
+        lon: DEV_STATIC_TUNER_CENTER.lon + 0.018,
+        heading_deg: 310,
+        speed_kts: 0,
+        metadata: {
+            vessel_name: "USS CVN-78 Gerald Ford Carrier",
+            vessel_class: "Gerald R. Ford",
+            model_code: "ac-us-1",
+            mmsi: "DEV-CVN78",
+            country: "United States",
+            operator: "US Navy",
+            ship_type: "carrier",
+        },
+    };
+}
+function addDevStaticTunerMarker(viewer, id, lat, lon, alt = 0) {
+    const marker = viewer.entities.add({
+        id,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+        point: {
+            pixelSize: 12,
+            color: Cesium.Color.RED.withAlpha(0.95),
+            outlineColor: Cesium.Color.WHITE.withAlpha(0.85),
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+            text: "X",
+            font: "700 28px sans-serif",
+            fillColor: Cesium.Color.RED.withAlpha(0.95),
+            outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, 42),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+    });
+    marker.__wzDevStaticTunerMarker = true;
+    __devStaticTunerMarkerIds.push(id);
+    return marker;
+}
+function hasDevStaticTunerAssets(viewer = window.__warzoneViewer) {
+    if (!viewer) return false;
+    return Boolean(
+        viewer.entities.getById(`track-${DEV_STATIC_TUNER_AIRCRAFT_KEY}`) ||
+        viewer.entities.getById(`naval-${DEV_STATIC_TUNER_NAVAL_KEY}`) ||
+        viewer.entities.getById("wz-live-tuner-aircraft-x") ||
+        viewer.entities.getById("wz-live-tuner-naval-x")
+    );
+}
+function clearDevStaticTunerMarkers(viewer = window.__warzoneViewer) {
+    if (!viewer) return;
+    __devStaticTunerMarkerIds.forEach((id) => {
+        const entity = viewer.entities.getById(id);
+        if (entity) viewer.entities.remove(entity);
+    });
+    __devStaticTunerMarkerIds = [];
+}
+function focusDevStaticTunerCamera(target = __devStaticTunerSelected) {
+    const viewer = window.__warzoneViewer;
+    if (!viewer?.camera) return;
+    if (!hasDevStaticTunerAssets(viewer)) {
+        spawnDevStaticTunerAssets({ focus: false });
+    }
+    const aircraft = getDevStaticTunerAircraftTrack();
+    const naval = getDevStaticTunerNavalEvent();
+    const selected = target === "naval"
+        ? { lat: naval.lat, lon: naval.lon, height: 42000 }
+        : { lat: aircraft.lat, lon: aircraft.lon, height: 62000 };
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(selected.lon, selected.lat, selected.height),
+        orientation: {
+            heading: Cesium.Math.toRadians(18),
+            pitch: Cesium.Math.toRadians(getRootCssNumber("--warzone-live-aircraft-focus-camera-pitch", -58)),
+            roll: 0,
+        },
+        duration: 0.8,
+    });
+}
+function setDevStaticTunerSelection(next = "aircraft") {
+    __devStaticTunerSelected = next === "naval" ? "naval" : "aircraft";
+    document.querySelectorAll("[data-live-tuner-active]").forEach((el) => {
+        el.classList.toggle("is-active", el.dataset.liveTunerActive === __devStaticTunerSelected);
+    });
+    const select = document.getElementById("wz-live-tuner-active-asset");
+    if (select) select.value = __devStaticTunerSelected;
+    syncDevStaticTunerSelectedControls();
+    refreshLiveAssetVisualsNow();
+}
+function syncDevStaticTunerSelectedControls(section = document.getElementById("wz-dev-section-select")?.value || "") {
+    document.querySelectorAll("[data-live-tuner-selected]").forEach((el) => {
+        if (!section) {
+            el.hidden = false;
+            return;
+        }
+        const scope = el.getAttribute("data-live-tuner-selected");
+        const sections = String(el.getAttribute("data-wz-dev-subsection") || "").split(/\s+/).filter(Boolean);
+        const sectionHidden = section && !sections.includes(section);
+        const selectionHidden = section === "live-asset-tuner" && scope !== __devStaticTunerSelected;
+        el.hidden = sectionHidden || selectionHidden;
+    });
+}
+function bindDevStaticTunerPicking(viewer) {
+    if (!viewer?.scene?.canvas || __devStaticTunerHandler) return;
+    __devStaticTunerHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    __devStaticTunerHandler.setInputAction((movement) => {
+        const picked = viewer.scene.pick(movement.position);
+        const id = picked?.id?.id || picked?.id || picked?.primitive?.id?.id || "";
+        const rawId = typeof id === "string" ? id : String(id?.id || "");
+        if (rawId === `track-${DEV_STATIC_TUNER_AIRCRAFT_KEY}`) {
+            setDevStaticTunerSelection("aircraft");
+            focusDevStaticTunerCamera("aircraft");
+        } else if (rawId === `naval-${DEV_STATIC_TUNER_NAVAL_KEY}`) {
+            setDevStaticTunerSelection("naval");
+            focusDevStaticTunerCamera("naval");
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+}
+function spawnDevStaticTunerAssets(options = {}) {
+    const viewer = window.__warzoneViewer;
+    if (!viewer) {
+        devLog("Live Asset Tuner waiting for Cesium viewer");
+        return false;
+    }
+    ["dev-track-circle-right", "dev-track-circle-left", "dev-track-turns", "dev-track-fighter-1"].forEach((key) => {
+        stopDevTrackSimulation(key);
+    });
+    clearDevStaticTunerMarkers(viewer);
+    const aircraft = getDevStaticTunerAircraftTrack();
+    const naval = getDevStaticTunerNavalEvent();
+    upsertLiveTrack(aircraft);
+    upsertNavalVessel(naval);
+    addDevStaticTunerMarker(viewer, "wz-live-tuner-aircraft-x", aircraft.lat, aircraft.lon, 4200);
+    addDevStaticTunerMarker(viewer, "wz-live-tuner-naval-x", naval.lat, naval.lon, 0);
+    bindDevStaticTunerPicking(viewer);
+    __devStaticTunerEnabled = true;
+    document.documentElement.style.setProperty("--warzone-live-asset-tuner-preview-enabled", "1");
+    setDevStaticTunerSelection(__devStaticTunerSelected);
+    viewer.scene?.requestRender?.();
+    if (options.focus !== false) {
+        focusDevStaticTunerCamera(__devStaticTunerSelected);
+    }
+    devLog("Live Asset Tuner spawned static aircraft/naval previews");
+    return true;
+}
+function clearDevStaticTunerAssets() {
+    const viewer = window.__warzoneViewer;
+    clearLiveTrack(DEV_STATIC_TUNER_AIRCRAFT_KEY);
+    clearNavalVessel(DEV_STATIC_TUNER_NAVAL_KEY);
+    clearDevStaticTunerMarkers(viewer);
+    __devStaticTunerEnabled = false;
+    document.documentElement.style.setProperty("--warzone-live-asset-tuner-preview-enabled", "0");
+    devLog("Live Asset Tuner previews cleared");
+}
 
 function buildDevLiveAssetTunerMarkup() {
     const buildRow = (def) => {
@@ -1134,10 +1369,44 @@ function buildDevLiveAssetTunerMarkup() {
     };
     return `<div class="wz-dev-label">LIVE ASSET TUNER</div>
             <div class="wz-dev-map-tuner" id="wz-dev-live-asset-tuner">
-                <div class="wz-dev-label">Focused aircraft label</div>
-                ${DEV_LIVE_ASSET_LABEL_FIELDS.map(buildRow).join("")}
-                <div class="wz-dev-label">GLB quality</div>
-                ${DEV_LIVE_ASSET_GLB_FIELDS.map(buildRow).join("")}
+                <div class="wz-dev-live-tuner-static" data-wz-dev-subsection="live-asset-tuner">
+                    <div class="wz-dev-map-actions">
+                        <button id="wz-live-tuner-spawn" type="button" class="wz-dev-action wz-dev-action--fire">Spawn Static Assets</button>
+                        <button id="wz-live-tuner-clear" type="button" class="wz-dev-action">Clear Static Assets</button>
+                        <button id="wz-live-tuner-focus" type="button" class="wz-dev-action">Focus Selected</button>
+                    </div>
+                    <label class="wz-dev-field wz-dev-field--full">
+                        <span>Active preview asset</span>
+                        <select id="wz-live-tuner-active-asset" class="wz-dev-select">
+                            <option value="aircraft">Aircraft - USAF F-35 Lightning</option>
+                            <option value="naval">Naval - USS CVN-78 Gerald Ford Carrier</option>
+                        </select>
+                    </label>
+                </div>
+                <div data-wz-dev-subsection="live-aircraft-label live-asset-tuner" data-live-tuner-selected="aircraft">
+                    <div class="wz-dev-label">Live Aircraft Label</div>
+                    ${DEV_LIVE_ASSET_LABEL_FIELDS.map(buildRow).join("")}
+                </div>
+                <div data-wz-dev-subsection="live-aircraft-focus live-asset-tuner" data-live-tuner-selected="aircraft">
+                    <div class="wz-dev-label">Live Aircraft Focus</div>
+                    ${DEV_LIVE_ASSET_FOCUS_FIELDS.map(buildRow).join("")}
+                </div>
+                <div data-wz-dev-subsection="live-aircraft-glb live-asset-tuner" data-live-tuner-selected="aircraft">
+                    <div class="wz-dev-label">Live Aircraft Scale / Bank</div>
+                    ${DEV_LIVE_AIRCRAFT_GLB_FIELDS.map(buildRow).join("")}
+                </div>
+                <div data-wz-dev-subsection="live-naval-focus live-asset-tuner" data-live-tuner-selected="naval">
+                    <div class="wz-dev-label">Live Naval Focus</div>
+                    ${DEV_LIVE_NAVAL_FOCUS_FIELDS.map(buildRow).join("")}
+                </div>
+                <div data-wz-dev-subsection="live-naval-label live-asset-tuner" data-live-tuner-selected="naval">
+                    <div class="wz-dev-label">Live Naval Label</div>
+                    ${DEV_LIVE_NAVAL_LABEL_FIELDS.map(buildRow).join("")}
+                </div>
+                <div data-wz-dev-subsection="live-aircraft-glb live-naval-glb live-asset-tuner">
+                    <div class="wz-dev-label">Shared GLB / Lighting</div>
+                    ${DEV_LIVE_ASSET_GLB_FIELDS.map(buildRow).join("")}
+                </div>
                 <div class="wz-dev-map-actions">
                     <button id="wz-live-asset-refresh" type="button" class="wz-dev-action">Refresh Models</button>
                     <button id="wz-live-asset-load-current" type="button" class="wz-dev-action">Load Current</button>
@@ -1155,6 +1424,8 @@ function ensureDevLiveAssetTunerRoot() {
     const mapTuner = document.getElementById("wz-dev-map-tuner");
     if (!mapTuner) return null;
     const wrapper = document.createElement("div");
+    wrapper.className = "wz-dev-live-asset-block";
+    wrapper.dataset.wzDevSection = "live-aircraft-focus live-aircraft-label live-aircraft-glb live-naval-focus live-naval-label live-naval-glb live-asset-tuner";
     wrapper.innerHTML = buildDevLiveAssetTunerMarkup();
     mapTuner.insertAdjacentElement("afterend", wrapper);
     tunerRoot = document.getElementById("wz-dev-live-asset-tuner");
@@ -1235,6 +1506,10 @@ function initLiveAssetTunerControls() {
     const refreshBtn = document.getElementById("wz-live-asset-refresh");
     const loadCurrentBtn = document.getElementById("wz-live-asset-load-current");
     const copyBtn = document.getElementById("wz-live-asset-copy-css");
+    const spawnBtn = document.getElementById("wz-live-tuner-spawn");
+    const clearBtn = document.getElementById("wz-live-tuner-clear");
+    const focusBtn = document.getElementById("wz-live-tuner-focus");
+    const activeSelect = document.getElementById("wz-live-tuner-active-asset");
     const controls = new Map();
 
     const updateOutput = () => {
@@ -1278,6 +1553,12 @@ function initLiveAssetTunerControls() {
         (def.aliasVars || []).forEach((aliasVar) => {
             root.style.setProperty(aliasVar, formatted);
         });
+        if (def.focusCamera) {
+            refreshLiveTrackFocusCamera?.({
+                resetRange: def.focusCamera === "range",
+                resetPitch: def.focusCamera === "pitch",
+            });
+        }
         updateOutput();
         requestLiveAssetVisualRefresh();
     };
@@ -1320,9 +1601,92 @@ function initLiveAssetTunerControls() {
         showCopyButtonFeedback(copyBtn, ok);
         devLog(ok ? "Copied live asset :root block" : "Copy blocked; select and copy manually");
     });
+    spawnBtn?.addEventListener("click", () => {
+        spawnDevStaticTunerAssets();
+    });
+    clearBtn?.addEventListener("click", () => {
+        clearDevStaticTunerAssets();
+    });
+    focusBtn?.addEventListener("click", () => {
+        focusDevStaticTunerCamera(__devStaticTunerSelected);
+    });
+    activeSelect?.addEventListener("change", () => {
+        setDevStaticTunerSelection(activeSelect.value);
+        focusDevStaticTunerCamera(__devStaticTunerSelected);
+    });
 
     updateOutput();
     refreshLiveAssetVisualsNow();
+    setDevStaticTunerSelection(__devStaticTunerSelected);
+}
+
+const DEV_PANEL_SECTIONS = [
+    { value: "live-aircraft-focus", label: "Live Aircraft Focus" },
+    { value: "live-aircraft-label", label: "Live Aircraft Label" },
+    { value: "live-aircraft-glb", label: "Live Aircraft GLB / Lighting" },
+    { value: "live-naval-focus", label: "Live Naval Focus" },
+    { value: "live-naval-label", label: "Live Naval Label" },
+    { value: "live-naval-glb", label: "Live Naval GLB / Lighting" },
+    { value: "live-asset-tuner", label: "Live Asset Tuner" },
+    { value: "region-selector", label: "Region Selector" },
+    { value: "general-debug", label: "General Debug" },
+];
+
+function getDevPanelElementSections(element) {
+    return String(element?.dataset?.wzDevSection || "general-debug").split(/\s+/).filter(Boolean);
+}
+function setDevPanelElementSection(element, section) {
+    if (element && !element.dataset.wzDevSection) {
+        element.dataset.wzDevSection = section;
+    }
+}
+function annotateDevPanelSections() {
+    const grid = document.querySelector("#wz-dev-body .wz-dev-grid");
+    if (!grid) return;
+    Array.from(grid.children).forEach((child) => setDevPanelElementSection(child, "general-debug"));
+    const mapTuner = document.getElementById("wz-dev-map-tuner");
+    if (mapTuner) {
+        mapTuner.dataset.wzDevSection = "region-selector";
+        const previous = mapTuner.previousElementSibling;
+        if (previous?.classList?.contains("wz-dev-label")) {
+            previous.dataset.wzDevSection = "region-selector";
+        }
+    }
+    const liveBlock = document.querySelector(".wz-dev-live-asset-block");
+    if (liveBlock) {
+        liveBlock.dataset.wzDevSection = "live-aircraft-focus live-aircraft-label live-aircraft-glb live-naval-focus live-naval-label live-naval-glb live-asset-tuner";
+    }
+}
+function applyDevPanelSectionFilter(section = "general-debug") {
+    const selected = DEV_PANEL_SECTIONS.some((item) => item.value === section) ? section : "general-debug";
+    annotateDevPanelSections();
+    document.querySelectorAll("#wz-dev-body .wz-dev-grid > *").forEach((child) => {
+        child.hidden = !getDevPanelElementSections(child).includes(selected);
+    });
+    document.querySelectorAll("[data-wz-dev-subsection]").forEach((child) => {
+        const sections = String(child.getAttribute("data-wz-dev-subsection") || "").split(/\s+/).filter(Boolean);
+        child.hidden = !sections.includes(selected);
+    });
+    syncDevStaticTunerSelectedControls(selected);
+    const select = document.getElementById("wz-dev-section-select");
+    if (select && select.value !== selected) select.value = selected;
+}
+function initDevPanelSectionFilter() {
+    const body = document.getElementById("wz-dev-body");
+    const grid = body?.querySelector(".wz-dev-grid");
+    if (!body || !grid || document.getElementById("wz-dev-section-select")) return;
+    const selector = document.createElement("label");
+    selector.className = "wz-dev-field wz-dev-field--full wz-dev-section-picker";
+    selector.innerHTML = `<span>Dev Panel Section</span>
+        <select id="wz-dev-section-select" class="wz-dev-select">
+            ${DEV_PANEL_SECTIONS.map((item) => `<option value="${item.value}">${item.label}</option>`).join("")}
+        </select>`;
+    grid.insertAdjacentElement("beforebegin", selector);
+    const select = document.getElementById("wz-dev-section-select");
+    select?.addEventListener("change", () => {
+        applyDevPanelSectionFilter(select.value);
+    });
+    applyDevPanelSectionFilter("live-asset-tuner");
 }
 
 function openDevSharedModal(modal) {

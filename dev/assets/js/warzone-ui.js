@@ -121,13 +121,25 @@ function formatAltitude(heightMeters) {
 function startAltitudeReadout() {
     const el = document.getElementById("wz-altitude-readout");
     if (!el) return;
+    const ftEl = document.getElementById("wz-altitude-readout-ft");
+    const kmEl = document.getElementById("wz-altitude-readout-km");
     let rafId = 0;
     let lastValue = "";
     const tick = () => {
         const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height);
-        const next = `ALT ${formatAltitude(height)}`;
+        const heightFt = Number.isFinite(height) && height >= 0
+            ? Math.round(height * 3.280839895).toLocaleString()
+            : "--";
+        const nextFt = `ALT ${heightFt} FT`;
+        const nextKm = `ALT ${formatAltitude(height)}`;
+        const next = `${nextFt}|${nextKm}`;
         if (next !== lastValue) {
-            el.textContent = next;
+            if (ftEl && kmEl) {
+                ftEl.textContent = nextFt;
+                kmEl.textContent = nextKm;
+            } else {
+                el.textContent = nextKm;
+            }
             lastValue = next;
         }
         rafId = requestAnimationFrame(tick);

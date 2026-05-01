@@ -2779,6 +2779,23 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after {
     line-height: 1;
     text-shadow: 0 0 .5rem var(--color-teal-glow);
     pointer-events: none;
+    display: grid;
+    gap: 0.45rem;
+    justify-items: end;
+}
+
+.wz-altitude-readout__line {
+    display: block;
+}
+
+.wz-altitude-readout__line--ft,
+.wz-altitude-readout__line--km {
+    white-space: nowrap;
+}
+
+body.wz-hide-altitude-ft .wz-altitude-readout__line--ft,
+body.wz-hide-altitude-km .wz-altitude-readout__line--km {
+    display: none;
 }
 
 @media (max-width: 1024px) {

@@ -1177,6 +1177,11 @@ function getNavalBillboardScale(mode = NAVAL_RENDER_MODE.PNG) {
     return clamp(getNavalPngScaleByZoomBand(), 0.01, 2.8);
 }
 function resolveNavalModelUri(vessel = {}) {
+    const metadata = getNavalMetadata(vessel);
+    const modelCode = normalizeText(vessel.model_code || metadata.model_code || metadata.modelCode || "");
+    if (LIVE_NAVAL_ICON_CODES.has(modelCode)) {
+        return `/assets/images/models/naval/${modelCode}.glb`;
+    }
     const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
     return NAVAL_MODEL_BY_SUBTYPE[subtype] || NAVAL_MODEL_DEFAULT_URI;
 }
@@ -1342,21 +1347,53 @@ function requestNavalRenderBatched() {
 }
 function getNavalLabelStyleConfig() {
     return {
-        scale: getCssNumber("--warzone-live-label-scale", 0.42),
-        offsetY: getCssNumber("--warzone-live-label-offset-y", -18) - 8,
+        scale: getCssNumber("--warzone-live-naval-label-scale", getCssNumber("--warzone-live-label-scale", 0.42)),
+        offsetY: getCssNumber("--warzone-live-naval-label-offset-y", getCssNumber("--warzone-live-label-offset-y", -18) - 8),
         fill: getCssColor("--warzone-live-label-fill", "#d7dee7"),
         background: getCssColor("--warzone-live-label-background", "rgba(8, 12, 20, 0.84)"),
         paddingX: getCssNumber("--warzone-live-label-padding-x", 6),
         paddingY: getCssNumber("--warzone-live-label-padding-y", 3),
         maxDistance: getCssNumber("--warzone-live-label-distance", 180000),
+        maxChars: Math.max(0, Math.floor(getCssNumber("--warzone-live-naval-label-max-chars", 0))),
+        align: getCssText("--warzone-live-naval-label-align", "center"),
+        uppercase: getCssNumber("--warzone-live-naval-label-uppercase", 0) >= 0.5,
         animHeightMax: getCssNumber("--warzone-live-naval-anim-height-max", 2200000),
         depthTestDisableDistance: getCssNumber("--warzone-live-naval-label-depth-test-disable-distance", Number.POSITIVE_INFINITY),
     };
 }
+function getNavalLabelHorizontalOrigin(value = "") {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "left" || normalized === "start") return Cesium.HorizontalOrigin.LEFT;
+    if (normalized === "right" || normalized === "end") return Cesium.HorizontalOrigin.RIGHT;
+    return Cesium.HorizontalOrigin.CENTER;
+}
+function transformNavalLabelText(text = "", labelStyle = {}) {
+    const raw = String(text || "").replace(/\s+/g, " ").trim();
+    const transformed = labelStyle.uppercase ? raw.toUpperCase() : raw;
+    const maxChars = Math.max(0, Math.floor(Number(labelStyle.maxChars || 0)));
+    if (!maxChars || transformed.length <= maxChars) return transformed;
+    const lines = [];
+    let line = "";
+    transformed.split(" ").forEach((word) => {
+        if (!word) return;
+        if (!line) {
+            line = word;
+            return;
+        }
+        if ((line.length + 1 + word.length) <= maxChars) {
+            line += ` ${word}`;
+            return;
+        }
+        lines.push(line);
+        line = word;
+    });
+    if (line) lines.push(line);
+    return lines.join("\n");
+}
 function buildNavalLabel(vessel = {}, trackKey = "") {
     const labelStyle = getNavalLabelStyleConfig();
     return {
-        text: getNavalDisplayName(vessel) || getNavalSubtypeLabel(vessel.subcategory) || "Naval",
+        text: transformNavalLabelText(getNavalDisplayName(vessel) || getNavalSubtypeLabel(vessel.subcategory) || "Naval", labelStyle),
         show: new Cesium.CallbackProperty(() => shouldShowNavalLabel(trackKey), false),
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, labelStyle.maxDistance),
         scale: labelStyle.scale,
@@ -1367,7 +1404,7 @@ function buildNavalLabel(vessel = {}, trackKey = "") {
         backgroundPadding: new Cesium.Cartesian2(labelStyle.paddingX, labelStyle.paddingY),
         outlineWidth: 0,
         style: Cesium.LabelStyle.FILL,
-        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+        horizontalOrigin: getNavalLabelHorizontalOrigin(labelStyle.align),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         disableDepthTestDistance: labelStyle.depthTestDisableDistance,
     };
@@ -2069,7 +2106,15 @@ export function getAllNavalSnapshots() {
 }
 export function refreshNavalVisualStyles() {
     __navalState.vessels.forEach((entry) => {
+        if (entry?.entity?.label && entry?.data) {
+            applyNavalLabel(entry.entity.label, entry.data, entry.data.track_key);
+        }
         if (entry?.entity?.model) {
+            if (entry?.data) {
+                entry.entity.model.scale = getNavalModelScale(entry.data);
+                entry.entity.model.minimumPixelSize = getNavalModelMinPixelSize(entry.data);
+                entry.entity.model.maximumScale = getNavalModelMaxScale(entry.data);
+            }
             applyLiveGlbModelQuality(entry.entity.model);
         }
     });
