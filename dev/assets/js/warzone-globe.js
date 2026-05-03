@@ -43,7 +43,7 @@ function getAdaptiveProfileCaps(profile = "normal") {
                 minSse: 1.85,
                 maxTileCache: 520,
                 forcePreloadSiblingsFalse: true,
-                forceFxaaEnabled: true,
+                forceFxaaEnabled: false,
             };
         case "conservative":
             return {
@@ -52,7 +52,7 @@ function getAdaptiveProfileCaps(profile = "normal") {
                 minSse: 2.35,
                 maxTileCache: 420,
                 forcePreloadSiblingsFalse: true,
-                forceFxaaEnabled: true,
+                forceFxaaEnabled: false,
             };
         case "safe":
             return {
@@ -61,7 +61,7 @@ function getAdaptiveProfileCaps(profile = "normal") {
                 minSse: 2.9,
                 maxTileCache: 280,
                 forcePreloadSiblingsFalse: true,
-                forceFxaaEnabled: true,
+                forceFxaaEnabled: false,
             };
         default:
             return {
@@ -449,9 +449,15 @@ function getCategoryColorCss(category) {
         case "strike":
             return cssVar("--warzone-strike-color", "#ff5a4f");
         case "recon":
+        case "recon_intel":
             return cssVar("--warzone-recon-color", "#57b8ff");
         case "military":
+        case "ground_activity":
             return cssVar("--warzone-military-color", "#56d80e");
+        case "air_activity":
+            return cssVar("--warzone-air-activity-color", "#57b8ff");
+        case "naval_activity":
+            return cssVar("--warzone-naval-activity-color", "#9b7bff");
         case "alert":
             return cssVar("--warzone-alert-color", "#ff2a2a");
         case "airspace":
@@ -463,6 +469,8 @@ function getCategoryColorCss(category) {
         case "signal":
         case "seismic":
             return cssVar("--warzone-signal-color", "#ffd24d");
+        case "unknown_activity":
+            return cssVar("--warzone-default-color", "#ff7a45");
         default:
             return cssVar("--warzone-default-color", "#ff7a45");
     }
@@ -607,7 +615,7 @@ function createClusterMarkerCanvas(colorCss, count) {
     ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
     ctx.fill();
     // White ring around core
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.strokeStyle = "#eef0f5";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, coreR + 3, 0, Math.PI * 2);
@@ -615,7 +623,7 @@ function createClusterMarkerCanvas(colorCss, count) {
     // Count text
     const label = count > 999 ? "999+" : String(count);
     const fontSize = count > 99 ? 13 : count > 9 ? 15 : 17;
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "##eef0f5";
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -624,7 +632,7 @@ function createClusterMarkerCanvas(colorCss, count) {
     setLimitedCache(markerCache, key, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
-function createRingCanvas(strokeCss = "#ff2a2a", size = 512, lineWidth = 20) {
+function createRingCanvas(strokeCss = "#f51e58", size = 512, lineWidth = 20) {
     const key = `${strokeCss}|${size}|${lineWidth}`;
     if (ringCanvasCache.has(key)) return ringCanvasCache.get(key);
     const canvas = document.createElement("canvas");
@@ -1307,8 +1315,8 @@ async function addCountryNameLabels(viewer) {
         const farMultiplier = numberVar("--warzone-country-label-far-multiplier", 1.28);
         const nearScale = Math.max(0.05, labelScale * nearMultiplier);
         const farScale = Math.max(0.05, labelScale * farMultiplier);
-        const labelColor = colorFromCssVar("--warzone-country-label-color", "#b7c5d6", 0.92);
-        const outlineColor = colorFromCssVar("--warzone-country-label-outline", "#000000", 0.78);
+        const labelColor = colorFromCssVar("--warzone-country-label-color", "#eef0f5", 0.92);
+        const outlineColor = colorFromCssVar("--warzone-country-label-outline", "#101111", 0.78);
         const outlineWidth = numberVar("--warzone-country-label-outline-width", 2);
         const labelFont = stringVar("--warzone-country-label-font", "600 15px Oxanium, sans-serif");
         for (const feature of features) {
@@ -1708,7 +1716,7 @@ async function addBorderLayers(viewer) {
         name: "Country",
         url: BORDER_SOURCES.countries,
         colorVar: "--warzone-country-border",
-        fallbackColor: "#33e1ff",
+        fallbackColor: "#18e2db",
         alphaVar: "--warzone-country-border-alpha",
         fallbackAlpha: 0.72,
         widthVar: "--warzone-country-border-width",
@@ -2546,7 +2554,7 @@ function highlightAlertRegion(viewer, event) {
         ellipse: {
             semiMinorAxis: baseRadius,
             semiMajorAxis: baseRadius,
-            material: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.15),
+            material: Cesium.Color.fromCssColorString("#fd3741").withAlpha(0.15),
             outline: false,
             height: 2000,
         },
@@ -2559,7 +2567,7 @@ function highlightAlertRegion(viewer, event) {
             semiMajorAxis: baseRadius * 1.45,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.7),
+            outlineColor: Cesium.Color.fromCssColorString("#fd3741").withAlpha(0.7),
             outlineWidth: 5,
             height: 3000,
         },
@@ -2572,7 +2580,7 @@ function highlightAlertRegion(viewer, event) {
             semiMajorAxis: baseRadius * 0.56,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: Cesium.Color.fromCssColorString("#ff0a2a").withAlpha(0.9),
+            outlineColor: Cesium.Color.fromCssColorString("#fd3741").withAlpha(0.9),
             outlineWidth: 5,
             height: 4000,
         },
@@ -2580,7 +2588,7 @@ function highlightAlertRegion(viewer, event) {
     entities.push(innerRing);
     viewer.__warzoneAlertEntities = entities;
     viewer.__warzoneAlertEntity = entities[0];
-    const alertColor = Cesium.Color.fromCssColorString("#ff0a2a");
+    const alertColor = Cesium.Color.fromCssColorString("#fd3741");
     const tick = () => {
         if (!viewer.__warzoneAlertEntities?.length) return;
         const pulse = 0.5 + 0.5 * Math.sin((performance.now() / pulseDurationMs) * Math.PI * 2);
@@ -2844,7 +2852,7 @@ export async function initWarzoneGlobe() {
                     nextMaximumRenderTime = 0.58;
                     nextResolution = Math.max(0.74, baseResolution * 0.76);
                     nextMsaaSamples = 1;
-                    nextFxaaEnabled = true;
+                    nextFxaaEnabled = baseFxaaEnabled;
                     nextSse = Math.max(nextSse, Math.max(1.7, baseSse));
                 }
             }
@@ -2864,21 +2872,21 @@ export async function initWarzoneGlobe() {
             if (cameraHeight <= focusSharpHeight) {
                 nextResolution = Math.max(nextResolution, Math.max(baseResolution, focusResolutionScale));
                 nextMsaaSamples = Math.max(nextMsaaSamples, focusMsaaSamples);
-                nextFxaaEnabled = true;
+                nextFxaaEnabled = baseFxaaEnabled;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.24);
                 nextSse = Math.min(nextSse, Math.min(baseSse, closeSse));
             } else if (cameraHeight <= closeSharpHeight) {
                 // Close zoom (~30k-40k and nearby): keep map very clear without heavy overdraw.
                 nextResolution = Math.max(nextResolution, Math.max(baseResolution, closeResolutionScale));
                 nextMsaaSamples = Math.max(nextMsaaSamples, closeMsaaSamples);
-                nextFxaaEnabled = true;
+                nextFxaaEnabled = baseFxaaEnabled;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.36);
                 nextSse = Math.min(nextSse, Math.min(baseSse, closeSse));
             } else if (cameraHeight <= nearSharpHeight) {
                 // General near-zoom floor for readability.
                 nextResolution = Math.max(1, baseResolution);
                 nextMsaaSamples = Math.max(1, Math.min(2, baseMsaaSamples));
-                nextFxaaEnabled = true;
+                nextFxaaEnabled = baseFxaaEnabled;
                 nextSse = Math.min(nextSse, Math.max(1.25, baseSse));
             }
             if (isCameraMoving) {
@@ -2888,7 +2896,7 @@ export async function initWarzoneGlobe() {
                     Math.min(nextResolution, Math.max(movingResolutionFloor, baseResolution * 0.88))
                 );
                 nextMsaaSamples = Math.max(1, Math.min(nextMsaaSamples, movingMsaaSamples));
-                nextFxaaEnabled = true;
+                nextFxaaEnabled = baseFxaaEnabled;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.5);
                 nextSse = Math.max(nextSse, movingSse);
                 nextTileCache = Math.min(nextTileCache, movingTileCache);

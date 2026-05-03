@@ -57,7 +57,7 @@
     --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
-    --font-icon: "BX-Font-R1_1", system-ui, sans-serif;
+    --font-icon: "stratops-icon-font", system-ui, sans-serif;
     --text-xs: 1rem;
     --text-sm: 1.2rem;
     --text-base: 1.4rem;
@@ -115,12 +115,35 @@
     --warzone-strike-color: var(--color-magenta-glow);
     --warzone-recon-color: var(--color-orange);
     --warzone-military-color: var(--color-green-glow);
+    --warzone-air-activity-color: var(--color-blue-glow);
+    --warzone-naval-activity-color: var(--color-purple-glow);
+    --warzone-ground-activity-color: var(--warzone-military-color);
+    --warzone-recon-intel-color: var(--warzone-recon-color);
     --warzone-default-color: var(--color-orange-slate);
+    --warzone-unknown-activity-color: var(--warzone-default-color);
     --warzone-alert-color: var(--color-red-slate);
     --warzone-airspace-color: var(--color-green-slate);
     --warzone-cyber-color: var(--color-purple-glow);
     --warzone-thermal-color: var(--color-yellow);
     --warzone-signal-color: var(--color-yellow-glow);
+}
+/* #endregion =========== */
+/* #region =========== Military Base Type Colors =========== */
+:root {
+    --warzone-base-airbase-color:var(--color-blue-slate);
+    --warzone-base-naval-color: var(--color-magenta-glow);
+    --warzone-base-army-color: var(--color-orange-glow);
+    --warzone-base-missile-color: var(--color-white);
+    --warzone-base-cyber-color: var(--color-purple-slate);
+    --warzone-base-joint-color: var(--color-teal-glow);
+    --warzone-base-hq-color: var(--color-green-slate);
+    --warzone-base-space-launch-color: var(--color-white);
+    --warzone-base-radar-color: var(--color-green-glow);
+    --warzone-base-drone-color: var(--color-blue-glow);
+    --warzone-base-weapons-storage-color: var(--color-orange-slate);
+    --warzone-base-training-logistics-color: var(--color-green);
+    --warzone-base-wmd-color: var(--color-yellow-glow);
+    --warzone-base-unknown-color: var(--color-green);
 }
 /* #endregion =========== */
 /* #region =========== Global Satellite Imagery =========== */
@@ -144,16 +167,17 @@
 /* #region =========== Globe Render Quality =========== */
 :root {
     --warzone-resolution-scale: 1.0;
-    --warzone-msaa-samples: 2;
+    --warzone-msaa-samples: 1;
+    --warzone-msaa-hard-max: 1;
     --warzone-fxaa-enabled: 1;
     --warzone-idle-resolution-min: 1.0;
-    --warzone-idle-msaa-min: 2;
-    --warzone-moving-resolution-scale: 0.88;
+    --warzone-idle-msaa-min: 1;
+    --warzone-moving-resolution-scale: 0.86;
     --warzone-moving-msaa-samples: 1;
-    --warzone-focus-resolution-scale: 1.08;
-    --warzone-close-resolution-scale: 1.04;
-    --warzone-focus-msaa-samples: 3;
-    --warzone-close-msaa-samples: 2;
+    --warzone-focus-resolution-scale: 1.0;
+    --warzone-close-resolution-scale: 1.0;
+    --warzone-focus-msaa-samples: 1;
+    --warzone-close-msaa-samples: 1;
     --warzone-camera-zoom-factor: 7.5;
     --warzone-focus-sharp-height: 120000;
     --warzone-close-sharp-height: 450000;
@@ -161,12 +185,16 @@
     --warzone-camera-min-zoom: 100;
     --warzone-camera-max-zoom: 20000000;
     --warzone-globe-max-screen-space-error: 1.6;
-    --warzone-globe-tile-cache-size: 1200;
-    --warzone-globe-loading-descendant-limit: 64;
+    --warzone-globe-close-screen-space-error: 1.35;
+    --warzone-globe-moving-screen-space-error: 2.4;
+    --warzone-globe-tile-cache-size: 760;
+    --warzone-globe-tile-cache-moving: 460;
+    --warzone-globe-tile-cache-heavy: 320;
+    --warzone-globe-loading-descendant-limit: 48;
     --warzone-globe-preload-ancestors: 1;
-    --warzone-globe-preload-siblings: 1;
-    --warzone-imagery-max-anisotropy: 16;
-    --warzone-max-renderable-events: 380;
+    --warzone-globe-preload-siblings: 0;
+    --warzone-imagery-max-anisotropy: 8;
+    --warzone-max-renderable-events: 340;
     --warzone-event-cluster-height: 9000000; /* cluster later so normal zoom keeps more raw activity visible */
     --warzone-event-ring-max-height: 15000000;
     --warzone-event-cluster-precision: 0.18; /* finer clustering keeps more individual hotspots/markers visible */
@@ -483,17 +511,18 @@
     /* Aircraft: model sizing + dev calibration controls */
     --warzone-live-aircraft-model-calibration-enabled: 0;
     --warzone-live-aircraft-model-primary-enabled: 1;
+    
     /* Aircraft render mode controls: auto | img | glb | char */
     --warzone-live-aircraft-render-mode-default: img;
     --warzone-live-aircraft-render-mode-focused: glb;
-  --warzone-live-aircraft-model-scale: 1;
+    --warzone-live-aircraft-model-scale: 1;
     --warzone-live-aircraft-model-airborne-scale: 1;
-    --warzone-live-aircraft-model-ground-scale: 0.82;
-  --warzone-live-aircraft-model-scale-zoom-in: 1;
-  --warzone-live-aircraft-model-scale-zoom-out: 1;
-    --warzone-live-aircraft-model-focused-scale: 1.25;
+    --warzone-live-aircraft-model-ground-scale: 0.8;
+    --warzone-live-aircraft-model-scale-zoom-in: 1;
+    --warzone-live-aircraft-model-scale-zoom-out: 1;
+    --warzone-live-aircraft-model-focused-scale: 1;
     --warzone-live-aircraft-model-min-pixel-size: 110;
-    --warzone-live-aircraft-model-focused-min-pixel-size: 220;
+    --warzone-live-aircraft-model-focused-min-pixel-size: 110;
     --warzone-live-aircraft-model-max-scale: 2440;
     --warzone-live-aircraft-focus-camera-range: 72000;
     --warzone-live-aircraft-focus-camera-pitch: -58;
@@ -512,13 +541,13 @@
     --warzone-live-aircraft-model-color-blend-amount: var(--warzone-live-aircraft-model-whiteness);
     --warzone-live-aircraft-model-ibl-x: 0.95;
     --warzone-live-aircraft-model-ibl-y: 0.85;
-    --warzone-live-glb-shadow-enabled: 1;
+    --warzone-live-glb-shadow-enabled: 0;
     --warzone-live-glb-shadow-quality: 512;
-    --warzone-live-glb-ambient-light-intensity: 0.5;
-    --warzone-live-glb-directional-light-intensity: 2.3;
+    --warzone-live-glb-ambient-light-intensity: 0.57;
+    --warzone-live-glb-directional-light-intensity: 1;
     --warzone-live-glb-environment-intensity: 0.95;
-    --warzone-live-glb-material-roughness: 0.5;
-    --warzone-live-glb-material-metalness: 0.7;
+    --warzone-live-glb-material-roughness: 0.45;
+    --warzone-live-glb-material-metalness: 0.15;
     --warzone-live-glb-texture-anisotropy: 8;
     --warzone-live-glb-tone-mapping-exposure: 1;
     --warzone-live-glb-lod-distance: 2;
@@ -528,7 +557,7 @@
     --warzone-live-aircraft-model-bank-max-deg: 18;
     --warzone-live-aircraft-model-preview-roll: 0;
     --warzone-live-aircraft-model-dynamic-pitch-enabled: 0;
-    --warzone-live-aircraft-model-heading-offset-default: 90;
+    --warzone-live-aircraft-model-heading-offset-default: -90;
     --warzone-live-aircraft-model-pitch-offset-default: 0;
     --warzone-live-aircraft-model-roll-offset-default: 0;
 

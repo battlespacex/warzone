@@ -207,6 +207,11 @@ const LIVE_AIRCRAFT_ICON_DIMENSIONS = Object.freeze({
     "tp-1": Object.freeze({ width: 531, height: 436 }),
     "tp-2": Object.freeze({ width: 501, height: 506 }),
 });
+const LIVE_AIRCRAFT_ICON_REFERENCE_MAX_DIMENSION = Math.max(
+    ...Object.values(LIVE_AIRCRAFT_ICON_DIMENSIONS).map((dimensions) => {
+        return Math.max(Number(dimensions?.width) || 0, Number(dimensions?.height) || 0);
+    })
+);
 const LIVE_AIRCRAFT_US_TOKENS = [
     "united states",
     "united states of america",
@@ -1154,7 +1159,8 @@ function getLiveTrackBillboardDimensions(track = {}, mode = LIVE_TRACK_RENDER_MO
     const width = Number(dimensions?.width);
     const height = Number(dimensions?.height);
     if (!(width > 0) || !(height > 0)) return null;
-    const scale = getAircraftPngTargetMaxDimensionPx();
+    const targetMaxDimensionPx = LIVE_AIRCRAFT_ICON_REFERENCE_MAX_DIMENSION * getAircraftPngTargetMaxDimensionPx();
+    const scale = targetMaxDimensionPx / Math.max(width, height);
     return {
         width: Math.max(10, Math.round(width * scale)),
         height: Math.max(10, Math.round(height * scale)),
@@ -1384,7 +1390,7 @@ function buildLiveTrackBillboard(track = {}, headingDeg = 0, mode = LIVE_TRACK_R
         width: dimensions?.width,
         height: dimensions?.height,
         rotation: Cesium.Math.toRadians(-normalizeDegrees(headingDeg)),
-        alignedAxis: Cesium.Cartesian3.UNIT_Z,
+        alignedAxis: Cesium.Cartesian3.ZERO,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         disableDepthTestDistance: style.depthTestDisableDistance,
@@ -2949,6 +2955,7 @@ function startReplayForTrack(trackKey, options = {}) {
             __liveTrackReplayState.markerEntity.billboard.rotation = Cesium.Math.toRadians(
                 -normalizeDegrees(Number(point.heading_deg || 0))
             );
+            __liveTrackReplayState.markerEntity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         requestWarzoneRender();
     }, Number(options.stepMs || LIVE_TRACK_REPLAY_STEP_MS));
@@ -3097,7 +3104,7 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
         state.initialized = true;
     }
     const headingDeltaDeg = getShortestAngleDeltaDeg(state.headingDeg, targetHeadingDeg);
-    state.headingDeg = normalizeDegrees(state.headingDeg + (headingDeltaDeg * 0.22));
+    state.headingDeg = targetHeadingDeg;
     if (dynamicBankEnabled) {
         const bankFactor = getCssNumber("--warzone-live-aircraft-model-bank-factor", -1.2);
         const bankMaxDeg = Math.max(0, getCssNumber("--warzone-live-aircraft-model-bank-max-deg", 18));
@@ -3550,6 +3557,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     const applyVisualRotation = (lon, lat, alt, headingDeg, pitchDeg, rollDeg) => {
         if (entity.billboard) {
             entity.billboard.rotation = Cesium.Math.toRadians(-normalizeDegrees(headingDeg));
+            entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         if (entity.model) {
             entity.orientation = buildTrackOrientation(track, lon, lat, alt, headingDeg, pitchDeg, rollDeg);

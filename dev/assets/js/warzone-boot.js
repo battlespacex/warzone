@@ -620,8 +620,8 @@ document.addEventListener("DOMContentLoaded", () => {
         widget.classList.remove("is-collapsed");
         if (collapseBtn) collapseBtn.setAttribute("aria-expanded", "true");
         if (icon) {
-            icon.classList.remove("bx-web-ico-close-1-2");
-            icon.classList.add("bx-web-ico-top-1-0");
+            icon.classList.remove("stratops-ico-close-1");
+            icon.classList.add("stratops-ico-top-1");
         }
         if (content) {
             content.style.height = "";

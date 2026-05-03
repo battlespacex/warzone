@@ -12,7 +12,7 @@
 
 [class^="bx-"], [class*=" bx-"] {
   /* use !important to prevent issues with browser extensions that change fonts */
-  font-family: 'BX-Font-R1_1' !important;
+  font-family: 'stratops-icon-font' !important;
   speak: never;
   font-style: normal;
   font-weight: normal;

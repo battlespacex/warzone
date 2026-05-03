@@ -1275,7 +1275,7 @@ function buildNavalBillboardVisual(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
         image,
         scale: getNavalBillboardScale(mode),
         rotation: Cesium.Math.toRadians(-(Number(vessel.heading_deg || 0))),
-        alignedAxis: Cesium.Cartesian3.UNIT_Z,
+        alignedAxis: Cesium.Cartesian3.ZERO,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         disableDepthTestDistance: getCssNumber("--warzone-live-naval-depth-test-disable-distance", Number.POSITIVE_INFINITY),
@@ -1471,6 +1471,7 @@ function animateVesselTo(entity, vessel) {
         entity.position = cartesianPosition;
         if (entity.billboard) {
             entity.billboard.rotation = Cesium.Math.toRadians(-(Number(vessel.heading_deg || 0)));
+            entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         if (entity.model) {
             entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
@@ -1523,6 +1524,7 @@ function animateVesselTo(entity, vessel) {
         entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
         if (entity.billboard) {
             entity.billboard.rotation = Cesium.Math.toRadians(-heading);
+            entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         if (entity.model) {
             entity.orientation = buildNavalOrientation(lon, lat, heading, vessel);
@@ -2165,7 +2167,7 @@ export function renderNavalTrackerWidget(options = {}) {
             <div class="wz-aircraft-item__top">
                 <strong class="wz-aircraft-item__title">
                     <span class="wz-aircraft-title__status is-active" aria-hidden="true">
-                        <span class="bx-web-ico-status-1-0" aria-hidden="true"></span>
+                        <span class="stratops-ico-status-1" aria-hidden="true"></span>
                     </span>
                     <span class="wz-aircraft-title__text">${escapeNavalHtml(name)}</span>
                 </strong>

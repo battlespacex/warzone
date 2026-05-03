@@ -438,6 +438,9 @@ function isEventInLens(event, lens) {
         category === "alert" ||
         category === "strike" ||
         category === "military" ||
+        category === "air_activity" ||
+        category === "naval_activity" ||
+        category === "ground_activity" ||
         severity === "critical" ||
         severity === "high";
     const isStandoffZone =
@@ -459,6 +462,9 @@ function isEventInLens(event, lens) {
         case "standoff":
             return isStandoffZone ||
                 category === "military" ||
+                category === "air_activity" ||
+                category === "naval_activity" ||
+                category === "ground_activity" ||
                 category === "airspace" ||
                 category === "cyber" ||
                 weapon.includes("naval") ||
@@ -467,7 +473,7 @@ function isEventInLens(event, lens) {
         case "all":
             return true;
         case "live":
-            return isRecent || isHighSignal || category === "cyber" || category === "airspace" || category === "thermal" || category === "recon" || category === "military";
+            return isRecent || isHighSignal || category === "cyber" || category === "airspace" || category === "thermal" || category === "recon" || category === "recon_intel" || category === "military";
         default:
             return true;
     }
@@ -508,8 +514,8 @@ function isMilitaryRelevant(event) {
 
     // Trusted military categories always pass
     if ([
-        "strike", "military", "cyber", "airspace",
-        "recon", "thermal", "alert", "signal", "seismic", "network"
+        "strike", "military", "air_activity", "naval_activity", "ground_activity", "cyber", "airspace",
+        "recon", "recon_intel", "thermal", "alert", "signal", "seismic", "network"
     ].includes(category)) return true;
 
     // Must contain at least one hard military signal
@@ -786,7 +792,7 @@ function getFeedEvents() {
         const reportType = String(event.report_type || "").toLowerCase();
         if (BREAKING_NEWS_BLOCKED_REPORT_TYPES.has(reportType)) return false;
         const category = String(event.category || "").toLowerCase();
-        return ["alert", "strike", "military", "cyber", "airspace", "signal", "recon"].includes(category);
+        return ["alert", "strike", "military", "air_activity", "naval_activity", "ground_activity", "cyber", "airspace", "signal", "recon", "recon_intel"].includes(category);
     });
 }
 function roundCoord(value, step = 2) {
@@ -1366,7 +1372,7 @@ function normalizeEvent(event = {}) {
         lat: placement.lat,
         lon: placement.lon
     };
-    const impactFirstCategory = ["strike", "alert", "airspace", "thermal", "signal", "seismic", "cyber"].includes(
+    const impactFirstCategory = ["strike", "alert", "airspace", "thermal", "signal", "seismic", "cyber", "unknown_activity"].includes(
         String(normalized.category || "").toLowerCase()
     );
     if (
@@ -1615,6 +1621,10 @@ function deriveFocusCountries(events, max = 10) {
             if (category === "alert") points += 6;
             if (category === "strike") points += 5;
             if (category === "military") points += 4;
+            if (category === "air_activity") points += 4;
+            if (category === "naval_activity") points += 4;
+            if (category === "ground_activity") points += 4;
+            if (category === "recon_intel") points += 3;
             if (category === "cyber") points += 3;
             if (category === "thermal") points += 2;
             if (severity === "critical") points += 6;
@@ -1901,7 +1911,7 @@ function deriveCountryStatus(events, country, type = "airspace") {
     const kineticCount = relevant.filter((e) => {
         const t = new Date(e.occurred_at).getTime();
         const cat = String(e.category || "").toLowerCase();
-        return t > recentCutoff && (cat === "strike" || cat === "military");
+        return t > recentCutoff && (cat === "strike" || cat === "military" || cat === "air_activity" || cat === "naval_activity" || cat === "ground_activity");
     }).length;
     if (alertsCount >= 5 || kineticCount >= 3) return "closed";
     if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
@@ -1944,7 +1954,7 @@ function deriveAggregateStatus(events, type = "airspace") {
     const kineticCount = relevant.filter((e) => {
         const t = new Date(e.occurred_at).getTime();
         const cat = String(e.category || "").toLowerCase();
-        return Number.isFinite(t) && t > recentCutoff && (cat === "strike" || cat === "military");
+        return Number.isFinite(t) && t > recentCutoff && (cat === "strike" || cat === "military" || cat === "air_activity" || cat === "naval_activity" || cat === "ground_activity");
     }).length;
     if (alertsCount >= 5 || kineticCount >= 3) return "closed";
     if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
@@ -3431,7 +3441,7 @@ function updateAircraftWidgetCard(card, track, selection) {
     actionBtn = card.querySelector(".wz-aircraft-action");
     titleEl.innerHTML = `
         <span class="wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}" aria-label="${statusLabel}">
-            <span class="bx-web-ico-status-1-0" aria-hidden="true"></span>
+            <span class="stratops-ico-hotspot-signal-thermal-1" aria-hidden="true"></span>
         </span>
         <span class="wz-aircraft-title__text">${title}</span>
     `;
@@ -5247,7 +5257,7 @@ export function initStratopsIntro() {
     function applyAuthToIntro(isAuth) {
         if (!loginHint) return;
         if (isAuth) {
-            loginHint.innerHTML = `<span class="static-icon bx-web-ico-checked-1-0 color-teal-glow"></span><span>Active session detected via BattlespaceX. Continue to StratOps.</span>`;
+            loginHint.innerHTML = `<span class="static-icon stratops-ico-checked-1 color-teal-glow"></span><span>Active session detected via BattlespaceX. Continue to StratOps.</span>`;
         }
     }
 

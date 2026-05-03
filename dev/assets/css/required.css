@@ -667,7 +667,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 
         .wz-list-view li:before {
             top: -.3rem;
-            font-family: "BX-Font-R1_1";
+            font-family: "stratops-icon-font";
             content: "";
             color: var(--color-teal-glow);
             font-size: 2rem;

@@ -139,26 +139,36 @@ function cleanSourceName(v) {
     return truncateText(clean, 24);
 }
 const ICONS = {
-    strike: "bx-web-ico-conflict-1-0",
-    military: "bx-web-ico-air-1-0",
-    recon: "bx-web-ico-warfare-1-0",
-    alert: "bx-web-ico-alerts-1-2",
-    airspace: "bx-ico-c4isr-1",
-    cyber: "bx-web-ico-website-1-0",
-    thermal: "bx-web-ico-bookmark-1-0",
-    signal: "bx-web-ico-status-1-0",
-    default: "bx-web-ico-Profile-1-0",
+    strike: "stratops-ico-hotspot-strike-1",
+    military: "stratops-ico-hotspot-ground-activity-1",
+    air_activity: "stratops-ico-hotspot-air-activity-1",
+    naval_activity: "stratops-ico-hotspot-naval-activity-1",
+    ground_activity: "stratops-ico-hotspot-ground-activity-1",
+    recon: "stratops-ico-hotspot-recon-intel-1",
+    recon_intel: "stratops-ico-hotspot-recon-intel-1",
+    alert: "stratops-ico-hotspot-alert-1",
+    airspace: "stratops-ico-hotspot-airspace-1",
+    cyber: "stratops-ico-hotspot-cyber-1",
+    thermal: "stratops-ico-hotspot-signal-thermal-1",
+    signal: "stratops-ico-hotspot-signal-thermal-1",
+    unknown_activity: "stratops-ico-hotspot-unknown-1",
+    default: "stratops-ico-hotspot-unknown-1",
 };
 const LABELS = {
     strike: "STRIKE",
-    military: "MILITARY",
-    recon: "RECON",
+    military: "GROUND ACTIVITY",
+    air_activity: "AIR ACTIVITY",
+    naval_activity: "NAVAL ACTIVITY",
+    ground_activity: "GROUND ACTIVITY",
+    recon: "RECON / INTEL",
+    recon_intel: "RECON / INTEL",
     alert: "ALERT",
     airspace: "AIRSPACE",
     cyber: "CYBER",
-    thermal: "THERMAL",
-    signal: "SIGNAL",
-    default: "ACTIVITY",
+    thermal: "FIRE / THERMAL",
+    signal: "SIGNAL / SENSOR",
+    unknown_activity: "UNKNOWN ACTIVITY",
+    default: "UNKNOWN ACTIVITY",
 };
 function icon(cat) {
     const key = String(cat || "").toLowerCase();
@@ -170,10 +180,78 @@ function label(cat) {
 function sevWeight(s) {
     return { critical: 4, high: 3, medium: 2, low: 1 }[String(s || "").toLowerCase()] || 1;
 }
+const AIR_ACTIVITY_SUBTYPES = new Set([
+    "aircraft",
+    "fighter",
+    "awacs",
+    "recon",
+    "isr",
+    "tanker",
+    "refueler",
+    "transport",
+    "bomber",
+    "vip",
+    "helicopter",
+    "air_defense",
+    "air-defense",
+    "sam",
+]);
+const NAVAL_ACTIVITY_SUBTYPES = new Set([
+    "carrier",
+    "amphibious",
+    "cruiser",
+    "destroyer",
+    "frigate",
+    "corvette",
+    "submarine",
+    "ssbn",
+    "ssn",
+    "ssk",
+    "aip_submarine",
+    "missile_boat",
+    "naval",
+    "patrol",
+    "minesweeper",
+]);
+function hotspotCategory(e = {}) {
+    const category = String(e.category || "default").toLowerCase();
+    const subcategory = String(e.subcategory || "").toLowerCase();
+    const signalText = [
+        e.title,
+        e.summary,
+        e.description,
+        e.weapon_type,
+        e.target_type,
+        e.report_type,
+        Array.isArray(e.tags) ? e.tags.join(" ") : e.tags,
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    if (category === "default" || category === "activity") return "unknown_activity";
+    if (category === "recon") {
+        if (NAVAL_ACTIVITY_SUBTYPES.has(subcategory) || /\b(carrier|destroyer|frigate|corvette|cruiser|submarine|warship|naval|fleet|vessel)\b/.test(signalText)) {
+            return "naval_activity";
+        }
+        if (AIR_ACTIVITY_SUBTYPES.has(subcategory) || /\b(aircraft|fighter|awacs|recon aircraft|isr|tanker|refueler|bomber|helicopter|air defense|air-defense|sam)\b/.test(signalText)) {
+            return "air_activity";
+        }
+        return "recon_intel";
+    }
+    if (category === "military") {
+        if (NAVAL_ACTIVITY_SUBTYPES.has(subcategory) || /\b(carrier|destroyer|frigate|corvette|cruiser|submarine|warship|naval|fleet|vessel)\b/.test(signalText)) {
+            return "naval_activity";
+        }
+        if (AIR_ACTIVITY_SUBTYPES.has(subcategory) || /\b(aircraft|fighter|awacs|recon aircraft|isr|tanker|refueler|bomber|helicopter|air defense|air-defense|sam)\b/.test(signalText)) {
+            return "air_activity";
+        }
+        return "ground_activity";
+    }
+
+    return category;
+}
 function dominantCat(items) {
     const sc = new Map();
     for (const e of items) {
-        const k = String(e.category || "default").toLowerCase();
+        const k = hotspotCategory(e);
         sc.set(k, (sc.get(k) || 0) + 1 + sevWeight(e.severity));
     }
     let best = "default";
@@ -519,7 +597,7 @@ function createCardEl(cluster, onToggle) {
                         <span class="wzhs__label">${cluster.label}</span>
                     </div>
                     <span class="wzhs__arr static-icon">
-                        <span class="bx-web-ico-top-1-0" aria-hidden="true"></span>
+                        <span class="stratops-ico-top-1-0" aria-hidden="true"></span>
                     </span>
                 </div>
                 ${isExpanded ? `

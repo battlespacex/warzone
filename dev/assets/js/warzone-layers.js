@@ -220,6 +220,11 @@ export function getEventLayerId(event) {
     if (cat === "alert") return "alerts";
     if (cat === "cyber") return "cyber";
     if (cat === "thermal") return "thermal";
+    if (cat === "air_activity") return "aircraft";
+    if (cat === "naval_activity") return "naval";
+    if (cat === "ground_activity") return "recon";
+    if (cat === "recon_intel") return "recon";
+    if (cat === "unknown_activity") return "strikes";
     if (cat === "recon") return "recon";
     if (cat === "seismic" || cat === "signal") return "seismic";
 

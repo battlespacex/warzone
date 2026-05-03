@@ -232,6 +232,33 @@
     background: var(--warzone-military-color);
 }
 
+.wzhs--air_activity .wzhs__count {
+    color: var(--warzone-air-activity-color);
+}
+
+.wzhs--open.wzhs--air_activity .wzhs__top,
+.wzhs--air_activity .wzhs__icon {
+    background: var(--warzone-air-activity-color);
+}
+
+.wzhs--naval_activity .wzhs__count {
+    color: var(--warzone-naval-activity-color);
+}
+
+.wzhs--open.wzhs--naval_activity .wzhs__top,
+.wzhs--naval_activity .wzhs__icon {
+    background: var(--warzone-naval-activity-color);
+}
+
+.wzhs--ground_activity .wzhs__count {
+    color: var(--warzone-ground-activity-color);
+}
+
+.wzhs--open.wzhs--ground_activity .wzhs__top,
+.wzhs--ground_activity .wzhs__icon {
+    background: var(--warzone-ground-activity-color);
+}
+
 .wzhs--recon .wzhs__count {
     color: var(--warzone-recon-color);
 }
@@ -239,6 +266,15 @@
 .wzhs--open.wzhs--recon .wzhs__top,
 .wzhs--recon .wzhs__icon {
     background: var(--warzone-recon-color);
+}
+
+.wzhs--recon_intel .wzhs__count {
+    color: var(--warzone-recon-intel-color);
+}
+
+.wzhs--open.wzhs--recon_intel .wzhs__top,
+.wzhs--recon_intel .wzhs__icon {
+    background: var(--warzone-recon-intel-color);
 }
 
 .wzhs--airspace .wzhs__count {
@@ -266,6 +302,24 @@
 .wzhs--open.wzhs--thermal .wzhs__top,
 .wzhs--thermal .wzhs__icon {
     background: var(--warzone-thermal-color);
+}
+
+.wzhs--signal .wzhs__count {
+    color: var(--warzone-signal-color);
+}
+
+.wzhs--open.wzhs--signal .wzhs__top,
+.wzhs--signal .wzhs__icon {
+    background: var(--warzone-signal-color);
+}
+
+.wzhs--unknown_activity .wzhs__count {
+    color: var(--warzone-unknown-activity-color);
+}
+
+.wzhs--open.wzhs--unknown_activity .wzhs__top,
+.wzhs--unknown_activity .wzhs__icon {
+    background: var(--warzone-unknown-activity-color);
 }
 
 .wzhs--default .wzhs__count {
