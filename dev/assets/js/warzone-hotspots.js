@@ -139,20 +139,20 @@ function cleanSourceName(v) {
     return truncateText(clean, 24);
 }
 const ICONS = {
-    strike: "stratops-ico-hotspot-strike-1",
-    military: "stratops-ico-hotspot-ground-activity-1",
-    air_activity: "stratops-ico-hotspot-air-activity-1",
-    naval_activity: "stratops-ico-hotspot-naval-activity-1",
-    ground_activity: "stratops-ico-hotspot-ground-activity-1",
-    recon: "stratops-ico-hotspot-recon-intel-1",
-    recon_intel: "stratops-ico-hotspot-recon-intel-1",
-    alert: "stratops-ico-hotspot-alert-1",
-    airspace: "stratops-ico-hotspot-airspace-1",
-    cyber: "stratops-ico-hotspot-cyber-1",
-    thermal: "stratops-ico-hotspot-signal-thermal-1",
-    signal: "stratops-ico-hotspot-signal-thermal-1",
-    unknown_activity: "stratops-ico-hotspot-unknown-1",
-    default: "stratops-ico-hotspot-unknown-1",
+    strike: "stratops-ico-assets-strike-1",
+    military: "stratops-ico-assets-army-1",
+    air_activity: "stratops-ico-assets-air-1",
+    naval_activity: "stratops-ico-assets-naval-1",
+    ground_activity: "stratops-ico-assets-army-1",
+    recon: "stratops-ico-assets-recon-intel-1",
+    recon_intel: "stratops-ico-assets-recon-intel-1",
+    alert: "stratops-ico-assets-alert-1",
+    airspace: "stratops-ico-assets-airspace-1",
+    cyber: "stratops-ico-assets-cyber-1",
+    thermal: "stratops-ico-assets-signal-thermal-1",
+    signal: "stratops-ico-assets-signal-thermal-1",
+    unknown_activity: "stratops-ico-assets-unknown-1",
+    default: "stratops-ico-assets-unknown-1",
 };
 const LABELS = {
     strike: "STRIKE",
@@ -213,6 +213,56 @@ const NAVAL_ACTIVITY_SUBTYPES = new Set([
     "patrol",
     "minesweeper",
 ]);
+const GROUND_ACTIVITY_SUBTYPES = new Set([
+    "troops",
+    "tank",
+    "tanks",
+    "armor",
+    "armored",
+    "armour",
+    "armoured",
+    "convoy",
+    "ground",
+    "army",
+    "border",
+    "deployment",
+]);
+function inferHotspotCategoryFromText(category, subcategory, signalText) {
+    if (
+        category === "fire_thermal" ||
+        category === "fire" ||
+        category === "thermal_anomaly" ||
+        /\b(fire|burning|thermal|heat anomaly|hotspot|oil depot fire|wildfire)\b/.test(signalText)
+    ) {
+        return "thermal";
+    }
+    if (
+        category === "signal_sensor" ||
+        category === "sensor" ||
+        /\b(seismic|sensor|waveform|radar anomaly|blast sensor|early warning|unconfirmed detection|detected signal)\b/.test(signalText)
+    ) {
+        return "signal";
+    }
+    if (
+        NAVAL_ACTIVITY_SUBTYPES.has(subcategory) ||
+        /\b(carrier|destroyer|frigate|corvette|cruiser|submarine|warship|naval|fleet|vessel|maritime patrol|patrol ship)\b/.test(signalText)
+    ) {
+        return "naval_activity";
+    }
+    if (
+        AIR_ACTIVITY_SUBTYPES.has(subcategory) ||
+        /\b(aircraft|fighter|jet|awacs|recon aircraft|isr|tanker|refueler|bomber|helicopter|air defense|air-defense|sam|intercept|air patrol)\b/.test(signalText)
+    ) {
+        return "air_activity";
+    }
+    if (
+        GROUND_ACTIVITY_SUBTYPES.has(subcategory) ||
+        /\b(troops?|soldiers?|tanks?|armou?red vehicles?|convoys?|army movement|ground buildup|border deployment|land forces?)\b/.test(signalText)
+    ) {
+        return "ground_activity";
+    }
+    return "";
+}
 function hotspotCategory(e = {}) {
     const category = String(e.category || "default").toLowerCase();
     const subcategory = String(e.subcategory || "").toLowerCase();
@@ -226,7 +276,9 @@ function hotspotCategory(e = {}) {
         Array.isArray(e.tags) ? e.tags.join(" ") : e.tags,
     ].filter(Boolean).join(" ").toLowerCase();
 
-    if (category === "default" || category === "activity") return "unknown_activity";
+    const inferredCategory = inferHotspotCategoryFromText(category, subcategory, signalText);
+    if (inferredCategory) return inferredCategory;
+    if (category === "default" || category === "activity" || category === "unknown") return "unknown_activity";
     if (category === "recon") {
         if (NAVAL_ACTIVITY_SUBTYPES.has(subcategory) || /\b(carrier|destroyer|frigate|corvette|cruiser|submarine|warship|naval|fleet|vessel)\b/.test(signalText)) {
             return "naval_activity";
@@ -597,7 +649,7 @@ function createCardEl(cluster, onToggle) {
                         <span class="wzhs__label">${cluster.label}</span>
                     </div>
                     <span class="wzhs__arr static-icon">
-                        <span class="stratops-ico-top-1-0" aria-hidden="true"></span>
+                        <span class="stratops-ico-close-1" aria-hidden="true"></span>
                     </span>
                 </div>
                 ${isExpanded ? `

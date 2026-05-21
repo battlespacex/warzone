@@ -242,10 +242,10 @@ UNUSED CANDIDATE END */
 }
 
     .btn-primary .static-icon, .btn-secondary .static-icon {
-        font-size: 4rem;
+        font-size: var(--icon-lg);
         height: 3rem;
         padding-right: .5rem;
-        margin-left: -.5rem;
+        margin-left: -.8rem;
     }
 
 .btn-primary, .btn-secondary {
@@ -489,40 +489,8 @@ UNUSED CANDIDATE END */
     color: var(--color-teal-glow);
 }
 
-.wz-region-outside-prompt {
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    z-index: 80;
-    display: flex;
-    align-items: center;
-    gap: 1.2rem;
-    padding: 1.4rem 1.6rem;
-    color: var(--color-text-heading);
-    background: rgba(13, 20, 31, 0.92);
-    border: .1rem solid rgba(24, 226, 219, 0.72);
-    box-shadow: 0 0 2.2rem rgba(24, 226, 219, 0.22);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-}
-
-.wz-region-outside-prompt[hidden] {
-    display: none !important;
-}
-
-.wz-region-outside-prompt p {
-    margin: 0;
-    font-family: var(--font-heading);
-    font-size: var(--text-md);
-    text-transform: uppercase;
-}
-
-.wz-region-outside-prompt button {
-    pointer-events: auto;
-}
-
     .wz-selector:after {
-        content: "";
+        content: "\e903";
         font-family: var(--font-icon);
         font-size: var(--icon-lg);
         position: absolute;
@@ -536,8 +504,6 @@ UNUSED CANDIDATE END */
         align-items: center;
         cursor: pointer;
         color: var(--text-color-heading);
-        -ms-transform: rotate(90deg);
-        transform: rotate(90deg);
         background: var(--color-input-gray);
         pointer-events: none;
     }

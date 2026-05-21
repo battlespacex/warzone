@@ -46,10 +46,39 @@ const NAVAL_CONTACT_STALE_MS = 45 * 60 * 1000;
 let __navalGlbMaterialShader = null;
 const NAVAL_CONTACT_MAX_ITEMS = 320;
 const NAVAL_ICON_CACHE_MAX_ITEMS = 128;
-const NAVAL_MODEL_DEFAULT_URI = "/assets/images/models/naval/ns-2.glb";
+const NAVAL_MODEL_BASE_PATH = "/assets/images/models/sea";
+const NAVAL_MODEL_DEFAULT_ASSET_KEY = "Vessel-Frigate";
 const LIVE_NAVAL_ICON_BASE_PATH = "/assets/images/live";
-const LIVE_NAVAL_ICON_DEFAULT_CODE = "ns-2";
+const LIVE_NAVAL_ICON_DEFAULT_CODE = "Vessel-Frigate";
+const NAVAL_ASSET_FILES = Object.freeze({
+    Boat: Object.freeze({ category: "small_vessel", model: "Boat.glb", icon: "Boat.png" }),
+    "Carrier-US": Object.freeze({ category: "carrier", model: "Carrier-US.glb", icon: "Carrier-US.png" }),
+    "Carrier-France": Object.freeze({ category: "carrier", model: "Carrier-France.glb", icon: "Carrier-France.png" }),
+    "Carrier-Fujian": Object.freeze({ category: "carrier", model: "Carrier-Fujian.glb", icon: "Carrier-Fujian.png" }),
+    "Carrier-HMS": Object.freeze({ category: "carrier", model: "Carrier-HMS.glb", icon: "Carrier-HMS.png" }),
+    "Carrier-LHD": Object.freeze({ category: "amphibious", model: "Carrier-LHD.glb", icon: "Carrier-LHD.png" }),
+    "Carrier-Russian": Object.freeze({ category: "carrier", model: "Carrier-Russian.glb", icon: "Carrier-Russian.png" }),
+    "Submarine-API": Object.freeze({ category: "submarine", model: "Submarine-API.glb", icon: "Submarine-API.png" }),
+    "Submarine-SSN": Object.freeze({ category: "submarine", model: "Submarine-SSN.glb", icon: "Submarine-SSN.png" }),
+    "Vessel-Frigate": Object.freeze({ category: "surface_combatant", model: "Vessel-Frigate.glb", icon: "Vessel-Frigate.png" }),
+    "Vessel-ISR": Object.freeze({ category: "intelligence", model: "Vessel-ISR.glb", icon: "Vessel-ISR.png" }),
+    "Vessel-Zumwalt": Object.freeze({ category: "surface_combatant", model: "Vessel-Zumwalt.glb", icon: "Vessel-Zumwalt.png" }),
+});
+const NAVAL_LEGACY_ASSET_KEY_BY_CODE = Object.freeze({
+    "ni-1": "Vessel-ISR",
+    "ns-1": "Boat",
+    "ns-2": "Vessel-Frigate",
+    "ns-3": "Vessel-Frigate",
+    "sb-1": "Submarine-SSN",
+    "ac-us-1": "Carrier-US",
+    "ac-cn-1": "Carrier-Fujian",
+    "ac-uk-1": "Carrier-HMS",
+    "ac-rs-1": "Carrier-Russian",
+    "ac-fr-1": "Carrier-France",
+    "hc-1": "Carrier-LHD",
+});
 const LIVE_NAVAL_ICON_CODES = new Set([
+    ...Object.keys(NAVAL_ASSET_FILES),
     "ni-1",
     "ns-1",
     "ns-2",
@@ -59,26 +88,27 @@ const LIVE_NAVAL_ICON_CODES = new Set([
     "ac-cn-1",
     "ac-uk-1",
     "ac-rs-1",
+    "ac-fr-1",
     "hc-1",
 ]);
-const NAVAL_MODEL_BY_SUBTYPE = {
-    carrier: "/assets/images/models/naval/ac-rs-1.glb",
-    amphibious: "/assets/images/models/naval/hc-1.glb",
-    cruiser: "/assets/images/models/naval/ns-2.glb",
-    destroyer: "/assets/images/models/naval/ns-2.glb",
-    frigate: "/assets/images/models/naval/ns-2.glb",
-    corvette: "/assets/images/models/naval/ns-1.glb",
-    missile_boat: "/assets/images/models/naval/ns-1.glb",
-    patrol: "/assets/images/models/naval/ns-1.glb",
-    logistics: "/assets/images/models/naval/ns-3.glb",
-    minesweeper: "/assets/images/models/naval/ns-1.glb",
-    intelligence: "/assets/images/models/naval/ni-1.glb",
-    submarine: "/assets/images/models/naval/sb-1.glb",
-    ssbn: "/assets/images/models/naval/sb-1.glb",
-    ssn: "/assets/images/models/naval/sb-1.glb",
-    ssk: "/assets/images/models/naval/sb-1.glb",
-    aip_submarine: "/assets/images/models/naval/sb-1.glb",
-    naval: "/assets/images/models/naval/ns-2.glb",
+const NAVAL_ASSET_KEY_BY_SUBTYPE = {
+    carrier: "Carrier-Fujian",
+    amphibious: "Carrier-LHD",
+    cruiser: "Vessel-Frigate",
+    destroyer: "Vessel-Frigate",
+    frigate: "Vessel-Frigate",
+    corvette: "Vessel-Frigate",
+    missile_boat: "Boat",
+    patrol: "Boat",
+    logistics: "Vessel-Frigate",
+    minesweeper: "Boat",
+    intelligence: "Vessel-ISR",
+    submarine: "Submarine-SSN",
+    ssbn: "Submarine-SSN",
+    ssn: "Submarine-SSN",
+    ssk: "Submarine-API",
+    aip_submarine: "Submarine-API",
+    naval: "Vessel-Frigate",
 };
 
 // ─── Ship icon canvases (cached) ──────────────────────────────────────────────
@@ -229,6 +259,15 @@ const LIVE_NAVAL_UK_CARRIER_TOKENS = [
     "royal navy",
     "hms",
 ];
+const LIVE_NAVAL_COUNTRY_DEFAULTS = Object.freeze([
+    { tokens: ["united states", "usa", "us navy", "usn", "uss", "american"], assetKey: "Carrier-US" },
+    { tokens: ["united kingdom", "uk", "great britain", "british", "royal navy", "hms"], assetKey: "Carrier-HMS" },
+    { tokens: ["france", "french", "marine nationale"], assetKey: "Carrier-France" },
+    { tokens: ["italy", "italian", "spain", "spanish", "turkey", "turkish", "japan", "japanese", "south korea", "australia", "new zealand"], assetKey: "Carrier-LHD" },
+    { tokens: ["india", "indian", "russia", "russian"], assetKey: "Carrier-Russian" },
+    { tokens: ["china", "chinese", "prc", "pla navy", "plan", "people s liberation army navy"], assetKey: "Carrier-Fujian" },
+    { tokens: ["iran", "syria", "iraq", "north korea", "dprk", "myanmar", "bangladesh", "sri lanka", "cambodia", "laos"], assetKey: "Boat" },
+]);
 const LIVE_NAVAL_FIXED_WING_CARRIER_PATTERNS = [
     /\bcvn ?\d+\b/i,
     /\bcv ?\d+\b/i,
@@ -279,23 +318,37 @@ const NAVAL_COUNTRY_ALIASES = new Map([
     ["u a e", "United Arab Emirates"],
 ]);
 const LIVE_NAVAL_EXACT_ICON_RULES = [
-    // Fixed-wing carriers (country-specific variants first).
-    { iconCode: "ac-us-1", pattern: /\b(nimitz|gerald r ford|ford class|cvn[-\s]?(68|69|70|71|72|73|74|75|76|77|78|79|80|81)|uss gerald r ford|uss nimitz)\b/i },
-    { iconCode: "ac-cn-1", pattern: /\b(liaoning|shandong|fujian|type[-\s]?001|type[-\s]?002|type[-\s]?003)\b/i },
-    { iconCode: "ac-uk-1", pattern: /\b(queen elizabeth class|hms queen elizabeth|hms prince of wales)\b/i },
-    { iconCode: "ac-rs-1", pattern: /\b(admiral kuznetsov|vikramaditya|vikrant|charles de gaulle)\b/i },
-    // Helicopter / amphibious carriers.
-    { iconCode: "hc-1", pattern: /\b(america class|wasp class|anadolu|juan carlos|trieste|mistral class|izumo class|hyuga class|dokdo class|type[-\s]?075|canberra class|atlantico|giuseppe garibaldi|cavour)\b/i },
-    // Submarines.
-    { iconCode: "sb-1", pattern: /\b(ohio class|virginia class|los angeles class|seawolf|borei|yasen|akula|kilo|lada|astute|vanguard|arihant|scorpene|suffren|triomphant|taigei|soryu|oyashio|dosan ahn changho|kss)\b/i },
-    // Replenishment / logistics.
-    { iconCode: "ns-3", pattern: /\b(type[-\s]?901|type[-\s]?903|henry j kaiser|supply class|tide class|deepak|durance|jacques chevallier|etna|vulcano)\b/i },
-    // Intelligence / special-purpose.
-    { iconCode: "ni-1", pattern: /\b(howard o lorenzen|marshal krylov|yuan wang|vishnya)\b/i },
+    { assetKey: "Carrier-US", pattern: /\b(nimitz|gerald r ford|ford class|cvn[-\s]?\d+|supercarrier|kitty hawk|uss gerald r ford|uss nimitz)\b/i },
+    { assetKey: "Carrier-France", pattern: /\b(charles de gaulle|\bcdg\b|french carrier|porte[-\s]?avions)\b/i },
+    { assetKey: "Carrier-Fujian", pattern: /\b(fujian|type[-\s]?003|shandong|liaoning|chinese carrier|pla navy carrier)\b/i },
+    { assetKey: "Carrier-HMS", pattern: /\b(queen elizabeth|hms queen elizabeth|prince of wales|royal navy carrier)\b/i },
+    { assetKey: "Carrier-Russian", pattern: /\b(admiral kuznetsov|kuznetsov|russian carrier|vikramaditya|vikrant)\b/i },
+    { assetKey: "Carrier-LHD", pattern: /\b(lhd|lha|amphibious|assault ship|wasp|america class|mistral|izumo|kaga|canberra|dokdo|juan carlos|trieste|type[-\s]?075|type[-\s]?076)\b/i },
+    { assetKey: "Vessel-Zumwalt", pattern: /\b(zumwalt|ddg[-\s]?1000|stealth destroyer)\b/i },
+    { assetKey: "Vessel-Frigate", pattern: /\b(frigate|destroyer|cruiser|corvette|ddg|ffg|cgn|type[-\s]?45|type[-\s]?055|arleigh burke|ticonderoga|horizon|fremm|talwar|shivalik|gorshkov)\b/i },
+    { assetKey: "Vessel-ISR", pattern: /\b(spy ship|intelligence ship|surveillance ship|research vessel|survey vessel|tracking ship|isr vessel|electronic intelligence|elint ship|\bagi\b)\b/i },
+    { assetKey: "Submarine-SSN", pattern: /\b(ssn|nuclear attack submarine|virginia class|astute class|yasen|seawolf|los angeles|akula|barracuda|suffren|ssbn|ballistic missile submarine|boomer|ohio class|borei|jin class|type[-\s]?094|vanguard|arihant|le triomphant)\b/i },
+    { assetKey: "Submarine-API", pattern: /\b(ssk|\baip\b|diesel submarine|kilo|scorpene|type[-\s]?212|type[-\s]?214|gotland|dolphin|yuan class|type[-\s]?039)\b/i },
+    { assetKey: "Boat", pattern: /\b(patrol boat|missile boat|fast attack craft|\bfac\b|cutter|coast guard|small boat|patrol)\b/i },
 ];
 
 function normalizeText(value = "") {
     return String(value || "").replace(/\s+/g, " ").trim();
+}
+function normalizeNavalAssetKey(value = "") {
+    const direct = String(value || "").trim();
+    if (!direct) return "";
+    if (NAVAL_ASSET_FILES[direct]) return direct;
+    const legacy = NAVAL_LEGACY_ASSET_KEY_BY_CODE[direct.toLowerCase()];
+    if (legacy && NAVAL_ASSET_FILES[legacy]) return legacy;
+    const normalized = normalizeNavalIconText(direct);
+    return Object.keys(NAVAL_ASSET_FILES).find((assetKey) => (
+        normalizeNavalIconText(assetKey) === normalized
+    )) || "";
+}
+function getNavalAssetFile(assetKey = "") {
+    const canonical = normalizeNavalAssetKey(assetKey) || NAVAL_MODEL_DEFAULT_ASSET_KEY;
+    return NAVAL_ASSET_FILES[canonical] || NAVAL_ASSET_FILES[NAVAL_MODEL_DEFAULT_ASSET_KEY];
 }
 function isProbablyAircraftContact(data = {}) {
     const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata : {};
@@ -890,21 +943,90 @@ function resolveFixedWingCarrierIconCode(context = {}) {
     const haystack = String(context.haystack || "");
     // Carrier bucket split: US, China, UK, then global fallback.
     if (/\b(nimitz|gerald r ford|ford class|cvn ?7[0-9]|cvn ?8[0-9])\b/i.test(haystack) || isUsCarrierAffiliation(context)) {
-        return "ac-us-1";
+        return "Carrier-US";
     }
     if (/\b(liaoning|shandong|fujian|type ?001|type ?002|type ?003)\b/i.test(haystack) || isChinaCarrierAffiliation(context)) {
-        return "ac-cn-1";
+        return "Carrier-Fujian";
     }
     if (/\b(queen elizabeth|prince of wales)\b/i.test(haystack) || isUkCarrierAffiliation(context)) {
-        return "ac-uk-1";
+        return "Carrier-HMS";
     }
-    return "ac-rs-1";
+    if (/\bcharles de gaulle|\bcdg\b|french carrier|porte[-\s]?avions\b/i.test(haystack)) return "Carrier-France";
+    return "Carrier-Russian";
 }
 function resolveExactNavalIconCode(context = {}) {
     const haystack = String(context.haystack || "");
     if (!haystack) return "";
     const matched = LIVE_NAVAL_EXACT_ICON_RULES.find((rule) => rule.pattern.test(haystack));
-    return matched ? matched.iconCode : "";
+    return matched ? matched.assetKey : "";
+}
+function resolveNavalCountryDefaultAssetKey(context = {}) {
+    const match = LIVE_NAVAL_COUNTRY_DEFAULTS.find((entry) => hasNavalTokens(context, entry.tokens));
+    return match?.assetKey || "";
+}
+function resolveNavalAssetKey(vessel = {}) {
+    const metadata = getNavalMetadata(vessel);
+    const explicitCode = normalizeText(
+        vessel.asset_key ||
+        metadata.asset_key ||
+        vessel.model_code ||
+        metadata.model_code ||
+        metadata.modelCode ||
+        ""
+    );
+    const explicitAssetKey = normalizeNavalAssetKey(explicitCode);
+    if (explicitAssetKey) return explicitAssetKey;
+
+    const context = buildLiveNavalIconContext(vessel);
+    const exactAssetKey = normalizeNavalAssetKey(resolveExactNavalIconCode(context));
+    if (exactAssetKey) return exactAssetKey;
+
+    const subtype = String(context.subtype || "").trim().toLowerCase();
+    const haystack = String(context.haystack || "");
+    if (
+        subtype === "carrier" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_FIXED_WING_CARRIER_PATTERNS)
+    ) {
+        return normalizeNavalAssetKey(resolveFixedWingCarrierIconCode(context)) || "Carrier-Russian";
+    }
+    if (
+        subtype === "amphibious" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_AMPHIBIOUS_CARRIER_PATTERNS)
+    ) {
+        return "Carrier-LHD";
+    }
+    if (
+        ["submarine", "ssbn", "ssn"].includes(subtype) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_SUBMARINE_PATTERNS)
+    ) {
+        return "Submarine-SSN";
+    }
+    if (["ssk", "aip_submarine"].includes(subtype)) return "Submarine-API";
+    if (
+        subtype === "intelligence" ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_INTELLIGENCE_PATTERNS)
+    ) {
+        return "Vessel-ISR";
+    }
+    if (
+        ["cruiser", "destroyer", "frigate", "corvette", "logistics"].includes(subtype) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_LARGE_SURFACE_PATTERNS) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_REPLENISHMENT_PATTERNS)
+    ) {
+        return "Vessel-Frigate";
+    }
+    if (
+        ["missile_boat", "patrol", "minesweeper"].includes(subtype) ||
+        hasAnyNavalPattern(haystack, LIVE_NAVAL_SMALL_SURFACE_PATTERNS)
+    ) {
+        return "Boat";
+    }
+
+    return (
+        normalizeNavalAssetKey(resolveNavalCountryDefaultAssetKey(context)) ||
+        NAVAL_ASSET_KEY_BY_SUBTYPE[subtype] ||
+        NAVAL_MODEL_DEFAULT_ASSET_KEY
+    );
 }
 function resolveLiveNavalIconCode(vessel = {}) {
     const trackCacheKey = String(vessel.track_key || "").trim();
@@ -917,63 +1039,9 @@ function resolveLiveNavalIconCode(vessel = {}) {
             return cached.iconCode;
         }
     }
-    const context = buildLiveNavalIconContext(vessel);
-    const subtype = String(context.subtype || "").trim().toLowerCase();
-    const haystack = String(context.haystack || "");
-    const hasFixedWingCarrierHints = (
-        subtype === "carrier" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_FIXED_WING_CARRIER_PATTERNS)
-    );
-    const hasAmphibiousCarrierHints = (
-        subtype === "amphibious" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_AMPHIBIOUS_CARRIER_PATTERNS)
-    );
-    let iconCode = LIVE_NAVAL_ICON_DEFAULT_CODE;
-
-    // Global naval icon mapping order:
-    // exact class/variant -> fixed-wing carrier -> amphib/helo carrier -> submarine -> replenishment
-    // -> intelligence/special -> large surface -> small surface -> default.
-    const exactIconCode = resolveExactNavalIconCode(context);
-    if (exactIconCode) {
-        iconCode = exactIconCode;
-    } else if (hasFixedWingCarrierHints && !hasAmphibiousCarrierHints) {
-        iconCode = resolveFixedWingCarrierIconCode(context);
-    } else if (hasAmphibiousCarrierHints) {
-        iconCode = "hc-1";
-    } else if (
-        ["submarine", "ssbn", "ssn", "ssk", "aip_submarine"].includes(subtype) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_SUBMARINE_PATTERNS)
-    ) {
-        iconCode = "sb-1";
-    } else if (
-        subtype === "logistics" ||
-        subtype === "auxiliary" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_REPLENISHMENT_PATTERNS)
-    ) {
-        iconCode = "ns-3";
-    } else if (
-        subtype === "intelligence" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_INTELLIGENCE_PATTERNS)
-    ) {
-        iconCode = "ni-1";
-    } else if (
-        ["cruiser", "destroyer", "frigate"].includes(subtype) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_LARGE_SURFACE_PATTERNS)
-    ) {
-        iconCode = "ns-2";
-    } else if (
-        ["corvette", "missile_boat", "patrol", "minesweeper"].includes(subtype) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_SMALL_SURFACE_PATTERNS)
-    ) {
-        iconCode = "ns-1";
-    } else if (subtype === "carrier") {
-        iconCode = resolveFixedWingCarrierIconCode(context);
-    } else if (subtype === "amphibious") {
-        iconCode = "hc-1";
-    }
-
-    const resolvedIconCode = LIVE_NAVAL_ICON_CODES.has(iconCode)
-        ? iconCode
+    const iconCode = resolveNavalAssetKey(vessel);
+    const resolvedIconCode = normalizeNavalAssetKey(iconCode)
+        ? normalizeNavalAssetKey(iconCode)
         : LIVE_NAVAL_ICON_DEFAULT_CODE;
     if (trackCacheKey && iconSignature) {
         __navalIconCodeCache.set(trackCacheKey, {
@@ -984,10 +1052,8 @@ function resolveLiveNavalIconCode(vessel = {}) {
     return resolvedIconCode;
 }
 function getLiveNavalIconPath(iconCode = LIVE_NAVAL_ICON_DEFAULT_CODE) {
-    const safeCode = LIVE_NAVAL_ICON_CODES.has(iconCode)
-        ? iconCode
-        : LIVE_NAVAL_ICON_DEFAULT_CODE;
-    return `${LIVE_NAVAL_ICON_BASE_PATH}/live-naval-${safeCode}.png`;
+    const asset = getNavalAssetFile(iconCode);
+    return `${LIVE_NAVAL_ICON_BASE_PATH}/${asset.icon}`;
 }
 function getVesselColor(subcat = "naval") {
     const key = normalizeNavalSubtypeKey(subcat);
@@ -1177,13 +1243,8 @@ function getNavalBillboardScale(mode = NAVAL_RENDER_MODE.PNG) {
     return clamp(getNavalPngScaleByZoomBand(), 0.01, 2.8);
 }
 function resolveNavalModelUri(vessel = {}) {
-    const metadata = getNavalMetadata(vessel);
-    const modelCode = normalizeText(vessel.model_code || metadata.model_code || metadata.modelCode || "");
-    if (LIVE_NAVAL_ICON_CODES.has(modelCode)) {
-        return `/assets/images/models/naval/${modelCode}.glb`;
-    }
-    const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
-    return NAVAL_MODEL_BY_SUBTYPE[subtype] || NAVAL_MODEL_DEFAULT_URI;
+    const asset = getNavalAssetFile(resolveNavalAssetKey(vessel));
+    return asset?.model ? `${NAVAL_MODEL_BASE_PATH}/${asset.model}` : "";
 }
 function getNavalModelScale(vessel = {}) {
     return clamp(getCssNumber("--warzone-live-naval-model-scale", 120), 1, 4000);
@@ -1198,6 +1259,8 @@ function getNavalModelHeadingOffsetDeg(vessel = {}) {
     const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
     const direct = Number(NAVAL_MODEL_HEADING_OFFSETS[subtype]);
     if (Number.isFinite(direct)) return direct;
+    const cssDefault = getCssNumber("--warzone-live-naval-model-heading-offset-default", Number.NaN);
+    if (Number.isFinite(cssDefault)) return cssDefault;
     const generic = Number(NAVAL_MODEL_HEADING_OFFSETS.naval);
     return Number.isFinite(generic) ? generic : 0;
 }
@@ -1221,7 +1284,6 @@ export function setNavalModelHeadingOffsets(offsetMap = {}) {
     });
 }
 function shouldUseNavalBillboards() {
-    // Keep naval contacts on billboard icons only (no model fallback).
     return true;
 }
 function getNavalVisualPolicy() {
@@ -1235,11 +1297,57 @@ function normalizeNavalRenderMode(value = "") {
     if (normalized === "png" || normalized === "img" || normalized === "image") return NAVAL_RENDER_MODE.PNG;
     return "";
 }
+function getNavalTrackWorldPosition(vessel = {}) {
+    const lon = Number(vessel.lon);
+    const lat = Number(vessel.lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    return Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+}
+function getNavalTrackCameraDistanceMeters(vessel = {}) {
+    const cameraPosition = window.__warzoneViewer?.camera?.positionWC;
+    const vesselPosition = getNavalTrackWorldPosition(vessel);
+    if (!cameraPosition || !vesselPosition) return Number.POSITIVE_INFINITY;
+    return Cesium.Cartesian3.distance(cameraPosition, vesselPosition);
+}
+function getNavalAutoModelRadiusMeters() {
+    return Math.max(0, getCssNumber("--warzone-live-naval-model-auto-radius", 280000));
+}
+function getNavalModelPriorityRank(vessel = {}, radiusMeters = 0) {
+    const thisTrackKey = String(vessel.track_key || "");
+    const thisDistance = getNavalTrackCameraDistanceMeters(vessel);
+    if (!Number.isFinite(thisDistance)) return Number.POSITIVE_INFINITY;
+    let closerCount = 0;
+    __navalState.vessels.forEach((entry) => {
+        const otherVessel = entry?.data;
+        if (!otherVessel) return;
+        if (String(otherVessel.track_key || "") === thisTrackKey) return;
+        const otherDistance = getNavalTrackCameraDistanceMeters(otherVessel);
+        if (!Number.isFinite(otherDistance)) return;
+        if (radiusMeters > 0 && otherDistance > radiusMeters) return;
+        if (otherDistance < thisDistance) {
+            closerCount += 1;
+        }
+    });
+    return closerCount;
+}
+function shouldAutoUseNavalModel(vessel = {}) {
+    const cameraHeight = getViewerCameraHeightMeters();
+    const maxZoomHeight = Math.max(0, getCssNumber("--warzone-live-naval-model-max-zoom-height", NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT));
+    if (!Number.isFinite(cameraHeight) || cameraHeight > maxZoomHeight) return false;
+    const radiusMeters = getNavalAutoModelRadiusMeters();
+    const distanceMeters = getNavalTrackCameraDistanceMeters(vessel);
+    if (!Number.isFinite(distanceMeters) || (radiusMeters > 0 && distanceMeters > radiusMeters)) return false;
+    const maxActive = Math.max(1, Math.floor(getCssNumber("--warzone-live-naval-model-max-active", NAVAL_MODEL_DEFAULT_MAX_ACTIVE)));
+    return getNavalModelPriorityRank(vessel, radiusMeters) < maxActive;
+}
 function resolveNavalRenderMode(vessel = {}) {
     const focusedMode = normalizeNavalRenderMode(getCssText("--warzone-live-naval-render-mode-focused", "glb"));
     const defaultMode = normalizeNavalRenderMode(getCssText("--warzone-live-naval-render-mode-default", "png")) || NAVAL_RENDER_MODE.PNG;
     if (__navalState.selectedKey && String(__navalState.selectedKey) === String(vessel.track_key || "")) {
         return focusedMode || defaultMode;
+    }
+    if (shouldAutoUseNavalModel(vessel)) {
+        return NAVAL_RENDER_MODE.MODEL;
     }
     return defaultMode;
 }
@@ -1297,18 +1405,20 @@ function applyNavalModelVisual(entity, vessel = {}) {
             lightColor: modelQuality.lightColor,
             maximumScreenSpaceError: modelQuality.maximumScreenSpaceError,
             shadows: modelQuality.shadows,
-            runAnimations: true,
-            clampAnimations: true,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            runAnimations: false,
+            clampAnimations: false,
         };
     } else {
         entity.model.uri = modelUri;
         entity.model.scale = getNavalModelScale(vessel);
         entity.model.minimumPixelSize = getNavalModelMinPixelSize(vessel);
         entity.model.maximumScale = getNavalModelMaxScale(vessel);
+        entity.model.heightReference = Cesium.HeightReference.CLAMP_TO_GROUND;
     }
     applyLiveGlbModelQuality(entity.model);
-    entity.model.runAnimations = true;
-    entity.model.clampAnimations = true;
+    entity.model.runAnimations = false;
+    entity.model.clampAnimations = false;
     entity.billboard = undefined;
     entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
 }
@@ -1900,6 +2010,9 @@ function bindNavalOverlay(viewer) {
     __navalState.overlayBound = true;
     ensureNavalOverlayRoot(viewer);
     viewer.scene.postRender.addEventListener(syncNavalOverlay);
+    viewer.camera.moveEnd.addEventListener(() => {
+        refreshNavalVisualStyles();
+    });
 }
 
 // ─── Public: upsert vessel (called from essential.js event handler) ───────────
@@ -2108,6 +2221,9 @@ export function getAllNavalSnapshots() {
 }
 export function refreshNavalVisualStyles() {
     __navalState.vessels.forEach((entry) => {
+        if (entry?.entity && entry?.data) {
+            applyNavalVisual(entry.entity, entry.data);
+        }
         if (entry?.entity?.label && entry?.data) {
             applyNavalLabel(entry.entity.label, entry.data, entry.data.track_key);
         }

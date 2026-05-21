@@ -14,11 +14,11 @@ export const supabase = createClient(
     }
 );
 
-// Dev = direct Supabase | Production = your EC2 API (Supabase hidden)
+// Dev = direct Supabase | Production = same-origin API proxy (Supabase hidden)
 const isLocalhost = window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-const API_BASE = isLocalhost ? null : "https://api.battlespacex.com";
+const API_BASE = isLocalhost ? null : "/api";
 const EVENTS_HISTORY_WINDOW_HOURS = 48;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
@@ -75,6 +75,19 @@ export const api = {
         if (!res.ok) throw new Error("Alerts fetch failed");
         const json = await res.json();
         return { data: json.alerts || [], error: null };
+    },
+
+    async getAirspaceStatuses() {
+        if (!API_BASE) {
+            const { data, error } = await supabase
+                .from("airspace_status").select("*")
+                .order("updated_at", { ascending: false });
+            return { data: data || [], error };
+        }
+        const res = await fetch(`${API_BASE}/events/airspace-status`);
+        if (!res.ok) throw new Error("Airspace status fetch failed");
+        const json = await res.json();
+        return { data: json.statuses || [], error: null };
     },
 
     async getAircraftTracks() {

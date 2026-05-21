@@ -1,0 +1,195 @@
+BATTLESPACEX STRATOPS - CURRENT CLIENT / INVESTOR BRIEF
+Last updated: 2026-05-07
+
+Purpose:
+This document summarizes the current platform capability set for client, investor, partner, and demo conversations. It avoids implementation detail while preserving enough specificity to explain what has been built.
+
+------------------------------------------------------------
+1. EXECUTIVE SUMMARY
+------------------------------------------------------------
+
+BattleSpaceX StratOps is a 3D operational awareness platform for visualizing conflict-related OSINT, military activity, and security signals on a cinematic Cesium globe.
+
+The product is designed to turn fragmented reports into a structured visual operating picture, with layers for strikes, missiles, drones, aircraft, naval movement, military bases, airspace status, cyber activity, thermal/fire events, reconnaissance, alerts, radar/range overlays, and regional analysis.
+
+------------------------------------------------------------
+2. CURRENT PRODUCT CAPABILITIES
+------------------------------------------------------------
+
+Current capabilities include:
+- Interactive 3D globe
+- Region and theater selection
+- Real-time or near-real-time event ingestion
+- Hotspot clustering and labels
+- Layer-based operational filtering
+- Aircraft tracker with live/near-live telemetry display
+- Naval tracker with vessel classification display
+- Canonical global military base dataset
+- Military base popups with dynamic record-specific details
+- Nuclear explosion/test site records using WMD classification and iconography
+- Airspace status widget
+- Cyber status widget
+- Theater intelligence panels
+- Radar/threat range overlays
+- Animated radar sweepers
+- Premium-gated operational layers
+- Login/auth-aware unlock flow
+- Developer calibration controls for visual tuning
+- Production build pipeline with asset bundling
+
+------------------------------------------------------------
+3. WHY IT IS DIFFERENT
+------------------------------------------------------------
+
+Most conflict maps show flat markers and news items. StratOps is being built as a layered operational interface:
+- 3D globe instead of a generic flat map
+- military-style visual language
+- region-aware intelligence view
+- live aircraft and naval overlays
+- curated base and installation database
+- hotspot clustering for event concentrations
+- multiple operational categories, not one generic news feed
+- visual range/radar concepts for strategic context
+- expandable architecture for additional intelligence sources
+
+------------------------------------------------------------
+4. CURRENT DATA AND CLASSIFICATION COVERAGE
+------------------------------------------------------------
+
+Military bases:
+- 981 final canonical records
+- 186 original StratOps records preserved before merge
+- 808 external normalized uMap records imported
+- 51 duplicates merged or removed
+- 20 records flagged for dedupe review
+
+Base types currently covered:
+- air bases
+- naval bases
+- army bases
+- missile/ICBM sites
+- cyber/space operations facilities
+- joint bases
+- headquarters/command sites
+- space launch sites
+- radar/tracking sites
+- drone/UAV facilities
+- weapons storage facilities
+- training/logistics facilities
+- nuclear explosion/test sites
+- unknown military installations
+
+Important positioning:
+Missile/ICBM sites and space launch sites are separate classifications. They may both involve launch infrastructure, but in the product model they use different type categories and should use different visual icons.
+
+------------------------------------------------------------
+5. LIVE ACTIVITY COVERAGE
+------------------------------------------------------------
+
+Aircraft activity:
+- fighters
+- AWACS
+- ISR/recon aircraft
+- tankers/refuelers
+- transport/logistics aircraft
+- bombers
+- helicopters
+- drones/UAVs
+- VIP/government aircraft
+- trainer/fallback aircraft categories
+
+Naval activity:
+- carriers
+- amphibious vessels
+- cruisers
+- destroyers
+- frigates
+- corvettes
+- intelligence/surveillance/tracking vessels
+- submarines, including SSBN, SSN, SSK, and AIP categories
+- missile boats
+- patrol vessels
+- logistics/support ships
+- minesweepers
+
+Hotspot/event categories:
+- strike
+- air activity
+- naval activity
+- ground/military activity
+- recon/intelligence
+- alert
+- airspace
+- cyber
+- thermal/fire
+- signal/seismic/explosion
+- unknown activity
+
+------------------------------------------------------------
+6. USER EXPERIENCE
+------------------------------------------------------------
+
+The platform is built around fast map reading:
+- users select a region or view the globe globally
+- layer controls show only the operational overlays needed
+- hotspots summarize dense event clusters
+- base icons reveal structured popups
+- live aircraft and naval panels provide asset lists and focus controls
+- region prompts help users return to their active area of interest
+
+The visual style is intentionally command-center oriented: high contrast, dense but readable widgets, icon-forward controls, and operational labels.
+
+------------------------------------------------------------
+7. COMMERCIAL POTENTIAL
+------------------------------------------------------------
+
+Potential customer and partner categories:
+- OSINT researchers
+- media monitoring teams
+- risk intelligence teams
+- geopolitical analysts
+- emergency/security monitoring groups
+- educational and demonstration users
+- defense-adjacent briefings where public/open-source data is acceptable
+
+Potential premium features:
+- curated datasets
+- richer historical search
+- custom theater dashboards
+- alerting and watchlists
+- source confidence scoring
+- client-specific private overlays
+- more advanced aircraft/naval enrichment
+- exportable briefing snapshots
+- API-backed partner integrations
+
+------------------------------------------------------------
+8. CURRENT PRODUCT RISKS AND HONEST NOTES
+------------------------------------------------------------
+
+The product is visually and functionally advanced, but some areas are still actively evolving:
+- live source reliability depends on external APIs and browser/network availability
+- some imported base records still need human review
+- some records have richer metadata than others
+- visual asset naming must stay aligned with code mappings
+- browser inspection can be made harder through production build/obfuscation, but client-side code and public browser requests can never be fully hidden
+
+------------------------------------------------------------
+9. NEAR-TERM ROADMAP THEMES
+------------------------------------------------------------
+
+Recommended near-term product priorities:
+- stabilize aircraft and naval model orientation
+- align naval GLB naming and resolver paths
+- finish missing/custom icon set for new classifications
+- continue cleaning country and place labels
+- improve popup details for records with richer metadata
+- add more source confidence and audit views for internal users
+- harden production build and environment exposure
+- expand client-ready demos by region/theater
+
+------------------------------------------------------------
+10. POSITIONING STATEMENT
+------------------------------------------------------------
+
+BattleSpaceX StratOps is a cinematic operational awareness platform that organizes conflict-related open-source signals into a 3D strategic map, combining live activity, curated installations, regional intelligence, and layered visual analysis in one interface.

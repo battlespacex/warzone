@@ -501,9 +501,12 @@
 /* #region =========== LIVE FIGHTER =========== */
 :root {
     --warzone-live-track-color: var(--color-green-glow);
-    --warzone-live-track-opacity: 0.85;
-    --warzone-live-track-width: 3;
+    --warzone-live-track-opacity: 0.96;
+    --warzone-live-track-width: 4.2;
     --warzone-live-track-trail-smoothing: 0.68;
+    --warzone-live-track-trail-render-max-height: 420000;
+    --warzone-live-track-trail-max-active: 36;
+    --warzone-live-track-trail-auto-radius: 160000;
     --warzone-live-track-scale: 12;
     --warzone-live-track-min-pixel-size: 96;
     --warzone-live-track-max-scale: 280;
@@ -511,6 +514,7 @@
     /* Aircraft: model sizing + dev calibration controls */
     --warzone-live-aircraft-model-calibration-enabled: 0;
     --warzone-live-aircraft-model-primary-enabled: 1;
+    --warzone-live-aircraft-model-auto-enabled: 0;
     
     /* Aircraft render mode controls: auto | img | glb | char */
     --warzone-live-aircraft-render-mode-default: img;
@@ -520,44 +524,34 @@
     --warzone-live-aircraft-model-ground-scale: 0.8;
     --warzone-live-aircraft-model-scale-zoom-in: 1;
     --warzone-live-aircraft-model-scale-zoom-out: 1;
-    --warzone-live-aircraft-model-focused-scale: 1;
+    --warzone-live-aircraft-model-focused-scale: 1.08;
     --warzone-live-aircraft-model-min-pixel-size: 110;
-    --warzone-live-aircraft-model-focused-min-pixel-size: 110;
+    --warzone-live-aircraft-model-focused-min-pixel-size: 170;
     --warzone-live-aircraft-model-max-scale: 2440;
-    --warzone-live-aircraft-focus-camera-range: 72000;
+    --warzone-live-aircraft-model-alpha: 1;
+    --warzone-live-aircraft-model-whiteness: 0.18;
+    --warzone-live-aircraft-model-focused-whiteness: 0.08;
+    --warzone-live-aircraft-model-ambient-intensity: 1;
+    --warzone-live-aircraft-model-light-intensity: 1.2;
+    --warzone-live-aircraft-model-lod-distance: 1.2;
+    --warzone-live-aircraft-focus-camera-range: 36000;
     --warzone-live-aircraft-focus-camera-pitch: -58;
-    --warzone-live-aircraft-focus-zoom-range: 60000;
-    --warzone-live-aircraft-focus-wheel-zoom-step: 8000;
+    --warzone-live-aircraft-focus-zoom-range: 22000;
+    --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
     --warzone-live-aircraft-focus-anim-min-ms: 900;
     --warzone-live-aircraft-focus-anim-max-ms: 9000;
     --warzone-live-aircraft-focus-anim-cadence-factor: 1.04;
+    --warzone-live-aircraft-focus-visible-radius: 100000;
     --warzone-live-aircraft-model-zoom-split-height: 20000;
     --warzone-live-aircraft-model-max-active: 16;
     --warzone-live-aircraft-model-max-zoom-height: 280000;
-    /* One global aircraft model color control (0 = original model color, 1 = fully white mix). */
-    --warzone-live-aircraft-model-whiteness: 0.50;
-    --warzone-live-aircraft-model-focused-whiteness: 0.12;
-    --warzone-live-aircraft-model-color-alpha: 1;
-    --warzone-live-aircraft-model-color-blend-amount: var(--warzone-live-aircraft-model-whiteness);
-    --warzone-live-aircraft-model-ibl-x: 0.95;
-    --warzone-live-aircraft-model-ibl-y: 0.85;
-    --warzone-live-glb-shadow-enabled: 0;
-    --warzone-live-glb-shadow-quality: 512;
-    --warzone-live-glb-ambient-light-intensity: 0.57;
-    --warzone-live-glb-directional-light-intensity: 1;
-    --warzone-live-glb-environment-intensity: 0.95;
-    --warzone-live-glb-material-roughness: 0.45;
-    --warzone-live-glb-material-metalness: 0.15;
-    --warzone-live-glb-texture-anisotropy: 8;
-    --warzone-live-glb-tone-mapping-exposure: 1;
-    --warzone-live-glb-lod-distance: 2;
-    --warzone-live-glb-animation-smoothing: 1.2;
+    --warzone-live-aircraft-model-auto-radius: 240000;
     --warzone-live-aircraft-model-dynamic-bank-enabled: 1;
     --warzone-live-aircraft-model-bank-factor: -1.2;
     --warzone-live-aircraft-model-bank-max-deg: 18;
     --warzone-live-aircraft-model-preview-roll: 0;
     --warzone-live-aircraft-model-dynamic-pitch-enabled: 0;
-    --warzone-live-aircraft-model-heading-offset-default: -90;
+    --warzone-live-aircraft-model-heading-offset-default: 90;
     --warzone-live-aircraft-model-pitch-offset-default: 0;
     --warzone-live-aircraft-model-roll-offset-default: 0;
 
@@ -568,9 +562,9 @@
     --warzone-live-aircraft-icon-font-size: 25;
 
     /* Aircraft: PNG sizing (main + zoom-in + zoom-out + one split level) */
-    --warzone-live-aircraft-png-scale: 0.07;
-    --warzone-live-aircraft-png-scale-zoom-in: 0.08;
-    --warzone-live-aircraft-png-scale-zoom-out: 0.05;
+    --warzone-live-aircraft-png-scale: 0.05;
+    --warzone-live-aircraft-png-scale-zoom-in: 0.045;
+    --warzone-live-aircraft-png-scale-zoom-out: 0.032;
     --warzone-live-aircraft-png-zoom-split-height: 20000;
     --warzone-live-aircraft-char-scale: 0.4;
 
@@ -579,11 +573,15 @@
     --warzone-live-label-depth-test-disable-distance: 1;
 
     /* Naval: model sizing (compatibility controls) */
-    --warzone-live-naval-render-mode-default: png;
+    --warzone-live-naval-render-mode-default: img;
     --warzone-live-naval-render-mode-focused: glb;
     --warzone-live-naval-model-scale: 150;
     --warzone-live-naval-model-min-pixel-size: 90;
     --warzone-live-naval-model-max-scale: 360;
+    --warzone-live-naval-model-heading-offset-default: 180;
+    --warzone-live-naval-model-max-active: 12;
+    --warzone-live-naval-model-max-zoom-height: 320000;
+    --warzone-live-naval-model-auto-radius: 280000;
     --warzone-live-naval-focus-camera-range: 1800;
     --warzone-live-naval-label-scale: 0.42;
     --warzone-live-naval-label-offset-y: -26;

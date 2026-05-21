@@ -200,7 +200,7 @@ body.is-app-active .wz-dock {
 }
 
     .wz-dock__icon .static-icon {
-        font-size: 4rem;
+        font-size: var(--icon-xxl);
         line-height: 1;
         display: block;
         pointer-events: none;

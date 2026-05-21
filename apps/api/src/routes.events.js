@@ -91,6 +91,21 @@ export function eventsRouter({ broadcast }) {
         }
     });
 
+    // ── Airspace status rows for status widgets ────────────────────
+    router.get("/airspace-status", async (req, res) => {
+        try {
+            const supabase = getSupabase();
+            const { data, error } = await supabase
+                .from("airspace_status")
+                .select("*")
+                .order("updated_at", { ascending: false });
+            if (error) return res.status(500).json({ error: "Failed" });
+            res.json({ statuses: data || [] });
+        } catch {
+            res.status(500).json({ error: "Failed" });
+        }
+    });
+
     // ── Aircraft tracks ────────────────────────────────────────────
     router.get("/aircraft", async (req, res) => {
         try {

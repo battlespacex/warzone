@@ -266,6 +266,12 @@ const HELI_CODES = new Set([
     "AS532", "EC725", "NH90", "H225", "EC665", "H145",
 ]);
 
+const TRAINER_CODES = new Set([
+    "T6", "T6A", "T6B", "T6C", "T38", "T38A", "T38C", "L29", "L39", "L59",
+    "Hawk", "HAWK", "PC7", "PC9", "PC21", "G115", "G120", "KT1", "CJ6",
+    "K8", "JL8", "M311", "M345", "MB326", "MB339", "SF26",
+]);
+
 const CIVILIAN_AIRLINER_CODES = new Set([
     "A220", "A318", "A319", "A320", "A20N", "A21N", "A321", "A330", "A332", "A333", "A338",
     "A339", "A340", "A342", "A343", "A345", "A346", "A350", "A359", "A35K", "A380", "A388",
@@ -275,6 +281,76 @@ const CIVILIAN_AIRLINER_CODES = new Set([
     "B788", "B789", "B78X", "E170", "E175", "E190", "E195", "CRJ2", "CRJ7", "CRJ9", "CRJX",
     "AT72", "AT75", "DH8A", "DH8B", "DH8C", "DH8D", "BCS1", "BCS3",
 ]);
+
+const TRAINING_ACTIVITY_PATTERNS = [
+    /\bTRAINER\b/i,
+    /\bBASIC TRAINER\b/i,
+    /\bPRIMARY TRAINER\b/i,
+    /\bADVANCED TRAINER\b/i,
+    /\bJET TRAINER\b/i,
+    /\bFLIGHT TRAINING\b/i,
+    /\bPILOT TRAINING\b/i,
+    /\bTRAINING AIRCRAFT\b/i,
+    /\bTRAINING (FLIGHT|ACTIVITY|MISSION|SORTIE)\b/i,
+    /\bMILITARY TRAINING AIRCRAFT\b/i,
+];
+const TRAINER_SPECIAL_OPERATIONAL_PATTERNS = [
+    /\bFA-?50\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?130\b/i,
+    /\bM-?346FA\b/i,
+    /\bA-?29\b/i,
+    /\bSUPER TUCANO\b/i,
+    /\bAT-?6\b/i,
+    /\bWOLVERINE\b/i,
+    /\bBLACK ?HAWK\b/i,
+    /\bSEAHAWK\b/i,
+    /\bHAWKEYE\b/i,
+];
+const TRAINER_PLATFORM_PATTERNS = [
+    /\b(?:AERO\s+)?L-?(?:29|39|59)\b/i,
+    /\bDELFIN\b/i,
+    /\bALBATROS\b/i,
+    /\bSUPER ALBATROS\b/i,
+    /\bALPHA JET\b/i,
+    /\b(?:BAE\s+)?HAWK(?:\s+(?:T[12]|100|200))?\b/i,
+    /(^|[^A-Z0-9])T-?6[ABC]?\b/i,
+    /\bTEXAN II\b/i,
+    /\bBEECHCRAFT\s+T-?6\b/i,
+    /\bCT-?156\b/i,
+    /\bHARVARD II\b/i,
+    /\b(?:PILATUS\s+)?PC-?(?:7|9|21)(?:\s*(?:MKII|M))?\b/i,
+    /\bGROB\s+G-?(?:115|120A?|120TP)\b/i,
+    /\bG-?(?:115|120A?|120TP)\b/i,
+    /(^|[^A-Z0-9])T-?38[AC]?\b/i,
+    /\bTALON\b/i,
+    /\b(?:BOEING\s+)?T-?7A?\b/i,
+    /\bRED HAWK\b/i,
+    /\b(?:KAI\s+)?KT-?1\b/i,
+    /\bWOONGBI\b/i,
+    /\b(?:HONGDU\s+|NANCHANG\s+)?CJ-?6\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?(?:52|152)\b/i,
+    /\bPZL-?130\b/i,
+    /\bORLIK\b/i,
+    /\bSF-?260(?:EA)?\b/i,
+    /\bDIAMOND\s+DA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bDA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bEMB-?312\b/i,
+    /\bTUCANO\b/i,
+    /\bK-?8\b/i,
+    /\bJL-?8\b/i,
+    /\bKARAKORUM\b/i,
+    /\bM-?311\b/i,
+    /\bM-?345\b/i,
+    /\bM-?346(?!FA)\b/i,
+    /\bMB-?(?:326|339)\b/i,
+    /\bJET PROVOST\b/i,
+    /\bSCOTTISH AVIATION BULLDOG\b/i,
+    /\bBULLDOG\b/i,
+    /\bCT-?114\b/i,
+    /\bTUTOR\b/i,
+    /\bJL-?10\b/i,
+    /\bL-?15\b/i,
+];
 
 function classifyByTypeCode(typeCode) {
     if (!typeCode) return null;
@@ -286,6 +362,7 @@ function classifyByTypeCode(typeCode) {
     if (ISR_CODES.has(t)) return "isr";
     if (TRANSPORT_CODES.has(t)) return "transport";
     if (HELI_CODES.has(t)) return "helicopter";
+    if (TRAINER_CODES.has(t)) return "trainer";
     return null;
 }
 
@@ -318,7 +395,7 @@ function classifyByModelName(modelName = "") {
     if (/(TRANSPORT|AIRLIFT|CARGO|LOGISTICS|GLOBEMASTER|HERCULES|ATLAS\b|A400M\b|C-17\b|C17\b|C-5\b|C5\b|C-130\b|HC-130\b|MC-130\b|C130\b|C-40\b|C40\b|AN-124\b|AN124\b|AN-12\b|AN12\b|IL-76\b|IL76\b|Y-20\b|Y20\b|CN-235\b|CN235\b|C295\b)/.test(haystack)) return "transport";
     if (/(HELICOPTER|BLACK HAWK|BLACKHAWK|APACHE|CHINOOK|OSPREY|SEAHAWK|SUPER STALLION|KING STALLION|UH-60\b|UH60\b|HH-60\b|HH60\b|MH-60\b|MH60\b|H-60\b|H60\b|CH-47\b|CH47\b|CH-53\b|CH53\b|V-22\b|V22\b|MI-8\b|MI8\b|MI-17\b|MI17\b|MI-24\b|MI24\b|MI-28\b|MI28\b|KA-27\b|KA27\b|KA-52\b|KA52\b)/.test(haystack)) return "helicopter";
     if (/(BOMBER|B-1\b|B1\b|B-2\b|B2\b|B-52\b|B52\b|TU-95\b|TU95\b|TU-160\b|TU160\b|H-6\b|H6\b|AC-130\b|AC130\b|SPECTRE|SPOOKY)/.test(haystack)) return "bomber";
-    if (/(TRAINER|T-6\b|T6\b|T-38\b|T38\b|HAWK\b|M-346\b|M346\b|YAK-130\b|YAK130\b|PC-21\b|PC21\b)/.test(haystack)) return "trainer";
+    if (isExcludedTrainerAircraftText(haystack)) return "trainer";
     if (/(FIGHTER|INTERCEPTOR|MULTIROLE|HORNET|SUPER HORNET|STRIKE EAGLE|RAPTOR|LIGHTNING II|WARTHOG|TYPHOON|EUROFIGHTER|RAFALE|GRIPEN|MIRAGE|TOMCAT|F-15\b|F15\b|F-16\b|F16\b|F-18\b|F18\b|FA-18\b|F\/A-18\b|F-22\b|F22\b|F-35\b|F35\b|A-10\b|A10\b|SU-27\b|SU27\b|SU-30\b|SU30\b|SU-35\b|SU35\b|MIG-29\b|MIG29\b|MIG-31\b|MIG31\b|J-10\b|J10\b|J-16\b|J16\b|J-20\b|J20\b|TEJAS\b|JF-17\b|JF17\b)/.test(haystack)) return "fighter";
     return null;
 }
@@ -328,6 +405,28 @@ function classifyAircraft(typeCode, callsign, icao, modelName = "") {
         || classifyByCallsign(callsign)
         || classifyByModelName(modelName)
         || "military";
+}
+function isExcludedTrainerAircraftText(text = "") {
+    const haystack = String(text || "");
+    if (!haystack) return false;
+    const hasTrainingActivity = TRAINING_ACTIVITY_PATTERNS.some((pattern) => pattern.test(haystack));
+    if (
+        !hasTrainingActivity &&
+        TRAINER_SPECIAL_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(haystack))
+    ) {
+        return false;
+    }
+    return hasTrainingActivity || TRAINER_PLATFORM_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+function isExcludedTrainerAircraft(a = {}) {
+    return isExcludedTrainerAircraftText([
+        a.typeCode,
+        a.modelName,
+        a.operator,
+        a.callsign,
+        a.reg,
+        a.country,
+    ].filter(Boolean).join(" "));
 }
 
 const MILITARY_AIRCRAFT_OVERRIDE_PATTERNS = [
@@ -734,6 +833,10 @@ export async function runAdsbWorker() {
 
         // Skip ground traffic
         if (a.onGround) continue;
+
+        // StratOps ignores training aircraft entirely: no live track, event,
+        // alert, counter, or history row should be produced from these contacts.
+        if (role === "trainer" || isExcludedTrainerAircraft(a)) continue;
 
         // ADS-B One /mil still leaks civilian airliners sometimes. Reject those here
         // unless there is a strong military-specific marker.

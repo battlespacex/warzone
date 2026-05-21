@@ -6,6 +6,7 @@ const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
 const BASE = "/warzone";
 const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
+const API_UPSTREAM_URL = process.env.API_UPSTREAM_URL || "https://api.battlespacex.com";
 let cachedAircraftFeedPayload = "";
 let cachedAircraftFeedStatus = 0;
 let cachedAircraftFeedAt = 0;
@@ -73,6 +74,25 @@ async function handleAircraftFeedProxy(_req, res) {
 
 app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
 app.get(`${BASE}/aircraft-feed/mil`, handleAircraftFeedProxy);
+
+app.get("/api/*", async (req, res) => {
+    try {
+        const upstreamPath = req.originalUrl.replace(/^\/api/, "") || "/";
+        const upstream = new URL(upstreamPath, API_UPSTREAM_URL);
+        const response = await fetch(upstream, {
+            headers: {
+                Accept: "application/json",
+                "User-Agent": "stratops-warzone/1.0",
+            },
+        });
+        const payload = await response.text();
+        res.status(response.status);
+        res.set("Cache-Control", "no-store, max-age=0");
+        res.type(response.headers.get("content-type") || "application/json").send(payload);
+    } catch {
+        res.status(502).json({ error: "API unavailable" });
+    }
+});
 
 app.use(express.static(ROOT));
 

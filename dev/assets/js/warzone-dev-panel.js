@@ -11,6 +11,8 @@ import {
     upsertLiveTrack,
     clearLiveTrack,
     focusLiveTrack,
+    getLiveTrackSelection,
+    refreshFocusedLiveTrackVisualStyles,
     refreshLiveTrackFocusCamera,
     refreshLiveTrackVisualStyles
 } from "./warzone-live-airforce.js";
@@ -1376,9 +1378,9 @@ function buildDevLiveAssetTunerMarkup() {
                         <button id="wz-live-tuner-focus" type="button" class="wz-dev-action">Focus Selected</button>
                     </div>
                     <label class="wz-dev-field wz-dev-field--full">
-                        <span>Active preview asset</span>
+                        <span>Preview asset when no live focus</span>
                         <select id="wz-live-tuner-active-asset" class="wz-dev-select">
-                            <option value="aircraft">Aircraft - USAF F-35 Lightning</option>
+                            <option value="aircraft">Aircraft preview - F-35</option>
                             <option value="naval">Naval - USS CVN-78 Gerald Ford Carrier</option>
                         </select>
                     </label>
@@ -1485,7 +1487,14 @@ function applyLiveAssetRendererQuality() {
 }
 function refreshLiveAssetVisualsNow() {
     applyLiveAssetRendererQuality();
-    refreshLiveTrackVisualStyles?.();
+    const aircraftSelection = getLiveTrackSelection?.();
+    if (String(aircraftSelection?.mode || "") === "focus" && aircraftSelection?.track_key) {
+        refreshFocusedLiveTrackVisualStyles?.();
+        window.__warzoneViewer?.scene?.requestRender?.();
+        return;
+    } else {
+        refreshLiveTrackVisualStyles?.();
+    }
     refreshNavalVisualStyles?.();
     window.__warzoneViewer?.scene?.requestRender?.();
 }
@@ -2584,7 +2593,7 @@ const DEV_NAVAL_CALIBRATION = Object.fromEntries(
     DEV_NAVAL_CALIBRATION_CODES.map((code) => {
         const isSubmarine = code === "sb-1";
         return [code, {
-            headingOffset: 0,
+            headingOffset: 180,
             scale: isSubmarine ? 118 : 130,
             minimumPixelSize: 90,
             maximumScale: 1200,

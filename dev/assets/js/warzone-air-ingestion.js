@@ -4,8 +4,7 @@ import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-airforce.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 import { getActiveRegion } from "./warzone-region-selector.js";
 // Note: no direct Supabase writes from frontend — all track data is client-side only
-const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
-const LOCAL_AIRCRAFT_PROXY_PATH = "/__warzone/aircraft-feed/mil";
+const AIRCRAFT_PROXY_PATHS = ["/__warzone/aircraft-feed/mil", "/warzone/aircraft-feed/mil"];
 const POLL_INTERVAL_MS = 2000;
 const FETCH_TIMEOUT_MS = 9000;
 const TRACK_STALE_MS = 90000;
@@ -35,6 +34,75 @@ const CIVILIAN_UTILITY_PATTERNS = [
     /\bAIR SPRAY\b/i,
     /\bTHRUSH\b/i,
     /\bDROMADER\b/i,
+];
+const TRAINING_ACTIVITY_PATTERNS = [
+    /\btrainer\b/i,
+    /\bbasic trainer\b/i,
+    /\bprimary trainer\b/i,
+    /\badvanced trainer\b/i,
+    /\bjet trainer\b/i,
+    /\bflight training\b/i,
+    /\bpilot training\b/i,
+    /\btraining aircraft\b/i,
+    /\btraining (flight|activity|mission|sortie)\b/i,
+    /\bmilitary training aircraft\b/i,
+];
+const TRAINER_SPECIAL_OPERATIONAL_PATTERNS = [
+    /\bFA-?50\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?130\b/i,
+    /\bM-?346FA\b/i,
+    /\bA-?29\b/i,
+    /\bSUPER TUCANO\b/i,
+    /\bAT-?6\b/i,
+    /\bWOLVERINE\b/i,
+    /\bBLACK ?HAWK\b/i,
+    /\bSEAHAWK\b/i,
+    /\bHAWKEYE\b/i,
+];
+const TRAINER_PLATFORM_PATTERNS = [
+    /\b(?:AERO\s+)?L-?(?:29|39|59)\b/i,
+    /\bDELFIN\b/i,
+    /\bALBATROS\b/i,
+    /\bSUPER ALBATROS\b/i,
+    /\bALPHA JET\b/i,
+    /\b(?:BAE\s+)?HAWK(?:\s+(?:T[12]|100|200))?\b/i,
+    /(^|[^A-Z0-9])T-?6[ABC]?\b/i,
+    /\bTEXAN II\b/i,
+    /\bBEECHCRAFT\s+T-?6\b/i,
+    /\bCT-?156\b/i,
+    /\bHARVARD II\b/i,
+    /\b(?:PILATUS\s+)?PC-?(?:7|9|21)(?:\s*(?:MKII|M))?\b/i,
+    /\bGROB\s+G-?(?:115|120A?|120TP)\b/i,
+    /\bG-?(?:115|120A?|120TP)\b/i,
+    /(^|[^A-Z0-9])T-?38[AC]?\b/i,
+    /\bTALON\b/i,
+    /\b(?:BOEING\s+)?T-?7A?\b/i,
+    /\bRED HAWK\b/i,
+    /\b(?:KAI\s+)?KT-?1\b/i,
+    /\bWOONGBI\b/i,
+    /\b(?:HONGDU\s+|NANCHANG\s+)?CJ-?6\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?(?:52|152)\b/i,
+    /\bPZL-?130\b/i,
+    /\bORLIK\b/i,
+    /\bSF-?260(?:EA)?\b/i,
+    /\bDIAMOND\s+DA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bDA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bEMB-?312\b/i,
+    /\bTUCANO\b/i,
+    /\bK-?8\b/i,
+    /\bJL-?8\b/i,
+    /\bKARAKORUM\b/i,
+    /\bM-?311\b/i,
+    /\bM-?345\b/i,
+    /\bM-?346(?!FA)\b/i,
+    /\bMB-?(?:326|339)\b/i,
+    /\bJET PROVOST\b/i,
+    /\bSCOTTISH AVIATION BULLDOG\b/i,
+    /\bBULLDOG\b/i,
+    /\bCT-?114\b/i,
+    /\bTUTOR\b/i,
+    /\bJL-?10\b/i,
+    /\bL-?15\b/i,
 ];
 const MILITARY_OVERRIDE_PATTERNS = [
     /AIR FORCE/i, /\bUSAF\b/i, /\bRAF\b/i, /\bRCAF\b/i, /\bIAF\b/i, /\bPAF\b/i,
@@ -115,6 +183,18 @@ function hasMilitaryOverrideText(value = "") {
         SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(text))
     );
 }
+function isExcludedTrainerAircraftText(text = "") {
+    const haystack = String(text || "");
+    if (!haystack) return false;
+    const hasTrainingActivity = TRAINING_ACTIVITY_PATTERNS.some((pattern) => pattern.test(haystack));
+    if (
+        !hasTrainingActivity &&
+        TRAINER_SPECIAL_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(haystack))
+    ) {
+        return false;
+    }
+    return hasTrainingActivity || TRAINER_PLATFORM_PATTERNS.some((pattern) => pattern.test(haystack));
+}
 function isSpecialIsrCommandRecord(record = {}) {
     const haystack = [
         record.flight,
@@ -181,7 +261,11 @@ function getAirplanesLiveFeedUrl() {
         window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1" ||
         window.location.hostname === "[::1]";
-    return isLocalDevHost ? LOCAL_AIRCRAFT_PROXY_PATH : AIRPLANES_LIVE_URL;
+    if (isLocalDevHost) return AIRCRAFT_PROXY_PATHS[0];
+    const basePath = String(window.location.pathname || "").startsWith("/warzone/")
+        ? AIRCRAFT_PROXY_PATHS[1]
+        : AIRCRAFT_PROXY_PATHS[0];
+    return window.__stratopsConfig?.aircraftFeedUrl || basePath;
 }
 function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
     const timeoutController = new AbortController();
@@ -207,7 +291,7 @@ function classifySubtype(record = {}) {
     const typeCode = normalizeString(record.t || record.type || "").toLowerCase();
     const desc = normalizeString(record.desc || record.category || record.r || "").toLowerCase();
     const callsign = normalizeCallsign(record.flight || "").toLowerCase();
-    const haystack = [typeCode, desc, callsign].filter(Boolean).join(" ");
+    const haystack = [typeCode, desc, callsign, record.r, record.ownOp, record.operator].filter(Boolean).join(" ");
     if (isSpecialIsrCommandRecord(record)) {
         return "isr";
     }
@@ -219,6 +303,9 @@ function classifySubtype(record = {}) {
     }
     if (isLikelyCivilianAirlinerRecord(record)) {
         return "civilian";
+    }
+    if (isExcludedTrainerAircraftText(haystack)) {
+        return "trainer";
     }
     // AWACS / AEW&C / airborne early warning
     if (/(awacs|aew&c|aewc|airborne early warning|early warning|e-3\b|e3\b|sentry\b|e-7\b|e7\b|wedgetail\b|e-2\b|e2\b|hawkeye\b|a-50\b|a50\b|a-100\b|a100\b|kj-2000\b|kj2000\b|kj-500\b|kj500\b|erieye\b|phalcon\b|netra\b)/.test(haystack)) {
@@ -251,10 +338,6 @@ function classifySubtype(record = {}) {
     // Helicopters / rotorcraft / gunships
     if (/(heli\b|helicopter\b|rotary wing\b|rotorcraft\b|ah-1\b|ah1\b|cobra\b|ah-64\b|ah64\b|apache\b|uh-60\b|uh60\b|black hawk\b|blackhawk\b|hh-60\b|hh60\b|mh-60\b|mh60\b|seahawk\b|ch-47\b|ch47\b|chinook\b|ch-53\b|ch53\b|stallion\b|super stallion\b|king stallion\b|uh-1\b|uh1\b|huey\b|v-22\b|v22\b|osprey\b|mi-8\b|mi8\b|mi-17\b|mi17\b|hip\b|mi-24\b|mi24\b|hind\b|mi-28\b|mi28\b|havoc\b|ka-27\b|ka27\b|helix\b|ka-29\b|ka29\b|ka-31\b|ka31\b|ka-52\b|ka52\b|alligator\b|z-9\b|z9\b|z-10\b|z10\b|z-19\b|z19\b|z-20\b|z20\b|nh90\b|aw101\b|merlin\b|aw159\b|wildcat\b|lynx\b|ec665\b|tiger\b|h145m\b|dhruv\b|prahchand\b|light combat helicopter\b)/.test(haystack)) {
         return "helicopter";
-    }
-    // Trainers
-    if (/(trainer\b|advanced trainer\b|jet trainer\b|t-6\b|t6\b|t-38\b|t38\b|hawk\b|m-346\b|m346\b|yak-130\b|yak130\b|jl-10\b|jl10\b|l-15\b|l15\b|k-8\b|k8\b|kt-1\b|kt1\b|pc-21\b|pc21\b)/.test(haystack)) {
-        return "trainer";
     }
     // Fighters / interceptors / multirole / attack jets
     if (/(fighter\b|interceptor\b|multirole\b|air superiority\b|combat aircraft\b|f\/a-18\b|fa-18\b|fa18\b|hornet\b|super hornet\b|f-14\b|f14\b|tomcat\b|f-15\b|f15\b|eagle\b|strike eagle\b|f-16\b|f16\b|falcon\b|f-22\b|f22\b|raptor\b|f-35\b|f35\b|lightning ii\b|a-10\b|a10\b|warthog\b|f-117\b|f117\b|nighthawk\b|su-27\b|su27\b|flanker\b|su-30\b|su30\b|su-35\b|su35\b|su-57\b|su57\b|mig-21\b|mig21\b|mig-23\b|mig23\b|mig-25\b|mig25\b|mig-29\b|mig29\b|mig-31\b|mig31\b|fulcrum\b|foxhound\b|j-7\b|j7\b|j-8\b|j8\b|j-10\b|j10\b|j-11\b|j11\b|j-15\b|j15\b|j-16\b|j16\b|j-20\b|j20\b|fc-1\b|fc1\b|jf-17\b|jf17\b|thunder\b|tejas\b|rafale\b|mirage 2000\b|mirage\b|typhoon\b|eurofighter\b|gripen\b|f-2\b|f2\b|kfir\b|jas 39\b)/.test(haystack)) {
@@ -445,7 +528,7 @@ function cleanupStaleTracks() {
 async function fetchAirplanesLiveRecords(signal) {
     const response = await fetchWithTimeout(getAirplanesLiveFeedUrl(), { signal });
     if (!response.ok) {
-        throw new Error(`airplanes.live request failed (${response.status})`);
+        throw new Error(`aircraft feed request failed (${response.status})`);
     }
     const payload = await response.json();
     return Array.isArray(payload?.ac) ? payload.ac : [];
@@ -499,7 +582,17 @@ async function refreshPublicAirTracks(options = {}) {
                 clearCanonicalIdentityIndex(civilianCanonicalKey);
                 continue;
             }
-            if (normalized.subcategory === "trainer") continue;
+            if (normalized.subcategory === "trainer") {
+                const trainerCanonicalKey = resolveCanonicalKey(normalized);
+                const trainerExisting = __canonicalTrackStore.get(trainerCanonicalKey);
+                if (trainerExisting?.track_key) {
+                    __activeTrackKeys.delete(trainerExisting.track_key);
+                    clearLiveTrack(trainerExisting.track_key);
+                }
+                __canonicalTrackStore.delete(trainerCanonicalKey);
+                clearCanonicalIdentityIndex(trainerCanonicalKey);
+                continue;
+            }
             const canonicalKey = resolveCanonicalKey(normalized);
             const existingCanonical = __canonicalTrackStore.get(canonicalKey);
             if (existingCanonical?.track_key) {

@@ -327,7 +327,7 @@
       "name": "Cloudflare Radar Internet Outages",
       "parser": "network-cloudflare",
       "enabled": true,
-      "url": "https://api.cloudflare.com/client/v4/radar/quality/outages/events?limit=50",
+      "url": "https://api.cloudflare.com/client/v4/radar/annotations/outages",
       "category": "network",
       "tags": [
         "network",
@@ -361,6 +361,32 @@
         "censorship",
         "ooni",
         "critical-infra"
+      ]
+    },
+    {
+      "name": "Manual Airspace Status",
+      "parser": "airspace-manual",
+      "enabled": true,
+      "url": "${MANUAL_AIRSPACE_FEED_URL}",
+      "category": "airspace",
+      "tags": [
+        "airspace",
+        "manual",
+        "status",
+        "aviation"
+      ]
+    },
+    {
+      "name": "Aviation Edge Airspace",
+      "parser": "airspace-api",
+      "enabled": true,
+      "url": "${AVIATION_EDGE_NOTAM_URL}",
+      "category": "airspace",
+      "tags": [
+        "airspace",
+        "notam",
+        "aviation-edge",
+        "aviation"
       ]
     },
     {

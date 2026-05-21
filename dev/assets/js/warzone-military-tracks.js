@@ -127,22 +127,22 @@ const CFG = {
     trailAltitudeOffsetM: 24,
 };
 const MODELS = {
-    carrier: "/assets/images/models/naval/ac-rs-1.glb",
-    amphibious: "/assets/images/models/naval/hc-1.glb",
-    cruiser: "/assets/images/models/naval/ns-2.glb",
-    destroyer: "/assets/images/models/naval/ns-2.glb",
-    frigate: "/assets/images/models/naval/ns-2.glb",
-    corvette: "/assets/images/models/naval/ns-1.glb",
-    missile_boat: "/assets/images/models/naval/ns-1.glb",
-    naval: "/assets/images/models/naval/ns-2.glb",
-    submarine: "/assets/images/models/naval/sb-1.glb",
-    ssbn: "/assets/images/models/naval/sb-1.glb",
-    ssn: "/assets/images/models/naval/sb-1.glb",
-    ssk: "/assets/images/models/naval/sb-1.glb",
-    aip_submarine: "/assets/images/models/naval/sb-1.glb",
-    logistics: "/assets/images/models/naval/ns-3.glb",
+    carrier: "/assets/images/models/naval/Carrier-Fujian.glb",
+    amphibious: "/assets/images/models/naval/Carrier-LHD.glb",
+    cruiser: "/assets/images/models/naval/Vessel-Frigate.glb",
+    destroyer: "/assets/images/models/naval/Vessel-Frigate.glb",
+    frigate: "/assets/images/models/naval/Vessel-Frigate.glb",
+    corvette: "/assets/images/models/naval/Vessel-Frigate.glb",
+    missile_boat: "/assets/images/models/naval/Boat.glb",
+    naval: "/assets/images/models/naval/Vessel-Frigate.glb",
+    submarine: "/assets/images/models/naval/Submarine-SSN.glb",
+    ssbn: "/assets/images/models/naval/Submarine-SSN.glb",
+    ssn: "/assets/images/models/naval/Submarine-SSN.glb",
+    ssk: "/assets/images/models/naval/Submarine-API.glb",
+    aip_submarine: "/assets/images/models/naval/Submarine-API.glb",
+    logistics: "/assets/images/models/naval/Vessel-Frigate.glb",
 };
-const MODEL_DEFAULT = "/assets/images/models/naval/ns-2.glb";
+const MODEL_DEFAULT = "/assets/images/models/naval/Vessel-Frigate.glb";
 function getModelUri(subcat) {
     return MODELS[normalizeSubcat(subcat)] || MODEL_DEFAULT;
 }

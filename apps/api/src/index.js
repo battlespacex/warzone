@@ -25,5 +25,4 @@ const { broadcast } = attachWs(server);
 app.use("/events", eventsRouter({ broadcast }));
 server.listen(PORT, () => {
     console.log(`Warzone API listening on :${PORT}`);
-    console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL}`);
 });

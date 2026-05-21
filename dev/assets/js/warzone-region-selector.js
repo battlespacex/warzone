@@ -591,23 +591,18 @@ function setRegionPromptVisibleOnControls(active) {
     });
 }
 function isAnyBlockingRegionModalVisible() {
-    return Boolean(document.querySelector(".wz-modal.is-visible:not([hidden])"));
+    return Boolean(document.querySelector(`.wz-modal.is-visible:not([hidden]):not(#${REGION_OUTSIDE_PROMPT_ID})`));
 }
 function ensureRegionOutsidePrompt(viewer) {
-    let prompt = document.getElementById(REGION_OUTSIDE_PROMPT_ID);
-    if (prompt) return prompt;
-    prompt = document.createElement("div");
-    prompt.id = REGION_OUTSIDE_PROMPT_ID;
-    prompt.className = "wz-region-outside-prompt";
-    prompt.hidden = true;
-    prompt.innerHTML = `
-        <p>Please select region</p>
-        <button type="button" class="btn-primary">
-            <span aria-hidden="true"></span>
-            Select Region
-        </button>
-    `;
-    prompt.querySelector("button")?.addEventListener("click", () => {
+    const prompt = document.getElementById(REGION_OUTSIDE_PROMPT_ID);
+    if (!prompt) return null;
+    if (prompt.dataset.regionPromptBound === "true") return prompt;
+    prompt.dataset.regionPromptBound = "true";
+    document.getElementById("wz-region-outside-return")?.addEventListener("click", () => {
+        setRegionHintState(false, viewer);
+        flyToRegion(viewer, __activeRegion);
+    });
+    document.getElementById("wz-region-outside-select")?.addEventListener("click", () => {
         setRegionHintState(false, viewer);
         showRegionModal(viewer, false, {
             mode: "manual",
@@ -620,7 +615,9 @@ function ensureRegionOutsidePrompt(viewer) {
             },
         });
     });
-    (document.getElementById("warzone-app") || document.body)?.appendChild(prompt);
+    document.getElementById("wz-region-outside-close")?.addEventListener("click", () => {
+        setRegionHintState(false, viewer);
+    });
     return prompt;
 }
 function setRegionOutsidePromptActive(active, viewer) {

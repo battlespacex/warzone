@@ -303,7 +303,7 @@ const HARD_MILITARY_AIRCRAFT_CODES = new Set([
     "TU22", "TU95", "TU160",
     // Chinese fighters / strike / bomber
     "J7", "J8", "J10", "J11", "J15", "J16", "J20", "JH7", "H6",
-    // Pakistan / India / regional / trainers
+    // Pakistan / India / regional
     "JF17", "TEJA", "LCA", "M2000", "MIR2", "MIR3",
     // AWACS / AEW / ISR
     "E3", "E3TF", "E3CF", "E7", "E8", "A50", "A100", "KJ200", "KJ500", "ZDK03", "SAAB340", "SAAB2000",
@@ -362,6 +362,87 @@ const HARD_MILITARY_OPERATORS = [
     "KUWAIT AIR FORCE",
     "BAHRAIN AIR FORCE"
 ];
+const TRAINING_AIRCRAFT_ACTIVITY_PATTERNS = [
+    /\bTRAINER\b/i,
+    /\bBASIC TRAINER\b/i,
+    /\bPRIMARY TRAINER\b/i,
+    /\bADVANCED TRAINER\b/i,
+    /\bJET TRAINER\b/i,
+    /\bFLIGHT TRAINING\b/i,
+    /\bPILOT TRAINING\b/i,
+    /\bTRAINING AIRCRAFT\b/i,
+    /\bTRAINING (FLIGHT|ACTIVITY|MISSION|SORTIE)\b/i,
+    /\bMILITARY TRAINING AIRCRAFT\b/i,
+];
+const TRAINER_AIRCRAFT_SPECIAL_OPERATIONAL_PATTERNS = [
+    /\bFA-?50\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?130\b/i,
+    /\bM-?346FA\b/i,
+    /\bA-?29\b/i,
+    /\bSUPER TUCANO\b/i,
+    /\bAT-?6\b/i,
+    /\bWOLVERINE\b/i,
+    /\bBLACK ?HAWK\b/i,
+    /\bSEAHAWK\b/i,
+    /\bHAWKEYE\b/i,
+];
+const TRAINER_AIRCRAFT_PLATFORM_PATTERNS = [
+    /\b(?:AERO\s+)?L-?(?:29|39|59)\b/i,
+    /\bDELFIN\b/i,
+    /\bALBATROS\b/i,
+    /\bSUPER ALBATROS\b/i,
+    /\bALPHA JET\b/i,
+    /\b(?:BAE\s+)?HAWK(?:\s+(?:T[12]|100|200))?\b/i,
+    /(^|[^A-Z0-9])T-?6[ABC]?\b/i,
+    /\bTEXAN II\b/i,
+    /\bBEECHCRAFT\s+T-?6\b/i,
+    /\bCT-?156\b/i,
+    /\bHARVARD II\b/i,
+    /\b(?:PILATUS\s+)?PC-?(?:7|9|21)(?:\s*(?:MKII|M))?\b/i,
+    /\bGROB\s+G-?(?:115|120A?|120TP)\b/i,
+    /\bG-?(?:115|120A?|120TP)\b/i,
+    /(^|[^A-Z0-9])T-?38[AC]?\b/i,
+    /\bTALON\b/i,
+    /\b(?:BOEING\s+)?T-?7A?\b/i,
+    /\bRED HAWK\b/i,
+    /\b(?:KAI\s+)?KT-?1\b/i,
+    /\bWOONGBI\b/i,
+    /\b(?:HONGDU\s+|NANCHANG\s+)?CJ-?6\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?(?:52|152)\b/i,
+    /\bPZL-?130\b/i,
+    /\bORLIK\b/i,
+    /\bSF-?260(?:EA)?\b/i,
+    /\bDIAMOND\s+DA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bDA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bEMB-?312\b/i,
+    /\bTUCANO\b/i,
+    /\bK-?8\b/i,
+    /\bJL-?8\b/i,
+    /\bKARAKORUM\b/i,
+    /\bM-?311\b/i,
+    /\bM-?345\b/i,
+    /\bM-?346(?!FA)\b/i,
+    /\bMB-?(?:326|339)\b/i,
+    /\bJET PROVOST\b/i,
+    /\bSCOTTISH AVIATION BULLDOG\b/i,
+    /\bBULLDOG\b/i,
+    /\bCT-?114\b/i,
+    /\bTUTOR\b/i,
+    /\bJL-?10\b/i,
+    /\bL-?15\b/i,
+];
+function isExcludedTrainerAircraftText(text = "") {
+    const haystack = String(text || "");
+    if (!haystack) return false;
+    const hasTrainingActivity = TRAINING_AIRCRAFT_ACTIVITY_PATTERNS.some((pattern) => pattern.test(haystack));
+    if (
+        !hasTrainingActivity &&
+        TRAINER_AIRCRAFT_SPECIAL_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(haystack))
+    ) {
+        return false;
+    }
+    return hasTrainingActivity || TRAINER_AIRCRAFT_PLATFORM_PATTERNS.some((pattern) => pattern.test(haystack));
+}
 function looksLikeMilitaryAircraftCode(code) {
     const clean = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!clean) return false;
@@ -827,6 +908,8 @@ const CIVILIAN_NOISE_TERMS = [
 ];
 function isGarbageEvent(event) {
     if (!event) return true;
+    const category = String(event.category || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
     const title = normalizeText(event.title || "");
     const summary = normalizeText(event.summary || "");
     const combined = `${title} ${summary}`.toLowerCase();
@@ -840,6 +923,14 @@ function isGarbageEvent(event) {
     if (/^https?:\/\//i.test(summary)) return true;
     // Reject civilian noise — strict block
     if (CIVILIAN_NOISE_TERMS.some((term) => combined.includes(term))) return true;
+    // Trusted infrastructure-status signals are allowed even when they don't
+    // use kinetic military wording.
+    if (
+        ["airspace", "cyber", "network"].includes(category) ||
+        ["notam", "airspace_status", "cyber", "network", "internet_outage", "network_blocking"].includes(reportType)
+    ) {
+        return false;
+    }
     // Must contain at least one hard military signal
     const hasRelevant =
         containsRelevantKeyword(combined, TELEGRAM_RELEVANT_KEYWORDS) ||
@@ -968,6 +1059,35 @@ async function upsertActiveAlert(alert) {
     if (error) {
         console.error("Active alert upsert error:", error.message);
     }
+}
+function shouldPersistStatusEventHistory(event, maxAgeDays = 7) {
+    const occurredAtMs = Date.parse(event?.occurred_at || "");
+    if (!Number.isFinite(occurredAtMs)) return true;
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+    if (Date.now() - occurredAtMs <= maxAgeMs) return true;
+    return Boolean(event?.expires_at);
+}
+function getNetworkAlertExpiry(event) {
+    if (event?.expires_at) return event.expires_at;
+    return new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+}
+async function upsertNetworkStatusAlert(event) {
+    if (!event) return;
+    const region = event.location_label || "Unknown region";
+    const scopeKey = event.country_code || sanitizeTag(region) || "unknown";
+    const reportType = String(event.report_type || "network").toLowerCase();
+    await upsertActiveAlert({
+        alert_key: `network:${reportType}:${scopeKey}`,
+        category: "network",
+        region,
+        title: event.title,
+        summary: event.summary,
+        status: "active",
+        source_name: event.source_name,
+        source_url: event.source_url,
+        started_at: event.occurred_at || new Date().toISOString(),
+        expires_at: getNetworkAlertExpiry(event)
+    });
 }
 async function clearExpiredAlerts() {
     const { error } = await supabase
@@ -2842,6 +2962,10 @@ async function processManualAirspaceFeed(feed) {
  * Airspace API
  * -------------------------------------- */
 async function processAviationEdgeFeed(feed) {
+    if (!feed?.url) {
+        console.log("AviationEdge skipped: feed url missing");
+        return;
+    }
     if (!process.env.AVIATION_EDGE_API_KEY) {
         console.log("AviationEdge skipped: AVIATION_EDGE_API_KEY missing");
         return;
@@ -3029,12 +3153,29 @@ function looksMilitaryFlight(row) {
     }
     return false;
 }
+function isExcludedTrainerMilitaryFlight(row = {}) {
+    return isExcludedTrainerAircraftText([
+        row?.aircraft?.icaoCode,
+        row?.aircraft?.model,
+        row?.aircraft_type,
+        row?.type,
+        row?.callsign,
+        row?.flight?.icaoNumber,
+        row?.flight?.iataNumber,
+        row?.flight?.number,
+        row?.airline?.name,
+        row?.operator,
+        row?.owner,
+        row?.origin_country,
+    ].filter(Boolean).join(" "));
+}
 function normalizeMilitaryFlight(row, feed) {
     const lat = safeNumber(row?.geography?.latitude);
     const lon = safeNumber(row?.geography?.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
     if (!isWithinBBox(lat, lon, REGION_BBOX)) return null;
     if (!looksMilitaryFlight(row)) return null;
+    if (isExcludedTrainerMilitaryFlight(row)) return null;
     const airlineName = row?.airline?.name || row?.operator || "";
     const flightCode =
         row?.flight?.icaoNumber ||
@@ -3131,7 +3272,11 @@ async function processMilitaryFlightsFeed(feed) {
  * -------------------------------------- */
 function mapCloudflareOutage(item) {
     if (!item || typeof item !== "object") return null;
+    const primaryLocation = Array.isArray(item.locationsDetails) && item.locationsDetails.length
+        ? item.locationsDetails[0]
+        : null;
     const locationLabel =
+        primaryLocation?.name ||
         item.location ||
         item.locationName ||
         item.name ||
@@ -3143,6 +3288,7 @@ function mapCloudflareOutage(item) {
         item.title ||
         "";
     const startedAt =
+        item.startDate ||
         item.startTime ||
         item.started_at ||
         item.start_date ||
@@ -3151,12 +3297,16 @@ function mapCloudflareOutage(item) {
         item.since ||
         new Date().toISOString();
     const endedAt =
+        item.endDate ||
         item.endTime ||
         item.ended_at ||
         item.end_date ||
         null;
     const scopeText = normalizeText(
         [
+            item.description,
+            item.outage?.outageCause,
+            item.outage?.outageType,
             item.outageType,
             item.cause,
             item.eventType,
@@ -3172,6 +3322,8 @@ function mapCloudflareOutage(item) {
         summary: normalizeText(
             [
                 item.description,
+                item.outage?.outageCause,
+                item.outage?.outageType,
                 item.cause,
                 item.outageType,
                 item.status
@@ -3288,8 +3440,16 @@ function mapOoniObservation(item) {
 }
 async function finalizeNetworkEvent(baseEvent, feed, extra = {}) {
     if (!baseEvent) return null;
-    const location = await resolveLocationFromText(baseEvent.location_label || "", { requireBBox: false });
+    const location =
+        await resolveLocationFromText(baseEvent.location_label || "", { requireBBox: false }) ||
+        await geocodeLocation(baseEvent.location_label || "");
     if (!location) return null;
+    const severity = baseEvent.severity || "medium";
+    const cyberStatus =
+        severity === "critical" ? "critical" :
+            severity === "high" ? "high" :
+                severity === "low" ? "normal" :
+                    "elevated";
     return {
         category: feed.category || "network",
         title: baseEvent.title || `${feed.name} signal`,
@@ -3299,7 +3459,7 @@ async function finalizeNetworkEvent(baseEvent, feed, extra = {}) {
         occurred_at: normalizeOccurredAt(baseEvent.occurred_at),
         lat: Number(location.lat),
         lon: Number(location.lon),
-        location_label: location.label || baseEvent.location_label || "Unknown location",
+        location_label: baseEvent.location_label || location.label || "Unknown location",
         confidence: Number(extra.confidence ?? 72),
         actor_side: "unknown",
         target_side: "unknown",
@@ -3307,11 +3467,11 @@ async function finalizeNetworkEvent(baseEvent, feed, extra = {}) {
         target_type: "communications infrastructure",
         impact_type: "digital",
         report_type: extra.report_type || "network",
-        severity: baseEvent.severity || "medium",
+        severity,
         country_code: extra.country_code || "",
         tags: uniqueTags([...(baseEvent.tags || []), "network"]),
         airspace_status: "unknown",
-        cyber_status: "elevated",
+        cyber_status: cyberStatus,
         fir_code: "",
         dedupe_key: baseEvent.dedupe_key
     };
@@ -3323,6 +3483,10 @@ async function processCloudflareRadarFeed(feed) {
     }
     const response = await axios.get(feed.url, {
         timeout: 20000,
+        params: {
+            limit: 50,
+            dateRange: "1d"
+        },
         headers: {
             Authorization: `Bearer ${process.env.CLOUDFLARE_RADAR_TOKEN}`,
             Accept: "application/json",
@@ -3330,7 +3494,8 @@ async function processCloudflareRadarFeed(feed) {
         }
     });
     const results =
-        toArray(response.data?.result?.outages).length ? response.data.result.outages :
+        toArray(response.data?.result?.annotations).length ? response.data.result.annotations :
+            toArray(response.data?.result?.outages).length ? response.data.result.outages :
             toArray(response.data?.result).length ? response.data.result :
                 toArray(response.data?.outages).length ? response.data.outages :
                     toArray(response.data?.data);
@@ -3338,10 +3503,12 @@ async function processCloudflareRadarFeed(feed) {
         const mapped = mapCloudflareOutage(item);
         const event = await finalizeNetworkEvent(mapped, feed, {
             report_type: "internet_outage",
-            source_url: item?.url || feed.url,
-            country_code: item?.countryCode || item?.country_code || ""
+            source_url: item?.linkedUrl || item?.url || feed.url,
+            country_code: item?.locations?.[0] || item?.locationsDetails?.[0]?.code || item?.countryCode || item?.country_code || ""
         });
         if (!event) continue;
+        await upsertNetworkStatusAlert(event);
+        if (!shouldPersistStatusEventHistory(event)) continue;
         await insertEventIfValid(event);
     }
 }
@@ -3366,6 +3533,7 @@ async function processIodaFeed(feed) {
             country_code: item?.countryCode || item?.country_code || ""
         });
         if (!event) continue;
+        await upsertNetworkStatusAlert(event);
         await insertEventIfValid(event);
     }
 }
@@ -3390,6 +3558,7 @@ async function processOoniFeed(feed) {
             country_code: item?.probe_cc || item?.country_code || ""
         });
         if (!event) continue;
+        await upsertNetworkStatusAlert(event);
         await insertEventIfValid(event);
     }
 }
@@ -3563,7 +3732,25 @@ async function runWorker() {
             feed.type !== "adsb-opensky" &&
             feed.type !== "ais-stream"
         );
-        for (const feed of activeFeeds) {
+        const statusFeedPriority = new Map([
+            ["notam-api", 1],
+            ["airspace-manual", 2],
+            ["airspace-api", 3],
+            ["network-cloudflare", 4],
+            ["network-ioda", 5],
+            ["network-ooni", 6],
+            ["cyber", 7],
+        ]);
+        const prioritizedFeeds = activeFeeds
+            .map((feed, index) => ({ feed, index }))
+            .sort((a, b) => {
+                const aPriority = statusFeedPriority.get(String(a.feed.parser || "").toLowerCase()) || 999;
+                const bPriority = statusFeedPriority.get(String(b.feed.parser || "").toLowerCase()) || 999;
+                if (aPriority !== bPriority) return aPriority - bPriority;
+                return a.index - b.index;
+            })
+            .map((entry) => entry.feed);
+        for (const feed of prioritizedFeeds) {
             try {
                 await processFeed(feed);
             } catch (err) {

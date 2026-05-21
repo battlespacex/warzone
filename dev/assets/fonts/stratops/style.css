@@ -1,10 +1,10 @@
 @font-face {
   font-family: 'stratops-icon-font';
-  src:  url('../fonts/stratops-icon-font.eot?6hul9k');
-  src:  url('../fonts/stratops-icon-font.eot?6hul9k#iefix') format('embedded-opentype'),
-    url('../fonts/stratops-icon-font.ttf?6hul9k') format('truetype'),
-    url('../fonts/stratops-icon-font.woff?6hul9k') format('woff'),
-    url('../fonts/stratops-icon-font.svg?6hul9k#stratops-icon-font') format('svg');
+  src:  url('/assets/fonts/stratops/stratops-icon-font.eot?6hul9k');
+  src:  url('/assets/fonts/stratops/stratops-icon-font.eot?6hul9k#iefix') format('embedded-opentype'),
+    url('/assets/fonts/stratops/stratops-icon-font.ttf?6hul9k') format('truetype'),
+    url('/assets/fonts/stratops/stratops-icon-font.woff?6hul9k') format('woff'),
+    url('/assets/fonts/stratops/stratops-icon-font.svg?6hul9k#stratops-icon-font') format('svg');
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -25,174 +25,171 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.stratops-ico-article-1:before {
+.stratops-ico-next-1:before {
   content: "\e900";
 }
-.stratops-ico-cancel-1:before {
+.stratops-ico-previous-1:before {
   content: "\e901";
 }
-.stratops-ico-chat-1:before {
+.stratops-ico-top-1:before {
   content: "\e902";
 }
-.stratops-ico-close-1:before {
+.stratops-ico-bottom-1:before {
   content: "\e903";
 }
-.stratops-ico-copy-1:before {
+.stratops-ico-submit-1:before {
   content: "\e904";
 }
-.stratops-ico-file-1:before {
+.stratops-ico-status-1:before {
   content: "\e905";
 }
-.stratops-ico-global-1:before {
+.stratops-ico-profile-1:before {
   content: "\e906";
 }
-.stratops-ico-like-1:before {
+.stratops-ico-more-1:before {
   content: "\e907";
 }
-.stratops-ico-liked-1:before {
+.stratops-ico-lock-1:before {
   content: "\e908";
 }
-.stratops-ico-lock-1:before {
+.stratops-ico-liked-1:before {
   content: "\e909";
 }
-.stratops-ico-more-1:before {
+.stratops-ico-like-1:before {
   content: "\e90a";
 }
-.stratops-ico-top-1:before {
+.stratops-ico-global-1:before {
   content: "\e90b";
 }
-.stratops-ico-next-1:before {
+.stratops-ico-file-1:before {
   content: "\e90c";
 }
-.stratops-ico-previous-1:before {
+.stratops-ico-copy-1:before {
   content: "\e90d";
 }
-.stratops-ico-bottom-1:before {
+.stratops-ico-close-1:before {
   content: "\e90e";
 }
-.stratops-ico-profile-1:before {
+.stratops-ico-checked-1:before {
   content: "\e90f";
 }
-.stratops-ico-submit-1:before {
+.stratops-ico-chat-1:before {
   content: "\e910";
 }
-.stratops-ico-social-fb-1:before {
+.stratops-ico-cancel-1:before {
   content: "\e911";
 }
-.stratops-ico-social-flip-1:before {
+.stratops-ico-article-1:before {
   content: "\e912";
 }
-.stratops-ico-social-insta-1:before {
+.stratops-ico-assets-unknown-1:before {
   content: "\e913";
 }
-.stratops-ico-social-linkedin-1:before {
+.stratops-ico-assets-unknown-2:before {
   content: "\e914";
 }
-.stratops-ico-social-linkedin-2:before {
+.stratops-ico-assets-alert-2:before {
   content: "\e915";
 }
-.stratops-ico-social-x-1:before {
+.stratops-ico-assets-alert-1:before {
   content: "\e916";
 }
-.stratops-ico-social-yt-1:before {
+.stratops-ico-assets-signal-thermal-1:before {
   content: "\e917";
 }
-.stratops-ico-hotspot-air-activity-1:before {
+.stratops-ico-assets-airspace-1:before {
   content: "\e918";
 }
-.stratops-ico-hotspot-airspace-1:before {
+.stratops-ico-assets-recon-intel-1:before {
   content: "\e919";
 }
-.stratops-ico-hotspot-alert-1:before {
+.stratops-ico-assets-naval-1-2:before {
   content: "\e91a";
 }
-.stratops-ico-hotspot-alert-2:before {
+.stratops-ico-assets-naval-1:before {
   content: "\e91b";
 }
-.stratops-ico-hotspot-cyber-1:before {
+.stratops-ico-assets-army-1:before {
   content: "\e91c";
 }
-.stratops-ico-hotspot-ground-activity-1:before {
+.stratops-ico-assets-missile-1:before {
   content: "\e91d";
 }
-.stratops-ico-hotspot-naval-activity-1:before {
+.stratops-ico-assets-joint-1:before {
   content: "\e91e";
 }
-.stratops-ico-hotspot-recon-intel-1:before {
+.stratops-ico-assets-air-1:before {
   content: "\e91f";
 }
-.stratops-ico-hotspot-signal-thermal-1:before {
+.stratops-ico-assets-drone-1:before {
   content: "\e920";
 }
-.stratops-ico-hotspot-strike-1:before {
+.stratops-ico-assets-cyber-1:before {
   content: "\e921";
 }
-.stratops-ico-hotspot-unknown-1:before {
+.stratops-ico-assets-radar-1:before {
   content: "\e922";
 }
-.stratops-ico-dock-airspace-1:before {
+.stratops-ico-assets-space-launch-1:before {
   content: "\e923";
 }
-.stratops-ico-dock-air-tracker-1:before {
+.stratops-ico-assets-wmd-1:before {
   content: "\e924";
 }
-.stratops-ico-dock-cyberspace-1:before {
+.stratops-ico-assets-hq-1:before {
   content: "\e925";
 }
-.stratops-ico-dock-esclation-meter-1:before {
+.stratops-ico-assets-strike-1:before {
   content: "\e926";
 }
-.stratops-ico-dock-map-layers-1:before {
+.stratops-ico-dock-stratops-1:before {
   content: "\e927";
 }
-.stratops-ico-dock-naval-tracker-1:before {
+.stratops-ico-dock-zoom-1:before {
   content: "\e928";
 }
-.stratops-ico-dock-news-1:before {
+.stratops-ico-dock-escalation-meter-1:before {
   content: "\e929";
 }
-.stratops-ico-dock-stratops-1:before {
+.stratops-ico-dock-map-layers-1:before {
   content: "\e92a";
 }
-.stratops-ico-dock-strike-counter-1:before {
+.stratops-ico-dock-news-1:before {
   content: "\e92b";
 }
-.stratops-ico-dock-zoom-1:before {
+.stratops-ico-dock-naval-tracker-1:before {
   content: "\e92c";
 }
-.stratops-ico-bases-airbase-1:before {
+.stratops-ico-dock-air-tracker-1:before {
   content: "\e92d";
 }
-.stratops-ico-bases-army-1:before {
+.stratops-ico-dock-airspace-1:before {
   content: "\e92e";
 }
-.stratops-ico-bases-cyber-1:before {
+.stratops-ico-dock-cyberspace-1:before {
   content: "\e92f";
 }
-.stratops-ico-bases-drone-1:before {
+.stratops-ico-dock-strike-counter-1:before {
   content: "\e930";
 }
-.stratops-ico-bases-hq-1:before {
+.stratops-ico-social-insta-1:before {
   content: "\e931";
 }
-.stratops-ico-bases-joint-1:before {
+.stratops-ico-social-fb-1:before {
   content: "\e932";
 }
-.stratops-ico-bases-missile-1:before {
+.stratops-ico-social-flip-1:before {
   content: "\e933";
 }
-.stratops-ico-bases-naval-1:before {
+.stratops-ico-social-linkedin-2:before {
   content: "\e934";
 }
-.stratops-ico-bases-radar-1:before {
+.stratops-ico-social-linkedin-1:before {
   content: "\e935";
 }
-.stratops-ico-bases-space-launch-1:before {
+.stratops-ico-social-yt-1:before {
   content: "\e936";
 }
-.stratops-ico-bases-unknown-1:before {
+.stratops-ico-social-x-1:before {
   content: "\e937";
-}
-.stratops-ico-bases-wmd-1:before {
-  content: "\e938";
 }

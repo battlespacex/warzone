@@ -41,20 +41,20 @@ const TYPE_LABEL = {
     unknown: "Military Installation",
 };
 const TYPE_PANEL_ICON = {
-    airbase: "stratops-ico-bases-airbase-1",
-    naval: "stratops-ico-bases-naval-1",
-    army: "stratops-ico-bases-army-1",
-    missile: "stratops-ico-bases-missile-1",
-    cyber: "stratops-ico-bases-cyber-1",
-    joint: "stratops-ico-bases-joint-1",
-    hq: "stratops-ico-bases-hq-1",
-    space_launch: "stratops-ico-bases-space-launch-1",
-    radar: "stratops-ico-bases-radar-1",
-    drone: "stratops-ico-bases-drone-1",
-    weapons_storage: "stratops-ico-bases-unknown-1",
-    training_logistics: "stratops-ico-bases-unknown-1",
-    wmd: "stratops-ico-bases-wmd-1",
-    unknown: "stratops-ico-bases-unknown-1",
+    airbase: "stratops-ico-assets-air-1",
+    naval: "stratops-ico-assets-naval-1",
+    army: "stratops-ico-assets-army-1",
+    missile: "stratops-ico-assets-missile-1",
+    cyber: "stratops-ico-assets-cyber-1",
+    joint: "stratops-ico-assets-joint-1",
+    hq: "stratops-ico-assets-hq-1",
+    space_launch: "stratops-ico-assets-space-launch-1",
+    radar: "stratops-ico-assets-radar-1",
+    drone: "stratops-ico-assets-drone-1",
+    weapons_storage: "stratops-ico-assets-unknown-1",
+    training_logistics: "stratops-ico-assets-unknown-1",
+    wmd: "stratops-ico-assets-wmd-1",
+    unknown: "stratops-ico-assets-unknown-1",
 };
 
 /* ─── PNG Icons ─────────────────────────────────────────────────────────── */
@@ -68,7 +68,7 @@ const ICON = {
     hq: "/assets/images/bases/hq-1.png",
     space_launch: "/assets/images/bases/space-launch.png",
     radar: "/assets/images/bases/radar-1.png",
-    drone: "/assets/images/bases/drone.png",
+    drone: "/assets/images/bases/drone-1.png",
     weapons_storage: "/assets/images/bases/unknown-1.png",
     training_logistics: "/assets/images/bases/unknown-1.png",
     wmd: "/assets/images/bases/wmd-1.png",
@@ -106,8 +106,7 @@ function createBaseEntity(dataSource, base) {
             pixelOffset: new Cesium.Cartesian2(0, 8),
             heightReference: Cesium.HeightReference.NONE,
             translucencyByDistance: new Cesium.NearFarScalar(7e6, 1.0, 1.4e7, 0.0),
-            // Always render base icons above border/ground linework.
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            disableDepthTestDistance: 0,
         },
         properties: {
             milbase: true,

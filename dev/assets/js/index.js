@@ -35,7 +35,7 @@ window.__stratopsConfig = {
         modelZoomHeight: 280000,
         modelMaxActive: 16,
         charFallbackCount: 90,
-        zoomModel: true,
+        zoomModel: false,
     },
     navalVisualPolicy: {
         modelZoomHeight: 280000,

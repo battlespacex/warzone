@@ -1,4 +1,4 @@
-// File Path: /assets/js/warzone-military-bases-data.js
+﻿// File Path: /assets/js/warzone-military-bases-data.js
 // Canonical StratOps military bases dataset merged from existing StratOps records and the normalized uMap production export.
 
 export const MILITARY_BASES_STATS = {
@@ -235,13 +235,13 @@ export const MILITARY_BASES = [
                     "metadata": {
                         "originalType": "",
                         "originalCategory": "United States Air Force installations",
-                        "description": "Missions: Main Operating Base made available to the US by the Qatari government. The 379th AEW is the largest expeditionary wing in the USAF and provides a wide range of combat air power and combat support for Operations Inherent Resolve and Resolute Support and Combined Joint Task Force – Horn of Africa. The base is the forward headquarters of US Central Command and home to the Combined Air Operations Center which co-ordinates operations in the Middle East.",
+                        "description": "Missions: Main Operating Base made available to the US by the Qatari government. The 379th AEW is the largest expeditionary wing in the USAF and provides a wide range of combat air power and combat support for Operations Inherent Resolve and Resolute Support and Combined Joint Task Force â€“ Horn of Africa. The base is the forward headquarters of US Central Command and home to the Combined Air Operations Center which co-ordinates operations in the Middle East.",
                         "notes": "",
                         "rawDescription": "",
                         "originalProperties": {
                             "Name": "Al Udeid Air Base",
                             "Location": "Qatar",
-                            "Missions": "Main Operating Base made available to the US by the Qatari government. The 379th AEW is the largest expeditionary wing in the USAF and provides a wide range of combat air power and combat support for Operations Inherent Resolve and Resolute Support and Combined Joint Task Force – Horn of Africa. The base is the forward headquarters of US Central Command and home to the Combined Air Operations Center which co-ordinates operations in the Middle East."
+                            "Missions": "Main Operating Base made available to the US by the Qatari government. The 379th AEW is the largest expeditionary wing in the USAF and provides a wide range of combat air power and combat support for Operations Inherent Resolve and Resolute Support and Combined Joint Task Force â€“ Horn of Africa. The base is the forward headquarters of US Central Command and home to the Combined Air Operations Center which co-ordinates operations in the Middle East."
                         }
                     }
                 },
@@ -1013,7 +1013,7 @@ export const MILITARY_BASES = [
             "matchedExternalRecords": [
                 {
                     "id": "mil_united-state-moron-air-base-32642",
-                    "name": "Morón Air Base",
+                    "name": "MorÃ³n Air Base",
                     "country": "United States",
                     "region": "North America",
                     "type": "airbase",
@@ -1034,7 +1034,7 @@ export const MILITARY_BASES = [
                         "notes": "",
                         "rawDescription": "",
                         "originalProperties": {
-                            "Name": "Morón Air Base",
+                            "Name": "MorÃ³n Air Base",
                             "Location": "Spain",
                             "Missions": "Spanish Air Force base hosting a Geographically Separate Unit of the 86th Airlift Wing. Provides base and en-route support to aircraft making transatlantic flights."
                         }
@@ -1384,7 +1384,7 @@ export const MILITARY_BASES = [
         "lat": 11.5044,
         "lon": 42.975,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "existing"
         ],
@@ -4401,7 +4401,7 @@ export const MILITARY_BASES = [
             "matchedExternalRecords": [
                 {
                     "id": "mil_united-state-amari-air-base-11151",
-                    "name": "Ämari Air Base",
+                    "name": "Ã„mari Air Base",
                     "country": "United States",
                     "region": "North America",
                     "type": "airbase",
@@ -4422,7 +4422,7 @@ export const MILITARY_BASES = [
                         "notes": "",
                         "rawDescription": "",
                         "originalProperties": {
-                            "Name": "Ämari Air Base",
+                            "Name": "Ã„mari Air Base",
                             "Location": "Estonia",
                             "Missions": "Estonian Air Force base hosting a Geographically Separate Unit of the 52nd Fighter Wing. Operates the MQ-9A Reaper in the intelligence, surveillance and reconnaissance role since June 2020 whilst the runway at Miroslawiec Air Base is resurfaced."
                         }
@@ -7425,7 +7425,7 @@ export const MILITARY_BASES = [
         "lat": 12.137,
         "lon": 15.034,
         "aliases": [
-            "N’Djamena Airport"
+            "Nâ€™Djamena Airport"
         ],
         "icon": "/assets/images/bases/airbase-1.png",
         "source": [
@@ -7447,7 +7447,7 @@ export const MILITARY_BASES = [
             "matchedExternalRecords": [
                 {
                     "id": "mil_chad-ndjamena-airport-85231",
-                    "name": "N’Djamena Airport",
+                    "name": "Nâ€™Djamena Airport",
                     "country": "Chad",
                     "region": "",
                     "type": "drone",
@@ -7469,7 +7469,7 @@ export const MILITARY_BASES = [
                         "rawDescription": "",
                         "originalProperties": {
                             "Country": "Chad",
-                            "Base": "N’Djamena Airport",
+                            "Base": "Nâ€™Djamena Airport",
                             "Operation_dates": "since 2014",
                             "Operations": "fight against Boko Haram in Nigeria"
                         }
@@ -11479,7 +11479,7 @@ export const MILITARY_BASES = [
         "lat": 30.37056,
         "lon": 76.81778,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -11816,7 +11816,7 @@ export const MILITARY_BASES = [
         "aliases": [
             "Cape Canaveral Air Force Station, Florida"
         ],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -12007,14 +12007,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "United States Air Force installations",
-            "description": "Missions: Non-flying installation, Geographically Separate Unit of the Peterson–Schriever Garrison. The Cheyenne Mountain Complex serves as NORAD and US Northern Command's Alternate Command Center.",
+            "description": "Missions: Non-flying installation, Geographically Separate Unit of the Petersonâ€“Schriever Garrison. The Cheyenne Mountain Complex serves as NORAD and US Northern Command's Alternate Command Center.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Cheyenne Mountain Air Force Station",
                 "Location": "Colorado Springs",
                 "State": "Colorado",
-                "Missions": "Non-flying installation, Geographically Separate Unit of the Peterson–Schriever Garrison. The Cheyenne Mountain Complex serves as NORAD and US Northern Command's Alternate Command Center."
+                "Missions": "Non-flying installation, Geographically Separate Unit of the Petersonâ€“Schriever Garrison. The Cheyenne Mountain Complex serves as NORAD and US Northern Command's Alternate Command Center."
             }
         }
     },
@@ -12071,7 +12071,7 @@ export const MILITARY_BASES = [
         "lat": 36.58722,
         "lon": -115.67333,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -12094,7 +12094,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-davismonthan-air-force-base-98114",
-        "name": "Davis–Monthan Air Force Base",
+        "name": "Davisâ€“Monthan Air Force Base",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -12122,7 +12122,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Davis–Monthan Air Force Base",
+                "Name": "Davisâ€“Monthan Air Force Base",
                 "Location": "Tucson",
                 "State": "Arizona",
                 "Missions": "The 355th Fighter Wing operates the A-10C Thunderbolt II (both for training and operationally), the HH-60G Pave Hawk and HC-130J Combat King II. Other flying units include the 55th Electronic Combat Group (EC-130H Compass Call), 920th Rescue Wing (HH-60G), 924th Fighter Group (A-10C) and the Arizona Air National Guard's162nd Wing (MQ-9A Reaper and F-16 Fighting Falcon). The base is known for its aircraft storage facility, operated by the 309th Aerospace Maintenance and Regeneration Group and is also the headquarters of the Twelfth Air Force (Air Forces Southern)."
@@ -12883,7 +12883,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-joint-base-langleyeustis-54449",
-        "name": "Joint Base Langley–Eustis",
+        "name": "Joint Base Langleyâ€“Eustis",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -12911,7 +12911,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Joint Base Langley–Eustis",
+                "Name": "Joint Base Langleyâ€“Eustis",
                 "Location": "Hampton",
                 "State": "Virginia",
                 "Missions": "USAF operated joint base. Home to the 1st Fighter Wing and the Virginia Air National Guard's192d Fighter Wing, both flying the F-22A Raptor. The base also hosts the headquarters of Air Combat Command, the 363rd Intelligence, Surveillance, and Reconnaissance (ISR) Wing and the 480th ISR Wing."
@@ -13216,7 +13216,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-joint-base-mcguiredixlakehurst-76507",
-        "name": "Joint Base McGuire–Dix–Lakehurst",
+        "name": "Joint Base McGuireâ€“Dixâ€“Lakehurst",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -13244,7 +13244,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Joint Base McGuire–Dix–Lakehurst",
+                "Name": "Joint Base McGuireâ€“Dixâ€“Lakehurst",
                 "Location": "Trenton",
                 "State": "New Jersey",
                 "Missions": "USAF operated joint base. The 305th Air Mobility Wing and 514th Air Mobility Wing operate the C-17A Globemaster III and KC-10A Extender. Also home to the New Jersey Air National Guard's108th Wing operating the KC-135R Stratotanker. The 621st Contingency Response Wing is part of the USAF Expeditionary Center which is also based there."
@@ -13489,7 +13489,7 @@ export const MILITARY_BASES = [
         "lat": 28.235,
         "lon": -80.61,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -14044,7 +14044,7 @@ export const MILITARY_BASES = [
         "lat": 30.07861,
         "lon": -85.57639,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -15602,7 +15602,7 @@ export const MILITARY_BASES = [
         "lat": 39.45139,
         "lon": -87.3075,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -15649,14 +15649,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "United States Air Force installations",
-            "description": "Missions: Airfield shared with Jackson–Medgar Wiley Evers International Airport. The 172nd Airlift Wing operates the C-17A Globemaster III.",
+            "description": "Missions: Airfield shared with Jacksonâ€“Medgar Wiley Evers International Airport. The 172nd Airlift Wing operates the C-17A Globemaster III.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Jackson Air National Guard Base",
                 "Location": "Jackson",
                 "State": "Mississippi",
-                "Missions": "Airfield shared with Jackson–Medgar Wiley Evers International Airport. The 172nd Airlift Wing operates the C-17A Globemaster III."
+                "Missions": "Airfield shared with Jacksonâ€“Medgar Wiley Evers International Airport. The 172nd Airlift Wing operates the C-17A Globemaster III."
             }
         }
     },
@@ -16135,7 +16135,7 @@ export const MILITARY_BASES = [
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Minneapolis-Saint Paul Joint Air Reserve Station",
-                "Location": "Minneapolis – Saint Paul",
+                "Location": "Minneapolis â€“ Saint Paul",
                 "State": "Minnesota",
                 "Missions": "Airfield shared with Minneapolis-Saint Paul International Airport. The 934th Airlift Wing and the Minnesota Air National Guard's133rd Airlift Wing operates the C-130 Hercules."
             }
@@ -17509,14 +17509,14 @@ export const MILITARY_BASES = [
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Hato International Airport",
-                "Location": "Curaçao",
+                "Location": "CuraÃ§ao",
                 "Missions": "Cooperative Security Location made available to the US by the Netherlands. Geographically Separate Unit of the 612th Theater Operation Group, supporting Joint Interagency Task Force South (JIATF South) counter-drug operations."
             }
         }
     },
     {
         "id": "mil_united-state-muniz-air-national-guard-base-66130",
-        "name": "Muñiz Air National Guard Base",
+        "name": "MuÃ±iz Air National Guard Base",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -17540,13 +17540,13 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "United States Air Force installations",
-            "description": "Missions: Airfield shared with Luis Muñoz Marín International Airport. The 156th Wing is a component of the Puerto Rico Air National Guard and operates the WC-130H Hercules.",
+            "description": "Missions: Airfield shared with Luis MuÃ±oz MarÃ­n International Airport. The 156th Wing is a component of the Puerto Rico Air National Guard and operates the WC-130H Hercules.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Muñiz Air National Guard Base",
+                "Name": "MuÃ±iz Air National Guard Base",
                 "Location": "Puerto Rico",
-                "Missions": "Airfield shared with Luis Muñoz Marín International Airport. The 156th Wing is a component of the Puerto Rico Air National Guard and operates the WC-130H Hercules."
+                "Missions": "Airfield shared with Luis MuÃ±oz MarÃ­n International Airport. The 156th Wing is a component of the Puerto Rico Air National Guard and operates the WC-130H Hercules."
             }
         }
     },
@@ -17792,13 +17792,13 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "United States Air Force installations",
-            "description": "Missions: Main Operating Base flying the F-16C/D Fighting Falcon, KC-135 Stratotanker and HH-60G Pave Hawk. Supports Red Flag – Alaska exercises.",
+            "description": "Missions: Main Operating Base flying the F-16C/D Fighting Falcon, KC-135 Stratotanker and HH-60G Pave Hawk. Supports Red Flag â€“ Alaska exercises.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Eielson Air Force Base",
                 "Location": "United States (Alaska)",
-                "Missions": "Main Operating Base flying the F-16C/D Fighting Falcon, KC-135 Stratotanker and HH-60G Pave Hawk. Supports Red Flag – Alaska exercises."
+                "Missions": "Main Operating Base flying the F-16C/D Fighting Falcon, KC-135 Stratotanker and HH-60G Pave Hawk. Supports Red Flag â€“ Alaska exercises."
             }
         }
     },
@@ -17840,7 +17840,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-kaena-point-satellite-tracking-station-80477",
-        "name": "Ka’ena Point Satellite Tracking Station",
+        "name": "Kaâ€™ena Point Satellite Tracking Station",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -17868,7 +17868,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Ka’ena Point Satellite Tracking Station",
+                "Name": "Kaâ€™ena Point Satellite Tracking Station",
                 "Location": "United States (Hawaii)",
                 "Missions": "Tracking station forming part of the Air Force Satellite Control Network. Geographically Separate Unit of the 50th Space Wing."
             }
@@ -17984,7 +17984,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-buchel-air-base-19519",
-        "name": "Büchel Air Base",
+        "name": "BÃ¼chel Air Base",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -18012,7 +18012,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Büchel Air Base",
+                "Name": "BÃ¼chel Air Base",
                 "Location": "Germany",
                 "Missions": "German Air Force base hosting a Geographically Separate Unit of the 52nd Fighter Wing. Responsible for receipt, storage, maintenance and control of US war reserve munitions in support of the German Air Force."
             }
@@ -18203,7 +18203,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-chievres-air-base-10478",
-        "name": "Chièvres Air Base",
+        "name": "ChiÃ¨vres Air Base",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -18231,7 +18231,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Chièvres Air Base",
+                "Name": "ChiÃ¨vres Air Base",
                 "Location": "Belgium",
                 "Missions": "Provides logistical support to NATO Headquarters and SHAPE. Geographically Separate Unit of the 86th Airlift Wing."
             }
@@ -18347,7 +18347,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_united-state-ask-air-base-31317",
-        "name": "Łask Air Base",
+        "name": "Åask Air Base",
         "country": "United States",
         "region": "North America",
         "operator": "United States Air Force installations",
@@ -18375,7 +18375,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Łask Air Base",
+                "Name": "Åask Air Base",
                 "Location": "Poland",
                 "Missions": "Polish Air Force base hosting a Geographically Separate Unit of the 52nd Fighter Wing. Supports the European Reassurance Initiative and NATO readiness in eastern Europe. The base has hosted temporary deployments of aircraft including the A-10C Thunderbolt II, F-22A Raptor, F-16 Fighting Falcon, C-130 Hercules and KC-135R Stratotanker."
             }
@@ -19295,7 +19295,7 @@ export const MILITARY_BASES = [
         "lat": 29.92389,
         "lon": 121.57389,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -19844,7 +19844,7 @@ export const MILITARY_BASES = [
         "lat": 24.14972,
         "lon": 115.75722,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -20389,7 +20389,7 @@ export const MILITARY_BASES = [
         "lat": 27.70083,
         "lon": 118.00028,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -20611,7 +20611,7 @@ export const MILITARY_BASES = [
         "lat": 41.26306,
         "lon": 80.28944,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -20833,7 +20833,7 @@ export const MILITARY_BASES = [
         "lat": 42.18083,
         "lon": 87.18639,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -20856,7 +20856,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_china-urumqi-south-87974",
-        "name": "Ürümqi South",
+        "name": "ÃœrÃ¼mqi South",
         "country": "China",
         "region": "East Asia",
         "operator": "Western",
@@ -20884,7 +20884,7 @@ export const MILITARY_BASES = [
             "notes": "110th Air Brigade (JH-7A)",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Ürümqi South",
+                "Name": "ÃœrÃ¼mqi South",
                 "Subordination": "Western",
                 "Runways": "09/27",
                 "Notes": "110th Air Brigade (JH-7A)"
@@ -21385,7 +21385,7 @@ export const MILITARY_BASES = [
         "lat": 43.58889,
         "lon": 123.57944,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -23037,7 +23037,7 @@ export const MILITARY_BASES = [
         "lat": 25.67639,
         "lon": 116.74611,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -24360,7 +24360,7 @@ export const MILITARY_BASES = [
         "lat": 26.00389,
         "lon": 119.31278,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -24759,7 +24759,7 @@ export const MILITARY_BASES = [
         "lat": 30.28778,
         "lon": 122.145,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -27809,7 +27809,7 @@ export const MILITARY_BASES = [
         "lat": 38.801885,
         "lon": 65.770963,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -27846,7 +27846,7 @@ export const MILITARY_BASES = [
         "lat": 37.006034,
         "lon": 35.420903,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -27882,7 +27882,7 @@ export const MILITARY_BASES = [
         "lat": 37.245909,
         "lon": 9.781549,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -27919,7 +27919,7 @@ export const MILITARY_BASES = [
         "lat": -0.37676,
         "lon": 42.461045,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -27956,7 +27956,7 @@ export const MILITARY_BASES = [
         "lat": -4.674262,
         "lon": 55.5212,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -27993,7 +27993,7 @@ export const MILITARY_BASES = [
         "lat": 19.103644,
         "lon": 50.119921,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28031,7 +28031,7 @@ export const MILITARY_BASES = [
         "lat": 6.922014,
         "lon": 122.059552,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28070,7 +28070,7 @@ export const MILITARY_BASES = [
         "aliases": [
             "Shamsi Airfield"
         ],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28112,7 +28112,7 @@ export const MILITARY_BASES = [
         "lat": 16.966089,
         "lon": 8.000091,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28148,7 +28148,7 @@ export const MILITARY_BASES = [
         "lat": 13.484442,
         "lon": 2.186353,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28184,7 +28184,7 @@ export const MILITARY_BASES = [
         "lat": 18.087994,
         "lon": -15.977256,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28194,14 +28194,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "United States drone bases",
-            "description": "Notes: operations ended after the 2008 Mauritanian coup d'état",
-            "notes": "operations ended after the 2008 Mauritanian coup d'état",
+            "description": "Notes: operations ended after the 2008 Mauritanian coup d'Ã©tat",
+            "notes": "operations ended after the 2008 Mauritanian coup d'Ã©tat",
             "rawDescription": "",
             "originalProperties": {
                 "Country": "Mauritania",
                 "Base": "Nouakchott Air Station",
                 "Operation_dates": "until 2008",
-                "Notes": "operations ended after the 2008 Mauritanian coup d'état"
+                "Notes": "operations ended after the 2008 Mauritanian coup d'Ã©tat"
             }
         }
     },
@@ -28221,7 +28221,7 @@ export const MILITARY_BASES = [
         "lat": 6.040678,
         "lon": 37.590417,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28258,7 +28258,7 @@ export const MILITARY_BASES = [
         "lat": 11.517915,
         "lon": 43.062275,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28294,7 +28294,7 @@ export const MILITARY_BASES = [
         "lat": 9.337222,
         "lon": 13.377202,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28330,7 +28330,7 @@ export const MILITARY_BASES = [
         "lat": 12.350413,
         "lon": -1.512442,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28367,7 +28367,7 @@ export const MILITARY_BASES = [
         "lat": 34.399792,
         "lon": 70.49908,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -28403,7 +28403,7 @@ export const MILITARY_BASES = [
         "lat": 33.339437,
         "lon": 69.958335,
         "aliases": [],
-        "icon": "/assets/images/bases/drone.png",
+        "icon": "/assets/images/bases/drone-1.png",
         "source": [
             "umap"
         ],
@@ -35449,7 +35449,7 @@ export const MILITARY_BASES = [
         "name": "Villatobas",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Escuadrón de Vigilancia Aérea 2 (EVA 2)",
+        "operator": "EscuadrÃ³n de Vigilancia AÃ©rea 2 (EVA 2)",
         "type": "radar",
         "typeLabel": "Radar / Tracking Site",
         "size": "significant",
@@ -35470,14 +35470,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Escuadrón de Vigilancia Aérea 2 (EVA 2)",
+            "description": "Units: EscuadrÃ³n de Vigilancia AÃ©rea 2 (EVA 2)",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Villatobas",
                 "Location": "Villatobas (Toledo)",
                 "Creation_date": "1953",
-                "Units": "Escuadrón de Vigilancia Aérea 2 (EVA 2)"
+                "Units": "EscuadrÃ³n de Vigilancia AÃ©rea 2 (EVA 2)"
             }
         }
     },
@@ -35486,7 +35486,7 @@ export const MILITARY_BASES = [
         "name": "Rosas Peni",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Escuadrón de Vigilancia Aérea 4 (EVA 4)",
+        "operator": "EscuadrÃ³n de Vigilancia AÃ©rea 4 (EVA 4)",
         "type": "radar",
         "typeLabel": "Radar / Tracking Site",
         "size": "significant",
@@ -35507,14 +35507,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Escuadrón de Vigilancia Aérea 4 (EVA 4)",
+            "description": "Units: EscuadrÃ³n de Vigilancia AÃ©rea 4 (EVA 4)",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Rosas Peni",
                 "Location": "Rosas (Gerona)",
                 "Creation_date": "1959",
-                "Units": "Escuadrón de Vigilancia Aérea 4 (EVA 4)"
+                "Units": "EscuadrÃ³n de Vigilancia AÃ©rea 4 (EVA 4)"
             }
         }
     },
@@ -35523,7 +35523,7 @@ export const MILITARY_BASES = [
         "name": "El Frasno",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Escuadrón de Vigilancia Aérea 1 (EVA 1)",
+        "operator": "EscuadrÃ³n de Vigilancia AÃ©rea 1 (EVA 1)",
         "type": "radar",
         "typeLabel": "Radar / Tracking Site",
         "size": "significant",
@@ -35544,14 +35544,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Escuadrón de Vigilancia Aérea 1 (EVA 1)",
+            "description": "Units: EscuadrÃ³n de Vigilancia AÃ©rea 1 (EVA 1)",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "El Frasno",
                 "Location": "El Frasno (Zaragoza)",
                 "Creation_date": "1955",
-                "Units": "Escuadrón de Vigilancia Aérea 1 (EVA 1)"
+                "Units": "EscuadrÃ³n de Vigilancia AÃ©rea 1 (EVA 1)"
             }
         }
     },
@@ -35560,7 +35560,7 @@ export const MILITARY_BASES = [
         "name": "Base Talavera la Real",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Ala 23 (231 Escuadrón y 232 Escuadrón).",
+        "operator": "Ala 23 (231 EscuadrÃ³n y 232 EscuadrÃ³n).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35581,14 +35581,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Ala 23 (231 Escuadrón y 232 Escuadrón).",
+            "description": "Units: Ala 23 (231 EscuadrÃ³n y 232 EscuadrÃ³n).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Base Talavera la Real",
                 "Location": "Talavera la Real (Badajoz)",
                 "Creation_date": "1937",
-                "Units": "Ala 23 (231 Escuadrón y 232 Escuadrón)."
+                "Units": "Ala 23 (231 EscuadrÃ³n y 232 EscuadrÃ³n)."
             }
         }
     },
@@ -35597,7 +35597,7 @@ export const MILITARY_BASES = [
         "name": "Base Cuatro Vientos",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Agrupación de la Base Aérea de Cuatro Vientos, Ala 48 (402 Escuadrón y 803 Escuadrón), Jefatura y Grupo de Cartografía y Fotografía del Centro Cartográfico y Fotográfico (CECAF) (403 Escuadrón y 409 Escuadrón), Centro Deportivo Socio Cultural Barberán y Collar, Centro Deportivo Socio Cultural de Suboficiales Cuatro Vientos, Escuela de Técnicas de Mando, Control y Telecomunicaciones (EMACOT), Maestranza Aérea de Madrid (MAESMA) y Museo del Aire.",
+        "operator": "AgrupaciÃ³n de la Base AÃ©rea de Cuatro Vientos, Ala 48 (402 EscuadrÃ³n y 803 EscuadrÃ³n), Jefatura y Grupo de CartografÃ­a y FotografÃ­a del Centro CartogrÃ¡fico y FotogrÃ¡fico (CECAF) (403 EscuadrÃ³n y 409 EscuadrÃ³n), Centro Deportivo Socio Cultural BarberÃ¡n y Collar, Centro Deportivo Socio Cultural de Suboficiales Cuatro Vientos, Escuela de TÃ©cnicas de Mando, Control y Telecomunicaciones (EMACOT), Maestranza AÃ©rea de Madrid (MAESMA) y Museo del Aire.",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35618,23 +35618,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Agrupación de la Base Aérea de Cuatro Vientos, Ala 48 (402 Escuadrón y 803 Escuadrón), Jefatura y Grupo de Cartografía y Fotografía del Centro Cartográfico y Fotográfico (CECAF) (403 Escuadrón y 409 Escuadrón), Centro Deportivo Socio Cultural Barberán y Collar, Centro Deportivo Socio Cultural de Suboficiales Cuatro Vientos, Escuela de Técnicas de Mando, Control y Telecomunicaciones (EMACOT), Maestranza Aérea de Madrid (MAESMA) y Museo del Aire.",
+            "description": "Units: AgrupaciÃ³n de la Base AÃ©rea de Cuatro Vientos, Ala 48 (402 EscuadrÃ³n y 803 EscuadrÃ³n), Jefatura y Grupo de CartografÃ­a y FotografÃ­a del Centro CartogrÃ¡fico y FotogrÃ¡fico (CECAF) (403 EscuadrÃ³n y 409 EscuadrÃ³n), Centro Deportivo Socio Cultural BarberÃ¡n y Collar, Centro Deportivo Socio Cultural de Suboficiales Cuatro Vientos, Escuela de TÃ©cnicas de Mando, Control y Telecomunicaciones (EMACOT), Maestranza AÃ©rea de Madrid (MAESMA) y Museo del Aire.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Base Cuatro Vientos",
                 "Location": "Madrid (Madrid)",
                 "Creation_date": "1911",
-                "Units": "Agrupación de la Base Aérea de Cuatro Vientos, Ala 48 (402 Escuadrón y 803 Escuadrón), Jefatura y Grupo de Cartografía y Fotografía del Centro Cartográfico y Fotográfico (CECAF) (403 Escuadrón y 409 Escuadrón), Centro Deportivo Socio Cultural Barberán y Collar, Centro Deportivo Socio Cultural de Suboficiales Cuatro Vientos, Escuela de Técnicas de Mando, Control y Telecomunicaciones (EMACOT), Maestranza Aérea de Madrid (MAESMA) y Museo del Aire."
+                "Units": "AgrupaciÃ³n de la Base AÃ©rea de Cuatro Vientos, Ala 48 (402 EscuadrÃ³n y 803 EscuadrÃ³n), Jefatura y Grupo de CartografÃ­a y FotografÃ­a del Centro CartogrÃ¡fico y FotogrÃ¡fico (CECAF) (403 EscuadrÃ³n y 409 EscuadrÃ³n), Centro Deportivo Socio Cultural BarberÃ¡n y Collar, Centro Deportivo Socio Cultural de Suboficiales Cuatro Vientos, Escuela de TÃ©cnicas de Mando, Control y Telecomunicaciones (EMACOT), Maestranza AÃ©rea de Madrid (MAESMA) y Museo del Aire."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-zaragoza-51277",
-        "name": "Base Aérea de Zaragoza",
+        "name": "Base AÃ©rea de Zaragoza",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Agrupación de la Base Aérea de Zaragoza (Escuadrón de Seguridad de la Base Aérea de Zaragoza, Policía Aérea de la Base Aérea de Zaragoza y Sección de Guías y Perros Policías de la Base Aérea de Zaragoza), Ala 15 (151 Escuadrón, 152 Escuadrón, 153 Escuadrón y Escuadrón de Mantenimiento), Ala 31 (311 Escuadrón, 312 Escuadrón y Escuadrón de Mantenimiento), Centro de Farmacia del Aire en Zaragoza (CEFARZA), Enfermería del Mando Aéreo General (Zaragoza), Escuadrón de Apoyo al Despliegue Aéreo (EADA), Escuela de Técnicas de Seguridad, Defensa y Apoyo (ETESDA), Grupo Norte de Mando y Control (GRUNOMAC) (Escuadrón de Operaciones), Jefatura de Movilidad Aérea (JMOVA), Unidad Médica Aérea de Apoyo al Despliegue (UMAAD-Zaragoza)",
+        "operator": "AgrupaciÃ³n de la Base AÃ©rea de Zaragoza (EscuadrÃ³n de Seguridad de la Base AÃ©rea de Zaragoza, PolicÃ­a AÃ©rea de la Base AÃ©rea de Zaragoza y SecciÃ³n de GuÃ­as y Perros PolicÃ­as de la Base AÃ©rea de Zaragoza), Ala 15 (151 EscuadrÃ³n, 152 EscuadrÃ³n, 153 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), Ala 31 (311 EscuadrÃ³n, 312 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), Centro de Farmacia del Aire en Zaragoza (CEFARZA), EnfermerÃ­a del Mando AÃ©reo General (Zaragoza), EscuadrÃ³n de Apoyo al Despliegue AÃ©reo (EADA), Escuela de TÃ©cnicas de Seguridad, Defensa y Apoyo (ETESDA), Grupo Norte de Mando y Control (GRUNOMAC) (EscuadrÃ³n de Operaciones), Jefatura de Movilidad AÃ©rea (JMOVA), Unidad MÃ©dica AÃ©rea de Apoyo al Despliegue (UMAAD-Zaragoza)",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35655,23 +35655,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Agrupación de la Base Aérea de Zaragoza (Escuadrón de Seguridad de la Base Aérea de Zaragoza, Policía Aérea de la Base Aérea de Zaragoza y Sección de Guías y Perros Policías de la Base Aérea de Zaragoza), Ala 15 (151 Escuadrón, 152 Escuadrón, 153 Escuadrón y Escuadrón de Mantenimiento), Ala 31 (311 Escuadrón, 312 Escuadrón y Escuadrón de Mantenimiento), Centro de Farmacia del Aire en Zaragoza (CEFARZA), Enfermería del Mando Aéreo General (Zaragoza), Escuadrón de Apoyo al Despliegue Aéreo (EADA), Escuela de Técnicas de Seguridad, Defensa y Apoyo (ETESDA), Grupo Norte de Mando y Control (GRUNOMAC) (Escuadrón de Operaciones), Jefatura de Movilidad Aérea (JMOVA), Unidad Médica Aérea de Apoyo al Despliegue (UMAAD-Zaragoza)",
+            "description": "Units: AgrupaciÃ³n de la Base AÃ©rea de Zaragoza (EscuadrÃ³n de Seguridad de la Base AÃ©rea de Zaragoza, PolicÃ­a AÃ©rea de la Base AÃ©rea de Zaragoza y SecciÃ³n de GuÃ­as y Perros PolicÃ­as de la Base AÃ©rea de Zaragoza), Ala 15 (151 EscuadrÃ³n, 152 EscuadrÃ³n, 153 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), Ala 31 (311 EscuadrÃ³n, 312 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), Centro de Farmacia del Aire en Zaragoza (CEFARZA), EnfermerÃ­a del Mando AÃ©reo General (Zaragoza), EscuadrÃ³n de Apoyo al Despliegue AÃ©reo (EADA), Escuela de TÃ©cnicas de Seguridad, Defensa y Apoyo (ETESDA), Grupo Norte de Mando y Control (GRUNOMAC) (EscuadrÃ³n de Operaciones), Jefatura de Movilidad AÃ©rea (JMOVA), Unidad MÃ©dica AÃ©rea de Apoyo al Despliegue (UMAAD-Zaragoza)",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Zaragoza",
+                "Name": "Base AÃ©rea de Zaragoza",
                 "Location": "Zaragoza",
                 "Creation_date": "-",
-                "Units": "Agrupación de la Base Aérea de Zaragoza (Escuadrón de Seguridad de la Base Aérea de Zaragoza, Policía Aérea de la Base Aérea de Zaragoza y Sección de Guías y Perros Policías de la Base Aérea de Zaragoza), Ala 15 (151 Escuadrón, 152 Escuadrón, 153 Escuadrón y Escuadrón de Mantenimiento), Ala 31 (311 Escuadrón, 312 Escuadrón y Escuadrón de Mantenimiento), Centro de Farmacia del Aire en Zaragoza (CEFARZA), Enfermería del Mando Aéreo General (Zaragoza), Escuadrón de Apoyo al Despliegue Aéreo (EADA), Escuela de Técnicas de Seguridad, Defensa y Apoyo (ETESDA), Grupo Norte de Mando y Control (GRUNOMAC) (Escuadrón de Operaciones), Jefatura de Movilidad Aérea (JMOVA), Unidad Médica Aérea de Apoyo al Despliegue (UMAAD-Zaragoza)"
+                "Units": "AgrupaciÃ³n de la Base AÃ©rea de Zaragoza (EscuadrÃ³n de Seguridad de la Base AÃ©rea de Zaragoza, PolicÃ­a AÃ©rea de la Base AÃ©rea de Zaragoza y SecciÃ³n de GuÃ­as y Perros PolicÃ­as de la Base AÃ©rea de Zaragoza), Ala 15 (151 EscuadrÃ³n, 152 EscuadrÃ³n, 153 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), Ala 31 (311 EscuadrÃ³n, 312 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), Centro de Farmacia del Aire en Zaragoza (CEFARZA), EnfermerÃ­a del Mando AÃ©reo General (Zaragoza), EscuadrÃ³n de Apoyo al Despliegue AÃ©reo (EADA), Escuela de TÃ©cnicas de Seguridad, Defensa y Apoyo (ETESDA), Grupo Norte de Mando y Control (GRUNOMAC) (EscuadrÃ³n de Operaciones), Jefatura de Movilidad AÃ©rea (JMOVA), Unidad MÃ©dica AÃ©rea de Apoyo al Despliegue (UMAAD-Zaragoza)"
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-villanubla-57517",
-        "name": "Base Aérea de Villanubla",
+        "name": "Base AÃ©rea de Villanubla",
         "country": "Spain",
         "region": "Europe",
-        "operator": "42 Grupo de Fuerzas Aéreas (422 Escuadrón), Ala 37 (371 Escuadrón) y Patrulla de Aeromodelismo del Ejército del Aire (PAEEA).",
+        "operator": "42 Grupo de Fuerzas AÃ©reas (422 EscuadrÃ³n), Ala 37 (371 EscuadrÃ³n) y Patrulla de Aeromodelismo del EjÃ©rcito del Aire (PAEEA).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35692,23 +35692,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: 42 Grupo de Fuerzas Aéreas (422 Escuadrón), Ala 37 (371 Escuadrón) y Patrulla de Aeromodelismo del Ejército del Aire (PAEEA).",
+            "description": "Units: 42 Grupo de Fuerzas AÃ©reas (422 EscuadrÃ³n), Ala 37 (371 EscuadrÃ³n) y Patrulla de Aeromodelismo del EjÃ©rcito del Aire (PAEEA).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Villanubla",
+                "Name": "Base AÃ©rea de Villanubla",
                 "Location": "Valladolid",
                 "Creation_date": "-",
-                "Units": "42 Grupo de Fuerzas Aéreas (422 Escuadrón), Ala 37 (371 Escuadrón) y Patrulla de Aeromodelismo del Ejército del Aire (PAEEA)."
+                "Units": "42 Grupo de Fuerzas AÃ©reas (422 EscuadrÃ³n), Ala 37 (371 EscuadrÃ³n) y Patrulla de Aeromodelismo del EjÃ©rcito del Aire (PAEEA)."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-torrejon-22203",
-        "name": "Base Aérea de Torrejón",
+        "name": "Base AÃ©rea de TorrejÃ³n",
         "country": "Spain",
         "region": "Europe",
-        "operator": "43 Grupo de Fuerzas Aéreas, 45 Grupo de Fuerzas Aéreas (451 Escuadrón), 47 Grupo Mixto de Fuerzas Aéreas (471 Escuadrón y 472 Escuadrón), Agrupación de la Base Aérea de Torrejón, Ala 12 (121 Escuadrón y 122 Escuadrón), Centro Coordinador de Salvamento de Madrid (RCC Madrid), Centro de Instrucción de Medicina Aeroespacial (CIMA), Centro de Inteligencia Aérea (CIA), Centro de Sistemas Aeroespaciales de Observación (CESAEROB), Centro Logístico de Intendencia (CLOIN), Centro Logístico de Armamento y Experimentación (CLAEX), Escuadrilla de Circulación Aérea Operativa de Madrid (ECAO Madrid - ECAO 1), Escuadrilla de Transmisiones 5 (ESTRAM 5), Escuela de Técnicas Aeronáuticas (ESTAER), Grupo Central de Mando y Control (GRUCEMAC), Grupo de Circulación Aérea Operativa (GRUCAO), Jefatura del Sistema de Mando y Control (JSMC), Mando Aéreo de Combate (MACOM), Servicio de Búsqueda y Salvamento Aéreo (SAR), Unidad Médica Aérea de Apoyo al Despliegue (UMAAD-Madrid), Unidad Médica de Aeroevacuación (UMAER).",
+        "operator": "43 Grupo de Fuerzas AÃ©reas, 45 Grupo de Fuerzas AÃ©reas (451 EscuadrÃ³n), 47 Grupo Mixto de Fuerzas AÃ©reas (471 EscuadrÃ³n y 472 EscuadrÃ³n), AgrupaciÃ³n de la Base AÃ©rea de TorrejÃ³n, Ala 12 (121 EscuadrÃ³n y 122 EscuadrÃ³n), Centro Coordinador de Salvamento de Madrid (RCC Madrid), Centro de InstrucciÃ³n de Medicina Aeroespacial (CIMA), Centro de Inteligencia AÃ©rea (CIA), Centro de Sistemas Aeroespaciales de ObservaciÃ³n (CESAEROB), Centro LogÃ­stico de Intendencia (CLOIN), Centro LogÃ­stico de Armamento y ExperimentaciÃ³n (CLAEX), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Madrid (ECAO Madrid - ECAO 1), Escuadrilla de Transmisiones 5 (ESTRAM 5), Escuela de TÃ©cnicas AeronÃ¡uticas (ESTAER), Grupo Central de Mando y Control (GRUCEMAC), Grupo de CirculaciÃ³n AÃ©rea Operativa (GRUCAO), Jefatura del Sistema de Mando y Control (JSMC), Mando AÃ©reo de Combate (MACOM), Servicio de BÃºsqueda y Salvamento AÃ©reo (SAR), Unidad MÃ©dica AÃ©rea de Apoyo al Despliegue (UMAAD-Madrid), Unidad MÃ©dica de AeroevacuaciÃ³n (UMAER).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35729,23 +35729,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: 43 Grupo de Fuerzas Aéreas, 45 Grupo de Fuerzas Aéreas (451 Escuadrón), 47 Grupo Mixto de Fuerzas Aéreas (471 Escuadrón y 472 Escuadrón), Agrupación de la Base Aérea de Torrejón, Ala 12 (121 Escuadrón y 122 Escuadrón), Centro Coordinador de Salvamento de Madrid (RCC Madrid), Centro de Instrucción de Medicina Aeroespacial (CIMA), Centro de Inteligencia Aérea (CIA), Centro de Sistemas Aeroespaciales de Observación (CESAEROB), Centro Logístico de Intendencia (CLOIN), Centro Logístico de Armamento y Experimentación (CLAEX), Escuadrilla de Circulación Aérea Operativa de Madrid (ECAO Madrid - ECAO 1), Escuadrilla de Transmisiones 5 (ESTRAM 5), Escuela de Técnicas Aeronáuticas (ESTAER), Grupo Central de Mando y Control (GRUCEMAC), Grupo de Circulación Aérea Operativa (GRUCAO), Jefatura del Sistema de Mando y Control (JSMC), Mando Aéreo de Combate (MACOM), Servicio de Búsqueda y Salvamento Aéreo (SAR), Unidad Médica Aérea de Apoyo al Despliegue (UMAAD-Madrid), Unidad Médica de Aeroevacuación (UMAER).",
+            "description": "Units: 43 Grupo de Fuerzas AÃ©reas, 45 Grupo de Fuerzas AÃ©reas (451 EscuadrÃ³n), 47 Grupo Mixto de Fuerzas AÃ©reas (471 EscuadrÃ³n y 472 EscuadrÃ³n), AgrupaciÃ³n de la Base AÃ©rea de TorrejÃ³n, Ala 12 (121 EscuadrÃ³n y 122 EscuadrÃ³n), Centro Coordinador de Salvamento de Madrid (RCC Madrid), Centro de InstrucciÃ³n de Medicina Aeroespacial (CIMA), Centro de Inteligencia AÃ©rea (CIA), Centro de Sistemas Aeroespaciales de ObservaciÃ³n (CESAEROB), Centro LogÃ­stico de Intendencia (CLOIN), Centro LogÃ­stico de Armamento y ExperimentaciÃ³n (CLAEX), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Madrid (ECAO Madrid - ECAO 1), Escuadrilla de Transmisiones 5 (ESTRAM 5), Escuela de TÃ©cnicas AeronÃ¡uticas (ESTAER), Grupo Central de Mando y Control (GRUCEMAC), Grupo de CirculaciÃ³n AÃ©rea Operativa (GRUCAO), Jefatura del Sistema de Mando y Control (JSMC), Mando AÃ©reo de Combate (MACOM), Servicio de BÃºsqueda y Salvamento AÃ©reo (SAR), Unidad MÃ©dica AÃ©rea de Apoyo al Despliegue (UMAAD-Madrid), Unidad MÃ©dica de AeroevacuaciÃ³n (UMAER).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Torrejón",
+                "Name": "Base AÃ©rea de TorrejÃ³n",
                 "Location": "Madrid",
                 "Creation_date": "1947",
-                "Units": "43 Grupo de Fuerzas Aéreas, 45 Grupo de Fuerzas Aéreas (451 Escuadrón), 47 Grupo Mixto de Fuerzas Aéreas (471 Escuadrón y 472 Escuadrón), Agrupación de la Base Aérea de Torrejón, Ala 12 (121 Escuadrón y 122 Escuadrón), Centro Coordinador de Salvamento de Madrid (RCC Madrid), Centro de Instrucción de Medicina Aeroespacial (CIMA), Centro de Inteligencia Aérea (CIA), Centro de Sistemas Aeroespaciales de Observación (CESAEROB), Centro Logístico de Intendencia (CLOIN), Centro Logístico de Armamento y Experimentación (CLAEX), Escuadrilla de Circulación Aérea Operativa de Madrid (ECAO Madrid - ECAO 1), Escuadrilla de Transmisiones 5 (ESTRAM 5), Escuela de Técnicas Aeronáuticas (ESTAER), Grupo Central de Mando y Control (GRUCEMAC), Grupo de Circulación Aérea Operativa (GRUCAO), Jefatura del Sistema de Mando y Control (JSMC), Mando Aéreo de Combate (MACOM), Servicio de Búsqueda y Salvamento Aéreo (SAR), Unidad Médica Aérea de Apoyo al Despliegue (UMAAD-Madrid), Unidad Médica de Aeroevacuación (UMAER)."
+                "Units": "43 Grupo de Fuerzas AÃ©reas, 45 Grupo de Fuerzas AÃ©reas (451 EscuadrÃ³n), 47 Grupo Mixto de Fuerzas AÃ©reas (471 EscuadrÃ³n y 472 EscuadrÃ³n), AgrupaciÃ³n de la Base AÃ©rea de TorrejÃ³n, Ala 12 (121 EscuadrÃ³n y 122 EscuadrÃ³n), Centro Coordinador de Salvamento de Madrid (RCC Madrid), Centro de InstrucciÃ³n de Medicina Aeroespacial (CIMA), Centro de Inteligencia AÃ©rea (CIA), Centro de Sistemas Aeroespaciales de ObservaciÃ³n (CESAEROB), Centro LogÃ­stico de Intendencia (CLOIN), Centro LogÃ­stico de Armamento y ExperimentaciÃ³n (CLAEX), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Madrid (ECAO Madrid - ECAO 1), Escuadrilla de Transmisiones 5 (ESTRAM 5), Escuela de TÃ©cnicas AeronÃ¡uticas (ESTAER), Grupo Central de Mando y Control (GRUCEMAC), Grupo de CirculaciÃ³n AÃ©rea Operativa (GRUCAO), Jefatura del Sistema de Mando y Control (JSMC), Mando AÃ©reo de Combate (MACOM), Servicio de BÃºsqueda y Salvamento AÃ©reo (SAR), Unidad MÃ©dica AÃ©rea de Apoyo al Despliegue (UMAAD-Madrid), Unidad MÃ©dica de AeroevacuaciÃ³n (UMAER)."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-san-javier-04315",
-        "name": "Base Aérea de San Javier",
+        "name": "Base AÃ©rea de San Javier",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Academia General del Aire (AGA) y Patrulla Águila.",
+        "operator": "Academia General del Aire (AGA) y Patrulla Ãguila.",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35766,23 +35766,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Academia General del Aire (AGA) y Patrulla Águila.",
+            "description": "Units: Academia General del Aire (AGA) y Patrulla Ãguila.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de San Javier",
+                "Name": "Base AÃ©rea de San Javier",
                 "Location": "Santiago de la Ribera (Murcia)",
                 "Creation_date": "1935",
-                "Units": "Academia General del Aire (AGA) y Patrulla Águila."
+                "Units": "Academia General del Aire (AGA) y Patrulla Ãguila."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-moron-05668",
-        "name": "Base Aérea de Morón",
+        "name": "Base AÃ©rea de MorÃ³n",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Ala 11 (111 Escuadrón, 113 Escuadrón y 221 Escuadrón) y Segundo Escuadrón de Apoyo al Despliegue Aéreo (SEADA).",
+        "operator": "Ala 11 (111 EscuadrÃ³n, 113 EscuadrÃ³n y 221 EscuadrÃ³n) y Segundo EscuadrÃ³n de Apoyo al Despliegue AÃ©reo (SEADA).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35803,23 +35803,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Ala 11 (111 Escuadrón, 113 Escuadrón y 221 Escuadrón) y Segundo Escuadrón de Apoyo al Despliegue Aéreo (SEADA).",
+            "description": "Units: Ala 11 (111 EscuadrÃ³n, 113 EscuadrÃ³n y 221 EscuadrÃ³n) y Segundo EscuadrÃ³n de Apoyo al Despliegue AÃ©reo (SEADA).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Morón",
-                "Location": "Morón de la Frontera (Sevilla)",
+                "Name": "Base AÃ©rea de MorÃ³n",
+                "Location": "MorÃ³n de la Frontera (Sevilla)",
                 "Creation_date": "1941",
-                "Units": "Ala 11 (111 Escuadrón, 113 Escuadrón y 221 Escuadrón) y Segundo Escuadrón de Apoyo al Despliegue Aéreo (SEADA)."
+                "Units": "Ala 11 (111 EscuadrÃ³n, 113 EscuadrÃ³n y 221 EscuadrÃ³n) y Segundo EscuadrÃ³n de Apoyo al Despliegue AÃ©reo (SEADA)."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-matacan-45314",
-        "name": "Base Aérea de Matacán",
+        "name": "Base AÃ©rea de MatacÃ¡n",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Grupo de Escuelas de Matacán (GRUEMA) (Escuela Militar de Transporte Aéreo, Escuela de Tránsito Aéreo, Escuela de Sistemas Aéreos No Tripulados, Grupo de Adiestramiento, 741 Escuadrón y 744 Escuadrón).",
+        "operator": "Grupo de Escuelas de MatacÃ¡n (GRUEMA) (Escuela Militar de Transporte AÃ©reo, Escuela de TrÃ¡nsito AÃ©reo, Escuela de Sistemas AÃ©reos No Tripulados, Grupo de Adiestramiento, 741 EscuadrÃ³n y 744 EscuadrÃ³n).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35840,23 +35840,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Grupo de Escuelas de Matacán (GRUEMA) (Escuela Militar de Transporte Aéreo, Escuela de Tránsito Aéreo, Escuela de Sistemas Aéreos No Tripulados, Grupo de Adiestramiento, 741 Escuadrón y 744 Escuadrón).",
+            "description": "Units: Grupo de Escuelas de MatacÃ¡n (GRUEMA) (Escuela Militar de Transporte AÃ©reo, Escuela de TrÃ¡nsito AÃ©reo, Escuela de Sistemas AÃ©reos No Tripulados, Grupo de Adiestramiento, 741 EscuadrÃ³n y 744 EscuadrÃ³n).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Matacán",
+                "Name": "Base AÃ©rea de MatacÃ¡n",
                 "Location": "Villagonzalo de Tormes (Salamanca)",
                 "Creation_date": "1936",
-                "Units": "Grupo de Escuelas de Matacán (GRUEMA) (Escuela Militar de Transporte Aéreo, Escuela de Tránsito Aéreo, Escuela de Sistemas Aéreos No Tripulados, Grupo de Adiestramiento, 741 Escuadrón y 744 Escuadrón)."
+                "Units": "Grupo de Escuelas de MatacÃ¡n (GRUEMA) (Escuela Militar de Transporte AÃ©reo, Escuela de TrÃ¡nsito AÃ©reo, Escuela de Sistemas AÃ©reos No Tripulados, Grupo de Adiestramiento, 741 EscuadrÃ³n y 744 EscuadrÃ³n)."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-los-llanos-16086",
-        "name": "Base Aérea de Los Llanos",
+        "name": "Base AÃ©rea de Los Llanos",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Ala 14 (141 Escuadrón y 142 Escuadrón), Maestranza Aérea de Albacete (MAESAL), TLP.",
+        "operator": "Ala 14 (141 EscuadrÃ³n y 142 EscuadrÃ³n), Maestranza AÃ©rea de Albacete (MAESAL), TLP.",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35877,23 +35877,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Ala 14 (141 Escuadrón y 142 Escuadrón), Maestranza Aérea de Albacete (MAESAL), TLP.",
+            "description": "Units: Ala 14 (141 EscuadrÃ³n y 142 EscuadrÃ³n), Maestranza AÃ©rea de Albacete (MAESAL), TLP.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Los Llanos",
+                "Name": "Base AÃ©rea de Los Llanos",
                 "Location": "Albacete (Albacete)",
                 "Creation_date": "1923",
-                "Units": "Ala 14 (141 Escuadrón y 142 Escuadrón), Maestranza Aérea de Albacete (MAESAL), TLP."
+                "Units": "Ala 14 (141 EscuadrÃ³n y 142 EscuadrÃ³n), Maestranza AÃ©rea de Albacete (MAESAL), TLP."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-getafe-74721",
-        "name": "Base Aérea de Getafe",
+        "name": "Base AÃ©rea de Getafe",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Ala 35 (351 Escuadrón, 352 Escuadrón y 353 Escuadrón), Ala 48 (803 Escuadrón de Ala Fija) y Grupo de FFAA del Centro Cartográfico y Fotográfico (CECAF).",
+        "operator": "Ala 35 (351 EscuadrÃ³n, 352 EscuadrÃ³n y 353 EscuadrÃ³n), Ala 48 (803 EscuadrÃ³n de Ala Fija) y Grupo de FFAA del Centro CartogrÃ¡fico y FotogrÃ¡fico (CECAF).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35914,23 +35914,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Ala 35 (351 Escuadrón, 352 Escuadrón y 353 Escuadrón), Ala 48 (803 Escuadrón de Ala Fija) y Grupo de FFAA del Centro Cartográfico y Fotográfico (CECAF).",
+            "description": "Units: Ala 35 (351 EscuadrÃ³n, 352 EscuadrÃ³n y 353 EscuadrÃ³n), Ala 48 (803 EscuadrÃ³n de Ala Fija) y Grupo de FFAA del Centro CartogrÃ¡fico y FotogrÃ¡fico (CECAF).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Getafe",
+                "Name": "Base AÃ©rea de Getafe",
                 "Location": "Getafe (Madrid)",
                 "Creation_date": "1911",
-                "Units": "Ala 35 (351 Escuadrón, 352 Escuadrón y 353 Escuadrón), Ala 48 (803 Escuadrón de Ala Fija) y Grupo de FFAA del Centro Cartográfico y Fotográfico (CECAF)."
+                "Units": "Ala 35 (351 EscuadrÃ³n, 352 EscuadrÃ³n y 353 EscuadrÃ³n), Ala 48 (803 EscuadrÃ³n de Ala Fija) y Grupo de FFAA del Centro CartogrÃ¡fico y FotogrÃ¡fico (CECAF)."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-gando-20063",
-        "name": "Base Aérea de Gando",
+        "name": "Base AÃ©rea de Gando",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Ala 46 (462 Escuadrón y Escuadrón de Mantenimiento), 802 Escuadrón, Centro Coordinador de Salvamento de Canarias (RCC Canarrias), Escuadrilla de Circulación Aérea Operativa de Las Palmas (ECAO Las Palmas - ECAO 7) y Grupo de Alerta y Control (GRUALERCON).",
+        "operator": "Ala 46 (462 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), 802 EscuadrÃ³n, Centro Coordinador de Salvamento de Canarias (RCC Canarrias), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Las Palmas (ECAO Las Palmas - ECAO 7) y Grupo de Alerta y Control (GRUALERCON).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35951,23 +35951,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Ala 46 (462 Escuadrón y Escuadrón de Mantenimiento), 802 Escuadrón, Centro Coordinador de Salvamento de Canarias (RCC Canarrias), Escuadrilla de Circulación Aérea Operativa de Las Palmas (ECAO Las Palmas - ECAO 7) y Grupo de Alerta y Control (GRUALERCON).",
+            "description": "Units: Ala 46 (462 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), 802 EscuadrÃ³n, Centro Coordinador de Salvamento de Canarias (RCC Canarrias), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Las Palmas (ECAO Las Palmas - ECAO 7) y Grupo de Alerta y Control (GRUALERCON).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Gando",
+                "Name": "Base AÃ©rea de Gando",
                 "Location": "Telde (Las Palmas)",
                 "Creation_date": "-",
-                "Units": "Ala 46 (462 Escuadrón y Escuadrón de Mantenimiento), 802 Escuadrón, Centro Coordinador de Salvamento de Canarias (RCC Canarrias), Escuadrilla de Circulación Aérea Operativa de Las Palmas (ECAO Las Palmas - ECAO 7) y Grupo de Alerta y Control (GRUALERCON)."
+                "Units": "Ala 46 (462 EscuadrÃ³n y EscuadrÃ³n de Mantenimiento), 802 EscuadrÃ³n, Centro Coordinador de Salvamento de Canarias (RCC Canarrias), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Las Palmas (ECAO Las Palmas - ECAO 7) y Grupo de Alerta y Control (GRUALERCON)."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-armilla-46470",
-        "name": "Base Aérea de Armilla",
+        "name": "Base AÃ©rea de Armilla",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Ala 78 (781 Escuadrón y 782 Escuadrón) y Patrulla Aspa.",
+        "operator": "Ala 78 (781 EscuadrÃ³n y 782 EscuadrÃ³n) y Patrulla Aspa.",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -35988,23 +35988,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Ala 78 (781 Escuadrón y 782 Escuadrón) y Patrulla Aspa.",
+            "description": "Units: Ala 78 (781 EscuadrÃ³n y 782 EscuadrÃ³n) y Patrulla Aspa.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Armilla",
+                "Name": "Base AÃ©rea de Armilla",
                 "Location": "Armilla (Granada)",
                 "Creation_date": "1922",
-                "Units": "Ala 78 (781 Escuadrón y 782 Escuadrón) y Patrulla Aspa."
+                "Units": "Ala 78 (781 EscuadrÃ³n y 782 EscuadrÃ³n) y Patrulla Aspa."
             }
         }
     },
     {
         "id": "mil_spain-base-aerea-de-alcantarilla-95454",
-        "name": "Base Aérea de Alcantarilla",
+        "name": "Base AÃ©rea de Alcantarilla",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Escuadrón de Zapadores Paracaidistas (EZAPAC), Escuela Militar de Paracaidismo Méndez Parada (EMP), Patrulla Acrobática Paracaidista del Ejército del Aire (PAPEA) y 721 Escuadrón.",
+        "operator": "EscuadrÃ³n de Zapadores Paracaidistas (EZAPAC), Escuela Militar de Paracaidismo MÃ©ndez Parada (EMP), Patrulla AcrobÃ¡tica Paracaidista del EjÃ©rcito del Aire (PAPEA) y 721 EscuadrÃ³n.",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -36025,14 +36025,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Escuadrón de Zapadores Paracaidistas (EZAPAC), Escuela Militar de Paracaidismo Méndez Parada (EMP), Patrulla Acrobática Paracaidista del Ejército del Aire (PAPEA) y 721 Escuadrón.",
+            "description": "Units: EscuadrÃ³n de Zapadores Paracaidistas (EZAPAC), Escuela Militar de Paracaidismo MÃ©ndez Parada (EMP), Patrulla AcrobÃ¡tica Paracaidista del EjÃ©rcito del Aire (PAPEA) y 721 EscuadrÃ³n.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Base Aérea de Alcantarilla",
+                "Name": "Base AÃ©rea de Alcantarilla",
                 "Location": "Sangonera la Seca (Murcia)",
                 "Creation_date": "-",
-                "Units": "Escuadrón de Zapadores Paracaidistas (EZAPAC), Escuela Militar de Paracaidismo Méndez Parada (EMP), Patrulla Acrobática Paracaidista del Ejército del Aire (PAPEA) y 721 Escuadrón."
+                "Units": "EscuadrÃ³n de Zapadores Paracaidistas (EZAPAC), Escuela Militar de Paracaidismo MÃ©ndez Parada (EMP), Patrulla AcrobÃ¡tica Paracaidista del EjÃ©rcito del Aire (PAPEA) y 721 EscuadrÃ³n."
             }
         }
     },
@@ -36115,7 +36115,7 @@ export const MILITARY_BASES = [
         "name": "Acuartelamiento Getafe",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Agrupación del Acuartelamiento Aéreo de Getafe, Centro Logístico de Material de Apoyo (CLOMA), Centro Logístico de Transmisiones (CLOTRA), Grupo de Automóviles (GRUAUT), Escuadrón de Enseñanza de Automoción (EEAUTO), Grupo de Transmisiones (GRUTRA) y Escuadrilla de Transmisiones 1 (ESTRAM 1).",
+        "operator": "AgrupaciÃ³n del Acuartelamiento AÃ©reo de Getafe, Centro LogÃ­stico de Material de Apoyo (CLOMA), Centro LogÃ­stico de Transmisiones (CLOTRA), Grupo de AutomÃ³viles (GRUAUT), EscuadrÃ³n de EnseÃ±anza de AutomociÃ³n (EEAUTO), Grupo de Transmisiones (GRUTRA) y Escuadrilla de Transmisiones 1 (ESTRAM 1).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -36136,23 +36136,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Agrupación del Acuartelamiento Aéreo de Getafe, Centro Logístico de Material de Apoyo (CLOMA), Centro Logístico de Transmisiones (CLOTRA), Grupo de Automóviles (GRUAUT), Escuadrón de Enseñanza de Automoción (EEAUTO), Grupo de Transmisiones (GRUTRA) y Escuadrilla de Transmisiones 1 (ESTRAM 1).",
+            "description": "Units: AgrupaciÃ³n del Acuartelamiento AÃ©reo de Getafe, Centro LogÃ­stico de Material de Apoyo (CLOMA), Centro LogÃ­stico de Transmisiones (CLOTRA), Grupo de AutomÃ³viles (GRUAUT), EscuadrÃ³n de EnseÃ±anza de AutomociÃ³n (EEAUTO), Grupo de Transmisiones (GRUTRA) y Escuadrilla de Transmisiones 1 (ESTRAM 1).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
                 "Name": "Acuartelamiento Getafe",
                 "Location": "Getafe (Madrid)",
                 "Creation_date": "1939",
-                "Units": "Agrupación del Acuartelamiento Aéreo de Getafe, Centro Logístico de Material de Apoyo (CLOMA), Centro Logístico de Transmisiones (CLOTRA), Grupo de Automóviles (GRUAUT), Escuadrón de Enseñanza de Automoción (EEAUTO), Grupo de Transmisiones (GRUTRA) y Escuadrilla de Transmisiones 1 (ESTRAM 1)."
+                "Units": "AgrupaciÃ³n del Acuartelamiento AÃ©reo de Getafe, Centro LogÃ­stico de Material de Apoyo (CLOMA), Centro LogÃ­stico de Transmisiones (CLOTRA), Grupo de AutomÃ³viles (GRUAUT), EscuadrÃ³n de EnseÃ±anza de AutomociÃ³n (EEAUTO), Grupo de Transmisiones (GRUTRA) y Escuadrilla de Transmisiones 1 (ESTRAM 1)."
             }
         }
     },
     {
         "id": "mil_spain-acuartelamiento-aereo-tablada-81506",
-        "name": "Acuartelamiento Aéreo Tablada",
+        "name": "Acuartelamiento AÃ©reo Tablada",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Centro Deportivo Socio Cultural de Oficiales Tablada, Centro de Farmacia de Sevilla, Centro de movilización 2, Dirección de Enseñanza (DEN), Escuadrilla de Circulación Aérea Operativa de Sevilla (ECAO Sevilla - ECAO 2), Escuadrilla de Transmisiones 2 (ESTRAM 2), Grupo Móvil de Control Aéreo (GRUMOCA), Maestranza Aérea de Sevilla (MAESE).",
+        "operator": "Centro Deportivo Socio Cultural de Oficiales Tablada, Centro de Farmacia de Sevilla, Centro de movilizaciÃ³n 2, DirecciÃ³n de EnseÃ±anza (DEN), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Sevilla (ECAO Sevilla - ECAO 2), Escuadrilla de Transmisiones 2 (ESTRAM 2), Grupo MÃ³vil de Control AÃ©reo (GRUMOCA), Maestranza AÃ©rea de Sevilla (MAESE).",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -36173,23 +36173,23 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Centro Deportivo Socio Cultural de Oficiales Tablada, Centro de Farmacia de Sevilla, Centro de movilización 2, Dirección de Enseñanza (DEN), Escuadrilla de Circulación Aérea Operativa de Sevilla (ECAO Sevilla - ECAO 2), Escuadrilla de Transmisiones 2 (ESTRAM 2), Grupo Móvil de Control Aéreo (GRUMOCA), Maestranza Aérea de Sevilla (MAESE).",
+            "description": "Units: Centro Deportivo Socio Cultural de Oficiales Tablada, Centro de Farmacia de Sevilla, Centro de movilizaciÃ³n 2, DirecciÃ³n de EnseÃ±anza (DEN), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Sevilla (ECAO Sevilla - ECAO 2), Escuadrilla de Transmisiones 2 (ESTRAM 2), Grupo MÃ³vil de Control AÃ©reo (GRUMOCA), Maestranza AÃ©rea de Sevilla (MAESE).",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Acuartelamiento Aéreo Tablada",
+                "Name": "Acuartelamiento AÃ©reo Tablada",
                 "Location": "Tablada (Sevilla)",
                 "Creation_date": "1923",
-                "Units": "Centro Deportivo Socio Cultural de Oficiales Tablada, Centro de Farmacia de Sevilla, Centro de movilización 2, Dirección de Enseñanza (DEN), Escuadrilla de Circulación Aérea Operativa de Sevilla (ECAO Sevilla - ECAO 2), Escuadrilla de Transmisiones 2 (ESTRAM 2), Grupo Móvil de Control Aéreo (GRUMOCA), Maestranza Aérea de Sevilla (MAESE)."
+                "Units": "Centro Deportivo Socio Cultural de Oficiales Tablada, Centro de Farmacia de Sevilla, Centro de movilizaciÃ³n 2, DirecciÃ³n de EnseÃ±anza (DEN), Escuadrilla de CirculaciÃ³n AÃ©rea Operativa de Sevilla (ECAO Sevilla - ECAO 2), Escuadrilla de Transmisiones 2 (ESTRAM 2), Grupo MÃ³vil de Control AÃ©reo (GRUMOCA), Maestranza AÃ©rea de Sevilla (MAESE)."
             }
         }
     },
     {
         "id": "mil_spain-acuartelamiento-aereo-las-palmas-46219",
-        "name": "Acuartelamiento Aéreo Las Palmas",
+        "name": "Acuartelamiento AÃ©reo Las Palmas",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Mando Aéreo de Canarias (MACAN) y Grupo del Cuartel General del Mando Aéreo de Canarias.",
+        "operator": "Mando AÃ©reo de Canarias (MACAN) y Grupo del Cuartel General del Mando AÃ©reo de Canarias.",
         "type": "airbase",
         "typeLabel": "Air Base",
         "size": "significant",
@@ -36210,20 +36210,20 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Mando Aéreo de Canarias (MACAN) y Grupo del Cuartel General del Mando Aéreo de Canarias.",
+            "description": "Units: Mando AÃ©reo de Canarias (MACAN) y Grupo del Cuartel General del Mando AÃ©reo de Canarias.",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Acuartelamiento Aéreo Las Palmas",
+                "Name": "Acuartelamiento AÃ©reo Las Palmas",
                 "Location": "Las Palmas de Gran Canaria",
                 "Creation_date": "1939",
-                "Units": "Mando Aéreo de Canarias (MACAN) y Grupo del Cuartel General del Mando Aéreo de Canarias."
+                "Units": "Mando AÃ©reo de Canarias (MACAN) y Grupo del Cuartel General del Mando AÃ©reo de Canarias."
             }
         }
     },
     {
         "id": "mil_spain-acuartelamiento-aereo-el-vedat-25190",
-        "name": "Acuartelamiento Aéreo El Vedat",
+        "name": "Acuartelamiento AÃ©reo El Vedat",
         "country": "Spain",
         "region": "Europe",
         "operator": "Escuadrilla de Transmisiones 4 (ESTRAM 4)",
@@ -36251,7 +36251,7 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Acuartelamiento Aéreo El Vedat",
+                "Name": "Acuartelamiento AÃ©reo El Vedat",
                 "Location": "Torrente (Valencia)",
                 "Creation_date": "1998",
                 "Units": "Escuadrilla de Transmisiones 4 (ESTRAM 4)"
@@ -36260,7 +36260,7 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_spain-acuartelamiento-aereo-de-bobadilla-89230",
-        "name": "Acuartelamiento Aéreo de Bobadilla",
+        "name": "Acuartelamiento AÃ©reo de Bobadilla",
         "country": "Spain",
         "region": "Europe",
         "operator": "-",
@@ -36288,8 +36288,8 @@ export const MILITARY_BASES = [
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Acuartelamiento Aéreo de Bobadilla",
-                "Location": "Bobadilla (Málaga)",
+                "Name": "Acuartelamiento AÃ©reo de Bobadilla",
+                "Location": "Bobadilla (MÃ¡laga)",
                 "Creation_date": "1939",
                 "Units": "-"
             }
@@ -36297,10 +36297,10 @@ export const MILITARY_BASES = [
     },
     {
         "id": "mil_spain-acuartelamiento-aereo-constantina-18348",
-        "name": "Acuartelamiento Aéreo Constantina",
+        "name": "Acuartelamiento AÃ©reo Constantina",
         "country": "Spain",
         "region": "Europe",
-        "operator": "Escuadrón de Vigilancia Aérea 3 (EVA 3)",
+        "operator": "EscuadrÃ³n de Vigilancia AÃ©rea 3 (EVA 3)",
         "type": "radar",
         "typeLabel": "Radar / Tracking Site",
         "size": "significant",
@@ -36321,14 +36321,14 @@ export const MILITARY_BASES = [
         "metadata": {
             "originalType": "",
             "originalCategory": "Spanish Air Force bases",
-            "description": "Units: Escuadrón de Vigilancia Aérea 3 (EVA 3)",
+            "description": "Units: EscuadrÃ³n de Vigilancia AÃ©rea 3 (EVA 3)",
             "notes": "",
             "rawDescription": "",
             "originalProperties": {
-                "Name": "Acuartelamiento Aéreo Constantina",
+                "Name": "Acuartelamiento AÃ©reo Constantina",
                 "Location": "Sevilla (Sevilla)",
                 "Creation_date": "1957",
-                "Units": "Escuadrón de Vigilancia Aérea 3 (EVA 3)"
+                "Units": "EscuadrÃ³n de Vigilancia AÃ©rea 3 (EVA 3)"
             }
         }
     },

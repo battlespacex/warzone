@@ -377,10 +377,22 @@ const AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream";
 
 // Bounding boxes to monitor. Each box is [[minLat, minLon], [maxLat, maxLon]].
 
+function isAisCertificateExpiryError(err) {
+    const message = String(err?.message || err || "").toLowerCase();
+    return message.includes("certificate has expired");
+}
+
+function createAisWebSocket({ allowInsecureTls = false } = {}) {
+    return allowInsecureTls
+        ? new WebSocket(AISSTREAM_URL, { rejectUnauthorized: false })
+        : new WebSocket(AISSTREAM_URL);
+}
+
 
 export async function runAisWorker() {
     const label = "[ais]";
     const apiKey = process.env.AISSTREAM_API_KEY;
+    const allowInsecureTlsFallback = String(process.env.AISSTREAM_ALLOW_INSECURE_TLS_FALLBACK || "1") !== "0";
 
     if (!apiKey) {
         console.warn(`${label} AISSTREAM_API_KEY not set — skipping AIS worker`);
@@ -393,13 +405,22 @@ export async function runAisWorker() {
     const collected = new Map();   // mmsi → vessel object
 
     return new Promise((resolve) => {
-        const ws = new WebSocket(AISSTREAM_URL);
         let settled = false;
+        let timeout = null;
+        let ws = null;
+        let retriedWithInsecureTls = false;
 
         const finish = async () => {
             if (settled) return;
             settled = true;
-            ws.close();
+            clearTimeout(timeout);
+            if (ws) {
+                try {
+                    ws.close();
+                } catch {
+                    // ignore socket shutdown errors on finish
+                }
+            }
 
             const military = [...collected.values()];
             console.log(`${label} Collected ${military.length} military vessels`);
@@ -409,100 +430,128 @@ export async function runAisWorker() {
             resolve();
         };
 
-        const timeout = setTimeout(finish, SESSION_DURATION_MS);
+        const bindSocket = (socket, allowInsecureTls = false) => {
+            ws = socket;
+            clearTimeout(timeout);
+            timeout = setTimeout(finish, SESSION_DURATION_MS);
 
-        ws.on("open", () => {
-            console.log(`${label} Connected to AISStream`);
+            socket.on("open", () => {
+                if (socket !== ws || settled) return;
+                console.log(
+                    allowInsecureTls
+                        ? `${label} Connected to AISStream (TLS verification disabled fallback)`
+                        : `${label} Connected to AISStream`
+                );
 
-            const subscription = {
-                APIKey: apiKey,
-                BoundingBoxes: MONITORING_BOXES,
-                FilterMessageTypes: ["PositionReport", "ShipStaticData"],
-            };
+                const subscription = {
+                    APIKey: apiKey,
+                    BoundingBoxes: MONITORING_BOXES,
+                    FilterMessageTypes: ["PositionReport", "ShipStaticData"],
+                };
 
-            ws.send(JSON.stringify(subscription));
-        });
+                socket.send(JSON.stringify(subscription));
+            });
 
-        ws.on("message", (raw) => {
-            try {
-                const msg = JSON.parse(raw.toString());
-                if (msg?.error) {
-                    console.error(`${label} Subscription error:`, msg.error);
+            socket.on("message", (raw) => {
+                if (socket !== ws || settled) return;
+                try {
+                    const msg = JSON.parse(raw.toString());
+                    if (msg?.error) {
+                        console.error(`${label} Subscription error:`, msg.error);
+                        return;
+                    }
+
+                    const mtype = msg.MessageType;
+                    const meta = getMessageMeta(msg);
+                    const mmsi = getMessageMmsi(msg, meta);
+
+                    if (!mmsi) return;
+
+                    if (mtype === "PositionReport") {
+                        const pos = msg.Message?.PositionReport;
+                        if (!pos) return;
+
+                        const position = readPositionFields(pos, meta);
+                        if (!Number.isFinite(position.lat) || !Number.isFinite(position.lon)) return;
+
+                        positionsByMmsi.set(mmsi, {
+                            ...(positionsByMmsi.get(mmsi) || {}),
+                            ...position,
+                        });
+
+                        const merged = mergeVesselState(
+                            positionsByMmsi.get(mmsi),
+                            staticByMmsi.get(mmsi),
+                            collected.get(mmsi)
+                        );
+
+                        if (!isStrictMilitaryNavalContact(merged)) return;
+
+                        collected.set(mmsi, {
+                            ...merged,
+                            mmsi,
+                        });
+                    }
+
+                    if (mtype === "ShipStaticData") {
+                        const info = msg.Message?.ShipStaticData;
+                        if (!info) return;
+
+                        staticByMmsi.set(mmsi, {
+                            ...(staticByMmsi.get(mmsi) || {}),
+                            ...readStaticFields(info, meta),
+                        });
+
+                        const merged = mergeVesselState(
+                            positionsByMmsi.get(mmsi),
+                            staticByMmsi.get(mmsi),
+                            collected.get(mmsi)
+                        );
+
+                        if (!Number.isFinite(merged.lat) || !Number.isFinite(merged.lon)) return;
+                        if (!isStrictMilitaryNavalContact(merged)) return;
+
+                        collected.set(mmsi, {
+                            ...merged,
+                            mmsi,
+                        });
+                    }
+                } catch (err) {
+                    console.error(`${label} Message parse error:`, err.message);
+                }
+            });
+
+            socket.on("error", (err) => {
+                if (socket !== ws || settled) return;
+                if (
+                    allowInsecureTlsFallback &&
+                    !allowInsecureTls &&
+                    !retriedWithInsecureTls &&
+                    isAisCertificateExpiryError(err)
+                ) {
+                    retriedWithInsecureTls = true;
+                    console.warn(`${label} AISStream certificate expired; retrying with TLS verification disabled`);
+                    clearTimeout(timeout);
+                    try {
+                        socket.terminate?.();
+                    } catch {
+                        // ignore termination errors during retry
+                    }
+                    bindSocket(createAisWebSocket({ allowInsecureTls: true }), true);
                     return;
                 }
+                console.error(`${label} WebSocket error:`, err.message);
+                clearTimeout(timeout);
+                finish();
+            });
 
-                const mtype = msg.MessageType;
-                const meta = getMessageMeta(msg);
-                const mmsi = getMessageMmsi(msg, meta);
+            socket.on("close", () => {
+                if (socket !== ws || settled) return;
+                clearTimeout(timeout);
+                finish();
+            });
+        };
 
-                if (!mmsi) return;
-
-                // Extract position from PositionReport
-                if (mtype === "PositionReport") {
-                    const pos = msg.Message?.PositionReport;
-                    if (!pos) return;
-
-                    const position = readPositionFields(pos, meta);
-                    if (!Number.isFinite(position.lat) || !Number.isFinite(position.lon)) return;
-
-                    positionsByMmsi.set(mmsi, {
-                        ...(positionsByMmsi.get(mmsi) || {}),
-                        ...position,
-                    });
-
-                    const merged = mergeVesselState(
-                        positionsByMmsi.get(mmsi),
-                        staticByMmsi.get(mmsi),
-                        collected.get(mmsi)
-                    );
-
-                    if (!isStrictMilitaryNavalContact(merged)) return;
-
-                    collected.set(mmsi, {
-                        ...merged,
-                        mmsi,
-                    });
-                }
-
-                // Enrich with ShipStaticData (name, country, ship type)
-                if (mtype === "ShipStaticData") {
-                    const info = msg.Message?.ShipStaticData;
-                    if (!info) return;
-
-                    staticByMmsi.set(mmsi, {
-                        ...(staticByMmsi.get(mmsi) || {}),
-                        ...readStaticFields(info, meta),
-                    });
-
-                    const merged = mergeVesselState(
-                        positionsByMmsi.get(mmsi),
-                        staticByMmsi.get(mmsi),
-                        collected.get(mmsi)
-                    );
-
-                    if (!Number.isFinite(merged.lat) || !Number.isFinite(merged.lon)) return;
-                    if (!isStrictMilitaryNavalContact(merged)) return;
-
-                    collected.set(mmsi, {
-                        ...merged,
-                        mmsi,
-                    });
-                }
-
-            } catch (err) {
-                console.error(`${label} Message parse error:`, err.message);
-            }
-        });
-
-        ws.on("error", (err) => {
-            console.error(`${label} WebSocket error:`, err.message);
-            clearTimeout(timeout);
-            finish();
-        });
-
-        ws.on("close", () => {
-            clearTimeout(timeout);
-            finish();
-        });
+        bindSocket(createAisWebSocket(), false);
     });
 }

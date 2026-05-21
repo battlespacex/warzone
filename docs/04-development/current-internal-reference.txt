@@ -1,0 +1,342 @@
+BATTLESPACEX STRATOPS - CURRENT INTERNAL DEVELOPMENT REFERENCE
+Last updated: 2026-05-07
+
+Purpose:
+This document captures the current implementation-level reference for developers and AI agents. It is based on the current codebase and should be updated when classifications, assets, data files, or popup behavior change.
+
+------------------------------------------------------------
+1. HIGH-RISK WORKFLOW RULES
+------------------------------------------------------------
+
+Project rule:
+Do not break existing working functionality.
+
+Before editing:
+- inspect the current implementation
+- identify import/export paths
+- identify UI dependencies
+- make minimal changes
+- avoid unrelated refactors
+- preserve existing field names unless every consumer is updated
+
+High-risk files:
+- dev/assets/js/essential.js
+- dev/assets/js/warzone-globe.js
+- dev/assets/js/warzone-layers.js
+- dev/assets/js/supabase.js
+- dev/assets/js/index.js
+- webpack.config.js
+- vite.config.js
+- server.js
+
+------------------------------------------------------------
+2. CURRENT CORE ENTRY POINTS
+------------------------------------------------------------
+
+dev/assets/js/index.js
+- initializes the app
+- imports initWarzoneMilitaryBases from warzone-military-bases.js
+- initializes military bases after initWarzoneApp so entity clears do not wipe base entities
+
+dev/assets/js/essential.js
+- main app coordinator
+- Supabase/API event loading
+- event normalization
+- layer syncing
+- hotspot syncing
+- aircraft/naval widget syncing
+- viewport/region refresh
+- realtime channel handling
+- auth state notifications
+
+dev/assets/js/warzone-layers.js
+- layer definitions
+- layer state persistence
+- premium layer gating
+- event-to-layer routing
+
+dev/assets/js/warzone-hotspots.js
+- DOM hotspot card layer
+- hotspot clustering/classification
+- dominant category and severity logic
+
+dev/assets/js/warzone-military-bases-data.js
+- canonical military bases dataset
+- exports MILITARY_BASES_STATS
+- exports MILITARY_BASES
+
+dev/assets/js/warzone-military-bases.js
+- imports MILITARY_BASES
+- defines type labels, CSS color variables, panel icon classes, and PNG icon paths
+- creates Cesium CustomDataSource named "military-bases"
+- creates billboard entities for bases
+- handles hover cursor, click selection, and popup panel
+
+dev/assets/js/warzone-live-airforce.js
+- live aircraft tracker
+- aircraft subtype resolution
+- PNG/model asset resolution
+- focus/selection/trails/widgets
+
+dev/assets/js/warzone-live-naval.js
+- live naval tracker
+- naval subtype resolution
+- PNG/model asset resolution
+- focus/selection/trails/widgets
+
+------------------------------------------------------------
+3. MILITARY BASE DATA
+------------------------------------------------------------
+
+Canonical source file:
+dev/assets/js/warzone-military-bases-data.js
+
+Consumer:
+dev/assets/js/warzone-military-bases.js
+
+Current dataset stats:
+- existingRecordsBeforeMerge: 186
+- externalRecordsImported: 808
+- finalRecordCount: 981
+- duplicatesMergedOrRemoved: 51
+- recordsFlaggedForDedupeReview: 20
+- possibleDuplicateFlags: 8
+
+Current type counts:
+- airbase: 374
+- naval: 117
+- army: 158
+- missile: 39
+- cyber: 4
+- joint: 18
+- hq: 56
+- space_launch: 100
+- radar: 13
+- drone: 33
+- weapons_storage: 3
+- training_logistics: 26
+- wmd: 40
+- unknown: 0
+
+Current size counts:
+- major: 357
+- significant: 539
+- regional: 85
+
+Current source counts:
+- existing+umap: 39
+- existing: 147
+- umap: 755
+- umap+wikipedia: 2
+- wikipedia: 38
+
+Expected base record fields:
+- id
+- name
+- country
+- region
+- type
+- typeLabel
+- size
+- coordinates.lat
+- coordinates.lon
+- lat/lon compatibility fields when present
+- aliases
+- icon
+- source/sourceLayer metadata when present in data
+- confidence
+- dedupeReview
+- metadata
+- metadata.displayFields for optional popup rows
+
+Do not remove UI-dependent fields without checking warzone-military-bases.js and related widgets.
+
+------------------------------------------------------------
+4. MILITARY BASE TYPES, LABELS, ICONS, AND COLORS
+------------------------------------------------------------
+
+Base type config lives in dev/assets/js/warzone-military-bases.js.
+Color variables live in dev/assets/css/root.css.
+
+- airbase | Air Base | --warzone-base-airbase-color | stratops-ico-assets-air-1 | /assets/images/bases/airbase-1.png
+- naval | Naval Base | --warzone-base-naval-color | stratops-ico-assets-naval-1 | /assets/images/bases/naval-1.png
+- army | Army Base | --warzone-base-army-color | stratops-ico-assets-army-1 | /assets/images/bases/army-1.png
+- missile | Missile / ICBM Site | --warzone-base-missile-color | stratops-ico-assets-missile-1 | /assets/images/bases/missile-1.png
+- cyber | Cyber / Space Ops | --warzone-base-cyber-color | stratops-ico-assets-cyber-1 | /assets/images/bases/cyber-1.png
+- joint | Joint / Multi-Service Base | --warzone-base-joint-color | stratops-ico-assets-joint-1 | /assets/images/bases/joint-1.png
+- hq | Military HQ / Command | --warzone-base-hq-color | stratops-ico-assets-hq-1 | /assets/images/bases/hq-1.png
+- space_launch | Space Launch Site | --warzone-base-space-launch-color | stratops-ico-assets-space-launch-1 | /assets/images/bases/space-launch.png
+- radar | Radar / Tracking Site | --warzone-base-radar-color | stratops-ico-assets-radar-1 | /assets/images/bases/radar-1.png
+- drone | Drone / UAV Facility | --warzone-base-drone-color | stratops-ico-assets-drone-1 | /assets/images/bases/drone-1.png
+- weapons_storage | Weapons Storage | --warzone-base-weapons-storage-color | stratops-ico-assets-unknown-1 | /assets/images/bases/unknown-1.png
+- training_logistics | Training / Logistics | --warzone-base-training-logistics-color | stratops-ico-assets-unknown-1 | /assets/images/bases/unknown-1.png
+- wmd | Nuclear Explosion Site | --warzone-base-wmd-color | stratops-ico-assets-wmd-1 | /assets/images/bases/wmd-1.png
+- unknown | Military Installation | --warzone-base-unknown-color | stratops-ico-assets-unknown-1 | /assets/images/bases/unknown-1.png
+
+Important classification rule:
+Missile/ICBM sites remain type missile. Space launch/cosmodrome/satellite launch facilities remain type space_launch. They are intentionally separate and should use different icons.
+
+------------------------------------------------------------
+5. BASE POPUP IMPLEMENTATION
+------------------------------------------------------------
+
+File:
+dev/assets/js/warzone-military-bases.js
+
+Popup base fields:
+- Type
+- Country
+- Operator
+- Classification
+- Coordinates
+
+Additional rows:
+- pulled from base.metadata.displayFields
+- records may have different extra fields
+- "Source" and "Source section" are intentionally hidden in the popup
+- URL values render as links when the field has a valid http/https URL
+
+Panel behavior:
+- panel is position: fixed
+- panel is tied to selected entity screen coordinates
+- panel fades in/out
+- panel should hide when selected entity moves outside browser viewport or behind the globe
+
+------------------------------------------------------------
+6. HOTSPOT CLASSIFICATION REFERENCE
+------------------------------------------------------------
+
+Primary file:
+dev/assets/js/warzone-hotspots.js
+
+Layer router:
+dev/assets/js/warzone-layers.js
+
+Current hotspotCategory output values:
+- strike
+- air_activity
+- naval_activity
+- ground_activity
+- recon_intel
+- alert
+- airspace
+- cyber
+- thermal
+- signal
+- seismic
+- unknown_activity
+- any explicit category that does not need remapping
+
+Military/recon remap:
+- category recon + naval subtype/text -> naval_activity
+- category recon + aircraft subtype/text -> air_activity
+- category recon otherwise -> recon_intel
+- category military + naval subtype/text -> naval_activity
+- category military + aircraft subtype/text -> air_activity
+- category military otherwise -> ground_activity
+- category default/activity -> unknown_activity
+
+Layer routing:
+- alert -> alerts
+- cyber -> cyber
+- thermal -> thermal
+- air_activity -> aircraft
+- naval_activity -> naval
+- ground_activity -> recon
+- recon_intel -> recon
+- unknown_activity -> strikes
+- recon -> recon
+- seismic/signal -> seismic
+- military + naval subtype -> naval
+- military + aircraft telemetry/subtype -> aircraft
+- military + drone/uav/shahed -> drones
+- military otherwise -> recon
+- strike + drone/uav/shahed/kamikaze weapon -> drones
+- strike + airstrike/bomb/fighter-style weapon -> airstrikes
+- strike + missile/rocket/ballistic/cruise weapon -> missiles
+- strike otherwise -> strikes
+
+------------------------------------------------------------
+7. AIRCRAFT TRACKER ASSET REFERENCE
+------------------------------------------------------------
+
+Primary file:
+dev/assets/js/warzone-live-airforce.js
+
+PNG base:
+/assets/images/live/{AssetKey}.png
+
+GLB base:
+/assets/images/models/air/{AssetKey}.glb
+
+Current aircraft asset behavior:
+- Runtime uses the R3 workbook Asset Key registry in dev/assets/js/warzone-live-airforce.js.
+- Exact aircraft aliases win first, for example Su-34 -> Bomber-SU34, B-52 -> Bomber-B52, Su-30 family -> Fighter-SU30, J-11/J-15/J-16/Su-27/Su-35/MiG-29 family -> Fighter-J11, P-8/P-3/P-1 maritime patrol family -> ISR-P8, Y-20 -> Transport-C17, Tu-160/Tu-22M3 -> Bomber-B1, KJ-2000 -> AWACS-Phalcon.
+- Drone aliases such as MQ-9/Reaper, Bayraktar TB2, RQ-4 Global Hawk, Wing Loong, CH-4/CH-5, Heron, Akinci, and Mohajer map to Drone-MQ9.
+- If no exact alias matches, the resolver uses country/operator defaults by normalized role.
+- If no country/category default exists, it falls back to the global generic Asset Key for the role.
+- Legacy codes such as ff-5, tp-2, aw-2, and ns-style dev-panel values are still accepted and translated to canonical Asset Keys during the transition.
+
+------------------------------------------------------------
+8. NAVAL TRACKER ASSET REFERENCE
+------------------------------------------------------------
+
+Primary file:
+dev/assets/js/warzone-live-naval.js
+
+PNG base:
+/assets/images/live/{AssetKey}.png
+
+GLB base:
+/assets/images/models/naval/{AssetKey}.glb
+
+Current naval asset behavior:
+- Runtime uses the R3 workbook Asset Key registry in dev/assets/js/warzone-live-naval.js.
+- Exact naval aliases win first, for example Nimitz/Ford -> Carrier-US, Fujian/Shandong/Liaoning -> Carrier-Fujian, LHD/LHA/type 075 -> Carrier-LHD, Zumwalt -> Vessel-Zumwalt.
+- Subtype/category fallbacks map surface combatants to Vessel-Frigate, small patrol/missile craft to Boat, ISR ships to Vessel-ISR, SSN/SSBN to Sub-SSN, and SSK/AIP to Submarine-API.
+- Country/operator naval defaults are applied only after exact/subtype matching.
+- Legacy codes such as ac-us-1, ac-rs-1, ns-2, ni-1, and sb-1 are accepted and translated to canonical Asset Keys during the transition.
+
+Naval subtype labels:
+- carrier: Carrier
+- amphibious: Amphibious
+- cruiser: Cruiser
+- destroyer: Destroyer
+- frigate: Frigate
+- corvette: Corvette
+- intelligence: Intelligence
+- ssbn: SSBN
+- ssn: SSN
+- ssk: SSK
+- aip_submarine: AIP Sub
+- submarine: Submarine
+- missile_boat: Missile Boat
+- patrol: Patrol
+- logistics: Logistics
+- minesweeper: Minesweeper
+- naval: Naval
+
+Asset filename rule:
+Use exact workbook filenames for new exports, for example Fighter-F16.glb, AWACS-Phalcon.png, Carrier-US.glb, and Vessel-Frigate.png.
+
+------------------------------------------------------------
+9. BUILD AND TEST
+------------------------------------------------------------
+
+Development:
+npm run dev
+
+Production build:
+npm run build
+
+Manual smoke checks after classification or asset changes:
+- app loads without console errors
+- Cesium globe initializes
+- layer panel opens and toggles layers
+- hotspots appear and do not flicker badly during map movement
+- military bases layer toggles on/off after auth state allows it
+- base popup opens, follows selected marker, hides offscreen, and closes
+- aircraft tracker shows correct type labels, icons/models, heading, trail, focus, and widget cards
+- naval tracker shows correct type labels, icons/models, heading, sea-level placement, trail, focus, and widget cards
+- region select and return-to-region controls still work
+- build succeeds

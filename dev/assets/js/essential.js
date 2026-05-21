@@ -37,6 +37,7 @@ let __eventsCache = [];
 let __visibleEventsCache = [];
 let __viewportScoped = false;
 let __liveRecentEvents = [];
+let __statusEventsCache = [];
 let __alertAudio = null;
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
@@ -495,6 +496,7 @@ const FRONTEND_CIVILIAN_NOISE = [
 
 function isMilitaryRelevant(event) {
     const category = String(event.category || "").toLowerCase();
+    if (isTrainerAircraftSignalEvent(event)) return false;
     if (!isStrictAisMilitaryNavalEvent(event)) return false;
     const text = [
         event.title,
@@ -822,8 +824,9 @@ function debounce(fn, ms) {
 }
 // ── Region/Lens-scoped widgets (independent of map layer toggles) ─────────────
 const debouncedRenderUI = debounce((events) => {
-    renderCyberStatus(events);
-    renderAirspaceStatus(events);
+    const statusEvents = getWidgetStatusEvents(events);
+    renderCyberStatus(statusEvents);
+    renderAirspaceStatus(statusEvents);
 }, 800);
 
 // ── Scope widgets — use current region/lens from full cache ────────────────────
@@ -1483,9 +1486,31 @@ const REGION_COUNTRY_HINTS = {
     europe: ["Ukraine", "Russia", "Poland", "Romania", "Germany", "France", "United Kingdom", "Belarus", "Lithuania", "Latvia", "Estonia"],
     north_america: ["United States", "Canada", "Mexico", "Greenland"],
     east_asia: ["China", "Taiwan", "North Korea", "South Korea", "Japan", "Philippines", "Vietnam"],
-    africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "Democratic Republic of the Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
+    africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "DR Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
 };
 const COUNTRY_NAME_ALIASES = {
+    "ae": "United Arab Emirates",
+    "bh": "Bahrain",
+    "eg": "Egypt",
+    "il": "Israel",
+    "iq": "Iraq",
+    "ir": "Iran",
+    "jo": "Jordan",
+    "kw": "Kuwait",
+    "lb": "Lebanon",
+    "om": "Oman",
+    "ps": "Palestine",
+    "qa": "Qatar",
+    "sa": "Saudi Arabia",
+    "sy": "Syria",
+    "tr": "Turkey",
+    "ye": "Yemen",
+    "ca": "Canada",
+    "cn": "China",
+    "gb": "United Kingdom",
+    "mx": "Mexico",
+    "ru": "Russia",
+    "ua": "Ukraine",
     "us": "United States",
     "u.s.": "United States",
     "u.s.a.": "United States",
@@ -1498,9 +1523,10 @@ const COUNTRY_NAME_ALIASES = {
     "great britain": "United Kingdom",
     "uae": "United Arab Emirates",
     "u.a.e.": "United Arab Emirates",
-    "dr congo": "Democratic Republic of the Congo",
-    "drc": "Democratic Republic of the Congo",
-    "congo kinshasa": "Democratic Republic of the Congo",
+    "dr congo": "DR Congo",
+    "drc": "DR Congo",
+    "congo kinshasa": "DR Congo",
+    "democratic republic of the congo": "DR Congo",
     "russian federation": "Russia",
     "republic of korea": "South Korea",
     "korea republic of": "South Korea",
@@ -1508,14 +1534,23 @@ const COUNTRY_NAME_ALIASES = {
     "dprk": "North Korea",
     "czech republic": "Czechia",
     "ivory coast": "Côte d’Ivoire",
-    "laos": "Lao People's Democratic Republic",
-    "syria": "Syrian Arab Republic",
-    "iran": "Iran, Islamic Republic of",
-    "moldova": "Moldova, Republic of",
-    "venezuela": "Venezuela, Bolivarian Republic of",
-    "bolivia": "Bolivia, Plurinational State of",
-    "tanzania": "Tanzania, United Republic of",
-    "vietnam": "Viet Nam",
+    "laos": "Laos",
+    "lao people's democratic republic": "Laos",
+    "syria": "Syria",
+    "syrian arab republic": "Syria",
+    "iran": "Iran",
+    "moldova": "Moldova",
+    "venezuela": "Venezuela",
+    "venezuela, bolivarian republic of": "Venezuela",
+    "bolivarian republic of venezuela": "Venezuela",
+    "bolivia": "Bolivia",
+    "bolivia, plurinational state of": "Bolivia",
+    "plurinational state of bolivia": "Bolivia",
+    "tanzania": "Tanzania",
+    "tanzania, united republic of": "Tanzania",
+    "united republic of tanzania": "Tanzania",
+    "vietnam": "Vietnam",
+    "viet nam": "Vietnam",
     "u.n": "United Nation",
     "un": "United Nation"
 };
@@ -1526,6 +1561,220 @@ function normalizeCountryName(value) {
     if (!raw) return "";
     const lower = raw.toLowerCase();
     return COUNTRY_NAME_ALIASES[lower] || raw;
+}
+function countryNameFromCode(value) {
+    const code = String(value || "").trim().toLowerCase();
+    if (!code) return "";
+    return COUNTRY_NAME_ALIASES[code] || "";
+}
+function inferCountryFromStatusText(...values) {
+    const haystack = values
+        .filter(Boolean)
+        .join(" | ")
+        .toLowerCase();
+    if (!haystack) return "";
+    const candidates = [...new Set([
+        ...Object.values(REGION_COUNTRY_HINTS).flat(),
+        "United States",
+        "Canada",
+        "Mexico",
+        "China",
+        "Russia",
+        "Ukraine",
+        "United Kingdom"
+    ])]
+        .map(normalizeCountryName)
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+    return candidates.find((country) => haystack.includes(country.toLowerCase())) || "";
+}
+function statusSeverityToCyberStatus(value = "") {
+    const severity = String(value || "").toLowerCase();
+    if (severity === "critical") return "critical";
+    if (severity === "high") return "high";
+    if (severity === "low" || severity === "minor") return "normal";
+    return "elevated";
+}
+function isCyberShutdownStatusText(text = "") {
+    const haystack = String(text || "").toLowerCase();
+    return (
+        haystack.includes("internet outage") ||
+        haystack.includes("network outage") ||
+        haystack.includes("network blocking") ||
+        haystack.includes("service blocking") ||
+        haystack.includes("shutdown") ||
+        haystack.includes("censorship") ||
+        haystack.includes("communications blackout")
+    );
+}
+function isCyberShutdownSignalEvent(event = {}) {
+    const category = String(event.category || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
+    const sourceName = String(event.source_name || "").toLowerCase();
+    const tags = getEventTags(event);
+    const text = [
+        event.title,
+        event.summary,
+        event.location_label,
+        event.report_type,
+        tags.join(" ")
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    if (category === "network") return true;
+    if (["internet_outage", "network_blocking", "network"].includes(reportType)) return true;
+    if (
+        sourceName.includes("cloudflare") ||
+        sourceName.includes("ioda") ||
+        sourceName.includes("ooni")
+    ) {
+        return true;
+    }
+    if (tags.some((tag) => ["network", "blocking", "censorship", "internet-outage"].includes(tag))) {
+        return true;
+    }
+    return isCyberShutdownStatusText(text);
+}
+function isAirspaceRestrictionSignalEvent(event = {}) {
+    const category = String(event.category || "").toLowerCase();
+    const reportType = String(event.report_type || "").toLowerCase();
+    const airspace = String(event.airspace_status || "").toLowerCase();
+    const tags = getEventTags(event);
+    return (
+        (airspace && airspace !== "unknown") ||
+        category === "airspace" ||
+        reportType === "notam" ||
+        reportType === "airspace_status" ||
+        tags.includes("notam")
+    );
+}
+function normalizeActiveAlertStatusEvent(alert = {}) {
+    if (String(alert.status || "").toLowerCase() !== "active") return null;
+    const category = String(alert.category || "").toLowerCase();
+    const sourceName = String(alert.source_name || "").toLowerCase();
+    const title = String(alert.title || "");
+    const summary = String(alert.summary || "");
+    const haystack = `${category} ${sourceName} ${title} ${summary}`.toLowerCase();
+    const isCyber = (
+        category === "network" ||
+        sourceName.includes("cloudflare") ||
+        sourceName.includes("ioda") ||
+        sourceName.includes("ooni") ||
+        isCyberShutdownStatusText(haystack)
+    );
+    const isAirspace = (
+        category === "airspace" ||
+        haystack.includes("airspace") ||
+        haystack.includes("notam")
+    );
+    if (!isCyber && !isAirspace) return null;
+    const region = alert.region || alert.location_label || "";
+    const country = inferCountryFromStatusText(region, title, summary);
+    const severity = String(alert.meta?.severity || alert.meta?.level || alert.category || "").toLowerCase();
+    const airspaceStatus = isAirspace
+        ? (severity === "critical" || severity === "red" ? "closed" : "restricted")
+        : "unknown";
+    const cyberStatus = isCyber ? statusSeverityToCyberStatus(alert.meta?.severity || alert.category) : "unknown";
+    return normalizeEvent({
+        id: `active-alert-${alert.alert_key || alert.id || title}`,
+        category: isCyber ? "cyber" : "alert",
+        title,
+        summary,
+        source_name: alert.source_name || "",
+        source_url: alert.source_url || "",
+        occurred_at: alert.updated_at || alert.started_at || new Date().toISOString(),
+        location_label: region || country || "Unknown location",
+        country,
+        confidence: 80,
+        severity: isCyber ? cyberStatus : (airspaceStatus === "closed" ? "critical" : "high"),
+        report_type: isCyber ? "network" : "airspace_status",
+        airspace_status: airspaceStatus,
+        cyber_status: cyberStatus,
+        tags: [isCyber ? "network" : "airspace", "active-alert"].filter(Boolean)
+    });
+}
+function normalizeAirspaceStatusEvent(row = {}) {
+    const status = String(row.status || "").toLowerCase() || "unknown";
+    if (!status || status === "unknown") return null;
+    const expiresAt = Date.parse(row.expires_at || "");
+    if (Number.isFinite(expiresAt) && expiresAt < Date.now()) return null;
+    const country = countryNameFromCode(row.country_code) ||
+        inferCountryFromStatusText(row.region, row.title, row.summary);
+    return normalizeEvent({
+        id: `airspace-status-${row.region || row.fir_code || row.id || row.title}`,
+        category: "airspace",
+        title: row.title || `${row.region || "Regional"} airspace ${status}`,
+        summary: row.summary || "Airspace status update",
+        source_name: row.source_name || "",
+        source_url: row.source_url || "",
+        occurred_at: row.updated_at || new Date().toISOString(),
+        lat: row.lat,
+        lon: row.lon,
+        location_label: row.region || country || "Unknown location",
+        country,
+        confidence: 85,
+        severity: status === "closed" ? "critical" : status === "restricted" ? "high" : "low",
+        report_type: "airspace_status",
+        airspace_status: status,
+        cyber_status: "unknown",
+        fir_code: row.fir_code || "",
+        tags: ["airspace", status].filter(Boolean)
+    });
+}
+function dedupeStatusEvents(events = []) {
+    const seen = new Set();
+    const out = [];
+    for (const event of events) {
+        if (!event) continue;
+        const key = [
+            String(event.category || "").toLowerCase(),
+            getEventResolvedCountry(event),
+            String(event.title || "").toLowerCase(),
+            String(event.airspace_status || "").toLowerCase(),
+            String(event.cyber_status || "").toLowerCase()
+        ].join("|");
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(event);
+    }
+    return out;
+}
+async function refreshStatusEvents() {
+    const results = await Promise.allSettled([
+        api.getActiveAlerts(),
+        api.getAirspaceStatuses ? api.getAirspaceStatuses() : Promise.resolve({ data: [], error: null })
+    ]);
+    const statusEvents = [];
+    const alertsResult = results[0];
+    if (alertsResult.status === "fulfilled" && !alertsResult.value?.error) {
+        (alertsResult.value?.data || [])
+            .map(normalizeActiveAlertStatusEvent)
+            .filter(Boolean)
+            .forEach((event) => statusEvents.push(event));
+    }
+    const airspaceResult = results[1];
+    if (airspaceResult.status === "fulfilled" && !airspaceResult.value?.error) {
+        (airspaceResult.value?.data || [])
+            .map(normalizeAirspaceStatusEvent)
+            .filter(Boolean)
+            .forEach((event) => statusEvents.push(event));
+    }
+    __statusEventsCache = dedupeStatusEvents(statusEvents);
+    return __statusEventsCache;
+}
+function getWidgetStatusEvents(events = []) {
+    const base = Array.isArray(events) ? events : [];
+    if (!__statusEventsCache.length) return base;
+    const region = getActiveRegion?.();
+    const whitelist = getRegionCountryWhitelist(region?.id || "global");
+    const scopedStatusEvents = __statusEventsCache.filter((event) => {
+        if (!region || region.id === "global") return true;
+        if (isEventInsideRegionBounds(event, region)) return true;
+        const country = normalizeCountryName(getEventResolvedCountry(event));
+        return !!country && whitelist.has(country);
+    });
+    return [...base, ...scopedStatusEvents];
 }
 function normalizePlace(value) {
     return String(value || "")
@@ -1573,6 +1822,8 @@ function eventPlaceText(event) {
 function getEventResolvedCountry(event = {}) {
     const explicit = normalizeCountryName(event.country || event.countryName || "");
     if (explicit) return explicit;
+    const coded = countryNameFromCode(event.country_code || event.countryCode || event.inferred_country_code || "");
+    if (coded) return coded;
     const inferredCountry = normalizeCountryName(event.inferred_country_name || "");
     if (inferredCountry) {
         const inferredType = String(event.inferred_place_type || "").toLowerCase();
@@ -1813,18 +2064,10 @@ export function deriveTheaterStatus(theaterItem = {}) {
     return "NORMAL";
 }
 function isStatusRelevantEvent(event = {}, type = "airspace") {
-    const category = String(event.category || "").toLowerCase();
-    const cyber = String(event.cyber_status || "").toLowerCase();
-    const airspace = String(event.airspace_status || "").toLowerCase();
     if (type === "cyber") {
-        return (cyber && cyber !== "unknown") || category === "cyber";
+        return isCyberShutdownSignalEvent(event);
     }
-    return (
-        (airspace && airspace !== "unknown") ||
-        category === "airspace" ||
-        category === "alert" ||
-        category === "strike"
-    );
+    return isAirspaceRestrictionSignalEvent(event);
 }
 function isEventInsideRegionBounds(event = {}, region = getActiveRegion?.()) {
     if (!region || region.id === "global") return true;
@@ -1875,19 +2118,14 @@ function deriveCountryStatus(events, country, type = "airspace") {
         if (cyberExplicit.some((status) => ["normal", "low", "minor"].includes(status))) {
             return "normal";
         }
-        const cyberEvents = relevant.filter(
-            (e) => String(e.category || "").toLowerCase() === "cyber"
-        );
-        if (!cyberEvents.length) return "unknown";
-        if (
-            cyberEvents.some((e) =>
-                ["critical", "high"].includes(String(e.severity || "").toLowerCase())
-            )
-        ) {
+        if (relevant.some((e) => ["critical", "high"].includes(String(e.severity || "").toLowerCase()))) {
             return "critical";
         }
+        if (relevant.some((e) => String(e.severity || "").toLowerCase() === "medium")) {
+            return "elevated";
+        }
         if (
-            cyberEvents.some((e) =>
+            relevant.some((e) =>
                 ["critical", "high", "elevated", "degraded", "disrupted"].includes(
                     String(e.cyber_status || "").toLowerCase()
                 )
@@ -1904,18 +2142,7 @@ function deriveCountryStatus(events, country, type = "airspace") {
     if (explicitStatuses.includes("restricted")) return "restricted";
     if (explicitStatuses.includes("elevated")) return "elevated";
     if (explicitStatuses.includes("normal")) return "normal";
-    const alertsCount = relevant.filter(
-        (e) => String(e.category || "").toLowerCase() === "alert"
-    ).length;
-    const recentCutoff = Date.now() - 2 * 60 * 60 * 1000;
-    const kineticCount = relevant.filter((e) => {
-        const t = new Date(e.occurred_at).getTime();
-        const cat = String(e.category || "").toLowerCase();
-        return t > recentCutoff && (cat === "strike" || cat === "military" || cat === "air_activity" || cat === "naval_activity" || cat === "ground_activity");
-    }).length;
-    if (alertsCount >= 5 || kineticCount >= 3) return "closed";
-    if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
-    return "normal";
+    return "unknown";
 }
 function deriveAggregateStatus(events, type = "airspace") {
     const relevant = getStatusScopedEvents(events, type);
@@ -1934,12 +2161,10 @@ function deriveAggregateStatus(events, type = "airspace") {
         }
         if (cyberExplicit.some((status) => ["elevated", "medium"].includes(status))) return "elevated";
         if (cyberExplicit.some((status) => ["normal", "low", "minor"].includes(status))) return "normal";
-        const cyberEvents = relevant.filter((e) => String(e.category || "").toLowerCase() === "cyber");
-        if (!cyberEvents.length) return "unknown";
-        if (cyberEvents.some((e) => ["critical", "high"].includes(String(e.severity || "").toLowerCase()))) {
+        if (relevant.some((e) => ["critical", "high"].includes(String(e.severity || "").toLowerCase()))) {
             return "critical";
         }
-        if (cyberEvents.some((e) => String(e.severity || "").toLowerCase() === "medium")) return "elevated";
+        if (relevant.some((e) => String(e.severity || "").toLowerCase() === "medium")) return "elevated";
         return "normal";
     }
     const airspaceExplicit = relevant
@@ -1949,15 +2174,6 @@ function deriveAggregateStatus(events, type = "airspace") {
     if (airspaceExplicit.includes("restricted")) return "restricted";
     if (airspaceExplicit.includes("elevated")) return "elevated";
     if (airspaceExplicit.includes("normal")) return "normal";
-    const recentCutoff = Date.now() - 2 * 60 * 60 * 1000;
-    const alertsCount = relevant.filter((e) => String(e.category || "").toLowerCase() === "alert").length;
-    const kineticCount = relevant.filter((e) => {
-        const t = new Date(e.occurred_at).getTime();
-        const cat = String(e.category || "").toLowerCase();
-        return Number.isFinite(t) && t > recentCutoff && (cat === "strike" || cat === "military" || cat === "air_activity" || cat === "naval_activity" || cat === "ground_activity");
-    }).length;
-    if (alertsCount >= 5 || kineticCount >= 3) return "closed";
-    if (alertsCount >= 2 || kineticCount >= 1) return "restricted";
     return "unknown";
 }
 function topActors(events, max = 3) {
@@ -2073,6 +2289,7 @@ function rankCountryRows(events, type, max = 10) {
                 priority: statusPriority(status),
             };
         })
+        .filter((row) => row.priority > 0 || row.relatedCount > 0)
         .sort((a, b) => {
             if (b.priority !== a.priority) return b.priority - a.priority;
             if (b.relatedCount !== a.relatedCount) return b.relatedCount - a.relatedCount;
@@ -2378,6 +2595,75 @@ const FRONTEND_CIVILIAN_UTILITY_PATTERNS = [
     /\bTHRUSH\b/i,
     /\bDROMADER\b/i,
 ];
+const FRONTEND_TRAINING_ACTIVITY_PATTERNS = [
+    /\btrainer\b/i,
+    /\bbasic trainer\b/i,
+    /\bprimary trainer\b/i,
+    /\badvanced trainer\b/i,
+    /\bjet trainer\b/i,
+    /\bflight training\b/i,
+    /\bpilot training\b/i,
+    /\btraining aircraft\b/i,
+    /\btraining (flight|activity|mission|sortie)\b/i,
+    /\bmilitary training aircraft\b/i,
+];
+const FRONTEND_TRAINER_SPECIAL_OPERATIONAL_PATTERNS = [
+    /\bFA-?50\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?130\b/i,
+    /\bM-?346FA\b/i,
+    /\bA-?29\b/i,
+    /\bSUPER TUCANO\b/i,
+    /\bAT-?6\b/i,
+    /\bWOLVERINE\b/i,
+    /\bBLACK ?HAWK\b/i,
+    /\bSEAHAWK\b/i,
+    /\bHAWKEYE\b/i,
+];
+const FRONTEND_TRAINER_PLATFORM_PATTERNS = [
+    /\b(?:AERO\s+)?L-?(?:29|39|59)\b/i,
+    /\bDELFIN\b/i,
+    /\bALBATROS\b/i,
+    /\bSUPER ALBATROS\b/i,
+    /\bALPHA JET\b/i,
+    /\b(?:BAE\s+)?HAWK(?:\s+(?:T[12]|100|200))?\b/i,
+    /(^|[^A-Z0-9])T-?6[ABC]?\b/i,
+    /\bTEXAN II\b/i,
+    /\bBEECHCRAFT\s+T-?6\b/i,
+    /\bCT-?156\b/i,
+    /\bHARVARD II\b/i,
+    /\b(?:PILATUS\s+)?PC-?(?:7|9|21)(?:\s*(?:MKII|M))?\b/i,
+    /\bGROB\s+G-?(?:115|120A?|120TP)\b/i,
+    /\bG-?(?:115|120A?|120TP)\b/i,
+    /(^|[^A-Z0-9])T-?38[AC]?\b/i,
+    /\bTALON\b/i,
+    /\b(?:BOEING\s+)?T-?7A?\b/i,
+    /\bRED HAWK\b/i,
+    /\b(?:KAI\s+)?KT-?1\b/i,
+    /\bWOONGBI\b/i,
+    /\b(?:HONGDU\s+|NANCHANG\s+)?CJ-?6\b/i,
+    /\bYAK(?:OVLEV)?[-\s]?(?:52|152)\b/i,
+    /\bPZL-?130\b/i,
+    /\bORLIK\b/i,
+    /\bSF-?260(?:EA)?\b/i,
+    /\bDIAMOND\s+DA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bDA(?:20|40|42)\b.*\bTRAINER\b/i,
+    /\bEMB-?312\b/i,
+    /\bTUCANO\b/i,
+    /\bK-?8\b/i,
+    /\bJL-?8\b/i,
+    /\bKARAKORUM\b/i,
+    /\bM-?311\b/i,
+    /\bM-?345\b/i,
+    /\bM-?346(?!FA)\b/i,
+    /\bMB-?(?:326|339)\b/i,
+    /\bJET PROVOST\b/i,
+    /\bSCOTTISH AVIATION BULLDOG\b/i,
+    /\bBULLDOG\b/i,
+    /\bCT-?114\b/i,
+    /\bTUTOR\b/i,
+    /\bJL-?10\b/i,
+    /\bL-?15\b/i,
+];
 const FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS = [
     /AIR FORCE/i,
     /\bUSAF\b/i,
@@ -2564,8 +2850,72 @@ function isLikelyCivilianUtilityAircraftTrack(track = {}) {
 function shouldExcludeFromMilitaryAircraftTracker(track = {}) {
     return (
         isLikelyCivilianPassengerAircraftTrack(track) ||
-        isLikelyCivilianUtilityAircraftTrack(track)
+        isLikelyCivilianUtilityAircraftTrack(track) ||
+        isLikelyTrainerAircraftTrack(track)
     );
+}
+function buildTrainerAircraftHaystack(source = {}, metadata = getAircraftMetadata(source)) {
+    return [
+        source.track_type,
+        source.category,
+        source.subcategory,
+        source.subtype,
+        source.role,
+        source.aircraft_role,
+        source.aircraft_type,
+        source.type_code,
+        source.icao_type,
+        source.model_name,
+        source.model,
+        source.variant,
+        source.description,
+        source.title,
+        source.summary,
+        source.weapon_type,
+        source.report_type,
+        source.callsign,
+        source.flight,
+        source.operator,
+        source.owner,
+        metadata.role,
+        metadata.subtype,
+        metadata.aircraft_role,
+        metadata.type_code,
+        metadata.model_name,
+        metadata.model,
+        metadata.variant,
+        metadata.callsign,
+        metadata.operator,
+    ]
+        .filter(Boolean)
+        .join(" ");
+}
+function isExcludedTrainerAircraftText(text = "") {
+    const haystack = String(text || "");
+    if (!haystack) return false;
+    const hasTrainingActivity = FRONTEND_TRAINING_ACTIVITY_PATTERNS.some((pattern) => pattern.test(haystack));
+    if (
+        !hasTrainingActivity &&
+        FRONTEND_TRAINER_SPECIAL_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(haystack))
+    ) {
+        return false;
+    }
+    return hasTrainingActivity || FRONTEND_TRAINER_PLATFORM_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+function isLikelyTrainerAircraftTrack(track = {}) {
+    const metadata = getAircraftMetadata(track);
+    const rawSubtype = String(track.subcategory || track.subtype || metadata.role || "").trim().toLowerCase();
+    if (rawSubtype === "trainer") return true;
+    return isExcludedTrainerAircraftText(buildTrainerAircraftHaystack(track, metadata));
+}
+function isTrainerAircraftSignalEvent(event = {}) {
+    const category = String(event.category || "").toLowerCase();
+    const maybeAircraft =
+        isAircraftTelemetryEvent(event) ||
+        isClearlyAircraftContact(event) ||
+        ["air_activity", "military"].includes(category);
+    if (!maybeAircraft) return false;
+    return isExcludedTrainerAircraftText(buildTrainerAircraftHaystack(event, getEventMetadata(event)));
 }
 function formatAircraftAltitude(altitudeFt = 0) {
     const value = Number(altitudeFt || 0);
@@ -2678,7 +3028,7 @@ function resolveAircraftSubtype(track = {}) {
     if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28\b|mi28\b|ka-27\b|ka27\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
     if (/(bomber|b-1\b|b1\b|b-2\b|b2\b|b-52\b|b52\b|tu-95\b|tu95\b|tu-160\b|tu160\b|h-6\b|h6\b|ac-130\b|ac130\b|spectre|spooky)/.test(haystack)) return "bomber";
     if (/(uav\b|drone\b|ucav\b|reaper\b|predator\b|mq-9\b|mq9\b|rq-4\b|rq4\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
-    if (/(trainer\b|t-6\b|t6\b|t-38\b|t38\b|hawk\b|m-346\b|m346\b|yak-130\b|yak130\b|pc-21\b|pc21\b)/.test(haystack)) return "trainer";
+    if (isExcludedTrainerAircraftText(haystack)) return "trainer";
     if (/(fighter\b|interceptor\b|multirole\b|hornet\b|super hornet\b|strike eagle\b|raptor\b|lightning ii\b|warthog\b|typhoon\b|eurofighter\b|rafale\b|gripen\b|mirage\b|tomcat\b|f-15\b|f15\b|f-16\b|f16\b|f-18\b|f18\b|fa-18\b|f\/a-18\b|f-22\b|f22\b|f-35\b|f35\b|a-10\b|a10\b|su-27\b|su27\b|su-30\b|su30\b|su-35\b|su35\b|mig-29\b|mig29\b|mig-31\b|mig31\b|j-10\b|j10\b|j-16\b|j16\b|j-20\b|j20\b|tejas\b|jf-17\b|jf17\b)/.test(haystack)) return "fighter";
     if (raw && !["military", "aircraft", "unknown"].includes(raw)) return raw;
     return "aircraft";
@@ -3441,7 +3791,7 @@ function updateAircraftWidgetCard(card, track, selection) {
     actionBtn = card.querySelector(".wz-aircraft-action");
     titleEl.innerHTML = `
         <span class="wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}" aria-label="${statusLabel}">
-            <span class="stratops-ico-hotspot-signal-thermal-1" aria-hidden="true"></span>
+            <span class="stratops-ico-assets-signal-thermal-1" aria-hidden="true"></span>
         </span>
         <span class="wz-aircraft-title__text">${title}</span>
     `;
@@ -3679,6 +4029,7 @@ function renderAll(events, { replaceCache = true } = {}) {
                 theater: resolveEventTheater(normalized)
             };
         })
+            .filter((event) => !isTrainerAircraftSignalEvent(event))
     ), EVENT_CACHE_MAX_ITEMS);
     const regionScopedEvents = trimSortedEventList(
         sortEvents(filterEventsToActiveRegion(normalizedEvents)),
@@ -4031,6 +4382,7 @@ export async function initWarzoneApp() {
             events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
             __eventsApiRestrictedUntil = 0;
         }
+        await refreshStatusEvents();
         __viewportScoped = false;
         renderAll(filterEventsToActiveRegion(events));
         updateNewsTicker(__eventsCache.slice(0, 20));
@@ -4104,7 +4456,7 @@ export async function initWarzoneApp() {
             requestNavalWidgetRender(0);
             const reloadSeq = ++__regionReloadSeq;
             api.getEvents()
-                .then(({ data, error }) => {
+                .then(async ({ data, error }) => {
                     if (reloadSeq !== __regionReloadSeq) return;
                     if (error) {
                         logEventsApiError("Region refresh events error:", error);
@@ -4114,6 +4466,7 @@ export async function initWarzoneApp() {
                         ? data.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     const regionFreshEvents = filterEventsToActiveRegion(freshEvents);
+                    await refreshStatusEvents();
                     renderAll(regionFreshEvents);
                     updateNewsTicker(__eventsCache.slice(0, 20));
                     syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
@@ -4269,8 +4622,9 @@ export async function initWarzoneApp() {
 
         // Keep status widgets stable on layer toggles by using region/lens scope.
         const widgetScoped = applyScopeFilters(__eventsCache);
-        renderAirspaceStatus(widgetScoped);
-        renderCyberStatus(widgetScoped);
+        const widgetStatusEvents = getWidgetStatusEvents(widgetScoped);
+        renderAirspaceStatus(widgetStatusEvents);
+        renderCyberStatus(widgetStatusEvents);
     });
     {
         const globe = window.__warzoneViewer?.__warzone;
@@ -4341,6 +4695,7 @@ async function pollLatestEvents(options = {}) {
                         ? fullData.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     if (fullEvents.length) {
+                        await refreshStatusEvents();
                         renderAll(filterEventsToActiveRegion(fullEvents));
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
                         const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
@@ -4563,6 +4918,7 @@ function estimateSirenOrigin(event) {
 export function handleIncomingEvent(event) {
     let normalized = normalizeEvent(event);
     normalized = resolveStrikeGeometry(normalized);
+    if (isTrainerAircraftSignalEvent(normalized)) return;
     if (!isMilitaryRelevant(normalized)) return;
     const inRegion = isEventInsideActiveRegion(normalized);
     if (!inRegion) return;
