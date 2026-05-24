@@ -108,6 +108,7 @@ const AIRCRAFT_LIVE_SYNC_MS = 8 * 1000;
 const AIRCRAFT_LIVE_SYNC_DB_MS = 6 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
+const HIGH_VALUE_ASSET_ALERT_THROTTLE_MS = 10 * 60 * 1000;
 const EVENT_POLL_INTERVAL_MS = 12 * 1000;
 const EVENT_CACHE_MAX_ITEMS = 2600;
 const EVENT_VISIBLE_CACHE_MAX_ITEMS = 1800;
@@ -154,6 +155,28 @@ const NAVAL_EVENT_SUBTYPES = new Set([
     "minesweeper",
     "naval",
 ]);
+const HIGH_VALUE_AIRCRAFT_SUBTYPES = new Map([
+    ["bomber", { level: "red", label: "Bomber" }],
+    ["awacs", { level: "red", label: "AWACS" }],
+    ["isr", { level: "orange", label: "ISR Aircraft" }],
+    ["recon", { level: "orange", label: "Recon Aircraft" }],
+    ["tanker", { level: "orange", label: "Tanker" }],
+    ["refueler", { level: "orange", label: "Refueler" }],
+    ["vip", { level: "orange", label: "VIP/GOV Aircraft" }],
+]);
+const HIGH_VALUE_NAVAL_SUBTYPES = new Map([
+    ["carrier", { level: "red", label: "Aircraft Carrier" }],
+    ["ssbn", { level: "red", label: "SSBN Submarine" }],
+    ["ssn", { level: "red", label: "SSN Submarine" }],
+    ["ssk", { level: "red", label: "SSK Submarine" }],
+    ["aip_submarine", { level: "red", label: "AIP Submarine" }],
+    ["submarine", { level: "red", label: "Submarine" }],
+    ["intelligence", { level: "orange", label: "Intelligence Vessel" }],
+    ["cruiser", { level: "orange", label: "Cruiser" }],
+    ["destroyer", { level: "orange", label: "Destroyer" }],
+    ["amphibious", { level: "orange", label: "Amphibious Vessel" }],
+]);
+const __highValueAssetAlertedAt = new Map();
 const AIS_CIVILIAN_VESSEL_PATTERNS = [
     /\bMV\b/i,
     /\bM\/V\b/i,
@@ -485,49 +508,29 @@ const FRONTEND_CIVILIAN_NOISE = [
     "carjacking", "kidnapping", "domestic violence", "sexual assault",
     "gang shooting", "drive-by", "mass shooting", "school shooting",
     "police chase", "police arrest", "drug bust", "narcotics",
+    "nypd", "police department", "public safety", "event security",
+    "crowd control", "security training", "train officers", "law enforcement training",
     "sheriff", "law enforcement", "crime scene", "criminal investigation",
     "car accident", "traffic accident", "road accident", "train derailment",
     "gas leak", "house fire", "building fire", "chemical spill",
     "election", "vote", "ballot", "parliament", "sanctions",
+    "world cup", "fifa", "america 250", "stadium", "sports", "sporting event",
+    "festival", "concert", "wedding", "parade", "marathon",
     "ceasefire talks", "peace talks", "trade war", "stock market",
     "protest", "demonstration", "refugee", "migrant",
     "weather alert", "storm warning", "flood warning", "earthquake alert"
 ];
 
-function isMilitaryRelevant(event) {
-    const category = String(event.category || "").toLowerCase();
-    if (isTrainerAircraftSignalEvent(event)) return false;
-    if (!isStrictAisMilitaryNavalEvent(event)) return false;
-    const text = [
-        event.title,
-        event.summary,
-        event.description,
-        event.weapon_type,
-        event.subtype,
-        event.subcategory,
-        event.source_name
-    ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-    // Hard reject civilian noise first
-    if (FRONTEND_CIVILIAN_NOISE.some((term) => text.includes(term))) return false;
-
-    // Trusted military categories always pass
-    if ([
-        "strike", "military", "air_activity", "naval_activity", "ground_activity", "cyber", "airspace",
-        "recon", "recon_intel", "thermal", "alert", "signal", "seismic", "network"
-    ].includes(category)) return true;
-
-    // Must contain at least one hard military signal
-    if (
+function hasHardMilitaryConflictSignal(text = "") {
+    return (
         text.includes("missile") ||
         text.includes("rocket attack") ||
         text.includes("rocket barrage") ||
         text.includes("drone strike") ||
         text.includes("drone attack") ||
         text.includes("uav strike") ||
+        text.includes("uav attack") ||
+        text.includes("loitering munition") ||
         text.includes("airstrike") ||
         text.includes("air strike") ||
         text.includes("air raid") ||
@@ -537,7 +540,6 @@ function isMilitaryRelevant(event) {
         text.includes("fighter jet") ||
         text.includes("combat aircraft") ||
         text.includes("awacs") ||
-        text.includes("naval") ||
         text.includes("warship") ||
         text.includes("frigate") ||
         text.includes("destroyer") ||
@@ -558,7 +560,43 @@ function isMilitaryRelevant(event) {
         text.includes("notam") ||
         text.includes("cyberattack") ||
         text.includes("cyber attack")
+    );
+}
+
+function isMilitaryRelevant(event) {
+    const category = String(event.category || "").toLowerCase();
+    if (isTrainerAircraftSignalEvent(event)) return false;
+    if (!isStrictAisMilitaryNavalEvent(event)) return false;
+    const text = [
+        event.title,
+        event.summary,
+        event.description,
+        event.weapon_type,
+        event.subtype,
+        event.subcategory,
+        event.source_name
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+    // Hard reject civilian/public-safety/sports noise before trusting upstream categories.
+    // Generic "drone threat" around events is not a StratOps strike unless combat context is explicit.
+    if (
+        FRONTEND_CIVILIAN_NOISE.some((term) => text.includes(term)) &&
+        !hasHardMilitaryConflictSignal(text)
     ) {
+        return false;
+    }
+
+    // Trusted military categories always pass
+    if ([
+        "strike", "military", "air_activity", "naval_activity", "ground_activity", "cyber", "airspace",
+        "recon", "recon_intel", "thermal", "alert", "signal", "seismic", "network"
+    ].includes(category)) return true;
+
+    // Must contain at least one hard military signal
+    if (hasHardMilitaryConflictSignal(text) || text.includes("naval")) {
         return true;
     }
 
@@ -1224,6 +1262,83 @@ function formatNavalSubtypeLabel(subtype = "") {
     if (key === "amphibious") return "Amphibious";
     return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
 }
+function getHighValueAircraftMeta(track = {}) {
+    const subtype = String(resolveAircraftSubtype(track) || "").toLowerCase();
+    return HIGH_VALUE_AIRCRAFT_SUBTYPES.get(subtype) || null;
+}
+function getHighValueNavalMeta(vessel = {}) {
+    const subtype = normalizeNavalSubtype(vessel.subcategory || vessel.subtype || "");
+    return HIGH_VALUE_NAVAL_SUBTYPES.get(subtype) || null;
+}
+function updateHighValueDockPulse(kind = "", count = 0) {
+    const widgetId = kind === "naval" ? "naval" : "aircraft";
+    const btn = document.querySelector(`.wz-dock__btn[data-dock-widget="${widgetId}"]`);
+    if (!btn) return;
+    const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+    const active = safeCount > 0;
+    btn.classList.toggle("has-hva-alert", active);
+    btn.dataset.hvaCount = active ? String(safeCount) : "";
+    const label = widgetId === "naval" ? "Naval Tracker" : "Aircraft Tracker";
+    btn.title = active ? `${label}: ${safeCount} high-value asset${safeCount === 1 ? "" : "s"}` : label;
+}
+function buildHighValueAssetName(item = {}, kind = "aircraft") {
+    if (kind === "naval") {
+        return String(item.vessel_name || item.title || item.name || "").trim() || formatNavalSubtypeLabel(item.subcategory);
+    }
+    return getAircraftDisplayTitle(item);
+}
+function notifyHighValueAssets(kind = "aircraft", items = []) {
+    const sourceItems = Array.isArray(items) ? items : [];
+    const metas = sourceItems
+        .map((item) => ({
+            item,
+            meta: kind === "naval" ? getHighValueNavalMeta(item) : getHighValueAircraftMeta(item),
+        }))
+        .filter((entry) => entry.meta);
+    updateHighValueDockPulse(kind, metas.length);
+    if (!metas.length) return;
+    const now = Date.now();
+    let shownThisPass = 0;
+    metas.forEach(({ item, meta }) => {
+        if (shownThisPass >= 3) return;
+        const itemKey = String(item.track_key || item.icao24 || item.mmsi || item.id || buildHighValueAssetName(item, kind)).trim();
+        if (!itemKey) return;
+        const alertKey = `${kind}:${itemKey}:${meta.label}`;
+        const lastShownAt = Number(__highValueAssetAlertedAt.get(alertKey) || 0);
+        if (lastShownAt && now - lastShownAt < HIGH_VALUE_ASSET_ALERT_THROTTLE_MS) return;
+        __highValueAssetAlertedAt.set(alertKey, now);
+        const trackerLabel = kind === "naval" ? "Naval Tracker" : "Aircraft Tracker";
+        const name = buildHighValueAssetName(item, kind);
+        const location = String(item.country || item.region || item.location_label || "").trim();
+        const metaParts = [
+            `${meta.label}${name && name !== meta.label ? ` - ${name}` : ""}`,
+            location,
+            trackerLabel,
+        ].filter(Boolean);
+        showSirenAlert({
+            title: "HIGH-VALUE ASSET DETECTED",
+            meta: metaParts.join(" | "),
+            level: meta.level || "orange",
+            sound: false,
+        });
+        shownThisPass += 1;
+    });
+}
+document.addEventListener("wz:dev-high-value-aircraft-demo", (event) => {
+    const items = Array.isArray(event.detail?.items) ? event.detail.items : [];
+    if (!items.length) return;
+    if (event.detail?.force === true) {
+        items.forEach((item) => {
+            const meta = getHighValueAircraftMeta(item);
+            if (!meta) return;
+            const itemKey = String(item.track_key || item.icao24 || item.mmsi || item.id || buildHighValueAssetName(item, "aircraft")).trim();
+            if (itemKey) {
+                __highValueAssetAlertedAt.delete(`aircraft:${itemKey}:${meta.label}`);
+            }
+        });
+    }
+    notifyHighValueAssets("aircraft", items);
+});
 function getNavalSubtypeOptions(items = []) {
     return [...new Set(
         items
@@ -1261,6 +1376,7 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const allVessels = getAllNavalSnapshots();
         const scopedVessels = allVessels
             .filter((vessel) => isTrackerItemVisibleInScope(vessel, __navalWidgetScopeFilter));
+        const highValueVessels = scopedVessels.filter((vessel) => getHighValueNavalMeta(vessel));
         if (navalSubtypeSelect) {
             const currentValue = navalSubtypeSelect.value || __navalWidgetSubtypeFilter;
             const subtypeOptions = getNavalSubtypeOptions(scopedVessels);
@@ -1279,13 +1395,15 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const vessels = __navalWidgetSubtypeFilter && __navalWidgetSubtypeFilter !== "all"
             ? scopedVessels.filter((vessel) => normalizeNavalSubtype(vessel.subcategory) === __navalWidgetSubtypeFilter)
             : scopedVessels;
+        updateNavalWidgetTitleCount(vessels.length, highValueVessels.length);
+        notifyHighValueAssets("naval", highValueVessels);
         renderNavalTrackerWidget({
             vessels,
             emptyMessage: __navalWidgetScopeFilter === "all"
                 ? "No naval contacts in current filter"
                 : "No naval contacts in selected region",
         });
-    }, Math.max(0, delay));
+    }, getLiveWidgetRenderDelay(delay));
 }
 function syncNavalSignals(events = []) {
     const navalEvents = events
@@ -3274,12 +3392,21 @@ function setWidgetLoading(widgetId = "", isLoading = false) {
 function isWidgetLoading(widgetId = "") {
     return __widgetLoadingState.get(widgetId) === true;
 }
+function getLiveWidgetRenderDelay(delay = 0) {
+    const baseDelay = Math.max(0, Number(delay || 0));
+    if (baseDelay === 0) return 0;
+    const viewer = window.__warzoneViewer;
+    const aircraftSelection = getLiveTrackSelection?.();
+    const focusActive = String(aircraftSelection?.mode || "") === "focus";
+    const cameraMoving = viewer?.__warzoneCameraMoving === true;
+    return (focusActive || cameraMoving) ? Math.max(baseDelay, 320) : baseDelay;
+}
 function requestAircraftMovementsWidgetRender(delay = AIRCRAFT_WIDGET_RENDER_THROTTLE_MS) {
     clearTimeout(__aircraftWidgetRenderTimer);
     __aircraftWidgetRenderTimer = window.setTimeout(() => {
         __aircraftWidgetRenderTimer = 0;
         renderAircraftMovementsWidget();
-    }, Math.max(0, Number(delay || 0)));
+    }, getLiveWidgetRenderDelay(delay));
 }
 function scheduleAircraftHistoryRefresh(force = false) {
     clearTimeout(__aircraftHistoryRefreshTimer);
@@ -3580,7 +3707,20 @@ function updateAircraftWidgetTitleCount(total = 0) {
     if (!titleEl) return;
     const count = Math.max(0, Math.floor(Number(total) || 0));
     const capped = Math.min(LIVE_AIRCRAFT_WIDGET_TITLE_MAX_COUNT, count);
-    titleEl.textContent = `Aircraft Tracker (${capped})`;
+    const highValueCount = Math.max(0, Math.floor(Number(titleEl.dataset.hvaCount || 0) || 0));
+    titleEl.textContent = `Aircraft Tracker (${capped})${highValueCount ? ` • ${highValueCount} HVA` : ""}`;
+}
+function updateAircraftWidgetHighValueCount(count = 0) {
+    const titleEl = document.getElementById("widget-aircraft-title");
+    if (!titleEl) return;
+    titleEl.dataset.hvaCount = String(Math.max(0, Math.floor(Number(count) || 0)));
+}
+function updateNavalWidgetTitleCount(total = 0, highValueTotal = 0) {
+    const titleEl = document.getElementById("widget-naval-title");
+    if (!titleEl) return;
+    const count = Math.max(0, Math.floor(Number(total) || 0));
+    const highValueCount = Math.max(0, Math.floor(Number(highValueTotal) || 0));
+    titleEl.textContent = `Naval Tracker (${count})${highValueCount ? ` • ${highValueCount} HVA` : ""}`;
 }
 function syncAircraftCountryFilterControls(countrySourceItems = []) {
     const countrySelect = document.getElementById("wz-aircraft-filter-country");
@@ -3632,6 +3772,7 @@ function getAircraftWidgetItems() {
             allItems: [],
             baseItems: [],
             items: [],
+            highValueItems: [],
             filteredCount: 0,
             emptyMessage: "Aircraft layer is off",
         };
@@ -3688,6 +3829,9 @@ function getAircraftWidgetItems() {
             (track) => normalizeAircraftCountryFilterValue(getAircraftCountryLabel(track)) === selectedCountryValue
         );
     }
+    const highValueItems = allItems
+        .filter((track) => track.active)
+        .filter((track) => getHighValueAircraftMeta(track));
     const filteredCount = items.length;
     const selection = getLiveTrackSelection();
     items = prioritizeSelectedAircraftWidgetItem(
@@ -3699,6 +3843,7 @@ function getAircraftWidgetItems() {
         baseItems,
         activeCountryItems,
         items,
+        highValueItems,
         filteredCount,
         emptyMessage: __aircraftWidgetScopeFilter === "all"
             ? "No aircraft logs in the current filter"
@@ -3823,8 +3968,10 @@ function renderAircraftMovementsWidget() {
         syncScopeSelectLabel(scopeSelect, __aircraftWidgetScopeFilter);
         __aircraftWidgetScopeFilter = scopeSelect.value === "all" ? "all" : "region";
     }
-    const { items, baseItems, activeCountryItems, filteredCount, emptyMessage } = getAircraftWidgetItems();
+    const { items, baseItems, activeCountryItems, highValueItems, filteredCount, emptyMessage } = getAircraftWidgetItems();
+    updateAircraftWidgetHighValueCount(highValueItems.length);
     updateAircraftWidgetTitleCount(filteredCount);
+    notifyHighValueAssets("aircraft", highValueItems);
     const selection = getLiveTrackSelection();
     if (subtypeSelect) {
         const currentValue = subtypeSelect.value || __aircraftWidgetSubtypeFilter;
@@ -3997,6 +4144,7 @@ function bindAircraftMovementsWidget() {
         requestNavalWidgetRender(0);
     });
     document.addEventListener("wz:aircraft-track-selected", () => {
+        requestAircraftMovementsWidgetRender(0);
         requestNavalWidgetRender(0);
     });
 }
@@ -5353,11 +5501,16 @@ export function initStratopsIntro() {
     const acceptBtn = document.getElementById("wz-intro-accept");
     const acceptLabel = document.getElementById("wz-intro-accept-label");
     const checkbox = document.getElementById("intro-disclaimer-check");
+    const termsCheckbox = document.getElementById("intro-terms-check");
+    const termsLink = document.getElementById("wz-intro-terms-link");
     const openLoginBtn = document.getElementById("wz-intro-open-login");
     const backBtn = document.getElementById("wz-intro-back");
     const loginHint = document.getElementById("wz-hint");
     const contentView = document.getElementById("wz-intro-content-view");
     const loginView = document.getElementById("wz-intro-login-view");
+    const termsView = document.getElementById("wz-intro-terms");
+    const termsTab = document.getElementById("wz-intro-tab-terms");
+    const introTabs = introModal ? [...introModal.querySelectorAll(".wz-modal__tab")] : [];
     const introBox = introModal?.querySelector(".wz-modal-box");
     const INTRO_VIEW_FADE_MS = 220;
 
@@ -5369,6 +5522,7 @@ export function initStratopsIntro() {
     const introForm = document.getElementById("intro-auth-form");
 
     let isLoginMode = false;
+    let isTermsMode = false;
     let introHeightFrame = 0;
     let introHeightCommitFrame = 0;
     const introViewAnimations = new WeakMap();
@@ -5382,9 +5536,12 @@ export function initStratopsIntro() {
     }
 
     // ── Helper: enable/disable accept button ────────────────────────────────
+    function hasIntroConsent() {
+        return !!checkbox?.checked && !!termsCheckbox?.checked;
+    }
     function syncIntroBtn() {
         if (!acceptBtn) return;
-        const allowed = !!checkbox?.checked;
+        const allowed = hasIntroConsent();
         acceptBtn.disabled = !allowed;
         acceptBtn.setAttribute("aria-disabled", String(!allowed));
         if (allowed) { acceptBtn.classList.remove("is-locked"); acceptBtn.style.pointerEvents = ""; }
@@ -5453,6 +5610,27 @@ export function initStratopsIntro() {
         fadeInIntroView(showView);
         fadeOutIntroView(hideView);
     }
+    function getActiveIntroView() {
+        if (isLoginMode) return loginView;
+        if (isTermsMode) return termsView;
+        return introModal?.querySelector(".wz-content.is-active") || contentView;
+    }
+    function resetIntroInlineMode() {
+        isLoginMode = false;
+        isTermsMode = false;
+        setIntroError("");
+        loginHint?.classList.remove("is-hidden-hint");
+        if (backBtn) { backBtn.hidden = true; backBtn.style.display = "none"; }
+        if (acceptLabel) acceptLabel.textContent = "Enter";
+    }
+    function setIntroTabSelection(activeTab = "") {
+        introTabs.forEach((tab) => {
+            const active = !!activeTab && String(tab.dataset.tab || "") === activeTab;
+            tab.classList.toggle("is-active", active);
+            tab.setAttribute("aria-selected", String(active));
+            tab.tabIndex = active ? 0 : -1;
+        });
+    }
     function lockIntroModalHeight() {
         window.__warzoneLockModalBoxHeight?.(introBox);
     }
@@ -5472,7 +5650,9 @@ export function initStratopsIntro() {
     // ── Switch to login view ─────────────────────────────────────────────────
     function showLoginView() {
         if (isLoginMode) return;
+        const previousView = getActiveIntroView();
         isLoginMode = true;
+        isTermsMode = false;
         setIntroError("");
         lockIntroModalHeight();
 
@@ -5480,19 +5660,40 @@ export function initStratopsIntro() {
         loginHint?.classList.add("is-hidden-hint");
         if (backBtn) { backBtn.hidden = false; backBtn.style.display = ""; }
         if (acceptLabel) acceptLabel.textContent = "Login";
+        setIntroTabSelection("");
 
         // Cross-fade panels after footer state is settled
-        crossfadeIntroViews(contentView, loginView);
+        crossfadeIntroViews(previousView, loginView);
         animateIntroModalHeight();
 
         // Focus first field
         setTimeout(() => introEmail?.focus(), 320);
     }
 
+    // ── Switch to terms view ─────────────────────────────────────────────────
+    function showTermsView() {
+        if (isTermsMode) return;
+        const previousView = getActiveIntroView();
+        isLoginMode = false;
+        isTermsMode = true;
+        setIntroError("");
+        lockIntroModalHeight();
+
+        loginHint?.classList.add("is-hidden-hint");
+        if (backBtn) { backBtn.hidden = false; backBtn.style.display = ""; }
+        if (acceptLabel) acceptLabel.textContent = "Enter";
+
+        crossfadeIntroViews(previousView, termsView);
+        animateIntroModalHeight();
+    }
+
     // ── Switch back to content view ──────────────────────────────────────────
     function showContentView() {
-        if (!isLoginMode) return;
+        if (!isLoginMode && !isTermsMode) return;
+        const previousView = getActiveIntroView();
+        const wasLoginMode = isLoginMode;
         isLoginMode = false;
+        isTermsMode = false;
         setIntroError("");
         lockIntroModalHeight();
 
@@ -5500,19 +5701,22 @@ export function initStratopsIntro() {
         loginHint?.classList.remove("is-hidden-hint");
         if (backBtn) { backBtn.hidden = true; backBtn.style.display = "none"; }
         if (acceptLabel) acceptLabel.textContent = "Enter";
+        setIntroTabSelection("intro");
 
         // Cross-fade panels after footer state is settled
-        crossfadeIntroViews(loginView, contentView);
+        crossfadeIntroViews(previousView, contentView);
         animateIntroModalHeight();
 
         // Clear fields on back
-        if (introEmail) introEmail.value = "";
-        if (introPassword) introPassword.value = "";
+        if (wasLoginMode) {
+            if (introEmail) introEmail.value = "";
+            if (introPassword) introPassword.value = "";
+        }
     }
 
     // ── Accept and Enter (content mode) ─────────────────────────────────────
     async function handleEnter() {
-        if (!checkbox?.checked) return;
+        if (!hasIntroConsent()) return;
         try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
         if (introModal) {
             introModal.classList.remove("is-visible");
@@ -5524,7 +5728,7 @@ export function initStratopsIntro() {
 
     // ── Accept and Login (login mode) ────────────────────────────────────────
     async function handleLogin() {
-        if (!checkbox?.checked) return;
+        if (!hasIntroConsent()) return;
         setIntroError("");
 
         const emailVal = String(introEmail?.value || "").trim();
@@ -5579,13 +5783,30 @@ export function initStratopsIntro() {
 
     // ── Wire events ──────────────────────────────────────────────────────────
     checkbox?.addEventListener("change", syncIntroBtn);
+    termsCheckbox?.addEventListener("change", syncIntroBtn);
     syncIntroBtn();
 
     openLoginBtn?.addEventListener("click", showLoginView);
+    termsLink?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (termsTab) {
+            termsTab.click();
+            termsTab.focus();
+            return;
+        }
+        showTermsView();
+    });
+    introModal?.addEventListener("wz:modal-tab-activated", (event) => {
+        const tab = String(event.detail?.tab || "");
+        if (tab === "intro" || tab === "capabilities" || tab === "terms") {
+            resetIntroInlineMode();
+        }
+    });
     backBtn?.addEventListener("click", showContentView);
 
     acceptBtn?.addEventListener("click", async () => {
-        if (!checkbox?.checked) return;
+        if (!hasIntroConsent()) return;
         if (isLoginMode) {
             await handleLogin();
         } else {
@@ -5596,7 +5817,7 @@ export function initStratopsIntro() {
     // Allow Enter key in login fields to submit
     [introEmail, introPassword].forEach(input => {
         input?.addEventListener("keydown", async (e) => {
-            if (e.key === "Enter" && isLoginMode && checkbox?.checked) {
+            if (e.key === "Enter" && isLoginMode && hasIntroConsent()) {
                 e.preventDefault();
                 await handleLogin();
             }
@@ -5604,7 +5825,7 @@ export function initStratopsIntro() {
     });
     introForm?.addEventListener("submit", async (e) => {
         e.preventDefault();
-        if (isLoginMode && checkbox?.checked) {
+        if (isLoginMode && hasIntroConsent()) {
             await handleLogin();
         }
     });
@@ -5840,6 +6061,15 @@ export function initGlobeRotation(viewer) {
     }, 500);
 }
 
+const DELAYED_LOGIN_PROMPT_MS = 15000;
+const DONATE_POPUP_DELAY_MS = 75000;
+
+function isAnyAutoPromptBlockingModalOpen() {
+    return Boolean(document.querySelector(
+        ".wz-modal.is-visible:not([hidden]), .wz-donate-modal.is-visible:not([hidden])"
+    ));
+}
+
 function initDonatePopup() {
     const modal = document.getElementById("wz-donate-modal");
     if (!modal) return;
@@ -5850,26 +6080,28 @@ function initDonatePopup() {
         try { sessionStorage.setItem("wz_donate_dismissed", "1"); } catch { }
     });
     setTimeout(() => {
+        try { if (sessionStorage.getItem("wz_donate_dismissed") === "1") return; } catch { }
+        if (isAnyAutoPromptBlockingModalOpen()) return;
         modal.hidden = false;
         requestAnimationFrame(() => modal.classList.add("is-visible"));
-    }, 12000);
+    }, DONATE_POPUP_DELAY_MS);
 }
 
 function scheduleDelayedLoginPopup() {
     setTimeout(async () => {
         if (window.__stratopsAuthState?.isAuthenticated) return;
-        if (isLoginModalOpen()) return;
         try { if (sessionStorage.getItem("wz_login_dismissed") === "1") return; } catch { }
-        const introModal = document.getElementById("wz-intro-modal");
-        if (introModal && !introModal.hidden) return;
+        if (isLoginModalOpen() || isAnyAutoPromptBlockingModalOpen()) return;
         const isAuth = await stratopsCheckAuth();
         if (isAuth) return;
+        try { if (sessionStorage.getItem("wz_login_dismissed") === "1") return; } catch { }
+        if (isLoginModalOpen() || isAnyAutoPromptBlockingModalOpen()) return;
         showLoginModal("guest");
 
         document.getElementById("wz-login-close")?.addEventListener("click", () => {
             try { sessionStorage.setItem("wz_login_dismissed", "1"); } catch { }
         }, { once: true });
-    }, 15000);
+    }, DELAYED_LOGIN_PROMPT_MS);
 }
 
 function normalizeAdaptiveProfile(profile = "normal") {

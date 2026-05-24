@@ -18,6 +18,7 @@ import {
 } from "./warzone-live-airforce.js";
 import { clearNavalVessel, refreshNavalVisualStyles, setNavalModelHeadingOffset, upsertNavalVessel } from "./warzone-live-naval.js";
 import { showSirenAlert } from "./warzone-siren-alert.js";
+import { showStickyAlert } from "./warzone-sticky-alert.js";
 /* ================= TEST EVENT TEMPLATES ================= */
 const TEST_EVENTS = {
     missile_iran_israel: {
@@ -349,6 +350,66 @@ const TEST_TRACK_ROUTES = {
         loop: true,
     },
 };
+const BOMBER_FORMATION_TRACK_KEYS = Object.freeze([
+    "dev-bomber-nevada-b2-001",
+    "dev-bomber-nevada-b1-002",
+    "dev-bomber-nevada-b52-003",
+]);
+const BOMBER_FORMATION_STEPS = 1800;
+const BOMBER_FORMATION_INTERVAL_MS = 450;
+const BOMBER_FORMATION_ROUTES = Object.freeze([
+    {
+        track_key: "dev-bomber-nevada-b2-001",
+        title: "USAF B-2A SPIRIT 82-1066",
+        source_name: "DEV FORMATION",
+        category: "military",
+        subcategory: "bomber",
+        country: "USA",
+        region: "North America",
+        asset_key: "Bomber-B2",
+        model_code: "Bomber-B2",
+        render_mode: "glb",
+        from: { lat: 36.31, lon: -116.44, altitude_ft: 29500, heading_deg: 68 },
+        to: { lat: 37.08, lon: -113.74, altitude_ft: 30000, heading_deg: 68 },
+        steps: BOMBER_FORMATION_STEPS,
+        intervalMs: BOMBER_FORMATION_INTERVAL_MS,
+        loop: true,
+    },
+    {
+        track_key: "dev-bomber-nevada-b1-002",
+        title: "USAF B-1B LANCER 86-0104",
+        source_name: "DEV FORMATION",
+        category: "military",
+        subcategory: "bomber",
+        country: "USA",
+        region: "North America",
+        asset_key: "Bomber-B1",
+        model_code: "Bomber-B1",
+        render_mode: "glb",
+        from: { lat: 36.309, lon: -116.487, altitude_ft: 31800, heading_deg: 68 },
+        to: { lat: 37.079, lon: -113.787, altitude_ft: 32300, heading_deg: 68 },
+        steps: BOMBER_FORMATION_STEPS,
+        intervalMs: BOMBER_FORMATION_INTERVAL_MS,
+        loop: true,
+    },
+    {
+        track_key: "dev-bomber-nevada-b52-003",
+        title: "USAF B-52H STRATOFORTRESS 60-0048",
+        source_name: "DEV FORMATION",
+        category: "military",
+        subcategory: "bomber",
+        country: "USA",
+        region: "North America",
+        asset_key: "Bomber-B52",
+        model_code: "Bomber-B52",
+        render_mode: "glb",
+        from: { lat: 36.265, lon: -116.502, altitude_ft: 33000, heading_deg: 68 },
+        to: { lat: 37.035, lon: -113.802, altitude_ft: 33500, heading_deg: 68 },
+        steps: BOMBER_FORMATION_STEPS,
+        intervalMs: BOMBER_FORMATION_INTERVAL_MS,
+        loop: true,
+    },
+]);
 const DEV_SIM_PRESETS = {
     fighter: {
         track_key: "dev-sim-fighter",
@@ -553,6 +614,61 @@ function restartDevSimulation(config, logLabel = "") {
         devLog(logLabel);
     }
     document.dispatchEvent(new CustomEvent("wz:aircraft-log-updated"));
+}
+function showBomberFormationHighValueDemo() {
+    const items = BOMBER_FORMATION_ROUTES.map((route) => ({
+        track_key: route.track_key,
+        title: route.title,
+        category: route.category,
+        subcategory: route.subcategory,
+        country: route.country,
+        region: route.region,
+        operator: "US Air Force",
+        model_name: route.title,
+        lat: route.from.lat,
+        lon: route.from.lon,
+        altitude_ft: route.from.altitude_ft,
+        heading_deg: route.from.heading_deg,
+        active: true,
+        last_seen_at: Date.now(),
+    }));
+    document.dispatchEvent(new CustomEvent("wz:dev-high-value-aircraft-demo", {
+        detail: {
+            items,
+            force: true,
+        },
+    }));
+}
+function flyToBomberFormationArea() {
+    const camera = window.__warzoneViewer?.camera;
+    if (!camera) return;
+    camera.cancelFlight?.();
+    camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(-115.55, 36.55, 520000),
+        orientation: {
+            heading: Cesium.Math.toRadians(68),
+            pitch: Cesium.Math.toRadians(-58),
+            roll: 0,
+        },
+        duration: 1.1,
+    });
+}
+function startBomberFormationDemo() {
+    BOMBER_FORMATION_ROUTES.forEach((route, index) => {
+        window.setTimeout(() => {
+            restartDevSimulation(route, index === 0 ? "Bomber formation started: Nevada range" : "");
+        }, index * 80);
+    });
+    window.setTimeout(() => {
+        showBomberFormationHighValueDemo();
+        flyToBomberFormationArea();
+    }, 350);
+}
+function clearBomberFormationDemo() {
+    BOMBER_FORMATION_TRACK_KEYS.forEach((trackKey) => {
+        stopDevTrackSimulation(trackKey);
+    });
+    devLog("Bomber formation cleared");
 }
 function updateDevSimTrackKey(subtype) {
     const els = getDevSimElements();
@@ -1065,7 +1181,7 @@ function initMapTunerControls() {
     refreshMapOnlyNow();
 }
 
-const DEV_LIVE_ASSET_LABEL_FIELDS = [
+const DEV_LIVE_AIRCRAFT_LABEL_FIELDS = [
     { key: "label-max-chars", label: "Label max chars/line", cssVar: "--warzone-live-label-max-chars", min: 8, max: 80, step: 1, fallback: 24 },
     { key: "label-align", label: "Label align", cssVar: "--warzone-live-label-align", fallback: "left", type: "select", options: ["left", "center", "right"] },
     { key: "label-uppercase", label: "Uppercase label", cssVar: "--warzone-live-label-uppercase", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
@@ -1075,26 +1191,47 @@ const DEV_LIVE_ASSET_LABEL_FIELDS = [
     { key: "focus-label-screen-x", label: "Screen offset X", cssVar: "--warzone-live-focus-label-screen-offset-x", min: -240, max: 240, step: 1, fallback: 0 },
     { key: "focus-label-screen-y", label: "Screen offset Y", cssVar: "--warzone-live-focus-label-screen-offset-y", min: -240, max: 240, step: 1, fallback: 0 },
 ];
-const DEV_LIVE_ASSET_FOCUS_FIELDS = [
-    { key: "focus-model-scale", label: "Focus model scale", cssVar: "--warzone-live-aircraft-model-focused-scale", min: 0.05, max: 20, step: 0.05, fallback: 1.25 },
-    { key: "focus-min-pixel", label: "Focus min pixel size", cssVar: "--warzone-live-aircraft-model-focused-min-pixel-size", min: 0, max: 600, step: 1, fallback: 220 },
-    { key: "focus-camera-range", label: "Focus camera distance", cssVar: "--warzone-live-aircraft-focus-camera-range", min: 12000, max: 320000, step: 1000, fallback: 72000, focusCamera: "range" },
+const DEV_LIVE_AIRCRAFT_SIZE_FIELDS = [
+    { key: "aircraft-render-default", label: "Default render mode", cssVar: "--warzone-live-aircraft-render-mode-default", fallback: "img", type: "select", options: ["img", "glb", "char", "auto"] },
+    { key: "aircraft-render-focused", label: "Focused render mode", cssVar: "--warzone-live-aircraft-render-mode-focused", fallback: "glb", type: "select", options: ["glb", "img", "char", "auto"] },
+    { key: "aircraft-base-scale", label: "Base model scale", cssVar: "--warzone-live-aircraft-model-scale", min: 0.05, max: 20, step: 0.05, fallback: 1 },
+    { key: "aircraft-airborne-scale", label: "Airborne scale", cssVar: "--warzone-live-aircraft-model-airborne-scale", min: 0.05, max: 20, step: 0.05, fallback: 1 },
+    { key: "aircraft-ground-scale", label: "Ground/parked scale", cssVar: "--warzone-live-aircraft-model-ground-scale", min: 0.05, max: 20, step: 0.05, fallback: 0.8 },
+    { key: "aircraft-zoom-in-scale", label: "Zoom-in scale", cssVar: "--warzone-live-aircraft-model-scale-zoom-in", min: 0.05, max: 20, step: 0.05, fallback: 1 },
+    { key: "aircraft-zoom-out-scale", label: "Zoom-out scale", cssVar: "--warzone-live-aircraft-model-scale-zoom-out", min: 0.05, max: 20, step: 0.05, fallback: 1 },
+    { key: "aircraft-focused-scale", label: "Focused model scale", cssVar: "--warzone-live-aircraft-model-focused-scale", min: 0.05, max: 20, step: 0.05, fallback: 1.08 },
+    { key: "aircraft-min-pixel", label: "Model min pixel size", cssVar: "--warzone-live-aircraft-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 110 },
+    { key: "aircraft-focused-min-pixel", label: "Focused min pixel size", cssVar: "--warzone-live-aircraft-model-focused-min-pixel-size", min: 0, max: 600, step: 1, fallback: 220 },
+    { key: "aircraft-max-scale", label: "Model max scale", cssVar: "--warzone-live-aircraft-model-max-scale", min: 1, max: 5000, step: 1, fallback: 2440 },
+    { key: "aircraft-alpha", label: "Model alpha", cssVar: "--warzone-live-aircraft-model-alpha", min: 0, max: 1, step: 0.01, fallback: 1 },
+    { key: "aircraft-whiteness", label: "Model whiteness", cssVar: "--warzone-live-aircraft-model-whiteness", min: 0, max: 1, step: 0.01, fallback: 0.18 },
+    { key: "aircraft-focused-whiteness", label: "Focused whiteness", cssVar: "--warzone-live-aircraft-model-focused-whiteness", min: 0, max: 1, step: 0.01, fallback: 0.08 },
+    { key: "aircraft-bank-factor", label: "Turn bank factor", cssVar: "--warzone-live-aircraft-model-bank-factor", min: -4, max: 4, step: 0.05, fallback: -1.2 },
+    { key: "aircraft-bank-max", label: "Max bank degrees", cssVar: "--warzone-live-aircraft-model-bank-max-deg", min: 0, max: 75, step: 1, fallback: 18 },
+    { key: "aircraft-preview-roll", label: "Preview tilt degrees", cssVar: "--warzone-live-aircraft-model-preview-roll", min: -75, max: 75, step: 1, fallback: 0 },
+];
+const DEV_LIVE_AIRCRAFT_FOCUS_FIELDS = [
+    { key: "focus-camera-range", label: "Focus camera distance", cssVar: "--warzone-live-aircraft-focus-camera-range", min: 6000, max: 320000, step: 500, fallback: 18000, focusCamera: "range" },
     { key: "focus-camera-pitch", label: "Default focus tilt", cssVar: "--warzone-live-aircraft-focus-camera-pitch", min: -89, max: -20, step: 1, fallback: -58, focusCamera: "pitch" },
-    { key: "focus-zoom-range", label: "Focus zoom range", cssVar: "--warzone-live-aircraft-focus-zoom-range", min: 0, max: 300000, step: 1000, fallback: 60000, focusCamera: "bounds" },
-    { key: "focus-wheel-step", label: "Wheel zoom step", cssVar: "--warzone-live-aircraft-focus-wheel-zoom-step", min: 500, max: 50000, step: 500, fallback: 8000 },
+    { key: "focus-zoom-range", label: "Focus zoom range", cssVar: "--warzone-live-aircraft-focus-zoom-range", min: 0, max: 300000, step: 1000, fallback: 22000, focusCamera: "bounds" },
+    { key: "focus-wheel-step", label: "Wheel zoom step", cssVar: "--warzone-live-aircraft-focus-wheel-zoom-step", min: 500, max: 50000, step: 500, fallback: 2500 },
+    { key: "focus-anim-min", label: "Min animation ms", cssVar: "--warzone-live-aircraft-focus-anim-min-ms", min: 0, max: 10000, step: 100, fallback: 900 },
+    { key: "focus-anim-max", label: "Max animation ms", cssVar: "--warzone-live-aircraft-focus-anim-max-ms", min: 0, max: 20000, step: 100, fallback: 9000 },
+    { key: "focus-anim-cadence", label: "Animation cadence factor", cssVar: "--warzone-live-aircraft-focus-anim-cadence-factor", min: 0.2, max: 1.5, step: 0.01, fallback: 1.04 },
+    { key: "focus-visible-radius", label: "Focus visible radius", cssVar: "--warzone-live-aircraft-focus-visible-radius", min: 0, max: 500000, step: 1000, fallback: 100000 },
 ];
-const DEV_LIVE_AIRCRAFT_GLB_FIELDS = [
-    { key: "airborne-scale", label: "Airborne scale", cssVar: "--warzone-live-aircraft-model-airborne-scale", min: 0.05, max: 20, step: 0.05, fallback: 1 },
-    { key: "ground-scale", label: "Ground/parked scale", cssVar: "--warzone-live-aircraft-model-ground-scale", min: 0.05, max: 20, step: 0.05, fallback: 0.82 },
-    { key: "bank-factor", label: "Turn bank factor", cssVar: "--warzone-live-aircraft-model-bank-factor", min: -4, max: 4, step: 0.05, fallback: -1.2 },
-    { key: "bank-max", label: "Max bank degrees", cssVar: "--warzone-live-aircraft-model-bank-max-deg", min: 0, max: 75, step: 1, fallback: 18 },
-    { key: "preview-roll", label: "Preview tilt degrees", cssVar: "--warzone-live-aircraft-model-preview-roll", min: -75, max: 75, step: 1, fallback: 0 },
-];
-const DEV_LIVE_NAVAL_FOCUS_FIELDS = [
-    { key: "naval-focus-range", label: "Naval focus distance", cssVar: "--warzone-live-naval-focus-camera-range", min: 200, max: 200000, step: 100, fallback: 1800 },
-    { key: "naval-scale", label: "Naval model scale", cssVar: "--warzone-live-naval-model-scale", min: 1, max: 1000, step: 1, fallback: 150 },
-    { key: "naval-min-pixel", label: "Naval min pixel size", cssVar: "--warzone-live-naval-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 90 },
-    { key: "naval-max-scale", label: "Naval max scale", cssVar: "--warzone-live-naval-model-max-scale", min: 1, max: 4000, step: 1, fallback: 360 },
+const DEV_LIVE_NAVAL_MODEL_FIELDS = [
+    { key: "naval-render-default", label: "Default render mode", cssVar: "--warzone-live-naval-render-mode-default", fallback: "img", type: "select", options: ["img", "glb", "char"] },
+    { key: "naval-render-focused", label: "Focused render mode", cssVar: "--warzone-live-naval-render-mode-focused", fallback: "glb", type: "select", options: ["glb", "img", "char"] },
+    { key: "naval-auto-enabled", label: "Auto GLB near camera", cssVar: "--warzone-live-naval-model-auto-enabled", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
+    { key: "naval-focus-range", label: "Naval focus distance", cssVar: "--warzone-live-naval-focus-camera-range", min: 200, max: 200000, step: 50, fallback: 650 },
+    { key: "naval-scale", label: "Naval model scale", cssVar: "--warzone-live-naval-model-scale", min: 1, max: 1000, step: 1, fallback: 35 },
+    { key: "naval-min-pixel", label: "Naval min pixel size", cssVar: "--warzone-live-naval-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 64 },
+    { key: "naval-max-scale", label: "Naval max scale", cssVar: "--warzone-live-naval-model-max-scale", min: 1, max: 4000, step: 1, fallback: 160 },
+    { key: "naval-max-active", label: "Max active GLBs", cssVar: "--warzone-live-naval-model-max-active", min: 1, max: 48, step: 1, fallback: 6 },
+    { key: "naval-auto-radius", label: "Auto GLB radius meters", cssVar: "--warzone-live-naval-model-auto-radius", min: 0, max: 500000, step: 1000, fallback: 200000 },
+    { key: "naval-max-zoom-height", label: "Auto GLB max camera height", cssVar: "--warzone-live-naval-model-max-zoom-height", min: 0, max: 1000000, step: 1000, fallback: 320000 },
+    { key: "naval-heading-offset", label: "Heading offset degrees", cssVar: "--warzone-live-naval-model-heading-offset-default", min: -360, max: 360, step: 1, fallback: 180 },
 ];
 const DEV_LIVE_NAVAL_LABEL_FIELDS = [
     { key: "naval-label-scale", label: "Naval label scale", cssVar: "--warzone-live-naval-label-scale", min: 0.1, max: 3, step: 0.05, fallback: 0.42 },
@@ -1103,7 +1240,7 @@ const DEV_LIVE_NAVAL_LABEL_FIELDS = [
     { key: "naval-label-align", label: "Naval label align", cssVar: "--warzone-live-naval-label-align", fallback: "center", type: "select", options: ["left", "center", "right"] },
     { key: "naval-label-uppercase", label: "Uppercase naval label", cssVar: "--warzone-live-naval-label-uppercase", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
 ];
-const DEV_LIVE_ASSET_GLB_FIELDS = [
+const DEV_LIVE_RENDER_QUALITY_FIELDS = [
     {
         key: "renderer-pixel-ratio",
         label: "Renderer pixel ratio",
@@ -1112,37 +1249,39 @@ const DEV_LIVE_ASSET_GLB_FIELDS = [
         min: 0.5,
         max: 1.5,
         step: 0.01,
-        fallback: 1.08
+        fallback: 1
     },
     { key: "antialias", label: "Antialias", cssVar: "--warzone-fxaa-enabled", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
+];
+const DEV_LIVE_SHARED_GLB_FIELDS = [
     { key: "shadow-enabled", label: "Shadow enable", cssVar: "--warzone-live-glb-shadow-enabled", min: 0, max: 1, step: 1, fallback: 0, type: "toggle" },
-    { key: "shadow-quality", label: "Shadow quality", cssVar: "--warzone-live-glb-shadow-quality", min: 256, max: 4096, step: 256, fallback: 1024 },
+    { key: "shadow-quality", label: "Shadow quality", cssVar: "--warzone-live-glb-shadow-quality", min: 256, max: 4096, step: 256, fallback: 256 },
     { key: "ambient-light", label: "Ambient light intensity", cssVar: "--warzone-live-glb-ambient-light-intensity", min: 0, max: 1, step: 0.01, fallback: 0.85 },
-    { key: "directional-light", label: "Directional light intensity", cssVar: "--warzone-live-glb-directional-light-intensity", min: 0, max: 4, step: 0.01, fallback: 1 },
-    { key: "environment", label: "Environment intensity", cssVar: "--warzone-live-glb-environment-intensity", min: 0, max: 1, step: 0.01, fallback: 0.95 },
-    { key: "roughness", label: "Material roughness", cssVar: "--warzone-live-glb-material-roughness", min: 0, max: 1, step: 0.01, fallback: 0.5 },
-    { key: "metalness", label: "Material metalness", cssVar: "--warzone-live-glb-material-metalness", min: 0, max: 1, step: 0.01, fallback: 0.2 },
-    { key: "anisotropy", label: "Texture anisotropy", cssVar: "--warzone-live-glb-texture-anisotropy", min: 1, max: 16, step: 1, fallback: 8 },
-    { key: "exposure", label: "Tone mapping exposure", cssVar: "--warzone-live-glb-tone-mapping-exposure", min: 0.2, max: 2, step: 0.01, fallback: 1 },
-    { key: "lod-distance", label: "LOD distance", cssVar: "--warzone-live-glb-lod-distance", min: 0, max: 64, step: 1, fallback: 2 },
-    {
-        key: "smoothing",
-        label: "Animation smoothing",
-        cssVar: "--warzone-live-glb-animation-smoothing",
-        aliasVars: ["--warzone-live-aircraft-focus-anim-cadence-factor"],
-        min: 0.2,
-        max: 1.5,
-        step: 0.01,
-        fallback: 1.04
-    },
+    { key: "directional-light", label: "Directional light intensity", cssVar: "--warzone-live-glb-directional-light-intensity", min: 0, max: 4, step: 0.01, fallback: 2.2 },
+    { key: "environment", label: "Environment intensity", cssVar: "--warzone-live-glb-environment-intensity", min: 0, max: 1, step: 0.01, fallback: 0.7 },
+    { key: "roughness", label: "Material roughness", cssVar: "--warzone-live-glb-material-roughness", min: 0, max: 1, step: 0.01, fallback: 0.45 },
+    { key: "metalness", label: "Material metalness", cssVar: "--warzone-live-glb-material-metalness", min: 0, max: 1, step: 0.01, fallback: 0.1 },
+    { key: "anisotropy", label: "Texture anisotropy", cssVar: "--warzone-live-glb-texture-anisotropy", min: 1, max: 16, step: 1, fallback: 1 },
+    { key: "exposure", label: "Tone mapping exposure", cssVar: "--warzone-live-glb-tone-mapping-exposure", min: 0.2, max: 2, step: 0.01, fallback: 1.05 },
+    { key: "lod-distance", label: "LOD distance", cssVar: "--warzone-live-glb-lod-distance", min: 0, max: 64, step: 1, fallback: 1 },
 ];
 const DEV_LIVE_ASSET_FIELDS = [
-    ...DEV_LIVE_ASSET_LABEL_FIELDS,
-    ...DEV_LIVE_ASSET_FOCUS_FIELDS,
-    ...DEV_LIVE_AIRCRAFT_GLB_FIELDS,
-    ...DEV_LIVE_NAVAL_FOCUS_FIELDS,
+    ...DEV_LIVE_AIRCRAFT_SIZE_FIELDS,
+    ...DEV_LIVE_AIRCRAFT_FOCUS_FIELDS,
+    ...DEV_LIVE_AIRCRAFT_LABEL_FIELDS,
+    ...DEV_LIVE_NAVAL_MODEL_FIELDS,
     ...DEV_LIVE_NAVAL_LABEL_FIELDS,
-    ...DEV_LIVE_ASSET_GLB_FIELDS,
+    ...DEV_LIVE_RENDER_QUALITY_FIELDS,
+    ...DEV_LIVE_SHARED_GLB_FIELDS,
+];
+const DEV_LIVE_ASSET_FIELD_GROUPS = [
+    { title: "Aircraft size / render", fields: DEV_LIVE_AIRCRAFT_SIZE_FIELDS },
+    { title: "Aircraft focus camera", fields: DEV_LIVE_AIRCRAFT_FOCUS_FIELDS },
+    { title: "Aircraft label", fields: DEV_LIVE_AIRCRAFT_LABEL_FIELDS },
+    { title: "Naval model / focus", fields: DEV_LIVE_NAVAL_MODEL_FIELDS },
+    { title: "Naval label", fields: DEV_LIVE_NAVAL_LABEL_FIELDS },
+    { title: "Shared GLB lighting / material", fields: DEV_LIVE_SHARED_GLB_FIELDS },
+    { title: "Scene quality", fields: DEV_LIVE_RENDER_QUALITY_FIELDS },
 ];
 let __devLiveAssetRefreshRaf = 0;
 const DEV_STATIC_TUNER_AIRCRAFT_KEY = "dev-live-tuner-aircraft";
@@ -1385,29 +1524,33 @@ function buildDevLiveAssetTunerMarkup() {
                         </select>
                     </label>
                 </div>
-                <div data-wz-dev-subsection="live-aircraft-label live-asset-tuner" data-live-tuner-selected="aircraft">
-                    <div class="wz-dev-label">Live Aircraft Label</div>
-                    ${DEV_LIVE_ASSET_LABEL_FIELDS.map(buildRow).join("")}
+                <div data-wz-dev-subsection="live-aircraft live-asset-tuner" data-live-tuner-selected="aircraft">
+                    <div class="wz-dev-label">Aircraft Size / Render</div>
+                    ${DEV_LIVE_AIRCRAFT_SIZE_FIELDS.map(buildRow).join("")}
                 </div>
-                <div data-wz-dev-subsection="live-aircraft-focus live-asset-tuner" data-live-tuner-selected="aircraft">
-                    <div class="wz-dev-label">Live Aircraft Focus</div>
-                    ${DEV_LIVE_ASSET_FOCUS_FIELDS.map(buildRow).join("")}
+                <div data-wz-dev-subsection="live-aircraft live-asset-tuner" data-live-tuner-selected="aircraft">
+                    <div class="wz-dev-label">Aircraft Focus Camera</div>
+                    ${DEV_LIVE_AIRCRAFT_FOCUS_FIELDS.map(buildRow).join("")}
                 </div>
-                <div data-wz-dev-subsection="live-aircraft-glb live-asset-tuner" data-live-tuner-selected="aircraft">
-                    <div class="wz-dev-label">Live Aircraft Scale / Bank</div>
-                    ${DEV_LIVE_AIRCRAFT_GLB_FIELDS.map(buildRow).join("")}
+                <div data-wz-dev-subsection="live-aircraft live-asset-tuner" data-live-tuner-selected="aircraft">
+                    <div class="wz-dev-label">Aircraft Label</div>
+                    ${DEV_LIVE_AIRCRAFT_LABEL_FIELDS.map(buildRow).join("")}
                 </div>
-                <div data-wz-dev-subsection="live-naval-focus live-asset-tuner" data-live-tuner-selected="naval">
-                    <div class="wz-dev-label">Live Naval Focus</div>
-                    ${DEV_LIVE_NAVAL_FOCUS_FIELDS.map(buildRow).join("")}
+                <div data-wz-dev-subsection="live-naval live-asset-tuner" data-live-tuner-selected="naval">
+                    <div class="wz-dev-label">Naval Model / Focus</div>
+                    ${DEV_LIVE_NAVAL_MODEL_FIELDS.map(buildRow).join("")}
                 </div>
-                <div data-wz-dev-subsection="live-naval-label live-asset-tuner" data-live-tuner-selected="naval">
-                    <div class="wz-dev-label">Live Naval Label</div>
+                <div data-wz-dev-subsection="live-naval live-asset-tuner" data-live-tuner-selected="naval">
+                    <div class="wz-dev-label">Naval Label</div>
                     ${DEV_LIVE_NAVAL_LABEL_FIELDS.map(buildRow).join("")}
                 </div>
-                <div data-wz-dev-subsection="live-aircraft-glb live-naval-glb live-asset-tuner">
+                <div data-wz-dev-subsection="live-glb live-asset-tuner">
                     <div class="wz-dev-label">Shared GLB / Lighting</div>
-                    ${DEV_LIVE_ASSET_GLB_FIELDS.map(buildRow).join("")}
+                    ${DEV_LIVE_SHARED_GLB_FIELDS.map(buildRow).join("")}
+                </div>
+                <div data-wz-dev-subsection="live-glb live-asset-tuner">
+                    <div class="wz-dev-label">Scene Quality</div>
+                    ${DEV_LIVE_RENDER_QUALITY_FIELDS.map(buildRow).join("")}
                 </div>
                 <div class="wz-dev-map-actions">
                     <button id="wz-live-asset-refresh" type="button" class="wz-dev-action">Refresh Models</button>
@@ -1427,7 +1570,7 @@ function ensureDevLiveAssetTunerRoot() {
     if (!mapTuner) return null;
     const wrapper = document.createElement("div");
     wrapper.className = "wz-dev-live-asset-block";
-    wrapper.dataset.wzDevSection = "live-aircraft-focus live-aircraft-label live-aircraft-glb live-naval-focus live-naval-label live-naval-glb live-asset-tuner";
+    wrapper.dataset.wzDevSection = "live-aircraft live-naval live-glb live-asset-tuner";
     wrapper.innerHTML = buildDevLiveAssetTunerMarkup();
     mapTuner.insertAdjacentElement("afterend", wrapper);
     tunerRoot = document.getElementById("wz-dev-live-asset-tuner");
@@ -1447,12 +1590,16 @@ function getDevLiveAssetFieldValue(def) {
 }
 function buildLiveAssetRootCssBlock(values = {}) {
     const lines = [":root {"];
-    DEV_LIVE_ASSET_FIELDS.forEach((def) => {
-        const value = values[def.key] ?? getDevLiveAssetFieldValue(def);
-        const formatted = formatDevLiveAssetValue(value, def);
-        lines.push(`    ${def.cssVar}: ${formatted};`);
-        (def.aliasVars || []).forEach((aliasVar) => {
-            lines.push(`    ${aliasVar}: ${formatted};`);
+    DEV_LIVE_ASSET_FIELD_GROUPS.forEach((group, groupIndex) => {
+        if (groupIndex > 0) lines.push("");
+        lines.push(`    /* ${group.title} */`);
+        group.fields.forEach((def) => {
+            const value = values[def.key] ?? getDevLiveAssetFieldValue(def);
+            const formatted = formatDevLiveAssetValue(value, def);
+            lines.push(`    ${def.cssVar}: ${formatted};`);
+            (def.aliasVars || []).forEach((aliasVar) => {
+                lines.push(`    ${aliasVar}: ${formatted};`);
+            });
         });
     });
     lines.push("}");
@@ -1630,12 +1777,9 @@ function initLiveAssetTunerControls() {
 }
 
 const DEV_PANEL_SECTIONS = [
-    { value: "live-aircraft-focus", label: "Live Aircraft Focus" },
-    { value: "live-aircraft-label", label: "Live Aircraft Label" },
-    { value: "live-aircraft-glb", label: "Live Aircraft GLB / Lighting" },
-    { value: "live-naval-focus", label: "Live Naval Focus" },
-    { value: "live-naval-label", label: "Live Naval Label" },
-    { value: "live-naval-glb", label: "Live Naval GLB / Lighting" },
+    { value: "live-aircraft", label: "Live Aircraft Settings" },
+    { value: "live-naval", label: "Live Naval Settings" },
+    { value: "live-glb", label: "Shared GLB / Lighting" },
     { value: "live-asset-tuner", label: "Live Asset Tuner" },
     { value: "region-selector", label: "Region Selector" },
     { value: "general-debug", label: "General Debug" },
@@ -1663,7 +1807,7 @@ function annotateDevPanelSections() {
     }
     const liveBlock = document.querySelector(".wz-dev-live-asset-block");
     if (liveBlock) {
-        liveBlock.dataset.wzDevSection = "live-aircraft-focus live-aircraft-label live-aircraft-glb live-naval-focus live-naval-label live-naval-glb live-asset-tuner";
+        liveBlock.dataset.wzDevSection = "live-aircraft live-naval live-glb live-asset-tuner";
     }
 }
 function applyDevPanelSectionFilter(section = "general-debug") {
@@ -1807,6 +1951,56 @@ function openDevPerformanceWarningModal() {
     });
     return true;
 }
+function openDevGlobalAlertPreview() {
+    showStickyAlert({
+        alert_key: `dev-global-alert-${Date.now()}`,
+        title: "THEATER ALERT: HIGH-VALUE SIGNAL",
+        meta: "Priority intelligence update detected in the selected region. Review active trackers and intelligence layers.",
+        severity: "critical",
+        durationMs: 9000,
+    });
+    return true;
+}
+function initDevPanelAccordions() {
+    const grid = document.querySelector("#wz-dev-body .wz-dev-grid");
+    if (!grid || grid.dataset.accordionsBound === "true") return;
+    grid.dataset.accordionsBound = "true";
+    const children = Array.from(grid.children);
+    let currentDetails = null;
+    let currentContent = null;
+    let sectionIndex = 0;
+    const startSection = (title = "Dev Section", open = false) => {
+        const details = document.createElement("details");
+        details.className = "wz-dev-accordion";
+        if (open) details.open = true;
+        const summary = document.createElement("summary");
+        summary.className = "wz-dev-accordion__summary";
+        summary.textContent = title;
+        const content = document.createElement("div");
+        content.className = "wz-dev-accordion__content";
+        details.append(summary, content);
+        grid.appendChild(details);
+        currentDetails = details;
+        currentContent = content;
+        sectionIndex += 1;
+        return details;
+    };
+    grid.innerHTML = "";
+    children.forEach((child) => {
+        if (child.classList?.contains("wz-dev-label")) {
+            startSection(child.textContent.trim() || "Dev Section", sectionIndex === 0);
+            return;
+        }
+        if (child.classList?.contains("wz-dev-live-asset-block")) {
+            const details = startSection("LIVE ASSET TUNER", false);
+            details.dataset.wzDevSection = child.dataset.wzDevSection || "";
+            currentContent.appendChild(child);
+            return;
+        }
+        if (!currentContent) startSection("DEV CONTROLS", true);
+        currentContent.appendChild(child);
+    });
+}
 export function initDevPanel() {
     const isLocal =
         window.location.hostname === "localhost" ||
@@ -1911,6 +2105,16 @@ export function initDevPanel() {
             devLog(`✖ Route sim stopped: ${key}`);
         });
     });
+    document.querySelectorAll(".wz-dev-btn[data-bomber-formation]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const action = btn.dataset.bomberFormation;
+            if (action === "clear") {
+                clearBomberFormationDemo();
+                return;
+            }
+            startBomberFormationDemo();
+        });
+    });
     document.getElementById("wz-dev-fire-all")?.addEventListener("click", () => {
         let delay = 0;
         Object.keys(TEST_EVENTS).forEach((key) => {
@@ -1933,9 +2137,15 @@ export function initDevPanel() {
             devLog("⚠ Opened warning popup");
         }
     });
+    document.getElementById("wz-dev-open-global-alert")?.addEventListener("click", () => {
+        if (openDevGlobalAlertPreview()) {
+            devLog("Opened global alert preview");
+        }
+    });
     initDevSimulatorControls();
     initMapTunerControls();
     initLiveAssetTunerControls();
+    initDevPanelAccordions();
     devLog("Dev panel ready");
 }
 
@@ -2220,12 +2430,12 @@ function buildNavalCalibrationCopySnippet(subtype = "ns-2") {
     return [
         `/* Naval Calibration: ${subtype.toUpperCase()} */`,
         ":root {",
-        `  --warzone-live-naval-model-scale: ${Number(cfg.scale ?? 120)};`,
+        `  --warzone-live-naval-model-scale: ${Number(cfg.scale ?? 35)};`,
         "}",
         "",
         `// Heading Offset (${subtype}): ${Number(cfg.headingOffset ?? 0)}`,
-        `// Min Pixel (${subtype}): ${Number(cfg.minimumPixelSize ?? 90)}`,
-        `// Max Scale (${subtype}): ${Number(cfg.maximumScale ?? 1200)}`,
+        `// Min Pixel (${subtype}): ${Number(cfg.minimumPixelSize ?? 64)}`,
+        `// Max Scale (${subtype}): ${Number(cfg.maximumScale ?? 160)}`,
     ].join("\n");
 }
 
@@ -2607,30 +2817,31 @@ function getNavalLiveSubtypeKey(code = "") {
 }
 let __devNavalCalibrationEntities = [];
 function getNavalModelUriBySubtype(subtype) {
-    const modelBase = "/assets/images/models/naval";
+    const modelBase = "/assets/images/models/sea";
     const normalized = String(subtype || "").trim().toLowerCase();
     const map = {
-        "ac-us-1": "ac-us-1",
-        "ac-cn-1": "ac-cn-1",
-        "ac-uk-1": "ac-uk-1",
-        "ac-rs-1": "ac-rs-1",
-        "hc-1": "hc-1",
-        "ni-1": "ni-1",
-        "ns-1": "ns-1",
-        "ns-2": "ns-2",
-        "ns-3": "ns-3",
-        "sb-1": "sb-1",
-        carrier: "ac-rs-1",
-        amphibious: "hc-1",
-        intelligence: "ni-1",
-        patrol: "ns-1",
-        naval: "ns-2",
-        logistics: "ns-3",
-        submarine: "sb-1",
-        ssn: "sb-1",
-        ssbn: "sb-1",
+        "ac-us-1": "Carrier-US",
+        "ac-cn-1": "Carrier-Fujian",
+        "ac-uk-1": "Carrier-HMS",
+        "ac-rs-1": "Carrier-Russian",
+        "ac-fr-1": "Carrier-France",
+        "hc-1": "Carrier-LHD",
+        "ni-1": "Vessel-ISR",
+        "ns-1": "Boat",
+        "ns-2": "Vessel-Frigate",
+        "ns-3": "Vessel-Frigate",
+        "sb-1": "Submarine-SSN",
+        carrier: "Carrier-Russian",
+        amphibious: "Carrier-LHD",
+        intelligence: "Vessel-ISR",
+        patrol: "Boat",
+        naval: "Vessel-Frigate",
+        logistics: "Vessel-Frigate",
+        submarine: "Submarine-SSN",
+        ssn: "Submarine-SSN",
+        ssbn: "Submarine-SSN",
     };
-    const code = map[normalized] || "ns-2";
+    const code = map[normalized] || "Vessel-Frigate";
     return `${modelBase}/${code}.glb`;
 }
 function createCalibrationNaval(viewer, subtype, config, index) {
@@ -2756,7 +2967,7 @@ function loadNavalTunerValues() {
     const min = document.getElementById("wz-naval-tuner-min");
     const max = document.getElementById("wz-naval-tuner-max");
     if (heading) heading.value = Number(cfg.headingOffset ?? 0);
-    if (scale) scale.value = Number(cfg.scale ?? 120);
+    if (scale) scale.value = Number(cfg.scale ?? 35);
     if (min) min.value = Number(cfg.minimumPixelSize ?? 90);
     if (max) max.value = Number(cfg.maximumScale ?? 1200);
     refreshNavalTunerReadouts();
@@ -2799,7 +3010,7 @@ function applyNavalTunerValues() {
     if (max) cfg.maximumScale = Number(max.value);
 
     const liveSubtype = getNavalLiveSubtypeKey(subtype);
-    document.documentElement.style.setProperty("--warzone-live-naval-model-scale", String(Number(cfg.scale || 120)));
+    document.documentElement.style.setProperty("--warzone-live-naval-model-scale", String(Number(cfg.scale || 35)));
     setNavalModelHeadingOffset(subtype, Number(cfg.headingOffset || 0));
     setNavalModelHeadingOffset(liveSubtype, Number(cfg.headingOffset || 0));
     applyNavalCalibrationConfig();

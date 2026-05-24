@@ -520,12 +520,28 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
 // ─── geo clustering ────────────────────────────────────────────────────────────
 function geoCluster(events, dLat, dLon, minCount, maxCards) {
     const groups = [];
+    const buckets = new Map();
+    const bucketLat = Math.max(0.1, Number(dLat) || 1);
+    const bucketLon = Math.max(0.1, Number(dLon) || 1);
+    const getBucketKey = (lat, lon) => `${Math.floor(lat / bucketLat)}:${Math.floor(lon / bucketLon)}`;
+    const getNearbyGroups = (lat, lon) => {
+        const latBucket = Math.floor(lat / bucketLat);
+        const lonBucket = Math.floor(lon / bucketLon);
+        const nearby = [];
+        for (let y = latBucket - 1; y <= latBucket + 1; y += 1) {
+            for (let x = lonBucket - 1; x <= lonBucket + 1; x += 1) {
+                const list = buckets.get(`${y}:${x}`);
+                if (list?.length) nearby.push(...list);
+            }
+        }
+        return nearby;
+    };
     for (const e of events) {
         const lat = Number(e.lat);
         const lon = Number(e.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
         let g = null;
-        for (const gr of groups) {
+        for (const gr of getNearbyGroups(lat, lon)) {
             if (Math.abs(gr.lat - lat) <= dLat && Math.abs(gr.lon - lon) <= dLon) {
                 g = gr;
                 break;
@@ -537,7 +553,11 @@ function geoCluster(events, dLat, dLon, minCount, maxCards) {
             g.lon = (g.lon * n + lon) / (n + 1);
             g.items.push(e);
         } else {
-            groups.push({ lat, lon, items: [e] });
+            const nextGroup = { lat, lon, items: [e] };
+            groups.push(nextGroup);
+            const key = getBucketKey(lat, lon);
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key).push(nextGroup);
         }
     }
     return groups

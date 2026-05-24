@@ -211,6 +211,43 @@ body.is-app-active .wz-dock {
     color: var(--color-teal-glow);
 }
 
+.wz-dock__btn.has-hva-alert .wz-dock__icon .static-icon {
+    color: var(--color-red-glow);
+    animation: wz-dock-hva-pulse 1.1s ease-in-out infinite;
+}
+
+.wz-dock__btn.has-hva-alert::after {
+    content: attr(data-hva-count);
+    position: absolute;
+    top: -.15rem;
+    right: -.2rem;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 .35rem;
+    border: .1rem solid rgba(255, 255, 255, .75);
+    background: var(--color-red-glow);
+    color: var(--color-white);
+    border-radius: 999rem;
+    font-size: .85rem;
+    font-weight: 800;
+    line-height: 1.2rem;
+    text-align: center;
+}
+
+@keyframes wz-dock-hva-pulse {
+    0%, 100% {
+        opacity: 1;
+        text-shadow: 0 0 .6rem rgba(255, 42, 42, .45);
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: .72;
+        text-shadow: 0 0 1.4rem rgba(255, 42, 42, .85);
+        transform: scale(1.13);
+    }
+}
+
 .wz-dock__label {
     position: absolute;
     bottom: calc(100% + 1rem);

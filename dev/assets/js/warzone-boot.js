@@ -40,6 +40,12 @@ window.SiteLoader = {
     stop() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
+        const keepVisible = window.__wzKeepSiteLoaderVisible === true;
+        const keepUntil = Number(window.__wzKeepSiteLoaderVisibleUntil || 0);
+        if (keepVisible && keepUntil > Date.now()) {
+            scheduleSiteLoaderHardStop();
+            return;
+        }
         clearSiteLoaderTimers();
         __siteLoaderHideTimer = window.setTimeout(() => {
             document.body.classList.remove("show-loader");
@@ -522,9 +528,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const target = String(nextTab.dataset.tab || "");
         if (!target) return;
         const tabs = [...box.querySelectorAll(".wz-modal__tab")];
+        const allPanes = [...box.querySelectorAll(".wz-content")];
         const panes = [...box.querySelectorAll(".wz-content[data-pane]")];
         const currentTab = tabs.find((tab) => tab.classList.contains("is-active")) || null;
-        const currentPane = panes.find((pane) => pane.classList.contains("is-active")) || null;
+        const currentPane = allPanes.find((pane) => pane.classList.contains("is-active")) || null;
         const nextPane = box.querySelector(`.wz-content[data-pane="${target}"]`);
         if (!nextPane) return;
         if (currentTab === nextTab && currentPane === nextPane) return;
@@ -559,11 +566,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (currentPane && currentPane !== nextPane) {
             fadeOutAboutPane(currentPane);
         }
+        nextTab.dispatchEvent(new CustomEvent("wz:modal-tab-activated", { bubbles: true, detail: { tab: target } }));
         scheduleModalBoxHeight(box, true);
     }
-    const aboutTabs = [...document.querySelectorAll("#wz-about-modal .wz-modal__tab")];
-    if (aboutTabs.length) {
-        aboutTabs.forEach((tab) => {
+    document.querySelectorAll("#wz-about-modal, #wz-intro-modal").forEach((modal) => {
+        const modalTabs = [...modal.querySelectorAll(".wz-modal__tab")];
+        if (!modalTabs.length) return;
+        modalTabs.forEach((tab) => {
             tab.addEventListener("click", () => {
                 activateAboutTab(tab, { animate: true });
             });
@@ -571,21 +580,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 const key = event.key;
                 if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
                 event.preventDefault();
-                const currentIndex = aboutTabs.indexOf(tab);
+                const currentIndex = modalTabs.indexOf(tab);
                 if (currentIndex < 0) return;
                 let nextIndex = currentIndex;
-                if (key === "ArrowRight") nextIndex = (currentIndex + 1) % aboutTabs.length;
-                if (key === "ArrowLeft") nextIndex = (currentIndex - 1 + aboutTabs.length) % aboutTabs.length;
+                if (key === "ArrowRight") nextIndex = (currentIndex + 1) % modalTabs.length;
+                if (key === "ArrowLeft") nextIndex = (currentIndex - 1 + modalTabs.length) % modalTabs.length;
                 if (key === "Home") nextIndex = 0;
-                if (key === "End") nextIndex = aboutTabs.length - 1;
-                const nextTab = aboutTabs[nextIndex];
+                if (key === "End") nextIndex = modalTabs.length - 1;
+                const nextTab = modalTabs[nextIndex];
                 activateAboutTab(nextTab, { animate: true });
                 nextTab?.focus();
             });
         });
-        const initiallyActive = aboutTabs.find((tab) => tab.classList.contains("is-active")) || aboutTabs[0];
+        const initiallyActive = modalTabs.find((tab) => tab.classList.contains("is-active")) || modalTabs[0];
         activateAboutTab(initiallyActive, { animate: false });
-    }
+    });
     const btnFullscreen = document.getElementById("dock-fullscreen");
     if (btnFullscreen) {
         btnFullscreen.addEventListener("click", () => {

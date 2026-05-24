@@ -1,23 +1,46 @@
-
 WARZONE - BATTLESPACEX | PRODUCT POSITIONING
+Last updated: 2026-05-22
 
-BattlespaceX is positioned as a next‑generation global situational awareness interface.
+Core position:
+BattleSpaceX StratOps is a next-generation OSINT visualization and operational awareness interface for conflict, military activity, and strategic security signals.
 
-Unlike traditional maps or simple event dashboards, the platform emphasizes:
+It should be positioned as a briefing-grade 3D command environment, not a generic news map or simple event dashboard.
 
-• operational visualization
-• cinematic military‑style presentation
-• structured intelligence‑style overlays
-• scalable OSINT aggregation
+Primary audience categories:
+- defense and aerospace brands
+- defense media and OSINT publishers
+- geopolitical and risk intelligence teams
+- security-monitoring organizations
+- education, simulation, and briefing users
+- strategic communications and demo teams
 
-Comparable categories include:
+Core differentiation:
+StratOps is difficult to match because it combines live 3D operational assets, curated military infrastructure, conflict-event visualization, theater intelligence, and cinematic briefing design in one web-based OSINT interface.
 
-• conflict monitoring dashboards
-• OSINT visualization platforms
-• geopolitical analysis tools
+High-value pitch points:
+1. Live aircraft and naval contacts can use both broad-coverage PNG/icon rendering and close-focus GLB 3D models.
+2. Air, naval, bases, strikes, airspace, cyber/status widgets, radar/range overlays, and regional intelligence live in one interface.
+3. The product feels like a command-center visualization layer rather than a generic GIS dashboard.
+4. The curated military installation dataset gives live events strategic context.
+5. Asset-aware classification helps explain what kind of platform is being tracked, not only where it is.
+6. Visual radar/threat range concepts make the map useful for strategic storytelling.
+7. The system is OSINT-positioned, which makes it suitable for public demos, media, education, and defense-adjacent use cases.
+8. The architecture can support future partner feeds, private overlays, custom theaters, watchlists, confidence scoring, and enriched live sources.
 
-BattlespaceX differentiates itself through:
+Competitor/category difference:
+StratOps should be positioned as a unified operational visualization layer, not as a direct one-for-one replacement for specialist tools.
 
-• immersive 3D interface
-• multi‑layer operational visualization
-• modular architecture designed for expansion
+- Compared with flight trackers: StratOps adds theater context, military role classification, strike/base/naval layers, and focused 3D model presentation.
+- Compared with maritime trackers: StratOps adds military naval classification, theater intelligence, base context, radar/range overlays, and GLB focus for selected naval assets.
+- Compared with conflict maps: StratOps adds live aircraft/naval layers, curated military infrastructure, 3D command visualization, and operational overlays.
+- Compared with defense media: StratOps provides the interactive visual layer that can turn reporting into a live theater map or briefing screen.
+- Compared with generic GIS dashboards: StratOps is purpose-built for military-style OSINT storytelling and demo-ready command visualization.
+
+Recommended short pitch:
+StratOps turns fragmented open-source military and conflict signals into a live 3D operational picture, combining aircraft, naval assets, bases, strikes, radar/range context, and theater intelligence in a cinematic command interface.
+
+Recommended serious pitch:
+StratOps is a briefing-grade OSINT visualization platform for organizations that need to explain fast-moving military and security activity. It goes beyond flat event maps by combining live/near-live air and naval assets, curated military infrastructure, radar/range concepts, regional intelligence, and 3D GLB asset visualization inside one operational globe.
+
+Positioning caution:
+Avoid claiming that StratOps is classified intelligence, verified intelligence, or a replacement for official defense systems. The strongest defensible claim is that StratOps offers a rare combination of OSINT visualization, live asset presentation, strategic context, and cinematic briefing quality.

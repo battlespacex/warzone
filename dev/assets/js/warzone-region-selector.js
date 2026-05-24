@@ -16,6 +16,8 @@ const REGIONS = [
     { id: "oceania", label: "Oceania", bounds: { minLat: -50, maxLat: 5, minLon: 110, maxLon: 180 }, camera: { lon: 146, lat: -23, alt: 7000000 } },
     { id: "africa", label: "Africa", bounds: { minLat: -35, maxLat: 38, minLon: -20, maxLon: 52 }, camera: { lon: 20, lat: 5, alt: 7000000 } },
 ];
+// Keep global view support available internally while hiding it from user selection.
+const REGION_SELECTOR_GLOBAL_VIEW_ENABLED = false;
 const LENS_REGION_LABELS = {
     live: { global: "Global View", middle_east: "Middle East & Gulf", levant: "Levant & Eastern Med", ukraine: "Ukraine & Eastern Europe", central_asia: "Central Asia", south_asia: "South Asia", europe: "Europe", north_america: "North America", latin_america: "Central America & Caribbean", south_america: "South America", east_asia: "East Asia & Pacific", oceania: "Oceania", africa: "Africa" },
     standoff: { global: "Global View", middle_east: "Middle East & Gulf", levant: "Levant & Eastern Med", ukraine: "Ukraine & Eastern Europe", central_asia: "Central Asia", south_asia: "South Asia", europe: "Europe", north_america: "North America", latin_america: "Central America & Caribbean", south_america: "South America", east_asia: "East Asia & Pacific", oceania: "Oceania", africa: "Africa" },
@@ -87,9 +89,11 @@ function getRegionById(id) {
 }
 function getLensRegionIds(lens = "live") {
     if (lens === "all") {
-        return REGIONS.map((region) => region.id);
+        return REGIONS
+            .filter((region) => REGION_SELECTOR_GLOBAL_VIEW_ENABLED || region.id !== "global")
+            .map((region) => region.id);
     }
-    const allowed = new Set(["global"]);
+    const allowed = new Set(REGION_SELECTOR_GLOBAL_VIEW_ENABLED ? ["global"] : []);
     const orderedIds = REGIONS.map((region) => region.id);
     getTheaterDefinitions().forEach((theater) => {
         if (!theater?.region || !Array.isArray(theater.lenses)) return;
@@ -935,7 +939,9 @@ function showRegionModal(viewer, instant = false, options = {}) {
     const mode = options?.mode === "manual" ? "manual" : "startup";
     const suggestedRegion = options?.suggestedRegion || null;
     const lensRegions = getRegionsForLens(__activeLens);
-    const regions = REGIONS;
+    const regions = REGIONS.filter((region) => (
+        REGION_SELECTOR_GLOBAL_VIEW_ENABLED || region.id !== "global"
+    ));
 
     grid.innerHTML = regions.map((r) => {
         const hotClass = r.hot ? " is-hot" : "";

@@ -26,6 +26,7 @@ body {
     font-style: normal;
     font-weight: 500;
     height: 100%;
+    cursor: crosshair;
 }
 
 main {
@@ -420,7 +421,7 @@ UNUSED CANDIDATE END */
 /* #endregion =========== */
 /* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
 .wz--textarea, .wz--dropdown, .wz--input {
-    font-family: var(--text-base) !important;
+    font-family: var(--text-font) !important;
     box-sizing: border-box;
     border: 0.2rem solid var(--color-border-gray);
     background: var(--color-bg-overlay);
@@ -441,8 +442,8 @@ UNUSED CANDIDATE END */
     overflow: visible;
     white-space: normal;
     text-overflow: clip;
-    color: var(--color-text-heading);
-    background: rgba(12, 18, 28, 0.98);
+    color: #eef0f5 !important;
+    background-color: #151b25 !important;
 }
 
 .wz-selector {
@@ -515,6 +516,7 @@ UNUSED CANDIDATE END */
 
 
 .wz--dropdown {
+    color-scheme: dark;
     height: 4rem;
     line-height: 2.6rem;
     width: 100%;
@@ -550,7 +552,6 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     align-items: flex-start;
     gap: 1rem;
     position: relative;
-    cursor: pointer;
     user-select: none;
     line-height: 1.7rem;
 }
@@ -627,20 +628,20 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     .wz-list-view li {
         list-style: none;
         position: relative;
-        padding-left: 2rem;
+        padding-left: 2.2rem;
         line-height: 2rem;
     }
 
         .wz-list-view li:before {
-            top: -.3rem;
+            top: -.2rem;
             font-family: "stratops-icon-font";
-            content: "";
+            content: "\e900";
             color: var(--color-teal-glow);
-            font-size: 2rem;
+            font-size: 1.8rem;
             line-height: 2rem;
             position: absolute;
             display: block;
-            left: -.5rem;
+            left: -.3rem;
         }
 
     .wz-list-view h4 {

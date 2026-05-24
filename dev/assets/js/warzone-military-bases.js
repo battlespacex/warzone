@@ -57,6 +57,12 @@ const TYPE_PANEL_ICON = {
     unknown: "stratops-ico-assets-unknown-1",
 };
 
+function cssNumber(name, fallback) {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+    const value = Number.parseFloat(raw);
+    return Number.isFinite(value) ? value : fallback;
+}
+
 /* ─── PNG Icons ─────────────────────────────────────────────────────────── */
 const ICON = {
     airbase: "/assets/images/bases/airbase-1.png",
@@ -75,9 +81,15 @@ const ICON = {
     unknown: "/assets/images/bases/unknown-1.png",
 };
 function getIcon(t, fallbackIcon = "") { return ICON[t] || fallbackIcon || ICON.unknown; }
-function getScale(size) { return size === "major" ? 0.4 : size === "significant" ? 0.4 : 0.4; }
 function getBaseIconPixelSize(size) {
-    return Math.max(18, Math.round(70 * getScale(size)));
+    const minSize = cssNumber("--warzone-base-icon-min-px", 16);
+    const defaultSize = cssNumber("--warzone-base-icon-px", 22);
+    const sizeVar = size === "major"
+        ? "--warzone-base-icon-major-px"
+        : size === "significant"
+            ? "--warzone-base-icon-significant-px"
+            : "--warzone-base-icon-px";
+    return Math.max(minSize, Math.round(cssNumber(sizeVar, defaultSize)));
 }
 
 function getTypeColor(type) {
@@ -90,8 +102,9 @@ function getTypeColor(type) {
 function createBaseEntity(dataSource, base) {
     const lat = Number(base.lat ?? base.coordinates?.lat);
     const lon = Number(base.lon ?? base.coordinates?.lon);
-    const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 12);
+    const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
     const iconPixelSize = getBaseIconPixelSize(base.size);
+    const pixelOffsetY = Math.round(cssNumber("--warzone-base-icon-pixel-offset-y", 6));
     const entity = dataSource.entities.add({
         id: `milbase:${base.id}`,
         position: pos,
@@ -103,8 +116,8 @@ function createBaseEntity(dataSource, base) {
             alignedAxis: Cesium.Cartesian3.ZERO,
             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-            pixelOffset: new Cesium.Cartesian2(0, 8),
-            heightReference: Cesium.HeightReference.NONE,
+            pixelOffset: new Cesium.Cartesian2(0, pixelOffsetY),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             translucencyByDistance: new Cesium.NearFarScalar(7e6, 1.0, 1.4e7, 0.0),
             disableDepthTestDistance: 0,
         },
@@ -134,6 +147,9 @@ function applyVisibility() {
         __state.entities.forEach(e => { e.show = shouldShow; });
     }
     __state.viewer?.scene.requestRender();
+}
+function areMilitaryBasesInteractive() {
+    return __state.visible && !__state.authGated;
 }
 
 /* ─── Popup near selected base ──────────────────────────────────────────── */
@@ -367,6 +383,10 @@ function bindClickHandler(viewer) {
     // Sets window.__wzBaseHover so the aircraft tracker's MOUSE_MOVE handler
     // knows not to reset the cursor back to "" when it runs.
     handler.setInputAction(movement => {
+        if (!areMilitaryBasesInteractive()) {
+            window.__wzBaseHover = false;
+            return;
+        }
         const picked = viewer.scene.pick(movement.endPosition);
         const isBase = Cesium.defined(picked?.id) &&
             picked.id?.properties?.milbase?.getValue?.() === true;
@@ -380,6 +400,7 @@ function bindClickHandler(viewer) {
 
     // LEFT_CLICK — open info panel next to click position
     handler.setInputAction(click => {
+        if (!areMilitaryBasesInteractive()) return;
         const picked = viewer.scene.pick(click.position);
         if (Cesium.defined(picked?.id)) {
             const props = picked.id?.properties;
@@ -419,6 +440,7 @@ export function initWarzoneMilitaryBases(viewer) {
     __state.entities = MILITARY_BASES.map(b => createBaseEntity(ds, b));
     viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);
     viewer.camera.changed.addEventListener(() => {
+        if (!areMilitaryBasesInteractive() && !__state.activePanel) return;
         viewer.scene.requestRender();
     });
     bindClickHandler(viewer);

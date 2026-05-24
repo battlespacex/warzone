@@ -1,0 +1,123 @@
+BATTLESPACEX STRATOPS - SOCIAL MEDIA POSTS
+Last updated: 2026-05-22
+
+Use:
+These posts are for LinkedIn, X, defense/media outreach, product teaser copy, and partner conversations.
+
+------------------------------------------------------------
+1. LINKEDIN LAUNCH / POSITIONING POST
+------------------------------------------------------------
+
+BattleSpaceX StratOps is being built as a briefing-grade 3D OSINT visualization platform for conflict, military activity, and strategic security signals.
+
+Most tools show one slice of the picture: aircraft, vessels, incidents, bases, or analysis.
+
+StratOps brings these layers into one operational globe:
+
+- live/near-live aircraft tracking
+- live naval activity
+- GLB 3D aircraft and naval asset visualization
+- curated military bases and installations
+- strike, drone, missile, airspace, cyber, and alert layers
+- radar/threat range overlays
+- region-aware theater intelligence
+- cinematic command-center UI for demos and briefings
+
+The goal is not to replace specialist flight, vessel, or news platforms.
+The goal is to turn fragmented open-source signals into a unified 3D operational awareness layer.
+
+Built for OSINT visualization, defense-adjacent storytelling, media explainers, strategic demos, and high-impact briefings.
+
+BattleSpaceX StratOps: from scattered signals to an operational picture.
+
+------------------------------------------------------------
+2. SHORT LINKEDIN / X POST
+------------------------------------------------------------
+
+Most conflict maps show markers.
+Most flight trackers show aircraft.
+Most maritime maps show vessels.
+
+BattleSpaceX StratOps is built to combine the picture:
+
+Live aircraft.
+Live naval assets.
+3D GLB models.
+Military bases.
+Strike and threat layers.
+Radar/range overlays.
+Theater intelligence.
+
+A 3D OSINT command interface for serious visual briefings.
+
+------------------------------------------------------------
+3. DEFENSE / AEROSPACE BRAND OUTREACH POST
+------------------------------------------------------------
+
+For defense and aerospace brands, the future of storytelling is not just articles, images, or flat maps.
+
+It is interactive operational visualization.
+
+BattleSpaceX StratOps is being built as a 3D command-style OSINT interface that can show:
+
+- aircraft and naval movement
+- high-value assets in GLB 3D model form
+- bases and installations
+- strikes, missiles, drones, airspace, and alerts
+- radar/threat range context
+- regional theater intelligence
+
+This creates a visual surface for product demos, strategic briefings, media explainers, and public OSINT storytelling.
+
+StratOps turns complex activity into something people can see, navigate, and understand.
+
+------------------------------------------------------------
+4. MEDIA / TWZ-STYLE OUTREACH POST
+------------------------------------------------------------
+
+Defense reporting explains what happened.
+StratOps helps show where it happened, what assets are involved, and how it fits into the wider theater picture.
+
+The platform combines conflict events, live aircraft, naval activity, military installations, radar/range concepts, and 3D asset visualization in a single operational globe.
+
+For defense media, OSINT publishers, and strategic analysis teams, StratOps can become a visual layer for explainers, live coverage, and high-impact story presentation.
+
+Not another flat map.
+A 3D operational storytelling environment.
+
+------------------------------------------------------------
+5. ONE-LINE TAGLINES
+------------------------------------------------------------
+
+From scattered signals to a 3D operational picture.
+
+Live air, sea, bases, and conflict events in one OSINT command interface.
+
+The briefing-grade visual layer for open-source military activity.
+
+A cinematic 3D map for conflict, military movement, and strategic awareness.
+
+Where OSINT signals become an operational picture.
+
+------------------------------------------------------------
+6. CAREFUL CLAIMS TO USE
+------------------------------------------------------------
+
+Use:
+- rare combination
+- difficult to match
+- briefing-grade
+- live/near-live
+- OSINT-informed
+- public/open-source visualization
+- defense-adjacent
+- strategic storytelling
+- operational awareness layer
+
+Avoid:
+- classified intelligence
+- verified intelligence
+- real-time battlefield intelligence
+- replaces official defense systems
+- no other platform in the world
+- guaranteed live coverage

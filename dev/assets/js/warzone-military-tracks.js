@@ -85,7 +85,7 @@ function buildTrail(lon, lat, headingDeg, len, segs, altM) {
     return Array.from({ length: segs + 1 }, (_, i) => {
         const t = i / segs;
         const dist = t * len;
-        const trailAlt = Math.max(0, (altM * (1 - t * 0.1)) - CFG.trailAltitudeOffsetM);
+        const trailAlt = Math.max(0, altM - CFG.trailAltitudeOffsetM);
         return Cesium.Cartesian3.fromDegrees(
             lon + dist * Math.sin(backRad),
             lat + dist * Math.cos(backRad),
@@ -121,28 +121,28 @@ function playMilitaryAppearSound() {
 const CFG = {
     maxTracks: 60,
     trailSegments: 8,
-    shipTrailLengthDeg: 1.5,
+    shipTrailLengthDeg: 0.08,
     trailFadeMs: 25 * 60 * 1000,
-    altitudeShip: 80,
-    trailAltitudeOffsetM: 24,
+    altitudeShip: 0,
+    trailAltitudeOffsetM: 0,
 };
 const MODELS = {
-    carrier: "/assets/images/models/naval/Carrier-Fujian.glb",
-    amphibious: "/assets/images/models/naval/Carrier-LHD.glb",
-    cruiser: "/assets/images/models/naval/Vessel-Frigate.glb",
-    destroyer: "/assets/images/models/naval/Vessel-Frigate.glb",
-    frigate: "/assets/images/models/naval/Vessel-Frigate.glb",
-    corvette: "/assets/images/models/naval/Vessel-Frigate.glb",
-    missile_boat: "/assets/images/models/naval/Boat.glb",
-    naval: "/assets/images/models/naval/Vessel-Frigate.glb",
-    submarine: "/assets/images/models/naval/Submarine-SSN.glb",
-    ssbn: "/assets/images/models/naval/Submarine-SSN.glb",
-    ssn: "/assets/images/models/naval/Submarine-SSN.glb",
-    ssk: "/assets/images/models/naval/Submarine-API.glb",
-    aip_submarine: "/assets/images/models/naval/Submarine-API.glb",
-    logistics: "/assets/images/models/naval/Vessel-Frigate.glb",
+    carrier: "/assets/images/models/sea/Carrier-Fujian.glb",
+    amphibious: "/assets/images/models/sea/Carrier-LHD.glb",
+    cruiser: "/assets/images/models/sea/Vessel-Frigate.glb",
+    destroyer: "/assets/images/models/sea/Vessel-Frigate.glb",
+    frigate: "/assets/images/models/sea/Vessel-Frigate.glb",
+    corvette: "/assets/images/models/sea/Vessel-Frigate.glb",
+    missile_boat: "/assets/images/models/sea/Vessel-Frigate.glb",
+    naval: "/assets/images/models/sea/Vessel-Frigate.glb",
+    submarine: "/assets/images/models/sea/Submarine-SSN.glb",
+    ssbn: "/assets/images/models/sea/Submarine-SSN.glb",
+    ssn: "/assets/images/models/sea/Submarine-SSN.glb",
+    ssk: "/assets/images/models/sea/Submarine-API.glb",
+    aip_submarine: "/assets/images/models/sea/Submarine-API.glb",
+    logistics: "/assets/images/models/sea/Vessel-Frigate.glb",
 };
-const MODEL_DEFAULT = "/assets/images/models/naval/Vessel-Frigate.glb";
+const MODEL_DEFAULT = "/assets/images/models/sea/Vessel-Frigate.glb";
 function getModelUri(subcat) {
     return MODELS[normalizeSubcat(subcat)] || MODEL_DEFAULT;
 }
@@ -200,6 +200,7 @@ export function initMilitaryTracks(viewer) {
                 scale: numberVar("--warzone-military-model-scale-naval", 0.9),
                 minimumPixelSize: numberVar("--warzone-military-model-min-px-naval", 42),
                 maximumScale: numberVar("--warzone-military-model-max-scale-naval", 160),
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                 silhouetteColor: hexToCs(colorHex, 0.0),
                 silhouetteSize: 0,
             },
@@ -219,8 +220,8 @@ export function initMilitaryTracks(viewer) {
                 positions: buildTrail(lon, lat, headingDeg, CFG.shipTrailLengthDeg, CFG.trailSegments, altM),
                 width: numberVar("--warzone-military-trail-width-naval", 2.4),
                 material: hexToCs(getTrailColor(subcat, colorHex), numberVar("--warzone-military-trail-alpha-naval", 0.38)),
-                clampToGround: false,
-                followSurface: false,
+                clampToGround: true,
+                followSurface: true,
             },
         });
 
@@ -234,6 +235,8 @@ export function initMilitaryTracks(viewer) {
                         cssVar("--warzone-military-carrier-orbit-color", colorHex),
                         numberVar("--warzone-military-carrier-orbit-alpha", 0.2)
                     ),
+                    clampToGround: true,
+                    followSurface: true,
                 },
             });
         }
