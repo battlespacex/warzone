@@ -5,6 +5,7 @@ import { isLayerEnabled } from "./warzone-layers.js";
 import { getActiveRegion } from "./warzone-region-selector.js";
 // Note: no direct Supabase writes from frontend — all track data is client-side only
 const AIRCRAFT_PROXY_PATHS = ["/__warzone/aircraft-feed/mil", "/warzone/aircraft-feed/mil"];
+const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
 const POLL_INTERVAL_MS = 2000;
 const FETCH_TIMEOUT_MS = 9000;
 const TRACK_STALE_MS = 90000;
@@ -262,10 +263,7 @@ function getAirplanesLiveFeedUrl() {
         window.location.hostname === "127.0.0.1" ||
         window.location.hostname === "[::1]";
     if (isLocalDevHost) return AIRCRAFT_PROXY_PATHS[0];
-    const basePath = String(window.location.pathname || "").startsWith("/warzone/")
-        ? AIRCRAFT_PROXY_PATHS[1]
-        : AIRCRAFT_PROXY_PATHS[0];
-    return window.__stratopsConfig?.aircraftFeedUrl || basePath;
+    return window.__stratopsConfig?.aircraftFeedUrl || AIRPLANES_LIVE_URL;
 }
 function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
     const timeoutController = new AbortController();

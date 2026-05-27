@@ -14,11 +14,12 @@ export const supabase = createClient(
     }
 );
 
-// Dev = direct Supabase | Production = same-origin API proxy (Supabase hidden)
+// Dev = direct Supabase | Production = public API service (Supabase hidden).
+// The production frontend is static-hosted and does not expose a same-origin /api proxy.
 const isLocalhost = window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-const API_BASE = isLocalhost ? null : "/api";
+const API_BASE = isLocalhost ? null : "https://api.battlespacex.com";
 const EVENTS_HISTORY_WINDOW_HOURS = 48;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
@@ -29,6 +30,13 @@ const AIRCRAFT_HISTORY_LIMIT = 1000;
 
 function getEventsHistoryCutoffIso() {
     return new Date(Date.now() - EVENTS_HISTORY_WINDOW_MS).toISOString();
+}
+
+async function getAirspaceStatusesFromSupabase() {
+    const { data, error } = await supabase
+        .from("airspace_status").select("*")
+        .order("updated_at", { ascending: false });
+    return { data: data || [], error };
 }
 
 export const api = {
@@ -78,16 +86,9 @@ export const api = {
     },
 
     async getAirspaceStatuses() {
-        if (!API_BASE) {
-            const { data, error } = await supabase
-                .from("airspace_status").select("*")
-                .order("updated_at", { ascending: false });
-            return { data: data || [], error };
-        }
-        const res = await fetch(`${API_BASE}/events/airspace-status`);
-        if (!res.ok) throw new Error("Airspace status fetch failed");
-        const json = await res.json();
-        return { data: json.statuses || [], error: null };
+        // Keep this read on the existing public client until the production API
+        // deployment exposes /events/airspace-status.
+        return getAirspaceStatusesFromSupabase();
     },
 
     async getAircraftTracks() {
