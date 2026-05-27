@@ -814,7 +814,7 @@ function resolvePickedEventMarkerEntity(viewer, picked) {
     if (!isEventMarkerEntity(markerEntity)) return null;
     return markerEntity;
 }
-function buildPickedEventDetail(entity) {
+function buildPickedEventDetail(entity, screenPosition = null) {
     const clusterCount = Math.max(1, Number(getEntityPropertyValue(entity, "cluster_count", 1) || 1));
     const clusterEventsRaw = getEntityPropertyValue(entity, "cluster_events", []);
     const clusterEvents = Array.isArray(clusterEventsRaw) ? clusterEventsRaw.slice(0, 8) : [];
@@ -830,6 +830,9 @@ function buildPickedEventDetail(entity) {
         weaponType: String(getEntityPropertyValue(entity, "weapon_type", "")),
         sourceUrl: String(getEntityPropertyValue(entity, "source_url", "")),
         clusterEvents,
+        screenPosition: screenPosition && Number.isFinite(screenPosition.x) && Number.isFinite(screenPosition.y)
+            ? { x: Number(screenPosition.x), y: Number(screenPosition.y) }
+            : null,
     };
 }
 function bindEventMarkerPicking(viewer) {
@@ -848,7 +851,7 @@ function bindEventMarkerPicking(viewer) {
             return;
         }
         document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
-            detail: buildPickedEventDetail(eventEntity),
+            detail: buildPickedEventDetail(eventEntity, movement.position),
         }));
         viewer.scene.requestRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -2714,6 +2717,10 @@ export async function initWarzoneGlobe() {
         },
         clearEventEntities() {
             clearTrackedEventEntities(viewer);
+        },
+        removeEvent(eventId) {
+            removeExistingEventEntity(viewer, eventId);
+            viewer.scene.requestRender();
         },
         focusRegion,
         getViewportBounds() {

@@ -177,7 +177,6 @@ UNUSED CANDIDATE END */
         border-top: 0;
     }
 .timeline-time {
-    color: var(--color-accent);
     font-size: var(--text-sm);
     text-transform: uppercase;
 }

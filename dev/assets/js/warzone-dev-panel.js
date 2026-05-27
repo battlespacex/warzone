@@ -1181,6 +1181,194 @@ function initMapTunerControls() {
     refreshMapOnlyNow();
 }
 
+const DEV_EVENT_UI_PREVIEW_ID = "dev-event-ui-preview";
+const DEV_EVENT_UI_NUMERIC_FIELDS = [
+    { key: "marker-scale", cssVar: "--warzone-marker-scale", min: 0.1, max: 2, step: 0.01, fallback: 0.55 },
+    { key: "ring-size", cssVar: "--warzone-event-ring-size", min: 5000, max: 500000, step: 1000, fallback: 55000 },
+    { key: "ring-fill-alpha", cssVar: "--warzone-event-ring-fill-alpha", min: 0, max: 1, step: 0.01, fallback: 0.22 },
+    { key: "ring-outline-alpha", cssVar: "--warzone-event-ring-outline-alpha", min: 0, max: 1, step: 0.01, fallback: 0.55 },
+    { key: "ring-outline-width", cssVar: "--warzone-event-ring-outline-width", min: 0, max: 16, step: 0.1, fallback: 1.5 },
+];
+const DEV_EVENT_UI_TOGGLE_FIELDS = [
+    { key: "markers-visible", cssVar: "--warzone-event-markers-visible", fallback: 1 },
+    { key: "rings-visible", cssVar: "--warzone-event-rings-visible", fallback: 1 },
+];
+let __devEventUiPreviewVisible = false;
+
+function getResolvedColorHex(cssColor = "", fallback = "#ff0753") {
+    const probe = document.createElement("span");
+    probe.style.color = cssColor || fallback;
+    probe.style.display = "none";
+    document.body.appendChild(probe);
+    const resolved = getComputedStyle(probe).color;
+    probe.remove();
+    const rgb = resolved.match(/rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+    if (!rgb) return fallback;
+    return `#${rgb.slice(1, 4).map((part) => Number(part).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function getDevEventPreviewPlacement() {
+    const viewer = window.__warzoneViewer;
+    const canvas = viewer?.scene?.canvas;
+    const screenPosition = new Cesium.Cartesian2(
+        Math.round((canvas?.clientWidth || window.innerWidth) * 0.62),
+        Math.round((canvas?.clientHeight || window.innerHeight) * 0.42)
+    );
+    if (viewer?.camera && viewer?.scene?.globe) {
+        const cartesian = viewer.camera.pickEllipsoid(screenPosition, viewer.scene.globe.ellipsoid);
+        if (cartesian) {
+            const location = Cesium.Cartographic.fromCartesian(cartesian);
+            return {
+                lat: Cesium.Math.toDegrees(location.latitude),
+                lon: Cesium.Math.toDegrees(location.longitude),
+                screenPosition,
+            };
+        }
+    }
+    return { lat: 32.42, lon: 53.69, screenPosition };
+}
+
+function getDevEventPreviewEvent() {
+    const placement = getDevEventPreviewPlacement();
+    return {
+        id: DEV_EVENT_UI_PREVIEW_ID,
+        title: "Cruise Missile Strike - DEV Popup Preview",
+        summary: "Preview event for setting marker circle, dot color, ring scale, and detail popup layout.",
+        category: "strike",
+        severity: "high",
+        weapon_type: "cruise_missile",
+        location_label: "Preview Location",
+        occurred_at: new Date().toISOString(),
+        lat: placement.lat,
+        lon: placement.lon,
+        screenPosition: placement.screenPosition,
+    };
+}
+
+function openDevEventUiPreview(logAction = true) {
+    const globe = window.__warzoneViewer?.__warzone;
+    const event = getDevEventPreviewEvent();
+    globe?.removeEvent?.(DEV_EVENT_UI_PREVIEW_ID);
+    globe?.addEvent?.(event);
+    document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
+        detail: {
+            title: event.title,
+            summary: event.summary,
+            category: event.category,
+            severity: event.severity,
+            locationLabel: event.location_label,
+            occurredAt: event.occurred_at,
+            weaponType: event.weapon_type,
+            screenPosition: event.screenPosition,
+        },
+    }));
+    __devEventUiPreviewVisible = true;
+    if (logAction) devLog("Opened event marker and popup preview");
+}
+
+function closeDevEventUiPreview(logAction = true) {
+    window.__warzoneViewer?.__warzone?.removeEvent?.(DEV_EVENT_UI_PREVIEW_ID);
+    document.dispatchEvent(new CustomEvent("wz:event-marker-cleared", {
+        detail: { source: "dev-event-preview" },
+    }));
+    __devEventUiPreviewVisible = false;
+    if (logAction) devLog("Closed event marker and popup preview");
+}
+
+function buildDevEventUiCssBlock() {
+    const colorValue = document.getElementById("wz-event-marker-color-input")?.value
+        || getRootCssText("--warzone-strike-color", "#ff0753");
+    const lines = [":root {", `    --warzone-strike-color: ${colorValue};`];
+    DEV_EVENT_UI_TOGGLE_FIELDS.forEach((def) => {
+        const enabled = document.getElementById(`wz-event-${def.key}-input`)?.checked;
+        lines.push(`    ${def.cssVar}: ${enabled ? "1" : "0"};`);
+    });
+    DEV_EVENT_UI_NUMERIC_FIELDS.forEach((def) => {
+        const value = document.getElementById(`wz-event-${def.key}-input`)?.value;
+        lines.push(`    ${def.cssVar}: ${formatDevMapValue(value, def)};`);
+    });
+    lines.push("}");
+    return lines.join("\n");
+}
+
+function initDevEventUiTunerControls() {
+    const root = document.documentElement;
+    const tunerRoot = document.getElementById("wz-dev-event-ui-tuner");
+    if (!tunerRoot || tunerRoot.dataset.bound === "1") return;
+    tunerRoot.dataset.bound = "1";
+    const output = document.getElementById("wz-event-css-output");
+    const colorPicker = document.getElementById("wz-event-marker-color-picker");
+    const colorInput = document.getElementById("wz-event-marker-color-input");
+    const numericControls = new Map();
+
+    const updateOutput = () => {
+        if (output) output.value = buildDevEventUiCssBlock();
+    };
+    const updatePreview = () => {
+        if (__devEventUiPreviewVisible) openDevEventUiPreview(false);
+        window.__warzoneViewer?.scene?.requestRender?.();
+    };
+    const applyColor = (nextValue, source = "") => {
+        const value = String(nextValue || "").trim() || "#ff0753";
+        root.style.setProperty("--warzone-strike-color", value);
+        if (source !== "input" && colorInput) colorInput.value = value;
+        if (source !== "picker" && colorPicker) colorPicker.value = getResolvedColorHex(value);
+        updateOutput();
+        updatePreview();
+    };
+    const applyNumericValue = (def, nextValue, source = "") => {
+        const controls = numericControls.get(def.key);
+        if (!controls) return;
+        const formatted = formatDevMapValue(nextValue, def);
+        if (source !== "range") controls.range.value = formatted;
+        if (source !== "input") controls.input.value = formatted;
+        root.style.setProperty(def.cssVar, formatted);
+        updateOutput();
+        updatePreview();
+    };
+    const loadCurrentValues = () => {
+        const colorValue = getRootCssText("--warzone-strike-color", "#ff0753");
+        if (colorInput) colorInput.value = colorValue;
+        if (colorPicker) colorPicker.value = getResolvedColorHex(colorValue);
+        DEV_EVENT_UI_TOGGLE_FIELDS.forEach((def) => {
+            const input = document.getElementById(`wz-event-${def.key}-input`);
+            if (!input) return;
+            input.checked = getRootCssNumber(def.cssVar, def.fallback) >= 0.5;
+        });
+        DEV_EVENT_UI_NUMERIC_FIELDS.forEach((def) => {
+            applyNumericValue(def, getRootCssNumber(def.cssVar, def.fallback));
+        });
+        updateOutput();
+    };
+
+    DEV_EVENT_UI_NUMERIC_FIELDS.forEach((def) => {
+        const range = document.getElementById(`wz-event-${def.key}-range`);
+        const input = document.getElementById(`wz-event-${def.key}-input`);
+        if (!range || !input) return;
+        numericControls.set(def.key, { range, input });
+        range.addEventListener("input", () => applyNumericValue(def, range.value, "range"));
+        input.addEventListener("input", () => applyNumericValue(def, input.value, "input"));
+        input.addEventListener("change", () => applyNumericValue(def, input.value, "input"));
+    });
+    DEV_EVENT_UI_TOGGLE_FIELDS.forEach((def) => {
+        document.getElementById(`wz-event-${def.key}-input`)?.addEventListener("change", (event) => {
+            root.style.setProperty(def.cssVar, event.currentTarget.checked ? "1" : "0");
+            updateOutput();
+            updatePreview();
+        });
+    });
+    colorPicker?.addEventListener("input", () => applyColor(colorPicker.value, "picker"));
+    colorInput?.addEventListener("change", () => applyColor(colorInput.value, "input"));
+    document.getElementById("wz-event-preview-refresh")?.addEventListener("click", () => openDevEventUiPreview());
+    document.getElementById("wz-event-preview-close")?.addEventListener("click", () => closeDevEventUiPreview());
+    document.getElementById("wz-event-copy-css")?.addEventListener("click", async (event) => {
+        const ok = await copyTextToClipboard(output?.value || buildDevEventUiCssBlock());
+        showCopyButtonFeedback(event.currentTarget, ok);
+        devLog(ok ? "Copied event marker :root block" : "Copy blocked; select and copy manually");
+    });
+    loadCurrentValues();
+}
+
 const DEV_LIVE_AIRCRAFT_LABEL_FIELDS = [
     { key: "label-max-chars", label: "Label max chars/line", cssVar: "--warzone-live-label-max-chars", min: 8, max: 80, step: 1, fallback: 24 },
     { key: "label-align", label: "Label align", cssVar: "--warzone-live-label-align", fallback: "left", type: "select", options: ["left", "center", "right"] },
@@ -2142,8 +2330,12 @@ export function initDevPanel() {
             devLog("Opened global alert preview");
         }
     });
+    document.getElementById("wz-dev-open-event-popup")?.addEventListener("click", () => {
+        openDevEventUiPreview();
+    });
     initDevSimulatorControls();
     initMapTunerControls();
+    initDevEventUiTunerControls();
     initLiveAssetTunerControls();
     initDevPanelAccordions();
     devLog("Dev panel ready");

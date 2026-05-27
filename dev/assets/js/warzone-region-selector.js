@@ -1031,7 +1031,7 @@ function showRegionModal(viewer, instant = false, options = {}) {
     let chosen = mode === "manual" ? (suggestedRegion?.id || __activeRegion?.id || null) : null;
 
     if (titleEl) {
-        titleEl.textContent = "Select Monitoring Region";
+        titleEl.textContent = "Select Region";
     }
     if (subEl) {
         subEl.textContent = mode === "manual"

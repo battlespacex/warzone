@@ -84,12 +84,13 @@ function getIcon(t, fallbackIcon = "") { return ICON[t] || fallbackIcon || ICON.
 function getBaseIconPixelSize(size) {
     const minSize = cssNumber("--warzone-base-icon-min-px", 16);
     const defaultSize = cssNumber("--warzone-base-icon-px", 22);
+    const viewportScale = Math.max(0.5, Math.min(1.1, cssNumber("--warzone-base-icon-viewport-scale", 1)));
     const sizeVar = size === "major"
         ? "--warzone-base-icon-major-px"
         : size === "significant"
             ? "--warzone-base-icon-significant-px"
             : "--warzone-base-icon-px";
-    return Math.max(minSize, Math.round(cssNumber(sizeVar, defaultSize)));
+    return Math.max(minSize, Math.round(cssNumber(sizeVar, defaultSize) * viewportScale));
 }
 
 function getTypeColor(type) {
@@ -146,6 +147,15 @@ function applyVisibility() {
     } else {
         __state.entities.forEach(e => { e.show = shouldShow; });
     }
+    __state.viewer?.scene.requestRender();
+}
+function refreshBaseIconSizing() {
+    __state.entities.forEach((entity) => {
+        if (!entity?.billboard) return;
+        const iconPixelSize = getBaseIconPixelSize(entity.__militaryBaseData?.size);
+        entity.billboard.width = iconPixelSize;
+        entity.billboard.height = iconPixelSize;
+    });
     __state.viewer?.scene.requestRender();
 }
 function areMilitaryBasesInteractive() {
@@ -443,6 +453,7 @@ export function initWarzoneMilitaryBases(viewer) {
         if (!areMilitaryBasesInteractive() && !__state.activePanel) return;
         viewer.scene.requestRender();
     });
+    window.addEventListener("resize", refreshBaseIconSizing, { passive: true });
     bindClickHandler(viewer);
 
     // When user logs in (either via form or silent check), unlock bases

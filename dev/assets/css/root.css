@@ -273,19 +273,14 @@
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
 :root {
-    /* Markers: cluster events always show their count badge (controlled in JS).
-       Single-event markers hidden at default zoom — JS reads this for non-clusters. */
-    --warzone-marker-scale: 0.55;
-    --warzone-event-markers-visible: 1; /* show singles so map doesn't look empty when below cluster threshold */
+    --warzone-marker-scale: 1.25;
+    --warzone-event-markers-visible: 1;
     --warzone-event-rings-visible: 1;
     --warzone-event-ring-entity-cap: 160;
-    /* Base ring size increased from 32km → 55km so clusters are clearly visible
-       at zoom-out. Single events still look right at normal zoom.
-       Cluster rings scale further via cluster_count in getSeverityRadius(). */
-    --warzone-event-ring-size: 55000;
-    --warzone-event-ring-fill-alpha: 0.22;
-    --warzone-event-ring-outline-alpha: 0.55; /* was 0 — subtle outline makes rings crisper */
-    --warzone-event-ring-outline-width: 1.5; /* was 0 */
+    --warzone-event-ring-size: 65000;
+    --warzone-event-ring-fill-alpha: 0.40;
+    --warzone-event-ring-outline-alpha: 0; 
+    --warzone-event-ring-outline-width: 0; 
 }
 /* #endregion =========== */
 /* #region =========== Country Pulse Highlight =========== */

@@ -1,0 +1,55 @@
+﻿<!-- ANALYTICS -->
+<section class="warzone-view" id="view-analytics" data-view-panel="analytics" aria-labelledby="analytics-view-title">
+    <section class="intel-page">
+        <div class="intel-banner" aria-label="Classification banner">UNCLASSIFIED // OSINT DERIVED</div>
+
+        <div class="intel-card">
+            <div class="intel-card__head">
+                <div>
+                    <small>Stratops Intelligence</small>
+                    <h2 id="analytics-view-title">Situation Report</h2>
+                </div>
+                <div class="period-tabs" role="tablist" aria-label="Analytics time range">
+                    <button class="period-tab" type="button" aria-pressed="false">6H</button>
+                    <button class="period-tab" type="button" aria-pressed="false">12H</button>
+                    <button class="period-tab is-active" type="button" aria-pressed="true">24H</button>
+                </div>
+            </div>
+            <div class="intel-meta" id="intel-meta-line" aria-live="polite">Generated from current event stream.</div>
+        </div>
+
+        <div class="analytics-grid analytics-grid--top" aria-label="Headline analytics">
+            <div class="analytics-card"><span>Total Events</span><strong id="analytics-total">--</strong></div>
+            <div class="analytics-card"><span>Primary Actor</span><strong id="analytics-iran">--</strong></div>
+            <div class="analytics-card"><span>Secondary Actor</span><strong id="analytics-usisr">--</strong></div>
+            <div class="analytics-card"><span>Date Range</span><strong id="analytics-range">--</strong></div>
+        </div>
+
+        <div class="analytics-grid analytics-grid--charts">
+            <section class="analytics-panel" aria-labelledby="analytics-side-title">
+                <h3 id="analytics-side-title">Strikes by Side</h3>
+                <div id="analytics-side-breakdown" class="ring-stat-grid" aria-live="polite"></div>
+            </section>
+
+            <section class="analytics-panel" aria-labelledby="analytics-weapons-title">
+                <h3 id="analytics-weapons-title">Weapons Breakdown</h3>
+                <div id="analytics-weapons" class="bars-list" aria-live="polite"></div>
+            </section>
+
+            <section class="analytics-panel" aria-labelledby="analytics-targets-title">
+                <h3 id="analytics-targets-title">Top Target Types</h3>
+                <div id="analytics-targets" class="bars-list" aria-live="polite"></div>
+            </section>
+        </div>
+
+        <section class="intel-card" aria-labelledby="executive-summary-title">
+            <h3 id="executive-summary-title">Executive Summary</h3>
+            <p id="executive-summary"></p>
+        </section>
+
+        <section class="intel-card" aria-labelledby="timeline-title">
+            <h3 id="timeline-title">Chronological Timeline</h3>
+            <div id="timeline-list" class="timeline-list" aria-live="polite"></div>
+        </section>
+    </section>
+</section>

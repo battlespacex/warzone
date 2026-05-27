@@ -4,25 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
-
     <title><%= meta.title %></title>
     <meta name="description" content="<%= meta.description %>" />
-
     <link rel="canonical" href="<%= meta.canonical %>" />
     <meta name="robots" content="<%= meta.robots %>" />
-
     <meta name="application-name" content="StratOps | BattlespaceX" />
     <meta name="apple-mobile-web-app-title" content="StratOps" />
-
     <meta name="theme-color" content="#07111b" />
     <meta name="format-detection" content="telephone=no" />
-
     <link rel="alternate" hreflang="en-ca" href="<%= meta.hreflang %>" />
     <link rel="alternate" hreflang="x-default" href="<%= meta.hreflang %>" />
-
     <%= partials("head-base") %>
     <%= partials("head-verifications") %>
-
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="StratOps | BattlespaceX" />
@@ -34,23 +27,19 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="<%= meta.ogAlt %>" />
-
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="<%= meta.twTitle %>" />
     <meta name="twitter:description" content="<%= meta.twDescription %>" />
     <meta name="twitter:image" content="<%= meta.twImage %>" />
     <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
-
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Saira:ital,wght@0,100..900;1,100..900&family=Share+Tech&display=swap" rel="stylesheet">
-
     <!-- JSON-LD -->
     <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
 </head>
-
 <body class="home__page show-loader">
     <noscript>
         <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-K794QCNB"

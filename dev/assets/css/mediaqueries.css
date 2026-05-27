@@ -114,12 +114,9 @@
     .warzone-map {
         min-height: 48rem;
     }
-    /* ── Mobile: all widgets become centered popup modals ── */
-    /* Backdrop */
     .wz-widget-backdrop {
-        display: block; /* JS sets hidden attr to toggle; this enables display */
+        display: block; 
     }
-    /* Widget becomes fixed, centered in viewport */
     .warzone-panel--floating {
         position: fixed !important;
         left: 1rem !important;
@@ -134,13 +131,11 @@
         /* override desktop transform — mobile uses opacity-only transition */
         transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
-        /* Hidden state on mobile: pop down (instead of translateY drift used on desktop) */
         .warzone-panel--floating.wz-is-hidden {
             opacity: 0 !important;
             transform: scale(0.95) translateY(1rem) !important;
             pointer-events: none !important;
         }
-        /* Visible state on mobile — clear the desktop transform offset */
         .warzone-panel--floating:not(.wz-is-hidden) {
             transform: none !important;
         }
@@ -148,7 +143,6 @@
         max-height: 55dvh;
         overflow-y: auto;
     }
-    /* Layers widget: no bottom anchor on mobile, let it flow from top like others */
     .warzone-widget--layers {
         top: calc(var(--wz-bar-h, 6rem) + 1.5rem) !important;
         bottom: auto !important;
@@ -192,18 +186,6 @@
         height: auto;
     }
 
-
-    #wz-about-modal .wz-modal__tabs {
-        gap: 0.5rem;
-        padding: 0.5rem 0 0;
-    }
-
-    #wz-about-modal .wz-modal__tab {
-        min-width: 9rem;
-        padding: 0.85rem 1rem;
-        font-size: var(--text-sm);
-    }
-
     .wz-region-grid,
     .wz-region-modal__grid {
         grid-template-columns: 1fr;
@@ -218,6 +200,7 @@
     .wz-action {
         flex-direction: column;
         align-items: stretch;
+        padding: 2rem;
     }
 
     .wz-modal-body h2, .wz-intro.wz-modal h2,
@@ -282,6 +265,14 @@
     }
 }
 @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    :root {
+        --wz-mobile-widget-content-maxh: min(56dvh, calc(100dvh - 18rem));
+        --warzone-base-icon-viewport-scale: 1.1;
+        --warzone-resolution-scale: 1.2;
+        --warzone-idle-resolution-min: 1.2;
+        --warzone-focus-resolution-scale: 1.2;
+        --warzone-close-resolution-scale: 1.2;
+    }
 
     .warzone-region-bar,
     .warzone-top-tabs,
@@ -580,6 +571,11 @@
     .warzone-widget .panel-content {
         max-height: var(--wz-mobile-widget-content-maxh) !important;
         overflow-y: auto;
+    }
+    .warzone-panel--floating:not(.wz-is-hidden) .panel-content {
+        height: auto !important;
+        opacity: 1 !important;
+        visibility: visible;
     }
     .warzone-widget--counter,
     .warzone-widget--airspace,

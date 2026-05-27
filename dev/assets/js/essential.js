@@ -1139,6 +1139,34 @@ function bindGlobeEventPopup() {
         popup.hidden = true;
         popup.classList.remove("is-visible");
     };
+    const positionPopupNearMarker = (screenPosition = null) => {
+        const x = Number(screenPosition?.x);
+        const y = Number(screenPosition?.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            popup.style.removeProperty("left");
+            popup.style.removeProperty("top");
+            return;
+        }
+        const gap = 14;
+        const viewportPad = 16;
+        const parentRect = popup.offsetParent?.getBoundingClientRect?.() || { left: 0, top: 0 };
+        const popupRect = popup.getBoundingClientRect();
+        const width = Math.min(popupRect.width, window.innerWidth - (viewportPad * 2));
+        const height = Math.min(popupRect.height, window.innerHeight - (viewportPad * 2));
+        let left = x + gap;
+        if (left + width > window.innerWidth - viewportPad) {
+            left = x - width - gap;
+        }
+        left = Math.min(Math.max(viewportPad, left), window.innerWidth - width - viewportPad);
+        const top = Math.min(
+            Math.max(viewportPad, y - (height / 2)),
+            window.innerHeight - height - viewportPad
+        );
+        popup.style.left = `${left - parentRect.left}px`;
+        popup.style.top = `${top - parentRect.top}px`;
+        popup.style.right = "auto";
+        popup.style.bottom = "auto";
+    };
     const showPopup = (detail = {}) => {
         const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
         const categoryLabel = toUiLabel(detail.category, "Hotspot");
@@ -1188,6 +1216,7 @@ function bindGlobeEventPopup() {
         }
         popup.hidden = false;
         popup.classList.add("is-visible");
+        positionPopupNearMarker(detail.screenPosition);
     };
     closeBtn?.addEventListener("click", hidePopup);
     document.addEventListener("keydown", (event) => {
