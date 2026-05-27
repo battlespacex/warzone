@@ -4561,20 +4561,26 @@ function syncInitialEventsToGlobe(events, { animateTracks = false, updatePerform
 export async function initWarzoneApp() {
     bindGlobeEventPopup();
     hydrateLayerStateFromStorage();
+    initLayerPanel();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for events
     
     try {
-        const { data, error } = await api.getEvents({ signal: controller.signal });
         let events = [];
-        if (error) {
-            logEventsApiError("Supabase events error:", error);
-            if (isEventsApiRestrictedError(error)) {
-                __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
+        try {
+            const { data, error } = await api.getEvents({ signal: controller.signal });
+            if (error) {
+                logEventsApiError("Supabase events error:", error);
+                if (isEventsApiRestrictedError(error)) {
+                    __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
+                }
+            } else {
+                events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
+                __eventsApiRestrictedUntil = 0;
             }
-        } else {
-            events = Array.isArray(data) ? data.map((row) => normalizeEvent(row)).filter(Boolean) : [];
-            __eventsApiRestrictedUntil = 0;
+        } catch (err) {
+            logEventsApiError("Initial events fetch failed:", err);
+            __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
         }
         await refreshStatusEvents();
         __viewportScoped = false;
@@ -4688,7 +4694,6 @@ export async function initWarzoneApp() {
             });
         }
     }
-    initLayerPanel();
     syncIdleSceneState();
     syncAircraftLivePipelines();
     if (!__visibilityRecoveryBound) {
@@ -4927,7 +4932,8 @@ async function pollLatestEvents(options = {}) {
             __lastSeenOccurredAt = newest.occurred_at;
         }
     } catch (err) {
-        console.error("Polling latest events failed:", err);
+        logEventsApiError("Polling latest events failed:", err);
+        __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
     } finally {
         if (__pollRequestSeq === requestSeq) {
             __pollInFlight = false;

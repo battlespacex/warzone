@@ -346,11 +346,8 @@
     }
 
     .wz-dock {
-        bottom: 2rem;
+        bottom: 1rem;
         max-width: calc(100vw - 4rem);
-        padding: .6rem 1rem;
-        background: var(--color-bg-overlay);
-        clip-path: var(--clippath-shape-3);
     }
 
     .wz-dock__desktop-actions {
