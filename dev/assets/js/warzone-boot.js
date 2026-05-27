@@ -608,6 +608,36 @@ document.addEventListener("DOMContentLoaded", () => {
             btnFullscreen.classList.toggle("is-active", !!document.fullscreenElement);
         });
     }
+    const mobileDockMenu = document.getElementById("wz-mobile-dock-menu");
+    const mobileDockMenuOpen = document.getElementById("wz-mobile-dock-menu-open");
+    const mobileDockMenuClose = document.getElementById("wz-mobile-dock-menu-close");
+    const mobileDockBackdrop = document.getElementById("wz-mobile-dock-backdrop");
+    function setMobileDockMenuOpen(open = false) {
+        const isOpen = Boolean(open) && isMobileLayout();
+        mobileDockMenu?.classList.toggle("is-open", isOpen);
+        mobileDockBackdrop?.classList.toggle("is-open", isOpen);
+        mobileDockMenu?.setAttribute("aria-hidden", String(!isOpen));
+        mobileDockBackdrop?.setAttribute("aria-hidden", String(!isOpen));
+        mobileDockMenuOpen?.setAttribute("aria-expanded", String(isOpen));
+        if (isOpen) {
+            mobileDockMenuClose?.focus();
+            return;
+        }
+        if (!isOpen && mobileDockMenu?.contains(document.activeElement)) {
+            mobileDockMenuOpen?.focus();
+        }
+    }
+    mobileDockMenuOpen?.addEventListener("click", () => setMobileDockMenuOpen(true));
+    mobileDockMenuClose?.addEventListener("click", () => setMobileDockMenuOpen(false));
+    mobileDockBackdrop?.addEventListener("click", () => setMobileDockMenuOpen(false));
+    window.addEventListener("resize", () => {
+        if (!isMobileLayout()) setMobileDockMenuOpen(false);
+    }, { passive: true });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && mobileDockMenu?.classList.contains("is-open")) {
+            setMobileDockMenuOpen(false);
+        }
+    });
     function getBackdrop() {
         return document.getElementById("wz-widget-backdrop");
     }
@@ -723,6 +753,16 @@ document.addEventListener("DOMContentLoaded", () => {
             .some((btn) => !btn.classList.contains("wz-dock--gone"));
         sep.classList.toggle("wz-dock--gone", !anyVisible);
     }
+    function syncDockProxies() {
+        document.querySelectorAll("[data-dock-proxy]").forEach((btn) => {
+            const widgetId = String(btn.dataset.dockProxy || "");
+            if (!widgetId || widgetId === "about") return;
+            const enabled = isUiOnlyWidgetLayerEnabled(widgetId);
+            const widget = document.querySelector(`.warzone-widget[data-widget-id="${widgetId}"]`);
+            btn.hidden = !enabled || !widget;
+            btn.classList.toggle("is-active", Boolean(enabled && widget && isWidgetVisible(widget)));
+        });
+    }
     function syncDock() {
         document.querySelectorAll(".wz-dock__btn[data-dock-widget]").forEach((btn) => {
             const id = btn.dataset.dockWidget;
@@ -749,6 +789,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
         syncSeparator();
+        syncDockProxies();
     }
     function syncWidgetChrome() {
         syncDock();
@@ -759,6 +800,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ".warzone-panel--floating",
             ".wz-modal-box",
             ".wz-dock",
+            ".wz-mobile-dock-menu",
             ".warzone-alert",
             "#wz-event-popup",
             "#wz-siren-stack",
@@ -830,6 +872,31 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             saveWidgetState();
             syncWidgetChrome();
+        });
+    });
+    document.querySelectorAll("[data-dock-proxy]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const action = String(btn.dataset.dockProxy || "");
+            const target = action === "about"
+                ? document.getElementById("dock-about")
+                : document.querySelector(`.wz-dock__desktop-actions .wz-dock__btn[data-dock-widget="${action}"]`);
+            target?.click();
+            if (btn.closest(".wz-mobile-dock-menu")) {
+                setMobileDockMenuOpen(false);
+            }
+        });
+    });
+    document.querySelectorAll("[data-mobile-action]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const action = String(btn.dataset.mobileAction || "");
+            setMobileDockMenuOpen(false);
+            if (action === "region") {
+                document.getElementById("wz-region-nav-mobile")?.click();
+            } else if (action === "login") {
+                window.__openLoginModal?.();
+            } else if (action === "support") {
+                window.__openSupportModal?.();
+            }
         });
     });
     document.querySelectorAll("[data-panel-collapse]").forEach((btn) => {

@@ -1223,9 +1223,9 @@
 }
 
 .warzone-widget--naval {
-    left: 30rem;
-    top: auto;
-    bottom: 0;
+    left: 60rem;
+    top: 0;
+    bottom: auto;
 }
 
 .warzone-panel--floating.warzone-widget--naval {
@@ -2153,6 +2153,11 @@ UNUSED CANDIDATE END */
     animation: wz-animate-pulse 1.6s ease-in-out 0.25s infinite;
     clip-path: var(--clippath-shape-1);
     border-radius: .2rem;
+}
+
+.wz-siren-banner--steady .wz-siren__content::before {
+    animation: none;
+    opacity: .9;
 }
 
 .wz-siren-banner--red .wz-siren__content {

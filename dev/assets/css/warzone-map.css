@@ -61,13 +61,12 @@
 /* #region =========== MAP CREDITS =========== */
 .warzone-map-credits {
     position: absolute;
-    right: 1.5rem;
-    bottom: 1rem;
+    right: 0;
+    bottom: 0;
     z-index: 10;
     max-width: 40%;
-    font-size: 1.1rem;
-    line-height: 1.35;
-    color: rgba(240, 244, 255, 0.75);
+    font-size: .2rem;
+    color: var(--color-bg-dark);
     text-align: right;
     pointer-events: none;
 }

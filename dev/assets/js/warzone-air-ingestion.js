@@ -336,7 +336,7 @@ function classifySubtype(record = {}) {
         return "uav";
     }
     // Helicopters / rotorcraft / gunships
-    if (/(heli\b|helicopter\b|rotary wing\b|rotorcraft\b|ah-1\b|ah1\b|cobra\b|ah-64\b|ah64\b|apache\b|uh-60\b|uh60\b|black hawk\b|blackhawk\b|hh-60\b|hh60\b|mh-60\b|mh60\b|seahawk\b|ch-47\b|ch47\b|chinook\b|ch-53\b|ch53\b|stallion\b|super stallion\b|king stallion\b|uh-1\b|uh1\b|huey\b|v-22\b|v22\b|osprey\b|mi-8\b|mi8\b|mi-17\b|mi17\b|hip\b|mi-24\b|mi24\b|hind\b|mi-28\b|mi28\b|havoc\b|ka-27\b|ka27\b|helix\b|ka-29\b|ka29\b|ka-31\b|ka31\b|ka-52\b|ka52\b|alligator\b|z-9\b|z9\b|z-10\b|z10\b|z-19\b|z19\b|z-20\b|z20\b|nh90\b|aw101\b|merlin\b|aw159\b|wildcat\b|lynx\b|ec665\b|tiger\b|h145m\b|dhruv\b|prahchand\b|light combat helicopter\b)/.test(haystack)) {
+    if (/(heli\b|helicopter\b|rotary wing\b|rotorcraft\b|ah-1\b|ah1\b|cobra\b|ah-64\b|ah64\b|apache\b|uh-60\b|uh60\b|black hawk\b|blackhawk\b|hh-60\b|hh60\b|mh-60\b|mh60\b|seahawk\b|ch-47\b|ch47\b|chinook\b|ch-53\b|ch53\b|stallion\b|super stallion\b|king stallion\b|uh-1\b|uh1\b|huey\b|v-22\b|v22\b|osprey\b|mi-8\b|mi8\b|mi-17\b|mi17\b|hip\b|mi-24\b|mi24\b|hind\b|mi-28(?:nm|n)?\b|mi28(?:nm|n)?\b|mi-35\b|mi35\b|havoc\b|ka-27\b|ka27\b|helix\b|ka-29\b|ka29\b|ka-31\b|ka31\b|ka-50\b|ka50\b|hokum\b|ka-52\b|ka52\b|alligator\b|z-9\b|z9\b|z-10\b|z10\b|z-19\b|z19\b|z-20\b|z20\b|nh90\b|aw101\b|merlin\b|aw159\b|wildcat\b|lynx\b|ec665\b|tiger\b|h145m\b|dhruv\b|prahchand\b|light combat helicopter\b)/.test(haystack)) {
         return "helicopter";
     }
     // Fighters / interceptors / multirole / attack jets

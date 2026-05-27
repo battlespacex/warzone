@@ -176,6 +176,12 @@ const CIVILIAN_VESSEL_PATTERNS = [
     /\bCABLE LAYER\b/i,
     /\bPILOT\b/i,
 ];
+// AIS may publish historic hull identifiers or museum/retired contacts. Keep
+// these out of the operational layer even when they resemble a military hull.
+const NON_OPERATIONAL_NAVAL_PATTERNS = [
+    /\bCV[-\s]?0?9\b/i, // USS Essex (CV-9), decommissioned in 1969.
+    /\b(?:DECOMMISSIONED|RETIRED|MUSEUM(?:\s+SHIP)?|PRESERVED|SCRAPPED|STRICKEN|DISPOSED)\b/i,
+];
 const NAVAL_CLASS_PATTERNS = {
     carrier: /\bCVN[-\s]?\d+\b|\bCV[-\s]?\d+\b|AIRCRAFT CARRIER|HELICOPTER CARRIER|LIGHT CARRIER/i,
     destroyer: /\bDDG[-\s]?\d+\b|DESTROYER|GUIDED MISSILE DESTROYER/i,
@@ -205,6 +211,22 @@ function isCivilianVesselName(name, callSign = "") {
 function isMilitaryVesselName(name, callSign = "") {
     const haystacks = [normalizeString(name), normalizeString(callSign)].filter(Boolean);
     return matchesPatternList(NAVAL_NAME_PATTERNS, haystacks);
+}
+
+function isKnownNonOperationalNavalContact(vessel = {}) {
+    const identity = [
+        vessel.name,
+        vessel.callSign,
+        vessel.status,
+        vessel.operationalStatus,
+        vessel.operational_status,
+        vessel.serviceStatus,
+        vessel.service_status,
+    ]
+        .map(normalizeString)
+        .filter(Boolean)
+        .join(" ");
+    return NON_OPERATIONAL_NAVAL_PATTERNS.some((pattern) => pattern.test(identity));
 }
 
 // ─── Ship type 35 = military ──────────────────────────────────────────────────
@@ -278,6 +300,7 @@ function readPositionFields(pos, meta) {
 }
 
 function isStrictMilitaryNavalContact(vessel) {
+    if (isKnownNonOperationalNavalContact(vessel)) return false;
     const hasCivilianIdentity = isCivilianVesselName(vessel.name, vessel.callSign);
     const hasMilitaryIdentity = isMilitaryVesselName(vessel.name, vessel.callSign);
     if (hasCivilianIdentity && !hasMilitaryIdentity) {

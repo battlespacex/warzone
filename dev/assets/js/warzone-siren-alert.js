@@ -157,7 +157,7 @@ function stopSirenLoop() {
     }
 }
 // ── Main API ───────────────────────────────────────────────────────────────────
-export function showSirenAlert({ title, meta = "", level = "orange", sound = true } = {}) {
+export function showSirenAlert({ title, meta = "", level = "orange", sound = true, pulse = true } = {}) {
     enforceCap();
     const id = ++__seq;
     const stack = getStack();
@@ -166,6 +166,7 @@ export function showSirenAlert({ title, meta = "", level = "orange", sound = tru
     if (!tpl) return;
     const banner = tpl.content.cloneNode(true).firstElementChild;
     banner.className = `wz-siren-banner wz-siren-banner--${level}`;
+    banner.classList.toggle("wz-siren-banner--steady", pulse === false);
     banner.dataset.alertId = id;
     banner.querySelector(".wz-siren-title").textContent = title;
     const metaEl = banner.querySelector(".wz-siren-meta");

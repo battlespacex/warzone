@@ -3,13 +3,11 @@
         <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="Stratops logo" class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async">
     </a>
 </div>
-
 <header class="warzone-commandbar">
     <div class="warzone-region-bar">
-        <span class="warzone-region-bar__label static-icon">
-            <span class="stratops-ico-global-1" aria-hidden="true"></span>
+        <span class="warzone-region-bar__label static-icon" aria-hidden="true">
+            <span class="stratops-ico-global-1"></span>
         </span>
-
         <!-- <div class="wz-selector">
             <select aria-label="Select conflict lens" class="wz--dropdown" id="wz-lens-nav">
                 <option value="live">Current Ongoing Conflicts</option>
@@ -18,19 +16,26 @@
                 <option value="all">All Events</option>
             </select>
         </div> -->
-
         <div class="wz-region-control" id="wz-region-control">
-            <span class="wz-region-hint" id="wz-region-nav-hint">Select region</span>
             <button type="button"
                     class="btn-primary wz-region-select-btn"
                     id="wz-region-nav"
                     aria-label="Open monitoring region selector">
-                <span id="wz-region-nav-label">Choose</span>
+                <span class="wz-region-select-btn__label" id="wz-region-nav-label"></span>
             </button>
         </div>
     </div>
-
-
+    <div class="wz-region-control wz-mobile-region-trigger" id="wz-region-control-mobile">
+        <button type="button"
+                class="btn-primary wz-region-select-btn"
+                id="wz-region-nav-mobile"
+                aria-label="Open monitoring region selector">
+            <span class="wz-region-select-btn__icon static-icon" aria-hidden="true">
+                <i class="stratops-ico-global-1"></i>
+            </span>
+            <span class="wz-region-select-btn__label sr-only" id="wz-region-nav-mobile-label"></span>
+        </button>
+    </div>
     <div class="warzone-actions">
         <div class="warzone-status-bar">
             <div class="wz-utc-clock" id="wz-utc-clock" aria-label="Current UTC time">
@@ -63,9 +68,8 @@
         <!--<div class="warzone-top-tabs">
             <button class="top-tab is-active" data-view="strikes">Strikes</button>
             <button class="top-tab" data-view="analytics">Analytics</button>
-        </div>-->
+        </div>
         <div class="warzone-brand-actions" role="navigation" aria-label="BattlespaceX social channels">
-            <!-- <a class="icon-chip" href="https://t.me/strikemaplive" target="_blank" rel="noopener noreferrer" aria-label="Telegram">TG</a>-->
             <ul itemscope="" itemtype="http://schema.org/SiteNavigationElement">
                 <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://twitter.com/battlespacex" itemprop="url" title="Twitter X page" aria-label="BattleSpaceX on X (Twitter)" class="action-icon stratops-ico-social-X-1"></a></li>
                 <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.facebook.com/battlespacex" itemprop="url" title="Facebook page" aria-label="BattleSpaceX on Facebook" class="action-icon stratops-ico-social-fb-1"></a></li>
@@ -74,7 +78,7 @@
                 <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.youtube.com/@battlespacex" itemprop="url" title="Youtube channel" aria-label="BattleSpaceX on YouTube" class="action-icon stratops-ico-social-yt-1"></a></li>
                 <li itemscope="" itemtype="http://schema.org/ListItem"><a href="https://www.linkedin.com/company/battlespacex/" itemprop="url" title="Linkedin page" aria-label="BattleSpaceX on LinkedIn" class="action-icon stratops-ico-social-linkedin-1"></a></li>
             </ul>
-        </div>
+        </div>-->
         <button type="button"
                 id="wz-nav-login-btn"
                 class="btn-primary"
@@ -108,15 +112,6 @@
                 <select aria-label="Select conflict lens" class="wz--dropdown" id="wz-lens-nav-mobile"></select>
             </div>
 
-            <div class="wz-region-control" id="wz-region-control-mobile">
-                <span class="wz-region-hint" id="wz-region-nav-mobile-hint">Select region</span>
-                <button type="button"
-                        class="btn-primary wz-region-select-btn"
-                        id="wz-region-nav-mobile"
-                        aria-label="Open monitoring region selector">
-                    <span id="wz-region-nav-mobile-label">Choose</span>
-                </button>
-            </div>
         </div>
 
         <div class="warzone-mobile-settings-panel__footer">

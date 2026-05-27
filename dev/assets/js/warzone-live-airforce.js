@@ -166,6 +166,7 @@ const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "Heli-Blackhawk": Object.freeze({ category: "helicopter", model: "Heli-Blackhawk.glb", icon: "Heli-Blackhawk.png" }),
     "Heli-Chinook": Object.freeze({ category: "helicopter", model: "Heli-Chinook.glb", icon: "Heli-Chinook.png" }),
     "Heli-Cobra-Zulu": Object.freeze({ category: "helicopter", model: "Heli-Cobra-Zulu.glb", icon: "Heli-Cobra-Zulu.png" }),
+    "Heli-KA50": Object.freeze({ category: "helicopter", classification: "Attack Helicopter", model: "Heli-KA50.glb", icon: "Heli-KA50.png" }),
     "Heli-MI17": Object.freeze({ category: "helicopter", model: "Heli-MI17.glb", icon: "Heli-MI17.png" }),
     "Heli-MI17V": Object.freeze({ category: "helicopter", model: "Heli-MI17V.glb", icon: "Heli-MI17V.png" }),
     "Fighter-F15": Object.freeze({ category: "fighter", model: "Fighter-F15.glb", icon: "Fighter-F15.png" }),
@@ -221,6 +222,7 @@ const LIVE_AIRCRAFT_ICON_FALLBACK_CODE_BY_ASSET_KEY = Object.freeze({
     "Heli-Blackhawk": "hh-2",
     "Heli-Chinook": "hh-2",
     "Heli-Cobra-Zulu": "hh-1",
+    "Heli-KA50": "hh-1",
     "Heli-MI17": "hh-2",
     "Heli-MI17V": "hh-2",
     "Fighter-F15": "ff-5",
@@ -517,7 +519,7 @@ const LIVE_AIRCRAFT_TRANSPORT_PATTERNS = [
 ];
 const LIVE_AIRCRAFT_HELICOPTER_PATTERNS = [
     /\b(helicopter|rotary|rotorcraft|gunship|utility helicopter|attack helicopter|lift helicopter)\b/i,
-    /\b(ah ?1|ah ?64|mi ?8|mi ?17|mi ?24|mi ?25|mi ?28|mi ?35|ka ?52|z ?10|t ?129|uh ?60|s ?70|ch ?47|nh ?90|aw ?101|h ?225|bell)\b/i,
+    /\b(ah ?1|ah ?64|mi ?8|mi ?17|mi ?24|mi ?25|mi ?28(?:nm|n)?|mi ?35|ka ?50|ka ?52|hokum|hind|havoc|z ?10|t ?129|uh ?60|s ?70|ch ?47|nh ?90|aw ?101|h ?225|bell)\b/i,
 ];
 const LIVE_AIRCRAFT_BOMBER_PATTERNS = [
     /\b(bomber|strategic bomber|strike bomber|gunship)\b/i,
@@ -643,9 +645,10 @@ const LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES = Object.freeze([
     { assetKey: "Heli-Cobra-Zulu", patterns: [/\bah[\s-]?1\b/i, /\bcobra\b/i, /\bviper\b/i, /\bzulu\b/i] },
     { assetKey: "Heli-Chinook", patterns: [/\bch[\s-]?47\b/i, /\bchinook\b/i] },
     { assetKey: "Heli-Blackhawk", patterns: [/\buh[\s-]?60\b/i, /\bblack\s*hawk\b/i, /\bs[\s-]?70\b/i, /\bsh[\s-]?60\b/i, /\bseahawk\b/i, /\bmh[\s-]?60\b/i] },
+    { assetKey: "Heli-KA50", patterns: [/\bka[\s-]?50\b/i, /\bkamov\s+ka[\s-]?50\b/i, /\bhokum(?:[\s-]?a)?\b/i] },
     { assetKey: "Heli-MI17V", patterns: [/\bmi[\s-]?17v\b/i, /\bmi[\s-]?17v5\b/i, /\bmi[\s-]?17v-?5\b/i, /\bmi[\s-]?171\b/i, /\bmi[\s-]?172\b/i] },
     { assetKey: "Heli-MI17", patterns: [/\bmi[\s-]?8\b/i, /\bmi[\s-]?17\b/i, /\bhip\b/i] },
-    { assetKey: "Heli-412", patterns: [/\bbell[\s-]?412\b/i, /\buh[\s-]?1\b/i, /\bhuey\b/i, /\bab[\s-]?212\b/i, /\baw139\b/i, /\baw101\b/i, /\bnh90\b/i, /\bh225m\b/i, /\bcougar\b/i, /\bcaracal\b/i, /\bka[\s-]?27\b/i, /\bka[\s-]?52\b/i, /\bmi[\s-]?24\b/i, /\bmi[\s-]?35\b/i, /\btiger\b/i, /\bt129\b/i, /\bz[\s-]?(?:10|19)\b/i, /\bdhruv\b/i, /\blch\b/i] },
+    { assetKey: "Heli-412", patterns: [/\bbell[\s-]?412\b/i, /\buh[\s-]?1\b/i, /\bhuey\b/i, /\bab[\s-]?212\b/i, /\baw139\b/i, /\baw101\b/i, /\bnh90\b/i, /\bh225m\b/i, /\bcougar\b/i, /\bcaracal\b/i, /\bka[\s-]?27\b/i, /\btiger\b/i, /\bt129\b/i, /\bz[\s-]?(?:10|19)\b/i, /\bdhruv\b/i, /\blch\b/i] },
     { assetKey: "Drone-Globalhawk", patterns: [/\brq[\s-]?4\b/i, /\bglobal\s*hawk\b/i, /\bmq[\s-]?4c\b/i, /\bmq[\s-]?4\b/i, /\btriton\b/i, /\bxianglong\b/i, /\bsoaring dragon\b/i, /\b9sq\b/i] },
     { assetKey: "Drone-MQ9", patterns: [/\bmq[\s-]?9\b/i, /\breaper\b/i, /\bpredator\b/i, /\bmq[\s-]?1\b/i, /\bbayraktar\b/i, /\btb[\s-]?2\b/i, /\bwing loong\b/i, /\bwingloong\b/i, /\bheron\b/i, /\bhermes\b/i, /\borion uav\b/i, /\bforpost\b/i, /\banka\b/i, /\bakinci\b/i, /\baksungur\b/i, /\bch[\s-]?[45]\b/i, /\bmohajer\b/i] },
     { assetKey: "ISR-P8", patterns: [/\bp[\s-]?8a?\b/i, /\bp[\s-]?8i\b/i, /\bposeidon\b/i, /\bboeing\s+p[\s-]?8\b/i, /\bp[\s-]?3\b/i, /\borion\b/i, /\bep[\s-]?3e?\b/i, /\bcp[\s-]?140\b/i, /\baurora\b/i, /\bkawasaki\s+p[\s-]?1\b/i, /\bp[\s-]?1\b/i, /\batlantique\s*2\b/i, /\batl2\b/i, /\bbr[eé]guet\s+atlantique\b/i, /\bnimrod(?:\s+mra4)?\b/i, /\by[\s-]?8q\b/i, /\bkq[\s-]?200\b/i, /\by[\s-]?9q\b/i, /\bmaritime patrol\b/i, /\bmaritime isr\b/i, /\bnaval surveillance\b/i, /\basw\b/i, /\banti[\s-]?submarine warfare\b/i] },
@@ -653,6 +656,12 @@ const LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES = Object.freeze([
 ]);
 const LIVE_AIRCRAFT_HELO_ATTACK_PATTERNS = [
     /\b(ah ?1[a-z]?|ah ?64[a-z]?|apache|mi ?24|mi ?25|mi ?28|mi ?35|ka ?52|z ?10|t ?129|tiger|rooivalk|gunship|attack helicopter)\b/i,
+];
+const LIVE_AIRCRAFT_RUSSIAN_ATTACK_HELO_FALLBACK_PATTERNS = [
+    /\b(ka[\s-]?52|alligator|mi[\s-]?24|mi[\s-]?35|hind|mi[\s-]?28(?:nm|n)?|havoc|gunship|attack helicopter)\b/i,
+];
+const LIVE_AIRCRAFT_LEGACY_GENERIC_HELO_PATTERNS = [
+    /\b(ka[\s-]?52|mi[\s-]?24|mi[\s-]?35)\b/i,
 ];
 const LIVE_AIRCRAFT_GLOBAL_DEFAULTS = Object.freeze({
     fighter: "Fighter-F16",
@@ -918,6 +927,7 @@ function buildLiveAircraftIconContext(track = {}) {
     const haystack = values.join(" ").trim();
     const paddedHaystack = haystack ? ` ${haystack} ` : " ";
     const country = normalizeAircraftIconText(track.country || metadata.country || track.region || "");
+    const explicitCountry = normalizeAircraftIconText(track.country || metadata.country || "");
     const operator = normalizeAircraftIconText(track.operator || track.owner || metadata.operator || "");
     const origin = normalizeAircraftIconText(
         track.origin ||
@@ -936,6 +946,7 @@ function buildLiveAircraftIconContext(track = {}) {
         haystack,
         paddedHaystack,
         paddedAffiliation,
+        country: explicitCountry,
     };
 }
 function hasAircraftTokens(context = {}, tokens = []) {
@@ -976,6 +987,9 @@ function isIsraelAffiliation(context = {}) {
 }
 function isRussianStyleAffiliation(context = {}) {
     return hasAircraftTokens(context, LIVE_AIRCRAFT_RUSSIAN_STYLE_TOKENS);
+}
+function isRussiaCountry(context = {}) {
+    return ["russia", "russian federation"].includes(String(context.country || ""));
 }
 function isExSovietAffiliation(context = {}) {
     return hasAircraftTokens(context, LIVE_AIRCRAFT_EX_SOVIET_TOKENS);
@@ -1085,6 +1099,14 @@ function resolveTransportIconCode(context = {}) {
 }
 function resolveHelicopterIconCode(context = {}) {
     const haystack = String(context.haystack || "");
+    if (
+        isRussiaCountry(context) &&
+        hasAnyPattern(haystack, LIVE_AIRCRAFT_RUSSIAN_ATTACK_HELO_FALLBACK_PATTERNS)
+    ) {
+        return "Heli-KA50";
+    }
+    // Keep the prior generic representation for these non-Russian gunships.
+    if (hasAnyPattern(haystack, LIVE_AIRCRAFT_LEGACY_GENERIC_HELO_PATTERNS)) return "Heli-412";
     if (hasAnyPattern(haystack, LIVE_AIRCRAFT_HELO_ATTACK_PATTERNS)) return "Heli-Apache";
     return "";
 }
@@ -2154,7 +2176,7 @@ function resolveTrackSubtype(track = {}) {
     if (/(isr\b|global hawk|triton|jstars|e-8\b|e8\b|rq-4\b|rq4\b|special mission)/.test(haystack)) return "isr";
     if (/(tanker|refuel|refueller|pegasus|extender|stratotanker|kc-135\b|kc135\b|kc-46\b|kc46\b|kc-10\b|kc10\b|a330 mrtt\b|mrtt\b|voyager\b|il-78\b|il78\b|yy-20\b|yy20\b)/.test(haystack)) return "tanker";
     if (/(transport|airlift|cargo|logistics|globemaster|hercules|atlas\b|millennium\b|a-?400m\b|c-17\b|c17\b|c-5\b|c5\b|c-130\b|hc-130\b|mc-130\b|c130\b|c-390\b|c390\b|c-40\b|c40\b|an-124\b|an124\b|an-12\b|an12\b|il-76\b|il76\b|y-8\b|y8\b|y-9\b|y9\b|y-20\b|y20\b|cn-235\b|cn235\b|c295\b)/.test(haystack)) return "transport";
-    if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28\b|mi28\b|ka-27\b|ka27\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
+    if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28(?:nm|n)?\b|mi28(?:nm|n)?\b|mi-35\b|mi35\b|ka-27\b|ka27\b|ka-50\b|ka50\b|hokum\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
     if (/(bomber|b-1\b|b1\b|b-2\b|b2\b|b-52\b|b52\b|su-34\b|su34\b|tu-22m3\b|tu22m3\b|tu-95\b|tu95\b|tu-160\b|tu160\b|h-6\b|h6\b|ac-130\b|ac130\b|spectre|spooky)/.test(haystack)) return "bomber";
     if (/(uav\b|drone\b|ucav\b|reaper\b|predator\b|mq-9\b|mq9\b|rq-4\b|rq4\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
     if (isExcludedTrainerAircraftText(haystack)) return "trainer";

@@ -272,6 +272,8 @@ GLB base:
 Current aircraft asset behavior:
 - Runtime uses the R3 workbook Asset Key registry in dev/assets/js/warzone-live-airforce.js.
 - Exact aircraft aliases win first, for example Su-34/Fullback -> Bomber-SU34, B-52 -> Bomber-B52, Eurofighter/Typhoon/EF2000 family -> Fighter-Eurofighter, J-10 family -> Fighter-J10, J-20 family -> Fighter-J20, J-35/FC-31 family -> Fighter-F35, Su-30 family -> Fighter-SU30, J-11/J-15/J-16/Su-27/Su-35/MiG-29 family -> Fighter-J11, P-8/P-3/P-1 maritime patrol family -> ISR-P8, Y-20 -> Transport-C17, Tu-160/Tu-22M3 -> Bomber-B1, KJ-2000 -> AWACS-Phalcon.
+- Ka-50/Kamov Ka-50/Hokum/Hokum-A map to Heli-KA50, an Attack Helicopter asset that retains the helicopter runtime subtype and behavior.
+- Russian attack helicopters/gunships without a dedicated model, including Ka-52, Mi-24, Mi-35, Mi-28, Mi-28N, and Mi-28NM, use Heli-KA50 only when the track country is Russia. Priority is dedicated model, then the Russia-only Heli-KA50 fallback, then the existing country/generic helicopter fallback.
 - Drone aliases such as MQ-9/Reaper, Bayraktar TB2, RQ-4 Global Hawk, Wing Loong, CH-4/CH-5, Heron, Akinci, and Mohajer map to Drone-MQ9.
 - If no exact alias matches, the resolver uses country/operator defaults by normalized role.
 - If no country/category default exists, it falls back to the global generic Asset Key for the role.
@@ -314,6 +316,10 @@ Current naval asset behavior:
 - Subtype/category fallbacks map surface combatants to Vessel-Frigate, small patrol/missile craft to the available small-vessel/frigate model fallback, ISR ships to Vessel-ISR, SSN/SSBN to Submarine-SSN, and SSK/AIP to Submarine-API.
 - Country/operator naval defaults are applied only after exact/subtype matching.
 - Icon codes such as ac-us-1, ac-rs-1, ns-2, ni-1, and sb-1 are accepted and translated to canonical Asset Keys.
+- Live naval contacts reject known non-operational identities such as retired USS Essex (CV-9), plus AIS records explicitly marked retired, decommissioned, museum, preserved, scrapped, stricken, or disposed.
+- High-value naval alerts are reserved for aircraft carriers, SSBN submarines, and intelligence vessels; ordinary surface combatants and generic/conventional submarines remain trackable without triggering HVA banners.
+- High-value aircraft alerts are reserved for bombers and AWACS; ISR/recon, tankers/refuelers, and VIP/government aircraft remain trackable without triggering HVA banners.
+- High-value asset notifications are displayed one at a time with a shared air/naval cooldown and a steady presentation; tracker badges retain a static HVA count instead of continuous pulsing.
 
 Naval subtype labels:
 - carrier: Carrier

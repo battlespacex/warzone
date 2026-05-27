@@ -212,7 +212,7 @@
     .wz-btns,
     .wz-action {
         flex-wrap: wrap;
-        gap: 0.75rem;
+        gap: 1.5rem;
     }
 
     .wz-action {
@@ -223,12 +223,17 @@
     .wz-modal-body h2, .wz-intro.wz-modal h2,
     .wz-content h3 {
         line-height: 1;
+        font-size: var(--text-xxl);
     }
 
     .wz-aircraft-item__meta,
     .wz-aircraft-item__stats {
         flex-wrap: wrap;
     }
+
+    .warzone-view:after {
+    height: 3rem;
+}
 }
 /* #endregion */
 /* #region =========== Small Mobile (≤480px) =========== */
@@ -283,15 +288,217 @@
     .warzone-brand-actions {
         display: none !important;
     }
+
+    .wz-mobile-region-trigger {
+        position: fixed;
+        top: 2rem;
+        left: 2rem;
+        z-index: 10021;
+        display: inline-flex;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    }
+
+    body.is-app-active .wz-mobile-region-trigger {
+        opacity: 1;
+        transition-delay: 0.95s;
+    }
+
+    .wz-mobile-region-trigger .wz-region-select-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 4.4rem;
+        min-width: 4.4rem !important;
+        max-width: 4.4rem;
+        height: 4.4rem;
+        padding: 0;
+    }
+
+    .wz-mobile-region-trigger .wz-region-select-btn__icon {
+        font-size: var(--icon-xl);
+    }
+
     .warzone-brand {
         min-height: 8rem;
+        pointer-events: none;
+    }
+
+    .warzone-logo {
+        pointer-events: auto;
     }
 
     .warzone-actions {
-        top: 1.8rem;
-        right: 1rem;
+        top: 2rem;
+        right: 2rem;
         gap: 0.6rem;
     }
+
+    .warzone-status-bar {
+        gap: .7rem;
+    }
+
+    .wz-globe-toggle {
+        position: fixed;
+        left: 2rem;
+        top: 0;
+        bottom: 0;
+        flex-direction: column;
+        justify-content: center;
+        height: 8rem;
+        margin: auto 0;
+    }
+
+    .wz-globe-toggle__btn {
+        width: 4rem;
+        height: 4rem;
+    }
+
+    .wz-dock {
+        bottom: 2rem;
+        max-width: calc(100vw - 4rem);
+        padding: .6rem 1rem;
+        background: var(--color-bg-overlay);
+        clip-path: var(--clippath-shape-3);
+    }
+
+    .wz-dock__desktop-actions {
+        display: none;
+    }
+
+    .wz-dock__mobile-actions {
+        display: flex;
+        height: auto;
+        gap: 1.1rem;
+    }
+
+    .wz-dock__mobile-actions .wz-dock__btn {
+        width: 4rem;
+        min-width: 4rem;
+        height: 4rem;
+    }
+
+    .wz-dock__mobile-actions .wz-dock__icon {
+        height: 4rem;
+    }
+
+    .wz-mobile-dock-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 10022;
+        display: block;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        background: rgba(2, 7, 14, .58);
+        transition: opacity .28s ease, visibility 0s linear .28s;
+    }
+
+    .wz-mobile-dock-backdrop.is-open {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+        transition-delay: 0s;
+    }
+
+    .wz-mobile-dock-menu {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 10023;
+        display: flex;
+        flex-direction: column;
+        width: min(30rem, 82vw);
+        background: rgba(18, 23, 32, .98);
+        border-right: .1rem solid var(--color-border-gray);
+        box-shadow: 1rem 0 3rem rgba(0, 0, 0, .38);
+        transform: translateX(-103%);
+        visibility: hidden;
+        pointer-events: none;
+        transition: transform .3s ease, visibility 0s linear .3s;
+    }
+
+    .wz-mobile-dock-menu.is-open {
+        transform: translateX(0);
+        visibility: visible;
+        pointer-events: auto;
+        transition-delay: 0s;
+    }
+
+    .wz-mobile-dock-menu__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 6rem;
+        padding: 0 1.5rem;
+        background: var(--color-bg-header);
+    }
+
+    .wz-mobile-dock-menu__head h2 {
+        font-size: var(--text-base);
+        text-transform: uppercase;
+        letter-spacing: .1em;
+    }
+
+    .wz-mobile-dock-menu__close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 4rem;
+        height: 4rem;
+        border: 0;
+        color: var(--color-white);
+        background: transparent;
+        font-size: var(--icon-lg);
+        cursor: pointer;
+    }
+
+    .wz-mobile-dock-menu__items {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        padding: 1.5rem 1rem;
+        overflow-y: auto;
+    }
+
+    .wz-mobile-dock-menu__item {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        width: 100%;
+        min-height: 5rem;
+        padding: .6rem 1rem;
+        border: 0;
+        color: var(--color-text-heading);
+        background: transparent;
+        font-family: var(--text-font);
+        font-size: var(--text-base);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .wz-mobile-dock-menu__item .static-icon {
+        width: 3.8rem;
+        color: var(--color-white);
+        font-size: var(--icon-xl);
+        text-align: center;
+    }
+
+    .wz-mobile-dock-menu__item.is-active,
+    .wz-mobile-dock-menu__item:hover {
+        color: var(--color-teal-glow);
+        background: rgba(24, 226, 219, .08);
+    }
+
+    .wz-mobile-dock-menu__item.is-active .static-icon {
+        color: var(--color-teal-glow);
+    }
+
+    .wz-mobile-dock-menu__item.has-hva-alert .static-icon {
+        color: var(--color-red-glow);
+    }
+
     .warzone-mobile-settings-panel {
         position: fixed;
         inset: 8rem 1rem auto 1rem;
@@ -383,20 +590,20 @@
     .warzone-widget--aircraft,
     .warzone-widget--naval {
         top: 50% !important;
-        right: var(--wz-mobile-widget-gap) !important;
         bottom: auto !important;
-        left: var(--wz-mobile-widget-gap) !important;
     }
 
-
-
-
-
     .warzone-panel--floating {
-        left: 0.8rem !important;
-        right: 1rem !important;
+
+        left: 0 !important;
+        right: 0!important;
+                padding: 0 4rem;
         width: auto !important;
         max-width: none !important;
+    }
+
+    .warzone-panel--floating [data-panel-collapse] {
+        display: none !important;
     }
 
     .wz-modal__head {
@@ -442,22 +649,31 @@
     }
 
     .wz-dock {
-        max-width: calc(100vw - 2rem);
-        overflow-x: auto;
+        max-width: calc(100vw - 4rem);
+        overflow-x: visible;
         overflow-y: visible;
-        scrollbar-width: none;
+        left: 50%;
+        right: auto;
+        bottom: 2rem;
+        transform: translateX(-50%) !important;
+        background: var(--color-bg-overlay);
     }
 
     .wz-btn-container {
-        padding: 0 4rem;
-        clip-path: polygon(100% 100%, 0 100%, 5rem 0, calc(100% - 5rem) 0);
-        height: 5rem;
+        height: auto;
+        gap: 1.1rem;
     }
 
     .wz-dock__btn {
         width: 3.4rem;
         height: 3.4rem;
         flex-shrink: 0;
+    }
+
+    .wz-dock__mobile-actions .wz-dock__btn {
+        width: 3.4rem;
+        min-width: 3.4rem;
+        height: 3.4rem;
     }
 
     .wz-dock__icon {
@@ -485,6 +701,7 @@
     .wz-region-modal__grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
 }
 @media (max-width: 480px) {
     html { font-size: 60% }
@@ -496,7 +713,7 @@
         }
     .warzone-actions {
         top: 1.8rem;
-        right: 0.8rem;
+        right: 2rem;
     }
     .warzone-mobile-settings-panel {
         inset: 7rem 0.8rem auto 0.8rem;

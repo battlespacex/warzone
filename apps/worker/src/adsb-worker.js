@@ -128,7 +128,10 @@ const ICAO_TYPE_NAMES = {
     "MI24": "Mi-24 Hind",
     "MI25": "Mi-25 Hind-D",
     "MI28": "Mi-28 Havoc",
+    "MI28N": "Mi-28N Havoc",
+    "MI28NM": "Mi-28NM Havoc",
     "MI35": "Mi-35 Hind-E",
+    "KA50": "Ka-50 Hokum-A",
     "KA52": "Ka-52 Alligator",
     "KA27": "Ka-27 Helix",
     // Chinese Aircraft
@@ -262,7 +265,7 @@ const TRANSPORT_CODES = new Set([
 
 const HELI_CODES = new Set([
     "AH64", "AH1", "UH60", "H60", "SH60", "MH60", "CH47", "H47", "V22", "MV22", "CV22",
-    "MI8", "MI17", "MI24", "MI25", "MI28", "MI35", "KA52", "KA27", "Z10", "Z19", "SA342",
+    "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52", "KA27", "Z10", "Z19", "SA342",
     "AS532", "EC725", "NH90", "H225", "EC665", "H145",
 ]);
 
@@ -393,7 +396,7 @@ function classifyByModelName(modelName = "") {
     if (/(ISR\b|GLOBAL HAWK|TRITON|JSTARS|E-8\b|E8\b|RQ-4\b|RQ4\b|SPECIAL MISSION)/.test(haystack)) return "isr";
     if (/(TANKER|REFUEL|REFUELLER|PEGASUS|EXTENDER|STRATOTANKER|KC-135\b|KC135\b|KC-46\b|KC46\b|KC-10\b|KC10\b|A330 MRTT\b|MRTT\b|VOYAGER\b|IL-78\b|IL78\b|YY-20\b|YY20\b)/.test(haystack)) return "tanker";
     if (/(TRANSPORT|AIRLIFT|CARGO|LOGISTICS|GLOBEMASTER|HERCULES|ATLAS\b|A400M\b|C-17\b|C17\b|C-5\b|C5\b|C-130\b|HC-130\b|MC-130\b|C130\b|C-40\b|C40\b|AN-124\b|AN124\b|AN-12\b|AN12\b|IL-76\b|IL76\b|Y-20\b|Y20\b|CN-235\b|CN235\b|C295\b)/.test(haystack)) return "transport";
-    if (/(HELICOPTER|BLACK HAWK|BLACKHAWK|APACHE|CHINOOK|OSPREY|SEAHAWK|SUPER STALLION|KING STALLION|UH-60\b|UH60\b|HH-60\b|HH60\b|MH-60\b|MH60\b|H-60\b|H60\b|CH-47\b|CH47\b|CH-53\b|CH53\b|V-22\b|V22\b|MI-8\b|MI8\b|MI-17\b|MI17\b|MI-24\b|MI24\b|MI-28\b|MI28\b|KA-27\b|KA27\b|KA-52\b|KA52\b)/.test(haystack)) return "helicopter";
+    if (/(HELICOPTER|BLACK HAWK|BLACKHAWK|APACHE|CHINOOK|OSPREY|SEAHAWK|SUPER STALLION|KING STALLION|UH-60\b|UH60\b|HH-60\b|HH60\b|MH-60\b|MH60\b|H-60\b|H60\b|CH-47\b|CH47\b|CH-53\b|CH53\b|V-22\b|V22\b|MI-8\b|MI8\b|MI-17\b|MI17\b|MI-24\b|MI24\b|MI-28(?:NM|N)?\b|MI28(?:NM|N)?\b|MI-35\b|MI35\b|KA-27\b|KA27\b|KA-50\b|KA50\b|HOKUM\b|KA-52\b|KA52\b)/.test(haystack)) return "helicopter";
     if (/(BOMBER|B-1\b|B1\b|B-2\b|B2\b|B-52\b|B52\b|TU-95\b|TU95\b|TU-160\b|TU160\b|H-6\b|H6\b|AC-130\b|AC130\b|SPECTRE|SPOOKY)/.test(haystack)) return "bomber";
     if (isExcludedTrainerAircraftText(haystack)) return "trainer";
     if (/(FIGHTER|INTERCEPTOR|MULTIROLE|HORNET|SUPER HORNET|STRIKE EAGLE|RAPTOR|LIGHTNING II|WARTHOG|TYPHOON|EUROFIGHTER|RAFALE|GRIPEN|MIRAGE|TOMCAT|F-15\b|F15\b|F-16\b|F16\b|F-18\b|F18\b|FA-18\b|F\/A-18\b|F-22\b|F22\b|F-35\b|F35\b|A-10\b|A10\b|SU-27\b|SU27\b|SU-30\b|SU30\b|SU-35\b|SU35\b|MIG-29\b|MIG29\b|MIG-31\b|MIG31\b|J-10\b|J10\b|J-16\b|J16\b|J-20\b|J20\b|TEJAS\b|JF-17\b|JF17\b)/.test(haystack)) return "fighter";

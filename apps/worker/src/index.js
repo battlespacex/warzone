@@ -313,7 +313,7 @@ const HARD_MILITARY_AIRCRAFT_CODES = new Set([
     // Transport / lift
     "C17", "C130", "C27J", "C295", "C5", "A400", "A124", "AN12", "AN22", "AN26", "AN72", "IL76", "Y20",
     // Helicopters / tiltrotor / gunships
-    "AH1", "AH64", "H47", "CH47", "UH1", "UH60", "V22", "MI8", "MI17", "MI24", "MI25", "MI28", "MI35", "KA52",
+    "AH1", "AH64", "H47", "CH47", "UH1", "UH60", "V22", "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52",
     "KA27", "Z10", "Z19", "Z20", "SA330", "AS532", "EC725",
     // Maritime / naval aviation
     "P8A", "P3C", "S3B", "SH60", "MH60", "KA31"
@@ -498,7 +498,7 @@ function deriveAircraftRole(row) {
     if (/(B52|B1|B2|TU22|TU95|TU160|H6)/.test(code)) return "bomber";
     if (/(F14|F15|F16|F18|F22|F35|A10|AV8|EA18|F5|F4|EUFI|TORN|RAFA|M2K|M346|JAS3|GRIP|SU24|SU25|SU27|SU30|SU30MKI|SU30MKK|SU30SM|SU33|SU34|SU35|SU57|MIG21|MIG23|MIG25|MIG27|MIG29|MIG31|J7|J8|J10|J11|J15|J16|J20|JH7|JF17|TEJA|LCA|M2000|MIR2|MIR3)/.test(code)) return "fighter";
     if (/(C17|C130|C27J|C295|C5|A400|A124|AN12|AN22|AN26|AN72|IL76|Y20)/.test(code) || /(RCH|REACH|ASCOT)/.test(callsign)) return "transport";
-    if (/(AH1|AH64|H47|CH47|UH1|UH60|V22|MI8|MI17|MI24|MI25|MI28|MI35|KA52|KA27|Z10|Z19|Z20|SA330|AS532|EC725)/.test(code)) return "helicopter";
+    if (/(AH1|AH64|H47|CH47|UH1|UH60|V22|MI8|MI17|MI24|MI25|MI28(?:NM|N)?|MI35|KA50|KA52|KA27|Z10|Z19|Z20|SA330|AS532|EC725)/.test(code)) return "helicopter";
     if (/(P8A|P3C|S3B|SH60|MH60|KA31)/.test(code)) return "maritime_patrol";
     return "military_aircraft";
 }

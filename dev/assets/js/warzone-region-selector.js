@@ -18,6 +18,10 @@ const REGIONS = [
 ];
 // Keep global view support available internally while hiding it from user selection.
 const REGION_SELECTOR_GLOBAL_VIEW_ENABLED = false;
+const REGION_FOCUS_COMPACT_SCALE = 0.7;
+const REGION_FOCUS_LARGE_SCALE = 0.85;
+const REGION_FOCUS_COMPACT_SPAN_DEGREES = 20;
+const REGION_FOCUS_LARGE_SPAN_DEGREES = 80;
 const LENS_REGION_LABELS = {
     live: { global: "Global View", middle_east: "Middle East & Gulf", levant: "Levant & Eastern Med", ukraine: "Ukraine & Eastern Europe", central_asia: "Central Asia", south_asia: "South Asia", europe: "Europe", north_america: "North America", latin_america: "Central America & Caribbean", south_america: "South America", east_asia: "East Asia & Pacific", oceania: "Oceania", africa: "Africa" },
     standoff: { global: "Global View", middle_east: "Middle East & Gulf", levant: "Levant & Eastern Med", ukraine: "Ukraine & Eastern Europe", central_asia: "Central Asia", south_asia: "South Asia", europe: "Europe", north_america: "North America", latin_america: "Central America & Caribbean", south_america: "South America", east_asia: "East Asia & Pacific", oceania: "Oceania", africa: "Africa" },
@@ -190,6 +194,46 @@ function primeRegionCountryBounds() {
 function getRegionBounds(region = __activeRegion) {
     if (!region) return null;
     return __regionCountryBoundsById.get(region.id) || region.bounds || null;
+}
+function getRegionFocusBounds(region = __activeRegion) {
+    const bounds = getRegionBounds(region);
+    if (!bounds || !region || region.id === "global") return bounds;
+    const minLon = Number(bounds.minLon);
+    const maxLon = Number(bounds.maxLon);
+    const minLat = Number(bounds.minLat);
+    const maxLat = Number(bounds.maxLat);
+    const lonSpan = maxLon - minLon;
+    const latSpan = maxLat - minLat;
+    if (![minLon, maxLon, minLat, maxLat, lonSpan, latSpan].every(Number.isFinite) || lonSpan <= 0 || latSpan <= 0) {
+        return bounds;
+    }
+    const boundsCenterLat = (minLat + maxLat) / 2;
+    const projectedLonSpan = lonSpan * Math.max(0.2, Math.cos(Cesium.Math.toRadians(boundsCenterLat)));
+    const majorSpan = Math.max(latSpan, projectedLonSpan);
+    const sizeRatio = clampValue(
+        (majorSpan - REGION_FOCUS_COMPACT_SPAN_DEGREES) /
+            (REGION_FOCUS_LARGE_SPAN_DEGREES - REGION_FOCUS_COMPACT_SPAN_DEGREES),
+        0,
+        1
+    );
+    const focusScale = REGION_FOCUS_COMPACT_SCALE +
+        ((REGION_FOCUS_LARGE_SCALE - REGION_FOCUS_COMPACT_SCALE) * sizeRatio);
+    const halfLonSpan = (lonSpan * focusScale) / 2;
+    const halfLatSpan = (latSpan * focusScale) / 2;
+    const preferredLon = Number.isFinite(Number(region.camera?.lon))
+        ? Number(region.camera.lon)
+        : (minLon + maxLon) / 2;
+    const preferredLat = Number.isFinite(Number(region.camera?.lat))
+        ? Number(region.camera.lat)
+        : boundsCenterLat;
+    const focusLon = clampValue(preferredLon, minLon + halfLonSpan, maxLon - halfLonSpan);
+    const focusLat = clampValue(preferredLat, minLat + halfLatSpan, maxLat - halfLatSpan);
+    return {
+        minLon: focusLon - halfLonSpan,
+        maxLon: focusLon + halfLonSpan,
+        minLat: focusLat - halfLatSpan,
+        maxLat: focusLat + halfLatSpan,
+    };
 }
 function setLandingCamera(viewer) {
     if (!viewer?.camera) return;
@@ -639,7 +683,8 @@ function setRegionHintState(active, viewer) {
     setRegionOutsidePromptActive(active, viewer);
 }
 function refreshRegionButtonHint(viewer) {
-    if (!viewer || __regionTransitionInFlight || !isRegionHintAllowed()) {
+    const isSceneMorphing = viewer?.scene?.mode === Cesium.SceneMode.MORPHING;
+    if (!viewer || __regionTransitionInFlight || isSceneMorphing || !isRegionHintAllowed()) {
         setRegionHintState(false, viewer);
         return;
     }
@@ -766,8 +811,6 @@ export function flyToRegion(viewer, region, options = {}) {
         window.SiteLoader?.start?.();
         __regionFlyLoaderTimer = window.setTimeout(finalizeTransition, 5200);
     }
-    const bounds = getRegionBounds(region) || region.bounds;
-    const { minLon, minLat, maxLon, maxLat } = bounds;
     if (region.id === "global") {
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(20, 20, 18000000),
@@ -777,6 +820,8 @@ export function flyToRegion(viewer, region, options = {}) {
         });
         return;
     }
+    const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
+    const { minLon, minLat, maxLon, maxLat } = bounds;
     viewer.camera.flyTo({
         destination: Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
         duration: 1.8,
@@ -805,13 +850,13 @@ export function selectRegion(viewer, regionId, options = {}) {
 function updateNavDropdown(region) {
     const label = __hasUserSelectedRegion && region
         ? getRegionLabelForLens(region, __activeLens)
-        : "Choose";
+        : "";
     const buttons = [
         document.getElementById("wz-region-nav"),
         document.getElementById("wz-region-nav-mobile"),
     ].filter(Boolean);
     buttons.forEach((button) => {
-        const labelEl = button.querySelector("span");
+        const labelEl = button.querySelector(".wz-region-select-btn__label");
         if (labelEl) {
             labelEl.textContent = label;
         } else {
@@ -825,6 +870,10 @@ function updateNavDropdown(region) {
                 : "Open monitoring region selector"
         );
     });
+    const mobileMenuLabel = document.getElementById("wz-mobile-region-menu-label");
+    if (mobileMenuLabel) {
+        mobileMenuLabel.textContent = label || "Select Region";
+    }
 }
 function updateLensDropdown(lens) {
     [
@@ -873,6 +922,13 @@ export function initRegionNav(viewer) {
     }
     viewer?.scene?.morphComplete?.addEventListener?.(() => {
         applyRegionCameraLock(viewer, __activeRegion);
+        if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
+            scheduleRegionButtonHintRefresh(viewer, 900);
+            return;
+        }
+        clearPendingRegionHintRefresh();
+        setRegionHintState(false, viewer);
+        flyToRegion(viewer, __activeRegion);
     });
     if (REGION_HINT_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
         __regionCameraSyncBound = true;

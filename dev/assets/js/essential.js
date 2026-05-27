@@ -109,6 +109,7 @@ const AIRCRAFT_LIVE_SYNC_DB_MS = 6 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
 const HIGH_VALUE_ASSET_ALERT_THROTTLE_MS = 10 * 60 * 1000;
+const HIGH_VALUE_ASSET_NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 const EVENT_POLL_INTERVAL_MS = 12 * 1000;
 const EVENT_CACHE_MAX_ITEMS = 2600;
 const EVENT_VISIBLE_CACHE_MAX_ITEMS = 1800;
@@ -158,25 +159,14 @@ const NAVAL_EVENT_SUBTYPES = new Set([
 const HIGH_VALUE_AIRCRAFT_SUBTYPES = new Map([
     ["bomber", { level: "red", label: "Bomber" }],
     ["awacs", { level: "red", label: "AWACS" }],
-    ["isr", { level: "orange", label: "ISR Aircraft" }],
-    ["recon", { level: "orange", label: "Recon Aircraft" }],
-    ["tanker", { level: "orange", label: "Tanker" }],
-    ["refueler", { level: "orange", label: "Refueler" }],
-    ["vip", { level: "orange", label: "VIP/GOV Aircraft" }],
 ]);
 const HIGH_VALUE_NAVAL_SUBTYPES = new Map([
     ["carrier", { level: "red", label: "Aircraft Carrier" }],
     ["ssbn", { level: "red", label: "SSBN Submarine" }],
-    ["ssn", { level: "red", label: "SSN Submarine" }],
-    ["ssk", { level: "red", label: "SSK Submarine" }],
-    ["aip_submarine", { level: "red", label: "AIP Submarine" }],
-    ["submarine", { level: "red", label: "Submarine" }],
     ["intelligence", { level: "orange", label: "Intelligence Vessel" }],
-    ["cruiser", { level: "orange", label: "Cruiser" }],
-    ["destroyer", { level: "orange", label: "Destroyer" }],
-    ["amphibious", { level: "orange", label: "Amphibious Vessel" }],
 ]);
 const __highValueAssetAlertedAt = new Map();
+const __highValueAssetLastNotifiedAt = new Map();
 const AIS_CIVILIAN_VESSEL_PATTERNS = [
     /\bMV\b/i,
     /\bM\/V\b/i,
@@ -336,6 +326,10 @@ const AIS_MILITARY_VESSEL_PATTERNS = [
     /MISSILE BOAT/i,
     /FAST ATTACK CRAFT/i,
 ];
+const AIS_NON_OPERATIONAL_NAVAL_PATTERNS = [
+    /\bCV[-\s]?0?9\b/i, // USS Essex (CV-9), decommissioned in 1969.
+    /\b(?:DECOMMISSIONED|RETIRED|MUSEUM(?:\s+SHIP)?|PRESERVED|SCRAPPED|STRICKEN|DISPOSED)\b/i,
+];
 function isDocumentHidden() {
     return document.visibilityState === "hidden";
 }
@@ -402,6 +396,22 @@ function isStrictAisMilitaryNavalEvent(event = {}) {
     const vesselName = String(metadata.vessel_name || event.title || "");
     const callSign = String(metadata.call_sign || metadata.callSign || "");
     const haystack = [vesselName, callSign].filter(Boolean).join(" ");
+    const statusHaystack = [
+        haystack,
+        event.operational_status,
+        event.operationalStatus,
+        event.service_status,
+        event.serviceStatus,
+        event.status,
+        metadata.operational_status,
+        metadata.operationalStatus,
+        metadata.service_status,
+        metadata.serviceStatus,
+        metadata.status,
+    ].filter(Boolean).join(" ");
+    if (AIS_NON_OPERATIONAL_NAVAL_PATTERNS.some((pattern) => pattern.test(statusHaystack))) {
+        return false;
+    }
     const hasCivilianIdentity = AIS_CIVILIAN_VESSEL_PATTERNS.some((pattern) => pattern.test(haystack));
     const hasMilitaryIdentity = AIS_MILITARY_VESSEL_PATTERNS.some((pattern) => pattern.test(haystack));
     if (hasCivilianIdentity && !hasMilitaryIdentity) {
@@ -1272,14 +1282,18 @@ function getHighValueNavalMeta(vessel = {}) {
 }
 function updateHighValueDockPulse(kind = "", count = 0) {
     const widgetId = kind === "naval" ? "naval" : "aircraft";
-    const btn = document.querySelector(`.wz-dock__btn[data-dock-widget="${widgetId}"]`);
-    if (!btn) return;
     const safeCount = Math.max(0, Math.floor(Number(count) || 0));
     const active = safeCount > 0;
-    btn.classList.toggle("has-hva-alert", active);
-    btn.dataset.hvaCount = active ? String(safeCount) : "";
     const label = widgetId === "naval" ? "Naval Tracker" : "Aircraft Tracker";
-    btn.title = active ? `${label}: ${safeCount} high-value asset${safeCount === 1 ? "" : "s"}` : label;
+    document.querySelectorAll(
+        `.wz-dock__btn[data-dock-widget="${widgetId}"], `
+        + `.wz-dock__btn[data-dock-proxy="${widgetId}"], `
+        + `.wz-mobile-dock-menu__item[data-dock-proxy="${widgetId}"]`
+    ).forEach((btn) => {
+        btn.classList.toggle("has-hva-alert", active);
+        btn.dataset.hvaCount = active ? String(safeCount) : "";
+        btn.title = active ? `${label}: ${safeCount} high-value asset${safeCount === 1 ? "" : "s"}` : label;
+    });
 }
 function buildHighValueAssetName(item = {}, kind = "aircraft") {
     if (kind === "naval") {
@@ -1298,15 +1312,16 @@ function notifyHighValueAssets(kind = "aircraft", items = []) {
     updateHighValueDockPulse(kind, metas.length);
     if (!metas.length) return;
     const now = Date.now();
-    let shownThisPass = 0;
-    metas.forEach(({ item, meta }) => {
-        if (shownThisPass >= 3) return;
+    const lastNotificationAt = Number(__highValueAssetLastNotifiedAt.get("global") || 0);
+    if (lastNotificationAt && now - lastNotificationAt < HIGH_VALUE_ASSET_NOTIFICATION_COOLDOWN_MS) return;
+    for (const { item, meta } of metas) {
         const itemKey = String(item.track_key || item.icao24 || item.mmsi || item.id || buildHighValueAssetName(item, kind)).trim();
-        if (!itemKey) return;
+        if (!itemKey) continue;
         const alertKey = `${kind}:${itemKey}:${meta.label}`;
         const lastShownAt = Number(__highValueAssetAlertedAt.get(alertKey) || 0);
-        if (lastShownAt && now - lastShownAt < HIGH_VALUE_ASSET_ALERT_THROTTLE_MS) return;
+        if (lastShownAt && now - lastShownAt < HIGH_VALUE_ASSET_ALERT_THROTTLE_MS) continue;
         __highValueAssetAlertedAt.set(alertKey, now);
+        __highValueAssetLastNotifiedAt.set("global", now);
         const trackerLabel = kind === "naval" ? "Naval Tracker" : "Aircraft Tracker";
         const name = buildHighValueAssetName(item, kind);
         const location = String(item.country || item.region || item.location_label || "").trim();
@@ -1320,14 +1335,16 @@ function notifyHighValueAssets(kind = "aircraft", items = []) {
             meta: metaParts.join(" | "),
             level: meta.level || "orange",
             sound: false,
+            pulse: false,
         });
-        shownThisPass += 1;
-    });
+        break;
+    }
 }
 document.addEventListener("wz:dev-high-value-aircraft-demo", (event) => {
     const items = Array.isArray(event.detail?.items) ? event.detail.items : [];
     if (!items.length) return;
     if (event.detail?.force === true) {
+        __highValueAssetLastNotifiedAt.delete("global");
         items.forEach((item) => {
             const meta = getHighValueAircraftMeta(item);
             if (!meta) return;
@@ -3143,7 +3160,7 @@ function resolveAircraftSubtype(track = {}) {
     if (/(isr\b|global hawk|triton|jstars|e-8\b|e8\b|rq-4\b|rq4\b|special mission)/.test(haystack)) return "isr";
     if (/(tanker|refuel|refueller|pegasus|extender|stratotanker|kc-135\b|kc135\b|kc-46\b|kc46\b|kc-10\b|kc10\b|a330 mrtt\b|mrtt\b|voyager\b|il-78\b|il78\b|yy-20\b|yy20\b)/.test(haystack)) return "tanker";
     if (/(transport|airlift|cargo|logistics|globemaster|hercules|atlas\b|a-?400m\b|c-17\b|c17\b|c-5\b|c5\b|c-130\b|hc-130\b|mc-130\b|c130\b|c-40\b|c40\b|an-124\b|an124\b|an-12\b|an12\b|il-76\b|il76\b|y-20\b|y20\b|cn-235\b|cn235\b|c295\b)/.test(haystack)) return "transport";
-    if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28\b|mi28\b|ka-27\b|ka27\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
+    if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28(?:nm|n)?\b|mi28(?:nm|n)?\b|mi-35\b|mi35\b|ka-27\b|ka27\b|ka-50\b|ka50\b|hokum\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
     if (/(bomber|b-1\b|b1\b|b-2\b|b2\b|b-52\b|b52\b|tu-95\b|tu95\b|tu-160\b|tu160\b|h-6\b|h6\b|ac-130\b|ac130\b|spectre|spooky)/.test(haystack)) return "bomber";
     if (/(uav\b|drone\b|ucav\b|reaper\b|predator\b|mq-9\b|mq9\b|rq-4\b|rq4\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
     if (isExcludedTrainerAircraftText(haystack)) return "trainer";
@@ -5973,7 +5990,7 @@ async function postAuthFormWithFallback(path, body) {
 
 function syncNavLoginButton() {
     const isAuthenticated = !!window.__stratopsAuthState?.isAuthenticated;
-    document.querySelectorAll("#wz-nav-login-btn, .wz-nav-login-btn").forEach((btn) => {
+    document.querySelectorAll("#wz-nav-login-btn, .wz-nav-login-btn, [data-mobile-action=\"login\"]").forEach((btn) => {
         btn.hidden = isAuthenticated;
         btn.setAttribute("aria-hidden", String(isAuthenticated));
         btn.style.display = isAuthenticated ? "none" : "";
@@ -6076,7 +6093,10 @@ function initDonatePopup() {
     try { if (sessionStorage.getItem("wz_donate_dismissed") === "1") return; } catch { }
     document.getElementById("wz-donate-close")?.addEventListener("click", () => {
         modal.classList.remove("is-visible");
-        setTimeout(() => { modal.hidden = true; }, 300);
+        setTimeout(() => {
+            modal.hidden = true;
+            modal.style.setProperty("display", "none", "important");
+        }, 300);
         try { sessionStorage.setItem("wz_donate_dismissed", "1"); } catch { }
     });
     setTimeout(() => {
@@ -6085,6 +6105,14 @@ function initDonatePopup() {
         modal.hidden = false;
         requestAnimationFrame(() => modal.classList.add("is-visible"));
     }, DONATE_POPUP_DELAY_MS);
+}
+
+function showSupportModal() {
+    const modal = document.getElementById("wz-donate-modal");
+    if (!modal) return;
+    modal.style.setProperty("display", "flex", "important");
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add("is-visible"));
 }
 
 function scheduleDelayedLoginPopup() {
@@ -6506,4 +6534,5 @@ export function schedulePostEntryActions(viewer) {
         const s = window.__stratopsAuthState;
         showLoginModal(s?.isAuthenticated ? "authenticated" : "guest", s?.user || null);
     };
+    window.__openSupportModal = showSupportModal;
 }

@@ -46,6 +46,10 @@ const NAVAL_CONTACT_STALE_MS = 45 * 60 * 1000;
 let __navalGlbMaterialShader = null;
 const NAVAL_CONTACT_MAX_ITEMS = 320;
 const NAVAL_ICON_CACHE_MAX_ITEMS = 128;
+const NAVAL_NON_OPERATIONAL_PATTERNS = [
+    /\bCV[-\s]?0?9\b/i, // USS Essex (CV-9), decommissioned in 1969.
+    /\b(?:DECOMMISSIONED|RETIRED|MUSEUM(?:\s+SHIP)?|PRESERVED|SCRAPPED|STRICKEN|DISPOSED)\b/i,
+];
 const NAVAL_MODEL_BASE_PATH = "/assets/images/models/sea";
 const NAVAL_MODEL_DEFAULT_ASSET_KEY = "Vessel-Frigate";
 const LIVE_NAVAL_ICON_BASE_PATH = "/assets/images/live";
@@ -411,6 +415,32 @@ function hasNavalTelemetrySignature(data = {}) {
         metadata.callSign
     );
 }
+function isKnownNonOperationalNavalContact(data = {}) {
+    const metadata = parseEventMetadata(data?.metadata);
+    const identityAndStatus = [
+        data.vessel_name,
+        data.platform_name,
+        data.title,
+        data.designation,
+        data.hull_number,
+        data.operational_status,
+        data.operationalStatus,
+        data.service_status,
+        data.serviceStatus,
+        data.status,
+        metadata.vessel_name,
+        metadata.designation,
+        metadata.hull_number,
+        metadata.operational_status,
+        metadata.operationalStatus,
+        metadata.service_status,
+        metadata.serviceStatus,
+        metadata.status,
+    ]
+        .filter(Boolean)
+        .join(" ");
+    return NAVAL_NON_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(identityAndStatus));
+}
 function purgeInvalidNavalContacts() {
     const staleCutoff = Date.now() - NAVAL_CONTACT_STALE_MS;
     const purgeKeys = [];
@@ -418,7 +448,12 @@ function purgeInvalidNavalContacts() {
         const data = entry?.data || {};
         const seenAt = Number(data.last_seen_at || entry?.entity?.__navalLastSeenAt || 0);
         const stale = Number.isFinite(seenAt) && seenAt > 0 && seenAt < staleCutoff;
-        if (isProbablyAircraftContact(data) || !hasNavalTelemetrySignature(data) || stale) {
+        if (
+            isProbablyAircraftContact(data) ||
+            isKnownNonOperationalNavalContact(data) ||
+            !hasNavalTelemetrySignature(data) ||
+            stale
+        ) {
             purgeKeys.push(trackKey);
         }
     }
@@ -2058,7 +2093,11 @@ function bindNavalOverlay(viewer) {
 export function upsertNavalVessel(event) {
     const viewer = window.__warzoneViewer;
     if (!viewer) return;
-    if (isProbablyAircraftContact(event) || !hasNavalTelemetrySignature(event)) {
+    if (
+        isProbablyAircraftContact(event) ||
+        isKnownNonOperationalNavalContact(event) ||
+        !hasNavalTelemetrySignature(event)
+    ) {
         const metadata = parseEventMetadata(event.metadata);
         const trackKey = event.dedupe_key || event.source_key || metadata.track_key || `naval-${event.id}`;
         if (trackKey) {
