@@ -277,10 +277,20 @@
     --warzone-event-markers-visible: 1;
     --warzone-event-rings-visible: 1;
     --warzone-event-ring-entity-cap: 160;
-    --warzone-event-ring-size: 65000;
-    --warzone-event-ring-fill-alpha: 0.40;
-    --warzone-event-ring-outline-alpha: 0; 
-    --warzone-event-ring-outline-width: 0; 
+    --warzone-event-ring-size: 36000;
+    --warzone-event-ring-fill-alpha: 0.10;
+    --warzone-event-ring-outline-alpha: 0.62;
+    --warzone-event-ring-outline-width: 2;
+    --warzone-event-pulse-radius: 22000;
+    --warzone-event-pulse-fill-alpha: 0.22;
+    --warzone-event-pulse-outline-alpha: 0;
+    --warzone-event-ring-pulse-enabled: 1;
+    --warzone-event-ring-pulse-duration-a: 1500;
+    --warzone-event-ring-pulse-duration-b: 2100;
+    --warzone-event-ring-pulse-duration-c: 2800;
+    --warzone-event-ring-pulse-scale: 0.30;
+    --warzone-event-ring-pulse-alpha-scale: 0.85;
+    --warzone-event-ring-pulse-fps: 24;
 }
 /* #endregion =========== */
 /* #region =========== Country Pulse Highlight =========== */
