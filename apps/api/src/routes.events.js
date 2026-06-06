@@ -11,6 +11,8 @@ const DEFAULT_EVENTS_SINCE_LIMIT = 200;
 const MAX_EVENTS_SINCE_LIMIT = 500;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
+const DEFAULT_INTEL_FEED_LIMIT = 120;
+const MAX_INTEL_FEED_LIMIT = 300;
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -121,6 +123,28 @@ export function eventsRouter({ broadcast }) {
                 .limit(AIRCRAFT_HISTORY_LIMIT);
             if (error) return res.status(500).json({ error: "Failed" });
             res.json({ tracks: data || [] });
+        } catch {
+            res.status(500).json({ error: "Failed" });
+        }
+    });
+
+    // ── Intel Wire feed items ─────────────────────────────────────
+    router.get("/intel-feed", async (req, res) => {
+        try {
+            const requestedLimit = Number(req.query.limit);
+            const limit = Number.isFinite(requestedLimit)
+                ? clamp(Math.floor(requestedLimit), 25, MAX_INTEL_FEED_LIMIT)
+                : DEFAULT_INTEL_FEED_LIMIT;
+            const supabase = getSupabase();
+            const { data, error } = await supabase
+                .from("conflict_feed_items")
+                .select("id, source_name, source_type, source_category, title, summary, url, guid, published_at, fetched_at, region, country, category, confidence_score, is_conflict_relevant, raw")
+                .eq("is_conflict_relevant", true)
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .order("fetched_at", { ascending: false })
+                .limit(limit);
+            if (error) return res.status(500).json({ error: "Failed" });
+            res.json({ items: data || [] });
         } catch {
             res.status(500).json({ error: "Failed" });
         }

@@ -22,4 +22,5 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-self.onmessage=function(e){let s=e.data.array,a=self.webkitPostMessage||self.postMessage;try{a({array:s},[s.buffer])}catch{a({})}};
+
+self.onmessage=function(a){let s=a.data.array,e=self.webkitPostMessage||self.postMessage;try{e({array:s},[s.buffer])}catch{e({})}};

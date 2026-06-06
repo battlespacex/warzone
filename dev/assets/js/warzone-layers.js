@@ -1,9 +1,9 @@
 ﻿// File Path: /assets/js/warzone-layers.js
 const LAYER_DEFS = [
-    { id: "strikes", label: "Strikes & Artillery", description: "Mapped strike, shelling, and impact events", icon: "💥", color: "#ff2a2a" },
+    { id: "strikes", label: "Shelling / Ground Strikes", description: "Artillery, shelling, and uncategorized impact reports", icon: "💥", color: "#ff2a2a" },
     { id: "missiles", label: "Missiles & Rockets", description: "Missile and rocket activity on the map", icon: "🚀", color: "#ff5500" },
-    { id: "drones", label: "Drones / UAVs", description: "Drone, UAV, and loitering munition events", icon: "🛸", color: "#ffcc00" },
-    { id: "airstrikes", label: "Air Strikes", description: "Air-delivered strike and bombing activity", icon: "✈️", color: "#ff7820" },
+    { id: "drones", label: "Drone / UAV Activity", description: "Drone sightings and drone-delivered strike reports", icon: "🛸", color: "#ffcc00" },
+    { id: "airstrikes", label: "Air-Delivered Strikes", description: "Aircraft-delivered strike and bombing reports", icon: "✈️", color: "#ff7820" },
     { id: "aircraft", label: "Aircraft Tracker", description: "Live military aircraft telemetry and movement", icon: "🛩️", color: "#33d90a", premium: true },
     // airspace is uiOnly — it controls the Airspace Status widget visibility.
     // It is intentionally decoupled from the "aircraft" layer so toggling
@@ -19,8 +19,9 @@ const LAYER_DEFS = [
     { id: "recon", label: "Recon / Intelligence", description: "Reconnaissance and intelligence-linked events", icon: "👁️", color: "#00d9b2" },
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "📡", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "📰", color: "#888" },
-    { id: "hotspots", label: "Hotspot Labels", description: "Cluster labels for active event concentrations", icon: "📍", color: "#00d8b2", uiOnly: true },
+    { id: "hotspots", label: "Hotspot Clusters", description: "Labels and static rings only when nearby events are grouped", icon: "📍", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", description: "Satellite basemap imagery on the globe", icon: "🛰️", color: "#4a9eff", uiOnly: true },
+    { id: "region-plate", label: "Raised Region", description: "Elevated Middle East region focus plate", icon: "▱", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "🗺️", color: "#33e1ff", uiOnly: true },
 ];
 
@@ -46,6 +47,7 @@ const DEFAULT_LAYER_STATE = {
     seismic: false,
     hotspots: true,
     terrain: true,
+    "region-plate": true,
     "country-borders": true,
 };
 
@@ -53,7 +55,7 @@ let __layerState = {};
 let __callbacks = [];
 let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
-const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain"]);
+const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "region-plate"]);
 const NAVAL_LAYER_SUBTYPES = new Set([
     "carrier",
     "amphibious",

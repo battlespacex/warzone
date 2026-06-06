@@ -309,6 +309,11 @@ function classifySubtype(record = {}) {
     if (/(awacs|aew&c|aewc|airborne early warning|early warning|e-3\b|e3\b|sentry\b|e-7\b|e7\b|wedgetail\b|e-2\b|e2\b|hawkeye\b|a-50\b|a50\b|a-100\b|a100\b|kj-2000\b|kj2000\b|kj-500\b|kj500\b|erieye\b|phalcon\b|netra\b)/.test(haystack)) {
         return "awacs";
     }
+    // UAV / UCAV / drones. Keep this before ISR/recon so RQ-4/MQ-4C/MQ-9
+    // render with drone assets instead of generic ISR aircraft fallbacks.
+    if (/(drone\b|uav\b|ucav\b|uas\b|mq-1\b|mq1\b|predator\b|mq-9[ab]?\b|mq9[ab]?\b|reaper\b|general atomic(?:s)?\b|ga-?asi\b|skyguardian\b|sky guardian\b|seaguardian\b|sea guardian\b|protector(?:\s+rg-?1)?\b|mq-20\b|mq20\b|avenger\b|rq-1\b|rq1\b|rq-4\b|rq4\b|global hawk\b|rq-7\b|rq7\b|shadow\b|rq-170\b|rq170\b|sentinel\b|mq-4c\b|mq4c\b|triton\b|tb2\b|bayraktar\b|akinci\b|anka\b|aksungur\b|heron\b|hermes\b|wing loong\b|wingloong\b|ch-4\b|ch4\b|ch-5\b|ch5\b|wj-700\b|wj700\b|shahed\b|mohajer\b|ababil\b|switchblade\b|lancet\b|orlan\b|forpost\b|okhotnik\b)/.test(haystack)) {
+        return "uav";
+    }
     // Recon / SIGINT / ELINT / maritime patrol
     if (/(rc-135\b|rc135\b|rivet joint\b|cobra ball\b|combat sent\b|ep-3\b|ep3\b|aries\b|p-3\b|p3\b|orion\b|p-8\b|p8\b|poseidon\b|il-20\b|il20\b|tu-214r\b|tu214r\b|recon\b|reconnaissance\b|surveillance\b|maritime patrol\b|sigint\b|elint\b|sentinel r1\b|swordfish\b)/.test(haystack)) {
         return "recon";
@@ -328,10 +333,6 @@ function classifySubtype(record = {}) {
     // Bombers / strike bombers / gunships
     if (/(b-1\b|b1\b|lancer\b|b-2\b|b2\b|spirit\b|b-52\b|b52\b|stratofortress\b|tu-95\b|tu95\b|bear\b|tu-160\b|tu160\b|blackjack\b|tu-22m\b|tu22m\b|backfire\b|h-6\b|h6\b|badger\b|su-24\b|su24\b|fencer\b|su-34\b|su34\b|fullback\b|ac-130\b|ac130\b|spectre\b|spooky\b|gunship\b|bomber\b|strategic bomber\b|strike bomber\b)/.test(haystack)) {
         return "bomber";
-    }
-    // UAV / UCAV / drones
-    if (/(drone\b|uav\b|ucav\b|uas\b|mq-1\b|mq1\b|predator\b|mq-9\b|mq9\b|reaper\b|mq-20\b|mq20\b|avenger\b|rq-1\b|rq1\b|rq-4\b|rq4\b|global hawk\b|rq-7\b|rq7\b|shadow\b|rq-170\b|rq170\b|sentinel\b|mq-4c\b|mq4c\b|triton\b|tb2\b|bayraktar\b|akinci\b|anka\b|aksungur\b|heron\b|hermes\b|wing loong\b|wingloong\b|ch-4\b|ch4\b|ch-5\b|ch5\b|wj-700\b|wj700\b|shahed\b|mohajer\b|ababil\b|switchblade\b|lancet\b|orlan\b|forpost\b|okhotnik\b)/.test(haystack)) {
-        return "uav";
     }
     // Helicopters / rotorcraft / gunships
     if (/(heli\b|helicopter\b|rotary wing\b|rotorcraft\b|ah-1\b|ah1\b|cobra\b|ah-64\b|ah64\b|apache\b|uh-60\b|uh60\b|black hawk\b|blackhawk\b|hh-60\b|hh60\b|mh-60\b|mh60\b|seahawk\b|ch-47\b|ch47\b|chinook\b|ch-53\b|ch53\b|stallion\b|super stallion\b|king stallion\b|uh-1\b|uh1\b|huey\b|v-22\b|v22\b|osprey\b|mi-8\b|mi8\b|mi-17\b|mi17\b|hip\b|mi-24\b|mi24\b|hind\b|mi-28(?:nm|n)?\b|mi28(?:nm|n)?\b|mi-35\b|mi35\b|havoc\b|ka-27\b|ka27\b|helix\b|ka-29\b|ka29\b|ka-31\b|ka31\b|ka-50\b|ka50\b|hokum\b|ka-52\b|ka52\b|alligator\b|z-9\b|z9\b|z-10\b|z10\b|z-19\b|z19\b|z-20\b|z20\b|nh90\b|aw101\b|merlin\b|aw159\b|wildcat\b|lynx\b|ec665\b|tiger\b|h145m\b|dhruv\b|prahchand\b|light combat helicopter\b)/.test(haystack)) {
@@ -554,6 +555,10 @@ async function refreshPublicAirTracks(options = {}) {
             return;
         }
         const records = await fetchAirplanesLiveRecords(fetchController.signal);
+        if (!isLayerEnabled("aircraft")) {
+            clearAllPublicAirTracks();
+            return;
+        }
         const seenThisPass = new Set();
         for (const record of records) {
             const normalized = normalizeAirplanesLiveRecord(record);
@@ -661,5 +666,11 @@ export function stopPublicAirIngestion() {
         window.clearInterval(__pollTimer);
         __pollTimer = null;
     }
+    try {
+        __activeFetchController?.abort?.();
+    } catch { }
+    __activeFetchController = null;
+    __isFetching = false;
+    __fetchInFlightSince = 0;
     clearAllPublicAirTracks();
 }

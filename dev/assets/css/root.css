@@ -5,7 +5,7 @@
     --color-bg-header: rgb(69,80,94,0.6);
     --color-bg-row: rgb(46 53 63 / 86%);
     --color-bg-modal: rgb(40 47 58 / 48%);
-    --color-bg-overlay: rgba(25, 30, 39, 0.5);  
+    --color-bg-overlay: rgba(25, 30, 39, 0.5);
 }
 /* #endregion =========== */
 /* #region =========== Colors =========== */
@@ -15,8 +15,8 @@
     --color-white-slate: #cbced7;
     --color-black: #101111;
     --color-accent: #ffaa33;
-    --color-red: #a30707; 
-    --color-red-glow: #ff2a2a; 
+    --color-red: #a30707;
+    --color-red-glow: #ff2a2a;
     --color-red-slate: #fd3741;
     --color-blue: #3325b3;
     --color-blue-glow: #2ed9ff;
@@ -35,7 +35,7 @@
     --color-yellow: #f79c1c;
     --color-yellow-glow: #ffe81a;
     --color-yellow-slate: #ffd24d;
-    --color-teal: #0b787e; 
+    --color-teal: #0b787e;
     --color-teal-hover: #084f55;
     --color-teal-glow: #18e2db;
     --color-teal-slate: #00d8b2;
@@ -54,7 +54,7 @@
 /* #endregion =========== */
 /* #region =========== Typography — Fonts =========== */
 :root {
-    --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
+    --heading-font: "Chakra Petch", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
@@ -72,7 +72,8 @@
 /* #endregion =========== */
 /* #region =========== Typography — Fonts =========== */
 :root {
-    --heading-font: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
+    --heading-font: "Chakra Petch", system-ui, Arial, sans-serif;
+    --heading-font1: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
     --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
@@ -80,9 +81,9 @@
     --text-sm: 1.2rem;
     --text-base: 1.4rem;
     --text-lg: 1.7rem;
-    --text-xl: 2.4rem;
-    --text-xxl: 3.4rem;
-    --text-xxxl: 4.5rem;
+    --text-xl: 2.2rem;
+    --text-xxl: 3rem;
+    --text-xxxl: 4rem;
     --text-heading-weight: 700;
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
@@ -144,6 +145,16 @@
     --warzone-cyber-color: var(--color-purple-glow);
     --warzone-thermal-color: var(--color-yellow);
     --warzone-signal-color: var(--color-yellow-glow);
+}
+/* #endregion =========== */
+/* #region =========== Hotspot Outline =========== */
+:root {
+    --wzhs-radius-size: 20rem;
+    --wzhs-radius-max-size: 42rem;
+    --wzhs-radius-fit-padding: 9rem;
+    --wzhs-radius-outline-width: 0.4rem;
+    --wzhs-radius-outline-color: var(--warzone-strike-color);
+    --wzhs-radius-fill-color: rgba(245, 30, 88, 0.16);
 }
 /* #endregion =========== */
 /* #region =========== Military Base Type Colors =========== */
@@ -218,9 +229,16 @@
     --warzone-globe-preload-siblings: 0;
     --warzone-imagery-max-anisotropy: 8;
     --warzone-max-renderable-events: 340;
-    --warzone-event-cluster-height: 9000000; /* cluster later so normal zoom keeps more raw activity visible */
+    --warzone-event-cluster-height: 1500000; /* cluster event rings before overlapping fills stack into solid disks */
     --warzone-event-ring-max-height: 15000000;
     --warzone-event-cluster-precision: 0.18; /* finer clustering keeps more individual hotspots/markers visible */
+    --warzone-topography-exaggeration: 1.6;
+    --warzone-raised-region-height: 32000;
+    --warzone-raised-region-color: #18e2db;
+    --warzone-raised-region-fill-alpha: 0.10;
+    --warzone-raised-region-side-alpha: 0.18;
+    --warzone-raised-region-outline-alpha: 0.78;
+    --warzone-raised-region-outline-width: 2.4;
 }
 /* #endregion =========== */
 /* #region =========== Labels Layer =========== */
@@ -277,12 +295,19 @@
     --warzone-event-markers-visible: 1;
     --warzone-event-rings-visible: 1;
     --warzone-event-ring-entity-cap: 160;
+    --warzone-event-marker-size: 112;
+    --warzone-event-marker-cluster-step: 20;
+    --warzone-event-marker-max-size: 192;
+    --warzone-event-marker-fill-alpha: 0.82;
+    --warzone-event-count-font-size: 34px;
+    --warzone-event-count-font-size-10plus: 32px;
+    --warzone-event-count-font-size-100plus: 29px;
     --warzone-event-ring-size: 36000;
-    --warzone-event-ring-fill-alpha: 0.10;
-    --warzone-event-ring-outline-alpha: 0.62;
-    --warzone-event-ring-outline-width: 2;
+    --warzone-event-ring-fill-alpha: 0.40;
+    --warzone-event-ring-outline-alpha: 0;
+    --warzone-event-ring-outline-width: 0;
     --warzone-event-pulse-radius: 22000;
-    --warzone-event-pulse-fill-alpha: 0.22;
+    --warzone-event-pulse-fill-alpha: 0.40;
     --warzone-event-pulse-outline-alpha: 0;
     --warzone-event-ring-pulse-enabled: 1;
     --warzone-event-ring-pulse-duration-a: 1500;
@@ -291,6 +316,9 @@
     --warzone-event-ring-pulse-scale: 0.30;
     --warzone-event-ring-pulse-alpha-scale: 0.85;
     --warzone-event-ring-pulse-fps: 24;
+    --wzhs-perspective-depth: 900px;
+    --wzhs-perspective-max-tilt: 46;
+    --wzhs-perspective-tilt: 0deg;
 }
 /* #endregion =========== */
 /* #region =========== Country Pulse Highlight =========== */
@@ -428,6 +456,8 @@
 /* #endregion =========== */
 /* #region =========== Hotspot =========== */
 :root {
+    --criticality-level-exx-bg: rgba(255, 7, 7, 0.3);
+    --criticality-level-exx-cl: var(--color-red-glow);
     --criticality-level-ex-bg: rgba(255 7 83 / 30%);
     --criticality-level-ex-cl: var(--color-magenta-glow);
     --criticality-level-hi-bg: rgba(255 106 0 / 30%);
@@ -568,17 +598,69 @@
     --warzone-live-aircraft-model-min-pixel-size: 110;
     --warzone-live-aircraft-model-focused-min-pixel-size: 320;
     --warzone-live-aircraft-model-max-scale: 2440;
+    --warzone-live-aircraft-model-scale-helicopter: 0.56;
+    --warzone-live-aircraft-model-focused-scale-helicopter: 0.72;
+    --warzone-live-aircraft-model-min-pixel-size-helicopter: 54;
+    --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 185;
+    --warzone-live-aircraft-model-max-scale-helicopter: 980;
     --warzone-live-aircraft-model-alpha: 1;
     --warzone-live-aircraft-model-whiteness: 0.18;
     --warzone-live-aircraft-model-focused-whiteness: 0.08;
     --warzone-live-aircraft-focus-camera-range: 18000;
     --warzone-live-aircraft-focus-camera-pitch: -58;
+    --warzone-live-aircraft-unfocus-camera-range: 72000;
+    --warzone-live-aircraft-unfocus-zoom-out-delta: 26000;
     --warzone-live-aircraft-focus-zoom-range: 22000;
     --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
+    --warzone-live-aircraft-focus-warning-range: 70000;
+    --warzone-live-aircraft-focus-final-range: 120000;
     --warzone-live-aircraft-focus-anim-min-ms: 900;
     --warzone-live-aircraft-focus-anim-max-ms: 9000;
+    --warzone-live-aircraft-focus-anim-default-ms: 1850;
     --warzone-live-aircraft-focus-anim-cadence-factor: 1.04;
     --warzone-live-aircraft-focus-visible-radius: 100000;
+    --warzone-focus-contour-color: #057078;
+    --warzone-live-aircraft-contour-color: #057078;
+    --warzone-live-aircraft-contour-alpha: 0.34;
+    --warzone-live-aircraft-contour-spacing: 210;
+    --warzone-live-aircraft-contour-width: 0.62;
+    --warzone-live-aircraft-contour-softness: 7.5;
+    --warzone-live-aircraft-contour-emission: 0.02;
+    --warzone-live-aircraft-contour-radius: 32000;
+    --warzone-live-aircraft-contour-blur: 14000;
+    --warzone-live-aircraft-contour-fade: 7000;
+    --warzone-live-aircraft-contour-min-alpha: 0.012;
+    --warzone-live-aircraft-contour-major-every: 5;
+    --warzone-live-aircraft-contour-major-width-scale: 1.65;
+    --warzone-contour-grid-size: 47;
+    --warzone-contour-max-lines: 96;
+    --warzone-contour-refresh-distance: 2400;
+    --warzone-contour-height-offset: 95;
+    --warzone-contour-smoothing-passes: 2;
+    --warzone-contour-line-width: 1.35;
+    --warzone-contour-halo-width: 4.6;
+    --warzone-contour-halo-alpha: 0.16;
+    --warzone-live-naval-contour-color: #057078;
+    --warzone-live-naval-contour-alpha: 0.34;
+    --warzone-live-naval-contour-spacing: 210;
+    --warzone-live-naval-contour-width: 0.62;
+    --warzone-live-naval-contour-softness: 7.5;
+    --warzone-live-naval-contour-emission: 0.02;
+    --warzone-live-naval-contour-radius: 32000;
+    --warzone-live-naval-contour-blur: 14000;
+    --warzone-live-naval-contour-fade: 7000;
+    --warzone-live-naval-contour-min-alpha: 0.012;
+    --warzone-live-naval-contour-major-every: 5;
+    --warzone-live-naval-contour-major-width-scale: 1.65;
+    --warzone-focus-airstrip-outline-color: #ff313d;
+    --warzone-focus-airstrip-outline-alpha: 0.86;
+    --warzone-focus-airstrip-outline-width: 2.4;
+    --warzone-focus-airstrip-outline-radius: 45000;
+    --warzone-focus-airstrip-outline-max: 14;
+    --warzone-focus-airstrip-outline-length-major: 3600;
+    --warzone-focus-airstrip-outline-length-default: 2400;
+    --warzone-focus-airstrip-outline-width-meters: 340;
+    --warzone-focus-airstrip-outline-height: 80;
     --warzone-live-aircraft-model-zoom-split-height: 20000;
     --warzone-live-aircraft-model-max-active: 16;
     --warzone-live-aircraft-model-max-zoom-height: 280000;
@@ -620,7 +702,12 @@
     --warzone-live-naval-model-max-active: 6;
     --warzone-live-naval-model-max-zoom-height: 320000;
     --warzone-live-naval-model-auto-radius: 200000;
-    --warzone-live-naval-focus-camera-range: 650;
+    --warzone-live-naval-focus-camera-range: 45000;
+    --warzone-live-naval-focus-camera-pitch: -58;
+    --warzone-live-naval-focus-wheel-zoom-step: 5000;
+    --warzone-live-naval-focus-warning-range: 90000;
+    --warzone-live-naval-focus-final-range: 160000;
+    --warzone-live-naval-focus-visible-radius: 40000;
     --warzone-live-naval-label-scale: 0.42;
     --warzone-live-naval-label-offset-y: -26;
     --warzone-live-naval-label-max-chars: 24;

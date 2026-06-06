@@ -11,7 +11,7 @@ const SWEEPER_RENDER = {
     polygonStepsNear: 18,
     polygonStepsFar: 10,
     maxHeight: 10000000,
-    maxCount: 2,
+    maxCount: 7,
     maxOverlap: 0.32,
     maxFilledRings: 2,
     overlayHeight: 1200,
@@ -170,6 +170,7 @@ function getSweepPreset(event = {}) {
     if (text.includes("submarine")) return { radius: 80000, widthDeg: 18, speed: 0.40, color: "#18e2db", label: "Sonar Detection" };
     if (text.includes("sam")) return { radius: 250000, widthDeg: 18, speed: 0.55, color: "#18e2db", label: "SAM Radar" };
     if (text.includes("air defense")) return { radius: 250000, widthDeg: 18, speed: 0.55, color: "#18e2db", label: "Air Defense Radar" };
+    if (text.includes("airspace") || text.includes("notam")) return { radius: 260000, widthDeg: 24, speed: 0.60, color: "#18e2db", label: "Airspace Watch" };
     return null;
 }
 function getCameraHeight(viewer) {
@@ -364,17 +365,31 @@ export function renderSweepers(viewer, events = []) {
             heading: 320 + (index * 40)
         };
         const overlayHeight = SWEEPER_RENDER.overlayHeight;
+        const coverageFill = viewer.entities.add({
+            id: `${overlayId}-fill`,
+            position: Cesium.Cartesian3.fromDegrees(lon, lat),
+            ellipse: {
+                semiMajorAxis: preset.radius,
+                semiMinorAxis: preset.radius,
+                material: base.withAlpha(0.3),
+                outline: false,
+                height: 0,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            },
+            properties: { ...popupProps },
+        });
         const outerRing = viewer.entities.add({
             id: `${overlayId}-ring`,
             position: Cesium.Cartesian3.fromDegrees(lon, lat),
             ellipse: {
                 semiMajorAxis: preset.radius,
                 semiMinorAxis: preset.radius,
-                material: base.withAlpha(0.22),
+                material: Cesium.Color.TRANSPARENT,
                 outline: true,
                 outlineColor: base.withAlpha(0.92),
                 outlineWidth: 3,
-                height: overlayHeight
+                height: 0,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             },
             properties: { ...popupProps },
         });
@@ -400,6 +415,7 @@ export function renderSweepers(viewer, events = []) {
         });
         const labelEl = createRadarLabel(preset.label || "Radar Coverage");
         __sweeperEntities.push(
+            coverageFill,
             outerRing,
             sweepCore
         );

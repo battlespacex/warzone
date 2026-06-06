@@ -22,4 +22,5 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-import{b as t,c as f}from"./chunk-EISYTWYV.js";import{a as s}from"./chunk-CMB3O7X2.js";import{e as o}from"./chunk-VIMSDF2W.js";async function m(s,e){let t=s.webAssemblyConfig;if(o(t)&&o(t.wasmBinary))return f({module:t.wasmBinary}),!0}function c(s,e){let i=s.webAssemblyConfig;if(o(i))return m(s,e);let{primitive:n,sortType:r}=s;return"Index"===r?t(n.positions,n.modelView,n.count):void 0}var y=s(c);export{y as default};
+
+import{b as t,c as f}from"./chunk-EISYTWYV.js";import{a as s}from"./chunk-CMB3O7X2.js";import{e as o}from"./chunk-VIMSDF2W.js";async function m(i,e){let n=i.webAssemblyConfig;if(o(n)&&o(n.wasmBinary))return f({module:n.wasmBinary}),!0}function c(i,e){let n=i.webAssemblyConfig;if(o(n))return m(i,e);let{primitive:r,sortType:a}=i;if(a==="Index")return t(r.positions,r.modelView,r.count)}var y=s(c);export{y as default};

@@ -22,4 +22,5 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
+
 var e={OUTSIDE:-1,INTERSECTING:0,INSIDE:1},t=Object.freeze(e);export{t as a};

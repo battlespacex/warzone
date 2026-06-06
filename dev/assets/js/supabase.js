@@ -24,6 +24,7 @@ const EVENTS_HISTORY_WINDOW_HOURS = 48;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
 const EVENTS_SINCE_LIMIT = 200;
+const INTEL_FEED_LIMIT = 120;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
@@ -71,6 +72,23 @@ export const api = {
         return { data: json.events || [], error: null };
     },
 
+    async getIntelFeedItems() {
+        if (!API_BASE) {
+            const { data, error } = await supabase
+                .from("conflict_feed_items")
+                .select("id, source_name, source_type, source_category, title, summary, url, guid, published_at, fetched_at, region, country, category, confidence_score, is_conflict_relevant, raw")
+                .eq("is_conflict_relevant", true)
+                .order("published_at", { ascending: false, nullsFirst: false })
+                .order("fetched_at", { ascending: false })
+                .limit(INTEL_FEED_LIMIT);
+            return { data: data || [], error };
+        }
+        const res = await fetch(`${API_BASE}/events/intel-feed?limit=${INTEL_FEED_LIMIT}`);
+        if (!res.ok) throw new Error("Intel feed fetch failed");
+        const json = await res.json();
+        return { data: json.items || [], error: null };
+    },
+
     async getActiveAlerts() {
         if (!API_BASE) {
             const { data, error } = await supabase
@@ -86,8 +104,15 @@ export const api = {
     },
 
     async getAirspaceStatuses() {
-        // Keep this read on the existing public client until the production API
-        // deployment exposes /events/airspace-status.
+        if (API_BASE) {
+            const res = await fetch(`${API_BASE}/events/airspace-status`);
+            if (!res.ok) return { data: [], error: new Error("Airspace status fetch failed") };
+            const json = await res.json();
+            return { data: json.statuses || [], error: null };
+        }
+        if (window.__stratopsConfig?.enableLocalAirspaceStatusRead !== true) {
+            return { data: [], error: null };
+        }
         return getAirspaceStatusesFromSupabase();
     },
 

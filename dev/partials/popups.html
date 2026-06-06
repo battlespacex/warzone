@@ -88,9 +88,9 @@
                     <section class="wz-modal-body">
                         <div id="wz-intro-content-view" class="wz-content is-active" data-pane="intro" role="tabpanel"
                             aria-labelledby="wz-intro-tab-intro" aria-hidden="false">
-                            <h2 id="wz-intro-title">
+                            <h1 id="wz-intro-title">
                                 Real-Time Multi-Domain Battlespace Intelligence
-                            </h2>
+                            </h1>
                             <p id="wz-intro-summary">
                                 <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
                                         target="_blank" rel="noopener noreferrer">BattlespaceX</a></strong>, is a real-time, multi-domain
@@ -148,24 +148,82 @@
                         </div>
                         <div id="wz-intro-capabilities" class="wz-content" data-pane="capabilities" role="tabpanel"
                             aria-labelledby="wz-intro-tab-capabilities" aria-hidden="true">
-                            <h3 class="no-margin">Advanced Operational Capabilities</h3>
-                            <ul class="wz-list-view">
-                                <li>Multi-domain battlespace visualization spanning air, land, sea, space, and cyberspace.</li>
-                                <li>3D military aircraft and naval vessel models support immersive asset tracking and close-range operational visualization.</li>
-                                <li>Continuous monitoring of military activity, operational events, escalation indicators, strategic developments, and emerging global flashpoints.</li>
-                                <li>Integrated intelligence layers combining OSINT, telemetry, military infrastructure, geospatial context, and operational activity.</li>
-                                <li>Region and Conflict Lens controls enable focused analysis of active conflicts, strategic theaters, standoffs, and global activity.</li>
-                                <li>Premium operational overlays including radar coverage, threat rings, engagement ranges, and area-of-influence visualization.</li>
-                            </ul>
-                            <p>
-                                <strong>StratOps</strong> aims to become a next-generation OSINT visualization
-                                environment for research, media awareness, analytical observation, and strategic
-                                monitoring of global security developments.
-                            </p>
+
+                            <section class="wz-capabilities-section" aria-labelledby="wz-capabilities-core">
+                                <h2 id="wz-capabilities-core" class="no-margin">Core Operational Capabilities</h2>
+
+                                <div class="wz-capability-group">
+                                    <h3>Real-Time Global Situational Awareness</h3>
+                                    <p>Monitor military activity, operational developments, strategic movements, escalation indicators, and emerging flashpoints from a single operational environment.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Unified Multi-Domain Intelligence View</h3>
+                                    <p>Analyze activity across air, land, sea, space, and cyberspace without switching between multiple platforms and data sources.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Integrated Intelligence Environment</h3>
+                                    <p>Correlate OSINT, telemetry, military infrastructure, geospatial intelligence, and operational events within a single operational picture.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Conflict &amp; Theater Analysis</h3>
+                                    <p>Focus on active conflicts, strategic regions, flashpoints, and theaters of interest using dedicated Region and Conflict Lens controls.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Operational Context &amp; Decision Support</h3>
+                                    <p>Understand how military assets, infrastructure, events, and geopolitical developments interact across a region rather than viewing isolated data points.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Military Activity Monitoring</h3>
+                                    <p>Track military aircraft, naval movements, strategic assets, and operational developments in near real time.</p>
+                                </div>
+                            </section>
+
+                            <section class="wz-capabilities-section" aria-labelledby="wz-capabilities-advanced">
+                                <h2 id="wz-capabilities-advanced">Advanced Analysis Tools</h2>
+
+                                <div class="wz-capability-group">
+                                    <h3>Operational Overlay Suite</h3>
+                                    <p>Visualize radar coverage, threat rings, engagement ranges, area-of-influence zones, and force-projection capabilities.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Cross-Domain Activity Correlation</h3>
+                                    <p>Identify relationships between force movements, operational events, infrastructure, and strategic developments.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Focused Asset Tracking</h3>
+                                    <p>Inspect military aircraft and naval assets within their broader operational environment and surrounding activity.</p>
+                                </div>
+                            </section>
+
+                            <section class="wz-capabilities-section" aria-labelledby="wz-capabilities-visualization">
+                                <h2 id="wz-capabilities-visualization">Visualization Experience</h2>
+
+                                <div class="wz-capability-group">
+                                    <h3>Immersive 3D Battlespace Environment</h3>
+                                    <p>Explore military activity through a live, high-fidelity 3D operational environment designed for enhanced situational awareness.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>3D Military Asset Visualization</h3>
+                                    <p>View aircraft, naval vessels, and strategic assets using detailed 3D models that provide additional operational context.</p>
+                                </div>
+                            </section>
+
+                            <section class="wz-capabilities-section" aria-labelledby="wz-capabilities-audience">
+                                <h2 id="wz-capabilities-audience">Built For</h2>
+                                <p>OSINT analysts, defense researchers, journalists, security professionals, geopolitical observers, educators, and organizations requiring continuous monitoring of global security developments.</p>
+                            </section>
                         </div>
                         <div id="wz-intro-terms" class="wz-content" data-pane="terms" role="tabpanel"
                             aria-labelledby="wz-intro-tab-terms" aria-hidden="true">
-                            <h3 class="no-margin">Acceptance of These Rules</h3>
+                            <h2>Acceptance of These Rules</h2>
                             <p> By accessing, viewing, or using StratOps, you acknowledge and agree to these Rules of Engagement and Terms of Use.</p>
                             <p> If you do not agree with these terms, you must discontinue use of the platform.</p>
 
@@ -311,17 +369,12 @@
                         <div class="wz-action">
                             <div class="wz-checks">
                                 <div class="wz-check" for="intro-disclaimer-check">
-                                <input id="intro-disclaimer-check" type="checkbox" />
+                                    <input id="intro-disclaimer-check" type="checkbox" />
                                     <span>
-                                        I understand that StratOps presents OSINT-informed monitoring data and is not
-                                        an official warning network, or classified intelligence product.
+                                        I understand that StratOps presents OSINT-informed monitoring data, is not an
+                                        official warning network or classified intelligence product, and I accept the
+                                        <a href="#wz-intro-terms" id="wz-intro-terms-link" class="wz-inline-action">Rules of Engagement</a>.
                                     </span>
-                                </div>
-                                <div class="wz-check-row">
-                                    <div class="wz-check" for="intro-terms-check">
-                                        <input id="intro-terms-check" type="checkbox" />
-                                        <span>I accept the <a href="#wz-intro-terms" id="wz-intro-terms-link" class="wz-inline-action">Rules of Engagement</a></span>
-                                    </div>
                                 </div>
                             </div>
                             <div class="wz-btns">
@@ -395,6 +448,40 @@
                         <button type="button" class="btn-primary" id="wz-region-outside-select">
                             <span aria-hidden="true"></span>
                             Select Region
+                        </button>
+                    </footer>
+                </div>
+            </div>
+        </div>
+        <div id="wz-focus-warning-modal" class="wz-modal wz-layer-warning wz-focus-warning"
+            aria-modal="true" role="dialog"
+            aria-labelledby="wz-focus-warning-title"
+            aria-describedby="wz-focus-warning-summary"
+            data-title="Focus Warning"
+            data-aircraft-message="You are moving away from the focused aircraft. Stay focused to keep tracking it, or unfocus to hold a wider local view."
+            data-naval-message="You are moving away from the focused naval asset. Stay focused to keep tracking it, or unfocus to hold a wider local view."
+            data-stay-label="Stay Focused"
+            data-unfocus-label="Unfocus Asset"
+            hidden>
+            <div class="wz-modal-box wz-min-modal">
+                <div class="wz-modal-inner">
+                    <header>
+                        <span class="wz-header-title">
+                            <span class="static-icon stratops-ico-assets-alert-2" aria-hidden="true"></span>
+                            <h2 id="wz-focus-warning-title">Focus Warning</h2>
+                        </span>
+                    </header>
+                    <section class="wz-modal-body">
+                        <p id="wz-focus-warning-summary">You are moving away from the focused aircraft. Stay focused to keep tracking it, or unfocus to hold a wider local view.</p>
+                    </section>
+                    <footer>
+                        <button type="button" class="btn-secondary white" id="wz-focus-warning-stay">
+                            <span aria-hidden="true"></span>
+                            Stay Focused
+                        </button>
+                        <button type="button" class="btn-primary" id="wz-focus-warning-unfocus">
+                            <span aria-hidden="true"></span>
+                            Unfocus Asset
                         </button>
                     </footer>
                 </div>
@@ -739,19 +826,193 @@
             </div>
         </div>
     </div>
-    <div id="wz-donate-modal" class="wz-donate-modal" aria-live="polite" hidden style="display: none !important">
+    <div id="wz-pricing-modal" class="wz-modal wz-pricing" aria-modal="true" role="dialog"
+        aria-labelledby="wz-pricing-title" aria-describedby="wz-pricing-summary" hidden>
+        <div class="wz-modal-box wz-max-modal">
+            <div class="wz-modal-inner">
+                <header>
+                    <h2 id="wz-pricing-title">StratOps Plans</h2>
+                    <span class="wz-close-modal">
+                        <button type="button" class="static-icon" data-billing-close-pricing aria-label="Close pricing dialog">
+                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                        </button>
+                    </span>
+                </header>
+                <section class="wz-modal-body">
+                    <p id="wz-pricing-summary">
+                        Pick the level that matches how deeply you monitor the battlespace: quick viewing,
+                        daily analysis, or professional briefings.
+                    </p>
+                    <p id="wz-pricing-current-plan" class="wz-pricing-current-plan" aria-live="polite">
+                        Current plan: Free preview
+                    </p>
+                    <nav class="wz-modal__tabs wz-pricing-tabs" role="tablist" aria-label="Pricing sections">
+                        <button class="wz-modal__tab is-active" type="button" data-pricing-tab="plans"
+                            role="tab" aria-selected="true" aria-controls="wz-pricing-plans" tabindex="0">
+                            Plans
+                        </button>
+                        <button class="wz-modal__tab" type="button" data-pricing-tab="compare"
+                            role="tab" aria-selected="false" aria-controls="wz-pricing-compare" tabindex="-1">
+                            Compare
+                        </button>
+                    </nav>
+                    <div id="wz-pricing-plans" class="wz-pricing-pane is-active" data-pricing-pane="plans"
+                        role="tabpanel" aria-hidden="false">
+                        <div class="wz-pricing-grid" aria-label="StratOps subscription plans">
+                            <article class="wz-pricing-card">
+                                <h3>Basic</h3>
+                                <p class="wz-pricing-card__summary">For casual monitoring and low-cost access to the live StratOps map.</p>
+                                <p class="wz-pricing-card__price">$19/mo</p>
+                                <ul class="wz-list-view">
+                                    <li>Live map access</li>
+                                    <li>Limited aircraft/naval tracker preview</li>
+                                    <li>Core event feed</li>
+                                    <li>Basic widgets</li>
+                                    <li>Mobile web access</li>
+                                </ul>
+                                <button type="button" class="btn-secondary white" data-billing-checkout data-billing-plan="basic">
+                                    Choose Basic
+                                </button>
+                            </article>
+                            <article class="wz-pricing-card is-featured">
+                                <h3>Advanced</h3>
+                                <p class="wz-pricing-card__summary">For serious OSINT monitoring, full trackers, focus mode, and operational overlays.</p>
+                                <p class="wz-pricing-card__price">$49/mo</p>
+                                <ul class="wz-list-view">
+                                    <li>Everything in Basic</li>
+                                    <li>Full aircraft tracker</li>
+                                    <li>Full naval tracker</li>
+                                    <li>Focus mode</li>
+                                    <li>Region tools</li>
+                                    <li>Premium widgets and overlays</li>
+                                    <li>Focused asset trails + nearby 3D assets</li>
+                                </ul>
+                                <button type="button" class="btn-primary" data-billing-checkout data-billing-plan="advanced">
+                                    Choose Advanced
+                                </button>
+                            </article>
+                            <article class="wz-pricing-card">
+                                <h3>Expert</h3>
+                                <p class="wz-pricing-card__summary">For users who create repeatable views, local monitoring rules, and briefing files.</p>
+                                <p class="wz-pricing-card__price">$149/mo</p>
+                                <ul class="wz-list-view">
+                                    <li>Everything in Advanced</li>
+                                    <li>Local saved views</li>
+                                    <li>Local alert tools</li>
+                                    <li>Briefing export</li>
+                                    <li>Local backup export</li>
+                                </ul>
+                                <button type="button" class="btn-secondary white" data-billing-checkout data-billing-plan="expert">
+                                    Choose Expert
+                                </button>
+                            </article>
+                        </div>
+                    </div>
+                    <section id="wz-pricing-compare" class="wz-plan-details wz-pricing-pane"
+                        data-pricing-pane="compare" role="tabpanel" aria-hidden="true" hidden>
+                        <h3 class="wz-plan-details__heading">Compare plan details</h3>
+                        <div class="wz-plan-details__grid">
+                            <article>
+                                <h3>Basic</h3>
+                                <p><strong>Limited tracker preview</strong> shows a small capped aircraft/naval list so users can understand the tracker without using the full workflow.</p>
+                                <p><strong>Mobile web access</strong> means StratOps works in a phone or tablet browser. It is not an App Store app yet.</p>
+                                <p><strong>Basic widgets</strong> are the core map/event panels needed for lightweight monitoring.</p>
+                            </article>
+                            <article>
+                                <h3>Advanced</h3>
+                                <p><strong>Full trackers</strong> unlock the complete aircraft and naval tracker workflows instead of the capped preview.</p>
+                                <p><strong>Focus mode</strong> locks the camera onto an aircraft or naval asset while still allowing zoom control.</p>
+                                <p><strong>Premium widgets and overlays</strong> include Airspace Status, Cyber Status, Escalation Meter, military bases, radar/threat ranges, and radar sweepers where available.</p>
+                                <p><strong>Focused trails and nearby 3D assets</strong> show the focused asset path when history exists and keep nearby aircraft/naval assets visible in 3D.</p>
+                            </article>
+                            <article>
+                                <h3>Expert</h3>
+                                <p><strong>Local saved views</strong> save camera, region, layer, and widget state on this computer/browser.</p>
+                                <p><strong>Local alert tools</strong> match visible events by keyword, category, and severity while the browser is open.</p>
+                                <p><strong>Briefing export</strong> copies or downloads a Markdown briefing from the current visible event snapshot.</p>
+                                <p><strong>Local backup export</strong> downloads saved views and alert rules as a JSON file. Cloud sync can become a paid add-on later.</p>
+                            </article>
+                        </div>
+                    </section>
+                    <small>
+                        Pricing is shown in U.S. dollars and excludes applicable taxes unless otherwise stated.
+                        Any required taxes will be calculated during checkout. A BattlespaceX account is required
+                        to purchase and manage a subscription.
+                    </small>
+                    <p id="wz-pricing-checkout-status" class="wz-error-container" hidden aria-live="polite"></p>
+                </section>
+                <footer>
+                    <button type="button" class="btn-primary" data-billing-checkout data-billing-plan="advanced">
+                        Start Advanced
+                    </button>
+                </footer>
+            </div>
+        </div>
+    </div>
+    <button type="button"
+        id="wz-support-open"
+        class="wz-support-open-btn static-icon"
+        aria-label="Open Founding Supporter Program"
+        title="Support StratOps">
+        <span class="stratops-ico-assets-alert-1" aria-hidden="true"></span>
+        <span>Support</span>
+    </button>
+    <div id="wz-donate-modal" class="wz-donate-modal" aria-live="polite" hidden>
         <button type="button" class="wz-donate-modal__close" id="wz-donate-close"
             aria-label="Dismiss donation prompt">✕</button>
-        <div class="wz-donate-modal__icon" aria-hidden="true">🛡</div>
-        <section class="wz-donate-modal__body">
-            <h2 class="wz-donate-modal__title">Support StratOps</h2>
+        <div class="wz-donate-modal__icon" aria-hidden="true">STRATOPS</div>
+        <section class="wz-donate-modal__body" aria-labelledby="wz-supporter-title">
+            <h2 id="wz-supporter-title" class="wz-donate-modal__title">Founding Supporter Program</h2>
             <p class="wz-donate-modal__text">
-                StratOps is independent and free. Help keep it running — every contribution counts.
+                StratOps is independently built and currently operating as an early access platform.
+                Running a real-time operational intelligence environment requires ongoing development,
+                infrastructure, and future commercial data licensing.
+            </p>
+            <p class="wz-donate-modal__text">
+                Supporter access is not a commercial data subscription. Supporters are helping the
+                platform grow while StratOps works toward proper licensing and future premium plans.
+            </p>
+
+            <h3 id="wz-support-why" class="wz-donate-modal__heading">Why Support StratOps?</h3>
+            <p class="wz-donate-modal__text">
+                StratOps is built independently and requires ongoing resources to maintain, improve,
+                and expand. Support helps cover infrastructure, development, and future commercial data
+                licensing so the platform can grow responsibly.
+            </p>
+
+            <h3 class="wz-donate-modal__heading">What Your Support Helps Fund</h3>
+            <ul class="wz-list-view wz-donate-modal__list">
+                <li>Platform infrastructure and performance improvements</li>
+                <li>Continued development of operational monitoring tools</li>
+                <li>Future commercial aircraft data licensing</li>
+                <li>Future maritime and naval data licensing</li>
+                <li>Expanded OSINT and event-monitoring capabilities</li>
+                <li>Better alerting, export, and briefing workflows</li>
+            </ul>
+
+            <h3 class="wz-donate-modal__heading">Supporter Benefits</h3>
+            <ul class="wz-list-view wz-donate-modal__list">
+                <li>Help shape StratOps during early access</li>
+                <li>Early visibility into experimental capabilities</li>
+                <li>Priority feedback consideration</li>
+                <li>Founding Supporter recognition where appropriate</li>
+                <li>Early access to future premium features when licensing allows</li>
+            </ul>
+
+            <p class="wz-donate-modal__note">
+                <strong>Important note:</strong> Supporter access is not a commercial data subscription.
+                Paid premium plans may be introduced later only after licensing and platform readiness
+                requirements are in place.
             </p>
         </section>
-        <a id="wz-donate-link" href="https://donate.stripe.com/REPLACE_WITH_YOUR_STRIPE_LINK" target="_blank"
-            rel="noopener noreferrer" class="btn-primary wz-donate-modal__btn" aria-label="Open donation page in new tab">
-            Support the Mission
-        </a>
+        <div class="wz-donate-modal__actions">
+            <a id="wz-donate-link" href="/billing/support" target="_blank"
+                rel="noopener noreferrer" class="btn-primary wz-donate-modal__btn" aria-label="Open supporter page in new tab">
+                Support StratOps
+            </a>
+            <a href="#wz-support-why" class="btn-secondary white wz-donate-modal__btn">
+                Why Support Matters
+            </a>
+        </div>
     </div>
 </div>

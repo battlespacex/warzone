@@ -329,15 +329,19 @@
         gap: .7rem;
     }
 
+    .wz-utc-clock {
+        display: none;
+    }
+
     .wz-globe-toggle {
         position: fixed;
         left: 2rem;
-        top: 0;
-        bottom: 0;
+        top: 10rem;
+        bottom: auto;
         flex-direction: column;
         justify-content: center;
-        height: 8rem;
-        margin: auto 0;
+        height: 12rem;
+        margin: 0;
     }
 
     .wz-globe-toggle__btn {
@@ -699,11 +703,14 @@
 @media (max-width: 480px) {
     html { font-size: 60% }
 
-    .warzone-logo {
+    .warzone-brand .warzone-logo {
+        display: none;
     }
-        .warzone-logo img {
-            height: 4.4rem;
-        }
+
+    .warzone-view:after {
+        display: none;
+    }
+
     .warzone-actions {
         top: 1.8rem;
         right: 2rem;

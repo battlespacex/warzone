@@ -12,6 +12,9 @@ const BORDER_SOURCES = {
     provinces: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
     cities: "https://raw.githubusercontent.com/drei01/geojson-world-cities/master/cities.geojson",
 };
+const RAISED_REGION_MIDDLE_EAST_ISO2 = new Set([
+    "AE", "BH", "CY", "EG", "IL", "IQ", "IR", "JO", "KW", "LB", "OM", "PS", "QA", "SA", "SY", "TR", "YE",
+]);
 const markerCache = new Map();
 const ringCanvasCache = new Map();
 const MARKER_CACHE_MAX_ITEMS = 220;
@@ -190,6 +193,7 @@ function applyEventLod(viewer) {
         if (!entity?.properties) continue;
         const isEventOutline = !!entity.properties?.isEventOutline?.getValue?.();
         const isEventFill = !!entity.properties?.isEventFill?.getValue?.();
+        const isEventMarkerFill = !!entity.properties?.isEventMarkerFill?.getValue?.();
         const isEventPulse = !!entity.properties?.isEventPulse?.getValue?.();
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
@@ -204,6 +208,32 @@ function applyEventLod(viewer) {
             ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
             : numberVar("--warzone-event-ring-fill-alpha", 0.14);
         if (isEventOutline || isEventFill || isEventPulse) {
+            if (isEventMarkerFill) {
+                if (entity.ellipse) {
+                    const showMarkerFill = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
+                    entity.ellipse.show = showMarkerFill;
+                    if (showMarkerFill) {
+                        applyEventMarkerEllipsePulse(
+                            entity,
+                            getEventMarkerSizePx(clusterCount),
+                            color,
+                            Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82))),
+                            {
+                                id: entity.id,
+                                event_id: entity.properties?.event_id?.getValue?.(),
+                                category,
+                                severity,
+                                cluster_count: clusterCount,
+                                lat: entity.properties?.lat?.getValue?.(),
+                                lon: entity.properties?.lon?.getValue?.(),
+                            }
+                        );
+                    } else {
+                        clearEventEllipsePulse(entity);
+                    }
+                }
+                continue;
+            }
             if (entity.billboard) {
                 const showRing = mode !== "heatmap" && allowRings && showRingsByZoom;
                 entity.billboard.show = showRing;
@@ -231,8 +261,10 @@ function applyEventLod(viewer) {
             continue;
         }
         if (entity.billboard) {
-            // Cluster markers are normally always visible, unless hotspot mode suppresses dots/markers.
-            entity.billboard.show = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
+            entity.billboard.show = false;
+        }
+        if (entity.label) {
+            entity.label.show = mode !== "heatmap" && !suppressMarkers && isCluster;
         }
         if (mode === "heatmap" && allowRings && showRingsByZoom) {
             ensureEventEllipse(entity, baseRadius, color, fillAlpha);
@@ -255,9 +287,8 @@ function applyEventLod(viewer) {
                 entity.ellipse.semiMinorAxis = baseRadius;
                 entity.ellipse.semiMajorAxis = baseRadius;
                 entity.ellipse.material = color.withAlpha(fillAlpha);
-                entity.ellipse.outline = true;
-                entity.ellipse.outlineColor = color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.62));
-                entity.ellipse.outlineWidth = Math.max(1, numberVar("--warzone-event-ring-outline-width", 2));
+                entity.ellipse.outline = false;
+                entity.ellipse.outlineWidth = 0;
             }
         }
     }
@@ -422,6 +453,18 @@ function clearTrackedEventEntities(viewer) {
     stopEventPulseRenderLoop(viewer);
     viewer.scene.requestRender();
 }
+function setTrackedEventLayerVisible(viewer, layerId = "", visible = true) {
+    const targetLayerId = String(layerId || "").trim();
+    if (!viewer || !targetLayerId) return;
+    const show = visible !== false;
+    for (const id of __eventEntityIds) {
+        const entity = viewer.entities?.getById?.(id);
+        const entityLayerId = String(getEntityPropertyValue(entity, "layer_id", "") || "").trim();
+        if (entityLayerId !== targetLayerId) continue;
+        entity.show = show;
+    }
+    viewer.scene.requestRender?.();
+}
 /* ---------- CSS helpers ---------- */
 function cssVar(name, fallback) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -513,6 +556,38 @@ function getSeverityRadius(event) {
         default: return base * 1.8 * countScale;
     }
 }
+function getEventMarkerSizePx(count = 1) {
+    const baseSize = Math.max(16, numberVar("--warzone-event-marker-size", 56));
+    const step = Math.max(0, numberVar("--warzone-event-marker-cluster-step", 10));
+    const maxSize = Math.max(baseSize, numberVar("--warzone-event-marker-max-size", 108));
+    if (count > 1) {
+        return Math.min(baseSize + Math.log2(Math.max(count, 2)) * step, maxSize);
+    }
+    return baseSize;
+}
+function getEventMarkerPerspectiveSquash(viewer) {
+    const pitch = Math.abs(Number(viewer?.camera?.pitch ?? (-Math.PI / 2)));
+    const topDownPitch = Math.PI / 2;
+    const horizonRatio = Math.max(0, Math.min(1, 1 - (pitch / topDownPitch)));
+    return 1 - horizonRatio * 0.54;
+}
+function getEventMarkerMetersPerPixel(entity, viewer = window.__warzoneViewer) {
+    const scene = viewer?.scene;
+    const camera = viewer?.camera;
+    const position = entity?.position?.getValue?.(Cesium.JulianDate.now()) || null;
+    if (!scene || !camera || !position) {
+        return Math.max(40, numberVar("--warzone-event-marker-meters-per-pixel-fallback", 120));
+    }
+    try {
+        const metersPerPixel = camera.getPixelSize(
+            new Cesium.BoundingSphere(position, 1),
+            Math.max(1, Number(scene.drawingBufferWidth || scene.canvas?.width || 1)),
+            Math.max(1, Number(scene.drawingBufferHeight || scene.canvas?.height || 1))
+        );
+        if (Number.isFinite(metersPerPixel) && metersPerPixel > 0) return metersPerPixel;
+    } catch { }
+    return Math.max(40, numberVar("--warzone-event-marker-meters-per-pixel-fallback", 120));
+}
 function getEventRingBillboardScale(event = {}) {
     const base = Math.max(1, numberVar("--warzone-event-ring-size", 70000));
     const radius = Math.max(base, getSeverityRadius(event));
@@ -562,8 +637,8 @@ function getEventPulseSettings(event = {}) {
         "--warzone-event-ring-pulse-duration-b",
         "--warzone-event-ring-pulse-duration-c",
     ];
-    const fallbackDurations = [1500, 2100, 2800];
-    const durationMs = Math.max(700, numberVar(durationVars[group], fallbackDurations[group]));
+    const fallbackDurations = [2200, 3000, 3900];
+    const durationMs = Math.max(1400, numberVar(durationVars[group], fallbackDurations[group]) * 1.5);
     return {
         enabled,
         durationMs,
@@ -577,24 +652,25 @@ function getEventPulseValue(settings) {
     const now = typeof performance !== "undefined" && typeof performance.now === "function"
         ? performance.now()
         : Date.now();
-    const progress = ((now + settings.offsetMs) % settings.durationMs) / settings.durationMs;
-    return 0.5 - Math.cos(progress * Math.PI * 2) * 0.5;
+    return ((now + settings.offsetMs) % settings.durationMs) / settings.durationMs;
 }
 function getEventPulsedRadius(radius, settings) {
     if (!settings?.enabled) return radius;
-    const wave = getEventPulseValue(settings);
-    return radius * (1 + wave * settings.radiusScale);
+    const progress = getEventPulseValue(settings);
+    return radius * (1 + progress * settings.radiusScale);
 }
 function getEventPulsedFillAlpha(fillAlpha, settings) {
     if (!settings?.enabled) return fillAlpha;
-    const wave = getEventPulseValue(settings);
-    const alpha = fillAlpha * (1 - settings.alphaScale * 0.5 + wave * settings.alphaScale);
+    const progress = getEventPulseValue(settings);
+    const alphaWave = Math.pow(Math.sin(progress * Math.PI), 0.9);
+    const alpha = fillAlpha * (0.18 + alphaWave * Math.max(0.12, settings.alphaScale + 0.24));
     return Math.max(0.01, Math.min(alpha, 0.42));
 }
 function clearEventEllipsePulse(entity) {
     if (!entity) return;
     delete entity.__wzPulseBaseRadius;
     delete entity.__wzPulseBaseScale;
+    delete entity.__wzMarkerBaseSizePx;
     delete entity.__wzPulseSettings;
     delete entity.__wzPulseColor;
     delete entity.__wzPulseFillAlpha;
@@ -605,9 +681,8 @@ function ensureEventEllipse(entity, radius, color, fillAlpha) {
         semiMinorAxis: radius,
         semiMajorAxis: radius,
         material: color.withAlpha(fillAlpha),
-        outline: true,
-        outlineColor: color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.62)),
-        outlineWidth: Math.max(1, numberVar("--warzone-event-ring-outline-width", 2)),
+        outline: false,
+        outlineWidth: 0,
         height: 0,
         show: true,
     });
@@ -615,6 +690,30 @@ function ensureEventEllipse(entity, radius, color, fillAlpha) {
 function applyEventPulseFrame(entity) {
     const settings = entity.__wzPulseSettings || {};
     const ellipse = entity?.ellipse;
+    const markerBaseSizePx = Number(entity?.__wzMarkerBaseSizePx);
+    if (ellipse && Number.isFinite(markerBaseSizePx) && markerBaseSizePx > 0) {
+        const metersPerPixel = getEventMarkerMetersPerPixel(entity);
+        if (!settings?.enabled) {
+            const radiusMeters = Math.max(1, metersPerPixel * markerBaseSizePx * 0.5);
+            ellipse.semiMinorAxis = radiusMeters;
+            ellipse.semiMajorAxis = radiusMeters;
+            if (entity.__wzPulseColor && Number.isFinite(entity.__wzPulseFillAlpha)) {
+                ellipse.material = entity.__wzPulseColor.withAlpha(entity.__wzPulseFillAlpha);
+            }
+        } else {
+            const progress = getEventPulseValue(settings);
+            const easedProgress = 1 - Math.pow(1 - progress, 2);
+            const alphaWave = Math.pow(Math.sin(progress * Math.PI), 0.92);
+            const pulseDiameterPx = markerBaseSizePx * (0.32 + easedProgress * 0.68);
+            const radiusMeters = Math.max(1, metersPerPixel * pulseDiameterPx * 0.5);
+            ellipse.semiMinorAxis = radiusMeters;
+            ellipse.semiMajorAxis = radiusMeters;
+            if (entity.__wzPulseColor && Number.isFinite(entity.__wzPulseFillAlpha)) {
+                const alpha = Math.max(0.02, Math.min(entity.__wzPulseFillAlpha, entity.__wzPulseFillAlpha * alphaWave));
+                ellipse.material = entity.__wzPulseColor.withAlpha(alpha);
+            }
+        }
+    }
     const baseRadius = Number(entity?.__wzPulseBaseRadius);
     if (ellipse && Number.isFinite(baseRadius) && baseRadius > 0) {
         const nextRadius = getEventPulsedRadius(baseRadius, settings);
@@ -627,19 +726,25 @@ function applyEventPulseFrame(entity) {
         }
     }
     const billboard = entity?.billboard;
-    const baseScale = Number(entity?.__wzPulseBaseScale);
-    if (billboard && Number.isFinite(baseScale) && baseScale > 0) {
-        const wave = getEventPulseValue(settings);
-        billboard.scale = baseScale * (1 + wave * Math.max(0, settings.radiusScale || 0));
-        if (Number.isFinite(entity.__wzPulseFillAlpha)) {
-            const alpha = Math.max(
-                0.78,
-                Math.min(1, entity.__wzPulseFillAlpha * (0.88 + wave * 0.12))
-            );
-            billboard.color = Cesium.Color.WHITE.withAlpha(
-                alpha
-            );
+    const baseSizePx = Number(entity?.__wzPulseBaseSizePx);
+    if (billboard && Number.isFinite(baseSizePx) && baseSizePx > 0) {
+        const squash = getEventMarkerPerspectiveSquash(window.__warzoneViewer);
+        if (!settings?.enabled) {
+            billboard.width = baseSizePx;
+            billboard.height = baseSizePx * squash;
+            billboard.scale = 1;
+            billboard.color = Cesium.Color.WHITE.withAlpha(1);
+            return;
         }
+        const progress = getEventPulseValue(settings);
+        const easedProgress = 1 - Math.pow(1 - progress, 2);
+        const alphaWave = Math.pow(Math.sin(progress * Math.PI), 0.92);
+        const pulseSize = baseSizePx * (0.32 + easedProgress * 0.68);
+        billboard.width = pulseSize;
+        billboard.height = pulseSize * squash;
+        billboard.scale = 1;
+        const alpha = Math.max(0.02, Math.min(1, alphaWave));
+        billboard.color = Cesium.Color.WHITE.withAlpha(alpha);
     }
 }
 function updateEventPulseFrame(viewer) {
@@ -652,17 +757,13 @@ function applyEventEllipsePulse(entity, radius, color, fillAlpha, event = {}) {
     const ellipse = entity?.ellipse;
     if (!ellipse) return;
     const settings = getEventPulseSettings(event);
-    const isEventPulse = !!entity.properties?.isEventPulse?.getValue?.();
     entity.__wzPulseBaseRadius = radius;
     entity.__wzPulseSettings = settings;
     entity.__wzPulseColor = color;
     entity.__wzPulseFillAlpha = fillAlpha;
     ellipse.show = true;
-    ellipse.outline = !isEventPulse;
-    if (!isEventPulse) {
-        ellipse.outlineColor = color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.62));
-        ellipse.outlineWidth = Math.max(1, numberVar("--warzone-event-ring-outline-width", 2));
-    }
+    ellipse.outline = false;
+    ellipse.outlineWidth = 0;
     ellipse.material = color.withAlpha(fillAlpha);
     applyEventPulseFrame(entity);
 }
@@ -670,10 +771,24 @@ function applyEventBillboardPulse(entity, baseScale, fillAlpha, event = {}) {
     const billboard = entity?.billboard;
     if (!billboard) return;
     const settings = getEventPulseSettings(event);
-    entity.__wzPulseBaseScale = baseScale;
+    entity.__wzPulseBaseSizePx = baseScale;
     entity.__wzPulseSettings = settings;
     entity.__wzPulseFillAlpha = fillAlpha;
     billboard.show = true;
+    applyEventPulseFrame(entity);
+}
+function applyEventMarkerEllipsePulse(entity, baseSizePx, color, fillAlpha, event = {}) {
+    const ellipse = entity?.ellipse;
+    if (!ellipse) return;
+    const settings = getEventPulseSettings(event);
+    entity.__wzMarkerBaseSizePx = baseSizePx;
+    entity.__wzPulseSettings = settings;
+    entity.__wzPulseColor = color;
+    entity.__wzPulseFillAlpha = fillAlpha;
+    ellipse.show = true;
+    ellipse.outline = false;
+    ellipse.outlineWidth = 0;
+    ellipse.heightReference = Cesium.HeightReference.CLAMP_TO_GROUND;
     applyEventPulseFrame(entity);
 }
 function isEntityGraphicVisible(graphic) {
@@ -773,71 +888,76 @@ function normalizeEvents(events) {
         .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon));
 }
 /* ---------- Marker canvases ---------- */
+function colorCssWithAlpha(colorCss, alpha = 1) {
+    try {
+        const color = Cesium.Color.fromCssColorString(colorCss);
+        const r = Math.round(color.red * 255);
+        const g = Math.round(color.green * 255);
+        const b = Math.round(color.blue * 255);
+        return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, alpha))})`;
+    } catch {
+        return colorCss;
+    }
+}
 function createMarkerCanvas(colorCss) {
     if (markerCache.has(colorCss)) return markerCache.get(colorCss);
     const canvas = document.createElement("canvas");
-    canvas.width = 96;
-    canvas.height = 96;
+    canvas.width = 128;
+    canvas.height = 128;
     const ctx = canvas.getContext("2d");
-    const cx = 48;
-    const cy = 48;
-    ctx.clearRect(0, 0, 96, 96);
-    const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, 30);
-    glow.addColorStop(0, colorCss);
-    glow.addColorStop(0.25, "rgba(255,255,255,0.15)");
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
+    const cx = 64;
+    const cy = 64;
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
     ctx.beginPath();
-    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = colorCss;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 31, 0, Math.PI * 2);
     ctx.fill();
     const dataUrl = canvas.toDataURL("image/png");
     setLimitedCache(markerCache, colorCss, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
-// Cluster marker — bigger, shows event count, colorful pulse glow
+// Cluster marker — flat color fill only. Count is rendered as a separate static label.
 function createClusterMarkerCanvas(colorCss, count) {
     const key = `cluster:${colorCss}:${Math.min(count, 999)}`;
     if (markerCache.has(key)) return markerCache.get(key);
-    const sz = 128;
+    const sz = 256;
     const cx = sz / 2;
     const cy = sz / 2;
-    // Scale glow radius logarithmically — 2 events → 36px, 100 events → 54px
-    const glowR = Math.min(36 + Math.log2(count) * 5, 60);
-    const coreR = Math.min(14 + Math.log2(count) * 2.2, 26);
+    const discR = Math.min(46 + Math.log2(Math.max(count, 2)) * 7.2, 92);
     const canvas = document.createElement("canvas");
     canvas.width = sz;
     canvas.height = sz;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, sz, sz);
-    // Outer glow
-    const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, glowR);
-    glow.addColorStop(0, colorCss);
-    glow.addColorStop(0.35, colorCss.replace(/[\d.]+\)$/, "0.35)").replace(/^rgb\(/, "rgba("));
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
+    ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
     ctx.beginPath();
-    ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+    ctx.arc(cx, cy, discR, 0, Math.PI * 2);
     ctx.fill();
-    // Solid core circle
-    ctx.fillStyle = colorCss;
-    ctx.beginPath();
-    ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-    ctx.fill();
-    // Count text
-    const label = count > 999 ? "999+" : String(count);
-    const fontSize = count > 99 ? 13 : count > 9 ? 15 : 17;
-    ctx.fillStyle = "##eef0f5";
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, cx, cy);
     const dataUrl = canvas.toDataURL("image/png");
     setLimitedCache(markerCache, key, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
+}
+function createClusterCountLabel(count = 1) {
+    if (!(count > 1)) return undefined;
+    const text = count > 999 ? "999+" : String(count);
+    const fontSize = count > 99
+        ? cssVar("--warzone-event-count-font-size-100plus", "20px")
+        : count > 9
+            ? cssVar("--warzone-event-count-font-size-10plus", "22px")
+            : cssVar("--warzone-event-count-font-size", "24px");
+    return {
+        text,
+        font: `700 ${fontSize} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
+        fillColor: colorFromCssVar("--color-text-heading", "#eef0f5", 0.98),
+        outlineColor: Cesium.Color.TRANSPARENT,
+        outlineWidth: 0,
+        style: Cesium.LabelStyle.FILL,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        pixelOffset: new Cesium.Cartesian2(0, 0),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        showBackground: false,
+    };
 }
 function createRingCanvas(strokeCss = "#f51e58", size = 512, lineWidth = 20) {
     const key = `${strokeCss}|${size}|${lineWidth}`;
@@ -918,16 +1038,44 @@ function resolveGlobeEventSourceUrl(event = {}) {
     }
     return "";
 }
-/* ---------- Event entities ---------- */
-function createEventEntity(event, options = {}) {
+function createEventMarkerFillEntity(event, options = {}) {
     const colorCss = getCategoryColorCss(event.category);
     const color = Cesium.Color.fromCssColorString(colorCss);
     const count = Number(event?.cluster_count || 1);
     const isCluster = count > 1;
-    // Cluster events get a count-badge marker; single events get the regular dot
-    const marker = isCluster
-        ? createClusterMarkerCanvas(colorCss, count)
-        : createMarkerCanvas(colorCss);
+    const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
+    const suppressMarkers = options?.suppressMarkers === true;
+    const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
+    const fillAlpha = Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82)));
+    return {
+        id: `${event.id}-fill`,
+        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+        ellipse: {
+            semiMinorAxis: 1,
+            semiMajorAxis: 1,
+            material: color.withAlpha(fillAlpha),
+            outline: false,
+            outlineWidth: 0,
+            height: 0,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            show: showMarker,
+        },
+        properties: {
+            event_id: event.id,
+            isEventFill: true,
+            isEventMarkerFill: true,
+            category: event.category,
+            severity: event.severity,
+            cluster_count: count,
+            lat: event.lat,
+            lon: event.lon,
+        },
+    };
+}
+/* ---------- Event entities ---------- */
+function createEventEntity(event, options = {}) {
+    const count = Number(event?.cluster_count || 1);
+    const isCluster = count > 1;
     const radius = getSeverityRadius(event); // already scaled by cluster_count
     const heatRadius = getHeatRadius(event);
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
@@ -935,13 +1083,6 @@ function createEventEntity(event, options = {}) {
     const showEventRings = false;
     // Clusters always show their marker (count badge) regardless of zoom CSS var
     const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
-    const fillAlpha = isCluster
-        ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
-        : numberVar("--warzone-event-ring-fill-alpha", 0.14);
-    // Cluster billboard scale grows slightly with count (capped so it doesn't get huge)
-    const markerScale = isCluster
-        ? Math.min(0.52 + Math.log2(count) * 0.06, 0.95)
-        : numberVar("--warzone-marker-scale", 1);
     const sourceUrl = resolveGlobeEventSourceUrl(event);
     const clusterEvents = Array.isArray(event?._clusterEvents)
         ? event._clusterEvents
@@ -961,25 +1102,23 @@ function createEventEntity(event, options = {}) {
         id: event.id,
         name: event.title,
         position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
-        billboard: {
-            image: marker,
-            scale: markerScale,
-            verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: showMarker,
-        },
+        label: isCluster ? { ...createClusterCountLabel(count), show: showMarker } : undefined,
         ellipse: showEventRings ? {
             semiMinorAxis: radius,
             semiMajorAxis: radius,
-            material: color.withAlpha(fillAlpha),
-            outline: true,
-            outlineColor: color.withAlpha(numberVar("--warzone-event-ring-outline-alpha", 0.62)),
-            outlineWidth: Math.max(1, numberVar("--warzone-event-ring-outline-width", 2)),
+            material: Cesium.Color.fromCssColorString(getCategoryColorCss(event.category)).withAlpha(
+                isCluster
+                    ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
+                    : numberVar("--warzone-event-ring-fill-alpha", 0.14)
+            ),
+            outline: false,
+            outlineWidth: 0,
             height: 0,
             show: false,
         } : undefined,
         properties: {
             event_id: event.id,
+            layer_id: event._layerId || event.layer_id || "",
             title: event.title,
             summary: event.summary,
             category: event.category,
@@ -1007,16 +1146,20 @@ function createEventEntity(event, options = {}) {
 function addEventEntity(viewer, event, options = {}) {
     removeExistingEventEntity(viewer, event?.id);
     const entity = viewer.entities.add(createEventEntity(event, options));
-    if (entity?.billboard) {
-        const count = Number(event?.cluster_count || 1);
-        const markerScale = count > 1
-            ? Math.min(0.52 + Math.log2(count) * 0.06, 0.95)
-            : numberVar("--warzone-marker-scale", 1);
-        applyEventBillboardPulse(entity, markerScale, 1, event);
-    }
+    const fillEntity = viewer.entities.add(createEventMarkerFillEntity(event, options));
+    const count = Number(event?.cluster_count || 1);
+    const markerSizePx = getEventMarkerSizePx(count);
+    applyEventMarkerEllipsePulse(
+        fillEntity,
+        markerSizePx,
+        Cesium.Color.fromCssColorString(getCategoryColorCss(event.category)),
+        Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82))),
+        event
+    );
     rememberEventEntity(entity);
+    rememberEventEntity(fillEntity);
     startEventPulseRenderLoop(viewer);
-    return { entity, fillEntity: null, ringEntity: null, pulseEntity: null };
+    return { entity, fillEntity, ringEntity: null, pulseEntity: null };
 }
 function getEntityPropertyValue(entity, key, fallback = "") {
     if (!entity?.properties) return fallback;
@@ -1235,15 +1378,13 @@ function clamp2DProjectedViewport(viewer) {
     const maxProjected = projection.project(
         Cesium.Cartographic.fromDegrees(180, maxLatDeg, 0)
     );
-    const maxX = Math.abs(Number(maxProjected?.x || 0));
     const maxY = Math.abs(Number(maxProjected?.y || 0));
     const halfWidth = Math.abs(Number(frustum.right || 0) - Number(frustum.left || 0)) * 0.5;
     const halfHeight = Math.abs(Number(frustum.top || 0) - Number(frustum.bottom || 0)) * 0.5;
-    if (![maxX, maxY, halfWidth, halfHeight].every(Number.isFinite)) return;
+    if (![maxY, halfWidth, halfHeight].every(Number.isFinite)) return;
 
-    const xLimit = Math.max(0, maxX - halfWidth);
     const yLimit = Math.max(0, maxY - halfHeight);
-    const nextX = Cesium.Math.clamp(Number(camera.position.x || 0), -xLimit, xLimit);
+    const nextX = Number(camera.position.x || 0);
     const nextY = Cesium.Math.clamp(Number(camera.position.y || 0), -yLimit, yLimit);
     if (
         Math.abs(nextX - Number(camera.position.x || 0)) < 0.5 &&
@@ -1793,6 +1934,141 @@ function flattenRingToDegrees(ring) {
     }
     return out;
 }
+function readFeatureIso2(feature) {
+    const props = feature?.properties || {};
+    return String(props.ISO_A2_EH || props.ISO_A2 || props.iso_a2 || props.iso2 || "")
+        .trim()
+        .toUpperCase();
+}
+function ringToCartesianPositions(ring, height = 0) {
+    if (!Array.isArray(ring) || ring.length < 3) return [];
+    const positions = [];
+    for (const coord of ring) {
+        if (!Array.isArray(coord) || coord.length < 2) continue;
+        const lon = Number(coord[0]);
+        const lat = Number(coord[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, height));
+    }
+    return positions;
+}
+function buildPolygonHierarchyFromRings(rings) {
+    if (!Array.isArray(rings) || !rings.length) return null;
+    const outer = ringToCartesianPositions(rings[0]);
+    if (outer.length < 3) return null;
+    const holes = rings
+        .slice(1)
+        .map((ring) => {
+            const positions = ringToCartesianPositions(ring);
+            return positions.length >= 3 ? new Cesium.PolygonHierarchy(positions) : null;
+        })
+        .filter(Boolean);
+    return new Cesium.PolygonHierarchy(outer, holes);
+}
+function addRaisedRegionPolygon(viewer, rings) {
+    const hierarchy = buildPolygonHierarchyFromRings(rings);
+    if (!hierarchy || !viewer?.__raisedRegionDataSource?.entities) return;
+    const entities = viewer.__raisedRegionDataSource.entities;
+    const height = Math.max(1000, numberVar("--warzone-raised-region-height", 32000));
+    const sideAlpha = clamp01(numberVar("--warzone-raised-region-side-alpha", 0.18));
+    const fillAlpha = clamp01(numberVar("--warzone-raised-region-fill-alpha", 0.10));
+    const outlineAlpha = clamp01(numberVar("--warzone-raised-region-outline-alpha", 0.78));
+    const fillColor = colorFromCssVar("--warzone-raised-region-color", "#18e2db", 1);
+    const outlineWidth = Math.max(1, numberVar("--warzone-raised-region-outline-width", 2.4));
+    entities.add({
+        polygon: {
+            hierarchy,
+            height,
+            extrudedHeight: 0,
+            material: fillColor.withAlpha(fillAlpha),
+            closeTop: true,
+            closeBottom: false,
+            outline: false,
+            perPositionHeight: false,
+        },
+    });
+    entities.add({
+        polygon: {
+            hierarchy,
+            height,
+            extrudedHeight: 0,
+            material: fillColor.withAlpha(sideAlpha),
+            closeTop: false,
+            closeBottom: false,
+            outline: false,
+            perPositionHeight: false,
+        },
+    });
+    const outlinePositions = ringToCartesianPositions(rings[0], height + 600);
+    if (outlinePositions.length >= 3) {
+        outlinePositions.push(outlinePositions[0]);
+        entities.add({
+            polyline: {
+                positions: outlinePositions,
+                width: outlineWidth,
+                material: fillColor.withAlpha(outlineAlpha),
+                clampToGround: false,
+            },
+        });
+    }
+}
+async function ensureRaisedMiddleEastRegionLoaded(viewer) {
+    if (!viewer) return;
+    if (viewer.__raisedRegionLoaded) return;
+    if (viewer.__raisedRegionLoadPromise) return viewer.__raisedRegionLoadPromise;
+    if (!viewer.__raisedRegionDataSource) {
+        viewer.__raisedRegionDataSource = new Cesium.CustomDataSource("warzone-raised-region");
+        viewer.dataSources.add(viewer.__raisedRegionDataSource);
+    }
+    const ds = viewer.__raisedRegionDataSource;
+    ds.entities.removeAll();
+    viewer.__raisedRegionLoadPromise = fetchGeoJson(BORDER_SOURCES.countries)
+        .then((geojson) => {
+            const features = Array.isArray(geojson?.features) ? geojson.features : [];
+            ds.entities.suspendEvents?.();
+            for (const feature of features) {
+                const iso2 = readFeatureIso2(feature);
+                if (!RAISED_REGION_MIDDLE_EAST_ISO2.has(iso2)) continue;
+                const geometry = feature?.geometry;
+                if (geometry?.type === "Polygon") {
+                    addRaisedRegionPolygon(viewer, geometry.coordinates);
+                } else if (geometry?.type === "MultiPolygon") {
+                    const polygons = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
+                    for (const polygon of polygons) {
+                        addRaisedRegionPolygon(viewer, polygon);
+                    }
+                }
+            }
+            ds.entities.resumeEvents?.();
+            viewer.__raisedRegionLoaded = true;
+        })
+        .catch(() => {
+            viewer.__raisedRegionLoaded = false;
+        })
+        .finally(() => {
+            viewer.__raisedRegionLoadPromise = null;
+        });
+    return viewer.__raisedRegionLoadPromise;
+}
+function applyRaisedRegionVisibility(viewer, visible, region = null) {
+    if (!viewer) return;
+    const show = !!visible && String(region?.id || "middle_east") === "middle_east";
+    viewer.__raisedRegionVisible = show;
+    if (!viewer.__raisedRegionDataSource) {
+        viewer.__raisedRegionDataSource = new Cesium.CustomDataSource("warzone-raised-region");
+        viewer.dataSources.add(viewer.__raisedRegionDataSource);
+    }
+    viewer.__raisedRegionDataSource.show = show;
+    if (show && !viewer.__raisedRegionLoaded) {
+        ensureRaisedMiddleEastRegionLoaded(viewer).then(() => {
+            if (viewer.__raisedRegionDataSource) {
+                viewer.__raisedRegionDataSource.show = viewer.__raisedRegionVisible === true;
+            }
+            viewer.scene?.requestRender?.();
+        });
+    }
+    viewer.scene?.requestRender?.();
+}
 function getBorderEntityCollection(viewer) {
     if (viewer.__borderDataSource?.entities) {
         return viewer.__borderDataSource.entities;
@@ -2011,6 +2287,8 @@ function ensureBorderLayersLoaded(viewer) {
 }
 async function addArcGisLayers(viewer) {
     viewer.imageryLayers.removeAll();
+    viewer.__contourLayer = null;
+    viewer.__contourLayerLoadPromise = null;
     const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
         { enablePickFeatures: false }
@@ -2034,6 +2312,65 @@ async function addArcGisLayers(viewer) {
     updateLabelsLayerVisibility(viewer);
     return { baseLayer, labelsLayer };
 }
+function getContourLayerUrl() {
+    return String(
+        (typeof window !== "undefined" && window.__stratopsConfig?.contourLayerUrl) ||
+        "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer"
+    ).trim();
+}
+function applyContourLayerState(viewer) {
+    const layer = viewer?.__contourLayer;
+    if (!layer) return;
+    layer.alpha = clamp01(numberVar("--warzone-contour-layer-alpha", 0.42));
+    layer.show = viewer.__contourLayerVisible === true && viewer.__terrainVisible !== false;
+    if (viewer.__imageryLabels) {
+        try { viewer.imageryLayers.raiseToTop(viewer.__imageryLabels); } catch { }
+    }
+}
+async function ensureContourLayer(viewer) {
+    if (!viewer?.imageryLayers) return null;
+    if (viewer.__contourLayer) return viewer.__contourLayer;
+    if (viewer.__contourLayerLoadPromise) return viewer.__contourLayerLoadPromise;
+    const url = getContourLayerUrl();
+    if (!url) return null;
+    viewer.__contourLayerLoadPromise = Cesium.ArcGisMapServerImageryProvider.fromUrl(
+        url,
+        { enablePickFeatures: false }
+    )
+        .then((provider) => {
+            const layer = viewer.imageryLayers.addImageryProvider(provider);
+            viewer.__contourLayer = layer;
+            applyContourLayerState(viewer);
+            viewer.scene.requestRender?.();
+            return layer;
+        })
+        .catch((error) => {
+            console.warn("Contour layer failed to load:", error);
+            return null;
+        })
+        .finally(() => {
+            viewer.__contourLayerLoadPromise = null;
+        });
+    return viewer.__contourLayerLoadPromise;
+}
+function dispatchContourLayerChanged(viewer) {
+    document.dispatchEvent(new CustomEvent("wz:contour-layer-changed", {
+        detail: {
+            visible: viewer?.__contourLayerVisible === true,
+        },
+    }));
+}
+async function setContourLayerVisible(viewer, visible = false) {
+    if (!viewer) return false;
+    viewer.__contourLayerVisible = !!visible;
+    if (viewer.__contourLayerVisible) {
+        await ensureContourLayer(viewer);
+    }
+    applyContourLayerState(viewer);
+    dispatchContourLayerChanged(viewer);
+    viewer.scene?.requestRender?.();
+    return viewer.__contourLayerVisible === true;
+}
 /* ---------- Map mode ---------- */
 function normalizeSceneMode(mode = "") {
     const raw = String(mode || "").trim().toLowerCase();
@@ -2045,37 +2382,111 @@ function getSceneMode(viewer) {
     if (!viewer?.scene) return "3d";
     const sceneMode = viewer.scene.mode;
     if (sceneMode === Cesium.SceneMode.SCENE2D) return "2d";
+    if (sceneMode === Cesium.SceneMode.MORPHING) {
+        return normalizeSceneMode(viewer.__warzoneSceneTransitionTarget || viewer.__warzoneSceneMode) || "3d";
+    }
     return "3d";
+}
+function isInteractiveSceneModeSource(source = "") {
+    const value = String(source || "").trim().toLowerCase();
+    return value === "manual" || value === "map-mode" || value === "ui";
+}
+function startSceneModeTransitionLoader(viewer, durationSeconds = 1.2) {
+    if (typeof window === "undefined") return () => {};
+    const token = Symbol("warzone-scene-mode-loader");
+    const previousKeepVisible = window.__wzKeepSiteLoaderVisible === true;
+    const previousKeepUntil = Number(window.__wzKeepSiteLoaderVisibleUntil || 0);
+    const holdMs = Math.max(2400, Math.min(7200, Math.round(Number(durationSeconds || 0) * 1000) + 2800));
+    viewer.__warzoneSceneModeLoaderToken = token;
+    window.__wzKeepSiteLoaderVisible = true;
+    window.__wzKeepSiteLoaderVisibleUntil = Date.now() + holdMs;
+    window.SiteLoader?.start?.();
+    return () => {
+        if (viewer.__warzoneSceneModeLoaderToken !== token) return;
+        delete viewer.__warzoneSceneModeLoaderToken;
+        const shouldRestoreKeep = previousKeepVisible && previousKeepUntil > Date.now();
+        window.__wzKeepSiteLoaderVisible = shouldRestoreKeep;
+        window.__wzKeepSiteLoaderVisibleUntil = shouldRestoreKeep ? previousKeepUntil : 0;
+        window.SiteLoader?.stop?.();
+    };
 }
 function setSceneMode(viewer, mode = "3d", options = {}) {
     if (!viewer?.scene) return "3d";
     const nextMode = normalizeSceneMode(mode);
     if (!nextMode) return getSceneMode(viewer);
+    const source = String(options?.source || "system");
+    const interactiveTransition = isInteractiveSceneModeSource(source);
+    const isMorphing = viewer.scene.mode === Cesium.SceneMode.MORPHING;
+    if (isMorphing && normalizeSceneMode(viewer.__warzoneSceneTransitionTarget) === nextMode) {
+        return nextMode;
+    }
     const currentMode = getSceneMode(viewer);
     if (currentMode === nextMode) {
         viewer.__warzoneSceneMode = currentMode;
+        if (interactiveTransition) {
+            viewer.__warzoneSceneModeRefocusManagedUntil = Date.now() + 8000;
+            document.dispatchEvent(new CustomEvent("wz:scene-mode-refocus-requested", {
+                detail: { mode: nextMode, source },
+            }));
+        }
         return currentMode;
     }
     const requestedDuration = Number(options?.duration);
-    const defaultDuration = Math.max(0.2, Math.min(numberVar("--warzone-scene-morph-duration", 0.72), 3));
-    const duration = Number.isFinite(requestedDuration)
+    const defaultDuration = Math.max(0.2, Math.min(numberVar("--warzone-scene-morph-duration", 1.15), 3));
+    const baseDuration = Number.isFinite(requestedDuration)
         ? Math.max(0, Math.min(requestedDuration, 3))
         : defaultDuration;
+    const minInteractiveDuration = interactiveTransition
+        ? Math.max(0.85, Math.min(numberVar("--warzone-scene-interactive-min-duration", 1.15), 2.4))
+        : 0;
+    const duration = Math.max(baseDuration, minInteractiveDuration);
+    const stopLoader = interactiveTransition
+        ? startSceneModeTransitionLoader(viewer, duration)
+        : null;
+    if (interactiveTransition) {
+        viewer.__warzoneSceneModeRefocusManagedUntil = Date.now() + Math.max(8000, Math.round(duration * 1000) + 5200);
+    }
+    let finalizeTimer = 0;
+    let finalized = false;
+    let removeMorphComplete = null;
+    const finalizeSceneTransition = () => {
+        if (finalized) return;
+        finalized = true;
+        if (finalizeTimer) {
+            clearTimeout(finalizeTimer);
+            finalizeTimer = 0;
+        }
+        if (typeof removeMorphComplete === "function") {
+            removeMorphComplete();
+            removeMorphComplete = null;
+        }
+        viewer.__warzoneSceneMode = nextMode;
+        viewer.__warzoneSceneTransitionTarget = null;
+        syncSceneModeBounds(viewer);
+        stopLoader?.();
+        viewer.scene.requestRender?.();
+    };
     try {
+        viewer.__warzoneSceneTransitionTarget = nextMode;
+        removeMorphComplete = viewer.scene.morphComplete?.addEventListener?.(finalizeSceneTransition) || null;
+        finalizeTimer = window.setTimeout(finalizeSceneTransition, Math.max(900, Math.round(duration * 1000) + 1200));
         if (nextMode === "2d") {
             viewer.scene.morphTo2D(duration);
         } else {
             viewer.scene.morphTo3D(duration);
         }
     } catch {
+        if (finalizeTimer) clearTimeout(finalizeTimer);
+        if (typeof removeMorphComplete === "function") removeMorphComplete();
+        viewer.__warzoneSceneTransitionTarget = null;
+        stopLoader?.();
         return currentMode;
     }
     viewer.__warzoneSceneMode = nextMode;
-    syncSceneModeBounds(viewer);
     document.dispatchEvent(new CustomEvent("wz:scene-mode-changed", {
         detail: {
             mode: nextMode,
-            source: String(options?.source || "system"),
+            source,
         },
     }));
     viewer.scene.requestRender();
@@ -2885,6 +3296,27 @@ function highlightAlertRegion(viewer, event) {
         viewer.scene.requestRender();
     }, highlightDurationMs);
 }
+function labelCesiumCredits(creditsEl) {
+    if (!creditsEl || typeof MutationObserver === "undefined") return;
+    const applyLabels = () => {
+        creditsEl.setAttribute("aria-label", "Map imagery credits");
+        creditsEl.querySelectorAll("img").forEach((img) => {
+            if (!img.hasAttribute("alt")) {
+                img.setAttribute("alt", "Cesium ion");
+            }
+        });
+        creditsEl.querySelectorAll("a").forEach((link) => {
+            if (!link.getAttribute("aria-label")) {
+                const imgAlt = link.querySelector("img")?.getAttribute("alt");
+                const label = imgAlt || link.textContent?.trim() || "Map imagery credit";
+                link.setAttribute("aria-label", label);
+            }
+        });
+    };
+    applyLabels();
+    const observer = new MutationObserver(applyLabels);
+    observer.observe(creditsEl, { childList: true, subtree: true });
+}
 export async function initWarzoneGlobe() {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
@@ -2916,7 +3348,12 @@ export async function initWarzoneGlobe() {
         // Use Cesium Ion world imagery   eliminates Bing/virtualearth.net requests
         imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
     });
+    labelCesiumCredits(creditsEl);
     viewer.__terrainVisible = true;
+    viewer.__raisedRegionVisible = false;
+    viewer.__raisedRegionLoaded = false;
+    viewer.__raisedRegionLoadPromise = null;
+    viewer.__raisedRegionDataSource = null;
     viewer.__warzoneSceneMode = getSceneMode(viewer);
     viewer.__warzoneAdaptiveProfile = "normal";
     viewer.__warzoneSuppressEventMarkers = false;
@@ -2980,6 +3417,9 @@ export async function initWarzoneGlobe() {
         clearEventEntities() {
             clearTrackedEventEntities(viewer);
         },
+        setEventLayerVisible(layerId, visible) {
+            setTrackedEventLayerVisible(viewer, layerId, visible);
+        },
         removeEvent(eventId) {
             removeExistingEventEntity(viewer, eventId);
             viewer.scene.requestRender();
@@ -3022,6 +3462,7 @@ export async function initWarzoneGlobe() {
             if (viewer.__imageryLabels) {
                 tuneImageryLayer(viewer.__imageryLabels, "--warzone-labels");
             }
+            applyContourLayerState(viewer);
             updateLabelsLayerVisibility(viewer);
             applyMapColorMixer(viewer, "--warzone-map");
             viewer.scene.requestRender();
@@ -3032,6 +3473,7 @@ export async function initWarzoneGlobe() {
             if (viewer.__imageryBase) {
                 viewer.__imageryBase.show = show;
             }
+            applyContourLayerState(viewer);
             updateLabelsLayerVisibility(viewer);
             viewer.scene.requestRender();
         },
@@ -3040,6 +3482,21 @@ export async function initWarzoneGlobe() {
                 viewer.__imageryBase &&
                 viewer.__imageryBase.show
             );
+        },
+        setContourLayerVisible(visible) {
+            return setContourLayerVisible(viewer, visible);
+        },
+        toggleContourLayer() {
+            return setContourLayerVisible(viewer, viewer.__contourLayerVisible !== true);
+        },
+        isContourLayerVisible() {
+            return viewer.__contourLayerVisible === true;
+        },
+        setRaisedRegionVisible(visible, region = null) {
+            applyRaisedRegionVisibility(viewer, visible, region);
+        },
+        isRaisedRegionVisible() {
+            return viewer.__raisedRegionVisible === true;
         },
         setBorderLayersVisible(visible, options = {}) {
             setBorderLayersVisible(viewer, visible, options);

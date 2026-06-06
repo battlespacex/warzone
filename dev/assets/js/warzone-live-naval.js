@@ -7,7 +7,7 @@
 //  - Click → short-lived X-lines targeting reticle
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
-import { getLiveTrackSelection } from "./warzone-live-airforce.js";
+import { getLiveTrackSelection, showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const __navalState = {
@@ -21,6 +21,7 @@ const __navalState = {
     clickHandler: null,
     selectedKey: null,
     isCameraFlying: false,
+    focusWarningActive: false,
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -32,6 +33,8 @@ const NAVAL_MAX_ANIM_MS = 9000;
 const NAVAL_DEFAULT_ANIM_MS = 2600;
 const NAVAL_FOCUS_CAMERA_RANGE_METERS = 120000;
 const NAVAL_FOCUS_CAMERA_PITCH_DEG = -89;
+const NAVAL_FOCUS_WARNING_RANGE_METERS = 90000;
+const NAVAL_FOCUS_FINAL_RANGE_METERS = 160000;
 let __navalRenderDebounceTimer = null;
 const NAVAL_BILLBOARD_CANVAS_SIZE = 64;
 const NAVAL_RENDER_MODE = Object.freeze({
@@ -1782,6 +1785,20 @@ function ensureNavalOverlayRoot(viewer) {
         root.appendChild(arm);
     });
 
+    const unfocusButton = document.createElement("button");
+    unfocusButton.type = "button";
+    unfocusButton.className = "wz-asset-focus-unfocus is-visible";
+    unfocusButton.textContent = "Unfocus";
+    unfocusButton.setAttribute("aria-label", "Unfocus naval asset");
+    unfocusButton.style.left = "0";
+    unfocusButton.style.top = "108px";
+    unfocusButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        clearNavalSelection();
+    });
+    root.appendChild(unfocusButton);
+
     host.appendChild(root);
     __navalState.overlayRoot = root;
     return root;
@@ -1847,6 +1864,8 @@ function emitNavalFocusChanged() {
 function clearNavalSelection() {
     const previousKey = __navalState.selectedKey;
     __navalState.selectedKey = null;
+    closeFocusDriftWarningModal();
+    __navalState.focusWarningActive = false;
     if (__navalState.overlayRoot && __navalState.overlayLastVisible) {
         __navalState.overlayRoot.style.display = "none";
     }
@@ -1859,6 +1878,71 @@ function clearNavalSelection() {
         applyNavalVisual(previousEntry.entity, previousEntry.data);
     }
     emitNavalFocusChanged();
+}
+function getNavalFocusWarningRangeMeters() {
+    return clamp(
+        getCssNumber("--warzone-live-naval-focus-warning-range", NAVAL_FOCUS_WARNING_RANGE_METERS),
+        NAVAL_FOCUS_CAMERA_RANGE_METERS,
+        3200000
+    );
+}
+function getNavalFocusFinalRangeMeters() {
+    return clamp(
+        getCssNumber("--warzone-live-naval-focus-final-range", NAVAL_FOCUS_FINAL_RANGE_METERS),
+        getNavalFocusWarningRangeMeters(),
+        3200000
+    );
+}
+function getNavalFocusSafeRangeMeters() {
+    return clamp(
+        Math.min(
+            getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
+            getNavalFocusWarningRangeMeters() * 0.85
+        ),
+        6000,
+        getNavalFocusFinalRangeMeters()
+    );
+}
+function getNavalEntryPosition(entry) {
+    try {
+        return entry?.entity?.position?.getValue?.(Cesium.JulianDate.now()) || null;
+    } catch {
+        return null;
+    }
+}
+function showNavalFocusWarning() {
+    if (__navalState.focusWarningActive || !__navalState.selectedKey) return;
+    __navalState.focusWarningActive = true;
+    const selectedKey = __navalState.selectedKey;
+    const shown = showFocusDriftWarningModal({
+        assetType: "naval",
+        onStay: () => {
+            __navalState.focusWarningActive = false;
+            focusNavalVessel(selectedKey, {
+                cameraHeight: getNavalFocusSafeRangeMeters(),
+                duration: 0.85,
+            });
+        },
+        onUnfocus: () => {
+            __navalState.focusWarningActive = false;
+            clearNavalSelection();
+        },
+    });
+    if (!shown) {
+        __navalState.focusWarningActive = false;
+    }
+}
+function checkNavalFocusRangeWarning() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer || !__navalState.selectedKey || __navalState.isCameraFlying) return;
+    const entry = __navalState.vessels.get(__navalState.selectedKey);
+    const position = getNavalEntryPosition(entry);
+    if (!position || !viewer.camera?.positionWC) return;
+    const range = Cesium.Cartesian3.distance(viewer.camera.positionWC, position);
+    if (!Number.isFinite(range)) return;
+    if (range >= getNavalFocusWarningRangeMeters()) {
+        showNavalFocusWarning();
+    }
 }
 function focusNavalVessel(trackKey, options = {}) {
     if (isAircraftFocusLockActive()) return false;
@@ -2086,6 +2170,7 @@ function bindNavalOverlay(viewer) {
     viewer.scene.postRender.addEventListener(syncNavalOverlay);
     viewer.camera.moveEnd.addEventListener(() => {
         refreshNavalViewDependentVisuals();
+        checkNavalFocusRangeWarning();
     });
 }
 

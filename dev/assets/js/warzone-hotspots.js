@@ -1,6 +1,12 @@
 ﻿// File Path: /assets/js/warzone-hotspots.js
 import * as Cesium from "cesium";
 import { isEventVisible } from "./warzone-layers.js";
+import {
+    getPlatformCategoryClass,
+    getPlatformCategoryLabel,
+    getPlatformSeverityClass,
+    getPlatformSeverityLabel,
+} from "./warzone-taxonomy.js";
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 function sanitizeText(v) {
     if (!v) return "";
@@ -18,6 +24,54 @@ function sanitizeText(v) {
 }
 function norm(v) {
     return sanitizeText(v);
+}
+function cssNumber(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+function cssLengthToPx(name, fallbackPx) {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (!raw) return fallbackPx;
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed)) return fallbackPx;
+    if (raw.endsWith("rem")) {
+        const rootPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        return parsed * rootPx;
+    }
+    if (raw.endsWith("em")) {
+        const rootPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        return parsed * rootPx;
+    }
+    return parsed;
+}
+function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+}
+function getHotspotPerspectiveTilt(viewer) {
+    const pitch = Math.abs(Number(viewer?.camera?.pitch ?? (-Math.PI / 2)));
+    const topDownPitch = Math.PI / 2;
+    const horizonRatio = clamp01(1 - (pitch / topDownPitch));
+    const maxTilt = cssNumber("--wzhs-perspective-max-tilt", 46);
+    return `${(horizonRatio * maxTilt).toFixed(2)}deg`;
+}
+function getHotspotSurfaceMatrix(viewer, lon, lat) {
+    const scene = viewer?.scene;
+    const center = scene ? toScreen(scene, lon, lat) : null;
+    if (!center) return "";
+    const metersSample = Math.max(1200, cssNumber("--wzhs-surface-sample-meters", 24000));
+    const latMeters = 111320;
+    const lonMeters = Math.max(1, Math.cos((lat * Math.PI) / 180) * 111320);
+    const eastPoint = toScreen(scene, lon + (metersSample / lonMeters), lat);
+    const northPoint = toScreen(scene, lon, lat + (metersSample / latMeters));
+    if (!eastPoint || !northPoint) return "";
+    const ex = { x: eastPoint.x - center.x, y: eastPoint.y - center.y };
+    const ny = { x: northPoint.x - center.x, y: northPoint.y - center.y };
+    const exLen = Math.hypot(ex.x, ex.y);
+    const nyLen = Math.hypot(ny.x, ny.y);
+    const avg = (exLen + nyLen) * 0.5;
+    if (!(avg > 0.0001)) return "";
+    return `matrix(${(ex.x / avg).toFixed(5)}, ${(ex.y / avg).toFixed(5)}, ${(ny.x / avg).toFixed(5)}, ${(ny.y / avg).toFixed(5)}, 0, 0)`;
 }
 function compactPlaceLabel(v) {
     const clean = sanitizeText(v);
@@ -154,28 +208,19 @@ const ICONS = {
     unknown_activity: "stratops-ico-assets-unknown-1",
     default: "stratops-ico-assets-unknown-1",
 };
-const LABELS = {
-    strike: "STRIKE",
-    military: "GROUND ACTIVITY",
-    air_activity: "AIR ACTIVITY",
-    naval_activity: "NAVAL ACTIVITY",
-    ground_activity: "GROUND ACTIVITY",
-    recon: "RECON / INTEL",
-    recon_intel: "RECON / INTEL",
-    alert: "ALERT",
-    airspace: "AIRSPACE",
-    cyber: "CYBER",
-    thermal: "FIRE / THERMAL",
-    signal: "SIGNAL / SENSOR",
-    unknown_activity: "UNKNOWN ACTIVITY",
-    default: "UNKNOWN ACTIVITY",
-};
 function icon(cat) {
     const key = String(cat || "").toLowerCase();
     return ICONS[key] || ICONS.default;
 }
-function label(cat) {
-    return LABELS[String(cat || "").toLowerCase()] || LABELS.default;
+function label(input) {
+    return getPlatformCategoryLabel(input, {
+        surface: "hotspot",
+        uppercase: true,
+        fallback: "UNKNOWN ACTIVITY",
+    });
+}
+function categoryDataValue(input) {
+    return getPlatformCategoryClass(input, { surface: "hotspot" }) || "unknown";
 }
 function sevWeight(s) {
     return { critical: 4, high: 3, medium: 2, low: 1 }[String(s || "").toLowerCase()] || 1;
@@ -276,6 +321,8 @@ function hotspotCategory(e = {}) {
         Array.isArray(e.tags) ? e.tags.join(" ") : e.tags,
     ].filter(Boolean).join(" ").toLowerCase();
 
+    if (category === "strike") return "strike";
+
     const inferredCategory = inferHotspotCategoryFromText(category, subcategory, signalText);
     if (inferredCategory) return inferredCategory;
     if (category === "default" || category === "activity" || category === "unknown") return "unknown_activity";
@@ -348,8 +395,8 @@ function buildFallbackHeadline(e = {}) {
     if (String(e.category || "").toLowerCase() === "recon") {
         return place ? `Recon activity detected near ${place}` : "Recon activity detected";
     }
-    if (place) return `${cat} activity near ${place}`;
-    return `${cat} activity detected`;
+    if (place) return `${cat} near ${place}`;
+    return `${cat} detected`;
 }
 function eventHeadline(e = {}) {
     const candidates = [
@@ -480,31 +527,31 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
     const height = getCameraHeight(viewer);
     if (height > 9000000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 2.45),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 2.95),
-            maxCards: Math.max(cfg.maxCards, 26),
-            maxVisiblePerHotspot: 2,
-            stackDistancePx: Math.max(cfg.stackDistancePx, 124),
+            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 1.2),
+            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 1.45),
+            maxCards: Math.max(cfg.maxCards, 64),
+            maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 5),
+            stackDistancePx: Math.max(cfg.stackDistancePx, 90),
             edgePad: 220,
         };
     }
     if (height > 4500000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 1.95),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 2.35),
-            maxCards: Math.max(cfg.maxCards, 40),
-            maxVisiblePerHotspot: 3,
-            stackDistancePx: Math.max(cfg.stackDistancePx, 98),
+            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 0.95),
+            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 1.15),
+            maxCards: Math.max(cfg.maxCards, 76),
+            maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 6),
+            stackDistancePx: Math.max(cfg.stackDistancePx, 82),
             edgePad: 180,
         };
     }
     if (height > 2200000) {
         return {
-            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 1.55),
-            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 1.9),
-            maxCards: Math.max(cfg.maxCards, 52),
-            maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 3),
-            stackDistancePx: Math.max(cfg.stackDistancePx, 90),
+            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 0.78),
+            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 0.96),
+            maxCards: Math.max(cfg.maxCards, 88),
+            maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 6),
+            stackDistancePx: Math.max(cfg.stackDistancePx, 80),
             edgePad: 160,
         };
     }
@@ -601,8 +648,40 @@ function createHotspotRadiusEl(cluster) {
         `wzhs-radius--${cluster.cat}`,
         `wzhs-radius--sev-${cluster.sev}`,
     ].filter(Boolean).join(" ");
+    el.dataset.category = categoryDataValue(cluster.cat);
+    el.dataset.severity = getPlatformSeverityClass(cluster.sev);
+    el.innerHTML = `
+        <svg class="wzhs-radius__svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+            <polygon class="wzhs-radius__hex" points="50,6 87,28 87,72 50,94 13,72 13,28"></polygon>
+        </svg>`;
     el.setAttribute("aria-hidden", "true");
     return el;
+}
+function getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg) {
+    const minDiameter = cssLengthToPx("--wzhs-radius-size", 176);
+    const fitPadding = cssNumber("--wzhs-radius-fit-padding", 56);
+    const maxDiameter = Math.max(minDiameter, cssLengthToPx("--wzhs-radius-max-size", 520));
+    const scene = viewer?.scene;
+    if (!scene || !Array.isArray(cluster?.items) || !cluster.items.length) return minDiameter;
+    const center = toScreen(scene, cluster.lon, cluster.lat);
+    if (!center) return minDiameter;
+    let maxDistance = 0;
+    let visiblePoints = 0;
+    for (const item of cluster.items) {
+        const lat = Number(item?.lat);
+        const lon = Number(item?.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const pt = toScreen(scene, lon, lat);
+        if (!pt) continue;
+        visiblePoints += 1;
+        const dx = pt.x - center.x;
+        const dy = pt.y - center.y;
+        maxDistance = Math.max(maxDistance, Math.hypot(dx, dy));
+    }
+    if (!visiblePoints) return minDiameter;
+    const stackAllowance = (cluster.stackIdx || 0) * 10;
+    const diameter = Math.max(minDiameter, maxDistance * 2 + fitPadding + stackAllowance);
+    return Math.min(maxDiameter, diameter);
 }
 function stackVisible(clusters, overlapPx, maxPer) {
     const stacks = [];
@@ -638,8 +717,17 @@ function buildExpandedHTML(cluster) {
     }
     return items.map((e) => {
         const title = e.__displayTitle || eventHeadline(e);
+        const severityClass = getPlatformSeverityClass(e.severity || "");
+        const severityLabel = sanitizeText(getPlatformSeverityLabel(e.severity, "Unknown"));
+        const subline = sanitizeText(e.__displaySubline || eventSubline(e));
+        const itemTime = sanitizeText(timeAgo(e.occurred_at));
         return `<div class="wzhs-item wzhs-item--headline">
+            <div class="wzhs-item__row">
+                <span class="wzhs-item__sev wzhs-item__sev--${severityClass}" data-severity="${severityClass}">${severityLabel}</span>
+                ${itemTime ? `<span class="wzhs-item__time">${itemTime}</span>` : ""}
+            </div>
             <strong class="wzhs-item__title">${title}</strong>
+            ${subline ? `<span class="wzhs-item__loc">${subline}</span>` : ""}
         </div>`;
     }).join("");
 }
@@ -666,6 +754,8 @@ function createCardEl(cluster, onToggle) {
             cluster.stackIdx === 2 ? "wzhs--s3" : "",
             isExpanded ? "wzhs--open" : "",
         ].filter(Boolean).join(" ");
+        btn.dataset.category = categoryDataValue(cluster.cat);
+        btn.dataset.severity = getPlatformSeverityClass(cluster.sev);
         btn.innerHTML = `
             <div class="wzhs__body">
                 <div class="wzhs__top">
@@ -756,6 +846,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         if (!canvasRect.width || !canvasRect.height) return;
         const offX = canvasRect.left - overlayRect.left;
         const offY = canvasRect.top - overlayRect.top;
+        rootEl.style.setProperty("--wzhs-perspective-tilt", getHotspotPerspectiveTilt(viewer));
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
         if (clustersDirty) {
             cachedClusters = geoCluster(
@@ -792,6 +883,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             const ty = cluster.screen.y + HOTSPOT_LABEL_OFFSET.y + off.y;
             const rx = cluster.screen.x + HOTSPOT_RADIUS_OFFSET.x;
             const ry = cluster.screen.y + HOTSPOT_RADIUS_OFFSET.y;
+            const hotspotDiameter = getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg);
+            const hotspotMatrix = getHotspotSurfaceMatrix(viewer, cluster.lon, cluster.lat);
             const zi = 25 - cluster.stackIdx;
             if (nodeMap.has(cluster.id)) {
                 const node = nodeMap.get(cluster.id);
@@ -806,23 +899,32 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.x = tx;
                     node.y = ty;
                 }
-                if (node.rx !== rx || node.ry !== ry) {
-                    node.radiusEl.style.left = `${rx}px`;
-                    node.radiusEl.style.top = `${ry}px`;
+                if (node.rx !== rx || node.ry !== ry || node.radiusSize !== hotspotDiameter) {
+                    node.radiusEl.style.left = `${rx - hotspotDiameter * 0.5}px`;
+                    node.radiusEl.style.top = `${ry - hotspotDiameter * 0.5}px`;
                     node.rx = rx;
                     node.ry = ry;
+                }
+                if (node.radiusSize !== hotspotDiameter) {
+                    node.radiusEl.style.width = `${hotspotDiameter}px`;
+                    node.radiusEl.style.height = `${hotspotDiameter}px`;
+                    node.radiusSize = hotspotDiameter;
+                }
+                if (node.radiusMatrix !== hotspotMatrix) {
+                    node.radiusEl.style.transform = hotspotMatrix || "";
+                    node.radiusMatrix = hotspotMatrix;
                 }
                 node.radiusEl.style.zIndex = zi - 1;
                 node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
                 node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
             } else {
                 const radiusEl = createHotspotRadiusEl(cluster);
-                radiusEl.style.cssText = `position:absolute;left:${rx}px;top:${ry}px;z-index:${zi - 1};`;
+                radiusEl.style.cssText = `position:absolute;left:${rx - hotspotDiameter * 0.5}px;top:${ry - hotspotDiameter * 0.5}px;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;transform:${hotspotMatrix || "none"};`;
                 rootEl.appendChild(radiusEl);
                 const el = createCardEl(cluster, handleToggle);
                 el.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;z-index:${zi};`;
                 rootEl.appendChild(el);
-                nodeMap.set(cluster.id, { el, radiusEl, x: tx, y: ty, rx, ry });
+                nodeMap.set(cluster.id, { el, radiusEl, x: tx, y: ty, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix });
             }
         }
     }

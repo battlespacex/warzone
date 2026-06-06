@@ -104,6 +104,13 @@
                     <div class="panel-actions">
                         <button type="button"
                                 class="static-icon"
+                                id="wz-feed-expand"
+                                data-feed-expand
+                                aria-pressed="false"
+                                aria-label="Expand intel wire widget"
+                                title="Expand widget"></button>
+                        <button type="button"
+                                class="static-icon"
                                 data-panel-collapse
                                 aria-expanded="true"
                                 aria-label="Collapse intel wire widget"
@@ -121,6 +128,12 @@
                 </div>
                 <div class="panel-content">
                     <div id="live-feed-list" class="timeline-list wz-feed-list" aria-live="polite"></div>
+                    <div class="wz-feed-footer">
+                        <small id="live-feed-count" class="wz-feed-count"></small>
+                        <button id="live-feed-load-more" class="wz-feed-load-more" type="button" hidden>
+                            Load more
+                        </button>
+                    </div>
                 </div>
             </div>
         </aside>

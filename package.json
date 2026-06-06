@@ -16,7 +16,6 @@
     "copy-webpack-plugin": "^13.0.1",
     "css-loader": "^7.1.2",
     "css-minimizer-webpack-plugin": "^7.0.2",
-    "dotenv": "^17.3.1",
     "eslint": "^10.0.2",
     "html-webpack-plugin": "^5.6.6",
     "javascript-obfuscator": "^5.4.1",
@@ -31,7 +30,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
     "cesium": "^1.139.1",
-    "express": "^4.21.2"
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "rss-parser": "^3.13.0",
+    "stripe": "^22.2.0"
   },
   "browserslist": [
     ">0.5%",

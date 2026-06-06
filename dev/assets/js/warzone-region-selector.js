@@ -782,51 +782,86 @@ export function setActiveLens(lensId) {
 export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
 function notifyChange(region, options = {}) { __activeRegion = region; notifyScopeChange(options); }
 export function flyToRegion(viewer, region, options = {}) {
-    if (!viewer || !region) return;
+    if (!viewer || !region) return Promise.resolve(false);
     const showLoader = options?.showLoader === true;
-    viewer.__warzone?.stopStartupRotation?.();
-    releaseRegionCameraLock(viewer);
-    __regionTransitionInFlight = true;
-    viewer.camera.cancelFlight?.();
-    if (__regionFlyLoaderTimer) {
-        clearTimeout(__regionFlyLoaderTimer);
-        __regionFlyLoaderTimer = 0;
-    }
-    let finalized = false;
-    const finalizeTransition = () => {
-        if (finalized) return;
-        finalized = true;
-        __regionTransitionInFlight = false;
+    const requestedDuration = Number(options?.duration);
+    const duration = Number.isFinite(requestedDuration)
+        ? Math.max(0, Math.min(requestedDuration, 3))
+        : 1.8;
+    return new Promise((resolve) => {
+        viewer.__warzone?.stopStartupRotation?.();
+        releaseRegionCameraLock(viewer);
+        __regionTransitionInFlight = true;
+        viewer.camera.cancelFlight?.();
         if (__regionFlyLoaderTimer) {
             clearTimeout(__regionFlyLoaderTimer);
             __regionFlyLoaderTimer = 0;
         }
+        let finalized = false;
+        const finalizeTransition = (success = true) => {
+            if (finalized) return;
+            finalized = true;
+            __regionTransitionInFlight = false;
+            if (__regionFlyLoaderTimer) {
+                clearTimeout(__regionFlyLoaderTimer);
+                __regionFlyLoaderTimer = 0;
+            }
+            if (showLoader) {
+                window.SiteLoader?.stop?.();
+            }
+            applyRegionCameraLock(viewer, region);
+            scheduleRegionButtonHintRefresh(viewer, 900);
+            resolve(success);
+        };
         if (showLoader) {
-            window.SiteLoader?.stop?.();
+            window.SiteLoader?.start?.();
         }
-        applyRegionCameraLock(viewer, region);
-        scheduleRegionButtonHintRefresh(viewer, 900);
-    };
-    if (showLoader) {
-        window.SiteLoader?.start?.();
-        __regionFlyLoaderTimer = window.setTimeout(finalizeTransition, 5200);
-    }
-    if (region.id === "global") {
-        viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(20, 20, 18000000),
-            duration: 1.8,
-            complete: finalizeTransition,
-            cancel: finalizeTransition,
-        });
-        return;
-    }
-    const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
-    const { minLon, minLat, maxLon, maxLat } = bounds;
-    viewer.camera.flyTo({
-        destination: Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
-        duration: 1.8,
-        complete: finalizeTransition,
-        cancel: finalizeTransition,
+        __regionFlyLoaderTimer = window.setTimeout(
+            () => finalizeTransition(false),
+            showLoader ? 5200 : Math.max(1200, Math.round(duration * 1000) + 900)
+        );
+        try {
+            if (region.id === "global") {
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(20, 20, 18000000),
+                    duration,
+                    complete: () => finalizeTransition(true),
+                    cancel: () => finalizeTransition(false),
+                });
+                return;
+            }
+            const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
+            const { minLon, minLat, maxLon, maxLat } = bounds;
+            const is2D = viewer.scene?.mode === Cesium.SceneMode.SCENE2D;
+            if (is2D) {
+                const center = getBoundsCenter(bounds) || region.camera || {};
+                const lon = Number(center.lon ?? region.camera?.lon);
+                const lat = Number(center.lat ?? region.camera?.lat);
+                const altitude = Number(region.camera?.alt || 7000000);
+                if (Number.isFinite(lon) && Number.isFinite(lat)) {
+                    viewer.camera.flyTo({
+                        destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
+                        orientation: {
+                            heading: 0,
+                            pitch: -Cesium.Math.PI_OVER_TWO,
+                            roll: 0,
+                        },
+                        duration,
+                        complete: () => finalizeTransition(true),
+                        cancel: () => finalizeTransition(false),
+                    });
+                    return;
+                }
+            }
+            viewer.camera.flyTo({
+                destination: Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
+                duration,
+                complete: () => finalizeTransition(true),
+                cancel: () => finalizeTransition(false),
+            });
+        } catch {
+            finalizeTransition(false);
+        }
     });
 }
 export function selectRegion(viewer, regionId, options = {}) {
@@ -889,6 +924,19 @@ export function initRegionNav(viewer) {
     if (!dropdown && !mobileDropdown) return;
     updateNavDropdown(__activeRegion);
     applyRegionCameraLock(viewer, __activeRegion);
+    const refocusActiveRegionForSceneMode = () => {
+        if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
+            scheduleRegionButtonHintRefresh(viewer, 900);
+            return;
+        }
+        clearPendingRegionHintRefresh();
+        setRegionHintState(false, viewer);
+        flyToRegion(viewer, __activeRegion, {
+            duration: Math.max(0.7, Math.min(numberVar("--warzone-scene-refocus-duration", 1.05), 2.4)),
+            showLoader: false,
+            source: "scene-mode",
+        });
+    };
     const openRegionSelector = () => {
         showRegionModal(viewer, false, {
             mode: "manual",
@@ -922,6 +970,10 @@ export function initRegionNav(viewer) {
     }
     viewer?.scene?.morphComplete?.addEventListener?.(() => {
         applyRegionCameraLock(viewer, __activeRegion);
+        if (Number(viewer.__warzoneSceneModeRefocusManagedUntil || 0) > Date.now()) {
+            refocusActiveRegionForSceneMode();
+            return;
+        }
         if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
             scheduleRegionButtonHintRefresh(viewer, 900);
             return;
@@ -929,6 +981,9 @@ export function initRegionNav(viewer) {
         clearPendingRegionHintRefresh();
         setRegionHintState(false, viewer);
         flyToRegion(viewer, __activeRegion);
+    });
+    document.addEventListener("wz:scene-mode-refocus-requested", () => {
+        refocusActiveRegionForSceneMode();
     });
     if (REGION_HINT_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
         __regionCameraSyncBound = true;

@@ -22,4 +22,5 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-import{a as C}from"./chunk-RXYBLNW3.js";import{b as g}from"./chunk-TXOEXY5C.js";import{e as f}from"./chunk-VIMSDF2W.js";var d=C.EPSILON10;function x(e,r,s,n){if(g.defined("equalsEpsilon",r),!f(e))return;s=s??!1;let t=f(n),i=e.length;if(i<2)return e;let u,l,o,a=e[0],h=0,p=-1;for(u=1;u<i;++u)l=e[u],r(a,l,d)?(f(o)||(o=e.slice(0,u),h=u-1,p=0),t&&n.push(u)):(f(o)&&(o.push(l),h=u,t&&(p=n.length)),a=l);return s&&r(e[0],e[i-1],d)&&(t&&(f(o)?n.splice(p,0,h):n.push(i-1)),f(o)?o.length-=1:o=e.slice(0,-1)),f(o)?o:e}var k=x;export{k as a};
+
+import{a as C}from"./chunk-RXYBLNW3.js";import{b as g}from"./chunk-TXOEXY5C.js";import{e as f}from"./chunk-VIMSDF2W.js";var d=C.EPSILON10;function x(e,r,h,n){if(g.defined("equalsEpsilon",r),!f(e))return;h=h??!1;let c=f(n),l=e.length;if(l<2)return e;let i,s=e[0],o,t,p=0,m=-1;for(i=1;i<l;++i)o=e[i],r(s,o,d)?(f(t)||(t=e.slice(0,i),p=i-1,m=0),c&&n.push(i)):(f(t)&&(t.push(o),p=i,c&&(m=n.length)),s=o);return h&&r(e[0],e[l-1],d)&&(c&&(f(t)?n.splice(m,0,p):n.push(l-1)),f(t)?t.length-=1:t=e.slice(0,-1)),f(t)?t:e}var k=x;export{k as a};

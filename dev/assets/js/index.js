@@ -16,6 +16,7 @@ import {
 import { initDevPanel } from "./warzone-dev-panel.js";
 import { bindWarzoneUi } from "./warzone-ui.js";
 import { initWarzoneMilSats } from "./warzone-mil-sats.js";
+import { initStratopsBilling } from "./warzone-billing.js";
 
 
 const isLocalDevHost =
@@ -28,6 +29,7 @@ window.__stratopsConfig = {
     // we keep the old smooth movement path without direct third-party CORS calls.
     enablePublicAirFallback: true,
     allowLocalhostPublicAirFallback: true,
+    enableHighValueAssetDetection: false,
     useAircraftBillboards: true,
     useNavalBillboards: true,
     aircraftVisualPolicy: {
@@ -46,6 +48,9 @@ window.__stratopsConfig = {
     enableMilSatsLayer: true,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 
+    billing: {
+        enabled: isLocalDevHost,
+    },
 };
 
 const INITIAL_THEATER_WARMUP_TIMEOUT_MS = 1400;
@@ -86,6 +91,10 @@ const INITIAL_THEATER_BACKGROUND_ASSETS = Object.freeze([
     "/assets/images/models/air/Fighter-F18.glb",
     "/assets/images/models/air/Transport-C17.glb",
     "/assets/images/models/air/Transport-C130.glb",
+    "/assets/images/models/air/Drone-MQ9.glb",
+    "/assets/images/models/air/Drone-Globalhawk.glb",
+    "/assets/images/models/air/Heli-KA50.glb",
+    "/assets/images/models/air/Heli-CH53.glb",
 ]);
 
 function wait(ms = 0) {
@@ -143,6 +152,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         bindWarzoneUi();
         initStratopsAuth();
+        initStratopsBilling();
 
         let pendingRegionModal = null;
         window.__warzoneShowRegionModal = (instant = false) => {

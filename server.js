@@ -1,5 +1,13 @@
 ﻿const express = require("express");
 const path = require("path");
+const dotenv = require("dotenv");
+const { mountBillingRoutes } = require("./server/billing-routes");
+
+dotenv.config({
+    path: process.env.NODE_ENV === "production"
+        ? path.join(__dirname, ".env.production")
+        : path.join(__dirname, ".env.local"),
+});
 
 const app = express();
 const PORT = process.env.PORT || 4173;
@@ -14,6 +22,7 @@ let aircraftFeedInFlight = null;
 const AIRCRAFT_FEED_CACHE_TTL_MS = 2500;
 
 app.disable("x-powered-by");
+mountBillingRoutes(app);
 
 async function handleAircraftFeedProxy(_req, res) {
     const now = Date.now();

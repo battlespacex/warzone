@@ -428,7 +428,7 @@ body.is-about-open .wz-radar-label-layer {
 }
 
 .wz-defcon[data-level="1"] .wz-defcon__level, .wz-defcon[data-level="1"] .wz-defcon__label {
-    color: var( --criticality-level-ex-cl)
+    color: var(--criticality-level-ex-cl)
 }
 
 .wz-defcon[data-level="2"]:before {
@@ -436,7 +436,7 @@ body.is-about-open .wz-radar-label-layer {
 }
 
 .wz-defcon[data-level="2"] .wz-defcon__level, .wz-defcon[data-level="2"] .wz-defcon__label {
-    color: var( --criticality-level-ex-cl)
+    color: var(--criticality-level-ex-cl)
 }
 
 .wz-defcon[data-level="3"]:before {
@@ -444,7 +444,7 @@ body.is-about-open .wz-radar-label-layer {
 }
 
 .wz-defcon[data-level="3"] .wz-defcon__level, .wz-defcon[data-level="3"] .wz-defcon__label {
-    color: var( --criticality-level-hi-bg)
+    color: var(--criticality-level-hi-cl)
 }
 
 .wz-defcon[data-level="4"]:before {
@@ -452,7 +452,7 @@ body.is-about-open .wz-radar-label-layer {
 }
 
 .wz-defcon[data-level="4"] .wz-defcon__level, .wz-defcon[data-level="4"] .wz-defcon__label {
-    color: var( --criticality-level-med-bg)
+    color: var(--criticality-level-med-cl)
 }
 
 .wz-defcon[data-level="5"]:before {
@@ -460,7 +460,7 @@ body.is-about-open .wz-radar-label-layer {
 }
 
 .wz-defcon[data-level="5"] .wz-defcon__level, .wz-defcon[data-level="5"] .wz-defcon__label {
-    color: var( --criticality-level-lo-cl)
+    color: var(--criticality-level-lo-cl)
 }
 
 

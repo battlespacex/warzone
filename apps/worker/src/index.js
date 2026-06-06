@@ -56,6 +56,7 @@ async function saveRawItem({
 import { runAdsbWorker } from "./adsb-worker.js";
 import { runAisWorker } from "./ais-worker.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
+import { runConflictFeedSync } from "./conflict-feed-runner.js";
 async function getSourceConfig(sourceName) {
     if (!sourceName) return null;
     const { data, error } = await supabase
@@ -80,6 +81,24 @@ function interpolateEnvPlaceholders(str) {
 }
 const sources = JSON.parse(interpolateEnvPlaceholders(rawSources));
 let isWorkerRunning = false;
+let isConflictFeedRunning = false;
+const DEFAULT_CONFLICT_FEED_INTERVAL_MS = 15 * 60 * 1000;
+const MIN_CONFLICT_FEED_INTERVAL_MS = 60 * 1000;
+function readBooleanEnv(value, defaultValue = false) {
+    if (value === undefined || value === null || value === "") return defaultValue;
+    return /^(1|true|yes|on)$/i.test(String(value).trim());
+}
+function readPositiveIntegerEnv(value, fallback) {
+    const parsed = Number.parseInt(String(value || ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+const CONFLICT_FEED_ENABLED = readBooleanEnv(process.env.CONFLICT_FEED_ENABLED, true);
+const CONFLICT_FEED_INTERVAL_MS = Math.max(
+    readPositiveIntegerEnv(process.env.CONFLICT_FEED_INTERVAL_MS, DEFAULT_CONFLICT_FEED_INTERVAL_MS),
+    MIN_CONFLICT_FEED_INTERVAL_MS
+);
+const CONFLICT_FEED_INCLUDE_RELIEFWEB = readBooleanEnv(process.env.CONFLICT_FEED_INCLUDE_RELIEFWEB, false);
+const CONFLICT_FEED_PROMOTE_EVENTS = readBooleanEnv(process.env.CONFLICT_FEED_PROMOTE_EVENTS, true);
 /* ----------------------------------------
  * Telegram config
  * -------------------------------------- */
@@ -307,13 +326,15 @@ const HARD_MILITARY_AIRCRAFT_CODES = new Set([
     "JF17", "TEJA", "LCA", "M2000", "MIR2", "MIR3",
     // AWACS / AEW / ISR
     "E3", "E3TF", "E3CF", "E7", "E8", "A50", "A100", "KJ200", "KJ500", "ZDK03", "SAAB340", "SAAB2000",
-    "RC135", "R135", "EP3", "P8", "P3", "IL20", "TU214R", "RQ4",
+    "RC135", "R135", "EP3", "P8", "P3", "IL20", "TU214R",
+    // UAV / remotely piloted aircraft
+    "MQ1", "MQ9", "MQ9A", "MQ9B", "RQ1", "RQ4", "MQ4C", "RQ7", "RQ170",
     // Tankers / refuelers
     "KC10", "KC30", "KC46", "KC135", "IL78", "K35R", "K30T", "A330MRTT", "A310MRTT",
     // Transport / lift
     "C17", "C130", "C27J", "C295", "C5", "A400", "A124", "AN12", "AN22", "AN26", "AN72", "IL76", "Y20",
     // Helicopters / tiltrotor / gunships
-    "AH1", "AH64", "H47", "CH47", "UH1", "UH60", "V22", "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52",
+    "AH1", "AH64", "H47", "CH47", "CH53", "MH53", "UH1", "UH60", "V22", "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52",
     "KA27", "Z10", "Z19", "Z20", "SA330", "AS532", "EC725",
     // Maritime / naval aviation
     "P8A", "P3C", "S3B", "SH60", "MH60", "KA31"
@@ -494,11 +515,12 @@ function deriveAircraftRole(row) {
     ).toUpperCase();
     if (/(KC10|KC30|KC46|KC135|IL78|K35R|K30T|A330MRTT|A310MRTT)/.test(code) || /(SHELL|TEXACO|TANKER)/.test(callsign)) return "tanker";
     if (/(E3|E7|E8|A50|A100|KJ200|KJ500|ZDK03|SAAB340|SAAB2000)/.test(code)) return "awacs";
-    if (/(RC135|R135|EP3|P8|P3|IL20|TU214R|RQ4|FORTE)/.test(code) || /(FORTE)/.test(callsign)) return "isr";
+    if (/(MQ1|MQ9A?|MQ9B|RQ1|RQ4|MQ4C|RQ7|RQ170)/.test(code)) return "uav";
+    if (/(RC135|R135|EP3|P8|P3|IL20|TU214R|FORTE)/.test(code) || /(FORTE)/.test(callsign)) return "isr";
     if (/(B52|B1|B2|TU22|TU95|TU160|H6)/.test(code)) return "bomber";
     if (/(F14|F15|F16|F18|F22|F35|A10|AV8|EA18|F5|F4|EUFI|TORN|RAFA|M2K|M346|JAS3|GRIP|SU24|SU25|SU27|SU30|SU30MKI|SU30MKK|SU30SM|SU33|SU34|SU35|SU57|MIG21|MIG23|MIG25|MIG27|MIG29|MIG31|J7|J8|J10|J11|J15|J16|J20|JH7|JF17|TEJA|LCA|M2000|MIR2|MIR3)/.test(code)) return "fighter";
     if (/(C17|C130|C27J|C295|C5|A400|A124|AN12|AN22|AN26|AN72|IL76|Y20)/.test(code) || /(RCH|REACH|ASCOT)/.test(callsign)) return "transport";
-    if (/(AH1|AH64|H47|CH47|UH1|UH60|V22|MI8|MI17|MI24|MI25|MI28(?:NM|N)?|MI35|KA50|KA52|KA27|Z10|Z19|Z20|SA330|AS532|EC725)/.test(code)) return "helicopter";
+    if (/(AH1|AH64|H47|CH47|CH53|MH53|UH1|UH60|V22|MI8|MI17|MI24|MI25|MI28(?:NM|N)?|MI35|KA50|KA52|KA27|Z10|Z19|Z20|SA330|AS532|EC725)/.test(code)) return "helicopter";
     if (/(P8A|P3C|S3B|SH60|MH60|KA31)/.test(code)) return "maritime_patrol";
     return "military_aircraft";
 }
@@ -549,6 +571,25 @@ function parseBBox(value) {
     }
     const [minLon, minLat, maxLon, maxLat] = parts;
     return { minLon, minLat, maxLon, maxLat };
+}
+const FEED_REGION_CENTERS = new Map([
+    ["middle east", { lat: 29.5, lon: 45.0, label: "Middle East" }],
+    ["middle east & gulf", { lat: 27.5, lon: 48.0, label: "Middle East & Gulf" }],
+    ["ukraine", { lat: 49.0, lon: 32.0, label: "Ukraine" }],
+    ["eastern europe", { lat: 49.0, lon: 30.0, label: "Eastern Europe" }],
+    ["europe", { lat: 52.0, lon: 15.0, label: "Europe" }],
+    ["east asia", { lat: 31.0, lon: 121.0, label: "East Asia" }],
+    ["asia pacific", { lat: 24.0, lon: 121.0, label: "Asia Pacific" }],
+    ["south asia", { lat: 28.0, lon: 78.0, label: "South Asia" }],
+    ["north america", { lat: 39.0, lon: -98.0, label: "North America" }],
+    ["africa", { lat: 12.0, lon: 20.0, label: "Africa" }],
+    ["latin america", { lat: 12.0, lon: -75.0, label: "Latin America" }],
+    ["global", null]
+]);
+function resolveFeedRegionCenter(feed = {}) {
+    const region = normalizeText(feed.region || "").toLowerCase();
+    if (!region) return null;
+    return FEED_REGION_CENTERS.get(region) || null;
 }
 function isWithinBBox(lat, lon, bbox = REGION_BBOX) {
     if (!bbox) return true;
@@ -1266,6 +1307,7 @@ async function findOrCreateCluster(event) {
 async function insertEventIfValid(event) {
     if (!event) return false;
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return false;
+    if (!shouldPromoteToOperationalEvent(event)) return false;
     const sourceConfig = await getSourceConfig(event.feed_name || event.source_name);
     if (sourceConfig) {
         if (sourceConfig.enabled === false) return false;
@@ -1541,6 +1583,13 @@ function rssTag(xml, tag) {
     if (!m) return "";
     return (m[1] || m[2] || "").trim();
 }
+function rssAttr(xml, tag, attr) {
+    const re = new RegExp(`<${tag}\\b([^>]*)>`, "i");
+    const tagMatch = String(xml || "").match(re);
+    if (!tagMatch) return "";
+    const attrMatch = tagMatch[1].match(new RegExp(`${attr}\\s*=\\s*["']([^"']+)["']`, "i"));
+    return attrMatch ? attrMatch[1].trim() : "";
+}
 // Extract all <item> or <entry> blocks from RSS/Atom XML
 function rssItems(xml) {
     const tag = /<entry[\s>]/.test(xml) ? "entry" : "item";
@@ -1554,6 +1603,63 @@ function rssItems(xml) {
 function passesMilitaryFilter(text) {
     const lower = String(text || "").toLowerCase();
     return HARD_MILITARY_TERMS.some(term => lower.includes(term));
+}
+const INTEL_WIRE_ONLY_NEWS_RE = /\b(contract|contract award|procurement|acquisition|arms deal|arms sale|arms sales|foreign military sale|foreign military sales|fms|budget|funding|lawmakers|approved sale|purchase|order|program|prototype|production|manufacturing|shipbuilding|industry|startup)\b/i;
+const OPERATIONAL_EVENT_SIGNAL_RE = /\b(airstrike|air strike|missile strike|drone strike|strike|strikes|struck|attack|attacks|attacked|shelling|artillery|bombardment|explosion|explosions|exploded|explodes|blast|blasts|detonation|detonated|launched|launches|fired|fires|intercepted|interception|shot down|shoots down|downed|crash|crashed|hit|hits|impact|killed|wounded|casualties|clash|clashes|fighting|combat|offensive|incursion|raid|raids|troop movement|deployed|deployment|convoy|patrol|sortie|scramble|air raid|siren|red alert|take shelter|notam|airspace closed|airspace restricted|closure|restriction|blockade|seized|spotted|detected|cyberattack|cyber attack|outage|disrupted|disruption|ransomware|malware|power grid attack|infrastructure attack)\b/i;
+const LIVE_HAPPENING_SIGNAL_RE = /\b(airstrike|air strike|missile strike|drone strike|strikes|struck|attacks|attacked|shelling|bombardment|explosion|explosions|exploded|explodes|blast|blasts|detonation|detonated|launched|launches|fired|fires|intercepted|interception|shot down|shoots down|downed|crash|crashed|hit|hits|impact|killed|wounded|casualties|clash|clashes|fighting|combat|offensive|incursion|raid|raids|air raid|siren|red alert|take shelter|notam|airspace closed|airspace restricted|closure|restriction|blockade|seized|cyberattack|cyber attack|outage|disrupted|disruption|ransomware|malware|power grid attack|infrastructure attack)\b/i;
+const OPERATIONAL_REPORT_TYPES = new Set([
+    "flight_tracking",
+    "siren_alert",
+    "notam",
+    "airspace_status",
+    "thermal_anomaly",
+    "seismic",
+    "cyber",
+    "network",
+    "internet_outage",
+    "network_blocking",
+    "conflict"
+]);
+function getEventOperationalText(event = {}) {
+    return [
+        event.title,
+        event.summary,
+        event.description,
+        event.weapon_type,
+        event.target_type,
+        event.impact_type,
+        event.report_type,
+        Array.isArray(event.tags) ? event.tags.join(" ") : event.tags,
+        event.source_name
+    ].filter(Boolean).join(" ");
+}
+function hasOperationalEventSignal(text = "") {
+    return OPERATIONAL_EVENT_SIGNAL_RE.test(String(text || ""));
+}
+function isIntelWireOnlyNewsText(text = "") {
+    const value = String(text || "");
+    return INTEL_WIRE_ONLY_NEWS_RE.test(value) && !LIVE_HAPPENING_SIGNAL_RE.test(value);
+}
+function isNewsLikeEvent(event = {}) {
+    const reportType = String(event.report_type || "").toLowerCase();
+    const sourceName = String(event.source_name || "").toLowerCase();
+    const tags = Array.isArray(event.tags)
+        ? event.tags.map((tag) => String(tag || "").toLowerCase())
+        : String(event.tags || "").toLowerCase().split(/[,\s]+/).filter(Boolean);
+    return (
+        ["news", "signal", "osint", "reddit"].includes(reportType) ||
+        sourceName.includes("gdelt") ||
+        tags.includes("rss") ||
+        tags.includes("gdelt")
+    );
+}
+function shouldPromoteToOperationalEvent(event = {}) {
+    const reportType = String(event.report_type || "").toLowerCase();
+    if (OPERATIONAL_REPORT_TYPES.has(reportType)) return true;
+    const text = getEventOperationalText(event);
+    if (isIntelWireOnlyNewsText(text)) return false;
+    if (isNewsLikeEvent(event)) return hasOperationalEventSignal(text);
+    return true;
 }
 // Map RSS category/feed name to event category
 function rssCategory(feedCategory, text) {
@@ -1573,18 +1679,30 @@ function rssSeverity(text) {
     return "low";
 }
 // Normalize an RSS item into an event object
-function normalizeRssItem(item, feed) {
+async function normalizeRssItem(item, feed) {
     const title = rssTag(item, "title") || rssTag(item, "summary") || "";
     const summary = rssTag(item, "description") || rssTag(item, "content") || rssTag(item, "content:encoded") || rssTag(item, "summary") || "";
     const link = rssTag(item, "link") || rssTag(item, "id") || "";
     const pubDate = rssTag(item, "pubDate") || rssTag(item, "published") || rssTag(item, "updated") || rssTag(item, "dc:date") || "";
     const fullText = `${title} ${summary}`;
     if (!passesMilitaryFilter(fullText)) return null;
+    if (!hasOperationalEventSignal(fullText) || isIntelWireOnlyNewsText(fullText)) return null;
     const cleanTitle = normalizeText(title).slice(0, 240);
     const cleanSummary = normalizeText(summary).slice(0, 1500);
     if (!cleanTitle) return null;
     const category = rssCategory(feed.category, fullText);
     const severity = rssSeverity(fullText);
+    const resolvedLocation =
+        (feed.geocode === true
+            ? await resolveLocationFromText(`${cleanTitle} ${cleanSummary.slice(0, 500)}`, { requireBBox: false })
+            : null) ||
+        resolveFeedRegionCenter(feed);
+    if (!resolvedLocation) return null;
+    const imageUrl =
+        rssAttr(item, "media:thumbnail", "url") ||
+        rssAttr(item, "media:content", "url") ||
+        rssAttr(item, "enclosure", "url") ||
+        "";
     // Generate a stable dedupe key from source + title hash
     const dedupeKey = [
         "RSS",
@@ -1599,9 +1717,9 @@ function normalizeRssItem(item, feed) {
         source_name: feed.source_name || feed.name || "RSS",
         source_url: link || feed.url || "",
         occurred_at: normalizeOccurredAt(pubDate),
-        lat: null,
-        lon: null,
-        location_label: feed.region || "Global",
+        lat: Number(resolvedLocation.lat),
+        lon: Number(resolvedLocation.lon),
+        location_label: resolvedLocation.label || feed.region || "Global",
         confidence: 55,
         weapon_type: "",
         target_type: "unknown",
@@ -1612,6 +1730,10 @@ function normalizeRssItem(item, feed) {
         cyber_status: "unknown",
         fir_code: "",
         tags: uniqueTags(["rss", ...(feed.tags || [])]),
+        metadata: {
+            image_url: /\.(jpe?g|png|gif|webp|avif)(?:\?|#|$)/i.test(imageUrl) ? imageUrl : "",
+            media_url: imageUrl
+        },
         dedupe_key: dedupeKey,
     };
 }
@@ -1631,7 +1753,7 @@ async function processRssFeed(feed) {
         console.log(`[RSS] ${feed.name}: ${items.length} items fetched`);
         let saved = 0;
         for (const item of items.slice(0, 30)) {
-            const event = normalizeRssItem(item, feed);
+            const event = await normalizeRssItem(item, feed);
             if (!event) continue;
             await insertEventIfValid(event);
             saved++;
@@ -1826,6 +1948,7 @@ function normalizeGdeltEvent(item, feed) {
         text.includes("cyber");
 
     if (!hasHardMilitaryTerm && !hasFeedKeyword) return null;
+    if (!hasOperationalEventSignal(text) || isIntelWireOnlyNewsText(text)) return null;
     let actorSide = "unknown";
     if (text.includes("military") || text.includes("army") || text.includes("air force") || text.includes("navy")) {
         actorSide = "state_actor";
@@ -3771,11 +3894,42 @@ async function runWorker() {
         isWorkerRunning = false;
     }
 }
+async function runConflictFeedCycle() {
+    if (!CONFLICT_FEED_ENABLED) return;
+    if (isConflictFeedRunning) {
+        console.log("[conflict] Previous conflict feed sync still running, skipping this tick");
+        return;
+    }
+    isConflictFeedRunning = true;
+    try {
+        await runConflictFeedSync({
+            includeReliefWeb: CONFLICT_FEED_INCLUDE_RELIEFWEB,
+            promoteEvents: CONFLICT_FEED_PROMOTE_EVENTS
+        });
+    } catch (err) {
+        console.error("[conflict] Conflict feed cycle failed:", err?.message || err);
+    } finally {
+        isConflictFeedRunning = false;
+    }
+}
+function startConflictFeedLoop() {
+    if (!CONFLICT_FEED_ENABLED) {
+        console.log("[conflict] feed disabled; set CONFLICT_FEED_ENABLED=true to enable");
+        return;
+    }
+    console.log(`[conflict] feed enabled, interval ${CONFLICT_FEED_INTERVAL_MS}ms`);
+    runConflictFeedCycle();
+    const timer = setInterval(() => {
+        runConflictFeedCycle();
+    }, CONFLICT_FEED_INTERVAL_MS);
+    if (typeof timer.unref === "function") timer.unref();
+}
 cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
 // ── Pikud HaOref real-time siren poller (1.5s interval) ──────────────────────
 // Runs independently of the 5-min cron — sidetracks into warzone-siren-poller.js
 startOrefPoller();
+startConflictFeedLoop();
 console.log("Worker started");
 runWorker();

@@ -122,9 +122,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     bindTabs(".top-tab[data-view]", ".warzone-view", "view", "viewPanel");
     bindTabs("[data-military-view]", "[data-military-panel]", "militaryView", "militaryPanel");
-    document.querySelectorAll("[data-map-mode]").forEach((btn) => {
+    const genericMapModeButtons = Array.from(document.querySelectorAll("[data-map-mode]"))
+        .filter((btn) => btn.id !== "wz-toggle-3d" && btn.id !== "wz-toggle-2d");
+    genericMapModeButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
-            document.querySelectorAll("[data-map-mode]").forEach((node) => {
+            genericMapModeButtons.forEach((node) => {
                 const active = node === btn;
                 node.classList.toggle("is-active", active);
                 node.setAttribute("aria-pressed", String(active));
@@ -132,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
             window.__warzoneViewer?.__warzone?.setMapMode?.(btn.dataset.mapMode);
         });
     });
-    document.querySelectorAll("[data-map-mode]").forEach((node) => {
+    genericMapModeButtons.forEach((node) => {
         node.setAttribute("aria-pressed", String(node.classList.contains("is-active")));
     });
     document.querySelectorAll(".period-tab").forEach((btn) => {
@@ -697,12 +699,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function setAircraftTrackerFocusLocked(enabled = false) {
         const widget = document.querySelector('.warzone-widget[data-widget-id="aircraft"]');
         if (!widget) return;
-        const locked = Boolean(enabled);
-        widget.classList.toggle("is-focus-locked", locked);
-        if (locked) {
-            showWidget(widget);
-        }
-        setWidgetHeaderControlsDisabled(widget, locked);
+        widget.classList.remove("is-focus-locked");
+        setWidgetHeaderControlsDisabled(widget, false);
         syncWidgetChrome();
     }
     function hideWidget(widget) {

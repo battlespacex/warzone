@@ -69,7 +69,9 @@ function bindAlertDismiss() {
 }
 
 function bindMapModeButtons() {
-    const buttons = document.querySelectorAll("[data-map-mode]");
+    const buttons = Array.from(document.querySelectorAll("[data-map-mode]"))
+        .filter((btn) => btn.id !== "wz-toggle-3d" && btn.id !== "wz-toggle-2d");
+    if (!buttons.length) return;
     const applyMapModeState = (activeBtn) => {
         buttons.forEach((btn) => {
             const active = btn === activeBtn;
@@ -183,6 +185,7 @@ window.setDefcon = function (level) {
 function bindGlobeToggle() {
     const btn3d = document.getElementById("wz-toggle-3d");
     const btn2d = document.getElementById("wz-toggle-2d");
+    const btnContour = document.getElementById("wz-toggle-contour");
     if (!btn3d || !btn2d) return;
     const normalizeSceneMode = (value = "") => {
         const mode = String(value || "").trim().toLowerCase();
@@ -202,6 +205,12 @@ function bindGlobeToggle() {
         btn3d.setAttribute("aria-pressed", String(is3d));
         btn2d.setAttribute("aria-pressed", String(!is3d));
         __sceneModeUiState.currentMode = nextMode;
+    };
+    const updateContourButton = (visible = false) => {
+        if (!btnContour) return;
+        const active = visible === true;
+        btnContour.classList.toggle("is-active", active);
+        btnContour.setAttribute("aria-pressed", String(active));
     };
     const readSceneMode = () => {
         const mode = normalizeSceneMode(getWarzoneMapApi()?.getSceneMode?.());
@@ -244,13 +253,20 @@ function bindGlobeToggle() {
         }
     };
     const handleManualToggle = (nextMode) => {
-        applySceneMode(nextMode, { source: "manual", duration: 0.72 });
+        applySceneMode(nextMode, { source: "manual", duration: 1.15 });
         if (isAnyFocusActive()) {
             syncAutoFocusSceneMode();
         }
     };
     btn3d.addEventListener("click", () => handleManualToggle("3d"));
     btn2d.addEventListener("click", () => handleManualToggle("2d"));
+    btnContour?.addEventListener("click", () => {
+        const api = getWarzoneMapApi();
+        if (!api?.toggleContourLayer) return;
+        Promise.resolve(api.toggleContourLayer())
+            .then((visible) => updateContourButton(visible === true))
+            .catch(() => updateContourButton(api?.isContourLayerVisible?.() === true));
+    });
     if (!__sceneModeUiState.listenersBound) {
         __sceneModeUiState.listenersBound = true;
         document.addEventListener("wz:scene-mode-changed", (event) => {
@@ -269,8 +285,12 @@ function bindGlobeToggle() {
             __sceneModeUiState.navalFocused = focused;
             syncAutoFocusSceneMode();
         });
+        document.addEventListener("wz:contour-layer-changed", (event) => {
+            updateContourButton(event?.detail?.visible === true);
+        });
     }
     updateButtons(readSceneMode());
+    updateContourButton(getWarzoneMapApi()?.isContourLayerVisible?.() === true);
     if (__sceneModeUiState.bootstrapTimer) {
         clearTimeout(__sceneModeUiState.bootstrapTimer);
         __sceneModeUiState.bootstrapTimer = null;

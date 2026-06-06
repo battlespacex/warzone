@@ -90,6 +90,8 @@ const ICAO_TYPE_NAMES = {
     "MH60": "MH-60 Black Hawk",
     "CH47": "CH-47 Chinook",
     "H47": "CH-47 Chinook",
+    "CH53": "CH-53 Stallion",
+    "MH53": "MH-53 Pave Low / Sea Dragon",
     "V22": "V-22 Osprey",
     "MV22": "MV-22 Osprey",
     "CV22": "CV-22 Osprey",
@@ -255,7 +257,11 @@ const AWACS_CODES = new Set([
 ]);
 
 const ISR_CODES = new Set([
-    "RC135", "EP3", "P8", "P8A", "P3", "P3C", "RQ4", "U2", "IL20", "IL38", "SR71",
+    "RC135", "EP3", "P8", "P8A", "P3", "P3C", "U2", "IL20", "IL38", "SR71",
+]);
+
+const UAV_CODES = new Set([
+    "MQ1", "MQ9", "MQ9A", "MQ9B", "RQ1", "RQ4", "MQ4C", "RQ7", "RQ170",
 ]);
 
 const TRANSPORT_CODES = new Set([
@@ -265,7 +271,7 @@ const TRANSPORT_CODES = new Set([
 
 const HELI_CODES = new Set([
     "AH64", "AH1", "UH60", "H60", "SH60", "MH60", "CH47", "H47", "V22", "MV22", "CV22",
-    "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52", "KA27", "Z10", "Z19", "SA342",
+    "CH53", "MH53", "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52", "KA27", "Z10", "Z19", "SA342",
     "AS532", "EC725", "NH90", "H225", "EC665", "H145",
 ]);
 
@@ -362,6 +368,7 @@ function classifyByTypeCode(typeCode) {
     if (BOMBER_CODES.has(t)) return "bomber";
     if (TANKER_CODES.has(t)) return "tanker";
     if (AWACS_CODES.has(t)) return "awacs";
+    if (UAV_CODES.has(t)) return "uav";
     if (ISR_CODES.has(t)) return "isr";
     if (TRANSPORT_CODES.has(t)) return "transport";
     if (HELI_CODES.has(t)) return "helicopter";
@@ -372,7 +379,8 @@ function classifyByTypeCode(typeCode) {
 const CALLSIGN_ROLE_RULES = [
     { role: "awacs", patterns: [/AWACS/i, /SENTRY/i, /NAEW/i, /PHALCON/i, /ERIEYE/i, /\bE3\b/i, /\bE7\b/i, /KJ/i] },
     { role: "tanker", patterns: [/TEXACO/i, /SHELL/i, /TANKER/i, /EXTENDER/i, /PEGASUS/i, /\bKC/i] },
-    { role: "isr", patterns: [/RIVET/i, /COBRA.?BALL/i, /DRAGON.?LADY/i, /GLOBAL.?HAWK/i, /JSTAR/i, /FORTE/i, /POSEIDON/i, /ORION/i] },
+    { role: "uav", patterns: [/GLOBAL.?HAWK/i, /REAPER/i, /PREDATOR/i, /GENERAL.?ATOMIC/i, /GA.?ASI/i, /SKY.?GUARDIAN/i, /SEA.?GUARDIAN/i, /PROTECTOR/i] },
+    { role: "isr", patterns: [/RIVET/i, /COBRA.?BALL/i, /DRAGON.?LADY/i, /JSTAR/i, /FORTE/i, /POSEIDON/i, /ORION/i] },
     { role: "bomber", patterns: [/\bB52\b/i, /\bB1\b/i, /\bB2\b/i, /\bTU160\b/i, /\bTU95\b/i] },
     { role: "transport", patterns: [/REACH/i, /RCH/i, /ASCOT/i, /ATLAS/i, /HERCULES/i, /GLOBEMASTER/i] },
     { role: "fighter", patterns: [/\bF35\b/i, /\bF22\b/i, /\bF16\b/i, /\bF15\b/i, /\bF18\b/i, /RAPTOR/i, /TYPHOON/i, /RAFALE/i, /GRIPEN/i] },
@@ -392,6 +400,7 @@ function classifyByModelName(modelName = "") {
     const haystack = String(modelName || "").toUpperCase();
     if (!haystack) return null;
     if (/(AWACS|AEW|WEDGETAIL|HAWKEYE|SENTRY|E-3\b|E3\b|E-7\b|E7\b|A-50\b|A50\b|PHALCON|ERIEYE|KJ-200\b|KJ200\b|KJ-500\b|KJ500\b|KJ-2000\b|KJ2000\b)/.test(haystack)) return "awacs";
+    if (/(UAV\b|UCAV\b|UAS\b|DRONE\b|MQ-?1\b|MQ-?9[AB]?\b|RQ-?1\b|RQ-?4\b|MQ-?4C\b|GLOBAL HAWK|TRITON|REAPER|PREDATOR|GENERAL ATOMIC|GA-?ASI|SKYGUARDIAN|SKY GUARDIAN|SEAGUARDIAN|SEA GUARDIAN|PROTECTOR(?: RG-?1)?)/.test(haystack)) return "uav";
     if (/(RIVET JOINT|COBRA BALL|COMBAT SENT|RECON|RECONNAISSANCE|SURVEILLANCE|POSEIDON|ORION|RC-135\b|RC135\b|EP-3\b|EP3\b|P-8\b|P8\b|P-3\b|P3\b)/.test(haystack)) return "recon";
     if (/(ISR\b|GLOBAL HAWK|TRITON|JSTARS|E-8\b|E8\b|RQ-4\b|RQ4\b|SPECIAL MISSION)/.test(haystack)) return "isr";
     if (/(TANKER|REFUEL|REFUELLER|PEGASUS|EXTENDER|STRATOTANKER|KC-135\b|KC135\b|KC-46\b|KC46\b|KC-10\b|KC10\b|A330 MRTT\b|MRTT\b|VOYAGER\b|IL-78\b|IL78\b|YY-20\b|YY20\b)/.test(haystack)) return "tanker";
