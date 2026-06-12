@@ -209,8 +209,11 @@ function applyEventLod(viewer) {
             : numberVar("--warzone-event-ring-fill-alpha", 0.14);
         if (isEventOutline || isEventFill || isEventPulse) {
             if (isEventMarkerFill) {
+                const showMarkerFill = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
+                if (entity.billboard) {
+                    entity.billboard.show = showMarkerFill;
+                }
                 if (entity.ellipse) {
-                    const showMarkerFill = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
                     entity.ellipse.show = showMarkerFill;
                     if (showMarkerFill) {
                         applyEventMarkerEllipsePulse(
@@ -657,13 +660,14 @@ function getEventPulseValue(settings) {
 function getEventPulsedRadius(radius, settings) {
     if (!settings?.enabled) return radius;
     const progress = getEventPulseValue(settings);
-    return radius * (1 + progress * settings.radiusScale);
+    const wave = 0.5 - (0.5 * Math.cos(progress * Math.PI * 2));
+    return radius * (1 + wave * settings.radiusScale);
 }
 function getEventPulsedFillAlpha(fillAlpha, settings) {
     if (!settings?.enabled) return fillAlpha;
     const progress = getEventPulseValue(settings);
-    const alphaWave = Math.pow(Math.sin(progress * Math.PI), 0.9);
-    const alpha = fillAlpha * (0.18 + alphaWave * Math.max(0.12, settings.alphaScale + 0.24));
+    const alphaWave = Math.pow(0.5 - (0.5 * Math.cos(progress * Math.PI * 2)), 0.92);
+    const alpha = fillAlpha * (0.24 + alphaWave * Math.max(0.10, settings.alphaScale));
     return Math.max(0.01, Math.min(alpha, 0.42));
 }
 function clearEventEllipsePulse(entity) {
@@ -698,18 +702,20 @@ function applyEventPulseFrame(entity) {
             ellipse.semiMinorAxis = radiusMeters;
             ellipse.semiMajorAxis = radiusMeters;
             if (entity.__wzPulseColor && Number.isFinite(entity.__wzPulseFillAlpha)) {
-                ellipse.material = entity.__wzPulseColor.withAlpha(entity.__wzPulseFillAlpha);
+                const maxAlpha = Math.max(0, Math.min(0.70, entity.__wzPulseFillAlpha));
+                ellipse.material = entity.__wzPulseColor.withAlpha(maxAlpha);
             }
         } else {
             const progress = getEventPulseValue(settings);
-            const easedProgress = 1 - Math.pow(1 - progress, 2);
-            const alphaWave = Math.pow(Math.sin(progress * Math.PI), 0.92);
-            const pulseDiameterPx = markerBaseSizePx * (0.32 + easedProgress * 0.68);
+            const smoothWave = 0.5 - (0.5 * Math.cos(progress * Math.PI * 2));
+            const alphaWave = Math.pow(smoothWave, 0.92);
+            const pulseDiameterPx = markerBaseSizePx * (0.74 + smoothWave * 0.26);
             const radiusMeters = Math.max(1, metersPerPixel * pulseDiameterPx * 0.5);
             ellipse.semiMinorAxis = radiusMeters;
             ellipse.semiMajorAxis = radiusMeters;
             if (entity.__wzPulseColor && Number.isFinite(entity.__wzPulseFillAlpha)) {
-                const alpha = Math.max(0.02, Math.min(entity.__wzPulseFillAlpha, entity.__wzPulseFillAlpha * alphaWave));
+                const maxAlpha = Math.max(0, Math.min(0.70, entity.__wzPulseFillAlpha));
+                const alpha = Math.max(0, Math.min(maxAlpha, maxAlpha * alphaWave));
                 ellipse.material = entity.__wzPulseColor.withAlpha(alpha);
             }
         }
@@ -737,13 +743,13 @@ function applyEventPulseFrame(entity) {
             return;
         }
         const progress = getEventPulseValue(settings);
-        const easedProgress = 1 - Math.pow(1 - progress, 2);
-        const alphaWave = Math.pow(Math.sin(progress * Math.PI), 0.92);
-        const pulseSize = baseSizePx * (0.32 + easedProgress * 0.68);
+        const smoothWave = 0.5 - (0.5 * Math.cos(progress * Math.PI * 2));
+        const alphaWave = Math.pow(smoothWave, 0.92);
+        const pulseSize = baseSizePx * (0.82 + smoothWave * 0.18);
         billboard.width = pulseSize;
         billboard.height = pulseSize * squash;
         billboard.scale = 1;
-        const alpha = Math.max(0.02, Math.min(1, alphaWave));
+        const alpha = Math.max(0, Math.min(0.70, alphaWave * 0.70));
         billboard.color = Cesium.Color.WHITE.withAlpha(alpha);
     }
 }
@@ -782,6 +788,7 @@ function applyEventMarkerEllipsePulse(entity, baseSizePx, color, fillAlpha, even
     if (!ellipse) return;
     const settings = getEventPulseSettings(event);
     entity.__wzMarkerBaseSizePx = baseSizePx;
+    entity.__wzPulseBaseSizePx = baseSizePx;
     entity.__wzPulseSettings = settings;
     entity.__wzPulseColor = color;
     entity.__wzPulseFillAlpha = fillAlpha;
@@ -819,7 +826,7 @@ function startEventPulseRenderLoop(viewer) {
     const tick = (now) => {
         viewer.__warzoneEventPulseRaf = 0;
         if (!shouldRunEventPulseRenderLoop(viewer)) return;
-        const fps = Math.max(1, numberVar("--warzone-event-ring-pulse-fps", 24));
+        const fps = Math.max(1, numberVar("--warzone-event-ring-pulse-fps", 36));
         if (now - lastRenderAt >= 1000 / fps) {
             lastRenderAt = now;
             updateEventPulseFrame(viewer);
@@ -1047,9 +1054,23 @@ function createEventMarkerFillEntity(event, options = {}) {
     const suppressMarkers = options?.suppressMarkers === true;
     const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
     const fillAlpha = Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82)));
+    const markerSizePx = getEventMarkerSizePx(count);
     return {
         id: `${event.id}-fill`,
         position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+        billboard: {
+            image: isCluster
+                ? createClusterMarkerCanvas(colorCss, count)
+                : createEventCircleCanvas(colorCss, 512),
+            width: markerSizePx,
+            height: markerSizePx,
+            color: Cesium.Color.WHITE,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            show: showMarker,
+        },
         ellipse: {
             semiMinorAxis: 1,
             semiMajorAxis: 1,

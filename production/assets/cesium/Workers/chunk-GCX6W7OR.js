@@ -22,5 +22,4 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-
-import{a as w}from"./chunk-RXYBLNW3.js";var C={};C.computePositions=function(I,f,b,n,e){let m=I*.5,i=-m,s=n+n,P=e?2*s:s,t=new Float64Array(P*3),r,c=0,o=0,p=e?s*3:0,a=e?(s+n)*3:n*3;for(r=0;r<n;r++){let y=r/n*w.TWO_PI,x=Math.cos(y),h=Math.sin(y),u=x*b,M=h*b,O=x*f,d=h*f;t[o+p]=u,t[o+p+1]=M,t[o+p+2]=i,t[o+a]=O,t[o+a+1]=d,t[o+a+2]=m,o+=3,e&&(t[c++]=u,t[c++]=M,t[c++]=i,t[c++]=O,t[c++]=d,t[c++]=m)}return t};var Y=C;export{Y as a};
+import{a as w}from"./chunk-RXYBLNW3.js";var C={computePositions:function(t,o,a,r,n){let s,e=.5*t,i=-e,c=r+r,u=new Float64Array(3*(n?2*c:c)),f=0,h=0,l=n?3*c:0,m=n?3*(c+r):3*r;for(s=0;s<r;s++){let t=s/r*w.TWO_PI,c=Math.cos(t),p=Math.sin(t),Y=c*a,C=p*a,M=c*o,P=p*o;u[h+l]=Y,u[h+l+1]=C,u[h+l+2]=i,u[h+m]=M,u[h+m+1]=P,u[h+m+2]=e,h+=3,n&&(u[f++]=Y,u[f++]=C,u[f++]=i,u[f++]=M,u[f++]=P,u[f++]=e)}return u}},Y=C;export{Y as a};

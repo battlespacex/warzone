@@ -37,6 +37,120 @@
     pointer-events: none;
     overflow: visible;
 }
+.wz-gnss-panel {
+    position: absolute;
+    left: 2rem;
+    bottom: 12rem;
+    z-index: 24;
+    min-width: 20rem;
+    pointer-events: none;
+}
+.wz-gnss-panel[hidden] {
+    display: none !important;
+}
+.wz-gnss-panel .panel-container,
+.wz-gnss-panel .panel-head,
+.wz-gnss-panel .panel-content {
+    pointer-events: auto;
+}
+.wz-gnss-panel .panel-head h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+.wz-gnss-legend__tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    padding: 0 0.6rem;
+    background: rgba(255, 220, 82, 0.16);
+    color: var(--color-yellow-slate);
+    font-size: 1rem;
+}
+.wz-gnss-panel__body {
+    display: grid;
+    gap: 0.55rem;
+    padding: 1rem 1.2rem;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+}
+.wz-gnss-legend__status {
+    padding: 0.75rem 0.9rem;
+    border: 0.1rem solid rgba(143, 163, 184, 0.16);
+    background: rgba(20, 24, 31, 0.42);
+    color: var(--color-text-heading);
+    line-height: 1.45;
+}
+.wz-gnss-legend__status[data-tone="warning"] {
+    border-color: rgba(255, 183, 77, 0.24);
+    color: var(--color-yellow-slate);
+}
+.wz-gnss-legend__status[data-tone="demo"] {
+    border-color: rgba(95, 221, 255, 0.22);
+}
+.wz-gnss-legend__status[data-tone="live"] {
+    border-color: rgba(76, 255, 118, 0.18);
+}
+.wz-gnss-legend__row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+.wz-gnss-legend__swatch {
+    display: inline-flex;
+    width: 1.2rem;
+    height: 1.2rem;
+    border: 0.1rem solid transparent;
+}
+.wz-gnss-legend__swatch--low {
+    background: var(--gnss-cell-fill-low);
+    border-color: var(--gnss-cell-outline-low);
+}
+.wz-gnss-legend__swatch--medium {
+    background: var(--gnss-cell-fill-medium);
+    border-color: var(--gnss-cell-outline-medium);
+}
+.wz-gnss-legend__swatch--high {
+    background: var(--gnss-cell-fill-high);
+    border-color: var(--gnss-cell-outline-high);
+}
+.wz-gnss-tooltip {
+    position: absolute;
+    z-index: 38;
+    display: grid;
+    gap: 0.55rem;
+    width: min(27rem, calc(100vw - 4rem));
+    padding: 1.1rem 1.2rem;
+    background: rgba(25, 30, 39, 0.92);
+    border: 0.1rem solid rgba(143, 163, 184, 0.2);
+    backdrop-filter: blur(0.8rem);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    pointer-events: none;
+}
+.wz-gnss-tooltip__title {
+    color: var(--color-text-heading);
+    font-family: var(--heading-font);
+    font-size: var(--text-base);
+    text-transform: uppercase;
+}
+.wz-gnss-tooltip__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.wz-gnss-tooltip__row strong,
+.wz-gnss-tooltip__source,
+.wz-gnss-tooltip__mode {
+    color: var(--color-text-heading);
+}
+.wz-gnss-tooltip__mode {
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
 /* #endregion =========== */
 /* #region =========== CESIUM JS GLOBE =========== */
 .warzone-globe {

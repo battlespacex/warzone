@@ -13,14 +13,19 @@
       "parser": "telegram",
       "enabled": false,
       "channels": [
+        "DSquadOfficial",
+        "OSINTWarfare",
+        "conflictarchive",
+        "Global_OSINT44",
         "OSINTdefender",
         "OSINT_defender",
         "WarMonitors",
+        "warmonitors",
+        "warmaps78",
         "milinfolive",
         "war_translated",
         "ourwarstoday",
-        "sitreports",
-        "irannotam"
+        "sitreports"
       ],
       "limit": 30,
       "category": "military",
@@ -38,6 +43,8 @@
       "channels": [
         "sentdefender",
         "OSINTLive",
+        "worldwar124",
+        "Global_Wars",
         "wor_mil_news",
         "CyberspecNews",
         "mmirlb",
@@ -73,6 +80,23 @@
         "osint",
         "military",
         "narrative"
+      ]
+    },
+    {
+      "name": "Telegram NOTAM / Aviation Alerts",
+      "parser": "telegram",
+      "enabled": false,
+      "channels": [
+        "seaaero",
+        "irannotam"
+      ],
+      "limit": 20,
+      "category": "airspace",
+      "tags": [
+        "telegram",
+        "notam",
+        "aviation",
+        "alerts"
       ]
     },
     {

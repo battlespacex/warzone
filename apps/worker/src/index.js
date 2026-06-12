@@ -29,7 +29,7 @@ async function saveRawItem({
             .createHash("md5")
             .update((text || "") + (external_id || ""))
             .digest("hex");
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from("raw_items")
             .insert([
                 {
@@ -45,18 +45,24 @@ async function saveRawItem({
                     location_hint,
                     hash
                 }
-            ]);
+            ])
+            .select("id, source_name, url")
+            .maybeSingle();
         if (error) {
             console.error("RAW INSERT ERROR:", error);
+            return null;
         }
+        return data || null;
     } catch (err) {
         console.error("RAW ITEM FAIL:", err);
+        return null;
     }
 }
 import { runAdsbWorker } from "./adsb-worker.js";
 import { runAisWorker } from "./ais-worker.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
+import { runStatusFeedSync } from "./status-feed-runner.js";
 async function getSourceConfig(sourceName) {
     if (!sourceName) return null;
     const { data, error } = await supabase
@@ -66,6 +72,36 @@ async function getSourceConfig(sourceName) {
         .single();
     if (error) return null;
     return data;
+}
+function buildSourceRegistryRows(feeds = []) {
+    return (Array.isArray(feeds) ? feeds : [])
+        .filter((feed) => feed && (feed.source_name || feed.name))
+        .map((feed) => ({
+            source_key: sanitizeTag(feed.source_name || feed.name || ""),
+            source_name: feed.source_name || feed.name || "Unknown source",
+            source_type: feed.type || feed.parser || "feed",
+            enabled: feed.enabled !== false,
+            trust_score: Number.isFinite(Number(feed.trust_score)) ? Number(feed.trust_score) : 50,
+            publish_mode: feed.publish_mode || "normal",
+            category_default: feed.category || null,
+            tags: Array.isArray(feed.tags) ? feed.tags : null,
+            default_confidence: Number.isFinite(Number(feed.default_confidence))
+                ? Number(feed.default_confidence)
+                : null,
+            promotion_mode: feed.promotion_mode || "normal",
+        }));
+}
+async function syncSourceRegistryFromConfig() {
+    const rows = buildSourceRegistryRows(sources?.feeds);
+    if (!rows.length) return;
+    const { error } = await supabase
+        .from("source_registry")
+        .upsert(rows, { onConflict: "source_name", ignoreDuplicates: false });
+    if (error) {
+        console.error("Source registry sync error:", error.message);
+        return;
+    }
+    console.log(`[sources] Synced ${rows.length} configured sources into source_registry`);
 }
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -82,8 +118,11 @@ function interpolateEnvPlaceholders(str) {
 const sources = JSON.parse(interpolateEnvPlaceholders(rawSources));
 let isWorkerRunning = false;
 let isConflictFeedRunning = false;
+let isStatusFeedRunning = false;
 const DEFAULT_CONFLICT_FEED_INTERVAL_MS = 15 * 60 * 1000;
 const MIN_CONFLICT_FEED_INTERVAL_MS = 60 * 1000;
+const DEFAULT_STATUS_FEED_INTERVAL_MS = 15 * 60 * 1000;
+const MIN_STATUS_FEED_INTERVAL_MS = 60 * 1000;
 function readBooleanEnv(value, defaultValue = false) {
     if (value === undefined || value === null || value === "") return defaultValue;
     return /^(1|true|yes|on)$/i.test(String(value).trim());
@@ -99,6 +138,11 @@ const CONFLICT_FEED_INTERVAL_MS = Math.max(
 );
 const CONFLICT_FEED_INCLUDE_RELIEFWEB = readBooleanEnv(process.env.CONFLICT_FEED_INCLUDE_RELIEFWEB, false);
 const CONFLICT_FEED_PROMOTE_EVENTS = readBooleanEnv(process.env.CONFLICT_FEED_PROMOTE_EVENTS, true);
+const STATUS_FEED_ENABLED = readBooleanEnv(process.env.STATUS_FEED_ENABLED, true);
+const STATUS_FEED_INTERVAL_MS = Math.max(
+    readPositiveIntegerEnv(process.env.STATUS_FEED_INTERVAL_MS, DEFAULT_STATUS_FEED_INTERVAL_MS),
+    MIN_STATUS_FEED_INTERVAL_MS
+);
 /* ----------------------------------------
  * Telegram config
  * -------------------------------------- */
@@ -1043,7 +1087,7 @@ function applyEscalation(existing, incoming) {
  * -------------------------------------- */
 async function insertEvent(event) {
     try {
-        await saveRawItem({
+        const rawItem = await saveRawItem({
             source_name: event.source_name || "unknown",
             source_type: "worker",
             parser: "main",
@@ -1061,15 +1105,42 @@ async function insertEvent(event) {
             const map = { low: 30, medium: 50, high: 80, verified: 95 };
             payload.confidence = map[payload.confidence.toLowerCase()] || 50;
         }
-        let { error } = await supabase.from("events").insert([payload]);
+        let { data, error } = await supabase
+            .from("events")
+            .insert([payload])
+            .select("id, lat, lon");
         if (error && /priority_score/i.test(error.message || "")) {
             delete payload.priority_score;
-            const retry = await supabase.from("events").insert([payload]);
+            const retry = await supabase
+                .from("events")
+                .insert([payload])
+                .select("id, lat, lon");
+            data = retry.data || null;
             error = retry.error || null;
         }
         if (error) {
             console.error("Insert error:", error.message);
             return false;
+        }
+        const insertedEvent = Array.isArray(data) ? data[0] : data;
+        if (insertedEvent?.id) {
+            await findOrCreateCluster(insertedEvent);
+            if (rawItem?.id) {
+                const { error: sourceError } = await supabase
+                    .from("event_sources")
+                    .insert([
+                        {
+                            event_id: insertedEvent.id,
+                            raw_item_id: rawItem.id,
+                            source_name: event.source_name || "unknown",
+                            source_url: event.source_url || null,
+                            created_at: new Date().toISOString(),
+                        }
+                    ]);
+                if (sourceError) {
+                    console.error("Event source link error:", sourceError.message);
+                }
+            }
         }
         console.log("Event inserted:", event.title);
         return true;
@@ -1282,7 +1353,21 @@ async function findOrCreateCluster(event) {
         const latDiff = Math.abs(Number(cluster.lat) - lat);
         const lonDiff = Math.abs(Number(cluster.lon) - lon);
         if (latDiff < 0.5 && lonDiff < 0.5) {
-            return cluster;
+            const nextCount = Math.max(1, Number(cluster.event_count || 1)) + 1;
+            const { data: updatedCluster, error: updateError } = await supabase
+                .from("event_clusters")
+                .update({
+                    event_count: nextCount,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", cluster.id)
+                .select()
+                .single();
+            if (updateError) {
+                console.error("Cluster update error:", updateError.message);
+                return cluster;
+            }
+            return updatedCluster;
         }
     }
     const { data: newCluster, error: createError } = await supabase
@@ -1661,12 +1746,32 @@ function shouldPromoteToOperationalEvent(event = {}) {
     if (isNewsLikeEvent(event)) return hasOperationalEventSignal(text);
     return true;
 }
+function deriveAirspaceStatusFromText(text = "") {
+    const t = String(text || "").toLowerCase();
+    if (/(prohibited|airspace closed|airport closed|airport shutdown|flight ban|no-fly zone|closure)/i.test(t)) {
+        return "closed";
+    }
+    if (/(airspace|notam|restricted|restriction|danger area|temporary flight restriction|tfr|flights diverted|flight diversion|aviation warning)/i.test(t)) {
+        return "restricted";
+    }
+    return "unknown";
+}
+function deriveCyberStatusFromText(text = "") {
+    const t = String(text || "").toLowerCase();
+    if (/(communications blackout|country-wide|countrywide|nationwide|critical infrastructure|major outage)/i.test(t)) {
+        return "critical";
+    }
+    if (/(internet outage|network outage|telecom outage|blocking|blocked|shutdown|censorship|disruption|ransomware|malware|ddos|cyberattack|cyber attack)/i.test(t)) {
+        return "elevated";
+    }
+    return "unknown";
+}
 // Map RSS category/feed name to event category
 function rssCategory(feedCategory, text) {
     const t = String(text || "").toLowerCase();
     if (feedCategory) return feedCategory;
     if (t.includes("cyber") || t.includes("hack")) return "cyber";
-    if (t.includes("airspace") || t.includes("notam") || t.includes("flight")) return "military";
+    if (deriveAirspaceStatusFromText(t) !== "unknown") return "airspace";
     if (t.includes("naval") || t.includes("ship") || t.includes("fleet")) return "military";
     return "strike";
 }
@@ -1692,6 +1797,12 @@ async function normalizeRssItem(item, feed) {
     if (!cleanTitle) return null;
     const category = rssCategory(feed.category, fullText);
     const severity = rssSeverity(fullText);
+    const airspaceStatus = category === "airspace"
+        ? deriveAirspaceStatusFromText(fullText)
+        : "unknown";
+    const cyberStatus = category === "cyber"
+        ? deriveCyberStatusFromText(fullText)
+        : "unknown";
     const resolvedLocation =
         (feed.geocode === true
             ? await resolveLocationFromText(`${cleanTitle} ${cleanSummary.slice(0, 500)}`, { requireBBox: false })
@@ -1726,8 +1837,8 @@ async function normalizeRssItem(item, feed) {
         impact_type: "unknown",
         report_type: "news",
         country_code: feed.country_code || "",
-        airspace_status: "unknown",
-        cyber_status: "unknown",
+        airspace_status: airspaceStatus,
+        cyber_status: cyberStatus,
         fir_code: "",
         tags: uniqueTags(["rss", ...(feed.tags || [])]),
         metadata: {
@@ -1764,8 +1875,9 @@ async function processRssFeed(feed) {
     }
 }
 async function processNotamFeed(feed) {
-    // Uses the FAA NOTAM API — free, no key needed
-    // Fetches active NOTAMs relevant to military/conflict zones
+    // Fetches active NOTAMs relevant to military/conflict zones.
+    // Preferred path: SkyLink NOTAM API when a RapidAPI key is available.
+    // Fallback path: FAA Digital NOTAM Service when FAA client credentials exist.
     const MILITARY_NOTAM_KEYWORDS = [
         "restricted", "prohibited", "danger area",
         "military", "air defense", "weapons",
@@ -1774,7 +1886,126 @@ async function processNotamFeed(feed) {
         "combat", "warzone", "conflict",
         "interception", "scramble"
     ];
-    // Use FAA Digital NOTAM Service — free REST API
+    const SKYLINK_DEFAULT_AIRPORTS = {
+        Iran: { icao: "OIIE", label: "Tehran Imam Khomeini", lat: 35.4161, lon: 51.1522 },
+        Israel: { icao: "LLBG", label: "Tel Aviv Ben Gurion", lat: 32.0114, lon: 34.8867 },
+        Lebanon: { icao: "OLBA", label: "Beirut Rafic Hariri", lat: 33.8209, lon: 35.4884 },
+        Syria: { icao: "OSDI", label: "Damascus International", lat: 33.4115, lon: 36.5156 },
+        Iraq: { icao: "ORBI", label: "Baghdad International", lat: 33.2625, lon: 44.2346 },
+        Yemen: { icao: "OYAA", label: "Aden International", lat: 12.8295, lon: 45.0288 },
+        Jordan: { icao: "OJAI", label: "Amman Queen Alia", lat: 31.7226, lon: 35.9932 },
+        Egypt: { icao: "HECA", label: "Cairo International", lat: 30.1219, lon: 31.4056 },
+        SaudiArabia: { icao: "OERK", label: "Riyadh King Khalid", lat: 24.9576, lon: 46.6988 },
+        Qatar: { icao: "OTHH", label: "Doha Hamad", lat: 25.2731, lon: 51.6081 },
+        Bahrain: { icao: "OBBI", label: "Bahrain International", lat: 26.2708, lon: 50.6336 },
+        UAE: { icao: "OMDB", label: "Dubai International", lat: 25.2532, lon: 55.3657 },
+    };
+    function buildSkyLinkAirportTargets() {
+        const explicit = String(process.env.SKYLINK_NOTAM_AIRPORTS || "")
+            .split(",")
+            .map((value) => value.trim().toUpperCase())
+            .filter(Boolean);
+        if (explicit.length) {
+            return explicit.map((icao) => ({ icao, label: icao, lat: null, lon: null }));
+        }
+        return TRACKED_AIRSPACE_COUNTRIES
+            .map((country) => SKYLINK_DEFAULT_AIRPORTS[String(country || "").replace(/\s+/g, "")] || SKYLINK_DEFAULT_AIRPORTS[country])
+            .filter(Boolean);
+    }
+    async function processSkyLinkNotams() {
+        const apiKey = process.env.SKYLINK_RAPIDAPI_KEY || "";
+        if (!apiKey) return false;
+        const airports = buildSkyLinkAirportTargets();
+        if (!airports.length) return false;
+        for (const airport of airports) {
+            try {
+                const response = await axios.get(`https://skylink-api.p.rapidapi.com/v3/notams/${airport.icao}`, {
+                    timeout: 20000,
+                    headers: {
+                        "x-rapidapi-key": apiKey,
+                        "x-rapidapi-host": "skylink-api.p.rapidapi.com",
+                        "User-Agent": "warzone-worker/1.0",
+                        "Accept": "application/json",
+                    }
+                });
+                const items = Array.isArray(response.data?.notams) ? response.data.notams : [];
+                for (const item of items) {
+                    const bodyText = normalizeText(item?.body || "");
+                    const text = bodyText.toLowerCase();
+                    if (!MILITARY_NOTAM_KEYWORDS.some((kw) => text.includes(kw))) continue;
+                    let status = "restricted";
+                    if (text.includes("prohibited") || text.includes("closed") || text.includes("closure")) status = "closed";
+                    const title = `NOTAM ${item?.notam_id || item?.id || airport.icao} — ${(item?.location || airport.label || airport.icao)} ${status.toUpperCase()}`;
+                    const lat = Number.isFinite(airport.lat) ? airport.lat : null;
+                    const lon = Number.isFinite(airport.lon) ? airport.lon : null;
+                    const event = {
+                        category: "airspace",
+                        title: title.slice(0, 160),
+                        summary: bodyText.slice(0, 1500) || "NOTAM update",
+                        source_name: "SkyLink NOTAM API",
+                        source_url: `https://skylink-api.p.rapidapi.com/v3/notams/${airport.icao}`,
+                        occurred_at: normalizeOccurredAt(item?.effective || new Date().toISOString()),
+                        lat,
+                        lon,
+                        location_label: item?.location || airport.label || airport.icao,
+                        confidence: 84,
+                        actor_side: "unknown",
+                        target_side: "unknown",
+                        weapon_type: "unknown",
+                        target_type: "airspace",
+                        impact_type: "infrastructure",
+                        report_type: "notam",
+                        severity: status === "closed" ? "critical" : "high",
+                        country_code: "",
+                        tags: uniqueTags(["notam", "airspace", status, airport.icao]),
+                        airspace_status: status,
+                        cyber_status: "unknown",
+                        fir_code: airport.icao,
+                        dedupe_key: [
+                            "SKYLINK_NOTAM",
+                            airport.icao,
+                            item?.notam_id || item?.id || "",
+                            item?.effective || "",
+                        ].join("|")
+                    };
+                    if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) {
+                        const geocoded = await geocodeLocation(airport.icao);
+                        if (geocoded) {
+                            event.lat = geocoded.lat;
+                            event.lon = geocoded.lon;
+                        }
+                    }
+                    if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) continue;
+                    await insertEventIfValid(event);
+                    await upsertAirspaceStatus({
+                        region: event.location_label,
+                        country_code: "",
+                        status,
+                        title: event.title,
+                        summary: event.summary,
+                        source_name: event.source_name,
+                        source_url: event.source_url,
+                        fir_code: airport.icao,
+                        expires_at: normalizeOccurredAt(item?.expiration || item?.expires || null),
+                        lat: event.lat,
+                        lon: event.lon,
+                    });
+                }
+            } catch (error) {
+                console.warn("[NOTAM] SkyLink fetch failed:", airport.icao, error.response?.status || error.message);
+            }
+        }
+        return true;
+    }
+    if (await processSkyLinkNotams()) {
+        return;
+    }
+    const hasFaaCredentials = Boolean(process.env.FAA_CLIENT_ID && process.env.FAA_CLIENT_SECRET);
+    if (!hasFaaCredentials) {
+        console.warn("[NOTAM] Skipped: no SkyLink key and FAA client credentials are missing");
+        return;
+    }
+    // Use FAA Digital NOTAM Service — credentialed REST API
     const NOTAM_API_URL = "https://external-api.faa.gov/notamapi/v1/notams";
     try {
         const response = await axios.get(NOTAM_API_URL, {
@@ -1994,6 +2225,7 @@ function normalizeGdeltEvent(item, feed) {
         severity = "medium";
     }
     let category = "military";
+    const airspaceStatus = deriveAirspaceStatusFromText(text);
     if (
         text.includes("missile") ||
         text.includes("drone") ||
@@ -2002,12 +2234,17 @@ function normalizeGdeltEvent(item, feed) {
         text.includes("artillery")
     ) {
         category = "strike";
+    } else if (airspaceStatus !== "unknown") {
+        category = "airspace";
     } else if (text.includes("naval") || text.includes("warship") || text.includes("fleet") || text.includes("frigate") || text.includes("destroyer") || text.includes("submarine")) {
         category = "military";
     } else if (text.includes("fighter jet") || text.includes("sortie") || text.includes("patrol") || text.includes("bomber")) {
         category = "recon";
     } else if (text.includes("cyber") || text.includes("ransomware") || text.includes("vulnerability")) {
         category = "cyber";
+    }
+    if (category === "airspace") {
+        severity = airspaceStatus === "closed" ? "critical" : "high";
     }
     return {
         category,
@@ -2023,14 +2260,14 @@ function normalizeGdeltEvent(item, feed) {
         actor_side: actorSide,
         target_side: "unknown",
         weapon_type: weaponType,
-        target_type: targetType,
+        target_type: category === "airspace" ? "airspace" : targetType,
         impact_type: targetType === "urban area" ? "civilian" : "military",
-        report_type: "signal",
+        report_type: category === "airspace" ? "airspace_status" : "signal",
         severity,
         country_code: "",
         tags: ["gdelt"],
-        airspace_status: "unknown",
-        cyber_status: category === "cyber" ? "elevated" : "unknown",
+        airspace_status: category === "airspace" ? airspaceStatus : "unknown",
+        cyber_status: category === "cyber" ? deriveCyberStatusFromText(text) : "unknown",
         fir_code: "",
         dedupe_key: [
             "GDELT",
@@ -3912,6 +4149,21 @@ async function runConflictFeedCycle() {
         isConflictFeedRunning = false;
     }
 }
+async function runStatusFeedCycle() {
+    if (!STATUS_FEED_ENABLED) return;
+    if (isStatusFeedRunning) {
+        console.log("[status] Previous status feed sync still running, skipping this tick");
+        return;
+    }
+    isStatusFeedRunning = true;
+    try {
+        await runStatusFeedSync();
+    } catch (err) {
+        console.error("[status] Status feed cycle failed:", err?.message || err);
+    } finally {
+        isStatusFeedRunning = false;
+    }
+}
 function startConflictFeedLoop() {
     if (!CONFLICT_FEED_ENABLED) {
         console.log("[conflict] feed disabled; set CONFLICT_FEED_ENABLED=true to enable");
@@ -3924,12 +4176,28 @@ function startConflictFeedLoop() {
     }, CONFLICT_FEED_INTERVAL_MS);
     if (typeof timer.unref === "function") timer.unref();
 }
+function startStatusFeedLoop() {
+    if (!STATUS_FEED_ENABLED) {
+        console.log("[status] feed disabled; set STATUS_FEED_ENABLED=true to enable");
+        return;
+    }
+    console.log(`[status] feed enabled, interval ${STATUS_FEED_INTERVAL_MS}ms`);
+    runStatusFeedCycle();
+    const timer = setInterval(() => {
+        runStatusFeedCycle();
+    }, STATUS_FEED_INTERVAL_MS);
+    if (typeof timer.unref === "function") timer.unref();
+}
 cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
 // ── Pikud HaOref real-time siren poller (1.5s interval) ──────────────────────
 // Runs independently of the 5-min cron — sidetracks into warzone-siren-poller.js
 startOrefPoller();
+syncSourceRegistryFromConfig().catch((err) => {
+    console.error("[sources] Source registry sync failed:", err?.message || err);
+});
 startConflictFeedLoop();
+startStatusFeedLoop();
 console.log("Worker started");
 runWorker();

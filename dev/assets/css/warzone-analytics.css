@@ -162,7 +162,7 @@ UNUSED CANDIDATE END */
     }
 /* #endregion =========== */
 /* #region =========== TIMELINE =========== */
-.timeline-list {
+/* .timeline-list {
     display: grid;
     gap: 1rem;
 }
@@ -184,7 +184,7 @@ UNUSED CANDIDATE END */
     display: block;
     color: var(--color-text-heading);
     margin-bottom: 0.4rem;
-}
+} */
 /* #endregion =========== */
 /* #region =========== RECON / AIRSPACE VIEW =========== */
 .recon-region-grid {

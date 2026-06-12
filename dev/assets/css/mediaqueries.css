@@ -92,7 +92,20 @@
     :root {
         --sec-width: calc(100% - 2rem);
         --min-width: calc(100% - 2rem);
+
+        --text-lg: 1.6rem;
+        --text-xl: 1.6rem;
+        --text-xxl: 2.3rem;
+        --text-xxxl: 3rem;
+        --item-spacing: 0.3rem; 
+
+        --icon-xxl: 3.8rem;
+        --icon-xl: 3rem;
+        --icon-lg: 2.2rem;
+        --icon-md: 1.6rem;
+        --icon-sm: 1rem;
     }
+    
     .site-header {
         top: 0.8rem;
     }
@@ -180,8 +193,9 @@
         height: 3rem;
     }
 
-    .wz-modal-box {
+    .wz-modal-box, .wz-modal-box.wz-min-modal {
         width: 100%;
+        min-width: 100%;
         max-width: 100%;
         height: auto;
     }
@@ -197,17 +211,21 @@
         gap: 1.5rem;
     }
 
+    .wz-modal-box .wz-btns, .wz-modal-box .wz-action {
+        justify-content: end;
+}
+
     .wz-action {
         flex-direction: column;
         align-items: stretch;
         padding: 2rem;
     }
 
-    .wz-modal-body h2, .wz-intro.wz-modal h2,
+    /* .wz-modal-body h2, .wz-intro.wz-modal h2,
     .wz-content h3 {
         line-height: 1;
         font-size: var(--text-xxl);
-    }
+    } */
 
     .wz-aircraft-item__meta,
     .wz-aircraft-item__stats {
@@ -216,7 +234,23 @@
 
     .warzone-view:after {
     height: 3rem;
-}
+    }
+
+        .wz-feed-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .wz-feed-media-grid--count-1,
+    .wz-feed-media-grid--count-2,
+    .wz-feed-media-grid--count-3,
+    .wz-feed-media-grid--count-4,
+    .wz-feed-video-grid--count-1,
+    .wz-feed-video-grid--count-2,
+    .wz-feed-video-grid--count-3,
+    .wz-feed-video-grid--count-4 {
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 /* #endregion */
 /* #region =========== Small Mobile (≤480px) =========== */
@@ -274,6 +308,12 @@
         --warzone-close-resolution-scale: 1.2;
     }
 
+    .wz-altitude-readout {
+        font-size: var(--text-sm);
+        letter-spacing: .3rem;
+        gap: 0.3rem;
+    }
+    
     .warzone-region-bar,
     .warzone-top-tabs,
     .warzone-brand-actions {
@@ -317,7 +357,13 @@
 
     .warzone-logo {
         pointer-events: auto;
+        padding: .5rem 0;
+        margin: 0 !important
     }
+
+        .warzone-logo img {
+        height: 4rem;
+        }
 
     .warzone-actions {
         top: 2rem;
@@ -667,11 +713,11 @@
         flex-shrink: 0;
     }
 
-    .wz-dock__mobile-actions .wz-dock__btn {
+    /* .wz-dock__mobile-actions .wz-dock__btn {
         width: 3.4rem;
         min-width: 3.4rem;
         height: 3.4rem;
-    }
+    } */
 
     .wz-dock__icon {
         width: auto;
@@ -701,7 +747,6 @@
 
 }
 @media (max-width: 480px) {
-    html { font-size: 60% }
 
     .warzone-brand .warzone-logo {
         display: none;

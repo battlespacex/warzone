@@ -14,7 +14,11 @@ const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
 const BASE = "/warzone";
 const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
-const API_UPSTREAM_URL = process.env.API_UPSTREAM_URL || "https://api.battlespacex.com";
+const API_UPSTREAM_URL = process.env.API_UPSTREAM_URL || (
+    process.env.NODE_ENV === "production"
+        ? "https://api.battlespacex.com"
+        : "http://localhost:8080"
+);
 let cachedAircraftFeedPayload = "";
 let cachedAircraftFeedStatus = 0;
 let cachedAircraftFeedAt = 0;

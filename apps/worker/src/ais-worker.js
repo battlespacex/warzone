@@ -376,6 +376,56 @@ function buildNavalEvent(vessel) {
     };
 }
 
+function buildNavalTrack(vessel) {
+    const { mmsi, name, shipType, lat, lon, speed, heading, country, callSign, imoNumber } = vessel;
+    const vesselClass = classifyVessel(name, shipType, callSign);
+    const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;
+
+    return {
+        track_key: `ais-${mmsi}`,
+        track_type: "naval",
+        category: "military",
+        subcategory: vesselClass,
+        source_name: "AIS / AISStream.io",
+        title: country ? `${vesselLabel} — ${country}` : vesselLabel,
+        lat,
+        lon,
+        altitude_ft: null,
+        speed_kts: Number.isFinite(speed) ? Number(speed) : null,
+        heading_deg: Number.isFinite(heading) ? Number(heading) : null,
+        region: null,
+        country: country || null,
+        status: "active",
+        occurred_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {
+            mmsi,
+            vessel_name: name || null,
+            ship_type: shipType ?? null,
+            vessel_class: vesselClass,
+            call_sign: callSign || null,
+            imo_number: imoNumber ?? null,
+        },
+    };
+}
+
+function buildNavalTrackHistoryRow(vessel) {
+    const { mmsi, name, shipType, lat, lon, speed, heading, callSign } = vessel;
+    return {
+        mmsi,
+        vessel_name: name || callSign || `Military Vessel MMSI:${mmsi}`,
+        ship_type: shipType ?? null,
+        vessel_class: classifyVessel(name, shipType, callSign),
+        lat,
+        lon,
+        speed_kts: Number.isFinite(speed) ? Number(speed) : null,
+        heading_deg: Number.isFinite(heading) ? Number(heading) : null,
+        status: "active",
+        last_seen_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+    };
+}
+
 async function upsertNavalEvents(events) {
     if (!events.length) return;
 
@@ -389,6 +439,30 @@ async function upsertNavalEvents(events) {
         console.error("[ais] Supabase upsert error:", error.message);
     } else {
         console.log(`[ais] Upserted ${events.length} naval vessel events`);
+    }
+}
+
+async function upsertNavalTracks(tracks) {
+    if (!tracks.length) return;
+    const { error } = await supabase
+        .from("tracks")
+        .upsert(tracks, { onConflict: "track_key", ignoreDuplicates: false });
+    if (error) {
+        console.error("[ais] Naval tracks upsert error:", error.message);
+    } else {
+        console.log(`[ais] Upserted ${tracks.length} naval tracks`);
+    }
+}
+
+async function upsertNavalTrackHistory(rows) {
+    if (!rows.length) return;
+    const { error } = await supabase
+        .from("naval_tracks_log")
+        .upsert(rows, { onConflict: "mmsi", ignoreDuplicates: false });
+    if (error) {
+        console.error("[ais] Naval history upsert error:", error.message);
+    } else {
+        console.log(`[ais] Upserted ${rows.length} naval history rows`);
     }
 }
 
@@ -449,7 +523,11 @@ export async function runAisWorker() {
             console.log(`${label} Collected ${military.length} military vessels`);
 
             const toInsert = military.map(buildNavalEvent);
+            const trackRows = military.map(buildNavalTrack);
+            const historyRows = military.map(buildNavalTrackHistoryRow);
             await upsertNavalEvents(toInsert);
+            await upsertNavalTracks(trackRows);
+            await upsertNavalTrackHistory(historyRows);
             resolve();
         };
 

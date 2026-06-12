@@ -22,5 +22,4 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-
 import{a as e}from"./chunk-X4J4FZ6I.js";import"./chunk-OSSC4KDI.js";import"./chunk-5LHPDHWM.js";import"./chunk-74XTGJKF.js";import"./chunk-EJPD5BNO.js";import"./chunk-AD7XFG6M.js";import"./chunk-WQ5ZC6ME.js";import"./chunk-XVAXSA53.js";import"./chunk-V6RJRUKY.js";import"./chunk-R6PWD5CA.js";import"./chunk-BDF6MEVU.js";import"./chunk-XB2TPQAQ.js";import"./chunk-OEIACSKL.js";import"./chunk-F2ZMVLJV.js";import"./chunk-VGILZD7B.js";import"./chunk-RXYBLNW3.js";import"./chunk-TXOEXY5C.js";import{e as o}from"./chunk-VIMSDF2W.js";function i(r,t){return o(t)&&(r=e.unpack(r,t)),e.createGeometry(r)}var a=i;export{a as default};

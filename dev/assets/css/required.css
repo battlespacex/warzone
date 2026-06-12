@@ -72,7 +72,7 @@ input, select, textarea {
     box-sizing: border-box;
     word-wrap: break-word;
     scrollbar-width: inherit;
-    scrollbar-color: var(--color-teal-glow) var(--color-bg-dark);
+    scrollbar-color: var(--color-teal-glow) transparent;
 }
 
 button {
@@ -305,6 +305,11 @@ UNUSED CANDIDATE END */
     border: 0;
     -webkit-appearance: none;
     animation: .2s fadeIn all;
+}
+
+.wz-region-select-btn  .btn-primary .static-icon {
+        padding-right: 0rem;
+        margin-left: 0rem;
 }
 
     .btn-primary .static-icon, .btn-secondary .static-icon {

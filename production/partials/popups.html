@@ -88,9 +88,9 @@
                     <section class="wz-modal-body">
                         <div id="wz-intro-content-view" class="wz-content is-active" data-pane="intro" role="tabpanel"
                             aria-labelledby="wz-intro-tab-intro" aria-hidden="false">
-                            <h2 id="wz-intro-title">
+                            <h1 id="wz-intro-title">
                                 Real-Time Multi-Domain Battlespace Intelligence
-                            </h2>
+                            </h1>
                             <p id="wz-intro-summary">
                                 <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
                                         target="_blank" rel="noopener noreferrer">BattlespaceX</a></strong>, is a real-time, multi-domain
@@ -102,7 +102,7 @@
                             </p>
                         </div>
                         <div id="wz-intro-login-view" class="wz-content" aria-hidden="true">
-                            <h2 id="wz-login-title">Sign In to StratOps</h2>
+                            <h2 id="wz-login-title">StratOps Sign In</h2>
                             <p>
                                 Log in with your <strong>BattlespaceX</strong> account to unlock full capabilities.
                             </p>
@@ -223,7 +223,7 @@
                         </div>
                         <div id="wz-intro-terms" class="wz-content" data-pane="terms" role="tabpanel"
                             aria-labelledby="wz-intro-tab-terms" aria-hidden="true">
-                            <h3 class="no-margin">Acceptance of These Rules</h3>
+                            <h2>Acceptance of These Rules</h2>
                             <p> By accessing, viewing, or using StratOps, you acknowledge and agree to these Rules of Engagement and Terms of Use.</p>
                             <p> If you do not agree with these terms, you must discontinue use of the platform.</p>
 
@@ -493,8 +493,7 @@
                 <div class="wz-modal-inner">
                     <header>
                         <span class="wz-header-title">
-                            <span class="static-icon stratops-ico-Profile-1" aria-hidden="true"></span>
-                            <h2 id="wz-login-modal-title">Sign In to StratOps</h2>
+                            <h2 id="wz-login-modal-title">StratOps Sign In</h2>
                         </span>
                         <span class="wz-close-modal">
                             <button type="button" class="static-icon" id="wz-login-close" aria-label="Close login dialog">
@@ -544,7 +543,7 @@
                                 </button>
                             </form>
                         </div>
-                        <div role="group" aria-label="Account creation option">
+                        <div role="group" aria-label="Account creation option" class="wz-footer">
                             <span>New to StratOps?</span>
                             <button id="auth-create-account" class="btn-secondary purple" type="button"
                                 onclick="window.location.href='https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com'"
@@ -620,10 +619,6 @@
                             <span>Don't show this advisory again on this browser.</span>
                         </div>
                         <div class="wz-btns">
-                            <button type="button" class="btn-secondary white" id="wz-performance-warning-back">
-                                <span aria-hidden="true"></span>
-                                Close
-                            </button>
                             <button type="button" class="btn-primary" id="wz-performance-warning-confirm">
                                 <span aria-hidden="true"></span>
                                 Understood
@@ -951,10 +946,12 @@
     </div>
     <button type="button"
         id="wz-support-open"
-        class="wz-support-open-btn static-icon"
+        class="wz-support-open-btn"
         aria-label="Open Founding Supporter Program"
         title="Support StratOps">
-        <span class="stratops-ico-assets-alert-1" aria-hidden="true"></span>
+        <span class="static-icon">
+            <span class="stratops-ico-like-1" aria-hidden="true"></span>
+        </span>
         <span>Support</span>
     </button>
     <div id="wz-donate-modal" class="wz-donate-modal" aria-live="polite" hidden>

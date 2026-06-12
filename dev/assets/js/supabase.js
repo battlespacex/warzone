@@ -20,11 +20,21 @@ const isLocalhost = window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
 const API_BASE = isLocalhost ? null : "https://api.battlespacex.com";
+const LOCAL_PROXY_API_BASE = "/api";
+const INTEL_FEED_API_BASE =
+    window.__stratopsConfig?.intelFeedApiBase ||
+    window.__stratopsConfig?.apiBase ||
+    (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
+const GNSS_API_BASE =
+    window.__stratopsConfig?.gnssApiBase ||
+    window.__stratopsConfig?.apiBase ||
+    INTEL_FEED_API_BASE;
 const EVENTS_HISTORY_WINDOW_HOURS = 48;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
 const EVENTS_SINCE_LIMIT = 200;
 const INTEL_FEED_LIMIT = 120;
+const GNSS_CELL_LIMIT = 240;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
@@ -33,11 +43,34 @@ function getEventsHistoryCutoffIso() {
     return new Date(Date.now() - EVENTS_HISTORY_WINDOW_MS).toISOString();
 }
 
+function mapEventToAirspaceStatusRow(event = {}) {
+    const status = String(event.airspace_status || "").toLowerCase();
+    if (!status || status === "unknown") return null;
+    return {
+        id: event.id,
+        region: event.location_label || "",
+        country_code: event.country_code || "",
+        status,
+        title: event.title || "",
+        summary: event.summary || "",
+        source_name: event.source_name || "",
+        source_url: event.source_url || "",
+        fir_code: event.fir_code || "",
+        updated_at: event.occurred_at || event.created_at || new Date().toISOString(),
+        expires_at: null,
+        lat: event.lat,
+        lon: event.lon
+    };
+}
+
 async function getAirspaceStatusesFromSupabase() {
     const { data, error } = await supabase
-        .from("airspace_status").select("*")
-        .order("updated_at", { ascending: false });
-    return { data: data || [], error };
+        .from("events").select("id, created_at, occurred_at, location_label, country_code, airspace_status, title, summary, source_name, source_url, fir_code, lat, lon")
+        .not("airspace_status", "is", null)
+        .neq("airspace_status", "unknown")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+    return { data: (data || []).map(mapEventToAirspaceStatusRow).filter(Boolean), error };
 }
 
 export const api = {
@@ -73,20 +106,28 @@ export const api = {
     },
 
     async getIntelFeedItems() {
-        if (!API_BASE) {
-            const { data, error } = await supabase
-                .from("conflict_feed_items")
-                .select("id, source_name, source_type, source_category, title, summary, url, guid, published_at, fetched_at, region, country, category, confidence_score, is_conflict_relevant, raw")
-                .eq("is_conflict_relevant", true)
-                .order("published_at", { ascending: false, nullsFirst: false })
-                .order("fetched_at", { ascending: false })
-                .limit(INTEL_FEED_LIMIT);
-            return { data: data || [], error };
-        }
-        const res = await fetch(`${API_BASE}/events/intel-feed?limit=${INTEL_FEED_LIMIT}`);
+        const res = await fetch(`${INTEL_FEED_API_BASE}/events/intel-feed?limit=${INTEL_FEED_LIMIT}`);
         if (!res.ok) throw new Error("Intel feed fetch failed");
         const json = await res.json();
         return { data: json.items || [], error: null };
+    },
+
+    async getGnssInterferenceCells() {
+        const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`);
+        if (!res.ok) throw new Error("GNSS interference fetch failed");
+        const json = await res.json();
+        return {
+            data: json.cells || [],
+            error: null,
+            meta: {
+                demoMode: json.demoMode === true,
+                updatedAt: json.updatedAt || null,
+                sourceMode: json.sourceMode || "unavailable",
+                liveAvailable: json.liveAvailable === true,
+                tableAvailable: json.tableAvailable === true,
+                message: json.message || "",
+            },
+        };
     },
 
     async getActiveAlerts() {

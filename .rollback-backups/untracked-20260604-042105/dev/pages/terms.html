@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title><%= meta.title %></title>
+    <meta name="description" content="<%= meta.description %>" />
+    <link rel="canonical" href="<%= meta.canonical %>" />
+    <meta name="robots" content="<%= meta.robots %>" />
+    <link rel="alternate" hreflang="en-ca" href="<%= meta.hreflang %>" />
+    <link rel="alternate" hreflang="x-default" href="<%= meta.hreflang %>" />
+    <%= partials("head-base") %>
+    <%= partials("head-verifications") %>
+    <meta property="og:url" content="<%= meta.ogUrl %>" />
+    <meta property="og:title" content="<%= meta.ogTitle %>" />
+    <meta property="og:description" content="<%= meta.ogDescription %>" />
+    <meta property="og:image" content="<%= meta.ogImage %>" />
+    <meta property="og:image:alt" content="<%= meta.ogAlt %>" />
+    <meta name="twitter:title" content="<%= meta.twTitle %>" />
+    <meta name="twitter:description" content="<%= meta.twDescription %>" />
+    <meta name="twitter:image" content="<%= meta.twImage %>" />
+    <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
+    <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
+</head>
+<body class="other-pages legal-page">
+    <a class="skip-link sr-only" href="#main">Skip to main content</a>
+    <div class="body-bg" aria-hidden="true"></div>
+    <%= partials("header") %>
+    <main id="main" class="warzone-shell legal-shell" aria-label="StratOps terms of service">
+        <article class="legal-document">
+            <header class="legal-document__header">
+                <p class="legal-document__eyebrow">StratOps | BattlespaceX</p>
+                <h1>Terms of Service</h1>
+                <p>Last updated: May 29, 2026</p>
+            </header>
+
+            <section>
+                <h2>Acceptance</h2>
+                <p>
+                    By accessing or using StratOps, you agree to these Terms of Service. If you do not agree, you must
+                    not access or use the platform.
+                </p>
+            </section>
+
+            <section>
+                <h2>Platform Purpose</h2>
+                <p>
+                    StratOps is an OSINT-informed visualization and situational awareness platform. It is intended for
+                    research, media awareness, analytical observation, education, and strategic monitoring.
+                </p>
+            </section>
+
+            <section>
+                <h2>No Operational Authority</h2>
+                <p>
+                    StratOps does not provide official emergency guidance, military orders, aviation instructions,
+                    maritime navigation instructions, targeting information, legal advice, financial advice, or security
+                    directives. Users must independently verify information before relying on it.
+                </p>
+            </section>
+
+            <section>
+                <h2>Accounts and Access</h2>
+                <p>
+                    Users are responsible for maintaining the confidentiality of their credentials and for all activity
+                    under their account. StratOps may restrict, suspend, or terminate access for misuse, abuse,
+                    non-payment, security risk, or violation of these terms.
+                </p>
+            </section>
+
+            <section>
+                <h2>Subscriptions and Billing</h2>
+                <p>
+                    Paid StratOps plans are billed through Stripe. Subscription pricing, renewal terms, taxes, and
+                    payment status may be shown during checkout. Access to paid features may be limited, suspended, or
+                    cancelled if payment fails or a subscription is cancelled.
+                </p>
+            </section>
+
+            <section>
+                <h2>Acceptable Use</h2>
+                <p>Users may not:</p>
+                <ul>
+                    <li>Use StratOps for unlawful activity, targeting, harm, or operational command decisions.</li>
+                    <li>Attempt unauthorized access, scraping, reverse engineering, or service disruption.</li>
+                    <li>Misrepresent StratOps data as official government, military, or emergency information.</li>
+                    <li>Redistribute platform content in a misleading or abusive manner.</li>
+                    <li>Bypass subscription controls or security protections.</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>Data Accuracy</h2>
+                <p>
+                    StratOps may include delayed, incomplete, disputed, inferred, normalized, or inaccurate information.
+                    The platform is provided for informational use, and all displayed information should be independently
+                    checked against primary or authoritative sources.
+                </p>
+            </section>
+
+            <section>
+                <h2>Intellectual Property</h2>
+                <p>
+                    StratOps branding, interface design, software, documentation, graphics, and proprietary platform
+                    components are owned by BattlespaceX or its licensors. These terms do not transfer ownership rights
+                    to users.
+                </p>
+            </section>
+
+            <section>
+                <h2>Disclaimer and Limitation of Liability</h2>
+                <p>
+                    StratOps is provided on an "as is" and "as available" basis. To the maximum extent permitted by law,
+                    BattlespaceX and StratOps are not liable for decisions, losses, damages, interruptions, or actions
+                    taken based on platform content.
+                </p>
+            </section>
+
+            <section>
+                <h2>Changes</h2>
+                <p>
+                    We may update these terms from time to time. Continued use of StratOps after changes are posted
+                    means you accept the updated terms.
+                </p>
+            </section>
+
+            <section>
+                <h2>Contact</h2>
+                <p>
+                    For terms or billing questions, contact <a href="mailto:bravo@battlespacex.com">bravo@battlespacex.com</a>.
+                </p>
+            </section>
+        </article>
+    </main>
+    <%= partials("footer") %>
+</body>
+</html>

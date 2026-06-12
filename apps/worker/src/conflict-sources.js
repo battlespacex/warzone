@@ -569,12 +569,39 @@ const RSS_SOURCES = [
     enabled: true
   },
   {
+    id: "aviation-defense-market-reports",
+    name: "Aviation and Defense Market Reports",
+    type: "rss",
+    category: "air",
+    region_scope: "global",
+    url: "https://aviationanddefensemarketreports.com/feed/",
+    enabled: true
+  },
+  {
+    id: "the-aviationist",
+    name: "The Aviationist",
+    type: "rss",
+    category: "air",
+    region_scope: "global",
+    url: "https://theaviationist.com/feed/",
+    enabled: true
+  },
+  {
+    id: "militaryleak",
+    name: "MilitaryLeak",
+    type: "rss",
+    category: "defense-news",
+    region_scope: "global",
+    url: "https://militaryleak.com/feed/",
+    enabled: true
+  },
+  {
     id: "military-times-news",
     name: "Military Times News",
     type: "rss",
     category: "military-news",
     region_scope: "us-global",
-    url: "https://www.militarytimes.com/arc/outboundfeeds/rss/category/news/",
+    url: "https://www.militarytimes.com/arc/outboundfeeds/rss/category/news/?outputType=xml",
     enabled: true
   },
   {
@@ -707,6 +734,15 @@ const RSS_SOURCES = [
     url: "https://www.scmp.com/rss/91/feed",
     enabled: true
   },
+  {
+    id: "military-africa",
+    name: "Military Africa",
+    type: "rss",
+    category: "regional-defense",
+    region_scope: "africa",
+    url: "https://www.military.africa/feed/",
+    enabled: true
+  },
 
   // ---------------------------------------------------------------------------
   // Official military feeds. Useful, but filter aggressively because these often
@@ -719,6 +755,15 @@ const RSS_SOURCES = [
     category: "official-military",
     region_scope: "us-global",
     url: "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?max=10&ContentType=1&Site=945",
+    enabled: true
+  },
+  {
+    id: "uk-mod-news",
+    name: "UK Ministry of Defence",
+    type: "rss",
+    category: "official-military",
+    region_scope: "uk-europe-global",
+    url: "https://www.gov.uk/government/organisations/ministry-of-defence.atom",
     enabled: true
   },
   {
@@ -740,6 +785,26 @@ const RSS_SOURCES = [
     enabled: true
   },
   {
+    id: "us-war-dept-news",
+    name: "Department of War News Feed",
+    type: "rss",
+    category: "official-military",
+    region_scope: "us-global",
+    url: "https://www.war.gov/DesktopModules/ArticleCS/RSS.ashx?max=400&ContentType=1&Site=945",
+    enabled: true,
+    note: "Official RSS tested locally. Broad official news source; keep strict conflict filtering."
+  },
+  {
+    id: "faa-cleared-for-takeoff",
+    name: "FAA Cleared for Takeoff",
+    type: "rss",
+    category: "airspace",
+    region_scope: "us-global",
+    url: "https://www.faa.gov/blog/cleared_for_takeoff/rss.xml",
+    enabled: true,
+    note: "Official FAA blog RSS tested locally. Broad aviation source; strict conflict filtering should remove general-admin noise."
+  },
+  {
     id: "space-systems-command",
     name: "Space Systems Command",
     type: "rss",
@@ -755,9 +820,19 @@ const RSS_SOURCES = [
     type: "rss",
     category: "arms-sales",
     region_scope: "global",
-    url: "https://www.dsca.mil/news-media/major-arms-sales/rss.xml",
-    enabled: false,
-    note: "Candidate arms-sales RSS. Enable after local test because DSCA feed URLs can change."
+    url: "https://www.dsca.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=700&Site=1509&isdashboardselected=0&max=100",
+    enabled: true,
+    note: "Official DSCA RSS tested locally. Arms-sales/procurement items should remain Intel Wire unless promoted by strict operational-event logic."
+  },
+  {
+    id: "dsca-featured-news",
+    name: "DSCA Featured News",
+    type: "rss",
+    category: "defense-policy",
+    region_scope: "global",
+    url: "https://www.dsca.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&SelectFeaturedContent=1&Site=1509&dashboardmoduleid=63543&max=8&formatxml=0",
+    enabled: true,
+    note: "Official DSCA featured-content RSS tested locally."
   },
 
   // ---------------------------------------------------------------------------
@@ -787,11 +862,11 @@ const RSS_SOURCES = [
     id: "military-watch-magazine",
     name: "Military Watch Magazine",
     type: "rss",
-    category: "regional-defense",
+    category: "defense-news",
     region_scope: "global-russia-china-asia",
-    url: "https://militarywatchmagazine.com/feed/",
-    enabled: false,
-    note: "Candidate. Enable only after testing RSS parser compatibility."
+    url: "https://militarywatchmagazine.com/feeds/headlines",
+    enabled: true,
+    note: "Enabled after local RSS parser test on the dedicated headlines feed."
   },
   {
     id: "eurasian-times",
@@ -811,7 +886,7 @@ const RSS_SOURCES = [
     region_scope: "middle-east",
     url: "https://www.middleeastmonitor.com/feed/",
     enabled: false,
-    note: "Candidate. Broad political source; enable only if filter quality is acceptable."
+    note: "Candidate. The Disqus latest.rss URL is comments-only, not article news; enable only if an official article RSS passes quality checks."
   },
   {
     id: "al-monitor",
@@ -832,6 +907,56 @@ const RSS_SOURCES = [
     url: "https://www.janes.com/defence/rss",
     enabled: false,
     note: "Disabled after local test: provided RSS URL returned HTTP 404."
+  },
+  {
+    id: "janes-defense-news-1",
+    name: "Janes Defence News Page 1",
+    type: "rss",
+    category: "defense-intel",
+    region_scope: "global",
+    url: "https://www.janes.com/defence-intelligence-insights/defence-news/1",
+    enabled: false,
+    note: "Disabled after local test: page is not a valid RSS feed for the current parser flow."
+  },
+  {
+    id: "janes-defense-news-2",
+    name: "Janes Defence News Page 2",
+    type: "rss",
+    category: "defense-intel",
+    region_scope: "global",
+    url: "https://www.janes.com/defence-intelligence-insights/defence-news/2",
+    enabled: false,
+    note: "Disabled after local test: page is not a valid RSS feed for the current parser flow."
+  },
+  {
+    id: "janes-defense-news-3",
+    name: "Janes Defence News Page 3",
+    type: "rss",
+    category: "defense-intel",
+    region_scope: "global",
+    url: "https://www.janes.com/defence-intelligence-insights/defence-news/3",
+    enabled: false,
+    note: "Disabled after local test: page is not a valid RSS feed for the current parser flow."
+  },
+  {
+    id: "janes-defense-news-4",
+    name: "Janes Defence News Page 4",
+    type: "rss",
+    category: "defense-intel",
+    region_scope: "global",
+    url: "https://www.janes.com/defence-intelligence-insights/defence-news/4",
+    enabled: false,
+    note: "Disabled after local test: page is not a valid RSS feed for the current parser flow."
+  },
+  {
+    id: "janes-defense-news-5",
+    name: "Janes Defence News Page 5",
+    type: "rss",
+    category: "defense-intel",
+    region_scope: "global",
+    url: "https://www.janes.com/defence-intelligence-insights/defence-news/5",
+    enabled: false,
+    note: "Disabled after local test: page is not a valid RSS feed for the current parser flow."
   },
   {
     id: "military-times-mobile-rss",

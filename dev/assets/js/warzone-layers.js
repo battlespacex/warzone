@@ -9,6 +9,7 @@ const LAYER_DEFS = [
     // It is intentionally decoupled from the "aircraft" layer so toggling
     // live flight tracks on the globe does NOT affect the airspace panel.
     { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "🌐", color: "#33d9ff", uiOnly: true },
+    { id: "gnss", label: "GNSS Interference", description: "Sanitized GNSS/GPS interference zones and navigation anomaly cells", icon: "⬢", color: "#ffd24d" },
     { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "⚓", color: "#9b7bff", premium: true },
     { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "🏛️", color: "#3a8eff", uiOnly: true, premium: true },
     { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "📡", color: "#33d9ff" },
@@ -36,6 +37,7 @@ const DEFAULT_LAYER_STATE = {
     airstrikes: false,
     aircraft: false,
     airspace: false,
+    gnss: false,
     naval: false,
     "military-bases": false,
     ranges: false,

@@ -315,6 +315,12 @@ module.exports = (env, argv) => {
                     setupMiddlewares: (middlewares, devServer) => {
                         if (!devServer) return middlewares;
                         const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
+                        const apiTargets = [
+                            "http://localhost:8080",
+                            "http://localhost:3000",
+                            process.env.API_UPSTREAM_URL,
+                            "https://api.battlespacex.com",
+                        ].filter(Boolean);
                         let cachedPayload = "";
                         let cachedStatus = 0;
                         let cachedAt = 0;
@@ -374,6 +380,40 @@ module.exports = (env, argv) => {
 
                         devServer.app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
+                        devServer.app.get("/api/*", async (req, res) => {
+                            const upstreamPath = req.originalUrl.replace(/^\/api/, "") || "/";
+                            let lastPayload = "";
+                            let lastStatus = 502;
+                            let lastType = "application/json";
+
+                            for (const target of apiTargets) {
+                                try {
+                                    const upstream = new URL(upstreamPath, target);
+                                    const response = await fetch(upstream, {
+                                        headers: {
+                                            Accept: "application/json",
+                                            "User-Agent": "stratops-warzone-dev/1.0",
+                                        },
+                                    });
+                                    const payload = await response.text();
+                                    lastPayload = payload;
+                                    lastStatus = response.status;
+                                    lastType = response.headers.get("content-type") || "application/json";
+                                    if (response.ok || response.status !== 404) {
+                                        res.status(response.status);
+                                        res.set("Cache-Control", "no-store, max-age=0");
+                                        res.type(lastType).send(payload);
+                                        return;
+                                    }
+                                } catch {
+                                    // try next target
+                                }
+                            }
+
+                            res.status(lastStatus || 502);
+                            res.set("Cache-Control", "no-store, max-age=0");
+                            res.type(lastType).send(lastPayload || JSON.stringify({ error: "API unavailable" }));
+                        });
 
                         return middlewares;
                     },

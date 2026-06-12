@@ -10,6 +10,7 @@ import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } 
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage } from "./warzone-layers.js";
 import { renderRanges, clearRanges } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
+import { renderGnssInterferenceLayer, clearGnssInterferenceLayer } from "./warzone-gnss.js";
 import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
 import { theaterMatchesRegion } from "./warzone-theaters.js";
 import { updateTheaterPanel } from "./warzone-theater-panel.js";
@@ -46,6 +47,17 @@ let __visibleEventsCache = [];
 let __viewportScoped = false;
 let __liveRecentEvents = [];
 let __statusEventsCache = [];
+let __gnssInterferenceCellsCache = [];
+let __gnssInterferenceMeta = {
+    demoMode: false,
+    updatedAt: null,
+    sourceMode: "unavailable",
+    liveAvailable: false,
+    tableAvailable: false,
+    message: "",
+};
+let __gnssInterferenceLoadingPromise = null;
+let __gnssInterferenceLastLoadedAt = 0;
 let __alertAudio = null;
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
@@ -97,7 +109,13 @@ let __lastHeavyWidgetSignature = null;
 let __lastFeedDataSignature = null;
 let __feedVisibleCount = 15;
 let __feedControlsBound = false;
+let __intelWireFilterControlsBound = false;
 let __intelWireItemsCache = [];
+let __intelWireCountryFilter = "all";
+let __intelWireTimeFilter = "all";
+let __intelWireMediaControlsBound = false;
+let __intelWireRenderedItems = new Map();
+let __intelWireMediaState = new Map();
 let __intelWireNextRefreshAt = 0;
 let __intelWireRefreshInterval = null;
 let __intelWireRefreshInFlight = false;
@@ -111,6 +129,7 @@ let __foregroundRecoveryLoaderShownAt = 0;
 let __foregroundRecoverySeq = 0;
 let __lastBackgroundAt = 0;
 let __lastForegroundRecoveryAt = 0;
+let __foregroundAdaptiveRecoveryTimer = 0;
 let __authModalRenderBudgetBackup = null;
 let __regionReloadSeq = 0;
 const FOREGROUND_RECOVERY_LOADER_MIN_MS = 320;
@@ -118,6 +137,8 @@ const FOREGROUND_RECOVERY_LOADER_MAX_MS = 4200;
 const FOREGROUND_RECOVERY_LOADER_THRESHOLD_MS = 60 * 1000;
 const FOREGROUND_RECOVERY_WORK_THRESHOLD_MS = 15 * 1000;
 const FOREGROUND_RECOVERY_THROTTLE_MS = 3000;
+const FOREGROUND_ADAPTIVE_RECOVERY_THRESHOLD_MS = 45 * 1000;
+const FOREGROUND_ADAPTIVE_RECOVERY_DEEP_MS = 10 * 60 * 1000;
 const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 8;
 const LIVE_AIRCRAFT_WIDGET_TITLE_MAX_COUNT = 99;
 const AIRCRAFT_HISTORY_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -134,6 +155,7 @@ const FEED_EXPAND_VIEWPORT_PAD = 16;
 const FEED_EXPAND_MAX_WIDTH = 1120;
 const INTEL_WIRE_REFRESH_MS = 5 * 60 * 1000;
 const INTEL_WIRE_MAX_ITEMS = 120;
+const GNSS_LAYER_REFRESH_MS = 10 * 60 * 1000;
 const HIGH_VALUE_ASSET_ALERT_THROTTLE_MS = 10 * 60 * 1000;
 const HIGH_VALUE_ASSET_NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 const EVENT_POLL_INTERVAL_MS = 12 * 1000;
@@ -152,6 +174,7 @@ const ADAPTIVE_PROFILE_ORDER = ["normal", "balanced", "conservative", "safe"];
 const IDLE_SUSPEND_EXCLUDED_LAYER_IDS = new Set([
     // These toggles are visual/static-only and should not keep live polling active.
     "terrain",
+    "gnss",
     "region-plate",
     "hotspots",
     "military-bases",
@@ -163,6 +186,7 @@ const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS
 const GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS = new Set([
     "naval",
     "airspace",
+    "gnss",
     "region-plate",
     "military-bases",
     "hotspots",
@@ -867,33 +891,40 @@ function getHotspotSourceEvents(events = []) {
     });
 }
 function getIntelWireTimestamp(item = {}) {
-    return item.published_at || item.fetched_at || new Date().toISOString();
+    return item.timestamp || item.published_at || item.fetched_at || new Date().toISOString();
 }
 function normalizeIntelWireItem(item = {}) {
     const occurredAt = getIntelWireTimestamp(item);
-    const raw = item.raw && typeof item.raw === "object" && !Array.isArray(item.raw)
-        ? item.raw
-        : {};
-    const idSource = item.id || item.url || item.guid || `${item.title || "intel"}-${occurredAt}`;
+    const idSource = item.id || `${item.title || "intel"}-${occurredAt}`;
+    const media = item.media && typeof item.media === "object"
+        ? {
+            images: Array.isArray(item.media.images) ? item.media.images : [],
+            videos: Array.isArray(item.media.videos) ? item.media.videos : [],
+        }
+        : null;
     return {
         id: `intel-${idSource}`,
         title: item.title || "Untitled intel item",
-        summary: item.summary || raw.summary || "",
-        category: item.category || item.source_category || "intel",
-        source_name: item.source_name || "Intel Wire",
-        source_url: item.url || raw.url || "",
+        summary: item.summary || "",
+        category: item.category || "intel",
+        severity: item.severity || "unknown",
+        source_name: item.sourceLabel || "Intel Wire Source",
+        source_type_label: item.sourceTypeLabel || null,
+        source_attribution_level: item.sourceAttributionLevel || "grouped",
+        source_url: item.publicUrl || "",
         occurred_at: occurredAt,
-        country: item.country || raw.country || "",
+        country: item.country || "",
         location_label: item.region || item.country || "Intel Wire",
         report_type: "intel_wire",
         display_surface: "intel_wire",
         tags: ["intel-wire-only", "conflict-feed"],
+        media,
         metadata: {
             display_surface: "intel_wire",
-            source_category: item.source_category || null,
-            source_type: item.source_type || null,
-            confidence_score: item.confidence_score ?? null,
-            raw
+            confidence_score: item.confidence_score ?? item.confidence ?? null,
+            source_attribution_level: item.sourceAttributionLevel || "grouped",
+            source_type_label: item.sourceTypeLabel || null,
+            media,
         }
     };
 }
@@ -906,6 +937,10 @@ async function refreshIntelWireItems({ force = false } = {}) {
     if (!force && __intelWireNextRefreshAt && now < __intelWireNextRefreshAt) return;
     __intelWireRefreshInFlight = true;
     __intelWireNextRefreshAt = now + INTEL_WIRE_REFRESH_MS;
+    const shouldShowLoader = force || !__intelWireItemsCache.length;
+    if (shouldShowLoader) {
+        setWidgetLoading("feed", true);
+    }
     try {
         const { data, error } = await api.getIntelFeedItems();
         if (error) {
@@ -921,6 +956,9 @@ async function refreshIntelWireItems({ force = false } = {}) {
         console.warn("Intel Wire feed refresh failed:", err);
     } finally {
         __intelWireRefreshInFlight = false;
+        if (shouldShowLoader) {
+            setWidgetLoading("feed", false);
+        }
     }
 }
 function startIntelWireRefreshLoop() {
@@ -955,6 +993,104 @@ function getFeedSourceEvents({ includeAllEvents = false } = {}) {
     __intelWireItemsCache.forEach(pushUnique);
     (includeAllEvents ? __allEventsCache : __eventsCache).forEach(pushUnique);
     return sortEvents(merged);
+}
+function getIntelWireBaseEvents() {
+    const globalFeedEvents = selectFeedEventsFromSource(getFeedSourceEvents({ includeAllEvents: true }));
+    if (globalFeedEvents.length) return globalFeedEvents;
+    return selectFeedEventsFromSource(getFeedSourceEvents());
+}
+function normalizeIntelWireCountryFilterValue(country = "") {
+    const normalized = normalizeCountryName(country || "").trim().toLowerCase();
+    if (!normalized || normalized === "unknown / unassigned") return "unknown";
+    return normalized;
+}
+function getIntelWireCountryLabel(event = {}) {
+    const explicit = normalizeCountryName(getEventResolvedCountry(event));
+    if (explicit) return explicit;
+    const locationBits = String(event.location_label || "")
+        .split(",")
+        .map((bit) => normalizeCountryName(bit))
+        .filter(Boolean);
+    if (locationBits.length > 1) {
+        const trailingCountry = locationBits[locationBits.length - 1];
+        if (trailingCountry && trailingCountry.toLowerCase() !== "unknown location") {
+            return trailingCountry;
+        }
+    }
+    const inferred = normalizeCountryName(
+        inferCountryFromStatusText(
+            event.location_label,
+            event.region,
+            event.title,
+            event.summary,
+            event.location,
+            event.country,
+        )
+    );
+    return inferred || "Unknown / Unassigned";
+}
+function getIntelWireCountryFilterOptions(items = []) {
+    const options = new Map();
+    let hasUnknown = false;
+    (Array.isArray(items) ? items : []).forEach((event) => {
+        const label = getIntelWireCountryLabel(event);
+        const value = normalizeIntelWireCountryFilterValue(label);
+        if (value === "unknown") {
+            hasUnknown = true;
+            return;
+        }
+        if (!options.has(value)) {
+            options.set(value, label);
+        }
+    });
+    const rows = [...options.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    if (hasUnknown) {
+        rows.push({ value: "unknown", label: "Unknown / Unassigned" });
+    }
+    return rows;
+}
+function getIntelWireTimeFilterCutoff(value = "all") {
+    const normalized = String(value || "all").toLowerCase();
+    if (normalized === "24h") return Date.now() - (24 * 60 * 60 * 1000);
+    if (normalized === "72h") return Date.now() - (72 * 60 * 60 * 1000);
+    if (normalized === "7d") return Date.now() - (7 * 24 * 60 * 60 * 1000);
+    if (normalized === "30d") return Date.now() - (30 * 24 * 60 * 60 * 1000);
+    return null;
+}
+function applyIntelWireFilters(items = []) {
+    const countryFilter = String(__intelWireCountryFilter || "all").toLowerCase();
+    const cutoff = getIntelWireTimeFilterCutoff(__intelWireTimeFilter);
+    return (Array.isArray(items) ? items : []).filter((event) => {
+        if (countryFilter !== "all") {
+            const eventCountry = normalizeIntelWireCountryFilterValue(getIntelWireCountryLabel(event));
+            if (eventCountry !== countryFilter) return false;
+        }
+        if (cutoff) {
+            const occurredAt = Date.parse(getIntelWireTimestamp(event));
+            if (!Number.isFinite(occurredAt) || occurredAt < cutoff) return false;
+        }
+        return true;
+    });
+}
+function hasActiveIntelWireFilters() {
+    return (
+        String(__intelWireCountryFilter || "all").toLowerCase() !== "all" ||
+        String(__intelWireTimeFilter || "all").toLowerCase() !== "all"
+    );
+}
+function buildIntelWireViewModel() {
+    const baseEvents = getIntelWireBaseEvents();
+    const filteredEvents = applyIntelWireFilters(baseEvents);
+    return {
+        baseEvents,
+        filteredEvents,
+        countryOptions: getIntelWireCountryFilterOptions(baseEvents),
+        total: baseEvents.length,
+        filteredTotal: filteredEvents.length,
+        hasActiveFilters: hasActiveIntelWireFilters(),
+    };
 }
 function getEventTags(event = {}) {
     const raw = event.tags;
@@ -1046,12 +1182,7 @@ function selectFeedEventsFromSource(source = []) {
     });
 }
 function getFeedEvents() {
-    const scopedFeedEvents = selectFeedEventsFromSource(getFeedSourceEvents());
-    if (scopedFeedEvents.length) return scopedFeedEvents;
-    if (__allEventsCache.length) {
-        return selectFeedEventsFromSource(getFeedSourceEvents({ includeAllEvents: true }));
-    }
-    return scopedFeedEvents;
+    return buildIntelWireViewModel().filteredEvents;
 }
 function roundCoord(value, step = 2) {
     return Math.round(Number(value) / step) * step;
@@ -1115,11 +1246,11 @@ const debouncedRenderRaw = debounce(() => {
     renderEscalation(scopedEvents);
 }, 800);
 const debouncedRenderFeed = debounce(() => {
-    const feedEvents = getFeedEvents();
-    const signature = makeWidgetRenderSignature(feedEvents);
+    const feedView = buildIntelWireViewModel();
+    const signature = `${makeWidgetRenderSignature(feedView.baseEvents)}|country:${__intelWireCountryFilter}|time:${__intelWireTimeFilter}`;
     if (signature === __lastFeedSignature) return;
     __lastFeedSignature = signature;
-    renderFeed(feedEvents);
+    renderFeed(feedView);
 }, 400);
 const debouncedRenderHeavy = debounce((events) => {
     const signature = makeWidgetRenderSignature(events);
@@ -2287,18 +2418,104 @@ async function refreshStatusEvents() {
     __statusEventsCache = dedupeStatusEvents(statusEvents);
     return __statusEventsCache;
 }
+function normalizeGnssCell(cell = {}) {
+    const lat = Number(cell.lat);
+    const lon = Number(cell.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return {
+        id: String(cell.id || cell.cellId || cell.cell_id || `${lat}:${lon}`),
+        cellId: String(cell.cellId || cell.cell_id || cell.id || `${lat}:${lon}`),
+        lat,
+        lon,
+        polygon: Array.isArray(cell.polygon) ? cell.polygon : null,
+        severity: String(cell.severity || "unknown").toLowerCase(),
+        affectedPercent: Math.max(0, Math.min(100, Number(cell.affectedPercent ?? cell.affected_percent) || 0)),
+        sampleCount: Math.max(0, Math.round(Number(cell.sampleCount ?? cell.sample_count) || 0)),
+        confidence: String(cell.confidence || "low").toLowerCase(),
+        country: cell.country || "Unknown / Unassigned",
+        region: cell.region || "Global",
+        sourceLabel: cell.sourceLabel || "GNSS Interference Monitor",
+        observedAt: cell.observedAt || cell.observed_at || cell.updatedAt || cell.updated_at || "",
+        updatedAt: cell.updatedAt || cell.updated_at || cell.observedAt || cell.observed_at || "",
+        isDemo: cell.isDemo === true || cell.is_demo === true,
+    };
+}
+function getScopedGnssInterferenceCells(cells = __gnssInterferenceCellsCache) {
+    return Array.isArray(cells) ? cells.slice() : [];
+}
+function syncGnssInterferenceLayer() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer) return;
+    if (!isLayerEnabled("gnss")) {
+        clearGnssInterferenceLayer(viewer);
+        return;
+    }
+    const scopedCells = getScopedGnssInterferenceCells();
+    renderGnssInterferenceLayer(viewer, scopedCells, {
+        visible: true,
+        demoMode: __gnssInterferenceMeta.demoMode === true,
+        updatedAt: __gnssInterferenceMeta.updatedAt || null,
+        sourceMode: __gnssInterferenceMeta.sourceMode || "unavailable",
+        liveAvailable: __gnssInterferenceMeta.liveAvailable === true,
+        tableAvailable: __gnssInterferenceMeta.tableAvailable === true,
+        message: __gnssInterferenceMeta.message || "",
+    });
+}
+async function refreshGnssInterferenceCells({ force = false } = {}) {
+    const now = Date.now();
+    if (
+        !force &&
+        __gnssInterferenceLoadingPromise &&
+        (now - __gnssInterferenceLastLoadedAt) < GNSS_LAYER_REFRESH_MS
+    ) {
+        return __gnssInterferenceLoadingPromise;
+    }
+    if (
+        !force &&
+        __gnssInterferenceCellsCache.length &&
+        (now - __gnssInterferenceLastLoadedAt) < GNSS_LAYER_REFRESH_MS
+    ) {
+        syncGnssInterferenceLayer();
+        return __gnssInterferenceCellsCache;
+    }
+    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells()
+        .then(({ data, error, meta }) => {
+            if (error) return __gnssInterferenceCellsCache;
+            __gnssInterferenceCellsCache = Array.isArray(data)
+                ? data.map((row) => normalizeGnssCell(row)).filter(Boolean)
+                : [];
+            __gnssInterferenceMeta = {
+                demoMode: meta?.demoMode === true,
+                updatedAt: meta?.updatedAt || null,
+                sourceMode: meta?.sourceMode || "unavailable",
+                liveAvailable: meta?.liveAvailable === true,
+                tableAvailable: meta?.tableAvailable === true,
+                message: meta?.message || "",
+            };
+            __gnssInterferenceLastLoadedAt = Date.now();
+            syncGnssInterferenceLayer();
+            return __gnssInterferenceCellsCache;
+        })
+        .catch((err) => {
+            console.error("GNSS interference fetch failed:", err);
+            syncGnssInterferenceLayer();
+            return __gnssInterferenceCellsCache;
+        })
+        .finally(() => {
+            __gnssInterferenceLoadingPromise = null;
+        });
+    return __gnssInterferenceLoadingPromise;
+}
 function getWidgetStatusEvents(events = []) {
     const base = Array.isArray(events) ? events : [];
-    if (!__statusEventsCache.length) return base;
-    const region = getActiveRegion?.();
-    const whitelist = getRegionCountryWhitelist(region?.id || "global");
-    const scopedStatusEvents = __statusEventsCache.filter((event) => {
-        if (!region || region.id === "global") return true;
-        if (isEventInsideRegionBounds(event, region)) return true;
-        const country = normalizeCountryName(getEventResolvedCountry(event));
-        return !!country && whitelist.has(country);
-    });
-    return [...base, ...scopedStatusEvents];
+    const globalStatusSeed = (__allEventsCache.length ? __allEventsCache : __eventsCache)
+        .filter((event) => isOperationalMapEvent(event))
+        .filter((event) => isCyberShutdownSignalEvent(event) || isAirspaceRestrictionSignalEvent(event));
+    return dedupeStatusEvents([
+        ...base,
+        ...globalStatusSeed,
+        ...__statusEventsCache,
+    ]);
 }
 function normalizePlace(value) {
     return String(value || "")
@@ -2348,6 +2565,8 @@ function getEventResolvedCountry(event = {}) {
     if (explicit) return explicit;
     const coded = countryNameFromCode(event.country_code || event.countryCode || event.inferred_country_code || "");
     if (coded) return coded;
+    const locationCode = countryNameFromCode(normalizePlace(event.location_label || event.locationLabel || ""));
+    if (locationCode) return locationCode;
     const inferredCountry = normalizeCountryName(event.inferred_country_name || "");
     if (inferredCountry) {
         const inferredType = String(event.inferred_place_type || "").toLowerCase();
@@ -2360,7 +2579,15 @@ function getEventResolvedCountry(event = {}) {
         const inferred = normalizeCountryName(event.inferred_place_name || "");
         if (inferred) return inferred;
     }
-    return "";
+    return normalizeCountryName(
+        inferCountryFromStatusText(
+            event.location_label,
+            event.locationLabel,
+            event.title,
+            event.summary,
+            event.source_name,
+        )
+    );
 }
 function getRegionCountryWhitelist(regionId = "global") {
     return new Set((REGION_COUNTRY_HINTS[regionId] || []).map(normalizeCountryName).filter(Boolean));
@@ -2731,46 +2958,268 @@ function escapeHtml(value = "") {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 }
-function resolveSafeMediaUrl(...values) {
-    for (const value of values) {
-        const url = String(value || "").trim();
-        if (/^https?:\/\//i.test(url)) return url;
-    }
-    return "";
+function isIntelWireMediaEnabled() {
+    return window.__stratopsConfig?.enableIntelWireMedia === true;
 }
-function resolveFeedMedia(event = {}) {
-    const metadata = getEventMetadata(event);
-    const imageUrl = resolveSafeMediaUrl(
-        event.image_url,
-        event.imageUrl,
-        event.thumbnail_url,
-        event.thumbnailUrl,
-        event.media_thumbnail,
-        metadata.image_url,
-        metadata.imageUrl,
-        metadata.thumbnail_url,
-        metadata.thumbnailUrl,
-        metadata.media_thumbnail
-    );
-    const videoUrl = resolveSafeMediaUrl(
-        event.video_url,
-        event.videoUrl,
-        event.media_url,
-        event.mediaUrl,
-        metadata.video_url,
-        metadata.videoUrl,
-        metadata.media_url,
-        metadata.mediaUrl
-    );
-    const videoPattern = /\.(mp4|webm|mov)(?:\?|#|$)/i;
-    if (videoUrl && videoPattern.test(videoUrl)) {
-        return { type: "video", url: videoUrl };
+function getIntelWireItemMedia(event = {}) {
+    if (!isIntelWireMediaEnabled()) return { images: [], videos: [] };
+    const media = event.media && typeof event.media === "object"
+        ? event.media
+        : (event.metadata?.media && typeof event.metadata.media === "object" ? event.metadata.media : null);
+    const images = Array.isArray(media?.images) ? media.images.filter((entry) => /^https?:\/\//i.test(String(entry?.thumbUrl || entry?.fullUrl || "").trim())) : [];
+    const videos = Array.isArray(media?.videos)
+        ? media.videos.filter((entry) => /^https?:\/\//i.test(String(entry?.videoUrl || entry?.thumbUrl || entry?.embedUrl || "").trim()))
+        : [];
+    return { images, videos };
+}
+function getIntelWireMediaState(itemId = "") {
+    const key = String(itemId || "").trim();
+    if (!key) {
+        return {
+            imagesOpen: false,
+            videosOpen: false,
+            activeVideoIndex: -1,
+        };
     }
-    if (imageUrl) return { type: "image", url: imageUrl };
-    if (videoUrl && /\.(jpe?g|png|gif|webp|avif)(?:\?|#|$)/i.test(videoUrl)) {
-        return { type: "image", url: videoUrl };
+    if (!__intelWireMediaState.has(key)) {
+        __intelWireMediaState.set(key, {
+            imagesOpen: false,
+            videosOpen: false,
+            activeVideoIndex: -1,
+        });
     }
-    return null;
+    return __intelWireMediaState.get(key);
+}
+function getIntelWireMediaPanelId(itemId = "", panel = "") {
+    return `wz-feed-media-${panel}-${String(itemId || "").replace(/[^a-z0-9_-]+/gi, "-")}`;
+}
+function getIntelWireMediaGridClass(prefix = "", count = 0, layoutMode = "collapsed") {
+    const clamped = Math.max(1, Math.min(4, Number(count) || 1));
+    return `${prefix} ${prefix}--count-${clamped} ${prefix}--${layoutMode === "expanded" ? "expanded" : "collapsed"}`;
+}
+function isIntelWireCardExpanded(card) {
+    return card?.closest?.(".warzone-widget--feed")?.classList?.contains?.("is-feed-expanded") === true;
+}
+function getIntelWireImagePreviewLimit(count = 0, expanded = false) {
+    if (count <= 1) return Math.max(0, count);
+    return expanded ? Math.min(3, count) : Math.min(2, count);
+}
+function getIntelWireVideoPreviewLimit(count = 0, expanded = false) {
+    if (count <= 1) return Math.max(0, count);
+    return expanded ? Math.min(2, count) : Math.min(2, count);
+}
+function formatIntelWireMediaToggleLabel(kind = "image", hiddenCount = 0, totalCount = 0, isOpen = false) {
+    if (isOpen) {
+        return kind === "video" ? "Hide videos" : "Hide images";
+    }
+    if (hiddenCount > 0 && hiddenCount < totalCount) {
+        return `+${hiddenCount} more`;
+    }
+    return `${totalCount} ${totalCount === 1 ? kind : `${kind}s`}`;
+}
+function buildIntelWireMediaIcon(kind = "image") {
+    if (kind === "video") {
+        return `
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 6.5C4 5.672 4.672 5 5.5 5h8C14.328 5 15 5.672 15 6.5v11c0 .828-.672 1.5-1.5 1.5h-8A1.5 1.5 0 0 1 4 17.5z"></path>
+                <path d="M16 10.1l3.615-2.41A.9.9 0 0 1 21 8.439v7.122a.9.9 0 0 1-1.385.75L16 13.9z"></path>
+            </svg>
+        `;
+    }
+    return `
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5.5 5h13A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-11A1.5 1.5 0 0 1 5.5 5z"></path>
+            <circle cx="8.25" cy="9" r="1.45"></circle>
+            <path d="M6.2 17l3.7-4.2 2.75 2.85 1.95-2.25L17.8 17z"></path>
+        </svg>
+    `;
+}
+function buildIntelWireImagePanelMarkup(event = {}, images = [], options = {}) {
+    if (!images.length) return "";
+    const layoutMode = options.expanded === true ? "expanded" : "collapsed";
+    const visibleImages = images.slice(0, 4);
+    const gridClass = getIntelWireMediaGridClass("wz-feed-media-grid", visibleImages.length, layoutMode);
+    return `
+        <div class="${gridClass}">
+            ${visibleImages.map((entry, index) => `
+                <figure class="wz-feed-media-card wz-feed-media-card--image" data-media-kind="image" data-media-index="${index}">
+                    <img
+                        class="wz-feed-media-thumb"
+                        src="${escapeHtml(entry.thumbUrl || entry.fullUrl || "")}"
+                        ${entry.width ? `width="${Math.max(1, Number(entry.width) || 0)}"` : ""}
+                        ${entry.height ? `height="${Math.max(1, Number(entry.height) || 0)}"` : ""}
+                        alt="${escapeHtml(entry.alt || event.title || "Intel Wire image")}"
+                        loading="lazy"
+                        decoding="async">
+                </figure>
+            `).join("")}
+        </div>
+    `;
+}
+function buildIntelWireVideoPanelMarkup(event = {}, videos = [], state = {}, options = {}) {
+    if (!videos.length) return "";
+    const layoutMode = options.expanded === true ? "expanded" : "collapsed";
+    const visibleVideos = videos.slice(0, 4);
+    const gridClass = getIntelWireMediaGridClass("wz-feed-video-grid", visibleVideos.length, layoutMode);
+    const activeVideoIndex = Number.isInteger(state.activeVideoIndex) ? state.activeVideoIndex : -1;
+    return `
+        <div class="${gridClass}">
+            ${visibleVideos.map((entry, index) => {
+                const isActive = activeVideoIndex === index;
+                const title = entry.title || event.title || `Video ${index + 1}`;
+                if (isActive) {
+                    if (entry.embedUrl) {
+                        return `
+                            <div class="wz-feed-video-card wz-feed-video-card--active" data-media-kind="video" data-media-index="${index}">
+                                <iframe
+                                    class="wz-feed-video-embed"
+                                    src="${escapeHtml(entry.embedUrl)}"
+                                    title="${escapeHtml(title)}"
+                                    loading="lazy"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerpolicy="strict-origin-when-cross-origin"
+                                    allowfullscreen></iframe>
+                            </div>
+                        `;
+                    }
+                    return `
+                        <div class="wz-feed-video-card wz-feed-video-card--active" data-media-kind="video" data-media-index="${index}">
+                            <video
+                                class="wz-feed-video-player"
+                                src="${escapeHtml(entry.videoUrl || "")}"
+                                controls
+                                playsinline
+                                preload="none"></video>
+                        </div>
+                    `;
+                }
+                const thumbUrl = String(entry.thumbUrl || "").trim();
+                const thumbMarkup = thumbUrl
+                    ? `<img class="wz-feed-video-thumb" src="${escapeHtml(thumbUrl)}" alt="${escapeHtml(title)}" loading="lazy" decoding="async">`
+                    : `<div class="wz-feed-video-thumb wz-feed-video-thumb--placeholder" aria-hidden="true"></div>`;
+                return `
+                    <button
+                        type="button"
+                        class="wz-feed-video-card"
+                        data-feed-video-play="${index}"
+                        aria-label="Play ${escapeHtml(title)}"
+                        title="Play ${escapeHtml(title)}">
+                        ${thumbMarkup}
+                        <span class="wz-feed-video-play" aria-hidden="true">▶</span>
+                        <span class="wz-feed-video-meta">
+                            <strong>${escapeHtml(title)}</strong>
+                            ${entry.duration ? `<small>${escapeHtml(entry.duration)}</small>` : ""}
+                        </span>
+                    </button>
+                `;
+            }).join("")}
+        </div>
+    `;
+}
+function stopIntelWireCardMedia(card) {
+    if (!card) return;
+    card.querySelectorAll("video").forEach((video) => {
+        try {
+            video.pause();
+        } catch {}
+        try {
+            video.removeAttribute("src");
+            video.load();
+        } catch {}
+    });
+}
+function rerenderVisibleIntelWireMediaCards() {
+    const feed = document.getElementById("live-feed-list");
+    if (!feed) return;
+    feed.querySelectorAll(".wz-feed-item").forEach((card) => {
+        const itemId = String(card?.dataset?.eventId || "");
+        const feedItem = __intelWireRenderedItems.get(itemId);
+        if (!feedItem) return;
+        renderIntelWireMediaCard(card, feedItem);
+    });
+}
+function renderIntelWireMediaCard(card, event = {}) {
+    if (!card) return;
+    const actionHost = card.querySelector("[data-feed-media-actions]");
+    const imageHost = card.querySelector("[data-feed-image-panel]");
+    const videoHost = card.querySelector("[data-feed-video-panel]");
+    if (!actionHost || !imageHost || !videoHost) return;
+    const media = getIntelWireItemMedia(event);
+    const imageCount = media.images.length;
+    const videoCount = media.videos.length;
+    const hasMedia = imageCount > 0 || videoCount > 0;
+    const state = getIntelWireMediaState(event.id);
+    const isExpanded = isIntelWireCardExpanded(card);
+    if (!isIntelWireMediaEnabled() || !hasMedia) {
+        stopIntelWireCardMedia(card);
+        actionHost.innerHTML = "";
+        imageHost.hidden = true;
+        imageHost.innerHTML = "";
+        videoHost.hidden = true;
+        videoHost.innerHTML = "";
+        return;
+    }
+
+    const defaultImageCount = getIntelWireImagePreviewLimit(imageCount, isExpanded);
+    const visibleImageCount = state.imagesOpen ? Math.min(4, imageCount) : defaultImageCount;
+    const renderImages = media.images.slice(0, visibleImageCount);
+    const hiddenImageCount = Math.max(0, Math.min(4, imageCount) - renderImages.length);
+
+    const showVideoPreviewByDefault = imageCount === 0 && videoCount > 0;
+    const defaultVideoCount = showVideoPreviewByDefault ? getIntelWireVideoPreviewLimit(videoCount, isExpanded) : 0;
+    const visibleVideoCount = state.videosOpen ? Math.min(4, videoCount) : defaultVideoCount;
+    const renderVideos = media.videos.slice(0, visibleVideoCount);
+    const hiddenVideoCount = Math.max(0, Math.min(4, videoCount) - renderVideos.length);
+
+    actionHost.innerHTML = `
+        ${(imageCount > defaultImageCount || state.imagesOpen) ? `
+            <button
+                type="button"
+                class="wz-feed-media-toggle"
+                data-feed-media-toggle="images"
+                aria-expanded="${state.imagesOpen ? "true" : "false"}"
+                aria-controls="${escapeHtml(getIntelWireMediaPanelId(event.id, "images"))}"
+                title="${escapeHtml(formatIntelWireMediaToggleLabel("image", hiddenImageCount, imageCount, state.imagesOpen))}">
+                <span class="wz-feed-media-icon" aria-hidden="true">${buildIntelWireMediaIcon("image")}</span>
+                <span>${escapeHtml(formatIntelWireMediaToggleLabel("image", hiddenImageCount, imageCount, state.imagesOpen))}</span>
+            </button>
+        ` : ""}
+        ${(videoCount && (!showVideoPreviewByDefault || hiddenVideoCount > 0 || state.videosOpen)) ? `
+            <button
+                type="button"
+                class="wz-feed-media-toggle"
+                data-feed-media-toggle="videos"
+                aria-expanded="${state.videosOpen ? "true" : "false"}"
+                aria-controls="${escapeHtml(getIntelWireMediaPanelId(event.id, "videos"))}"
+                title="${escapeHtml(formatIntelWireMediaToggleLabel("video", hiddenVideoCount, videoCount, state.videosOpen))}">
+                <span class="wz-feed-media-icon" aria-hidden="true">${buildIntelWireMediaIcon("video")}</span>
+                <span>${escapeHtml(formatIntelWireMediaToggleLabel("video", hiddenVideoCount, videoCount, state.videosOpen))}</span>
+            </button>
+        ` : ""}
+    `;
+
+    if (renderImages.length) {
+        imageHost.hidden = false;
+        imageHost.id = getIntelWireMediaPanelId(event.id, "images");
+        imageHost.className = `wz-feed-media-panel wz-feed-media-panel--images${state.imagesOpen ? " is-open" : ""}`;
+        imageHost.innerHTML = buildIntelWireImagePanelMarkup(event, renderImages, { expanded: isExpanded });
+    } else {
+        imageHost.hidden = true;
+        imageHost.className = "wz-feed-media-panel wz-feed-media-panel--images";
+        imageHost.innerHTML = "";
+    }
+
+    if (renderVideos.length) {
+        videoHost.hidden = false;
+        videoHost.id = getIntelWireMediaPanelId(event.id, "videos");
+        videoHost.className = `wz-feed-media-panel wz-feed-media-panel--videos${state.videosOpen ? " is-open" : ""}`;
+        videoHost.innerHTML = buildIntelWireVideoPanelMarkup(event, renderVideos, state, { expanded: isExpanded });
+    } else {
+        stopIntelWireCardMedia(card);
+        videoHost.hidden = true;
+        videoHost.className = "wz-feed-media-panel wz-feed-media-panel--videos";
+        videoHost.innerHTML = "";
+    }
 }
 function clampNumber(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -2805,15 +3254,61 @@ function positionExpandedFeedPanel(feedPanel) {
     feedPanel.style.right = "auto";
     feedPanel.style.width = `${preferredWidth}px`;
 }
+function runFeedPanelAction(action, minDelayMs = 180) {
+    setWidgetLoading("feed", true);
+    const startedAt = performance.now();
+    requestAnimationFrame(() => {
+        try {
+            action?.();
+        } finally {
+            const elapsed = performance.now() - startedAt;
+            const remaining = Math.max(0, minDelayMs - elapsed);
+            window.setTimeout(() => setWidgetLoading("feed", false), remaining);
+        }
+    });
+}
+function syncIntelWireFilterControls(viewModel = buildIntelWireViewModel()) {
+    const countrySelect = document.getElementById("wz-feed-filter-country");
+    const timeSelect = document.getElementById("wz-feed-filter-time");
+    if (countrySelect) {
+        const options = Array.isArray(viewModel.countryOptions) ? viewModel.countryOptions : [];
+        const optionKey = options.map((option) => `${option.value}:${option.label}`).join("|");
+        if (countrySelect.dataset.optionKey !== optionKey) {
+            countrySelect.innerHTML = "";
+            const allOption = document.createElement("option");
+            allOption.value = "all";
+            allOption.textContent = "All Countries";
+            countrySelect.appendChild(allOption);
+            options.forEach((option) => {
+                const node = document.createElement("option");
+                node.value = option.value;
+                node.textContent = option.label;
+                countrySelect.appendChild(node);
+            });
+            countrySelect.dataset.optionKey = optionKey;
+        }
+        const allowedValues = new Set(["all", ...options.map((option) => option.value)]);
+        if (!allowedValues.has(__intelWireCountryFilter)) {
+            __intelWireCountryFilter = "all";
+        }
+        countrySelect.value = __intelWireCountryFilter;
+    }
+    if (timeSelect) {
+        timeSelect.value = __intelWireTimeFilter || "all";
+    }
+}
 function bindFeedControls() {
     if (__feedControlsBound) return;
     __feedControlsBound = true;
     const loadMoreBtn = document.getElementById("live-feed-load-more");
     const expandBtn = document.getElementById("wz-feed-expand");
     const feedPanel = document.querySelector('[data-widget-id="feed"]');
+    const feedList = document.getElementById("live-feed-list");
     loadMoreBtn?.addEventListener("click", () => {
-        __feedVisibleCount += FEED_LOAD_MORE_COUNT;
-        renderFeed(getFeedEvents());
+        runFeedPanelAction(() => {
+            __feedVisibleCount += FEED_LOAD_MORE_COUNT;
+            renderFeed(buildIntelWireViewModel());
+        }, 120);
     });
     expandBtn?.addEventListener("click", () => {
         const expanded = !feedPanel?.classList.contains("is-feed-expanded");
@@ -2822,29 +3317,123 @@ function bindFeedControls() {
         expandBtn.setAttribute("aria-pressed", String(expanded));
         expandBtn.setAttribute("aria-label", expanded ? "Shrink intel wire widget" : "Expand intel wire widget");
         expandBtn.title = expanded ? "Shrink widget" : "Expand widget";
+        requestAnimationFrame(() => rerenderVisibleIntelWireMediaCards());
     });
     window.addEventListener("resize", () => {
         if (!feedPanel?.classList.contains("is-feed-expanded")) return;
         requestAnimationFrame(() => positionExpandedFeedPanel(feedPanel));
     }, { passive: true });
+    if (!__intelWireFilterControlsBound) {
+        __intelWireFilterControlsBound = true;
+        const countrySelect = document.getElementById("wz-feed-filter-country");
+        const timeSelect = document.getElementById("wz-feed-filter-time");
+        countrySelect?.addEventListener("change", (event) => {
+            const nextValue = String(event.target?.value || "all").toLowerCase();
+            if (nextValue === __intelWireCountryFilter) return;
+            runFeedPanelAction(() => {
+                __intelWireCountryFilter = nextValue;
+                __lastFeedSignature = null;
+                __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
+                renderFeed(buildIntelWireViewModel());
+            });
+        });
+        timeSelect?.addEventListener("change", (event) => {
+            const nextValue = String(event.target?.value || "all").toLowerCase();
+            if (nextValue === __intelWireTimeFilter) return;
+            runFeedPanelAction(() => {
+                __intelWireTimeFilter = nextValue;
+                __lastFeedSignature = null;
+                __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
+                renderFeed(buildIntelWireViewModel());
+            });
+        });
+    }
+    if (!__intelWireMediaControlsBound && feedList) {
+        __intelWireMediaControlsBound = true;
+        feedList.addEventListener("click", (event) => {
+            const toggleBtn = event.target?.closest?.("[data-feed-media-toggle]");
+            if (toggleBtn) {
+                const card = toggleBtn.closest(".wz-feed-item");
+                const itemId = String(card?.dataset?.eventId || "");
+                const feedItem = __intelWireRenderedItems.get(itemId);
+                if (!card || !feedItem) return;
+                const panel = String(toggleBtn.getAttribute("data-feed-media-toggle") || "").toLowerCase();
+                const state = getIntelWireMediaState(itemId);
+                if (panel === "images") {
+                    state.imagesOpen = !state.imagesOpen;
+                } else if (panel === "videos") {
+                    const nextOpen = !state.videosOpen;
+                    state.videosOpen = nextOpen;
+                    if (!nextOpen) state.activeVideoIndex = -1;
+                }
+                renderIntelWireMediaCard(card, feedItem);
+                return;
+            }
+            const playBtn = event.target?.closest?.("[data-feed-video-play]");
+            if (playBtn) {
+                const card = playBtn.closest(".wz-feed-item");
+                const itemId = String(card?.dataset?.eventId || "");
+                const feedItem = __intelWireRenderedItems.get(itemId);
+                if (!card || !feedItem) return;
+                const state = getIntelWireMediaState(itemId);
+                state.videosOpen = true;
+                state.activeVideoIndex = Math.max(0, Number(playBtn.getAttribute("data-feed-video-play")) || 0);
+                renderIntelWireMediaCard(card, feedItem);
+                const player = card.querySelector(".wz-feed-video-player");
+                if (player) {
+                    player.play?.().catch?.(() => {});
+                }
+            }
+        });
+        feedList.addEventListener("error", (event) => {
+            const target = event.target;
+            if (target instanceof HTMLImageElement) {
+                const card = target.closest(".wz-feed-media-card, .wz-feed-video-card");
+                if (card) card.classList.add("is-media-unavailable");
+            }
+            if (target instanceof HTMLVideoElement) {
+                const card = target.closest(".wz-feed-video-card");
+                if (card) card.classList.add("is-media-unavailable");
+            }
+        }, true);
+    }
 }
-function renderFeed(events) {
+function renderFeed(viewModelOrEvents) {
     const feed = document.getElementById("live-feed-list");
     if (!feed) return;
     bindFeedControls();
-    const allRows = Array.isArray(events) ? events : [];
-    const dataSignature = makeEventSignature(allRows);
+    const viewModel = Array.isArray(viewModelOrEvents)
+        ? {
+            baseEvents: viewModelOrEvents,
+            filteredEvents: viewModelOrEvents,
+            countryOptions: getIntelWireCountryFilterOptions(viewModelOrEvents),
+            total: viewModelOrEvents.length,
+            filteredTotal: viewModelOrEvents.length,
+            hasActiveFilters: hasActiveIntelWireFilters(),
+        }
+        : (viewModelOrEvents || buildIntelWireViewModel());
+    syncIntelWireFilterControls(viewModel);
+    const allRows = Array.isArray(viewModel.filteredEvents) ? viewModel.filteredEvents : [];
+    const totalRows = Math.max(0, Number(viewModel.total) || 0);
+    const filteredTotal = Math.max(0, Number(viewModel.filteredTotal) || allRows.length);
+    const dataSignature = `${makeEventSignature(allRows)}|country:${__intelWireCountryFilter}|time:${__intelWireTimeFilter}`;
     if (dataSignature !== __lastFeedDataSignature) {
         __lastFeedDataSignature = dataSignature;
         __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
     }
+    feed.querySelectorAll(".wz-feed-item").forEach((card) => stopIntelWireCardMedia(card));
     feed.innerHTML = "";
+    __intelWireRenderedItems = new Map();
     const rows = allRows.slice(0, __feedVisibleCount);
     const countEl = document.getElementById("live-feed-count");
     const loadMoreBtn = document.getElementById("live-feed-load-more");
-    if (!rows.length) {
-        feed.innerHTML = '<div class="feed-empty">No news feed items available yet.</div>';
-        if (countEl) countEl.textContent = "0 intel items";
+    if (!allRows.length) {
+        feed.innerHTML = `<div class="feed-empty">${viewModel.hasActiveFilters ? "No intel items match current filters." : "No news feed items available yet."}</div>`;
+        if (countEl) {
+            countEl.textContent = viewModel.hasActiveFilters
+                ? `0 / ${filteredTotal} filtered / ${totalRows} intel items`
+                : "0 intel items";
+        }
         if (loadMoreBtn) loadMoreBtn.hidden = true;
         return;
     }
@@ -2852,6 +3441,7 @@ function renderFeed(events) {
         const card = document.createElement("article");
         card.className = "timeline-item wz-feed-item";
         card.dataset.eventId = event.id;
+        __intelWireRenderedItems.set(String(event.id || ""), event);
         const categoryLabel = getPlatformCategoryLabel(event, {
             surface: "intel-wire",
             uppercase: true,
@@ -2863,36 +3453,44 @@ function renderFeed(events) {
         card.dataset.category = categoryClass;
         card.dataset.severity = severityClass;
         const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
-        const sourceName = String(event.source_name || "OSINT feed").trim();
-        const media = resolveFeedMedia(event);
-        const mediaMarkup = media
-            ? media.type === "video"
-                ? `<video class="wz-feed-media" src="${escapeHtml(media.url)}" controls muted playsinline preload="metadata"></video>`
-                : `<img class="wz-feed-media" src="${escapeHtml(media.url)}" alt="" loading="lazy" decoding="async">`
-            : "";
+        const sourceName = String(event.source_name || "Intel Wire Source").trim();
+        const sourceMarkup = safeUrl
+            ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`
+            : `${escapeHtml(sourceName)}`;
         card.innerHTML = `
             <div class="timeline-time wz-feed-time">
-                <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
-                <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                <div class="wz-feed-capsule">
+                    <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
+                    <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                </div>
                 <time>${escapeHtml(formatTime(event.occurred_at))}</time>
-                <small>${escapeHtml(sourceName)}</small>
+                <small class="wz-feed-source">${sourceMarkup}</small>
             </div>
             <div class="timeline-body">
-                ${mediaMarkup}
-                <strong>${escapeHtml(event.title || "Untitled event")}</strong>
-                <p>${escapeHtml(event.summary || "No summary available.")}</p>
-                <small>
+                <strong class="wz-feed-title">${escapeHtml(event.title || "Untitled event")}</strong>
+                <p class="wz-feed-summary">${escapeHtml(event.summary || "No summary available.")}</p>
+                <small class="wz-feed-location">
                     ${escapeHtml(compactEventPlaceLabel(event))}
-                    ${safeUrl ? ` • <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}
                 </small>
+                <div class="wz-feed-actions" data-feed-media-actions></div>
+                <div class="wz-feed-media-panel wz-feed-media-panel--images" data-feed-image-panel hidden></div>
+                <div class="wz-feed-media-panel wz-feed-media-panel--videos" data-feed-video-panel hidden></div>
             </div>
         `;
+        renderIntelWireMediaCard(card, event);
         feed.appendChild(card);
     });
+    const visibleIds = new Set(rows.map((event) => String(event.id || "")));
+    [...__intelWireMediaState.keys()].forEach((key) => {
+        if (!visibleIds.has(key)) __intelWireMediaState.delete(key);
+    });
     const shown = rows.length;
-    const total = allRows.length;
-    const remaining = Math.max(0, total - shown);
-    if (countEl) countEl.textContent = `${shown} / ${total} intel items`;
+    const remaining = Math.max(0, filteredTotal - shown);
+    if (countEl) {
+        countEl.textContent = viewModel.hasActiveFilters
+            ? `${shown} / ${filteredTotal} filtered / ${totalRows} intel items`
+            : `${shown} / ${filteredTotal} intel items`;
+    }
     if (loadMoreBtn) {
         loadMoreBtn.hidden = remaining <= 0;
         loadMoreBtn.textContent = remaining > 0
@@ -2936,16 +3534,13 @@ function statusPriority(status) {
     }
 }
 function rankCountryRows(events, type, max = 10) {
-    const regionId = getActiveRegion?.()?.id || "global";
-    const whitelist = getRegionCountryWhitelist(regionId);
     const scopedEvents = Array.isArray(events) ? events : [];
     const statusEvents = getStatusScopedEvents(scopedEvents, type);
-    const countries = deriveFocusCountries(scopedEvents, Math.max(max, 20));
-    const countryCandidates = countries.length
-        ? countries
-        : (whitelist.size ? [...whitelist] : []);
+    const countryCandidates = [...new Set([
+        ...deriveFocusCountries(scopedEvents, Math.max(max, 24)),
+        ...statusEvents.map((event) => getEventResolvedCountry(event)),
+    ].map(normalizeCountryName).filter(Boolean))];
     const rows = countryCandidates
-        .filter((country) => !whitelist.size || whitelist.has(normalizeCountryName(country)))
         .map((country) => {
             const canonical = normalizeCountryName(country);
             const status = deriveCountryStatus(statusEvents, canonical, type);
@@ -5184,6 +5779,7 @@ export async function initWarzoneApp() {
             __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
         }
         await refreshStatusEvents();
+        await refreshGnssInterferenceCells({ force: true });
         __viewportScoped = false;
         renderAll(events);
         startIntelWireRefreshLoop();
@@ -5208,6 +5804,7 @@ export async function initWarzoneApp() {
                 ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                 : []
         );
+        syncGnssInterferenceLayer();
     if (viewer && !__militaryTracks) {
         __militaryTracks = initMilitaryTracks(viewer);
         window.__militaryTracks = __militaryTracks;
@@ -5257,6 +5854,7 @@ export async function initWarzoneApp() {
                     ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                     : []
             );
+            syncGnssInterferenceLayer();
             scheduleViewportFetch(60);
             requestAircraftMovementsWidgetRender(0);
             requestNavalWidgetRender(0);
@@ -5272,6 +5870,7 @@ export async function initWarzoneApp() {
                         ? data.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     await refreshStatusEvents();
+                    await refreshGnssInterferenceCells({ force: true });
                     renderAll(freshEvents);
                     updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
                     syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
@@ -5287,6 +5886,7 @@ export async function initWarzoneApp() {
                     scheduleViewportFetch(60);
                     requestAircraftMovementsWidgetRender(0);
                     requestNavalWidgetRender(0);
+                    syncGnssInterferenceLayer();
                 })
                 .catch((err) => {
                     if (reloadSeq !== __regionReloadSeq) return;
@@ -5306,6 +5906,9 @@ export async function initWarzoneApp() {
         const onForeground = () => {
             if (isDocumentHidden()) return;
             const now = Date.now();
+            const backgroundIdleMs = __lastBackgroundAt > 0
+                ? Math.max(0, now - __lastBackgroundAt)
+                : 0;
             if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
                 startForegroundRenderWakeBurst(650);
                 window.__warzoneViewer?.scene?.requestRender?.();
@@ -5334,7 +5937,9 @@ export async function initWarzoneApp() {
             } else {
                 syncHotspotLayerEvents([]);
             }
+            void refreshGnssInterferenceCells();
             startForegroundRenderWakeBurst(700);
+            scheduleForegroundAdaptiveRecovery(window.__warzoneViewer, backgroundIdleMs);
             window.__warzoneViewer?.scene?.requestRender?.();
         };
         document.addEventListener("visibilitychange", () => {
@@ -5386,6 +5991,15 @@ export async function initWarzoneApp() {
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
         }
+        if (id === "gnss") {
+            if (isLayerEnabled("gnss")) {
+                void refreshGnssInterferenceCells();
+            } else {
+                syncGnssInterferenceLayer();
+            }
+            window.__warzoneViewer?.scene?.requestRender?.();
+            return;
+        }
         if (id === "hotspots" || id === "*") {
             const hotspotEnabled = isLayerEnabled("hotspots");
             if (hotspotEnabled) {
@@ -5429,6 +6043,7 @@ export async function initWarzoneApp() {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
             globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
             globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
+            syncGnssInterferenceLayer();
         }
         syncImmediateEventLayerVisibility(globe, id);
         const shouldResyncGlobeEvents =
@@ -5449,6 +6064,7 @@ export async function initWarzoneApp() {
         globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
         globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { animate: false });
         window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
+        syncGnssInterferenceLayer();
         syncFilteredUi(__eventsCache);
     }
     window.addEventListener("wz:recluster", () => {
@@ -7251,6 +7867,29 @@ async function runAdaptivePerformanceGuard(viewer) {
             framePressure,
         });
     }
+}
+
+function scheduleForegroundAdaptiveRecovery(viewer, idleMs = 0) {
+    const globe = viewer?.__warzone;
+    if (!viewer || !globe?.setAdaptiveQualityProfile) return;
+    const elapsed = Math.max(0, Number(idleMs || 0));
+    if (elapsed < FOREGROUND_ADAPTIVE_RECOVERY_THRESHOLD_MS) return;
+    if (__foregroundAdaptiveRecoveryTimer) {
+        clearTimeout(__foregroundAdaptiveRecoveryTimer);
+        __foregroundAdaptiveRecoveryTimer = 0;
+    }
+
+    const currentProfile = globe.getAdaptiveQualityProfile?.() || "normal";
+    const recoverySteps = elapsed >= FOREGROUND_ADAPTIVE_RECOVERY_DEEP_MS ? 2 : 1;
+    const recoveryProfile = increaseAdaptiveProfileSafety(currentProfile, recoverySteps);
+    globe.setAdaptiveQualityProfile(recoveryProfile);
+    globe.setPerformanceMode?.(Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0)));
+    viewer.scene?.requestRender?.();
+
+    __foregroundAdaptiveRecoveryTimer = window.setTimeout(() => {
+        __foregroundAdaptiveRecoveryTimer = 0;
+        void runAdaptivePerformanceGuard(viewer);
+    }, 900);
 }
 
 function scheduleAdaptivePerformanceGuard(viewer) {

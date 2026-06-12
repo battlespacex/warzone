@@ -22,7 +22,4 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-
-import{e as f}from"./chunk-VIMSDF2W.js";function c(t){let n,a=t.name,e=t.message;f(a)&&f(e)?n=`${a}: ${e}`:n=t.toString();let o=t.stack;return f(o)&&(n+=`
-${o}`),n}var i=c;function l(t){async function n({data:e}){let o=[],s={id:e.id,result:void 0,error:void 0};self.CESIUM_BASE_URL=e.baseUrl;try{let r=await t(e.parameters,o);s.result=r}catch(r){r instanceof Error?s.error={name:r.name,message:r.message,stack:r.stack}:s.error=r}e.canTransferArrayBuffer||(o.length=0);try{postMessage(s,o)}catch(r){s.result=void 0,s.error=`postMessage failed with error: ${i(r)}
-  with responseMessage: ${JSON.stringify(s)}`,postMessage(s)}}function a(e){postMessage({id:e.data?.id,error:`postMessage failed with error: ${JSON.stringify(e)}`})}return self.onmessage=n,self.onmessageerror=a,self}var d=l;export{d as a};
+import{e as f}from"./chunk-VIMSDF2W.js";function c(e){let r,s=e.name,a=e.message;r=f(s)&&f(a)?`${s}: ${a}`:e.toString();let t=e.stack;return f(t)&&(r+=`\n${t}`),r}var i=c;function l(e){return self.onmessage=async function({data:r}){let s=[],a={id:r.id,result:void 0,error:void 0};self.CESIUM_BASE_URL=r.baseUrl;try{let t=await e(r.parameters,s);a.result=t}catch(e){e instanceof Error?a.error={name:e.name,message:e.message,stack:e.stack}:a.error=e}r.canTransferArrayBuffer||(s.length=0);try{postMessage(a,s)}catch(e){a.result=void 0,a.error=`postMessage failed with error: ${i(e)}\n  with responseMessage: ${JSON.stringify(a)}`,postMessage(a)}},self.onmessageerror=function(e){postMessage({id:e.data?.id,error:`postMessage failed with error: ${JSON.stringify(e)}`})},self}var d=l;export{d as a};

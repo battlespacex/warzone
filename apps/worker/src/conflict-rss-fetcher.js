@@ -72,12 +72,28 @@ function cleanHtml(value = "") {
     .trim();
 }
 
+function extractTextValue(value) {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(extractTextValue).filter(Boolean).join(" ").trim();
+  }
+  if (typeof value === "object") {
+    const direct = extractTextValue(value._ || value["#text"] || value.title || value.value || "");
+    if (direct) return direct;
+    return Object.values(value).map(extractTextValue).filter(Boolean).join(" ").trim();
+  }
+  return "";
+}
+
 function normalizeRssItem(item = {}, source = {}) {
   const summary =
-    item.contentSnippet ||
-    item.summary ||
-    item.content ||
-    item.description ||
+    extractTextValue(item.contentSnippet) ||
+    extractTextValue(item.summary) ||
+    extractTextValue(item.content) ||
+    extractTextValue(item.description) ||
     "";
 
   return {
@@ -86,7 +102,7 @@ function normalizeRssItem(item = {}, source = {}) {
     source_type: source.type,
     source_category: source.category,
 
-    title: cleanHtml(item.title || "Untitled"),
+    title: cleanHtml(extractTextValue(item.title) || "Untitled"),
     summary: cleanHtml(summary),
     url: item.link || item.guid || null,
     guid: item.guid || item.link || null,

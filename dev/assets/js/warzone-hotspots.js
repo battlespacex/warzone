@@ -650,10 +650,7 @@ function createHotspotRadiusEl(cluster) {
     ].filter(Boolean).join(" ");
     el.dataset.category = categoryDataValue(cluster.cat);
     el.dataset.severity = getPlatformSeverityClass(cluster.sev);
-    el.innerHTML = `
-        <svg class="wzhs-radius__svg" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-            <polygon class="wzhs-radius__hex" points="50,6 87,28 87,72 50,94 13,72 13,28"></polygon>
-        </svg>`;
+    el.innerHTML = `<div class="wzhs-radius__ring" aria-hidden="true"></div>`;
     el.setAttribute("aria-hidden", "true");
     return el;
 }

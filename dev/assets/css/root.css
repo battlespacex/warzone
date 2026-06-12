@@ -157,6 +157,28 @@
     --wzhs-radius-fill-color: rgba(245, 30, 88, 0.16);
 }
 /* #endregion =========== */
+/* #region =========== GNSS Interference =========== */
+:root {
+    --gnss-cell-size-km: 42;
+    --gnss-cell-fill-low: rgb(6 160 67 / 30%);
+    --gnss-cell-fill-medium:  rgb(187 141 14 / 30%);
+    --gnss-cell-fill-high: rgba(255 7 83 / 30%);
+    --gnss-cell-fill-unknown: rgba(69 80 94 / 30%);
+    --gnss-cell-outline-low: var(--color-green-slate);
+    --gnss-cell-outline-medium: var(--color-yellow);
+    --gnss-cell-outline-high: var(--color-magenta-glow);
+    --gnss-cell-outline-unknown: var(--color-gray-glow);
+    --gnss-cell-outline-width: 1;
+    --gnss-cell-hover-opacity-boost: 0.14;
+    --gnss-cell-height-offset: 80;
+    --gnss-marker-size-px: 12;
+    --gnss-marker-outline-width-px: 2;
+    --gnss-marker-scale-near-distance-m: 180000;
+    --gnss-marker-scale-near-value: 0.72;
+    --gnss-marker-scale-far-distance-m: 8000000;
+    --gnss-marker-scale-far-value: 1.18;
+}
+/* #endregion =========== */
 /* #region =========== Military Base Type Colors =========== */
 :root {
     --warzone-base-airbase-color:var(--color-blue-slate);
@@ -298,10 +320,10 @@
     --warzone-event-marker-size: 112;
     --warzone-event-marker-cluster-step: 20;
     --warzone-event-marker-max-size: 192;
-    --warzone-event-marker-fill-alpha: 0.82;
-    --warzone-event-count-font-size: 34px;
-    --warzone-event-count-font-size-10plus: 32px;
-    --warzone-event-count-font-size-100plus: 29px;
+    --warzone-event-marker-fill-alpha: 0.70;
+    --warzone-event-count-font-size: 24px;
+    --warzone-event-count-font-size-10plus: 22px;
+    --warzone-event-count-font-size-100plus: 20px;
     --warzone-event-ring-size: 36000;
     --warzone-event-ring-fill-alpha: 0.40;
     --warzone-event-ring-outline-alpha: 0;
@@ -315,7 +337,7 @@
     --warzone-event-ring-pulse-duration-c: 2800;
     --warzone-event-ring-pulse-scale: 0.30;
     --warzone-event-ring-pulse-alpha-scale: 0.85;
-    --warzone-event-ring-pulse-fps: 24;
+    --warzone-event-ring-pulse-fps: 36;
     --wzhs-perspective-depth: 900px;
     --wzhs-perspective-max-tilt: 46;
     --wzhs-perspective-tilt: 0deg;

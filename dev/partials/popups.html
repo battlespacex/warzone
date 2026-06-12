@@ -102,7 +102,7 @@
                             </p>
                         </div>
                         <div id="wz-intro-login-view" class="wz-content" aria-hidden="true">
-                            <h2 id="wz-login-title">Sign In to StratOps</h2>
+                            <h2 id="wz-login-title">StratOps Sign In</h2>
                             <p>
                                 Log in with your <strong>BattlespaceX</strong> account to unlock full capabilities.
                             </p>
@@ -493,8 +493,7 @@
                 <div class="wz-modal-inner">
                     <header>
                         <span class="wz-header-title">
-                            <span class="static-icon stratops-ico-Profile-1" aria-hidden="true"></span>
-                            <h2 id="wz-login-modal-title">Sign In to StratOps</h2>
+                            <h2 id="wz-login-modal-title">StratOps Sign In</h2>
                         </span>
                         <span class="wz-close-modal">
                             <button type="button" class="static-icon" id="wz-login-close" aria-label="Close login dialog">
@@ -544,7 +543,7 @@
                                 </button>
                             </form>
                         </div>
-                        <div role="group" aria-label="Account creation option">
+                        <div role="group" aria-label="Account creation option" class="wz-footer">
                             <span>New to StratOps?</span>
                             <button id="auth-create-account" class="btn-secondary purple" type="button"
                                 onclick="window.location.href='https://www.battlespacex.com/register?returnUrl=https://stratops.battlespacex.com'"
@@ -620,10 +619,6 @@
                             <span>Don't show this advisory again on this browser.</span>
                         </div>
                         <div class="wz-btns">
-                            <button type="button" class="btn-secondary white" id="wz-performance-warning-back">
-                                <span aria-hidden="true"></span>
-                                Close
-                            </button>
                             <button type="button" class="btn-primary" id="wz-performance-warning-confirm">
                                 <span aria-hidden="true"></span>
                                 Understood
@@ -951,10 +946,12 @@
     </div>
     <button type="button"
         id="wz-support-open"
-        class="wz-support-open-btn static-icon"
+        class="wz-support-open-btn"
         aria-label="Open Founding Supporter Program"
         title="Support StratOps">
-        <span class="stratops-ico-assets-alert-1" aria-hidden="true"></span>
+        <span class="static-icon">
+            <span class="stratops-ico-like-1" aria-hidden="true"></span>
+        </span>
         <span>Support</span>
     </button>
     <div id="wz-donate-modal" class="wz-donate-modal" aria-live="polite" hidden>
