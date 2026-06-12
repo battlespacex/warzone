@@ -105,15 +105,12 @@
 }
 .wz-gnss-legend__swatch--low {
     background: var(--gnss-cell-fill-low);
-    border-color: var(--gnss-cell-outline-low);
 }
 .wz-gnss-legend__swatch--medium {
     background: var(--gnss-cell-fill-medium);
-    border-color: var(--gnss-cell-outline-medium);
 }
 .wz-gnss-legend__swatch--high {
     background: var(--gnss-cell-fill-high);
-    border-color: var(--gnss-cell-outline-high);
 }
 .wz-gnss-tooltip {
     position: absolute;
