@@ -693,13 +693,7 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
     } = options;
     if (!viewer) return;
     bindPicking(viewer);
-    const baseTokens = readGnssTokens();
-    const adaptiveSizeKm = getAdaptiveCellSizeKm(viewer, baseTokens.sizeKm);
-    const tokens = {
-        ...baseTokens,
-        sizeKm: adaptiveSizeKm,
-        signature: `${baseTokens.signature}|sizeKm:${adaptiveSizeKm}`,
-    };
+    const tokens = readGnssTokens();
     const signature = computeCellSignature(cells);
     const layerEnabled = visible === true;
     const cellCount = Array.isArray(cells) ? cells.length : 0;

@@ -197,8 +197,8 @@ body.is-app-active .wz-dock {
     padding: 0;
     opacity: 1;
     transform: scale(1);
-    width: 4rem;
-    min-width: 4rem;
+    width: 3.5rem;
+    min-width: 3.5rem;
     transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, transform 0.35s ease;
     
 }
@@ -222,11 +222,11 @@ body.is-app-active .wz-dock {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 4rem;
+    height: 3.5rem;
 }
 
     .wz-dock__icon .static-icon {
-        font-size: var(--icon-xxl);
+        font-size: var(--icon-xl);
         line-height: 1;
         display: block;
         pointer-events: none;
@@ -285,10 +285,10 @@ body.is-app-active .wz-dock {
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
-    color: var(--color-text);
+    color: var(--color-teal-glow);
     font-size: var(--text-sm);
     font-weight: 600;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.5rem;
     text-transform: uppercase;
     pointer-events: none;
     opacity: 0;
@@ -364,7 +364,6 @@ body.is-about-open .wz-radar-label-layer {
     display: inline-flex;
     align-items: center;
     gap: 0;
-    background: var(--color-bg-overlay);
     clip-path: var(--clippath-shape-3);
 }
 
@@ -377,16 +376,17 @@ body.is-about-open .wz-radar-label-layer {
     font-family: var(--text-font);
     font-weight: 700;
     font-size: var(--text-sm);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1rem;
     color: var(--color-white-slate);
-    background: transparent;
     cursor: pointer;
     transition: background-color var(--transition-fast), color var(--transition-fast);
+    padding-top: 0.3rem;
+    background: var(--color-bg-overlay);
 }
 
 .wz-globe-toggle__btn.is-active {
-    color: var(--color-black);
-    background: var(--color-teal-glow);
+    color: var(--color-teal-glow);
+    background: var(--color-teal);
 }
 
 
@@ -414,7 +414,8 @@ body.is-about-open .wz-radar-label-layer {
     }
 
 .wz-defcon__label {
-    letter-spacing: 0.1em;
+    letter-spacing: 0.5rem;
+    font-weight: 600;
 }
 
 .wz-defcon__level {
@@ -487,7 +488,7 @@ body.is-about-open .wz-radar-label-layer {
     font-weight: 800;
     font-family: var(--font-mono);
     color: var(--color-teal-glow);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.5rem;
     text-transform: uppercase;
     border-right: 1px solid rgba(24,226,219,0.15);
     height: 100%;
@@ -561,7 +562,7 @@ body.is-about-open .wz-radar-label-layer {
     font-weight: 700;
     padding: 0.1rem 0.45rem;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.5rem;
     flex-shrink: 0;
 }
 

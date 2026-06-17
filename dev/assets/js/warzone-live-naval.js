@@ -1785,6 +1785,48 @@ function ensureNavalOverlayRoot(viewer) {
         root.appendChild(arm);
     });
 
+    const focusPanel = document.createElement("aside");
+    focusPanel.className = "wz-aircraft-focus-panel is-visible";
+    focusPanel.style.left = "112px";
+    focusPanel.style.top = "-2px";
+    focusPanel.style.width = "8.6rem";
+    focusPanel.style.padding = ".45rem";
+    focusPanel.style.pointerEvents = "auto";
+    focusPanel.setAttribute("aria-label", "Focused naval map controls");
+
+    const modes = document.createElement("div");
+    modes.className = "wz-aircraft-focus-panel__modes";
+
+    const btnMap3d = document.createElement("button");
+    btnMap3d.type = "button";
+    btnMap3d.className = "wz-aircraft-focus-panel__mode";
+    btnMap3d.dataset.navalFocusMapMode = "plain";
+    btnMap3d.textContent = "3D";
+    btnMap3d.setAttribute("aria-label", "Use plain 3D map");
+    btnMap3d.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(false);
+    });
+
+    const btnContour = document.createElement("button");
+    btnContour.type = "button";
+    btnContour.className = "wz-aircraft-focus-panel__mode";
+    btnContour.dataset.navalFocusMapMode = "contour";
+    btnContour.textContent = "CTR";
+    btnContour.setAttribute("aria-label", "Use contour terrain map");
+    btnContour.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        syncNavalContourCenter(__navalState.selectedKey);
+        window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(true);
+    });
+
+    modes.appendChild(btnMap3d);
+    modes.appendChild(btnContour);
+    focusPanel.appendChild(modes);
+    root.appendChild(focusPanel);
+
     const unfocusButton = document.createElement("button");
     unfocusButton.type = "button";
     unfocusButton.className = "wz-asset-focus-unfocus is-visible";
@@ -1802,6 +1844,43 @@ function ensureNavalOverlayRoot(viewer) {
     host.appendChild(root);
     __navalState.overlayRoot = root;
     return root;
+}
+
+function syncNavalOverlayModeButtons() {
+    const root = __navalState.overlayRoot;
+    if (!root) return;
+    const contourVisible = window.__warzoneViewer?.__warzone?.isContourLayerVisible?.() === true;
+    root.querySelectorAll("[data-naval-focus-map-mode]").forEach((button) => {
+        const active = button.dataset.navalFocusMapMode === (contourVisible ? "contour" : "plain");
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+}
+
+function syncNavalContourCenter(trackKey = "") {
+    const viewer = window.__warzoneViewer;
+    const mapApi = viewer?.__warzone;
+    if (!viewer || !mapApi?.setContourFocusPosition || !trackKey) return false;
+    const entry = __navalState.vessels.get(trackKey);
+    const position = getNavalEntryPosition(entry);
+    if (!position) {
+        mapApi.clearContourFocusPosition?.();
+        return false;
+    }
+    const cartographic = Cesium.Cartographic.fromCartesian(position);
+    if (!cartographic) {
+        mapApi.clearContourFocusPosition?.();
+        return false;
+    }
+    mapApi.setContourFocusPosition({
+        lon: Cesium.Math.toDegrees(cartographic.longitude),
+        lat: Cesium.Math.toDegrees(cartographic.latitude),
+        height: Number(cartographic.height || 0),
+    }, {
+        force: false,
+        reason: "focused-naval-sync",
+    });
+    return true;
 }
 
 function getScreenPosForVessel(trackKey) {
@@ -1851,6 +1930,10 @@ function syncNavalOverlay() {
     root.style.top = `${screen.y}px`;
     __navalState.overlayLastX = screen.x;
     __navalState.overlayLastY = screen.y;
+    if (window.__warzoneViewer?.__warzone?.isContourLayerVisible?.() === true) {
+        syncNavalContourCenter(key);
+    }
+    syncNavalOverlayModeButtons();
 }
 function emitNavalFocusChanged() {
     document.dispatchEvent(new CustomEvent("wz:naval-track-selected", {
@@ -1872,6 +1955,8 @@ function clearNavalSelection() {
     __navalState.overlayLastVisible = false;
     __navalState.overlayLastX = Number.NaN;
     __navalState.overlayLastY = Number.NaN;
+    window.__warzoneViewer?.__warzone?.clearContourFocusPosition?.();
+    window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(false);
     syncNavalWidgetHighlight(null);
     const previousEntry = previousKey ? __navalState.vessels.get(previousKey) : null;
     if (previousEntry?.entity && previousEntry?.data) {
@@ -1953,6 +2038,7 @@ function focusNavalVessel(trackKey, options = {}) {
     if (!targetPosition) return false;
 
     __navalState.selectedKey = trackKey;
+    syncNavalContourCenter(trackKey);
     applyNavalVisual(entry.entity, entry.data);
     __navalState.isCameraFlying = true;
     viewer.camera.cancelFlight?.();

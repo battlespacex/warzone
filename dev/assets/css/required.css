@@ -221,7 +221,7 @@ strong {
     font-size: var(--text-xxxl);
     font-weight: bold;
     color: var(--color-text-heading);
-    line-height: 4rem;
+    line-height: 3.5rem;
 }
 
 /* #endregion =========== */
@@ -325,7 +325,7 @@ UNUSED CANDIDATE END */
     text-align: center;
     min-width: 8rem !important;
     max-width: fit-content;
-    height: 4rem;
+    height: 3.5rem;
     transition: .2s ease, opacity 220ms ease;
     position: relative;
     padding: 0 1.5rem;
@@ -563,13 +563,13 @@ UNUSED CANDIDATE END */
     .wz-selector:after {
         content: "\e903";
         font-family: var(--font-icon);
-        font-size: var(--icon-lg);
+        font-size: var(--icon-md);
         position: absolute;
         top: 0;
         right: 0;
-        width: 4rem;
-        height: 4rem;
-        line-height: 4rem;
+        width: 3.5rem;
+        height: 3.5rem;
+        line-height: 3.5rem;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -587,8 +587,8 @@ UNUSED CANDIDATE END */
 
 .wz--dropdown {
     color-scheme: dark;
-    height: 4rem;
-    line-height: 2.6rem;
+    height: 3.5rem;
+    line-height: 2.5rem;
     width: 100%;
     max-width:100%;
     min-width: 100%;
@@ -597,8 +597,8 @@ UNUSED CANDIDATE END */
 }
 
 .wz--input {
-    height: 4rem;
-    line-height: 2.6rem;
+    height: 3.5rem;
+    line-height: 2.5rem;
     width: 100%;
     max-width: 24rem;
     min-width: 15rem;
@@ -748,12 +748,11 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     right: 2.5rem;
     bottom: 8rem; /* adjust if needed above dock */
     z-index: 999;
-    width: 4.4rem;
-    height: 4.4rem;
+    width: 3.5rem;
+    height: 3.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 0.1rem solid rgba(255,255,255,0.16);
     background: rgba(10, 12, 16, 0.88);
     color: #fff;
     cursor: pointer;

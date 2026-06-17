@@ -115,7 +115,7 @@
 .wz-gnss-tooltip {
     position: absolute;
     z-index: 38;
-    display: grid;
+    display: none;
     gap: 0.55rem;
     width: min(27rem, calc(100vw - 4rem));
     padding: 1.1rem 1.2rem;
@@ -145,7 +145,7 @@
 }
 .wz-gnss-tooltip__mode {
     font-size: 1rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.5rem;
     text-transform: uppercase;
 }
 /* #endregion =========== */
@@ -171,21 +171,56 @@
 /* #endregion =========== */
 /* #region =========== MAP CREDITS =========== */
 .warzone-map-credits {
+    display: flex;
+    text-shadow: none;
+    padding: 0;
+    justify-content: center;
+    flex-direction: row;
+    align-items: center;
+    bottom: 2rem;
+    right: 2.5rem;
     position: absolute;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-    max-width: 40%;
-    font-size: .2rem;
-    color: var(--color-bg-dark);
-    text-align: right;
-    pointer-events: none;
+    z-index: 1;
+    gap: 1.5rem;
 }
     .warzone-map-credits a,
     .warzone-map-credits button,
     .warzone-map-credits img {
         pointer-events: auto;
+        height: 18px;
+        display: flex !important;
+        align-items: center;
     }
+
+    .warzone-map-credits .seperator {
+        height: 3rem;
+        width: 2px;
+        border-radius: 1px;
+        background: var(--color-border-gray);
+    }
+
+    .cesium-widget-credits {
+    display: flex !important;
+    position: relative !important;
+    text-shadow: none !important;
+    }
+
+        .cesium-credit-textContainer *, .cesium-credit-logoContainer * {
+        display: inline;
+        vertical-align: -2px !important;
+    }
+
+    .battlespacex-logo {
+    background: url(../images/web/Battlespacex-full-logo.svg) no-repeat;
+    content: '';
+    position: relative;
+    height: 3rem;
+    background-size: contain;
+    left: auto;
+    aspect-ratio: 6 / 1;
+    opacity: 1;
+}
+
 /* #endregion =========== */
 /* #region =========== LEGACY LIVE-MAP SHELL =========== */
 .live-map {

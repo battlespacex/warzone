@@ -66,6 +66,8 @@ let __regionCameraSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionDeferredNotifyTimer = 0;
 let __regionHintLiveFrame = 0;
+let __regionSceneModeRefocusTimer = 0;
+let __regionSceneModeRefocusSeq = 0;
 let __currentViewportRegion = __activeRegion;
 let __hasUserSelectedRegion = false;
 const REGION_HINT_SETTLED_DEBOUNCE_MS = 450;
@@ -422,6 +424,30 @@ function getBoundsCenter(bounds = null) {
     const lat = (Number(bounds.minLat) + Number(bounds.maxLat)) / 2;
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
     return { lon, lat };
+}
+function prime2DRegionCamera(viewer, region) {
+    if (!viewer?.camera || !region || viewer.scene?.mode !== Cesium.SceneMode.SCENE2D) return false;
+    const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
+    const center = getBoundsCenter(bounds) || region.camera || {};
+    const lon = Number(center.lon ?? region.camera?.lon);
+    const lat = Number(center.lat ?? region.camera?.lat);
+    const altitude = Number(region.camera?.alt || 7000000);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(altitude)) return false;
+    try {
+        viewer.camera.cancelFlight?.();
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
+            orientation: {
+                heading: 0,
+                pitch: -Cesium.Math.PI_OVER_TWO,
+                roll: 0,
+            },
+        });
+        viewer.scene?.requestRender?.();
+        return true;
+    } catch {
+        return false;
+    }
 }
 function getBoundsArea(bounds = null) {
     if (!bounds) return 0;
@@ -784,6 +810,7 @@ function notifyChange(region, options = {}) { __activeRegion = region; notifySco
 export function flyToRegion(viewer, region, options = {}) {
     if (!viewer || !region) return Promise.resolve(false);
     const showLoader = options?.showLoader === true;
+    const prime2D = options?.prime2D === true;
     const requestedDuration = Number(options?.duration);
     const duration = Number.isFinite(requestedDuration)
         ? Math.max(0, Math.min(requestedDuration, 3))
@@ -834,6 +861,9 @@ export function flyToRegion(viewer, region, options = {}) {
             const { minLon, minLat, maxLon, maxLat } = bounds;
             const is2D = viewer.scene?.mode === Cesium.SceneMode.SCENE2D;
             if (is2D) {
+                if (prime2D) {
+                    prime2DRegionCamera(viewer, region);
+                }
                 const center = getBoundsCenter(bounds) || region.camera || {};
                 const lon = Number(center.lon ?? region.camera?.lon);
                 const lat = Number(center.lat ?? region.camera?.lat);
@@ -924,7 +954,29 @@ export function initRegionNav(viewer) {
     if (!dropdown && !mobileDropdown) return;
     updateNavDropdown(__activeRegion);
     applyRegionCameraLock(viewer, __activeRegion);
+    const scheduleSceneModeRegionRefocus = (delayMs = 180) => {
+        if (__regionSceneModeRefocusTimer) {
+            clearTimeout(__regionSceneModeRefocusTimer);
+            __regionSceneModeRefocusTimer = 0;
+        }
+        const seq = ++__regionSceneModeRefocusSeq;
+        __regionSceneModeRefocusTimer = window.setTimeout(() => {
+            __regionSceneModeRefocusTimer = 0;
+            requestAnimationFrame(() => {
+                if (seq !== __regionSceneModeRefocusSeq) return;
+                if (viewer?.scene?.mode === Cesium.SceneMode.MORPHING) {
+                    scheduleSceneModeRegionRefocus(180);
+                    return;
+                }
+                refocusActiveRegionForSceneMode();
+            });
+        }, Math.max(0, Math.min(Number(delayMs) || 0, 1000)));
+    };
     const refocusActiveRegionForSceneMode = () => {
+        if (viewer?.scene?.mode === Cesium.SceneMode.MORPHING) {
+            scheduleSceneModeRegionRefocus(180);
+            return;
+        }
         if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
             scheduleRegionButtonHintRefresh(viewer, 900);
             return;
@@ -934,6 +986,7 @@ export function initRegionNav(viewer) {
         flyToRegion(viewer, __activeRegion, {
             duration: Math.max(0.7, Math.min(numberVar("--warzone-scene-refocus-duration", 1.05), 2.4)),
             showLoader: false,
+            prime2D: true,
             source: "scene-mode",
         });
     };
@@ -971,7 +1024,7 @@ export function initRegionNav(viewer) {
     viewer?.scene?.morphComplete?.addEventListener?.(() => {
         applyRegionCameraLock(viewer, __activeRegion);
         if (Number(viewer.__warzoneSceneModeRefocusManagedUntil || 0) > Date.now()) {
-            refocusActiveRegionForSceneMode();
+            scheduleSceneModeRegionRefocus(220);
             return;
         }
         if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
@@ -983,7 +1036,7 @@ export function initRegionNav(viewer) {
         flyToRegion(viewer, __activeRegion);
     });
     document.addEventListener("wz:scene-mode-refocus-requested", () => {
-        refocusActiveRegionForSceneMode();
+        scheduleSceneModeRegionRefocus(120);
     });
     if (REGION_HINT_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
         __regionCameraSyncBound = true;

@@ -36,7 +36,7 @@ window.__stratopsConfig = {
     aircraftVisualPolicy: {
         // PNG default, model only when focused/close detail, char fallback for heavy counts
         modelZoomHeight: 280000,
-        modelMaxActive: 16,
+        modelMaxActive: 6,
         charFallbackCount: 90,
         zoomModel: false,
     },
@@ -46,6 +46,11 @@ window.__stratopsConfig = {
         charFallbackCount: 80,
         zoomModel: false,
     },
+    autoContourOnAircraftFocus: false,
+    enableFocusedContextModels: false,
+    autoTerrainOnAircraftFocus: true,
+    focusedTerrainProvider: "arcgis",
+    focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
     enableMilSatsLayer: true,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 

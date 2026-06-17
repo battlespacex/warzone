@@ -65,6 +65,12 @@ const ICAO_TYPE_NAMES = {
     "C5M": "C-5M Super Galaxy",
     "C27J": "C-27J Spartan",
     "C295": "C-295 Airlifter",
+    "C144": "HC-144 Ocean Sentry",
+    "C144B": "HC-144B Ocean Sentry",
+    "HC144": "HC-144 Ocean Sentry",
+    "HC144B": "HC-144B Ocean Sentry",
+    "FA7X": "Dassault Falcon 7X",
+    "F7X": "Dassault Falcon 7X",
     // US ISR / Special Mission
     "RC135": "RC-135 Rivet Joint",
     "E3": "E-3 Sentry (AWACS)",
@@ -237,11 +243,11 @@ function getCountryFromIcao(hex) {
 
 const FIGHTER_CODES = new Set([
     "F16", "F16C", "F16D", "F15", "F15C", "F15D", "F15E", "F18", "F18C", "F18D", "F18E", "F18F",
-    "F22", "F22A", "F35", "F35A", "F35B", "F35C", "A10", "A10C", "AV8B", "EA18", "F14", "F4",
+    "F18S", "F22", "F22A", "F35", "F35A", "F35B", "F35C", "A10", "A10C", "AV8B", "EA18", "F14", "F4",
     "EUFI", "TYFN", "RAFA", "RAFM", "TORN", "JAS3", "GRIF", "M2K", "M2KN", "M2KC", "F1",
     "SU24", "SU25", "SU27", "SU30", "SU33", "SU34", "SU35", "SU57",
     "MIG21", "MIG29", "MIG31", "MIG35", "J10", "J11", "J15", "J16", "J20", "JH7",
-    "JF17", "TEJA", "T50", "F5", "F5E", "MIRF",
+    "JF17", "TEJA", "T50", "F5", "F5E", "MIRF", "SB39", "J39",
 ]);
 
 const BOMBER_CODES = new Set([
@@ -277,9 +283,24 @@ const HELI_CODES = new Set([
 
 const TRAINER_CODES = new Set([
     "T6", "T6A", "T6B", "T6C", "T38", "T38A", "T38C", "L29", "L39", "L59",
+    "T53", "T53A", "SR20",
     "Hawk", "HAWK", "PC7", "PC9", "PC21", "G115", "G120", "KT1", "CJ6",
     "K8", "JL8", "M311", "M345", "MB326", "MB339", "SF26",
 ]);
+
+const CASA_HC144_PATROL_PATTERNS = [
+    /\bHC[-\s]?144B?\b/i,
+    /\bC[-\s]?144B?\b/i,
+    /\bCASA\s+144B?\b/i,
+    /\bOCEAN\s+SENTRY\b/i,
+];
+
+const FALCON_7X_PATTERNS = [
+    /\bDASSAULT\s+FALCON\s+7X\b/i,
+    /\bFALCON\s+7X\b/i,
+    /\bFA7X\b/i,
+    /\bF7X\b/i,
+];
 
 const CIVILIAN_AIRLINER_CODES = new Set([
     "A220", "A318", "A319", "A320", "A20N", "A21N", "A321", "A330", "A332", "A333", "A338",
@@ -330,6 +351,11 @@ const TRAINER_PLATFORM_PATTERNS = [
     /\b(?:PILATUS\s+)?PC-?(?:7|9|21)(?:\s*(?:MKII|M))?\b/i,
     /\bGROB\s+G-?(?:115|120A?|120TP)\b/i,
     /\bG-?(?:115|120A?|120TP)\b/i,
+    /\bCIRRUS\s+T-?53A?\b/i,
+    /\bCIRRUS\s+SR-?20\b/i,
+    /(^|[^A-Z0-9])T-?53A?\b/i,
+    /\bKAYDET\s+II\b/i,
+    /\bSHARK\s*\d+\b/i,
     /(^|[^A-Z0-9])T-?38[AC]?\b/i,
     /\bTALON\b/i,
     /\b(?:BOEING\s+)?T-?7A?\b/i,
@@ -364,6 +390,8 @@ const TRAINER_PLATFORM_PATTERNS = [
 function classifyByTypeCode(typeCode) {
     if (!typeCode) return null;
     const t = typeCode.toUpperCase();
+    if (t === "FA7X" || t === "F7X") return "vip";
+    if (t === "C144" || t === "C144B" || t === "HC144" || t === "HC144B") return "recon";
     if (FIGHTER_CODES.has(t)) return "fighter";
     if (BOMBER_CODES.has(t)) return "bomber";
     if (TANKER_CODES.has(t)) return "tanker";
@@ -383,7 +411,7 @@ const CALLSIGN_ROLE_RULES = [
     { role: "isr", patterns: [/RIVET/i, /COBRA.?BALL/i, /DRAGON.?LADY/i, /JSTAR/i, /FORTE/i, /POSEIDON/i, /ORION/i] },
     { role: "bomber", patterns: [/\bB52\b/i, /\bB1\b/i, /\bB2\b/i, /\bTU160\b/i, /\bTU95\b/i] },
     { role: "transport", patterns: [/REACH/i, /RCH/i, /ASCOT/i, /ATLAS/i, /HERCULES/i, /GLOBEMASTER/i] },
-    { role: "fighter", patterns: [/\bF35\b/i, /\bF22\b/i, /\bF16\b/i, /\bF15\b/i, /\bF18\b/i, /RAPTOR/i, /TYPHOON/i, /RAFALE/i, /GRIPEN/i] },
+    { role: "fighter", patterns: [/\bF35\b/i, /\bF22\b/i, /\bF16\b/i, /\bF15\b/i, /\bF18\b/i, /TYPHOON/i, /RAFALE/i, /GRIPEN/i] },
     { role: "helicopter", patterns: [/APACHE/i, /BLACKHAWK/i, /CHINOOK/i, /OSPREY/i] },
 ];
 
@@ -399,6 +427,8 @@ function classifyByCallsign(callsign) {
 function classifyByModelName(modelName = "") {
     const haystack = String(modelName || "").toUpperCase();
     if (!haystack) return null;
+    if (FALCON_7X_PATTERNS.some((pattern) => pattern.test(haystack))) return "vip";
+    if (CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack))) return "recon";
     if (/(AWACS|AEW|WEDGETAIL|HAWKEYE|SENTRY|E-3\b|E3\b|E-7\b|E7\b|A-50\b|A50\b|PHALCON|ERIEYE|KJ-200\b|KJ200\b|KJ-500\b|KJ500\b|KJ-2000\b|KJ2000\b)/.test(haystack)) return "awacs";
     if (/(UAV\b|UCAV\b|UAS\b|DRONE\b|MQ-?1\b|MQ-?9[AB]?\b|RQ-?1\b|RQ-?4\b|MQ-?4C\b|GLOBAL HAWK|TRITON|REAPER|PREDATOR|GENERAL ATOMIC|GA-?ASI|SKYGUARDIAN|SKY GUARDIAN|SEAGUARDIAN|SEA GUARDIAN|PROTECTOR(?: RG-?1)?)/.test(haystack)) return "uav";
     if (/(RIVET JOINT|COBRA BALL|COMBAT SENT|RECON|RECONNAISSANCE|SURVEILLANCE|POSEIDON|ORION|RC-135\b|RC135\b|EP-3\b|EP3\b|P-8\b|P8\b|P-3\b|P3\b)/.test(haystack)) return "recon";
@@ -412,8 +442,24 @@ function classifyByModelName(modelName = "") {
     return null;
 }
 
-function classifyAircraft(typeCode, callsign, icao, modelName = "") {
-    return classifyByTypeCode(typeCode)
+function classifyByIdentity(typeCode = "", callsign = "", modelName = "", operator = "") {
+    const haystack = [typeCode, callsign, modelName, operator]
+        .filter(Boolean)
+        .join(" ");
+    if (FALCON_7X_PATTERNS.some((pattern) => pattern.test(haystack))) return "vip";
+    if (CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack))) return "recon";
+    if (
+        /\b(?:USCG|U\.?S\.?\s+COAST\s+GUARD|UNITED\s+STATES\s+COAST\s+GUARD|COAST\s+GUARD)\b/i.test(haystack) &&
+        /\b(?:CN[-\s]?235|C[-\s]?295|CASA)\b/i.test(haystack)
+    ) {
+        return "recon";
+    }
+    return null;
+}
+
+function classifyAircraft(typeCode, callsign, icao, modelName = "", operator = "") {
+    return classifyByIdentity(typeCode, callsign, modelName, operator)
+        || classifyByTypeCode(typeCode)
         || classifyByCallsign(callsign)
         || classifyByModelName(modelName)
         || "military";
@@ -548,9 +594,11 @@ const AIRCRAFT_FEED_URLS = [
     process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil",
     "https://api.adsb.one/v2/mil",
 ];
+let lastSuccessfulAircraftFeedUrl = "";
 
 async function fetchAdsbOneMilitary() {
     const errors = [];
+    lastSuccessfulAircraftFeedUrl = "";
     for (const url of AIRCRAFT_FEED_URLS) {
         try {
             const res = await fetch(url, {
@@ -571,6 +619,7 @@ async function fetchAdsbOneMilitary() {
                 throw new Error(`${url} error: ${data.msg}`);
             }
 
+            lastSuccessfulAircraftFeedUrl = url;
             return Array.isArray(data.ac) ? data.ac : [];
         } catch (err) {
             errors.push(err.message);
@@ -662,7 +711,7 @@ function markSeen(icao) {
 // ─── Build Supabase Payloads ────────────────────────────────────────────────
 
 function buildAdsbEvent(a) {
-    const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName);
+    const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
 
     // Build a clean, informative title
     // Priority: ModelName > typeCode > callsign > ICAO hex
@@ -731,7 +780,7 @@ function buildAdsbEvent(a) {
 }
 
 function buildAdsbTrack(a) {
-    const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName);
+    const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
     const displayName = a.modelName || a.typeCode || a.callsign || a.icao.toUpperCase();
     const displayId = a.callsign || a.reg || a.icao.toUpperCase();
     const displayOrg = a.operator || a.country;
@@ -831,28 +880,52 @@ export async function runAdsbWorker() {
         return;
     }
 
-    console.log(`${label} ADS-B One returned ${rawAircraft.length} military aircraft`);
+    console.log(`${label} ADS-B feed source: ${lastSuccessfulAircraftFeedUrl || "unknown"}`);
+    console.log(`${label} ADS-B feed returned ${rawAircraft.length} military aircraft`);
 
     const processed = [];
     const eventCandidates = [];
+    const rawRoleCounts = {};
+    const dropCounts = {
+        invalid_position: 0,
+        ground: 0,
+        trainer: 0,
+        civilian: 0,
+    };
     for (const ac of rawAircraft) {
         const a = parseAdsbOneAircraft(ac);
-        const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName);
+        const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
+        rawRoleCounts[role] = (rawRoleCounts[role] || 0) + 1;
 
         // Skip invalid positions
-        if (!Number.isFinite(a.lat) || !Number.isFinite(a.lon)) continue;
-        if (a.lat === 0 && a.lon === 0) continue;
+        if (!Number.isFinite(a.lat) || !Number.isFinite(a.lon)) {
+            dropCounts.invalid_position += 1;
+            continue;
+        }
+        if (a.lat === 0 && a.lon === 0) {
+            dropCounts.invalid_position += 1;
+            continue;
+        }
 
         // Skip ground traffic
-        if (a.onGround) continue;
+        if (a.onGround) {
+            dropCounts.ground += 1;
+            continue;
+        }
 
         // StratOps ignores training aircraft entirely: no live track, event,
         // alert, counter, or history row should be produced from these contacts.
-        if (role === "trainer" || isExcludedTrainerAircraft(a)) continue;
+        if (role === "trainer" || isExcludedTrainerAircraft(a)) {
+            dropCounts.trainer += 1;
+            continue;
+        }
 
         // ADS-B One /mil still leaks civilian airliners sometimes. Reject those here
         // unless there is a strong military-specific marker.
-        if (isLikelyCivilianAirliner(a, role)) continue;
+        if (isLikelyCivilianAirliner(a, role)) {
+            dropCounts.civilian += 1;
+            continue;
+        }
 
         processed.push(a);
         if (!wasSeen(a.icao)) {
@@ -861,6 +934,8 @@ export async function runAdsbWorker() {
         }
     }
 
+    console.log(`${label} Raw role breakdown:`, rawRoleCounts);
+    console.log(`${label} Dropped aircraft:`, dropCounts);
     console.log(`${label} Processing ${processed.length} airborne military aircraft`);
     console.log(`${label} New event candidates ${eventCandidates.length}`);
 
@@ -880,7 +955,7 @@ export async function runAdsbWorker() {
     // Log breakdown by role
     const roleCounts = {};
     for (const a of processed) {
-        const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName);
+        const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
         roleCounts[role] = (roleCounts[role] || 0) + 1;
     }
     console.log(`${label} Role breakdown:`, roleCounts);

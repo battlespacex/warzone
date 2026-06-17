@@ -310,7 +310,7 @@
 
     .wz-altitude-readout {
         font-size: var(--text-sm);
-        letter-spacing: .3rem;
+        letter-spacing: 0.5rem;
         gap: 0.3rem;
     }
     
@@ -476,7 +476,7 @@
     .wz-mobile-dock-menu__head h2 {
         font-size: var(--text-base);
         text-transform: uppercase;
-        letter-spacing: .1em;
+        letter-spacing: 0.1rem;
     }
 
     .wz-mobile-dock-menu__close {

@@ -75,6 +75,7 @@ let __eventsApiLastErrorKey = "";
 let __eventsApiLastErrorLoggedAt = 0;
 let __viewportFetchTimer = null;
 let __viewportFetchInFlight = false;
+let __viewportFetchSeq = 0;
 let __lastViewportKey = "";
 let __lastGlobeSyncKey = "";
 let __lastRangesSyncKey = "";
@@ -130,6 +131,8 @@ let __foregroundRecoverySeq = 0;
 let __lastBackgroundAt = 0;
 let __lastForegroundRecoveryAt = 0;
 let __foregroundAdaptiveRecoveryTimer = 0;
+let __foregroundPipelineResumeTimer = 0;
+let __visibilityPipelinesSuspended = false;
 let __authModalRenderBudgetBackup = null;
 let __regionReloadSeq = 0;
 const FOREGROUND_RECOVERY_LOADER_MIN_MS = 320;
@@ -932,6 +935,7 @@ function sortIntelWireItems(items = []) {
     return sortEvents(items).slice(0, INTEL_WIRE_MAX_ITEMS);
 }
 async function refreshIntelWireItems({ force = false } = {}) {
+    if (isDocumentHidden()) return;
     if (__intelWireRefreshInFlight) return;
     const now = Date.now();
     if (!force && __intelWireNextRefreshAt && now < __intelWireNextRefreshAt) return;
@@ -943,6 +947,7 @@ async function refreshIntelWireItems({ force = false } = {}) {
     }
     try {
         const { data, error } = await api.getIntelFeedItems();
+        if (isDocumentHidden()) return;
         if (error) {
             console.warn("Intel Wire feed fetch error:", error);
             return;
@@ -961,13 +966,20 @@ async function refreshIntelWireItems({ force = false } = {}) {
         }
     }
 }
-function startIntelWireRefreshLoop() {
+function startIntelWireRefreshLoop(options = {}) {
     if (__intelWireRefreshInterval) return;
-    refreshIntelWireItems({ force: true });
+    if (options?.forceInitial !== false) {
+        refreshIntelWireItems({ force: true });
+    }
     __intelWireRefreshInterval = window.setInterval(() => {
         if (isDocumentHidden()) return;
         refreshIntelWireItems();
     }, INTEL_WIRE_REFRESH_MS);
+}
+function stopIntelWireRefreshLoop() {
+    if (!__intelWireRefreshInterval) return;
+    window.clearInterval(__intelWireRefreshInterval);
+    __intelWireRefreshInterval = null;
 }
 function isCountryLevelHotspotFallback(event = {}) {
     const precision = String(event.display_precision || "").toLowerCase();
@@ -1265,7 +1277,7 @@ const debouncedRenderHeavy = debounce((events) => {
 }, 2000);
 function scheduleViewportFetch(delay = 500) {
     clearTimeout(__viewportFetchTimer);
-    if (shouldSuspendMapWork()) {
+    if (shouldSuspendMapWork() || isDocumentHidden()) {
         __viewportFetchTimer = null;
         return;
     }
@@ -2045,6 +2057,7 @@ async function fetchViewportEvents() {
     if (shouldSuspendMapWork() || isDocumentHidden()) return;
     if (__viewportFetchInFlight) return;
     __viewportFetchInFlight = true;
+    const requestSeq = ++__viewportFetchSeq;
     const region = getActiveRegion?.();
     const regionId = region?.id || "global";
     const globe = window.__warzoneViewer?.__warzone;
@@ -2075,10 +2088,12 @@ async function fetchViewportEvents() {
         const nextVisibleEvents = trimSortedEventList(sortEvents(visible), EVENT_VISIBLE_CACHE_MAX_ITEMS);
         __viewportScoped = true;
         __visibleEventsCache = nextVisibleEvents;
+        if (requestSeq !== __viewportFetchSeq || isDocumentHidden()) return;
         // Keep widgets stable across camera zoom/pan by sourcing them from the
         // full cache (region/lens/layer filters still apply inside syncFilteredUi).
         syncFilteredUi(__eventsCache);
         requestAnimationFrame(() => {
+            if (requestSeq !== __viewportFetchSeq || isDocumentHidden()) return;
             syncInitialEventsToGlobe(nextVisibleEvents, { animateTracks: false });
             window.__warzoneViewer?.scene?.requestRender?.();
         });
@@ -4029,6 +4044,14 @@ const FRONTEND_SPECIAL_VIP_GOV_PATTERNS = [
     /\bTU-?214PU\b/i,
     /KONRAD ADENAUER/i,
 ];
+const FRONTEND_CASA_HC144_PATROL_PATTERNS = [
+    /\b(hc ?144b?|c ?144b?|casa 144b?|ocean sentry)\b/i,
+    /\b(uscg|u s coast guard|united states coast guard|coast guard)\b.*\b(cn ?235|c ?295|casa)\b/i,
+    /\b(cn ?235|c ?295|casa)\b.*\b(uscg|u s coast guard|united states coast guard|coast guard)\b/i,
+];
+const FRONTEND_FALCON_7X_PATTERNS = [
+    /\b(dassault falcon 7x|falcon 7x|fa7x|f7x)\b/i,
+];
 function hasMilitaryAircraftOverride(track = {}) {
     const metadata = getAircraftMetadata(track);
     const rawSubtype = String(track.subtype || track.subcategory || metadata.role || "")
@@ -4059,7 +4082,9 @@ function hasMilitaryAircraftOverride(track = {}) {
     return (
         FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS.some((pattern) => pattern.test(haystack)) ||
         FRONTEND_SPECIAL_ISR_COMMAND_PATTERNS.some((pattern) => pattern.test(haystack)) ||
-        FRONTEND_SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack))
+        FRONTEND_SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack)) ||
+        FRONTEND_CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack)) ||
+        FRONTEND_FALCON_7X_PATTERNS.some((pattern) => pattern.test(haystack))
     );
 }
 function isLikelyCivilianPassengerAircraftTrack(track = {}) {
@@ -4276,12 +4301,17 @@ function resolveAircraftSubtype(track = {}) {
         track.title,
         track.callsign,
         track.flight,
+        track.operator,
+        track.owner,
         metadata.callsign,
+        metadata.operator,
     ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
     if (FRONTEND_SPECIAL_ISR_COMMAND_PATTERNS.some((pattern) => pattern.test(haystack))) return "isr";
+    if (FRONTEND_FALCON_7X_PATTERNS.some((pattern) => pattern.test(haystack))) return "vip";
+    if (FRONTEND_CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack))) return "recon";
     if (FRONTEND_SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack))) return "vip";
     if (/(awacs|aew|wedgetail|hawkeye|sentry|e-3\b|e3\b|e-7\b|e7\b|a-50\b|a50\b|phalcon|erieye|kj-200\b|kj200\b|kj-500\b|kj500\b|kj-2000\b|kj2000\b)/.test(haystack)) return "awacs";
     if (/(uav\b|drone\b|ucav\b|uas\b|reaper\b|predator\b|general atomic(?:s)?\b|ga-?asi\b|mq-9[ab]?\b|mq9[ab]?\b|skyguardian\b|sky guardian\b|seaguardian\b|sea guardian\b|protector(?:\s+rg-?1)?\b|rq-4\b|rq4\b|global hawk\b|mq-4c\b|mq4c\b|triton\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
@@ -4640,6 +4670,7 @@ function normalizeAircraftHistoryRow(row = {}) {
     };
 }
 async function refreshAircraftHistoryCache(force = false) {
+    if (isDocumentHidden()) return __aircraftHistoryCache;
     const now = Date.now();
     if (!force && __aircraftHistoryLoadingPromise) return __aircraftHistoryLoadingPromise;
     if (!force && __aircraftHistoryLastLoadedAt && (now - __aircraftHistoryLastLoadedAt) < AIRCRAFT_HISTORY_REFRESH_MS) {
@@ -4647,6 +4678,7 @@ async function refreshAircraftHistoryCache(force = false) {
     }
     __aircraftHistoryLoadingPromise = api.getAircraftTracks()
         .then(({ data, error }) => {
+            if (isDocumentHidden()) return __aircraftHistoryCache;
             if (error) {
                 console.error("Aircraft history fetch error:", error);
                 return __aircraftHistoryCache;
@@ -4669,12 +4701,14 @@ async function refreshAircraftHistoryCache(force = false) {
     return __aircraftHistoryLoadingPromise;
 }
 function startAircraftLiveSync() {
+    if (isDocumentHidden()) return;
     if (__aircraftLiveSyncTimer) return;
     const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
     if (isLayerEnabled("aircraft")) {
         refreshAircraftHistoryCache(useDatabaseAsLiveSource).catch(() => { });
     }
     __aircraftLiveSyncTimer = window.setInterval(() => {
+        if (isDocumentHidden()) return;
         if (!isLayerEnabled("aircraft")) return;
         refreshAircraftHistoryCache(isDatabaseAircraftLiveSourceEnabled()).catch(() => { });
     }, getAircraftLiveSyncIntervalMs());
@@ -4694,6 +4728,12 @@ function syncAircraftLivePipelines({ forceRefresh = false } = {}) {
         __seededAircraftTrackKeys = new Set();
         return;
     }
+    if (isDocumentHidden()) {
+        stopPublicAirIngestion();
+        stopAircraftLiveSync();
+        stopTracksRealtimeChannel();
+        return;
+    }
     startPublicAirIngestion();
     startAircraftLiveSync();
     startTracksRealtimeChannel();
@@ -4709,6 +4749,7 @@ function handleTracksRealtimePayload(payload) {
     // If the aircraft layer is disabled, ignore high-frequency realtime packets.
     // Clearing/updating tracks while hidden adds avoidable main-thread pressure.
     if (!isLayerEnabled("aircraft")) return;
+    if (isDocumentHidden()) return;
     const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
     if (!useDatabaseAsLiveSource) {
         refreshAircraftHistoryCache(false).catch(() => { });
@@ -4747,6 +4788,7 @@ function stopTracksRealtimeChannel() {
 function startTracksRealtimeChannel() {
     if (__tracksRealtimeChannel) return;
     if (!isLayerEnabled("aircraft")) return;
+    if (isDocumentHidden()) return;
     const channel = supabase
         .channel("tracks-live")
         .on(
@@ -4765,6 +4807,68 @@ function syncTracksRealtimeChannel() {
     } else {
         stopTracksRealtimeChannel();
     }
+}
+function suspendBackgroundLivePipelines() {
+    __visibilityPipelinesSuspended = true;
+    if (__foregroundPipelineResumeTimer) {
+        window.clearTimeout(__foregroundPipelineResumeTimer);
+        __foregroundPipelineResumeTimer = 0;
+    }
+    if (__foregroundRenderWakeRaf) {
+        cancelAnimationFrame(__foregroundRenderWakeRaf);
+        __foregroundRenderWakeRaf = 0;
+    }
+    if (__foregroundAdaptiveRecoveryTimer) {
+        clearTimeout(__foregroundAdaptiveRecoveryTimer);
+        __foregroundAdaptiveRecoveryTimer = 0;
+    }
+    clearTimeout(__viewportFetchTimer);
+    __viewportFetchTimer = null;
+    __viewportFetchSeq += 1;
+    __viewportFetchInFlight = false;
+    clearTimeout(__aircraftHistoryRefreshTimer);
+    __aircraftHistoryRefreshTimer = 0;
+    clearTimeout(__aircraftWidgetRenderTimer);
+    __aircraftWidgetRenderTimer = 0;
+    clearTimeout(__navalWidgetRenderTimer);
+    __navalWidgetRenderTimer = 0;
+    __pollRequestSeq += 1;
+    __pollInFlight = false;
+    __pollInFlightSince = 0;
+    stopPublicAirIngestion();
+    stopAircraftLiveSync();
+    stopTracksRealtimeChannel();
+    stopEventPollingFallback();
+    stopIntelWireRefreshLoop();
+}
+function resumeForegroundLivePipelines({ backgroundIdleMs = 0 } = {}) {
+    const wasSuspended = __visibilityPipelinesSuspended;
+    __visibilityPipelinesSuspended = false;
+    startEventPollingFallback();
+    startIntelWireRefreshLoop({ forceInitial: false });
+    if (isLayerEnabled("aircraft")) {
+        startAircraftLiveSync();
+        startTracksRealtimeChannel();
+        syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
+    }
+    if (__foregroundPipelineResumeTimer) {
+        window.clearTimeout(__foregroundPipelineResumeTimer);
+        __foregroundPipelineResumeTimer = 0;
+    }
+    __foregroundPipelineResumeTimer = window.setTimeout(() => {
+        __foregroundPipelineResumeTimer = 0;
+        if (isDocumentHidden()) return;
+        if (isLayerEnabled("aircraft")) {
+            refreshAircraftHistoryCache(wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS)
+                .catch(() => { });
+            refreshPublicAirTracksNow({ force: wasSuspended })
+                .catch(() => { });
+            startPublicAirIngestion();
+        }
+        if (wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS) {
+            void refreshIntelWireItems({ force: false });
+        }
+    }, 700);
 }
 function getAircraftMergeKey(track = {}) {
     const metadata = getAircraftMetadata(track);
@@ -5909,6 +6013,7 @@ export async function initWarzoneApp() {
             const backgroundIdleMs = __lastBackgroundAt > 0
                 ? Math.max(0, now - __lastBackgroundAt)
                 : 0;
+            resumeForegroundLivePipelines({ backgroundIdleMs });
             if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
                 startForegroundRenderWakeBurst(650);
                 window.__warzoneViewer?.scene?.requestRender?.();
@@ -5947,8 +6052,7 @@ export async function initWarzoneApp() {
                 __lastBackgroundAt = Date.now();
                 __foregroundRecoverySeq += 1;
                 endForegroundRecoveryLoader({ force: true });
-                clearTimeout(__viewportFetchTimer);
-                __viewportFetchTimer = null;
+                suspendBackgroundLivePipelines();
                 return;
             }
             onForeground();
@@ -6110,6 +6214,7 @@ async function pollLatestEvents(options = {}) {
         const since = getSafePollSinceIso();
         __lastSeenOccurredAt = since;
         const { data, error } = await api.getEventsSince(since);
+        if (requestSeq !== __pollRequestSeq || isDocumentHidden()) return;
         if (error) {
             logEventsApiError("Polling latest events error:", error);
             if (isEventsApiRestrictedError(error)) {
@@ -6124,6 +6229,7 @@ async function pollLatestEvents(options = {}) {
             if (__pollEmptyStreak >= POLL_FULL_REFRESH_EMPTY_STREAK) {
                 __pollEmptyStreak = 0;
                 const { data: fullData, error: fullError } = await api.getEvents();
+                if (requestSeq !== __pollRequestSeq || isDocumentHidden()) return;
                 if (!fullError) {
                     const fullEvents = Array.isArray(fullData)
                         ? fullData.map((row) => normalizeEvent(row)).filter(Boolean)
@@ -6183,6 +6289,11 @@ export function startEventPollingFallback() {
         if (shouldSuspendMapWork()) return;
         pollLatestEvents();
     }, EVENT_POLL_INTERVAL_MS);
+}
+function stopEventPollingFallback() {
+    if (!__pollTimer) return;
+    clearInterval(__pollTimer);
+    __pollTimer = null;
 }
 // Global known aggressor origin points per theater
 // These are the known or most likely launch zones per active conflict theater
