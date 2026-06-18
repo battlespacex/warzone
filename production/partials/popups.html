@@ -55,8 +55,8 @@
                     <span id="wz-event-popup-time"></span>
                     <span id="wz-event-popup-weapon"></span>
                 </div>
-                <a id="wz-event-popup-source" class="wz-event-popup__source" href="#" target="_blank"
-                    rel="noopener noreferrer">View source ↗</a>
+                <!-- <a id="wz-event-popup-source" class="wz-event-popup__source" href="#" target="_blank"
+                    rel="noopener noreferrer">View source ↗</a> -->
             </div>
         </div>
     </div>
@@ -360,7 +360,7 @@
                             <p>All information should be independently evaluated and verified before being used for operational, legal, financial, safety, governmental, military, or security-related decisions.</p>
                         </div>
                     </section>
-                    <footer>
+                    <footer class="no-padding">
                         <div id="wz-hint" class="wz-hint">
                             <span class="static-icon stratops-ico-assets-alert-1 color-grace-red" aria-hidden="true"></span><span>Enter as a guest
                                 or <button type="button" id="wz-intro-open-login">Sign In</button> to unlock full
@@ -633,7 +633,7 @@
             <div class="wz-modal-box wz-max-modal">
                 <div class="wz-modal-inner">
                 <header>
-                    <h2 id="wz-about-title">StratOps Intelligence Brief</h2>
+                    <h2 id="wz-about-title">StratOps</h2>
                     <button type="button" class="static-icon" id="wz-about-close" aria-label="Close about dialog">
                         <span class="stratops-ico-close-1" aria-hidden="true"></span>
                     </button>
@@ -663,7 +663,7 @@
                 <section class="wz-modal-body">
                     <div class="wz-content is-active" data-pane="about" id="wz-about-pane-overview" role="tabpanel"
                         aria-labelledby="wz-about-tab-overview" aria-hidden="false">
-                        <h3>Strategic Overview</h3>
+                        <h2>Strategic Overview</h2>
                         <p>
                             <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
                                     target="_blank" rel="noopener noreferrer">BattlespaceX</a></strong>, is a real-time, OSINT-based
@@ -696,7 +696,7 @@
                     </div>
                     <div class="wz-content" data-pane="capabilities" id="wz-about-pane-coverage" role="tabpanel"
                         aria-labelledby="wz-about-tab-coverage" aria-hidden="true">
-                        <h3>Domain Coverage</h3>
+                        <h2>Domain Coverage</h2>
                         <p>
                             Coverage varies by source visibility, region, and active conditions, but StratOps is built
                             to maintain a unified multi-domain operational picture where public signals are available.
@@ -732,7 +732,7 @@
                     </div>
                     <div class="wz-content" data-pane="method" id="wz-about-pane-workflow" role="tabpanel"
                         aria-labelledby="wz-about-tab-workflow" aria-hidden="true">
-                        <h3>Intelligence Workflow</h3>
+                        <h2>Intelligence Workflow</h2>
                         <p>
                             StratOps ingests publicly visible telemetry and structured OSINT signals, normalizes them to a
                             common operational model, and renders them through a layered battlespace interface.
@@ -764,7 +764,7 @@
                     </div>
                     <div class="wz-content" data-pane="terms" id="wz-about-pane-compliance" role="tabpanel"
                         aria-labelledby="wz-about-tab-compliance" aria-hidden="true">
-                        <h3>Use & Compliance</h3>
+                        <h2>Use & Compliance</h2>
                         <ul class="wz-list-view">
                             <li><strong>Informational and analytical scope only:</strong> intended for awareness,
                                 research, and strategic interpretation.</li>
@@ -786,7 +786,7 @@
                     </div>
                     <div class="wz-content" data-pane="policy" id="wz-about-pane-governance" role="tabpanel"
                         aria-labelledby="wz-about-tab-governance" aria-hidden="true">
-                        <h3>Data Governance</h3>
+                        <h2>Data Governance</h2>
                         <p>
                             BattlespaceX balances platform transparency with source protection, system security,
                             and responsible disclosure.
@@ -817,6 +817,57 @@
                         </small>
                     </div>
                 </section>
+                </div>
+            </div>
+        </div>
+        <div id="wz-donate-modal" class="wz-modal wz-donate-modal" aria-modal="true" role="dialog"
+            aria-labelledby="wz-layer-donate-title"
+            aria-describedby="wz-layer-donate-summary wz-layer-donate-detail" hidden>
+            <div class="wz-modal-box wz-min-modal">
+                <div class="wz-modal-inner">
+                    <header>
+                        <span class="wz-header-title">
+                            <span class="static-icon stratops-ico-like-1" aria-hidden="true"></span>
+                            <h2>Support</h2>
+                        </span>
+                        <span class="wz-close-modal">
+                            <button type="button" class="static-icon" id="wz-donate-close" aria-label="Close donate dialog">
+                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                            </button>
+                        </span>
+                    </header>
+                    <section class="wz-modal-body">
+                        <h3 id="wz-support-why" class="wz-donate-modal__heading">Why Support StratOps?</h3>
+
+                        <p class="wz-donate-modal__text">
+                            StratOps is independently built and currently operating as an early access platform. 
+                            Running a real-time operational intelligence environment requires ongoing development, 
+                            infrastructure, and future commercial data licensing. Supporters help maintain the 
+                            platform and contribute to its continued growth.
+                        </p>
+
+                        <ul class="wz-list-view wz-donate-modal__list">
+                            <li>Help cover platform infrastructure, hosting, and performance improvements</li>
+                            <li>Support continued development of operational monitoring tools</li>
+                            <li>Contribute toward future commercial aircraft and maritime data licensing</li>
+                            <li>Help expand OSINT, event-monitoring, and alerting capabilities</li>
+                            <li>Help shape StratOps during early access through feedback and testing</li>
+                            <li>Get early visibility into experimental and future premium capabilities when available</li>
+                        </ul>
+
+                        <p class="wz-donate-modal__note">
+                            <strong>Important note:</strong> Supporter access is not a commercial data subscription.
+                            Paid premium plans may be introduced later only after licensing and platform readiness
+                            requirements are in place.
+                        </p>
+                    </section>
+                    <footer>
+                        <a id="wz-donate-link" href="/billing/support" target="_blank"
+                            rel="noopener noreferrer" class="btn-primary">
+                            <span></span>
+                            Support StratOps
+                        </a>
+                    </footer>
                 </div>
             </div>
         </div>
@@ -943,84 +994,5 @@
                 </footer>
             </div>
         </div>
-    </div>
-    <button type="button"
-        id="wz-support-open"
-        class="wz-support-open-btn"
-        aria-label="Open Founding Supporter Program"
-        title="Support StratOps">
-        <span class="static-icon">
-            <span class="stratops-ico-like-1" aria-hidden="true"></span>
-        </span>
-        <span>Support</span>
-    </button>
-    <div id="wz-donate-modal" class="wz-modal wz-donate-modal" aria-modal="true" role="dialog" aria-live="polite"
-        aria-labelledby="wz-donate-title" hidden>
-        <div class="wz-modal-box wz-max-modal">
-            <div class="wz-modal-inner">
-            <header>
-                <h2 id="wz-donate-title">Support StratOps</h2>
-                <button type="button" class="static-icon" id="wz-donate-close" aria-label="Close donate dialog">
-                    <span class="stratops-ico-close-1" aria-hidden="true"></span>
-                </button>
-            </header>
-            <section class="wz-modal-body">
-                <div class="wz-content is-active" data-pane="about" id="wz-about-pane-overview" role="tabpanel"
-                    aria-labelledby="wz-about-tab-overview" aria-hidden="false">
-                    <h2 id="wz-supporter-title" class="wz-donate-modal__title">Founding Supporter Program</h2>
-                    <p class="wz-donate-modal__text">
-                        StratOps is independently built and currently operating as an early access platform.
-                        Running a real-time operational intelligence environment requires ongoing development,
-                        infrastructure, and future commercial data licensing.
-                    </p>
-                    <p class="wz-donate-modal__text">
-                        Supporter access is not a commercial data subscription. Supporters are helping the
-                        platform grow while StratOps works toward proper licensing and future premium plans.
-                    </p>
-
-                    <h3 id="wz-support-why" class="wz-donate-modal__heading">Why Support StratOps?</h3>
-                    <p class="wz-donate-modal__text">
-                        StratOps is built independently and requires ongoing resources to maintain, improve,
-                        and expand. Support helps cover infrastructure, development, and future commercial data
-                        licensing so the platform can grow responsibly.
-                    </p>
-
-                    <h3 class="wz-donate-modal__heading">What Your Support Helps Fund</h3>
-                    <ul class="wz-list-view wz-donate-modal__list">
-                        <li>Platform infrastructure and performance improvements</li>
-                        <li>Continued development of operational monitoring tools</li>
-                        <li>Future commercial aircraft data licensing</li>
-                        <li>Future maritime and naval data licensing</li>
-                        <li>Expanded OSINT and event-monitoring capabilities</li>
-                        <li>Better alerting, export, and briefing workflows</li>
-                    </ul>
-
-                    <h3 class="wz-donate-modal__heading">Supporter Benefits</h3>
-                    <ul class="wz-list-view wz-donate-modal__list">
-                        <li>Help shape StratOps during early access</li>
-                        <li>Early visibility into experimental capabilities</li>
-                        <li>Priority feedback consideration</li>
-                        <li>Founding Supporter recognition where appropriate</li>
-                        <li>Early access to future premium features when licensing allows</li>
-                    </ul>
-
-                    <p class="wz-donate-modal__note">
-                        <strong>Important note:</strong> Supporter access is not a commercial data subscription.
-                        Paid premium plans may be introduced later only after licensing and platform readiness
-                        requirements are in place.
-                    </p>
-                </div>
-                <div class="wz-donate-modal__actions">
-                    <a id="wz-donate-link" href="/billing/support" target="_blank"
-                        rel="noopener noreferrer" class="btn-primary wz-donate-modal__btn" aria-label="Open supporter page in new tab">
-                        Support StratOps
-                    </a>
-                    <a href="#wz-support-why" class="btn-secondary white wz-donate-modal__btn">
-                        Why Support Matters
-                    </a>
-                </div>
-            </section>
-            </div>
-        </div>
-    </div>
+    </div>    
 </div>

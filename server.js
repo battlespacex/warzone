@@ -96,6 +96,9 @@ app.get("/api/*", async (req, res) => {
             headers: {
                 Accept: "application/json",
                 "User-Agent": "stratops-warzone/1.0",
+                "X-Forwarded-Host": req.get("host") || "",
+                "X-Forwarded-Proto": req.protocol || "http",
+                "X-Forwarded-Prefix": "/api",
             },
         });
         const payload = await response.text();
@@ -104,6 +107,30 @@ app.get("/api/*", async (req, res) => {
         res.type(response.headers.get("content-type") || "application/json").send(payload);
     } catch {
         res.status(502).json({ error: "API unavailable" });
+    }
+});
+
+app.get("/events/intel-feed/media/*", async (req, res) => {
+    try {
+        const upstream = new URL(req.originalUrl, API_UPSTREAM_URL);
+        const response = await fetch(upstream, {
+            headers: {
+                Accept: req.get("accept") || "image/*,*/*;q=0.5",
+                "User-Agent": "stratops-warzone-media/1.0",
+            },
+        });
+        res.status(response.status);
+        res.set("Cache-Control", response.headers.get("cache-control") || "public, max-age=900");
+        const contentType = response.headers.get("content-type") || "application/octet-stream";
+        res.type(contentType);
+        if (!response.body) {
+            res.end();
+            return;
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        res.end(Buffer.from(arrayBuffer));
+    } catch {
+        res.status(502).json({ error: "Media proxy unavailable" });
     }
 });
 

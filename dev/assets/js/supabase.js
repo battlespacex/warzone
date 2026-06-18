@@ -38,6 +38,25 @@ const GNSS_CELL_LIMIT = 240;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
+let __warnedActiveAlertsUnavailable = false;
+let __warnedGnssUnavailable = false;
+
+async function readJsonResponse(res, label = "API") {
+    const contentType = String(res.headers.get("content-type") || "").toLowerCase();
+    const text = await res.text();
+    if (!res.ok) {
+        throw new Error(`${label} failed (${res.status})`);
+    }
+    if (!contentType.includes("application/json")) {
+        const preview = text.slice(0, 80).replace(/\s+/g, " ").trim();
+        throw new Error(`${label} returned non-JSON response${preview ? `: ${preview}` : ""}`);
+    }
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        throw new Error(`${label} returned invalid JSON: ${error.message}`);
+    }
+}
 
 function getEventsHistoryCutoffIso() {
     return new Date(Date.now() - EVENTS_HISTORY_WINDOW_MS).toISOString();
@@ -107,41 +126,67 @@ export const api = {
 
     async getIntelFeedItems() {
         const res = await fetch(`${INTEL_FEED_API_BASE}/events/intel-feed?limit=${INTEL_FEED_LIMIT}`);
-        if (!res.ok) throw new Error("Intel feed fetch failed");
-        const json = await res.json();
+        const json = await readJsonResponse(res, "Intel feed fetch");
         return { data: json.items || [], error: null };
     },
 
     async getGnssInterferenceCells() {
-        const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`);
-        if (!res.ok) throw new Error("GNSS interference fetch failed");
-        const json = await res.json();
-        return {
-            data: json.cells || [],
-            error: null,
-            meta: {
-                demoMode: json.demoMode === true,
-                updatedAt: json.updatedAt || null,
-                sourceMode: json.sourceMode || "unavailable",
-                liveAvailable: json.liveAvailable === true,
-                tableAvailable: json.tableAvailable === true,
-                message: json.message || "",
-            },
-        };
+        try {
+            const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`);
+            const json = await readJsonResponse(res, "GNSS interference fetch");
+            return {
+                data: json.cells || [],
+                error: null,
+                meta: {
+                    demoMode: json.demoMode === true,
+                    updatedAt: json.updatedAt || null,
+                    sourceMode: json.sourceMode || "unavailable",
+                    liveAvailable: json.liveAvailable === true,
+                    tableAvailable: json.tableAvailable === true,
+                    message: json.message || "",
+                },
+            };
+        } catch (error) {
+            __warnedGnssUnavailable = true;
+            return {
+                data: [],
+                error: null,
+                meta: {
+                    demoMode: false,
+                    updatedAt: null,
+                    sourceMode: "unavailable",
+                    liveAvailable: false,
+                    tableAvailable: false,
+                    message: error?.message || "GNSS interference endpoint is unavailable.",
+                },
+            };
+        }
     },
 
     async getActiveAlerts() {
-        if (!API_BASE) {
+        const alertsApiBase = isLocalhost
+            ? LOCAL_PROXY_API_BASE
+            : (window.__stratopsConfig?.apiBase || API_BASE);
+        if (alertsApiBase) {
+            try {
+                const res = await fetch(`${alertsApiBase}/events/alerts`);
+                const json = await readJsonResponse(res, "Alerts fetch");
+                return { data: json.alerts || [], error: null };
+            } catch (error) {
+                __warnedActiveAlertsUnavailable = true;
+                return { data: [], error: null };
+            }
+        }
+        try {
             const { data, error } = await supabase
                 .from("active_alerts").select("*")
                 .eq("status", "active")
                 .order("updated_at", { ascending: false });
             return { data: data || [], error };
+        } catch (error) {
+            __warnedActiveAlertsUnavailable = true;
+            return { data: [], error: null };
         }
-        const res = await fetch(`${API_BASE}/events/alerts`);
-        if (!res.ok) throw new Error("Alerts fetch failed");
-        const json = await res.json();
-        return { data: json.alerts || [], error: null };
     },
 
     async getAirspaceStatuses() {

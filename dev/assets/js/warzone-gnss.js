@@ -376,9 +376,12 @@ function closeActiveGnssPanel() {
 function positionGnssPanel(panel, sx, sy) {
     if (!panel || !Number.isFinite(sx) || !Number.isFinite(sy)) return;
 
-    const rect = panel.getBoundingClientRect();
-    const width = rect.width || 448;
-    const height = rect.height || 260;
+    const size = panel.__wzPanelSize || {
+        width: panel.offsetWidth || 448,
+        height: panel.offsetHeight || 260,
+    };
+    const width = size.width || 448;
+    const height = size.height || 260;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
@@ -390,8 +393,10 @@ function positionGnssPanel(panel, sx, sy) {
     if (top < 8) top = 8;
     if (left < 8) left = 8;
 
-    panel.style.left = `${left}px`;
-    panel.style.top = `${top}px`;
+    panel.style.left = "0";
+    panel.style.top = "0";
+    panel.style.right = "auto";
+    panel.style.transform = `translate3d(${left}px, ${top}px, 0)`;
 }
 
 function isScreenPointInViewport(screen) {
@@ -420,7 +425,6 @@ function getEntityScreenPosition(viewer, entity) {
 function setGnssPanelVisible(panel, visible) {
     if (!panel) return;
     panel.style.opacity = visible ? "1" : "0";
-    panel.style.transform = visible ? "translateY(0)" : "translateY(0.35rem)";
     panel.style.pointerEvents = visible ? "auto" : "none";
 }
 
@@ -514,9 +518,13 @@ function showGnssPanel(viewer, entity, screenPosition = null, tokens = readGnssT
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-modal", "false");
     panel.setAttribute("tabindex", "-1");
-    panel.style.cssText = "position:fixed; width:28rem; max-width:calc(100vw - 1rem); z-index:900; opacity:0; transform:translateY(0.35rem); pointer-events:none; transition:opacity 160ms ease, transform 160ms ease;";
+    panel.style.cssText = "position:fixed; width:28rem; max-width:calc(100vw - 1rem); z-index:900; opacity:0; transform:translate3d(0, 0, 0); pointer-events:none; transition:opacity 160ms ease;";
     panel.innerHTML = renderPopupContent(entity.__gnssCell, tokens);
     document.body.appendChild(panel);
+    panel.__wzPanelSize = {
+        width: panel.offsetWidth || 448,
+        height: panel.offsetHeight || 260,
+    };
 
     const closeBtn = panel.querySelector("[data-widget-close]");
     const escHandler = (event) => {

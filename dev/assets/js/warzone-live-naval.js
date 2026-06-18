@@ -1806,7 +1806,10 @@ function ensureNavalOverlayRoot(viewer) {
     btnMap3d.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(false);
+        const mapApi = window.__warzoneViewer?.__warzone;
+        void Promise.resolve(mapApi?.setContourLayerVisible?.(false))
+            .then(() => mapApi?.enableFocusedTerrain?.())
+            .finally(() => syncNavalOverlayModeButtons());
     });
 
     const btnContour = document.createElement("button");
@@ -1819,7 +1822,8 @@ function ensureNavalOverlayRoot(viewer) {
         event.preventDefault();
         event.stopPropagation();
         syncNavalContourCenter(__navalState.selectedKey);
-        window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(true);
+        void Promise.resolve(window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(true))
+            .finally(() => syncNavalOverlayModeButtons());
     });
 
     modes.appendChild(btnMap3d);
@@ -1957,6 +1961,7 @@ function clearNavalSelection() {
     __navalState.overlayLastY = Number.NaN;
     window.__warzoneViewer?.__warzone?.clearContourFocusPosition?.();
     window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(false);
+    window.__warzoneViewer?.__warzone?.disableFocusedTerrain?.();
     syncNavalWidgetHighlight(null);
     const previousEntry = previousKey ? __navalState.vessels.get(previousKey) : null;
     if (previousEntry?.entity && previousEntry?.data) {

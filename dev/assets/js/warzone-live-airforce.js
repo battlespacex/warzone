@@ -62,6 +62,7 @@ let __liveTrackViewRefreshSeq = 0;
 let __liveTrackViewRefreshRaf = 0;
 let __liveTrackSceneModeBeforeFocus = "";
 let __liveTrackContourStateBeforeFocus = null;
+let __liveTrackContourAnchorKey = "";
 let __liveTrackTerrainDisableTimer = 0;
 let __liveTrackTerrainDisableSeq = 0;
 let __liveTrackVisualModeRefreshTimer = 0;
@@ -1837,7 +1838,7 @@ function shouldUseFocusedContextAircraftModel(track = {}, modelUri = "") {
     return shouldShowTrackInFocusMode(trackKey, track);
 }
 function isAircraftFocusTerrainEnabled() {
-    return window.__stratopsConfig?.autoTerrainOnAircraftFocus !== false;
+    return window.__stratopsConfig?.autoTerrainOnAircraftFocus === true;
 }
 function enableAircraftFocusTerrain(viewer) {
     if (!viewer || !isAircraftFocusTerrainEnabled()) return;
@@ -1856,7 +1857,8 @@ function enableAircraftFocusTerrain(viewer) {
     }
 }
 function disableAircraftFocusTerrain(viewer) {
-    if (!viewer || !isAircraftFocusTerrainEnabled()) return;
+    if (!viewer) return;
+    if (!isAircraftFocusTerrainEnabled() && viewer.__warzone?.isFocusedTerrainActive?.() !== true) return;
     try {
         viewer.__warzone?.disableFocusedTerrain?.();
     } catch (error) {
@@ -3475,7 +3477,8 @@ function ensureLiveTrackOverlayRoot(viewer) {
     btnMap3d.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        void Promise.resolve(window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(false))
+        const mapApi = window.__warzoneViewer?.__warzone;
+        void Promise.resolve(mapApi?.setContourLayerVisible?.(false))
             .finally(() => syncFocusedTrackOverlayModeButtons());
     });
 
@@ -3488,7 +3491,8 @@ function ensureLiveTrackOverlayRoot(viewer) {
     btnContour.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!syncFocusedTrackContourCenter(getFocusedTrackKey())) {
+        __liveTrackContourAnchorKey = "";
+        if (!syncFocusedTrackContourCenter(getFocusedTrackKey(), { force: true })) {
             syncFocusedTrackOverlayModeButtons();
             return;
         }
@@ -3546,27 +3550,34 @@ function syncFocusedTrackOverlayModeButtons() {
         button.setAttribute("aria-pressed", String(active));
     });
 }
-function syncFocusedTrackContourCenter(trackKey = "") {
+function syncFocusedTrackContourCenter(trackKey = "", options = {}) {
     const viewer = window.__warzoneViewer;
     const mapApi = viewer?.__warzone;
     if (!viewer || !mapApi?.setContourFocusPosition) return false;
+    const normalizedTrackKey = String(trackKey || "");
+    if (normalizedTrackKey && __liveTrackContourAnchorKey === normalizedTrackKey && options.force !== true) {
+        return true;
+    }
     const entity = trackKey ? viewer.entities?.getById?.(`track-${trackKey}`) : null;
     const position = getPositionCartesian(entity);
     if (!position) {
+        __liveTrackContourAnchorKey = "";
         mapApi.clearContourFocusPosition?.();
         return false;
     }
     const cartographic = Cesium.Cartographic.fromCartesian(position);
     if (!cartographic) {
+        __liveTrackContourAnchorKey = "";
         mapApi.clearContourFocusPosition?.();
         return false;
     }
+    __liveTrackContourAnchorKey = normalizedTrackKey;
     mapApi.setContourFocusPosition({
         lon: Cesium.Math.toDegrees(cartographic.longitude),
         lat: Cesium.Math.toDegrees(cartographic.latitude),
         height: Number(cartographic.height || 0),
     }, {
-        force: false,
+        force: options.force === true,
         reason: "focused-aircraft-sync",
     });
     return true;
@@ -3575,6 +3586,13 @@ function syncFocusedTrackContourMode(focused = false) {
     const autoEnabled = window.__stratopsConfig?.autoContourOnAircraftFocus === true;
     const mapApi = window.__warzoneViewer?.__warzone;
     if (!autoEnabled || !mapApi?.setContourLayerVisible || !mapApi?.isContourLayerVisible) {
+        if (!focused && __liveTrackContourAnchorKey && mapApi?.setContourLayerVisible) {
+            __liveTrackContourAnchorKey = "";
+            mapApi.clearContourFocusPosition?.();
+            void Promise.resolve(mapApi.setContourLayerVisible(false))
+                .finally(() => syncFocusedTrackOverlayModeButtons());
+            return;
+        }
         syncFocusedTrackOverlayModeButtons();
         return;
     }
@@ -3582,7 +3600,8 @@ function syncFocusedTrackContourMode(focused = false) {
         if (__liveTrackContourStateBeforeFocus === null) {
             __liveTrackContourStateBeforeFocus = mapApi.isContourLayerVisible() === true;
         }
-        syncFocusedTrackContourCenter(getFocusedTrackKey());
+        __liveTrackContourAnchorKey = "";
+        syncFocusedTrackContourCenter(getFocusedTrackKey(), { force: true });
         void Promise.resolve(mapApi.setContourLayerVisible(true))
             .finally(() => syncFocusedTrackOverlayModeButtons());
         return;
@@ -3593,6 +3612,7 @@ function syncFocusedTrackContourMode(focused = false) {
     }
     const restoreVisible = __liveTrackContourStateBeforeFocus === true;
     __liveTrackContourStateBeforeFocus = null;
+    __liveTrackContourAnchorKey = "";
     mapApi.clearContourFocusPosition?.();
     void Promise.resolve(mapApi.setContourLayerVisible(restoreVisible))
         .finally(() => syncFocusedTrackOverlayModeButtons());
@@ -5275,6 +5295,28 @@ export function clearLiveTrack(trackKey) {
     if (!trackKey) return;
     const entityId = `track-${trackKey}`;
     const trailId = `track-trail-${trackKey}`;
+    const existingRegistryEntry = __liveTrackRegistry.get(trackKey);
+    const selectedFocus =
+        __liveTrackReplayState.selectedTrackKey === trackKey &&
+        __liveTrackReplayState.mode === "focus";
+    if (selectedFocus) {
+        const focusedEntity = viewer?.entities?.getById?.(entityId);
+        if (existingRegistryEntry) {
+            existingRegistryEntry.active = false;
+            existingRegistryEntry.ended_at = Date.now();
+            existingRegistryEntry.path_history = pruneHistoryPoints(existingRegistryEntry.path_history || []);
+        }
+        if (focusedEntity) {
+            if (focusedEntity.__liveTrackAnimFrame) {
+                cancelAnimationFrame(focusedEntity.__liveTrackAnimFrame);
+                focusedEntity.__liveTrackAnimFrame = null;
+            }
+            maybeStartFocusedTrackCoast(focusedEntity, existingRegistryEntry || {});
+        }
+        dispatchLiveTrackRegistryUpdate();
+        requestWarzoneRenderBatched();
+        return;
+    }
     if (viewer) {
         const entity = viewer.entities.getById(entityId);
         if (entity) {
@@ -5294,15 +5336,11 @@ export function clearLiveTrack(trackKey) {
     __liveTrackLastPositions.delete(trackKey);
     __liveTrackVisualState.delete(trackKey);
     __liveTrackIconCodeCache.delete(trackKey);
-    const existingRegistryEntry = __liveTrackRegistry.get(trackKey);
     if (existingRegistryEntry) {
         existingRegistryEntry.active = false;
         existingRegistryEntry.ended_at = Date.now();
         existingRegistryEntry.entity_id = "";
         existingRegistryEntry.path_history = pruneHistoryPoints(existingRegistryEntry.path_history || []);
-    }
-    if (__liveTrackReplayState.selectedTrackKey === trackKey && __liveTrackReplayState.mode === "focus") {
-        clearLiveTrackSelection({ duration: 1.2 });
     }
     pruneTrackRegistry();
     dispatchLiveTrackRegistryUpdate();
@@ -5529,10 +5567,8 @@ export function focusLiveTrack(trackKey, options = {}) {
     }
     resetFocusedTrackCameraOrientation();
     setSelectedTrack(trackKey, "focus");
-    syncFocusedTrackContourMode(true);
     refreshLiveTrackVisualMode(trackKey);
     refreshFocusedContextLiveTrackVisualModes(trackKey);
-    enableAircraftFocusTerrain(viewer);
     setLiveTrackHardLockInternal(true);
     bindFocusGuideTracking();
     updateFocusGuideElement();

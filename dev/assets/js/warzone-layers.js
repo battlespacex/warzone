@@ -22,7 +22,7 @@ const LAYER_DEFS = [
     // { id: "news", label: "News / Reports", icon: "📰", color: "#888" },
     { id: "hotspots", label: "Hotspot Clusters", description: "Labels and static rings only when nearby events are grouped", icon: "📍", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", description: "Satellite basemap imagery on the globe", icon: "🛰️", color: "#4a9eff", uiOnly: true },
-    { id: "region-plate", label: "Raised Region", description: "Elevated Middle East region focus plate", icon: "▱", color: "#18e2db", uiOnly: true },
+    { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "▱", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "🗺️", color: "#33e1ff", uiOnly: true },
 ];
 

@@ -1591,6 +1591,7 @@ function bindGlobeEventPopup() {
         if (!viewportPosition) {
             popup.style.removeProperty("left");
             popup.style.removeProperty("top");
+            popup.style.removeProperty("transform");
             return;
         }
         const x = viewportPosition.x;
@@ -1598,9 +1599,12 @@ function bindGlobeEventPopup() {
         const gap = 14;
         const viewportPad = 16;
         const parentRect = popup.offsetParent?.getBoundingClientRect?.() || { left: 0, top: 0 };
-        const popupRect = popup.getBoundingClientRect();
-        const width = Math.min(popupRect.width, window.innerWidth - (viewportPad * 2));
-        const height = Math.min(popupRect.height, window.innerHeight - (viewportPad * 2));
+        const popupSize = popup.__wzPopupSize || {
+            width: popup.offsetWidth || 448,
+            height: popup.offsetHeight || 260,
+        };
+        const width = Math.min(popupSize.width, window.innerWidth - (viewportPad * 2));
+        const height = Math.min(popupSize.height, window.innerHeight - (viewportPad * 2));
         let left = x + gap;
         if (left + width > window.innerWidth - viewportPad) {
             left = x - width - gap;
@@ -1610,10 +1614,11 @@ function bindGlobeEventPopup() {
             Math.max(viewportPad, y - (height / 2)),
             window.innerHeight - height - viewportPad
         );
-        popup.style.left = `${left - parentRect.left}px`;
-        popup.style.top = `${top - parentRect.top}px`;
+        popup.style.left = "0";
+        popup.style.top = "0";
         popup.style.right = "auto";
         popup.style.bottom = "auto";
+        popup.style.transform = `translate3d(${left - parentRect.left}px, ${top - parentRect.top}px, 0)`;
     };
     const syncAnchoredPopupPosition = () => {
         if (popup.hidden || !activePopupAnchor) return;
@@ -1694,6 +1699,11 @@ function bindGlobeEventPopup() {
             lon: Number(detail.lon),
         };
         popup.hidden = false;
+        popup.style.transition = "opacity 350ms cubic-bezier(0.4, 0, 0.2, 1)";
+        popup.__wzPopupSize = {
+            width: popup.offsetWidth || 448,
+            height: popup.offsetHeight || 260,
+        };
         popup.classList.add("is-visible");
         bindAnchoredPopupTracking();
         positionPopupNearMarker(getPopupAnchorScreenPosition() || detail.screenPosition);
@@ -2512,7 +2522,15 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
             return __gnssInterferenceCellsCache;
         })
         .catch((err) => {
-            console.error("GNSS interference fetch failed:", err);
+            __gnssInterferenceMeta = {
+                demoMode: false,
+                updatedAt: null,
+                sourceMode: "unavailable",
+                liveAvailable: false,
+                tableAvailable: true,
+                message: err?.message || "GNSS interference endpoint is unavailable.",
+            };
+            __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();
             return __gnssInterferenceCellsCache;
         })

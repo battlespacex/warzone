@@ -973,6 +973,13 @@ function collectRawMediaCandidates(item = {}) {
     };
 
     [
+        item.image,
+        item.image_url,
+        item.imageUrl,
+        item.thumbnail,
+        item.thumbnailUrl,
+        item.media_url,
+        item.mediaUrl,
         raw.image,
         raw.image_url,
         raw.imageUrl,

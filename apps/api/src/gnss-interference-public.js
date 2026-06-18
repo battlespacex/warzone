@@ -262,6 +262,40 @@ export function toPublicGnssCell(row = {}) {
     };
 }
 
+async function getGnssCellsFromStatusFeed({ supabase = null, limit = DEFAULT_LIMIT } = {}) {
+    if (!supabase) return [];
+    const boundedLimit = clamp(Math.floor(Number(limit) || DEFAULT_LIMIT), 12, 600);
+    const { data, error } = await supabase
+        .from("status_feed_items")
+        .select("id, source_name, published_at, fetched_at, region, country, lat, lon, severity, category, confidence_score, is_status_relevant")
+        .eq("is_status_relevant", true)
+        .in("category", ["gps_jamming", "gps_spoofing", "gnss_interference"])
+        .not("lat", "is", null)
+        .not("lon", "is", null)
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("fetched_at", { ascending: false })
+        .limit(boundedLimit);
+    if (error || !Array.isArray(data)) return [];
+    return data
+        .map((row) => toPublicGnssCell({
+            id: `status-${row.id}`,
+            cell_id: `status-${row.id}`,
+            lat: row.lat,
+            lon: row.lon,
+            severity: row.severity || "medium",
+            affected_percent: 0,
+            sample_count: Math.max(1, Math.round(Number(row.confidence_score || 0) / 25) || 1),
+            confidence: Number(row.confidence_score || 0) >= 70 ? "high" : "medium",
+            country: row.country,
+            region: row.region,
+            observed_at: row.published_at || row.fetched_at,
+            updated_at: row.fetched_at || row.published_at,
+            source_label: row.source_name || "GNSS Status Feed",
+            is_demo: false,
+        }))
+        .filter(Boolean);
+}
+
 export async function getPublicGnssInterferenceCells({ supabase = null, limit = DEFAULT_LIMIT } = {}) {
     const boundedLimit = clamp(Math.floor(Number(limit) || DEFAULT_LIMIT), 12, 600);
     const demoFallback = GNSS_INTERFERENCE_DEMO_CELLS
@@ -318,6 +352,18 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
                     message: "",
                 };
             }
+            const statusCells = await getGnssCellsFromStatusFeed({ supabase, limit: boundedLimit });
+            if (statusCells.length) {
+                return {
+                    cells: statusCells,
+                    demoMode: false,
+                    updatedAt: statusCells[0]?.updatedAt || null,
+                    sourceMode: "status_feed",
+                    liveAvailable: true,
+                    tableAvailable: true,
+                    message: "GNSS cells are derived from vetted status feed rows because the dedicated GNSS grid has no active cells.",
+                };
+            }
             return {
                 cells: [],
                 demoMode: false,
@@ -343,6 +389,20 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
                     liveAvailable: false,
                     tableAvailable: !tableMissing,
                     message: "GNSS demo fallback is enabled because live GNSS table data is unavailable.",
+                };
+            }
+            const statusCells = await getGnssCellsFromStatusFeed({ supabase, limit: boundedLimit });
+            if (statusCells.length) {
+                return {
+                    cells: statusCells,
+                    demoMode: false,
+                    updatedAt: statusCells[0]?.updatedAt || null,
+                    sourceMode: "status_feed",
+                    liveAvailable: true,
+                    tableAvailable: !tableMissing,
+                    message: tableMissing
+                        ? "GNSS dedicated table is not deployed; showing vetted status-feed GNSS rows."
+                        : "GNSS dedicated cells are unavailable; showing vetted status-feed GNSS rows.",
                 };
             }
             return {
