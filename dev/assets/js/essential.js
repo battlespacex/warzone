@@ -120,6 +120,7 @@ let __intelWireMediaState = new Map();
 let __intelWireNextRefreshAt = 0;
 let __intelWireRefreshInterval = null;
 let __intelWireRefreshInFlight = false;
+let __intelWireEndpointBackoffUntil = 0;
 let __layerDeferredRefreshTimer = 0;
 let __hotspotDeferredSyncTimer = 0;
 let __seededAircraftTrackKeys = new Set();
@@ -157,6 +158,7 @@ const FEED_LOAD_MORE_COUNT = 12;
 const FEED_EXPAND_VIEWPORT_PAD = 16;
 const FEED_EXPAND_MAX_WIDTH = 1120;
 const INTEL_WIRE_REFRESH_MS = 5 * 60 * 1000;
+const INTEL_WIRE_ENDPOINT_BACKOFF_MS = 30 * 60 * 1000;
 const INTEL_WIRE_MAX_ITEMS = 120;
 const GNSS_LAYER_REFRESH_MS = 10 * 60 * 1000;
 const HIGH_VALUE_ASSET_ALERT_THROTTLE_MS = 10 * 60 * 1000;
@@ -938,6 +940,7 @@ async function refreshIntelWireItems({ force = false } = {}) {
     if (isDocumentHidden()) return;
     if (__intelWireRefreshInFlight) return;
     const now = Date.now();
+    if (!force && __intelWireEndpointBackoffUntil && now < __intelWireEndpointBackoffUntil) return;
     if (!force && __intelWireNextRefreshAt && now < __intelWireNextRefreshAt) return;
     __intelWireRefreshInFlight = true;
     __intelWireNextRefreshAt = now + INTEL_WIRE_REFRESH_MS;
@@ -959,6 +962,10 @@ async function refreshIntelWireItems({ force = false } = {}) {
         debouncedRenderFeed(getFeedEvents());
     } catch (err) {
         console.warn("Intel Wire feed refresh failed:", err);
+        const message = String(err?.message || "");
+        if (/returned non-JSON response|warzone worker running/i.test(message)) {
+            __intelWireEndpointBackoffUntil = Date.now() + INTEL_WIRE_ENDPOINT_BACKOFF_MS;
+        }
     } finally {
         __intelWireRefreshInFlight = false;
         if (shouldShowLoader) {
@@ -2991,6 +2998,35 @@ function escapeHtml(value = "") {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 }
+function decodeBasicHtmlEntities(value = "") {
+    let text = String(value ?? "");
+    for (let index = 0; index < 3; index += 1) {
+        const next = text
+            .replace(/&nbsp;/gi, " ")
+            .replace(/&amp;/gi, "&")
+            .replace(/&quot;/gi, "\"")
+            .replace(/&#39;|&#x27;/gi, "'")
+            .replace(/&lt;/gi, "<")
+            .replace(/&gt;/gi, ">");
+        if (next === text) break;
+        text = next;
+    }
+    return text;
+}
+function sanitizeIntelWireSummary(value = "") {
+    const decoded = decodeBasicHtmlEntities(value);
+    const stripped = decoded
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=["'][^"']*["']/gi, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
+        .replace(/https?:\/\/\S+/gi, " ");
+    const leakedIndex = stripped.search(/\b(?:data-history-node-id|about=|href=|class=|src=|<article|<\/article|<p>|<\/p>)/i);
+    return (leakedIndex >= 0 ? stripped.slice(0, leakedIndex) : stripped)
+        .replace(/\s+/g, " ")
+        .trim();
+}
 function isIntelWireMediaEnabled() {
     return window.__stratopsConfig?.enableIntelWireMedia === true;
 }
@@ -3501,7 +3537,7 @@ function renderFeed(viewModelOrEvents) {
             </div>
             <div class="timeline-body">
                 <strong class="wz-feed-title">${escapeHtml(event.title || "Untitled event")}</strong>
-                <p class="wz-feed-summary">${escapeHtml(event.summary || "No summary available.")}</p>
+                <p class="wz-feed-summary">${escapeHtml(sanitizeIntelWireSummary(event.summary) || "No summary available.")}</p>
                 <small class="wz-feed-location">
                     ${escapeHtml(compactEventPlaceLabel(event))}
                 </small>
@@ -4101,9 +4137,31 @@ function hasMilitaryAircraftOverride(track = {}) {
         FRONTEND_MILITARY_AIRCRAFT_OVERRIDE_PATTERNS.some((pattern) => pattern.test(haystack)) ||
         FRONTEND_SPECIAL_ISR_COMMAND_PATTERNS.some((pattern) => pattern.test(haystack)) ||
         FRONTEND_SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack)) ||
-        FRONTEND_CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack)) ||
         FRONTEND_FALCON_7X_PATTERNS.some((pattern) => pattern.test(haystack))
     );
+}
+function isCoastGuardCasaPatrolAircraftTrack(track = {}) {
+    const metadata = getAircraftMetadata(track);
+    const haystack = [
+        track.type_code,
+        track.icao_type,
+        metadata.type_code,
+        track.model_name,
+        track.model,
+        track.variant,
+        track.aircraft_type,
+        track.description,
+        metadata.model_name,
+        track.operator,
+        metadata.operator,
+        track.title,
+        track.callsign,
+        track.flight,
+        metadata.callsign,
+    ]
+        .filter(Boolean)
+        .join(" ");
+    return FRONTEND_CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack));
 }
 function isLikelyCivilianPassengerAircraftTrack(track = {}) {
     const metadata = getAircraftMetadata(track);
@@ -4155,6 +4213,7 @@ function isLikelyCivilianUtilityAircraftTrack(track = {}) {
 }
 function shouldExcludeFromMilitaryAircraftTracker(track = {}) {
     return (
+        isCoastGuardCasaPatrolAircraftTrack(track) ||
         isLikelyCivilianPassengerAircraftTrack(track) ||
         isLikelyCivilianUtilityAircraftTrack(track) ||
         isLikelyTrainerAircraftTrack(track)
@@ -4760,6 +4819,33 @@ function syncAircraftLivePipelines({ forceRefresh = false } = {}) {
         refreshPublicAirTracksNow({ force: true }).catch(() => { });
     }
 }
+function requestFastForegroundAircraftRecovery({
+    forceRefresh = false,
+    forcePublicRefresh = false,
+} = {}) {
+    if (isDocumentHidden()) return false;
+    if (!isLayerEnabled("aircraft")) return false;
+    if (__foregroundPipelineResumeTimer) {
+        window.clearTimeout(__foregroundPipelineResumeTimer);
+        __foregroundPipelineResumeTimer = 0;
+    }
+    const shouldForceRefresh = forceRefresh === true;
+    const shouldForcePublicRefresh = shouldForceRefresh || forcePublicRefresh === true;
+    startAircraftLiveSync();
+    startTracksRealtimeChannel();
+    syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
+    if (shouldForceRefresh) {
+        refreshAircraftHistoryCache(true).catch(() => { });
+    }
+    if (shouldForcePublicRefresh) {
+        refreshPublicAirTracksNow({ force: true }).catch(() => { });
+    }
+    startPublicAirIngestion();
+    requestAircraftMovementsWidgetRender(0);
+    startForegroundRenderWakeBurst(550);
+    window.__warzoneViewer?.scene?.requestRender?.();
+    return true;
+}
 function handleTracksRealtimePayload(payload) {
     const eventType = String(payload?.eventType || payload?.event || "").toUpperCase();
     const track = payload?.new || payload?.old;
@@ -4865,9 +4951,10 @@ function resumeForegroundLivePipelines({ backgroundIdleMs = 0 } = {}) {
     startEventPollingFallback();
     startIntelWireRefreshLoop({ forceInitial: false });
     if (isLayerEnabled("aircraft")) {
-        startAircraftLiveSync();
-        startTracksRealtimeChannel();
-        syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
+        requestFastForegroundAircraftRecovery({
+            forceRefresh: wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS,
+            forcePublicRefresh: wasSuspended,
+        });
     }
     if (__foregroundPipelineResumeTimer) {
         window.clearTimeout(__foregroundPipelineResumeTimer);
@@ -4877,11 +4964,10 @@ function resumeForegroundLivePipelines({ backgroundIdleMs = 0 } = {}) {
         __foregroundPipelineResumeTimer = 0;
         if (isDocumentHidden()) return;
         if (isLayerEnabled("aircraft")) {
-            refreshAircraftHistoryCache(wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS)
-                .catch(() => { });
-            refreshPublicAirTracksNow({ force: wasSuspended })
-                .catch(() => { });
-            startPublicAirIngestion();
+            requestFastForegroundAircraftRecovery({
+                forceRefresh: wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS,
+                forcePublicRefresh: wasSuspended,
+            });
         }
         if (wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS) {
             void refreshIntelWireItems({ force: false });
@@ -5901,7 +5987,9 @@ export async function initWarzoneApp() {
             __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
         }
         await refreshStatusEvents();
-        await refreshGnssInterferenceCells({ force: true });
+        if (isLayerEnabled("gnss")) {
+            await refreshGnssInterferenceCells({ force: true });
+        }
         __viewportScoped = false;
         renderAll(events);
         startIntelWireRefreshLoop();
@@ -5992,7 +6080,9 @@ export async function initWarzoneApp() {
                         ? data.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     await refreshStatusEvents();
-                    await refreshGnssInterferenceCells({ force: true });
+                    if (isLayerEnabled("gnss")) {
+                        await refreshGnssInterferenceCells({ force: true });
+                    }
                     renderAll(freshEvents);
                     updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
                     syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
@@ -6023,6 +6113,7 @@ export async function initWarzoneApp() {
     }
     syncIdleSceneState();
     syncAircraftLivePipelines();
+    window.__warzoneRequestFastForegroundAircraftRecovery = requestFastForegroundAircraftRecovery;
     if (!__visibilityRecoveryBound) {
         __visibilityRecoveryBound = true;
         const onForeground = () => {
@@ -6060,7 +6151,9 @@ export async function initWarzoneApp() {
             } else {
                 syncHotspotLayerEvents([]);
             }
-            void refreshGnssInterferenceCells();
+            if (isLayerEnabled("gnss")) {
+                void refreshGnssInterferenceCells();
+            }
             startForegroundRenderWakeBurst(700);
             scheduleForegroundAdaptiveRecovery(window.__warzoneViewer, backgroundIdleMs);
             window.__warzoneViewer?.scene?.requestRender?.();
@@ -6725,7 +6818,20 @@ const AUTH_BASE_STORAGE_KEY = "wz_auth_base";
 
 function isLocalHostName(hostname) {
     const host = String(hostname || "").toLowerCase();
-    return host === "localhost" || host === "127.0.0.1";
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+function isLocalAuthBypassEnabled() {
+    return isLocalHostName(window.location.hostname);
+}
+
+function getLocalDevAuthUser() {
+    return {
+        username: "Local Developer",
+        email: "local@stratops.dev",
+        role: "developer",
+        localDevBypass: true,
+    };
 }
 
 function getStoredAuthBase() {
@@ -6833,6 +6939,10 @@ async function validateAgainstBase(baseUrl) {
 }
 
 async function confirmAuthSession(maxPasses = 2, options = {}) {
+    if (isLocalAuthBypassEnabled()) {
+        return applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+    }
+
     const bases = options.background === true
         ? getBackgroundAuthBases()
         : getAuthBases();
@@ -6972,6 +7082,15 @@ function isLoginModalOpen() {
 }
 
 export function initStratopsIntro() {
+    if (isLocalAuthBypassEnabled()) {
+        applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+        try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
+        requestAnimationFrame(() => {
+            window.__warzoneShowRegionModal?.();
+        });
+        return;
+    }
+
     // ── Elements ────────────────────────────────────────────────────────────
     const introModal = document.getElementById("wz-intro-modal");
     const acceptBtn = document.getElementById("wz-intro-accept");
@@ -7393,6 +7512,10 @@ export function initStratopsAuth() {
 }
 
 export async function stratopsCheckAuth() {
+    if (isLocalAuthBypassEnabled()) {
+        return applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+    }
+
     try {
         return await confirmAuthSession(1, { background: true });
     } catch (err) {

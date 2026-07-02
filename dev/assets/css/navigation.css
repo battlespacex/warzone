@@ -288,7 +288,7 @@ body.is-app-active .wz-dock {
     color: var(--color-teal-glow);
     font-size: var(--text-sm);
     font-weight: 600;
-    letter-spacing: 0.5rem;
+    letter-spacing: 0.2rem;
     text-transform: uppercase;
     pointer-events: none;
     opacity: 0;
@@ -389,6 +389,11 @@ body.is-about-open .wz-radar-label-layer {
     background: var(--color-teal);
 }
 
+.wz-globe-toggle__btn:disabled,
+.wz-globe-toggle__btn.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.52;
+}
 
 /* ── DEFCON Badge ── */
 .wz-defcon {

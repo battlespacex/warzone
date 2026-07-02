@@ -88,6 +88,34 @@ async function handleAircraftFeedProxy(_req, res) {
 app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
 app.get(`${BASE}/aircraft-feed/mil`, handleAircraftFeedProxy);
 
+app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", async (req, res) => {
+    const z = Math.max(0, Math.min(15, Number.parseInt(req.params.z, 10)));
+    const x = Math.max(0, Number.parseInt(req.params.x, 10));
+    const y = Math.max(0, Number.parseInt(req.params.y, 10));
+    if (![z, x, y].every(Number.isFinite)) {
+        res.status(400).json({ error: "Invalid terrain tile" });
+        return;
+    }
+    try {
+        const upstream = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+        const response = await fetch(upstream, {
+            headers: {
+                Accept: "image/png,image/*;q=0.8",
+                "User-Agent": "stratops-warzone-terrain/1.0",
+            },
+        });
+        if (!response.ok) {
+            res.status(response.status).json({ error: "Terrain tile unavailable" });
+            return;
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        res.set("Cache-Control", "public, max-age=86400, immutable");
+        res.type("image/png").send(Buffer.from(arrayBuffer));
+    } catch {
+        res.status(502).json({ error: "Terrain tile proxy unavailable" });
+    }
+});
+
 app.get("/api/*", async (req, res) => {
     try {
         const upstreamPath = req.originalUrl.replace(/^\/api/, "") || "/";

@@ -56,41 +56,42 @@
 .wz-gnss-panel .panel-head h2 {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 1rem;
 }
 .wz-gnss-legend__tag {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 2rem;
-    padding: 0 0.6rem;
-    background: rgba(255, 220, 82, 0.16);
+    padding: 0 0.7rem;
+    background: var(--color-yellow-overlay);
     color: var(--color-yellow-slate);
-    font-size: 1rem;
+    font-size: var(--text-sm);
 }
 .wz-gnss-panel__body {
     display: grid;
-    gap: 0.55rem;
-    padding: 1rem 1.2rem;
-    color: var(--color-text);
-    font-size: var(--text-sm);
+    gap: 1rem;
+    padding: 1.5rem;
 }
 .wz-gnss-legend__status {
-    padding: 0.75rem 0.9rem;
-    border: 0.1rem solid rgba(143, 163, 184, 0.16);
-    background: rgba(20, 24, 31, 0.42);
-    color: var(--color-text-heading);
+padding: 1rem 1rem 0.6rem;
+    background: var(--color-yellow-overlay);
+    color: var(--color-yellow-slate);
     line-height: 1.45;
+    font-size: var(--text-sm);
+    clip-path: var(--clippath-shape-3);
 }
 .wz-gnss-legend__status[data-tone="warning"] {
-    border-color: rgba(255, 183, 77, 0.24);
+    background: var(--color-yellow-overlay);
     color: var(--color-yellow-slate);
 }
 .wz-gnss-legend__status[data-tone="demo"] {
-    border-color: rgba(95, 221, 255, 0.22);
+    background: var(--color-orange-overlay);
+    color: var(--color-orange-slate);
 }
 .wz-gnss-legend__status[data-tone="live"] {
-    border-color: rgba(76, 255, 118, 0.18);
+    background: var(--color-green-overlay);
+    color: var(--color-green-slate);
 }
 .wz-gnss-legend__row {
     display: flex;
@@ -99,9 +100,8 @@
 }
 .wz-gnss-legend__swatch {
     display: inline-flex;
-    width: 1.2rem;
-    height: 1.2rem;
-    border: 0.1rem solid transparent;
+    width: 1.4rem;
+    height: 1.4rem;
 }
 .wz-gnss-legend__swatch--low {
     background: var(--gnss-cell-fill-low);
@@ -182,12 +182,12 @@
     position: absolute;
     z-index: 1;
     gap: 1.5rem;
+    font-size: var(--text-sm);
 }
     .warzone-map-credits a,
     .warzone-map-credits button,
     .warzone-map-credits img {
         pointer-events: auto;
-        height: 18px;
         display: flex !important;
         align-items: center;
     }
@@ -197,6 +197,7 @@
         width: 2px;
         border-radius: 1px;
         background: var(--color-border-gray);
+        display: none;
     }
 
     .cesium-widget-credits {
@@ -210,14 +211,12 @@
         vertical-align: -2px !important;
     }
 
-    .battlespacex-logo {
-    background: url(../images/web/Battlespacex-full-logo.svg) no-repeat;
-    content: '';
+    .warzone-map-credits__logo {
     position: relative;
-    height: 3rem;
-    background-size: contain;
-    left: auto;
-    aspect-ratio: 6 / 1;
+    height: 2.4rem !important;
+    width: auto;
+    max-width: none;
+    object-fit: contain;
     opacity: 1;
 }
 

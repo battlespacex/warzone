@@ -578,6 +578,24 @@ function isDirectImageUrl(value = "") {
     return /\.(png|jpe?g|webp|gif|avif)(?:[?#].*)?$/i.test(String(value || "").trim());
 }
 
+function isLikelyImageUrl(value = "") {
+    const url = String(value || "").trim();
+    if (!isPublicHttpUrl(url)) return false;
+    if (isDirectImageUrl(url)) return true;
+    try {
+        const parsed = new URL(url);
+        const path = `${parsed.hostname} ${parsed.pathname}`.toLowerCase();
+        const query = parsed.search.toLowerCase();
+        return (
+            /(?:^|[\/._-])(image|images|img|photo|photos|picture|media|uploads|wp-content|cdn-cgi)(?:$|[\/._-])/i.test(path) ||
+            /(?:format|fm|type|mime|content-type)=(?:jpg|jpeg|png|webp|gif|avif|image)/i.test(query) ||
+            /(?:[?&](?:url|src|image|img)=https?%3a%2f%2f)/i.test(query)
+        );
+    } catch {
+        return false;
+    }
+}
+
 function isDirectVideoUrl(value = "") {
     return /\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(String(value || "").trim());
 }
@@ -591,6 +609,7 @@ function isSafePublicEmbedUrl(value = "") {
 
 function normalizeAssetUrl(value = "") {
     const url = String(value || "").trim();
+    if (url.startsWith("//")) return `https:${url}`;
     return isPublicHttpUrl(url) ? url : "";
 }
 
@@ -626,9 +645,18 @@ function decodeHtmlEntities(value = "") {
 }
 
 function stripHtmlToText(value = "") {
-    return decodeHtmlEntities(value)
+    const decoded = decodeHtmlEntities(value);
+    const withoutTags = decoded
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
         .replace(/<[^>]*>/g, " ")
-        .replace(/\b(?:class|href|style|src|about|data-[a-z0-9_-]+)=["'][^"']*["']/gi, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=["'][^"']*["']/gi, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/\{[^{}]*(?:url|uri|html|node|data-history)[^{}]*\}/gi, " ");
+    const leakedIndex = withoutTags.search(/\b(?:data-history-node-id|about=|href=|class=|src=|<article|<\/article|<p>|<\/p>)/i);
+    const text = leakedIndex >= 0 ? withoutTags.slice(0, leakedIndex) : withoutTags;
+    return text
         .replace(/\s+/g, " ")
         .trim();
 }
@@ -663,7 +691,12 @@ function parseHtmlMediaCandidates(html = "") {
     let match;
     while ((match = attrPattern.exec(text))) {
         const attrs = parseHtmlAttributes(match[2] || "");
-        const sourceUrl = attrs.src || attrs["data-src"] || attrs.poster || "";
+        const sourceUrl = attrs.src ||
+            attrs["data-src"] ||
+            attrs["data-lazy-src"] ||
+            attrs["data-original"] ||
+            attrs.poster ||
+            extractFirstSrcsetUrl(attrs.srcset || attrs["data-srcset"] || "");
         const contextStart = Math.max(0, match.index - 240);
         const contextEnd = Math.min(text.length, attrPattern.lastIndex + 360);
         const context = text.slice(contextStart, contextEnd);
@@ -681,6 +714,11 @@ function parseHtmlMediaCandidates(html = "") {
         });
     }
     return matches.filter((entry) => entry.url);
+}
+
+function extractFirstSrcsetUrl(value = "") {
+    const first = String(value || "").split(",")[0] || "";
+    return first.trim().split(/\s+/)[0] || "";
 }
 
 function collectHtmlMetadataCandidates(html = "", pushImage = () => {}, pushVideo = () => {}) {
@@ -770,7 +808,7 @@ function containsIntelPositiveToken(value = "") {
 
 function isRejectedIntelImageCandidate(entry = {}) {
     const url = String(entry.url || "").trim().toLowerCase();
-    if (!url || !isDirectImageUrl(url)) return true;
+    if (!url || !isLikelyImageUrl(url)) return true;
     if (/^data:/i.test(url)) return true;
     if (/\.svg(?:[?#].*)?$/i.test(url)) return true;
     if (containsIntelNegativeToken(url)) return true;
@@ -881,7 +919,7 @@ function scoreIntelMediaVideo(entry = {}) {
             score += 20;
             break;
     }
-    if (entry.thumbUrl && isDirectImageUrl(entry.thumbUrl)) score += 6;
+    if (entry.thumbUrl && isLikelyImageUrl(entry.thumbUrl)) score += 6;
     if (entry.videoUrl && isDirectVideoUrl(entry.videoUrl)) score += 6;
     if (entry.embedUrl && isSafePublicEmbedUrl(entry.embedUrl)) score += 4;
     return score;
@@ -898,7 +936,7 @@ function selectIntelVideoCandidates(candidates = []) {
             ...entry,
             videoUrl: isDirectVideoUrl(videoUrl) ? videoUrl : "",
             embedUrl: isSafePublicEmbedUrl(embedUrl) ? embedUrl : "",
-            thumbUrl: isDirectImageUrl(thumbUrl) ? thumbUrl : "",
+            thumbUrl: isLikelyImageUrl(thumbUrl) ? thumbUrl : "",
             _order: index,
         };
         candidate._score = scoreIntelMediaVideo(candidate);
@@ -1164,7 +1202,7 @@ function getIntelWireMediaAsset(item = {}, kind = "", index = 0, variant = "full
         const video = videos[Math.max(0, Number(index) || 0)];
         if (!video) return null;
         if (variant === "thumb") {
-            if (!video.thumbUrl || !isDirectImageUrl(video.thumbUrl)) return null;
+            if (!video.thumbUrl || !isLikelyImageUrl(video.thumbUrl)) return null;
             return { url: video.thumbUrl, type: "image" };
         }
         if (variant === "stream") {

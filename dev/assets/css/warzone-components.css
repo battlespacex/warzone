@@ -1860,6 +1860,10 @@ UNUSED CANDIDATE END */
     width: 100%;
 }
 
+.warzone-panel--floating.is-feed-expanded .wz-aircraft-type-filter { 
+    width: 50% 
+}
+
 .wz-aircraft-country {
     position: relative;
     width: 100%;
@@ -3123,8 +3127,15 @@ UNUSED CANDIDATE END */
 }
 
 .wz-dev-check input {
+    appearance: auto;
+    -webkit-appearance: checkbox;
+    display: inline-block;
     width: 1.5rem;
     height: 1.5rem;
+    accent-color: var(--color-teal-glow);
+    flex: 0 0 1.5rem;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .wz-dev-actions {

@@ -1969,6 +1969,7 @@ const DEV_PANEL_SECTIONS = [
     { value: "live-naval", label: "Live Naval Settings" },
     { value: "live-glb", label: "Shared GLB / Lighting" },
     { value: "live-asset-tuner", label: "Live Asset Tuner" },
+    { value: "map-performance", label: "Map Performance Layers" },
     { value: "region-selector", label: "Region Selector" },
     { value: "general-debug", label: "General Debug" },
 ];
@@ -1996,6 +1997,14 @@ function annotateDevPanelSections() {
     const liveBlock = document.querySelector(".wz-dev-live-asset-block");
     if (liveBlock) {
         liveBlock.dataset.wzDevSection = "live-aircraft live-naval live-glb live-asset-tuner";
+    }
+    const mapLayerControls = document.getElementById("wz-dev-map-layer-controls");
+    if (mapLayerControls) {
+        mapLayerControls.dataset.wzDevSection = "map-performance";
+        const previous = mapLayerControls.previousElementSibling;
+        if (previous?.classList?.contains("wz-dev-label")) {
+            previous.dataset.wzDevSection = "map-performance";
+        }
     }
 }
 function applyDevPanelSectionFilter(section = "general-debug") {
@@ -2028,6 +2037,172 @@ function initDevPanelSectionFilter() {
         applyDevPanelSectionFilter(select.value);
     });
     applyDevPanelSectionFilter("live-asset-tuner");
+}
+
+function getDevMapApi() {
+    return window.__warzoneViewer?.__warzone || null;
+}
+let __devContourTuningRefreshTimer = 0;
+function setRootCssNumber(varName, value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return false;
+    document.documentElement.style.setProperty(varName, String(parsed));
+    return true;
+}
+function scheduleDevContourTuningRefresh() {
+    window.clearTimeout(__devContourTuningRefreshTimer);
+    __devContourTuningRefreshTimer = window.setTimeout(() => {
+        const api = getDevMapApi();
+        api?.refreshMapTuning?.();
+        if (api?.isContourLayerVisible?.() === true) {
+            api?.refreshContourFromViewport?.({ force: true, reason: "dev-contour-tuning" });
+        }
+    }, 80);
+}
+function ensureDevMapLayerControls() {
+    const grid = document.querySelector("#wz-dev-body .wz-dev-grid");
+    if (!grid || document.getElementById("wz-dev-map-layer-controls")) return;
+    const label = document.createElement("div");
+    label.className = "wz-dev-label";
+    label.dataset.wzDevSection = "map-performance";
+    label.textContent = "MAP PERFORMANCE LAYERS";
+    const controls = document.createElement("div");
+    controls.id = "wz-dev-map-layer-controls";
+    controls.className = "wz-dev-map-tuner";
+    controls.dataset.wzDevSection = "map-performance";
+    controls.innerHTML = `
+        <label class="wz-dev-field wz-dev-field--full wz-dev-check">
+            <input id="wz-dev-layer-satellite" type="checkbox" checked>
+            <span>Satellite map</span>
+        </label>
+        <label class="wz-dev-field wz-dev-field--full wz-dev-check">
+            <input id="wz-dev-layer-terrain" type="checkbox">
+            <span>3D terrain map</span>
+        </label>
+        <label class="wz-dev-field wz-dev-field--full wz-dev-check">
+            <input id="wz-dev-layer-grey-satellite" type="checkbox">
+            <span>Greyedout satellite map</span>
+        </label>
+        <label class="wz-dev-field wz-dev-field--full wz-dev-check">
+            <input id="wz-dev-layer-contour" type="checkbox">
+            <span>Contour line</span>
+        </label>
+        <label class="wz-dev-field wz-dev-field--full wz-dev-check">
+            <input id="wz-dev-layer-grid" type="checkbox">
+            <span>Grid line</span>
+        </label>
+        <label class="wz-dev-field">
+            <span>Contour thickness</span>
+            <input id="wz-dev-contour-width" type="number" min="0.5" max="8" step="0.1">
+        </label>
+        <label class="wz-dev-field">
+            <span>Major contour</span>
+            <input id="wz-dev-contour-major-width" type="number" min="1" max="4" step="0.05">
+        </label>
+        <label class="wz-dev-field">
+            <span>Contour glow</span>
+            <input id="wz-dev-contour-halo-width" type="number" min="0" max="12" step="0.1">
+        </label>
+        <label class="wz-dev-field">
+            <span>Contour alpha</span>
+            <input id="wz-dev-contour-alpha" type="number" min="0.05" max="1" step="0.01">
+        </label>
+        <div class="wz-dev-map-actions">
+            <button id="wz-dev-map-layer-sync" type="button" class="wz-dev-action">Sync From Map</button>
+            <button id="wz-dev-map-layer-fast" type="button" class="wz-dev-action wz-dev-action--fire">Fast Focus Preset</button>
+        </div>`;
+    const firstChild = grid.firstElementChild;
+    if (firstChild) {
+        grid.insertBefore(controls, firstChild);
+        grid.insertBefore(label, controls);
+    } else {
+        grid.append(label, controls);
+    }
+}
+function syncDevMapLayerControls() {
+    const api = getDevMapApi();
+    const setChecked = (id, checked) => {
+        const input = document.getElementById(id);
+        if (input) input.checked = !!checked;
+    };
+    setChecked("wz-dev-layer-satellite", api?.isSatelliteVisible?.() !== false);
+    setChecked("wz-dev-layer-terrain", api?.isFocusedTerrainActive?.() === true);
+    setChecked("wz-dev-layer-grey-satellite", api?.isGreyedSatelliteVisible?.() === true);
+    setChecked("wz-dev-layer-contour", api?.isContourLayerVisible?.() === true);
+    setChecked("wz-dev-layer-grid", api?.isContourGridVisible?.() === true);
+    const setValue = (id, varName, fallback) => {
+        const input = document.getElementById(id);
+        if (input && document.activeElement !== input) {
+            input.value = String(getRootCssNumber(varName, fallback));
+        }
+    };
+    setValue("wz-dev-contour-width", "--warzone-contour-line-width", 1.65);
+    setValue("wz-dev-contour-major-width", "--warzone-live-aircraft-contour-major-width-scale", 1.45);
+    setValue("wz-dev-contour-halo-width", "--warzone-contour-halo-width", 2.15);
+    setValue("wz-dev-contour-alpha", "--warzone-live-aircraft-contour-alpha", 0.78);
+}
+function initDevMapLayerControls() {
+    ensureDevMapLayerControls();
+    const bindCheckbox = (id, handler) => {
+        const input = document.getElementById(id);
+        if (!input || input.dataset.bound === "true") return;
+        input.dataset.bound = "true";
+        input.addEventListener("change", () => {
+            const api = getDevMapApi();
+            if (!api) return;
+            void Promise.resolve(handler(api, input.checked))
+                .then(() => {
+                    syncDevMapLayerControls();
+                    devLog(`Map layer ${input.nextElementSibling?.textContent || id}: ${input.checked ? "ON" : "OFF"}`);
+                })
+                .catch((error) => {
+                    console.warn("Map layer toggle failed:", error);
+                    syncDevMapLayerControls();
+                });
+        });
+    };
+    bindCheckbox("wz-dev-layer-satellite", (api, checked) => api.setSatelliteVisible?.(checked));
+    bindCheckbox("wz-dev-layer-terrain", (api, checked) => {
+        if (!checked) return api.disableFocusedTerrain?.();
+        api.setSatelliteVisible?.(true);
+        return api.enableFocusedTerrain?.();
+    });
+    bindCheckbox("wz-dev-layer-grey-satellite", (api, checked) => api.setGreyedSatelliteVisible?.(checked));
+    bindCheckbox("wz-dev-layer-contour", (api, checked) => api.setContourLayerVisible?.(checked));
+    bindCheckbox("wz-dev-layer-grid", (api, checked) => api.setContourGridVisible?.(checked));
+    const bindNumber = (id, varName) => {
+        const input = document.getElementById(id);
+        if (!input || input.dataset.bound === "true") return;
+        input.dataset.bound = "true";
+        input.addEventListener("input", () => {
+            if (!setRootCssNumber(varName, input.value)) return;
+            scheduleDevContourTuningRefresh();
+        });
+        input.addEventListener("change", () => {
+            if (!setRootCssNumber(varName, input.value)) return;
+            scheduleDevContourTuningRefresh();
+            devLog(`${input.previousElementSibling?.textContent || id}: ${input.value}`);
+        });
+    };
+    bindNumber("wz-dev-contour-width", "--warzone-contour-line-width");
+    bindNumber("wz-dev-contour-major-width", "--warzone-live-aircraft-contour-major-width-scale");
+    bindNumber("wz-dev-contour-halo-width", "--warzone-contour-halo-width");
+    bindNumber("wz-dev-contour-alpha", "--warzone-live-aircraft-contour-alpha");
+    document.getElementById("wz-dev-map-layer-sync")?.addEventListener("click", syncDevMapLayerControls);
+    document.getElementById("wz-dev-map-layer-fast")?.addEventListener("click", () => {
+        const api = getDevMapApi();
+        if (!api) return;
+        api.setSatelliteVisible?.(true);
+        api.setGreyedSatelliteVisible?.(false);
+        api.setContourGridVisible?.(false);
+        void Promise.resolve(api.enableFocusedTerrain?.())
+            .then(() => api.setContourLayerVisible?.(true))
+            .finally(syncDevMapLayerControls);
+        devLog("Map fast focus preset: satellite ON, terrain ON, grid OFF, contour ON");
+    });
+    document.addEventListener("wz:contour-layer-changed", syncDevMapLayerControls);
+    document.addEventListener("wz:focused-terrain-changed", syncDevMapLayerControls);
+    window.setTimeout(syncDevMapLayerControls, 250);
 }
 
 function openDevSharedModal(modal) {
@@ -2217,6 +2392,7 @@ export function initDevPanel() {
     });
     if (!isLocal) return;
     panel.hidden = false;
+    initDevMapLayerControls();
     document.getElementById("wz-dev-toggle")?.addEventListener("click", () => {
         const body = document.getElementById("wz-dev-body");
         if (body) body.hidden = !body.hidden;

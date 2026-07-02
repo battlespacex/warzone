@@ -838,6 +838,22 @@ export function flyToRegion(viewer, region, options = {}) {
             }
             applyRegionCameraLock(viewer, region);
             scheduleRegionButtonHintRefresh(viewer, 900);
+            try {
+                document.dispatchEvent(new CustomEvent("wz:region-camera-settled", {
+                    detail: {
+                        region,
+                        lens: __activeLens,
+                        source: String(options?.source || "manual"),
+                        success,
+                    },
+                }));
+            } catch { }
+            if (viewer.__warzone?.isContourLayerVisible?.() === true) {
+                viewer.__warzone.refreshContourFromViewport?.({
+                    force: true,
+                    reason: "region-camera-settled",
+                });
+            }
             resolve(success);
         };
         if (showLoader) {

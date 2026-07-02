@@ -6,22 +6,21 @@ import {
     initBoot, initWarzoneApp, initAudio, startEventPollingFallback,
     initStratopsIntro, initStratopsAuth, schedulePostEntryActions
 } from "./essential.js";
-import { initWarzoneMilitaryBases, setWarzoneMilitaryBasesVisible } from "./warzone-military-bases.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
 import { initRegionSelector } from "./warzone-region-selector.js";
 import {
     subscribeToLiveEvents,
     subscribeToSirenBroadcast,
 } from "./warzone-realtime.js";
-import { initDevPanel } from "./warzone-dev-panel.js";
 import { bindWarzoneUi } from "./warzone-ui.js";
 import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 import { initStratopsBilling } from "./warzone-billing.js";
-
+import { isLayerEnabled } from "./warzone-layers.js";
 
 const isLocalDevHost =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "::1" ||
     window.location.hostname === "[::1]";
 
 window.__stratopsConfig = {
@@ -34,7 +33,9 @@ window.__stratopsConfig = {
     useAircraftBillboards: true,
     useNavalBillboards: true,
     aircraftVisualPolicy: {
-        // PNG default, model only when focused/close detail, char fallback for heavy counts
+        // Use PNG aircraft assets in overview; keep GLB for the selected/focused aircraft.
+        defaultMode: "img",
+        focusedMode: "model",
         modelZoomHeight: 280000,
         modelMaxActive: 6,
         charFallbackCount: 90,
@@ -46,28 +47,22 @@ window.__stratopsConfig = {
         charFallbackCount: 80,
         zoomModel: false,
     },
-    autoContourOnAircraftFocus: true,
+    autoContourOnAircraftFocus: false,
     enableFocusedContextModels: false,
-    autoTerrainOnAircraftFocus: false,
+    autoTerrainOnAircraftFocus: true,
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
     enableMilSatsLayer: true,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 
     billing: {
-        enabled: isLocalDevHost,
+        enabled: false,
     },
 };
 
 const INITIAL_THEATER_WARMUP_TIMEOUT_MS = 1400;
 const INITIAL_THEATER_WARMUP_KEEP_MS = 5000;
 const INITIAL_THEATER_CRITICAL_ASSETS = Object.freeze([
-    "/assets/images/live/live-aircraft-bb-1.png",
-    "/assets/images/live/live-aircraft-bb-2.png",
-    "/assets/images/live/live-aircraft-ff-5.png",
-    "/assets/images/live/live-aircraft-rr-1.png",
-    "/assets/images/live/live-aircraft-tn-1.png",
-    "/assets/images/live/live-aircraft-tp-2.png",
     "/assets/images/bases/airbase-1.png",
     "/assets/images/bases/naval-1.png",
     "/assets/images/bases/radar-1.png",
@@ -81,16 +76,6 @@ const INITIAL_THEATER_CRITICAL_ASSETS = Object.freeze([
     "/assets/images/models/air/ISR-P8.glb",
 ]);
 const INITIAL_THEATER_BACKGROUND_ASSETS = Object.freeze([
-    "/assets/images/live/live-aircraft-aw-1.png",
-    "/assets/images/live/live-aircraft-aw-2.png",
-    "/assets/images/live/live-aircraft-dd-1.png",
-    "/assets/images/live/live-aircraft-ff-1.png",
-    "/assets/images/live/live-aircraft-ff-2.png",
-    "/assets/images/live/live-aircraft-ff-3.png",
-    "/assets/images/live/live-aircraft-ff-4.png",
-    "/assets/images/live/live-aircraft-hh-1.png",
-    "/assets/images/live/live-aircraft-hh-2.png",
-    "/assets/images/live/live-aircraft-tp-1.png",
     "/assets/images/models/air/Fighter-F16.glb",
     "/assets/images/models/air/Fighter-F22.glb",
     "/assets/images/models/air/Fighter-F15.glb",
@@ -127,19 +112,64 @@ function preloadStaticAsset(url = "") {
     }
     return fetch(assetUrl, { cache: "force-cache" }).catch(() => null);
 }
+function installDeferredMilitaryBasesLayer(viewer) {
+    let basesModulePromise = null;
+    let basesModule = null;
+    let initialized = false;
+    let requestedVisible = false;
+
+    const loadBasesModule = () => {
+        if (!basesModulePromise) {
+            basesModulePromise = import("./warzone-military-bases.js")
+                .then((module) => {
+                    basesModule = module;
+                    if (!initialized) {
+                        initialized = true;
+                        module.initWarzoneMilitaryBases?.(viewer);
+                    }
+                    module.setWarzoneMilitaryBasesVisible?.(requestedVisible);
+                    return module;
+                })
+                .catch((error) => {
+                    basesModulePromise = null;
+                    console.warn("Military bases layer failed to load:", error);
+                    return null;
+                });
+        }
+        return basesModulePromise;
+    };
+
+    window.__setWarzoneMilitaryBasesVisible = (visible) => {
+        requestedVisible = Boolean(visible);
+        if (basesModule) {
+            basesModule.setWarzoneMilitaryBasesVisible?.(requestedVisible);
+            return;
+        }
+        if (requestedVisible) {
+            loadBasesModule();
+        }
+    };
+}
 async function warmupInitialTheater(viewer) {
     window.__wzKeepSiteLoaderVisible = true;
     window.__wzKeepSiteLoaderVisibleUntil = Date.now() + INITIAL_THEATER_WARMUP_KEEP_MS;
     window.SiteLoader?.start?.();
     try {
         viewer?.scene?.requestRender?.();
+        const criticalImages = INITIAL_THEATER_CRITICAL_ASSETS.filter((url) => /\.(png|jpe?g|webp|gif|svg)(?:[?#].*)?$/i.test(url));
+        const criticalModels = INITIAL_THEATER_CRITICAL_ASSETS.filter((url) => !criticalImages.includes(url));
         await Promise.race([
-            Promise.allSettled(INITIAL_THEATER_CRITICAL_ASSETS.map(preloadStaticAsset)),
+            Promise.allSettled(criticalImages.map(preloadStaticAsset)),
             wait(INITIAL_THEATER_WARMUP_TIMEOUT_MS),
         ]);
         viewer?.scene?.requestRender?.();
         await nextFrame();
         await nextFrame();
+        window.setTimeout(() => {
+            criticalModels.forEach((url) => {
+                preloadStaticAsset(url);
+            });
+        }, 8000);
     } finally {
         window.__wzKeepSiteLoaderVisible = false;
         window.__wzKeepSiteLoaderVisibleUntil = 0;
@@ -149,7 +179,7 @@ async function warmupInitialTheater(viewer) {
         INITIAL_THEATER_BACKGROUND_ASSETS.forEach((url) => {
             preloadStaticAsset(url);
         });
-    }, 250);
+    }, 15000);
 }
 
 initBoot();
@@ -198,12 +228,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (started) return;
             started = true;
             try {
-                initDevPanel();
+                if (isLocalDevHost) {
+                    import("./warzone-dev-panel.js")
+                        .then((module) => module.initDevPanel?.())
+                        .catch((error) => console.warn("Dev panel failed to load:", error));
+                }
                 await initWarzoneApp();
 
-                // Init bases AFTER initWarzoneApp so entity clears don't wipe them
-                initWarzoneMilitaryBases(viewer);
-                window.__setWarzoneMilitaryBasesVisible = setWarzoneMilitaryBasesVisible;
+                // Install the lazy hook AFTER initWarzoneApp so entity clears don't wipe bases.
+                // The large bases dataset is loaded only when the layer is enabled.
+                installDeferredMilitaryBasesLayer(viewer);
+                window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
 
                 await warmupInitialTheater(viewer);
 

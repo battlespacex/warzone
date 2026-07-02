@@ -129,6 +129,11 @@ const SPECIAL_VIP_GOV_PATTERNS = [
     /\bCOTAM\d+\b/i, /SLO ROSSIYA/i, /\bIL-?96-?300PU\b/i, /\bIL-?96PU\b/i, /\bTU-?214PU\b/i,
     /KONRAD ADENAUER/i,
 ];
+const COAST_GUARD_CASA_PATROL_PATTERNS = [
+    /\b(hc ?144b?|c ?144b?|casa 144b?|ocean sentry)\b/i,
+    /\b(uscg|u s coast guard|united states coast guard|coast guard)\b.*\b(cn ?235|c ?295|casa)\b/i,
+    /\b(cn ?235|c ?295|casa)\b.*\b(uscg|u s coast guard|united states coast guard|coast guard)\b/i,
+];
 let __pollTimer = null;
 let __isFetching = false;
 let __fetchInFlightSince = 0;
@@ -218,6 +223,19 @@ function isSpecialVipGovernmentRecord(record = {}) {
     ].filter(Boolean).join(" ");
     return SPECIAL_VIP_GOV_PATTERNS.some((pattern) => pattern.test(haystack));
 }
+function isCoastGuardCasaPatrolRecord(record = {}) {
+    const haystack = [
+        record.desc,
+        record.category,
+        record.r,
+        record.flight,
+        record.type,
+        record.t,
+        record.ownOp,
+        record.operator,
+    ].filter(Boolean).join(" ");
+    return COAST_GUARD_CASA_PATROL_PATTERNS.some((pattern) => pattern.test(haystack));
+}
 function isLikelyCivilianAirlinerRecord(record = {}) {
     const typeCode = normalizeString(record.t || record.type || "").toUpperCase();
     const haystack = [
@@ -295,6 +313,9 @@ function classifySubtype(record = {}) {
     }
     if (isSpecialVipGovernmentRecord(record)) {
         return "vip";
+    }
+    if (isCoastGuardCasaPatrolRecord(record)) {
+        return "civilian";
     }
     if (isLikelyCivilianUtilityRecord(record)) {
         return "civilian";
