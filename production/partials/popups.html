@@ -21,14 +21,14 @@
         <div id="warzone-alert" class="warzone-alert" role="status" aria-live="assertive" aria-atomic="true"
             hidden aria-hidden="true"
             data-alert-key="" data-alert-version="" data-sticky="" data-dismissed="">
-            <span class="warzone-alert__icon" aria-hidden="true">🔴</span>
+            <span class="warzone-alert__icon" aria-hidden="true">!</span>
             <span class="warzone-alert__text">
                 <strong id="warzone-alert-title">Air raid sirens active</strong>
                 <span id="warzone-alert-meta"></span>
             </span>
             <button type="button" class="warzone-alert__close" id="warzone-alert-dismiss"
                 aria-label="Dismiss alert banner" title="Dismiss alert banner">
-                ✕
+                X
             </button>
         </div>
         <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite" role="dialog"
@@ -178,6 +178,11 @@
                                 </div>
 
                                 <div class="wz-capability-group">
+                                    <h3>AOI Intelligence Lens</h3>
+                                    <p>Draw a custom area of interest on the map and generate a local intelligence-style summary of events, assets, routes, and strategic locations inside or near that area.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
                                     <h3>Military Activity Monitoring</h3>
                                     <p>Track military aircraft, naval movements, strategic assets, and operational developments in near real time.</p>
                                 </div>
@@ -194,6 +199,11 @@
                                 <div class="wz-capability-group">
                                     <h3>Cross-Domain Activity Correlation</h3>
                                     <p>Identify relationships between force movements, operational events, infrastructure, and strategic developments.</p>
+                                </div>
+
+                                <div class="wz-capability-group">
+                                    <h3>Area-Based Intelligence Scanning</h3>
+                                    <p>Use AOI scanning to compare activity concentration, nearby military presence, and operational signals within a user-defined geographic box.</p>
                                 </div>
 
                                 <div class="wz-capability-group">
@@ -634,9 +644,9 @@
                 <div class="wz-modal-inner">
                 <header>
                     <h2 id="wz-about-title">StratOps</h2>
-                    <button type="button" class="static-icon" id="wz-about-close" aria-label="Close about dialog">
-                        <span class="stratops-ico-close-1" aria-hidden="true"></span>
-                    </button>
+                    <span class="wz-close-modal">
+                        <button type="button" class="static-icon stratops-ico-close-1"  id="wz-about-close" aria-label="Close about dialog"></button>
+                    </span>
                 </header>
                 <nav class="wz-modal__tabs" role="tablist" aria-label="About and policy tabs">
                     <button class="wz-modal__tab is-active" type="button" data-tab="about" id="wz-about-tab-overview"
@@ -666,17 +676,18 @@
                         <h2>Strategic Overview</h2>
                         <p>
                             <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
-                                    target="_blank" rel="noopener noreferrer">BattlespaceX</a></strong>, is a real-time, OSINT-based
-                            multi-domain intelligence visualization platform built to map operational tempo across
-                            air, land, sea, space, and cyberspace.
+                                    target="_blank" rel="noopener noreferrer">BattlespaceX</a></strong>, is a real-time, multi-domain
+                            intelligence visualization platform that leverages OSINT to synthesize aggregated telemetry
+                            streams and event signals into a live, 3D layered battlespace spanning air, land, sea,
+                            space, and cyberspace.
                         </p>
                         <p>
-                            The platform emphasizes movement, escalation signals, and geographic context so users can
-                            interpret how a theater is evolving in near real time.
+                            It supports tracking of military movements, assessment of escalation dynamics, and continuous
+                            interpretation of operational changes within a theater of operations, in near real time.
                         </p>
                         <p>
-                            StratOps is part of the BattlespaceX ecosystem and is designed as a professional
-                            situational-awareness interface, not a general news dashboard.
+                            StratOps is designed as a professional situational-awareness interface for users who need a
+                            unified operational picture rather than a general news dashboard.
                         </p>
                         <h3>Platform Positioning</h3>
                         <ul class="wz-list-view">
@@ -684,6 +695,8 @@
                                 theater controls aligned to fast decision support</li>
                             <li><strong>Cross-domain picture:</strong> strike, aviation, naval, airspace, cyber, and
                                 anomaly-linked indicators in one interface</li>
+                            <li><strong>Area-based analysis:</strong> AOI scanning lets users draw a custom box and read
+                                event, asset, and strategic-location density inside the selected area</li>
                             <li><strong>High-density resilience:</strong> tuned to stay readable when event volume spikes
                                 across multiple regions</li>
                             <li><strong>Confidence-aware interpretation:</strong> supports iterative reading as data is
@@ -713,6 +726,8 @@
                                 status shifts</li>
                             <li><strong>Cyber/strategic layer:</strong> public cyber and infrastructure stress indicators
                                 tied to conflict context</li>
+                            <li><strong>AOI intelligence lens:</strong> user-defined area scanning for localized counts,
+                                severity, nearby assets, and strategic context</li>
                         </ul>
                         <h3>Visualization Stack</h3>
                         <ul class="wz-list-view">
@@ -745,6 +760,8 @@
                                 cross-domain rendering</li>
                             <li><strong>Classification:</strong> role and activity inference for aircraft, naval, strike,
                                 and escalation-relevant signals</li>
+                            <li><strong>Area interrogation:</strong> AOI selection compiles in-map events, assets, routes,
+                                and strategic locations into a focused operational readout</li>
                             <li><strong>Context filtering:</strong> scope by region, viewport, timeline, and layer state</li>
                             <li><strong>Operational rendering:</strong> combine overlays, widgets, hotspots, trackers,
                                 and alerts into one mission-like view</li>
@@ -823,7 +840,7 @@
         <div id="wz-donate-modal" class="wz-modal wz-donate-modal" aria-modal="true" role="dialog"
             aria-labelledby="wz-layer-donate-title"
             aria-describedby="wz-layer-donate-summary wz-layer-donate-detail" hidden>
-            <div class="wz-modal-box wz-min-modal">
+            <div class="wz-modal-box wz-max-modal">
                 <div class="wz-modal-inner">
                     <header>
                         <span class="wz-header-title">
@@ -831,14 +848,11 @@
                             <h2>Support</h2>
                         </span>
                         <span class="wz-close-modal">
-                            <button type="button" class="static-icon" id="wz-donate-close" aria-label="Close donate dialog">
-                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
-                            </button>
+                            <button type="button" class="static-icon stratops-ico-close-1" id="wz-donate-close" aria-label="Close donate dialog"></button>
                         </span>
                     </header>
                     <section class="wz-modal-body">
-                        <h3 id="wz-support-why" class="wz-donate-modal__heading">Why Support StratOps?</h3>
-
+                        <h2 id="wz-layer-donate-title">Support StratOps</h2>
                         <p class="wz-donate-modal__text">
                             StratOps is independently built and currently operating as an early access platform. 
                             Running a real-time operational intelligence environment requires ongoing development, 
@@ -846,6 +860,7 @@
                             platform and contribute to its continued growth.
                         </p>
 
+                        <h3 id="wz-support-why" class="wz-donate-modal__heading">Why Support StratOps?</h3>
                         <ul class="wz-list-view wz-donate-modal__list">
                             <li>Help cover platform infrastructure, hosting, and performance improvements</li>
                             <li>Support continued development of operational monitoring tools</li>
@@ -861,11 +876,22 @@
                             requirements are in place.
                         </p>
                     </section>
-                    <footer>
-                        <a id="wz-donate-link" href="/billing/support" target="_blank"
-                            rel="noopener noreferrer" class="btn-primary">
+                    <footer class="wz-donate-modal__actions">
+                        <a id="wz-donate-link-onetime"
+                            href="PASTE_ONE_TIME_STRIPE_PAYMENT_LINK_HERE"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="btn-primary">
                             <span></span>
-                            Support StratOps
+                            One-Time Support
+                        </a>
+                        <a id="wz-donate-link-monthly"
+                            href="PASTE_MONTHLY_STRIPE_PAYMENT_LINK_HERE"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="btn-secondary white">
+                            <span></span>
+                            Monthly Support
                         </a>
                     </footer>
                 </div>

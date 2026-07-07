@@ -1,9 +1,15 @@
-const DEMO_SOURCE_LABEL = "GNSS Interference Monitor";
-const AVIATION_DEMO_SOURCE_LABEL = "Aviation GNSS Interference Feed";
+const DEMO_SOURCE_LABEL = "GNSS Jamming Monitor";
+const AVIATION_DEMO_SOURCE_LABEL = "Aviation GNSS Jamming Feed";
 const DEFAULT_LIMIT = 240;
+const LIVE_GNSS_WINDOW_HOURS = 72;
+const LIVE_GNSS_WINDOW_MS = LIVE_GNSS_WINDOW_HOURS * 60 * 60 * 1000;
 
 function isGnssDemoFallbackEnabled() {
     return String(process.env.GNSS_DEMO_FALLBACK_ENABLED || "").toLowerCase() === "true";
+}
+
+function areGnssDemoRowsEnabled() {
+    return String(process.env.GNSS_DEMO_ROWS_ENABLED || "").toLowerCase() === "true";
 }
 
 const GNSS_INTERFERENCE_DEMO_CELLS = [
@@ -208,6 +214,10 @@ function normalizeConfidence(value = "") {
     return "low";
 }
 
+function getLiveGnssCutoffIso() {
+    return new Date(Date.now() - LIVE_GNSS_WINDOW_MS).toISOString();
+}
+
 function getPublicSourceLabel(_row = {}) {
     return DEMO_SOURCE_LABEL;
 }
@@ -265,6 +275,7 @@ export function toPublicGnssCell(row = {}) {
 async function getGnssCellsFromStatusFeed({ supabase = null, limit = DEFAULT_LIMIT } = {}) {
     if (!supabase) return [];
     const boundedLimit = clamp(Math.floor(Number(limit) || DEFAULT_LIMIT), 12, 600);
+    const cutoffIso = getLiveGnssCutoffIso();
     const { data, error } = await supabase
         .from("status_feed_items")
         .select("id, source_name, published_at, fetched_at, region, country, lat, lon, severity, category, confidence_score, is_status_relevant")
@@ -272,6 +283,7 @@ async function getGnssCellsFromStatusFeed({ supabase = null, limit = DEFAULT_LIM
         .in("category", ["gps_jamming", "gps_spoofing", "gnss_interference"])
         .not("lat", "is", null)
         .not("lon", "is", null)
+        .gte("fetched_at", cutoffIso)
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("fetched_at", { ascending: false })
         .limit(boundedLimit);
@@ -303,6 +315,7 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
         .filter(Boolean)
         .slice(0, boundedLimit);
     const demoFallbackEnabled = isGnssDemoFallbackEnabled();
+    const demoRowsEnabled = areGnssDemoRowsEnabled();
 
     if (!supabase) {
         if (demoFallbackEnabled) {
@@ -328,10 +341,12 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
     }
 
     try {
+        const cutoffIso = getLiveGnssCutoffIso();
         const { data, error } = await supabase
             .from("gnss_interference_cells")
             .select("id, cell_id, grid_id, lat, lon, polygon, cell_boundary, severity, affected_percent, sample_count, confidence, country, region, observed_at, updated_at, is_demo, is_public, is_active")
             .neq("severity", "unknown")
+            .gte("updated_at", cutoffIso)
             .order("updated_at", { ascending: false, nullsFirst: false })
             .limit(boundedLimit);
 
@@ -339,7 +354,7 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
             const publicRows = data
                 .filter((row) => row?.is_public !== false && row?.is_active !== false)
                 .map((row) => toPublicGnssCell(row))
-                .filter(Boolean);
+                .filter((row) => row && (demoRowsEnabled || row.isDemo !== true));
 
             if (publicRows.length) {
                 return {
@@ -367,11 +382,11 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
             return {
                 cells: [],
                 demoMode: false,
-                updatedAt: data[0]?.updated_at || null,
+                updatedAt: null,
                 sourceMode: "live",
                 liveAvailable: true,
                 tableAvailable: true,
-                message: "No active GNSS interference cells are available right now.",
+                message: "No active GNSS Jamming cells are available right now.",
             };
         }
 

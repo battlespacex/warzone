@@ -956,7 +956,7 @@ function fireTestEvent(key) {
             level: getSirenLevel(event.severity),
             sound: true,
         });
-        devLog(`🚀 Fired: ${event.title} → Siren: ${impactLabel}`);
+        devLog(`Fired: ${event.title} -> Siren: ${impactLabel}`);
     }
     if (
         event.category === "alert" ||
@@ -969,7 +969,7 @@ function fireTestEvent(key) {
             playSound: true,
         });
         globe?.highlightAlertRegion?.(event);
-        devLog(`🔴 Alert: ${event.title}`);
+        devLog(`Alert: ${event.title}`);
         return;
     }
     if (event.category === "military") {
@@ -978,11 +978,11 @@ function fireTestEvent(key) {
         if (!config) return;
         restartDevSimulation(
             config,
-            `✈ LIVE AIRCRAFT: ${event.title} [${config.subcategory}]`
+            `LIVE AIRCRAFT: ${event.title} [${config.subcategory}]`
         );
         return;
     }
-    devLog(`📍 Event: ${event.title}`);
+    devLog(`Event: ${event.title}`);
 }
 function initDevSimulatorControls() {
     const els = getDevSimElements();
@@ -991,7 +991,7 @@ function initDevSimulatorControls() {
         const subtype = String(els.subtype.value || "fighter").toLowerCase();
         applyDevSimPreset(subtype);
         updateDevSimTrackKey(subtype);
-        devLog(`🧪 Preset loaded: ${subtype}`);
+        devLog(`Preset loaded: ${subtype}`);
     });
     els.motion.addEventListener("change", () => {
         syncDevSimFieldState();
@@ -1000,32 +1000,32 @@ function initDevSimulatorControls() {
         const subtype = String(els.subtype.value || "fighter").toLowerCase();
         applyDevSimPreset(subtype);
         updateDevSimTrackKey(subtype);
-        devLog(`↺ Simulator reset: ${subtype}`);
+        devLog(`Simulator reset: ${subtype}`);
     });
     els.focusBtn?.addEventListener("click", () => {
         focusDevSimFromForm();
-        devLog("🎯 Simulator focus moved");
+        devLog("Simulator focus moved");
     });
     els.startBtn?.addEventListener("click", () => {
         const config = buildDevSimConfigFromForm();
         if (!config) {
-            devLog("⚠ Invalid simulator coordinates");
+            devLog("Invalid simulator coordinates");
             return;
         }
         els.trackKey.value = config.track_key;
         restartDevSimulation(
             config,
-            `✈ Simulator started: ${config.title} [${config.subcategory}]`
+            `Simulator started: ${config.title} [${config.subcategory}]`
         );
     });
     els.stopBtn?.addEventListener("click", () => {
         const trackKey = normalizeDevTrackKey(els.trackKey?.value || "");
         if (!trackKey) {
-            devLog("⚠ No track key to stop");
+            devLog("No track key to stop");
             return;
         }
         stopDevTrackSimulation(trackKey);
-        devLog(`✖ Simulator stopped: ${trackKey}`);
+        devLog(`Simulator stopped: ${trackKey}`);
     });
     applyDevSimPreset("fighter");
     updateDevSimTrackKey("fighter");
@@ -1155,11 +1155,11 @@ function initMapTunerControls() {
 
     refreshBtn?.addEventListener("click", () => {
         refreshMapOnlyNow();
-        devLog("🗺 Map-only refresh triggered");
+        devLog("Map-only refresh triggered");
     });
     loadCurrentBtn?.addEventListener("click", () => {
         loadCurrentValues();
-        devLog("↺ Loaded current map CSS values");
+        devLog("Loaded current map CSS values");
     });
     copyBtn?.addEventListener("click", async () => {
         const text = output?.value || buildMapRootCssBlock();
@@ -1171,9 +1171,9 @@ function initMapTunerControls() {
                 output?.select();
                 document.execCommand("copy");
             }
-            devLog("📋 Copied :root map block");
+            devLog("Copied :root map block");
         } catch {
-            devLog("⚠ Copy blocked — select and copy manually");
+            devLog("Copy blocked - select and copy manually");
         }
     });
 
@@ -2382,7 +2382,7 @@ export function initDevPanel() {
             if (panel.hidden) {
                 panel.hidden = false;
                 localStorage.setItem("wz_dev", "1");
-                devLog("🔑 Dev panel unlocked via keyboard shortcut");
+                devLog("Dev panel unlocked via keyboard shortcut");
                 console.log("[dev] Warzone dev panel activated — Ctrl+Shift+` pressed");
             } else {
                 const body = document.getElementById("wz-dev-body");
@@ -2421,7 +2421,7 @@ export function initDevPanel() {
                 level,
                 sound: true,
             });
-            devLog(`🔔 Siren [${level.toUpperCase()}]: ${titles[level]}`);
+            devLog(`Siren [${level.toUpperCase()}]: ${titles[level]}`);
         });
     });
     const HIGHLIGHT_LOCATIONS = {
@@ -2436,7 +2436,7 @@ export function initDevPanel() {
             const globe = window.__warzoneViewer?.__warzone;
             if (key === "clear") {
                 globe?.clearAlertHighlight?.();
-                devLog("✖ Highlight cleared");
+                devLog("Highlight cleared");
                 return;
             }
             const loc = HIGHLIGHT_LOCATIONS[key];
@@ -2451,7 +2451,7 @@ export function initDevPanel() {
                 destination: Cesium.Cartesian3.fromDegrees(loc.lon, loc.lat, 900000),
                 duration: 1.2,
             });
-            devLog(`🔴 Pulse highlight: ${loc.label} [${loc.severity}]`);
+            devLog(`Pulse highlight: ${loc.label} [${loc.severity}]`);
         });
     });
     document.querySelectorAll(".wz-dev-btn[data-track-route]").forEach((btn) => {
@@ -2459,14 +2459,14 @@ export function initDevPanel() {
             const key = btn.dataset.trackRoute;
             const route = TEST_TRACK_ROUTES[key];
             if (!route) return;
-            restartDevSimulation(route, `✈ Route sim started: ${route.title}`);
+            restartDevSimulation(route, `Route sim started: ${route.title}`);
         });
     });
     document.querySelectorAll(".wz-dev-btn[data-track-stop]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.trackStop || "dev-track-fighter-1";
             stopDevTrackSimulation(key);
-            devLog(`✖ Route sim stopped: ${key}`);
+            devLog(`Route sim stopped: ${key}`);
         });
     });
     document.querySelectorAll(".wz-dev-btn[data-bomber-formation]").forEach((btn) => {
@@ -2485,7 +2485,7 @@ export function initDevPanel() {
             setTimeout(() => fireTestEvent(key), delay);
             delay += 800;
         });
-        devLog(`⚡ Firing all ${Object.keys(TEST_EVENTS).length} test events...`);
+        devLog(`Firing all ${Object.keys(TEST_EVENTS).length} test events...`);
     });
     document.getElementById("wz-dev-clear")?.addEventListener("click", () => {
         const log = document.getElementById("wz-dev-log");
@@ -2493,12 +2493,12 @@ export function initDevPanel() {
     });
     document.getElementById("wz-dev-open-performance-warning")?.addEventListener("click", () => {
         if (openDevPerformanceWarningModal()) {
-            devLog("⚙ Opened performance popup");
+            devLog("Opened performance popup");
         }
     });
     document.getElementById("wz-dev-open-layer-warning")?.addEventListener("click", () => {
         if (openDevLayerWarningModal()) {
-            devLog("⚠ Opened warning popup");
+            devLog("Opened warning popup");
         }
     });
     document.getElementById("wz-dev-open-global-alert")?.addEventListener("click", () => {

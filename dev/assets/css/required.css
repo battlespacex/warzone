@@ -221,7 +221,7 @@ strong {
     font-size: var(--text-xxxl);
     font-weight: bold;
     color: var(--color-text-heading);
-    line-height: 3.5rem;
+    line-height: 3.4rem
 }
 
 /* #endregion =========== */
@@ -236,13 +236,17 @@ strong {
     display: inline-flex;
     flex-direction: row;
     vertical-align: middle;
-    transition: 0.1s all;
+    transition: 0.3s all;
     color: var(--color-text-heading);
     border: none;
     outline: none;
     align-content: center;
     justify-content: center;
     background: transparent;
+}
+
+.action-icon:hover {
+    transform: scale(1.1);
 }
 /* #endregion =========== */
 /* #region =========== BUTTONS =========== */
@@ -325,7 +329,7 @@ UNUSED CANDIDATE END */
     text-align: center;
     min-width: 8rem !important;
     max-width: fit-content;
-    height: 3.5rem;
+    height: 3.4rem;
     transition: .2s ease, opacity 220ms ease;
     position: relative;
     padding: 0 1.5rem;
@@ -485,7 +489,7 @@ UNUSED CANDIDATE END */
         cursor: not-allowed;
         pointer-events: none;
         background: var(--color-bg-header);
-        opacity: 0.4;
+        opacity: 0.5;
     }
 
 /* #endregion =========== */
@@ -567,9 +571,9 @@ UNUSED CANDIDATE END */
         position: absolute;
         top: 0;
         right: 0;
-        width: 3.5rem;
-        height: 3.5rem;
-        line-height: 3.5rem;
+        width: 3.4rem;
+        height: 3.4rem;
+        line-height: 3.4rem;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -587,7 +591,7 @@ UNUSED CANDIDATE END */
 
 .wz--dropdown {
     color-scheme: dark;
-    height: 3.5rem;
+    height: 3.4rem;
     line-height: 2.5rem;
     width: 100%;
     max-width:100%;
@@ -597,7 +601,7 @@ UNUSED CANDIDATE END */
 }
 
 .wz--input {
-    height: 3.5rem;
+    height: 3.4rem;
     line-height: 2.5rem;
     width: 100%;
     max-width: 24rem;
@@ -748,8 +752,8 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     right: 2.5rem;
     bottom: 8rem; /* adjust if needed above dock */
     z-index: 999;
-    width: 3.5rem;
-    height: 3.5rem;
+    width: 3.4rem;
+    height: 3.4rem;
     display: flex;
     align-items: center;
     justify-content: center;

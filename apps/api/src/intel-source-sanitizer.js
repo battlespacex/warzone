@@ -8,6 +8,14 @@ function normalizeToken(value = "") {
         .trim();
 }
 
+function stripNonEnglishText(value = "", fallback = "") {
+    const cleaned = String(value ?? "")
+        .replace(/[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}\p{Number}\s]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return cleaned || String(fallback || "").trim();
+}
+
 function getRawObject(value) {
     if (!value) return {};
     if (typeof value === "string") {
@@ -1226,7 +1234,9 @@ function buildPublicSummary(item = {}) {
         const cleaned = stripHtmlToText(candidate);
         if (!cleaned) continue;
         if (looksLikeLeakedHtmlSummary(cleaned)) continue;
-        return trimWords(cleaned, 300, 2200);
+        const englishOnly = stripNonEnglishText(cleaned);
+        if (!englishOnly) continue;
+        return trimWords(englishOnly, 300, 2200);
     }
     return "";
 }
@@ -1237,16 +1247,16 @@ function toPublicIntelWireItem(item = {}, options = {}) {
     const media = buildPublicIntelWireMedia(item, options.mediaBaseUrl || "");
     return {
         id: item.id,
-        title: item.title || "Untitled",
+        title: stripNonEnglishText(stripHtmlToText(item.title || ""), "Intel update"),
         summary: buildPublicSummary(item),
         category: item.category || item.source_category || "intel",
         severity: extractSeverity(item),
-        location: item.country || item.region || "",
+        location: stripNonEnglishText(item.country || item.region || "", ""),
         timestamp,
         published_at: item.published_at || null,
         fetched_at: item.fetched_at || null,
-        region: item.region || null,
-        country: item.country || null,
+        region: stripNonEnglishText(item.region || "", "") || null,
+        country: stripNonEnglishText(item.country || "", "") || null,
         confidence: Number(item.confidence_score || 0),
         confidence_score: Number(item.confidence_score || 0),
         is_conflict_relevant: item.is_conflict_relevant === true,

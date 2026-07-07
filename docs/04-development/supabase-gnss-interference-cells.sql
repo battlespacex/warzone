@@ -20,7 +20,7 @@ create table if not exists public.gnss_interference_cells (
   observed_at timestamptz,
   updated_at timestamptz default now(),
   expires_at timestamptz,
-  source_label text default 'GNSS Interference Monitor',
+  source_label text default 'GNSS Jamming Monitor',
   is_public boolean default true,
   is_active boolean default true,
   is_demo boolean default false,
@@ -48,8 +48,8 @@ create index if not exists gnss_interference_cells_location_idx
 
 alter table public.gnss_interference_cells enable row level security;
 
-drop policy if exists "public read gnss interference cells" on public.gnss_interference_cells;
-create policy "public read gnss interference cells"
+drop policy if exists "public read gnss Jamming cells" on public.gnss_interference_cells;
+create policy "public read gnss Jamming cells"
   on public.gnss_interference_cells for select
   to anon, authenticated
   using (is_public = true and is_active = true);

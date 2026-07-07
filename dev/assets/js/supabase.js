@@ -133,7 +133,7 @@ export const api = {
     async getGnssInterferenceCells() {
         try {
             const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`);
-            const json = await readJsonResponse(res, "GNSS interference fetch");
+            const json = await readJsonResponse(res, "GNSS Jamming fetch");
             return {
                 data: json.cells || [],
                 error: null,
@@ -157,7 +157,7 @@ export const api = {
                     sourceMode: "unavailable",
                     liveAvailable: false,
                     tableAvailable: false,
-                    message: error?.message || "GNSS interference endpoint is unavailable.",
+                    message: error?.message || "GNSS Jamming endpoint is unavailable.",
                 },
             };
         }

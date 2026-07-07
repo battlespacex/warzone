@@ -33,30 +33,186 @@
 .warzone-hotspot-layer {
     position: absolute;
     inset: 0;
-    z-index: 35;
+    z-index: 5;
     pointer-events: none;
     overflow: visible;
 }
-.wz-gnss-panel {
+.warzone-widget--gnss {
     position: absolute;
-    left: 2rem;
-    bottom: 12rem;
     z-index: 24;
-    min-width: 20rem;
     pointer-events: none;
 }
-.wz-gnss-panel[hidden] {
+.warzone-widget--gnss[hidden] {
     display: none !important;
 }
-.wz-gnss-panel .panel-container,
-.wz-gnss-panel .panel-head,
-.wz-gnss-panel .panel-content {
+.warzone-widget--gnss .panel-container,
+.warzone-widget--gnss .panel-head,
+.warzone-widget--gnss .panel-content {
     pointer-events: auto;
 }
-.wz-gnss-panel .panel-head h2 {
+.warzone-widget--gnss .panel-head h2 {
     display: flex;
     align-items: center;
     gap: 1rem;
+}
+.wz-aoi-panel,
+.warzone-widget--aoi {
+    right: 2rem;
+    top: 10rem;
+    z-index: 27;
+    width: 34rem;
+    max-width: min(34rem, calc(100vw - 4rem));
+    max-height: calc(100vh - 15rem);
+    pointer-events: none;
+}
+.wz-aoi-panel .panel-container,
+.wz-aoi-panel .panel-head,
+.wz-aoi-panel .panel-content,
+.warzone-widget--aoi .panel-container,
+.warzone-widget--aoi .panel-head,
+.warzone-widget--aoi .panel-content {
+    pointer-events: auto;
+}
+
+.wz-aoi-panel .panel-content,
+.warzone-widget--aoi .panel-content {
+    max-height: calc(100vh - 20rem);
+}
+.wz-aoi-panel__body {
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+.wz-aoi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+.wz-aoi-metric,
+.wz-aoi-status,
+.wz-aoi-empty {
+background: var(--color-bg-row);
+    clip-path: var(--clippath-shape-3);
+}
+.wz-aoi-metric {
+    display: grid;
+    gap: .35rem;
+    min-width: 0;
+    padding: 0.8rem 1rem;
+}
+
+.wz-aoi-metric span,
+.wz-aoi-group > span {
+    color: var(--color-gray-glow);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+}
+.wz-aoi-metric strong {
+    overflow: hidden;
+    color: var(--color-white);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wz-aoi-readout {
+    padding: 1rem;
+    color: var(--color-green-glow);
+    line-height: 1.45;
+    font-size: var(--text-sm);
+    background: var(--color-green-overlay);
+      clip-path: var(--clippath-shape-3);
+}
+.wz-aoi-section {
+    display: grid;
+    gap: .5rem;
+}
+.wz-aoi-section h3 {
+    margin: 0;
+    color: var(--color-white);
+    font-size: var(--text-base);
+}
+.wz-aoi-section__body {
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--color-bg-row);
+    clip-path: var(--clippath-shape-3);
+}
+.wz-aoi-status,
+.wz-aoi-empty {
+    color: var(--color-gray-glow);
+    margin: 0
+}
+
+.wz-aoi-empty {
+    padding: 0.8rem 1rem;
+}
+
+
+
+.wz-aoi-status--scan {
+    color: var(--color-teal-glow);
+    border-color: rgba(24,226,219,0.22);
+    animation: wz-aoi-scan-pulse 1.8s ease-in-out infinite;
+}
+.wz-aoi-timeline,
+.wz-aoi-asset-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+}
+.wz-aoi-timeline span,
+.wz-aoi-asset-counts span,
+.wz-aoi-group em {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .45rem .65rem;
+    background: rgba(69,80,94,0.48);
+    color: var(--color-white-slate);
+    font-style: normal;
+}
+.wz-aoi-timeline b,
+.wz-aoi-group b {
+    color: var(--color-teal-glow);
+}
+.wz-aoi-group {
+    display: grid;
+    gap: .5rem;
+}
+.wz-aoi-group div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+.wz-aoi-list {
+    display: grid;
+    gap: .6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.wz-aoi-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: .8rem;
+    padding: .55rem 0;
+    border-bottom: 1px solid rgba(238, 240, 245, 0.08);
+    color: var(--color-white-slate);
+}
+.wz-aoi-list li span {
+    color: var(--color-gray-glow);
+}
+body.is-aoi-lens-active .cesium-widget canvas,
+body.is-aoi-drawing .cesium-widget canvas {
+    cursor: crosshair;
+}
+@keyframes wz-aoi-scan-pulse {
+    0%, 100% {
+        box-shadow: inset 0 0 0 rgba(24,226,219,0);
+    }
+    50% {
+        box-shadow: inset 0 0 1.4rem rgba(24,226,219,0.16);
+    }
 }
 .wz-gnss-legend__tag {
     display: inline-flex;
@@ -213,11 +369,12 @@ padding: 1rem 1rem 0.6rem;
 
     .warzone-map-credits__logo {
     position: relative;
-    height: 2.4rem !important;
+    height: 2.7rem;
+    transition: opacity .2s ease-in-out;
     width: auto;
     max-width: none;
     object-fit: contain;
-    opacity: 1;
+    opacity: 0.8;
 }
 
 /* #endregion =========== */

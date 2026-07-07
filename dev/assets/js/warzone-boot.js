@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
         feed: false,
         airspace: true,
         cyber: false,
+        aoi: false,
     };
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
@@ -149,8 +150,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".period-tab").forEach((node) => {
         node.setAttribute("aria-pressed", String(node.classList.contains("is-active")));
     });
-    function isAboutModal(modal) {
-        return modal?.id === "wz-about-modal";
+    function shouldHideAppChromeForModal(modal) {
+        const modalId = String(modal?.id || "");
+        return modalId === "wz-about-modal" || modalId === "wz-donate-modal";
     }
     const MODAL_HEIGHT_ANIM_MS = 820;
     const modalBoxHeightFrames = new WeakMap();
@@ -309,11 +311,23 @@ document.addEventListener("DOMContentLoaded", () => {
         return Array.from(document.querySelectorAll(".wz-modal.is-visible:not([hidden])"))
             .find((item) => item !== ignoreModal) || null;
     }
+    function broadcastUiModalVisibility(isOpen, modal = null) {
+        document.dispatchEvent(new CustomEvent("wz:ui-modal-visibility", {
+            detail: {
+                isOpen: Boolean(isOpen),
+                modalId: String(modal?.id || ""),
+            },
+        }));
+    }
     function openModalNow(modal, callback) {
         if (!modal) return;
         sharedModalActive = modal;
         modal.hidden = false;
         modal.setAttribute("aria-hidden", "false");
+        if (shouldHideAppChromeForModal(modal)) {
+            document.body.classList.add("is-ui-modal-open");
+            broadcastUiModalVisibility(true, modal);
+        }
         if (modal.id === "wz-about-modal") {
             document.body.classList.add("is-about-open");
         }
@@ -362,7 +376,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!modal) return;
         modal.classList.remove("is-visible");
         sharedModalClosing = true;
-        if (isAboutModal(modal)) {
+        if (shouldHideAppChromeForModal(modal)) {
+            document.body.classList.remove("is-ui-modal-open");
+            broadcastUiModalVisibility(false, modal);
+        }
+        if (modal?.id === "wz-about-modal") {
             document.body.classList.remove("is-about-open");
         }
         window.setTimeout(() => {
@@ -392,6 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
         aboutModal.setAttribute("aria-hidden", "true");
         aboutModal.classList.remove("is-visible");
         document.body.classList.remove("is-about-open");
+        document.body.classList.remove("is-ui-modal-open");
     }
     if (uiShell) {
         uiShell.hidden = true;
@@ -711,7 +730,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function saveWidgetState() {
         const state = {};
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => {
-            state[widget.dataset.widgetId] = isWidgetVisible(widget);
+            const widgetId = String(widget.dataset.widgetId || "");
+            state[widgetId] = widgetId === "aoi" ? false : isWidgetVisible(widget);
         });
         try {
             localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(state));
@@ -726,6 +746,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch { }
         const shouldMigrateLayout = savedVersion !== WZ_WIDGET_LAYOUT_VERSION;
         const effectiveState = { ...DEFAULT_WIDGET_VISIBILITY, ...(saved || {}) };
+        effectiveState.aoi = false;
         if (shouldMigrateLayout) {
             // Keep existing widget preferences, but migrate Airspace to open-by-default once.
             effectiveState.airspace = true;

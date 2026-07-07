@@ -1,36 +1,22 @@
 ﻿<section class="warzone-map-shell" aria-label="Interactive global monitoring map">
     <div id="warzone-map-credits" class="warzone-map-credits" aria-live="polite">
-        <span class="battlespacex-logo"></span>
-        <span class="seperator"></span>
+        <img class="warzone-map-credits__logo warzone-map-credits__logo--cesiumjs"
+             src="/assets/images/web/cesiumjs-logo.png"
+             alt="CesiumJS"
+             decoding="async">
+        <span class="seperator" aria-hidden="true"></span>
+        <img class="warzone-map-credits__logo warzone-map-credits__logo--esri"
+             src="/assets/images/web/esri-logo.png"
+             alt="Esri"
+             decoding="async">
+        <span class="seperator" aria-hidden="true"></span>
+        <img class="warzone-map-credits__logo warzone-map-credits__logo--battlespacex"
+             src="/assets/images/web/Battlespacex-full-logo.svg"
+             alt="BattlespaceX"
+             decoding="async">
     </div>
     <div id="warzone-globe"
          class="warzone-globe"
          role="img"
          aria-label="3D globe showing open-source conflict activity, military movement, alerts, and monitoring overlays"></div>
-    <aside id="wz-gnss-legend" class="warzone-panel warzone-panel--floating wz-gnss-panel" hidden aria-live="polite" aria-labelledby="wz-gnss-legend-title">
-        <div class="panel-container">
-            <div class="panel-head">
-                <h2 id="wz-gnss-legend-title">GNSS Interference <span id="wz-gnss-legend-demo" class="wz-gnss-legend__tag" hidden>STAGED</span></h2>
-                <div class="panel-actions">
-                    <button type="button"
-                            class="static-icon"
-                            data-panel-collapse
-                            aria-expanded="true"
-                            aria-label="Collapse GNSS interference legend"
-                            title="Collapse widget">
-                        <span class="stratops-ico-top-1" aria-hidden="true"></span>
-                    </button>
-                </div>
-            </div>
-            <div class="panel-content">
-                <div class="wz-gnss-panel__body">
-                    <div id="wz-gnss-legend-status" class="wz-gnss-legend__status" hidden></div>
-                    <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--low"></span><span>Low: 0-2%</span></div>
-                    <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--medium"></span><span>Medium: 2-10%</span></div>
-                    <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--high"></span><span>High: &gt;10%</span></div>
-                </div>
-            </div>
-        </div>
-    </aside>
-    <div id="wz-gnss-tooltip" class="wz-gnss-tooltip" hidden></div>
 </section>

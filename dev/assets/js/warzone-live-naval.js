@@ -1807,6 +1807,27 @@ function ensureNavalOverlayRoot(viewer) {
         event.preventDefault();
         event.stopPropagation();
         const mapApi = window.__warzoneViewer?.__warzone;
+        mapApi?.setSatelliteVisible?.(true);
+        mapApi?.setGreyedSatelliteVisible?.(false);
+        mapApi?.setContourGridVisible?.(false);
+        void Promise.resolve(mapApi?.setContourLayerVisible?.(false))
+            .then(() => mapApi?.disableFocusedTerrain?.())
+            .finally(() => syncNavalOverlayModeButtons());
+    });
+
+    const btnTerrain = document.createElement("button");
+    btnTerrain.type = "button";
+    btnTerrain.className = "wz-aircraft-focus-panel__mode";
+    btnTerrain.dataset.navalFocusMapMode = "terrain";
+    btnTerrain.textContent = "TER";
+    btnTerrain.setAttribute("aria-label", "Use 3D terrain elevation map");
+    btnTerrain.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const mapApi = window.__warzoneViewer?.__warzone;
+        mapApi?.setSatelliteVisible?.(true);
+        mapApi?.setGreyedSatelliteVisible?.(false);
+        mapApi?.setContourGridVisible?.(false);
         void Promise.resolve(mapApi?.setContourLayerVisible?.(false))
             .then(() => mapApi?.enableFocusedTerrain?.())
             .finally(() => syncNavalOverlayModeButtons());
@@ -1822,11 +1843,17 @@ function ensureNavalOverlayRoot(viewer) {
         event.preventDefault();
         event.stopPropagation();
         syncNavalContourCenter(__navalState.selectedKey);
-        void Promise.resolve(window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(true))
+        const mapApi = window.__warzoneViewer?.__warzone;
+        mapApi?.setSatelliteVisible?.(true);
+        mapApi?.setGreyedSatelliteVisible?.(true);
+        mapApi?.setContourGridVisible?.(false);
+        mapApi?.disableFocusedTerrain?.();
+        void Promise.resolve(mapApi?.setContourLayerVisible?.(true))
             .finally(() => syncNavalOverlayModeButtons());
     });
 
     modes.appendChild(btnMap3d);
+    modes.appendChild(btnTerrain);
     modes.appendChild(btnContour);
     focusPanel.appendChild(modes);
     root.appendChild(focusPanel);
@@ -1853,9 +1880,12 @@ function ensureNavalOverlayRoot(viewer) {
 function syncNavalOverlayModeButtons() {
     const root = __navalState.overlayRoot;
     if (!root) return;
-    const contourVisible = window.__warzoneViewer?.__warzone?.isContourLayerVisible?.() === true;
+    const mapApi = window.__warzoneViewer?.__warzone;
+    const contourVisible = mapApi?.isContourLayerVisible?.() === true;
+    const terrainVisible = mapApi?.isFocusedTerrainActive?.() === true;
+    const mode = contourVisible ? "contour" : terrainVisible ? "terrain" : "plain";
     root.querySelectorAll("[data-naval-focus-map-mode]").forEach((button) => {
-        const active = button.dataset.navalFocusMapMode === (contourVisible ? "contour" : "plain");
+        const active = button.dataset.navalFocusMapMode === mode;
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-pressed", String(active));
     });
@@ -2517,6 +2547,144 @@ function dispatchNavalRegistryUpdate() {
 }
 
 // ─── Widget renderer ──────────────────────────────────────────────────────────
+function ensureNavalWidgetEmptyState(container, hasItems, emptyMessage) {
+    const existing = container.querySelector(".wz-aircraft-empty");
+    if (hasItems) {
+        existing?.remove();
+        return;
+    }
+    if (existing) {
+        existing.textContent = emptyMessage;
+        return;
+    }
+    const empty = document.createElement("div");
+    empty.className = "wz-aircraft-empty";
+    empty.textContent = emptyMessage;
+    container.appendChild(empty);
+}
+function updateNavalWidgetCard(card, vessel, selectedKey = "", aircraftFocusLocked = false) {
+    if (!card || !vessel) return;
+    const color = getVesselColor(vessel.subcategory);
+    const name = getNavalDisplayName(vessel);
+    const typeBadge = getNavalSubtypeLabel(vessel.subcategory).toUpperCase();
+    const detailLabel = getNavalWidgetDetailLabel(vessel);
+    const affiliationLabel = getNavalWidgetCountryOperatorLabel(vessel);
+    const speedLabel = formatNavalSpeed(vessel.speed_kts);
+    const headingLabel = formatNavalHeading(vessel.heading_deg);
+    const coordLabel = getNavalCoordinatesLabel(vessel);
+    const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
+    const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
+    const isFocusDisabled = aircraftFocusLocked;
+    card.className = `wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
+    card.dataset.trackKey = String(vessel.track_key || "");
+    card.style.cursor = isFocusDisabled ? "default" : "pointer";
+
+    let top = card.querySelector(".wz-aircraft-item__top");
+    let titleEl = card.querySelector(".wz-aircraft-item__title");
+    let timeEl = card.querySelector(".wz-aircraft-item__time");
+    let meta = card.querySelector(".wz-aircraft-item__meta");
+    let stats = card.querySelector(".wz-aircraft-item__stats");
+    let foot = card.querySelector(".wz-aircraft-item__foot");
+    let badge = card.querySelector(".wz-aircraft-badge");
+    let actionBtn = card.querySelector(".wz-aircraft-action");
+
+    if (!top) {
+        top = document.createElement("div");
+        top.className = "wz-aircraft-item__top";
+        titleEl = document.createElement("strong");
+        titleEl.className = "wz-aircraft-item__title";
+        timeEl = document.createElement("span");
+        timeEl.className = "wz-aircraft-item__time";
+        top.appendChild(titleEl);
+        top.appendChild(timeEl);
+        card.appendChild(top);
+    }
+    if (!meta) {
+        meta = document.createElement("div");
+        meta.className = "wz-aircraft-item__meta";
+        meta.appendChild(document.createElement("span"));
+        meta.appendChild(document.createElement("span"));
+        card.appendChild(meta);
+    }
+    if (!stats) {
+        stats = document.createElement("div");
+        stats.className = "wz-aircraft-item__stats";
+        stats.appendChild(document.createElement("span"));
+        stats.appendChild(document.createElement("span"));
+        stats.appendChild(document.createElement("span"));
+        card.appendChild(stats);
+    }
+    if (!foot) {
+        foot = document.createElement("div");
+        foot.className = "wz-aircraft-item__foot";
+        badge = document.createElement("span");
+        badge.className = "wz-aircraft-badge";
+        foot.appendChild(badge);
+        actionBtn = document.createElement("button");
+        actionBtn.type = "button";
+        actionBtn.className = "wz-aircraft-action btn-primary";
+        actionBtn.appendChild(document.createElement("span"));
+        actionBtn.appendChild(document.createTextNode(""));
+        foot.appendChild(actionBtn);
+        card.appendChild(foot);
+    }
+
+    titleEl = card.querySelector(".wz-aircraft-item__title");
+    timeEl = card.querySelector(".wz-aircraft-item__time");
+    badge = card.querySelector(".wz-aircraft-badge");
+    actionBtn = card.querySelector(".wz-aircraft-action");
+
+    let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");
+    let statusIcon = statusWrap?.querySelector(".stratops-ico-status-1") || null;
+    let titleText = titleEl.querySelector(".wz-aircraft-title__text");
+    if (!statusWrap) {
+        statusWrap = document.createElement("span");
+        statusWrap.className = "wz-aircraft-title__status is-active";
+        statusWrap.setAttribute("aria-hidden", "true");
+        statusIcon = document.createElement("span");
+        statusIcon.className = "stratops-ico-status-1";
+        statusIcon.setAttribute("aria-hidden", "true");
+        statusWrap.appendChild(statusIcon);
+        titleEl.appendChild(statusWrap);
+    }
+    if (!titleText) {
+        titleText = document.createElement("span");
+        titleText.className = "wz-aircraft-title__text";
+        titleEl.appendChild(titleText);
+    }
+    titleText.textContent = name;
+    timeEl.textContent = timeLabel;
+
+    const metaSpans = meta.querySelectorAll("span");
+    if (metaSpans[0]) metaSpans[0].textContent = detailLabel;
+    if (metaSpans[1]) metaSpans[1].textContent = affiliationLabel;
+    const statSpans = stats.querySelectorAll("span");
+    if (statSpans[0]) statSpans[0].textContent = speedLabel;
+    if (statSpans[1]) statSpans[1].textContent = headingLabel;
+    if (statSpans[2]) statSpans[2].textContent = coordLabel;
+
+    badge.textContent = typeBadge;
+    badge.style.background = `${color}22`;
+    badge.style.color = color;
+    badge.style.borderColor = `${color}44`;
+
+    actionBtn.disabled = isFocusDisabled;
+    actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");
+    actionBtn.classList.toggle("is-focus-disabled", isFocusDisabled);
+    actionBtn.dataset.navalTrackToggle = String(vessel.track_key || "");
+    const actionIcon = actionBtn.querySelector("span") || document.createElement("span");
+    if (!actionIcon.parentNode) {
+        actionBtn.appendChild(actionIcon);
+        actionBtn.appendChild(document.createTextNode(""));
+    }
+    actionIcon.setAttribute("aria-hidden", "true");
+    if (!actionIcon.nextSibling) {
+        actionBtn.appendChild(document.createTextNode("Focus"));
+    } else {
+        actionIcon.nextSibling.textContent = "Focus";
+    }
+}
+
 // Called from essential.js or warzone-ui.js to populate the naval widget list
 export function renderNavalTrackerWidget(options = {}) {
     const container = document.getElementById("wz-naval-panel-list");
@@ -2528,58 +2696,77 @@ export function renderNavalTrackerWidget(options = {}) {
         : getAllNavalSnapshots();
     const safeVessels = vessels.filter((vessel) => !isProbablyAircraftContact(vessel));
     const emptyMessage = String(options?.emptyMessage || "No naval contacts in current filter");
+    const pageSize = Math.max(1, Number(options?.pageSize || 8));
+    const visibleCount = Math.max(pageSize, Number(options?.visibleCount || 24));
 
     if (!safeVessels.length) {
-        container.innerHTML = `<div class="wz-aircraft-empty">${emptyMessage}</div>`;
+        container.querySelectorAll(".wz-naval-item").forEach((card) => card.remove());
+        container.querySelector(".wz-naval-load-more")?.remove();
+        ensureNavalWidgetEmptyState(container, false, emptyMessage);
         return;
     }
 
     const selectedKey = String(__navalState.selectedKey || "");
     const aircraftFocusLocked = isAircraftFocusLockActive();
-    const cards = safeVessels.slice(0, 24).map((vessel) => {
-        const color = getVesselColor(vessel.subcategory);
-        const name = getNavalDisplayName(vessel);
-        const typeBadge = getNavalSubtypeLabel(vessel.subcategory).toUpperCase();
-        const detailLabel = getNavalWidgetDetailLabel(vessel);
-        const affiliationLabel = getNavalWidgetCountryOperatorLabel(vessel);
-        const speedLabel = formatNavalSpeed(vessel.speed_kts);
-        const headingLabel = formatNavalHeading(vessel.heading_deg);
-        const coordLabel = getNavalCoordinatesLabel(vessel);
-        const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
-        const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
-        const disabledAttr = aircraftFocusLocked ? ` disabled aria-disabled="true"` : "";
-        const disabledClass = aircraftFocusLocked ? " is-focus-disabled" : "";
-        const rowClick = aircraftFocusLocked ? "" : ` onclick="window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')"`;
-        const rowCursor = aircraftFocusLocked ? "default" : "pointer";
-        return `<article class="wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${disabledClass}" data-track-key="${escapeNavalHtml(vessel.track_key)}" style="cursor:${rowCursor}"${rowClick}>
-            <div class="wz-aircraft-item__top">
-                <strong class="wz-aircraft-item__title">
-                    <span class="wz-aircraft-title__status is-active" aria-hidden="true">
-                        <span class="stratops-ico-status-1" aria-hidden="true"></span>
-                    </span>
-                    <span class="wz-aircraft-title__text">${escapeNavalHtml(name)}</span>
-                </strong>
-                <span class="wz-aircraft-item__time">${escapeNavalHtml(timeLabel)}</span>
-            </div>
-            <div class="wz-aircraft-item__meta">
-                <span>${escapeNavalHtml(detailLabel)}</span>
-                <span>${escapeNavalHtml(affiliationLabel)}</span>
-            </div>
-            <div class="wz-aircraft-item__stats">
-                <span>${escapeNavalHtml(speedLabel)}</span>
-                <span>${escapeNavalHtml(headingLabel)}</span>
-                <span>${escapeNavalHtml(coordLabel)}</span>
-            </div>
-            <div class="wz-aircraft-item__foot">
-                <span class="wz-aircraft-badge" style="background:${escapeNavalHtml(color)}22;color:${escapeNavalHtml(color)};border-color:${escapeNavalHtml(color)}44">${escapeNavalHtml(typeBadge)}</span>
-                <button type="button" class="wz-aircraft-action btn-primary${disabledClass}"${disabledAttr} onclick="event.stopPropagation(); window.__navalFocusVessel?.('${escapeNavalHtml(vessel.track_key)}')">
-                    <span aria-hidden="true"></span>
-                    Focus
-                </button>
-            </div>
-        </article>`;
+    const visibleVessels = safeVessels.slice(0, visibleCount);
+    const existingCards = [...container.querySelectorAll(".wz-naval-item")];
+    const existingCardMap = new Map(existingCards.map((card) => [String(card.dataset.trackKey || ""), card]));
+    const wantedKeys = new Set(visibleVessels.map((vessel) => String(vessel.track_key || "")));
+    existingCards.forEach((card) => {
+        const key = String(card.dataset.trackKey || "");
+        if (!wantedKeys.has(key)) {
+            card.remove();
+            existingCardMap.delete(key);
+        }
     });
-    container.innerHTML = cards.join("");
+    ensureNavalWidgetEmptyState(container, visibleVessels.length > 0, emptyMessage);
+    const cardsInOrder = [];
+    visibleVessels.forEach((vessel) => {
+        const vesselKey = String(vessel.track_key || "");
+        let card = existingCardMap.get(vesselKey) || null;
+        if (!card) {
+            card = document.createElement("article");
+            card.addEventListener("click", () => {
+                if (isAircraftFocusLockActive()) return;
+                window.__navalFocusVessel?.(String(card.dataset.trackKey || ""));
+            });
+        }
+        updateNavalWidgetCard(card, vessel, selectedKey, aircraftFocusLocked);
+        cardsInOrder.push(card);
+    });
+    let previousCard = null;
+    cardsInOrder.forEach((card) => {
+        const expectedNode = previousCard
+            ? previousCard.nextElementSibling
+            : container.querySelector(".wz-naval-item");
+        if (card !== expectedNode) {
+            container.insertBefore(card, expectedNode || null);
+        }
+        previousCard = card;
+    });
+
+    let loadMoreBtn = container.querySelector(".wz-naval-load-more");
+    const hasMore = safeVessels.length > visibleVessels.length;
+    if (hasMore) {
+        if (!loadMoreBtn) {
+            loadMoreBtn = document.createElement("button");
+            loadMoreBtn.type = "button";
+            loadMoreBtn.className = "wz-naval-load-more wz-aircraft-load-more btn-primary white";
+            loadMoreBtn.dataset.navalLoadMore = "1";
+            loadMoreBtn.appendChild(document.createElement("span"));
+            loadMoreBtn.appendChild(document.createTextNode(""));
+        }
+        const remaining = Math.min(pageSize, Math.max(0, safeVessels.length - visibleVessels.length));
+        const labelNode = loadMoreBtn.querySelector("span")?.nextSibling;
+        if (labelNode) {
+            labelNode.textContent = `Load More (${remaining} more)`;
+        }
+        if (loadMoreBtn.parentNode !== container || loadMoreBtn !== container.lastElementChild) {
+            container.appendChild(loadMoreBtn);
+        }
+    } else {
+        loadMoreBtn?.remove();
+    }
 }
 
 // ─── Global focus helper (called from widget onclick) ─────────────────────────

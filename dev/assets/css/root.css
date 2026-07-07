@@ -177,12 +177,12 @@
     --gnss-cell-outline-width: 1;
     --gnss-cell-hover-opacity-boost: 0.14;
     --gnss-cell-height-offset: 80;
-    --gnss-marker-size-px: 18;
+    --gnss-marker-size-px: 22;
     --gnss-marker-outline-width-px: 2;
-    --gnss-marker-scale-near-distance-m: 180000;
-    --gnss-marker-scale-near-value: 0.82;
+    --gnss-marker-scale-near-distance-m: 320000;
+    --gnss-marker-scale-near-value: 1.18;
     --gnss-marker-scale-far-distance-m: 8000000;
-    --gnss-marker-scale-far-value: 1.65;
+    --gnss-marker-scale-far-value: 1.42;
 }
 /* #endregion =========== */
 /* #region =========== Military Base Type Colors =========== */
@@ -237,9 +237,9 @@
     --warzone-moving-resolution-scale: 1;
     --warzone-moving-msaa-samples: 1;
     --warzone-focus-resolution-scale: 1.0;
-    --warzone-focus-performance-resolution-scale: 0.88;
-    --warzone-focus-performance-screen-space-error: 2.6;
-    --warzone-focus-performance-tile-cache: 220;
+    --warzone-focus-performance-resolution-scale: .82;
+    --warzone-focus-performance-screen-space-error: 2.9;
+    --warzone-focus-performance-tile-cache: 180;
     --warzone-close-resolution-scale: 1.0;
     --warzone-focus-msaa-samples: 1;
     --warzone-close-msaa-samples: 1;
@@ -249,16 +249,21 @@
     --warzone-near-sharp-height: 1800000;
     --warzone-camera-min-zoom: 100;
     --warzone-camera-max-zoom: 20000000;
-    --warzone-globe-max-screen-space-error: 1.6;
-    --warzone-globe-close-screen-space-error: 1.35;
-    --warzone-globe-moving-screen-space-error: 2.4;
-    --warzone-globe-tile-cache-size: 760;
-    --warzone-globe-tile-cache-moving: 460;
-    --warzone-globe-tile-cache-heavy: 320;
-    --warzone-globe-loading-descendant-limit: 48;
+    --warzone-globe-max-screen-space-error: 2.05;
+    --warzone-globe-close-screen-space-error: 1.4;
+    --warzone-globe-moving-screen-space-error: 2.45;
+    --warzone-globe-tile-cache-size: 420;
+    --warzone-globe-tile-cache-moving: 240;
+    --warzone-globe-tile-cache-heavy: 170;
+    --warzone-globe-tile-cache-loading: 220;
+    --warzone-globe-loading-descendant-limit: 28;
+    --warzone-globe-loading-descendant-limit-busy: 10;
+    --warzone-globe-loading-queue-threshold: 8;
+    --warzone-globe-loading-resolution-scale: .86;
+    --warzone-globe-loading-screen-space-error: 3.1;
     --warzone-globe-preload-ancestors: 1;
     --warzone-globe-preload-siblings: 0;
-    --warzone-imagery-max-anisotropy: 8;
+    --warzone-imagery-max-anisotropy: 2;
     --warzone-max-renderable-events: 340;
     --warzone-event-cluster-height: 1500000; /* cluster event rings before overlapping fills stack into solid disks */
     --warzone-event-ring-max-height: 15000000;
@@ -599,17 +604,17 @@
     --warzone-live-track-opacity: 0.96;
     --warzone-live-track-width: 4.2;
     --warzone-live-track-trail-smoothing: 0.78;
-    --warzone-live-track-trail-render-max-height: 650000;
+    --warzone-live-track-trail-render-max-height: 900000;
     --warzone-live-track-trail-max-active: 24;
     --warzone-live-track-trail-anchor-backward-meters: 0;
     --warzone-live-track-trail-anchor-down-meters: 28;
-    --warzone-live-track-trail-auto-radius: 160000;
+    --warzone-live-track-trail-auto-radius: 220000;
     --warzone-live-track-scale: 12;
     --warzone-live-track-min-pixel-size: 320;
     --warzone-live-track-max-scale: 280;
 
     /* Shared GLB lighting/material defaults used by aircraft + naval models */
-    --warzone-live-glb-ambient-light-intensity: 0.85;
+    --warzone-live-glb-ambient-light-intensity: 0.9;
     --warzone-live-glb-directional-light-intensity: 2.2;
     --warzone-live-glb-environment-intensity: 0.7;
     --warzone-live-glb-tone-mapping-exposure: 1.05;
@@ -617,8 +622,8 @@
     --warzone-live-glb-material-metalness: 0.1;
     --warzone-live-glb-shadow-enabled: 0;
     --warzone-live-glb-shadow-quality: 256;
-    --warzone-live-glb-lod-distance: 0.7;
-    --warzone-live-glb-texture-anisotropy: 10;
+    --warzone-live-glb-lod-distance: 0.45;
+    --warzone-live-glb-texture-anisotropy: 12;
 
     /* Aircraft: model sizing + dev calibration controls */
     --warzone-live-aircraft-model-calibration-enabled: 0;
@@ -735,8 +740,11 @@
     --warzone-live-aircraft-model-max-zoom-height: 280000;
     --warzone-live-aircraft-model-auto-radius: 240000;
     --warzone-live-aircraft-model-dynamic-bank-enabled: 1;
-    --warzone-live-aircraft-model-bank-factor: -1.2;
-    --warzone-live-aircraft-model-bank-max-deg: 18;
+    --warzone-live-aircraft-model-bank-factor: -2.1;
+    --warzone-live-aircraft-model-bank-max-deg: 28;
+    --warzone-live-aircraft-model-bank-deadband-deg: 0.75;
+    --warzone-live-aircraft-model-bank-smoothing: 0.24;
+    --warzone-live-aircraft-model-bank-return-smoothing: 0.16;
     --warzone-live-aircraft-model-preview-roll: 0;
     --warzone-live-aircraft-model-dynamic-pitch-enabled: 0;
     --warzone-live-aircraft-model-heading-offset-default: 90;

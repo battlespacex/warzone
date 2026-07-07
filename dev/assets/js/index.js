@@ -16,12 +16,22 @@ import { bindWarzoneUi } from "./warzone-ui.js";
 import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 import { initStratopsBilling } from "./warzone-billing.js";
 import { isLayerEnabled } from "./warzone-layers.js";
+import { initWarzoneAoiLens } from "./warzone-aoi-lens.js";
+import { initWarzoneCaptureShot } from "./warzone-capture-shot.js";
 
 const isLocalDevHost =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "::1" ||
     window.location.hostname === "[::1]";
+
+const capturePreserveDrawingBufferArmed = (() => {
+    try {
+        return window.sessionStorage?.getItem("wz-capture-preserve-buffer") === "1";
+    } catch {
+        return false;
+    }
+})();
 
 window.__stratopsConfig = {
     enableIntelWireMedia: true,
@@ -49,9 +59,11 @@ window.__stratopsConfig = {
     },
     autoContourOnAircraftFocus: false,
     enableFocusedContextModels: false,
-    autoTerrainOnAircraftFocus: true,
+    autoTerrainOnAircraftFocus: false,
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
+    capturePreserveDrawingBuffer: capturePreserveDrawingBufferArmed,
+    optimizeBackgroundOnAircraftFocus: true,
     enableMilSatsLayer: true,
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 
@@ -205,9 +217,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
-
+        viewer?.__warzone?.setAdaptiveQualityProfile?.("safe");
+        viewer?.__warzone?.setPerformanceMode?.(0);
         if (window.__stratopsConfig?.enableMilSatsLayer !== false) {
             initWarzoneMilSats(viewer);
+            setTimeout(() => {
+                try { window.refreshWarzoneMilSatsScale?.(); }
+                catch { }
+            }, 150);
         }
         initRegionSelector(viewer);
         if (pendingRegionModal) {
@@ -216,18 +233,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.__warzoneShowRegionModal?.(instant);
         }
 
-        if (window.__stratopsConfig?.enableMilSatsLayer !== false) {
-            setTimeout(() => {
-                try { window.refreshWarzoneMilSatsScale?.(); }
-                catch { }
-            }, 150);
-        }
-
         let started = false;
         window.__warzoneStartDeferredApp = async () => {
             if (started) return;
             started = true;
             try {
+                viewer?.__warzone?.stopStartupRotation?.();
+                viewer?.__warzone?.setAdaptiveQualityProfile?.("conservative");
+                viewer?.__warzone?.setPerformanceMode?.(0);
+                initWarzoneAoiLens(viewer);
+                initWarzoneCaptureShot(viewer);
                 if (isLocalDevHost) {
                     import("./warzone-dev-panel.js")
                         .then((module) => module.initDevPanel?.())

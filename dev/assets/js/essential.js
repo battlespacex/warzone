@@ -58,6 +58,7 @@ let __gnssInterferenceMeta = {
 };
 let __gnssInterferenceLoadingPromise = null;
 let __gnssInterferenceLastLoadedAt = 0;
+let __statusEventsLastLoadedAt = 0;
 let __alertAudio = null;
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
@@ -70,6 +71,7 @@ let __pollInFlight = false;
 let __pollInFlightSince = 0;
 let __pollRequestSeq = 0;
 let __pollEmptyStreak = 0;
+let __focusModeLastEventPollAt = 0;
 let __eventsApiRestrictedUntil = 0;
 let __eventsApiLastErrorKey = "";
 let __eventsApiLastErrorLoggedAt = 0;
@@ -91,6 +93,24 @@ let __aircraftWidgetScopeFilter = "region";
 let __aircraftWidgetPage = 1;
 let __aircraftWidgetCountryFilter = "all";
 let __aircraftHistoryCache = [];
+
+function getWarzoneAoiDataSnapshot() {
+    const mapSourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
+    return {
+        events: [...(mapSourceEvents || [])],
+        filteredEvents: [...(__eventsCache || [])],
+        visibleEvents: [...(__visibleEventsCache || [])],
+        allEvents: [...(__allEventsCache || [])],
+        statusEvents: [...(__statusEventsCache || [])],
+        aircraftHistory: [...(__aircraftHistoryCache || [])],
+        viewportScoped: Boolean(__viewportScoped),
+        generatedAt: Date.now(),
+    };
+}
+
+if (typeof window !== "undefined") {
+    window.__getWarzoneAoiDataSnapshot = getWarzoneAoiDataSnapshot;
+}
 let __aircraftHistoryLastLoadedAt = 0;
 let __aircraftHistoryLoadingPromise = null;
 let __aircraftWidgetRenderTimer = 0;
@@ -102,6 +122,7 @@ let __widgetLoadingState = new Map();
 let __navalWidgetRenderTimer = 0;
 let __navalWidgetScopeFilter = "region";
 let __navalWidgetSubtypeFilter = "all";
+let __navalWidgetPage = 1;
 let __navalSubtypeOptionsKey = "";
 let __lastStatusWidgetSignature = null;
 let __lastRawWidgetSignature = null;
@@ -144,6 +165,7 @@ const FOREGROUND_RECOVERY_THROTTLE_MS = 3000;
 const FOREGROUND_ADAPTIVE_RECOVERY_THRESHOLD_MS = 45 * 1000;
 const FOREGROUND_ADAPTIVE_RECOVERY_DEEP_MS = 10 * 60 * 1000;
 const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 8;
+const LIVE_NAVAL_WIDGET_MAX_ITEMS = 8;
 const LIVE_AIRCRAFT_WIDGET_TITLE_MAX_COUNT = 99;
 const AIRCRAFT_HISTORY_WINDOW_MS = 72 * 60 * 60 * 1000;
 const AIRCRAFT_RECENT_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -161,6 +183,9 @@ const INTEL_WIRE_REFRESH_MS = 5 * 60 * 1000;
 const INTEL_WIRE_ENDPOINT_BACKOFF_MS = 30 * 60 * 1000;
 const INTEL_WIRE_MAX_ITEMS = 120;
 const GNSS_LAYER_REFRESH_MS = 10 * 60 * 1000;
+const FOCUS_MODE_STATUS_REFRESH_MS = 45 * 1000;
+const FOCUS_MODE_GNSS_REFRESH_MS = 60 * 1000;
+const FOCUS_MODE_EVENT_POLL_MS = 30 * 1000;
 const HIGH_VALUE_ASSET_ALERT_THROTTLE_MS = 10 * 60 * 1000;
 const HIGH_VALUE_ASSET_NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 const EVENT_POLL_INTERVAL_MS = 12 * 1000;
@@ -938,6 +963,7 @@ function sortIntelWireItems(items = []) {
 }
 async function refreshIntelWireItems({ force = false } = {}) {
     if (isDocumentHidden()) return;
+    if (!force && shouldDeferBackgroundMapWork()) return __intelWireItemsCache;
     if (__intelWireRefreshInFlight) return;
     const now = Date.now();
     if (!force && __intelWireEndpointBackoffUntil && now < __intelWireEndpointBackoffUntil) return;
@@ -1284,7 +1310,7 @@ const debouncedRenderHeavy = debounce((events) => {
 }, 2000);
 function scheduleViewportFetch(delay = 500) {
     clearTimeout(__viewportFetchTimer);
-    if (shouldSuspendMapWork() || isDocumentHidden()) {
+    if (shouldSuspendMapWork() || isDocumentHidden() || shouldDeferBackgroundMapWork()) {
         __viewportFetchTimer = null;
         return;
     }
@@ -1379,6 +1405,31 @@ function shouldSuspendMapWork() {
         IDLE_SUSPEND_LAYER_IDS.every((id) => !isLayerEnabled(id)) ||
         isSupportModalVisible()
     );
+}
+function isAircraftFocusPerformanceMode() {
+    if (window.__stratopsConfig?.optimizeBackgroundOnAircraftFocus === false) return false;
+    const selection = getLiveTrackSelection?.() || window.__warzoneLiveTrackSelection || {};
+    return String(selection?.mode || "") === "focus" && Boolean(selection?.trackKey);
+}
+function shouldDeferBackgroundMapWork() {
+    return isAircraftFocusPerformanceMode();
+}
+function shouldRunFocusModeTask(lastRunAt = 0, cooldownMs = 0) {
+    if (!shouldDeferBackgroundMapWork()) return true;
+    return (Date.now() - Number(lastRunAt || 0)) >= Math.max(0, Number(cooldownMs || 0));
+}
+function syncNewsTickerForCurrentMode() {
+    if (shouldDeferBackgroundMapWork()) return;
+    updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
+}
+function syncFocusAwareBackgroundLoops() {
+    if (shouldDeferBackgroundMapWork()) {
+        stopIntelWireRefreshLoop();
+        return;
+    }
+    startIntelWireRefreshLoop({ forceInitial: false });
+    syncNewsTickerForCurrentMode();
+    scheduleViewportFetch(180);
 }
 function shouldEnableMilSatsLayer() {
     return window.__stratopsConfig?.enableMilSatsLayer !== false;
@@ -1556,14 +1607,22 @@ function bindGlobeEventPopup() {
         const canvas = scene?.canvas;
         const rect = canvas?.getBoundingClientRect?.();
         if (!viewer || !scene || !canvas || !rect || !activePopupAnchor) return null;
-        const anchorId = String(activePopupAnchor.id || "");
-        const entity = anchorId ? viewer.entities?.getById?.(anchorId) : null;
+        const anchorEntityId = String(activePopupAnchor.entityId || activePopupAnchor.id || "");
+        const entity = anchorEntityId ? viewer.entities?.getById?.(anchorEntityId) : null;
         if (entity && entity.show === false) return null;
         let position = null;
+        if (!position) {
+            const x = Number(activePopupAnchor.anchorCartesian?.x);
+            const y = Number(activePopupAnchor.anchorCartesian?.y);
+            const z = Number(activePopupAnchor.anchorCartesian?.z);
+            if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+                position = new Cesium.Cartesian3(x, y, z);
+            }
+        }
         try {
-            position = entity?.position?.getValue?.(Cesium.JulianDate.now()) || null;
+            position = position || entity?.position?.getValue?.(Cesium.JulianDate.now()) || null;
         } catch {
-            position = null;
+            position = position || null;
         }
         if (!position) {
             const lon = Number(activePopupAnchor.lon);
@@ -1701,9 +1760,11 @@ function bindGlobeEventPopup() {
             }
         }
         activePopupAnchor = {
+            entityId: String(detail.entityId || "").trim(),
             id: String(detail.id || "").trim(),
             lat: Number(detail.lat),
             lon: Number(detail.lon),
+            anchorCartesian: detail.anchorCartesian || null,
         };
         popup.hidden = false;
         popup.style.transition = "opacity 350ms cubic-bezier(0.4, 0, 0.2, 1)";
@@ -1713,7 +1774,7 @@ function bindGlobeEventPopup() {
         };
         popup.classList.add("is-visible");
         bindAnchoredPopupTracking();
-        positionPopupNearMarker(getPopupAnchorScreenPosition() || detail.screenPosition);
+        positionPopupNearMarker(detail.screenPosition || getPopupAnchorScreenPosition());
         window.__warzoneViewer?.scene?.requestRender?.();
     };
     closeBtn?.addEventListener("click", hidePopup);
@@ -1949,6 +2010,8 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         notifyHighValueAssets("naval", highValueVessels);
         renderNavalTrackerWidget({
             vessels,
+            visibleCount: LIVE_NAVAL_WIDGET_MAX_ITEMS * __navalWidgetPage,
+            pageSize: LIVE_NAVAL_WIDGET_MAX_ITEMS,
             emptyMessage: __navalWidgetScopeFilter === "all"
                 ? "No naval contacts in current filter"
                 : "No naval contacts in selected region",
@@ -2072,6 +2135,7 @@ function isTrackLikeEvent(event) {
 }
 async function fetchViewportEvents() {
     if (shouldSuspendMapWork() || isDocumentHidden()) return;
+    if (shouldDeferBackgroundMapWork()) return;
     if (__viewportFetchInFlight) return;
     __viewportFetchInFlight = true;
     const requestSeq = ++__viewportFetchSeq;
@@ -2428,6 +2492,14 @@ function dedupeStatusEvents(events = []) {
     return out;
 }
 async function refreshStatusEvents() {
+    const now = Date.now();
+    if (
+        shouldDeferBackgroundMapWork() &&
+        __statusEventsCache.length &&
+        !shouldRunFocusModeTask(__statusEventsLastLoadedAt, FOCUS_MODE_STATUS_REFRESH_MS)
+    ) {
+        return __statusEventsCache;
+    }
     const results = await Promise.allSettled([
         api.getActiveAlerts(),
         api.getAirspaceStatuses ? api.getAirspaceStatuses() : Promise.resolve({ data: [], error: null })
@@ -2448,6 +2520,7 @@ async function refreshStatusEvents() {
             .forEach((event) => statusEvents.push(event));
     }
     __statusEventsCache = dedupeStatusEvents(statusEvents);
+    __statusEventsLastLoadedAt = now;
     return __statusEventsCache;
 }
 function normalizeGnssCell(cell = {}) {
@@ -2466,7 +2539,7 @@ function normalizeGnssCell(cell = {}) {
         confidence: String(cell.confidence || "low").toLowerCase(),
         country: cell.country || "Unknown / Unassigned",
         region: cell.region || "Global",
-        sourceLabel: cell.sourceLabel || "GNSS Interference Monitor",
+        sourceLabel: cell.sourceLabel || "GNSS Jamming Monitor",
         observedAt: cell.observedAt || cell.observed_at || cell.updatedAt || cell.updated_at || "",
         updatedAt: cell.updatedAt || cell.updated_at || cell.observedAt || cell.observed_at || "",
         isDemo: cell.isDemo === true || cell.is_demo === true,
@@ -2495,17 +2568,20 @@ function syncGnssInterferenceLayer() {
 }
 async function refreshGnssInterferenceCells({ force = false } = {}) {
     const now = Date.now();
+    const refreshWindowMs = shouldDeferBackgroundMapWork()
+        ? Math.max(GNSS_LAYER_REFRESH_MS, FOCUS_MODE_GNSS_REFRESH_MS)
+        : GNSS_LAYER_REFRESH_MS;
     if (
         !force &&
         __gnssInterferenceLoadingPromise &&
-        (now - __gnssInterferenceLastLoadedAt) < GNSS_LAYER_REFRESH_MS
+        (now - __gnssInterferenceLastLoadedAt) < refreshWindowMs
     ) {
         return __gnssInterferenceLoadingPromise;
     }
     if (
         !force &&
         __gnssInterferenceCellsCache.length &&
-        (now - __gnssInterferenceLastLoadedAt) < GNSS_LAYER_REFRESH_MS
+        (now - __gnssInterferenceLastLoadedAt) < refreshWindowMs
     ) {
         syncGnssInterferenceLayer();
         return __gnssInterferenceCellsCache;
@@ -2535,7 +2611,7 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
                 sourceMode: "unavailable",
                 liveAvailable: false,
                 tableAvailable: true,
-                message: err?.message || "GNSS interference endpoint is unavailable.",
+                message: err?.message || "GNSS Jamming endpoint is unavailable.",
             };
             __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();
@@ -2998,6 +3074,12 @@ function escapeHtml(value = "") {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 }
+function stripPresentationEmoji(value = "") {
+    return String(value ?? "")
+        .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
 function decodeBasicHtmlEntities(value = "") {
     let text = String(value ?? "");
     for (let index = 0; index < 3; index += 1) {
@@ -3013,6 +3095,13 @@ function decodeBasicHtmlEntities(value = "") {
     }
     return text;
 }
+function stripNonEnglishText(value = "", fallback = "") {
+    const cleaned = String(value ?? "")
+        .replace(/[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}\p{Number}\s]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return cleaned || String(fallback || "").trim();
+}
 function sanitizeIntelWireSummary(value = "") {
     const decoded = decodeBasicHtmlEntities(value);
     const stripped = decoded
@@ -3023,9 +3112,10 @@ function sanitizeIntelWireSummary(value = "") {
         .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
         .replace(/https?:\/\/\S+/gi, " ");
     const leakedIndex = stripped.search(/\b(?:data-history-node-id|about=|href=|class=|src=|<article|<\/article|<p>|<\/p>)/i);
-    return (leakedIndex >= 0 ? stripped.slice(0, leakedIndex) : stripped)
+    return stripNonEnglishText((leakedIndex >= 0 ? stripped.slice(0, leakedIndex) : stripped)
+        .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, " ")
         .replace(/\s+/g, " ")
-        .trim();
+        .trim());
 }
 function isIntelWireMediaEnabled() {
     return window.__stratopsConfig?.enableIntelWireMedia === true;
@@ -3117,7 +3207,7 @@ function buildIntelWireImagePanelMarkup(event = {}, images = [], options = {}) {
                         src="${escapeHtml(entry.thumbUrl || entry.fullUrl || "")}"
                         ${entry.width ? `width="${Math.max(1, Number(entry.width) || 0)}"` : ""}
                         ${entry.height ? `height="${Math.max(1, Number(entry.height) || 0)}"` : ""}
-                        alt="${escapeHtml(entry.alt || event.title || "Intel Wire image")}"
+                        alt="${escapeHtml(stripPresentationEmoji(entry.alt || event.title || "Intel Wire image") || "Intel Wire image")}"
                         loading="lazy"
                         decoding="async">
                 </figure>
@@ -3135,7 +3225,7 @@ function buildIntelWireVideoPanelMarkup(event = {}, videos = [], state = {}, opt
         <div class="${gridClass}">
             ${visibleVideos.map((entry, index) => {
                 const isActive = activeVideoIndex === index;
-                const title = entry.title || event.title || `Video ${index + 1}`;
+                const title = stripPresentationEmoji(entry.title || event.title || `Video ${index + 1}`) || `Video ${index + 1}`;
                 if (isActive) {
                     if (entry.embedUrl) {
                         return `
@@ -3174,7 +3264,7 @@ function buildIntelWireVideoPanelMarkup(event = {}, videos = [], state = {}, opt
                         aria-label="Play ${escapeHtml(title)}"
                         title="Play ${escapeHtml(title)}">
                         ${thumbMarkup}
-                        <span class="wz-feed-video-play" aria-hidden="true">▶</span>
+                        <span class="wz-feed-video-play" aria-hidden="true"></span>
                         <span class="wz-feed-video-meta">
                             <strong>${escapeHtml(title)}</strong>
                             ${entry.duration ? `<small>${escapeHtml(entry.duration)}</small>` : ""}
@@ -3522,7 +3612,10 @@ function renderFeed(viewModelOrEvents) {
         card.dataset.category = categoryClass;
         card.dataset.severity = severityClass;
         const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
-        const sourceName = String(event.source_name || "Intel Wire Source").trim();
+        const sourceName = stripNonEnglishText(stripPresentationEmoji(event.source_name || "Intel Wire Source"), "Intel Wire Source");
+        const title = stripNonEnglishText(stripPresentationEmoji(event.title || "Untitled event"), "Intel update");
+        const summary = sanitizeIntelWireSummary(event.summary) || "No summary available.";
+        const location = stripNonEnglishText(stripPresentationEmoji(compactEventPlaceLabel(event)), "Unknown location");
         const sourceMarkup = safeUrl
             ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`
             : `${escapeHtml(sourceName)}`;
@@ -3536,10 +3629,10 @@ function renderFeed(viewModelOrEvents) {
                 <small class="wz-feed-source">${sourceMarkup}</small>
             </div>
             <div class="timeline-body">
-                <strong class="wz-feed-title">${escapeHtml(event.title || "Untitled event")}</strong>
-                <p class="wz-feed-summary">${escapeHtml(sanitizeIntelWireSummary(event.summary) || "No summary available.")}</p>
+                <strong class="wz-feed-title">${escapeHtml(title)}</strong>
+                <p class="wz-feed-summary">${escapeHtml(summary)}</p>
                 <small class="wz-feed-location">
-                    ${escapeHtml(compactEventPlaceLabel(event))}
+                    ${escapeHtml(location)}
                 </small>
                 <div class="wz-feed-actions" data-feed-media-actions></div>
                 <div class="wz-feed-media-panel wz-feed-media-panel--images" data-feed-image-panel hidden></div>
@@ -3562,9 +3655,12 @@ function renderFeed(viewModelOrEvents) {
     }
     if (loadMoreBtn) {
         loadMoreBtn.hidden = remaining <= 0;
-        loadMoreBtn.textContent = remaining > 0
-            ? `Load ${Math.min(FEED_LOAD_MORE_COUNT, remaining)} more`
-            : "All loaded";
+        loadMoreBtn.innerHTML = `
+            <span></span>
+            <span>${escapeHtml(remaining > 0
+                ? `Load ${Math.min(FEED_LOAD_MORE_COUNT, remaining)} more`
+                : "All loaded")}</span>
+        `;
     }
 }
 function renderStrikeCounters(events) {
@@ -3668,7 +3764,7 @@ function renderAirspaceStatus(events) {
             container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
             return;
         }
-        container.innerHTML = '<div class="status-row"><span>No regional airspace signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
+        container.innerHTML = '<div class="status-row"><span>No airspace signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
         return;
     }
     const markup = rows.map((row) => {
@@ -5294,18 +5390,34 @@ function updateAircraftWidgetCard(card, track, selection) {
         actionBtn = document.createElement("button");
         actionBtn.type = "button";
         actionBtn.className = "wz-aircraft-action btn-primary";
+        actionBtn.appendChild(document.createElement("span"));
+        actionBtn.appendChild(document.createTextNode(""));
         foot.appendChild(actionBtn);
         card.appendChild(foot);
     }
     titleEl = card.querySelector(".wz-aircraft-item__title");
     timeEl = card.querySelector(".wz-aircraft-item__time");
     actionBtn = card.querySelector(".wz-aircraft-action");
-    titleEl.innerHTML = `
-        <span class="wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}" aria-label="${statusLabel}">
-            <span class="stratops-ico-assets-signal-thermal-1" aria-hidden="true"></span>
-        </span>
-        <span class="wz-aircraft-title__text">${title}</span>
-    `;
+    let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");
+    let statusIcon = statusWrap?.querySelector(".stratops-ico-assets-signal-thermal-1") || null;
+    let titleText = titleEl.querySelector(".wz-aircraft-title__text");
+    if (!statusWrap) {
+        statusWrap = document.createElement("span");
+        statusWrap.className = "wz-aircraft-title__status";
+        statusIcon = document.createElement("span");
+        statusIcon.className = "stratops-ico-assets-signal-thermal-1";
+        statusIcon.setAttribute("aria-hidden", "true");
+        statusWrap.appendChild(statusIcon);
+        titleEl.appendChild(statusWrap);
+    }
+    if (!titleText) {
+        titleText = document.createElement("span");
+        titleText.className = "wz-aircraft-title__text";
+        titleEl.appendChild(titleText);
+    }
+    statusWrap.className = `wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}`;
+    statusWrap.setAttribute("aria-label", statusLabel);
+    titleText.textContent = title;
     timeEl.textContent = timeLabel;
     const metaSpans = meta.querySelectorAll("span");
     if (metaSpans[0]) metaSpans[0].textContent = detailLabel;
@@ -5321,7 +5433,17 @@ function updateAircraftWidgetCard(card, track, selection) {
     actionBtn.disabled = isFocusDisabled;
     actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");
     actionBtn.classList.toggle("is-focus-disabled", isFocusDisabled);
-    actionBtn.innerHTML = `<span aria-hidden="true"></span>${actionLabel}`;
+    const actionIcon = actionBtn.querySelector("span") || document.createElement("span");
+    if (!actionIcon.parentNode) {
+        actionBtn.appendChild(actionIcon);
+        actionBtn.appendChild(document.createTextNode(""));
+    }
+    actionIcon.setAttribute("aria-hidden", "true");
+    if (!actionIcon.nextSibling) {
+        actionBtn.appendChild(document.createTextNode(actionLabel));
+    } else {
+        actionIcon.nextSibling.textContent = actionLabel;
+    }
 }
 
 function renderAircraftMovementsWidget() {
@@ -5365,7 +5487,6 @@ function renderAircraftMovementsWidget() {
             existingCardMap.delete(key);
         }
     });
-    container.querySelector(".wz-aircraft-load-more")?.remove();
     ensureAircraftWidgetEmptyState(container, items.length > 0, emptyMessage);
     if (!items.length) return;
     const cardsInOrder = [];
@@ -5381,17 +5502,19 @@ function renderAircraftMovementsWidget() {
         updateAircraftWidgetCard(card, track, selection);
         cardsInOrder.push(card);
     });
-    const loadMoreBtn = container.querySelector(".wz-aircraft-load-more");
-    if (loadMoreBtn) {
-        loadMoreBtn.onclick = null;
-        loadMoreBtn.remove();
-    }
-    const fragment = document.createDocumentFragment();
-    cardsInOrder.forEach((card) => fragment.appendChild(card));
-    container.appendChild(fragment);
+    let previousCard = null;
+    cardsInOrder.forEach((card) => {
+        const expectedNode = previousCard
+            ? previousCard.nextElementSibling
+            : container.querySelector(".wz-aircraft-item");
+        if (card !== expectedNode) {
+            container.insertBefore(card, expectedNode || null);
+        }
+        previousCard = card;
+    });
 
     // Load More button
-    let nextLoadMoreBtn = loadMoreBtn || null;
+    let nextLoadMoreBtn = container.querySelector(".wz-aircraft-load-more");
     const allForCount = Math.max(0, Number(filteredCount || 0));
     const shownCount = items.length;
     const hasMore = allForCount > shownCount;
@@ -5399,20 +5522,20 @@ function renderAircraftMovementsWidget() {
         if (!nextLoadMoreBtn) {
             nextLoadMoreBtn = document.createElement("button");
             nextLoadMoreBtn.type = "button";
-            nextLoadMoreBtn.className = "wz-aircraft-load-more";
+            nextLoadMoreBtn.className = "wz-aircraft-load-more btn-secondary white";
             nextLoadMoreBtn.dataset.aircraftLoadMore = "1";
+            nextLoadMoreBtn.appendChild(document.createElement("span"));
+            nextLoadMoreBtn.appendChild(document.createTextNode(""));
         }
         const remaining = Math.min(LIVE_AIRCRAFT_WIDGET_MAX_ITEMS, Math.max(0, allForCount - shownCount));
-        nextLoadMoreBtn.textContent = `Load More (${remaining} more)`;
-        nextLoadMoreBtn.onclick = (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            __aircraftWidgetPage += 1;
-            requestAircraftMovementsWidgetRender(0);
-        };
-        container.appendChild(nextLoadMoreBtn); // always move to end after cards
+        const labelNode = nextLoadMoreBtn.querySelector("span")?.nextSibling;
+        if (labelNode) {
+            labelNode.textContent = `Load More (${remaining} more)`;
+        }
+        if (nextLoadMoreBtn.parentNode !== container || nextLoadMoreBtn !== container.lastElementChild) {
+            container.appendChild(nextLoadMoreBtn);
+        }
     } else {
-        if (nextLoadMoreBtn) nextLoadMoreBtn.onclick = null;
         nextLoadMoreBtn?.remove();
     }
 }
@@ -5422,8 +5545,18 @@ function bindAircraftMovementsWidget() {
     document.addEventListener("click", (event) => {
         const loadMoreBtn = event.target.closest("[data-aircraft-load-more]");
         if (loadMoreBtn) {
+            event.preventDefault();
+            event.stopPropagation();
             __aircraftWidgetPage += 1;
             requestAircraftMovementsWidgetRender(0);
+            return;
+        }
+        const navalLoadMoreBtn = event.target.closest("[data-naval-load-more]");
+        if (navalLoadMoreBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            __navalWidgetPage += 1;
+            requestNavalWidgetRender(0);
             return;
         }
         const actionBtn = event.target.closest("[data-track-action]");
@@ -5492,6 +5625,7 @@ function bindAircraftMovementsWidget() {
         const navalSubtypeSelect = event.target.closest("#wz-naval-filter-subtype");
         if (navalSubtypeSelect) {
             __navalWidgetSubtypeFilter = normalizeNavalSubtype(String(navalSubtypeSelect.value || "all")) || "all";
+            __navalWidgetPage = 1;
             requestNavalWidgetRender(0);
             return;
         }
@@ -5500,16 +5634,19 @@ function bindAircraftMovementsWidget() {
         __navalWidgetScopeFilter = String(navalScopeSelect.value || "region").toLowerCase() === "all"
             ? "all"
             : "region";
+        __navalWidgetPage = 1;
         requestNavalWidgetRender(0);
     });
     document.addEventListener("wz:aircraft-log-updated", () => {
         requestAircraftMovementsWidgetRender();
     });
     document.addEventListener("wz:aircraft-focus-lock-changed", () => {
+        syncFocusAwareBackgroundLoops();
         requestAircraftMovementsWidgetRender(0);
         requestNavalWidgetRender(0);
     });
     document.addEventListener("wz:aircraft-track-selected", () => {
+        syncFocusAwareBackgroundLoops();
         requestAircraftMovementsWidgetRender(0);
         requestNavalWidgetRender(0);
     });
@@ -5993,7 +6130,8 @@ export async function initWarzoneApp() {
         __viewportScoped = false;
         renderAll(events);
         startIntelWireRefreshLoop();
-        updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
+        syncFocusAwareBackgroundLoops();
+        syncNewsTickerForCurrentMode();
         const supportModalOpen = isSupportModalVisible();
         setAuthModalRenderBudget(supportModalOpen);
         if (!supportModalOpen) {
@@ -6057,7 +6195,7 @@ export async function initWarzoneApp() {
                 scheduleAircraftHistoryRefresh(true);
             }
             syncFilteredUi(__eventsCache);
-            updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
+            syncNewsTickerForCurrentMode();
             syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
             syncHotspotLayerEvents(
                 isLayerEnabled("hotspots")
@@ -6065,6 +6203,7 @@ export async function initWarzoneApp() {
                     : []
             );
             syncGnssInterferenceLayer();
+            syncFocusAwareBackgroundLoops();
             scheduleViewportFetch(60);
             requestAircraftMovementsWidgetRender(0);
             requestNavalWidgetRender(0);
@@ -6084,7 +6223,7 @@ export async function initWarzoneApp() {
                         await refreshGnssInterferenceCells({ force: true });
                     }
                     renderAll(freshEvents);
-                    updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
+                    syncNewsTickerForCurrentMode();
                     syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
                     syncHotspotLayerEvents(
                         isLayerEnabled("hotspots")
@@ -6141,6 +6280,7 @@ export async function initWarzoneApp() {
                 __pollInFlight = false;
                 __pollInFlightSince = 0;
             }
+            syncFocusAwareBackgroundLoops();
             __lastViewportKey = "";
             scheduleViewportFetch(320);
             requestAircraftMovementsWidgetRender(0);
@@ -6188,6 +6328,7 @@ export async function initWarzoneApp() {
     }
     onLayerChange((id) => {
         syncIdleSceneState();
+        syncFocusAwareBackgroundLoops();
         const globe = window.__warzoneViewer?.__warzone;
         const mapSourceEvents = getCurrentMapSourceEvents();
         globe?.setEventMarkersSuppressed?.(false);
@@ -6308,6 +6449,10 @@ async function pollLatestEvents(options = {}) {
     const force = options?.force === true;
     if (shouldSuspendMapWork() && !force) return;
     if (isDocumentHidden() && !force) return;
+    if (!force && shouldDeferBackgroundMapWork()) {
+        if (!shouldRunFocusModeTask(__focusModeLastEventPollAt, FOCUS_MODE_EVENT_POLL_MS)) return;
+        __focusModeLastEventPollAt = Date.now();
+    }
     if (!force && __eventsApiRestrictedUntil > Date.now()) return;
     if (__pollInFlight && !force) return;
     if (__pollInFlight && force) {
@@ -6608,7 +6753,7 @@ export function handleIncomingEvent(event) {
     }
     renderAll(__eventsCache, { replaceAllCache: false });
     flashFeedCard(normalized.id);
-    updateNewsTicker(applyOperationalScopeFilters(__eventsCache).slice(0, 20));
+    syncNewsTickerForCurrentMode();
     if (__viewportScoped) {
         __lastViewportKey = "";
         scheduleViewportFetch(180);
@@ -7694,15 +7839,19 @@ function openSupportModal({ resetDismissal = true } = {}) {
     if (resetDismissal) {
         try { sessionStorage.removeItem("wz_donate_dismissed"); } catch { }
     }
-    modal.style.setProperty("display", "flex", "important");
-    modal.hidden = false;
-    modal.setAttribute("aria-hidden", "false");
     modal.scrollTop = 0;
-    modal.classList.remove("is-visible");
     clearTimeout(__viewportFetchTimer);
     __viewportFetchTimer = null;
     syncHotspotRootVisibility(false);
     setAuthModalRenderBudget(true);
+    if (typeof window.__warzoneOpenSharedModal === "function") {
+        window.__warzoneOpenSharedModal(modal);
+        return;
+    }
+    modal.style.setProperty("display", "flex", "important");
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    modal.classList.remove("is-visible");
     requestAnimationFrame(() => modal.classList.add("is-visible"));
 }
 
@@ -7714,6 +7863,17 @@ function closeSupportModal({ rememberDismissed = false } = {}) {
     setAuthModalRenderBudget(true);
     if (rememberDismissed) {
         try { sessionStorage.setItem("wz_donate_dismissed", "1"); } catch { }
+    }
+    if (typeof window.__warzoneCloseSharedModal === "function") {
+        window.__warzoneCloseSharedModal(modal, () => {
+            modal.style.removeProperty("display");
+            syncModalRenderBudget();
+            syncHotspotRootVisibility(!isAuthModalVisible() && isLayerEnabled("hotspots"));
+            if (!shouldSuspendMapWork()) {
+                scheduleViewportFetch(320);
+            }
+        });
+        return;
     }
     __supportModalCloseTimer = setTimeout(() => {
         modal.hidden = true;

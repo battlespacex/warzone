@@ -282,7 +282,7 @@ function detectCategory(item = {}) {
     return "gps_jamming";
   }
   if (
-    containsAny(text, ["gnss interference", "satellite navigation disruption", "navigation signal", "interference zone"]) ||
+    containsAny(text, ["gnss Jamming", "gnss interference", "satellite navigation disruption", "navigation signal", "interference zone"]) ||
     ((text.includes("gnss") || text.includes("gps")) && text.includes("interference"))
   ) {
     return "gnss_interference";

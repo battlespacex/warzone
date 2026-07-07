@@ -257,7 +257,7 @@ export function eventsRouter({ broadcast }) {
         }
     });
 
-    // ── GNSS interference cells (sanitized public payload) ─────────
+    // ── GNSS jamming cells (sanitized public payload) ─────────
     router.get("/gnss-interference", async (req, res) => {
         try {
             const requestedLimit = Number(req.query.limit);

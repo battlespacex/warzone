@@ -3,6 +3,24 @@
         <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="Stratops logo" class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async">
     </a>
 </div>
+<div class="wz-globe-toggle" role="group" aria-label="Map view mode">
+    <button class="wz-globe-toggle__btn is-active"
+            id="wz-toggle-3d"
+            type="button"
+            title="3D globe view"
+            aria-label="Switch to 3D globe"
+            aria-pressed="true">
+        3D
+    </button>
+    <button class="wz-globe-toggle__btn"
+            id="wz-toggle-2d"
+            type="button"
+            title="2D flat map view"
+            aria-label="Switch to 2D flat map"
+            aria-pressed="false">
+        2D
+    </button>
+</div>
 <header class="warzone-commandbar">
     <div class="warzone-region-bar">
         <span class="warzone-region-bar__label static-icon" aria-hidden="true">
@@ -42,24 +60,6 @@
                 <span class="wz-utc-clock__label">UTC</span>
                 <span class="wz-utc-clock__time" id="wz-utc-time">00:00:00</span>
             </div>
-            <div class="wz-globe-toggle" role="group" aria-label="Map view mode">
-                <button class="wz-globe-toggle__btn is-active"
-                        id="wz-toggle-3d"
-                        type="button"
-                        title="3D globe view"
-                        aria-label="Switch to 3D globe"
-                        aria-pressed="true">
-                    3D
-                </button>
-                <button class="wz-globe-toggle__btn"
-                        id="wz-toggle-2d"
-                        type="button"
-                        title="2D flat map view"
-                        aria-label="Switch to 2D flat map"
-                        aria-pressed="false">
-                    2D
-                </button>
-            </div>
             <div class="wz-defcon" id="wz-defcon-badge" data-level="5" title="DEFCON status">
                 <span class="wz-defcon__label">DEFCON</span>
                 <span class="wz-defcon__level" id="wz-defcon-level">5</span>
@@ -95,12 +95,17 @@
 
         <button type="button" id="wz-support-open" class="btn-primary" aria-label="Open Founding Supporter Program"
         title="Support StratOps">
-        <span></span>
-        <span class="static-icon">
-            <span class="stratops-ico-like-1" aria-hidden="true"></span>
-        </span>
-        <span>Support</span>
-    </button>
+            <span></span>
+            <span>Support</span>
+        </button>
+        <button class="action-icon"
+                type="button"
+                id="dock-capture-shot"
+                title="Capture Shot"
+                aria-label="Capture current StratOps map view">
+                <span></span>
+                <span class="stratops-ico-dock-screenshot-1" aria-hidden="true"></span>
+        </button>
     </div>
 
 

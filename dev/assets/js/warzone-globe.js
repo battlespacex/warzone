@@ -1232,12 +1232,35 @@ function resolvePickedEventMarkerEntity(viewer, picked) {
     if (!isEventMarkerEntity(markerEntity)) return null;
     return markerEntity;
 }
-function buildPickedEventDetail(entity, screenPosition = null) {
+function buildPickedEventDetail(entity, screenPosition = null, viewer = null) {
     const clusterCount = Math.max(1, Number(getEntityPropertyValue(entity, "cluster_count", 1) || 1));
     const clusterEventsRaw = getEntityPropertyValue(entity, "cluster_events", []);
     const clusterEvents = Array.isArray(clusterEventsRaw) ? clusterEventsRaw.slice(0, 8) : [];
+    let anchorCartesian = null;
     let lat = Number(getEntityPropertyValue(entity, "lat", NaN));
     let lon = Number(getEntityPropertyValue(entity, "lon", NaN));
+    const activeViewer = viewer || window.__warzoneViewer || null;
+    const hasScreenPosition =
+        Number.isFinite(screenPosition?.x) && Number.isFinite(screenPosition?.y);
+    if (activeViewer?.scene && hasScreenPosition) {
+        try {
+            if (activeViewer.scene.pickPositionSupported) {
+                anchorCartesian = activeViewer.scene.pickPosition(screenPosition) || null;
+            }
+        } catch {
+            anchorCartesian = null;
+        }
+        if (!anchorCartesian) {
+            try {
+                anchorCartesian = activeViewer.camera?.pickEllipsoid?.(
+                    screenPosition,
+                    activeViewer.scene.globe?.ellipsoid
+                ) || null;
+            } catch {
+                anchorCartesian = null;
+            }
+        }
+    }
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
         try {
             const position = entity?.position?.getValue?.(Cesium.JulianDate.now());
@@ -1252,6 +1275,7 @@ function buildPickedEventDetail(entity, screenPosition = null) {
         }
     }
     return {
+        entityId: String(entity?.id || "").trim(),
         id: String(getEntityPropertyValue(entity, "event_id", entity.id || "")),
         title: String(getEntityPropertyValue(entity, "title", "")),
         summary: String(getEntityPropertyValue(entity, "summary", "")),
@@ -1265,6 +1289,16 @@ function buildPickedEventDetail(entity, screenPosition = null) {
         weaponType: String(getEntityPropertyValue(entity, "weapon_type", "")),
         sourceUrl: String(getEntityPropertyValue(entity, "source_url", "")),
         clusterEvents,
+        anchorCartesian: anchorCartesian
+            && Number.isFinite(anchorCartesian.x)
+            && Number.isFinite(anchorCartesian.y)
+            && Number.isFinite(anchorCartesian.z)
+            ? {
+                x: Number(anchorCartesian.x),
+                y: Number(anchorCartesian.y),
+                z: Number(anchorCartesian.z),
+            }
+            : null,
         screenPosition: screenPosition && Number.isFinite(screenPosition.x) && Number.isFinite(screenPosition.y)
             ? { x: Number(screenPosition.x), y: Number(screenPosition.y) }
             : null,
@@ -1292,7 +1326,7 @@ function bindEventMarkerPicking(viewer) {
             return;
         }
         document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
-            detail: buildPickedEventDetail(eventEntity, movement.position),
+            detail: buildPickedEventDetail(eventEntity, movement.position, viewer),
         }));
         viewer.scene.requestRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -2406,40 +2440,11 @@ function updateMapCredits() {
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!creditsEl) return;
     creditsEl.setAttribute("aria-label", "Map credits and data attribution");
-    creditsEl.replaceChildren();
-
-    const logoSpecs = [
-        {
-            className: "warzone-map-credits__logo warzone-map-credits__logo--battlespacex",
-            src: "/assets/images/web/Battlespacex-full-logo.svg",
-            alt: "BattlespaceX",
-        },
-        {
-            className: "warzone-map-credits__logo warzone-map-credits__logo--cesiumjs",
-            src: "/assets/images/web/cesiumjs-logo.png",
-            alt: "CesiumJS",
-        },
-        {
-            className: "warzone-map-credits__logo warzone-map-credits__logo--esri",
-            src: "/assets/images/web/esri-logo.png",
-            alt: "Esri",
-        },
-    ];
-
-    logoSpecs.forEach((spec, index) => {
-        const logoEl = document.createElement("img");
-        logoEl.className = spec.className;
-        logoEl.src = spec.src;
-        logoEl.alt = spec.alt;
-        logoEl.decoding = "async";
-
-        creditsEl.appendChild(logoEl);
-        if (index < logoSpecs.length - 1) {
-            const separatorEl = document.createElement("span");
-            separatorEl.className = "seperator";
-            separatorEl.setAttribute("aria-hidden", "true");
-            creditsEl.appendChild(separatorEl);
+    creditsEl.querySelectorAll("img").forEach((img) => {
+        if (!img.alt) {
+            img.alt = img.className.includes("battlespacex") ? "BattlespaceX" : "Map credit";
         }
+        img.decoding = "async";
     });
 }
 function getCesiumCreditContainer(globeEl) {
@@ -4747,6 +4752,7 @@ export async function initWarzoneGlobe() {
             webgl: {
                 antialias: true,
                 powerPreference: "high-performance",
+                preserveDrawingBuffer: window.__stratopsConfig?.capturePreserveDrawingBuffer !== false,
             },
         },
         skyAtmosphere: false,
@@ -5005,6 +5011,10 @@ export async function initWarzoneGlobe() {
                 220,
                 Math.min(1200, Math.round(numberVar("--warzone-globe-tile-cache-size", 900)))
             );
+            const loadingTileCache = Math.max(
+                140,
+                Math.min(baseTileCache, Math.round(numberVar("--warzone-globe-tile-cache-loading", Math.max(180, baseTileCache * 0.52))))
+            );
             const movingTileCache = Math.max(
                 180,
                 Math.min(baseTileCache, Math.round(numberVar("--warzone-globe-tile-cache-moving", Math.max(220, baseTileCache * 0.66))))
@@ -5013,10 +5023,24 @@ export async function initWarzoneGlobe() {
                 140,
                 Math.min(baseTileCache, Math.round(numberVar("--warzone-globe-tile-cache-heavy", Math.max(180, baseTileCache * 0.52))))
             );
+            const baseLoadingDescendantLimit = Math.max(
+                6,
+                Math.min(72, Math.round(numberVar("--warzone-globe-loading-descendant-limit", 48)))
+            );
+            const busyLoadingDescendantLimit = Math.max(
+                4,
+                Math.min(baseLoadingDescendantLimit, Math.round(numberVar("--warzone-globe-loading-descendant-limit-busy", 10)))
+            );
+            const loadingQueueThreshold = Math.max(
+                1,
+                Math.round(numberVar("--warzone-globe-loading-queue-threshold", 8))
+            );
             const basePreloadSiblings = boolVar("--warzone-globe-preload-siblings", false);
             const cameraHeight = getCameraHeight(viewer);
             const is2DMode = getSceneMode(viewer) === "2d";
             const isCameraMoving = viewer.__warzoneCameraMoving === true;
+            const tileLoadQueueSize = Math.max(0, Number(viewer.__warzoneTileLoadQueueSize || 0));
+            const tileLoadBusy = tileLoadQueueSize >= loadingQueueThreshold || viewer.__warzoneTileLoadBusy === true;
             const liveSelection = window.__warzoneLiveTrackSelection || {};
             const isAircraftFocusMode = String(liveSelection.mode || "") === "focus" && Boolean(liveSelection.trackKey);
             const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
@@ -5035,6 +5059,7 @@ export async function initWarzoneGlobe() {
             let nextFxaaEnabled = baseFxaaEnabled;
             let nextSse = baseSse;
             let nextTileCache = baseTileCache;
+            let nextLoadingDescendantLimit = baseLoadingDescendantLimit;
             let nextPreloadSiblings = basePreloadSiblings;
             if (count > 0) {
                 if (count <= 60) {
@@ -5101,6 +5126,21 @@ export async function initWarzoneGlobe() {
                 nextTileCache = Math.min(nextTileCache, movingTileCache);
                 nextPreloadSiblings = false;
             }
+            if (tileLoadBusy && !is2DMode) {
+                nextResolution = Math.min(
+                    nextResolution,
+                    clamp(numberVar("--warzone-globe-loading-resolution-scale", 0.86), 0.5, 1)
+                );
+                nextMsaaSamples = 1;
+                nextFxaaEnabled = true;
+                nextSse = Math.max(
+                    nextSse,
+                    clamp(numberVar("--warzone-globe-loading-screen-space-error", 3.1), 1.4, 6)
+                );
+                nextTileCache = Math.min(nextTileCache, loadingTileCache);
+                nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, busyLoadingDescendantLimit);
+                nextPreloadSiblings = false;
+            }
             if (isAircraftFocusMode) {
                 nextResolution = Math.min(nextResolution, clamp(numberVar("--warzone-focus-performance-resolution-scale", 0.72), 0.5, 1));
                 nextMsaaSamples = 1;
@@ -5108,6 +5148,9 @@ export async function initWarzoneGlobe() {
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.18);
                 nextSse = Math.max(nextSse, clamp(numberVar("--warzone-focus-performance-screen-space-error", 3.4), 1.8, 6));
                 nextTileCache = Math.min(nextTileCache, Math.max(96, Math.round(numberVar("--warzone-focus-performance-tile-cache", 160))));
+                if (tileLoadBusy) {
+                    nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, Math.max(4, busyLoadingDescendantLimit - 2));
+                }
                 nextPreloadSiblings = false;
             }
             if (adaptiveCaps.forceFxaaEnabled) {
@@ -5124,6 +5167,7 @@ export async function initWarzoneGlobe() {
             nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
             nextSse = clamp(nextSse, 0.8, 6);
             nextTileCache = Math.max(140, Math.min(1200, Math.round(nextTileCache)));
+            nextLoadingDescendantLimit = Math.max(4, Math.min(72, Math.round(nextLoadingDescendantLimit)));
             if (is2DMode) {
                 // Keep 2D map luminance stable: avoid adaptive quality oscillation that can look like
                 // dark/light pumping while tiles stream and counters update.
@@ -5133,6 +5177,7 @@ export async function initWarzoneGlobe() {
                 nextFxaaEnabled = baseFxaaEnabled;
                 nextSse = baseSse;
                 nextTileCache = baseTileCache;
+                nextLoadingDescendantLimit = baseLoadingDescendantLimit;
                 nextPreloadSiblings = basePreloadSiblings;
             }
             const prevPerfState = viewer.__warzonePerformanceState || {};
@@ -5154,6 +5199,9 @@ export async function initWarzoneGlobe() {
             if (prevPerfState.tileCacheSize !== nextTileCache) {
                 viewer.scene.globe.tileCacheSize = nextTileCache;
             }
+            if (prevPerfState.loadingDescendantLimit !== nextLoadingDescendantLimit) {
+                viewer.scene.globe.loadingDescendantLimit = nextLoadingDescendantLimit;
+            }
             if (prevPerfState.preloadSiblings !== nextPreloadSiblings) {
                 viewer.scene.globe.preloadSiblings = nextPreloadSiblings;
             }
@@ -5164,11 +5212,14 @@ export async function initWarzoneGlobe() {
                 msaaSamples: nextMsaaSamples,
                 fxaaEnabled: nextFxaaEnabled,
                 tileCacheSize: nextTileCache,
+                loadingDescendantLimit: nextLoadingDescendantLimit,
                 preloadSiblings: nextPreloadSiblings,
                 visibleCount: count,
                 cameraHeight,
                 isCameraMoving,
                 isAircraftFocusMode,
+                tileLoadQueueSize,
+                tileLoadBusy,
                 adaptiveProfile,
             };
             viewer.scene.requestRenderMode = true;
@@ -5228,6 +5279,36 @@ export async function initWarzoneGlobe() {
                 queuePerfSync();
             }, 120);
         });
+        if (viewer.scene?.globe?.tileLoadProgressEvent?.addEventListener) {
+            let tileLoadSettleTimer = 0;
+            viewer.scene.globe.tileLoadProgressEvent.addEventListener((queueLength = 0) => {
+                const nextQueueSize = Math.max(0, Number(queueLength || 0));
+                viewer.__warzoneTileLoadQueueSize = nextQueueSize;
+                const busy = nextQueueSize > 0;
+                if (busy) {
+                    if (tileLoadSettleTimer) {
+                        window.clearTimeout(tileLoadSettleTimer);
+                        tileLoadSettleTimer = 0;
+                    }
+                    if (viewer.__warzoneTileLoadBusy !== true) {
+                        viewer.__warzoneTileLoadBusy = true;
+                        queuePerfSync();
+                    }
+                    return;
+                }
+                if (tileLoadSettleTimer) {
+                    window.clearTimeout(tileLoadSettleTimer);
+                }
+                tileLoadSettleTimer = window.setTimeout(() => {
+                    tileLoadSettleTimer = 0;
+                    if (viewer.__warzoneTileLoadBusy !== false || viewer.__warzoneTileLoadQueueSize !== 0) {
+                        viewer.__warzoneTileLoadBusy = false;
+                        viewer.__warzoneTileLoadQueueSize = 0;
+                        queuePerfSync();
+                    }
+                }, 180);
+            });
+        }
     }
     bindContourViewportRefresh(viewer);
     prewarmFocusedTerrainProvider(viewer);

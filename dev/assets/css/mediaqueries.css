@@ -306,6 +306,18 @@
         --warzone-idle-resolution-min: 1.2;
         --warzone-focus-resolution-scale: 1.2;
         --warzone-close-resolution-scale: 1.2;
+        --warzone-live-aircraft-model-scale: 0.8;
+        --warzone-live-aircraft-model-airborne-scale: 0.8;
+        --warzone-live-aircraft-model-ground-scale: 0.72;
+        --warzone-live-aircraft-model-scale-zoom-in: 1.6;
+        --warzone-live-aircraft-model-scale-zoom-out: 0.8;
+        --warzone-live-aircraft-model-focused-scale: 0.9;
+        --warzone-live-aircraft-model-min-pixel-size: 256;
+        --warzone-live-aircraft-model-focused-min-pixel-size: 256;
+        --warzone-live-aircraft-model-scale-helicopter: 0.8;
+        --warzone-live-aircraft-model-focused-scale-helicopter: 0.9;
+        --warzone-live-aircraft-model-min-pixel-size-helicopter: 256;
+        --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 256;
     }
 
     .wz-altitude-readout {
@@ -380,14 +392,14 @@
     }
 
     .wz-globe-toggle {
-        position: fixed;
-        left: 2rem;
-        top: 10rem;
-        bottom: auto;
-        flex-direction: column;
-        justify-content: center;
-        height: 12rem;
-        margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    clip-path: var(--clippath-shape-3);
+    position: fixed;
+    left: 2rem;
+    flex-direction: column;
+    top: 50%;
     }
 
     .wz-globe-toggle__btn {
@@ -402,6 +414,15 @@
 
     .wz-dock__desktop-actions {
         display: none;
+    }
+
+    .wz-aoi-quick-open span:last-child {
+        display: none;
+    }
+
+    .wz-aoi-quick-open {
+        min-width: 4rem;
+        padding: 0 1rem;
     }
 
     .wz-dock__mobile-actions {
@@ -765,6 +786,23 @@
     }
 }
 /* #endregion */
+
+@media (max-width: 767px) {
+    .wz-aoi-panel {
+        right: 1rem;
+        left: 1rem;
+        top: 8rem;
+        width: auto;
+        max-width: none;
+        max-height: calc(100vh - 12rem);
+    }
+    .wz-aoi-panel .panel-content {
+        max-height: calc(100vh - 17rem);
+    }
+    .wz-aoi-grid {
+        grid-template-columns: 1fr;
+    }
+}
 
 
 

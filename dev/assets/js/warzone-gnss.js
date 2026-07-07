@@ -246,13 +246,13 @@ function renderTooltipContent(cell = {}) {
     const affected = Number(cell.affectedPercent || 0).toFixed(1);
     const samples = Math.max(0, Number(cell.sampleCount || 0));
     return [
-        `<div class="wz-gnss-tooltip__title">GNSS Interference: ${severityLabel.charAt(0).toUpperCase()}${severityLabel.slice(1)}</div>`,
+        `<div class="wz-gnss-tooltip__title">GNSS Jamming: ${severityLabel.charAt(0).toUpperCase()}${severityLabel.slice(1)}</div>`,
         `<div class="wz-gnss-tooltip__row"><span>Affected aircraft</span><strong>${affected}%</strong></div>`,
         `<div class="wz-gnss-tooltip__row"><span>Samples</span><strong>${samples}</strong></div>`,
         `<div class="wz-gnss-tooltip__row"><span>Confidence</span><strong>${confidenceLabel.charAt(0).toUpperCase()}${confidenceLabel.slice(1)}</strong></div>`,
         `<div class="wz-gnss-tooltip__row"><span>Region</span><strong>${cell.region || "Global"}</strong></div>`,
         `<div class="wz-gnss-tooltip__row"><span>Updated</span><strong>${formatRelativeTimestamp(cell.updatedAt || cell.observedAt)}</strong></div>`,
-        `<div class="wz-gnss-tooltip__source">Source: ${cell.sourceLabel || "GNSS Interference Monitor"}</div>`,
+        `<div class="wz-gnss-tooltip__source">Source: ${cell.sourceLabel || "GNSS Jamming Monitor"}</div>`,
         cell.isDemo ? `<div class="wz-gnss-tooltip__mode">Staged demo layer</div>` : "",
     ].filter(Boolean).join("");
 }
@@ -356,7 +356,7 @@ function buildLegendStatus({
     if (demoMode) return "GNSS demo fallback is enabled, but there are no staged cells to render.";
     if (!tableAvailable) return "GNSS backend table is not deployed yet.";
     if (!liveAvailable) return "GNSS live data is unavailable right now.";
-    return "No active GNSS interference cells are available right now.";
+    return "No active GNSS Jamming cells are available right now.";
 }
 
 function closeActiveGnssPanel() {
@@ -471,29 +471,29 @@ function renderPopupContent(cell = {}, tokens) {
     const affected = `${Number(cell.affectedPercent || 0).toFixed(1)}%`;
     const sampleCount = Math.max(0, Number(cell.sampleCount || 0));
     const color = getSeverityOutlineColor(tokens, cell.severity).toCssColorString();
-    const sourceLabel = cell.sourceLabel || "GNSS Interference Monitor";
+    const sourceLabel = cell.sourceLabel || "GNSS Jamming Monitor";
     return `
         <div class="wz-widget-milbase wz-widget-gnss" itemscope itemtype="https://schema.org/Place">
             <header class="wz-widget-header">
                 <div class="wz-widget-kicker">
                     <span class="wz-gnss-popup__dot" style="background:${escapeHtml(color)}" aria-hidden="true"></span>
-                    <span>GNSS Interference ${cell.isDemo ? "Staged" : "Live"}</span>
+                    <span>GNSS Jamming ${cell.isDemo ? "Staged" : "Live"}</span>
                 </div>
                 <div class="wz-widget-header-actions">
                     <button
                         type="button"
                         class="static-icon"
                         data-widget-close
-                        aria-label="Close GNSS interference panel">
+                        aria-label="Close GNSS Jamming panel">
                         <span class="stratops-ico-close-1" aria-hidden="true"></span>
                     </button>
                 </div>
             </header>
             <section class="wz-widget-body">
                 <p class="sr-only">
-                    GNSS interference panel showing severity, affected aircraft percentage, sample count, confidence, region, and coordinates.
+                    GNSS Jamming panel showing severity, affected aircraft percentage, sample count, confidence, region, and coordinates.
                 </p>
-                <h3>${escapeHtml(`${severityLabel} GNSS Interference`)}</h3>
+                <h3>${escapeHtml(`${severityLabel} GNSS Jamming`)}</h3>
                 <ul class="wz-widget-data-list">
                     <li><strong>Affected aircraft</strong><span>${escapeHtml(affected)}</span></li>
                     <li><strong>Samples</strong><span>${escapeHtml(String(sampleCount))}</span></li>
@@ -638,7 +638,7 @@ function upsertEntities(viewer, cells = [], tokens) {
         const markerColor = getSeverityOutlineColor(tokens, cell.severity);
         const entity = entities.add({
             id: `gnss-cell-${cell.id}`,
-            name: `GNSS Interference ${normalizeSeverity(cell.severity)}`,
+            name: `GNSS Jamming ${normalizeSeverity(cell.severity)}`,
             position: Cesium.Cartesian3.fromDegrees(Number(cell.lon), Number(cell.lat), 0),
             polygon: {
                 hierarchy,
@@ -674,7 +674,7 @@ function upsertEntities(viewer, cells = [], tokens) {
                 confidence: normalizeConfidence(cell.confidence),
                 country: String(cell.country || ""),
                 region: String(cell.region || ""),
-                source_label: String(cell.sourceLabel || "GNSS Interference Monitor"),
+                source_label: String(cell.sourceLabel || "GNSS Jamming Monitor"),
                 observed_at: String(cell.observedAt || ""),
                 updated_at: String(cell.updatedAt || ""),
                 is_demo: cell.isDemo === true,

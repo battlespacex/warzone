@@ -1,6 +1,5 @@
 ﻿<div class="warzone-ui-layer">
     <div class="secondary-content">
-
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
                data-widget-id="counter"
                aria-labelledby="widget-counter-title">
@@ -153,8 +152,9 @@
                 </div>
                 <div class="wz-feed-footer">
                     <small id="live-feed-count" class="wz-feed-count"></small>
-                    <button id="live-feed-load-more" class="wz-feed-load-more" type="button" hidden>
-                        Load more
+                    <button id="live-feed-load-more" class="wz-feed-load-more btn-secondary white" type="button" hidden>
+                        <span></span>
+                        <span>Load more</span>
                     </button>
                 </div>
             </div>
@@ -344,5 +344,71 @@
                 </div>
             </div>
         </aside>
+
+        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--aoi"
+               data-widget-id="aoi"
+               aria-labelledby="widget-aoi-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="widget-aoi-title">AOI Intelligence</h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-aoi-clear
+                                aria-label="Clear AOI"
+                                title="Clear AOI">
+                            <span class="stratops-ico-cancel-1" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse AOI widget"
+                                title="Collapse widget">
+                            <span class="stratops-ico-top-1" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
+                                class="static-icon"
+                                data-widget-close
+                                data-aoi-close
+                                aria-label="Hide AOI widget"
+                                title="Hide widget">
+                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div id="wz-aoi-panel-body" class="wz-aoi-panel__body" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside id="wz-gnss-legend" class="warzone-panel warzone-panel--floating warzone-widget--gnss" hidden aria-live="polite" aria-labelledby="wz-gnss-legend-title">
+            <div class="panel-container">
+                <div class="panel-head">
+                    <h2 id="wz-gnss-legend-title">GNSS Jamming <span id="wz-gnss-legend-demo" class="wz-gnss-legend__tag" hidden>STAGED</span></h2>
+                    <div class="panel-actions">
+                        <button type="button"
+                                class="static-icon"
+                                data-panel-collapse
+                                aria-expanded="true"
+                                aria-label="Collapse GNSS Jamming legend"
+                                title="Collapse widget">
+                            <span class="stratops-ico-top-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="wz-gnss-panel__body">
+                        <div id="wz-gnss-legend-status" class="wz-gnss-legend__status" hidden></div>
+                        <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--low"></span><span>Low: 0-2%</span></div>
+                        <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--medium"></span><span>Medium: 2-10%</span></div>
+                        <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--high"></span><span>High: &gt;10%</span></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <div id="wz-gnss-tooltip" class="wz-gnss-tooltip" hidden></div>
     </div>
 </div>
