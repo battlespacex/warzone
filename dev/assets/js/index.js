@@ -34,6 +34,8 @@ const capturePreserveDrawingBufferArmed = (() => {
 })();
 
 window.__stratopsConfig = {
+    apiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
+    supportApiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
     enableIntelWireMedia: true,
     // Localhost uses a same-origin cached proxy for live aircraft polling so
     // we keep the old smooth movement path without direct third-party CORS calls.

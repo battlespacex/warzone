@@ -116,19 +116,33 @@ app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", async (req, res) => {
     }
 });
 
-app.get("/api/*", async (req, res) => {
+app.use("/api", express.json({ limit: "1mb" }));
+app.all("/api/*", async (req, res) => {
     try {
         const upstreamPath = req.originalUrl.replace(/^\/api/, "") || "/";
         const upstream = new URL(upstreamPath, API_UPSTREAM_URL);
-        const response = await fetch(upstream, {
+        const headers = {
+            Accept: req.get("accept") || "application/json",
+            "User-Agent": "stratops-warzone/1.0",
+            "X-Forwarded-Host": req.get("host") || "",
+            "X-Forwarded-Proto": req.protocol || "http",
+            "X-Forwarded-Prefix": "/api",
+        };
+        const init = {
+            method: req.method,
             headers: {
-                Accept: "application/json",
-                "User-Agent": "stratops-warzone/1.0",
-                "X-Forwarded-Host": req.get("host") || "",
-                "X-Forwarded-Proto": req.protocol || "http",
-                "X-Forwarded-Prefix": "/api",
+                ...headers,
             },
-        });
+        };
+        if (!["GET", "HEAD"].includes(req.method)) {
+            if (req.is("application/json")) {
+                init.headers["Content-Type"] = "application/json";
+                init.body = JSON.stringify(req.body || {});
+            } else if (typeof req.body === "string") {
+                init.body = req.body;
+            }
+        }
+        const response = await fetch(upstream, init);
         const payload = await response.text();
         res.status(response.status);
         res.set("Cache-Control", "no-store, max-age=0");

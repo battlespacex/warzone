@@ -7293,6 +7293,8 @@ export function initStratopsIntro() {
     const supportReturnNote = document.getElementById("wz-support-return-note");
     const supportReturnPrimary = document.getElementById("wz-support-return-primary");
     const supportReturnSecondary = document.getElementById("wz-support-return-secondary");
+    const mobileWarningModal = document.getElementById("wz-mobile-warning-modal");
+    const mobileWarningContinue = document.getElementById("wz-mobile-warning-continue");
 
     // Inline login fields (live inside the intro modal — separate from #wz-login-modal)
     const introEmail = document.getElementById("intro-auth-email");
@@ -7305,6 +7307,7 @@ export function initStratopsIntro() {
     let isTermsMode = false;
     let introHeightFrame = 0;
     let introHeightCommitFrame = 0;
+    let mobileWarningShown = false;
     const introViewAnimations = new WeakMap();
     const introViewFrames = new WeakMap();
 
@@ -7313,6 +7316,54 @@ export function initStratopsIntro() {
         introModal.hidden = false;
         introModal.classList.add("is-visible");
         onAuthModalVisibilityChanged();
+    }
+
+    function isMobileStratopsViewport() {
+        const ua = String(window.navigator?.userAgent || "");
+        const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches === true;
+        const narrowViewport = window.matchMedia?.("(max-width: 900px)")?.matches === true;
+        return uaMobile || (coarsePointer && narrowViewport);
+    }
+
+    function closeMobileWarningModal(afterClose) {
+        if (!mobileWarningModal) {
+            if (typeof afterClose === "function") afterClose();
+            return;
+        }
+        if (typeof window.__warzoneCloseSharedModal === "function") {
+            window.__warzoneCloseSharedModal(mobileWarningModal, afterClose);
+            return;
+        }
+        mobileWarningModal.classList.remove("is-visible");
+        window.setTimeout(() => {
+            mobileWarningModal.hidden = true;
+            mobileWarningModal.setAttribute("aria-hidden", "true");
+            if (typeof afterClose === "function") afterClose();
+        }, 220);
+    }
+
+    function openMobileWarningModal() {
+        if (!mobileWarningModal) return false;
+        mobileWarningModal.hidden = false;
+        mobileWarningModal.setAttribute("aria-hidden", "false");
+        if (typeof window.__warzoneOpenSharedModal === "function") {
+            window.__warzoneOpenSharedModal(mobileWarningModal);
+        } else {
+            requestAnimationFrame(() => {
+                mobileWarningModal.classList.add("is-visible");
+            });
+        }
+        onAuthModalVisibilityChanged();
+        return true;
+    }
+
+    function openEntryIntroModal() {
+        if (!mobileWarningShown && isMobileStratopsViewport() && openMobileWarningModal()) {
+            mobileWarningShown = true;
+            return;
+        }
+        openIntroModal();
     }
 
     function closeSupportReturnModal(afterClose) {
@@ -7376,13 +7427,13 @@ export function initStratopsIntro() {
             clearSupportReturnUrlState();
             closeSupportReturnModal(() => {
                 if (action === "retry") {
-                    openIntroModal();
+                    openEntryIntroModal();
                     window.setTimeout(() => {
                         showSupportModal();
                     }, 120);
                     return;
                 }
-                openIntroModal();
+                openEntryIntroModal();
             });
         };
 
@@ -7697,6 +7748,9 @@ export function initStratopsIntro() {
         }
     });
     backBtn?.addEventListener("click", showContentView);
+    mobileWarningContinue?.addEventListener("click", () => {
+        closeMobileWarningModal(openIntroModal);
+    });
 
     acceptBtn?.addEventListener("click", async () => {
         if (!hasIntroConsent()) return;
@@ -7738,7 +7792,7 @@ export function initStratopsIntro() {
     }
 
     // ── Show modal ───────────────────────────────────────────────────────────
-    openIntroModal();
+    openEntryIntroModal();
 }
 
 export function initStratopsAuth() {
@@ -7956,7 +8010,7 @@ export function initGlobeRotation(viewer) {
 
 const DELAYED_LOGIN_PROMPT_MS = 15000;
 const DONATE_POPUP_DELAY_MS = 75000;
-const SUPPORT_CHECKOUT_ENDPOINT = "/api/stratops/create-checkout-session";
+const SUPPORT_CHECKOUT_PATH = "/stratops/create-checkout-session";
 const SUPPORT_CHECKOUT_ERROR = "Unable to open Stripe Checkout. Please try again.";
 
 function isAnyAutoPromptBlockingModalOpen() {
@@ -7997,9 +8051,30 @@ function getSupportCheckoutLabel(button) {
     return button?.querySelector("span:last-child") || button;
 }
 
+function isSupportCheckoutLocalHost() {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+function joinSupportCheckoutUrl(base = "", path = "") {
+    const resolvedBase = String(base || "").replace(/\/+$/, "");
+    const resolvedPath = String(path || "").startsWith("/") ? String(path || "") : `/${path || ""}`;
+    return `${resolvedBase}${resolvedPath}`;
+}
+
+function getSupportCheckoutEndpoint() {
+    const configuredBase =
+        window.__stratopsConfig?.supportApiBase ||
+        window.__stratopsConfig?.apiBase ||
+        (isSupportCheckoutLocalHost() ? "/api" : "https://api.battlespacex.com");
+    return joinSupportCheckoutUrl(configuredBase, SUPPORT_CHECKOUT_PATH);
+}
+
 function getSupportCheckoutErrorMessage(response, payload) {
     if (response?.status === 404) {
-        return "Checkout endpoint not found. Restart the local API service.";
+        return isSupportCheckoutLocalHost()
+            ? "Checkout endpoint not found. Restart the local API service."
+            : "Checkout endpoint not found. Update the production API service.";
     }
     if (payload?.needsConfig) {
         return "Stripe Checkout is not configured yet.";
@@ -8022,7 +8097,7 @@ async function startSupportCheckout(button) {
     }
 
     try {
-        const response = await fetch(SUPPORT_CHECKOUT_ENDPOINT, {
+        const response = await fetch(getSupportCheckoutEndpoint(), {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
