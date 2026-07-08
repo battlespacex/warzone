@@ -21,11 +21,33 @@ import { stratopsRouter } from "./routes.stratops.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
+const DEFAULT_CORS_ORIGINS = ["https://stratops.battlespacex.com"];
+
+function getAllowedCorsOrigins() {
+    const configured = String(process.env.CORS_ORIGIN || "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+    return configured.length ? configured : DEFAULT_CORS_ORIGINS;
+}
+
+const allowedCorsOrigins = getAllowedCorsOrigins();
+const corsOptions = {
+    origin(origin, callback) {
+        if (!origin || allowedCorsOrigins.includes(origin)) {
+            callback(null, true);
+            return;
+        }
+        callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept"],
+    optionsSuccessStatus: 204,
+};
+
 app.disable("x-powered-by");
-app.use(cors({
-    origin: process.env.CORS_ORIGIN || ["https://stratops.battlespacex.com"],
-    methods: ["GET", "POST"]
-}));
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.get("/health", (req, res) => res.json({ ok: true }));
 const server = http.createServer(app);
 const { broadcast } = attachWs(server);
