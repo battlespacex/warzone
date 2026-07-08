@@ -919,14 +919,13 @@
                     <header>
                         <span class="wz-header-title">
                             <span class="static-icon stratops-ico-like-1" aria-hidden="true"></span>
-                            <h2>Support</h2>
+                            <h2 id="wz-layer-donate-title">Support StratOps</h2>
                         </span>
                         <span class="wz-close-modal">
                             <button type="button" class="static-icon stratops-ico-close-1" id="wz-donate-close" aria-label="Close donate dialog"></button>
                         </span>
                     </header>
                     <section class="wz-modal-body">
-                        <h2 id="wz-layer-donate-title">Support StratOps</h2>
                         <p class="wz-donate-modal__text">
                             StratOps is independently built and currently operating as an early access platform. 
                             Running a real-time operational intelligence environment requires ongoing development, 
@@ -975,39 +974,34 @@
                             <div class="wz-donate-modal__portal-copy">
                                 <h3 id="wz-donate-portal-title" class="wz-donate-modal__portal-title">Already subscribed?</h3>
                                 <p class="wz-donate-modal__manage-copy">
-                                    Manage or cancel your monthly support through the Stripe billing portal.
+                                    Manage or cancel your monthly support through the billing portal.
                                 </p>
                             </div>
                             <div id="wz-donate-portal-panel"
                                 class="wz-donate-modal__portal-panel">
-                                <form id="wz-donate-portal-form"
-                                    class="wz-donate-modal__portal-form"
-                                    novalidate
+                                <form id="wz-donate-portal-form" novalidate
                                     aria-labelledby="wz-donate-portal-form-label">
                                     <span id="wz-donate-portal-form-label" class="sr-only">Monthly support billing portal access</span>
                                     <div class="wz-form-fieldbox">
-                                        <label for="wz-donate-portal-email">Email used for monthly support</label>
                                         <div class="wz-inline-input-btn">
-                                        <input id="wz-donate-portal-email"
-                                            class="wz--input"
-                                            type="email"
-                                            inputmode="email"
-                                            autocomplete="email"
-                                            aria-describedby="wz-donate-portal-help" />
+                                            <input id="wz-donate-portal-email"
+                                                class="wz--input"
+                                                type="email"
+                                                inputmode="email"
+                                                autocomplete="email"
+                                                aria-describedby="wz-donate-portal-help"
+                                                placeholder="Enter your subscription email" />
                                             <button type="submit"
                                             id="wz-donate-open-portal"
                                             class="btn-primary"
                                             data-support-portal-submit>
                                             <span></span>
                                             <span>Open Billing Portal</span>
-                                        </button>
+                                            </button>
                                         </div>
-                                        <span id="wz-donate-portal-help" class="sr-only">Enter the same email address used during monthly support checkout</span>
+                                        <span id="wz-donate-portal-help" class="sr-only">Enter your subscription email used during monthly support checkout</span>
                                     </div>
-                                    <div class="wz-footer wz-donate-modal__portal-footer">
-                                        <span class="wz-donate-modal__portal-note">Stripe opens in a new browser tab.</span>
-                   
-                                    </div>
+                                     <span class="wz-donate-modal__portal-note">Stripe opens in a new browser tab.</span>
                                 </form>
                             </div>
                         </div>
