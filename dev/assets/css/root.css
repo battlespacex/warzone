@@ -249,6 +249,7 @@
     --warzone-near-sharp-height: 1800000;
     --warzone-camera-min-zoom: 100;
     --warzone-camera-max-zoom: 20000000;
+    --warzone-2d-max-zoom-factor: 4;
     --warzone-globe-max-screen-space-error: 2.05;
     --warzone-globe-close-screen-space-error: 1.4;
     --warzone-globe-moving-screen-space-error: 2.45;
@@ -603,7 +604,7 @@
     --warzone-live-track-color: var(--color-green-glow);
     --warzone-live-track-opacity: 0.96;
     --warzone-live-track-width: 4.2;
-    --warzone-live-track-trail-smoothing: 0.78;
+    --warzone-live-track-trail-smoothing: 0.68;
     --warzone-live-track-trail-render-max-height: 900000;
     --warzone-live-track-trail-max-active: 24;
     --warzone-live-track-trail-anchor-backward-meters: 0;
@@ -622,8 +623,8 @@
     --warzone-live-glb-material-metalness: 0.1;
     --warzone-live-glb-shadow-enabled: 0;
     --warzone-live-glb-shadow-quality: 256;
-    --warzone-live-glb-lod-distance: 0.45;
-    --warzone-live-glb-texture-anisotropy: 12;
+    --warzone-live-glb-lod-distance: 0.15;
+    --warzone-live-glb-texture-anisotropy: 16;
 
     /* Aircraft: model sizing + dev calibration controls */
     --warzone-live-aircraft-model-calibration-enabled: 0;
@@ -739,7 +740,7 @@
     --warzone-live-aircraft-model-max-active: 16;
     --warzone-live-aircraft-model-max-zoom-height: 280000;
     --warzone-live-aircraft-model-auto-radius: 240000;
-    --warzone-live-aircraft-model-dynamic-bank-enabled: 1;
+    --warzone-live-aircraft-model-dynamic-bank-enabled: 0;
     --warzone-live-aircraft-model-bank-factor: -2.1;
     --warzone-live-aircraft-model-bank-max-deg: 28;
     --warzone-live-aircraft-model-bank-deadband-deg: 0.75;

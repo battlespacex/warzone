@@ -32,6 +32,45 @@ function getStratopsDomain() {
         .replace(/\/+$/, "");
 }
 
+function normalizeSupportEmail(value = "") {
+    return String(value || "").trim().toLowerCase();
+}
+
+function isValidSupportEmail(value = "") {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeSupportEmail(value));
+}
+
+function getActiveSupportSubscription(subscriptions = []) {
+    return [...subscriptions]
+        .filter((subscription) => subscription?.status === "active" || subscription?.status === "trialing")
+        .sort((left, right) => Number(right?.created || 0) - Number(left?.created || 0))[0] || null;
+}
+
+async function findSupportPortalCustomer(stripe, email) {
+    const normalizedEmail = normalizeSupportEmail(email);
+    const customerList = await stripe.customers.list({ email: normalizedEmail, limit: 25 });
+    const customers = [...(customerList?.data || [])]
+        .filter((customer) => normalizeSupportEmail(customer?.email) === normalizedEmail)
+        .sort((left, right) => Number(right?.created || 0) - Number(left?.created || 0));
+    if (!customers.length) {
+        return { code: "missing_customer" };
+    }
+
+    for (const customer of customers) {
+        const subscriptionList = await stripe.subscriptions.list({
+            customer: customer.id,
+            status: "all",
+            limit: 25,
+        });
+        const subscription = getActiveSupportSubscription(subscriptionList?.data || []);
+        if (subscription) {
+            return { customer, subscription };
+        }
+    }
+
+    return { code: "missing_subscription" };
+}
+
 export function stratopsRouter() {
     const router = express.Router();
 
@@ -75,6 +114,45 @@ export function stratopsRouter() {
         } catch (error) {
             console.error("[stratops] support checkout failed:", error);
             res.status(500).json({ error: "Unable to open Stripe Checkout. Please try again." });
+        }
+    });
+
+    router.post("/create-portal-session", express.json({ limit: "64kb" }), async (req, res) => {
+        const email = normalizeSupportEmail(req.body?.email);
+        if (!email) {
+            res.status(400).json({ error: "Please enter your email address." });
+            return;
+        }
+        if (!isValidSupportEmail(email)) {
+            res.status(400).json({ error: "Please enter a valid email address." });
+            return;
+        }
+
+        const stripe = getStripeClient();
+        if (!stripe) {
+            res.status(501).json({ error: "Stripe Billing Portal is not configured yet." });
+            return;
+        }
+
+        try {
+            const match = await findSupportPortalCustomer(stripe, email);
+            if (match?.code === "missing_customer") {
+                res.status(404).json({ error: "No subscription found for this email." });
+                return;
+            }
+            if (match?.code === "missing_subscription" || !match?.customer) {
+                res.status(404).json({ error: "No monthly subscription found for this email." });
+                return;
+            }
+
+            const session = await stripe.billingPortal.sessions.create({
+                customer: match.customer.id,
+                return_url: getStratopsDomain(),
+            });
+            res.json({ url: session.url });
+        } catch (error) {
+            console.error("[stratops] support portal failed:", error);
+            res.status(500).json({ error: "Unable to open the billing portal. Please try again." });
         }
     });
 

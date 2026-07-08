@@ -8011,7 +8011,9 @@ export function initGlobeRotation(viewer) {
 const DELAYED_LOGIN_PROMPT_MS = 15000;
 const DONATE_POPUP_DELAY_MS = 75000;
 const SUPPORT_CHECKOUT_PATH = "/stratops/create-checkout-session";
+const SUPPORT_PORTAL_SESSION_PATH = "/stratops/create-portal-session";
 const SUPPORT_CHECKOUT_ERROR = "Unable to open Stripe Checkout. Please try again.";
+const SUPPORT_PORTAL_ERROR = "Unable to open the billing portal. Please try again.";
 
 function isAnyAutoPromptBlockingModalOpen() {
     return Boolean(document.querySelector(
@@ -8070,6 +8072,14 @@ function getSupportCheckoutEndpoint() {
     return joinSupportCheckoutUrl(configuredBase, SUPPORT_CHECKOUT_PATH);
 }
 
+function getSupportPortalEndpoint() {
+    const configuredBase =
+        window.__stratopsConfig?.supportApiBase ||
+        window.__stratopsConfig?.apiBase ||
+        (isSupportCheckoutLocalHost() ? "/api" : "https://api.battlespacex.com");
+    return joinSupportCheckoutUrl(configuredBase, SUPPORT_PORTAL_SESSION_PATH);
+}
+
 function getSupportCheckoutErrorMessage(response, payload) {
     if (response?.status === 404) {
         return isSupportCheckoutLocalHost()
@@ -8081,6 +8091,89 @@ function getSupportCheckoutErrorMessage(response, payload) {
     }
     const message = String(payload?.error || "").trim();
     return message || SUPPORT_CHECKOUT_ERROR;
+}
+
+function getSupportPortalErrorMessage(response, payload) {
+    const message = String(payload?.error || "").trim();
+    if (message) return message;
+    if (response?.status === 404) {
+        return isSupportCheckoutLocalHost()
+            ? "Billing portal endpoint not found. Restart the local API service."
+            : "Billing portal endpoint not found. Update the production API service.";
+    }
+    return SUPPORT_PORTAL_ERROR;
+}
+
+function getSupportPortalModalElements(modal = document) {
+    return {
+        panel: modal.querySelector("#wz-donate-portal-panel"),
+        form: modal.querySelector("#wz-donate-portal-form"),
+        emailInput: modal.querySelector("#wz-donate-portal-email"),
+        submitButton: modal.querySelector("[data-support-portal-submit]"),
+    };
+}
+
+function showSupportPortalPanel(modal) {
+    const { panel } = getSupportPortalModalElements(modal);
+    if (panel) {
+        panel.hidden = false;
+    }
+}
+
+function resetSupportPortalPanel(modal) {
+    const { emailInput, submitButton } = getSupportPortalModalElements(modal);
+    showSupportPortalPanel(modal);
+    if (emailInput) emailInput.value = "";
+    if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.removeAttribute("aria-busy");
+        const label = getSupportCheckoutLabel(submitButton);
+        if (label) label.textContent = "Open Billing Portal";
+    }
+}
+
+async function startSupportPortal(modal, button) {
+    const { emailInput } = getSupportPortalModalElements(modal);
+    const email = String(emailInput?.value || "").trim();
+    if (!email) {
+        setSupportCheckoutStatus("Please enter your email address.");
+        emailInput?.focus();
+        return;
+    }
+
+    const label = getSupportCheckoutLabel(button);
+    const originalLabel = label?.textContent || "";
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    setSupportCheckoutStatus("");
+    if (label) {
+        label.textContent = "Opening portal...";
+    }
+
+    try {
+        const response = await fetch(getSupportPortalEndpoint(), {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            body: JSON.stringify({ email }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.url) {
+            throw new Error(getSupportPortalErrorMessage(response, payload));
+        }
+        window.open(String(payload.url), "_blank", "noopener,noreferrer");
+    } catch (error) {
+        console.warn("[support] Portal launch failed:", error);
+        setSupportCheckoutStatus(String(error?.message || SUPPORT_PORTAL_ERROR));
+    } finally {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        if (label) {
+            label.textContent = originalLabel;
+        }
+    }
 }
 
 async function startSupportCheckout(button) {
@@ -8131,6 +8224,12 @@ function bindSupportCheckoutButtons(modal) {
             startSupportCheckout(button);
         });
     });
+    const { form, submitButton } = getSupportPortalModalElements(modal);
+    form?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!submitButton) return;
+        startSupportPortal(modal, submitButton);
+    });
 }
 
 function openSupportModal({ resetDismissal = true } = {}) {
@@ -8141,6 +8240,7 @@ function openSupportModal({ resetDismissal = true } = {}) {
         try { sessionStorage.removeItem("wz_donate_dismissed"); } catch { }
     }
     setSupportCheckoutStatus("");
+    resetSupportPortalPanel(modal);
     modal.scrollTop = 0;
     clearTimeout(__viewportFetchTimer);
     __viewportFetchTimer = null;
@@ -8163,6 +8263,7 @@ function closeSupportModal({ rememberDismissed = false } = {}) {
     clearTimeout(__supportModalCloseTimer);
     modal.classList.remove("is-visible");
     setAuthModalRenderBudget(true);
+    resetSupportPortalPanel(modal);
     if (rememberDismissed) {
         try { sessionStorage.setItem("wz_donate_dismissed", "1"); } catch { }
     }

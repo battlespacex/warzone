@@ -533,17 +533,18 @@ UNUSED CANDIDATE END */
     min-width: 15rem;
 }
 
-.wz-region-control {
+.wz-inline-input-btn {
     position: relative;
     z-index: 1;
     display: inline-flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 1rem;
     transition: opacity .35s ease, transform .35s ease;
 }
 
 .warzone-region-bar.is-region-prompt-visible,
-.wz-region-control.is-region-prompt-visible {
+.wz-region-control.is-region-prompt-visible
+.wz-inline-input-btn.is-region-prompt-visible {
     opacity: 0;
     pointer-events: none;
     transform: translateY(-0.6rem);

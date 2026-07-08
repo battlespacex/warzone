@@ -1452,6 +1452,7 @@ function clamp2DProjectedViewport(viewer) {
     const halfWidth = Math.abs(Number(frustum.right || 0) - Number(frustum.left || 0)) * 0.5;
     const halfHeight = Math.abs(Number(frustum.top || 0) - Number(frustum.bottom || 0)) * 0.5;
     if (![maxY, halfWidth, halfHeight].every(Number.isFinite)) return;
+    if (halfHeight >= maxY) return;
 
     const yLimit = Math.max(0, maxY - halfHeight);
     const nextX = Number(camera.position.x || 0);
@@ -1513,7 +1514,7 @@ function apply2DControllerBounds(viewer) {
     if ("maximumTranslateFactor" in controller) {
         controller.maximumTranslateFactor = Math.max(0.92, Math.min(1.08, numberVar("--warzone-2d-max-translate-factor", 0.98)));
     }
-    viewer.camera.maximumZoomFactor = Math.max(0.85, Math.min(1.15, numberVar("--warzone-2d-max-zoom-factor", 1)));
+    viewer.camera.maximumZoomFactor = Math.max(1, Math.min(8, numberVar("--warzone-2d-max-zoom-factor", 4)));
     controller.enableRotate = false;
     controller.enableTilt = false;
 }

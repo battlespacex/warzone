@@ -176,6 +176,8 @@ const LIVE_TRACK_ANIM_TRAIL_SAMPLE_MS = 420;
 const LIVE_TRACK_ANIMATE_ONLY_SELECTED = true;
 const LIVE_TRACK_HISTORY_RETENTION_MS = 12 * 60 * 60 * 1000;
 const LIVE_TRACK_HISTORY_MAX_POINTS = 720;
+const LIVE_TRACK_FOCUS_ROUTE_SPIKE_MIN_METERS = 4500;
+const LIVE_TRACK_FOCUS_ROUTE_SPIKE_RATIO = 2.15;
 const LIVE_TRACK_REGISTRY_MAX_ITEMS = 900;
 const LIVE_TRACK_INACTIVE_HISTORY_MAX_POINTS = 18;
 const LIVE_TRACK_REPLAY_STEP_MS = 180;
@@ -3378,6 +3380,71 @@ function pruneHistoryPoints(points = []) {
     }
     return filtered;
 }
+function getHistoryPointDistanceMeters(a = {}, b = {}, track = {}) {
+    const aLon = Number(a?.lon);
+    const aLat = Number(a?.lat);
+    const bLon = Number(b?.lon);
+    const bLat = Number(b?.lat);
+    if (![aLon, aLat, bLon, bLat].every(Number.isFinite)) return Number.NaN;
+    try {
+        const aCartesian = Cesium.Cartesian3.fromDegrees(
+            aLon,
+            aLat,
+            getTrackPointRenderAltitudeMeters(a, track)
+        );
+        const bCartesian = Cesium.Cartesian3.fromDegrees(
+            bLon,
+            bLat,
+            getTrackPointRenderAltitudeMeters(b, track)
+        );
+        return getCartesianDistanceMeters(aCartesian, bCartesian);
+    } catch {
+        return getLonLatDistanceMeters(aLon, aLat, bLon, bLat);
+    }
+}
+function isFocusedRoutePointSpike(previous = {}, point = {}, next = {}, track = {}) {
+    const directMeters = getHistoryPointDistanceMeters(previous, next, track);
+    const inMeters = getHistoryPointDistanceMeters(previous, point, track);
+    const outMeters = getHistoryPointDistanceMeters(point, next, track);
+    if (![directMeters, inMeters, outMeters].every(Number.isFinite)) return false;
+    if (inMeters < LIVE_TRACK_FOCUS_ROUTE_SPIKE_MIN_METERS || outMeters < LIVE_TRACK_FOCUS_ROUTE_SPIKE_MIN_METERS) return false;
+    const detourRatio = (inMeters + outMeters) / Math.max(directMeters, 1);
+    return detourRatio >= LIVE_TRACK_FOCUS_ROUTE_SPIKE_RATIO;
+}
+function sanitizeFocusedRouteHistoryPoints(points = [], track = {}) {
+    const ordered = (Array.isArray(points) ? points : [])
+        .filter((point) => Number.isFinite(Number(point?.lon)) && Number.isFinite(Number(point?.lat)))
+        .sort((a, b) => Number(a?.ts || 0) - Number(b?.ts || 0));
+    const jumpFiltered = [];
+    for (const point of ordered) {
+        const previous = jumpFiltered[jumpFiltered.length - 1];
+        if (previous) {
+            const movedMeters = getHistoryPointDistanceMeters(previous, point, track);
+            const dtMs = Math.max(0, Number(point.ts || 0) - Number(previous.ts || 0));
+            const speedMps = dtMs > 0 && Number.isFinite(movedMeters) ? movedMeters / (dtMs / 1000) : 0;
+            if (
+                Number.isFinite(movedMeters) &&
+                movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS &&
+                (!dtMs || speedMps > LIVE_TRACK_HISTORY_MAX_SPEED_MPS)
+            ) {
+                continue;
+            }
+        }
+        jumpFiltered.push(point);
+    }
+    if (jumpFiltered.length < 3) return jumpFiltered;
+    const spikeFiltered = [jumpFiltered[0]];
+    for (let index = 1; index < jumpFiltered.length - 1; index += 1) {
+        const previous = spikeFiltered[spikeFiltered.length - 1];
+        const point = jumpFiltered[index];
+        const next = jumpFiltered[index + 1];
+        if (!isFocusedRoutePointSpike(previous, point, next, track)) {
+            spikeFiltered.push(point);
+        }
+    }
+    spikeFiltered.push(jumpFiltered[jumpFiltered.length - 1]);
+    return spikeFiltered;
+}
 function appendTrackHistoryPoint(trackKey, track = {}) {
     if (!trackKey) return;
     const entry = __liveTrackRegistry.get(trackKey);
@@ -4418,14 +4485,47 @@ function setSelectedTrack(trackKey = "", mode = "") {
     refreshFocusedTrackIsolation();
 }
 
-function buildReplayPositions(pathHistory = [], track = {}) {
-    return pathHistory
-        .filter((point) => Number.isFinite(point.lon) && Number.isFinite(point.lat))
-        .map((point) => Cesium.Cartesian3.fromDegrees(
-            Number(point.lon),
-            Number(point.lat),
-            getTrackTrailRenderAltitudeMeters(getTrackPointRenderAltitudeMeters(point, track))
-        ));
+function getHistoryPointHeadingDeg(pathHistory = [], index = 0, track = {}) {
+    const point = pathHistory[index] || {};
+    const explicitHeading = Number(point.heading_deg ?? point.heading ?? point.track ?? Number.NaN);
+    if (Number.isFinite(explicitHeading)) return normalizeDegrees(explicitHeading);
+    const previous = pathHistory[Math.max(0, index - 1)];
+    const next = pathHistory[Math.min(pathHistory.length - 1, index + 1)];
+    const from = previous && previous !== point ? previous : point;
+    const to = next && next !== point ? next : point;
+    const fromLon = Number(from?.lon);
+    const fromLat = Number(from?.lat);
+    const toLon = Number(to?.lon);
+    const toLat = Number(to?.lat);
+    if ([fromLon, fromLat, toLon, toLat].every(Number.isFinite) && (fromLon !== toLon || fromLat !== toLat)) {
+        return getHeadingDegreesFromPoints(fromLon, fromLat, toLon, toLat);
+    }
+    return normalizeDegrees(Number(track.heading_deg || 0));
+}
+function buildReplayPositions(pathHistory = [], track = {}, options = {}) {
+    const focusAnchored = options.focusAnchored === true;
+    const points = pathHistory.filter((point) => Number.isFinite(Number(point?.lon)) && Number.isFinite(Number(point?.lat)));
+    return points
+        .map((point, index) => {
+            const lon = Number(point.lon);
+            const lat = Number(point.lat);
+            const alt = getTrackPointRenderAltitudeMeters(point, track);
+            if (focusAnchored) {
+                return buildTrackTrailCartesian(
+                    track,
+                    lon,
+                    lat,
+                    alt,
+                    getHistoryPointHeadingDeg(points, index, track)
+                );
+            }
+            return Cesium.Cartesian3.fromDegrees(
+                lon,
+                lat,
+                getTrackTrailRenderAltitudeMeters(alt)
+            );
+        })
+        .filter(Boolean);
 }
 function formatRouteOriginCoord(value) {
     const numeric = Number(value);
@@ -4655,7 +4755,11 @@ function getFocusedRoutePositions(trackKey = "") {
     const viewer = window.__warzoneViewer;
     const entry = __liveTrackRegistry.get(trackKey);
     if (!viewer || !entry) return [];
-    const positions = buildReplayPositions(pruneHistoryPoints(entry.path_history || []), entry);
+    const historyPoints = sanitizeFocusedRouteHistoryPoints(
+        pruneHistoryPoints(entry.path_history || []),
+        entry
+    );
+    const positions = buildReplayPositions(historyPoints, entry, { focusAnchored: true });
     const entity = viewer.entities?.getById?.(`track-${trackKey}`);
     const liveHeadPosition = getPositionCartesian(entity);
     if (!liveHeadPosition) return positions;
@@ -5028,13 +5132,8 @@ function isFocusedTerrainModeActive() {
     return window.__warzoneViewer?.__warzone?.isFocusedTerrainActive?.() === true;
 }
 function getFocusedTerrainModelClearanceMeters(track = {}) {
-    const altitudeFt = getTrackResolvedAltitudeFt(track);
-    const baseClearance = Number(altitudeFt || 0) > 0 ? 8 : 4;
-    return clamp(
-        getCssNumber("--warzone-live-aircraft-terrain-model-clearance-meters", baseClearance),
-        0,
-        18
-    );
+    void track;
+    return 0;
 }
 function buildTrackEntityCartesian(track = {}, lon, lat, alt, headingDeg = 0) {
     if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(alt)) {
@@ -5345,7 +5444,7 @@ function smoothTrackTrailPositions(rawPositions = []) {
     const smoothing = getLiveTrackTrailSmoothingStrength();
     if (!Number.isFinite(smoothing) || smoothing <= 0) return curveTrailPositions(positions, 5);
 
-    const keepTail = Math.max(0, LIVE_TRACK_TRAIL_SMOOTH_KEEP_TAIL_POINTS - 2);
+    const keepTail = Math.max(0, LIVE_TRACK_TRAIL_SMOOTH_KEEP_TAIL_POINTS);
     const bodyEnd = Math.max(3, positions.length - keepTail);
     const body = positions.slice(0, bodyEnd);
     const tail = keepTail > 0 ? positions.slice(bodyEnd) : [];

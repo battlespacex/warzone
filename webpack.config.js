@@ -447,7 +447,13 @@ module.exports = (env, argv) => {
                                     lastPayload = payload;
                                     lastStatus = response.status;
                                     lastType = response.headers.get("content-type") || "application/json";
-                                    if (response.ok || response.status !== 404) {
+                                    const isJsonResponse = /\bjson\b/i.test(lastType);
+                                    const shouldReturnResponse =
+                                        response.ok ||
+                                        response.status !== 404 ||
+                                        req.method !== "GET" ||
+                                        isJsonResponse;
+                                    if (shouldReturnResponse) {
                                         res.status(response.status);
                                         res.set("Cache-Control", "no-store, max-age=0");
                                         res.type(lastType).send(payload);

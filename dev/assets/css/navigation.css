@@ -419,7 +419,7 @@ body.is-ui-modal-open .wz-globe-toggle {
     cursor: pointer;
     transition: background-color var(--transition-fast), color var(--transition-fast);
     padding-top: 0.3rem;
-    background: var(--color-bg-overlay);
+    background: var(--color-bg-row);
 }
 
 .wz-globe-toggle__btn.is-active {
