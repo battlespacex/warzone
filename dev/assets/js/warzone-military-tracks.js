@@ -109,6 +109,7 @@ function requestRender(viewer) {
 function playMilitaryAppearSound() {
     const src = stripCssUrl(cssVar("--warzone-military-sound", ""));
     if (!src) return;
+    if (Date.now() < Number(window.__warzoneOperationalAudioMutedUntil || 0)) return;
     try {
         const audio = new Audio(src);
         audio.preload = "auto";

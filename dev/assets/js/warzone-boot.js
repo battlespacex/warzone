@@ -2,6 +2,7 @@
 let __siteLoaderHideTimer = 0;
 let __siteLoaderHardStopTimer = 0;
 const SITE_LOADER_HARD_MAX_MS = 12000;
+const STARTUP_OPERATIONAL_AUDIO_MUTE_MS = 12000;
 function clearSiteLoaderTimers() {
     clearTimeout(__siteLoaderHideTimer);
     clearTimeout(__siteLoaderHardStopTimer);
@@ -21,6 +22,7 @@ function scheduleSiteLoaderHardStop() {
 window.__warzoneEnterApp = function () {
     const uiShell = document.getElementById("warzone-ui-shell");
     if (!uiShell) return;
+    window.__warzoneOperationalAudioMutedUntil = Date.now() + STARTUP_OPERATIONAL_AUDIO_MUTE_MS;
     uiShell.hidden = false;
     requestAnimationFrame(() => {
         uiShell.classList.add("is-ui-visible");

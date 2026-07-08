@@ -1,6 +1,6 @@
 const BILLING_TIER_KEY = "stratops:billing-tier";
 const BILLING_ENABLED_KEY = "stratops:billing-enabled";
-const DEFAULT_CHECKOUT_URL = "https://buy.stripe.com/REPLACE_WITH_YOUR_STRIPE_CHECKOUT_LINK";
+const DEFAULT_CHECKOUT_URL = "";
 const PAID_TIERS = new Set(["basic", "advanced", "expert", "paid"]);
 const PLAN_RANK = Object.freeze({
     free: 0,

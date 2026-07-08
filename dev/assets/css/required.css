@@ -480,6 +480,12 @@ UNUSED CANDIDATE END */
     .btn-secondary span {
         color: var(--color-white);
     }
+   
+
+.btn-secondary.white span {
+    color: var(--color-black);
+}
+
 
     .btn-primary span, .btn-secondary span {
         padding: 0 !important;

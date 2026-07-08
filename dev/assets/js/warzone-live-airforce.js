@@ -29,6 +29,7 @@ const __liveTrackReplayState = {
     selectedTrackKey: "",
     mode: "", // "focus" | "replay"
     routeEntity: null,
+    routeFadeEntities: [],
     markerEntity: null,
     markerTimer: null,
     markerIndex: 0,
@@ -45,6 +46,15 @@ let __liveTrackOverlayBound = false;
 let __liveTrackOverlayLastVisible = false;
 let __liveTrackOverlayLastX = Number.NaN;
 let __liveTrackOverlayLastY = Number.NaN;
+let __liveTrackOriginHoverEntity = null;
+let __liveTrackOriginHoverTrackKey = "";
+let __liveTrackFocusedRouteGeometryCache = null;
+let __liveTrackOriginBasesPromise = null;
+let __liveTrackOriginBases = null;
+const __liveTrackOriginBaseCache = new Map();
+const LIVE_TRACK_ORIGIN_BASE_RADIUS_KM = 120;
+const LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS = 6;
+const LIVE_TRACK_FOCUS_ROUTE_FADE_ALPHA = 0.92;
 let __liveTrackClickBound = false;
 let __liveTrackClickHandler = null;
 let __liveTrackRegistryDispatchTimer = null;
@@ -1354,6 +1364,9 @@ function isTrackCurrentlyFocused(trackKey = "") {
         selectedTrackKey === String(trackKey || "") &&
         String(__liveTrackReplayState.mode || "") === "focus"
     );
+}
+function hasFocusedRouteForTrack(trackKey = "") {
+    return Boolean(isTrackCurrentlyFocused(trackKey) && __liveTrackReplayState.routeEntity);
 }
 function isTrackInFocusVisualContext(track = {}) {
     const trackKey = String(track?.track_key || "").trim();
@@ -2761,7 +2774,7 @@ function applyLiveTrackFocusVisibility(trackKey = "", focusedPosition = null) {
     const entity = viewer.entities.getById(`track-${trackKey}`);
     if (entity) entity.show = show;
     const trailEntity = viewer.entities.getById(`track-trail-${trackKey}`);
-    if (trailEntity) trailEntity.show = show;
+    if (trailEntity) trailEntity.show = show && !hasFocusedRouteForTrack(trackKey);
 }
 function refreshFocusedTrackIsolation() {
     const viewer = window.__warzoneViewer;
@@ -3410,6 +3423,9 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
     }
     entry.path_history = pruneHistoryPoints(history);
     entry.last_seen_at = point.ts;
+    if (isFocusedTrackKey(trackKey)) {
+        syncFocusedRouteEntity(trackKey);
+    }
 }
 function pruneTrackRegistry() {
     const cutoff = Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS;
@@ -4169,13 +4185,42 @@ function resolvePickedTrackKey(picked) {
     if (typeof entity.track_key === "string" && entity.track_key.trim()) {
         return entity.track_key.trim();
     }
-    if (typeof entity.id === "string" && entity.id.startsWith("track-trail-")) {
-        return entity.id.replace(/^track-trail-/, "").trim();
+    const entityId = typeof entity.id === "string" ? entity.id : "";
+    if (entityId === "track-origin-hover-label") return "";
+    const focusFadeMatch = entityId.match(/^track-focus-route-fade-\d+-(.+)$/);
+    if (focusFadeMatch) {
+        return String(focusFadeMatch[1] || "").trim();
     }
-    if (typeof entity.id === "string" && entity.id.startsWith("track-")) {
-        return entity.id.replace(/^track-/, "").trim();
+    if (entityId.startsWith("track-focus-route-")) {
+        return entityId.replace(/^track-focus-route-/, "").trim();
+    }
+    if (entityId.startsWith("track-focus-start-")) {
+        return entityId.replace(/^track-focus-start-/, "").trim();
+    }
+    if (entityId.startsWith("track-replay-route-")) {
+        return entityId.replace(/^track-replay-route-/, "").trim();
+    }
+    if (entityId.startsWith("track-replay-marker-")) {
+        return entityId.replace(/^track-replay-marker-/, "").trim();
+    }
+    if (entityId.startsWith("track-trail-")) {
+        return entityId.replace(/^track-trail-/, "").trim();
+    }
+    if (entityId.startsWith("track-")) {
+        return entityId.replace(/^track-/, "").trim();
     }
     return "";
+}
+function isPickedTrackTrailOrRoute(picked) {
+    const entity =
+        picked?.id ||
+        picked?.primitive?.id ||
+        picked?.primitive?._id ||
+        null;
+    const entityId = typeof entity?.id === "string" ? entity.id : "";
+    return entityId.startsWith("track-trail-") ||
+        entityId.startsWith("track-focus-route-") ||
+        entityId.startsWith("track-replay-route-");
 }
 function bindLiveTrackPicking(viewer) {
     if (!viewer || __liveTrackClickBound) return;
@@ -4221,10 +4266,16 @@ function bindLiveTrackPicking(viewer) {
                 viewer.container.style.cursor = "";
                 hoverTrackKey = "";
             }
+            hideRouteOriginHover();
             return;
         }
         const picked = safeScenePick(viewer, hoverPickPosition);
         const trackKey = resolvePickedTrackKey(picked);
+        if (trackKey && isPickedTrackTrailOrRoute(picked)) {
+            showRouteOriginHover(trackKey, hoverPickPosition);
+        } else {
+            hideRouteOriginHover();
+        }
         if (trackKey !== hoverTrackKey) {
             viewer.container.style.cursor = trackKey ? "pointer" : "";
             hoverTrackKey = trackKey;
@@ -4273,6 +4324,7 @@ function bindLiveTrackPicking(viewer) {
 function clearReplayEntities() {
     const viewer = window.__warzoneViewer;
 
+    clearRouteOriginHover();
     if (!viewer) return;
     if (__liveTrackReplayState.markerTimer) {
         clearInterval(__liveTrackReplayState.markerTimer);
@@ -4282,6 +4334,15 @@ function clearReplayEntities() {
         viewer.entities.remove(__liveTrackReplayState.routeEntity);
         __liveTrackReplayState.routeEntity = null;
     }
+    if (Array.isArray(__liveTrackReplayState.routeFadeEntities)) {
+        __liveTrackReplayState.routeFadeEntities.forEach((entity) => {
+            try {
+                viewer.entities.remove(entity);
+            } catch { }
+        });
+        __liveTrackReplayState.routeFadeEntities = [];
+    }
+    __liveTrackFocusedRouteGeometryCache = null;
     if (__liveTrackReplayState.markerEntity) {
         viewer.entities.remove(__liveTrackReplayState.markerEntity);
         __liveTrackReplayState.markerEntity = null;
@@ -4365,6 +4426,441 @@ function buildReplayPositions(pathHistory = [], track = {}) {
             Number(point.lat),
             getTrackTrailRenderAltitudeMeters(getTrackPointRenderAltitudeMeters(point, track))
         ));
+}
+function formatRouteOriginCoord(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric.toFixed(4) : "UNKNOWN";
+}
+function getFocusedRouteOriginPoint(trackKey = "") {
+    const entry = __liveTrackRegistry.get(trackKey);
+    if (!entry) return null;
+    const points = pruneHistoryPoints(entry.path_history || [])
+        .filter((point) => Number.isFinite(Number(point?.lon)) && Number.isFinite(Number(point?.lat)));
+    return points.length ? points[0] : null;
+}
+function getMilitaryBasePoint(base = {}) {
+    const lat = Number(base.lat ?? base.coordinates?.lat);
+    const lon = Number(base.lon ?? base.lng ?? base.coordinates?.lon);
+    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+function getMilitaryBaseDisplayName(base = {}) {
+    return String(base.name || base.title || base.id || "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function isLikelyAirbaseRecord(base = {}) {
+    const text = [
+        base.type,
+        base.typeLabel,
+        base.name,
+        base.operator,
+        base.sourceLayer,
+        base.metadata?.originalType,
+        base.metadata?.originalCategory,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /\b(airbase|air base|air force|airfield|air station|airport|aerodrome|afb|usaf|raf)\b/.test(text);
+}
+function refreshRouteOriginHoverLabel() {
+    if (!__liveTrackOriginHoverEntity?.show || !__liveTrackOriginHoverTrackKey) return;
+    const text = buildRouteOriginHoverText(__liveTrackOriginHoverTrackKey);
+    if (!text || !__liveTrackOriginHoverEntity.label) return;
+    __liveTrackOriginHoverEntity.label.text = text;
+    requestWarzoneRenderBatched();
+}
+function loadRouteOriginBases() {
+    if (Array.isArray(__liveTrackOriginBases)) {
+        return Promise.resolve(__liveTrackOriginBases);
+    }
+    if (!__liveTrackOriginBasesPromise) {
+        __liveTrackOriginBasesPromise = import("./warzone-military-bases-data.js")
+            .then((module) => {
+                __liveTrackOriginBases = Array.isArray(module?.MILITARY_BASES)
+                    ? module.MILITARY_BASES.filter((base) => isLikelyAirbaseRecord(base) && getMilitaryBasePoint(base))
+                    : [];
+                __liveTrackOriginBaseCache.clear();
+                refreshRouteOriginHoverLabel();
+                return __liveTrackOriginBases;
+            })
+            .catch(() => {
+                __liveTrackOriginBases = [];
+                return __liveTrackOriginBases;
+            });
+    }
+    return __liveTrackOriginBasesPromise;
+}
+function findNearestRouteOriginAirbase(point = {}) {
+    const lat = Number(point.lat);
+    const lon = Number(point.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (!Array.isArray(__liveTrackOriginBases)) {
+        loadRouteOriginBases();
+        return null;
+    }
+    const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+    if (__liveTrackOriginBaseCache.has(cacheKey)) {
+        return __liveTrackOriginBaseCache.get(cacheKey);
+    }
+    let best = null;
+    for (const base of __liveTrackOriginBases) {
+        const basePoint = getMilitaryBasePoint(base);
+        if (!basePoint) continue;
+        const distanceMeters = getLonLatDistanceMeters(lon, lat, basePoint.lon, basePoint.lat);
+        if (!Number.isFinite(distanceMeters)) continue;
+        if (!best || distanceMeters < best.distanceMeters) {
+            best = {
+                base,
+                distanceMeters,
+                distanceKm: distanceMeters / 1000,
+                name: getMilitaryBaseDisplayName(base),
+                country: String(base.country || "").trim(),
+            };
+        }
+    }
+    const match = best && best.distanceKm <= LIVE_TRACK_ORIGIN_BASE_RADIUS_KM ? best : null;
+    __liveTrackOriginBaseCache.set(cacheKey, match);
+    if (__liveTrackOriginBaseCache.size > 120) {
+        const oldestKey = __liveTrackOriginBaseCache.keys().next().value;
+        if (oldestKey !== undefined) __liveTrackOriginBaseCache.delete(oldestKey);
+    }
+    return match;
+}
+function formatRouteOriginDistanceKm(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "";
+    return numeric >= 10 ? numeric.toFixed(0) : numeric.toFixed(1);
+}
+function formatRouteOriginLabelValue(value, maxLength = 34) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (!text || text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(8, maxLength - 3)).trim()}...`;
+}
+function buildRouteOriginHoverText(trackKey = "") {
+    const point = getFocusedRouteOriginPoint(trackKey);
+    if (!point) return "";
+    const airbase = findNearestRouteOriginAirbase(point);
+    const lines = ["ORIGIN"];
+    if (airbase?.name) {
+        lines.push(`NEAR ${formatRouteOriginLabelValue(airbase.name)}`);
+        if (airbase.country) lines.push(formatRouteOriginLabelValue(airbase.country.toUpperCase(), 28));
+        const distance = formatRouteOriginDistanceKm(airbase.distanceKm);
+        if (distance) lines.push(`DIST ${distance} KM`);
+    } else if (Array.isArray(__liveTrackOriginBases)) {
+        lines.push("NEAREST AIRBASE UNKNOWN");
+    }
+    lines.push(`LAT ${formatRouteOriginCoord(point.lat)}`);
+    lines.push(`LON ${formatRouteOriginCoord(point.lon)}`);
+    return lines.join("\n");
+}
+function hideRouteOriginHover() {
+    __liveTrackOriginHoverTrackKey = "";
+    if (__liveTrackOriginHoverEntity) {
+        __liveTrackOriginHoverEntity.show = false;
+        requestWarzoneRenderBatched();
+    }
+}
+function clearRouteOriginHover() {
+    const viewer = window.__warzoneViewer;
+    if (__liveTrackOriginHoverEntity && viewer?.entities) {
+        try {
+            viewer.entities.remove(__liveTrackOriginHoverEntity);
+        } catch { }
+    }
+    __liveTrackOriginHoverEntity = null;
+    __liveTrackOriginHoverTrackKey = "";
+}
+function isValidCartesianPosition(position) {
+    return Boolean(position) &&
+        Number.isFinite(position.x) &&
+        Number.isFinite(position.y) &&
+        Number.isFinite(position.z);
+}
+function getRouteOriginHoverPosition(viewer, screenPosition, point, entry) {
+    if (viewer && screenPosition) {
+        try {
+            if (viewer.scene?.pickPositionSupported && typeof viewer.scene.pickPosition === "function") {
+                const pickedPosition = viewer.scene.pickPosition(screenPosition);
+                if (isValidCartesianPosition(pickedPosition)) return pickedPosition;
+            }
+        } catch { }
+        try {
+            const ellipsoid = viewer.scene?.globe?.ellipsoid || Cesium.Ellipsoid.WGS84;
+            const groundPosition = viewer.camera?.pickEllipsoid?.(screenPosition, ellipsoid);
+            if (isValidCartesianPosition(groundPosition)) {
+                const cartographic = Cesium.Cartographic.fromCartesian(groundPosition, ellipsoid);
+                return Cesium.Cartesian3.fromRadians(
+                    cartographic.longitude,
+                    cartographic.latitude,
+                    getTrackTrailRenderAltitudeMeters(getTrackPointRenderAltitudeMeters(point, entry)),
+                    ellipsoid
+                );
+            }
+        } catch { }
+    }
+    return Cesium.Cartesian3.fromDegrees(
+        Number(point.lon),
+        Number(point.lat),
+        getTrackTrailRenderAltitudeMeters(getTrackPointRenderAltitudeMeters(point, entry))
+    );
+}
+function showRouteOriginHover(trackKey = "", screenPosition = null) {
+    const viewer = window.__warzoneViewer;
+    const entry = __liveTrackRegistry.get(trackKey);
+    const point = getFocusedRouteOriginPoint(trackKey);
+    const text = buildRouteOriginHoverText(trackKey);
+    if (!viewer || !entry || !point || !text) {
+        hideRouteOriginHover();
+        return false;
+    }
+    const position = getRouteOriginHoverPosition(viewer, screenPosition, point, entry);
+    if (!isValidCartesianPosition(position)) {
+        hideRouteOriginHover();
+        return false;
+    }
+    __liveTrackOriginHoverTrackKey = trackKey;
+    const labelStyle = getLiveLabelStyleConfig();
+    if (!__liveTrackOriginHoverEntity) {
+        __liveTrackOriginHoverEntity = viewer.entities.add({
+            id: "track-origin-hover-label",
+            position,
+            label: {
+                text,
+                font: labelStyle.font,
+                fillColor: Cesium.Color.fromCssColorString(labelStyle.fill),
+                outlineColor: Cesium.Color.BLACK.withAlpha(0.84),
+                outlineWidth: 3,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+                verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                pixelOffset: new Cesium.Cartesian2(14, -18),
+                scale: labelStyle.scale,
+                showBackground: false,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+            show: true,
+        });
+    } else {
+        __liveTrackOriginHoverEntity.position = position;
+        __liveTrackOriginHoverEntity.show = true;
+        if (__liveTrackOriginHoverEntity.label) {
+            __liveTrackOriginHoverEntity.label.text = text;
+            __liveTrackOriginHoverEntity.label.font = labelStyle.font;
+            __liveTrackOriginHoverEntity.label.scale = labelStyle.scale;
+            __liveTrackOriginHoverEntity.label.fillColor = Cesium.Color.fromCssColorString(labelStyle.fill);
+        }
+    }
+    requestWarzoneRenderBatched();
+    return true;
+}
+function getFocusedRoutePositions(trackKey = "") {
+    const viewer = window.__warzoneViewer;
+    const entry = __liveTrackRegistry.get(trackKey);
+    if (!viewer || !entry) return [];
+    const positions = buildReplayPositions(pruneHistoryPoints(entry.path_history || []), entry);
+    const entity = viewer.entities?.getById?.(`track-${trackKey}`);
+    const liveHeadPosition = getPositionCartesian(entity);
+    if (!liveHeadPosition) return positions;
+    const lastPosition = positions.length ? positions[positions.length - 1] : null;
+    const headDistanceMeters = getCartesianDistanceMeters(lastPosition, liveHeadPosition);
+    if (!lastPosition || !Number.isFinite(headDistanceMeters) || headDistanceMeters > 0.75) {
+        positions.push(liveHeadPosition);
+    }
+    return positions;
+}
+function getPolylineDistanceMeters(positions = []) {
+    let distanceMeters = 0;
+    for (let index = 1; index < positions.length; index += 1) {
+        distanceMeters += getCartesianDistanceMeters(positions[index - 1], positions[index]);
+    }
+    return distanceMeters;
+}
+function getRoutePointAtDistance(positions = [], distanceMeters = 0) {
+    if (!positions.length) return null;
+    const targetDistance = Math.max(0, Number(distanceMeters || 0));
+    if (targetDistance <= 0) return positions[0];
+    let walkedMeters = 0;
+    for (let index = 1; index < positions.length; index += 1) {
+        const start = positions[index - 1];
+        const end = positions[index];
+        const segmentMeters = getCartesianDistanceMeters(start, end);
+        if (!Number.isFinite(segmentMeters) || segmentMeters <= 0) continue;
+        if (walkedMeters + segmentMeters >= targetDistance) {
+            const ratio = clamp((targetDistance - walkedMeters) / segmentMeters, 0, 1);
+            return Cesium.Cartesian3.lerp(start, end, ratio, new Cesium.Cartesian3());
+        }
+        walkedMeters += segmentMeters;
+    }
+    return positions[positions.length - 1] || null;
+}
+function getRoutePositionsAfterDistance(positions = [], distanceMeters = 0) {
+    if (positions.length < 2) return positions;
+    const targetDistance = Math.max(0, Number(distanceMeters || 0));
+    if (targetDistance <= 0) return positions;
+    let walkedMeters = 0;
+    const result = [];
+    for (let index = 1; index < positions.length; index += 1) {
+        const start = positions[index - 1];
+        const end = positions[index];
+        const segmentMeters = getCartesianDistanceMeters(start, end);
+        if (!Number.isFinite(segmentMeters) || segmentMeters <= 0) continue;
+        if (walkedMeters + segmentMeters >= targetDistance) {
+            const ratio = clamp((targetDistance - walkedMeters) / segmentMeters, 0, 1);
+            result.push(Cesium.Cartesian3.lerp(start, end, ratio, new Cesium.Cartesian3()));
+            result.push(...positions.slice(index));
+            break;
+        }
+        walkedMeters += segmentMeters;
+    }
+    return result.length >= 2 ? result : positions;
+}
+function getRouteSegmentBetweenDistances(positions = [], startDistanceMeters = 0, endDistanceMeters = 0) {
+    if (positions.length < 2) return [];
+    const start = getRoutePointAtDistance(positions, startDistanceMeters);
+    const end = getRoutePointAtDistance(positions, endDistanceMeters);
+    return start && end && getCartesianDistanceMeters(start, end) > 0 ? [start, end] : [];
+}
+function getRouteScreenFadeDistanceMeters(positions = [], targetPixels = 56) {
+    const viewer = window.__warzoneViewer;
+    const sceneToWindow = Cesium.SceneTransforms?.worldToWindowCoordinates ?? Cesium.SceneTransforms?.wgs84ToWindowCoordinates;
+    if (!viewer?.scene || typeof sceneToWindow !== "function" || positions.length < 2) return Number.NaN;
+    let walkedPixels = 0;
+    let walkedMeters = 0;
+    let previousScreen = null;
+    try {
+        previousScreen = sceneToWindow(viewer.scene, positions[0]);
+    } catch {
+        return Number.NaN;
+    }
+    if (!previousScreen || !Number.isFinite(previousScreen.x) || !Number.isFinite(previousScreen.y)) return Number.NaN;
+    for (let index = 1; index < positions.length; index += 1) {
+        let screen = null;
+        try {
+            screen = sceneToWindow(viewer.scene, positions[index]);
+        } catch {
+            return Number.NaN;
+        }
+        if (!screen || !Number.isFinite(screen.x) || !Number.isFinite(screen.y)) return Number.NaN;
+        const dx = screen.x - previousScreen.x;
+        const dy = screen.y - previousScreen.y;
+        const segmentPixels = Math.hypot(dx, dy);
+        const segmentMeters = getCartesianDistanceMeters(positions[index - 1], positions[index]);
+        if (Number.isFinite(segmentPixels) && segmentPixels > 0 && Number.isFinite(segmentMeters) && segmentMeters > 0) {
+            if (walkedPixels + segmentPixels >= targetPixels) {
+                const ratio = clamp((targetPixels - walkedPixels) / segmentPixels, 0, 1);
+                return walkedMeters + segmentMeters * ratio;
+            }
+            walkedPixels += segmentPixels;
+            walkedMeters += segmentMeters;
+        }
+        previousScreen = screen;
+    }
+    return Number.NaN;
+}
+function getFocusedRouteFadeDistanceMeters(positions = [], totalMeters = Number.NaN) {
+    const routeMeters = Number.isFinite(totalMeters) ? totalMeters : getPolylineDistanceMeters(positions);
+    if (!Number.isFinite(routeMeters) || routeMeters <= 0) return 0;
+    const targetPixels = clamp(getCssNumber("--warzone-live-track-route-fade-px", 56), 40, 80);
+    let fadeMeters = getRouteScreenFadeDistanceMeters(positions, targetPixels);
+    if (!Number.isFinite(fadeMeters) || fadeMeters <= 0) {
+        const cameraHeight = getViewerCameraHeightMeters();
+        fadeMeters = Number.isFinite(cameraHeight) ? clamp(cameraHeight * 0.018, 750, 60000) : routeMeters * 0.05;
+    }
+    fadeMeters = clamp(fadeMeters, 0, routeMeters * 0.35);
+    return fadeMeters < routeMeters * 0.6 ? fadeMeters : 0;
+}
+function buildFocusedRouteGeometry(trackKey = "") {
+    const positions = getFocusedRoutePositions(trackKey);
+    const totalMeters = getPolylineDistanceMeters(positions);
+    const fadeMeters = getFocusedRouteFadeDistanceMeters(positions, totalMeters);
+    const shouldFade = positions.length >= 2 && fadeMeters > 0 && totalMeters > fadeMeters * 1.15;
+    const fadeSegments = [];
+    if (shouldFade) {
+        for (let index = 0; index < LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS; index += 1) {
+            const startDistance = fadeMeters * (index / LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS);
+            const endDistance = fadeMeters * ((index + 1) / LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS);
+            fadeSegments.push(getRouteSegmentBetweenDistances(positions, startDistance, endDistance));
+        }
+    }
+    return {
+        positions,
+        totalMeters,
+        fadeMeters: shouldFade ? fadeMeters : 0,
+        solidPositions: shouldFade ? getRoutePositionsAfterDistance(positions, fadeMeters) : positions,
+        fadeSegments,
+    };
+}
+function getFocusedRouteGeometry(trackKey = "") {
+    const key = String(trackKey || "");
+    const now = Date.now();
+    if (
+        __liveTrackFocusedRouteGeometryCache &&
+        __liveTrackFocusedRouteGeometryCache.trackKey === key &&
+        now - __liveTrackFocusedRouteGeometryCache.createdAt < 100
+    ) {
+        return __liveTrackFocusedRouteGeometryCache.geometry;
+    }
+    const geometry = buildFocusedRouteGeometry(key);
+    __liveTrackFocusedRouteGeometryCache = {
+        trackKey: key,
+        createdAt: now,
+        geometry,
+    };
+    return geometry;
+}
+function getFocusedRouteSolidPositions(trackKey = "") {
+    return getFocusedRouteGeometry(trackKey).solidPositions || [];
+}
+function getFocusedRouteFadeSegmentPositions(trackKey = "", segmentIndex = 0) {
+    const geometry = getFocusedRouteGeometry(trackKey);
+    return geometry.fadeSegments?.[segmentIndex] || [];
+}
+function syncFocusedRouteEntity(trackKey = "") {
+    const viewer = window.__warzoneViewer;
+    if (
+        !viewer ||
+        !trackKey ||
+        String(__liveTrackReplayState.mode || "") !== "focus" ||
+        String(__liveTrackReplayState.selectedTrackKey || "") !== String(trackKey)
+    ) {
+        return false;
+    }
+    const positions = getFocusedRoutePositions(trackKey);
+    if (positions.length < 2) return false;
+    if (__liveTrackReplayState.routeEntity) return true;
+    const routeColor = Cesium.Color.fromCssColorString(getCssColor("--warzone-live-track-color", "rgba(24,226,219,1)"));
+    __liveTrackReplayState.routeEntity = viewer.entities.add({
+        id: `track-focus-route-${trackKey}`,
+        polyline: {
+            positions: new Cesium.CallbackProperty(() => getFocusedRouteSolidPositions(trackKey), false),
+            width: 3.1,
+            material: routeColor.withAlpha(0.92),
+            depthFailMaterial: routeColor.withAlpha(0.92),
+            clampToGround: false,
+            arcType: Cesium.ArcType.NONE,
+        }
+    });
+    __liveTrackReplayState.routeFadeEntities = Array.from(
+        { length: LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS },
+        (_, index) => {
+            const fadeRatio = LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS <= 1
+                ? 1
+                : index / (LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS - 1);
+            const alpha = LIVE_TRACK_FOCUS_ROUTE_FADE_ALPHA * Math.pow(fadeRatio, 1.35);
+            return viewer.entities.add({
+                id: `track-focus-route-fade-${index}-${trackKey}`,
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getFocusedRouteFadeSegmentPositions(trackKey, index), false),
+                    width: 3.1,
+                    material: routeColor.withAlpha(alpha),
+                    depthFailMaterial: routeColor.withAlpha(alpha),
+                    clampToGround: false,
+                    arcType: Cesium.ArcType.NONE,
+                }
+            });
+        }
+    );
+    applyLiveTrackFocusVisibility(trackKey);
+    requestWarzoneRenderBatched();
+    return true;
 }
 function startReplayForTrack(trackKey, options = {}) {
     const viewer = window.__warzoneViewer;
@@ -5722,7 +6218,9 @@ export function clearAllLiveTracks() {
                 entityId.startsWith("track-") ||
                 entityId.startsWith("track-trail-") ||
                 entityId.startsWith("track-replay-route-") ||
-                entityId.startsWith("track-replay-marker-")
+                entityId.startsWith("track-replay-marker-") ||
+                entityId.startsWith("track-focus-route-") ||
+                entityId.startsWith("track-focus-start-")
             ) {
                 stray.push(entity);
             }
@@ -5736,6 +6234,7 @@ export function clearAllLiveTracks() {
     __liveTrackLastPositions.clear();
     __liveTrackVisualState.clear();
     __liveTrackIconCodeCache.clear();
+    __liveTrackOriginHoverEntity = null;
     dispatchLiveTrackRegistryUpdate();
     requestWarzoneRenderBatched();
 }
@@ -5934,6 +6433,7 @@ export function focusLiveTrack(trackKey, options = {}) {
     }
     resetFocusedTrackCameraOrientation();
     setSelectedTrack(trackKey, "focus");
+    syncFocusedRouteEntity(trackKey);
     viewer.__warzone?.setSatelliteVisible?.(true);
     viewer.__warzone?.setGreyedSatelliteVisible?.(false);
     viewer.__warzone?.setContourGridVisible?.(false);

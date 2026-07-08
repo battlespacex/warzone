@@ -4,13 +4,20 @@ import { dirname, join } from "path";
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-require("dotenv").config({ path: join(__dirname, "..", ".env.production") });
+require("dotenv").config({
+    path: join(
+        __dirname,
+        "..",
+        process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
+    ),
+});
 
 import http from "http";
 import express from "express";
 import cors from "cors";
 import { attachWs } from "./ws.js";
 import { eventsRouter } from "./routes.events.js";
+import { stratopsRouter } from "./routes.stratops.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -23,6 +30,7 @@ app.get("/health", (req, res) => res.json({ ok: true }));
 const server = http.createServer(app);
 const { broadcast } = attachWs(server);
 app.use("/events", eventsRouter({ broadcast }));
+app.use("/stratops", stratopsRouter());
 server.listen(PORT, () => {
     console.log(`Warzone API listening on :${PORT}`);
 });

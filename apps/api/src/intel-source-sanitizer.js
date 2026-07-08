@@ -1166,8 +1166,8 @@ function buildPublicIntelWireMedia(item = {}, mediaBaseUrl = "") {
     const images = selectIntelImageCandidates(candidates.images, item)
         .slice(0, MAX_PUBLIC_IMAGES)
         .map((entry, index) => ({
-            thumbUrl: buildMediaProxyUrl(mediaBaseUrl, item.id, "image", index, "thumb"),
-            fullUrl: buildMediaProxyUrl(mediaBaseUrl, item.id, "image", index, "full"),
+            thumbUrl: isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : (isLikelyImageUrl(entry.url) ? entry.url : null),
+            fullUrl: isLikelyImageUrl(entry.url) ? entry.url : (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null),
             alt: entry.alt || null,
             width: inferImageDimensions(entry).width,
             height: inferImageDimensions(entry).height,
@@ -1176,12 +1176,10 @@ function buildPublicIntelWireMedia(item = {}, mediaBaseUrl = "") {
 
     const videos = selectIntelVideoCandidates(candidates.videos)
         .slice(0, MAX_PUBLIC_VIDEOS)
-        .map((entry, index) => ({
-            thumbUrl: entry.thumbUrl
-                ? buildMediaProxyUrl(mediaBaseUrl, item.id, "video", index, "thumb")
-                : null,
+        .map((entry) => ({
+            thumbUrl: isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null,
             videoUrl: isDirectVideoUrl(entry.videoUrl)
-                ? buildMediaProxyUrl(mediaBaseUrl, item.id, "video", index, "stream")
+                ? entry.videoUrl
                 : null,
             embedUrl: isSafePublicEmbedUrl(entry.embedUrl) ? entry.embedUrl : null,
             title: entry.title || null,

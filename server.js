@@ -162,6 +162,24 @@ app.get("/events/intel-feed/media/*", async (req, res) => {
     }
 });
 
+function buildSupportReturnUrl(status = "cancel", req) {
+    const params = new URLSearchParams();
+    params.set("support", status === "success" ? "success" : "cancel");
+    const sessionId = String(req.query?.session_id || "").trim();
+    if (status === "success" && sessionId) {
+        params.set("session_id", sessionId);
+    }
+    return `${BASE}/?${params.toString()}`;
+}
+
+app.get(["/success", "/success/"], (req, res) => {
+    res.redirect(302, buildSupportReturnUrl("success", req));
+});
+
+app.get(["/unsuccess", "/unsuccess/"], (req, res) => {
+    res.redirect(302, buildSupportReturnUrl("cancel", req));
+});
+
 app.use(express.static(ROOT));
 
 function sendPage(res, name, status = 200) {

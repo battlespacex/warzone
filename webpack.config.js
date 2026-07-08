@@ -406,12 +406,20 @@ module.exports = (env, argv) => {
                             }
                         }
 
-                        devServer.app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
-                        devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
-                        devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
-                        devServer.app.get("/warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
-                        devServer.app.get("/api/*", async (req, res) => {
+                        async function readRequestBody(req) {
+                            if (req.method === "GET" || req.method === "HEAD") {
+                                return null;
+                            }
+                            const chunks = [];
+                            for await (const chunk of req) {
+                                chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+                            }
+                            return chunks.length ? Buffer.concat(chunks) : null;
+                        }
+
+                        async function handleApiProxy(req, res) {
                             const upstreamPath = req.originalUrl.replace(/^\/api/, "") || "/";
+                            const bodyBuffer = await readRequestBody(req);
                             let lastPayload = "";
                             let lastStatus = 502;
                             let lastType = "application/json";
@@ -419,11 +427,21 @@ module.exports = (env, argv) => {
                             for (const target of apiTargets) {
                                 try {
                                     const upstream = new URL(upstreamPath, target);
+                                    const headers = {
+                                        Accept: req.get("accept") || "application/json",
+                                        "User-Agent": "stratops-warzone-dev/1.0",
+                                        "X-Forwarded-Host": req.get("host") || "",
+                                        "X-Forwarded-Proto": req.protocol || "http",
+                                        "X-Forwarded-Prefix": "/api",
+                                    };
+                                    const contentType = req.get("content-type");
+                                    if (contentType) {
+                                        headers["Content-Type"] = contentType;
+                                    }
                                     const response = await fetch(upstream, {
-                                        headers: {
-                                            Accept: "application/json",
-                                            "User-Agent": "stratops-warzone-dev/1.0",
-                                        },
+                                        method: req.method,
+                                        headers,
+                                        body: bodyBuffer,
                                     });
                                     const payload = await response.text();
                                     lastPayload = payload;
@@ -443,7 +461,13 @@ module.exports = (env, argv) => {
                             res.status(lastStatus || 502);
                             res.set("Cache-Control", "no-store, max-age=0");
                             res.type(lastType).send(lastPayload || JSON.stringify({ error: "API unavailable" }));
-                        });
+                        }
+
+                        devServer.app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
+                        devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
+                        devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
+                        devServer.app.get("/warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
+                        devServer.app.all("/api/*", handleApiProxy);
 
                         return middlewares;
                     },

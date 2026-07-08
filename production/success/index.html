@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Redirecting | StratOps</title>
+    <script>
+        (function () {
+            const current = new URL(window.location.href);
+            const target = new URL("/", current.origin);
+            target.searchParams.set("support", "success");
+            const sessionId = current.searchParams.get("session_id");
+            if (sessionId) {
+                target.searchParams.set("session_id", sessionId);
+            }
+            window.location.replace(target.toString());
+        })();
+    </script>
+</head>
+<body></body>
+</html>

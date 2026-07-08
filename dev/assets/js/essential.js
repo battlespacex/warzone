@@ -3205,6 +3205,7 @@ function buildIntelWireImagePanelMarkup(event = {}, images = [], options = {}) {
                     <img
                         class="wz-feed-media-thumb"
                         src="${escapeHtml(entry.thumbUrl || entry.fullUrl || "")}"
+                        ${entry.fullUrl ? `data-fallback-src="${escapeHtml(entry.fullUrl)}"` : ""}
                         ${entry.width ? `width="${Math.max(1, Number(entry.width) || 0)}"` : ""}
                         ${entry.height ? `height="${Math.max(1, Number(entry.height) || 0)}"` : ""}
                         alt="${escapeHtml(stripPresentationEmoji(entry.alt || event.title || "Intel Wire image") || "Intel Wire image")}"
@@ -3334,24 +3335,22 @@ function renderIntelWireMediaCard(card, event = {}) {
         ${(imageCount > defaultImageCount || state.imagesOpen) ? `
             <button
                 type="button"
-                class="wz-feed-media-toggle"
+                class="wz-feed-media-toggle btn-secondary white"
                 data-feed-media-toggle="images"
                 aria-expanded="${state.imagesOpen ? "true" : "false"}"
                 aria-controls="${escapeHtml(getIntelWireMediaPanelId(event.id, "images"))}"
                 title="${escapeHtml(formatIntelWireMediaToggleLabel("image", hiddenImageCount, imageCount, state.imagesOpen))}">
-                <span class="wz-feed-media-icon" aria-hidden="true">${buildIntelWireMediaIcon("image")}</span>
                 <span>${escapeHtml(formatIntelWireMediaToggleLabel("image", hiddenImageCount, imageCount, state.imagesOpen))}</span>
             </button>
         ` : ""}
         ${(videoCount && (!showVideoPreviewByDefault || hiddenVideoCount > 0 || state.videosOpen)) ? `
             <button
                 type="button"
-                class="wz-feed-media-toggle"
+                class="wz-feed-media-toggle btn-secondary white"
                 data-feed-media-toggle="videos"
                 aria-expanded="${state.videosOpen ? "true" : "false"}"
                 aria-controls="${escapeHtml(getIntelWireMediaPanelId(event.id, "videos"))}"
                 title="${escapeHtml(formatIntelWireMediaToggleLabel("video", hiddenVideoCount, videoCount, state.videosOpen))}">
-                <span class="wz-feed-media-icon" aria-hidden="true">${buildIntelWireMediaIcon("video")}</span>
                 <span>${escapeHtml(formatIntelWireMediaToggleLabel("video", hiddenVideoCount, videoCount, state.videosOpen))}</span>
             </button>
         ` : ""}
@@ -3547,6 +3546,13 @@ function bindFeedControls() {
         feedList.addEventListener("error", (event) => {
             const target = event.target;
             if (target instanceof HTMLImageElement) {
+                const fallbackSrc = String(target.dataset.fallbackSrc || "").trim();
+                const currentSrc = String(target.currentSrc || target.src || "").trim();
+                if (fallbackSrc && target.dataset.fallbackTried !== "1" && currentSrc !== fallbackSrc) {
+                    target.dataset.fallbackTried = "1";
+                    target.src = fallbackSrc;
+                    return;
+                }
                 const card = target.closest(".wz-feed-media-card, .wz-feed-video-card");
                 if (card) card.classList.add("is-media-unavailable");
             }
@@ -7226,16 +7232,44 @@ function isLoginModalOpen() {
     return m && !m.hidden;
 }
 
-export function initStratopsIntro() {
-    if (isLocalAuthBypassEnabled()) {
-        applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
-        try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
-        requestAnimationFrame(() => {
-            window.__warzoneShowRegionModal?.();
-        });
+function getSupportReturnStateFromUrl() {
+    const url = new URL(window.location.href);
+    const supportState = String(url.searchParams.get("support") || "").trim().toLowerCase();
+    if (!supportState) return null;
+    if (supportState !== "success" && supportState !== "cancel" && supportState !== "error") {
+        return null;
+    }
+    return {
+        status: supportState,
+        sessionId: String(url.searchParams.get("session_id") || "").trim(),
+    };
+}
+
+function clearSupportReturnUrlState() {
+    const url = new URL(window.location.href);
+    ["support", "session_id", "success", "canceled", "cancelled", "error"].forEach((key) => {
+        url.searchParams.delete(key);
+    });
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, document.title, nextUrl);
+}
+
+function setButtonTextOutsideSpan(button, label = "") {
+    if (!button) return;
+    const iconSpan = button.querySelector("span[aria-hidden='true']") || button.querySelector("span");
+    if (!iconSpan) {
+        button.textContent = label;
         return;
     }
+    Array.from(button.childNodes).forEach((node) => {
+        if (node !== iconSpan) {
+            button.removeChild(node);
+        }
+    });
+    button.append(document.createTextNode(` ${label}`));
+}
 
+export function initStratopsIntro() {
     // ── Elements ────────────────────────────────────────────────────────────
     const introModal = document.getElementById("wz-intro-modal");
     const acceptBtn = document.getElementById("wz-intro-accept");
@@ -7252,6 +7286,13 @@ export function initStratopsIntro() {
     const introTabs = introModal ? [...introModal.querySelectorAll(".wz-modal__tab")] : [];
     const introBox = introModal?.querySelector(".wz-modal-box");
     const INTRO_VIEW_FADE_MS = 220;
+    const supportReturnModal = document.getElementById("wz-support-return-modal");
+    const supportReturnEyebrow = document.getElementById("wz-support-return-eyebrow");
+    const supportReturnTitle = document.getElementById("wz-support-return-title");
+    const supportReturnSummary = document.getElementById("wz-support-return-summary");
+    const supportReturnNote = document.getElementById("wz-support-return-note");
+    const supportReturnPrimary = document.getElementById("wz-support-return-primary");
+    const supportReturnSecondary = document.getElementById("wz-support-return-secondary");
 
     // Inline login fields (live inside the intro modal — separate from #wz-login-modal)
     const introEmail = document.getElementById("intro-auth-email");
@@ -7266,6 +7307,120 @@ export function initStratopsIntro() {
     let introHeightCommitFrame = 0;
     const introViewAnimations = new WeakMap();
     const introViewFrames = new WeakMap();
+
+    function openIntroModal() {
+        if (!introModal) return;
+        introModal.hidden = false;
+        introModal.classList.add("is-visible");
+        onAuthModalVisibilityChanged();
+    }
+
+    function closeSupportReturnModal(afterClose) {
+        if (!supportReturnModal) {
+            if (typeof afterClose === "function") afterClose();
+            return;
+        }
+        if (typeof window.__warzoneCloseSharedModal === "function") {
+            window.__warzoneCloseSharedModal(supportReturnModal, afterClose);
+            return;
+        }
+        supportReturnModal.classList.remove("is-visible");
+        window.setTimeout(() => {
+            supportReturnModal.hidden = true;
+            supportReturnModal.setAttribute("aria-hidden", "true");
+            if (typeof afterClose === "function") afterClose();
+        }, 220);
+    }
+
+    function showSupportReturnModal(state) {
+        if (!supportReturnModal || !state) return false;
+        const config = state.status === "success"
+            ? {
+                eyebrow: "Support Confirmed",
+                title: "Payment Successful",
+                summary: "Thank you for supporting StratOps. Your contribution helps fund continued development, infrastructure, and platform improvements.",
+                note: "Continue into StratOps or return to the startup flow.",
+                primaryLabel: "Continue",
+                primaryAction: "continue",
+                secondaryLabel: "Back",
+                secondaryAction: "continue",
+            }
+            : {
+                eyebrow: "Checkout Canceled",
+                title: "Payment Not Completed",
+                summary: "Your payment was not completed. You can return to StratOps or reopen the support checkout at any time.",
+                note: "Return to the startup flow or reopen the support popup.",
+                primaryLabel: "Try Again",
+                primaryAction: "retry",
+                secondaryLabel: "Back",
+                secondaryAction: "continue",
+            };
+
+        if (supportReturnEyebrow) supportReturnEyebrow.textContent = config.eyebrow;
+        if (supportReturnTitle) supportReturnTitle.textContent = config.title;
+        if (supportReturnSummary) supportReturnSummary.textContent = config.summary;
+        if (supportReturnNote) {
+            const noteLabel = supportReturnNote.querySelector("span:last-child");
+            if (noteLabel) noteLabel.textContent = config.note;
+        }
+        if (supportReturnPrimary) {
+            supportReturnPrimary.dataset.returnAction = config.primaryAction;
+            setButtonTextOutsideSpan(supportReturnPrimary, config.primaryLabel);
+        }
+        if (supportReturnSecondary) {
+            supportReturnSecondary.dataset.returnAction = config.secondaryAction;
+            setButtonTextOutsideSpan(supportReturnSecondary, config.secondaryLabel);
+        }
+
+        const handleAction = (action = "continue") => {
+            clearSupportReturnUrlState();
+            closeSupportReturnModal(() => {
+                if (action === "retry") {
+                    openIntroModal();
+                    window.setTimeout(() => {
+                        showSupportModal();
+                    }, 120);
+                    return;
+                }
+                openIntroModal();
+            });
+        };
+
+        [supportReturnPrimary, supportReturnSecondary].forEach((button) => {
+            if (!button || button.dataset.supportReturnBound === "true") return;
+            button.dataset.supportReturnBound = "true";
+            button.addEventListener("click", () => {
+                handleAction(button.dataset.returnAction || "continue");
+            });
+        });
+
+        supportReturnModal.hidden = false;
+        supportReturnModal.setAttribute("aria-hidden", "false");
+        if (typeof window.__warzoneOpenSharedModal === "function") {
+            window.__warzoneOpenSharedModal(supportReturnModal);
+        } else {
+            requestAnimationFrame(() => {
+                supportReturnModal.classList.add("is-visible");
+            });
+        }
+        onAuthModalVisibilityChanged();
+        return true;
+    }
+
+    const supportReturnState = getSupportReturnStateFromUrl();
+    if (supportReturnState) {
+        showSupportReturnModal(supportReturnState);
+        return;
+    }
+
+    if (isLocalAuthBypassEnabled()) {
+        applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+        try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
+        requestAnimationFrame(() => {
+            window.__warzoneShowRegionModal?.();
+        });
+        return;
+    }
 
     // ── Helper: show/hide inline error ──────────────────────────────────────
     function setIntroError(msg) {
@@ -7583,11 +7738,7 @@ export function initStratopsIntro() {
     }
 
     // ── Show modal ───────────────────────────────────────────────────────────
-    if (introModal) {
-        introModal.hidden = false;
-        introModal.classList.add("is-visible");
-        onAuthModalVisibilityChanged();
-    }
+    openIntroModal();
 }
 
 export function initStratopsAuth() {
@@ -7805,6 +7956,8 @@ export function initGlobeRotation(viewer) {
 
 const DELAYED_LOGIN_PROMPT_MS = 15000;
 const DONATE_POPUP_DELAY_MS = 75000;
+const SUPPORT_CHECKOUT_ENDPOINT = "/api/stratops/create-checkout-session";
+const SUPPORT_CHECKOUT_ERROR = "Unable to open Stripe Checkout. Please try again.";
 
 function isAnyAutoPromptBlockingModalOpen() {
     return Boolean(document.querySelector(
@@ -7818,6 +7971,7 @@ function initDonatePopup() {
     document.getElementById("wz-donate-close")?.addEventListener("click", () => {
         closeSupportModal({ rememberDismissed: true });
     });
+    bindSupportCheckoutButtons(modal);
     const supportOpenBtn = document.getElementById("wz-support-open");
     if (supportOpenBtn && supportOpenBtn.dataset.supportBound !== "true") {
         supportOpenBtn.dataset.supportBound = "true";
@@ -7832,6 +7986,78 @@ function initDonatePopup() {
 
 let __supportModalCloseTimer = 0;
 
+function setSupportCheckoutStatus(message = "") {
+    const status = document.getElementById("wz-donate-checkout-status");
+    if (!status) return;
+    status.textContent = message;
+    status.hidden = !message;
+}
+
+function getSupportCheckoutLabel(button) {
+    return button?.querySelector("span:last-child") || button;
+}
+
+function getSupportCheckoutErrorMessage(response, payload) {
+    if (response?.status === 404) {
+        return "Checkout endpoint not found. Restart the local API service.";
+    }
+    if (payload?.needsConfig) {
+        return "Stripe Checkout is not configured yet.";
+    }
+    const message = String(payload?.error || "").trim();
+    return message || SUPPORT_CHECKOUT_ERROR;
+}
+
+async function startSupportCheckout(button) {
+    const supportType = button?.dataset?.supportType || "";
+    if (!supportType) return;
+
+    const label = getSupportCheckoutLabel(button);
+    const originalLabel = label?.textContent || "";
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    setSupportCheckoutStatus("");
+    if (label) {
+        label.textContent = "Opening Stripe...";
+    }
+
+    try {
+        const response = await fetch(SUPPORT_CHECKOUT_ENDPOINT, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            body: JSON.stringify({ supportType }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.url) {
+            throw new Error(getSupportCheckoutErrorMessage(response, payload));
+        }
+        window.open(String(payload.url), "_blank", "noopener,noreferrer");
+    } catch (error) {
+        console.warn("[support] Checkout launch failed:", error);
+        setSupportCheckoutStatus(String(error?.message || SUPPORT_CHECKOUT_ERROR));
+    } finally {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        if (label) {
+            label.textContent = originalLabel;
+        }
+    }
+}
+
+function bindSupportCheckoutButtons(modal) {
+    if (!modal || modal.dataset.supportCheckoutBound === "true") return;
+    modal.dataset.supportCheckoutBound = "true";
+    modal.querySelectorAll("[data-support-checkout]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            startSupportCheckout(button);
+        });
+    });
+}
+
 function openSupportModal({ resetDismissal = true } = {}) {
     const modal = document.getElementById("wz-donate-modal");
     if (!modal) return;
@@ -7839,6 +8065,7 @@ function openSupportModal({ resetDismissal = true } = {}) {
     if (resetDismissal) {
         try { sessionStorage.removeItem("wz_donate_dismissed"); } catch { }
     }
+    setSupportCheckoutStatus("");
     modal.scrollTop = 0;
     clearTimeout(__viewportFetchTimer);
     __viewportFetchTimer = null;

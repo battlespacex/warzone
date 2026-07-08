@@ -4007,6 +4007,7 @@ function stopMissileAlertSound(viewer) {
 function playImpactSound(viewer) {
     const store = ensureAudioStore(viewer);
     if (!store.impactSrc) return;
+    if (Date.now() < Number(window.__warzoneOperationalAudioMutedUntil || 0)) return;
     try {
         const audio = new Audio(store.impactSrc);
         audio.preload = "auto";

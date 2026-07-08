@@ -404,6 +404,46 @@
                 </div>
             </div>
         </div>
+        <div id="wz-support-return-modal" class="wz-modal wz-intro wz-support-return" aria-modal="true" role="dialog"
+            aria-labelledby="wz-support-return-title" aria-describedby="wz-support-return-summary" hidden>
+            <div class="wz-modal-box wz-max-modal">
+                <div class="wz-modal-inner">
+                    <header>
+                        <div aria-label="StratOps visualization board" class="warzone-logo">
+                            <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="StratOps by BattlespaceX"
+                                class="nav__logo" width="380" height="100" fetchpriority="high" decoding="async" />
+                        </div>
+                    </header>
+                    <section class="wz-modal-body">
+                        <div class="wz-support-return__body">
+                            <h3 id="wz-support-return-eyebrow" class="wz-support-return__eyebrow">Support Status</p>
+                            <h1 id="wz-support-return-title">Support Update</h1>
+                            <p id="wz-support-return-summary">
+                                You have returned to StratOps.
+                            </p>
+                        </div>
+                    </section>
+                    <footer class="no-padding">
+                        <!-- <div id="wz-support-return-note" class="wz-hint">
+                            <span class="static-icon stratops-ico-assets-recon-intel-1 color-teal-glow" aria-hidden="true"></span>
+                            <span>Return to the startup flow or reopen the support checkout.</span>
+                        </div> -->
+                        <div class="wz-action wz-support-return__actions">
+                            <div class="wz-btns">
+                                <button id="wz-support-return-secondary" class="btn-secondary white" type="button">
+                                    <span aria-hidden="true"></span>
+                                    Back
+                                </button>
+                                <button id="wz-support-return-primary" class="btn-primary" type="button">
+                                    <span aria-hidden="true"></span>
+                                    Continue
+                                </button>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            </div>
+        </div>
         <div id="wz-region-modal" class="wz-modal wz-region" aria-modal="true" role="dialog"
             aria-labelledby="wz-region-title" aria-describedby="wz-region-sub" hidden>
             <div class="wz-modal-box wz-max-modal">
@@ -877,22 +917,26 @@
                         </p>
                     </section>
                     <footer class="wz-donate-modal__actions">
-                        <a id="wz-donate-link-onetime"
-                            href="https://buy.stripe.com/cNi8wOeAp3BL6pA7Pt5c404"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="btn-primary">
+                        <p id="wz-donate-checkout-status"
+                            class="wz-donate-modal__checkout-status wz-error-container"
+                            hidden
+                            aria-live="polite"></p>
+                        <button type="button"
+                            id="wz-donate-link-onetime"
+                            class="btn-primary"
+                            data-support-checkout
+                            data-support-type="one_time">
                             <span></span>
-                            One-Time Support
-                        </a>
-                        <a id="wz-donate-link-monthly"
-                            href="https://buy.stripe.com/7sY28qeAp5JTaFQ3zd5c403"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="btn-secondary white">
+                            <span>One-Time Support</span>
+                        </button>
+                        <button type="button"
+                            id="wz-donate-link-monthly"
+                            class="btn-secondary white"
+                            data-support-checkout
+                            data-support-type="monthly">
                             <span></span>
-                            Monthly Support
-                        </a>
+                            <span>Monthly Support</span>
+                        </button>
                     </footer>
                 </div>
             </div>
