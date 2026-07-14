@@ -158,8 +158,25 @@ const LIVE_TRACK_TRAIL_SMOOTH_MIN_POINTS = 5;
 const LIVE_TRACK_TRAIL_SMOOTH_KEEP_TAIL_POINTS = 2;
 const LIVE_TRACK_TRAIL_SMOOTH_MAX_POINTS = 520;
 const LIVE_TRACK_SEED_HISTORY_MAX_POINTS = 480;
-const LIVE_TRACK_HISTORY_MAX_JUMP_METERS = 220000;
-const LIVE_TRACK_HISTORY_MAX_SPEED_MPS = 1900;
+const LIVE_TRACK_HISTORY_JUMP_MIN_METERS = 5000;
+const LIVE_TRACK_HISTORY_SPEED_GRACE_FACTOR = 1.5;
+const LIVE_TRACK_HISTORY_MAX_SPEED_MPS_BY_SUBTYPE = Object.freeze({
+    helicopter: 180,
+    drone: 350,
+    uav: 350,
+    awacs: 600,
+    tanker: 600,
+    refueler: 600,
+    transport: 600,
+    logistics: 600,
+    logistic: 600,
+    recon: 650,
+    isr: 650,
+    vip: 650,
+    aircraft: 700,
+    bomber: 900,
+    fighter: 950,
+});
 const LIVE_TRACK_TRAIL_SPIKE_MIN_METERS = 900;
 const LIVE_TRACK_TRAIL_SPIKE_RATIO = 1.72;
 const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 2;
@@ -191,6 +208,7 @@ const LIVE_AIRCRAFT_MODEL_DEFAULT_CODE = "Fighter-F16";
 // a new row and rule/default mapping.
 const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "AWACS-E3": Object.freeze({ category: "awacs", model: "AWACS-E3.glb", icon: "AWACS-E3.png" }),
+    "AWACS-E4": Object.freeze({ category: "awacs", classification: "Airborne Command and Control", model: "AWACS-E4.glb", icon: "AWACS-E3.png" }),
     "AWACS-E7": Object.freeze({ category: "awacs", model: "AWACS-E7.glb", icon: "AWACS-E7.png" }),
     "AWACS-Globaleye": Object.freeze({ category: "awacs", model: "AWACS-Globaleye.glb", icon: "AWACS-Globaleye.png" }),
     "AWACS-Phalcon": Object.freeze({ category: "awacs", model: "AWACS-Phalcon.glb", icon: "AWACS-Phalcon.png" }),
@@ -228,6 +246,7 @@ const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "ISR-Gulfstream": Object.freeze({ category: "recon", model: "ISR-Gulfstream.glb", icon: "ISR-Gulfstream.png" }),
     "ISR-RC135": Object.freeze({ category: "recon", model: "ISR-RC135.glb", icon: "ISR-Gulfstream.png" }),
     "ISR-P8": Object.freeze({ category: "recon", model: "ISR-P8.glb", icon: "ISR-P8.png" }),
+    "VIP-VC25": Object.freeze({ category: "vip", classification: "Presidential Airlift", model: "VIP-VC25.glb", icon: "Transport-C17.png" }),
     "Drone-Globalhawk": Object.freeze({ category: "drone", model: "Drone-Globalhawk.glb", icon: "Drone-Globalhawk.png" }),
     "Drone-MQ9": Object.freeze({ category: "drone", model: "Drone-MQ9.glb", icon: "Drone-MQ9.png" }),
 });
@@ -259,6 +278,7 @@ const LIVE_AIRCRAFT_ICON_CODE_BY_ASSET_KEY = Object.freeze(
         }, {})
 );
 const LIVE_AIRCRAFT_ICON_FALLBACK_CODE_BY_ASSET_KEY = Object.freeze({
+    "AWACS-E4": "aw-1",
     "AWACS-E7": "aw-3",
     "Transport-C5": "tp-2",
     "Transport-IL76": "tp-2",
@@ -279,6 +299,7 @@ const LIVE_AIRCRAFT_ICON_FALLBACK_CODE_BY_ASSET_KEY = Object.freeze({
     "Fighter-J10": "ff-4",
     "Fighter-J11": "ff-3",
     "ISR-P8": "rr-1",
+    "VIP-VC25": "tp-2",
     "Drone-Globalhawk": "dd-1",
 });
 const LIVE_AIRCRAFT_MODEL_CODES = new Set([
@@ -681,6 +702,8 @@ const LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES = Object.freeze([
     { assetKey: "Bomber-B2", patterns: [/\bb[\s-]?2\b/i, /\bspirit\b/i] },
     { assetKey: "Bomber-B52", patterns: [/\bb[\s-]?52[gh]?\b/i, /\bstratofortress\b/i, /\bboeing\s+b[\s-]?52\b/i] },
     { assetKey: "Bomber-B1", patterns: [/\bb[\s-]?1\b/i, /\blancer\b/i, /\btu[\s-]?160\b/i, /\bblackjack\b/i, /\btu[\s-]?22m3\b/i, /\bbackfire\b/i, /\btu[\s-]?95\b/i, /\bbear\b/i, /\bh[\s-]?6\b/i] },
+    { assetKey: "AWACS-E4", patterns: [/\be[\s-]?4(?:[abc])?\b/i, /\bnightwatch\b/i, /\bdoomsday(?:\s+(?:plane|aircraft))?\b/i, /\bnational airborne operations center\b/i, /\bnaoc\b/i] },
+    { assetKey: "VIP-VC25", patterns: [/\bvc[\s-]?25(?:[abc])?\b/i, /\bair force one\b/i, /\bpresidential (?:aircraft|airlift)\b/i, /\bsam[\s-]?(?:28000|29000)\b/i] },
     { assetKey: "AWACS-E3", patterns: [/\be[\s-]?3\b/i, /\bsentry\b/i, /\bawacs e[\s-]?3\b/i] },
     { assetKey: "AWACS-E7", patterns: [/\be[\s-]?7\b/i, /\bwedgetail\b/i, /\b737 aew(?:&c)?\b/i, /\bpeace eagle\b/i] },
     { assetKey: "AWACS-Globaleye", patterns: [/\bglobal\s*eye\b/i, /\bglobaleye\b/i, /\berieye\b/i, /\bsaab (?:340|2000) aew\b/i, /\bemb[\s-]?145 aew\b/i, /\bnetra\b/i] },
@@ -3506,6 +3529,20 @@ function getHistoryPointDistanceMeters(a = {}, b = {}, track = {}) {
         return getLonLatDistanceMeters(aLon, aLat, bLon, bLat);
     }
 }
+function getTrackHistoryMaxSpeedMps(track = {}) {
+    const subtype = resolveTrackSubtype(track).trim().toLowerCase();
+    return LIVE_TRACK_HISTORY_MAX_SPEED_MPS_BY_SUBTYPE[subtype]
+        || LIVE_TRACK_HISTORY_MAX_SPEED_MPS_BY_SUBTYPE.aircraft;
+}
+function isImplausibleTrackMotion(movedMeters, dtMs, track = {}) {
+    if (!Number.isFinite(movedMeters) || movedMeters <= LIVE_TRACK_HISTORY_JUMP_MIN_METERS) return false;
+    if (!Number.isFinite(dtMs) || dtMs <= 0) return true;
+    const maxDistanceMeters = Math.max(
+        LIVE_TRACK_HISTORY_JUMP_MIN_METERS,
+        getTrackHistoryMaxSpeedMps(track) * (dtMs / 1000) * LIVE_TRACK_HISTORY_SPEED_GRACE_FACTOR
+    );
+    return movedMeters > maxDistanceMeters;
+}
 function isFocusedRoutePointSpike(previous = {}, point = {}, next = {}, track = {}) {
     const directMeters = getHistoryPointDistanceMeters(previous, next, track);
     const inMeters = getHistoryPointDistanceMeters(previous, point, track);
@@ -3525,12 +3562,7 @@ function sanitizeFocusedRouteHistoryPoints(points = [], track = {}) {
         if (previous) {
             const movedMeters = getHistoryPointDistanceMeters(previous, point, track);
             const dtMs = Math.max(0, Number(point.ts || 0) - Number(previous.ts || 0));
-            const speedMps = dtMs > 0 && Number.isFinite(movedMeters) ? movedMeters / (dtMs / 1000) : 0;
-            if (
-                Number.isFinite(movedMeters) &&
-                movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS &&
-                (!dtMs || speedMps > LIVE_TRACK_HISTORY_MAX_SPEED_MPS)
-            ) {
+            if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
                 continue;
             }
         }
@@ -3581,7 +3613,12 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
                 getTrackPointRenderAltitudeMeters(point, track)
             );
             const movedMeters = getCartesianDistanceMeters(previousCartesian, nextCartesian);
-            if (movedMeters < minTrailDistanceMeters) {
+            const dtMs = Math.max(0, Number(point.ts || 0) - Number(previousPoint.ts || 0));
+            if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
+                entry.path_history = pruneHistoryPoints(history);
+                entry.last_seen_at = point.ts;
+                return;
+            } else if (movedMeters < minTrailDistanceMeters) {
                 history[history.length - 1] = point;
             } else {
                 history.push(point);
@@ -3865,19 +3902,6 @@ function syncFocusedTrackOverlayModeButtons() {
 function refreshFocusedTrackModelAfterMapModeChange() {
     const focusedTrackKey = getFocusedTrackKey();
     if (!focusedTrackKey || String(__liveTrackReplayState.mode || "") !== "focus") return;
-    const viewer = window.__warzoneViewer;
-    const entity = viewer?.entities?.getById?.(`track-${focusedTrackKey}`);
-    const track = __liveTrackRegistry.get(focusedTrackKey);
-    if (entity && track) {
-        const lon = Number(track.lon);
-        const lat = Number(track.lat);
-        const alt = getTrackRenderAltitudeMeters(track);
-        const headingDeg = Number(entity.__currentHeadingDeg || track.heading_deg || 0);
-        const nextPosition = buildTrackEntityCartesian(track, lon, lat, alt, headingDeg);
-        if (nextPosition) {
-            entity.position = nextPosition;
-        }
-    }
     refreshLiveTrackVisualMode(focusedTrackKey);
     requestWarzoneRenderBatched();
 }
@@ -4873,6 +4897,11 @@ function getFocusedRoutePositions(trackKey = "") {
     if (!liveHeadPosition) return smoothFocusedRoutePositions(positions);
     const lastPosition = positions.length ? positions[positions.length - 1] : null;
     const headDistanceMeters = getCartesianDistanceMeters(lastPosition, liveHeadPosition);
+    const lastHistoryPoint = historyPoints.length ? historyPoints[historyPoints.length - 1] : null;
+    const headDtMs = Math.max(0, Date.now() - Number(lastHistoryPoint?.ts || Date.now()));
+    if (lastPosition && isImplausibleTrackMotion(headDistanceMeters, headDtMs, entry)) {
+        return smoothFocusedRoutePositions(positions);
+    }
     const replaceDistanceMeters = clamp(getLiveTrackFocusCameraRangeMeters() * 0.18, 1500, 18000);
     if (!lastPosition) {
         positions.push(liveHeadPosition);
@@ -5637,7 +5666,8 @@ function smoothTrackTrailPositions(rawPositions = []) {
     return cappedBody.concat(tail);
 }
 function getTrackTrailPositions(trackKey) {
-    const cachedPositions = updateTrackTrailPositionsCache(trackKey, __liveTrackTrails.get(trackKey) || []);
+    const trailEntries = __liveTrackTrails.get(trackKey) || [];
+    const cachedPositions = updateTrackTrailPositionsCache(trackKey, trailEntries);
     const entity = window.__warzoneViewer?.entities?.getById?.(`track-${trackKey}`);
     const liveHeadPosition = getPositionCartesian(entity);
     if (!liveHeadPosition) return cachedPositions;
@@ -5648,6 +5678,12 @@ function getTrackTrailPositions(trackKey) {
         return cachedPositions;
     }
     const replaceDistanceMeters = isFocusSelectionActive() ? 2200 : 420;
+    const lastTrailEntry = trailEntries.length ? trailEntries[trailEntries.length - 1] : null;
+    const headDtMs = Math.max(0, Date.now() - Number(lastTrailEntry?.ts || Date.now()));
+    const track = __liveTrackRegistry.get(trackKey) || {};
+    if (isImplausibleTrackMotion(headDistanceMeters, headDtMs, track)) {
+        return cachedPositions;
+    }
     if (headDistanceMeters <= replaceDistanceMeters) {
         return cachedPositions.slice(0, -1).concat([liveHeadPosition]);
     }
@@ -5682,15 +5718,8 @@ function commitTrackTrailPosition(trackKey, track = {}, newPosition) {
     const movedMeters = getCartesianDistanceMeters(lastPosition, newPosition);
     if (lastEntry) {
         const dtMs = Math.max(0, now - Number(lastEntry.ts || now));
-        if (dtMs > 0 && Number.isFinite(movedMeters)) {
-            const speedMps = movedMeters / (dtMs / 1000);
-            if (
-                movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS &&
-                speedMps > LIVE_TRACK_HISTORY_MAX_SPEED_MPS
-            ) {
-                // Ignore telemetry spikes that create visibly broken trail segments.
-                return;
-            }
+        if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
+            return;
         }
     }
     const minTrailDistanceMeters = getTrackTrailMinDistanceMeters(track);
@@ -5733,9 +5762,9 @@ function parseTrailPointTimestamp(rawTs) {
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return Date.now();
 }
-function sanitizeSeedTrailEntries(entries = []) {
+function sanitizeSeedTrailEntries(entries = [], track = {}) {
     const safeEntries = Array.isArray(entries) ? entries : [];
-    if (safeEntries.length <= 2) return safeEntries;
+    if (safeEntries.length <= 1) return safeEntries;
     const sanitized = [];
     for (const entry of safeEntries) {
         if (!entry?.position || !Number.isFinite(Number(entry?.ts))) continue;
@@ -5751,16 +5780,7 @@ function sanitizeSeedTrailEntries(entries = []) {
         const movedMeters = getCartesianDistanceMeters(previous.position, next.position);
         if (!Number.isFinite(movedMeters)) continue;
         const dtMs = Math.max(0, Number(next.ts) - Number(previous.ts));
-        if (dtMs === 0) {
-            if (movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS) continue;
-            sanitized.push(next);
-            continue;
-        }
-        const speedMps = movedMeters / (dtMs / 1000);
-        if (
-            movedMeters > LIVE_TRACK_HISTORY_MAX_JUMP_METERS &&
-            speedMps > LIVE_TRACK_HISTORY_MAX_SPEED_MPS
-        ) {
+        if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
             continue;
         }
         sanitized.push(next);
@@ -5784,7 +5804,7 @@ function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
         .filter(Boolean)
         .sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0))
         .slice(-LIVE_TRACK_SEED_HISTORY_MAX_POINTS);
-    const entries = trimTrailEntries(sanitizeSeedTrailEntries(sortedEntries));
+    const entries = trimTrailEntries(sanitizeSeedTrailEntries(sortedEntries, track));
     if (entries.length >= 2) {
         __liveTrackTrails.set(trackKey, entries);
         updateTrackTrailPositionsCache(trackKey, entries);
