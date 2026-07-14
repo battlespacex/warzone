@@ -5164,11 +5164,14 @@ export async function initWarzoneGlobe() {
                 nextPreloadSiblings = false;
             }
             if (isAircraftFocusMode) {
-                nextResolution = Math.max(nextResolution, focusPerformanceResolutionScale);
-                nextMsaaSamples = Math.max(nextMsaaSamples, focusPerformanceMsaaSamples);
+                const focusSceneSettled = !isCameraMoving && !tileLoadBusy;
+                if (focusSceneSettled) {
+                    nextResolution = Math.max(nextResolution, focusPerformanceResolutionScale);
+                    nextMsaaSamples = Math.max(nextMsaaSamples, focusPerformanceMsaaSamples);
+                    nextSse = Math.min(nextSse, focusPerformanceSse);
+                }
                 nextFxaaEnabled = true;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, focusPerformanceRenderTime);
-                nextSse = Math.min(nextSse, focusPerformanceSse);
                 nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache);
                 if (tileLoadBusy) {
                     nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, Math.max(4, busyLoadingDescendantLimit - 2));
@@ -5299,7 +5302,7 @@ export async function initWarzoneGlobe() {
             moveSettleTimer = window.setTimeout(() => {
                 viewer.__warzoneCameraMoving = false;
                 queuePerfSync();
-            }, 120);
+            }, 360);
         });
         if (viewer.scene?.globe?.tileLoadProgressEvent?.addEventListener) {
             let tileLoadSettleTimer = 0;
@@ -5328,7 +5331,7 @@ export async function initWarzoneGlobe() {
                         viewer.__warzoneTileLoadQueueSize = 0;
                         queuePerfSync();
                     }
-                }, 180);
+                }, 520);
             });
         }
     }
