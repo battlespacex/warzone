@@ -8,6 +8,11 @@
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
 import { getLiveTrackSelection, showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
+import {
+    registerAnimationTask,
+    requestSharedSceneRender,
+    unregisterAnimationTask,
+} from "./warzone-animation-scheduler.js";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const __navalState = {
@@ -35,7 +40,6 @@ const NAVAL_FOCUS_CAMERA_RANGE_METERS = 120000;
 const NAVAL_FOCUS_CAMERA_PITCH_DEG = -89;
 const NAVAL_FOCUS_WARNING_RANGE_METERS = 90000;
 const NAVAL_FOCUS_FINAL_RANGE_METERS = 160000;
-let __navalRenderDebounceTimer = null;
 const NAVAL_BILLBOARD_CANVAS_SIZE = 64;
 const NAVAL_RENDER_MODE = Object.freeze({
     PNG: "png",
@@ -1533,11 +1537,35 @@ function applyNavalModelVisual(entity, vessel = {}) {
     entity.model.runAnimations = false;
     entity.model.clampAnimations = false;
     entity.billboard = undefined;
-    entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
+    if (entity.__navalMotionState) {
+        const currentPosition = getEntityPosition(entity);
+        const currentCartographic = currentPosition
+            ? Cesium.Cartographic.fromCartesian(currentPosition)
+            : null;
+        const currentLon = currentCartographic
+            ? Cesium.Math.toDegrees(currentCartographic.longitude)
+            : Number(vessel.lon);
+        const currentLat = currentCartographic
+            ? Cesium.Math.toDegrees(currentCartographic.latitude)
+            : Number(vessel.lat);
+        entity.orientation = buildNavalOrientation(
+            currentLon,
+            currentLat,
+            entity.__navalHeadingDeg ?? vessel.heading_deg,
+            vessel
+        );
+    } else {
+        entity.orientation = buildNavalOrientation(vessel.lon, vessel.lat, vessel.heading_deg, vessel);
+    }
 }
 function applyNavalBillboardVisual(entity, vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
     const visual = buildNavalBillboardVisual(vessel, mode);
     if (!visual) return false;
+    if (entity.__navalMotionState) {
+        visual.rotation = Cesium.Math.toRadians(-normalizeHeadingDegrees(
+            entity.__navalHeadingDeg ?? vessel.heading_deg
+        ));
+    }
     if (!entity.billboard) {
         entity.billboard = { ...visual };
     } else {
@@ -1562,11 +1590,7 @@ function applyNavalVisual(entity, vessel = {}) {
     applyNavalModelVisual(entity, vessel);
 }
 function requestNavalRenderBatched() {
-    if (__navalRenderDebounceTimer) return;
-    __navalRenderDebounceTimer = setTimeout(() => {
-        __navalRenderDebounceTimer = null;
-        window.__warzoneViewer?.scene?.requestRender?.();
-    }, 16);
+    requestSharedSceneRender();
 }
 function getNavalLabelStyleConfig() {
     return {
@@ -1684,16 +1708,20 @@ function getEntityPosition(entity) {
 }
 function animateVesselTo(entity, vessel) {
     if (!entity) return;
-    if (entity.__navalAnimFrame) {
-        cancelAnimationFrame(entity.__navalAnimFrame);
-        entity.__navalAnimFrame = null;
-    }
     const nextCartesian = Cesium.Cartesian3.fromDegrees(vessel.lon, vessel.lat, 0);
     const startCartesian = getEntityPosition(entity);
+    const animationTaskKey = `naval:${String(entity.__navalKey || vessel.track_key || entity.id || "")}`;
+    const stopAnimation = () => {
+        unregisterAnimationTask(animationTaskKey);
+        entity.__navalMotionState = null;
+        entity.__navalAnimationTaskKey = "";
+    };
     const commitPosition = (cartesianPosition) => {
+        stopAnimation();
         entity.position = cartesianPosition;
+        entity.__navalHeadingDeg = normalizeHeadingDegrees(vessel.heading_deg || 0);
         if (entity.billboard) {
-            entity.billboard.rotation = Cesium.Math.toRadians(-(Number(vessel.heading_deg || 0)));
+            entity.billboard.rotation = Cesium.Math.toRadians(-entity.__navalHeadingDeg);
             entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         if (entity.model) {
@@ -1736,32 +1764,50 @@ function animateVesselTo(entity, vessel) {
     const startHeading = normalizeHeadingDegrees(entity.__navalHeadingDeg || 0);
     const endHeading = normalizeHeadingDegrees(vessel.heading_deg || 0);
     const headingDelta = shortestHeadingDeltaDegrees(startHeading, endHeading);
-    const step = (now) => {
-        const t = Math.min(1, (now - startTime) / duration);
+    entity.__navalMotionState = {
+        startCartesian,
+        nextCartesian,
+        startLon,
+        startLat,
+        nextLon: Number(vessel.lon),
+        nextLat: Number(vessel.lat),
+        startHeading,
+        endHeading,
+        headingDelta,
+        startTime,
+        duration,
+        vessel,
+    };
+    entity.__navalAnimationTaskKey = animationTaskKey;
+    registerAnimationTask(animationTaskKey, (now) => {
+        const motion = entity.__navalMotionState;
+        if (!motion) return false;
+        const t = Math.min(1, (now - motion.startTime) / motion.duration);
         const eased = t < 0.5
             ? 4 * t * t * t
             : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        const lon = startLon + ((vessel.lon - startLon) * eased);
-        const lat = startLat + ((vessel.lat - startLat) * eased);
-        const heading = normalizeHeadingDegrees(startHeading + (headingDelta * eased));
+        const lon = motion.startLon + ((motion.nextLon - motion.startLon) * eased);
+        const lat = motion.startLat + ((motion.nextLat - motion.startLat) * eased);
+        const heading = normalizeHeadingDegrees(motion.startHeading + (motion.headingDelta * eased));
         entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+        entity.__navalHeadingDeg = heading;
         if (entity.billboard) {
             entity.billboard.rotation = Cesium.Math.toRadians(-heading);
             entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         if (entity.model) {
-            entity.orientation = buildNavalOrientation(lon, lat, heading, vessel);
+            entity.orientation = buildNavalOrientation(lon, lat, heading, motion.vessel);
         }
-        requestNavalRenderBatched();
         if (t < 1) {
-            entity.__navalAnimFrame = requestAnimationFrame(step);
+            return true;
         } else {
-            entity.__navalAnimFrame = null;
-            entity.__navalHeadingDeg = endHeading;
-            entity.__navalLastSeenAt = Number(vessel.last_seen_at || entity.__navalLastSeenAt || 0);
+            entity.__navalMotionState = null;
+            entity.__navalAnimationTaskKey = "";
+            entity.__navalHeadingDeg = motion.endHeading;
+            entity.__navalLastSeenAt = Number(motion.vessel.last_seen_at || entity.__navalLastSeenAt || 0);
+            return false;
         }
-    };
-    entity.__navalAnimFrame = requestAnimationFrame(step);
+    });
 }
 
 // ─── Create vessel entity ─────────────────────────────────────────────────────
@@ -1785,13 +1831,11 @@ function createVesselEntity(viewer, vessel) {
 
 // ─── Update vessel position ───────────────────────────────────────────────────
 function updateVesselEntity(entity, vessel) {
-    const { heading_deg = 0 } = vessel;
     animateVesselTo(entity, vessel);
     applyNavalVisual(entity, vessel);
     if (entity.label) {
         applyNavalLabel(entity.label, vessel, vessel.track_key);
     }
-    entity.__navalHeadingDeg = normalizeHeadingDegrees(heading_deg || 0);
     entity.__navalLastSeenAt = Number(vessel.last_seen_at || entity.__navalLastSeenAt || 0);
     entity.__navalData = vessel;
 }
@@ -2509,9 +2553,10 @@ export function clearNavalVessel(trackKey) {
     const viewer = window.__warzoneViewer;
     const cacheKey = String(trackKey || "").trim();
     const entry = __navalState.vessels.get(trackKey);
-    if (entry?.entity?.__navalAnimFrame) {
-        cancelAnimationFrame(entry.entity.__navalAnimFrame);
-        entry.entity.__navalAnimFrame = null;
+    if (entry?.entity) {
+        unregisterAnimationTask(entry.entity.__navalAnimationTaskKey || `naval:${String(trackKey || "")}`);
+        entry.entity.__navalMotionState = null;
+        entry.entity.__navalAnimationTaskKey = "";
     }
     if (entry?.entity && viewer) viewer.entities.remove(entry.entity);
     __navalState.vessels.delete(trackKey);
