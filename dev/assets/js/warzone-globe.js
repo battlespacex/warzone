@@ -1373,7 +1373,7 @@ function applyViewerStyle(viewer) {
     viewer.scene.globe.maximumScreenSpaceError = initialSse;
     viewer.scene.globe.tileCacheSize = Math.max(
         220,
-        Math.min(1200, Math.round(numberVar("--warzone-globe-tile-cache-size", 900)))
+        Math.min(720, Math.round(numberVar("--warzone-globe-tile-cache-size", 900)))
     );
     viewer.scene.globe.loadingDescendantLimit = Math.max(
         8,
@@ -1701,6 +1701,7 @@ function restoreDefaultRenderedMap(viewer) {
     }
     viewer.__contourLayerVisible = false;
     viewer.__contourGridLayerVisible = false;
+    scheduleContourDemCacheRelease(viewer);
     viewer.__warzoneContourPausedFocusedTerrain = false;
     viewer.__satelliteVisible = true;
     viewer.__warzoneGreyedSatelliteVisible = false;
@@ -2759,7 +2760,30 @@ function getContourTerrainSampleLevel() {
 }
 const TERRARIUM_TILE_SIZE = 256;
 const contourTerrariumTileCache = new Map();
+const CONTOUR_DEM_CACHE_RELEASE_DELAY_MS = 90 * 1000;
+let contourDemCacheReleaseTimer = 0;
 let contourDemWarningShown = false;
+function updateContourDemCacheDiagnostics() {
+    window.__warzoneContourDemCacheSize = contourTerrariumTileCache.size;
+}
+function retainContourDemCache() {
+    if (!contourDemCacheReleaseTimer) return;
+    window.clearTimeout(contourDemCacheReleaseTimer);
+    contourDemCacheReleaseTimer = 0;
+}
+function scheduleContourDemCacheRelease(viewer) {
+    if (viewer?.__contourLayerVisible === true || viewer?.__contourGridLayerVisible === true) {
+        retainContourDemCache();
+        return;
+    }
+    if (contourDemCacheReleaseTimer || !contourTerrariumTileCache.size) return;
+    contourDemCacheReleaseTimer = window.setTimeout(() => {
+        contourDemCacheReleaseTimer = 0;
+        if (viewer?.__contourLayerVisible === true || viewer?.__contourGridLayerVisible === true) return;
+        contourTerrariumTileCache.clear();
+        updateContourDemCacheDiagnostics();
+    }, CONTOUR_DEM_CACHE_RELEASE_DELAY_MS);
+}
 function hasSampledContourHeights(samplePositions = []) {
     if (!Array.isArray(samplePositions) || !samplePositions.length) return false;
     const validCount = samplePositions.reduce((count, position) => (
@@ -2804,8 +2828,10 @@ function trimTerrariumTileCache() {
         if (!oldestKey) break;
         contourTerrariumTileCache.delete(oldestKey);
     }
+    updateContourDemCacheDiagnostics();
 }
 function loadTerrariumTilePixels(z, x, y) {
+    retainContourDemCache();
     const key = `${z}/${x}/${y}`;
     const cached = contourTerrariumTileCache.get(key);
     if (cached) return cached;
@@ -3733,6 +3759,7 @@ function dispatchFocusedTerrainChanged(viewer) {
 async function setContourLayerVisible(viewer, visible = false) {
     if (!viewer) return false;
     viewer.__contourLayerVisible = !!visible;
+    if (viewer.__contourLayerVisible) retainContourDemCache();
     applyRenderedTerrainVisibility(viewer);
     if (viewer.__contourLayerVisible) {
         const state = getContourOverlayState(viewer);
@@ -3771,6 +3798,7 @@ async function setContourLayerVisible(viewer, visible = false) {
             });
         } else {
             clearContourOverlay(viewer);
+            scheduleContourDemCacheRelease(viewer);
         }
     }
     applyContourLayerState(viewer);
@@ -4939,6 +4967,7 @@ export async function initWarzoneGlobe() {
         setContourGridVisible(visible) {
             const show = !!visible;
             viewer.__contourGridLayerVisible = show;
+            if (show) retainContourDemCache();
             document.documentElement.style.setProperty("--warzone-contour-grid-enabled", show ? "1" : "0");
             const state = getContourOverlayState(viewer);
             if (state) state.buildToken += 1;
@@ -4949,6 +4978,7 @@ export async function initWarzoneGlobe() {
                 });
             } else {
                 clearContourOverlay(viewer);
+                scheduleContourDemCacheRelease(viewer);
             }
             viewer.scene?.requestRender?.();
             return show;
@@ -5191,7 +5221,7 @@ export async function initWarzoneGlobe() {
             nextResolution = Math.min(nextResolution, hardMaxResolutionScale);
             nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
             nextSse = clamp(nextSse, 0.8, 6);
-            nextTileCache = Math.max(140, Math.min(1200, Math.round(nextTileCache)));
+            nextTileCache = Math.max(140, Math.min(720, Math.round(nextTileCache)));
             nextLoadingDescendantLimit = Math.max(4, Math.min(72, Math.round(nextLoadingDescendantLimit)));
             if (is2DMode) {
                 // Keep 2D map luminance stable: avoid adaptive quality oscillation that can look like

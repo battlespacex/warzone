@@ -4873,7 +4873,7 @@ function normalizeAircraftHistoryRow(row = {}) {
 async function refreshAircraftHistoryCache(force = false) {
     if (isDocumentHidden()) return __aircraftHistoryCache;
     const now = Date.now();
-    if (!force && __aircraftHistoryLoadingPromise) return __aircraftHistoryLoadingPromise;
+    if (__aircraftHistoryLoadingPromise) return __aircraftHistoryLoadingPromise;
     if (!force && __aircraftHistoryLastLoadedAt && (now - __aircraftHistoryLastLoadedAt) < AIRCRAFT_HISTORY_REFRESH_MS) {
         return __aircraftHistoryCache;
     }

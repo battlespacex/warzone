@@ -3581,10 +3581,9 @@ function dispatchLiveTrackRegistryUpdate() {
 function pruneHistoryPoints(points = []) {
     const cutoff = Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS;
     const filtered = points.filter((point) => point && Number(point.ts || 0) >= cutoff);
-    while (filtered.length > LIVE_TRACK_HISTORY_MAX_POINTS) {
-        filtered.shift();
-    }
-    return filtered;
+    return filtered.length > LIVE_TRACK_HISTORY_MAX_POINTS
+        ? filtered.slice(-LIVE_TRACK_HISTORY_MAX_POINTS)
+        : filtered;
 }
 function getHistoryPointDistanceMeters(a = {}, b = {}, track = {}) {
     const aLon = Number(a?.lon);
@@ -3676,7 +3675,7 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
         on_ground: isTrackOnGround(track),
         ts: getTrackSourceTimestamp(track),
     };
-    const history = [...(entry.path_history || [])];
+    const history = Array.isArray(entry.path_history) ? entry.path_history : [];
     const minTrailDistanceMeters = getTrackTrailMinDistanceMeters(track);
     const previousPoint = history.length ? history[history.length - 1] : null;
     if (previousPoint) {
@@ -3708,7 +3707,11 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
     } else {
         history.push(point);
     }
-    entry.path_history = pruneHistoryPoints(history);
+    const oldestHistoryTs = Number(history[0]?.ts || 0);
+    const historyNeedsPruning =
+        history.length > LIVE_TRACK_HISTORY_MAX_POINTS ||
+        (oldestHistoryTs > 0 && oldestHistoryTs < Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS);
+    entry.path_history = historyNeedsPruning ? pruneHistoryPoints(history) : history;
     entry.last_seen_at = point.ts;
     if (isFocusedTrackKey(trackKey)) {
         __liveTrackFocusedRouteGeometryCache = null;
