@@ -1409,7 +1409,11 @@ function shouldSuspendMapWork() {
 function isAircraftFocusPerformanceMode() {
     if (window.__stratopsConfig?.optimizeBackgroundOnAircraftFocus === false) return false;
     const selection = getLiveTrackSelection?.() || window.__warzoneLiveTrackSelection || {};
-    return String(selection?.mode || "") === "focus" && Boolean(selection?.trackKey);
+    return String(selection?.mode || "") === "focus" && Boolean(selection?.trackKey || selection?.track_key);
+}
+function isAircraftFocusModeActive() {
+    const selection = getLiveTrackSelection?.() || window.__warzoneLiveTrackSelection || {};
+    return String(selection?.mode || "") === "focus" && Boolean(selection?.trackKey || selection?.track_key);
 }
 function shouldDeferBackgroundMapWork() {
     return isAircraftFocusPerformanceMode();
@@ -5667,6 +5671,9 @@ function bindAircraftMovementsWidget() {
     });
     document.addEventListener("wz:aircraft-track-selected", () => {
         syncFocusAwareBackgroundLoops();
+        if (isAircraftFocusModeActive()) {
+            window.__warzoneViewer?.__warzone?.clearAlertHighlight?.();
+        }
         requestAircraftMovementsWidgetRender(0);
         requestNavalWidgetRender(0);
     });
@@ -6801,7 +6808,7 @@ export function handleIncomingEvent(event) {
     }
     if (isSirenEvent(normalized)) {
         sirenAlertFromEvent(normalized);
-        if (inRegion && layerOk) {
+        if (inRegion && layerOk && !isAircraftFocusModeActive()) {
             globe?.highlightAlertRegion?.(normalized);
             // Fire missile arc with estimated origin if no real origin exists
             if (!isTrackLikeEvent(normalized)) {
