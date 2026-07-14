@@ -67,16 +67,11 @@ async function captureShot(viewer, buttons = [], options = {}) {
 }
 
 async function composeCaptureBlob(viewer) {
-    await waitForSceneFrame(viewer);
-    const sourceCanvas = viewer.scene.canvas;
-    const width = Math.max(1, sourceCanvas.width || sourceCanvas.clientWidth || 0);
-    const height = Math.max(1, sourceCanvas.height || sourceCanvas.clientHeight || 0);
-    const output = document.createElement("canvas");
-    output.width = width;
-    output.height = height;
+    const output = await copyNextSceneFrame(viewer);
+    const width = output.width;
+    const height = output.height;
     const ctx = output.getContext("2d");
     if (!ctx) throw new Error("Capture canvas is unavailable.");
-    ctx.drawImage(sourceCanvas, 0, 0, width, height);
     await drawBranding(ctx, width, height);
     return new Promise((resolve, reject) => {
         try {
@@ -90,11 +85,41 @@ async function composeCaptureBlob(viewer) {
     });
 }
 
-async function waitForSceneFrame(viewer) {
-    viewer.scene?.requestRender?.();
-    await nextFrame();
-    viewer.scene?.requestRender?.();
-    await nextFrame();
+function copyNextSceneFrame(viewer) {
+    return new Promise((resolve, reject) => {
+        const scene = viewer?.scene;
+        const sourceCanvas = scene?.canvas;
+        if (!scene || !sourceCanvas) {
+            reject(new Error("Cesium scene is unavailable."));
+            return;
+        }
+        let removePostRender = null;
+        const timeoutId = window.setTimeout(() => {
+            removePostRender?.();
+            reject(new Error("Timed out waiting for the map frame."));
+        }, 2500);
+        removePostRender = scene.postRender.addEventListener(() => {
+            try {
+                const width = Math.max(1, sourceCanvas.width || sourceCanvas.clientWidth || 0);
+                const height = Math.max(1, sourceCanvas.height || sourceCanvas.clientHeight || 0);
+                const output = document.createElement("canvas");
+                output.width = width;
+                output.height = height;
+                const ctx = output.getContext("2d");
+                if (!ctx) throw new Error("Capture canvas is unavailable.");
+                // Copy during postRender while the WebGL framebuffer is still readable.
+                ctx.drawImage(sourceCanvas, 0, 0, width, height);
+                window.clearTimeout(timeoutId);
+                removePostRender?.();
+                resolve(output);
+            } catch (error) {
+                window.clearTimeout(timeoutId);
+                removePostRender?.();
+                reject(error);
+            }
+        });
+        scene.requestRender?.();
+    });
 }
 
 async function drawBranding(ctx, width, height) {
@@ -187,10 +212,6 @@ function setButtonsBusy(buttons, busy) {
 
 function isLikelyMobile() {
     return window.matchMedia?.("(pointer: coarse), (max-width: 767px)")?.matches === true;
-}
-
-function nextFrame() {
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
 function getCaptureErrorMessage(error) {

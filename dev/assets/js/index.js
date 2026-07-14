@@ -25,14 +25,6 @@ const isLocalDevHost =
     window.location.hostname === "::1" ||
     window.location.hostname === "[::1]";
 
-const capturePreserveDrawingBufferArmed = (() => {
-    try {
-        return window.sessionStorage?.getItem("wz-capture-preserve-buffer") === "1";
-    } catch {
-        return false;
-    }
-})();
-
 window.__stratopsConfig = {
     apiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
     supportApiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
@@ -64,7 +56,6 @@ window.__stratopsConfig = {
     autoTerrainOnAircraftFocus: false,
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
-    capturePreserveDrawingBuffer: capturePreserveDrawingBufferArmed,
     optimizeBackgroundOnAircraftFocus: true,
     enableMilSatsLayer: true,
     milSatsRotation: false, 

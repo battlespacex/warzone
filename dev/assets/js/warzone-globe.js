@@ -33,6 +33,7 @@ const ringCanvasCache = new Map();
 const MARKER_CACHE_MAX_ITEMS = 220;
 const RING_CACHE_MAX_ITEMS = 40;
 const __eventEntityIds = new Set();
+const __eventPulseEntities = new Set();
 const __EVENT_LOD_STATE = {
     mode: "map",
     cameraHeight: 2350000,
@@ -331,6 +332,16 @@ function attachEventLodController(viewer) {
             queue();
         }
     });
+    if (!viewer.__warzoneEventPulseVisibilityBound) {
+        viewer.__warzoneEventPulseVisibilityBound = true;
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                stopEventPulseRenderLoop(viewer);
+                return;
+            }
+            applyEventLod(viewer);
+        }, { passive: true });
+    }
 }
 function rememberEventEntity(entity) {
     if (!entity?.id) return;
@@ -340,13 +351,22 @@ function forgetEventEntity(entityId) {
     if (!entityId) return;
     __eventEntityIds.delete(String(entityId));
 }
+function registerEventPulseEntity(entity) {
+    if (entity) __eventPulseEntities.add(entity);
+}
+function unregisterEventPulseEntity(entity) {
+    if (entity) __eventPulseEntities.delete(entity);
+}
 function removeExistingEventEntity(viewer, entityId) {
     if (!viewer || !entityId) return;
     const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-outline`];
     for (const id of ids) {
         try {
             const existing = viewer.entities.getById(id);
-            if (existing) viewer.entities.remove(existing);
+            if (existing) {
+                unregisterEventPulseEntity(existing);
+                viewer.entities.remove(existing);
+            }
         } catch { }
         forgetEventEntity(id);
     }
@@ -463,6 +483,7 @@ function clearTrackedEventEntities(viewer) {
     }
     if (viewer?.entities?.resumeEvents) viewer.entities.resumeEvents();
     __eventEntityIds.clear();
+    __eventPulseEntities.clear();
     if (viewer) {
         viewer.__warzoneEventRenderState = new Map();
     }
@@ -686,6 +707,7 @@ function getEventPulsedFillAlpha(fillAlpha, settings) {
 }
 function clearEventEllipsePulse(entity) {
     if (!entity) return;
+    unregisterEventPulseEntity(entity);
     delete entity.__wzPulseBaseRadius;
     delete entity.__wzPulseBaseScale;
     delete entity.__wzMarkerBaseSizePx;
@@ -768,8 +790,8 @@ function applyEventPulseFrame(entity) {
     }
 }
 function updateEventPulseFrame(viewer) {
-    if (!viewer?.entities?.values) return;
-    for (const entity of viewer.entities.values) {
+    if (!viewer) return;
+    for (const entity of __eventPulseEntities) {
         applyEventPulseFrame(entity);
     }
 }
@@ -781,6 +803,7 @@ function applyEventEllipsePulse(entity, radius, color, fillAlpha, event = {}) {
     entity.__wzPulseSettings = settings;
     entity.__wzPulseColor = color;
     entity.__wzPulseFillAlpha = fillAlpha;
+    registerEventPulseEntity(entity);
     ellipse.show = true;
     ellipse.outline = false;
     ellipse.outlineWidth = 0;
@@ -794,6 +817,7 @@ function applyEventBillboardPulse(entity, baseScale, fillAlpha, event = {}) {
     entity.__wzPulseBaseSizePx = baseScale;
     entity.__wzPulseSettings = settings;
     entity.__wzPulseFillAlpha = fillAlpha;
+    registerEventPulseEntity(entity);
     billboard.show = true;
     applyEventPulseFrame(entity);
 }
@@ -806,6 +830,7 @@ function applyEventMarkerEllipsePulse(entity, baseSizePx, color, fillAlpha, even
     entity.__wzPulseSettings = settings;
     entity.__wzPulseColor = color;
     entity.__wzPulseFillAlpha = fillAlpha;
+    registerEventPulseEntity(entity);
     ellipse.show = true;
     ellipse.outline = false;
     ellipse.outlineWidth = 0;
@@ -824,8 +849,9 @@ function isEntityGraphicVisible(graphic) {
     }
 }
 function shouldRunEventPulseRenderLoop(viewer) {
-    const hasVisiblePulse = viewer?.entities?.values?.some?.((entity) => (
-        entity?.__wzPulseSettings &&
+    if (document.hidden || viewer?.__warzoneSuppressEventMarkers === true) return false;
+    const hasVisiblePulse = Array.from(__eventPulseEntities).some((entity) => (
+        entity?.__wzPulseSettings?.enabled === true &&
         (isEntityGraphicVisible(entity.ellipse) || isEntityGraphicVisible(entity.billboard))
     ));
     return Boolean(
@@ -2658,17 +2684,6 @@ async function enableFocusedTerrain(viewer) {
     viewer.__warzoneFocusedTerrainActive = true;
     dispatchFocusedTerrainChanged(viewer);
     return true;
-}
-function prewarmFocusedTerrainProvider(viewer) {
-    if (!viewer || viewer.__warzoneFocusedTerrainPrewarmStarted) return;
-    viewer.__warzoneFocusedTerrainPrewarmStarted = true;
-    window.setTimeout(() => {
-        void ensureContourTerrainProvider(viewer)
-            .then(() => viewer.scene?.requestRender?.())
-            .catch((error) => {
-                console.warn("Focused terrain prewarm failed:", error);
-            });
-    }, Math.max(250, numberVar("--warzone-focus-terrain-prewarm-delay", 1400)));
 }
 function disableFocusedTerrain(viewer) {
     if (!viewer) return false;
@@ -4754,7 +4769,7 @@ export async function initWarzoneGlobe() {
             webgl: {
                 antialias: true,
                 powerPreference: "high-performance",
-                preserveDrawingBuffer: window.__stratopsConfig?.capturePreserveDrawingBuffer !== false,
+                preserveDrawingBuffer: false,
             },
         },
         skyAtmosphere: false,
@@ -5318,6 +5333,5 @@ export async function initWarzoneGlobe() {
         }
     }
     bindContourViewportRefresh(viewer);
-    prewarmFocusedTerrainProvider(viewer);
     return viewer;
 }

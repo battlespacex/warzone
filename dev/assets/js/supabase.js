@@ -40,6 +40,41 @@ const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 100
 const AIRCRAFT_HISTORY_LIMIT = 1000;
 let __warnedActiveAlertsUnavailable = false;
 let __warnedGnssUnavailable = false;
+const __activeApiRequests = new Map();
+
+async function fetchLatest(key, url, options = {}) {
+    const requestKey = String(key || url);
+    __activeApiRequests.get(requestKey)?.abort();
+    const controller = new AbortController();
+    const externalSignal = options?.signal;
+    const abortFromExternal = () => controller.abort();
+    if (externalSignal?.aborted) {
+        controller.abort();
+    } else {
+        externalSignal?.addEventListener?.("abort", abortFromExternal, { once: true });
+    }
+    __activeApiRequests.set(requestKey, controller);
+    try {
+        return await fetch(url, {
+            ...options,
+            signal: controller.signal,
+        });
+    } finally {
+        externalSignal?.removeEventListener?.("abort", abortFromExternal);
+        if (__activeApiRequests.get(requestKey) === controller) {
+            __activeApiRequests.delete(requestKey);
+        }
+    }
+}
+
+function abortPendingApiRequests(prefix = "") {
+    const requestPrefix = String(prefix || "");
+    for (const [key, controller] of __activeApiRequests.entries()) {
+        if (requestPrefix && !key.startsWith(requestPrefix)) continue;
+        controller.abort();
+        __activeApiRequests.delete(key);
+    }
+}
 
 async function readJsonResponse(res, label = "API") {
     const contentType = String(res.headers.get("content-type") || "").toLowerCase();
@@ -93,7 +128,11 @@ async function getAirspaceStatusesFromSupabase() {
 }
 
 export const api = {
-    async getEvents() {
+    abortPendingRequests(prefix = "") {
+        abortPendingApiRequests(prefix);
+    },
+
+    async getEvents(options = {}) {
         const cutoffIso = getEventsHistoryCutoffIso();
         if (!API_BASE) {
             const { data, error } = await supabase
@@ -103,13 +142,17 @@ export const api = {
                 .limit(EVENTS_INITIAL_LIMIT);
             return { data: data || [], error };
         }
-        const res = await fetch(`${API_BASE}/events?window_hours=${EVENTS_HISTORY_WINDOW_HOURS}&limit=${EVENTS_INITIAL_LIMIT}`);
+        const res = await fetchLatest(
+            "events:full",
+            `${API_BASE}/events?window_hours=${EVENTS_HISTORY_WINDOW_HOURS}&limit=${EVENTS_INITIAL_LIMIT}`,
+            options
+        );
         if (!res.ok) throw new Error("Events fetch failed");
         const json = await res.json();
         return { data: json.events || [], error: null };
     },
 
-    async getEventsSince(since) {
+    async getEventsSince(since, options = {}) {
         if (!API_BASE) {
             const { data, error } = await supabase
                 .from("events").select("*")
@@ -118,7 +161,11 @@ export const api = {
                 .limit(EVENTS_SINCE_LIMIT);
             return { data: data || [], error };
         }
-        const res = await fetch(`${API_BASE}/events/since?t=${encodeURIComponent(since)}&limit=${EVENTS_SINCE_LIMIT}`);
+        const res = await fetchLatest(
+            "events:since",
+            `${API_BASE}/events/since?t=${encodeURIComponent(since)}&limit=${EVENTS_SINCE_LIMIT}`,
+            options
+        );
         if (!res.ok) throw new Error("Events since fetch failed");
         const json = await res.json();
         return { data: json.events || [], error: null };

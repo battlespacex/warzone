@@ -1345,7 +1345,11 @@ function isEventsApiRestrictedError(error) {
     const text = describeEventsApiError(error).toLowerCase();
     return text.includes("service for this project is restricted");
 }
+function isRequestAbortError(error) {
+    return error?.name === "AbortError" || String(error?.message || "").toLowerCase().includes("aborted");
+}
 function logEventsApiError(prefix, error) {
+    if (isRequestAbortError(error)) return;
     const now = Date.now();
     const detail = describeEventsApiError(error) || "unknown_error";
     const key = `${prefix}:${detail}`;
@@ -5059,6 +5063,7 @@ function suspendBackgroundLivePipelines() {
     __pollRequestSeq += 1;
     __pollInFlight = false;
     __pollInFlightSince = 0;
+    api.abortPendingRequests?.("events:");
     stopPublicAirIngestion();
     stopAircraftLiveSync();
     stopTracksRealtimeChannel();
@@ -6147,8 +6152,10 @@ export async function initWarzoneApp() {
                 __eventsApiRestrictedUntil = 0;
             }
         } catch (err) {
-            logEventsApiError("Initial events fetch failed:", err);
-            __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
+            if (!isRequestAbortError(err)) {
+                logEventsApiError("Initial events fetch failed:", err);
+                __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
+            }
         }
         await refreshStatusEvents();
         if (isLayerEnabled("gnss")) {
@@ -6268,6 +6275,7 @@ export async function initWarzoneApp() {
                 })
                 .catch((err) => {
                     if (reloadSeq !== __regionReloadSeq) return;
+                    if (isRequestAbortError(err)) return;
                     console.error("Region refresh events failed:", err);
                 });
         });
@@ -6556,6 +6564,7 @@ async function pollLatestEvents(options = {}) {
             __lastSeenOccurredAt = newest.occurred_at;
         }
     } catch (err) {
+        if (isRequestAbortError(err)) return;
         logEventsApiError("Polling latest events failed:", err);
         __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
     } finally {
