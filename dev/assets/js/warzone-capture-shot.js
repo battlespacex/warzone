@@ -1,8 +1,6 @@
 // File Path: /assets/js/warzone-capture-shot.js
 const TOP_LOGO_SRC = "/assets/images/web/logo-stratops-battlespacex.svg";
 const WATERMARK_LOGO_SRC = "/assets/images/web/Battlespacex-full-logo.svg";
-const CAPTURE_BUFFER_SESSION_KEY = "wz-capture-preserve-buffer";
-const CAPTURE_PENDING_SESSION_KEY = "wz-capture-pending";
 
 let captureInFlight = false;
 
@@ -23,21 +21,11 @@ export function initWarzoneCaptureShot(viewer) {
         });
     });
     window.__warzoneCaptureShot = () => captureShot(viewer, buttons);
-    if (isCapturePendingForReload()) {
-        clearCapturePendingFlag();
-        window.setTimeout(() => {
-            void captureShot(viewer, buttons, { autoDisarmAfterCapture: true });
-        }, 450);
-    }
     return window.__warzoneCaptureShot;
 }
 
 async function captureShot(viewer, buttons = [], options = {}) {
     if (captureInFlight || !viewer?.scene?.canvas) return false;
-    if (!isCaptureBufferEnabled()) {
-        armCaptureModeAndReload();
-        return false;
-    }
     captureInFlight = true;
     setButtonsBusy(buttons, true);
     const filename = makeCaptureFilename();
@@ -72,9 +60,7 @@ async function captureShot(viewer, buttons = [], options = {}) {
         window.alert?.(getCaptureErrorMessage(error));
         return false;
     } finally {
-        if (options?.autoDisarmAfterCapture === true) {
-            disarmCaptureMode();
-        }
+        void options;
         setButtonsBusy(buttons, false);
         captureInFlight = false;
     }
@@ -201,46 +187,6 @@ function setButtonsBusy(buttons, busy) {
 
 function isLikelyMobile() {
     return window.matchMedia?.("(pointer: coarse), (max-width: 767px)")?.matches === true;
-}
-
-function isCaptureBufferEnabled() {
-    return window.__stratopsConfig?.capturePreserveDrawingBuffer === true;
-}
-
-function isCapturePendingForReload() {
-    try {
-        return window.sessionStorage?.getItem(CAPTURE_PENDING_SESSION_KEY) === "1";
-    } catch {
-        return false;
-    }
-}
-
-function clearCapturePendingFlag() {
-    try {
-        window.sessionStorage?.removeItem(CAPTURE_PENDING_SESSION_KEY);
-    } catch {
-        // ignore storage failures
-    }
-}
-
-function disarmCaptureMode() {
-    try {
-        window.sessionStorage?.removeItem(CAPTURE_BUFFER_SESSION_KEY);
-        window.sessionStorage?.removeItem(CAPTURE_PENDING_SESSION_KEY);
-    } catch {
-        // ignore storage failures
-    }
-}
-
-function armCaptureModeAndReload() {
-    try {
-        window.sessionStorage?.setItem(CAPTURE_BUFFER_SESSION_KEY, "1");
-        window.sessionStorage?.setItem(CAPTURE_PENDING_SESSION_KEY, "1");
-    } catch {
-        window.alert?.("Capture Shot needs a one-time page reload to enable clean export mode.");
-        return;
-    }
-    window.location.reload();
 }
 
 function nextFrame() {

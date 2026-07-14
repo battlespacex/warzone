@@ -42,6 +42,7 @@ const state = {
     desktopButton: null,
     mobileButton: null,
     quickButton: null,
+    panelObserver: null,
     suppressNextClick: false,
     hiddenForModal: false,
 };
@@ -303,13 +304,35 @@ function bindModalVisibility() {
         if (modalId !== "wz-about-modal" && modalId !== "wz-donate-modal") return;
         state.hiddenForModal = Boolean(event?.detail?.isOpen);
         applyDataSourceVisibility();
+        if (!state.hiddenForModal) {
+            window.setTimeout(restorePanelVisibilityIfNeeded, 120);
+        }
     });
+    document.addEventListener("fullscreenchange", () => {
+        window.setTimeout(restorePanelVisibilityIfNeeded, 120);
+    }, true);
 }
 
 function applyDataSourceVisibility() {
     if (!state.dataSource) return;
     state.dataSource.show = !state.hiddenForModal;
     state.viewer?.scene?.requestRender?.();
+}
+
+function shouldKeepPanelVisible() {
+    return Boolean(
+        !state.hiddenForModal &&
+        state.panel &&
+        (state.active || state.drawing || state.editing || state.polygon.length)
+    );
+}
+
+function restorePanelVisibilityIfNeeded() {
+    if (!shouldKeepPanelVisible()) return;
+    if (state.panel.classList.contains("wz-is-hidden")) {
+        state.panel.classList.remove("wz-is-hidden");
+        syncToolbarAvailability();
+    }
 }
 
 function consumePointerEvent(event) {
@@ -858,6 +881,12 @@ function ensurePanel() {
     state.panelBody = panel.querySelector("#wz-aoi-panel-body");
     state.clearButton = panel.querySelector("[data-aoi-clear]");
     state.closeButton = panel.querySelector("[data-aoi-close]");
+    if (!state.panelObserver && typeof MutationObserver === "function") {
+        state.panelObserver = new MutationObserver(() => {
+            restorePanelVisibilityIfNeeded();
+        });
+        state.panelObserver.observe(panel, { attributes: true, attributeFilter: ["class"] });
+    }
     return panel;
 }
 
@@ -865,6 +894,7 @@ function showPanel() {
     ensurePanel();
     state.panel?.classList.remove("wz-is-hidden");
     syncToolbarAvailability();
+    restorePanelVisibilityIfNeeded();
 }
 
 function hidePanel() {

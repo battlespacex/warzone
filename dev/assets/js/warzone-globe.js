@@ -5052,6 +5052,11 @@ export async function initWarzoneGlobe() {
             const closeResolutionScale = clamp(numberVar("--warzone-close-resolution-scale", 1.08), 0.8, 2);
             const focusMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-msaa-samples", 2)));
             const closeMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-close-msaa-samples", 2)));
+            const focusPerformanceResolutionScale = clamp(numberVar("--warzone-focus-performance-resolution-scale", 0.72), 0.5, hardMaxResolutionScale);
+            const focusPerformanceMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-performance-msaa-samples", 1)));
+            const focusPerformanceSse = clamp(numberVar("--warzone-focus-performance-screen-space-error", 3.4), 1.8, 6);
+            const focusPerformanceTileCache = Math.max(96, Math.round(numberVar("--warzone-focus-performance-tile-cache", 160)));
+            const focusPerformanceRenderTime = clamp(numberVar("--warzone-focus-performance-render-time", 0.18), 0.12, 0.8);
             const baseSse = clamp(numberVar("--warzone-globe-max-screen-space-error", 1.4), 0.9, 4.5);
             const closeSse = clamp(numberVar("--warzone-globe-close-screen-space-error", 1.15), 0.8, 2.5);
             const movingSse = clamp(numberVar("--warzone-globe-moving-screen-space-error", Math.max(baseSse * 1.45, 1.9)), 1.2, 6);
@@ -5144,12 +5149,12 @@ export async function initWarzoneGlobe() {
                 nextPreloadSiblings = false;
             }
             if (isAircraftFocusMode) {
-                nextResolution = Math.min(nextResolution, clamp(numberVar("--warzone-focus-performance-resolution-scale", 0.72), 0.5, 1));
-                nextMsaaSamples = 1;
+                nextResolution = Math.max(nextResolution, focusPerformanceResolutionScale);
+                nextMsaaSamples = Math.max(nextMsaaSamples, focusPerformanceMsaaSamples);
                 nextFxaaEnabled = true;
-                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.18);
-                nextSse = Math.max(nextSse, clamp(numberVar("--warzone-focus-performance-screen-space-error", 3.4), 1.8, 6));
-                nextTileCache = Math.min(nextTileCache, Math.max(96, Math.round(numberVar("--warzone-focus-performance-tile-cache", 160))));
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, focusPerformanceRenderTime);
+                nextSse = Math.min(nextSse, focusPerformanceSse);
+                nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache);
                 if (tileLoadBusy) {
                     nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, Math.max(4, busyLoadingDescendantLimit - 2));
                 }

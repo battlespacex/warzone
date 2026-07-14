@@ -541,31 +541,31 @@
             aria-modal="true" role="dialog"
             aria-labelledby="wz-focus-warning-title"
             aria-describedby="wz-focus-warning-summary"
-            data-title="Focus Warning"
-            data-aircraft-message="You are moving away from the focused aircraft. Stay focused to keep tracking it, or unfocus to hold a wider local view."
-            data-naval-message="You are moving away from the focused naval asset. Stay focused to keep tracking it, or unfocus to hold a wider local view."
-            data-stay-label="Stay Focused"
-            data-unfocus-label="Unfocus Asset"
+            data-title="Lock Warning"
+            data-aircraft-message="You are moving away from the locked aircraft. Stay locked to keep tracking it, or unlock to hold a wider local view."
+            data-naval-message="You are moving away from the locked naval asset. Stay locked to keep tracking it, or unlock to hold a wider local view."
+            data-stay-label="Stay Locked"
+            data-unfocus-label="Unlock Asset"
             hidden>
             <div class="wz-modal-box wz-min-modal">
                 <div class="wz-modal-inner">
                     <header>
                         <span class="wz-header-title">
                             <span class="static-icon stratops-ico-assets-alert-2" aria-hidden="true"></span>
-                            <h2 id="wz-focus-warning-title">Focus Warning</h2>
+                            <h2 id="wz-focus-warning-title">Lock Warning</h2>
                         </span>
                     </header>
                     <section class="wz-modal-body">
-                        <p id="wz-focus-warning-summary">You are moving away from the focused aircraft. Stay focused to keep tracking it, or unfocus to hold a wider local view.</p>
+                        <p id="wz-focus-warning-summary">You are moving away from the locked aircraft. Stay locked to keep tracking it, or unlock to hold a wider local view.</p>
                     </section>
                     <footer>
                         <button type="button" class="btn-secondary white" id="wz-focus-warning-stay">
                             <span aria-hidden="true"></span>
-                            Stay Focused
+                            Stay Locked
                         </button>
                         <button type="button" class="btn-primary" id="wz-focus-warning-unfocus">
                             <span aria-hidden="true"></span>
-                            Unfocus Asset
+                            Unlock Asset
                         </button>
                     </footer>
                 </div>

@@ -11,6 +11,7 @@ import {
 function sanitizeText(v) {
     if (!v) return "";
     let t = String(v);
+    t = t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
     t = t.replace(/https?:\/\/\S+/gi, " ");
     t = t.replace(/t\.me\/\S+/gi, " ");
     t = t.replace(/@[A-Za-z0-9_]+/g, " ");
@@ -18,9 +19,18 @@ function sanitizeText(v) {
     t = t.replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g, " ");
     t = t.replace(/[\u200E\u200F\u202A-\u202E]/g, " ");
     t = t.replace(/[،؛ـ]+/g, " ");
-    t = t.replace(/[^\p{L}\p{N}\s.,:;!?()\-\/&]/gu, " ");
+    t = t.replace(/[^\x20-\x7E]/g, " ");
+    t = t.replace(/[^A-Za-z0-9\s.,:;!?()\-\/&]/g, " ");
     t = t.replace(/\s+/g, " ").trim();
     return t;
+}
+function escapeHtml(value = "") {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 function norm(v) {
     return sanitizeText(v);
@@ -398,6 +408,7 @@ function buildFallbackHeadline(e = {}) {
     if (place) return `${cat} near ${place}`;
     return `${cat} detected`;
 }
+const HOTSPOT_HEADLINE_MAX_CHARS = 220;
 function eventHeadline(e = {}) {
     const candidates = [
         e.title,
@@ -422,7 +433,7 @@ function eventHeadline(e = {}) {
             bestScore = score;
         }
     }
-    if (best) return truncateText(best, 110);
+    if (best) return truncateText(best, HOTSPOT_HEADLINE_MAX_CHARS);
     return buildFallbackHeadline(e);
 }
 function eventSubline(e = {}) {
@@ -505,7 +516,13 @@ function toScreen(scene, lon, lat) {
         const cart = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
         const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, new Cesium.Cartesian3());
         const ptNorm = Cesium.Cartesian3.normalize(cart, new Cesium.Cartesian3());
-        if (Cesium.Cartesian3.dot(camNorm, ptNorm) < 0.08) return null;
+        const cameraMagnitude = Cesium.Cartesian3.magnitude(scene.camera.position);
+        const ellipsoidRadius = Number(scene.globe?.ellipsoid?.minimumRadius || Cesium.Ellipsoid.WGS84.minimumRadius || 6378137);
+        const horizonDot = Number.isFinite(cameraMagnitude) && cameraMagnitude > ellipsoidRadius
+            ? ellipsoidRadius / cameraMagnitude
+            : 0.92;
+        const frontSideThreshold = clamp01(horizonDot - 0.04);
+        if (Cesium.Cartesian3.dot(camNorm, ptNorm) < frontSideThreshold) return null;
         const fn = Cesium.SceneTransforms.worldToWindowCoordinates
             || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
         if (!fn) return null;
@@ -713,18 +730,18 @@ function buildExpandedHTML(cluster) {
         return `<div class="wzhs-item wzhs-item--headline"><strong class="wzhs-item__title">No active headlines available</strong></div>`;
     }
     return items.map((e) => {
-        const title = e.__displayTitle || eventHeadline(e);
+        const title = sanitizeText(e.__displayTitle || eventHeadline(e));
         const severityClass = getPlatformSeverityClass(e.severity || "");
         const severityLabel = sanitizeText(getPlatformSeverityLabel(e.severity, "Unknown"));
         const subline = sanitizeText(e.__displaySubline || eventSubline(e));
         const itemTime = sanitizeText(timeAgo(e.occurred_at));
         return `<div class="wzhs-item wzhs-item--headline">
             <div class="wzhs-item__row">
-                <span class="wzhs-item__sev wzhs-item__sev--${severityClass}" data-severity="${severityClass}">${severityLabel}</span>
-                ${itemTime ? `<span class="wzhs-item__time">${itemTime}</span>` : ""}
+                <span class="wzhs-item__sev wzhs-item__sev--${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                ${itemTime ? `<span class="wzhs-item__time">${escapeHtml(itemTime)}</span>` : ""}
             </div>
-            <strong class="wzhs-item__title">${title}</strong>
-            ${subline ? `<span class="wzhs-item__loc">${subline}</span>` : ""}
+            <strong class="wzhs-item__title">${escapeHtml(title)}</strong>
+            ${subline ? `<span class="wzhs-item__loc">${escapeHtml(subline)}</span>` : ""}
         </div>`;
     }).join("");
 }
@@ -740,7 +757,8 @@ function createCardEl(cluster, onToggle) {
             cluster.latest?.place ||
             ""
         );
-        const time = timeAgo(cluster.latest?.occurred_at);
+        const time = sanitizeText(timeAgo(cluster.latest?.occurred_at));
+        const label = sanitizeText(cluster.label || "Hotspot");
         const isFresh = cluster.items.some((item) => isRecentActivity(item?.occurred_at));
         btn.className = [
             "wzhs",
@@ -760,8 +778,8 @@ function createCardEl(cluster, onToggle) {
                         <div class="wzhs__icon static-icon">
                             <span class="${cluster.icon}" aria-hidden="true"></span>
                         </div>
-                        <span class="wzhs__count">${cluster.count}</span>
-                        <span class="wzhs__label">${cluster.label}</span>
+                        <span class="wzhs__count">${escapeHtml(cluster.count)}</span>
+                        <span class="wzhs__label">${escapeHtml(label)}</span>
                     </div>
                     <span class="wzhs__arr static-icon">
                         <span class="stratops-ico-close-1" aria-hidden="true"></span>
@@ -770,8 +788,8 @@ function createCardEl(cluster, onToggle) {
                 ${isExpanded ? `
                 <div class="wzhs__detail">
                     <div class="wzhs__header">
-                        ${loc ? `<span class="wzhs__loc">${loc}</span>` : ""}
-                        <span class="wzhs__time">${time}</span>
+                        ${loc ? `<span class="wzhs__loc">${escapeHtml(loc)}</span>` : ""}
+                        <span class="wzhs__time">${escapeHtml(time)}</span>
                     </div>
                     <div class="wzhs__items">${buildExpandedHTML(cluster)}</div>
                 </div>` : ""}

@@ -230,8 +230,12 @@
 }
 
 .wzhs-item--headline .wzhs-item__title {
+    display: -webkit-box;
     font-size: var(--text-sm);
     line-height: 1.45;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
 }
 
 .wzhs--strike .wzhs__count {

@@ -1552,13 +1552,24 @@ function toUiLabel(value, fallback = "Unknown") {
         .trim()
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
+function sanitizeEventPopupText(value = "", fallback = "") {
+    const decoded = decodeBasicHtmlEntities(value);
+    const cleaned = stripNonEnglishText(stripPresentationEmoji(decoded), fallback)
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\x20-\x7E]/g, " ")
+        .replace(/[^A-Za-z0-9\s.,:;!?()\-\/&]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return cleaned || String(fallback || "").trim();
+}
 function buildEventPopupSummary(detail = {}, clusterCount = 1) {
-    const baseSummary = String(detail.summary || "").trim();
+    const baseSummary = sanitizeEventPopupText(detail.summary || "");
     if (clusterCount <= 1) {
         return baseSummary || "No additional summary available.";
     }
     const previewTitles = (Array.isArray(detail.clusterEvents) ? detail.clusterEvents : [])
-        .map((item) => String(item?.title || item?.summary || "").trim())
+        .map((item) => sanitizeEventPopupText(item?.title || item?.summary || ""))
         .filter(Boolean)
         .slice(0, 3);
     const previewText = previewTitles.length
@@ -1708,13 +1719,16 @@ function bindGlobeEventPopup() {
     };
     const showPopup = (detail = {}) => {
         const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
-        const categoryLabel = getPlatformCategoryLabel(detail, { surface: "popup", fallback: "Hotspot" });
+        const categoryLabel = sanitizeEventPopupText(
+            getPlatformCategoryLabel(detail, { surface: "popup", fallback: "Hotspot" }),
+            "Hotspot"
+        );
         const categoryClass = getPlatformCategoryClass(detail, { surface: "popup" });
-        const severityLabel = getPlatformSeverityLabel(detail.severity, "Unknown");
+        const severityLabel = sanitizeEventPopupText(getPlatformSeverityLabel(detail.severity, "Unknown"), "Unknown");
         const severityClass = getPlatformSeverityClass(detail.severity);
-        const locationText = String(detail.locationLabel || "").trim();
+        const locationText = sanitizeEventPopupText(detail.locationLabel || "");
         const occurredAt = String(detail.occurredAt || "").trim();
-        const weaponType = String(detail.weaponType || "").trim();
+        const weaponType = sanitizeEventPopupText(detail.weaponType || "");
         const sourceUrl = String(detail.sourceUrl || "").trim();
         if (catEl) {
             catEl.textContent = clusterCount > 1
@@ -1729,7 +1743,7 @@ function bindGlobeEventPopup() {
             sevEl.dataset.severity = severityClass;
         }
         if (titleEl) {
-            titleEl.textContent = String(detail.title || "").trim()
+            titleEl.textContent = sanitizeEventPopupText(detail.title || "")
                 || (clusterCount > 1 ? `${clusterCount} ${categoryLabel} hotspots` : `${categoryLabel} hotspot`);
         }
         if (summaryEl) {

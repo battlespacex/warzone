@@ -60,7 +60,7 @@ window.__stratopsConfig = {
         zoomModel: false,
     },
     autoContourOnAircraftFocus: false,
-    enableFocusedContextModels: false,
+    enableFocusedContextModels: true,
     autoTerrainOnAircraftFocus: false,
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
@@ -241,7 +241,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             started = true;
             try {
                 viewer?.__warzone?.stopStartupRotation?.();
-                viewer?.__warzone?.setAdaptiveQualityProfile?.("conservative");
+                viewer?.__warzone?.setAdaptiveQualityProfile?.("normal");
                 viewer?.__warzone?.setPerformanceMode?.(0);
                 initWarzoneAoiLens(viewer);
                 initWarzoneCaptureShot(viewer);
