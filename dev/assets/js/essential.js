@@ -3310,6 +3310,75 @@ function stopIntelWireCardMedia(card) {
         } catch {}
     });
 }
+function getIntelWireCardRenderSignature(event = {}) {
+    const media = getIntelWireItemMedia(event);
+    return JSON.stringify([
+        event.updated_at || "",
+        event.occurred_at || "",
+        event.category || "",
+        event.severity || "",
+        event.source_name || "",
+        event.source_url || "",
+        event.title || "",
+        event.summary || "",
+        compactEventPlaceLabel(event),
+        media.images,
+        media.videos,
+    ]);
+}
+function getIntelWireEventDomKey(event = {}, index = 0) {
+    return String(
+        event.id
+        || event.source_url
+        || `${event.source_name || "intel"}:${event.occurred_at || "unknown"}:${event.title || index}`
+    );
+}
+function createIntelWireFeedCard(event = {}, eventId = "") {
+    const card = document.createElement("article");
+    card.className = "timeline-item wz-feed-item";
+    card.dataset.eventId = eventId;
+    card.dataset.renderSignature = getIntelWireCardRenderSignature(event);
+    const categoryLabel = getPlatformCategoryLabel(event, {
+        surface: "intel-wire",
+        uppercase: true,
+        fallback: "INTEL",
+    });
+    const categoryClass = getPlatformCategoryClass(event, { surface: "intel-wire" });
+    const severityClass = getPlatformSeverityClass(event.severity || "");
+    const severityLabel = getPlatformSeverityLabel(event.severity || "", "Unknown");
+    card.dataset.category = categoryClass;
+    card.dataset.severity = severityClass;
+    const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
+    const sourceName = stripNonEnglishText(stripPresentationEmoji(event.source_name || "Intel Wire Source"), "Intel Wire Source");
+    const title = stripNonEnglishText(stripPresentationEmoji(event.title || "Untitled event"), "Intel update");
+    const summary = sanitizeIntelWireSummary(event.summary) || "No summary available.";
+    const location = stripNonEnglishText(stripPresentationEmoji(compactEventPlaceLabel(event)), "Unknown location");
+    const sourceMarkup = safeUrl
+        ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`
+        : `${escapeHtml(sourceName)}`;
+    card.innerHTML = `
+        <div class="timeline-time wz-feed-time">
+            <div class="wz-feed-capsule">
+                <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
+                <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+            </div>
+            <time>${escapeHtml(formatTime(event.occurred_at))}</time>
+            <small class="wz-feed-source">${sourceMarkup}</small>
+        </div>
+        <div class="timeline-body">
+            <strong class="wz-feed-title">${escapeHtml(title)}</strong>
+            <p class="wz-feed-summary">${escapeHtml(summary)}</p>
+            <small class="wz-feed-location">
+                ${escapeHtml(location)}
+            </small>
+            <div class="wz-feed-actions" data-feed-media-actions></div>
+            <div class="wz-feed-media-panel wz-feed-media-panel--images" data-feed-image-panel hidden></div>
+            <div class="wz-feed-media-panel wz-feed-media-panel--videos" data-feed-video-panel hidden></div>
+        </div>
+    `;
+    renderIntelWireMediaCard(card, event);
+    return card;
+}
 function rerenderVisibleIntelWireMediaCards() {
     const feed = document.getElementById("live-feed-list");
     if (!feed) return;
@@ -3608,14 +3677,24 @@ function renderFeed(viewModelOrEvents) {
         __lastFeedDataSignature = dataSignature;
         __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
     }
-    feed.querySelectorAll(".wz-feed-item").forEach((card) => stopIntelWireCardMedia(card));
-    feed.innerHTML = "";
     __intelWireRenderedItems = new Map();
     const rows = allRows.slice(0, __feedVisibleCount);
     const countEl = document.getElementById("live-feed-count");
     const loadMoreBtn = document.getElementById("live-feed-load-more");
     if (!allRows.length) {
-        feed.innerHTML = `<div class="feed-empty">${viewModel.hasActiveFilters ? "No intel items match current filters." : "No news feed items available yet."}</div>`;
+        feed.querySelectorAll(".wz-feed-item").forEach((card) => {
+            stopIntelWireCardMedia(card);
+            card.remove();
+        });
+        let emptyState = feed.querySelector(".feed-empty");
+        if (!emptyState) {
+            emptyState = document.createElement("div");
+            emptyState.className = "feed-empty";
+            feed.appendChild(emptyState);
+        }
+        emptyState.textContent = viewModel.hasActiveFilters
+            ? "No intel items match current filters."
+            : "No news feed items available yet.";
         if (countEl) {
             countEl.textContent = viewModel.hasActiveFilters
                 ? `0 / ${filteredTotal} filtered / ${totalRows} intel items`
@@ -3624,53 +3703,43 @@ function renderFeed(viewModelOrEvents) {
         if (loadMoreBtn) loadMoreBtn.hidden = true;
         return;
     }
-    rows.forEach((event) => {
-        const card = document.createElement("article");
-        card.className = "timeline-item wz-feed-item";
-        card.dataset.eventId = event.id;
-        __intelWireRenderedItems.set(String(event.id || ""), event);
-        const categoryLabel = getPlatformCategoryLabel(event, {
-            surface: "intel-wire",
-            uppercase: true,
-            fallback: "INTEL",
-        });
-        const categoryClass = getPlatformCategoryClass(event, { surface: "intel-wire" });
-        const severityClass = getPlatformSeverityClass(event.severity || "");
-        const severityLabel = getPlatformSeverityLabel(event.severity || "", "Unknown");
-        card.dataset.category = categoryClass;
-        card.dataset.severity = severityClass;
-        const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
-        const sourceName = stripNonEnglishText(stripPresentationEmoji(event.source_name || "Intel Wire Source"), "Intel Wire Source");
-        const title = stripNonEnglishText(stripPresentationEmoji(event.title || "Untitled event"), "Intel update");
-        const summary = sanitizeIntelWireSummary(event.summary) || "No summary available.";
-        const location = stripNonEnglishText(stripPresentationEmoji(compactEventPlaceLabel(event)), "Unknown location");
-        const sourceMarkup = safeUrl
-            ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`
-            : `${escapeHtml(sourceName)}`;
-        card.innerHTML = `
-            <div class="timeline-time wz-feed-time">
-                <div class="wz-feed-capsule">
-                    <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
-                    <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
-                </div>
-                <time>${escapeHtml(formatTime(event.occurred_at))}</time>
-                <small class="wz-feed-source">${sourceMarkup}</small>
-            </div>
-            <div class="timeline-body">
-                <strong class="wz-feed-title">${escapeHtml(title)}</strong>
-                <p class="wz-feed-summary">${escapeHtml(summary)}</p>
-                <small class="wz-feed-location">
-                    ${escapeHtml(location)}
-                </small>
-                <div class="wz-feed-actions" data-feed-media-actions></div>
-                <div class="wz-feed-media-panel wz-feed-media-panel--images" data-feed-image-panel hidden></div>
-                <div class="wz-feed-media-panel wz-feed-media-panel--videos" data-feed-video-panel hidden></div>
-            </div>
-        `;
-        renderIntelWireMediaCard(card, event);
-        feed.appendChild(card);
+    feed.querySelector(".feed-empty")?.remove();
+    const existingCards = [...feed.querySelectorAll(":scope > .wz-feed-item")];
+    const existingCardMap = new Map(existingCards.map((card) => [String(card.dataset.eventId || ""), card]));
+    const visibleIds = new Set();
+    const cardsInOrder = [];
+    rows.forEach((event, index) => {
+        const eventId = getIntelWireEventDomKey(event, index);
+        const nextSignature = getIntelWireCardRenderSignature(event);
+        visibleIds.add(eventId);
+        __intelWireRenderedItems.set(eventId, event);
+        let card = existingCardMap.get(eventId) || null;
+        if (!card || card.dataset.renderSignature !== nextSignature) {
+            const replacement = createIntelWireFeedCard(event, eventId);
+            if (card) {
+                stopIntelWireCardMedia(card);
+                card.replaceWith(replacement);
+            }
+            card = replacement;
+        }
+        cardsInOrder.push(card);
     });
-    const visibleIds = new Set(rows.map((event) => String(event.id || "")));
+    existingCards.forEach((card) => {
+        const eventId = String(card.dataset.eventId || "");
+        if (visibleIds.has(eventId)) return;
+        stopIntelWireCardMedia(card);
+        card.remove();
+    });
+    let previousCard = null;
+    cardsInOrder.forEach((card) => {
+        const expectedNode = previousCard
+            ? previousCard.nextElementSibling
+            : feed.querySelector(":scope > .wz-feed-item");
+        if (card !== expectedNode) {
+            feed.insertBefore(card, expectedNode || null);
+        }
+        previousCard = card;
+    });
     [...__intelWireMediaState.keys()].forEach((key) => {
         if (!visibleIds.has(key)) __intelWireMediaState.delete(key);
     });
@@ -3683,12 +3752,20 @@ function renderFeed(viewModelOrEvents) {
     }
     if (loadMoreBtn) {
         loadMoreBtn.hidden = remaining <= 0;
-        loadMoreBtn.innerHTML = `
-            <span></span>
-            <span>${escapeHtml(remaining > 0
-                ? `Load ${Math.min(FEED_LOAD_MORE_COUNT, remaining)} more`
-                : "All loaded")}</span>
-        `;
+        let icon = loadMoreBtn.querySelector(":scope > span");
+        if (!icon) {
+            icon = document.createElement("span");
+            loadMoreBtn.prepend(icon);
+        }
+        let labelNode = icon.nextSibling;
+        if (!labelNode || labelNode.nodeType !== Node.TEXT_NODE || labelNode !== loadMoreBtn.lastChild) {
+            while (icon.nextSibling) icon.nextSibling.remove();
+            labelNode = document.createTextNode("");
+            icon.after(labelNode);
+        }
+        labelNode.textContent = remaining > 0
+            ? `Load ${Math.min(FEED_LOAD_MORE_COUNT, remaining)} more`
+            : "All loaded";
     }
 }
 function renderStrikeCounters(events) {
