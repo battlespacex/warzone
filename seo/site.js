@@ -1,10 +1,9 @@
-﻿const isProd = process.env.NODE_ENV === "production";
-
 const PROD_BASE = "https://stratops.battlespacex.com";
-const DEV_BASE = "http://localhost:4173";
 
 module.exports = {
-    baseUrl: isProd ? PROD_BASE : DEV_BASE,
+    // Canonical and social metadata must always identify the public site.
+    // Webpack's --mode flag does not set process.env.NODE_ENV for this module.
+    baseUrl: PROD_BASE,
     siteName: "StratOps | BattlespaceX",
     brandName: "StratOps",
     defaultOg: "/assets/images/web/stratops-og-preview.jpg",

@@ -32,6 +32,7 @@ import {
     getAllLiveTrackSnapshots,
     toggleLiveTrackSelection,
     getLiveTrackSelection,
+    resumeLiveTrackMotionAfterVisibility,
 } from "./warzone-live-airforce.js";
 import {
     upsertNavalVessel,
@@ -114,6 +115,7 @@ if (typeof window !== "undefined") {
 let __aircraftHistoryLastLoadedAt = 0;
 let __aircraftHistoryLoadingPromise = null;
 let __aircraftWidgetRenderTimer = 0;
+let __aircraftWidgetLastRenderedAt = 0;
 let __aircraftHistoryRefreshTimer = 0;
 let __aircraftLiveSyncTimer = 0;
 let __tracksRealtimeChannel = null;
@@ -4856,11 +4858,24 @@ function getLiveWidgetRenderDelay(delay = 0) {
     return (focusActive || cameraMoving) ? Math.max(baseDelay, 320) : baseDelay;
 }
 function requestAircraftMovementsWidgetRender(delay = AIRCRAFT_WIDGET_RENDER_THROTTLE_MS) {
-    clearTimeout(__aircraftWidgetRenderTimer);
+    const requestedDelay = getLiveWidgetRenderDelay(delay);
+    if (requestedDelay === 0) {
+        if (__aircraftWidgetRenderTimer) {
+            clearTimeout(__aircraftWidgetRenderTimer);
+            __aircraftWidgetRenderTimer = 0;
+        }
+        __aircraftWidgetLastRenderedAt = performance.now();
+        renderAircraftMovementsWidget();
+        return;
+    }
+    if (__aircraftWidgetRenderTimer) return;
+    const elapsed = Math.max(0, performance.now() - __aircraftWidgetLastRenderedAt);
+    const wait = Math.max(0, requestedDelay - elapsed);
     __aircraftWidgetRenderTimer = window.setTimeout(() => {
         __aircraftWidgetRenderTimer = 0;
+        __aircraftWidgetLastRenderedAt = performance.now();
         renderAircraftMovementsWidget();
-    }, getLiveWidgetRenderDelay(delay));
+    }, wait);
 }
 function scheduleAircraftHistoryRefresh(force = false) {
     clearTimeout(__aircraftHistoryRefreshTimer);
@@ -5058,7 +5073,7 @@ function handleTracksRealtimePayload(payload) {
     const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
     if (!useDatabaseAsLiveSource) {
         refreshAircraftHistoryCache(false).catch(() => { });
-        requestAircraftMovementsWidgetRender(0);
+        requestAircraftMovementsWidgetRender();
         return;
     }
     if (eventType === "DELETE") {
@@ -5455,6 +5470,36 @@ function updateAircraftWidgetCard(card, track, selection) {
     const statusLabel = getAircraftWidgetStatusLabel(track);
     const timeLabel = getAircraftWidgetTimeLabel(track);
     const actionLabel = getAircraftWidgetActionLabel(track, selection);
+    const altitudeLabel = formatAircraftAltitude(track.altitude_ft);
+    const speedLabel = formatAircraftSpeed(track.speed_kts);
+    const headingLabel = `HDG ${Math.round(Number(track.heading_deg || 0))}°`;
+    const action = track.active
+        ? (isSelected ? "unlock" : "focus")
+        : (isSelected ? "hide" : "replay");
+    const renderSignature = [
+        track.active ? "1" : "0",
+        isSelected ? "1" : "0",
+        isFocusDisabled ? "1" : "0",
+        statusLabel,
+        title,
+        timeLabel,
+        detailLabel,
+        affiliationLabel,
+        altitudeLabel,
+        speedLabel,
+        headingLabel,
+        action,
+        actionLabel,
+    ].join("\u001f");
+    if (
+        card.dataset.renderSignature === renderSignature &&
+        card.querySelector(".wz-aircraft-item__top") &&
+        card.querySelector(".wz-aircraft-item__meta") &&
+        card.querySelector(".wz-aircraft-item__stats") &&
+        card.querySelector(".wz-aircraft-item__foot")
+    ) {
+        return;
+    }
     card.className = `wz-aircraft-item ${track.active ? "is-active" : "is-ended"} ${isSelected ? "is-selected" : ""} ${isFocusDisabled ? "is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(track.track_key || "");
     let top = card.querySelector(".wz-aircraft-item__top");
@@ -5529,12 +5574,10 @@ function updateAircraftWidgetCard(card, track, selection) {
     if (metaSpans[0]) metaSpans[0].textContent = detailLabel;
     if (metaSpans[1]) metaSpans[1].textContent = affiliationLabel;
     const statSpans = stats.querySelectorAll("span");
-    if (statSpans[0]) statSpans[0].textContent = formatAircraftAltitude(track.altitude_ft);
-    if (statSpans[1]) statSpans[1].textContent = formatAircraftSpeed(track.speed_kts);
-    if (statSpans[2]) statSpans[2].textContent = `HDG ${Math.round(Number(track.heading_deg || 0))}°`;
-    actionBtn.dataset.trackAction = track.active
-        ? (isSelected ? "unlock" : "focus")
-        : (isSelected ? "hide" : "replay");
+    if (statSpans[0]) statSpans[0].textContent = altitudeLabel;
+    if (statSpans[1]) statSpans[1].textContent = speedLabel;
+    if (statSpans[2]) statSpans[2].textContent = headingLabel;
+    actionBtn.dataset.trackAction = action;
     actionBtn.dataset.trackToggle = String(track.track_key || "");
     actionBtn.disabled = isFocusDisabled;
     actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");
@@ -5550,6 +5593,7 @@ function updateAircraftWidgetCard(card, track, selection) {
     } else {
         actionIcon.nextSibling.textContent = actionLabel;
     }
+    card.dataset.renderSignature = renderSignature;
 }
 
 function renderAircraftMovementsWidget() {
@@ -6373,6 +6417,7 @@ export async function initWarzoneApp() {
             const backgroundIdleMs = __lastBackgroundAt > 0
                 ? Math.max(0, now - __lastBackgroundAt)
                 : 0;
+            const wasVisibilitySuspended = __visibilityPipelinesSuspended;
             resumeForegroundLivePipelines({ backgroundIdleMs });
             if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
                 startForegroundRenderWakeBurst(650);
@@ -6382,6 +6427,9 @@ export async function initWarzoneApp() {
             __lastForegroundRecoveryAt = now;
             __lastBackgroundAt = now;
             ++__foregroundRecoverySeq;
+            if (wasVisibilitySuspended) {
+                resumeLiveTrackMotionAfterVisibility();
+            }
             // Keep foreground resume smooth: no forced loader, no heavy forced refresh burst.
             endForegroundRecoveryLoader({ force: true });
             const pollLooksStale =

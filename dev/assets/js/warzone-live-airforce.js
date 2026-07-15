@@ -187,7 +187,7 @@ const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 2;
 const LIVE_TRACK_DUPLICATE_DISTANCE_METERS = 6500;
 const LIVE_TRACK_DUPLICATE_HEADING_DELTA_DEG = 18;
 const LIVE_TRACK_DUPLICATE_SPEED_DELTA_KTS = 80;
-const LIVE_TRACK_FOCUS_COAST_MAX_MS = 12000;
+const LIVE_TRACK_FOCUS_COAST_MAX_MS = 45000;
 const LIVE_TRACK_FOCUS_COAST_MIN_SPEED_KTS = 60;
 const LIVE_TRACK_STALE_UPDATE_TOLERANCE_MS = 250;
 const LIVE_TRACK_INSIGNIFICANT_DISTANCE_METERS = 8;
@@ -204,6 +204,7 @@ const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 2400;
 const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 1850;
 const LIVE_TRACK_ANIM_TRAIL_SAMPLE_MS = 420;
 const LIVE_TRACK_ANIMATE_ONLY_SELECTED = true;
+const LIVE_TRACK_OVERVIEW_ANIMATION_MAX_TRACKS = 32;
 const LIVE_TRACK_HISTORY_RETENTION_MS = 12 * 60 * 60 * 1000;
 const LIVE_TRACK_HISTORY_MAX_POINTS = 720;
 const LIVE_TRACK_FOCUS_ROUTE_SPIKE_MIN_METERS = 4500;
@@ -220,6 +221,7 @@ const LIVE_AIRCRAFT_MODEL_DEFAULT_CODE = "Fighter-F16";
 const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "AWACS-E3": Object.freeze({ category: "awacs", model: "AWACS-E3.glb", icon: "AWACS-E3.png" }),
     "AWACS-E4": Object.freeze({ category: "awacs", classification: "Airborne Command and Control", model: "AWACS-E4.glb", icon: "AWACS-E3.png" }),
+    "AWACS-E6": Object.freeze({ category: "awacs", classification: "Strategic Command and Control", model: "AWACS-E6.glb", icon: "AWACS-E3.png" }),
     "AWACS-E7": Object.freeze({ category: "awacs", model: "AWACS-E7.glb", icon: "AWACS-E7.png" }),
     "AWACS-Globaleye": Object.freeze({ category: "awacs", model: "AWACS-Globaleye.glb", icon: "AWACS-Globaleye.png" }),
     "AWACS-Phalcon": Object.freeze({ category: "awacs", model: "AWACS-Phalcon.glb", icon: "AWACS-Phalcon.png" }),
@@ -290,6 +292,7 @@ const LIVE_AIRCRAFT_ICON_CODE_BY_ASSET_KEY = Object.freeze(
 );
 const LIVE_AIRCRAFT_ICON_FALLBACK_CODE_BY_ASSET_KEY = Object.freeze({
     "AWACS-E4": "aw-1",
+    "AWACS-E6": "aw-1",
     "AWACS-E7": "aw-3",
     "Transport-C5": "tp-2",
     "Transport-IL76": "tp-2",
@@ -714,6 +717,7 @@ const LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES = Object.freeze([
     { assetKey: "Bomber-B52", patterns: [/\bb[\s-]?52[gh]?\b/i, /\bstratofortress\b/i, /\bboeing\s+b[\s-]?52\b/i] },
     { assetKey: "Bomber-B1", patterns: [/\bb[\s-]?1\b/i, /\blancer\b/i, /\btu[\s-]?160\b/i, /\bblackjack\b/i, /\btu[\s-]?22m3\b/i, /\bbackfire\b/i, /\btu[\s-]?95\b/i, /\bbear\b/i, /\bh[\s-]?6\b/i] },
     { assetKey: "AWACS-E4", patterns: [/\be[\s-]?4(?:[abc])?\b/i, /\bnightwatch\b/i, /\bdoomsday(?:\s+(?:plane|aircraft))?\b/i, /\bnational airborne operations center\b/i, /\bnaoc\b/i] },
+    { assetKey: "AWACS-E6", patterns: [/\be[\s-]?6(?:[a-z])?\b/i, /\bmercury\b/i, /\btacamo\b/i, /\btake\s+charge\s+and\s+move\s+out\b/i, /\blooking\s+glass\b/i] },
     { assetKey: "VIP-VC25", patterns: [/\bvc[\s-]?25(?:[abc])?\b/i, /\bair force one\b/i, /\bpresidential (?:aircraft|airlift)\b/i, /\bsam[\s-]?(?:28000|29000)\b/i] },
     { assetKey: "AWACS-E3", patterns: [/\be[\s-]?3\b/i, /\bsentry\b/i, /\bawacs e[\s-]?3\b/i] },
     { assetKey: "AWACS-E7", patterns: [/\be[\s-]?7\b/i, /\bwedgetail\b/i, /\b737 aew(?:&c)?\b/i, /\bpeace eagle\b/i] },
@@ -1356,7 +1360,16 @@ function getLiveGlbModelQualityConfig(track = {}) {
         0,
         4
     );
-    const focused = isTrackInFocusVisualContext(track);
+    const explicitDevModel =
+        String(track.track_key || "").startsWith("dev-") &&
+        /^(?:3d|glb|gltf|model)$/i.test(String(
+            track.render_mode ||
+            track.renderMode ||
+            track.model_render_mode ||
+            track.modelRenderMode ||
+            ""
+        ));
+    const focused = isTrackInFocusVisualContext(track) || explicitDevModel;
     const lodFallback = clamp(getCssNumber("--warzone-live-glb-lod-distance", 1), 0, 64);
     const lod = clamp(
         getCssNumber(
@@ -6315,6 +6328,33 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     };
     entity.__liveTrackAnimFrame = requestAnimationFrame(step);
 }
+
+export function resumeLiveTrackMotionAfterVisibility() {
+    if (document.visibilityState === "hidden") return false;
+    const viewer = window.__warzoneViewer;
+    if (!viewer) return false;
+
+    __liveTrackEntities.forEach((entity) => {
+        if (entity?.__liveTrackAnimFrame) {
+            cancelAnimationFrame(entity.__liveTrackAnimFrame);
+            entity.__liveTrackAnimFrame = null;
+        }
+        entity.__liveTrackMotionState = null;
+        stopFocusedTrackCoast(entity);
+    });
+
+    const focusedTrackKey = getFocusedTrackKey();
+    if (focusedTrackKey) {
+        const focusedEntity = viewer.entities?.getById?.(`track-${focusedTrackKey}`);
+        const focusedTrack = __liveTrackRegistry.get(focusedTrackKey);
+        if (focusedEntity && focusedTrack?.active) {
+            maybeStartFocusedTrackCoast(focusedEntity, focusedTrack);
+        }
+    }
+
+    requestWarzoneRenderBatched();
+    return true;
+}
 /* ================= ROUTE / ORBIT DEV HELPERS ================= */
 function interpolateHeadingDegrees(fromDeg = 0, toDeg = 0, t = 0) {
     const a = normalizeDegrees(fromDeg);
@@ -6431,6 +6471,7 @@ export function upsertLiveTrack(track) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const viewer = window.__warzoneViewer;
+    const forceVisualRefresh = track?.__forceVisualRefresh === true;
     const originalTrackKey = String(track?.track_key || "").trim();
     if (!isLayerEnabled("aircraft")) {
         if (originalTrackKey) clearLiveTrack(originalTrackKey);
@@ -6471,7 +6512,9 @@ export function upsertLiveTrack(track) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
     let entity = viewer.entities.getById(id);
-    const telemetryUpdate = classifyLiveTrackTelemetryUpdate(entity, track, sourceTimestamp);
+    const telemetryUpdate = forceVisualRefresh
+        ? "accept"
+        : classifyLiveTrackTelemetryUpdate(entity, track, sourceTimestamp);
     if (telemetryUpdate === "stale") {
         return;
     }
@@ -6481,7 +6524,13 @@ export function upsertLiveTrack(track) {
     }
 
     const resolvedHeadingDeg = getTrackResolvedHeading(track);
-    const attitude = getTrackAttitude(track, resolvedHeadingDeg);
+    const attitude = forceVisualRefresh && entity
+        ? {
+            headingDeg: Number(entity.__currentHeadingDeg ?? resolvedHeadingDeg),
+            pitchDeg: Number(entity.__currentPitchDeg ?? 0),
+            rollDeg: Number(entity.__currentRollDeg ?? 0),
+        }
+        : getTrackAttitude(track, resolvedHeadingDeg);
     const renderMode = resolveAircraftRenderMode(track, modelUri);
     const point = renderMode === LIVE_TRACK_RENDER_MODE.POINT
         ? buildLiveTrackPoint(track)
@@ -6535,26 +6584,44 @@ export function upsertLiveTrack(track) {
         entity.__renderMode = renderMode;
         const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
         const trackKey = String(track.track_key || "");
+        const animateFocusContext =
+            isFocusSelectionActive() &&
+            shouldShowTrackInFocusMode(trackKey, track);
+        const animateExplicitDevModel =
+            trackKey.startsWith("dev-") &&
+            renderMode === LIVE_TRACK_RENDER_MODE.MODEL;
+        const activeOverviewTrackCount = isFocusSelectionActive()
+            ? LIVE_TRACK_OVERVIEW_ANIMATION_MAX_TRACKS + 1
+            : Array.from(__liveTrackRegistry.values()).reduce(
+                (count, entry) => count + (entry?.active ? 1 : 0),
+                entity ? 0 : 1
+            );
+        const animateManageableOverview =
+            !isFocusSelectionActive() &&
+            activeOverviewTrackCount <= LIVE_TRACK_OVERVIEW_ANIMATION_MAX_TRACKS;
         const shouldAnimateTrack =
             !LIVE_TRACK_ANIMATE_ONLY_SELECTED ||
-            !selectedTrackKey ||
-            selectedTrackKey === trackKey ||
-            shouldShowTrackInFocusMode(trackKey, track);
-        if (shouldAnimateTrack) {
-            animateTrackTo(entity, track, lon, lat, alt, sourceTimestamp, attitude);
-        } else {
-            if (entity.__liveTrackAnimFrame) {
-                cancelAnimationFrame(entity.__liveTrackAnimFrame);
-                entity.__liveTrackAnimFrame = null;
+            Boolean(selectedTrackKey && selectedTrackKey === trackKey) ||
+            animateFocusContext ||
+            animateExplicitDevModel ||
+            animateManageableOverview;
+        if (!forceVisualRefresh) {
+            if (shouldAnimateTrack) {
+                animateTrackTo(entity, track, lon, lat, alt, sourceTimestamp, attitude);
+            } else {
+                if (entity.__liveTrackAnimFrame) {
+                    cancelAnimationFrame(entity.__liveTrackAnimFrame);
+                    entity.__liveTrackAnimFrame = null;
+                }
+                entity.__liveTrackMotionState = null;
+                const nextCartesian = buildTrackEntityCartesian(track, lon, lat, alt, attitude.headingDeg);
+                if (!nextCartesian) return;
+                entity.position = nextCartesian;
+                pushTrackTrailPointFromCartesian(track.track_key, track, nextCartesian, attitude.headingDeg);
+                entity.__currentHeadingDeg = attitude.headingDeg;
+                entity.__currentPitchDeg = attitude.pitchDeg;
+                entity.__currentRollDeg = attitude.rollDeg;
             }
-            entity.__liveTrackMotionState = null;
-            const nextCartesian = buildTrackEntityCartesian(track, lon, lat, alt, attitude.headingDeg);
-            if (!nextCartesian) return;
-            entity.position = nextCartesian;
-            pushTrackTrailPointFromCartesian(track.track_key, track, nextCartesian, attitude.headingDeg);
-            entity.__currentHeadingDeg = attitude.headingDeg;
-            entity.__currentPitchDeg = attitude.pitchDeg;
-            entity.__currentRollDeg = attitude.rollDeg;
         }
         entity.__lastSourceTimestamp = sourceTimestamp;
         entity.__lastReportedHeadingDeg = Number(track.heading_deg || attitude.headingDeg || 0);
@@ -6595,6 +6662,12 @@ export function upsertLiveTrack(track) {
             alt,
             attitude
         );
+    }
+
+    if (forceVisualRefresh) {
+        applyLiveTrackFocusVisibility(track.track_key);
+        wakeLiveTrackRenderAfterAssetUpdate();
+        return;
     }
 
     const existingRegistryEntry = __liveTrackRegistry.get(track.track_key);
@@ -6775,7 +6848,7 @@ function refreshLiveTrackVisualMode(trackKey = "") {
     upsertLiveTrack({
         ...entry,
         track_key: safeTrackKey,
-        timestamp: Date.now(),
+        __forceVisualRefresh: true,
     });
 }
 function refreshLiveTrackTrailRenderVisibility(trackKey = "", track = {}) {
