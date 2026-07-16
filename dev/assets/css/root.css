@@ -648,14 +648,14 @@
     --warzone-live-aircraft-model-scale-zoom-out: 1;
     --warzone-live-aircraft-model-zoom-near-height: 8000;
     --warzone-live-aircraft-model-zoom-far-height: 65000;
-    --warzone-live-aircraft-model-focused-scale: 1.25;
+    --warzone-live-aircraft-model-focused-scale: 1.5;
     --warzone-live-aircraft-model-focused-scale-far-factor: 0.42;
     --warzone-live-aircraft-model-min-pixel-size: 320;
     --warzone-live-aircraft-model-focused-min-pixel-size: 320;
     --warzone-live-aircraft-model-focused-min-pixel-far-factor: 0.34;
     --warzone-live-aircraft-model-max-scale: 1200;
     --warzone-live-aircraft-model-scale-helicopter: 1;
-    --warzone-live-aircraft-model-focused-scale-helicopter: 1.25;
+    --warzone-live-aircraft-model-focused-scale-helicopter: 1.5;
     --warzone-live-aircraft-model-min-pixel-size-helicopter: 320;
     --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 320;
     --warzone-live-aircraft-model-max-scale-helicopter: 1100;

@@ -187,8 +187,6 @@ const LIVE_TRACK_MIN_ANIM_DISTANCE_METERS = 2;
 const LIVE_TRACK_DUPLICATE_DISTANCE_METERS = 6500;
 const LIVE_TRACK_DUPLICATE_HEADING_DELTA_DEG = 18;
 const LIVE_TRACK_DUPLICATE_SPEED_DELTA_KTS = 80;
-const LIVE_TRACK_FOCUS_COAST_MAX_MS = 45000;
-const LIVE_TRACK_FOCUS_COAST_MIN_SPEED_KTS = 60;
 const LIVE_TRACK_STALE_UPDATE_TOLERANCE_MS = 250;
 const LIVE_TRACK_INSIGNIFICANT_DISTANCE_METERS = 8;
 const LIVE_TRACK_INSIGNIFICANT_ALTITUDE_FEET = 20;
@@ -197,14 +195,13 @@ const LIVE_TRACK_INSIGNIFICANT_SPEED_KTS = 1.5;
 const LIVE_TRACK_MAJOR_CORRECTION_MIN_METERS = 50000;
 const LIVE_TRACK_MAJOR_CORRECTION_SPEED_FACTOR = 8;
 const LIVE_TRACK_MIN_ANIM_MS = 700;
-const LIVE_TRACK_MAX_ANIM_MS = 4400;
+const LIVE_TRACK_MAX_ANIM_MS = 9000;
 const LIVE_TRACK_DEFAULT_ANIM_MS = 3600;
 const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 1100;
 const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 2400;
 const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 1850;
 const LIVE_TRACK_ANIM_TRAIL_SAMPLE_MS = 420;
 const LIVE_TRACK_ANIMATE_ONLY_SELECTED = true;
-const LIVE_TRACK_OVERVIEW_ANIMATION_MAX_TRACKS = 32;
 const LIVE_TRACK_HISTORY_RETENTION_MS = 12 * 60 * 60 * 1000;
 const LIVE_TRACK_HISTORY_MAX_POINTS = 720;
 const LIVE_TRACK_FOCUS_ROUTE_SPIKE_MIN_METERS = 4500;
@@ -2703,13 +2700,13 @@ function getTrackFallbackAltitudeFt(track = {}) {
 function getTrackResolvedAltitudeFt(track = {}) {
     if (isTrackOnGround(track)) return 0;
     const reportedAltitudeFt = getTrackReportedAltitudeFt(track);
-    if (reportedAltitudeFt != null) return reportedAltitudeFt;
+    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) return reportedAltitudeFt;
     return getTrackFallbackAltitudeFt(track);
 }
 function getTrackPointResolvedAltitudeFt(point = {}, track = {}) {
     if (isTrackPointOnGround(point)) return 0;
     const reportedAltitudeFt = getTrackPointReportedAltitudeFt(point);
-    if (reportedAltitudeFt != null) return reportedAltitudeFt;
+    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) return reportedAltitudeFt;
     return getTrackResolvedAltitudeFt(track);
 }
 function getRenderAltitudeClearanceMeters(altitudeFt = 0) {
@@ -6060,75 +6057,13 @@ function getOrCreateTrackTrailEntity(viewer, trackKey, track = {}) {
     return entity;
 }
 /* ================= ANIMATION ================= */
-function stopFocusedTrackCoast(entity) {
-    if (!entity) return;
-    if (entity.__liveTrackCoastFrame) {
-        cancelAnimationFrame(entity.__liveTrackCoastFrame);
-        entity.__liveTrackCoastFrame = null;
-    }
-}
-function maybeStartFocusedTrackCoast(entity, track = {}) {
-    if (!entity || !isFocusedTrackKey(entity.__trackKey)) return;
-    const speedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? 0);
-    if (!Number.isFinite(speedKts) || speedKts < LIVE_TRACK_FOCUS_COAST_MIN_SPEED_KTS) return;
-    if (isTrackOnGround(track)) return;
-    const startCartesian = getPositionCartesian(entity);
-    if (!startCartesian) return;
-    const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
-    if (!startCartographic) return;
-    const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
-    const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
-    const startAlt = Number(startCartographic.height || 0);
-    const headingDeg = normalizeDegrees(Number(entity.__currentHeadingDeg ?? track.heading_deg ?? 0));
-    const speedMps = speedKts * 0.514444;
-    const headingRad = Cesium.Math.toRadians(headingDeg);
-    const startTime = performance.now();
-    stopFocusedTrackCoast(entity);
-    const step = (now) => {
-        const elapsedMs = Math.max(0, now - startTime);
-        if (
-            !isFocusedTrackKey(entity.__trackKey) ||
-            elapsedMs >= LIVE_TRACK_FOCUS_COAST_MAX_MS
-        ) {
-            entity.__liveTrackCoastFrame = null;
-            return;
-        }
-        const distanceMeters = speedMps * (elapsedMs / 1000);
-        const northMeters = Math.cos(headingRad) * distanceMeters;
-        const eastMeters = Math.sin(headingRad) * distanceMeters;
-        const lat = startLat + metersToLatitudeDegrees(northMeters);
-        const lon = startLon + metersToLongitudeDegrees(eastMeters, startLat);
-        const position = buildTrackEntityCartesian(
-            track,
-            lon,
-            lat,
-            Math.max(0, startAlt),
-            headingDeg
-        );
-        if (!position) {
-            entity.__liveTrackCoastFrame = null;
-            return;
-        }
-        entity.position = position;
-        if (entity.model) {
-            entity.orientation = buildTrackOrientation(
-                track,
-                lon,
-                lat,
-                startAlt,
-                headingDeg,
-                Number(entity.__currentPitchDeg || 0),
-                Number(entity.__currentRollDeg || 0)
-            );
-        }
-        requestWarzoneRenderBatched();
-        entity.__liveTrackCoastFrame = requestAnimationFrame(step);
-    };
-    entity.__liveTrackCoastFrame = requestAnimationFrame(step);
-}
 function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextSourceTimestamp = Date.now(), nextAttitude = null) {
     if (!entity) return;
-    stopFocusedTrackCoast(entity);
+    if (entity.__liveTrackAnimFrame) {
+        cancelAnimationFrame(entity.__liveTrackAnimFrame);
+        entity.__liveTrackAnimFrame = null;
+    }
+    entity.__liveTrackMotionState = null;
     const startCartesian = getPositionCartesian(entity);
     const nextCartesian = buildTrackEntityCartesian(
         track,
@@ -6156,11 +6091,6 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         }
     };
     const commitPosition = (cartesianPosition) => {
-        if (entity.__liveTrackAnimFrame) {
-            cancelAnimationFrame(entity.__liveTrackAnimFrame);
-            entity.__liveTrackAnimFrame = null;
-        }
-        entity.__liveTrackMotionState = null;
         entity.position = cartesianPosition;
         applyVisualRotation(nextLon, nextLat, nextAlt, endHeadingDeg, endPitchDeg, endRollDeg);
         entity.__currentHeadingDeg = endHeadingDeg;
@@ -6230,53 +6160,22 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
     const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
     const startAlt = startCartographic.height || 0;
-    const nextMotionState = {
-        startCartesian,
-        nextCartesian,
-        startHeadingDeg,
-        endHeadingDeg,
-        headingDeltaDeg,
-        startPitchDeg,
-        endPitchDeg,
-        startRollDeg,
-        endRollDeg,
-        startLon,
-        startLat,
-        startAlt,
-        nextLon,
-        nextLat,
-        nextAlt,
-        startTime,
-        duration,
-        isFocusedTrack,
-        track,
-    };
-    if (entity.__liveTrackAnimFrame && entity.__liveTrackMotionState) {
-        entity.__liveTrackMotionState = nextMotionState;
-        return;
-    }
-    entity.__liveTrackMotionState = nextMotionState;
     const step = (now) => {
-        const motion = entity.__liveTrackMotionState;
-        if (!motion) {
-            entity.__liveTrackAnimFrame = null;
-            return;
-        }
-        const t = Math.min(1, (now - motion.startTime) / motion.duration);
-        const eased = motion.isFocusedTrack
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = isFocusedTrack
             ? t
             : (t * t * (3 - 2 * t));
-        const headingDeg = normalizeDegrees(motion.startHeadingDeg + (motion.headingDeltaDeg * eased));
-        const pitchDeg = motion.startPitchDeg + ((motion.endPitchDeg - motion.startPitchDeg) * eased);
-        const rollDeg = motion.startRollDeg + ((motion.endRollDeg - motion.startRollDeg) * eased);
-        let lon = motion.startLon + (motion.nextLon - motion.startLon) * eased;
-        let lat = motion.startLat + (motion.nextLat - motion.startLat) * eased;
-        let alt = motion.startAlt + (motion.nextAlt - motion.startAlt) * eased;
+        const headingDeg = normalizeDegrees(startHeadingDeg + (headingDeltaDeg * eased));
+        const pitchDeg = startPitchDeg + ((endPitchDeg - startPitchDeg) * eased);
+        const rollDeg = startRollDeg + ((endRollDeg - startRollDeg) * eased);
+        let lon = startLon + (nextLon - startLon) * eased;
+        let lat = startLat + (nextLat - startLat) * eased;
+        let alt = startAlt + (nextAlt - startAlt) * eased;
         let currentCartesian = null;
-        if (motion.isFocusedTrack) {
+        if (isFocusedTrack) {
             currentCartesian = Cesium.Cartesian3.lerp(
-                motion.startCartesian,
-                motion.nextCartesian,
+                startCartesian,
+                nextCartesian,
                 eased,
                 new Cesium.Cartesian3()
             );
@@ -6287,31 +6186,25 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
                 alt = currentCartographic.height || 0;
             }
         } else {
-            currentCartesian = buildTrackEntityCartesian(motion.track, lon, lat, alt, headingDeg);
+            currentCartesian = buildTrackEntityCartesian(track, lon, lat, alt, headingDeg);
         }
         if (!currentCartesian) {
             entity.__liveTrackAnimFrame = null;
             return;
         }
         entity.position = currentCartesian;
-        if (entity.billboard) {
-            entity.billboard.rotation = getLiveTrackBillboardRotationRadians(headingDeg);
-            entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
-        }
-        if (entity.model) {
-            entity.orientation = buildTrackOrientation(motion.track, lon, lat, alt, headingDeg, pitchDeg, rollDeg);
-        }
+        applyVisualRotation(lon, lat, alt, headingDeg, pitchDeg, rollDeg);
         entity.__currentHeadingDeg = headingDeg;
         entity.__currentPitchDeg = pitchDeg;
         entity.__currentRollDeg = rollDeg;
         const shouldSampleTrail =
             t >= 1 ||
-            (!motion.isFocusedTrack && (
+            (!isFocusedTrack && (
                 !Number.isFinite(Number(entity.__liveTrackLastTrailSampleAt)) ||
                 (now - Number(entity.__liveTrackLastTrailSampleAt || 0)) >= LIVE_TRACK_ANIM_TRAIL_SAMPLE_MS
             ));
         if (trackKey && shouldSampleTrail) {
-            pushTrackTrailPointFromCartesian(trackKey, motion.track, currentCartesian, headingDeg);
+            pushTrackTrailPointFromCartesian(trackKey, track, currentCartesian, headingDeg);
             entity.__liveTrackLastTrailSampleAt = now;
         }
         requestWarzoneRenderBatched();
@@ -6319,11 +6212,9 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
             entity.__liveTrackAnimFrame = requestAnimationFrame(step);
         } else {
             entity.__liveTrackAnimFrame = null;
-            entity.__liveTrackMotionState = null;
-            entity.__currentHeadingDeg = motion.endHeadingDeg;
-            entity.__currentPitchDeg = motion.endPitchDeg;
-            entity.__currentRollDeg = motion.endRollDeg;
-            maybeStartFocusedTrackCoast(entity, motion.track);
+            entity.__currentHeadingDeg = endHeadingDeg;
+            entity.__currentPitchDeg = endPitchDeg;
+            entity.__currentRollDeg = endRollDeg;
         }
     };
     entity.__liveTrackAnimFrame = requestAnimationFrame(step);
@@ -6340,17 +6231,7 @@ export function resumeLiveTrackMotionAfterVisibility() {
             entity.__liveTrackAnimFrame = null;
         }
         entity.__liveTrackMotionState = null;
-        stopFocusedTrackCoast(entity);
     });
-
-    const focusedTrackKey = getFocusedTrackKey();
-    if (focusedTrackKey) {
-        const focusedEntity = viewer.entities?.getById?.(`track-${focusedTrackKey}`);
-        const focusedTrack = __liveTrackRegistry.get(focusedTrackKey);
-        if (focusedEntity && focusedTrack?.active) {
-            maybeStartFocusedTrackCoast(focusedEntity, focusedTrack);
-        }
-    }
 
     requestWarzoneRenderBatched();
     return true;
@@ -6584,27 +6465,11 @@ export function upsertLiveTrack(track) {
         entity.__renderMode = renderMode;
         const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
         const trackKey = String(track.track_key || "");
-        const animateFocusContext =
-            isFocusSelectionActive() &&
-            shouldShowTrackInFocusMode(trackKey, track);
-        const animateExplicitDevModel =
-            trackKey.startsWith("dev-") &&
-            renderMode === LIVE_TRACK_RENDER_MODE.MODEL;
-        const activeOverviewTrackCount = isFocusSelectionActive()
-            ? LIVE_TRACK_OVERVIEW_ANIMATION_MAX_TRACKS + 1
-            : Array.from(__liveTrackRegistry.values()).reduce(
-                (count, entry) => count + (entry?.active ? 1 : 0),
-                entity ? 0 : 1
-            );
-        const animateManageableOverview =
-            !isFocusSelectionActive() &&
-            activeOverviewTrackCount <= LIVE_TRACK_OVERVIEW_ANIMATION_MAX_TRACKS;
         const shouldAnimateTrack =
             !LIVE_TRACK_ANIMATE_ONLY_SELECTED ||
-            Boolean(selectedTrackKey && selectedTrackKey === trackKey) ||
-            animateFocusContext ||
-            animateExplicitDevModel ||
-            animateManageableOverview;
+            !selectedTrackKey ||
+            selectedTrackKey === trackKey ||
+            shouldShowTrackInFocusMode(trackKey, track);
         if (!forceVisualRefresh) {
             if (shouldAnimateTrack) {
                 animateTrackTo(entity, track, lon, lat, alt, sourceTimestamp, attitude);
@@ -6720,7 +6585,6 @@ export function clearLiveTrack(trackKey) {
                 focusedEntity.__liveTrackAnimFrame = null;
             }
             focusedEntity.__liveTrackMotionState = null;
-            maybeStartFocusedTrackCoast(focusedEntity, existingRegistryEntry || {});
         }
         dispatchLiveTrackRegistryUpdate();
         requestWarzoneRenderBatched();
@@ -6729,7 +6593,6 @@ export function clearLiveTrack(trackKey) {
     if (viewer) {
         const entity = viewer.entities.getById(entityId);
         if (entity) {
-            stopFocusedTrackCoast(entity);
             if (entity.__liveTrackAnimFrame) {
                 cancelAnimationFrame(entity.__liveTrackAnimFrame);
                 entity.__liveTrackAnimFrame = null;
@@ -6791,7 +6654,6 @@ export function clearAllLiveTracks() {
         const stray = [];
         for (const entity of viewer.entities.values) {
             const entityId = String(entity?.id || "");
-            stopFocusedTrackCoast(entity);
             if (
                 entityId.startsWith("track-") ||
                 entityId.startsWith("track-trail-") ||
@@ -7051,12 +6913,6 @@ export function clearLiveTrackSelection(options = {}) {
     const previousTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const previousSelectionMode = String(__liveTrackReplayState.mode || "");
     const restoreSceneMode = previousSelectionMode === "focus" ? __liveTrackSceneModeBeforeFocus : "";
-    const previousEntity = previousTrackKey && viewer
-        ? viewer.entities.getById(`track-${previousTrackKey}`)
-        : null;
-    if (previousEntity) {
-        stopFocusedTrackCoast(previousEntity);
-    }
     if (viewer) {
         viewer.camera.cancelFlight?.();
         cancelAircraftFocusTerrainDisable();

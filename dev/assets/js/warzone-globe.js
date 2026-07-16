@@ -5193,12 +5193,16 @@ export async function initWarzoneGlobe() {
                 nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, busyLoadingDescendantLimit);
                 nextPreloadSiblings = false;
             }
+            const focusSceneSettled = isAircraftFocusMode && !isCameraMoving && !tileLoadBusy;
             if (isAircraftFocusMode) {
-                const focusSceneSettled = !isCameraMoving && !tileLoadBusy;
                 if (focusSceneSettled) {
                     nextResolution = Math.max(nextResolution, focusPerformanceResolutionScale);
                     nextMsaaSamples = Math.max(nextMsaaSamples, focusPerformanceMsaaSamples);
                     nextSse = Math.min(nextSse, focusPerformanceSse);
+                } else {
+                    // Keep the focused GLB readable while camera motion or tile loading is active.
+                    nextResolution = Math.max(nextResolution, Math.min(baseResolution, 1));
+                    nextMsaaSamples = Math.max(nextMsaaSamples, Math.min(2, focusMsaaSamples));
                 }
                 nextFxaaEnabled = true;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, focusPerformanceRenderTime);
@@ -5217,6 +5221,16 @@ export async function initWarzoneGlobe() {
             nextTileCache = Math.min(nextTileCache, adaptiveCaps.maxTileCache);
             if (adaptiveCaps.forcePreloadSiblingsFalse) {
                 nextPreloadSiblings = false;
+            }
+            if (isAircraftFocusMode) {
+                const focusResolutionFloor = focusSceneSettled
+                    ? Math.min(focusResolutionScale, 1.12)
+                    : Math.min(baseResolution, 1);
+                nextResolution = Math.max(nextResolution, focusResolutionFloor);
+                if (focusSceneSettled) {
+                    nextMsaaSamples = Math.max(nextMsaaSamples, 2);
+                    nextSse = Math.min(nextSse, Math.max(1.15, closeSse));
+                }
             }
             nextResolution = Math.min(nextResolution, hardMaxResolutionScale);
             nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);

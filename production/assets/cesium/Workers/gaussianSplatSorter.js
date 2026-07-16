@@ -1,7 +1,7 @@
 /**
  * @license
  * Cesium - https://github.com/CesiumGS/cesium
- * Version 1.139.1
+ * Version 1.143.0
  *
  * Copyright 2011-2022 Cesium Contributors
  *
@@ -22,4 +22,4 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-import{b as t,c as f}from"./chunk-EISYTWYV.js";import{a as s}from"./chunk-CMB3O7X2.js";import{e as o}from"./chunk-VIMSDF2W.js";async function m(s,e){let t=s.webAssemblyConfig;if(o(t)&&o(t.wasmBinary))return f({module:t.wasmBinary}),!0}function c(s,e){let i=s.webAssemblyConfig;if(o(i))return m(s,e);let{primitive:n,sortType:r}=s;return"Index"===r?t(n.positions,n.modelView,n.count):void 0}var y=s(c);export{y as default};
+import{b as t,c as f}from"./chunk-7GCQCPLT.js";import{a as s}from"./chunk-BKIYVF74.js";import{f as o}from"./chunk-6DLS2UKD.js";async function m(s,t){let e=s.webAssemblyConfig;if(o(e)&&o(e.wasmBinary))return f({module:e.wasmBinary}),!0}function c(s,e){let i=s.webAssemblyConfig;if(o(i))return m(s,e);let{primitive:n,sortType:r}=s;return"Index"===r?t(n.positions,n.modelView,n.count):void 0}var y=s(c);export{y as default};
