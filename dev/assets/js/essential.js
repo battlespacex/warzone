@@ -33,6 +33,7 @@ import {
     toggleLiveTrackSelection,
     getLiveTrackSelection,
     resumeLiveTrackMotionAfterVisibility,
+    bindLiveTrackLifecycleRecovery,
 } from "./warzone-live-airforce.js";
 import {
     upsertNavalVessel,
@@ -149,6 +150,14 @@ let __hotspotDeferredSyncTimer = 0;
 let __seededAircraftTrackKeys = new Set();
 let __visibilityRecoveryBound = false;
 let __foregroundRenderWakeRaf = 0;
+let __warzoneLifecycleCallbacks = new Map();
+let __warzoneLifecyclePaused = false;
+let __warzoneLifecyclePausedAt = 0;
+let __warzoneLifecycleZeroSizePaused = false;
+let __warzoneLifecycleRenderBurstRaf = 0;
+let __warzoneLifecycleRenderBurstUntil = 0;
+let __warzoneLifecycleResizeObserver = null;
+let __warzoneLifecycleObservedElement = null;
 let __foregroundRecoveryLoaderTimer = 0;
 let __foregroundRecoveryLoaderShownAt = 0;
 let __foregroundRecoverySeq = 0;
@@ -461,6 +470,122 @@ function startForegroundRenderWakeBurst(durationMs = 1200) {
         __foregroundRenderWakeRaf = requestAnimationFrame(step);
     };
     __foregroundRenderWakeRaf = requestAnimationFrame(step);
+}
+function getWarzoneLifecycleViewerElement(viewer = window.__warzoneViewer) {
+    return viewer?.container || viewer?.canvas?.parentElement || document.getElementById("warzone-globe") || null;
+}
+function notifyWarzoneLifecycle(type, payload = {}) {
+    __warzoneLifecycleCallbacks.forEach((callbacks, name) => {
+        const handler = callbacks?.[type];
+        if (typeof handler !== "function") return;
+        try {
+            handler(payload);
+        } catch (error) {
+            if (window.__STRATOPS_DEBUG_LIFECYCLE === true) {
+                console.warn(`[stratops] lifecycle ${type} handler failed: ${name}`, error);
+            }
+        }
+    });
+}
+function requestWarzoneLifecycleRenderBurst(reason = "lifecycle", durationMs = 900) {
+    void reason;
+    const viewer = window.__warzoneViewer;
+    if (!viewer?.scene?.requestRender || isDocumentHidden()) return false;
+    const now = performance.now();
+    __warzoneLifecycleRenderBurstUntil = Math.max(
+        __warzoneLifecycleRenderBurstUntil,
+        now + Math.max(120, Number(durationMs) || 900)
+    );
+    if (__warzoneLifecycleRenderBurstRaf) return true;
+    const step = () => {
+        if (isDocumentHidden()) {
+            __warzoneLifecycleRenderBurstRaf = 0;
+            return;
+        }
+        try {
+            viewer.resize?.();
+        } catch { }
+        viewer.scene.requestRender?.();
+        if (performance.now() >= __warzoneLifecycleRenderBurstUntil) {
+            __warzoneLifecycleRenderBurstRaf = 0;
+            return;
+        }
+        __warzoneLifecycleRenderBurstRaf = requestAnimationFrame(step);
+    };
+    __warzoneLifecycleRenderBurstRaf = requestAnimationFrame(step);
+    return true;
+}
+function pauseWarzoneLifecycle(reason = "pause") {
+    if (__warzoneLifecyclePaused) return false;
+    __warzoneLifecyclePaused = true;
+    __warzoneLifecyclePausedAt = Date.now();
+    notifyWarzoneLifecycle("pause", { reason, pausedAt: __warzoneLifecyclePausedAt });
+    return true;
+}
+function resumeWarzoneLifecycle(reason = "resume") {
+    if (isDocumentHidden()) return false;
+    const wasPaused = __warzoneLifecyclePaused;
+    const pausedAt = __warzoneLifecyclePausedAt;
+    __warzoneLifecyclePaused = false;
+    __warzoneLifecyclePausedAt = 0;
+    const suspendedMs = pausedAt > 0 ? Math.max(0, Date.now() - pausedAt) : 0;
+    notifyWarzoneLifecycle("resume", { reason, suspendedMs, wasPaused });
+    requestWarzoneLifecycleRenderBurst(reason, wasPaused ? 1200 : 520);
+    return wasPaused;
+}
+function observeWarzoneLifecycleViewer(viewer = window.__warzoneViewer) {
+    const target = getWarzoneLifecycleViewerElement(viewer);
+    if (!target || typeof ResizeObserver === "undefined") return false;
+    if (__warzoneLifecycleObservedElement === target && __warzoneLifecycleResizeObserver) return true;
+    if (__warzoneLifecycleResizeObserver) {
+        try {
+            __warzoneLifecycleResizeObserver.disconnect();
+        } catch { }
+    }
+    __warzoneLifecycleObservedElement = target;
+    __warzoneLifecycleResizeObserver = new ResizeObserver((entries) => {
+        const rect = entries?.[0]?.contentRect || target.getBoundingClientRect?.();
+        const zeroSized = !rect || rect.width <= 1 || rect.height <= 1;
+        if (zeroSized) {
+            __warzoneLifecycleZeroSizePaused = true;
+            pauseWarzoneLifecycle("viewer-zero-size");
+            return;
+        }
+        if (__warzoneLifecycleZeroSizePaused) {
+            __warzoneLifecycleZeroSizePaused = false;
+            resumeWarzoneLifecycle("viewer-resized");
+            return;
+        }
+        if (!isDocumentHidden()) {
+            requestWarzoneLifecycleRenderBurst("viewer-resized", 240);
+        }
+    });
+    __warzoneLifecycleResizeObserver.observe(target);
+    return true;
+}
+function installWarzoneLifecycleApi() {
+    if (window.__warzoneLifecycle?.__stratopsLifecycleApi) return;
+    window.__warzoneLifecycle = {
+        __stratopsLifecycleApi: true,
+        register(name, callbacks = {}) {
+            if (!name) return () => { };
+            const key = String(name);
+            __warzoneLifecycleCallbacks.set(key, callbacks);
+            return () => __warzoneLifecycleCallbacks.delete(key);
+        },
+        pause: pauseWarzoneLifecycle,
+        resume: resumeWarzoneLifecycle,
+        requestRenderBurst: requestWarzoneLifecycleRenderBurst,
+        observeViewer: observeWarzoneLifecycleViewer,
+        getState() {
+            return {
+                paused: __warzoneLifecyclePaused,
+                pausedAt: __warzoneLifecyclePausedAt,
+                zeroSizePaused: __warzoneLifecycleZeroSizePaused,
+                observerBound: Boolean(__warzoneLifecycleResizeObserver),
+            };
+        },
+    };
 }
 function isStrictAisMilitaryNavalEvent(event = {}) {
     const metadata = getEventMetadata(event);
@@ -6409,26 +6534,32 @@ export async function initWarzoneApp() {
     syncIdleSceneState();
     syncAircraftLivePipelines();
     window.__warzoneRequestFastForegroundAircraftRecovery = requestFastForegroundAircraftRecovery;
+    installWarzoneLifecycleApi();
+    bindLiveTrackLifecycleRecovery();
+    observeWarzoneLifecycleViewer(window.__warzoneViewer);
     if (!__visibilityRecoveryBound) {
         __visibilityRecoveryBound = true;
         const onForeground = () => {
             if (isDocumentHidden()) return;
+            window.__warzoneLifecycle?.observeViewer?.(window.__warzoneViewer);
             const now = Date.now();
             const backgroundIdleMs = __lastBackgroundAt > 0
                 ? Math.max(0, now - __lastBackgroundAt)
                 : 0;
             const wasVisibilitySuspended = __visibilityPipelinesSuspended;
+            const lifecycleResumed = window.__warzoneLifecycle?.resume?.("document-foreground") === true;
             resumeForegroundLivePipelines({ backgroundIdleMs });
             if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
                 startForegroundRenderWakeBurst(650);
+                window.__warzoneLifecycle?.requestRenderBurst?.("foreground-throttle", 650);
                 window.__warzoneViewer?.scene?.requestRender?.();
                 return;
             }
             __lastForegroundRecoveryAt = now;
             __lastBackgroundAt = now;
             ++__foregroundRecoverySeq;
-            if (wasVisibilitySuspended) {
-                resumeLiveTrackMotionAfterVisibility();
+            if (wasVisibilitySuspended && !lifecycleResumed) {
+                resumeLiveTrackMotionAfterVisibility({ reason: "foreground-fallback", backgroundIdleMs });
             }
             // Keep foreground resume smooth: no forced loader, no heavy forced refresh burst.
             endForegroundRecoveryLoader({ force: true });
@@ -6463,6 +6594,7 @@ export async function initWarzoneApp() {
                 __lastBackgroundAt = Date.now();
                 __foregroundRecoverySeq += 1;
                 endForegroundRecoveryLoader({ force: true });
+                window.__warzoneLifecycle?.pause?.("document-hidden");
                 suspendBackgroundLivePipelines();
                 return;
             }
@@ -6470,6 +6602,17 @@ export async function initWarzoneApp() {
         }, { passive: true });
         window.addEventListener("focus", onForeground, { passive: true });
         window.addEventListener("pageshow", onForeground, { passive: true });
+        window.addEventListener("pagehide", () => {
+            __lastBackgroundAt = Date.now();
+            window.__warzoneLifecycle?.pause?.("pagehide");
+            suspendBackgroundLivePipelines();
+        }, { passive: true });
+        window.addEventListener("resize", () => {
+            window.__warzoneLifecycle?.observeViewer?.(window.__warzoneViewer);
+            if (!isDocumentHidden()) {
+                window.__warzoneLifecycle?.requestRenderBurst?.("window-resize", 360);
+            }
+        }, { passive: true });
     }
     if (isLayerEnabled("aircraft")) {
         setWidgetLoading("aircraft", true);
@@ -8120,7 +8263,7 @@ export function initGlobeRotation(viewer) {
         const button = document.getElementById("wz-globe-rotate-btn");
         if (!cfg || !icon || !button) return;
         const isPaused = cfg.paused !== false;
-        icon.textContent = isPaused ? "▶" : "⏸";
+       icon.innerHTML = isPaused ? "<span class='stratops-ico-next-1'></span>" : "<span class='stratops-ico-close-1'></span>";
         const label = isPaused ? "Start globe rotation" : "Pause globe rotation";
         button.title = label;
         button.setAttribute("aria-label", label);
@@ -8149,8 +8292,8 @@ export function initGlobeRotation(viewer) {
         const b = document.createElement("button");
         b.id = "wz-globe-rotate-btn";
         b.type = "button";
-        b.className = "wz-globe-rotate-btn";
-        b.innerHTML = "<span id='wz-rotate-icon'>▶</span>";
+        b.className = "static-icon";
+        b.innerHTML = "<span id='wz-rotate-icon'><span class='stratops-ico-next-1'></span></span>";
         b.addEventListener("click", () => {
             const cfg = window.__globeRotation;
             if (!cfg) return;

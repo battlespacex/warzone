@@ -1658,20 +1658,24 @@ function updateLabelsLayerVisibility(viewer) {
     const terrainVisible = viewer.__terrainVisible !== false && !contourReady;
     const zoomVisible = shouldShowCityLabelsAtCurrentZoom(viewer);
     const countryLabelsEnabled = boolVar("--warzone-country-labels-enabled", false);
+    const detailedLabelsEnabled = boolVar("--warzone-places-layer-enabled", false);
     viewer.__labelsVisibleByZoom = zoomVisible;
     const hasDetailedPlaceLayer = !!viewer.__imageryLabels;
     if (viewer.__imageryLabels) {
-        viewer.__imageryLabels.show = terrainVisible && zoomVisible;
+        viewer.__imageryLabels.show = detailedLabelsEnabled && terrainVisible && zoomVisible;
     }
     if (viewer.__countryLabelDataSource) {
         viewer.__countryLabelDataSource.show =
-            countryLabelsEnabled && terrainVisible && (!hasDetailedPlaceLayer || !zoomVisible);
+            countryLabelsEnabled
+            && terrainVisible
+            && (!hasDetailedPlaceLayer || !zoomVisible);
     }
 }
 function applyRenderedTerrainVisibility(viewer) {
     if (!viewer) return;
     const greyedSatellite = viewer.__warzoneGreyedSatelliteVisible === true;
-    const show = viewer.__satelliteVisible !== false && viewer.__terrainVisible !== false;
+    const show = viewer.__satelliteVisible !== false
+        && viewer.__terrainVisible !== false;
     if (viewer.__imageryBase) {
         viewer.__imageryBase.show = show;
         if (greyedSatellite) {
@@ -2464,6 +2468,35 @@ async function addArcGisLayers(viewer) {
     updateLabelsLayerVisibility(viewer);
     return { baseLayer, labelsLayer };
 }
+
+function setContourGridLayerVisible(viewer, visible) {
+    const show = !!visible;
+    viewer.__contourGridLayerVisible = show;
+    if (show) retainContourDemCache();
+    document.documentElement.style.setProperty("--warzone-contour-grid-enabled", show ? "1" : "0");
+    const state = getContourOverlayState(viewer);
+    if (show) {
+        const center = Number.isFinite(state?.gridCenterLon) && Number.isFinite(state?.gridCenterLat)
+            ? { lon: state.gridCenterLon, lat: state.gridCenterLat }
+            : getContourFallbackCenter(viewer);
+        ensureContourGridPrimitive(viewer, center, { force: true });
+    } else if (state?.gridPrimitive) {
+        state.gridPrimitive.show = false;
+    }
+    if (viewer.__contourLayerVisible === true) {
+        if (state) state.buildToken += 1;
+        void buildContourOverlay(viewer, {
+            force: true,
+            reason: "contour-grid-toggle",
+        });
+    } else if (!show) {
+        clearContourOverlay(viewer);
+        scheduleContourDemCacheRelease(viewer);
+    }
+    viewer.scene?.requestRender?.();
+    return show;
+}
+
 function updateMapCredits() {
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!creditsEl) return;
@@ -2509,6 +2542,9 @@ function getContourOverlayState(viewer) {
             lastBuiltLat: Number.NaN,
             lastBuiltAt: 0,
             hasVisibleContours: false,
+            gridPrimitive: null,
+            gridCenterLon: Number.NaN,
+            gridCenterLat: Number.NaN,
         };
     }
     return viewer.__contourOverlayState;
@@ -2527,6 +2563,9 @@ function applyContourLayerState(viewer) {
     const show = viewer?.__contourLayerVisible === true;
     if (state?.dataSource) {
         state.dataSource.show = show;
+    }
+    if (state?.gridPrimitive) {
+        state.gridPrimitive.show = viewer?.__contourGridLayerVisible === true;
     }
 }
 function clearContourOverlay(viewer) {
@@ -3250,45 +3289,95 @@ function getContourLevels(minHeight, maxHeight, area = null) {
     }
     return levels;
 }
-function addContourGridBase(dataSource, area, heightOffset = 70) {
-    if (!dataSource?.entities || !area || boolVar("--warzone-contour-grid-enabled", true) !== true) return 0;
+function destroyContourGridPrimitive(viewer) {
+    const state = getContourOverlayState(viewer);
+    const primitive = state?.gridPrimitive;
+    if (!primitive) return;
+    try {
+        viewer?.scene?.primitives?.remove?.(primitive);
+    } catch { }
+    state.gridPrimitive = null;
+}
+function updateContourGridPrimitiveCenter(viewer, position = null) {
+    const state = getContourOverlayState(viewer);
+    const primitive = state?.gridPrimitive;
+    const lon = Number(position?.lon ?? state?.gridCenterLon ?? state?.centerLon);
+    const lat = Number(position?.lat ?? state?.gridCenterLat ?? state?.centerLat);
+    if (!primitive || !Number.isFinite(lon) || !Number.isFinite(lat)) return false;
+    state.gridCenterLon = lon;
+    state.gridCenterLat = lat;
+    const heightOffset = Math.max(8, numberVar("--warzone-contour-grid-height-offset", 70));
+    primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
+        Cesium.Cartesian3.fromDegrees(lon, lat, heightOffset)
+    );
+    primitive.show = viewer.__contourGridLayerVisible === true;
+    viewer.scene?.requestRender?.();
+    return true;
+}
+function ensureContourGridPrimitive(viewer, center = null, options = {}) {
+    if (!viewer?.scene?.primitives || boolVar("--warzone-contour-grid-enabled", true) !== true) return 0;
+    const state = getContourOverlayState(viewer);
+    if (!state) return 0;
+    if (options.force === true) destroyContourGridPrimitive(viewer);
+    if (state.gridPrimitive) {
+        updateContourGridPrimitiveCenter(viewer, center);
+        return Number(state.gridPrimitive.length || 0);
+    }
     const rows = Math.max(3, Math.min(18, Math.round(numberVar("--warzone-contour-grid-rows", 10))));
     const cols = Math.max(3, Math.min(18, Math.round(numberVar("--warzone-contour-grid-cols", 10))));
-    const color = colorFromCssVar("--warzone-contour-grid-color", "#18f4ff", 1);
-    const alpha = clamp01(numberVar("--warzone-contour-grid-alpha", 0.16));
-    const majorAlpha = clamp01(numberVar("--warzone-contour-grid-major-alpha", 0.24));
-    const width = Math.max(0.35, Math.min(2, numberVar("--warzone-contour-grid-width", 0.62)));
+    const gridColorVar = "--warzone-contour-grid-color";
+    const gridAlphaVar = "--warzone-contour-grid-alpha";
+    const gridMajorAlphaVar = "--warzone-contour-grid-major-alpha";
+    const gridWidthVar = "--warzone-contour-grid-width";
+    const color = colorFromCssVar(gridColorVar, "#18f4ff", 1);
+    const alpha = clamp01(numberVar(gridAlphaVar, 0.16));
+    const majorAlpha = clamp01(numberVar(gridMajorAlphaVar, 0.24));
+    const width = Math.max(0.35, Math.min(2.4, numberVar(gridWidthVar, 0.62)));
     const majorEvery = Math.max(2, Math.round(numberVar("--warzone-contour-grid-major-every", 4)));
-    const addLine = (id, points, major = false) => {
-        dataSource.entities.add({
-            id,
-            polyline: {
-                positions: points.map((point) => Cesium.Cartesian3.fromDegrees(point.lon, point.lat, heightOffset)),
+    const radius = Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000)));
+    const fadeStart = Math.max(0, Math.min(radius - 500, numberVar("--warzone-contour-grid-fade-start", 24000)));
+    const segments = Math.max(6, Math.min(18, Math.round(numberVar("--warzone-contour-grid-fade-segments", 10))));
+    const collection = new Cesium.PolylineCollection();
+    const addSegmentedLine = (fixedOffset, horizontal, major = false) => {
+        const halfLength = Math.sqrt(Math.max(0, (radius * radius) - (fixedOffset * fixedOffset)));
+        if (halfLength <= 1) return;
+        const baseAlpha = major ? majorAlpha : alpha;
+        for (let segment = 0; segment < segments; segment += 1) {
+            const start = lerp(-halfLength, halfLength, segment / segments);
+            const end = lerp(-halfLength, halfLength, (segment + 1) / segments);
+            const midpoint = (start + end) * 0.5;
+            const distance = Math.hypot(fixedOffset, midpoint);
+            const fadeT = distance <= fadeStart
+                ? 0
+                : (distance - fadeStart) / Math.max(1, radius - fadeStart);
+            const fade = Math.max(0, 1 - smoothContourFade(fadeT));
+            if (fade <= 0.015) continue;
+            const startPosition = horizontal
+                ? new Cesium.Cartesian3(start, fixedOffset, 0)
+                : new Cesium.Cartesian3(fixedOffset, start, 0);
+            const endPosition = horizontal
+                ? new Cesium.Cartesian3(end, fixedOffset, 0)
+                : new Cesium.Cartesian3(fixedOffset, end, 0);
+            collection.add({
+                positions: [startPosition, endPosition],
                 width: major ? width * 1.35 : width,
-                clampToGround: false,
-                arcType: Cesium.ArcType.GEODESIC,
-                material: color.withAlpha(major ? majorAlpha : alpha),
-            },
-        });
+                material: Cesium.Material.fromType("Color", {
+                    color: color.withAlpha(baseAlpha * fade),
+                }),
+            });
+        }
     };
-    let count = 0;
     for (let row = 0; row <= rows; row += 1) {
-        const lat = lerp(area.minLat, area.maxLat, row / rows);
-        addLine(`contour-grid-row-${row}`, [
-            { lon: area.minLon, lat },
-            { lon: area.maxLon, lat },
-        ], row % majorEvery === 0);
-        count += 1;
+        const y = lerp(-radius, radius, row / rows);
+        addSegmentedLine(y, true, row % majorEvery === 0);
     }
     for (let col = 0; col <= cols; col += 1) {
-        const lon = lerp(area.minLon, area.maxLon, col / cols);
-        addLine(`contour-grid-col-${col}`, [
-            { lon, lat: area.minLat },
-            { lon, lat: area.maxLat },
-        ], col % majorEvery === 0);
-        count += 1;
+        const x = lerp(-radius, radius, col / cols);
+        addSegmentedLine(x, false, col % majorEvery === 0);
     }
-    return count;
+    state.gridPrimitive = viewer.scene.primitives.add(collection);
+    updateContourGridPrimitiveCenter(viewer, center);
+    return Number(collection.length || 0);
 }
 function smoothContourPolyline(points = [], passes = 1) {
     if (!Array.isArray(points) || points.length < 3) return Array.isArray(points) ? points.slice() : [];
@@ -3462,12 +3551,15 @@ async function buildContourOverlay(viewer, options = {}) {
         const terrainProvider = state.terrainProvider || null;
         const area = state.hasFocusPosition === true
             ? getContourCenteredBuildArea(centerLon, centerLat)
-            : clampContourBuildArea(getContourViewportBuildArea(viewer, {
+            : clampContourBuildArea(getContourViewportBuildArea(
+                viewer,
                 centerLon,
                 centerLat,
-                centerHeight: state.centerHeight,
-                clamp: false,
-            }));
+                {
+                    centerHeight: state.centerHeight,
+                    clamp: false,
+                }
+            ));
         const gridDimensions = getContourGridDimensions(area);
         const grid = [];
         const samplePositions = [];
@@ -3482,15 +3574,19 @@ async function buildContourOverlay(viewer, options = {}) {
             }
             grid.push(rowPoints);
         }
-        const color = colorFromCssVar("--warzone-live-aircraft-contour-color", "#18e2db", 1);
+        const contourColorVar = "--warzone-live-aircraft-contour-color";
+        const contourLineWidthVar = "--warzone-contour-line-width";
+        const contourHaloAlphaVar = "--warzone-contour-halo-alpha";
+        const contourHaloWidthVar = "--warzone-contour-halo-width";
+        const color = colorFromCssVar(contourColorVar, "#18e2db", 1);
         const baseAlpha = clamp01(numberVar("--warzone-live-aircraft-contour-alpha", 0.34));
         const minAlpha = clamp01(numberVar("--warzone-live-aircraft-contour-min-alpha", 0.012));
-        const lineWidth = Math.max(0.55, numberVar("--warzone-contour-line-width", 1.35));
-        const haloAlpha = Math.max(0.02, clamp01(numberVar("--warzone-contour-halo-alpha", 0.16)));
+        const lineWidth = Math.max(0.55, numberVar(contourLineWidthVar, 1.35));
+        const haloAlpha = Math.max(0.02, clamp01(numberVar(contourHaloAlphaVar, 0.16)));
         const majorEvery = Math.max(2, Math.round(numberVar("--warzone-live-aircraft-contour-major-every", 5)));
         const majorWidthScale = Math.max(1, numberVar("--warzone-live-aircraft-contour-major-width-scale", 1.65));
         const elevationWidthScale = Math.max(0, numberVar("--warzone-contour-elevation-width-scale", 0.28));
-        const haloWidth = Math.max(0, numberVar("--warzone-contour-halo-width", 4.6));
+        const haloWidth = Math.max(0, numberVar(contourHaloWidthVar, 4.6));
         const heightOffset = Math.max(8, numberVar("--warzone-contour-height-offset", 95));
         const smoothingPasses = Math.max(0, Math.min(3, Math.round(numberVar("--warzone-contour-smoothing-passes", 2))));
         const maxLines = Math.max(120, Math.min(700, Math.round(numberVar("--warzone-contour-max-lines", 520))));
@@ -3499,11 +3595,17 @@ async function buildContourOverlay(viewer, options = {}) {
             clearTimeout(state.clearTimer);
             state.clearTimer = 0;
         }
-        dataSource.entities.removeAll();
-        const gridLineCount = gridVisible ? addContourGridBase(dataSource, area, Math.max(24, heightOffset * 0.55)) : 0;
+        const gridLineCount = gridVisible
+            ? ensureContourGridPrimitive(viewer, {
+                lon: Number.isFinite(state.gridCenterLon) ? state.gridCenterLon : centerLon,
+                lat: Number.isFinite(state.gridCenterLat) ? state.gridCenterLat : centerLat,
+            })
+            : 0;
+        if (state.gridPrimitive) state.gridPrimitive.show = gridVisible;
         if (!contourVisible) {
-            dataSource.show = gridLineCount > 0;
-            state.hasVisibleContours = gridLineCount > 0;
+            dataSource.entities.removeAll();
+            dataSource.show = false;
+            state.hasVisibleContours = false;
             state.lastBuiltLon = centerLon;
             state.lastBuiltLat = centerLat;
             state.lastBuiltAt = Date.now();
@@ -3528,33 +3630,24 @@ async function buildContourOverlay(viewer, options = {}) {
             });
         });
         if (!hasRealSamples) {
-            dataSource.show = gridLineCount > 0;
-            state.hasVisibleContours = gridLineCount > 0;
-            state.lastBuiltLon = centerLon;
-            state.lastBuiltLat = centerLat;
-            state.lastBuiltAt = Date.now();
             applyRenderedTerrainVisibility(viewer);
             viewer.scene.requestRender?.();
-            return gridLineCount > 0;
+            return gridLineCount > 0 || state.hasVisibleContours === true;
         }
         smoothContourGridHeights(grid, numberVar("--warzone-contour-height-smoothing-passes", 3));
         let { minHeight, maxHeight } = getContourGridHeightRange(grid);
         let levels = getContourLevels(minHeight, maxHeight, area);
         if (!levels.length) {
-            dataSource.show = gridLineCount > 0;
-            state.hasVisibleContours = gridLineCount > 0;
-            state.lastBuiltLon = centerLon;
-            state.lastBuiltLat = centerLat;
-            state.lastBuiltAt = Date.now();
             applyRenderedTerrainVisibility(viewer);
             viewer.scene.requestRender?.();
-            return gridLineCount > 0;
+            return gridLineCount > 0 || state.hasVisibleContours === true;
         }
         const { strongRadius, outerRadius } = getContourOverlayRadii();
         const contourStrongRadius = Math.max(strongRadius, Number(area?.halfDiagonalMeters || 0));
         const contourOuterRadius = Math.max(outerRadius, contourStrongRadius + 1000);
         const reliefRange = Math.max(1, maxHeight - minHeight);
         let lineCount = 0;
+        const pendingContourEntities = [];
         levels.forEach((level, levelIndex) => {
             if (lineCount >= maxLines) return;
             const segments = buildContourSegments(grid, level);
@@ -3581,7 +3674,7 @@ async function buildContourOverlay(viewer, options = {}) {
                     Math.max(heightOffset, point.height + heightOffset)
                 ));
                 if (haloWidth > 0) {
-                    dataSource.entities.add({
+                    pendingContourEntities.push({
                         id: `contour-halo-${Math.round(level)}-${chainIndex}`,
                         polyline: {
                             positions,
@@ -3605,7 +3698,7 @@ async function buildContourOverlay(viewer, options = {}) {
                     taperPower: state.hasFocusPosition === true ? 0.82 : 0.68,
                     color: color.withAlpha(chainAlpha),
                 });
-                dataSource.entities.add({
+                pendingContourEntities.push({
                     id: `contour-${Math.round(level)}-${chainIndex}`,
                     polyline: {
                         positions,
@@ -3620,14 +3713,14 @@ async function buildContourOverlay(viewer, options = {}) {
         });
         if (!isContourBuildCurrent(viewer, state, buildToken)) return false;
         if (lineCount <= 0 && gridLineCount <= 0) {
-            dataSource.show = false;
-            state.hasVisibleContours = false;
             applyRenderedTerrainVisibility(viewer);
             viewer.scene.requestRender?.();
-            return false;
+            return state.hasVisibleContours === true;
         }
-        state.hasVisibleContours = true;
-        dataSource.show = true;
+        dataSource.entities.removeAll();
+        pendingContourEntities.forEach((entityDefinition) => dataSource.entities.add(entityDefinition));
+        state.hasVisibleContours = lineCount > 0;
+        dataSource.show = lineCount > 0;
         state.lastBuiltLon = centerLon;
         state.lastBuiltLat = centerLat;
         state.lastBuiltAt = Date.now();
@@ -3692,6 +3785,7 @@ function setContourFocusPosition(viewer, position = null, options = {}) {
     state.centerLat = lat;
     state.centerHeight = Number.isFinite(height) ? height : 0;
     state.hasFocusPosition = true;
+    setContourGridCenter(viewer, { lon, lat, height: state.centerHeight });
     state.buildToken += 1;
     if (viewer.__contourLayerVisible === true) {
         queueContourOverlayBuild(viewer, {
@@ -3713,16 +3807,47 @@ function clearContourFocusPosition(viewer) {
     state.centerLat = Number.NaN;
     state.centerHeight = 0;
     state.hasFocusPosition = false;
+    state.gridCenterLon = Number.NaN;
+    state.gridCenterLat = Number.NaN;
+    const fallbackCenter = getContourFallbackCenter(viewer);
+    if (fallbackCenter) setContourGridCenter(viewer, fallbackCenter);
     state.buildToken += 1;
     clearContourOverlayDeferred(viewer);
 }
+
+function setContourGridCenter(viewer, position = null) {
+    const state = getContourOverlayState(viewer);
+    if (!state) return false;
+    const lon = Number(position?.lon);
+    const lat = Number(position?.lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return false;
+    state.gridCenterLon = lon;
+    state.gridCenterLat = lat;
+    if (!state.gridPrimitive && viewer.__contourGridLayerVisible === true) {
+        ensureContourGridPrimitive(viewer, { lon, lat });
+        return !!state.gridPrimitive;
+    }
+    return updateContourGridPrimitiveCenter(viewer, { lon, lat });
+}
 function refreshContourFromViewport(viewer, options = {}) {
+    const state = getContourOverlayState(viewer);
     const center = getContourFallbackCenter(viewer);
-    if (!center) return false;
-    return setContourFocusPosition(viewer, center, {
-        force: options.force === true,
-        reason: options.reason || "viewport-contour-refresh",
-    });
+    if (!state || !center) return false;
+    state.centerLon = center.lon;
+    state.centerLat = center.lat;
+    state.centerHeight = Number.isFinite(center.height) ? center.height : 0;
+    state.hasFocusPosition = false;
+    setContourGridCenter(viewer, center);
+    state.buildToken += 1;
+    if (viewer.__contourLayerVisible === true) {
+        queueContourOverlayBuild(viewer, {
+            force: options.force === true,
+            reason: options.reason || "viewport-contour-refresh",
+            delayMs: options.delayMs || 120,
+        });
+    }
+    viewer.scene?.requestRender?.();
+    return true;
 }
 function bindContourViewportRefresh(viewer) {
     if (!viewer?.camera || viewer.__warzoneContourViewportRefreshBound) return;
@@ -3730,10 +3855,14 @@ function bindContourViewportRefresh(viewer) {
     let refreshTimer = 0;
     const queueRefresh = (delayMs = 260) => {
         if (viewer.__contourLayerVisible !== true) return;
+        const contourState = getContourOverlayState(viewer);
+        if (contourState?.hasFocusPosition === true) return;
         if (refreshTimer) clearTimeout(refreshTimer);
         refreshTimer = window.setTimeout(() => {
             refreshTimer = 0;
             if (viewer.__contourLayerVisible !== true) return;
+            const activeContourState = getContourOverlayState(viewer);
+            if (activeContourState?.hasFocusPosition === true) return;
             refreshContourFromViewport(viewer, {
                 force: false,
                 reason: "camera-move-contour-refresh",
@@ -4834,12 +4963,14 @@ export async function initWarzoneGlobe() {
     attachLabelsZoomController(viewer);
     bindEventMarkerPicking(viewer);
     viewer.scene.requestRender();
-    addArcGisLayers(viewer)
+    viewer.__warzoneImageryReadyPromise = addArcGisLayers(viewer)
         .then(() => {
             viewer.scene.requestRender();
+            return true;
         })
         .catch((error) => {
             console.warn("ArcGIS imagery provider failed; continuing without ion imagery fallback:", error);
+            return false;
         });
     if (boolVar("--warzone-country-labels-enabled", false)) {
         addCountryNameLabels(viewer)
@@ -4965,26 +5096,13 @@ export async function initWarzoneGlobe() {
             return viewer.__warzoneGreyedSatelliteVisible === true;
         },
         setContourGridVisible(visible) {
-            const show = !!visible;
-            viewer.__contourGridLayerVisible = show;
-            if (show) retainContourDemCache();
-            document.documentElement.style.setProperty("--warzone-contour-grid-enabled", show ? "1" : "0");
-            const state = getContourOverlayState(viewer);
-            if (state) state.buildToken += 1;
-            if (viewer.__contourLayerVisible === true || show) {
-                void buildContourOverlay(viewer, {
-                    force: true,
-                    reason: "dev-grid-toggle",
-                });
-            } else {
-                clearContourOverlay(viewer);
-                scheduleContourDemCacheRelease(viewer);
-            }
-            viewer.scene?.requestRender?.();
-            return show;
+            return setContourGridLayerVisible(viewer, visible);
         },
         isContourGridVisible() {
             return viewer.__contourGridLayerVisible === true;
+        },
+        setContourGridCenter(position) {
+            return setContourGridCenter(viewer, position);
         },
         enableFocusedTerrain() {
             return enableFocusedTerrain(viewer);
