@@ -1,41 +1,41 @@
 // apps/worker/src/status-supabase-writer.js
 
 import { supabase } from "./supabase.js";
+import {
+  cleanDisplayText,
+  cleanTitle,
+  normalizeSourceName,
+  safeDate
+} from "./intelligence-normalizer.js";
 
-function safeDate(value) {
-  if (!value) return null;
-
-  const cleaned = String(value)
-    .replace(" - ", " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const parsed = new Date(cleaned);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed.toISOString();
+function normalizeStatusSeverity(value = "") {
+  const severity = String(value || "").trim().toLowerCase();
+  return ["critical", "high", "medium", "low", "normal", "elevated"].includes(severity)
+    ? severity
+    : "normal";
 }
 
 function prepareStatusItemForDb(item = {}) {
+  const title = cleanTitle(item.title);
+  const summary = cleanDisplayText(item.summary, 1200);
+
   return {
     source_id: item.source_id || null,
-    source_name: item.source_name || "Unknown Source",
+    source_name: normalizeSourceName(item.source_name) || null,
     source_type: item.source_type || null,
     source_category: item.source_category || null,
-    title: item.title || "Untitled",
-    summary: item.summary || null,
+    title,
+    summary: summary || null,
     url: item.url || null,
     guid: item.guid || null,
     published_at: safeDate(item.published_at),
     fetched_at: safeDate(item.fetched_at) || new Date().toISOString(),
-    region: item.region || null,
-    country: item.country || null,
+    region: cleanDisplayText(item.region, 80) || null,
+    country: cleanDisplayText(item.country, 80) || null,
     lat: item.lat ?? null,
     lon: item.lon ?? null,
-    severity: item.severity || "unknown",
-    category: item.category || "general",
+    severity: normalizeStatusSeverity(item.severity),
+    category: cleanDisplayText(item.category, 80) || "general",
     confidence_score: Number(item.confidence_score || 0) || 0,
     is_status_relevant: item.is_status_relevant === true,
     raw: item.raw || item
@@ -87,8 +87,8 @@ async function runUpsert(cleanItems = [], onConflict = "guid") {
 
 async function upsertStatusFeedItems(items = []) {
   const cleanItems = (Array.isArray(items) ? items : [])
-    .filter((item) => item.title && (item.guid || item.url))
-    .map(prepareStatusItemForDb);
+    .map(prepareStatusItemForDb)
+    .filter((item) => item.title && (item.guid || item.url));
 
   if (!cleanItems.length) {
     return {
@@ -181,5 +181,6 @@ async function markStatusFeedItemsIrrelevant(items = []) {
 export {
   safeDate,
   markStatusFeedItemsIrrelevant,
+  prepareStatusItemForDb,
   upsertStatusFeedItems
 };

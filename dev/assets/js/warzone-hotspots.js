@@ -24,6 +24,10 @@ function sanitizeText(v) {
     t = t.replace(/\s+/g, " ").trim();
     return t;
 }
+function isUnknownDisplayValue(v) {
+    const clean = sanitizeText(v).toLowerCase();
+    return !clean || /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/.test(clean);
+}
 function escapeHtml(value = "") {
     return String(value ?? "")
         .replace(/&/g, "&amp;")
@@ -182,7 +186,7 @@ function looksUsefulText(v) {
 }
 function cleanSourceName(v) {
     const clean = sanitizeText(v);
-    if (!clean) return "OSINT Feed";
+    if (isUnknownDisplayValue(clean)) return "";
     const s = clean.toLowerCase();
     if (/reddit/i.test(clean)) return "Community Report";
     if (/twitter|x\.com/i.test(clean)) return "Social Feed";
@@ -226,7 +230,7 @@ function label(input) {
     return getPlatformCategoryLabel(input, {
         surface: "hotspot",
         uppercase: true,
-        fallback: "UNKNOWN ACTIVITY",
+        fallback: "ACTIVITY",
     });
 }
 function categoryDataValue(input) {
@@ -387,6 +391,7 @@ function latestEvt(items) {
 function buildFallbackHeadline(e = {}) {
     const cat = label(e.category);
     const place = compactPlaceLabel(
+        e.display_location_label ||
         e.location_label ||
         e.impact_label ||
         e.origin_label ||
@@ -411,8 +416,10 @@ function buildFallbackHeadline(e = {}) {
 const HOTSPOT_HEADLINE_MAX_CHARS = 220;
 function eventHeadline(e = {}) {
     const candidates = [
+        e.display_title,
         e.title,
         e.summary,
+        e.display_summary,
         e.description,
         e.text,
         e.message,
@@ -438,13 +445,14 @@ function eventHeadline(e = {}) {
 }
 function eventSubline(e = {}) {
     const place = compactPlaceLabel(
+        e.display_location_label ||
         e.location_label ||
         e.impact_label ||
         e.origin_label ||
         e.place ||
         ""
     );
-    const source = cleanSourceName(e.source_name || e.source || "");
+    const source = cleanSourceName(e.display_source_name || e.source_name || e.source || "");
     const bits = [place, source].filter(Boolean);
     return bits.join(" • ");
 }
@@ -460,6 +468,7 @@ function makeDisplayDuplicateKey(e = {}) {
     const source = sanitizeText(e.source_name || e.source || "").toLowerCase();
     const category = sanitizeText(e.category || "").toLowerCase();
     const place = compactPlaceLabel(
+        e.display_location_label ||
         e.location_label ||
         e.impact_label ||
         e.origin_label ||
@@ -727,12 +736,12 @@ function stackVisible(clusters, overlapPx, maxPer) {
 function buildExpandedHTML(cluster) {
     const items = dedupeDisplayItems(cluster?.items || []);
     if (!items.length) {
-        return `<div class="wzhs-item wzhs-item--headline"><strong class="wzhs-item__title">No active headlines available</strong></div>`;
+        return `<div class="wzhs-item wzhs-item--headline"><strong class="wzhs-item__title">No current headlines</strong></div>`;
     }
     return items.map((e) => {
         const title = sanitizeText(e.__displayTitle || eventHeadline(e));
-        const severityClass = getPlatformSeverityClass(e.severity || "");
-        const severityLabel = sanitizeText(getPlatformSeverityLabel(e.severity, "Unknown"));
+        const severityClass = getPlatformSeverityClass(e.severity || "medium");
+        const severityLabel = sanitizeText(getPlatformSeverityLabel(e.severity, "Medium"));
         const subline = sanitizeText(e.__displaySubline || eventSubline(e));
         const itemTime = sanitizeText(timeAgo(e.occurred_at));
         return `<div class="wzhs-item wzhs-item--headline">
@@ -751,6 +760,7 @@ function createCardEl(cluster, onToggle) {
     btn.dataset.clusterId = cluster.id;
     function refreshContent(isExpanded) {
         const loc = compactPlaceLabel(
+            cluster.latest?.display_location_label ||
             cluster.latest?.location_label ||
             cluster.latest?.impact_label ||
             cluster.latest?.origin_label ||

@@ -63,6 +63,13 @@ import { runAisWorker } from "./ais-worker.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
+import { readCopernicusConfig } from "./copernicus-config.js";
+import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from "./copernicus-runner.js";
+import {
+    cleanDisplayText,
+    normalizeEventRowForStorage,
+    normalizeSourceName
+} from "./intelligence-normalizer.js";
 async function getSourceConfig(sourceName) {
     if (!sourceName) return null;
     const { data, error } = await supabase
@@ -78,7 +85,7 @@ function buildSourceRegistryRows(feeds = []) {
         .filter((feed) => feed && (feed.source_name || feed.name))
         .map((feed) => ({
             source_key: sanitizeTag(feed.source_name || feed.name || ""),
-            source_name: feed.source_name || feed.name || "Unknown source",
+            source_name: normalizeSourceName(feed.source_name || feed.name) || "Worker Feed",
             source_type: feed.type || feed.parser || "feed",
             enabled: feed.enabled !== false,
             trust_score: Number.isFinite(Number(feed.trust_score)) ? Number(feed.trust_score) : 50,
@@ -119,6 +126,7 @@ const sources = JSON.parse(interpolateEnvPlaceholders(rawSources));
 let isWorkerRunning = false;
 let isConflictFeedRunning = false;
 let isStatusFeedRunning = false;
+let isCopernicusRunning = false;
 const DEFAULT_CONFLICT_FEED_INTERVAL_MS = 15 * 60 * 1000;
 const MIN_CONFLICT_FEED_INTERVAL_MS = 60 * 1000;
 const DEFAULT_STATUS_FEED_INTERVAL_MS = 15 * 60 * 1000;
@@ -143,6 +151,8 @@ const STATUS_FEED_INTERVAL_MS = Math.max(
     readPositiveIntegerEnv(process.env.STATUS_FEED_INTERVAL_MS, DEFAULT_STATUS_FEED_INTERVAL_MS),
     MIN_STATUS_FEED_INTERVAL_MS
 );
+const COPERNICUS_CONFIG = readCopernicusConfig();
+const COPERNICUS_INTERVAL_MS = COPERNICUS_CONFIG.workerIntervalMs;
 /* ----------------------------------------
  * Telegram config
  * -------------------------------------- */
@@ -929,13 +939,14 @@ function deriveConfidence(event) {
 }
 // ── Source / location helpers ─────────────────────────────────────────────────
 function cleanSourceName(raw) {
-    if (!raw) return "Unknown";
+    const normalized = normalizeSourceName(raw);
+    if (!normalized) return "";
     let s = String(raw).trim();
     s = s.replace(/^https?:\/\/(www\.)?/i, "");
     s = s.replace(/\.(com|org|net|io|gov|mil)(\/.*)?$/i, "");
     s = s.replace(/^Telegram\s*\/\s*/i, "TG / ");
     s = s.replace(/^Reddit\s+/i, "r/");
-    return s.slice(0, 40).trim();
+    return s.slice(0, 40).trim() || normalized;
 }
 async function resolveRedditLocation(post) {
     const titleLocation = await resolveLocationFromText(post.title || "", { requireBBox: false });
@@ -1087,19 +1098,20 @@ function applyEscalation(existing, incoming) {
  * -------------------------------------- */
 async function insertEvent(event) {
     try {
+        const payload = normalizeEventRowForStorage(event);
+        if (!payload || !Number.isFinite(payload.lat) || !Number.isFinite(payload.lon)) return false;
         const rawItem = await saveRawItem({
-            source_name: event.source_name || "unknown",
+            source_name: payload.source_name || "Worker",
             source_type: "worker",
             parser: "main",
-            external_id: event.dedupe_key || null,
-            url: event.source_url || null,
-            title: event.title || "",
-            text: event.summary || "",
-            payload: event,
-            published_at: event.occurred_at || new Date().toISOString(),
-            location_hint: event.location_label || null
+            external_id: payload.dedupe_key || null,
+            url: payload.source_url || null,
+            title: payload.title || "",
+            text: payload.summary || "",
+            payload,
+            published_at: payload.occurred_at || new Date().toISOString(),
+            location_hint: payload.location_label || null
         });
-        let payload = { ...event };
         // FIX: ensure confidence is numeric
         if (typeof payload.confidence === "string") {
             const map = { low: 30, medium: 50, high: 80, verified: 95 };
@@ -1132,8 +1144,8 @@ async function insertEvent(event) {
                         {
                             event_id: insertedEvent.id,
                             raw_item_id: rawItem.id,
-                            source_name: event.source_name || "unknown",
-                            source_url: event.source_url || null,
+                            source_name: payload.source_name || null,
+                            source_url: payload.source_url || null,
                             created_at: new Date().toISOString(),
                         }
                     ]);
@@ -1142,7 +1154,7 @@ async function insertEvent(event) {
                 }
             }
         }
-        console.log("Event inserted:", event.title);
+        console.log("Event inserted:", payload.title);
         return true;
     } catch (err) {
         console.error("InsertEvent FAIL:", err);
@@ -1185,7 +1197,7 @@ function getNetworkAlertExpiry(event) {
 }
 async function upsertNetworkStatusAlert(event) {
     if (!event) return;
-    const region = event.location_label || "Unknown region";
+    const region = cleanDisplayText(event.location_label, 120) || "Network region";
     const scopeKey = event.country_code || sanitizeTag(region) || "unknown";
     const reportType = String(event.report_type || "network").toLowerCase();
     await upsertActiveAlert({
@@ -1216,12 +1228,12 @@ async function clearExpiredAlerts() {
 }
 async function upsertAirspaceStatus(status) {
     const payload = {
-        region: status.region || "Unknown",
+        region: cleanDisplayText(status.region, 120) || "Airspace region",
         country_code: status.country_code || "",
         status: status.status || "normal",
-        title: status.title || "Airspace status",
-        summary: status.summary || "",
-        source_name: status.source_name || "",
+        title: cleanDisplayText(status.title, 240) || "Airspace status",
+        summary: cleanDisplayText(status.summary, 1200) || "",
+        source_name: normalizeSourceName(status.source_name) || "",
         source_url: status.source_url || "",
         fir_code: status.fir_code || "",
         updated_at: new Date().toISOString(),
@@ -1390,6 +1402,7 @@ async function findOrCreateCluster(event) {
     return newCluster;
 }
 async function insertEventIfValid(event) {
+    event = normalizeEventRowForStorage(event);
     if (!event) return false;
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return false;
     if (!shouldPromoteToOperationalEvent(event)) return false;
@@ -1426,7 +1439,7 @@ async function insertEventIfValid(event) {
             await upsertActiveAlert({
                 alert_key: existing.id,
                 category: "escalation",
-                region: event.location_label || "unknown",
+                region: cleanDisplayText(event.location_label, 120) || "Event area",
                 title: existing.title || event.title,
                 summary: event.summary,
                 source_name: event.source_name,
@@ -1441,14 +1454,14 @@ async function insertEventIfValid(event) {
 }
 async function pruneStaleData() {
     const now = new Date();
-    // Events older than 7 days
-    const eventsCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    // Events older than 72 hours
+    const eventsCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
     const { error: eventsError } = await supabase
         .from("events")
         .delete()
         .lt("occurred_at", eventsCutoff);
     if (eventsError) console.error("Events prune error:", eventsError.message);
-    else console.log("[prune] Events older than 7 days removed");
+    else console.log("[prune] Events older than 72 hours removed");
     // Aircraft tracks older than 72 hours
     const aircraftCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
     const { error: aircraftError } = await supabase
@@ -1520,7 +1533,7 @@ function normalizeAcledEvent(item, feed) {
         occurred_at: normalizeOccurredAt(item.event_date),
         lat: Number(item.latitude),
         lon: Number(item.longitude),
-        location_label: [item.location, item.admin1, item.country].filter(Boolean).join(", ") || "Unknown location",
+        location_label: [item.location, item.admin1, item.country].filter(Boolean).join(", ") || null,
         confidence: 75,
         actor_side: "unknown",
         target_side: "unknown",
@@ -1582,7 +1595,7 @@ function normalizeUcdpEvent(item, feed) {
         lat,
         lon,
         location_label: [item.where_prec === 1 ? item.where_description : "", country]
-            .filter(Boolean).join(", ") || "Unknown location",
+            .filter(Boolean).join(", ") || null,
         confidence: 78,
         actor_side: actorSide,
         target_side: targetSide,
@@ -2135,7 +2148,7 @@ function normalizeEonetEvent(item, feed) {
         occurred_at: normalizeOccurredAt(geometry?.date),
         lat,
         lon,
-        location_label: item.title || "Unknown location",
+        location_label: item.title || null,
         confidence: 70,
         actor_side: "nature",
         target_side: "unknown",
@@ -2255,7 +2268,7 @@ function normalizeGdeltEvent(item, feed) {
         occurred_at: normalizeOccurredAt(item.seendate),
         lat,
         lon,
-        location_label: gdeltLabel || "Unknown location",
+        location_label: gdeltLabel || null,
         confidence: 40,
         actor_side: actorSide,
         target_side: "unknown",
@@ -2283,14 +2296,14 @@ function normalizeGdeltEvent(item, feed) {
 function buildSeedEvent(item, feed) {
     return {
         category: item.category || feed.category || "strike",
-        title: item.title || "Untitled event",
+        title: item.title || "Activity update",
         summary: item.summary || "",
-        source_name: item.source_name || feed.name || "Unknown source",
+        source_name: item.source_name || feed.name || null,
         source_url: item.source_url || feed.url,
         occurred_at: normalizeOccurredAt(item.occurred_at),
         lat: Number(item.lat),
         lon: Number(item.lon),
-        location_label: item.location_label || "Unknown location",
+        location_label: item.location_label || null,
         confidence: Number(item.confidence ?? 50),
         actor_side: item.actor_side || "unknown",
         target_side: item.target_side || "unknown",
@@ -2636,7 +2649,7 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         occurred_at: msg.date?.toISOString?.() || new Date().toISOString(),
         lat: Number(location.lat),
         lon: Number(location.lon),
-        location_label: location.label || "Unknown location",
+        location_label: location.label || null,
         confidence,
         actor_side: actorSide,
         target_side: "unknown",
@@ -2712,10 +2725,11 @@ async function processTelegramFeed(feed) {
                     }
                     const inserted = await insertEventIfValid(event);
                     if (inserted && event.category === "alert") {
+                        const alertRegion = cleanDisplayText(event.location_label, 120) || "Alert area";
                         await upsertActiveAlert({
-                            alert_key: `siren:${sanitizeTag(event.location_label || "unknown")}`,
+                            alert_key: `siren:${sanitizeTag(alertRegion)}`,
                             category: "alert",
-                            region: event.location_label || "Unknown region",
+                            region: alertRegion,
                             title: event.title,
                             summary: event.summary,
                             source_name: event.source_name,
@@ -2725,8 +2739,9 @@ async function processTelegramFeed(feed) {
                         });
                     }
                     if (inserted && event.category === "airspace") {
+                        const airspaceRegion = cleanDisplayText(event.location_label, 120) || "Airspace region";
                         await upsertAirspaceStatus({
-                            region: event.location_label || "Unknown region",
+                            region: airspaceRegion,
                             country_code: event.country_code || "",
                             status: "restricted",
                             title: event.title,
@@ -2787,7 +2802,7 @@ function getXPlaceLocation(place = null) {
         return {
             lat: (south + north) / 2,
             lon: (west + east) / 2,
-            label: place.full_name || place.name || place.country || "Unknown location"
+            label: place.full_name || place.name || place.country || null
         };
     }
     const label = [place.full_name, place.name, place.country].filter(Boolean).join(", ");
@@ -2828,14 +2843,14 @@ async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new 
         category,
         title,
         summary: normalizedText.slice(0, 1500),
-        source_name: cleanSourceName(`X / ${username || feed.name || "unknown"}`),
+        source_name: cleanSourceName(`X / ${username || feed.name || "feed"}`),
         source_url: username
             ? `https://x.com/${username}/status/${post.id}`
             : `https://x.com/i/web/status/${post.id}`,
         occurred_at: post?.created_at || new Date().toISOString(),
         lat: Number(location.lat),
         lon: Number(location.lon),
-        location_label: location.label || "Unknown location",
+        location_label: location.label || null,
         confidence,
         actor_side: actorSide,
         target_side: "unknown",
@@ -3056,21 +3071,23 @@ function normalizeUsgsEvent(feature, feed) {
     const lon = Number(coords[0]);
     const lat = Number(coords[1]);
     const mag = Number(feature?.properties?.mag);
-    const place = feature?.properties?.place || "Unknown location";
+    const place = cleanDisplayText(feature?.properties?.place, 160) || "";
+    const magLabel = Number.isFinite(mag) ? `M${mag.toFixed(1)}` : "";
+    const placePhrase = place ? ` near ${place}` : "";
     const time = feature?.properties?.time ? new Date(feature.properties.time).toISOString() : new Date().toISOString();
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
     if (!isWithinBBox(lat, lon)) return null;
     if (Number.isFinite(mag) && mag < 1.5) return null;
     return {
         category: feed.category || "signal",
-        title: `Seismic anomaly ${Number.isFinite(mag) ? `M${mag.toFixed(1)}` : ""} near ${place}`.trim(),
-        summary: `USGS seismic event detected near ${place}${Number.isFinite(mag) ? ` with magnitude ${mag.toFixed(1)}` : ""}.`,
+        title: `Seismic anomaly ${magLabel}${placePhrase}`.replace(/\s+/g, " ").trim(),
+        summary: `USGS seismic event detected${placePhrase}${Number.isFinite(mag) ? ` with magnitude ${mag.toFixed(1)}` : ""}.`,
         source_name: "USGS",
         source_url: feature?.properties?.url || feed.url,
         occurred_at: time,
         lat,
         lon,
-        location_label: place,
+        location_label: place || null,
         confidence: Number.isFinite(mag) ? Math.min(75, Math.max(30, Math.round(mag * 12))) : 35,
         actor_side: "unknown",
         target_side: "unknown",
@@ -3199,7 +3216,7 @@ async function processManualAlertsFeed(feed) {
     const alerts = Array.isArray(payload?.alerts) ? payload.alerts : [];
     for (const item of alerts) {
         if (String(item.status || "").toLowerCase() !== "active") continue;
-        const region = item.region || item.location_label || "Unknown region";
+        const region = cleanDisplayText(item.region || item.location_label, 120) || "Alert area";
         const alertKey = item.alert_key || `manual-alert:${sanitizeTag(region)}`;
         await upsertActiveAlert({
             alert_key: alertKey,
@@ -3691,7 +3708,7 @@ function mapCloudflareOutage(item) {
         ) || "Cloudflare Radar outage signal.",
         occurred_at: normalizeOccurredAt(startedAt),
         expires_at: endedAt ? normalizeOccurredAt(endedAt) : null,
-        location_label: locationLabel || "Unknown location",
+        location_label: locationLabel || null,
         severity,
         tags: uniqueTags(["cloudflare-radar", "internet-outage", scopeText]),
         dedupe_key: [
@@ -3737,7 +3754,7 @@ function mapIodaOutage(item) {
             ].filter(Boolean).join(". ")
         ) || "IODA outage signal.",
         occurred_at: normalizeOccurredAt(startedAt),
-        location_label: locationLabel || "Unknown location",
+        location_label: locationLabel || null,
         severity,
         tags: uniqueTags(["ioda", "internet-outage", valueText]),
         dedupe_key: [
@@ -3787,7 +3804,7 @@ function mapOoniObservation(item) {
             ].filter(Boolean).join(". ")
         ),
         occurred_at: normalizeOccurredAt(item.measurement_start_time || item.created_at || item.timestamp || new Date().toISOString()),
-        location_label: locationLabel || "Unknown location",
+        location_label: locationLabel || null,
         severity,
         tags: uniqueTags(["ooni", "blocking", "censorship", item.test_name || ""]),
         dedupe_key: [
@@ -3819,7 +3836,7 @@ async function finalizeNetworkEvent(baseEvent, feed, extra = {}) {
         occurred_at: normalizeOccurredAt(baseEvent.occurred_at),
         lat: Number(location.lat),
         lon: Number(location.lon),
-        location_label: baseEvent.location_label || location.label || "Unknown location",
+        location_label: baseEvent.location_label || location.label || null,
         confidence: Number(extra.confidence ?? 72),
         actor_side: "unknown",
         target_side: "unknown",
@@ -4127,6 +4144,13 @@ async function runWorker() {
         } catch (err) {
             console.error("Data pruning error:", err.message);
         }
+        if (COPERNICUS_CONFIG.enabled) {
+            try {
+                await cleanupExpiredSatelliteObservations({ supabase, config: COPERNICUS_CONFIG });
+            } catch (err) {
+                console.error("[copernicus] Satellite cleanup error:", err?.message || err);
+            }
+        }
     } finally {
         isWorkerRunning = false;
     }
@@ -4164,6 +4188,24 @@ async function runStatusFeedCycle() {
         isStatusFeedRunning = false;
     }
 }
+async function runCopernicusCycle() {
+    if (!COPERNICUS_CONFIG.enabled) return;
+    if (isCopernicusRunning) {
+        console.log("[copernicus] Previous satellite sync still running, skipping this tick");
+        return;
+    }
+    isCopernicusRunning = true;
+    try {
+        await runCopernicusSatelliteSync({
+            supabase,
+            config: COPERNICUS_CONFIG
+        });
+    } catch (err) {
+        console.error("[copernicus] Satellite sync failed:", err?.message || err);
+    } finally {
+        isCopernicusRunning = false;
+    }
+}
 function startConflictFeedLoop() {
     if (!CONFLICT_FEED_ENABLED) {
         console.log("[conflict] feed disabled; set CONFLICT_FEED_ENABLED=true to enable");
@@ -4188,6 +4230,18 @@ function startStatusFeedLoop() {
     }, STATUS_FEED_INTERVAL_MS);
     if (typeof timer.unref === "function") timer.unref();
 }
+function startCopernicusLoop() {
+    if (!COPERNICUS_CONFIG.enabled) {
+        console.log("[copernicus] disabled; set COPERNICUS_ENABLED=true to enable");
+        return;
+    }
+    console.log(`[copernicus] enabled, interval ${COPERNICUS_INTERVAL_MS}ms`);
+    runCopernicusCycle();
+    const timer = setInterval(() => {
+        runCopernicusCycle();
+    }, COPERNICUS_INTERVAL_MS);
+    if (typeof timer.unref === "function") timer.unref();
+}
 cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
@@ -4199,5 +4253,6 @@ syncSourceRegistryFromConfig().catch((err) => {
 });
 startConflictFeedLoop();
 startStatusFeedLoop();
+startCopernicusLoop();
 console.log("Worker started");
 runWorker();

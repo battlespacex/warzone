@@ -52,7 +52,7 @@
                 operatingSystem: "Web",
                 url: `${baseUrl}/`,
                 publisher: { "@id": `${baseUrl}/#org` },
-                description: "StratOps, powered by Battlespacex, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace."
+                description: "StratOps unifies curated OSINT, conflict intelligence and live military tracking in a 3D layered battlespace across air, land, sea, space and cyberspace."
             },
             {
                 "@type": "BreadcrumbList",

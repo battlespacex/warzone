@@ -43,7 +43,6 @@ const INTEL_MEDIA_NEGATIVE_TOKENS = [
     "button",
     "arrow",
     "placeholder",
-    "default",
     "spinner",
     "loader",
     "badge",
@@ -111,7 +110,12 @@ const NAMED_SOURCE_LABELS = new Map([
     ["associated press", "Associated Press"],
     ["ap", "Associated Press"],
     ["ap news", "Associated Press"],
+    ["the new york times", "The New York Times"],
+    ["new york times", "The New York Times"],
+    ["nyt", "The New York Times"],
     ["bellingcat", "Bellingcat"],
+    ["intelslava", "Intel Slava"],
+    ["intel slava", "Intel Slava"],
     ["ooni", "OONI"],
     ["ooni incidents api", "OONI"],
     ["ooni blog rss", "OONI"],
@@ -249,6 +253,19 @@ const GROUPED_SOURCE_IDS = new Map([
     ["times-of-israel", "Middle East Regional Feed"],
     ["jerusalem-post", "Middle East Regional Feed"],
     ["middle-east-eye", "Middle East Regional Feed"],
+    ["middle-east-eye-live", "Middle East Regional Feed"],
+    ["france24-live-news", "France 24"],
+    ["france24-middle-east", "France 24"],
+    ["france24-africa", "France 24"],
+    ["france24-americas", "France 24"],
+    ["france24-asia-pacific", "France 24"],
+    ["nyt-world", "The New York Times"],
+    ["nyt-us", "The New York Times"],
+    ["nyt-africa", "The New York Times"],
+    ["nyt-americas", "The New York Times"],
+    ["nyt-asia-pacific", "The New York Times"],
+    ["nyt-middle-east", "The New York Times"],
+    ["intelslava", "Intel Slava"],
     ["long-war-journal", "Conflict Analysis Feed"],
     ["crisisgroup-global", "Conflict Analysis Feed"],
     ["modern-war-institute", "Defense Analysis Feed"],
@@ -523,7 +540,7 @@ function detectPublicSourceLabel(item = {}) {
     }
 
     return {
-        sourceLabel: "Intel Wire Source",
+        sourceLabel: null,
         sourceTypeLabel: sourceType === "api" ? "API Monitor" : sourceType === "rss" ? "Feed" : null,
         sourceAttributionLevel: "hidden",
     };
@@ -819,6 +836,7 @@ function isRejectedIntelImageCandidate(entry = {}) {
     if (!url || !isLikelyImageUrl(url)) return true;
     if (/^data:/i.test(url)) return true;
     if (/\.svg(?:[?#].*)?$/i.test(url)) return true;
+    if (/(?:img[-_/]?default|default[-_/]image|default[-_/]thumb|placeholder|fallback|avatar|logo)(?:[/?#._-]|$)/i.test(url)) return true;
     if (containsIntelNegativeToken(url)) return true;
     if (/(?:^|[/?=_-])(16|24|32|48|64|72|96|100|120|128|150)x(16|24|32|48|64|72|96|100|120|128|150)(?:$|[/?&._-])/i.test(url)) return true;
     if (/gravatar|favicon|emoji|sprite|tracking|pixel/i.test(url)) return true;
@@ -1166,8 +1184,12 @@ function buildPublicIntelWireMedia(item = {}, mediaBaseUrl = "") {
     const images = selectIntelImageCandidates(candidates.images, item)
         .slice(0, MAX_PUBLIC_IMAGES)
         .map((entry, index) => ({
-            thumbUrl: isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : (isLikelyImageUrl(entry.url) ? entry.url : null),
-            fullUrl: isLikelyImageUrl(entry.url) ? entry.url : (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null),
+            thumbUrl:
+                buildMediaProxyUrl(mediaBaseUrl, item.id, "image", index, "thumb")
+                || (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : (isLikelyImageUrl(entry.url) ? entry.url : null)),
+            fullUrl:
+                buildMediaProxyUrl(mediaBaseUrl, item.id, "image", index, "full")
+                || (isLikelyImageUrl(entry.url) ? entry.url : (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null)),
             alt: entry.alt || null,
             width: inferImageDimensions(entry).width,
             height: inferImageDimensions(entry).height,
@@ -1176,11 +1198,13 @@ function buildPublicIntelWireMedia(item = {}, mediaBaseUrl = "") {
 
     const videos = selectIntelVideoCandidates(candidates.videos)
         .slice(0, MAX_PUBLIC_VIDEOS)
-        .map((entry) => ({
-            thumbUrl: isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null,
-            videoUrl: isDirectVideoUrl(entry.videoUrl)
-                ? entry.videoUrl
-                : null,
+        .map((entry, index) => ({
+            thumbUrl:
+                (entry.thumbUrl ? buildMediaProxyUrl(mediaBaseUrl, item.id, "video", index, "thumb") : null)
+                || (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null),
+            videoUrl:
+                (entry.videoUrl ? buildMediaProxyUrl(mediaBaseUrl, item.id, "video", index, "stream") : null)
+                || (isDirectVideoUrl(entry.videoUrl) ? entry.videoUrl : null),
             embedUrl: isSafePublicEmbedUrl(entry.embedUrl) ? entry.embedUrl : null,
             title: entry.title || null,
             duration: entry.duration || null,

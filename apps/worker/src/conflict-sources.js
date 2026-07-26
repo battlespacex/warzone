@@ -402,9 +402,192 @@ const RSS_SOURCES = [
     id: "france24-en",
     name: "France 24 English",
     type: "rss",
+    parser: "rss",
     category: "global-news",
     region_scope: "global",
+    base_url: "https://www.france24.com/",
     url: "https://www.france24.com/en/rss",
+    attribution: "France 24 RSS",
+    request_interval_ms: 15 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 38,
+    enabled: true
+  },
+  {
+    id: "france24-live-news",
+    name: "France 24 Live News",
+    type: "rss",
+    parser: "rss",
+    category: "global-news",
+    region_scope: "global",
+    base_url: "https://www.france24.com/",
+    url: "https://www.france24.com/en/live-news/rss",
+    attribution: "France 24 Live News RSS",
+    request_interval_ms: 10 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 52,
+    enabled: true
+  },
+  {
+    id: "france24-middle-east",
+    name: "France 24 Middle East",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "middle-east",
+    base_url: "https://www.france24.com/",
+    url: "https://www.france24.com/en/middle-east/rss",
+    attribution: "France 24 RSS",
+    request_interval_ms: 15 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 30,
+    enabled: true
+  },
+  {
+    id: "france24-africa",
+    name: "France 24 Africa",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "africa",
+    base_url: "https://www.france24.com/",
+    url: "https://www.france24.com/en/africa/rss",
+    attribution: "France 24 RSS",
+    request_interval_ms: 15 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 34,
+    enabled: true
+  },
+  {
+    id: "france24-americas",
+    name: "France 24 Americas",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "americas",
+    base_url: "https://www.france24.com/",
+    url: "https://www.france24.com/en/americas/rss",
+    attribution: "France 24 RSS",
+    request_interval_ms: 15 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 36,
+    enabled: true
+  },
+  {
+    id: "france24-asia-pacific",
+    name: "France 24 Asia-Pacific",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "asia-indo-pacific",
+    base_url: "https://www.france24.com/",
+    url: "https://www.france24.com/en/asia-pacific/rss",
+    attribution: "France 24 RSS",
+    request_interval_ms: 15 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 34,
+    enabled: true
+  },
+  {
+    id: "nyt-world",
+    name: "The New York Times World",
+    type: "rss",
+    parser: "rss",
+    category: "global-news",
+    region_scope: "global",
+    base_url: "https://www.nytimes.com/",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    attribution: "New York Times RSS",
+    request_interval_ms: 20 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 3000,
+    minimumScore: 40,
+    enabled: true
+  },
+  {
+    id: "nyt-us",
+    name: "The New York Times U.S.",
+    type: "rss",
+    parser: "rss",
+    category: "global-news",
+    region_scope: "us-global",
+    base_url: "https://www.nytimes.com/",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/US.xml",
+    attribution: "New York Times RSS",
+    request_interval_ms: 20 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 3000,
+    minimumScore: 48,
+    enabled: true
+  },
+  {
+    id: "nyt-africa",
+    name: "The New York Times Africa",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "africa",
+    base_url: "https://www.nytimes.com/",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/Africa.xml",
+    attribution: "New York Times RSS",
+    request_interval_ms: 20 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 3000,
+    minimumScore: 36,
+    enabled: true
+  },
+  {
+    id: "nyt-americas",
+    name: "The New York Times Americas",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "americas",
+    base_url: "https://www.nytimes.com/",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/Americas.xml",
+    attribution: "New York Times RSS",
+    request_interval_ms: 20 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 3000,
+    minimumScore: 38,
+    enabled: true
+  },
+  {
+    id: "nyt-asia-pacific",
+    name: "The New York Times Asia Pacific",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "asia-indo-pacific",
+    base_url: "https://www.nytimes.com/",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/AsiaPacific.xml",
+    attribution: "New York Times RSS",
+    request_interval_ms: 20 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 3000,
+    minimumScore: 34,
+    enabled: true
+  },
+  {
+    id: "nyt-middle-east",
+    name: "The New York Times Middle East",
+    type: "rss",
+    parser: "rss",
+    category: "regional-conflict",
+    region_scope: "middle-east",
+    base_url: "https://www.nytimes.com/",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
+    attribution: "New York Times RSS",
+    request_interval_ms: 20 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 3000,
+    minimumScore: 32,
     enabled: true
   },
   {
@@ -684,9 +867,16 @@ const RSS_SOURCES = [
     id: "middle-east-eye",
     name: "Middle East Eye",
     type: "rss",
+    parser: "rss",
     category: "regional-conflict",
     region_scope: "middle-east",
+    base_url: "https://www.middleeasteye.net/",
     url: "https://www.middleeasteye.net/rss",
+    attribution: "Middle East Eye RSS",
+    request_interval_ms: 15 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 30,
     enabled: true
   },
   {
@@ -976,6 +1166,47 @@ const RSS_SOURCES = [
   // - ReliefWeb RSS: 404
 ];
 
+const LIVE_HTML_SOURCES = [
+  {
+    id: "middle-east-eye-live",
+    name: "Middle East Eye Live",
+    type: "html",
+    parser: "live-html",
+    category: "regional-conflict",
+    region_scope: "middle-east",
+    base_url: "https://www.middleeasteye.net/",
+    url: "https://www.middleeasteye.net/live",
+    attribution: "Middle East Eye Live",
+    request_interval_ms: 10 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2500,
+    minimumScore: 28,
+    limit: 20,
+    enabled: true
+  }
+];
+
+const TELEGRAM_SOURCES = [
+  {
+    id: "intelslava",
+    name: "Intel Slava",
+    type: "telegram",
+    parser: "telegram-preview",
+    category: "osint",
+    region_scope: "global",
+    base_url: "https://t.me/intelslava",
+    url: "https://t.me/s/intelslava",
+    channel: "intelslava",
+    attribution: "Telegram / Intel Slava",
+    request_interval_ms: 5 * 60 * 1000,
+    retry_attempts: 1,
+    retry_backoff_ms: 2000,
+    minimumScore: 46,
+    limit: 20,
+    enabled: true
+  }
+];
+
 const API_SOURCES = [
   {
     id: "reliefweb-reports",
@@ -1079,17 +1310,43 @@ function getApiSources(options = {}) {
   return API_SOURCES.filter(source => source.enabled !== false);
 }
 
+function getLiveHtmlSources(options = {}) {
+  const includeDisabled = options.includeDisabled || false;
+
+  if (includeDisabled) {
+    return LIVE_HTML_SOURCES;
+  }
+
+  return LIVE_HTML_SOURCES.filter(source => source.enabled !== false);
+}
+
+function getTelegramSources(options = {}) {
+  const includeDisabled = options.includeDisabled || false;
+
+  if (includeDisabled) {
+    return TELEGRAM_SOURCES;
+  }
+
+  return TELEGRAM_SOURCES.filter(source => source.enabled !== false);
+}
+
 function getAllConflictSources(options = {}) {
   return [
     ...getRssSources(options),
+    ...getLiveHtmlSources(options),
+    ...getTelegramSources(options),
     ...getApiSources(options)
   ];
 }
 
 export {
   RSS_SOURCES,
+  LIVE_HTML_SOURCES,
+  TELEGRAM_SOURCES,
   API_SOURCES,
   getRssSources,
+  getLiveHtmlSources,
+  getTelegramSources,
   getApiSources,
   getAllConflictSources
 };

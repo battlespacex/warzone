@@ -1,8 +1,8 @@
 ﻿module.exports = {
     index: {
         path: "/",
-        title: "StratOps | Real-Time Multi-Domain Battlespace Intelligence | BattlespaceX",
-        description: "StratOps, powered by Battlespacex, is a real-time, multi-domain situational intelligence visualization platform that leverages OSINT to transform aggregated telemetry and event signals into a live, 3D layered battlespace across air, land, sea, space, and cyberspace.",
+        title: "StratOps | Real-Time Multi-Domain Battlespace Intelligence",
+        description: "StratOps by BattlespaceX unifies warzone OSINT, conflict intel and military tracking in a real-time 3D battlespace: air, land, sea, space and cyberspace.",
         robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
         ogAlt: "StratOps live multi-domain battlespace intelligence platform by BattlespaceX",
         breadcrumbs: [

@@ -499,7 +499,7 @@ function renderPopupContent(cell = {}, tokens) {
                     <li><strong>Samples</strong><span>${escapeHtml(String(sampleCount))}</span></li>
                     <li><strong>Confidence</strong><span>${escapeHtml(confidenceLabel)}</span></li>
                     <li><strong>Region</strong><span>${escapeHtml(cell.region || "Global")}</span></li>
-                    <li><strong>Country</strong><span>${escapeHtml(cell.country || "Unknown / Unassigned")}</span></li>
+                    <li><strong>Country</strong><span>${escapeHtml(cell.country || "Unresolved location")}</span></li>
                     <li><strong>Updated</strong><span>${escapeHtml(formatRelativeTimestamp(cell.updatedAt || cell.observedAt))}</span></li>
                     <li><strong>Coordinates</strong><span>${escapeHtml(formatCoordinate(cell.lat))}, ${escapeHtml(formatCoordinate(cell.lon))}</span></li>
                     <li><strong>Source</strong><span>${escapeHtml(sourceLabel)}</span></li>

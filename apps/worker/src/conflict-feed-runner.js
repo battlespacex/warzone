@@ -1,6 +1,8 @@
 // apps/worker/src/conflict-feed-runner.js
 
 import { fetchAllRssConflictItems } from "./conflict-rss-fetcher.js";
+import { fetchAllLiveHtmlConflictItems } from "./conflict-live-fetcher.js";
+import { fetchAllTelegramConflictItems } from "./conflict-telegram-fetcher.js";
 import { fetchReliefWebConflictItems } from "./conflict-reliefweb-fetcher.js";
 
 const DEDUPE_STOP_WORDS = new Set([
@@ -205,6 +207,8 @@ async function runConflictFeedFetch(options = {}) {
   const includeReliefWeb = options.includeReliefWeb ?? false;
 
   const rssResult = await fetchAllRssConflictItems();
+  const liveHtmlResult = await fetchAllLiveHtmlConflictItems();
+  const telegramResult = await fetchAllTelegramConflictItems();
 
   let reliefWebResult = {
     ok: false,
@@ -223,6 +227,8 @@ async function runConflictFeedFetch(options = {}) {
 
   const items = dedupeConflictItems([
     ...rssResult.items,
+    ...liveHtmlResult.items,
+    ...telegramResult.items,
     ...reliefWebResult.items
   ]);
 
@@ -241,6 +247,24 @@ async function runConflictFeedFetch(options = {}) {
       item_count: rssResult.item_count
     },
 
+    live_html: {
+      source_count: liveHtmlResult.source_count,
+      success_count: liveHtmlResult.success_count,
+      failed_count: liveHtmlResult.failed_count,
+      fetched_item_count: liveHtmlResult.fetched_item_count || 0,
+      filtered_item_count: liveHtmlResult.filtered_item_count || liveHtmlResult.item_count,
+      item_count: liveHtmlResult.item_count
+    },
+
+    telegram: {
+      source_count: telegramResult.source_count,
+      success_count: telegramResult.success_count,
+      failed_count: telegramResult.failed_count,
+      fetched_item_count: telegramResult.fetched_item_count || 0,
+      filtered_item_count: telegramResult.filtered_item_count || telegramResult.item_count,
+      item_count: telegramResult.item_count
+    },
+
     reliefweb: {
       ok: reliefWebResult.ok,
       skipped: reliefWebResult.skipped || false,
@@ -249,10 +273,13 @@ async function runConflictFeedFetch(options = {}) {
       error: reliefWebResult.error || null
     },
 
-    source_count: rssResult.source_count + (includeReliefWeb ? 1 : 0),
-    failed_source_count: rssResult.failed_count + reliefWebFailedCount,
+    source_count: rssResult.source_count + liveHtmlResult.source_count + telegramResult.source_count + (includeReliefWeb ? 1 : 0),
+    failed_source_count: rssResult.failed_count + liveHtmlResult.failed_count + telegramResult.failed_count + reliefWebFailedCount,
     fetched_item_count:
-      (rssResult.fetched_item_count || 0) + (reliefWebResult.fetched_count || 0),
+      (rssResult.fetched_item_count || 0)
+      + (liveHtmlResult.fetched_item_count || 0)
+      + (telegramResult.fetched_item_count || 0)
+      + (reliefWebResult.fetched_count || 0),
     filtered_item_count: items.length,
     total_items: items.length,
     items
@@ -269,6 +296,8 @@ async function runConflictFeedSync(options = {}) {
     const fetchResult = await runConflictFeedFetch(options);
 
     logger.log(`[conflict] RSS source count: ${fetchResult.rss.source_count}`);
+    logger.log(`[conflict] Live HTML source count: ${fetchResult.live_html.source_count}`);
+    logger.log(`[conflict] Telegram source count: ${fetchResult.telegram.source_count}`);
     logger.log(`[conflict] fetched item count: ${fetchResult.fetched_item_count}`);
     logger.log(`[conflict] filtered item count: ${fetchResult.filtered_item_count}`);
     logger.log(`[conflict] failed source count: ${fetchResult.failed_source_count}`);

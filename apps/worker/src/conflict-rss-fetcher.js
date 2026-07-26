@@ -3,10 +3,21 @@
 import Parser from "rss-parser";
 import { getRssSources } from "./conflict-sources.js";
 import { enrichConflictItem } from "./conflict-filter.js";
+import { enrichConflictItemsWithArticleMetadata } from "./conflict-media-enricher.js";
 
 const parser = new Parser({
   headers: {
     "User-Agent": "StratOps Conflict Feed Worker/1.0"
+  },
+  customFields: {
+    item: [
+      ["content:encoded", "content:encoded"],
+      ["dc:creator", "dc:creator"],
+      ["media:content", "media:content", { keepArray: true }],
+      ["media:thumbnail", "media:thumbnail", { keepArray: true }],
+      ["media:group", "media:group", { keepArray: true }],
+      ["enclosure", "enclosure", { keepArray: true }],
+    ]
   }
 });
 
@@ -42,6 +53,10 @@ async function fetchRssXml(url) {
   }
 
   return response.text();
+}
+
+function sleep(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
 async function runWithConcurrency(items = [], concurrency = RSS_FETCH_CONCURRENCY, worker) {
@@ -88,6 +103,57 @@ function extractTextValue(value) {
   return "";
 }
 
+function toNonEmptyArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value ? [value] : [];
+}
+
+function extractItemCategories(item = {}) {
+  const values = [
+    ...toNonEmptyArray(item.categories),
+    ...toNonEmptyArray(item.category),
+    ...toNonEmptyArray(item["dc:subject"])
+  ];
+  const seen = new Set();
+  return values
+    .map((entry) => cleanHtml(extractTextValue(entry)))
+    .filter(Boolean)
+    .filter((entry) => {
+      const key = entry.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function extractPrimaryMedia(item = {}) {
+  const mediaContent = toNonEmptyArray(item["media:content"]);
+  const mediaThumbnail = toNonEmptyArray(item["media:thumbnail"]);
+  const enclosure = toNonEmptyArray(item.enclosure);
+  const mediaGroup = toNonEmptyArray(item["media:group"]);
+
+  const firstContent =
+    mediaContent.find((entry) => entry?.url) ||
+    mediaGroup.flatMap((group) => toNonEmptyArray(group?.["media:content"] || group?.content)).find((entry) => entry?.url) ||
+    enclosure.find((entry) => entry?.url) ||
+    null;
+  const firstThumb =
+    mediaThumbnail.find((entry) => entry?.url) ||
+    mediaGroup.flatMap((group) => toNonEmptyArray(group?.["media:thumbnail"] || group?.thumbnail)).find((entry) => entry?.url) ||
+    null;
+
+  return {
+    image_url: firstThumb?.url || firstContent?.url || null,
+    thumbnail_url: firstThumb?.url || firstContent?.url || null,
+    media: {
+      enclosure,
+      media_content: mediaContent,
+      media_thumbnail: mediaThumbnail,
+      media_group: mediaGroup,
+    }
+  };
+}
+
 function normalizeRssItem(item = {}, source = {}) {
   const summary =
     extractTextValue(item.contentSnippet) ||
@@ -96,49 +162,97 @@ function normalizeRssItem(item = {}, source = {}) {
     extractTextValue(item.description) ||
     "";
 
+  const categories = extractItemCategories(item);
+  const media = extractPrimaryMedia(item);
+  const author = cleanHtml(extractTextValue(item.creator || item.author || item["dc:creator"] || "")) || null;
+
   return {
     source_id: source.id,
     source_name: source.name,
     source_type: source.type,
     source_category: source.category,
+    source_base_url: source.base_url || null,
+    allowPublicUrl: true,
 
     title: cleanHtml(extractTextValue(item.title) || "Untitled"),
     summary: cleanHtml(summary),
     url: item.link || item.guid || null,
     guid: item.guid || item.link || null,
+    canonical_url: item.link || item.guid || null,
+    author,
+    categories,
+    image_url: media.image_url,
+    thumbnail_url: media.thumbnail_url,
 
     published_at: item.isoDate || item.pubDate || null,
     fetched_at: new Date().toISOString(),
 
-    raw: item
+    raw: {
+      ...item,
+      author,
+      categories,
+      image_url: media.image_url,
+      thumbnail_url: media.thumbnail_url,
+      source_id: source.id,
+      source_name: source.name,
+      source_type: source.type,
+      source_category: source.category,
+      source_base_url: source.base_url || null,
+      allowPublicUrl: true,
+      ...media.media
+    }
   };
 }
 
 async function fetchSingleRssSource(source) {
+  const retryAttempts = Math.max(0, Number(source?.retry_attempts) || 0);
+  const retryBackoffMs = Math.max(0, Number(source?.retry_backoff_ms) || 0);
+  const minimumScore = Number.isFinite(Number(source?.minimumScore))
+    ? Number(source.minimumScore)
+    : 30;
+
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retryAttempts; attempt += 1) {
+    try {
+      if (attempt === 0) {
+        console.log(`Fetching RSS: ${source.name}`);
+      } else {
+        console.log(`Retrying RSS: ${source.name} (${attempt}/${retryAttempts})`);
+      }
+
+      const xml = await fetchRssXml(source.url);
+      const feed = await parser.parseString(xml);
+
+      const normalizedItems = (feed.items || [])
+        .map(item => normalizeRssItem(item, source))
+        .filter(item => item.url);
+
+      const relevantItems = normalizedItems
+        .map(item => enrichConflictItem(item, { minimumScore }))
+        .filter(item => item.is_conflict_relevant);
+
+      const items = await enrichConflictItemsWithArticleMetadata(relevantItems);
+
+      return {
+        source,
+        ok: true,
+        fetched_count: normalizedItems.length,
+        count: items.length,
+        items
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt < retryAttempts) {
+        await sleep(retryBackoffMs * (attempt + 1));
+        continue;
+      }
+    }
+  }
+
   try {
-    console.log(`Fetching RSS: ${source.name}`);
-
-    const xml = await fetchRssXml(source.url);
-    const feed = await parser.parseString(xml);
-
-    const normalizedItems = (feed.items || [])
-      .map(item => normalizeRssItem(item, source))
-      .filter(item => item.url);
-
-    const items = normalizedItems
-      .map(item => enrichConflictItem(item, { minimumScore: 30 }))
-      .filter(item => item.is_conflict_relevant);
-
-    return {
-      source,
-      ok: true,
-      fetched_count: normalizedItems.length,
-      count: items.length,
-      items
-    };
-  } catch (error) {
     console.warn(`RSS failed: ${source.name}`);
-    console.warn(error.message);
+    console.warn(lastError?.message || "Unknown RSS error");
 
     return {
       source,
@@ -146,7 +260,16 @@ async function fetchSingleRssSource(source) {
       fetched_count: 0,
       count: 0,
       items: [],
-      error: error.message
+      error: lastError?.message || "Unknown RSS error"
+    };
+  } catch {
+    return {
+      source,
+      ok: false,
+      fetched_count: 0,
+      count: 0,
+      items: [],
+      error: "Unknown RSS error"
     };
   }
 }

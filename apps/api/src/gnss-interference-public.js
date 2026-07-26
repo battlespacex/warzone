@@ -263,7 +263,7 @@ export function toPublicGnssCell(row = {}) {
         affectedPercent: Number.isFinite(affectedPercent) ? clamp(affectedPercent, 0, 100) : 0,
         sampleCount: Number.isFinite(sampleCount) ? Math.max(0, Math.round(sampleCount)) : 0,
         confidence: normalizeConfidence(row.confidence),
-        country: String(row.country || "Unknown / Unassigned"),
+        country: String(row.country || "Unresolved location"),
         region: String(row.region || "Global"),
         sourceLabel: getPublicSourceLabel(row),
         observedAt: String(row.observedAt || row.observed_at || row.updatedAt || row.updated_at || ""),

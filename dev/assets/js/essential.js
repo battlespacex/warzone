@@ -1053,6 +1053,10 @@ function getIntelWireTimestamp(item = {}) {
 function normalizeIntelWireItem(item = {}) {
     const occurredAt = getIntelWireTimestamp(item);
     const idSource = item.id || `${item.title || "intel"}-${occurredAt}`;
+    const title = sanitizeEventPopupText(item.title || item.display_title || "", "");
+    const summary = sanitizeIntelWireSummary(item.summary || item.display_summary || "");
+    const sourceName = sanitizeEventPopupText(item.sourceLabel || item.source_name || "", "");
+    const locationLabel = sanitizeEventPopupText(item.region || item.country || item.location_label || "", "");
     const media = item.media && typeof item.media === "object"
         ? {
             images: Array.isArray(item.media.images) ? item.media.images : [],
@@ -1061,27 +1065,29 @@ function normalizeIntelWireItem(item = {}) {
         : null;
     return {
         id: `intel-${idSource}`,
-        title: item.title || "Untitled intel item",
-        summary: item.summary || "",
+        title,
+        summary,
         category: item.category || "intel",
-        severity: item.severity || "unknown",
-        source_name: item.sourceLabel || "Intel Wire Source",
+        severity: isUnknownEventDisplayValue(item.severity) ? "medium" : (item.severity || "medium"),
+        source_name: sourceName,
         source_type_label: item.sourceTypeLabel || null,
         source_attribution_level: item.sourceAttributionLevel || "grouped",
         source_url: item.publicUrl || "",
         occurred_at: occurredAt,
         country: item.country || "",
-        location_label: item.region || item.country || "Intel Wire",
+        location_label: locationLabel,
         report_type: "intel_wire",
         display_surface: "intel_wire",
         tags: ["intel-wire-only", "conflict-feed"],
         media,
+        satellite_context: item.satellite_context || item.satelliteContext || null,
         metadata: {
             display_surface: "intel_wire",
             confidence_score: item.confidence_score ?? item.confidence ?? null,
             source_attribution_level: item.sourceAttributionLevel || "grouped",
             source_type_label: item.sourceTypeLabel || null,
             media,
+            satellite_context: item.satellite_context || item.satelliteContext || null,
         }
     };
 }
@@ -1173,7 +1179,7 @@ function getIntelWireBaseEvents() {
 }
 function normalizeIntelWireCountryFilterValue(country = "") {
     const normalized = normalizeCountryName(country || "").trim().toLowerCase();
-    if (!normalized || normalized === "unknown / unassigned") return "unknown";
+    if (!normalized || normalized === "unknown / unassigned" || normalized === "unresolved location") return "unknown";
     return normalized;
 }
 function getIntelWireCountryLabel(event = {}) {
@@ -1199,7 +1205,7 @@ function getIntelWireCountryLabel(event = {}) {
             event.country,
         )
     );
-    return inferred || "Unknown / Unassigned";
+    return inferred || "Unresolved location";
 }
 function getIntelWireCountryFilterOptions(items = []) {
     const options = new Map();
@@ -1219,7 +1225,7 @@ function getIntelWireCountryFilterOptions(items = []) {
         .map(([value, label]) => ({ value, label }))
         .sort((a, b) => a.label.localeCompare(b.label));
     if (hasUnknown) {
-        rows.push({ value: "unknown", label: "Unknown / Unassigned" });
+        rows.push({ value: "unknown", label: "Unresolved location" });
     }
     return rows;
 }
@@ -1687,6 +1693,10 @@ function toUiLabel(value, fallback = "Unknown") {
         .trim()
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
+function isUnknownEventDisplayValue(value = "") {
+    const clean = String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+    return !clean || /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/.test(clean);
+}
 function sanitizeEventPopupText(value = "", fallback = "") {
     const decoded = decodeBasicHtmlEntities(value);
     const cleaned = stripNonEnglishText(stripPresentationEmoji(decoded), fallback)
@@ -1696,22 +1706,176 @@ function sanitizeEventPopupText(value = "", fallback = "") {
         .replace(/[^A-Za-z0-9\s.,:;!?()\-\/&]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-    return cleaned || String(fallback || "").trim();
+    if (!isUnknownEventDisplayValue(cleaned)) return cleaned;
+    const fallbackText = String(fallback || "").trim();
+    return isUnknownEventDisplayValue(fallbackText) ? "" : fallbackText;
+}
+function comparableEventText(value = "") {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/\b\d{8}t\d{6}z\b/g, " ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\b(the|a|an|and|or|of|in|on|near|to|for|as|at|by|with|from)\b/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function stripRepeatedEventTitle(summary = "", title = "") {
+    let cleanSummary = sanitizeEventPopupText(summary || "");
+    const cleanTitle = sanitizeEventPopupText(title || "");
+    if (!cleanSummary) return "";
+    cleanSummary = cleanSummary
+        .replace(/^\d{8}T\d{6}Z\s+/i, "")
+        .replace(/^top reports:\s*/i, "")
+        .trim();
+    if (!cleanTitle) return cleanSummary;
+    const summaryKey = comparableEventText(cleanSummary);
+    const titleKey = comparableEventText(cleanTitle);
+    if (!summaryKey || !titleKey) return cleanSummary;
+    if (summaryKey === titleKey) return "";
+    if (summaryKey.startsWith(titleKey)) {
+        return cleanSummary.slice(cleanTitle.length).replace(/^[\s.:;|\-]+/, "").trim();
+    }
+    return cleanSummary;
 }
 function buildEventPopupSummary(detail = {}, clusterCount = 1) {
-    const baseSummary = sanitizeEventPopupText(detail.summary || "");
+    const displayTitle = detail.displayTitle || detail.display_title || detail.title || "";
+    const baseSummary = stripRepeatedEventTitle(detail.display_summary || detail.summary || "", displayTitle);
     if (clusterCount <= 1) {
-        return baseSummary || "No additional summary available.";
+        return baseSummary;
     }
+    const titleKey = comparableEventText(displayTitle);
+    const seen = new Set();
     const previewTitles = (Array.isArray(detail.clusterEvents) ? detail.clusterEvents : [])
-        .map((item) => sanitizeEventPopupText(item?.title || item?.summary || ""))
+        .map((item) => sanitizeEventPopupText(item?.display_title || item?.title || item?.summary || ""))
         .filter(Boolean)
+        .filter((text) => {
+            const key = comparableEventText(text);
+            if (!key || key === titleKey || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
         .slice(0, 3);
     const previewText = previewTitles.length
         ? ` Top reports: ${previewTitles.join(" | ")}.`
         : "";
     if (baseSummary) return `${baseSummary}${previewText}`;
-    return `${clusterCount} nearby hotspot events grouped in this location.${previewText}`;
+    return `${clusterCount} nearby event reports were recorded in this area.${previewText}`;
+}
+function normalizeSatelliteContextForPopup(value = null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const status = String(value.status || "").toLowerCase();
+    if (!["available", "pending", "searching", "processing", "retryable_error"].includes(status)) return null;
+    if (status === "available" && !/^https?:\/\//i.test(String(value.imageUrl || ""))) return null;
+    return {
+        status,
+        provider: sanitizeEventPopupText(value.provider || "Copernicus", "Copernicus"),
+        collection: sanitizeEventPopupText(value.collection || ""),
+        observationType: sanitizeEventPopupText(value.observationType || ""),
+        acquisitionTime: value.acquisitionTime || null,
+        eventTimeRelation: sanitizeEventPopupText(value.eventTimeRelation || "unknown", "unknown"),
+        cloudCover: Number.isFinite(Number(value.cloudCover)) ? Number(value.cloudCover) : null,
+        imageUrl: String(value.imageUrl || ""),
+        width: Number.isFinite(Number(value.width)) ? Number(value.width) : null,
+        height: Number.isFinite(Number(value.height)) ? Number(value.height) : null,
+        updatedAt: value.updatedAt || value.updated_at || null,
+        imageryType: sanitizeEventPopupText(value.imageryType || ""),
+        approximateResolution: sanitizeEventPopupText(value.approximateResolution || ""),
+        disclaimer: sanitizeEventPopupText(value.disclaimer || "Latest available satellite observation for contextual reference. It is not live imagery and does not independently confirm the reported event or its cause."),
+        radarDisclaimer: sanitizeEventPopupText(value.radarDisclaimer || ""),
+    };
+}
+function formatSatelliteRelation(value = "") {
+    const relation = String(value || "").toLowerCase();
+    if (relation === "after") return "After reported event";
+    if (relation === "before") return "Before reported event";
+    return "";
+}
+function formatSatelliteUtcTime(value = "") {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return sanitizeEventPopupText(value || "");
+    return parsed.toISOString().replace("T", " ").replace(".000Z", "Z");
+}
+function renderEventPopupSatelliteContext(host, contextValue) {
+    if (!host) return;
+    const context = normalizeSatelliteContextForPopup(contextValue);
+    if (!context) {
+        host.hidden = true;
+        host.innerHTML = "";
+        return;
+    }
+    const isAvailable = context.status === "available";
+    const collectionLabel = context.collection === "sentinel-2-l2a"
+        ? "Sentinel-2 L2A"
+        : context.collection === "sentinel-1-grd"
+            ? "Sentinel-1 GRD"
+            : toUiLabel(context.collection, "Observation");
+    const relationLabel = formatSatelliteRelation(context.eventTimeRelation);
+    const metaRows = [
+        `Provider: ${context.provider}`,
+        `Satellite/collection: ${collectionLabel}`,
+        context.acquisitionTime ? `Acquisition: ${formatSatelliteUtcTime(context.acquisitionTime)}` : "",
+        relationLabel ? `Relation: ${relationLabel}` : "",
+        context.cloudCover != null ? `Cloud cover: ${context.cloudCover.toFixed(0)}%` : "",
+        context.imageryType ? `Imagery type: ${context.imageryType}` : "",
+        context.approximateResolution ? `Approx. resolution: ${context.approximateResolution}` : "",
+    ].filter(Boolean);
+    host.hidden = false;
+    host.innerHTML = `
+        <h4 class="wz-event-popup-satellite__title">Satellite Context</h4>
+        ${isAvailable ? `
+            <img
+                class="wz-event-popup-satellite__image"
+                src="${escapeHtml(context.imageUrl)}"
+                alt="Copernicus satellite context preview"
+                loading="lazy"
+                decoding="async">
+        ` : `<div class="wz-event-popup-satellite__status">Satellite context is being prepared.</div>`}
+        <div class="wz-event-popup-satellite__meta">
+            ${metaRows.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}
+        </div>
+        <p class="wz-event-popup-satellite__note">${escapeHtml(context.disclaimer)}</p>
+        ${context.radarDisclaimer ? `<p class="wz-event-popup-satellite__note">${escapeHtml(context.radarDisclaimer)}</p>` : ""}
+    `;
+}
+function getEventSatelliteContext(event = {}) {
+    return normalizeSatelliteContextForPopup(
+        event.satellite_context ||
+        event.satelliteContext ||
+        event.metadata?.satellite_context ||
+        event.metadata?.satelliteContext ||
+        null
+    );
+}
+function buildIntelWireSatelliteMarkup(event = {}) {
+    const context = getEventSatelliteContext(event);
+    if (!context || context.status !== "available") return "";
+    const collectionLabel = context.collection === "sentinel-2-l2a"
+        ? "Sentinel-2 L2A"
+        : context.collection === "sentinel-1-grd"
+            ? "Sentinel-1 GRD"
+            : toUiLabel(context.collection, "Observation");
+    const relationLabel = formatSatelliteRelation(context.eventTimeRelation);
+    const metaRows = [
+        context.provider,
+        collectionLabel,
+        context.acquisitionTime ? formatSatelliteUtcTime(context.acquisitionTime) : "",
+        relationLabel,
+    ].filter(Boolean);
+    return `
+        <div class="wz-feed-satellite" data-satellite-context>
+            <div class="wz-feed-satellite__head">
+                <span class="wz-feed-satellite__label">Satellite Context</span>
+                <span class="wz-feed-satellite__meta">${escapeHtml(metaRows.join(" | "))}</span>
+            </div>
+            <img
+                class="wz-feed-satellite__image"
+                src="${escapeHtml(context.imageUrl)}"
+                alt="Copernicus satellite context preview"
+                loading="lazy"
+                decoding="async">
+            <p class="wz-feed-satellite__note">${escapeHtml(context.disclaimer)}</p>
+        </div>
+    `;
 }
 function bindGlobeEventPopup() {
     if (__eventPopupBound) return;
@@ -1725,6 +1889,7 @@ function bindGlobeEventPopup() {
     const locationEl = document.getElementById("wz-event-popup-location");
     const timeEl = document.getElementById("wz-event-popup-time");
     const weaponEl = document.getElementById("wz-event-popup-weapon");
+    const satelliteEl = document.getElementById("wz-event-popup-satellite");
     const sourceEl = document.getElementById("wz-event-popup-source");
     const closeBtn = document.getElementById("wz-event-popup-close");
     let activePopupAnchor = null;
@@ -1859,8 +2024,8 @@ function bindGlobeEventPopup() {
             "Hotspot"
         );
         const categoryClass = getPlatformCategoryClass(detail, { surface: "popup" });
-        const severityLabel = sanitizeEventPopupText(getPlatformSeverityLabel(detail.severity, "Unknown"), "Unknown");
-        const severityClass = getPlatformSeverityClass(detail.severity);
+        const severityLabel = sanitizeEventPopupText(getPlatformSeverityLabel(detail.severity, "Medium"), "Medium");
+        const severityClass = getPlatformSeverityClass(detail.severity || "medium");
         const locationText = sanitizeEventPopupText(detail.locationLabel || "");
         const occurredAt = String(detail.occurredAt || "").trim();
         const weaponType = sanitizeEventPopupText(detail.weaponType || "");
@@ -1878,7 +2043,7 @@ function bindGlobeEventPopup() {
             sevEl.dataset.severity = severityClass;
         }
         if (titleEl) {
-            titleEl.textContent = sanitizeEventPopupText(detail.title || "")
+            titleEl.textContent = sanitizeEventPopupText(detail.displayTitle || detail.display_title || detail.title || "")
                 || (clusterCount > 1 ? `${clusterCount} ${categoryLabel} hotspots` : `${categoryLabel} hotspot`);
         }
         if (summaryEl) {
@@ -1899,6 +2064,7 @@ function bindGlobeEventPopup() {
             weaponEl.textContent = text;
             weaponEl.hidden = !text;
         }
+        renderEventPopupSatelliteContext(satelliteEl, detail.satelliteContext);
         if (sourceEl) {
             const hasSource = /^https?:\/\//i.test(sourceUrl);
             sourceEl.hidden = !hasSource;
@@ -2584,7 +2750,7 @@ function normalizeActiveAlertStatusEvent(alert = {}) {
         source_name: alert.source_name || "",
         source_url: alert.source_url || "",
         occurred_at: alert.updated_at || alert.started_at || new Date().toISOString(),
-        location_label: region || country || "Unknown location",
+        location_label: region || country || null,
         country,
         confidence: 80,
         severity: isCyber ? cyberStatus : (airspaceStatus === "closed" ? "critical" : "high"),
@@ -2611,7 +2777,7 @@ function normalizeAirspaceStatusEvent(row = {}) {
         occurred_at: row.updated_at || new Date().toISOString(),
         lat: row.lat,
         lon: row.lon,
-        location_label: row.region || country || "Unknown location",
+        location_label: row.region || country || null,
         country,
         confidence: 85,
         severity: status === "closed" ? "critical" : status === "restricted" ? "high" : "low",
@@ -2686,7 +2852,7 @@ function normalizeGnssCell(cell = {}) {
         affectedPercent: Math.max(0, Math.min(100, Number(cell.affectedPercent ?? cell.affected_percent) || 0)),
         sampleCount: Math.max(0, Math.round(Number(cell.sampleCount ?? cell.sample_count) || 0)),
         confidence: String(cell.confidence || "low").toLowerCase(),
-        country: cell.country || "Unknown / Unassigned",
+        country: cell.country || "Unresolved location",
         region: cell.region || "Global",
         sourceLabel: cell.sourceLabel || "GNSS Jamming Monitor",
         observedAt: cell.observedAt || cell.observed_at || cell.updatedAt || cell.updated_at || "",
@@ -2790,6 +2956,7 @@ function normalizePlace(value) {
 }
 function compactEventPlaceLabel(event = {}) {
     const raw =
+        event.display_location_label ||
         event.location_label ||
         event.impact_label ||
         event.origin_label ||
@@ -2797,7 +2964,7 @@ function compactEventPlaceLabel(event = {}) {
         event.region ||
         "";
     const clean = String(raw).trim();
-    if (!clean) return "Unknown location";
+    if (isUnknownEventDisplayValue(clean)) return "";
     const bits = clean.split(",").map((x) => x.trim()).filter(Boolean);
     if (bits.length > 1) {
         const last = bits[bits.length - 1];
@@ -3439,6 +3606,7 @@ function stopIntelWireCardMedia(card) {
 }
 function getIntelWireCardRenderSignature(event = {}) {
     const media = getIntelWireItemMedia(event);
+    const satelliteContext = getEventSatelliteContext(event);
     return JSON.stringify([
         event.updated_at || "",
         event.occurred_at || "",
@@ -3451,6 +3619,9 @@ function getIntelWireCardRenderSignature(event = {}) {
         compactEventPlaceLabel(event),
         media.images,
         media.videos,
+        satelliteContext?.status || "",
+        satelliteContext?.imageUrl || "",
+        satelliteContext?.updatedAt || "",
     ]);
 }
 function getIntelWireEventDomKey(event = {}, index = 0) {
@@ -3471,18 +3642,24 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
         fallback: "INTEL",
     });
     const categoryClass = getPlatformCategoryClass(event, { surface: "intel-wire" });
-    const severityClass = getPlatformSeverityClass(event.severity || "");
-    const severityLabel = getPlatformSeverityLabel(event.severity || "", "Unknown");
+    const severityClass = getPlatformSeverityClass(event.severity || "medium");
+    const severityLabel = getPlatformSeverityLabel(event.severity || "", "Medium");
     card.dataset.category = categoryClass;
     card.dataset.severity = severityClass;
     const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
-    const sourceName = stripNonEnglishText(stripPresentationEmoji(event.source_name || "Intel Wire Source"), "Intel Wire Source");
-    const title = stripNonEnglishText(stripPresentationEmoji(event.title || "Untitled event"), "Intel update");
-    const summary = sanitizeIntelWireSummary(event.summary) || "No summary available.";
-    const location = stripNonEnglishText(stripPresentationEmoji(compactEventPlaceLabel(event)), "Unknown location");
+    const sourceName = sanitizeEventPopupText(event.display_source_name || event.source_name || "", "");
+    const rawSummary = sanitizeIntelWireSummary(event.display_summary || event.summary || "");
+    const location = sanitizeEventPopupText(compactEventPlaceLabel(event), "");
+    const fallbackTitle = location
+        ? `${toUiLabel(categoryClass, "Activity")} report near ${location}`
+        : `${toUiLabel(categoryClass, "Activity")} report`;
+    const title = sanitizeEventPopupText(event.display_title || event.title || "", "") || fallbackTitle;
+    const summary = stripRepeatedEventTitle(rawSummary, title);
     const sourceMarkup = safeUrl
         ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`
         : `${escapeHtml(sourceName)}`;
+    const satelliteMarkup = buildIntelWireSatelliteMarkup(event);
+    if (satelliteMarkup) card.dataset.satelliteContext = "available";
     card.innerHTML = `
         <div class="timeline-time wz-feed-time">
             <div class="wz-feed-capsule">
@@ -3490,14 +3667,13 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
                 <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
             </div>
             <time>${escapeHtml(formatTime(event.occurred_at))}</time>
-            <small class="wz-feed-source">${sourceMarkup}</small>
+            ${sourceName ? `<small class="wz-feed-source">${sourceMarkup}</small>` : ""}
         </div>
         <div class="timeline-body">
             <strong class="wz-feed-title">${escapeHtml(title)}</strong>
-            <p class="wz-feed-summary">${escapeHtml(summary)}</p>
-            <small class="wz-feed-location">
-                ${escapeHtml(location)}
-            </small>
+            ${summary ? `<p class="wz-feed-summary">${escapeHtml(summary)}</p>` : ""}
+            ${location ? `<small class="wz-feed-location">${escapeHtml(location)}</small>` : ""}
+            ${satelliteMarkup}
             <div class="wz-feed-actions" data-feed-media-actions></div>
             <div class="wz-feed-media-panel wz-feed-media-panel--images" data-feed-image-panel hidden></div>
             <div class="wz-feed-media-panel wz-feed-media-panel--videos" data-feed-video-panel hidden></div>
@@ -4080,16 +4256,20 @@ function renderSummary(events) {
 function renderTimeline(events) {
     const wrap = document.getElementById("timeline-list");
     if (!wrap) return;
-    const items = events.slice(0, 15).map((event) => `
+    const items = events.slice(0, 15).map((event) => {
+        const summary = sanitizeEventPopupText(event.summary || "");
+        const place = compactEventPlaceLabel(event);
+        return `
         <div class="timeline-item">
             <div class="timeline-time">${formatTime(event.occurred_at)}</div>
             <div class="timeline-body">
-                <strong>${event.title}</strong>
-                <p>${event.summary || "No summary available."}</p>
-                <small>[${compactEventPlaceLabel(event)}]</small>
+                <strong>${escapeHtml(sanitizeEventPopupText(event.title || "", "Activity report") || "Activity report")}</strong>
+                ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
+                ${place ? `<small>[${escapeHtml(place)}]</small>` : ""}
             </div>
         </div>
-    `).join("");
+    `;
+    }).join("");
     wrap.innerHTML = items || '<div class="feed-empty">No timeline items.</div>';
 }
 function renderBars(targetId, rows) {
@@ -4151,7 +4331,7 @@ function renderRecon(events) {
             .slice(0, 16)
             .map((e) => `
                 <div class="recon-alert-row">
-                    <strong>${e.fir_code || "FIR"} | ${e.location_label || e.impact_label || e.country || "Unknown location"}</strong>
+                    <strong>${escapeHtml([e.fir_code || "FIR", e.location_label || e.impact_label || e.country || "Regional airspace"].filter(Boolean).join(" | "))}</strong>
                     <span>${e.airspace_status}</span>
                     <small>${formatTime(e.occurred_at)}</small>
                 </div>

@@ -98,13 +98,23 @@ function slugify(value) {
         .replace(/\s+/g, " ");
 }
 function isFiniteCoord(value) {
+    if (value === null || value === undefined || value === "") return false;
     return Number.isFinite(Number(value));
+}
+function coordOrNull(value) {
+    return isFiniteCoord(value) ? Number(value) : null;
 }
 function centerOfCountry(country) {
     return {
         lat: Number(country?.lat),
         lon: Number(country?.lon)
     };
+}
+function isZeroCoordinate(lat, lon) {
+    return isFiniteCoord(lat) &&
+        isFiniteCoord(lon) &&
+        Math.abs(Number(lat)) < 0.000001 &&
+        Math.abs(Number(lon)) < 0.000001;
 }
 function coordInBbox(lat, lon, bbox, margin = 0.45) {
     if (!bbox || !isFiniteCoord(lat) || !isFiniteCoord(lon)) return false;
@@ -268,6 +278,18 @@ export function resolveDisplayCoordinates(event = {}) {
     let reason = "raw";
     let mismatch = false;
     let precision = "raw";
+    if (!movingTrack && isZeroCoordinate(lat, lon)) {
+        lat = null;
+        lon = null;
+        reason = "invalid_zero_coordinate";
+        precision = "missing";
+    }
+    if (!movingTrack && (place?.type === "country" || place?.type === "subdivision")) {
+        lat = null;
+        lon = null;
+        reason = `${place.type}_unmapped`;
+        precision = "missing";
+    }
     const impactFirst = ["strike", "alert", "airspace", "thermal", "signal", "seismic", "cyber"].includes(category);
     if (!movingTrack && impactFirst && isFiniteCoord(impactLat) && isFiniteCoord(impactLon)) {
         lat = impactLat;
@@ -302,12 +324,17 @@ export function resolveDisplayCoordinates(event = {}) {
                 lon = impactLon;
                 reason = "impact_in_country";
                 precision = "impact";
-            } else {
+            } else if (place?.type !== "country" && place?.type !== "subdivision") {
                 const center = centerOfCountry(country);
                 lat = center.lat;
                 lon = center.lon;
                 reason = place?.type === "subdivision" ? "subdivision_to_country_center" : "country_center";
                 precision = "country";
+            } else {
+                lat = null;
+                lon = null;
+                reason = `${place.type}_unmapped`;
+                precision = "missing";
             }
         }
     }
@@ -327,7 +354,7 @@ export function resolveDisplayCoordinates(event = {}) {
             lon = Number(place.lon);
             reason = "capital_fallback";
             precision = "capital";
-        } else if (country) {
+        } else if (country && place?.type !== "country" && place?.type !== "subdivision") {
             const center = centerOfCountry(country);
             lat = center.lat;
             lon = center.lon;
@@ -336,8 +363,8 @@ export function resolveDisplayCoordinates(event = {}) {
         }
     }
     return {
-        lat: Number(lat),
-        lon: Number(lon),
+        lat: coordOrNull(lat),
+        lon: coordOrNull(lon),
         reason,
         mismatch,
         precision,
@@ -351,8 +378,12 @@ export function resolveDisplayCoordinates(event = {}) {
 }
 export function eventMatchesBounds(event = {}, bounds) {
     if (!bounds) return true;
-    const lat = Number(event.display_lat ?? event.lat);
-    const lon = Number(event.display_lon ?? event.lon);
+    const lat = Object.prototype.hasOwnProperty.call(event, "display_lat")
+        ? coordOrNull(event.display_lat)
+        : coordOrNull(event.lat);
+    const lon = Object.prototype.hasOwnProperty.call(event, "display_lon")
+        ? coordOrNull(event.display_lon)
+        : coordOrNull(event.lon);
     if (!isFiniteCoord(lat) || !isFiniteCoord(lon)) return false;
     return (
         lat >= bounds.minLat &&

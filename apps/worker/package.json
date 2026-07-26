@@ -5,7 +5,10 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "copernicus:once": "node src/copernicus-once.js",
+    "events:reprocess": "node src/reprocess-recent-events.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

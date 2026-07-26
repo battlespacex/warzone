@@ -3,6 +3,8 @@ import { query } from "./db.js";
 import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
+import { attachSatelliteContextToEvents } from "./satellite-context.js";
+import { toPublicEvent } from "./public-event-normalizer.js";
 const DEFAULT_EVENTS_WINDOW_HOURS = 48;
 const MIN_EVENTS_WINDOW_HOURS = 6;
 const MAX_EVENTS_WINDOW_HOURS = 168;
@@ -40,20 +42,21 @@ function getRequestBaseUrl(req) {
 function toAirspaceStatusRow(event = {}) {
     const status = String(event.airspace_status || "").toLowerCase();
     if (!status || status === "unknown") return null;
+    const publicEvent = toPublicEvent(event);
     return {
-        id: event.id,
-        region: event.location_label || "",
-        country_code: event.country_code || "",
+        id: publicEvent.id,
+        region: publicEvent.display_location_label || "",
+        country_code: publicEvent.country_code || "",
         status,
-        title: event.title || "",
-        summary: event.summary || "",
-        source_name: event.source_name || "",
-        source_url: event.source_url || "",
-        fir_code: event.fir_code || "",
-        updated_at: event.occurred_at || event.created_at || new Date().toISOString(),
+        title: publicEvent.display_title || "",
+        summary: publicEvent.display_summary || "",
+        source_name: publicEvent.display_source_name || "",
+        source_url: publicEvent.source_url || "",
+        fir_code: publicEvent.fir_code || "",
+        updated_at: publicEvent.occurred_at || publicEvent.created_at || new Date().toISOString(),
         expires_at: null,
-        lat: event.lat,
-        lon: event.lon
+        lat: publicEvent.lat,
+        lon: publicEvent.lon
     };
 }
 
@@ -80,7 +83,8 @@ export function eventsRouter({ broadcast }) {
                 .order("occurred_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            res.json({ events: data || [] });
+            const events = (await attachSatelliteContextToEvents(supabase, data || [])).map(toPublicEvent);
+            res.json({ events });
         } catch {
             res.status(500).json({ error: "Failed" });
         }
@@ -103,7 +107,8 @@ export function eventsRouter({ broadcast }) {
                 .order("occurred_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            res.json({ events: data || [] });
+            const events = (await attachSatelliteContextToEvents(supabase, data || [])).map(toPublicEvent);
+            res.json({ events });
         } catch {
             res.status(500).json({ error: "Failed" });
         }
@@ -301,8 +306,9 @@ export function eventsRouter({ broadcast }) {
                 e.dedupe_key || null
             ];
             const inserted = (await query(sql, vals)).rows[0];
-            broadcast({ type: "event:new", event: inserted });
-            res.json({ event: inserted });
+            const event = toPublicEvent(inserted);
+            broadcast({ type: "event:new", event });
+            res.json({ event });
         } catch (err) {
             if (String(err?.message || "").includes("dedupe_key")) {
                 return res.status(409).json({ error: "Duplicate event" });
