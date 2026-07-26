@@ -3,6 +3,7 @@ import { query } from "./db.js";
 import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
+import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachSatelliteContextToEvents } from "./satellite-context.js";
 import { toPublicEvent } from "./public-event-normalizer.js";
 const DEFAULT_EVENTS_WINDOW_HOURS = 48;
@@ -83,7 +84,10 @@ export function eventsRouter({ broadcast }) {
                 .order("occurred_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            const events = (await attachSatelliteContextToEvents(supabase, data || [])).map(toPublicEvent);
+            const mediaBaseUrl = getRequestBaseUrl(req);
+            const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
+            const eventsWithMedia = await attachEventMediaToEvents(supabase, eventsWithSatellite, { mediaBaseUrl });
+            const events = eventsWithMedia.map(toPublicEvent);
             res.json({ events });
         } catch {
             res.status(500).json({ error: "Failed" });
@@ -107,7 +111,10 @@ export function eventsRouter({ broadcast }) {
                 .order("occurred_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            const events = (await attachSatelliteContextToEvents(supabase, data || [])).map(toPublicEvent);
+            const mediaBaseUrl = getRequestBaseUrl(req);
+            const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
+            const eventsWithMedia = await attachEventMediaToEvents(supabase, eventsWithSatellite, { mediaBaseUrl });
+            const events = eventsWithMedia.map(toPublicEvent);
             res.json({ events });
         } catch {
             res.status(500).json({ error: "Failed" });

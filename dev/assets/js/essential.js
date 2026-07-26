@@ -1698,15 +1698,18 @@ function isUnknownEventDisplayValue(value = "") {
     return !clean || /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/.test(clean);
 }
 function sanitizeEventPopupText(value = "", fallback = "") {
-    const decoded = decodeBasicHtmlEntities(value);
-    const cleaned = stripNonEnglishText(stripPresentationEmoji(decoded), fallback)
+    const cleaned = sanitizeIntelWireSummary(value || fallback || "")
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/t\.me\/\S+/gi, " ")
+        .replace(/@[A-Za-z0-9_]+/g, " ");
+    const normalized = stripNonEnglishText(stripPresentationEmoji(cleaned), fallback)
         .normalize("NFKD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^\x20-\x7E]/g, " ")
-        .replace(/[^A-Za-z0-9\s.,:;!?()\-\/&]/g, " ")
+        .replace(/[^A-Za-z0-9\s.,:;!?()\-\/&%'""]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-    if (!isUnknownEventDisplayValue(cleaned)) return cleaned;
+    if (!isUnknownEventDisplayValue(normalized)) return normalized;
     const fallbackText = String(fallback || "").trim();
     return isUnknownEventDisplayValue(fallbackText) ? "" : fallbackText;
 }
@@ -1877,6 +1880,172 @@ function buildIntelWireSatelliteMarkup(event = {}) {
         </div>
     `;
 }
+function normalizeEventPopupImageEntry(entry = {}, fallbackTitle = "") {
+    if (!entry || typeof entry !== "object") return null;
+    const previewUrl = String(
+        entry.preview_url
+        || entry.previewUrl
+        || entry.thumb_url
+        || entry.thumbUrl
+        || entry.full_url
+        || entry.fullUrl
+        || ""
+    ).trim();
+    const fullUrl = String(entry.full_url || entry.fullUrl || previewUrl || "").trim();
+    if (!/^https?:\/\//i.test(previewUrl || fullUrl)) return null;
+    return {
+        previewUrl: /^https?:\/\//i.test(previewUrl) ? previewUrl : fullUrl,
+        fullUrl: /^https?:\/\//i.test(fullUrl) ? fullUrl : previewUrl,
+        alt: sanitizeEventPopupText(entry.alt || entry.title || fallbackTitle || "Event image", "Event image") || "Event image",
+        width: Number.isFinite(Number(entry.width)) ? Number(entry.width) : null,
+        height: Number.isFinite(Number(entry.height)) ? Number(entry.height) : null,
+    };
+}
+function getEventPopupMedia(detail = {}) {
+    const images = [];
+    const seen = new Set();
+    const pushImage = (entry) => {
+        const normalized = normalizeEventPopupImageEntry(entry, detail.displayTitle || detail.title || "");
+        if (!normalized) return;
+        const key = String(normalized.fullUrl || normalized.previewUrl || "").trim().toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        images.push(normalized);
+    };
+    pushImage(detail.primaryImage || detail.primary_image || null);
+    const additional = Array.isArray(detail.additionalImages)
+        ? detail.additionalImages
+        : (Array.isArray(detail.additional_images) ? detail.additional_images : []);
+    additional.forEach(pushImage);
+    const mediaImages = Array.isArray(detail?.media?.images) ? detail.media.images : [];
+    mediaImages.forEach(pushImage);
+    return {
+        images,
+        imageSource: sanitizeEventPopupText(detail.imageSource || detail.image_source || "", ""),
+        imageCaption: sanitizeEventPopupText(detail.imageCaption || detail.image_caption || detail.displayTitle || detail.title || "", ""),
+        imageCredit: sanitizeEventPopupText(detail.imageCredit || detail.image_credit || "", ""),
+        imageType: sanitizeEventPopupText(detail.imageType || detail.image_type || "", ""),
+    };
+}
+function hasPopupSatelliteContext(detail = {}) {
+    return !!normalizeSatelliteContextForPopup(detail.satelliteContext || detail.satellite_context || null);
+}
+function buildPopupRelatedEventDetail(item = {}, parentDetail = {}) {
+    return {
+        entityId: "",
+        id: String(item?.id || ""),
+        title: String(item?.display_title || item?.title || ""),
+        displayTitle: String(item?.display_title || item?.title || ""),
+        summary: String(item?.display_summary || item?.summary || ""),
+        displaySummary: String(item?.display_summary || item?.summary || ""),
+        sourceName: String(item?.display_source_name || item?.source_name || ""),
+        category: String(item?.category || parentDetail.category || ""),
+        severity: String(item?.severity || parentDetail.severity || ""),
+        clusterCount: 1,
+        lat: Number(item?.lat),
+        lon: Number(item?.lon),
+        locationLabel: String(item?.display_location_label || item?.location_label || parentDetail.locationLabel || ""),
+        occurredAt: String(item?.occurred_at || ""),
+        confidence: item?.confidence ?? null,
+        weaponType: String(item?.weapon_type || ""),
+        sourceUrl: String(item?.source_url || ""),
+        satelliteContext: item?.satellite_context || null,
+        satelliteAvailable: item?.satellite_available === true,
+        media: item?.media || null,
+        primaryImage: item?.primary_image || null,
+        additionalImages: Array.isArray(item?.additional_images) ? item.additional_images : [],
+        imageSource: String(item?.image_source || ""),
+        imageCaption: String(item?.image_caption || ""),
+        imageCredit: String(item?.image_credit || ""),
+        imageType: String(item?.image_type || ""),
+        clusterEvents: [],
+        anchorCartesian: null,
+        screenPosition: parentDetail.screenPosition || null,
+    };
+}
+function renderEventPopupMedia(host, detail = {}, state = {}) {
+    if (!host) return;
+    const media = getEventPopupMedia(detail);
+    if (!media.images.length) {
+        host.hidden = true;
+        host.innerHTML = "";
+        return;
+    }
+    const imageCount = media.images.length;
+    const activeIndex = Math.max(0, Math.min(imageCount - 1, Number(state.activeIndex) || 0));
+    const activeImage = media.images[activeIndex];
+    const metaBits = [
+        imageCount > 1 ? `Image ${activeIndex + 1} of ${imageCount}` : "Image",
+        media.imageType || "",
+        media.imageSource || "",
+    ].filter(Boolean);
+    host.hidden = false;
+    host.innerHTML = `
+        <div class="wz-event-popup-media__frame">
+            <img
+                class="wz-event-popup-media__image"
+                src="${escapeHtml(activeImage.previewUrl || activeImage.fullUrl)}"
+                ${activeImage.fullUrl ? `data-full-src="${escapeHtml(activeImage.fullUrl)}"` : ""}
+                alt="${escapeHtml(activeImage.alt)}"
+                loading="lazy"
+                decoding="async">
+        </div>
+        <div class="wz-event-popup-media__bar">
+            <div class="wz-event-popup-media__text">
+                <p class="wz-event-popup-media__eyebrow">${escapeHtml(metaBits.join(" | "))}</p>
+                ${media.imageCaption ? `<p class="wz-event-popup-media__caption">${escapeHtml(media.imageCaption)}</p>` : ""}
+                ${media.imageCredit ? `<p class="wz-event-popup-media__credit">Credit: ${escapeHtml(media.imageCredit)}</p>` : ""}
+            </div>
+            ${imageCount > 1 ? `
+                <div class="wz-event-popup-media__nav">
+                    <button type="button" data-popup-media-nav="-1" aria-label="Previous image">‹</button>
+                    <button type="button" data-popup-media-nav="1" aria-label="Next image">›</button>
+                </div>
+            ` : ""}
+        </div>
+    `;
+}
+function renderEventPopupRelatedEvents(host, detail = {}) {
+    if (!host) return;
+    const currentId = String(detail.id || "").trim();
+    const items = Array.isArray(detail.clusterEvents)
+        ? detail.clusterEvents.filter((item) => item && String(item.id || "").trim() !== currentId).slice(0, 8)
+        : [];
+    if (!items.length) {
+        host.hidden = true;
+        host.innerHTML = "";
+        return;
+    }
+    host.hidden = false;
+    host.innerHTML = `
+        <h4 class="wz-event-popup-related__title">Related Activity</h4>
+        <div class="wz-event-popup-related__list">
+            ${items.map((item, index) => {
+                const severityClass = getPlatformSeverityClass(item?.severity || "medium");
+                const severityLabel = sanitizeEventPopupText(getPlatformSeverityLabel(item?.severity || "", "Medium"), "Medium");
+                const title = sanitizeEventPopupText(item?.display_title || item?.title || item?.summary || "", "Activity report") || "Activity report";
+                const location = sanitizeEventPopupText(item?.display_location_label || item?.location_label || "", "");
+                const source = sanitizeEventPopupText(item?.display_source_name || item?.source_name || "", "");
+                const time = String(item?.occurred_at || "").trim();
+                const satellite = item?.satellite_available === true || normalizeSatelliteContextForPopup(item?.satellite_context || null);
+                return `
+                    <button type="button" class="wz-event-popup-related__item" data-popup-related-index="${index}">
+                        <div class="wz-event-popup-related__row">
+                            <span class="wz-event-popup-related__pill wz-event-popup-related__pill--${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                            ${satellite ? `<span class="wz-event-popup-related__sat">Satellite</span>` : ""}
+                        </div>
+                        <p class="wz-event-popup-related__headline">${escapeHtml(title)}</p>
+                        <div class="wz-event-popup-related__meta-row">
+                            ${location ? `<span class="wz-event-popup-related__meta">${escapeHtml(location)}</span>` : `<span></span>`}
+                            ${time ? `<span class="wz-event-popup-related__meta">${escapeHtml(formatTime(time))}</span>` : ""}
+                        </div>
+                        ${source ? `<p class="wz-event-popup-related__meta">${escapeHtml(source)}</p>` : ""}
+                    </button>
+                `;
+            }).join("")}
+        </div>
+    `;
+}
 function bindGlobeEventPopup() {
     if (__eventPopupBound) return;
     __eventPopupBound = true;
@@ -1889,14 +2058,37 @@ function bindGlobeEventPopup() {
     const locationEl = document.getElementById("wz-event-popup-location");
     const timeEl = document.getElementById("wz-event-popup-time");
     const weaponEl = document.getElementById("wz-event-popup-weapon");
+    const confidenceEl = document.getElementById("wz-event-popup-confidence");
+    const actionsEl = document.getElementById("wz-event-popup-actions");
+    const mediaEl = document.getElementById("wz-event-popup-media");
     const satelliteEl = document.getElementById("wz-event-popup-satellite");
+    const relatedEl = document.getElementById("wz-event-popup-related");
     const sourceEl = document.getElementById("wz-event-popup-source");
+    const satelliteToggleEl = document.getElementById("wz-event-popup-satellite-toggle");
     const closeBtn = document.getElementById("wz-event-popup-close");
     let activePopupAnchor = null;
+    let activePopupDetail = null;
+    let popupMediaIndex = 0;
+    let popupSatelliteOpen = false;
     let popupTrackingViewer = null;
     const popupScreenScratch = new Cesium.Cartesian2();
     const hidePopup = () => {
         activePopupAnchor = null;
+        activePopupDetail = null;
+        popupMediaIndex = 0;
+        popupSatelliteOpen = false;
+        if (mediaEl) {
+            mediaEl.hidden = true;
+            mediaEl.innerHTML = "";
+        }
+        if (satelliteEl) {
+            satelliteEl.hidden = true;
+            satelliteEl.innerHTML = "";
+        }
+        if (relatedEl) {
+            relatedEl.hidden = true;
+            relatedEl.innerHTML = "";
+        }
         popup.hidden = true;
         popup.classList.remove("is-visible");
     };
@@ -2017,6 +2209,42 @@ function bindGlobeEventPopup() {
         popupTrackingViewer = viewer;
         viewer.scene.postRender.addEventListener(syncAnchoredPopupPosition);
     };
+    const renderRichSections = () => {
+        if (!activePopupDetail) return;
+        renderEventPopupMedia(mediaEl, activePopupDetail, { activeIndex: popupMediaIndex });
+        renderEventPopupRelatedEvents(relatedEl, activePopupDetail);
+        const satelliteContext = activePopupDetail.satelliteContext || activePopupDetail.satellite_context || null;
+        const hasSatellite = hasPopupSatelliteContext(activePopupDetail) || activePopupDetail.satelliteAvailable === true;
+        if (satelliteToggleEl) {
+            satelliteToggleEl.hidden = !hasSatellite;
+            satelliteToggleEl.classList.toggle("wz-event-popup__action--active", popupSatelliteOpen && hasSatellite);
+            if (hasSatellite) {
+                const satelliteLabel = normalizeSatelliteContextForPopup(satelliteContext)?.status === "available"
+                    ? "Satellite"
+                    : "Satellite status";
+                satelliteToggleEl.textContent = satelliteLabel;
+            }
+        }
+        if (satelliteEl) {
+            if (popupSatelliteOpen && hasSatellite) {
+                renderEventPopupSatelliteContext(satelliteEl, satelliteContext);
+            } else {
+                satelliteEl.hidden = true;
+                satelliteEl.innerHTML = "";
+            }
+        }
+        if (actionsEl) {
+            const hasSource = sourceEl && sourceEl.hidden === false;
+            actionsEl.hidden = !(hasSource || (satelliteToggleEl && satelliteToggleEl.hidden === false));
+        }
+        requestAnimationFrame(() => {
+            popup.__wzPopupSize = {
+                width: popup.offsetWidth || 448,
+                height: popup.offsetHeight || 260,
+            };
+            positionPopupNearMarker(getPopupAnchorScreenPosition());
+        });
+    };
     const showPopup = (detail = {}) => {
         const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
         const categoryLabel = sanitizeEventPopupText(
@@ -2029,7 +2257,12 @@ function bindGlobeEventPopup() {
         const locationText = sanitizeEventPopupText(detail.locationLabel || "");
         const occurredAt = String(detail.occurredAt || "").trim();
         const weaponType = sanitizeEventPopupText(detail.weaponType || "");
+        const sourceName = sanitizeEventPopupText(detail.sourceName || detail.display_source_name || "", "");
         const sourceUrl = String(detail.sourceUrl || "").trim();
+        const confidenceValue = Number(detail.confidence);
+        activePopupDetail = { ...detail, clusterCount };
+        popupMediaIndex = 0;
+        popupSatelliteOpen = false;
         if (catEl) {
             catEl.textContent = clusterCount > 1
                 ? `${categoryLabel} • ${clusterCount}`
@@ -2064,14 +2297,20 @@ function bindGlobeEventPopup() {
             weaponEl.textContent = text;
             weaponEl.hidden = !text;
         }
-        renderEventPopupSatelliteContext(satelliteEl, detail.satelliteContext);
+        if (confidenceEl) {
+            const text = Number.isFinite(confidenceValue) ? `Confidence: ${Math.round(confidenceValue)}%` : "";
+            confidenceEl.textContent = text;
+            confidenceEl.hidden = !text;
+        }
         if (sourceEl) {
             const hasSource = /^https?:\/\//i.test(sourceUrl);
             sourceEl.hidden = !hasSource;
             if (hasSource) {
                 sourceEl.href = sourceUrl;
+                sourceEl.textContent = sourceName ? `${sourceName} source` : "View source";
             } else {
                 sourceEl.removeAttribute("href");
+                sourceEl.textContent = "";
             }
         }
         activePopupAnchor = {
@@ -2083,15 +2322,40 @@ function bindGlobeEventPopup() {
         };
         popup.hidden = false;
         popup.style.transition = "opacity 350ms cubic-bezier(0.4, 0, 0.2, 1)";
+        popup.classList.add("is-visible");
+        bindAnchoredPopupTracking();
+        renderRichSections();
         popup.__wzPopupSize = {
             width: popup.offsetWidth || 448,
             height: popup.offsetHeight || 260,
         };
-        popup.classList.add("is-visible");
-        bindAnchoredPopupTracking();
         positionPopupNearMarker(detail.screenPosition || getPopupAnchorScreenPosition());
         window.__warzoneViewer?.scene?.requestRender?.();
     };
+    popup.addEventListener("click", (event) => {
+        const mediaNav = event.target?.closest?.("[data-popup-media-nav]");
+        if (mediaNav && activePopupDetail) {
+            const imageCount = getEventPopupMedia(activePopupDetail).images.length;
+            if (imageCount > 1) {
+                const delta = Number(mediaNav.getAttribute("data-popup-media-nav")) || 0;
+                popupMediaIndex = (popupMediaIndex + delta + imageCount) % imageCount;
+                renderRichSections();
+            }
+            return;
+        }
+        const relatedButton = event.target?.closest?.("[data-popup-related-index]");
+        if (relatedButton && activePopupDetail) {
+            const index = Number(relatedButton.getAttribute("data-popup-related-index"));
+            const item = Array.isArray(activePopupDetail.clusterEvents) ? activePopupDetail.clusterEvents[index] : null;
+            if (item) showPopup(buildPopupRelatedEventDetail(item, activePopupDetail));
+            return;
+        }
+    });
+    satelliteToggleEl?.addEventListener("click", () => {
+        if (!activePopupDetail) return;
+        popupSatelliteOpen = !popupSatelliteOpen;
+        renderRichSections();
+    });
     closeBtn?.addEventListener("click", hidePopup);
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") hidePopup();

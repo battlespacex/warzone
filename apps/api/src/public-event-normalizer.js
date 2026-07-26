@@ -49,7 +49,7 @@ function cleanPublicText(value = "", maxLength = 900) {
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/[\u200E\u200F\u202A-\u202E]/g, " ")
         .replace(/[^\x20-\x7E]/g, " ")
-        .replace(/[^A-Za-z0-9\s.,:;!?()\-\/&]/g, " ")
+        .replace(/[^A-Za-z0-9\s.,:;!?()\-\/&%'""]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
 
@@ -78,6 +78,51 @@ function cleanSourceName(value = "") {
     }
     if (lower === "conflict feed" || lower === "rss feed") return "OSINT Feed";
     return clean;
+}
+
+function normalizePublicImageEntry(entry = {}) {
+    if (!entry || typeof entry !== "object") return null;
+    const thumbUrl = String(entry.thumb_url || entry.thumbUrl || "").trim();
+    const previewUrl = String(entry.preview_url || entry.previewUrl || "").trim();
+    const fullUrl = String(entry.full_url || entry.fullUrl || "").trim();
+    const url = [thumbUrl, previewUrl, fullUrl].find((value) => /^https?:\/\//i.test(String(value || ""))) || null;
+    if (!url) return null;
+    return {
+        thumb_url: /^https?:\/\//i.test(String(thumbUrl || "")) ? thumbUrl : null,
+        preview_url: /^https?:\/\//i.test(String(previewUrl || "")) ? previewUrl : null,
+        full_url: /^https?:\/\//i.test(String(fullUrl || "")) ? fullUrl : null,
+        alt: cleanPublicText(entry.alt || "", 240),
+        width: Number.isFinite(Number(entry.width)) ? Number(entry.width) : null,
+        height: Number.isFinite(Number(entry.height)) ? Number(entry.height) : null,
+    };
+}
+
+function normalizePublicMedia(value = null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const images = Array.isArray(value.images)
+        ? value.images.map(normalizePublicImageEntry).filter(Boolean)
+        : [];
+    const videos = Array.isArray(value.videos)
+        ? value.videos
+            .map((entry) => {
+                if (!entry || typeof entry !== "object") return null;
+                const videoUrl = String(entry.videoUrl || entry.video_url || "").trim();
+                const thumbUrl = String(entry.thumbUrl || entry.thumb_url || "").trim();
+                const embedUrl = String(entry.embedUrl || entry.embed_url || "").trim();
+                if (!/^https?:\/\//i.test(videoUrl) && !/^https?:\/\//i.test(embedUrl) && !/^https?:\/\//i.test(thumbUrl)) return null;
+                return {
+                    thumb_url: /^https?:\/\//i.test(thumbUrl) ? thumbUrl : null,
+                    video_url: /^https?:\/\//i.test(videoUrl) ? videoUrl : null,
+                    embed_url: /^https?:\/\//i.test(embedUrl) ? embedUrl : null,
+                    title: cleanPublicText(entry.title || "", 240),
+                    duration: cleanPublicText(entry.duration || "", 80),
+                    provider_label: cleanPublicText(entry.providerLabel || entry.provider_label || "", 120),
+                };
+            })
+            .filter(Boolean)
+        : [];
+    if (!images.length && !videos.length) return null;
+    return { images, videos };
 }
 
 function cleanLocationLabel(value = "") {
@@ -135,6 +180,12 @@ function toPublicEvent(event = {}) {
     const originLabel = cleanLocationLabel(event.origin_label);
     const category = cleanPublicText(event.category, 80) || "military";
     const severity = cleanPublicText(event.severity, 40) || "medium";
+    const media = normalizePublicMedia(event.media);
+    const primaryImage = normalizePublicImageEntry(event.primary_image);
+    const additionalImages = Array.isArray(event.additional_images)
+        ? event.additional_images.map(normalizePublicImageEntry).filter(Boolean)
+        : [];
+    const satelliteAvailable = String(event?.satellite_context?.status || "").toLowerCase() === "available";
 
     return {
         ...event,
@@ -153,7 +204,15 @@ function toPublicEvent(event = {}) {
         display_summary: summary,
         display_source_name: sourceName,
         display_location_label: locationLabel || impactLabel || originLabel,
-        display_category_label: getCategoryLabel(category)
+        display_category_label: getCategoryLabel(category),
+        media,
+        primary_image: primaryImage,
+        additional_images: additionalImages,
+        image_source: cleanPublicText(event.image_source, 120),
+        image_caption: cleanPublicText(event.image_caption, 240),
+        image_credit: cleanPublicText(event.image_credit, 120),
+        image_type: cleanPublicText(event.image_type, 80),
+        satellite_available: satelliteAvailable,
     };
 }
 

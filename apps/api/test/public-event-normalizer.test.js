@@ -68,3 +68,53 @@ test("broad country centroid coordinates are not public map eligible", () => {
     assert.equal(event.lon, null);
     assert.equal(event.map_eligible, false);
 });
+
+test("preserves normalized media and satellite availability fields", () => {
+    const event = toPublicEvent({
+        id: "evt-4",
+        category: "strike",
+        severity: "high",
+        title: "Drone strike on retail store",
+        summary: "Article summary",
+        source_name: "Ukrinform",
+        location_label: "Mykolaiv region, Ukraine",
+        lat: 47.0,
+        lon: 32.0,
+        media: {
+            images: [
+                {
+                    thumb_url: "https://example.com/thumb.jpg",
+                    preview_url: "https://example.com/thumb.jpg",
+                    full_url: "https://example.com/full.jpg",
+                    alt: "Damaged storefront",
+                },
+            ],
+            videos: [],
+        },
+        primary_image: {
+            preview_url: "https://example.com/thumb.jpg",
+            full_url: "https://example.com/full.jpg",
+            alt: "Damaged storefront",
+        },
+        additional_images: [
+            {
+                preview_url: "https://example.com/second-thumb.jpg",
+                full_url: "https://example.com/second-full.jpg",
+                alt: "Aftermath view",
+            },
+        ],
+        image_source: "Ukrinform",
+        image_caption: "Damage after the reported strike",
+        image_credit: "Ukrinform",
+        image_type: "News Image",
+        satellite_context: {
+            status: "available",
+        },
+    });
+
+    assert.equal(event.media.images.length, 1);
+    assert.equal(event.primary_image.preview_url, "https://example.com/thumb.jpg");
+    assert.equal(event.additional_images.length, 1);
+    assert.equal(event.image_type, "News Image");
+    assert.equal(event.satellite_available, true);
+});

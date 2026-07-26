@@ -11,6 +11,21 @@ import {
 function sanitizeText(v) {
     if (!v) return "";
     let t = String(v);
+    for (let index = 0; index < 3; index += 1) {
+        const next = t
+            .replace(/&nbsp;/gi, " ")
+            .replace(/&amp;/gi, "&")
+            .replace(/&quot;/gi, "\"")
+            .replace(/&#39;|&#x27;/gi, "'")
+            .replace(/&lt;/gi, "<")
+            .replace(/&gt;/gi, ">");
+        if (next === t) break;
+        t = next;
+    }
+    t = t
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]*>/g, " ");
     t = t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
     t = t.replace(/https?:\/\/\S+/gi, " ");
     t = t.replace(/t\.me\/\S+/gi, " ");
@@ -20,7 +35,7 @@ function sanitizeText(v) {
     t = t.replace(/[\u200E\u200F\u202A-\u202E]/g, " ");
     t = t.replace(/[،؛ـ]+/g, " ");
     t = t.replace(/[^\x20-\x7E]/g, " ");
-    t = t.replace(/[^A-Za-z0-9\s.,:;!?()\-\/&]/g, " ");
+    t = t.replace(/[^A-Za-z0-9\s.,:;!?()\-\/&%'"]/g, " ");
     t = t.replace(/\s+/g, " ").trim();
     return t;
 }
@@ -495,6 +510,50 @@ function dedupeDisplayItems(items = []) {
     }
     return out;
 }
+function buildHotspotEventPopupDetail(event = {}) {
+    return {
+        entityId: "",
+        id: String(event?.id || ""),
+        title: String(event?.display_title || event?.title || ""),
+        displayTitle: String(event?.display_title || event?.title || ""),
+        summary: String(event?.display_summary || event?.summary || ""),
+        displaySummary: String(event?.display_summary || event?.summary || ""),
+        sourceName: String(event?.display_source_name || event?.source_name || ""),
+        category: String(event?.category || ""),
+        severity: String(event?.severity || ""),
+        clusterCount: 1,
+        lat: Number(event?.lat),
+        lon: Number(event?.lon),
+        locationLabel: String(
+            event?.display_location_label
+            || event?.location_label
+            || event?.impact_label
+            || event?.country
+            || ""
+        ),
+        occurredAt: String(event?.occurred_at || ""),
+        confidence: event?.confidence ?? null,
+        weaponType: String(event?.weapon_type || ""),
+        sourceUrl: String(event?.source_url || ""),
+        satelliteContext: event?.satellite_context || null,
+        satelliteAvailable: event?.satellite_available === true,
+        media: event?.media || null,
+        primaryImage: event?.primary_image || null,
+        additionalImages: Array.isArray(event?.additional_images) ? event.additional_images : [],
+        imageSource: String(event?.image_source || ""),
+        imageCaption: String(event?.image_caption || ""),
+        imageCredit: String(event?.image_credit || ""),
+        imageType: String(event?.image_type || ""),
+        clusterEvents: [],
+        anchorCartesian: null,
+        screenPosition: null,
+    };
+}
+function dispatchHotspotEventSelection(event = {}) {
+    document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
+        detail: buildHotspotEventPopupDetail(event),
+    }));
+}
 function makeHotspotEventSignature(events = []) {
     const arr = Array.isArray(events) ? events : [];
     if (!arr.length) return "0";
@@ -738,26 +797,26 @@ function buildExpandedHTML(cluster) {
     if (!items.length) {
         return `<div class="wzhs-item wzhs-item--headline"><strong class="wzhs-item__title">No current headlines</strong></div>`;
     }
-    return items.map((e) => {
+    return items.map((e, index) => {
         const title = sanitizeText(e.__displayTitle || eventHeadline(e));
         const severityClass = getPlatformSeverityClass(e.severity || "medium");
         const severityLabel = sanitizeText(getPlatformSeverityLabel(e.severity, "Medium"));
         const subline = sanitizeText(e.__displaySubline || eventSubline(e));
         const itemTime = sanitizeText(timeAgo(e.occurred_at));
-        return `<div class="wzhs-item wzhs-item--headline">
+        return `<button type="button" class="wzhs-item wzhs-item--headline wzhs-item--button" data-hotspot-event-index="${index}">
             <div class="wzhs-item__row">
                 <span class="wzhs-item__sev wzhs-item__sev--${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
                 ${itemTime ? `<span class="wzhs-item__time">${escapeHtml(itemTime)}</span>` : ""}
             </div>
             <strong class="wzhs-item__title">${escapeHtml(title)}</strong>
             ${subline ? `<span class="wzhs-item__loc">${escapeHtml(subline)}</span>` : ""}
-        </div>`;
+        </button>`;
     }).join("");
 }
 function createCardEl(cluster, onToggle) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.dataset.clusterId = cluster.id;
+    const root = document.createElement("div");
+    root.dataset.clusterId = cluster.id;
+    root.__clusterItems = dedupeDisplayItems(cluster?.items || []);
     function refreshContent(isExpanded) {
         const loc = compactPlaceLabel(
             cluster.latest?.display_location_label ||
@@ -770,7 +829,8 @@ function createCardEl(cluster, onToggle) {
         const time = sanitizeText(timeAgo(cluster.latest?.occurred_at));
         const label = sanitizeText(cluster.label || "Hotspot");
         const isFresh = cluster.items.some((item) => isRecentActivity(item?.occurred_at));
-        btn.className = [
+        root.__clusterItems = dedupeDisplayItems(cluster?.items || []);
+        root.className = [
             "wzhs",
             `wzhs--${cluster.cat}`,
             `wzhs--sev-${cluster.sev}`,
@@ -779,11 +839,11 @@ function createCardEl(cluster, onToggle) {
             cluster.stackIdx === 2 ? "wzhs--s3" : "",
             isExpanded ? "wzhs--open" : "",
         ].filter(Boolean).join(" ");
-        btn.dataset.category = categoryDataValue(cluster.cat);
-        btn.dataset.severity = getPlatformSeverityClass(cluster.sev);
-        btn.innerHTML = `
+        root.dataset.category = categoryDataValue(cluster.cat);
+        root.dataset.severity = getPlatformSeverityClass(cluster.sev);
+        root.innerHTML = `
             <div class="wzhs__body">
-                <div class="wzhs__top">
+                <button type="button" class="wzhs__top" data-hotspot-toggle>
                     <div class="wzhs__title">
                         <div class="wzhs__icon static-icon">
                             <span class="${cluster.icon}" aria-hidden="true"></span>
@@ -794,7 +854,7 @@ function createCardEl(cluster, onToggle) {
                     <span class="wzhs__arr static-icon">
                         <span class="stratops-ico-close-1" aria-hidden="true"></span>
                     </span>
-                </div>
+                </button>
                 ${isExpanded ? `
                 <div class="wzhs__detail">
                     <div class="wzhs__header">
@@ -806,13 +866,24 @@ function createCardEl(cluster, onToggle) {
             </div>`;
     }
     refreshContent(false);
-    btn._refreshContent = refreshContent;
-    btn.addEventListener("click", (e) => {
+    root._refreshContent = refreshContent;
+    root.addEventListener("click", (e) => {
+        const eventButton = e.target?.closest?.("[data-hotspot-event-index]");
+        if (eventButton) {
+            e.preventDefault();
+            e.stopPropagation();
+            const index = Number(eventButton.getAttribute("data-hotspot-event-index"));
+            const selected = Array.isArray(root.__clusterItems) ? root.__clusterItems[index] : null;
+            if (selected) dispatchHotspotEventSelection(selected);
+            return;
+        }
+        const toggleButton = e.target?.closest?.("[data-hotspot-toggle]");
+        if (!toggleButton) return;
         e.preventDefault();
         e.stopPropagation();
-        onToggle(cluster.id, btn);
+        onToggle(cluster.id, root);
     });
-    return btn;
+    return root;
 }
 // ─── main export ──────────────────────────────────────────────────────────────
 export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
