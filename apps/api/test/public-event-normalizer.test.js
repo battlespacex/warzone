@@ -69,6 +69,44 @@ test("broad country centroid coordinates are not public map eligible", () => {
     assert.equal(event.map_eligible, false);
 });
 
+test("hides low-information GDELT fragments from the operational map", () => {
+    const event = toPublicEvent({
+        id: "evt-gdelt-fragment",
+        category: "strike",
+        severity: "medium",
+        title: ": drones - 12",
+        summary: "20260727T044500Z",
+        source_name: "GDELT",
+        location_label: "Unknown location",
+        weapon_type: "drone",
+        lat: 29.5,
+        lon: 45
+    });
+
+    assert.equal(event.display_title, "Drone activity signal");
+    assert.equal(event.display_summary, null);
+    assert.equal(event.source_name, "GDELT");
+    assert.equal(event.map_eligible, false);
+});
+
+test("removes timestamp-only GDELT summaries when the headline is useful", () => {
+    const event = toPublicEvent({
+        id: "evt-gdelt-headline",
+        category: "strike",
+        severity: "medium",
+        title: "Drone attack reported near port facility",
+        summary: "20260727T044500Z",
+        source_name: "GDELT",
+        location_label: "Port area",
+        lat: 29.6,
+        lon: 45.2
+    });
+
+    assert.equal(event.display_title, "Drone attack reported near port facility");
+    assert.equal(event.display_summary, null);
+    assert.equal(event.map_eligible, true);
+});
+
 test("preserves normalized media and satellite availability fields", () => {
     const event = toPublicEvent({
         id: "evt-4",

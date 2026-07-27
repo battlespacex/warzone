@@ -1387,9 +1387,9 @@ const DEV_LIVE_AIRCRAFT_SIZE_FIELDS = [
     { key: "aircraft-ground-scale", label: "Ground/parked scale", cssVar: "--warzone-live-aircraft-model-ground-scale", min: 0.05, max: 20, step: 0.05, fallback: 0.8 },
     { key: "aircraft-zoom-in-scale", label: "Zoom-in scale", cssVar: "--warzone-live-aircraft-model-scale-zoom-in", min: 0.05, max: 20, step: 0.05, fallback: 1 },
     { key: "aircraft-zoom-out-scale", label: "Zoom-out scale", cssVar: "--warzone-live-aircraft-model-scale-zoom-out", min: 0.05, max: 20, step: 0.05, fallback: 1 },
-    { key: "aircraft-focused-scale", label: "Focused model scale", cssVar: "--warzone-live-aircraft-model-focused-scale", min: 0.05, max: 20, step: 0.05, fallback: 1.08 },
+    { key: "aircraft-focused-scale", label: "Focused model scale", cssVar: "--warzone-live-aircraft-model-focused-scale", min: 0.05, max: 20, step: 0.05, fallback: 1.21 },
     { key: "aircraft-min-pixel", label: "Model min pixel size", cssVar: "--warzone-live-aircraft-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 110 },
-    { key: "aircraft-focused-min-pixel", label: "Focused min pixel size", cssVar: "--warzone-live-aircraft-model-focused-min-pixel-size", min: 0, max: 600, step: 1, fallback: 220 },
+    { key: "aircraft-focused-min-pixel", label: "Focused min pixel size", cssVar: "--warzone-live-aircraft-model-focused-min-pixel-size", min: 0, max: 600, step: 1, fallback: 352 },
     { key: "aircraft-max-scale", label: "Model max scale", cssVar: "--warzone-live-aircraft-model-max-scale", min: 1, max: 5000, step: 1, fallback: 2440 },
     { key: "aircraft-alpha", label: "Model alpha", cssVar: "--warzone-live-aircraft-model-alpha", min: 0, max: 1, step: 0.01, fallback: 1 },
     { key: "aircraft-whiteness", label: "Model whiteness", cssVar: "--warzone-live-aircraft-model-whiteness", min: 0, max: 1, step: 0.01, fallback: 0.18 },
@@ -2049,12 +2049,18 @@ function setRootCssNumber(varName, value) {
     document.documentElement.style.setProperty(varName, String(parsed));
     return true;
 }
+function setRootCssText(varName, value) {
+    const clean = String(value || "").trim();
+    if (!clean) return false;
+    document.documentElement.style.setProperty(varName, clean);
+    return true;
+}
 function scheduleDevContourTuningRefresh() {
     window.clearTimeout(__devContourTuningRefreshTimer);
     __devContourTuningRefreshTimer = window.setTimeout(() => {
         const api = getDevMapApi();
         api?.refreshMapTuning?.();
-        if (api?.isContourLayerVisible?.() === true) {
+        if (api?.isContourLayerVisible?.() === true || api?.isContourGridVisible?.() === true) {
             api?.refreshContourFromViewport?.({ force: true, reason: "dev-contour-tuning" });
         }
     }, 80);
@@ -2092,6 +2098,10 @@ function ensureDevMapLayerControls() {
             <span>Grid line</span>
         </label>
         <label class="wz-dev-field">
+            <span>Contour color</span>
+            <input id="wz-dev-contour-color" type="color">
+        </label>
+        <label class="wz-dev-field">
             <span>Contour thickness</span>
             <input id="wz-dev-contour-width" type="number" min="0.5" max="8" step="0.1">
         </label>
@@ -2106,6 +2116,58 @@ function ensureDevMapLayerControls() {
         <label class="wz-dev-field">
             <span>Contour alpha</span>
             <input id="wz-dev-contour-alpha" type="number" min="0.05" max="1" step="0.01">
+        </label>
+        <label class="wz-dev-field">
+            <span>Contour smoothing</span>
+            <input id="wz-dev-contour-smoothing" type="number" min="0" max="3" step="1">
+        </label>
+        <label class="wz-dev-field">
+            <span>Grid color</span>
+            <input id="wz-dev-grid-color" type="color">
+        </label>
+        <label class="wz-dev-field">
+            <span>Grid thickness</span>
+            <input id="wz-dev-grid-width" type="number" min="0.35" max="5" step="0.05">
+        </label>
+        <label class="wz-dev-field">
+            <span>Grid alpha</span>
+            <input id="wz-dev-grid-alpha" type="number" min="0.02" max="1" step="0.01">
+        </label>
+        <label class="wz-dev-field">
+            <span>Grid major alpha</span>
+            <input id="wz-dev-grid-major-alpha" type="number" min="0.02" max="1" step="0.01">
+        </label>
+        <label class="wz-dev-field">
+            <span>CTR radius</span>
+            <input id="wz-dev-grid-radius" type="number" min="5000" max="80000" step="1000">
+        </label>
+        <label class="wz-dev-field">
+            <span>CTR fade start</span>
+            <input id="wz-dev-grid-fade-start" type="number" min="0" max="79000" step="1000">
+        </label>
+        <label class="wz-dev-field wz-dev-check">
+            <input id="wz-dev-grid-ring-enabled" type="checkbox">
+            <span>CTR rings</span>
+        </label>
+        <label class="wz-dev-field">
+            <span>Ring color</span>
+            <input id="wz-dev-grid-ring-color" type="color">
+        </label>
+        <label class="wz-dev-field">
+            <span>Ring thickness</span>
+            <input id="wz-dev-grid-ring-width" type="number" min="0.35" max="5" step="0.05">
+        </label>
+        <label class="wz-dev-field">
+            <span>Outer ring alpha</span>
+            <input id="wz-dev-grid-ring-alpha" type="number" min="0.02" max="1" step="0.01">
+        </label>
+        <label class="wz-dev-field">
+            <span>Inner ring alpha</span>
+            <input id="wz-dev-grid-ring-inner-alpha" type="number" min="0.02" max="1" step="0.01">
+        </label>
+        <label class="wz-dev-field">
+            <span>Inner ring scale</span>
+            <input id="wz-dev-grid-ring-inner-scale" type="number" min="0.15" max="0.95" step="0.01">
         </label>
         <div class="wz-dev-map-actions">
             <button id="wz-dev-map-layer-sync" type="button" class="wz-dev-action">Sync From Map</button>
@@ -2140,6 +2202,26 @@ function syncDevMapLayerControls() {
     setValue("wz-dev-contour-major-width", "--warzone-live-aircraft-contour-major-width-scale", 1.45);
     setValue("wz-dev-contour-halo-width", "--warzone-contour-halo-width", 2.15);
     setValue("wz-dev-contour-alpha", "--warzone-live-aircraft-contour-alpha", 0.78);
+    setValue("wz-dev-contour-smoothing", "--warzone-contour-smoothing-passes", 3);
+    setValue("wz-dev-grid-width", "--warzone-contour-grid-width", 1.15);
+    setValue("wz-dev-grid-alpha", "--warzone-contour-grid-alpha", 0.26);
+    setValue("wz-dev-grid-major-alpha", "--warzone-contour-grid-major-alpha", 0.42);
+    setValue("wz-dev-grid-radius", "--warzone-contour-grid-radius", 30000);
+    setValue("wz-dev-grid-fade-start", "--warzone-contour-grid-fade-start", 24000);
+    setValue("wz-dev-grid-ring-width", "--warzone-contour-grid-ring-width", 1.7);
+    setValue("wz-dev-grid-ring-alpha", "--warzone-contour-grid-ring-alpha", 0.58);
+    setValue("wz-dev-grid-ring-inner-alpha", "--warzone-contour-grid-ring-inner-alpha", 0.36);
+    setValue("wz-dev-grid-ring-inner-scale", "--warzone-contour-grid-ring-inner-scale", 0.58);
+    setChecked("wz-dev-grid-ring-enabled", getRootCssNumber("--warzone-contour-grid-ring-enabled", 1) >= 0.5);
+    const setColor = (id, varName, fallback) => {
+        const input = document.getElementById(id);
+        if (input && document.activeElement !== input) {
+            input.value = getResolvedColorHex(getRootCssText(varName, fallback), fallback);
+        }
+    };
+    setColor("wz-dev-contour-color", "--warzone-live-aircraft-contour-color", "#18f4ff");
+    setColor("wz-dev-grid-color", "--warzone-contour-grid-color", "#ff2b62");
+    setColor("wz-dev-grid-ring-color", "--warzone-contour-grid-ring-color", "#ff2b62");
 }
 function initDevMapLayerControls() {
     ensureDevMapLayerControls();
@@ -2188,17 +2270,50 @@ function initDevMapLayerControls() {
     bindNumber("wz-dev-contour-major-width", "--warzone-live-aircraft-contour-major-width-scale");
     bindNumber("wz-dev-contour-halo-width", "--warzone-contour-halo-width");
     bindNumber("wz-dev-contour-alpha", "--warzone-live-aircraft-contour-alpha");
+    bindNumber("wz-dev-contour-smoothing", "--warzone-contour-smoothing-passes");
+    bindNumber("wz-dev-grid-width", "--warzone-contour-grid-width");
+    bindNumber("wz-dev-grid-alpha", "--warzone-contour-grid-alpha");
+    bindNumber("wz-dev-grid-major-alpha", "--warzone-contour-grid-major-alpha");
+    bindNumber("wz-dev-grid-radius", "--warzone-contour-grid-radius");
+    bindNumber("wz-dev-grid-fade-start", "--warzone-contour-grid-fade-start");
+    bindNumber("wz-dev-grid-ring-width", "--warzone-contour-grid-ring-width");
+    bindNumber("wz-dev-grid-ring-alpha", "--warzone-contour-grid-ring-alpha");
+    bindNumber("wz-dev-grid-ring-inner-alpha", "--warzone-contour-grid-ring-inner-alpha");
+    bindNumber("wz-dev-grid-ring-inner-scale", "--warzone-contour-grid-ring-inner-scale");
+    bindCheckbox("wz-dev-grid-ring-enabled", (api, checked) => {
+        setRootCssNumber("--warzone-contour-grid-ring-enabled", checked ? 1 : 0);
+        api.refreshMapTuning?.();
+        return api.refreshContourFromViewport?.({ force: true, reason: "dev-ctr-ring-toggle" });
+    });
+    const bindColor = (id, varName) => {
+        const input = document.getElementById(id);
+        if (!input || input.dataset.bound === "true") return;
+        input.dataset.bound = "true";
+        input.addEventListener("input", () => {
+            if (!setRootCssText(varName, input.value)) return;
+            scheduleDevContourTuningRefresh();
+        });
+        input.addEventListener("change", () => {
+            if (!setRootCssText(varName, input.value)) return;
+            scheduleDevContourTuningRefresh();
+            devLog(`${input.previousElementSibling?.textContent || id}: ${input.value}`);
+        });
+    };
+    bindColor("wz-dev-contour-color", "--warzone-live-aircraft-contour-color");
+    bindColor("wz-dev-grid-color", "--warzone-contour-grid-color");
+    bindColor("wz-dev-grid-ring-color", "--warzone-contour-grid-ring-color");
     document.getElementById("wz-dev-map-layer-sync")?.addEventListener("click", syncDevMapLayerControls);
     document.getElementById("wz-dev-map-layer-fast")?.addEventListener("click", () => {
         const api = getDevMapApi();
         if (!api) return;
         api.setSatelliteVisible?.(true);
         api.setGreyedSatelliteVisible?.(false);
-        api.setContourGridVisible?.(false);
+        api.setContourGridVisible?.(true);
+        setRootCssNumber("--warzone-contour-grid-ring-enabled", 1);
         void Promise.resolve(api.enableFocusedTerrain?.())
             .then(() => api.setContourLayerVisible?.(true))
             .finally(syncDevMapLayerControls);
-        devLog("Map fast focus preset: satellite ON, terrain ON, grid OFF, contour ON");
+        devLog("Map fast focus preset: satellite ON, terrain ON, grid ON, CTR rings ON, contour ON");
     });
     document.addEventListener("wz:contour-layer-changed", syncDevMapLayerControls);
     document.addEventListener("wz:focused-terrain-changed", syncDevMapLayerControls);

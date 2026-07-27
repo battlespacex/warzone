@@ -59,6 +59,9 @@ function cssNumber(name, fallback) {
     const parsed = Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
+function areHotspotCardsEnabled() {
+    return cssNumber("--wzhs-cards-enabled", 0) >= 0.5;
+}
 function cssLengthToPx(name, fallbackPx) {
     const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     if (!raw) return fallbackPx;
@@ -912,11 +915,12 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         throttleMove: options.throttleMove ?? 90,
     };
     function handleToggle(id, el) {
+        if (!areHotspotCardsEnabled()) return;
         const wasOpen = expandedId === id;
         expandedId = wasOpen ? null : id;
         if (!wasOpen) {
             for (const [nid, node] of nodeMap) {
-                if (nid !== id && node.el.classList.contains("wzhs--open")) {
+                if (nid !== id && node.el?.classList.contains("wzhs--open")) {
                     node.el._refreshContent(false);
                     node.el.classList.remove("wzhs--open");
                 }
@@ -968,11 +972,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const visibleIds = new Set(visible.map((v) => v.id));
         for (const [id, node] of nodeMap) {
             if (!visibleIds.has(id)) {
-                node.el.remove();
+                node.el?.remove?.();
                 node.radiusEl?.remove?.();
                 nodeMap.delete(id);
             }
         }
+        const cardsEnabled = areHotspotCardsEnabled();
+        if (!cardsEnabled && expandedId) expandedId = null;
         for (const cluster of visible) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
             const tx = cluster.screen.x + HOTSPOT_LABEL_OFFSET.x + off.x;
@@ -988,7 +994,17 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusEl = createHotspotRadiusEl(cluster);
                     rootEl.appendChild(node.radiusEl);
                 }
-                if (node.x !== tx || node.y !== ty) {
+                if (node.el && !cardsEnabled) {
+                    node.el.remove();
+                    node.el = null;
+                    node.x = null;
+                    node.y = null;
+                }
+                if (cardsEnabled && !node.el) {
+                    node.el = createCardEl(cluster, handleToggle);
+                    rootEl.appendChild(node.el);
+                }
+                if (cardsEnabled && node.el && (node.x !== tx || node.y !== ty)) {
                     node.el.style.left = `${tx}px`;
                     node.el.style.top = `${ty}px`;
                     node.el.style.zIndex = zi;
@@ -1011,16 +1027,22 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusMatrix = hotspotMatrix;
                 }
                 node.radiusEl.style.zIndex = zi - 1;
-                node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
-                node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
+                if (cardsEnabled && node.el) {
+                    node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
+                    node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
+                    node.el.__clusterItems = dedupeDisplayItems(cluster?.items || []);
+                    node.el.render(cluster, expandedId === cluster.id);
+                }
             } else {
                 const radiusEl = createHotspotRadiusEl(cluster);
                 radiusEl.style.cssText = `position:absolute;left:${rx - hotspotDiameter * 0.5}px;top:${ry - hotspotDiameter * 0.5}px;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;transform:${hotspotMatrix || "none"};`;
                 rootEl.appendChild(radiusEl);
-                const el = createCardEl(cluster, handleToggle);
-                el.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;z-index:${zi};`;
-                rootEl.appendChild(el);
-                nodeMap.set(cluster.id, { el, radiusEl, x: tx, y: ty, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix });
+                const el = cardsEnabled ? createCardEl(cluster, handleToggle) : null;
+                if (el) {
+                    el.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;z-index:${zi};`;
+                    rootEl.appendChild(el);
+                }
+                nodeMap.set(cluster.id, { el, radiusEl, x: el ? tx : null, y: el ? ty : null, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix });
             }
         }
     }
@@ -1100,7 +1122,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         },
         clear() {
             for (const [, node] of nodeMap) {
-                node.el.remove();
+                node.el?.remove?.();
                 node.radiusEl?.remove?.();
             }
             nodeMap.clear();
@@ -1109,7 +1131,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             destroyed = true;
             clearTimeout(moveEndTimer);
             for (const [, node] of nodeMap) {
-                node.el.remove();
+                node.el?.remove?.();
                 node.radiusEl?.remove?.();
             }
             nodeMap.clear();

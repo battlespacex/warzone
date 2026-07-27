@@ -801,7 +801,9 @@ const OPERATIONAL_MAP_REPORT_TYPES = new Set([
     "network",
     "internet_outage",
     "network_blocking",
-    "conflict"
+    "conflict",
+    "signal",
+    "osint"
 ]);
 function getOperationalMapText(event = {}) {
     return [
@@ -854,6 +856,8 @@ function isIntelWireOnlyEvent(event = {}) {
 }
 function isOperationalMapEvent(event = {}) {
     if (!event || !isMilitaryRelevant(event)) return false;
+    if (event.map_eligible === false || event.mapEligible === false) return false;
+    if (isLowInformationPublicSignal(event)) return false;
     if (isIntelWireOnlyEvent(event)) return false;
     const category = String(event.category || "").toLowerCase();
     if (["strike", "alert", "airspace", "cyber", "thermal", "signal", "seismic", "network"].includes(category)) {
@@ -1697,11 +1701,36 @@ function isUnknownEventDisplayValue(value = "") {
     const clean = String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
     return !clean || /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/.test(clean);
 }
+const RAW_EVENT_TIMESTAMP_RE = /^\s*(?:\d{8}T\d{4,6}Z|\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:?\d{2}(?::?\d{2})?(?:\.\d+)?Z?)?)\s*$/i;
+const FRAGMENTARY_EVENT_SIGNAL_RE = /^\s*[:;|,\-]*\s*(?:drones?|uavs?|missiles?|rockets?|strikes?|attacks?|explosions?|blasts?|shelling|artillery|airstrikes?|air strikes?)(?:\s*[-:]\s*\d+)?\s*$/i;
+function isRawEventTimestampText(value = "") {
+    return RAW_EVENT_TIMESTAMP_RE.test(String(value || "").trim());
+}
+function isFragmentaryEventSignalText(value = "") {
+    const clean = String(value || "").replace(/\s+/g, " ").trim();
+    if (!clean) return false;
+    if (FRAGMENTARY_EVENT_SIGNAL_RE.test(clean)) return true;
+    const withoutPrefix = clean.replace(/^[\s:;|,\-]+/, "").trim();
+    return withoutPrefix !== clean && withoutPrefix.split(/\s+/).length <= 5;
+}
+function isLowInformationPublicSignal(event = {}) {
+    const source = [
+        event.display_source_name,
+        event.source_name,
+        Array.isArray(event.tags) ? event.tags.join(" ") : event.tags,
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (!source.includes("gdelt")) return false;
+    const title = event.display_title || event.displayTitle || event.title || "";
+    const summary = event.display_summary || event.displaySummary || event.summary || "";
+    return isFragmentaryEventSignalText(title) && (!summary || isRawEventTimestampText(summary));
+}
 function sanitizeEventPopupText(value = "", fallback = "") {
     const cleaned = sanitizeIntelWireSummary(value || fallback || "")
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/t\.me\/\S+/gi, " ")
-        .replace(/@[A-Za-z0-9_]+/g, " ");
+        .replace(/@[A-Za-z0-9_]+/g, " ")
+        .replace(/\b(?:img|image)\s+width\s*["']?\d+["']?\s+height\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:attachment|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes)\b[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ");
     const normalized = stripNonEnglishText(stripPresentationEmoji(cleaned), fallback)
         .normalize("NFKD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -1726,6 +1755,7 @@ function stripRepeatedEventTitle(summary = "", title = "") {
     let cleanSummary = sanitizeEventPopupText(summary || "");
     const cleanTitle = sanitizeEventPopupText(title || "");
     if (!cleanSummary) return "";
+    if (isRawEventTimestampText(cleanSummary)) return "";
     cleanSummary = cleanSummary
         .replace(/^\d{8}T\d{6}Z\s+/i, "")
         .replace(/^top reports:\s*/i, "")
@@ -1768,23 +1798,24 @@ function normalizeSatelliteContextForPopup(value = null) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const status = String(value.status || "").toLowerCase();
     if (!["available", "pending", "searching", "processing", "retryable_error"].includes(status)) return null;
-    if (status === "available" && !/^https?:\/\//i.test(String(value.imageUrl || ""))) return null;
+    const imageUrl = String(value.imageUrl || value.image_url || "").trim();
+    if (status === "available" && !/^https?:\/\//i.test(imageUrl)) return null;
     return {
         status,
         provider: sanitizeEventPopupText(value.provider || "Copernicus", "Copernicus"),
         collection: sanitizeEventPopupText(value.collection || ""),
-        observationType: sanitizeEventPopupText(value.observationType || ""),
-        acquisitionTime: value.acquisitionTime || null,
-        eventTimeRelation: sanitizeEventPopupText(value.eventTimeRelation || "unknown", "unknown"),
-        cloudCover: Number.isFinite(Number(value.cloudCover)) ? Number(value.cloudCover) : null,
-        imageUrl: String(value.imageUrl || ""),
+        observationType: sanitizeEventPopupText(value.observationType || value.observation_type || ""),
+        acquisitionTime: value.acquisitionTime || value.acquisition_time || null,
+        eventTimeRelation: sanitizeEventPopupText(value.eventTimeRelation || value.event_time_relation || "unknown", "unknown"),
+        cloudCover: Number.isFinite(Number(value.cloudCover ?? value.cloud_cover)) ? Number(value.cloudCover ?? value.cloud_cover) : null,
+        imageUrl,
         width: Number.isFinite(Number(value.width)) ? Number(value.width) : null,
         height: Number.isFinite(Number(value.height)) ? Number(value.height) : null,
         updatedAt: value.updatedAt || value.updated_at || null,
-        imageryType: sanitizeEventPopupText(value.imageryType || ""),
-        approximateResolution: sanitizeEventPopupText(value.approximateResolution || ""),
+        imageryType: sanitizeEventPopupText(value.imageryType || value.imagery_type || ""),
+        approximateResolution: sanitizeEventPopupText(value.approximateResolution || value.approximate_resolution || ""),
         disclaimer: sanitizeEventPopupText(value.disclaimer || "Latest available satellite observation for contextual reference. It is not live imagery and does not independently confirm the reported event or its cause."),
-        radarDisclaimer: sanitizeEventPopupText(value.radarDisclaimer || ""),
+        radarDisclaimer: sanitizeEventPopupText(value.radarDisclaimer || value.radar_disclaimer || ""),
     };
 }
 function formatSatelliteRelation(value = "") {
@@ -1928,9 +1959,17 @@ function getEventPopupMedia(detail = {}) {
     };
 }
 function hasPopupSatelliteContext(detail = {}) {
-    return !!normalizeSatelliteContextForPopup(detail.satelliteContext || detail.satellite_context || null);
+    return !!getAvailablePopupSatelliteContext(detail);
+}
+function getAvailablePopupSatelliteContext(detail = {}) {
+    const context = normalizeSatelliteContextForPopup(detail.satelliteContext || detail.satellite_context || null);
+    if (!context || context.status !== "available") return null;
+    const imageUrl = String(context.imageUrl || "").trim();
+    if (!/^https?:\/\//i.test(imageUrl)) return null;
+    return context;
 }
 function buildPopupRelatedEventDetail(item = {}, parentDetail = {}) {
+    const satelliteContext = item?.satellite_context || item?.satelliteContext || null;
     return {
         entityId: "",
         id: String(item?.id || ""),
@@ -1949,8 +1988,8 @@ function buildPopupRelatedEventDetail(item = {}, parentDetail = {}) {
         confidence: item?.confidence ?? null,
         weaponType: String(item?.weapon_type || ""),
         sourceUrl: String(item?.source_url || ""),
-        satelliteContext: item?.satellite_context || null,
-        satelliteAvailable: item?.satellite_available === true,
+        satelliteContext,
+        satelliteAvailable: !!getAvailablePopupSatelliteContext({ satelliteContext }),
         media: item?.media || null,
         primaryImage: item?.primary_image || null,
         additionalImages: Array.isArray(item?.additional_images) ? item.additional_images : [],
@@ -1962,6 +2001,70 @@ function buildPopupRelatedEventDetail(item = {}, parentDetail = {}) {
         anchorCartesian: null,
         screenPosition: parentDetail.screenPosition || null,
     };
+}
+function normalizeRelatedEventText(value = "") {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function getRelatedEventTokens(value = "") {
+    const stopWords = new Set([
+        "the", "and", "for", "with", "from", "that", "this", "into", "over", "near", "after",
+        "says", "said", "will", "has", "have", "been", "they", "their", "his", "her", "its",
+        "strike", "strikes", "attack", "attacks", "drone", "missile", "reported", "reports",
+    ]);
+    return new Set(normalizeRelatedEventText(value)
+        .split(" ")
+        .filter((token) => token.length >= 4 && !stopWords.has(token))
+        .slice(0, 28));
+}
+function getRelatedTokenOverlapScore(parentTokens, itemTokens) {
+    if (!(parentTokens instanceof Set) || !(itemTokens instanceof Set) || !parentTokens.size || !itemTokens.size) return 0;
+    let overlap = 0;
+    itemTokens.forEach((token) => {
+        if (parentTokens.has(token)) overlap += 1;
+    });
+    return overlap;
+}
+function getPopupRelatedItems(detail = {}) {
+    const currentId = String(detail.id || "").trim();
+    const parentText = [
+        detail.displayTitle || detail.title || "",
+        detail.displaySummary || detail.summary || "",
+        detail.locationLabel || "",
+        detail.sourceName || "",
+    ].join(" ");
+    const parentTokens = getRelatedEventTokens(parentText);
+    const parentLocation = normalizeRelatedEventText(detail.locationLabel || "");
+    const parentSource = normalizeRelatedEventText(detail.sourceName || "");
+    const parentCategory = normalizeRelatedEventText(detail.category || "");
+    const rawItems = Array.isArray(detail.clusterEvents) ? detail.clusterEvents : [];
+    return rawItems
+        .filter((item) => item && String(item.id || "").trim() !== currentId)
+        .map((item) => {
+            const itemText = [
+                item.display_title || item.title || "",
+                item.display_summary || item.summary || "",
+                item.display_location_label || item.location_label || "",
+                item.display_source_name || item.source_name || "",
+            ].join(" ");
+            const itemTokens = getRelatedEventTokens(itemText);
+            const overlap = getRelatedTokenOverlapScore(parentTokens, itemTokens);
+            const itemLocation = normalizeRelatedEventText(item.display_location_label || item.location_label || "");
+            const itemSource = normalizeRelatedEventText(item.display_source_name || item.source_name || "");
+            const itemCategory = normalizeRelatedEventText(item.category || "");
+            const sameLocation = parentLocation && itemLocation && (parentLocation === itemLocation || parentLocation.includes(itemLocation) || itemLocation.includes(parentLocation));
+            const sameSource = parentSource && itemSource && parentSource === itemSource;
+            const sameCategory = parentCategory && itemCategory && parentCategory === itemCategory;
+            const score = overlap + (sameLocation ? 4 : 0) + (sameSource ? 2 : 0) + (sameCategory ? 1 : 0);
+            return { item, score };
+        })
+        .filter((entry) => entry.score >= 3)
+        .sort((a, b) => b.score - a.score)
+        .map((entry) => entry.item)
+        .slice(0, 6);
 }
 function renderEventPopupMedia(host, detail = {}, state = {}) {
     if (!host) return;
@@ -2007,10 +2110,7 @@ function renderEventPopupMedia(host, detail = {}, state = {}) {
 }
 function renderEventPopupRelatedEvents(host, detail = {}) {
     if (!host) return;
-    const currentId = String(detail.id || "").trim();
-    const items = Array.isArray(detail.clusterEvents)
-        ? detail.clusterEvents.filter((item) => item && String(item.id || "").trim() !== currentId).slice(0, 8)
-        : [];
+    const items = getPopupRelatedItems(detail);
     if (!items.length) {
         host.hidden = true;
         host.innerHTML = "";
@@ -2213,16 +2313,13 @@ function bindGlobeEventPopup() {
         if (!activePopupDetail) return;
         renderEventPopupMedia(mediaEl, activePopupDetail, { activeIndex: popupMediaIndex });
         renderEventPopupRelatedEvents(relatedEl, activePopupDetail);
-        const satelliteContext = activePopupDetail.satelliteContext || activePopupDetail.satellite_context || null;
-        const hasSatellite = hasPopupSatelliteContext(activePopupDetail) || activePopupDetail.satelliteAvailable === true;
+        const satelliteContext = getAvailablePopupSatelliteContext(activePopupDetail);
+        const hasSatellite = !!satelliteContext;
         if (satelliteToggleEl) {
             satelliteToggleEl.hidden = !hasSatellite;
             satelliteToggleEl.classList.toggle("wz-event-popup__action--active", popupSatelliteOpen && hasSatellite);
             if (hasSatellite) {
-                const satelliteLabel = normalizeSatelliteContextForPopup(satelliteContext)?.status === "available"
-                    ? "Satellite"
-                    : "Satellite status";
-                satelliteToggleEl.textContent = satelliteLabel;
+                satelliteToggleEl.textContent = "Satellite";
             }
         }
         if (satelliteEl) {
@@ -2248,8 +2345,8 @@ function bindGlobeEventPopup() {
     const showPopup = (detail = {}) => {
         const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
         const categoryLabel = sanitizeEventPopupText(
-            getPlatformCategoryLabel(detail, { surface: "popup", fallback: "Hotspot" }),
-            "Hotspot"
+            getPlatformCategoryLabel(detail, { surface: "popup", fallback: "Event" }),
+            "Event"
         );
         const categoryClass = getPlatformCategoryClass(detail, { surface: "popup" });
         const severityLabel = sanitizeEventPopupText(getPlatformSeverityLabel(detail.severity, "Medium"), "Medium");
@@ -2262,7 +2359,7 @@ function bindGlobeEventPopup() {
         const confidenceValue = Number(detail.confidence);
         activePopupDetail = { ...detail, clusterCount };
         popupMediaIndex = 0;
-        popupSatelliteOpen = false;
+        popupSatelliteOpen = hasPopupSatelliteContext(detail);
         if (catEl) {
             catEl.textContent = clusterCount > 1
                 ? `${categoryLabel} • ${clusterCount}`
@@ -2277,7 +2374,7 @@ function bindGlobeEventPopup() {
         }
         if (titleEl) {
             titleEl.textContent = sanitizeEventPopupText(detail.displayTitle || detail.display_title || detail.title || "")
-                || (clusterCount > 1 ? `${clusterCount} ${categoryLabel} hotspots` : `${categoryLabel} hotspot`);
+                || (clusterCount > 1 ? `${clusterCount} ${categoryLabel} events` : `${categoryLabel} event`);
         }
         if (summaryEl) {
             summaryEl.textContent = buildEventPopupSummary(detail, clusterCount);
@@ -2346,12 +2443,15 @@ function bindGlobeEventPopup() {
         const relatedButton = event.target?.closest?.("[data-popup-related-index]");
         if (relatedButton && activePopupDetail) {
             const index = Number(relatedButton.getAttribute("data-popup-related-index"));
-            const item = Array.isArray(activePopupDetail.clusterEvents) ? activePopupDetail.clusterEvents[index] : null;
+            const relatedItems = getPopupRelatedItems(activePopupDetail);
+            const item = relatedItems[index] || null;
             if (item) showPopup(buildPopupRelatedEventDetail(item, activePopupDetail));
             return;
         }
     });
-    satelliteToggleEl?.addEventListener("click", () => {
+    satelliteToggleEl?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         if (!activePopupDetail) return;
         popupSatelliteOpen = !popupSatelliteOpen;
         renderRichSections();
@@ -3688,6 +3788,8 @@ function sanitizeIntelWireSummary(value = "") {
         .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
         .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
         .replace(/<[^>]*>/g, " ")
+        .replace(/\b(?:img|image)\s+width\s*["']?\d+["']?\s+height\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:attachment|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes)\b[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
         .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=["'][^"']*["']/gi, " ")
         .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
         .replace(/https?:\/\/\S+/gi, " ");

@@ -586,6 +586,20 @@ function normalizeText(value) {
         .replace(/\s+/g, " ")
         .trim();
 }
+const RAW_FEED_TIMESTAMP_RE =
+    /^\s*(?:\d{8}T\d{4,6}Z|\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:?\d{2}(?::?\d{2})?(?:\.\d+)?Z?)?)\s*$/i;
+const FRAGMENTARY_FEED_SIGNAL_RE =
+    /^\s*[:;|,\-]*\s*(?:drones?|uavs?|missiles?|rockets?|strikes?|attacks?|explosions?|blasts?|shelling|artillery|airstrikes?|air strikes?)(?:\s*[-:]\s*\d+)?\s*$/i;
+function isRawFeedTimestamp(value = "") {
+    return RAW_FEED_TIMESTAMP_RE.test(String(value || "").trim());
+}
+function isFragmentaryFeedSignal(value = "") {
+    const clean = normalizeText(value);
+    if (!clean) return false;
+    if (FRAGMENTARY_FEED_SIGNAL_RE.test(clean)) return true;
+    const withoutPrefix = clean.replace(/^[\s:;|,\-]+/, "").trim();
+    return withoutPrefix !== clean && withoutPrefix.split(/\s+/).length <= 5;
+}
 function toArray(value) {
     return Array.isArray(value) ? value : [];
 }
@@ -2176,8 +2190,15 @@ function normalizeEonetEvent(item, feed) {
  * -------------------------------------- */
 function normalizeGdeltEvent(item, feed) {
     const { lat, lon, label: gdeltLabel } = extractGdeltCoords(item);
-    const title = item.title || "GDELT event";
-    const summary = item.seendate || "GDELT detected news signal";
+    const rawTitle = normalizeText(item.title || "");
+    const rawSummary = normalizeText(item.summary || item.description || item.seendate || "");
+    if (isFragmentaryFeedSignal(rawTitle) && (!rawSummary || isRawFeedTimestamp(rawSummary))) {
+        return null;
+    }
+    const title = rawTitle || "GDELT event";
+    const summary = rawSummary && !isRawFeedTimestamp(rawSummary)
+        ? rawSummary
+        : title;
     const sourceUrl = item.url || "https://gdeltproject.org";
     const text = `${title} ${summary}`.toLowerCase();
     const hasHardMilitaryTerm = HARD_MILITARY_TERMS.some((term) => text.includes(term));

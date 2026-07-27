@@ -32,6 +32,7 @@ const markerCache = new Map();
 const ringCanvasCache = new Map();
 const MARKER_CACHE_MAX_ITEMS = 220;
 const RING_CACHE_MAX_ITEMS = 40;
+const SATELLITE_BADGE_CACHE_KEY = "event-satellite-badge";
 const __eventEntityIds = new Set();
 const __eventPulseEntities = new Set();
 const __EVENT_LOD_STATE = {
@@ -170,17 +171,28 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
             const latest = items
                 .slice()
                 .sort((a, b) => new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0))[0] || items[0];
+            const getClusterSatelliteContext = (item) => {
+                const context = item?.satellite_context || item?.satelliteContext || null;
+                const imageUrl = String(context?.imageUrl || context?.image_url || "").trim();
+                if (String(context?.status || "").toLowerCase() !== "available") return null;
+                if (!/^https?:\/\//i.test(imageUrl)) return null;
+                return context;
+            };
+            const satelliteContext = getClusterSatelliteContext(latest)
+                || getClusterSatelliteContext(clusterEvents.find(getClusterSatelliteContext) || null);
             return {
                 ...latest,
                 id: latest?.id || `cluster-${index + 1}`,
                 lat: group.lat,
                 lon: group.lon,
-                title: clusterCount > 1 ? `${clusterCount} events near ${latest?.display_location_label || latest?.location_label || "this area"}` : latest?.title,
-                summary: clusterCount > 1 ? `${clusterCount} nearby event reports were recorded in this area.` : latest?.summary,
+                title: clusterCount > 1 ? `${clusterCount} related event reports` : latest?.title,
+                summary: clusterCount > 1 ? `Latest: ${latest?.title || "event report"}` : latest?.summary,
                 severity: critical ? "critical" : (high ? "high" : (latest?.severity || "medium")),
                 cluster_count: clusterCount,
                 _clusterCount: clusterCount,
                 _clusterEvents: clusterEvents,
+                satellite_context: satelliteContext,
+                satellite_available: !!satelliteContext,
             };
         })
         .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
@@ -359,7 +371,7 @@ function unregisterEventPulseEntity(entity) {
 }
 function removeExistingEventEntity(viewer, entityId) {
     if (!viewer || !entityId) return;
-    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-outline`];
+    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-outline`, `${String(entityId)}-satellite`];
     for (const id of ids) {
         try {
             const existing = viewer.entities.getById(id);
@@ -909,6 +921,22 @@ function normalizeEvents(events) {
                 display_summary: item.display_summary || item.summary || "",
                 display_source_name: item.display_source_name || "",
                 display_location_label: item.display_location_label || "",
+                source_name: item.source_name || "",
+                satellite_context: item.satellite_context || item.satelliteContext || null,
+                satellite_available: item.satellite_available === true || item.satelliteAvailable === true,
+                media: item.media || null,
+                primary_image: item.primary_image || item.primaryImage || null,
+                additional_images: Array.isArray(item.additional_images)
+                    ? item.additional_images
+                    : (Array.isArray(item.additionalImages) ? item.additionalImages : []),
+                image_source: item.image_source || item.imageSource || "",
+                image_caption: item.image_caption || item.imageCaption || "",
+                image_credit: item.image_credit || item.imageCredit || "",
+                image_type: item.image_type || item.imageType || "",
+                map_eligible: item.map_eligible,
+                mapEligible: item.mapEligible,
+                report_type: item.report_type || "",
+                tags: Array.isArray(item.tags) ? item.tags : [],
                 country: item.country || item.countryName || "",
                 city: item.city || "",
                 province: item.province || item.state || item.admin1 || "",
@@ -989,6 +1017,34 @@ function createClusterMarkerCanvas(colorCss, count) {
     ctx.fill();
     const dataUrl = canvas.toDataURL("image/png");
     setLimitedCache(markerCache, key, dataUrl, MARKER_CACHE_MAX_ITEMS);
+    return dataUrl;
+}
+function createSatelliteBadgeCanvas() {
+    if (markerCache.has(SATELLITE_BADGE_CACHE_KEY)) return markerCache.get(SATELLITE_BADGE_CACHE_KEY);
+    const canvas = document.createElement("canvas");
+    canvas.width = 192;
+    canvas.height = 144;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "rgba(8, 17, 26, 0.92)";
+    ctx.strokeStyle = cssVar("--color-teal-glow", "#18e2db");
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(24, 16);
+    ctx.lineTo(168, 16);
+    ctx.lineTo(168, 102);
+    ctx.lineTo(144, 128);
+    ctx.lineTo(24, 128);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = cssVar("--color-teal-glow", "#18e2db");
+    ctx.font = "900 44px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("SAT", 96, 74);
+    const dataUrl = canvas.toDataURL("image/png");
+    setLimitedCache(markerCache, SATELLITE_BADGE_CACHE_KEY, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
 function createClusterCountLabel(count = 1) {
@@ -1091,6 +1147,38 @@ function resolveGlobeEventSourceUrl(event = {}) {
         if (url) return url;
     }
     return "";
+}
+function hasAvailableSatellitePreview(event = {}) {
+    const context = event?.satellite_context || event?.satelliteContext || null;
+    const imageUrl = String(context?.imageUrl || context?.image_url || "").trim();
+    return String(context?.status || "").toLowerCase() === "available" && /^https?:\/\//i.test(imageUrl);
+}
+function createEventSatelliteBadgeEntity(event, options = {}) {
+    if (!hasAvailableSatellitePreview(event)) return null;
+    const suppressMarkers = options?.suppressMarkers === true;
+    const count = Number(event?.cluster_count || 1);
+    const markerSizePx = getEventMarkerSizePx(count);
+    return {
+        id: `${event.id}-satellite`,
+        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+        billboard: {
+            image: createSatelliteBadgeCanvas(),
+            width: 34,
+            height: 26,
+            color: Cesium.Color.WHITE,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+            pixelOffset: new Cesium.Cartesian2(Math.max(26, markerSizePx * 0.45), -Math.max(24, markerSizePx * 0.42)),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            show: !suppressMarkers,
+        },
+        properties: {
+            event_id: event.id,
+            isEventSatelliteBadge: true,
+            cluster_count: count,
+        },
+    };
 }
 function createEventMarkerFillEntity(event, options = {}) {
     const colorCss = getCategoryColorCss(event.category);
@@ -1248,6 +1336,8 @@ function addEventEntity(viewer, event, options = {}) {
     removeExistingEventEntity(viewer, event?.id);
     const entity = viewer.entities.add(createEventEntity(event, options));
     const fillEntity = viewer.entities.add(createEventMarkerFillEntity(event, options));
+    const satelliteBadgeEntityConfig = createEventSatelliteBadgeEntity(event, options);
+    const satelliteBadgeEntity = satelliteBadgeEntityConfig ? viewer.entities.add(satelliteBadgeEntityConfig) : null;
     const count = Number(event?.cluster_count || 1);
     const markerSizePx = getEventMarkerSizePx(count);
     applyEventMarkerEllipsePulse(
@@ -1259,8 +1349,9 @@ function addEventEntity(viewer, event, options = {}) {
     );
     rememberEventEntity(entity);
     rememberEventEntity(fillEntity);
+    rememberEventEntity(satelliteBadgeEntity);
     startEventPulseRenderLoop(viewer);
-    return { entity, fillEntity, ringEntity: null, pulseEntity: null };
+    return { entity, fillEntity, satelliteBadgeEntity, ringEntity: null, pulseEntity: null };
 }
 function getEntityPropertyValue(entity, key, fallback = "") {
     if (!entity?.properties) return fallback;
@@ -1279,9 +1370,17 @@ function isEventMarkerEntity(entity) {
     const clusterCount = Number(getEntityPropertyValue(entity, "cluster_count", NaN));
     return Number.isFinite(clusterCount) && clusterCount > 0;
 }
+function isEventSatelliteBadgeEntity(entity) {
+    return !!getEntityPropertyValue(entity, "isEventSatelliteBadge", false);
+}
 function resolvePickedEventMarkerEntity(viewer, picked) {
     const pickedEntity = picked?.id;
     if (!pickedEntity) return null;
+    if (isEventSatelliteBadgeEntity(pickedEntity)) {
+        const parentId = String(getEntityPropertyValue(pickedEntity, "event_id", "") || "");
+        const parentEntity = parentId ? viewer?.entities?.getById?.(parentId) : null;
+        return isEventMarkerEntity(parentEntity) ? parentEntity : null;
+    }
     if (isEventMarkerEntity(pickedEntity)) return pickedEntity;
     const isEventOutline = !!getEntityPropertyValue(pickedEntity, "isEventOutline", false);
     const isEventFill = !!getEntityPropertyValue(pickedEntity, "isEventFill", false);
@@ -1390,13 +1489,15 @@ function bindEventMarkerPicking(viewer) {
     handler.setInputAction((movement) => {
         const picked = movement?.endPosition ? viewer.scene.pick(movement.endPosition) : null;
         const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
+        const satelliteBadge = isEventSatelliteBadgeEntity(picked?.id);
         viewer.scene.canvas.style.cursor = eventEntity ? "pointer" : "";
-        viewer.scene.canvas.title = eventEntity ? "Click event circle for details" : "";
+        viewer.scene.canvas.title = satelliteBadge ? "Click satellite image" : (eventEntity ? "Click event circle for details" : "");
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     handler.setInputAction((movement) => {
         if (!movement?.position) return;
         const picked = viewer.scene.pick(movement.position);
         const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
+        const openSatellite = isEventSatelliteBadgeEntity(picked?.id);
         if (!eventEntity) {
             document.dispatchEvent(new CustomEvent("wz:event-marker-cleared", {
                 detail: { source: "globe-click" },
@@ -1404,7 +1505,7 @@ function bindEventMarkerPicking(viewer) {
             return;
         }
         document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
-            detail: buildPickedEventDetail(eventEntity, movement.position, viewer),
+            detail: { ...buildPickedEventDetail(eventEntity, movement.position, viewer), openSatellite },
         }));
         viewer.scene.requestRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -1706,6 +1807,11 @@ function shouldShowCityLabelsAtCurrentZoom(viewer) {
 }
 function updateLabelsLayerVisibility(viewer) {
     if (!viewer) return;
+    if (viewer.__warzoneCtrImagerySuspended === true) {
+        if (viewer.__imageryLabels) viewer.__imageryLabels.show = false;
+        if (viewer.__countryLabelDataSource) viewer.__countryLabelDataSource.show = false;
+        return;
+    }
     const contourReady = viewer.__contourLayerVisible === true && viewer.__contourOverlayState?.hasVisibleContours === true;
     const terrainVisible = viewer.__terrainVisible !== false && !contourReady;
     const zoomVisible = shouldShowCityLabelsAtCurrentZoom(viewer);
@@ -1723,8 +1829,136 @@ function updateLabelsLayerVisibility(viewer) {
             && (!hasDetailedPlaceLayer || !zoomVisible);
     }
 }
+function getImageryLayerIndex(collection, layer) {
+    if (!collection || !layer) return -1;
+    const length = Number(collection.length || 0);
+    for (let index = 0; index < length; index += 1) {
+        if (collection.get?.(index) === layer) return index;
+    }
+    return -1;
+}
+function removeImageryLayerIfPresent(collection, layer) {
+    const index = getImageryLayerIndex(collection, layer);
+    if (index < 0) return false;
+    try {
+        collection.remove(layer, false);
+        return true;
+    } catch {
+        return false;
+    }
+}
+function addImageryLayerIfMissing(collection, layer, preferredIndex = Number.POSITIVE_INFINITY) {
+    if (!collection || !layer || getImageryLayerIndex(collection, layer) >= 0) return false;
+    try {
+        const index = Math.max(0, Math.min(Number(collection.length || 0), Number(preferredIndex || 0)));
+        collection.add(layer, index);
+        return true;
+    } catch {
+        try {
+            collection.add(layer);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+function suspendCtrImagery(viewer, options = {}) {
+    if (!viewer?.imageryLayers) return false;
+    if (viewer.__warzoneCtrImageryThemeActive === true) return true;
+    const collection = viewer.imageryLayers;
+    const globe = viewer.scene?.globe || null;
+    const state = {
+        reason: String(options.reason || "ctr"),
+        baseLayer: viewer.__imageryBase || null,
+        labelsLayer: viewer.__imageryLabels || null,
+        baseIndex: getImageryLayerIndex(collection, viewer.__imageryBase),
+        labelsIndex: getImageryLayerIndex(collection, viewer.__imageryLabels),
+        baseShow: viewer.__imageryBase?.show !== false,
+        labelsShow: viewer.__imageryLabels?.show !== false,
+        baseAlpha: Number(viewer.__imageryBase?.alpha),
+        baseBrightness: Number(viewer.__imageryBase?.brightness),
+        baseSaturation: Number(viewer.__imageryBase?.saturation),
+        baseContrast: Number(viewer.__imageryBase?.contrast),
+        baseMaximumAnisotropy: Number(viewer.__imageryBase?.maximumAnisotropy),
+        satelliteVisible: viewer.__satelliteVisible !== false,
+        terrainVisible: viewer.__terrainVisible !== false,
+        greyedSatelliteVisible: viewer.__warzoneGreyedSatelliteVisible === true,
+        baseColor: globe?.baseColor ? Cesium.Color.clone(globe.baseColor) : null,
+    };
+    if (state.baseLayer && getImageryLayerIndex(collection, state.baseLayer) < 0) {
+        addImageryLayerIfMissing(collection, state.baseLayer, state.baseIndex);
+    }
+    viewer.__warzoneCtrImageryState = state;
+    viewer.__warzoneCtrImagerySuspended = false;
+    viewer.__warzoneCtrImageryThemeActive = true;
+    viewer.__satelliteVisible = true;
+    viewer.__warzoneGreyedSatelliteVisible = true;
+    if (viewer.__imageryBase) {
+        viewer.__imageryBase.show = true;
+        viewer.__imageryBase.alpha = clamp01(numberVar("--warzone-contour-imagery-alpha", 0.58));
+        viewer.__imageryBase.brightness = numberVar("--warzone-contour-imagery-brightness", 0.42);
+        viewer.__imageryBase.saturation = numberVar("--warzone-contour-imagery-saturation", 0);
+        viewer.__imageryBase.contrast = numberVar("--warzone-contour-imagery-contrast", 1.18);
+        viewer.__imageryBase.maximumAnisotropy = Math.max(1, Math.min(2, numberVar("--warzone-ctr-imagery-max-anisotropy", 1)));
+    }
+    if (viewer.__imageryLabels) viewer.__imageryLabels.show = false;
+    if (globe) {
+        globe.baseColor = colorFromCssVar("--warzone-ctr-globe-base-color", "#07111c", 1);
+    }
+    updateLabelsLayerVisibility(viewer);
+    viewer.scene?.requestRender?.();
+    return true;
+}
+function restoreCtrImagery(viewer, options = {}) {
+    if (!viewer?.imageryLayers || !viewer.__warzoneCtrImageryState) return false;
+    const collection = viewer.imageryLayers;
+    const state = viewer.__warzoneCtrImageryState || {};
+    addImageryLayerIfMissing(collection, state.baseLayer, state.baseIndex);
+    addImageryLayerIfMissing(collection, state.labelsLayer, state.labelsIndex);
+    viewer.__imageryBase = state.baseLayer || viewer.__imageryBase || null;
+    viewer.__imageryLabels = state.labelsLayer || viewer.__imageryLabels || null;
+    if (viewer.__imageryBase) {
+        viewer.__imageryBase.show = state.baseShow !== false;
+        if (Number.isFinite(state.baseAlpha)) viewer.__imageryBase.alpha = state.baseAlpha;
+        if (Number.isFinite(state.baseBrightness)) viewer.__imageryBase.brightness = state.baseBrightness;
+        if (Number.isFinite(state.baseSaturation)) viewer.__imageryBase.saturation = state.baseSaturation;
+        if (Number.isFinite(state.baseContrast)) viewer.__imageryBase.contrast = state.baseContrast;
+        if (Number.isFinite(state.baseMaximumAnisotropy)) viewer.__imageryBase.maximumAnisotropy = state.baseMaximumAnisotropy;
+    }
+    if (viewer.__imageryLabels) viewer.__imageryLabels.show = state.labelsShow !== false;
+    viewer.__satelliteVisible = options.forceSatellite === true ? true : state.satelliteVisible !== false;
+    viewer.__terrainVisible = state.terrainVisible !== false;
+    viewer.__warzoneGreyedSatelliteVisible = state.greyedSatelliteVisible === true;
+    viewer.__warzoneCtrImagerySuspended = false;
+    viewer.__warzoneCtrImageryThemeActive = false;
+    viewer.__warzoneCtrImageryState = null;
+    if (viewer.scene?.globe && state.baseColor) {
+        viewer.scene.globe.baseColor = state.baseColor;
+    }
+    applyRenderedTerrainVisibility(viewer);
+    viewer.scene?.requestRender?.();
+    return true;
+}
+function enterCtrMode(viewer, options = {}) {
+    if (!viewer) return false;
+    viewer.__warzoneCtrModeActive = true;
+    suspendCtrImagery(viewer, options);
+    return true;
+}
+function exitCtrMode(viewer, options = {}) {
+    if (!viewer) return false;
+    viewer.__warzoneCtrModeActive = false;
+    restoreCtrImagery(viewer, options);
+    applyRenderedTerrainVisibility(viewer);
+    return true;
+}
 function applyRenderedTerrainVisibility(viewer) {
     if (!viewer) return;
+    if (viewer.__warzoneCtrImagerySuspended === true) {
+        updateLabelsLayerVisibility(viewer);
+        viewer.scene?.requestRender?.();
+        return;
+    }
     const greyedSatellite = viewer.__warzoneGreyedSatelliteVisible === true;
     const show = viewer.__satelliteVisible !== false
         && viewer.__terrainVisible !== false;
@@ -1743,6 +1977,10 @@ function applyRenderedTerrainVisibility(viewer) {
 }
 function restoreDefaultRenderedMap(viewer) {
     if (!viewer) return false;
+    const hadCtrState = viewer.__warzoneCtrImagerySuspended === true
+        || viewer.__warzoneCtrImageryThemeActive === true
+        || !!viewer.__warzoneCtrImageryState;
+    exitCtrMode(viewer, { reason: "restore-default" });
     const state = getContourOverlayState(viewer);
     if (state) {
         if (state.buildTimer) {
@@ -1759,8 +1997,10 @@ function restoreDefaultRenderedMap(viewer) {
     viewer.__contourGridLayerVisible = false;
     scheduleContourDemCacheRelease(viewer);
     viewer.__warzoneContourPausedFocusedTerrain = false;
-    viewer.__satelliteVisible = true;
-    viewer.__warzoneGreyedSatelliteVisible = false;
+    if (!hadCtrState) {
+        viewer.__satelliteVisible = true;
+        viewer.__warzoneGreyedSatelliteVisible = false;
+    }
     clearContourOverlay(viewer);
     applyContourLayerState(viewer);
     applyRenderedTerrainVisibility(viewer);
@@ -2524,7 +2764,10 @@ async function addArcGisLayers(viewer) {
 function setContourGridLayerVisible(viewer, visible) {
     const show = !!visible;
     viewer.__contourGridLayerVisible = show;
-    if (show) retainContourDemCache();
+    if (show) {
+        retainContourDemCache();
+        enterCtrMode(viewer, { reason: "contour-grid-on" });
+    }
     document.documentElement.style.setProperty("--warzone-contour-grid-enabled", show ? "1" : "0");
     const state = getContourOverlayState(viewer);
     if (show) {
@@ -2542,6 +2785,7 @@ function setContourGridLayerVisible(viewer, visible) {
             reason: "contour-grid-toggle",
         });
     } else if (!show) {
+        if (viewer.__contourLayerVisible !== true) exitCtrMode(viewer, { reason: "contour-grid-off" });
         clearContourOverlay(viewer);
         scheduleContourDemCacheRelease(viewer);
     }
@@ -2597,6 +2841,8 @@ function getContourOverlayState(viewer) {
             gridPrimitive: null,
             gridCenterLon: Number.NaN,
             gridCenterLat: Number.NaN,
+            gridRadiusMeters: 0,
+            gridIntervalMeters: 0,
         };
     }
     return viewer.__contourOverlayState;
@@ -2818,6 +3064,9 @@ function getContourOverlayRadii() {
     const fadeRadius = Math.max(0, Math.min(70000, numberVar("--warzone-live-aircraft-contour-fade", 30000)));
     const outerRadius = Math.max(strongRadius + 25000, Math.min(320000, strongRadius + blurRadius + fadeRadius));
     return { strongRadius, outerRadius };
+}
+function getContourSamplePaddingMeters() {
+    return Math.max(30000, Math.min(180000, numberVar("--warzone-contour-sample-padding", 85000)));
 }
 function smoothContourFade(value) {
     const t = clamp01(value);
@@ -3174,7 +3423,13 @@ function clampContourBuildArea(area) {
 function getContourCenteredBuildArea(centerLon, centerLat, spanMeters = null) {
     const latMeters = 111320;
     const lonMeters = Math.max(1, Math.cos(Cesium.Math.toRadians(centerLat)) * latMeters);
-    const span = Math.max(60000, Math.min(420000, Number(spanMeters ?? numberVar("--warzone-contour-local-span", 240000))));
+    const { strongRadius, outerRadius } = getContourOverlayRadii();
+    const samplePadding = getContourSamplePaddingMeters();
+    const defaultSpan = Math.max(
+        numberVar("--warzone-contour-local-span", 240000),
+        (outerRadius + samplePadding) * 2
+    );
+    const span = Math.max(60000, Math.min(820000, Number(spanMeters ?? defaultSpan)));
     const halfLon = (span * 0.5) / lonMeters;
     const halfLat = (span * 0.5) / latMeters;
     return {
@@ -3187,6 +3442,9 @@ function getContourCenteredBuildArea(centerLon, centerLat, spanMeters = null) {
         widthMeters: span,
         heightMeters: span,
         halfDiagonalMeters: Math.SQRT2 * span * 0.5,
+        visibleStrongRadiusMeters: strongRadius,
+        visibleOuterRadiusMeters: outerRadius,
+        samplePaddingMeters: samplePadding,
     };
 }
 function getContourViewportBuildArea(viewer, centerLon, centerLat, options = {}) {
@@ -3344,10 +3602,11 @@ function getContourLevels(minHeight, maxHeight, area = null) {
 function destroyContourGridPrimitive(viewer) {
     const state = getContourOverlayState(viewer);
     const primitive = state?.gridPrimitive;
-    if (!primitive) return;
-    try {
-        viewer?.scene?.primitives?.remove?.(primitive);
-    } catch { }
+    if (primitive) {
+        try {
+            viewer?.scene?.primitives?.remove?.(primitive);
+        } catch { }
+    }
     state.gridPrimitive = null;
 }
 function updateContourGridPrimitiveCenter(viewer, position = null) {
@@ -3366,6 +3625,32 @@ function updateContourGridPrimitiveCenter(viewer, position = null) {
     viewer.scene?.requestRender?.();
     return true;
 }
+function chooseOperationalGridIntervalMeters(radius) {
+    const target = Math.max(1000, Number(radius || 0) / 4);
+    const candidates = [1000, 2000, 5000, 10000, 25000, 50000, 100000];
+    return candidates.find((value) => value >= target) || candidates[candidates.length - 1];
+}
+function addContourGridRing(collection, radiusMeters, options = {}) {
+    if (!collection || !Number.isFinite(radiusMeters) || radiusMeters <= 0) return 0;
+    const segments = Math.max(96, Math.min(256, Math.round(numberVar("--warzone-contour-grid-ring-segments", 160))));
+    const positions = [];
+    for (let index = 0; index <= segments; index += 1) {
+        const angle = (Math.PI * 2 * index) / segments;
+        positions.push(new Cesium.Cartesian3(
+            Math.cos(angle) * radiusMeters,
+            Math.sin(angle) * radiusMeters,
+            0
+        ));
+    }
+    collection.add({
+        positions,
+        width: Math.max(0.4, Math.min(5, Number(options.width || 1.4))),
+        material: Cesium.Material.fromType("Color", {
+            color: options.color || Cesium.Color.WHITE.withAlpha(0.35),
+        }),
+    });
+    return 1;
+}
 function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     if (!viewer?.scene?.primitives || boolVar("--warzone-contour-grid-enabled", true) !== true) return 0;
     const state = getContourOverlayState(viewer);
@@ -3375,18 +3660,24 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
         updateContourGridPrimitiveCenter(viewer, center);
         return Number(state.gridPrimitive.length || 0);
     }
-    const rows = Math.max(3, Math.min(18, Math.round(numberVar("--warzone-contour-grid-rows", 10))));
-    const cols = Math.max(3, Math.min(18, Math.round(numberVar("--warzone-contour-grid-cols", 10))));
     const gridColorVar = "--warzone-contour-grid-color";
     const gridAlphaVar = "--warzone-contour-grid-alpha";
     const gridMajorAlphaVar = "--warzone-contour-grid-major-alpha";
     const gridWidthVar = "--warzone-contour-grid-width";
     const color = colorFromCssVar(gridColorVar, "#18f4ff", 1);
+    const ringColor = colorFromCssVar("--warzone-contour-grid-ring-color", cssVar(gridColorVar, "#18f4ff"), 1);
     const alpha = clamp01(numberVar(gridAlphaVar, 0.16));
     const majorAlpha = clamp01(numberVar(gridMajorAlphaVar, 0.24));
     const width = Math.max(0.35, Math.min(2.4, numberVar(gridWidthVar, 0.62)));
+    const ringWidth = Math.max(0.35, Math.min(5, numberVar("--warzone-contour-grid-ring-width", width * 1.4)));
+    const ringAlpha = clamp01(numberVar("--warzone-contour-grid-ring-alpha", Math.max(majorAlpha, 0.42)));
+    const innerRingAlpha = clamp01(numberVar("--warzone-contour-grid-ring-inner-alpha", Math.max(alpha, 0.28)));
+    const innerRingScale = Math.max(0.15, Math.min(0.95, numberVar("--warzone-contour-grid-ring-inner-scale", 0.58)));
     const majorEvery = Math.max(2, Math.round(numberVar("--warzone-contour-grid-major-every", 4)));
     const radius = Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000)));
+    const intervalMeters = chooseOperationalGridIntervalMeters(radius);
+    const rows = Math.max(4, Math.min(18, Math.round((radius * 2) / intervalMeters)));
+    const cols = rows;
     const fadeStart = Math.max(0, Math.min(radius - 500, numberVar("--warzone-contour-grid-fade-start", 24000)));
     const segments = Math.max(6, Math.min(18, Math.round(numberVar("--warzone-contour-grid-fade-segments", 10))));
     const collection = new Cesium.PolylineCollection();
@@ -3427,9 +3718,49 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
         const x = lerp(-radius, radius, col / cols);
         addSegmentedLine(x, false, col % majorEvery === 0);
     }
+    if (boolVar("--warzone-contour-grid-ring-enabled", true) === true) {
+        addContourGridRing(collection, radius * innerRingScale, {
+            width: ringWidth * 0.86,
+            color: ringColor.withAlpha(innerRingAlpha),
+        });
+        addContourGridRing(collection, radius, {
+            width: ringWidth,
+            color: ringColor.withAlpha(ringAlpha),
+        });
+    }
+    state.gridIntervalMeters = intervalMeters;
+    state.gridRadiusMeters = radius;
     state.gridPrimitive = viewer.scene.primitives.add(collection);
     updateContourGridPrimitiveCenter(viewer, center);
     return Number(collection.length || 0);
+}
+function splitContourPolylineByRadius(points = [], centerLon, centerLat, outerRadius) {
+    if (!Array.isArray(points) || points.length < 2 || !Number.isFinite(outerRadius) || outerRadius <= 0) return [];
+    const result = [];
+    let current = [];
+    const maxChunkPoints = Math.max(6, Math.min(28, Math.round(numberVar("--warzone-contour-fade-chunk-points", 14))));
+    const flush = () => {
+        if (current.length >= 2) result.push(current);
+        current = [];
+    };
+    const includePoint = (point) => {
+        const distance = contourDistanceMeters(centerLon, centerLat, Number(point?.lon), Number(point?.lat));
+        return Number.isFinite(distance) && distance <= outerRadius;
+    };
+    points.forEach((point) => {
+        if (includePoint(point)) {
+            current.push(point);
+            if (current.length >= maxChunkPoints) {
+                const carry = current[current.length - 1];
+                flush();
+                current = [carry];
+            }
+            return;
+        }
+        flush();
+    });
+    flush();
+    return result;
 }
 function smoothContourPolyline(points = [], passes = 1) {
     if (!Array.isArray(points) || points.length < 3) return Array.isArray(points) ? points.slice() : [];
@@ -3651,7 +3982,7 @@ async function buildContourOverlay(viewer, options = {}) {
             ? ensureContourGridPrimitive(viewer, {
                 lon: Number.isFinite(state.gridCenterLon) ? state.gridCenterLon : centerLon,
                 lat: Number.isFinite(state.gridCenterLat) ? state.gridCenterLat : centerLat,
-            })
+            }, { force: options.force === true })
             : 0;
         if (state.gridPrimitive) state.gridPrimitive.show = gridVisible;
         if (!contourVisible) {
@@ -3695,8 +4026,15 @@ async function buildContourOverlay(viewer, options = {}) {
             return gridLineCount > 0 || state.hasVisibleContours === true;
         }
         const { strongRadius, outerRadius } = getContourOverlayRadii();
-        const contourStrongRadius = Math.max(strongRadius, Number(area?.halfDiagonalMeters || 0));
-        const contourOuterRadius = Math.max(outerRadius, contourStrongRadius + 1000);
+        const contourStrongRadius = Number.isFinite(Number(area?.visibleStrongRadiusMeters))
+            ? Number(area.visibleStrongRadiusMeters)
+            : strongRadius;
+        const contourOuterRadius = Math.max(
+            contourStrongRadius + 1000,
+            Number.isFinite(Number(area?.visibleOuterRadiusMeters))
+                ? Number(area.visibleOuterRadiusMeters)
+                : outerRadius
+        );
         const reliefRange = Math.max(1, maxHeight - minHeight);
         let lineCount = 0;
         const pendingContourEntities = [];
@@ -3711,56 +4049,60 @@ async function buildContourOverlay(viewer, options = {}) {
                 if (lineCount >= maxLines) return;
                 if (!Array.isArray(chain) || chain.length < 2) return;
                 const smoothed = smoothContourPolyline(chain, smoothingPasses);
-                const alphaScale = getContourChainAlphaScale(
-                    smoothed,
-                    centerLon,
-                    centerLat,
-                    contourStrongRadius,
-                    contourOuterRadius
-                );
-                if (alphaScale <= 0.001) return;
-                const chainAlpha = Math.max(minAlpha, (isMajor ? Math.min(0.88, baseAlpha * 1.35) : Math.min(0.72, baseAlpha * 1.12)) * alphaScale);
-                const positions = smoothed.map((point) => Cesium.Cartesian3.fromDegrees(
-                    point.lon,
-                    point.lat,
-                    Math.max(heightOffset, point.height + heightOffset)
-                ));
-                if (haloWidth > 0) {
+                const visibleSegments = [smoothed];
+                visibleSegments.forEach((visibleSegment, segmentIndex) => {
+                    if (lineCount >= maxLines) return;
+                    const alphaScale = getContourChainAlphaScale(
+                        visibleSegment,
+                        centerLon,
+                        centerLat,
+                        contourStrongRadius,
+                        contourOuterRadius
+                    );
+                    if (alphaScale <= 0.001) return;
+                    const chainAlpha = Math.max(minAlpha, (isMajor ? Math.min(0.88, baseAlpha * 1.35) : Math.min(0.72, baseAlpha * 1.12)) * alphaScale);
+                    const positions = visibleSegment.map((point) => Cesium.Cartesian3.fromDegrees(
+                        point.lon,
+                        point.lat,
+                        Math.max(heightOffset, point.height + heightOffset)
+                    ));
+                    if (haloWidth > 0) {
+                        pendingContourEntities.push({
+                            id: `contour-halo-${Math.round(level)}-${chainIndex}-${segmentIndex}`,
+                            polyline: {
+                                positions,
+                                width: (lineWidth * widthScale) + haloWidth,
+                                clampToGround: false,
+                                arcType: Cesium.ArcType.GEODESIC,
+                                material: new Cesium.PolylineGlowMaterialProperty({
+                                    glowPower: Math.min(0.95, (isMajor ? haloAlpha * 1.55 : haloAlpha * 1.25) * Math.max(0.45, alphaScale)),
+                                    taperPower: 0.55,
+                                    color: color.withAlpha(Math.min(0.58, chainAlpha * haloAlpha * (isMajor ? 1.25 : 0.9))),
+                                }),
+                            },
+                        });
+                    }
+                    const mainMaterial = new Cesium.PolylineGlowMaterialProperty({
+                        glowPower: Math.min(
+                            0.24,
+                            (state.hasFocusPosition === true ? 0.07 : 0.04) +
+                            ((isMajor ? 0.055 : 0.03) * Math.max(0.5, alphaScale))
+                        ),
+                        taperPower: state.hasFocusPosition === true ? 0.82 : 0.68,
+                        color: color.withAlpha(chainAlpha),
+                    });
                     pendingContourEntities.push({
-                        id: `contour-halo-${Math.round(level)}-${chainIndex}`,
+                        id: `contour-${Math.round(level)}-${chainIndex}-${segmentIndex}`,
                         polyline: {
                             positions,
-                            width: (lineWidth * widthScale) + haloWidth,
+                            width: lineWidth * widthScale,
                             clampToGround: false,
                             arcType: Cesium.ArcType.GEODESIC,
-                            material: new Cesium.PolylineGlowMaterialProperty({
-                                glowPower: Math.min(0.95, (isMajor ? haloAlpha * 1.55 : haloAlpha * 1.25) * Math.max(0.45, alphaScale)),
-                                taperPower: 0.55,
-                                color: color.withAlpha(Math.min(0.58, chainAlpha * haloAlpha * (isMajor ? 1.25 : 0.9))),
-                            }),
+                            material: mainMaterial,
                         },
                     });
-                }
-                const mainMaterial = new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: Math.min(
-                        0.24,
-                        (state.hasFocusPosition === true ? 0.07 : 0.04) +
-                        ((isMajor ? 0.055 : 0.03) * Math.max(0.5, alphaScale))
-                    ),
-                    taperPower: state.hasFocusPosition === true ? 0.82 : 0.68,
-                    color: color.withAlpha(chainAlpha),
+                    lineCount += 1;
                 });
-                pendingContourEntities.push({
-                    id: `contour-${Math.round(level)}-${chainIndex}`,
-                    polyline: {
-                        positions,
-                        width: lineWidth * widthScale,
-                        clampToGround: false,
-                        arcType: Cesium.ArcType.GEODESIC,
-                        material: mainMaterial,
-                    },
-                });
-                lineCount += 1;
             });
         });
         if (!isContourBuildCurrent(viewer, state, buildToken)) return false;
@@ -3941,6 +4283,9 @@ async function setContourLayerVisible(viewer, visible = false) {
     if (!viewer) return false;
     viewer.__contourLayerVisible = !!visible;
     if (viewer.__contourLayerVisible) retainContourDemCache();
+    if (viewer.__contourLayerVisible) {
+        enterCtrMode(viewer, { reason: "contour-layer-on" });
+    }
     applyRenderedTerrainVisibility(viewer);
     if (viewer.__contourLayerVisible) {
         const state = getContourOverlayState(viewer);
@@ -3955,6 +4300,7 @@ async function setContourLayerVisible(viewer, visible = false) {
         }
         if (!Number.isFinite(state?.centerLon) || !Number.isFinite(state?.centerLat)) {
             viewer.__contourLayerVisible = false;
+            if (viewer.__contourGridLayerVisible !== true) exitCtrMode(viewer, { reason: "contour-no-center" });
             clearContourOverlay(viewer);
             applyRenderedTerrainVisibility(viewer);
             applyContourLayerState(viewer);
@@ -3978,6 +4324,7 @@ async function setContourLayerVisible(viewer, visible = false) {
                 delayMs: 40,
             });
         } else {
+            exitCtrMode(viewer, { reason: "contour-layer-off" });
             clearContourOverlay(viewer);
             scheduleContourDemCacheRelease(viewer);
         }
@@ -5146,6 +5493,15 @@ export async function initWarzoneGlobe() {
         },
         isGreyedSatelliteVisible() {
             return viewer.__warzoneGreyedSatelliteVisible === true;
+        },
+        enterCtrMode(options = {}) {
+            return enterCtrMode(viewer, options);
+        },
+        exitCtrMode(options = {}) {
+            return exitCtrMode(viewer, options);
+        },
+        isCtrModeActive() {
+            return viewer.__warzoneCtrModeActive === true;
         },
         setContourGridVisible(visible) {
             return setContourGridLayerVisible(viewer, visible);

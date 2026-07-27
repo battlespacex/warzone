@@ -20,7 +20,7 @@ const LAYER_DEFS = [
     { id: "recon", label: "Recon / Intelligence", description: "Reconnaissance and intelligence-linked events", icon: "REC", color: "#00d9b2" },
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "SEIS", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "NEWS", color: "#888" },
-    { id: "hotspots", label: "Hotspot Clusters", description: "Labels and static rings only when nearby events are grouped", icon: "HOT", color: "#00d8b2", uiOnly: true },
+    { id: "hotspots", label: "Activity Areas", description: "Passive density circles behind clickable event markers", icon: "AREA", color: "#00d8b2", uiOnly: true },
     { id: "terrain", label: "Satellite Imagery", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
     { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "BRD", color: "#33e1ff", uiOnly: true },

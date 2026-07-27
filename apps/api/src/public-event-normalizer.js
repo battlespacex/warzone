@@ -28,6 +28,11 @@ const COARSE_COUNTRY_CENTROIDS = [
     { label: "Lebanon", lat: 33.9, lon: 35.8 }
 ];
 
+const RAW_TIMESTAMP_RE =
+    /^\s*(?:\d{8}T\d{4,6}Z|\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:?\d{2}(?::?\d{2})?(?:\.\d+)?Z?)?)\s*$/i;
+const FRAGMENTARY_SIGNAL_RE =
+    /^\s*[:;|,\-]*\s*(?:drones?|uavs?|missiles?|rockets?|strikes?|attacks?|explosions?|blasts?|shelling|artillery|airstrikes?|air strikes?)(?:\s*[-:]\s*\d+)?\s*$/i;
+
 function isUnknownText(value = "") {
     const clean = String(value ?? "").replace(/\s+/g, " ").trim();
     return !clean || UNKNOWN_TEXT_RE.test(clean);
@@ -46,6 +51,8 @@ function decodeBasicHtmlEntities(value = "") {
 function cleanPublicText(value = "", maxLength = 900) {
     const clean = decodeBasicHtmlEntities(value)
         .replace(/<[^>]*>/g, " ")
+        .replace(/\b(?:img|image)\s+width\s*["']?\d+["']?\s+height\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:attachment|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes)\b[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/[\u200E\u200F\u202A-\u202E]/g, " ")
         .replace(/[^\x20-\x7E]/g, " ")
@@ -60,6 +67,69 @@ function cleanPublicText(value = "", maxLength = 900) {
 function getCategoryLabel(category = "") {
     const key = String(category || "").toLowerCase();
     return CATEGORY_LABELS[key] || "Activity";
+}
+
+function isRawTimestampText(value = "") {
+    return RAW_TIMESTAMP_RE.test(String(value || "").trim());
+}
+
+function isFragmentarySignalText(value = "") {
+    const clean = String(value || "").replace(/\s+/g, " ").trim();
+    if (!clean) return false;
+    if (FRAGMENTARY_SIGNAL_RE.test(clean)) return true;
+    const withoutPrefix = clean.replace(/^[\s:;|,\-]+/, "").trim();
+    if (withoutPrefix !== clean && withoutPrefix.split(/\s+/).length <= 5) return true;
+    return false;
+}
+
+function isGdeltSource(event = {}, sourceName = "") {
+    const source = [
+        sourceName,
+        event.source_name,
+        event.feed_name,
+        Array.isArray(event.tags) ? event.tags.join(" ") : event.tags,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return source.includes("gdelt");
+}
+
+function isLowInformationGdeltSignal(event = {}, title = "", summary = "", sourceName = "") {
+    if (!isGdeltSource(event, sourceName)) return false;
+    return isFragmentarySignalText(title) && (!summary || isRawTimestampText(summary));
+}
+
+function getSignalFallbackLabel(event = {}, title = "") {
+    const text = [
+        title,
+        event.weapon_type,
+        event.target_type,
+        event.category,
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (/\b(drone|drones|uav|uavs)\b/.test(text)) return "Drone activity signal";
+    if (/\b(missile|missiles|rocket|rockets)\b/.test(text)) return "Missile activity signal";
+    if (/\b(airstrike|air strike)\b/.test(text)) return "Airstrike activity signal";
+    if (/\b(shelling|artillery)\b/.test(text)) return "Artillery activity signal";
+    return `${getCategoryLabel(event.category)} signal`;
+}
+
+function cleanPublicEventTitle(event = {}, title = "", summary = "") {
+    if (title && !isFragmentarySignalText(title) && !isRawTimestampText(title)) return title;
+    if (title && isFragmentarySignalText(title)) {
+        if (summary && !isRawTimestampText(summary) && !isFragmentarySignalText(summary)) {
+            return summary.replace(/^[\s.:;|\-]+/, "").slice(0, 240);
+        }
+        return getSignalFallbackLabel(event, title);
+    }
+    return buildFallbackTitle(event);
+}
+
+function cleanPublicEventSummary(summary = "", title = "") {
+    if (!summary || isRawTimestampText(summary)) return null;
+    const clean = summary.replace(/^\d{8}T\d{4,6}Z\s+/i, "").trim();
+    if (!clean) return null;
+    const titleKey = clean.toLowerCase();
+    const summaryKey = String(title || "").toLowerCase();
+    if (titleKey && summaryKey && titleKey === summaryKey) return null;
+    return clean;
 }
 
 function cleanSourceName(value = "") {
@@ -173,9 +243,14 @@ function toPublicEvent(event = {}) {
     const lon = Number(event.lon);
     const locationLabel = cleanLocationLabel(event.location_label);
     const coordinatesOk = isValidCoordinate(lat, lon) && !isCoarseCountryCentroid(lat, lon, locationLabel);
-    const title = cleanPublicText(event.title, 240) || buildFallbackTitle(event);
-    const summary = cleanPublicText(event.summary, 1200);
     const sourceName = cleanSourceName(event.source_name);
+    const rawTitle = cleanPublicText(event.title, 240);
+    const rawSummary = cleanPublicText(event.summary, 1200);
+    const lowInformationSignal = isLowInformationGdeltSignal(event, rawTitle, rawSummary, sourceName);
+    const title = cleanPublicEventTitle(event, rawTitle, rawSummary);
+    const summary = lowInformationSignal
+        ? null
+        : cleanPublicEventSummary(rawSummary, title);
     const impactLabel = cleanLocationLabel(event.impact_label);
     const originLabel = cleanLocationLabel(event.origin_label);
     const category = cleanPublicText(event.category, 80) || "military";
@@ -199,7 +274,7 @@ function toPublicEvent(event = {}) {
         origin_label: originLabel,
         lat: coordinatesOk ? lat : null,
         lon: coordinatesOk ? lon : null,
-        map_eligible: coordinatesOk,
+        map_eligible: coordinatesOk && !lowInformationSignal,
         display_title: title,
         display_summary: summary,
         display_source_name: sourceName,
