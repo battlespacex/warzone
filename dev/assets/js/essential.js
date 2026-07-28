@@ -7972,6 +7972,17 @@ function isLocalAuthBypassEnabled() {
     return isLocalHostName(window.location.hostname);
 }
 
+const STAGING_AUTH_BYPASS_HOSTS = new Set([
+    "stratops-staging.battlespacex.com",
+    "staging-battlespacex.battlespacex.com",
+    "stagging-battlespacex.battlespacex.com",
+]);
+
+function isStagingAuthBypassEnabled() {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return STAGING_AUTH_BYPASS_HOSTS.has(host);
+}
+
 function getLocalDevAuthUser() {
     return {
         username: "Local Developer",
@@ -7979,6 +7990,25 @@ function getLocalDevAuthUser() {
         role: "developer",
         localDevBypass: true,
     };
+}
+
+function getStagingAuthBypassUser() {
+    return {
+        username: "Staging Reviewer",
+        email: "staging-reviewer@battlespacex.com",
+        role: "staging-reviewer",
+        stagingBypass: true,
+    };
+}
+
+function getAuthBypassState() {
+    if (isLocalAuthBypassEnabled()) {
+        return { user: getLocalDevAuthUser(), base: "local-dev" };
+    }
+    if (isStagingAuthBypassEnabled()) {
+        return { user: getStagingAuthBypassUser(), base: "staging-bypass" };
+    }
+    return null;
 }
 
 function getStoredAuthBase() {
@@ -8086,8 +8116,9 @@ async function validateAgainstBase(baseUrl) {
 }
 
 async function confirmAuthSession(maxPasses = 2, options = {}) {
-    if (isLocalAuthBypassEnabled()) {
-        return applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+    const bypassState = getAuthBypassState();
+    if (bypassState) {
+        return applyResolvedAuthState(true, bypassState.user, bypassState.base);
     }
 
     const bases = options.background === true
@@ -8460,10 +8491,12 @@ export function initStratopsIntro() {
         return;
     }
 
-    if (isLocalAuthBypassEnabled()) {
-        applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+    const authBypassState = getAuthBypassState();
+    if (authBypassState) {
+        applyResolvedAuthState(true, authBypassState.user, authBypassState.base);
         try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
         requestAnimationFrame(() => {
+            document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: authBypassState.base } }));
             window.__warzoneShowRegionModal?.();
         });
         return;
@@ -8858,8 +8891,9 @@ export function initStratopsAuth() {
 }
 
 export async function stratopsCheckAuth() {
-    if (isLocalAuthBypassEnabled()) {
-        return applyResolvedAuthState(true, getLocalDevAuthUser(), "local-dev");
+    const bypassState = getAuthBypassState();
+    if (bypassState) {
+        return applyResolvedAuthState(true, bypassState.user, bypassState.base);
     }
 
     try {
