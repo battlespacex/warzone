@@ -21,7 +21,8 @@ const LAYER_DEFS = [
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "SEIS", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "NEWS", color: "#888" },
     { id: "hotspots", label: "Activity Areas", description: "Passive density circles behind clickable event markers", icon: "AREA", color: "#00d8b2", uiOnly: true },
-    { id: "terrain", label: "Satellite Imagery", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
+    { id: "satellite-imagery", label: "Satellite Observations", description: "Available Copernicus/Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true },
+    { id: "terrain", label: "Satellite Basemap", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
     { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "BRD", color: "#33e1ff", uiOnly: true },
 ];
@@ -29,7 +30,7 @@ const LAYER_DEFS = [
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
-const WZ_LAYER_LAYOUT_VERSION = "2026-04-minimal-defaults";
+const WZ_LAYER_LAYOUT_VERSION = "2026-07-satellite-observations";
 const DEFAULT_LAYER_STATE = {
     strikes: false,
     missiles: false,
@@ -48,6 +49,7 @@ const DEFAULT_LAYER_STATE = {
     recon: false,
     seismic: false,
     hotspots: true,
+    "satellite-imagery": true,
     terrain: true,
     "region-plate": true,
     "country-borders": true,
@@ -57,7 +59,7 @@ let __layerState = {};
 let __callbacks = [];
 let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
-const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "region-plate"]);
+const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "region-plate", "satellite-imagery"]);
 const NAVAL_LAYER_SUBTYPES = new Set([
     "carrier",
     "amphibious",

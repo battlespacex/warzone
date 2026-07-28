@@ -1,6 +1,7 @@
 ﻿// File Path: /assets/js/warzone-military-bases.js
 import * as Cesium from "cesium";
 import { MILITARY_BASES } from "./warzone-military-bases-data.js";
+import { normalizeMilitaryBaseDisplayData } from "./warzone-military-base-quality.js";
 
 /* ─── State ─────────────────────────────────────────────────────────────── */
 const __state = {
@@ -11,6 +12,8 @@ const __state = {
     visible: true,
     // authGated: true until wz:auth-success fires or user is already logged in
     authGated: true,
+    baseCameraFlightActive: false,
+    manualDismissArmedAt: 0,
 };
 
 /* ─── Type config ────────────────────────────────────────────────────────── */
@@ -101,16 +104,17 @@ function getTypeColor(type) {
 
 /* ─── Entity creation ───────────────────────────────────────────────────── */
 function createBaseEntity(dataSource, base) {
-    const lat = Number(base.lat ?? base.coordinates?.lat);
-    const lon = Number(base.lon ?? base.coordinates?.lon);
+    const displayBase = normalizeMilitaryBaseDisplayData(base);
+    const lat = Number(displayBase.lat ?? displayBase.coordinates?.lat);
+    const lon = Number(displayBase.lon ?? displayBase.coordinates?.lon);
     const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
-    const iconPixelSize = getBaseIconPixelSize(base.size);
+    const iconPixelSize = getBaseIconPixelSize(displayBase.size);
     const pixelOffsetY = Math.round(cssNumber("--warzone-base-icon-pixel-offset-y", 6));
     const entity = dataSource.entities.add({
-        id: `milbase:${base.id}`,
+        id: `milbase:${displayBase.id}`,
         position: pos,
         billboard: {
-            image: getIcon(base.type, base.icon),
+            image: getIcon(displayBase.type, displayBase.icon),
             scale: 1,
             width: iconPixelSize,
             height: iconPixelSize,
@@ -124,17 +128,17 @@ function createBaseEntity(dataSource, base) {
         },
         properties: {
             milbase: true,
-            name: base.name,
-            country: base.country,
-            operator: base.operator,
-            type: base.type,
-            typeLabel: TYPE_LABEL[base.type] || "Military Installation",
-            size: base.size,
+            name: displayBase.name,
+            country: displayBase.country,
+            operator: displayBase.operator,
+            type: displayBase.type,
+            typeLabel: TYPE_LABEL[displayBase.type] || "Military Installation",
+            size: displayBase.size,
             lat,
             lon,
         },
     });
-    entity.__militaryBaseData = base;
+    entity.__militaryBaseData = displayBase;
     return entity;
 }
 
@@ -160,6 +164,13 @@ function refreshBaseIconSizing() {
 }
 function areMilitaryBasesInteractive() {
     return __state.visible && !__state.authGated;
+}
+
+function findPickedMilitaryBase(viewer, screenPosition) {
+    if (!viewer || !screenPosition) return null;
+    const picks = viewer.scene.drillPick(screenPosition) || [];
+    return picks.find((picked) => Cesium.defined(picked?.id) &&
+        picked.id?.properties?.milbase?.getValue?.() === true) || null;
 }
 
 /* ─── Popup near selected base ──────────────────────────────────────────── */
@@ -223,7 +234,7 @@ function updateActiveBasePanelPosition() {
 
     const screen = getEntityScreenPosition(active.entity);
     if (!screen || !isScreenPointInViewport(screen)) {
-        setBasePanelVisible(active.panel, false);
+        closeActiveBasePanel();
         return;
     }
 
@@ -237,9 +248,46 @@ function closeActiveBasePanel() {
     active?.panel?.remove();
     __state.activePanel = null;
 }
+function clearBaseViewerSelection(viewer) {
+    if (!viewer) return;
+    try { viewer.selectedEntity = undefined; } catch { }
+    try { viewer.trackedEntity = undefined; } catch { }
+}
+function flyToBaseTopDown(viewer, base = {}) {
+    const lat = Number(base?.lat);
+    const lon = Number(base?.lon);
+    if (!viewer?.camera || !Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+    const height = Math.max(2500, cssNumber("--warzone-base-flyto-height", 42000));
+    const duration = Math.max(0.2, cssNumber("--warzone-base-flyto-duration", 1.2));
+    __state.baseCameraFlightActive = true;
+    __state.manualDismissArmedAt = 0;
+    const finishFlight = () => {
+        __state.baseCameraFlightActive = false;
+        __state.manualDismissArmedAt = Date.now() + 350;
+        viewer.scene?.requestRender?.();
+    };
+    try {
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+            orientation: {
+                heading: Number(viewer.camera.heading || 0),
+                pitch: Cesium.Math.toRadians(-89.5),
+                roll: 0,
+            },
+            duration,
+            complete: finishFlight,
+            cancel: finishFlight,
+        });
+        return true;
+    } catch {
+        finishFlight();
+        return false;
+    }
+}
 
 function showBasePanel(base, sx, sy, entity = null) {
     closeActiveBasePanel();
+    const displayBase = normalizeMilitaryBaseDisplayData(base);
 
     const escapeHTML = (value) => {
         if (value === null || value === undefined || value === "") return "—";
@@ -266,7 +314,7 @@ function showBasePanel(base, sx, sy, entity = null) {
         const fields = Array.isArray(base?.metadata?.displayFields)
             ? base.metadata.displayFields
             : [];
-        const hiddenLabels = new Set(["source", "source section"]);
+        const hiddenLabels = new Set(["source", "source section", "country"]);
         return fields
             .filter((field) => field?.label && field?.value)
             .filter((field) => !hiddenLabels.has(String(field.label).trim().toLowerCase()))
@@ -282,16 +330,19 @@ function showBasePanel(base, sx, sy, entity = null) {
             .join("");
     };
 
-    const tc = getTypeColor(base?.type);
-    const tl = TYPE_LABEL?.[base?.type] || "Military Installation";
+    const tc = getTypeColor(displayBase?.type);
+    const tl = TYPE_LABEL?.[displayBase?.type] || "Military Installation";
 
-    const name = base?.name || "Unknown Installation";
-    const country = base?.country || "—";
-    const operator = base?.operator || "—";
-    const classification = titleCase(base?.size);
-    const lat = formatCoord(base?.lat);
-    const lon = formatCoord(base?.lon);
-    const iconClass = TYPE_PANEL_ICON?.[base?.type] || TYPE_PANEL_ICON.unknown;
+    const name = displayBase?.name || "Unknown Installation";
+    const country = displayBase?.country || "—";
+    const operator = displayBase?.operator || "—";
+    const classification = titleCase(displayBase?.size);
+    const lat = formatCoord(displayBase?.lat);
+    const lon = formatCoord(displayBase?.lon);
+    const iconClass = TYPE_PANEL_ICON?.[displayBase?.type] || TYPE_PANEL_ICON.unknown;
+    const countryCorrection = ["coordinate_corrected", "host_country_corrected"].includes(displayBase?.countryQuality) && displayBase?.originalCountry
+        ? `<li><strong>Data Quality</strong><span>Host country corrected from imported value "${escapeHTML(displayBase.originalCountry)}" by coordinates.</span></li>`
+        : "";
 
     const panel = document.createElement("div");
     panel.id = "warzone-milbase-panel";
@@ -351,6 +402,7 @@ function showBasePanel(base, sx, sy, entity = null) {
                     <strong>Coordinates</strong>
                     <span>${lat}, ${lon}</span>
                 </li>
+                ${countryCorrection}
                 ${renderExtraRows()}
             </ul>
         </section>
@@ -397,9 +449,8 @@ function bindClickHandler(viewer) {
             window.__wzBaseHover = false;
             return;
         }
-        const picked = viewer.scene.pick(movement.endPosition);
-        const isBase = Cesium.defined(picked?.id) &&
-            picked.id?.properties?.milbase?.getValue?.() === true;
+        const picked = findPickedMilitaryBase(viewer, movement.endPosition);
+        const isBase = Cesium.defined(picked?.id);
         window.__wzBaseHover = isBase;
         if (isBase) {
             canvas.style.cursor = "pointer";
@@ -411,7 +462,7 @@ function bindClickHandler(viewer) {
     // LEFT_CLICK — open info panel next to click position
     handler.setInputAction(click => {
         if (!areMilitaryBasesInteractive()) return;
-        const picked = viewer.scene.pick(click.position);
+        const picked = findPickedMilitaryBase(viewer, click.position);
         if (Cesium.defined(picked?.id)) {
             const props = picked.id?.properties;
             if (props?.milbase?.getValue?.()) {
@@ -426,6 +477,11 @@ function bindClickHandler(viewer) {
                     lat: props.lat.getValue(),
                     lon: props.lon.getValue(),
                 }, click.position.x, click.position.y, picked.id);
+                clearBaseViewerSelection(viewer);
+                flyToBaseTopDown(viewer, picked.id.__militaryBaseData || {
+                    lat: props.lat.getValue(),
+                    lon: props.lon.getValue(),
+                });
                 return; // keep panel open
             }
         }
@@ -447,10 +503,23 @@ export function initWarzoneMilitaryBases(viewer) {
     viewer.dataSources.add(ds);
     __state.dataSource = ds;
 
-    __state.entities = MILITARY_BASES.map(b => createBaseEntity(ds, b));
+    __state.entities = MILITARY_BASES
+        .map((base) => normalizeMilitaryBaseDisplayData(base))
+        .filter((base) => Number.isFinite(base.lat) && Number.isFinite(base.lon))
+        .map((base) => createBaseEntity(ds, base));
     viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);
+    viewer.scene.morphStart?.addEventListener?.(closeActiveBasePanel);
+    viewer.scene.morphComplete?.addEventListener?.(() => {
+        closeActiveBasePanel();
+        applyVisibility();
+        viewer.scene.requestRender?.();
+    });
+    document.addEventListener("wz:scene-mode-changed", closeActiveBasePanel);
     viewer.camera.changed.addEventListener(() => {
         if (!areMilitaryBasesInteractive() && !__state.activePanel) return;
+        if (__state.activePanel && !__state.baseCameraFlightActive && Date.now() > __state.manualDismissArmedAt) {
+            closeActiveBasePanel();
+        }
         viewer.scene.requestRender();
     });
     window.addEventListener("resize", refreshBaseIconSizing, { passive: true });
@@ -467,6 +536,7 @@ export function initWarzoneMilitaryBases(viewer) {
 
 export function setWarzoneMilitaryBasesVisible(visible) {
     __state.visible = Boolean(visible);
+    if (!__state.visible) closeActiveBasePanel();
     applyVisibility();
 }
 

@@ -219,6 +219,7 @@ const IDLE_SUSPEND_EXCLUDED_LAYER_IDS = new Set([
     "region-plate",
     "hotspots",
     "military-bases",
+    "satellite-imagery",
     "country-borders",
 ]);
 const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS
@@ -231,6 +232,7 @@ const GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS = new Set([
     "region-plate",
     "military-bases",
     "hotspots",
+    "satellite-imagery",
 ]);
 const NAVAL_EVENT_SUBTYPES = new Set([
     "carrier",
@@ -1729,8 +1731,10 @@ function sanitizeEventPopupText(value = "", fallback = "") {
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/t\.me\/\S+/gi, " ")
         .replace(/@[A-Za-z0-9_]+/g, " ")
-        .replace(/\b(?:img|image)\s+width\s*["']?\d+["']?\s+height\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
-        .replace(/\b(?:attachment|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes)\b[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ");
+        .replace(/\b(?:img|image)\s+width\s*=?\s*["']?\d+["']?\s+height\s*=?\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:attachment|attachment-featured-img|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes|srcset|class|alt|loading|data-[a-z0-9_-]+)\b\s*=?\s*["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:float|left|right|high|medium|thumbnail|large|full)\s+sizes\s*=?\s*["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\(\s*max-width\s*:\s*\d+px\s*\)\s*\d+vw\s*,?\s*\d+px/gi, " ");
     const normalized = stripNonEnglishText(stripPresentationEmoji(cleaned), fallback)
         .normalize("NFKD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -1776,23 +1780,8 @@ function buildEventPopupSummary(detail = {}, clusterCount = 1) {
     if (clusterCount <= 1) {
         return baseSummary;
     }
-    const titleKey = comparableEventText(displayTitle);
-    const seen = new Set();
-    const previewTitles = (Array.isArray(detail.clusterEvents) ? detail.clusterEvents : [])
-        .map((item) => sanitizeEventPopupText(item?.display_title || item?.title || item?.summary || ""))
-        .filter(Boolean)
-        .filter((text) => {
-            const key = comparableEventText(text);
-            if (!key || key === titleKey || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        })
-        .slice(0, 3);
-    const previewText = previewTitles.length
-        ? ` Top reports: ${previewTitles.join(" | ")}.`
-        : "";
-    if (baseSummary) return `${baseSummary}${previewText}`;
-    return `${clusterCount} nearby event reports were recorded in this area.${previewText}`;
+    if (baseSummary) return baseSummary;
+    return `${clusterCount} related events are grouped in this operational area.`;
 }
 function normalizeSatelliteContextForPopup(value = null) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -1871,6 +1860,142 @@ function renderEventPopupSatelliteContext(host, contextValue) {
         ${context.radarDisclaimer ? `<p class="wz-event-popup-satellite__note">${escapeHtml(context.radarDisclaimer)}</p>` : ""}
     `;
 }
+function debugSatelliteImagery(message, detail = null) {
+    if (window.__stratopsDebugSatelliteImagery !== true) return;
+    if (detail) {
+        console.debug(`[satellite-imagery] ${message}`, detail);
+    } else {
+        console.debug(`[satellite-imagery] ${message}`);
+    }
+}
+function getSatelliteCollectionLabel(collection = "") {
+    if (collection === "sentinel-2-l2a") return "Sentinel-2 L2A";
+    if (collection === "sentinel-1-grd") return "Sentinel-1 GRD";
+    return toUiLabel(collection, "Observation");
+}
+function formatSatelliteViewerCoord(lat, lon) {
+    const latNum = Number(lat);
+    const lonNum = Number(lon);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return "";
+    return `${latNum.toFixed(4)}°, ${lonNum.toFixed(4)}°`;
+}
+function ensureSatelliteImageryViewer() {
+    let viewer = document.getElementById("wz-satellite-imagery-viewer");
+    if (viewer) return viewer;
+    viewer = document.createElement("section");
+    viewer.id = "wz-satellite-imagery-viewer";
+    viewer.className = "wz-satellite-imagery-viewer";
+    viewer.hidden = true;
+    viewer.setAttribute("role", "dialog");
+    viewer.setAttribute("aria-modal", "true");
+    viewer.setAttribute("aria-labelledby", "wz-satellite-imagery-title");
+    viewer.innerHTML = `
+        <div class="wz-satellite-imagery-viewer__panel">
+            <header class="wz-satellite-imagery-viewer__head">
+                <div>
+                    <span class="wz-satellite-imagery-viewer__kicker">Satellite Observation</span>
+                    <h3 id="wz-satellite-imagery-title">Observation</h3>
+                </div>
+                <button type="button" class="wz-satellite-imagery-viewer__close" data-satellite-imagery-close aria-label="Close satellite observation viewer">×</button>
+            </header>
+            <div class="wz-satellite-imagery-viewer__body" data-satellite-imagery-body></div>
+        </div>
+    `;
+    document.body.appendChild(viewer);
+    viewer.addEventListener("click", (event) => {
+        if (event.target === viewer || event.target?.closest?.("[data-satellite-imagery-close]")) {
+            closeSatelliteImageryViewer();
+        }
+    });
+    return viewer;
+}
+function closeSatelliteImageryViewer() {
+    const viewer = document.getElementById("wz-satellite-imagery-viewer");
+    if (!viewer) return;
+    viewer.hidden = true;
+    viewer.classList.remove("is-visible", "is-loading", "has-error");
+}
+function openSatelliteImageryViewer(detail = {}) {
+    const context = normalizeSatelliteContextForPopup(detail.satelliteContext || detail.satellite_context || null);
+    if (!context || context.status !== "available" || !context.imageUrl) {
+        debugSatelliteImagery("ignored unavailable observation", detail);
+        return false;
+    }
+    const viewer = ensureSatelliteImageryViewer();
+    const body = viewer.querySelector("[data-satellite-imagery-body]");
+    const titleEl = viewer.querySelector("#wz-satellite-imagery-title");
+    const title = sanitizeEventPopupText(detail.displayTitle || detail.title || "Satellite observation", "Satellite observation");
+    const summary = sanitizeEventPopupText(detail.displaySummary || detail.summary || "", "");
+    const location = sanitizeEventPopupText(detail.locationLabel || "", "");
+    const coords = formatSatelliteViewerCoord(detail.lat, detail.lon);
+    const collectionLabel = getSatelliteCollectionLabel(context.collection);
+    const relationLabel = formatSatelliteRelation(context.eventTimeRelation);
+    const sourceUrl = String(detail.sourceUrl || "").trim();
+    const metaRows = [
+        ["Provider", context.provider],
+        ["Collection", collectionLabel],
+        ["Acquisition", context.acquisitionTime ? formatSatelliteUtcTime(context.acquisitionTime) : ""],
+        ["Relation", relationLabel],
+        ["Cloud Cover", context.cloudCover != null ? `${context.cloudCover.toFixed(0)}%` : ""],
+        ["Imagery Type", context.imageryType],
+        ["Resolution", context.approximateResolution],
+        ["Location", location],
+        ["Coordinates", coords],
+    ].filter((row) => row[1]);
+    if (titleEl) titleEl.textContent = title;
+    if (body) {
+        body.innerHTML = `
+            <div class="wz-satellite-imagery-viewer__image-wrap">
+                <div class="wz-satellite-imagery-viewer__status" data-satellite-imagery-status>Loading observation image...</div>
+                <img
+                    class="wz-satellite-imagery-viewer__image"
+                    src="${escapeHtml(context.imageUrl)}"
+                    alt="Satellite observation for ${escapeHtml(title)}"
+                    loading="eager"
+                    decoding="async"
+                    data-satellite-imagery-image>
+            </div>
+            <div class="wz-satellite-imagery-viewer__content">
+                ${summary ? `<p class="wz-satellite-imagery-viewer__summary">${escapeHtml(summary)}</p>` : ""}
+                <dl class="wz-satellite-imagery-viewer__meta">
+                    ${metaRows.map(([label, value]) => `
+                        <div>
+                            <dt>${escapeHtml(label)}</dt>
+                            <dd>${escapeHtml(value)}</dd>
+                        </div>
+                    `).join("")}
+                </dl>
+                <p class="wz-satellite-imagery-viewer__note">${escapeHtml(context.disclaimer)}</p>
+                ${context.radarDisclaimer ? `<p class="wz-satellite-imagery-viewer__note">${escapeHtml(context.radarDisclaimer)}</p>` : ""}
+                <div class="wz-satellite-imagery-viewer__actions">
+                    <a href="${escapeHtml(context.imageUrl)}" download class="wz-satellite-imagery-viewer__action">Download Image</a>
+                    <a href="${escapeHtml(context.imageUrl)}" target="_blank" rel="noopener noreferrer" class="wz-satellite-imagery-viewer__action">Open Full Image</a>
+                    ${/^https?:\/\//i.test(sourceUrl) ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="wz-satellite-imagery-viewer__action">Event Source</a>` : ""}
+                </div>
+            </div>
+        `;
+        const image = body.querySelector("[data-satellite-imagery-image]");
+        image?.addEventListener("load", () => {
+            viewer.classList.remove("is-loading", "has-error");
+            viewer.querySelector("[data-satellite-imagery-status]")?.setAttribute("hidden", "");
+            debugSatelliteImagery("image loaded", { id: detail.id, imageUrl: context.imageUrl });
+        }, { once: true });
+        image?.addEventListener("error", () => {
+            viewer.classList.remove("is-loading");
+            viewer.classList.add("has-error");
+            const status = viewer.querySelector("[data-satellite-imagery-status]");
+            if (status) {
+                status.hidden = false;
+                status.textContent = "Satellite image could not be loaded.";
+            }
+            debugSatelliteImagery("image failed", { id: detail.id, imageUrl: context.imageUrl });
+        }, { once: true });
+    }
+    viewer.hidden = false;
+    viewer.classList.add("is-visible", "is-loading");
+    debugSatelliteImagery("viewer opened", { id: detail.id, provider: context.provider, collection: context.collection });
+    return true;
+}
 function getEventSatelliteContext(event = {}) {
     return normalizeSatelliteContextForPopup(
         event.satellite_context ||
@@ -1943,6 +2068,16 @@ function getEventPopupMedia(detail = {}) {
         seen.add(key);
         images.push(normalized);
     };
+    const satelliteContext = getAvailablePopupSatelliteContext(detail);
+    if (satelliteContext?.imageUrl) {
+        pushImage({
+            preview_url: satelliteContext.imageUrl,
+            full_url: satelliteContext.imageUrl,
+            alt: `Copernicus satellite preview for ${detail.displayTitle || detail.title || "event"}`,
+            width: satelliteContext.width,
+            height: satelliteContext.height,
+        });
+    }
     pushImage(detail.primaryImage || detail.primary_image || null);
     const additional = Array.isArray(detail.additionalImages)
         ? detail.additionalImages
@@ -1952,10 +2087,10 @@ function getEventPopupMedia(detail = {}) {
     mediaImages.forEach(pushImage);
     return {
         images,
-        imageSource: sanitizeEventPopupText(detail.imageSource || detail.image_source || "", ""),
+        imageSource: satelliteContext ? "Copernicus" : sanitizeEventPopupText(detail.imageSource || detail.image_source || "", ""),
         imageCaption: sanitizeEventPopupText(detail.imageCaption || detail.image_caption || detail.displayTitle || detail.title || "", ""),
-        imageCredit: sanitizeEventPopupText(detail.imageCredit || detail.image_credit || "", ""),
-        imageType: sanitizeEventPopupText(detail.imageType || detail.image_type || "", ""),
+        imageCredit: satelliteContext ? "Copernicus" : sanitizeEventPopupText(detail.imageCredit || detail.image_credit || "", ""),
+        imageType: satelliteContext ? "Satellite Observation" : sanitizeEventPopupText(detail.imageType || detail.image_type || "", ""),
     };
 }
 function hasPopupSatelliteContext(detail = {}) {
@@ -2078,7 +2213,7 @@ function renderEventPopupMedia(host, detail = {}, state = {}) {
     const activeIndex = Math.max(0, Math.min(imageCount - 1, Number(state.activeIndex) || 0));
     const activeImage = media.images[activeIndex];
     const metaBits = [
-        imageCount > 1 ? `Image ${activeIndex + 1} of ${imageCount}` : "Image",
+        imageCount > 1 ? `${activeIndex + 1} of ${imageCount}` : "",
         media.imageType || "",
         media.imageSource || "",
     ].filter(Boolean);
@@ -2095,7 +2230,7 @@ function renderEventPopupMedia(host, detail = {}, state = {}) {
         </div>
         <div class="wz-event-popup-media__bar">
             <div class="wz-event-popup-media__text">
-                <p class="wz-event-popup-media__eyebrow">${escapeHtml(metaBits.join(" | "))}</p>
+                ${metaBits.length ? `<p class="wz-event-popup-media__eyebrow">${escapeHtml(metaBits.join(" | "))}</p>` : ""}
                 ${media.imageCaption ? `<p class="wz-event-popup-media__caption">${escapeHtml(media.imageCaption)}</p>` : ""}
                 ${media.imageCredit ? `<p class="wz-event-popup-media__credit">Credit: ${escapeHtml(media.imageCredit)}</p>` : ""}
             </div>
@@ -2359,7 +2494,7 @@ function bindGlobeEventPopup() {
         const confidenceValue = Number(detail.confidence);
         activePopupDetail = { ...detail, clusterCount };
         popupMediaIndex = 0;
-        popupSatelliteOpen = hasPopupSatelliteContext(detail);
+        popupSatelliteOpen = false;
         if (catEl) {
             catEl.textContent = clusterCount > 1
                 ? `${categoryLabel} • ${clusterCount}`
@@ -2458,12 +2593,20 @@ function bindGlobeEventPopup() {
     });
     closeBtn?.addEventListener("click", hidePopup);
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") hidePopup();
+        if (event.key === "Escape") {
+            hidePopup();
+            closeSatelliteImageryViewer();
+        }
     });
     document.addEventListener("wz:event-marker-selected", (event) => {
+        closeSatelliteImageryViewer();
         showPopup(event?.detail || {});
     });
     document.addEventListener("wz:event-marker-cleared", hidePopup);
+    document.addEventListener("wz:satellite-imagery-selected", (event) => {
+        hidePopup();
+        openSatelliteImageryViewer(event?.detail || {});
+    });
 }
 function getEventMetadata(event = {}) {
     const raw = event?.metadata;
@@ -7186,6 +7329,13 @@ export async function initWarzoneApp() {
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
         }
+        if (id === "satellite-imagery") {
+            const satelliteImageryEnabled = isLayerEnabled("satellite-imagery");
+            globe?.setSatelliteImageryLayerVisible?.(satelliteImageryEnabled);
+            if (!satelliteImageryEnabled) closeSatelliteImageryViewer();
+            window.__warzoneViewer?.scene?.requestRender?.();
+            return;
+        }
         if (id === "region-plate") {
             globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
             window.__warzoneViewer?.scene?.requestRender?.();
@@ -7246,6 +7396,7 @@ export async function initWarzoneApp() {
         }
         if (id === "*") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
+            globe?.setSatelliteImageryLayerVisible?.(isLayerEnabled("satellite-imagery"));
             globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
             globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
             syncGnssInterferenceLayer();
@@ -7266,6 +7417,7 @@ export async function initWarzoneApp() {
     {
         const globe = window.__warzoneViewer?.__warzone;
         globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
+        globe?.setSatelliteImageryLayerVisible?.(isLayerEnabled("satellite-imagery"));
         globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
         globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { animate: false });
         window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
@@ -9138,6 +9290,263 @@ function showSupportModal() {
     openSupportModal({ resetDismissal: true });
 }
 
+let __reportsModalBound = false;
+let __reportsModalCloseTimer = 0;
+
+function getYesterdayUtcDateKey() {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - 1);
+    return date.toISOString().slice(0, 10);
+}
+
+function buildDailyReportSlug(dateKey = getYesterdayUtcDateKey()) {
+    return `stratops-report-${String(dateKey || "").slice(0, 10)}`;
+}
+
+function buildDailyReportUrl(dateKey = getYesterdayUtcDateKey()) {
+    return `/reports/${encodeURIComponent(buildDailyReportSlug(dateKey))}`;
+}
+
+function formatReportDate(value = "") {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value || "");
+    return date.toLocaleString([], {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function formatReportPeriod(report = {}) {
+    const start = formatReportDate(report.period_start);
+    const end = formatReportDate(report.period_end);
+    return [start, end].filter(Boolean).join(" to ");
+}
+
+function getReportTitle(report = {}) {
+    const type = String(report.report_type || "daily").toUpperCase();
+    const scope = String(report.scope_label || report.scope_value || "Global");
+    return `${type} - ${scope}`;
+}
+
+function setReportsStatus(message = "", isError = false) {
+    const status = document.getElementById("wz-operational-reports-status");
+    if (!status) return;
+    status.textContent = message;
+    status.hidden = !message;
+    status.classList.toggle("is-error", Boolean(isError));
+}
+
+function resetOperationalReportViewer() {
+    const viewer = document.getElementById("wz-operational-report-viewer");
+    const frame = document.getElementById("wz-operational-report-viewer-frame");
+    const title = document.getElementById("wz-operational-report-viewer-title");
+    const link = document.getElementById("wz-operational-report-viewer-link");
+    const fallback = document.getElementById("wz-operational-report-viewer-fallback");
+    if (frame) frame.setAttribute("data", "");
+    if (title) title.textContent = "Report Viewer";
+    if (link) {
+        link.setAttribute("href", "#");
+        link.hidden = true;
+    }
+    if (fallback) fallback.textContent = "PDF viewing is unavailable in this browser.";
+    if (viewer) viewer.hidden = true;
+}
+
+function openOperationalReportViewer(report = {}) {
+    const viewer = document.getElementById("wz-operational-report-viewer");
+    const frame = document.getElementById("wz-operational-report-viewer-frame");
+    const title = document.getElementById("wz-operational-report-viewer-title");
+    const link = document.getElementById("wz-operational-report-viewer-link");
+    const fallback = document.getElementById("wz-operational-report-viewer-fallback");
+    const viewerUrl = api.getOperationalReportViewerUrl(report);
+    if (!viewer || !frame || !viewerUrl) {
+        setReportsStatus("This report is missing a PDF download link.", true);
+        return;
+    }
+    if (title) title.textContent = getReportTitle(report);
+    if (link) {
+        link.setAttribute("href", viewerUrl);
+        link.hidden = false;
+    }
+    if (fallback) {
+        fallback.textContent = "Embedded PDF viewing is unavailable in this browser or extension set.";
+    }
+    viewer.hidden = false;
+    frame.setAttribute("data", viewerUrl);
+    viewer.scrollIntoView({ block: "start", behavior: "smooth" });
+    setReportsStatus("");
+}
+
+function renderOperationalReports(reports = []) {
+    const list = document.getElementById("wz-operational-reports-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const source = Array.isArray(reports) ? reports : [];
+    if (!source.length) {
+        const empty = document.createElement("p");
+        empty.className = "wz-report-card__meta";
+        empty.textContent = "No generated reports are available yet.";
+        list.appendChild(empty);
+        return;
+    }
+    source.forEach((report) => {
+        const card = document.createElement("article");
+        card.className = "wz-report-card";
+
+        const head = document.createElement("div");
+        head.className = "wz-report-card__head";
+
+        const title = document.createElement("h3");
+        title.className = "wz-report-card__title";
+        title.textContent = getReportTitle(report);
+
+        const badge = document.createElement("span");
+        badge.className = "wz-report-card__badge";
+        badge.textContent = String(report.status || "available");
+
+        head.append(title, badge);
+
+        const meta = document.createElement("p");
+        meta.className = "wz-report-card__meta";
+        meta.textContent = [
+            formatReportPeriod(report),
+            report.expires_at ? `Expires ${formatReportDate(report.expires_at)}` : "",
+        ].filter(Boolean).join(" | ");
+
+        const summary = document.createElement("p");
+        summary.className = "wz-report-card__summary";
+        summary.textContent = String(report.generated_summary || "Report generated from operational snapshots.");
+
+        const actions = document.createElement("div");
+        actions.className = "wz-report-card__actions";
+        const download = document.createElement("button");
+        download.type = "button";
+        download.className = "btn-primary";
+        download.textContent = "Open PDF";
+        download.disabled = !api.getOperationalReportViewerUrl(report);
+        download.addEventListener("click", () => {
+            if (!api.getOperationalReportViewerUrl(report)) {
+                setReportsStatus("This report does not have a download token yet.", true);
+                return;
+            }
+            openOperationalReportViewer(report);
+        });
+        actions.appendChild(download);
+
+        card.append(head, meta, summary, actions);
+        list.appendChild(card);
+    });
+}
+
+async function loadOperationalReports() {
+    setReportsStatus("Loading reports...");
+    try {
+        const { data } = await api.getOperationalReports();
+        renderOperationalReports(data || []);
+        setReportsStatus("");
+    } catch (error) {
+        console.warn("[reports] load failed:", error);
+        renderOperationalReports([]);
+        setReportsStatus(String(error?.message || "Unable to load reports."), true);
+    }
+}
+
+function getReportsButtonLabel(button) {
+    return button?.querySelector("span:last-child") || button;
+}
+
+async function generateDailyOperationalReport(button) {
+    const label = getReportsButtonLabel(button);
+    const originalLabel = label?.textContent || "";
+    const dateKey = getYesterdayUtcDateKey();
+    const reportUrl = buildDailyReportUrl(dateKey);
+    const openedReportWindow = window.open(`${reportUrl}?generating=1`, "_blank");
+    try {
+        if (openedReportWindow) openedReportWindow.opener = null;
+    } catch { }
+    if (button) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+    }
+    if (label) label.textContent = "Generating...";
+    setReportsStatus(openedReportWindow
+        ? "Opening the report page and preparing the cached daily PDF..."
+        : "Preparing the cached daily PDF. Your browser blocked the report tab.");
+    try {
+        const { data } = await api.generateOperationalReport({
+            type: "daily",
+            scope_type: "global",
+            date: dateKey,
+            force: false,
+        });
+        const readyUrl = api.getOperationalReportViewerUrl(data) || reportUrl;
+        if (!openedReportWindow) {
+            const readyWindow = window.open(readyUrl, "_blank");
+            try {
+                if (readyWindow) readyWindow.opener = null;
+            } catch { }
+        }
+        setReportsStatus("Daily report is ready in the report tab.");
+    } catch (error) {
+        console.warn("[reports] generation failed:", error);
+        setReportsStatus(String(error?.message || "Unable to generate daily report."), true);
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+        }
+        if (label) label.textContent = originalLabel;
+    }
+}
+
+function closeMobileDockMenuAfterReportsOpen() {
+    const menu = document.getElementById("wz-mobile-dock-menu");
+    const backdrop = document.getElementById("wz-mobile-dock-backdrop");
+    const opener = document.getElementById("wz-mobile-dock-menu-open");
+    menu?.classList.remove("is-open", "is-visible");
+    menu?.setAttribute("aria-hidden", "true");
+    backdrop?.classList.remove("is-open", "is-visible");
+    backdrop?.setAttribute("aria-hidden", "true");
+    opener?.setAttribute("aria-expanded", "false");
+}
+
+function openOperationalReportsModal() {
+    const modal = document.getElementById("wz-operational-reports-modal");
+    if (!modal) return;
+    clearTimeout(__reportsModalCloseTimer);
+    setReportsStatus("");
+    modal.scrollTop = 0;
+    openSharedModal(modal);
+}
+
+function closeOperationalReportsModal() {
+    const modal = document.getElementById("wz-operational-reports-modal");
+    if (!modal) return;
+    clearTimeout(__reportsModalCloseTimer);
+    closeSharedModal(modal, () => {
+        resetOperationalReportViewer();
+        setReportsStatus("");
+    });
+}
+
+function initOperationalReportsModal() {
+    const modal = document.getElementById("wz-operational-reports-modal");
+    if (!modal || __reportsModalBound) return;
+    __reportsModalBound = true;
+    document.getElementById("wz-operational-reports-close")?.addEventListener("click", closeOperationalReportsModal);
+    document.getElementById("wz-operational-reports-generate")?.addEventListener("click", (event) => {
+        void generateDailyOperationalReport(event.currentTarget);
+    });
+    document.getElementById("dock-reports")?.addEventListener("click", openOperationalReportsModal);
+    document.getElementById("wz-mobile-reports")?.addEventListener("click", () => {
+        closeMobileDockMenuAfterReportsOpen();
+        openOperationalReportsModal();
+    });
+}
+
 function scheduleDelayedLoginPopup() {
     setTimeout(async () => {
         if (window.__stratopsAuthState?.isAuthenticated) return;
@@ -9573,6 +9982,7 @@ export function schedulePostEntryActions(viewer) {
     injectNavLoginButton();
     initGlobeRotation(viewer);
     initDonatePopup();
+    initOperationalReportsModal();
     scheduleAdaptivePerformanceGuard(viewer);
 
     window.__openLoginModal = () => {
@@ -9581,4 +9991,5 @@ export function schedulePostEntryActions(viewer) {
         showLoginModal(s?.isAuthenticated ? "authenticated" : "guest", s?.user || null);
     };
     window.__openSupportModal = showSupportModal;
+    window.__openOperationalReportsModal = openOperationalReportsModal;
 }

@@ -51,8 +51,10 @@ function decodeBasicHtmlEntities(value = "") {
 function cleanPublicText(value = "", maxLength = 900) {
     const clean = decodeBasicHtmlEntities(value)
         .replace(/<[^>]*>/g, " ")
-        .replace(/\b(?:img|image)\s+width\s*["']?\d+["']?\s+height\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
-        .replace(/\b(?:attachment|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes)\b[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:img|image)\s+width\s*=?\s*["']?\d+["']?\s+height\s*=?\s*["']?\d+["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:attachment|attachment-featured-img|size|featured|wp-post-image|fetchpriority|decoding|async|max-width|sizes|srcset|class|alt|loading|data-[a-z0-9_-]+)\b\s*=?\s*["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\b(?:float|left|right|high|medium|thumbnail|large|full)\s+sizes\s*=?\s*["']?[^.?!|]*?(?=\s+[A-Z][a-z]|\s+Top reports:|$)/gi, " ")
+        .replace(/\(\s*max-width\s*:\s*\d+px\s*\)\s*\d+vw\s*,?\s*\d+px/gi, " ")
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/[\u200E\u200F\u202A-\u202E]/g, " ")
         .replace(/[^\x20-\x7E]/g, " ")
@@ -62,6 +64,22 @@ function cleanPublicText(value = "", maxLength = 900) {
 
     if (isUnknownText(clean)) return null;
     return clean.slice(0, maxLength);
+}
+
+function getAvailableSatelliteImageEntry(event = {}, fallbackTitle = "") {
+    const context = event?.satellite_context || event?.satelliteContext || null;
+    if (!context || typeof context !== "object" || Array.isArray(context)) return null;
+    if (String(context.status || "").toLowerCase() !== "available") return null;
+    const imageUrl = String(context.imageUrl || context.image_url || "").trim();
+    if (!/^https?:\/\//i.test(imageUrl)) return null;
+    return {
+        thumb_url: imageUrl,
+        preview_url: imageUrl,
+        full_url: imageUrl,
+        alt: cleanPublicText(`Copernicus satellite preview for ${fallbackTitle || "event"}`, 240),
+        width: Number.isFinite(Number(context.width)) ? Number(context.width) : null,
+        height: Number.isFinite(Number(context.height)) ? Number(context.height) : null,
+    };
 }
 
 function getCategoryLabel(category = "") {
@@ -256,10 +274,17 @@ function toPublicEvent(event = {}) {
     const category = cleanPublicText(event.category, 80) || "military";
     const severity = cleanPublicText(event.severity, 40) || "medium";
     const media = normalizePublicMedia(event.media);
-    const primaryImage = normalizePublicImageEntry(event.primary_image);
+    const feedPrimaryImage = normalizePublicImageEntry(event.primary_image);
+    const satelliteImage = getAvailableSatelliteImageEntry(event, title);
+    const primaryImage = satelliteImage || feedPrimaryImage;
     const additionalImages = Array.isArray(event.additional_images)
         ? event.additional_images.map(normalizePublicImageEntry).filter(Boolean)
         : [];
+    if (satelliteImage && feedPrimaryImage) {
+        const satelliteKey = String(satelliteImage.full_url || satelliteImage.preview_url || "").toLowerCase();
+        const feedKey = String(feedPrimaryImage.full_url || feedPrimaryImage.preview_url || "").toLowerCase();
+        if (feedKey && feedKey !== satelliteKey) additionalImages.unshift(feedPrimaryImage);
+    }
     const satelliteAvailable = String(event?.satellite_context?.status || "").toLowerCase() === "available";
 
     return {
@@ -283,10 +308,10 @@ function toPublicEvent(event = {}) {
         media,
         primary_image: primaryImage,
         additional_images: additionalImages,
-        image_source: cleanPublicText(event.image_source, 120),
-        image_caption: cleanPublicText(event.image_caption, 240),
-        image_credit: cleanPublicText(event.image_credit, 120),
-        image_type: cleanPublicText(event.image_type, 80),
+        image_source: satelliteImage ? "Copernicus" : cleanPublicText(event.image_source, 120),
+        image_caption: satelliteImage ? cleanPublicText(title, 240) : cleanPublicText(event.image_caption, 240),
+        image_credit: satelliteImage ? "Copernicus" : cleanPublicText(event.image_credit, 120),
+        image_type: satelliteImage ? "Satellite Observation" : cleanPublicText(event.image_type, 80),
         satellite_available: satelliteAvailable,
     };
 }

@@ -65,6 +65,8 @@ import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
 import { readCopernicusConfig } from "./copernicus-config.js";
 import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from "./copernicus-runner.js";
+import { readReportingConfig } from "../../shared/reporting-config.js";
+import { generateScheduledReports } from "../../shared/reporting-service.js";
 import {
     cleanDisplayText,
     normalizeEventRowForStorage,
@@ -127,6 +129,7 @@ let isWorkerRunning = false;
 let isConflictFeedRunning = false;
 let isStatusFeedRunning = false;
 let isCopernicusRunning = false;
+let isReportingRunning = false;
 const DEFAULT_CONFLICT_FEED_INTERVAL_MS = 15 * 60 * 1000;
 const MIN_CONFLICT_FEED_INTERVAL_MS = 60 * 1000;
 const DEFAULT_STATUS_FEED_INTERVAL_MS = 15 * 60 * 1000;
@@ -153,6 +156,7 @@ const STATUS_FEED_INTERVAL_MS = Math.max(
 );
 const COPERNICUS_CONFIG = readCopernicusConfig();
 const COPERNICUS_INTERVAL_MS = COPERNICUS_CONFIG.workerIntervalMs;
+const REPORTING_CONFIG = readReportingConfig();
 /* ----------------------------------------
  * Telegram config
  * -------------------------------------- */
@@ -4227,6 +4231,26 @@ async function runCopernicusCycle() {
         isCopernicusRunning = false;
     }
 }
+async function runReportingCycle() {
+    if (!REPORTING_CONFIG.enabled) return;
+    if (isReportingRunning) {
+        console.log("[reports] Previous reporting cycle still running, skipping this tick");
+        return;
+    }
+    isReportingRunning = true;
+    try {
+        const result = await generateScheduledReports({
+            supabase,
+            config: REPORTING_CONFIG,
+            logger: console
+        });
+        console.log("[reports] scheduled result", JSON.stringify(result, null, 2));
+    } catch (err) {
+        console.error("[reports] Scheduled report generation failed:", err?.message || err);
+    } finally {
+        isReportingRunning = false;
+    }
+}
 function startConflictFeedLoop() {
     if (!CONFLICT_FEED_ENABLED) {
         console.log("[conflict] feed disabled; set CONFLICT_FEED_ENABLED=true to enable");
@@ -4263,6 +4287,19 @@ function startCopernicusLoop() {
     }, COPERNICUS_INTERVAL_MS);
     if (typeof timer.unref === "function") timer.unref();
 }
+function startReportingLoop() {
+    if (!REPORTING_CONFIG.enabled) {
+        console.log("[reports] disabled; set REPORTING_ENABLED=true to enable");
+        return;
+    }
+    console.log(`[reports] enabled, daily cron "${REPORTING_CONFIG.dailyCron}", weekly cron "${REPORTING_CONFIG.weeklyCron}"`);
+    cron.schedule(REPORTING_CONFIG.dailyCron, () => {
+        runReportingCycle();
+    }, { timezone: "UTC" });
+    cron.schedule(REPORTING_CONFIG.weeklyCron, () => {
+        runReportingCycle();
+    }, { timezone: "UTC" });
+}
 cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
@@ -4275,5 +4312,6 @@ syncSourceRegistryFromConfig().catch((err) => {
 startConflictFeedLoop();
 startStatusFeedLoop();
 startCopernicusLoop();
+startReportingLoop();
 console.log("Worker started");
 runWorker();

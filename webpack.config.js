@@ -28,7 +28,7 @@ module.exports = (env, argv) => {
     const PAGE_META_PATH = path.resolve(SEO_DIR, "pages.js");
     const SCHEMA_PATH = path.resolve(SEO_DIR, "schema.js");
 
-    const pages = ["index", "404"];
+    const pages = ["index", "404", "report"];
 
     // -----------------------------
     // helpers
@@ -192,7 +192,7 @@ module.exports = (env, argv) => {
                     filename: `pages/${name}.html`,
                     template: path.resolve(DEV_DIR, "pages", `${name}.html`),
                     cache: !isDev,
-                    inject: "head",
+                    inject: name === "report" ? false : "head",
                     scriptLoading: "defer",
                     templateParameters: (compilation) => {
                         registerHtmlDependencies(compilation);
@@ -448,11 +448,16 @@ module.exports = (env, argv) => {
                                     lastStatus = response.status;
                                     lastType = response.headers.get("content-type") || "application/json";
                                     const isJsonResponse = /\bjson\b/i.test(lastType);
-                                    const shouldReturnResponse =
-                                        response.ok ||
-                                        response.status !== 404 ||
-                                        req.method !== "GET" ||
-                                        isJsonResponse;
+                                    const isWorkerHealthText =
+                                        !isJsonResponse &&
+                                        /warzone worker running/i.test(String(payload || ""));
+                                    if (isWorkerHealthText) {
+                                        continue;
+                                    }
+                                    if (response.status === 404) {
+                                        continue;
+                                    }
+                                    const shouldReturnResponse = response.ok || response.status !== 404 || isJsonResponse;
                                     if (shouldReturnResponse) {
                                         res.status(response.status);
                                         res.set("Cache-Control", "no-store, max-age=0");
@@ -473,6 +478,22 @@ module.exports = (env, argv) => {
                         devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
                         devServer.app.get("/warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
+                        devServer.app.get("/reports/:slug", (req, res) => {
+                            const slug = encodeURIComponent(String(req.params.slug || "").trim());
+                            if (!slug) {
+                                res.redirect(302, "/pages/404.html");
+                                return;
+                            }
+                            res.sendFile(path.resolve(PROD_DIR, "pages/report.html"));
+                        });
+                        devServer.app.get("/warzone/reports/:slug", (req, res) => {
+                            const slug = encodeURIComponent(String(req.params.slug || "").trim());
+                            if (!slug) {
+                                res.redirect(302, "/pages/404.html");
+                                return;
+                            }
+                            res.sendFile(path.resolve(PROD_DIR, "pages/report.html"));
+                        });
                         devServer.app.all("/api/*", handleApiProxy);
 
                         return middlewares;
@@ -501,6 +522,7 @@ module.exports = (env, argv) => {
                         rewrites: [
                             { from: /^\/$/, to: "/pages/index.html" },
                             { from: /^\/404\/?$/, to: "/pages/404.html" },
+                            { from: /^\/(?:warzone\/)?reports\/[^/]+\/?$/, to: "/pages/report.html" },
                             { from: /./, to: "/pages/404.html" },
                         ],
                     },

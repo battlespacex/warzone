@@ -189,6 +189,24 @@ async function warmupInitialTheater(viewer) {
 
 initBoot();
 
+function resolveStartupAdaptiveQualityProfile() {
+    const memoryGb = Number(navigator?.deviceMemory);
+    const threads = Number(navigator?.hardwareConcurrency);
+    if (
+        (Number.isFinite(memoryGb) && memoryGb <= 4) ||
+        (Number.isFinite(threads) && threads <= 4)
+    ) {
+        return "safe";
+    }
+    if (
+        (Number.isFinite(memoryGb) && memoryGb <= 8) ||
+        (Number.isFinite(threads) && threads <= 8)
+    ) {
+        return "balanced";
+    }
+    return "normal";
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         bindWarzoneUi();
@@ -232,7 +250,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             started = true;
             try {
                 viewer?.__warzone?.stopStartupRotation?.();
-                viewer?.__warzone?.setAdaptiveQualityProfile?.("normal");
+                viewer?.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
                 viewer?.__warzone?.setPerformanceMode?.(0);
                 initWarzoneAoiLens(viewer);
                 initWarzoneCaptureShot(viewer);

@@ -1,16 +1,23 @@
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { existsSync } from "fs";
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-require("dotenv").config({
-    path: join(
-        __dirname,
-        "..",
-        process.env.NODE_ENV === "production" ? ".env.production" : ".env.local"
-    ),
-});
+const envFileName = process.env.NODE_ENV === "production" ? ".env.production" : ".env.local";
+const envPaths = [
+    join(__dirname, "..", envFileName),
+    join(__dirname, "..", "..", "worker", envFileName),
+    join(__dirname, "..", "..", "..", envFileName),
+];
+for (const envPath of envPaths) {
+    if (!existsSync(envPath)) continue;
+    require("dotenv").config({
+        path: envPath,
+        override: false,
+    });
+}
 
 import http from "http";
 import express from "express";

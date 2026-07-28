@@ -1023,6 +1023,34 @@
             </div>
         </div>
     </div>
+    <div id="wz-operational-reports-modal" class="wz-modal wz-operational-reports" aria-modal="true" role="dialog"
+        aria-labelledby="wz-operational-reports-title" aria-describedby="wz-operational-reports-summary" hidden>
+        <div class="wz-modal-box wz-max-modal">
+            <div class="wz-modal-inner">
+                <header>
+                    <span class="wz-header-title">
+                        <span class="static-icon stratops-ico-file-1" aria-hidden="true"></span>
+                        <h2 id="wz-operational-reports-title">Operational Reports</h2>
+                    </span>
+                    <span class="wz-close-modal">
+                        <button type="button" class="static-icon stratops-ico-close-1" id="wz-operational-reports-close" aria-label="Close operational reports"></button>
+                    </span>
+                </header>
+                <section class="wz-modal-body">
+                    <p id="wz-operational-reports-summary" class="wz-operational-reports__summary">
+                        StratOps generates professional daily intelligence reports from normalized operational data and caches each PDF for 72 hours.
+                    </p>
+                    <div class="wz-operational-reports__actions" role="toolbar" aria-label="Report actions">
+                        <button type="button" class="btn-primary" id="wz-operational-reports-generate">
+                            <span></span>
+                            <span>Generate Report</span>
+                        </button>
+                    </div>
+                    <p id="wz-operational-reports-status" class="wz-error-container" hidden aria-live="polite"></p>
+                </section>
+            </div>
+        </div>
+    </div>
     <div id="wz-pricing-modal" class="wz-modal wz-pricing" aria-modal="true" role="dialog"
         aria-labelledby="wz-pricing-title" aria-describedby="wz-pricing-summary" hidden>
         <div class="wz-modal-box wz-max-modal">

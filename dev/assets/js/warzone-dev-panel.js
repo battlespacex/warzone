@@ -1035,7 +1035,7 @@ const DEV_MAP_TUNER_FIELDS = [
     { key: "saturation", cssVar: "--warzone-map-saturation", min: 0, max: 2, step: 0.01, fallback: 0.2 },
     { key: "brightness", cssVar: "--warzone-map-brightness", min: 0, max: 2, step: 0.01, fallback: 0.8 },
     { key: "contrast", cssVar: "--warzone-map-contrast", min: 0, max: 3, step: 0.01, fallback: 1.2 },
-    { key: "gamma", cssVar: "--warzone-map-gamma", min: 0, max: 2, step: 0.01, fallback: 0.7 },
+    { key: "gamma", cssVar: "--warzone-map-gamma", min: 0, max: 2, step: 0.01, fallback: 0.68 },
     { key: "hue", cssVar: "--warzone-map-hue", min: -360, max: 360, step: 1, fallback: 170 },
     { key: "tint", cssVar: "--warzone-map-tint", min: -1, max: 1, step: 0.01, fallback: 0 },
     { key: "warmth", cssVar: "--warzone-map-warmth", min: -1, max: 1, step: 0.01, fallback: 0 },
@@ -1412,6 +1412,8 @@ const DEV_LIVE_NAVAL_MODEL_FIELDS = [
     { key: "naval-render-default", label: "Default render mode", cssVar: "--warzone-live-naval-render-mode-default", fallback: "img", type: "select", options: ["img", "glb", "char"] },
     { key: "naval-render-focused", label: "Focused render mode", cssVar: "--warzone-live-naval-render-mode-focused", fallback: "glb", type: "select", options: ["glb", "img", "char"] },
     { key: "naval-auto-enabled", label: "Auto GLB near camera", cssVar: "--warzone-live-naval-model-auto-enabled", min: 0, max: 1, step: 1, fallback: 1, type: "toggle" },
+    { key: "naval-icon-width", label: "Naval icon width", cssVar: "--warzone-live-naval-icon-width-px", min: 24, max: 180, step: 1, fallback: 66 },
+    { key: "naval-icon-height", label: "Naval icon height", cssVar: "--warzone-live-naval-icon-height-px", min: 12, max: 90, step: 1, fallback: 26 },
     { key: "naval-focus-range", label: "Naval focus distance", cssVar: "--warzone-live-naval-focus-camera-range", min: 200, max: 200000, step: 50, fallback: 650 },
     { key: "naval-scale", label: "Naval model scale", cssVar: "--warzone-live-naval-model-scale", min: 1, max: 1000, step: 1, fallback: 35 },
     { key: "naval-min-pixel", label: "Naval min pixel size", cssVar: "--warzone-live-naval-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 64 },
@@ -2118,6 +2120,10 @@ function ensureDevMapLayerControls() {
             <input id="wz-dev-contour-alpha" type="number" min="0.05" max="1" step="0.01">
         </label>
         <label class="wz-dev-field">
+            <span>CTR gamma</span>
+            <input id="wz-dev-ctr-gamma" type="number" min="0" max="3" step="0.01">
+        </label>
+        <label class="wz-dev-field">
             <span>Contour smoothing</span>
             <input id="wz-dev-contour-smoothing" type="number" min="0" max="3" step="1">
         </label>
@@ -2199,15 +2205,16 @@ function syncDevMapLayerControls() {
         }
     };
     setValue("wz-dev-contour-width", "--warzone-contour-line-width", 1.65);
-    setValue("wz-dev-contour-major-width", "--warzone-live-aircraft-contour-major-width-scale", 1.45);
+    setValue("wz-dev-contour-major-width", "--warzone-live-contour-major-width-scale", 1.45);
     setValue("wz-dev-contour-halo-width", "--warzone-contour-halo-width", 2.15);
-    setValue("wz-dev-contour-alpha", "--warzone-live-aircraft-contour-alpha", 0.78);
+    setValue("wz-dev-contour-alpha", "--warzone-live-contour-alpha", 0.78);
+    setValue("wz-dev-ctr-gamma", "--warzone-contour-imagery-gamma", 1.23);
     setValue("wz-dev-contour-smoothing", "--warzone-contour-smoothing-passes", 3);
     setValue("wz-dev-grid-width", "--warzone-contour-grid-width", 1.15);
     setValue("wz-dev-grid-alpha", "--warzone-contour-grid-alpha", 0.26);
     setValue("wz-dev-grid-major-alpha", "--warzone-contour-grid-major-alpha", 0.42);
-    setValue("wz-dev-grid-radius", "--warzone-contour-grid-radius", 30000);
-    setValue("wz-dev-grid-fade-start", "--warzone-contour-grid-fade-start", 24000);
+    setValue("wz-dev-grid-radius", "--warzone-contour-grid-radius", 18000);
+    setValue("wz-dev-grid-fade-start", "--warzone-contour-grid-fade-start", 14500);
     setValue("wz-dev-grid-ring-width", "--warzone-contour-grid-ring-width", 1.7);
     setValue("wz-dev-grid-ring-alpha", "--warzone-contour-grid-ring-alpha", 0.58);
     setValue("wz-dev-grid-ring-inner-alpha", "--warzone-contour-grid-ring-inner-alpha", 0.36);
@@ -2219,7 +2226,7 @@ function syncDevMapLayerControls() {
             input.value = getResolvedColorHex(getRootCssText(varName, fallback), fallback);
         }
     };
-    setColor("wz-dev-contour-color", "--warzone-live-aircraft-contour-color", "#18f4ff");
+    setColor("wz-dev-contour-color", "--warzone-live-contour-color", "#18f4ff");
     setColor("wz-dev-grid-color", "--warzone-contour-grid-color", "#ff2b62");
     setColor("wz-dev-grid-ring-color", "--warzone-contour-grid-ring-color", "#ff2b62");
 }
@@ -2267,9 +2274,10 @@ function initDevMapLayerControls() {
         });
     };
     bindNumber("wz-dev-contour-width", "--warzone-contour-line-width");
-    bindNumber("wz-dev-contour-major-width", "--warzone-live-aircraft-contour-major-width-scale");
+    bindNumber("wz-dev-contour-major-width", "--warzone-live-contour-major-width-scale");
     bindNumber("wz-dev-contour-halo-width", "--warzone-contour-halo-width");
-    bindNumber("wz-dev-contour-alpha", "--warzone-live-aircraft-contour-alpha");
+    bindNumber("wz-dev-contour-alpha", "--warzone-live-contour-alpha");
+    bindNumber("wz-dev-ctr-gamma", "--warzone-contour-imagery-gamma");
     bindNumber("wz-dev-contour-smoothing", "--warzone-contour-smoothing-passes");
     bindNumber("wz-dev-grid-width", "--warzone-contour-grid-width");
     bindNumber("wz-dev-grid-alpha", "--warzone-contour-grid-alpha");
@@ -2299,7 +2307,7 @@ function initDevMapLayerControls() {
             devLog(`${input.previousElementSibling?.textContent || id}: ${input.value}`);
         });
     };
-    bindColor("wz-dev-contour-color", "--warzone-live-aircraft-contour-color");
+    bindColor("wz-dev-contour-color", "--warzone-live-contour-color");
     bindColor("wz-dev-grid-color", "--warzone-contour-grid-color");
     bindColor("wz-dev-grid-ring-color", "--warzone-contour-grid-ring-color");
     document.getElementById("wz-dev-map-layer-sync")?.addEventListener("click", syncDevMapLayerControls);
@@ -3493,10 +3501,17 @@ function applyNavalTunerValues() {
     if (max) cfg.maximumScale = Number(max.value);
 
     const liveSubtype = getNavalLiveSubtypeKey(subtype);
-    document.documentElement.style.setProperty("--warzone-live-naval-model-scale", String(Number(cfg.scale || 35)));
+    const root = document.documentElement;
+    root.style.setProperty("--warzone-live-naval-model-scale", String(Number(cfg.scale || 35)));
+    root.style.setProperty("--warzone-live-naval-model-scale-focused", String(Number(cfg.scale || 35)));
+    root.style.setProperty("--warzone-live-naval-model-min-pixel-size", String(Number(cfg.minimumPixelSize || 90)));
+    root.style.setProperty("--warzone-live-naval-model-min-pixel-size-focused", String(Number(cfg.minimumPixelSize || 90)));
+    root.style.setProperty("--warzone-live-naval-model-max-scale", String(Number(cfg.maximumScale || 1200)));
+    root.style.setProperty("--warzone-live-naval-model-max-scale-focused", String(Number(cfg.maximumScale || 1200)));
     setNavalModelHeadingOffset(subtype, Number(cfg.headingOffset || 0));
     setNavalModelHeadingOffset(liveSubtype, Number(cfg.headingOffset || 0));
     applyNavalCalibrationConfig();
+    refreshNavalVisualStyles?.();
 }
 function bindNavalTunerUI() {
     const panel = ensureNavalTunerUI();

@@ -33,6 +33,7 @@ const ringCanvasCache = new Map();
 const MARKER_CACHE_MAX_ITEMS = 220;
 const RING_CACHE_MAX_ITEMS = 40;
 const SATELLITE_BADGE_CACHE_KEY = "event-satellite-badge";
+const SATELLITE_IMAGERY_MARKER_CACHE_KEY = "satellite-imagery-marker";
 const __eventEntityIds = new Set();
 const __eventPulseEntities = new Set();
 const __EVENT_LOD_STATE = {
@@ -185,8 +186,8 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
                 id: latest?.id || `cluster-${index + 1}`,
                 lat: group.lat,
                 lon: group.lon,
-                title: clusterCount > 1 ? `${clusterCount} related event reports` : latest?.title,
-                summary: clusterCount > 1 ? `Latest: ${latest?.title || "event report"}` : latest?.summary,
+                title: clusterCount > 1 ? `${clusterCount} related events` : latest?.title,
+                summary: clusterCount > 1 ? `${clusterCount} related events are grouped in this operational area.` : latest?.summary,
                 severity: critical ? "critical" : (high ? "high" : (latest?.severity || "medium")),
                 cluster_count: clusterCount,
                 _clusterCount: clusterCount,
@@ -355,6 +356,42 @@ function attachEventLodController(viewer) {
         }, { passive: true });
     }
 }
+function getFocusedAssetPerformanceCaps(profile = "normal") {
+    switch (normalizeAdaptiveProfile(profile)) {
+        case "balanced":
+            return {
+                resolutionCap: 0.9,
+                msaaCap: 1,
+                sseFloor: 2.2,
+                tileCacheCap: 128,
+                maxRenderTime: 0.24,
+            };
+        case "conservative":
+            return {
+                resolutionCap: 0.82,
+                msaaCap: 1,
+                sseFloor: 2.6,
+                tileCacheCap: 110,
+                maxRenderTime: 0.2,
+            };
+        case "safe":
+            return {
+                resolutionCap: 0.74,
+                msaaCap: 1,
+                sseFloor: 3.0,
+                tileCacheCap: 96,
+                maxRenderTime: 0.18,
+            };
+        default:
+            return {
+                resolutionCap: 0.96,
+                msaaCap: 1,
+                sseFloor: 1.9,
+                tileCacheCap: 140,
+                maxRenderTime: 0.24,
+            };
+    }
+}
 function rememberEventEntity(entity) {
     if (!entity?.id) return;
     __eventEntityIds.add(String(entity.id));
@@ -371,7 +408,7 @@ function unregisterEventPulseEntity(entity) {
 }
 function removeExistingEventEntity(viewer, entityId) {
     if (!viewer || !entityId) return;
-    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-outline`, `${String(entityId)}-satellite`];
+    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-outline`, `${String(entityId)}-satellite`, `${String(entityId)}-satellite-imagery`];
     for (const id of ids) {
         try {
             const existing = viewer.entities.getById(id);
@@ -403,10 +440,13 @@ function buildEventRenderSignature(event = {}) {
     const lat = Number(event.lat);
     const lon = Number(event.lon);
     const clusterCount = Number(event.cluster_count || event._clusterCount || 1);
+    const satelliteContext = event?.satellite_context || event?.satelliteContext || null;
+    const satelliteStatus = String(satelliteContext?.status || "");
+    const satelliteImageUrl = String(satelliteContext?.imageUrl || satelliteContext?.image_url || "");
     const latKey = Number.isFinite(lat) ? lat.toFixed(4) : "x";
     const lonKey = Number.isFinite(lon) ? lon.toFixed(4) : "x";
     const clusterKey = Number.isFinite(clusterCount) ? String(clusterCount) : "1";
-    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${latKey}|${lonKey}`;
+    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${latKey}|${lonKey}|${satelliteStatus}|${satelliteImageUrl}`;
 }
 function reconcileEventEntities(viewer, events = [], options = {}) {
     if (!viewer) return;
@@ -513,6 +553,19 @@ function setTrackedEventLayerVisible(viewer, layerId = "", visible = true) {
         entity.show = show;
     }
     viewer.scene.requestRender?.();
+}
+function setSatelliteImageryLayerVisible(viewer, visible = true) {
+    if (!viewer) return false;
+    const show = visible !== false;
+    viewer.__warzoneSatelliteImageryLayerVisible = show;
+    for (const id of __eventEntityIds) {
+        const entity = viewer.entities?.getById?.(id);
+        if (!isSatelliteImageryMarkerEntity(entity)) continue;
+        entity.show = show;
+        if (entity.billboard) entity.billboard.show = show;
+    }
+    viewer.scene?.requestRender?.();
+    return show;
 }
 /* ---------- CSS helpers ---------- */
 function cssVar(name, fallback) {
@@ -1047,6 +1100,56 @@ function createSatelliteBadgeCanvas() {
     setLimitedCache(markerCache, SATELLITE_BADGE_CACHE_KEY, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
+function createSatelliteImageryMarkerCanvas() {
+    if (markerCache.has(SATELLITE_IMAGERY_MARKER_CACHE_KEY)) return markerCache.get(SATELLITE_IMAGERY_MARKER_CACHE_KEY);
+    const size = 256;
+    const cx = size / 2;
+    const cy = size / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, size, size);
+    const markerColor = cssVar("--warzone-satellite-imagery-marker-color", "#18e2db");
+    const markerFill = colorCssWithAlpha(markerColor, numberVar("--warzone-satellite-imagery-marker-fill-alpha", 0.88));
+    ctx.shadowColor = colorCssWithAlpha(markerColor, 0.52);
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "rgba(5, 12, 18, 0.88)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 88, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = markerFill;
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.moveTo(70, 74);
+    ctx.lineTo(184, 74);
+    ctx.lineTo(184, 152);
+    ctx.lineTo(164, 172);
+    ctx.lineTo(70, 172);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fillStyle = markerFill;
+    ctx.fillRect(94, 98, 36, 28);
+    ctx.fillRect(137, 98, 25, 28);
+    ctx.beginPath();
+    ctx.moveTo(94, 140);
+    ctx.lineTo(125, 117);
+    ctx.lineTo(145, 138);
+    ctx.lineTo(162, 126);
+    ctx.lineTo(162, 152);
+    ctx.lineTo(94, 152);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 108, 0, Math.PI * 2);
+    ctx.strokeStyle = colorCssWithAlpha(markerColor, numberVar("--warzone-satellite-imagery-marker-ring-alpha", 0.36));
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    const dataUrl = canvas.toDataURL("image/png");
+    setLimitedCache(markerCache, SATELLITE_IMAGERY_MARKER_CACHE_KEY, dataUrl, MARKER_CACHE_MAX_ITEMS);
+    return dataUrl;
+}
 function createClusterCountLabel(count = 1) {
     if (!(count > 1)) return undefined;
     const text = count > 999 ? "999+" : String(count);
@@ -1155,28 +1258,40 @@ function hasAvailableSatellitePreview(event = {}) {
 }
 function createEventSatelliteBadgeEntity(event, options = {}) {
     if (!hasAvailableSatellitePreview(event)) return null;
-    const suppressMarkers = options?.suppressMarkers === true;
     const count = Number(event?.cluster_count || 1);
-    const markerSizePx = getEventMarkerSizePx(count);
+    const markerSizePx = Math.max(28, numberVar("--warzone-satellite-imagery-marker-size-px", 42));
+    const satelliteVisible = options?.satelliteImageryVisible !== false;
     return {
-        id: `${event.id}-satellite`,
+        id: `${event.id}-satellite-imagery`,
         position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
         billboard: {
-            image: createSatelliteBadgeCanvas(),
-            width: 34,
-            height: 26,
+            image: createSatelliteImageryMarkerCanvas(),
+            width: markerSizePx,
+            height: markerSizePx,
             color: Cesium.Color.WHITE,
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            pixelOffset: new Cesium.Cartesian2(Math.max(26, markerSizePx * 0.45), -Math.max(24, markerSizePx * 0.42)),
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: !suppressMarkers,
+            show: satelliteVisible,
         },
         properties: {
             event_id: event.id,
-            isEventSatelliteBadge: true,
+            isSatelliteImageryMarker: true,
             cluster_count: count,
+            lat: event.lat,
+            lon: event.lon,
+            title: event.title,
+            display_title: event.display_title,
+            summary: event.summary,
+            display_summary: event.display_summary,
+            display_location_label: event.display_location_label,
+            location_label: event.location_label,
+            occurred_at: event.occurred_at,
+            source_name: event.source_name,
+            display_source_name: event.display_source_name,
+            source_url: resolveGlobeEventSourceUrl(event),
+            satellite_context: event.satellite_context || event.satelliteContext || null,
         },
     };
 }
@@ -1336,7 +1451,10 @@ function addEventEntity(viewer, event, options = {}) {
     removeExistingEventEntity(viewer, event?.id);
     const entity = viewer.entities.add(createEventEntity(event, options));
     const fillEntity = viewer.entities.add(createEventMarkerFillEntity(event, options));
-    const satelliteBadgeEntityConfig = createEventSatelliteBadgeEntity(event, options);
+    const satelliteBadgeEntityConfig = createEventSatelliteBadgeEntity(event, {
+        ...options,
+        satelliteImageryVisible: viewer.__warzoneSatelliteImageryLayerVisible !== false,
+    });
     const satelliteBadgeEntity = satelliteBadgeEntityConfig ? viewer.entities.add(satelliteBadgeEntityConfig) : null;
     const count = Number(event?.cluster_count || 1);
     const markerSizePx = getEventMarkerSizePx(count);
@@ -1373,9 +1491,13 @@ function isEventMarkerEntity(entity) {
 function isEventSatelliteBadgeEntity(entity) {
     return !!getEntityPropertyValue(entity, "isEventSatelliteBadge", false);
 }
+function isSatelliteImageryMarkerEntity(entity) {
+    return !!getEntityPropertyValue(entity, "isSatelliteImageryMarker", false);
+}
 function resolvePickedEventMarkerEntity(viewer, picked) {
     const pickedEntity = picked?.id;
     if (!pickedEntity) return null;
+    if (isSatelliteImageryMarkerEntity(pickedEntity)) return null;
     if (isEventSatelliteBadgeEntity(pickedEntity)) {
         const parentId = String(getEntityPropertyValue(pickedEntity, "event_id", "") || "");
         const parentEntity = parentId ? viewer?.entities?.getById?.(parentId) : null;
@@ -1395,6 +1517,10 @@ function resolvePickedEventMarkerEntity(viewer, picked) {
     const markerEntity = viewer.entities.getById(markerId);
     if (!isEventMarkerEntity(markerEntity)) return null;
     return markerEntity;
+}
+function resolvePickedSatelliteImageryMarkerEntity(picked) {
+    const pickedEntity = picked?.id;
+    return isSatelliteImageryMarkerEntity(pickedEntity) ? pickedEntity : null;
 }
 function buildPickedEventDetail(entity, screenPosition = null, viewer = null) {
     const clusterCount = Math.max(1, Number(getEntityPropertyValue(entity, "cluster_count", 1) || 1));
@@ -1481,6 +1607,31 @@ function buildPickedEventDetail(entity, screenPosition = null, viewer = null) {
             : null,
     };
 }
+function buildPickedSatelliteImageryDetail(entity, screenPosition = null, viewer = null) {
+    const parentId = String(getEntityPropertyValue(entity, "event_id", "") || "");
+    const parentEntity = parentId ? viewer?.entities?.getById?.(parentId) : null;
+    const parentDetail = parentEntity ? buildPickedEventDetail(parentEntity, screenPosition, viewer) : {};
+    return {
+        ...parentDetail,
+        entityId: String(entity?.id || ""),
+        id: parentId || String(entity?.id || ""),
+        title: parentDetail.title || String(getEntityPropertyValue(entity, "display_title", getEntityPropertyValue(entity, "title", ""))),
+        displayTitle: parentDetail.displayTitle || String(getEntityPropertyValue(entity, "display_title", getEntityPropertyValue(entity, "title", ""))),
+        summary: parentDetail.summary || String(getEntityPropertyValue(entity, "display_summary", getEntityPropertyValue(entity, "summary", ""))),
+        displaySummary: parentDetail.displaySummary || String(getEntityPropertyValue(entity, "display_summary", getEntityPropertyValue(entity, "summary", ""))),
+        sourceName: parentDetail.sourceName || String(getEntityPropertyValue(entity, "display_source_name", getEntityPropertyValue(entity, "source_name", ""))),
+        sourceUrl: parentDetail.sourceUrl || String(getEntityPropertyValue(entity, "source_url", "")),
+        lat: Number.isFinite(Number(parentDetail.lat)) ? Number(parentDetail.lat) : Number(getEntityPropertyValue(entity, "lat", NaN)),
+        lon: Number.isFinite(Number(parentDetail.lon)) ? Number(parentDetail.lon) : Number(getEntityPropertyValue(entity, "lon", NaN)),
+        locationLabel: parentDetail.locationLabel || String(getEntityPropertyValue(entity, "display_location_label", getEntityPropertyValue(entity, "location_label", ""))),
+        occurredAt: parentDetail.occurredAt || String(getEntityPropertyValue(entity, "occurred_at", "")),
+        satelliteContext: parentDetail.satelliteContext || getEntityPropertyValue(entity, "satellite_context", null),
+        satelliteAvailable: true,
+        screenPosition: screenPosition && Number.isFinite(screenPosition.x) && Number.isFinite(screenPosition.y)
+            ? { x: Number(screenPosition.x), y: Number(screenPosition.y) }
+            : null,
+    };
+}
 function bindEventMarkerPicking(viewer) {
     if (!viewer || viewer.__warzoneEventMarkerPickBound) return;
     viewer.__warzoneEventMarkerPickBound = true;
@@ -1488,14 +1639,22 @@ function bindEventMarkerPicking(viewer) {
     viewer.__warzoneEventMarkerPickHandler = handler;
     handler.setInputAction((movement) => {
         const picked = movement?.endPosition ? viewer.scene.pick(movement.endPosition) : null;
+        const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
         const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
-        const satelliteBadge = isEventSatelliteBadgeEntity(picked?.id);
-        viewer.scene.canvas.style.cursor = eventEntity ? "pointer" : "";
-        viewer.scene.canvas.title = satelliteBadge ? "Click satellite image" : (eventEntity ? "Click event circle for details" : "");
+        viewer.scene.canvas.style.cursor = satelliteEntity || eventEntity ? "pointer" : "";
+        viewer.scene.canvas.title = satelliteEntity ? "Open satellite observation" : (eventEntity ? "Click event circle for details" : "");
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     handler.setInputAction((movement) => {
         if (!movement?.position) return;
         const picked = viewer.scene.pick(movement.position);
+        const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
+        if (satelliteEntity) {
+            document.dispatchEvent(new CustomEvent("wz:satellite-imagery-selected", {
+                detail: buildPickedSatelliteImageryDetail(satelliteEntity, movement.position, viewer),
+            }));
+            viewer.scene.requestRender();
+            return;
+        }
         const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
         const openSatellite = isEventSatelliteBadgeEntity(picked?.id);
         if (!eventEntity) {
@@ -1879,6 +2038,7 @@ function suspendCtrImagery(viewer, options = {}) {
         baseBrightness: Number(viewer.__imageryBase?.brightness),
         baseSaturation: Number(viewer.__imageryBase?.saturation),
         baseContrast: Number(viewer.__imageryBase?.contrast),
+        baseGamma: Number(viewer.__imageryBase?.gamma),
         baseMaximumAnisotropy: Number(viewer.__imageryBase?.maximumAnisotropy),
         satelliteVisible: viewer.__satelliteVisible !== false,
         terrainVisible: viewer.__terrainVisible !== false,
@@ -1899,6 +2059,7 @@ function suspendCtrImagery(viewer, options = {}) {
         viewer.__imageryBase.brightness = numberVar("--warzone-contour-imagery-brightness", 0.42);
         viewer.__imageryBase.saturation = numberVar("--warzone-contour-imagery-saturation", 0);
         viewer.__imageryBase.contrast = numberVar("--warzone-contour-imagery-contrast", 1.18);
+        viewer.__imageryBase.gamma = numberVar("--warzone-contour-imagery-gamma", 1.23);
         viewer.__imageryBase.maximumAnisotropy = Math.max(1, Math.min(2, numberVar("--warzone-ctr-imagery-max-anisotropy", 1)));
     }
     if (viewer.__imageryLabels) viewer.__imageryLabels.show = false;
@@ -1923,6 +2084,7 @@ function restoreCtrImagery(viewer, options = {}) {
         if (Number.isFinite(state.baseBrightness)) viewer.__imageryBase.brightness = state.baseBrightness;
         if (Number.isFinite(state.baseSaturation)) viewer.__imageryBase.saturation = state.baseSaturation;
         if (Number.isFinite(state.baseContrast)) viewer.__imageryBase.contrast = state.baseContrast;
+        if (Number.isFinite(state.baseGamma)) viewer.__imageryBase.gamma = state.baseGamma;
         if (Number.isFinite(state.baseMaximumAnisotropy)) viewer.__imageryBase.maximumAnisotropy = state.baseMaximumAnisotropy;
     }
     if (viewer.__imageryLabels) viewer.__imageryLabels.show = state.labelsShow !== false;
@@ -1969,6 +2131,7 @@ function applyRenderedTerrainVisibility(viewer) {
             viewer.__imageryBase.brightness = numberVar("--warzone-contour-imagery-brightness", 0.42);
             viewer.__imageryBase.saturation = numberVar("--warzone-contour-imagery-saturation", 0);
             viewer.__imageryBase.contrast = numberVar("--warzone-contour-imagery-contrast", 1.18);
+            viewer.__imageryBase.gamma = numberVar("--warzone-contour-imagery-gamma", 1.23);
         } else {
             tuneImageryLayer(viewer.__imageryBase, "--warzone-map");
         }
@@ -2834,6 +2997,7 @@ function getContourOverlayState(viewer) {
             centerLat: Number.NaN,
             centerHeight: 0,
             hasFocusPosition: false,
+            focusProfile: "",
             lastBuiltLon: Number.NaN,
             lastBuiltLat: Number.NaN,
             lastBuiltAt: 0,
@@ -2864,6 +3028,18 @@ function applyContourLayerState(viewer) {
     }
     if (state?.gridPrimitive) {
         state.gridPrimitive.show = viewer?.__contourGridLayerVisible === true;
+        raiseContourGridPrimitive(viewer);
+    }
+}
+function raiseContourGridPrimitive(viewer) {
+    const state = getContourOverlayState(viewer);
+    const primitive = state?.gridPrimitive;
+    if (!primitive || !viewer?.scene?.primitives?.raiseToTop) return false;
+    try {
+        viewer.scene.primitives.raiseToTop(primitive);
+        return true;
+    } catch {
+        return false;
     }
 }
 function clearContourOverlay(viewer) {
@@ -3058,10 +3234,23 @@ function contourDistanceMeters(lonA, latA, lonB, latB) {
 function getContourOverlayRadiusMeters() {
     return getContourOverlayRadii().outerRadius;
 }
-function getContourOverlayRadii() {
-    const strongRadius = Math.max(40000, Math.min(240000, numberVar("--warzone-live-aircraft-contour-radius", 220000)));
-    const blurRadius = Math.max(0, Math.min(90000, numberVar("--warzone-live-aircraft-contour-blur", 60000)));
-    const fadeRadius = Math.max(0, Math.min(70000, numberVar("--warzone-live-aircraft-contour-fade", 30000)));
+function getContourFocusProfile(viewer = null) {
+    const state = viewer ? getContourOverlayState(viewer) : null;
+    const profile = String(state?.focusProfile || "").toLowerCase();
+    return profile === "naval" ? "naval" : "aircraft";
+}
+function numberVarForContourProfile(viewer, suffix, fallback) {
+    const profile = getContourFocusProfile(viewer);
+    return numberVar(`--warzone-live-${profile}-contour-${suffix}`, numberVar(`--warzone-live-contour-${suffix}`, fallback));
+}
+function getContourOverlayRadii(viewer = null) {
+    const profile = getContourFocusProfile(viewer);
+    const strongFallback = profile === "naval" ? 90000 : 220000;
+    const blurFallback = profile === "naval" ? 40000 : 60000;
+    const fadeFallback = profile === "naval" ? 30000 : 30000;
+    const strongRadius = Math.max(40000, Math.min(240000, numberVarForContourProfile(viewer, "radius", strongFallback)));
+    const blurRadius = Math.max(0, Math.min(90000, numberVarForContourProfile(viewer, "blur", blurFallback)));
+    const fadeRadius = Math.max(0, Math.min(70000, numberVarForContourProfile(viewer, "fade", fadeFallback)));
     const outerRadius = Math.max(strongRadius + 25000, Math.min(320000, strongRadius + blurRadius + fadeRadius));
     return { strongRadius, outerRadius };
 }
@@ -3074,6 +3263,7 @@ function smoothContourFade(value) {
 }
 function getContourChainAlphaScale(points = [], centerLon, centerLat, strongRadius, outerRadius) {
     if (!Array.isArray(points) || !points.length) return 0;
+    if (boolVar("--warzone-live-aircraft-contour-focus-radius-enabled", false) !== true) return 1;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (let index = 0; index < points.length; index += Math.max(1, Math.floor(points.length / 8))) {
         const point = points[index];
@@ -3420,10 +3610,10 @@ function clampContourBuildArea(area) {
         halfDiagonalMeters: Math.hypot(nextWidth, nextHeight) * 0.5,
     };
 }
-function getContourCenteredBuildArea(centerLon, centerLat, spanMeters = null) {
+function getContourCenteredBuildArea(viewer, centerLon, centerLat, spanMeters = null) {
     const latMeters = 111320;
     const lonMeters = Math.max(1, Math.cos(Cesium.Math.toRadians(centerLat)) * latMeters);
-    const { strongRadius, outerRadius } = getContourOverlayRadii();
+    const { strongRadius, outerRadius } = getContourOverlayRadii(viewer);
     const samplePadding = getContourSamplePaddingMeters();
     const defaultSpan = Math.max(
         numberVar("--warzone-contour-local-span", 240000),
@@ -3459,16 +3649,31 @@ function getContourViewportBuildArea(viewer, centerLon, centerLat, options = {})
         if (east < west) east += 360;
         const latSpan = Math.max(0.01, north - south);
         const lonSpan = Math.max(0.01, east - west);
-        const margin = Math.max(0.02, Math.min(0.18, numberVar("--warzone-contour-viewport-margin", 0.08)));
-        const minLat = Math.max(-84, south - (latSpan * margin));
-        const maxLat = Math.min(84, north + (latSpan * margin));
-        const minLon = west - (lonSpan * margin);
-        const maxLon = east + (lonSpan * margin);
+        const margin = Math.max(0.02, Math.min(0.35, numberVar("--warzone-contour-viewport-margin", 0.18)));
+        const marginMinLat = Math.max(-84, south - (latSpan * margin));
+        const marginMaxLat = Math.min(84, north + (latSpan * margin));
+        const marginMinLon = west - (lonSpan * margin);
+        const marginMaxLon = east + (lonSpan * margin);
+        const marginMidLat = (marginMinLat + marginMaxLat) * 0.5;
+        const marginMidLon = (marginMinLon + marginMaxLon) * 0.5;
+        const marginLonMeters = Math.max(1, Math.cos(Cesium.Math.toRadians(marginMidLat)) * latMeters);
+        const marginWidthMeters = Math.abs(marginMaxLon - marginMinLon) * marginLonMeters;
+        const marginHeightMeters = Math.abs(marginMaxLat - marginMinLat) * latMeters;
+        const baseOverscanMeters = Math.max(60000, Math.min(320000, numberVar("--warzone-contour-viewport-overscan-meters", 180000)));
+        const heightDrivenOverscanMeters = Number.isFinite(Number(options.centerHeight))
+            ? Math.max(baseOverscanMeters, Math.min(320000, Number(options.centerHeight) * 5))
+            : baseOverscanMeters;
+        const halfLonOverscan = (heightDrivenOverscanMeters * 0.5) / marginLonMeters;
+        const halfLatOverscan = (heightDrivenOverscanMeters * 0.5) / latMeters;
+        const minLat = Math.max(-84, marginMinLat - halfLatOverscan);
+        const maxLat = Math.min(84, marginMaxLat + halfLatOverscan);
+        const minLon = marginMinLon - halfLonOverscan;
+        const maxLon = marginMaxLon + halfLonOverscan;
         const midLat = (minLat + maxLat) * 0.5;
         const midLon = (minLon + maxLon) * 0.5;
         const lonMeters = Math.max(1, Math.cos(Cesium.Math.toRadians(midLat)) * latMeters);
-        const widthMeters = Math.abs(maxLon - minLon) * lonMeters;
-        const heightMeters = Math.abs(maxLat - minLat) * latMeters;
+        const widthMeters = Math.max(marginWidthMeters, Math.abs(maxLon - minLon) * lonMeters);
+        const heightMeters = Math.max(marginHeightMeters, Math.abs(maxLat - minLat) * latMeters);
         if (Number.isFinite(widthMeters) && Number.isFinite(heightMeters) && widthMeters > 500 && heightMeters > 500) {
             const area = {
                 minLon,
@@ -3484,7 +3689,7 @@ function getContourViewportBuildArea(viewer, centerLon, centerLat, options = {})
             return options.clamp === false ? area : clampContourBuildArea(area);
         }
     }
-    const { outerRadius } = getContourOverlayRadii();
+    const { outerRadius } = getContourOverlayRadii(viewer);
     const lonMeters = Math.max(1, Math.cos(Cesium.Math.toRadians(centerLat)) * latMeters);
     const lonDelta = outerRadius / lonMeters;
     const latDelta = outerRadius / latMeters;
@@ -3569,7 +3774,7 @@ function ensureContourGridCoordinates(grid) {
 function getContourLevels(minHeight, maxHeight, area = null) {
     const relief = Math.max(0, maxHeight - minHeight);
     if (!Number.isFinite(relief) || relief < 0.6) return [];
-    const configuredSpacing = Math.max(4, Math.min(280, numberVar("--warzone-live-aircraft-contour-spacing", 70)));
+    const configuredSpacing = Math.max(4, Math.min(280, numberVar("--warzone-live-contour-spacing", numberVar("--warzone-live-aircraft-contour-spacing", 70))));
     const targetLineCount = Math.max(10, Math.min(34, Math.round(numberVar("--warzone-contour-target-lines", 28))));
     const adaptiveSpacing = Math.max(1, relief / targetLineCount);
     const diagonalKm = Math.max(0, Number(area?.halfDiagonalMeters || 0) / 1000);
@@ -3622,6 +3827,7 @@ function updateContourGridPrimitiveCenter(viewer, position = null) {
         Cesium.Cartesian3.fromDegrees(lon, lat, heightOffset)
     );
     primitive.show = viewer.__contourGridLayerVisible === true;
+    raiseContourGridPrimitive(viewer);
     viewer.scene?.requestRender?.();
     return true;
 }
@@ -3680,6 +3886,7 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     const cols = rows;
     const fadeStart = Math.max(0, Math.min(radius - 500, numberVar("--warzone-contour-grid-fade-start", 24000)));
     const segments = Math.max(6, Math.min(18, Math.round(numberVar("--warzone-contour-grid-fade-segments", 10))));
+    const centerClearRadius = Math.max(0, Math.min(radius * 0.72, numberVar("--warzone-contour-grid-center-clear-radius", 0)));
     const collection = new Cesium.PolylineCollection();
     const addSegmentedLine = (fixedOffset, horizontal, major = false) => {
         const halfLength = Math.sqrt(Math.max(0, (radius * radius) - (fixedOffset * fixedOffset)));
@@ -3690,6 +3897,7 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
             const end = lerp(-halfLength, halfLength, (segment + 1) / segments);
             const midpoint = (start + end) * 0.5;
             const distance = Math.hypot(fixedOffset, midpoint);
+            if (centerClearRadius > 0 && distance < centerClearRadius) continue;
             const fadeT = distance <= fadeStart
                 ? 0
                 : (distance - fadeStart) / Math.max(1, radius - fadeStart);
@@ -3732,6 +3940,7 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     state.gridRadiusMeters = radius;
     state.gridPrimitive = viewer.scene.primitives.add(collection);
     updateContourGridPrimitiveCenter(viewer, center);
+    raiseContourGridPrimitive(viewer);
     return Number(collection.length || 0);
 }
 function splitContourPolylineByRadius(points = [], centerLon, centerLat, outerRadius) {
@@ -3765,7 +3974,7 @@ function splitContourPolylineByRadius(points = [], centerLon, centerLat, outerRa
 function smoothContourPolyline(points = [], passes = 1) {
     if (!Array.isArray(points) || points.length < 3) return Array.isArray(points) ? points.slice() : [];
     let result = points.slice();
-    const totalPasses = Math.max(0, Math.min(3, Number(passes || 0)));
+    const totalPasses = Math.max(0, Math.min(5, Number(passes || 0)));
     for (let pass = 0; pass < totalPasses; pass += 1) {
         if (result.length < 3) break;
         const next = [result[0]];
@@ -3932,8 +4141,12 @@ async function buildContourOverlay(viewer, options = {}) {
         const dataSource = await ensureContourOverlayDataSource(viewer);
         if (!isContourBuildCurrent(viewer, state, buildToken)) return false;
         const terrainProvider = state.terrainProvider || null;
-        const area = state.hasFocusPosition === true
-            ? getContourCenteredBuildArea(centerLon, centerLat)
+        const focusProfile = getContourFocusProfile(viewer);
+        const useFocusedRadius =
+            state.hasFocusPosition === true &&
+            boolVar(`--warzone-live-${focusProfile}-contour-focus-radius-enabled`, boolVar("--warzone-live-contour-focus-radius-enabled", false)) === true;
+        const area = useFocusedRadius
+            ? getContourCenteredBuildArea(viewer, centerLon, centerLat)
             : clampContourBuildArea(getContourViewportBuildArea(
                 viewer,
                 centerLon,
@@ -3957,21 +4170,21 @@ async function buildContourOverlay(viewer, options = {}) {
             }
             grid.push(rowPoints);
         }
-        const contourColorVar = "--warzone-live-aircraft-contour-color";
+        const contourColorVar = "--warzone-live-contour-color";
         const contourLineWidthVar = "--warzone-contour-line-width";
         const contourHaloAlphaVar = "--warzone-contour-halo-alpha";
         const contourHaloWidthVar = "--warzone-contour-halo-width";
-        const color = colorFromCssVar(contourColorVar, "#18e2db", 1);
-        const baseAlpha = clamp01(numberVar("--warzone-live-aircraft-contour-alpha", 0.34));
-        const minAlpha = clamp01(numberVar("--warzone-live-aircraft-contour-min-alpha", 0.012));
+        const color = colorFromCssVar(contourColorVar, cssVar(`--warzone-live-${focusProfile}-contour-color`, "#18e2db"), 1);
+        const baseAlpha = clamp01(numberVar("--warzone-live-contour-alpha", numberVar(`--warzone-live-${focusProfile}-contour-alpha`, 0.34)));
+        const minAlpha = clamp01(numberVar("--warzone-live-contour-min-alpha", numberVar(`--warzone-live-${focusProfile}-contour-min-alpha`, 0.012)));
         const lineWidth = Math.max(0.55, numberVar(contourLineWidthVar, 1.35));
         const haloAlpha = Math.max(0.02, clamp01(numberVar(contourHaloAlphaVar, 0.16)));
-        const majorEvery = Math.max(2, Math.round(numberVar("--warzone-live-aircraft-contour-major-every", 5)));
-        const majorWidthScale = Math.max(1, numberVar("--warzone-live-aircraft-contour-major-width-scale", 1.65));
+        const majorEvery = Math.max(2, Math.round(numberVar("--warzone-live-contour-major-every", numberVar(`--warzone-live-${focusProfile}-contour-major-every`, 5))));
+        const majorWidthScale = Math.max(1, numberVar("--warzone-live-contour-major-width-scale", numberVar(`--warzone-live-${focusProfile}-contour-major-width-scale`, 1.65)));
         const elevationWidthScale = Math.max(0, numberVar("--warzone-contour-elevation-width-scale", 0.28));
         const haloWidth = Math.max(0, numberVar(contourHaloWidthVar, 4.6));
         const heightOffset = Math.max(8, numberVar("--warzone-contour-height-offset", 95));
-        const smoothingPasses = Math.max(0, Math.min(3, Math.round(numberVar("--warzone-contour-smoothing-passes", 2))));
+        const smoothingPasses = Math.max(0, Math.min(5, Math.round(numberVar("--warzone-contour-smoothing-passes", 2))));
         const maxLines = Math.max(120, Math.min(700, Math.round(numberVar("--warzone-contour-max-lines", 520))));
         state.clearToken += 1;
         if (state.clearTimer) {
@@ -4115,6 +4328,7 @@ async function buildContourOverlay(viewer, options = {}) {
         pendingContourEntities.forEach((entityDefinition) => dataSource.entities.add(entityDefinition));
         state.hasVisibleContours = lineCount > 0;
         dataSource.show = lineCount > 0;
+        raiseContourGridPrimitive(viewer);
         state.lastBuiltLon = centerLon;
         state.lastBuiltLat = centerLat;
         state.lastBuiltAt = Date.now();
@@ -4172,6 +4386,7 @@ function setContourFocusPosition(viewer, position = null, options = {}) {
         state.centerLat = Number.NaN;
         state.centerHeight = 0;
         state.hasFocusPosition = false;
+        state.focusProfile = "";
         clearContourOverlay(viewer);
         return false;
     }
@@ -4179,6 +4394,7 @@ function setContourFocusPosition(viewer, position = null, options = {}) {
     state.centerLat = lat;
     state.centerHeight = Number.isFinite(height) ? height : 0;
     state.hasFocusPosition = true;
+    state.focusProfile = String(options.profile || options.assetType || "").toLowerCase();
     setContourGridCenter(viewer, { lon, lat, height: state.centerHeight });
     state.buildToken += 1;
     if (viewer.__contourLayerVisible === true) {
@@ -4201,6 +4417,7 @@ function clearContourFocusPosition(viewer) {
     state.centerLat = Number.NaN;
     state.centerHeight = 0;
     state.hasFocusPosition = false;
+    state.focusProfile = "";
     state.gridCenterLon = Number.NaN;
     state.gridCenterLat = Number.NaN;
     const fallbackCenter = getContourFallbackCenter(viewer);
@@ -4247,6 +4464,8 @@ function bindContourViewportRefresh(viewer) {
     if (!viewer?.camera || viewer.__warzoneContourViewportRefreshBound) return;
     viewer.__warzoneContourViewportRefreshBound = true;
     let refreshTimer = 0;
+    let moving = false;
+    let lastMotionRefreshAt = 0;
     const queueRefresh = (delayMs = 260) => {
         if (viewer.__contourLayerVisible !== true) return;
         const contourState = getContourOverlayState(viewer);
@@ -4263,7 +4482,22 @@ function bindContourViewportRefresh(viewer) {
             });
         }, Math.max(160, Math.min(900, Number(delayMs || 260))));
     };
+    viewer.camera.moveStart.addEventListener(() => {
+        moving = true;
+    });
     viewer.camera.moveEnd.addEventListener(() => queueRefresh(260));
+    viewer.camera.moveEnd.addEventListener(() => {
+        moving = false;
+    });
+    viewer.scene?.postRender?.addEventListener(() => {
+        if (moving !== true || viewer.__contourLayerVisible !== true) return;
+        const contourState = getContourOverlayState(viewer);
+        if (contourState?.hasFocusPosition === true) return;
+        const now = Date.now();
+        if ((now - lastMotionRefreshAt) < 320) return;
+        lastMotionRefreshAt = now;
+        queueRefresh(120);
+    });
 }
 function dispatchContourLayerChanged(viewer) {
     document.dispatchEvent(new CustomEvent("wz:contour-layer-changed", {
@@ -5412,6 +5646,12 @@ export async function initWarzoneGlobe() {
         setEventLayerVisible(layerId, visible) {
             setTrackedEventLayerVisible(viewer, layerId, visible);
         },
+        setSatelliteImageryLayerVisible(visible) {
+            return setSatelliteImageryLayerVisible(viewer, visible);
+        },
+        isSatelliteImageryLayerVisible() {
+            return viewer.__warzoneSatelliteImageryLayerVisible !== false;
+        },
         removeEvent(eventId) {
             removeExistingEventEntity(viewer, eventId);
             viewer.scene.requestRender();
@@ -5615,7 +5855,12 @@ export async function initWarzoneGlobe() {
             const tileLoadQueueSize = Math.max(0, Number(viewer.__warzoneTileLoadQueueSize || 0));
             const tileLoadBusy = tileLoadQueueSize >= loadingQueueThreshold || viewer.__warzoneTileLoadBusy === true;
             const liveSelection = window.__warzoneLiveTrackSelection || {};
+            const focusDiagnostics = window.__warzoneFocusDiagnostics || {};
             const isAircraftFocusMode = String(liveSelection.mode || "") === "focus" && Boolean(liveSelection.trackKey);
+            const isFocusedAssetMode =
+                (focusDiagnostics.state === "active" || focusDiagnostics.state === "temporarily_suspended")
+                && Boolean(String(focusDiagnostics.assetId || "").trim());
+            const focusedAssetCaps = getFocusedAssetPerformanceCaps(adaptiveProfile);
             const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
             const closeSharpHeight = Math.max(focusSharpHeight, numberVar("--warzone-close-sharp-height", 450000));
             const nearSharpHeight = Math.max(250000, numberVar("--warzone-near-sharp-height", 1800000));
@@ -5719,8 +5964,8 @@ export async function initWarzoneGlobe() {
                 nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, busyLoadingDescendantLimit);
                 nextPreloadSiblings = false;
             }
-            const focusSceneSettled = isAircraftFocusMode && !isCameraMoving && !tileLoadBusy;
-            if (isAircraftFocusMode) {
+            const focusSceneSettled = isFocusedAssetMode && !isCameraMoving && !tileLoadBusy;
+            if (isFocusedAssetMode) {
                 if (focusSceneSettled) {
                     nextResolution = Math.max(nextResolution, focusPerformanceResolutionScale);
                     nextMsaaSamples = Math.max(nextMsaaSamples, focusPerformanceMsaaSamples);
@@ -5731,8 +5976,8 @@ export async function initWarzoneGlobe() {
                     nextMsaaSamples = Math.max(nextMsaaSamples, Math.min(2, focusMsaaSamples));
                 }
                 nextFxaaEnabled = true;
-                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, focusPerformanceRenderTime);
-                nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache);
+                nextMaximumRenderTime = Math.min(nextMaximumRenderTime, focusPerformanceRenderTime, focusedAssetCaps.maxRenderTime);
+                nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache, focusedAssetCaps.tileCacheCap);
                 if (tileLoadBusy) {
                     nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, Math.max(4, busyLoadingDescendantLimit - 2));
                 }
@@ -5748,15 +5993,11 @@ export async function initWarzoneGlobe() {
             if (adaptiveCaps.forcePreloadSiblingsFalse) {
                 nextPreloadSiblings = false;
             }
-            if (isAircraftFocusMode) {
-                const focusResolutionFloor = focusSceneSettled
-                    ? Math.min(focusResolutionScale, 1.12)
-                    : Math.min(baseResolution, 1);
-                nextResolution = Math.max(nextResolution, focusResolutionFloor);
-                if (focusSceneSettled) {
-                    nextMsaaSamples = Math.max(nextMsaaSamples, 2);
-                    nextSse = Math.min(nextSse, Math.max(1.15, closeSse));
-                }
+            if (isFocusedAssetMode) {
+                nextResolution = Math.min(nextResolution, focusedAssetCaps.resolutionCap);
+                nextMsaaSamples = Math.min(nextMsaaSamples, focusedAssetCaps.msaaCap);
+                nextSse = Math.max(nextSse, focusedAssetCaps.sseFloor);
+                nextTileCache = Math.min(nextTileCache, focusedAssetCaps.tileCacheCap);
             }
             nextResolution = Math.min(nextResolution, hardMaxResolutionScale);
             nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
@@ -5813,6 +6054,7 @@ export async function initWarzoneGlobe() {
                 cameraHeight,
                 isCameraMoving,
                 isAircraftFocusMode,
+                isFocusedAssetMode,
                 tileLoadQueueSize,
                 tileLoadBusy,
                 adaptiveProfile,

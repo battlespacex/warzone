@@ -2,6 +2,7 @@
 import * as Cesium from "cesium";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { isLayerEnabled } from "./warzone-layers.js";
+import { startLiveAssetHoverPulse, stopLiveAssetHoverPulse } from "./warzone-live-asset-hover-pulse.js";
 import { flyToRegion, getActiveRegion } from "./warzone-region-selector.js";
 /* ================= STATE ================= */
 let __liveTrackEntities = new Map();
@@ -106,7 +107,7 @@ const LIVE_TRACK_FOCUS_GUIDE_THICKNESS_PX = 4;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_METERS = 36000;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG = -89;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG = -89;
-const LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG = -8;
+const LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG = -89;
 const LIVE_TRACK_FOCUS_ZOOM_DELTA_FEET = 72000;
 const LIVE_TRACK_FOCUS_WHEEL_ZOOM_STEP_FEET = 8200;
 const LIVE_TRACK_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.28;
@@ -125,6 +126,7 @@ const LIVE_TRACK_FOCUSED_MODEL_MIN_PIXEL_MAX_BY_SUBTYPE = Object.freeze({
     helicopter: 600,
 });
 let __liveTrackFocusGuideEl = null;
+let __liveTrackHoverGuideEl = null;
 
 
 /* ================= CONFIG ================= */
@@ -2209,7 +2211,7 @@ function buildLiveTrackBillboard(track = {}, headingDeg = 0, mode = LIVE_TRACK_R
 }
 function getLiveTrackBillboardRotationRadians(headingDeg = 0) {
     return Cesium.Math.toRadians(
-        normalizeDegrees(360 - normalizeDegrees(headingDeg) + getLiveTrackArrowHeadingOffsetDeg())
+        normalizeDegrees(normalizeDegrees(headingDeg) + getLiveTrackArrowHeadingOffsetDeg())
     );
 }
 function buildLiveTrackPoint(track = {}) {
@@ -2369,22 +2371,45 @@ function transformLiveLabelText(text = "", labelStyle = {}) {
     const raw = String(text || "").replace(/\s+/g, " ").trim();
     const transformed = labelStyle.uppercase ? raw.toUpperCase() : raw;
     const maxChars = Math.max(0, Math.floor(Number(labelStyle.maxChars || 0)));
-    if (!maxChars || transformed.length <= maxChars) return transformed;
+    return wrapLiveLabelText(transformed, maxChars);
+}
+function wrapLiveLabelText(text = "", maxChars = 0) {
+    const transformed = String(text || "").replace(/\s+/g, " ").trim();
+    const lineLimit = Math.max(0, Math.floor(Number(maxChars || 0)));
+    if (!lineLimit || transformed.length <= lineLimit) return transformed;
     const words = transformed.split(" ");
     const lines = [];
     let line = "";
-    words.forEach((word) => {
+    const pushWord = (word = "") => {
         if (!word) return;
-        if (!line) {
+        if (word.length <= lineLimit) {
+            if (!line) {
+                line = word;
+                return;
+            }
+            if ((line.length + 1 + word.length) <= lineLimit) {
+                line += ` ${word}`;
+                return;
+            }
+            lines.push(line);
             line = word;
             return;
         }
-        if ((line.length + 1 + word.length) <= maxChars) {
-            line += ` ${word}`;
-            return;
+        if (line) {
+            lines.push(line);
+            line = "";
         }
-        lines.push(line);
-        line = word;
+        for (let index = 0; index < word.length; index += lineLimit) {
+            const chunk = word.slice(index, index + lineLimit);
+            if (chunk.length === lineLimit) {
+                lines.push(chunk);
+            } else {
+                line = chunk;
+            }
+        }
+    };
+    words.forEach((word) => {
+        pushWord(word);
     });
     if (line) lines.push(line);
     return lines.join("\n");
@@ -3140,6 +3165,10 @@ function shouldShowTrackLabel(trackKey = "") {
         return true;
     }
 
+    if (__liveTrackHoverTrackKey && __liveTrackHoverTrackKey === String(trackKey) && !isFocusedTrackKey(trackKey)) {
+        return false;
+    }
+
     const cameraHeight = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
     return cameraHeight > 0 && cameraHeight <= LIVE_TRACK_LABEL_ZOOM_HEIGHT_MAX;
 }
@@ -3456,6 +3485,46 @@ function getOrCreateFocusGuideElement() {
     return guide;
 }
 
+function getOrCreateHoverGuideElement() {
+    if (__liveTrackHoverGuideEl?.isConnected) {
+        return __liveTrackHoverGuideEl;
+    }
+    const container = getViewerContainerElement();
+    if (!container) return null;
+    const guide = document.createElement("div");
+    guide.className = "wz-aircraft-focus-guides is-hover";
+    guide.setAttribute("aria-hidden", "true");
+    guide.innerHTML = `
+        <span class="wz-aircraft-focus-guides__line is-top-left"></span>
+        <span class="wz-aircraft-focus-guides__line is-top-right"></span>
+        <span class="wz-aircraft-focus-guides__line is-bottom-left"></span>
+        <span class="wz-aircraft-focus-guides__line is-bottom-right"></span>
+    `;
+    container.appendChild(guide);
+    __liveTrackHoverGuideEl = guide;
+    return guide;
+}
+
+function hideTrackHoverGuide() {
+    if (__liveTrackHoverGuideEl) {
+        __liveTrackHoverGuideEl.classList.remove("is-visible");
+        __liveTrackHoverGuideEl.style.display = "none";
+    }
+}
+
+function showTrackHoverGuide(screenPosition = null) {
+    if (!screenPosition || !Number.isFinite(screenPosition.x) || !Number.isFinite(screenPosition.y)) {
+        hideTrackHoverGuide();
+        return;
+    }
+    const guide = getOrCreateHoverGuideElement();
+    if (!guide) return;
+    guide.style.left = `${screenPosition.x}px`;
+    guide.style.top = `${screenPosition.y}px`;
+    guide.style.display = "block";
+    guide.classList.add("is-visible");
+}
+
 function hideFocusGuideElement() {
     if (__liveTrackFocusGuideEl) {
         __liveTrackFocusGuideEl.classList.remove("is-visible");
@@ -3465,6 +3534,7 @@ function hideFocusGuideElement() {
 
 function hideLiveTrackFocusVisuals() {
     hideFocusGuideElement();
+    hideTrackHoverGuide();
     if (__liveTrackOverlayRoot) {
         __liveTrackOverlayRoot.classList.remove("is-visible");
         __liveTrackOverlayRoot.style.display = "none";
@@ -4161,6 +4231,7 @@ function syncFocusedTrackContourCenter(trackKey = "", options = {}) {
         height: Number(cartographic.height || 0),
     }, {
         force: options.force === true,
+        profile: "aircraft",
         reason: "focused-aircraft-sync",
     });
     return true;
@@ -4426,8 +4497,8 @@ function bindLiveTrackOverlay(viewer) {
     document.addEventListener("wz:contour-layer-changed", syncFocusedTrackOverlayModeButtons);
     bindFocusInteractionTracking(viewer);
     const focusController = getAssetFocusController();
-    focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera(), { hz: 30 });
-    focusController.registerTask("aircraft-focus-overlay", () => syncLiveTrackFocusOverlay(), { hz: 18 });
+    focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera(), { hz: 18 });
+    focusController.registerTask("aircraft-focus-overlay", () => syncLiveTrackFocusOverlay(), { hz: 10 });
     viewer.scene.preRender.addEventListener(() => focusController.requestFrame());
     viewer.scene.postRender.addEventListener(() => focusController.requestFrame());
 
@@ -4686,6 +4757,7 @@ function bindLiveTrackPicking(viewer) {
             }
             hideTrackHover();
             hideRouteOriginHover();
+            hideTrackHoverGuide();
             return;
         }
         const picked = safeScenePick(viewer, hoverPickPosition);
@@ -4693,12 +4765,15 @@ function bindLiveTrackPicking(viewer) {
         if (trackKey && isPickedTrackTrailOrRoute(picked)) {
             hideTrackHover();
             showRouteOriginHover(trackKey, hoverPickPosition);
+            hideTrackHoverGuide();
         } else if (trackKey) {
             hideRouteOriginHover();
             showTrackHover(trackKey, hoverPickPosition);
+            if (!isFocusSelectionActive()) showTrackHoverGuide(hoverPickPosition);
         } else {
             hideTrackHover();
             hideRouteOriginHover();
+            hideTrackHoverGuide();
         }
         if (trackKey !== hoverTrackKey) {
             viewer.container.style.cursor = trackKey ? "pointer" : "";
@@ -4958,14 +5033,26 @@ function pushUniqueTrackHoverLine(lines = [], value = "") {
 function buildTrackHoverText(trackKey = "") {
     const entry = __liveTrackRegistry.get(trackKey);
     if (!entry) return "";
-    const title = formatRouteOriginLabelValue(getTrackDisplayTitle(entry), 34);
+    const title = wrapLiveLabelText(
+        getTrackDisplayTitle(entry),
+        getCssNumber("--warzone-live-hover-title-max-chars", 21)
+    );
     if (!title) return "";
-    const lines = [title];
+    const lines = title.split("\n").filter(Boolean);
     const model = formatRouteOriginLabelValue(getTrackModelLabel(entry), 26);
     const callsign = formatRouteOriginLabelValue(getTrackCallsignLabel(entry), 20);
-    const secondary = model && callsign && model.toLowerCase() !== callsign.toLowerCase()
-        ? `${model} / ${callsign}`
-        : (model || callsign);
+    const secondaryParts = [];
+    if (model && !isTrackHoverLineDuplicate(title, model)) {
+        secondaryParts.push(model);
+    }
+    if (
+        callsign &&
+        !isTrackHoverLineDuplicate(title, callsign) &&
+        !secondaryParts.some((part) => isTrackHoverLineDuplicate(part, callsign))
+    ) {
+        secondaryParts.push(callsign);
+    }
+    const secondary = secondaryParts.join(" / ");
     pushUniqueTrackHoverLine(lines, secondary);
     lines.push(`${formatTrackHoverAltitude(entry)}  ${formatTrackHoverSpeed(entry)}`);
     lines.push(formatTrackHoverHeading(entry));
@@ -4986,6 +5073,7 @@ function getTrackHoverPosition(viewer, trackKey = "", screenPosition = null) {
 }
 function hideTrackHover() {
     __liveTrackHoverTrackKey = "";
+    stopLiveAssetHoverPulse();
     if (__liveTrackHoverEntity) {
         __liveTrackHoverEntity.show = false;
         requestWarzoneRenderBatched();
@@ -5014,6 +5102,12 @@ function showTrackHover(trackKey = "", screenPosition = null) {
         return false;
     }
     __liveTrackHoverTrackKey = trackKey;
+    const entity = viewer.entities?.getById?.(`track-${trackKey}`);
+    if (!isFocusSelectionActive()) {
+        startLiveAssetHoverPulse(viewer, entity);
+    } else {
+        stopLiveAssetHoverPulse();
+    }
     const labelStyle = getLiveLabelStyleConfig();
     if (!__liveTrackHoverEntity) {
         __liveTrackHoverEntity = viewer.entities.add({
@@ -5597,9 +5691,7 @@ function startReplayForTrack(trackKey, options = {}) {
             alt
         );
         if (__liveTrackReplayState.markerEntity.billboard) {
-            __liveTrackReplayState.markerEntity.billboard.rotation = Cesium.Math.toRadians(
-                -normalizeDegrees(Number(point.heading_deg || 0))
-            );
+            __liveTrackReplayState.markerEntity.billboard.rotation = getLiveTrackBillboardRotationRadians(point.heading_deg || 0);
             __liveTrackReplayState.markerEntity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
         }
         requestWarzoneRender();

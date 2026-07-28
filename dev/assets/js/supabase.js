@@ -29,12 +29,17 @@ const GNSS_API_BASE =
     window.__stratopsConfig?.gnssApiBase ||
     window.__stratopsConfig?.apiBase ||
     INTEL_FEED_API_BASE;
+const REPORTS_API_BASE =
+    window.__stratopsConfig?.reportsApiBase ||
+    window.__stratopsConfig?.apiBase ||
+    (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
 const EVENTS_HISTORY_WINDOW_HOURS = 48;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
 const EVENTS_SINCE_LIMIT = 200;
 const INTEL_FEED_LIMIT = 120;
 const GNSS_CELL_LIMIT = 240;
+const REPORTS_LIMIT = 12;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
@@ -208,6 +213,59 @@ export const api = {
                 },
             };
         }
+    },
+
+    async getOperationalReports(type = "") {
+        const reportType = String(type || "").trim().toLowerCase();
+        const params = new URLSearchParams({ limit: String(REPORTS_LIMIT) });
+        if (reportType === "daily" || reportType === "weekly") params.set("type", reportType);
+        const res = await fetch(`${REPORTS_API_BASE}/stratops/reports?${params.toString()}`);
+        const json = await readJsonResponse(res, "Reports fetch");
+        return { data: json.reports || [], error: null };
+    },
+
+    async generateOperationalReport(options = {}) {
+        const res = await fetch(`${REPORTS_API_BASE}/stratops/reports/generate`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            body: JSON.stringify({
+                type: options.type || "daily",
+                scope_type: options.scope_type || "global",
+                scope_value: options.scope_value || "",
+                date: options.date || "",
+                force: options.force === true,
+            }),
+        });
+        const json = await readJsonResponse(res, "Report generation");
+        return { data: json.report || null, error: null };
+    },
+
+    getOperationalReportDownloadUrl(report = {}) {
+        const publicUrl = String(report?.public_url || "").trim();
+        if (publicUrl) {
+            if (/^https?:\/\//i.test(publicUrl)) return publicUrl;
+            return publicUrl;
+        }
+        const slug = String(report?.report_slug || "").trim();
+        if (slug) return `/reports/${encodeURIComponent(slug)}`;
+        const id = String(report?.id || "").trim();
+        const token = String(report?.download_token || "").trim();
+        if (!id || !token) return "";
+        return `${REPORTS_API_BASE}/stratops/reports/${encodeURIComponent(id)}/download?token=${encodeURIComponent(token)}`;
+    },
+
+    getOperationalReportViewerUrl(report = {}) {
+        const publicUrl = String(report?.public_url || "").trim();
+        if (publicUrl) {
+            if (/^https?:\/\//i.test(publicUrl)) return publicUrl;
+            return publicUrl;
+        }
+        const slug = String(report?.report_slug || "").trim();
+        if (slug) return `/reports/${encodeURIComponent(slug)}`;
+        return this.getOperationalReportDownloadUrl(report);
     },
 
     async getActiveAlerts() {

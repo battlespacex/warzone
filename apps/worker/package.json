@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "copernicus:once": "node src/copernicus-once.js",
+    "reports:once": "node src/reporting-once.js",
     "events:reprocess": "node src/reprocess-recent-events.js",
     "test": "node --test test/*.test.js"
   },

@@ -23,5 +23,17 @@
             { name: "Home", item: "https://stratops.battlespacex.com/" },
             { name: "404", item: "https://stratops.battlespacex.com/404" }
         ]
+    },
+
+    report: {
+        path: "/reports/stratops-report",
+        title: "StratOps Operational Report",
+        description: "Secure StratOps operational intelligence report viewer.",
+        robots: "noindex, nofollow",
+        ogAlt: "StratOps operational intelligence report",
+        breadcrumbs: [
+            { name: "Home", item: "https://stratops.battlespacex.com/" },
+            { name: "Reports", item: "https://stratops.battlespacex.com/reports/stratops-report" }
+        ]
     }
 };
