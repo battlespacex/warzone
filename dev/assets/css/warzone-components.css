@@ -3914,8 +3914,10 @@ body.is-app-active .wz-support-open-btn {
 
 /* #endregion =========== */
 /* #region =========== SUBSCRIPTION LEVELS LOCK =========== */
-body.is-authenticated .wz-nav-login-btn {
-    display: none;
+body.is-authenticated .wz-nav-login-btn,
+body.is-authenticated #wz-nav-login-btn,
+body.is-authenticated [data-mobile-action="login"] {
+    display: none !important;
 }
 
 body.is-paid-tier .wz-nav-upgrade-btn {

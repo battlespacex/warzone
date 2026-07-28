@@ -1,6 +1,10 @@
 ﻿// File Path: /assets/js/index.js
 import "../css/style.css";
 import "cesium/Build/Cesium/Widgets/widgets.css";
+import {
+    applyStratOpsFeatureVisibility,
+    isStratOpsFeatureEnabled,
+} from "./stratops-feature-config.js";
 import "./warzone-boot.js";
 import {
     initBoot, initWarzoneApp, initAudio, startEventPollingFallback,
@@ -28,12 +32,12 @@ const isLocalDevHost =
 window.__stratopsConfig = {
     apiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
     supportApiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
-    enableIntelWireMedia: true,
+    enableIntelWireMedia: isStratOpsFeatureEnabled("system.intelWireMedia"),
     // Localhost uses a same-origin cached proxy for live aircraft polling so
     // we keep the old smooth movement path without direct third-party CORS calls.
-    enablePublicAirFallback: true,
+    enablePublicAirFallback: isStratOpsFeatureEnabled("tracking.publicAircraftFallback"),
     allowLocalhostPublicAirFallback: true,
-    enableHighValueAssetDetection: false,
+    enableHighValueAssetDetection: false && isStratOpsFeatureEnabled("tracking.highValueAssetDetection"),
     useAircraftBillboards: true,
     useNavalBillboards: true,
     aircraftVisualPolicy: {
@@ -52,12 +56,12 @@ window.__stratopsConfig = {
         zoomModel: false,
     },
     autoContourOnAircraftFocus: false,
-    enableFocusedContextModels: true,
+    enableFocusedContextModels: isStratOpsFeatureEnabled("tracking.focusedContextModels"),
     autoTerrainOnAircraftFocus: false,
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
     optimizeBackgroundOnAircraftFocus: true,
-    enableMilSatsLayer: true,
+    enableMilSatsLayer: isStratOpsFeatureEnabled("system.milSatOrbit"),
     milSatsRotation: false, 
     milSatsRotationSpeed: 5, 
     billing: {
@@ -209,16 +213,23 @@ function resolveStartupAdaptiveQualityProfile() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
+        applyStratOpsFeatureVisibility();
         bindWarzoneUi();
-        initStratopsAuth();
-        initStratopsBilling();
+        if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
+            initStratopsAuth();
+        }
+        if (isStratOpsFeatureEnabled("system.billing")) {
+            initStratopsBilling();
+        }
 
         let pendingRegionModal = null;
         window.__warzoneShowRegionModal = (instant = false) => {
             pendingRegionModal = { instant: !!instant };
         };
 
-        initStratopsIntro();
+        if (isStratOpsFeatureEnabled("system.intro")) {
+            initStratopsIntro();
+        }
 
         await new Promise((resolve) => {
             requestAnimationFrame(() => {
@@ -226,18 +237,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         });
 
+        if (!isStratOpsFeatureEnabled("system.globe")) {
+            window.SiteLoader?.forceHide?.();
+            return;
+        }
+
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
         viewer?.__warzone?.setAdaptiveQualityProfile?.("safe");
         viewer?.__warzone?.setPerformanceMode?.(0);
-        if (window.__stratopsConfig?.enableMilSatsLayer !== false) {
+        if (window.__stratopsConfig?.enableMilSatsLayer !== false && isStratOpsFeatureEnabled("system.milSatOrbit")) {
             initWarzoneMilSats(viewer);
             setTimeout(() => {
                 try { window.refreshWarzoneMilSatsScale?.(); }
                 catch { }
             }, 150);
         }
-        initRegionSelector(viewer);
+        if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
+            initRegionSelector(viewer);
+        }
         if (pendingRegionModal) {
             const { instant } = pendingRegionModal;
             pendingRegionModal = null;
@@ -252,9 +270,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 viewer?.__warzone?.stopStartupRotation?.();
                 viewer?.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
                 viewer?.__warzone?.setPerformanceMode?.(0);
-                initWarzoneAoiLens(viewer);
-                initWarzoneCaptureShot(viewer);
-                if (isLocalDevHost) {
+                if (isStratOpsFeatureEnabled("system.aoiLens") && isStratOpsFeatureEnabled("dock.aoiScan")) {
+                    initWarzoneAoiLens(viewer);
+                }
+                if (isStratOpsFeatureEnabled("system.captureShot") && isStratOpsFeatureEnabled("header.captureShot")) {
+                    initWarzoneCaptureShot(viewer);
+                }
+                if (isLocalDevHost && isStratOpsFeatureEnabled("system.devPanel")) {
                     import("./warzone-dev-panel.js")
                         .then((module) => module.initDevPanel?.())
                         .catch((error) => console.warn("Dev panel failed to load:", error));
@@ -263,15 +285,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 // Install the lazy hook AFTER initWarzoneApp so entity clears don't wipe bases.
                 // The large bases dataset is loaded only when the layer is enabled.
-                installDeferredMilitaryBasesLayer(viewer);
-                window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
+                if (isStratOpsFeatureEnabled("tracking.militaryBases") && isStratOpsFeatureEnabled("mapLayers.militaryBases")) {
+                    installDeferredMilitaryBasesLayer(viewer);
+                    window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
+                }
 
                 await warmupInitialTheater(viewer);
 
-                await subscribeToLiveEvents();
-                startEventPollingFallback();
-                subscribeToSirenBroadcast();
-                initAudio();
+                if (isStratOpsFeatureEnabled("system.realtimeEvents")) {
+                    await subscribeToLiveEvents();
+                }
+                if (isStratOpsFeatureEnabled("system.eventPolling")) {
+                    startEventPollingFallback();
+                }
+                if (isStratOpsFeatureEnabled("alerts.sirenBroadcasts")) {
+                    subscribeToSirenBroadcast();
+                }
+                if (isStratOpsFeatureEnabled("system.audio")) {
+                    initAudio();
+                }
                 window.__warzoneEnterApp?.();
 
                 // After app is fully running: globe rotation, delayed popups, nav button

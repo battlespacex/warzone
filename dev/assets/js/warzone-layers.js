@@ -1,5 +1,10 @@
 ﻿// File Path: /assets/js/warzone-layers.js
-const LAYER_DEFS = [
+import {
+    getStratOpsLayerFeaturePath,
+    isStratOpsFeatureEnabled,
+} from "./stratops-feature-config.js";
+
+const ALL_LAYER_DEFS = [
     { id: "strikes", label: "Shelling / Ground Strikes", description: "Artillery, shelling, and uncategorized impact reports", icon: "STK", color: "#ff2a2a" },
     { id: "missiles", label: "Missiles & Rockets", description: "Missile and rocket activity on the map", icon: "MSL", color: "#ff5500" },
     { id: "drones", label: "Drone / UAV Activity", description: "Drone sightings and drone-delivered strike reports", icon: "UAV", color: "#ffcc00" },
@@ -9,9 +14,9 @@ const LAYER_DEFS = [
     // It is intentionally decoupled from the "aircraft" layer so toggling
     // live flight tracks on the globe does NOT affect the airspace panel.
     { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "GLO", color: "#33d9ff", uiOnly: true },
-    { id: "gnss", label: "GNSS Jamming", description: "Sanitized GNSS/GPS Jamming zones and navigation anomaly cells", icon: "GNSS", color: "#ffd24d" },
     { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "NAV", color: "#9b7bff", premium: true },
     { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "BASE", color: "#3a8eff", uiOnly: true, premium: true },
+    { id: "gnss", label: "GNSS Jamming", description: "Sanitized GNSS/GPS Jamming zones and navigation anomaly cells", icon: "GNSS", color: "#ffd24d" },
     { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "RNG", color: "#33d9ff" },
     { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "SWP", color: "#18e2db", uiOnly: true },
     { id: "alerts", label: "Alerts & Sirens", description: "Warning banners, sirens, and alert signals", icon: "ALT", color: "#ff2a2a" },
@@ -21,11 +26,16 @@ const LAYER_DEFS = [
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "SEIS", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "NEWS", color: "#888" },
     { id: "hotspots", label: "Activity Areas", description: "Passive density circles behind clickable event markers", icon: "AREA", color: "#00d8b2", uiOnly: true },
-    { id: "satellite-imagery", label: "Satellite Observations", description: "Available Copernicus/Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true },
+    { id: "satellite-imagery", label: "Satellite Observations", description: "Available Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true },
     { id: "terrain", label: "Satellite Basemap", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
     { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "BRD", color: "#33e1ff", uiOnly: true },
 ];
+
+const LAYER_DEFS = ALL_LAYER_DEFS.filter((layer) => {
+    const featurePath = getStratOpsLayerFeaturePath(layer.id);
+    return !featurePath || isStratOpsFeatureEnabled(featurePath);
+});
 
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
@@ -125,6 +135,7 @@ function openLoginForPremiumLayer() {
 }
 
 function getEffectiveLayerState(id) {
+    if (!getLayerDef(id)) return false;
     if (!canUseLayer(id)) return false;
     return __layerState[id] !== false;
 }

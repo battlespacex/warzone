@@ -107,7 +107,7 @@ const LIVE_TRACK_FOCUS_GUIDE_THICKNESS_PX = 4;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_METERS = 36000;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG = -89;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG = -89;
-const LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG = -89;
+const LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG = -8;
 const LIVE_TRACK_FOCUS_ZOOM_DELTA_FEET = 72000;
 const LIVE_TRACK_FOCUS_WHEEL_ZOOM_STEP_FEET = 8200;
 const LIVE_TRACK_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.28;
@@ -5034,13 +5034,13 @@ function buildTrackHoverText(trackKey = "") {
     const entry = __liveTrackRegistry.get(trackKey);
     if (!entry) return "";
     const title = wrapLiveLabelText(
-        getTrackDisplayTitle(entry),
+        String(getTrackDisplayTitle(entry) || "").toUpperCase(),
         getCssNumber("--warzone-live-hover-title-max-chars", 21)
     );
     if (!title) return "";
     const lines = title.split("\n").filter(Boolean);
-    const model = formatRouteOriginLabelValue(getTrackModelLabel(entry), 26);
-    const callsign = formatRouteOriginLabelValue(getTrackCallsignLabel(entry), 20);
+    const model = formatRouteOriginLabelValue(getTrackModelLabel(entry), 26).toUpperCase();
+    const callsign = formatRouteOriginLabelValue(getTrackCallsignLabel(entry), 20).toUpperCase();
     const secondaryParts = [];
     if (model && !isTrackHoverLineDuplicate(title, model)) {
         secondaryParts.push(model);

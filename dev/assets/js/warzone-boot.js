@@ -1,4 +1,11 @@
 ﻿// File Path: /assets/js/warzone-boot.js
+import {
+    applyStratOpsFeatureVisibility,
+    getStratOpsDockWidgetFeaturePath,
+    getStratOpsWidgetFeaturePath,
+    isStratOpsFeatureEnabled,
+} from "./stratops-feature-config.js";
+
 let __siteLoaderHideTimer = 0;
 let __siteLoaderHardStopTimer = 0;
 const SITE_LOADER_HARD_MAX_MS = 12000;
@@ -82,6 +89,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
     }
+    function isWidgetFeatureEnabled(widgetId = "") {
+        const path = getStratOpsWidgetFeaturePath(widgetId);
+        return !path || isStratOpsFeatureEnabled(path);
+    }
+    function isDockWidgetFeatureEnabled(widgetId = "") {
+        const path = getStratOpsDockWidgetFeaturePath(widgetId);
+        return !path || isStratOpsFeatureEnabled(path);
+    }
     function getSavedLayerState() {
         try {
             return JSON.parse(localStorage.getItem(WZ_LAYER_KEY) || "{}");
@@ -90,6 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
     function isUiOnlyWidgetLayerEnabled(widgetId = "") {
+        if (!isWidgetFeatureEnabled(widgetId) || !isDockWidgetFeatureEnabled(widgetId)) return false;
         if (!UI_ONLY_WIDGET_IDS.has(widgetId)) return true;
         const layerState = getSavedLayerState();
         return layerState[widgetId] !== false;
@@ -740,6 +756,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch { }
     }
     function loadWidgetState() {
+        applyStratOpsFeatureVisibility();
         let saved = {};
         let savedVersion = "";
         try {
@@ -849,6 +866,7 @@ document.addEventListener("DOMContentLoaded", () => {
         syncWidgetChrome();
     });
     document.documentElement.classList.add("wz-no-transitions");
+    applyStratOpsFeatureVisibility();
     loadWidgetState();
     syncWidgetChrome();
     const widgetObserver = new MutationObserver(() => {
