@@ -72,7 +72,8 @@ Responsible for:
 • Cesium viewer initialization
 • globe rendering
 • map layers
-• terrain and satellite modes
+• terrain and satellite basemap modes
+• separate Orbital Assets layer for public satellite position estimates
 • rendering event markers
 • rendering missile arcs
 • updating hotspot anchors

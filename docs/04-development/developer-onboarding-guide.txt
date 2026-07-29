@@ -205,7 +205,8 @@ Always verify after changes:
 
 • globe still loads
 • layer toggles still work
-• satellite / terrain toggle works
+• satellite basemap / terrain toggle works
+• Orbital Assets remains separate from Satellite Observations
 • widgets still open / close / collapse correctly
 • no unnecessary sounds play
 • hotspots still update

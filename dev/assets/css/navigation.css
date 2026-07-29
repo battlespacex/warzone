@@ -370,6 +370,11 @@ body.is-ui-modal-open .wz-globe-toggle {
     pointer-events: none !important;
 }
 
+body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible="1"] {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
 /* #endregion =========== */
 
 

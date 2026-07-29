@@ -35,6 +35,7 @@ window.__warzoneEnterApp = function () {
         uiShell.classList.add("is-ui-visible");
     });
     document.body.classList.add("is-app-active");
+    document.dispatchEvent(new CustomEvent("wz:app-entered"));
 };
 window.SiteLoader = {
     start() {
@@ -81,6 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
         escalation: false,
         aircraft: false,
         naval: false,
+        orbital: false,
         feed: false,
         airspace: true,
         cyber: false,

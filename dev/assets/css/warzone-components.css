@@ -985,6 +985,283 @@
     color: var(--color-teal-glow);
 }
 
+.wz-orbital-hover-card,
+.wz-orbital-focus-card {
+    position: fixed;
+    z-index: 66;
+    width: min(32rem, calc(100vw - 2rem));
+    padding: 1rem;
+    border: .1rem solid rgba(159, 215, 255, .22);
+    background: rgba(15, 21, 29, .92);
+    color: var(--color-text-heading);
+    box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, .34);
+    clip-path: var(--clippath-shape-5);
+    pointer-events: none;
+}
+
+.wz-orbital-hover-card[hidden],
+.wz-orbital-focus-card[hidden] {
+    display: none;
+}
+
+.wz-orbital-hover-card strong,
+.wz-orbital-focus-card h3 {
+    display: block;
+    margin: 0 0 .3rem;
+    color: var(--color-text-heading);
+    font-family: var(--heading-font1);
+    font-size: var(--text-sm);
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.wz-orbital-hover-card>span,
+.wz-orbital-focus-card__kicker {
+    display: block;
+    margin-bottom: .8rem;
+    color: rgba(159, 215, 255, .78);
+    font-family: var(--font-mono);
+    font-size: .9rem;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.wz-orbital-hover-card dl,
+.wz-orbital-focus-card dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .55rem .8rem;
+    margin: 0;
+}
+
+.wz-orbital-hover-card dl div,
+.wz-orbital-focus-card dl div {
+    min-width: 0;
+}
+
+.wz-orbital-hover-card dt,
+.wz-orbital-focus-card dt {
+    color: rgba(143, 163, 184, .86);
+    font-family: var(--text-font);
+    font-size: .78rem;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.wz-orbital-hover-card dd,
+.wz-orbital-focus-card dd {
+    margin: .16rem 0 0;
+    color: rgba(232, 241, 250, .9);
+    font-family: var(--font-mono);
+    font-size: .92rem;
+    font-weight: 700;
+    line-height: 1.16;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.wz-orbital-hover-card p,
+.wz-orbital-focus-card p,
+.wz-orbital-controls p {
+    margin: .8rem 0 0;
+    color: rgba(185, 202, 222, .8);
+    font-size: .9rem;
+    line-height: 1.25;
+}
+
+.wz-orbital-focus-card {
+    right: 2rem;
+    bottom: 7.2rem;
+    pointer-events: auto;
+}
+
+.wz-orbital-focus-card__close {
+    position: absolute;
+    right: .8rem;
+    top: .8rem;
+    min-width: 6rem;
+    height: 2.4rem;
+    border: 0;
+    background: rgba(24, 226, 219, .16);
+    color: var(--color-text-heading);
+    cursor: pointer;
+    font-family: var(--text-font);
+    font-size: .9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    clip-path: var(--clippath-shape-3);
+}
+
+.wz-orbital-widget {
+    display: grid;
+    gap: .9rem;
+}
+
+.wz-orbital-controls {
+    margin: 0;
+    padding: .9rem;
+    border: .1rem solid rgba(159, 215, 255, .2);
+    background: rgba(18, 25, 34, .62);
+    clip-path: var(--clippath-shape-5);
+}
+
+.wz-orbital-controls__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    margin-bottom: .8rem;
+}
+
+.wz-orbital-controls__head strong {
+    color: var(--color-text-heading);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+}
+
+.wz-orbital-controls__status {
+    color: rgba(159, 215, 255, .84);
+    font-family: var(--font-mono);
+    font-size: .82rem;
+    text-align: right;
+    text-transform: uppercase;
+}
+
+.wz-orbital-controls__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem;
+}
+
+.wz-orbital-controls__field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: .28rem;
+}
+
+.wz-orbital-controls__field span {
+    color: rgba(143, 163, 184, .86);
+    font-size: .82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.wz-orbital-controls__field select {
+    min-width: 0;
+    height: 2.8rem;
+    border: .1rem solid rgba(143, 163, 184, .36);
+    background: rgba(15, 21, 29, .72);
+    color: var(--color-text-heading);
+    font-family: var(--text-font);
+    font-size: .95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.wz-orbital-widget__summary,
+.wz-orbital-widget__details {
+    padding: .9rem;
+    border: .1rem solid rgba(159, 215, 255, .18);
+    background: rgba(18, 25, 34, .5);
+    clip-path: var(--clippath-shape-5);
+}
+
+.wz-orbital-widget__summary[hidden],
+.wz-orbital-widget__details[hidden] {
+    display: none !important;
+}
+
+.wz-orbital-widget__summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    margin-bottom: .7rem;
+}
+
+.wz-orbital-widget__summary-head strong,
+.wz-orbital-widget__details h3 {
+    margin: 0;
+    color: var(--color-text-heading);
+    font-family: var(--heading-font1);
+    font-size: var(--text-sm);
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.wz-orbital-widget__summary-status,
+.wz-orbital-widget__details-kicker {
+    color: rgba(159, 215, 255, .82);
+    font-family: var(--font-mono);
+    font-size: .9rem;
+    text-transform: uppercase;
+}
+
+.wz-orbital-widget__summary-grid,
+.wz-orbital-widget__details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+}
+
+.wz-orbital-widget__summary-grid span,
+.wz-orbital-widget__details-grid span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: .18rem;
+    color: rgba(232, 241, 250, .9);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1.16;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.wz-orbital-widget__summary-grid span:before,
+.wz-orbital-widget__details-grid span:before {
+    content: attr(data-label);
+    color: rgba(143, 163, 184, .86);
+    font-family: var(--text-font);
+    font-size: .82rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.wz-orbital-widget__details-note,
+.wz-orbital-widget__summary-note {
+    margin: .8rem 0 0;
+    color: rgba(185, 202, 222, .8);
+    font-size: .9rem;
+    line-height: 1.25;
+}
+
+.wz-orbital-widget__details-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .8rem;
+    margin-bottom: .75rem;
+}
+
+.wz-orbital-widget__details-close {
+    min-width: 6rem;
+    height: 2.4rem;
+    border: 0;
+    background: rgba(24, 226, 219, .16);
+    color: var(--color-text-heading);
+    cursor: pointer;
+    font-family: var(--text-font);
+    font-size: .9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    clip-path: var(--clippath-shape-3);
+}
+
 @media (max-width: 820px) {
     .wz-satellite-imagery-viewer {
         padding: 6rem 1rem 1rem;
@@ -1565,6 +1842,18 @@
     padding: 0;
 }
 
+#wz-intro-startup-tuner-slot {
+    margin: 1.2rem 0 1.6rem;
+}
+
+#wz-intro-startup-tuner-slot .wz-dev-label {
+    margin-bottom: 0.8rem;
+}
+
+#wz-intro-startup-tuner-slot .wz-dev-map-tuner {
+    width: 100%;
+}
+
 
 .wz-modal-body:has(.wz-content) {
     scrollbar-gutter: auto;
@@ -1811,6 +2100,12 @@
 .warzone-widget--naval {
     left: 60rem;
     top: 0;
+    bottom: auto;
+}
+
+.warzone-widget--orbital {
+    left: 60rem;
+    top: calc(55vh + 2rem);
     bottom: auto;
 }
 
@@ -2478,15 +2773,34 @@ UNUSED CANDIDATE END */
     gap: 1rem;
 }
 
+.wz-aircraft-item__top {
+    align-items: flex-start;
+}
+
+.wz-aircraft-item__meta,
+.wz-aircraft-item__stats {
+    display: grid;
+    width: 100%;
+    gap: .55rem;
+}
+
+.wz-aircraft-item__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wz-aircraft-item__stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .wz-aircraft-item__title {
     display: flex;
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     align-items: center;
     gap: .5rem;
+    color: var(--color-text-heading);
+    line-height: 1.18;
+    text-transform: uppercase;
 }
 
 .wz-aircraft-item__time,
@@ -2494,6 +2808,44 @@ UNUSED CANDIDATE END */
 .wz-aircraft-item__stats {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
+}
+
+.wz-aircraft-title__text {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.wz-aircraft-item__time {
+    flex: 0 0 auto;
+    padding-top: .1rem;
+    text-transform: uppercase;
+}
+
+.wz-aircraft-item__meta span,
+.wz-aircraft-item__stats span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: .18rem;
+    color: rgba(223, 235, 248, .88);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1.16;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.wz-aircraft-item__meta span:before,
+.wz-aircraft-item__stats span:before {
+    content: attr(data-label);
+    color: rgba(143, 163, 184, .86);
+    font-family: var(--text-font);
+    font-size: .82rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0;
 }
 
 .wz-aircraft-badge {
@@ -3403,6 +3755,10 @@ UNUSED CANDIDATE END */
     width: min(40rem, calc(100vw - 2rem));
 }
 
+.wz-dev-panel[data-startup-visible="1"] {
+    z-index: 10050;
+}
+
 .wz-dev-toggle {
     padding: 0.8rem 1.2rem;
     color: var(--color-text-heading);
@@ -4019,12 +4375,14 @@ body.is-authenticated .wz-lock-overlay {
 }
 
 body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content,
-body:not(.is-authenticated) [data-widget-id="naval"] .panel-content {
+body:not(.is-authenticated) [data-widget-id="naval"] .panel-content,
+body:not(.is-authenticated) [data-widget-id="orbital"] .panel-content {
     overflow: hidden !important;
 }
 
 body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content>*:not(.wz-lock-overlay),
-body:not(.is-authenticated) [data-widget-id="naval"] .panel-content>*:not(.wz-lock-overlay) {
+body:not(.is-authenticated) [data-widget-id="naval"] .panel-content>*:not(.wz-lock-overlay),
+body:not(.is-authenticated) [data-widget-id="orbital"] .panel-content>*:not(.wz-lock-overlay) {
     visibility: hidden !important;
     pointer-events: none !important;
     user-select: none !important;

@@ -133,7 +133,8 @@ Responsible for:
 • Cesium viewer initialization
 • event marker rendering
 • missile arc rendering
-• terrain / satellite imagery
+• terrain / satellite basemap imagery
+• orbital asset estimates through the separate Orbital Assets layer
 • hotspot anchor positions
 • viewport bounds reporting
 • Application Controller

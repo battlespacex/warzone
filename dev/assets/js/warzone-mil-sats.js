@@ -1,21 +1,40 @@
-﻿// File Path: /assets/js/warzone-mil-sats.js
+// File Path: /assets/js/warzone-mil-sats.js
 import * as Cesium from "cesium";
+import { json2satrec } from "../../../node_modules/satellite.js/dist/io.js";
+import { propagate } from "../../../node_modules/satellite.js/dist/propagation/propagate.js";
+import { gstime } from "../../../node_modules/satellite.js/dist/propagation/gstime.js";
+import { eciToGeodetic } from "../../../node_modules/satellite.js/dist/transforms.js";
 
-// ─── Module State ─────────────────────────────────────────────────────────────
-const __warzoneMilSatsState = {
-    viewer: null,
-    groups: [],          // [{ satDef, currentLon, entities[] }]
-    postRenderBound: false,
-    lastFrameTime: null,
-    updateTimer: null,   // setInterval handle — cleared on re-init
-    enabled: true,
-};
-
-// ─── Model Config ─────────────────────────────────────────────────────────────
 const SAT_MODEL_BASE = "/assets/images/models/space/";
-const SAT_MODEL_CONFIG = {
+const DEFAULT_API_PATH = "/api/satellites/military";
+const EARTH_RADIUS_M = 6371008.8;
+const DEFAULT_CONFIG = Object.freeze({
+    enabled: true,
+    apiPath: DEFAULT_API_PATH,
+    maximumVisibleSatellites: 160,
+    sampleIntervalSeconds: 120,
+    pastOrbitMinutes: 45,
+    futureOrbitMinutes: 60,
+    positionRefreshIntervalMs: 30000,
+    focusedModelCount: 1,
+    showOrbitPath: true,
+    showGroundTrack: true,
+    showNadirLine: true,
+    showTheoreticalFootprint: true,
+    showLabels: false,
+    minimumClassificationConfidence: "unconfirmed",
+    defaultSamplePastMinutes: 8,
+    defaultSampleFutureMinutes: 14,
+});
+const MODEL_CONFIG = Object.freeze({
+    uri: `${SAT_MODEL_BASE}sat-1.glb`,
+    scale: 170000,
+    minimumPixelSize: 18,
+    maximumScale: 260000,
+});
+const STARTUP_DEMO_MODEL_CONFIG = Object.freeze({
     "sat-1": {
-        uri: SAT_MODEL_BASE + "sat-1.glb",
+        uri: `${SAT_MODEL_BASE}sat-1.glb`,
         scale: 200000,
         minimumPixelSize: 20,
         maximumScale: 320000,
@@ -24,7 +43,7 @@ const SAT_MODEL_CONFIG = {
         roll: -15,
     },
     "sat-2": {
-        uri: SAT_MODEL_BASE + "sat-1.glb",
+        uri: `${SAT_MODEL_BASE}sat-1.glb`,
         scale: 200000,
         minimumPixelSize: 20,
         maximumScale: 320000,
@@ -32,10 +51,8 @@ const SAT_MODEL_CONFIG = {
         pitch: -150,
         roll: -15,
     },
-};
-
-// ─── Satellite Definitions ────────────────────────────────────────────────────
-const WARZONE_MIL_SATS = [
+});
+const STARTUP_DEMO_SATS = Object.freeze([
     { id: "sat-gulf-1", lat: 24.5, lon: 45.0, altitude: 500000, mod: "sat-1" },
     { id: "sat-gulf-2", lat: 32.5, lon: 52.5, altitude: 350000, mod: "sat-2" },
     { id: "sat-gulf-3", lat: 18.5, lon: 58.5, altitude: 700000, mod: "sat-1" },
@@ -54,33 +71,111 @@ const WARZONE_MIL_SATS = [
     { id: "sat-ua-1", lat: 49, lon: 31, altitude: 400000, mod: "sat-2" },
     { id: "sat-ua-2", lat: 47, lon: 36, altitude: 700000, mod: "sat-1" },
     { id: "sat-ua-3", lat: 50, lon: 26, altitude: 350000, mod: "sat-2" },
-];
+]);
+const CONFIDENCE_RANK = Object.freeze({
+    "confirmed-public-classification": 4,
+    "high-confidence-public-association": 3,
+    inferred: 2,
+    unconfirmed: 1,
+});
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function getCssVarNumber(name, fallback) {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fallback;
-}
-function getCssVarNumberFromStyle(style, name, fallback) {
-    const v = style?.getPropertyValue?.(name)?.trim?.() || "";
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fallback;
-}
-function clamp01(value) {
-    return Math.max(0, Math.min(1, Number(value) || 0));
-}
-function lerp(a, b, t) {
-    return a + ((b - a) * t);
+const state = {
+    viewer: null,
+    config: { ...DEFAULT_CONFIG },
+    enabled: false,
+    loading: false,
+    data: null,
+    records: [],
+    visibleRecords: [],
+    entities: new Map(),
+    satrecs: new Map(),
+    selectedId: "",
+    hoveredId: "",
+    handler: null,
+    refreshTimer: null,
+    visibleTimer: null,
+    hoverCard: null,
+    focusCard: null,
+    controls: null,
+    focusEntities: [],
+    filters: {
+        association: "all",
+        country: "all",
+        mission: "all",
+        orbit: "all",
+    },
+};
+const startupDemoState = {
+    enabled: false,
+    groups: [],
+    frameListener: null,
+    lastFrameTime: 0,
+};
+
+function mergeConfig() {
+    const configured = window.__stratopsConfig?.strategicSatellites || {};
+    state.config = {
+        ...DEFAULT_CONFIG,
+        ...configured,
+        enabled: configured.enabled !== false && window.__stratopsConfig?.enableMilSatsLayer !== false,
+    };
 }
 
-function getSatelliteModelConfig(sat) {
-    const mod = String(sat?.mod || "sat-1").trim();
-    return SAT_MODEL_CONFIG[mod] || SAT_MODEL_CONFIG["sat-1"];
+function getCssVar(name, fallback) {
+    try {
+        const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return value || fallback;
+    } catch {
+        return fallback;
+    }
 }
 
-function createOrientation(position, sat) {
-    const modelCfg = getSatelliteModelConfig(sat);
+function getCssNumber(name, fallback) {
+    const value = Number(getCssVar(name, ""));
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function colorFromCss(name, fallback, alpha = 1) {
+    return Cesium.Color.fromCssColorString(getCssVar(name, fallback)).withAlpha(alpha);
+}
+
+function cleanText(value, fallback = "") {
+    return String(value ?? fallback)
+        .replace(/[\u0000-\u001f\u007f<>]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function formatUpper(value, fallback = "UNKNOWN") {
+    const text = cleanText(value, fallback);
+    return (text || fallback).toUpperCase();
+}
+
+function formatNumber(value, decimals = 0, fallback = "UNKNOWN") {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toFixed(decimals) : fallback;
+}
+
+function formatAge(seconds) {
+    const value = Number(seconds);
+    if (!Number.isFinite(value)) return "UNKNOWN";
+    if (value < 90) return `${Math.max(0, Math.round(value))} SEC`;
+    if (value < 7200) return `${Math.round(value / 60)} MIN`;
+    if (value < 172800) return `${Math.round(value / 3600)} HR`;
+    return `${Math.round(value / 86400)} DAY`;
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function getStartupDemoModelConfig(sat = {}) {
+    const mod = cleanText(sat?.mod || "sat-1", "sat-1").toLowerCase();
+    return STARTUP_DEMO_MODEL_CONFIG[mod] || STARTUP_DEMO_MODEL_CONFIG["sat-1"];
+}
+
+function createStartupDemoOrientation(position, sat = {}) {
+    const modelCfg = getStartupDemoModelConfig(sat);
     const heading = Number.isFinite(Number(sat?.heading)) ? Number(sat.heading) : Number(modelCfg.heading || 0);
     const pitch = Number.isFinite(Number(sat?.pitch)) ? Number(sat.pitch) : Number(modelCfg.pitch || 0);
     const roll = Number.isFinite(Number(sat?.roll)) ? Number(sat.roll) : Number(modelCfg.roll || 0);
@@ -97,193 +192,1031 @@ function createOrientation(position, sat) {
     return Cesium.Quaternion.fromRotationMatrix(final);
 }
 
-// ─── Rotation speed ───────────────────────────────────────────────────────────
-// Speed scale reference (degrees per second per unit):
-//   milSatsRotationSpeed: 1  →  0.005 deg/s  (slow background drift)
-//   milSatsRotationSpeed: 5  →  0.025 deg/s  (clearly visible vs globe)
-//   milSatsRotationSpeed: 10 →  0.050 deg/s  (fast, good for demo)
-//
-// *** Completely ignores window.__globeRotation ***
-// Satellites run on wall-clock time only — pausing/stopping globe rotation
-// has zero effect on satellite movement.
-function getRotationDegPerSec() {
-    const cfg = window.__stratopsConfig;
-    if (!cfg?.milSatsRotation) return 0;
-    const speed = Number(cfg.milSatsRotationSpeed);
-    return Number.isFinite(speed) && speed > 0 ? speed * 0.005 : 0;
-}
-
-// ─── Entity creation ──────────────────────────────────────────────────────────
-// Static position/orientation at creation — updated directly by the interval.
-//
-// WHY NO CallbackProperty: Globe uses requestRenderMode:true (on-demand renders).
-// CallbackProperty(isConstant:false) tells Cesium "poll me every frame" — with
-// 18 satellites × 2 properties = 36 callbacks, this defeats requestRenderMode
-// entirely, forcing 60fps continuous renders and causing stuttering navigation.
-// Direct property updates + a single requestRender() per 250ms interval means
-// Cesium renders only when needed → smooth globe, smooth orbital drift.
-function createSatellite(viewer, sat) {
-    const modelCfg = getSatelliteModelConfig(sat);
-    const scale = Number.isFinite(Number(sat?.scale))
-        ? Number(sat.scale)
-        : getCssVarNumber("--warzone-mil-sat-scale", modelCfg.scale);
-    const minPx = Number.isFinite(Number(sat?.minimumPixelSize))
-        ? Number(sat.minimumPixelSize)
-        : getCssVarNumber("--warzone-mil-sat-min-px", modelCfg.minimumPixelSize);
-    const maxScale = Number.isFinite(Number(sat?.maximumScale))
-        ? Number(sat.maximumScale)
-        : getCssVarNumber("--warzone-mil-sat-max-scale", modelCfg.maximumScale);
-
-    const initialPos = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, sat.altitude);
-
-    const model = viewer.entities.add({
-        id: sat.id,
-        position: initialPos,
-        orientation: createOrientation(initialPos, sat), // static — drift is ~0.006°/interval, imperceptible
+function createStartupDemoEntity(sat = {}) {
+    if (!state.viewer?.entities) return null;
+    const modelCfg = getStartupDemoModelConfig(sat);
+    const position = Cesium.Cartesian3.fromDegrees(
+        Number(sat.lon) || 0,
+        Number(sat.lat) || 0,
+        Math.max(0, Number(sat.altitude) || 0)
+    );
+    return state.viewer.entities.add({
+        id: `wz-startup-sat-${sat.id}`,
+        position,
+        orientation: createStartupDemoOrientation(position, sat),
         model: {
             uri: modelCfg.uri,
-            scale,
-            minimumPixelSize: minPx,
-            maximumScale: maxScale,
+            scale: getCssNumber("--warzone-mil-sat-scale", modelCfg.scale),
+            minimumPixelSize: getCssNumber("--warzone-mil-sat-min-px", modelCfg.minimumPixelSize),
+            maximumScale: getCssNumber("--warzone-mil-sat-max-scale", modelCfg.maximumScale),
             shadows: Cesium.ShadowMode.DISABLED,
         },
     });
-
-    return [model];
 }
 
-// ─── Visibility + zoom-aware sizing ──────────────────────────────────────────
-function updateVisibility(viewer) {
-    const enabled = __warzoneMilSatsState.enabled;
-    const cameraHeight = Number(viewer?.camera?.positionCartographic?.height || 0);
-    const rootStyle = getComputedStyle(document.documentElement);
-    const nearHeight = Math.max(1000, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-near-height", 500000));
-    const farHeight = Math.max(nearHeight + 1000, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-far-height", 5000000));
-    const nearScaleMul = Math.max(0.05, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-near-scale-multiplier", 0.22));
-    const farScaleMul = Math.max(nearScaleMul, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-far-scale-multiplier", 1));
-    const nearMinPx = Math.max(1, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-min-px-near", 6));
-    const farMinPx = Math.max(nearMinPx, getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-min-px", 20));
-    const t = clamp01((cameraHeight - nearHeight) / (farHeight - nearHeight));
-    const scaleMul = lerp(nearScaleMul, farScaleMul, t);
-    const currentMinPx = lerp(nearMinPx, farMinPx, t);
+function refreshStartupDemoScale() {
+    startupDemoState.groups.forEach((group) => {
+        const entity = group?.entity;
+        const modelCfg = getStartupDemoModelConfig(group?.satDef);
+        if (!entity?.model) return;
+        entity.model.scale = getCssNumber("--warzone-mil-sat-scale", modelCfg.scale);
+        entity.model.minimumPixelSize = getCssNumber("--warzone-mil-sat-min-px", modelCfg.minimumPixelSize);
+        entity.model.maximumScale = getCssNumber("--warzone-mil-sat-max-scale", modelCfg.maximumScale);
+    });
+    state.viewer?.scene?.requestRender?.();
+}
 
-    __warzoneMilSatsState.groups.forEach(group => {
-        const entity = group.entities[0];
-        if (!entity?.model) {
-            group.entities.forEach(e => { e.show = enabled; });
+function getStartupDemoRotationDegPerSec() {
+    if (window.__stratopsConfig?.milSatsRotation === false) return 0;
+    const speed = Number(window.__stratopsConfig?.milSatsRotationSpeed);
+    return Number.isFinite(speed) && speed > 0 ? speed * 0.005 : 0.025;
+}
+
+function stopStartupDemo() {
+    if (startupDemoState.frameListener && state.viewer?.scene) {
+        state.viewer.scene.postRender.removeEventListener(startupDemoState.frameListener);
+    }
+    startupDemoState.frameListener = null;
+    startupDemoState.lastFrameTime = 0;
+    startupDemoState.enabled = false;
+    startupDemoState.groups.forEach((group) => removeEntity(group?.entity));
+    startupDemoState.groups = [];
+    state.viewer?.scene?.requestRender?.();
+}
+
+export function setWarzoneMilSatsStartupDemoEnabled(enabled) {
+    const shouldEnable = enabled !== false;
+    if (!shouldEnable) {
+        stopStartupDemo();
+        return;
+    }
+    if (!state.viewer || startupDemoState.enabled) return;
+    startupDemoState.enabled = true;
+    startupDemoState.lastFrameTime = Date.now();
+    startupDemoState.groups = STARTUP_DEMO_SATS.map((satDef) => ({
+        satDef,
+        currentLon: Number(satDef.lon) || 0,
+        entity: createStartupDemoEntity(satDef),
+    }));
+    refreshStartupDemoScale();
+    startupDemoState.frameListener = () => {
+        if (!startupDemoState.enabled || !state.viewer || document.hidden) return;
+        const now = Date.now();
+        const last = Number(startupDemoState.lastFrameTime || now);
+        startupDemoState.lastFrameTime = now;
+        const dt = Math.min(Math.max(0, (now - last) / 1000), 0.1);
+        const degPerSec = getStartupDemoRotationDegPerSec();
+        if (!(degPerSec > 0)) return;
+        startupDemoState.groups.forEach((group) => {
+            group.currentLon += degPerSec * dt;
+            if (group.currentLon > 180) group.currentLon -= 360;
+            if (group.currentLon < -180) group.currentLon += 360;
+            if (!group?.entity) return;
+            group.entity.position = Cesium.Cartesian3.fromDegrees(
+                group.currentLon,
+                Number(group.satDef.lat) || 0,
+                Math.max(0, Number(group.satDef.altitude) || 0)
+            );
+        });
+        state.viewer.scene.requestRender?.();
+    };
+    state.viewer.scene.postRender.addEventListener(startupDemoState.frameListener);
+    state.viewer.scene.requestRender?.();
+}
+
+function optionKey(value = "") {
+    return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "unknown";
+}
+
+function confidenceRank(value = "") {
+    return CONFIDENCE_RANK[optionKey(value)] || 1;
+}
+
+function getMinimumConfidenceRank() {
+    return confidenceRank(state.config.minimumClassificationConfidence || "unconfirmed");
+}
+
+function getSatelliteRecord(id = "") {
+    return state.records.find((record) => record.id === id) || null;
+}
+
+function getSatrec(record) {
+    if (!record?.id || !record?.omm) return null;
+    if (state.satrecs.has(record.id)) return state.satrecs.get(record.id);
+    try {
+        const satrec = json2satrec(record.omm);
+        if (!satrec || satrec.error) return null;
+        state.satrecs.set(record.id, satrec);
+        return satrec;
+    } catch {
+        return null;
+    }
+}
+
+function propagateRecord(record, date = new Date()) {
+    const satrec = getSatrec(record);
+    if (!satrec) return null;
+    const pv = propagate(satrec, date);
+    if (!pv?.position || !pv?.velocity) return null;
+    const gmst = gstime(date);
+    const geo = eciToGeodetic(pv.position, gmst);
+    const lon = Cesium.Math.toDegrees(geo.longitude);
+    const lat = Cesium.Math.toDegrees(geo.latitude);
+    const altitudeKm = Number(geo.height);
+    if (![lon, lat, altitudeKm].every(Number.isFinite)) return null;
+    const velocity = pv.velocity;
+    const speedKmS = Math.sqrt(
+        (velocity.x * velocity.x) +
+        (velocity.y * velocity.y) +
+        (velocity.z * velocity.z)
+    );
+    return {
+        date,
+        lon,
+        lat,
+        altitudeKm,
+        speedKmS: Number.isFinite(speedKmS) ? speedKmS : null,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, Math.max(0, altitudeKm * 1000)),
+        groundPosition: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+    };
+}
+
+function createSampledPosition(record, now = new Date(), pastMinutes, futureMinutes) {
+    const property = new Cesium.SampledPositionProperty();
+    property.setInterpolationOptions({
+        interpolationDegree: 2,
+        interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
+    });
+    const sampleIntervalSeconds = Math.max(30, Number(state.config.sampleIntervalSeconds) || 120);
+    const start = -Math.max(0, Number(pastMinutes) || 0) * 60;
+    const end = Math.max(0, Number(futureMinutes) || 0) * 60;
+    let sampleCount = 0;
+    for (let offset = start; offset <= end; offset += sampleIntervalSeconds) {
+        const date = new Date(now.getTime() + offset * 1000);
+        const point = propagateRecord(record, date);
+        if (!point) continue;
+        property.addSample(Cesium.JulianDate.fromDate(date), point.position);
+        sampleCount += 1;
+    }
+    if (sampleCount < 2) return null;
+    return property;
+}
+
+function createPolylinePositions(record, now, pastMinutes, futureMinutes, altitudeMode = "space") {
+    const positions = [];
+    const sampleIntervalSeconds = Math.max(45, Number(state.config.sampleIntervalSeconds) || 120);
+    const start = -Math.max(0, Number(pastMinutes) || 0) * 60;
+    const end = Math.max(0, Number(futureMinutes) || 0) * 60;
+    for (let offset = start; offset <= end; offset += sampleIntervalSeconds) {
+        const point = propagateRecord(record, new Date(now.getTime() + offset * 1000));
+        if (!point) continue;
+        positions.push(altitudeMode === "ground" ? point.groundPosition : point.position);
+    }
+    return positions;
+}
+
+function createFootprintCirclePositions(point, radiusMeters, segments = 96) {
+    const latRad = Cesium.Math.toRadians(Number(point?.lat || 0));
+    const lonRad = Cesium.Math.toRadians(Number(point?.lon || 0));
+    const angularDistance = Math.max(0, Number(radiusMeters || 0)) / EARTH_RADIUS_M;
+    const positions = [];
+    for (let index = 0; index <= segments; index += 1) {
+        const bearing = (Math.PI * 2 * index) / segments;
+        const sinLat = Math.sin(latRad);
+        const cosLat = Math.cos(latRad);
+        const sinDistance = Math.sin(angularDistance);
+        const cosDistance = Math.cos(angularDistance);
+        const nextLat = Math.asin(
+            (sinLat * cosDistance) +
+            (cosLat * sinDistance * Math.cos(bearing))
+        );
+        const nextLon = lonRad + Math.atan2(
+            Math.sin(bearing) * sinDistance * cosLat,
+            cosDistance - (sinLat * Math.sin(nextLat))
+        );
+        positions.push(Cesium.Cartesian3.fromDegrees(
+            Cesium.Math.toDegrees(nextLon),
+            Cesium.Math.toDegrees(nextLat),
+            0
+        ));
+    }
+    return positions;
+}
+
+function getPriorityScore(record) {
+    const classification = record?.classification || {};
+    const operationalBoost = /operational|extended|backup|standby/i.test(record?.operationalStatus || "") ? 20 : 0;
+    const orbitBoost = /leo|geo/i.test(record?.orbitClass || "") ? 8 : 0;
+    return confidenceRank(classification.confidence) * 100 + operationalBoost + orbitBoost;
+}
+
+function matchesFilters(record) {
+    const classification = record?.classification || {};
+    if (confidenceRank(classification.confidence) < getMinimumConfidenceRank()) return false;
+    if (state.filters.association !== "all" && optionKey(classification.associationLabel || classification.association) !== state.filters.association) return false;
+    if (state.filters.country !== "all" && optionKey(record.country || record.ownerCode) !== state.filters.country) return false;
+    if (state.filters.mission !== "all" && optionKey(classification.missionLabel || classification.mission) !== state.filters.mission) return false;
+    if (state.filters.orbit !== "all" && optionKey(record.orbitClass) !== state.filters.orbit) return false;
+    return true;
+}
+
+function chooseVisibleRecords(records = []) {
+    const limit = Math.max(20, Math.min(600, Number(state.config.maximumVisibleSatellites) || DEFAULT_CONFIG.maximumVisibleSatellites));
+    return records
+        .filter((record) => getSatrec(record))
+        .filter(matchesFilters)
+        .sort((a, b) => getPriorityScore(b) - getPriorityScore(a) || String(a.name).localeCompare(String(b.name)))
+        .slice(0, limit);
+}
+
+function removeEntity(entity) {
+    try {
+        if (entity && state.viewer?.entities?.contains?.(entity)) {
+            state.viewer.entities.remove(entity);
+        }
+    } catch {
+        // Ignore Cesium cleanup races during scene shutdown.
+    }
+}
+
+function clearFocusEntities() {
+    state.focusEntities.forEach(removeEntity);
+    state.focusEntities = [];
+}
+
+function ensureHoverCard() {
+    if (state.hoverCard) return state.hoverCard;
+    const card = document.createElement("div");
+    card.className = "wz-orbital-hover-card";
+    card.hidden = true;
+    document.body.appendChild(card);
+    state.hoverCard = card;
+    return card;
+}
+
+function hideHoverCard() {
+    if (state.hoverCard) state.hoverCard.hidden = true;
+}
+
+function getOrbitalWidget() {
+    return document.querySelector('[data-widget-id="orbital"]');
+}
+
+function showOrbitalWidget({ expand = false } = {}) {
+    const widget = getOrbitalWidget();
+    if (!widget) return;
+    widget.classList.remove("wz-is-hidden");
+    if (expand) {
+        widget.classList.remove("is-collapsed");
+        const content = widget.querySelector(".panel-content");
+        const collapseBtn = widget.querySelector("[data-panel-collapse]");
+        const icon = collapseBtn?.querySelector("span");
+        if (collapseBtn) collapseBtn.setAttribute("aria-expanded", "true");
+        if (icon) {
+            icon.classList.remove("stratops-ico-close-1");
+            icon.classList.add("stratops-ico-top-1");
+        }
+        if (content) {
+            content.hidden = false;
+            content.style.height = "";
+            content.style.opacity = "";
+        }
+    }
+    window.__syncWarzoneDock?.();
+}
+
+function hideOrbitalWidget() {
+    const widget = getOrbitalWidget();
+    if (!widget) return;
+    widget.classList.add("wz-is-hidden");
+    window.__syncWarzoneDock?.();
+}
+
+function buildValueRow(label, value) {
+    const row = document.createElement("div");
+    const dt = document.createElement("dt");
+    const dd = document.createElement("dd");
+    dt.textContent = label;
+    dd.textContent = cleanText(value, "UNKNOWN") || "UNKNOWN";
+    row.appendChild(dt);
+    row.appendChild(dd);
+    return row;
+}
+
+function showHoverCard(record, movement) {
+    const card = ensureHoverCard();
+    const point = propagateRecord(record, new Date());
+    const classification = record.classification || {};
+    card.replaceChildren();
+    const title = document.createElement("strong");
+    title.textContent = formatUpper(record.name || record.objectName || record.noradId);
+    const sub = document.createElement("span");
+    sub.textContent = `${formatUpper(classification.associationLabel || "PUBLIC ORBITAL ESTIMATE")} / ${formatUpper(record.orbitClass)}`;
+    const list = document.createElement("dl");
+    [
+        ["MISSION", classification.missionLabel || "Mission unconfirmed"],
+        ["CONFIDENCE", classification.confidenceLabel || "Unconfirmed"],
+        ["COUNTRY/OWNER", record.country || record.ownerCode || "Unknown"],
+        ["NORAD", record.noradId],
+        ["INTL ID", record.internationalDesignator || "Unknown"],
+        ["ALTITUDE", point ? `${formatNumber(point.altitudeKm, 0)} KM` : "UNKNOWN"],
+        ["SPEED", point?.speedKmS ? `${formatNumber(point.speedKmS, 2)} KM/S` : "UNKNOWN"],
+        ["INCLINATION", `${formatNumber(record.orbital?.inclinationDeg, 1)} DEG`],
+        ["EPOCH", record.orbital?.epoch || "Unknown"],
+        ["DATA AGE", formatAge(state.data?.cacheAgeSeconds)],
+        ["SOURCE", "CelesTrak public GP elements"],
+    ].forEach(([label, value]) => list.appendChild(buildValueRow(label, value)));
+    const note = document.createElement("p");
+    note.textContent = "Positions are propagated estimates, not direct sensor detections.";
+    card.appendChild(title);
+    card.appendChild(sub);
+    card.appendChild(list);
+    card.appendChild(note);
+    const rect = state.viewer?.scene?.canvas?.getBoundingClientRect?.();
+    const x = Number(movement?.endPosition?.x ?? movement?.position?.x ?? 0) + (rect?.left || 0);
+    const y = Number(movement?.endPosition?.y ?? movement?.position?.y ?? 0) + (rect?.top || 0);
+    card.style.left = `${Math.min(window.innerWidth - 340, Math.max(12, x + 18))}px`;
+    card.style.top = `${Math.min(window.innerHeight - 420, Math.max(12, y + 18))}px`;
+    card.hidden = false;
+}
+
+function ensureFocusCard() {
+    ensureControls();
+    return state.focusCard;
+}
+
+function hideFocusCard() {
+    if (state.focusCard) state.focusCard.hidden = true;
+}
+
+function showFocusCard(record) {
+    const card = ensureFocusCard();
+    if (!card) return;
+    const point = propagateRecord(record, new Date());
+    const classification = record.classification || {};
+    const title = card.querySelector(".wz-orbital-widget__details-title");
+    const kicker = card.querySelector(".wz-orbital-widget__details-kicker");
+    const grid = card.querySelector(".wz-orbital-widget__details-grid");
+    const note = card.querySelector(".wz-orbital-widget__details-note");
+    if (title) {
+        title.textContent = formatUpper(record.name || record.objectName || record.noradId);
+    }
+    if (kicker) {
+        kicker.textContent = "PUBLIC ORBITAL ESTIMATE";
+    }
+    if (grid) {
+        const items = [
+            ["CLASSIFICATION", classification.associationLabel || "Military-associated"],
+            ["MISSION", classification.missionLabel || "Mission unconfirmed"],
+            ["CONFIDENCE", classification.confidenceLabel || "Unconfirmed"],
+            ["COUNTRY/OWNER", record.country || record.ownerCode || "Unknown"],
+            ["OPERATOR", record.operator || "Unknown"],
+            ["STATUS", record.operationalStatus || "Unknown"],
+            ["NORAD", record.noradId],
+            ["INTL DESIGNATOR", record.internationalDesignator || "Unknown"],
+            ["ORBIT", record.orbitClass || "Other / unclassified orbit"],
+            ["ALTITUDE", point ? `${formatNumber(point.altitudeKm, 0)} KM` : "Unknown"],
+            ["SPEED", point?.speedKmS ? `${formatNumber(point.speedKmS, 2)} KM/S` : "Unknown"],
+            ["INCLINATION", `${formatNumber(record.orbital?.inclinationDeg, 1)} DEG`],
+            ["ELEMENT EPOCH", record.orbital?.epoch || "Unknown"],
+            ["DATA AGE", formatAge(state.data?.cacheAgeSeconds)],
+            ["SOURCE STATUS", state.data?.sourceStatus || "Unknown"],
+            ["SOURCE", "CelesTrak public GP elements"],
+        ];
+        grid.replaceChildren();
+        items.forEach(([label, value]) => {
+            const span = document.createElement("span");
+            span.dataset.label = label;
+            span.textContent = cleanText(value, "UNKNOWN") || "UNKNOWN";
+            grid.appendChild(span);
+        });
+    }
+    if (note) {
+        note.textContent = "Position is propagated from public orbital elements and is not a direct sensor detection. Classification, mission, and operational status may be incomplete or inferred.";
+    }
+    showOrbitalWidget({ expand: true });
+    card.hidden = false;
+}
+
+function entityForPick(picked) {
+    const entity = picked?.id || picked?.primitive?.id;
+    if (!entity?.__wzOrbitalId) return null;
+    return entity;
+}
+
+function handleMouseMove(movement) {
+    if (!state.enabled || !state.viewer) return;
+    const picked = state.viewer.scene.pick(movement.endPosition);
+    const entity = entityForPick(picked);
+    if (!entity) {
+        state.hoveredId = "";
+        state.viewer.scene.canvas.style.cursor = "";
+        hideHoverCard();
+        return;
+    }
+    const record = getSatelliteRecord(entity.__wzOrbitalId);
+    if (!record) return;
+    state.hoveredId = record.id;
+    state.viewer.scene.canvas.style.cursor = "pointer";
+    showHoverCard(record, movement);
+    state.viewer.scene.requestRender?.();
+}
+
+function handleClick(movement) {
+    if (!state.enabled || !state.viewer) return;
+    const picked = state.viewer.scene.pick(movement.position);
+    const entity = entityForPick(picked);
+    if (!entity) return;
+    selectSatellite(entity.__wzOrbitalId);
+}
+
+function ensureHandler() {
+    if (state.handler || !state.viewer) return;
+    state.handler = new Cesium.ScreenSpaceEventHandler(state.viewer.scene.canvas);
+    state.handler.setInputAction(handleMouseMove, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    state.handler.setInputAction(handleClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+}
+
+function destroyHandler() {
+    try {
+        state.handler?.destroy?.();
+    } catch {
+        // ignore
+    }
+    state.handler = null;
+}
+
+function makePointEntity(record, positionProperty) {
+    const point = state.viewer.entities.add({
+        id: `wz-orbital-${record.noradId}`,
+        position: positionProperty,
+        model: {
+            uri: MODEL_CONFIG.uri,
+            scale: getCssNumber("--warzone-orbital-model-scale", MODEL_CONFIG.scale),
+            minimumPixelSize: getCssNumber("--warzone-orbital-model-min-px", MODEL_CONFIG.minimumPixelSize),
+            maximumScale: getCssNumber("--warzone-orbital-model-max-scale", MODEL_CONFIG.maximumScale),
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, getCssNumber("--warzone-orbital-max-visible-distance", 26000000)),
+            shadows: Cesium.ShadowMode.DISABLED,
+        },
+        label: {
+            text: formatUpper(record.name || record.noradId),
+            show: !!state.config.showLabels,
+            font: `${getCssNumber("--warzone-orbital-label-size", 10)}px var(--text-font)`,
+            fillColor: colorFromCss("--warzone-orbital-label-color", "#9fd7ff", 0.86),
+            outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -16),
+            scaleByDistance: new Cesium.NearFarScalar(800000, 1, 8000000, 0.35),
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 4500000),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+    });
+    point.__wzOrbitalId = record.id;
+    return point;
+}
+
+function removeMissingEntities(nextIds) {
+    for (const [id, entry] of state.entities) {
+        if (nextIds.has(id)) continue;
+        removeEntity(entry.point);
+        state.entities.delete(id);
+    }
+}
+
+function updateDefaultEntities() {
+    if (!state.enabled || !state.viewer) return;
+    const now = new Date();
+    const nextIds = new Set();
+    state.visibleRecords.forEach((record) => {
+        const position = createSampledPosition(
+            record,
+            now,
+            state.config.defaultSamplePastMinutes,
+            state.config.defaultSampleFutureMinutes
+        );
+        if (!position) return;
+        nextIds.add(record.id);
+        const existing = state.entities.get(record.id);
+        if (existing?.point) {
+            existing.point.position = position;
+            existing.point.show = record.id !== state.selectedId;
             return;
         }
-        const modelCfg = getSatelliteModelConfig(group.satDef);
-        const baseScale = Number.isFinite(Number(group.satDef?.scale))
-            ? Number(group.satDef.scale)
-            : getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-scale", modelCfg.scale);
-        const baseMaxScale = Number.isFinite(Number(group.satDef?.maximumScale))
-            ? Number(group.satDef.maximumScale)
-            : getCssVarNumberFromStyle(rootStyle, "--warzone-mil-sat-max-scale", modelCfg.maximumScale);
-        const scaled = Math.max(1, baseScale * scaleMul);
-        const scaledMax = Math.max(scaled, baseMaxScale * scaleMul);
-        entity.model.scale = scaled;
-        entity.model.maximumScale = scaledMax;
-        entity.model.minimumPixelSize = currentMinPx;
-        group.entities.forEach(e => { e.show = enabled; });
+        const point = makePointEntity(record, position);
+        point.show = record.id !== state.selectedId;
+        state.entities.set(record.id, { record, point });
     });
+    removeMissingEntities(nextIds);
+    state.viewer.scene.requestRender?.();
+}
+
+function updateVisibleRecords() {
+    state.visibleRecords = chooseVisibleRecords(state.records);
+    updateDefaultEntities();
+    updateControlsOptions();
+}
+
+function setStatusText(text) {
+    if (!state.controls) return;
+    const status = state.controls.querySelector(".wz-orbital-controls__status");
+    if (status) status.textContent = text;
+}
+
+function createSelect(id, label) {
+    const wrap = document.createElement("label");
+    wrap.className = "wz-orbital-controls__field";
+    const span = document.createElement("span");
+    span.textContent = label;
+    const select = document.createElement("select");
+    select.id = id;
+    wrap.appendChild(span);
+    wrap.appendChild(select);
+    select.addEventListener("change", () => {
+        const key = id.replace("wz-orbital-filter-", "");
+        state.filters[key] = String(select.value || "all");
+        updateVisibleRecords();
+        selectSatellite("");
+    });
+    return wrap;
+}
+
+function ensureControls() {
+    if (state.controls?.isConnected) return state.controls;
+    const panel = document.getElementById("wz-orbital-panel");
+    if (!panel) return null;
+    const controls = document.createElement("div");
+    controls.className = "wz-orbital-widget";
+    const head = document.createElement("div");
+    head.className = "wz-orbital-controls__head";
+    const title = document.createElement("strong");
+    title.textContent = "ORBITAL ASSETS";
+    const status = document.createElement("span");
+    status.className = "wz-orbital-controls__status";
+    status.textContent = "Layer off";
+    head.appendChild(title);
+    head.appendChild(status);
+    const grid = document.createElement("div");
+    grid.className = "wz-orbital-controls__grid";
+    grid.appendChild(createSelect("wz-orbital-filter-association", "Class"));
+    grid.appendChild(createSelect("wz-orbital-filter-country", "Country"));
+    grid.appendChild(createSelect("wz-orbital-filter-mission", "Mission"));
+    grid.appendChild(createSelect("wz-orbital-filter-orbit", "Orbit"));
+    const note = document.createElement("p");
+    note.textContent = "Orbital data: CelesTrak / public GP elements.";
+    const controlsPanel = document.createElement("section");
+    controlsPanel.className = "wz-orbital-controls";
+    controlsPanel.appendChild(head);
+    controlsPanel.appendChild(grid);
+    controlsPanel.appendChild(note);
+
+    const summary = document.createElement("section");
+    summary.className = "wz-orbital-widget__summary";
+    summary.innerHTML = `
+        <div class="wz-orbital-widget__summary-head">
+            <strong>Operational Overlay</strong>
+            <span class="wz-orbital-widget__summary-status">Layer off</span>
+        </div>
+        <div class="wz-orbital-widget__summary-grid"></div>
+        <p class="wz-orbital-widget__summary-note">Enable the layer to view publicly tracked military-associated orbital assets.</p>
+    `;
+
+    const details = document.createElement("section");
+    details.className = "wz-orbital-widget__details";
+    details.hidden = true;
+    details.innerHTML = `
+        <div class="wz-orbital-widget__details-head">
+            <div>
+                <span class="wz-orbital-widget__details-kicker">PUBLIC ORBITAL ESTIMATE</span>
+                <h3 class="wz-orbital-widget__details-title">UNSPECIFIED ASSET</h3>
+            </div>
+            <button type="button" class="wz-orbital-widget__details-close">Close</button>
+        </div>
+        <div class="wz-orbital-widget__details-grid"></div>
+        <p class="wz-orbital-widget__details-note"></p>
+    `;
+    details.querySelector(".wz-orbital-widget__details-close")?.addEventListener("click", () => selectSatellite(""));
+
+    controls.appendChild(controlsPanel);
+    controls.appendChild(summary);
+    controls.appendChild(details);
+    panel.replaceChildren(controls);
+    state.controls = controls;
+    state.focusCard = details;
+    return controls;
+}
+
+function setSelectOptions(select, options, allLabel) {
+    if (!select) return;
+    const current = select.value || "all";
+    select.replaceChildren();
+    const all = document.createElement("option");
+    all.value = "all";
+    all.textContent = allLabel;
+    select.appendChild(all);
+    options.forEach(({ key, label }) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = label;
+        select.appendChild(option);
+    });
+    select.value = [...select.options].some((option) => option.value === current) ? current : "all";
+}
+
+function buildOptions(records, getter) {
+    const map = new Map();
+    records.forEach((record) => {
+        const label = cleanText(getter(record));
+        const key = optionKey(label);
+        if (!label || key === "unknown") return;
+        map.set(key, formatUpper(label));
+    });
+    return [...map.entries()]
+        .map(([key, label]) => ({ key, label }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function updateControlsOptions() {
+    const controls = ensureControls();
+    if (!controls) return;
+    showOrbitalWidget({ expand: state.enabled });
+    setStatusText(state.loading
+        ? "Loading"
+        : `${state.visibleRecords.length}/${state.records.length} public orbital estimates`);
+    setSelectOptions(
+        controls.querySelector("#wz-orbital-filter-association"),
+        buildOptions(state.records, (record) => record.classification?.associationLabel),
+        "All Classes"
+    );
+    setSelectOptions(
+        controls.querySelector("#wz-orbital-filter-country"),
+        buildOptions(state.records, (record) => record.country || record.ownerCode),
+        "All Countries"
+    );
+    setSelectOptions(
+        controls.querySelector("#wz-orbital-filter-mission"),
+        buildOptions(state.records, (record) => record.classification?.missionLabel),
+        "All Missions"
+    );
+    setSelectOptions(
+        controls.querySelector("#wz-orbital-filter-orbit"),
+        buildOptions(state.records, (record) => record.orbitClass),
+        "All Orbits"
+    );
+    const summaryStatus = controls.querySelector(".wz-orbital-widget__summary-status");
+    const summaryGrid = controls.querySelector(".wz-orbital-widget__summary-grid");
+    const summaryNote = controls.querySelector(".wz-orbital-widget__summary-note");
+    if (summaryStatus) {
+        summaryStatus.textContent = state.loading
+            ? "Loading"
+            : `${state.visibleRecords.length}/${state.records.length} public orbital estimates`;
+    }
+    if (summaryGrid) {
+        const selected = getSatelliteRecord(state.selectedId);
+        const items = [
+            ["VISIBLE", `${state.visibleRecords.length}/${state.records.length}`],
+            ["DATA AGE", formatAge(state.data?.cacheAgeSeconds)],
+            ["SOURCE", state.data?.sourceStatus || "READY"],
+            ["SELECTION", selected ? formatUpper(selected.name || selected.noradId) : "NONE"],
+        ];
+        summaryGrid.replaceChildren();
+        items.forEach(([label, value]) => {
+            const span = document.createElement("span");
+            span.dataset.label = label;
+            span.textContent = cleanText(value, "UNKNOWN") || "UNKNOWN";
+            summaryGrid.appendChild(span);
+        });
+    }
+    if (summaryNote) {
+        summaryNote.textContent = state.selectedId
+            ? "Selected asset details are shown below. Orbital positions are propagated estimates from public orbital elements."
+            : "Orbital positions are propagated estimates from public GP elements and are not direct sensor detections.";
+    }
+}
+
+async function fetchOrbitalData() {
+    if (!state.enabled || state.loading) return;
+    state.loading = true;
+    updateControlsOptions();
+    try {
+        const response = await fetch(state.config.apiPath || DEFAULT_API_PATH, {
+            headers: { accept: "application/json" },
+            cache: "no-store",
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        const records = Array.isArray(payload?.satellites) ? payload.satellites : [];
+        state.data = payload;
+        state.records = records;
+        state.satrecs.clear();
+        updateVisibleRecords();
+        setStatusText(payload.stale
+            ? `Cached public orbital data / ${formatAge(payload.cacheAgeSeconds)} old`
+            : `${state.visibleRecords.length}/${state.records.length} public orbital estimates`);
+    } catch {
+        setStatusText(state.records.length
+            ? "Using cached public orbital data"
+            : "Orbital data temporarily unavailable");
+    } finally {
+        state.loading = false;
+        updateControlsOptions();
+    }
+}
+
+function addFocusEntity(entity) {
+    if (entity) state.focusEntities.push(entity);
+    return entity;
+}
+
+function addOrbitContext(record, now, selectedPosition) {
+    if (!state.viewer) return;
+    const orbitColor = colorFromCss("--warzone-orbital-path-color", "#9fd7ff", getCssNumber("--warzone-orbital-path-alpha", 0.34));
+    const predictedColor = colorFromCss("--warzone-orbital-predicted-color", "#e7edf5", getCssNumber("--warzone-orbital-predicted-alpha", 0.26));
+    const groundColor = colorFromCss("--warzone-orbital-ground-track-color", "#18e2db", getCssNumber("--warzone-orbital-ground-track-alpha", 0.24));
+    const nadirColor = colorFromCss("--warzone-orbital-nadir-color", "#9fd7ff", getCssNumber("--warzone-orbital-nadir-alpha", 0.3));
+
+    if (state.config.showOrbitPath) {
+        const recent = createPolylinePositions(record, now, Number(state.config.pastOrbitMinutes) || 45, 0, "space");
+        const future = createPolylinePositions(record, now, 0, Number(state.config.futureOrbitMinutes) || 60, "space");
+        if (recent.length > 1) {
+            addFocusEntity(state.viewer.entities.add({
+                id: `wz-orbital-path-past-${record.noradId}`,
+                polyline: {
+                    positions: recent,
+                    width: getCssNumber("--warzone-orbital-path-width", 1.4),
+                    material: orbitColor,
+                    arcType: Cesium.ArcType.NONE,
+                },
+            }));
+        }
+        if (future.length > 1) {
+            addFocusEntity(state.viewer.entities.add({
+                id: `wz-orbital-path-future-${record.noradId}`,
+                polyline: {
+                    positions: future,
+                    width: getCssNumber("--warzone-orbital-path-width", 1.4),
+                    material: predictedColor,
+                    arcType: Cesium.ArcType.NONE,
+                },
+            }));
+            const labelPoint = future[Math.min(3, future.length - 1)];
+            addFocusEntity(state.viewer.entities.add({
+                id: `wz-orbital-path-label-${record.noradId}`,
+                position: labelPoint,
+                label: {
+                    text: "PREDICTED ORBIT",
+                    font: `${getCssNumber("--warzone-orbital-label-size", 10)}px var(--text-font)`,
+                    fillColor: predictedColor.withAlpha(0.82),
+                    outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    pixelOffset: new Cesium.Cartesian2(0, -14),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                },
+            }));
+        }
+    }
+
+    if (state.config.showGroundTrack) {
+        const ground = createPolylinePositions(
+            record,
+            now,
+            Number(state.config.pastOrbitMinutes) || 45,
+            Number(state.config.futureOrbitMinutes) || 60,
+            "ground"
+        );
+        if (ground.length > 1) {
+            addFocusEntity(state.viewer.entities.add({
+                id: `wz-orbital-ground-track-${record.noradId}`,
+                polyline: {
+                    positions: ground,
+                    width: getCssNumber("--warzone-orbital-ground-track-width", 1),
+                    material: groundColor,
+                    clampToGround: true,
+                },
+            }));
+        }
+    }
+
+    const current = propagateRecord(record, now);
+    if (!current) return;
+    addFocusEntity(state.viewer.entities.add({
+        id: `wz-orbital-ground-point-${record.noradId}`,
+        position: current.groundPosition,
+        point: {
+            pixelSize: getCssNumber("--warzone-orbital-ground-point-size", 7),
+            color: groundColor.withAlpha(0.82),
+            outlineColor: Cesium.Color.BLACK.withAlpha(0.7),
+            outlineWidth: 1,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+    }));
+
+    if (state.config.showNadirLine) {
+        addFocusEntity(state.viewer.entities.add({
+            id: `wz-orbital-nadir-${record.noradId}`,
+            polyline: {
+                positions: [selectedPosition, current.groundPosition],
+                width: getCssNumber("--warzone-orbital-nadir-width", 1),
+                material: nadirColor,
+                arcType: Cesium.ArcType.NONE,
+            },
+        }));
+    }
+
+    if (state.config.showTheoreticalFootprint) {
+        const altitudeM = Math.max(0, current.altitudeKm * 1000);
+        const horizonAngle = Math.acos(clamp(EARTH_RADIUS_M / (EARTH_RADIUS_M + altitudeM), -1, 1));
+        const groundRadius = Math.max(10000, EARTH_RADIUS_M * horizonAngle);
+        addFocusEntity(state.viewer.entities.add({
+            id: `wz-orbital-footprint-${record.noradId}`,
+            position: current.groundPosition,
+            ellipse: {
+                semiMajorAxis: groundRadius,
+                semiMinorAxis: groundRadius,
+                height: 0,
+                material: colorFromCss("--warzone-orbital-footprint-color", "#9fd7ff", getCssNumber("--warzone-orbital-footprint-fill-alpha", 0.035)),
+                outline: false,
+            },
+        }));
+        addFocusEntity(state.viewer.entities.add({
+            id: `wz-orbital-footprint-outline-${record.noradId}`,
+            polyline: {
+                positions: createFootprintCirclePositions(current, groundRadius),
+                width: getCssNumber("--warzone-orbital-footprint-outline-width", 2),
+                material: colorFromCss("--warzone-orbital-footprint-outline-color", "#9fd7ff", getCssNumber("--warzone-orbital-footprint-outline-alpha", 0.24)),
+                clampToGround: true,
+            },
+        }));
+        addFocusEntity(state.viewer.entities.add({
+            id: `wz-orbital-footprint-label-${record.noradId}`,
+            position: current.groundPosition,
+            label: {
+                text: "THEORETICAL LINE-OF-SIGHT FOOTPRINT",
+                font: `${getCssNumber("--warzone-orbital-label-size", 10)}px var(--text-font)`,
+                fillColor: colorFromCss("--warzone-orbital-label-color", "#9fd7ff", 0.74),
+                outlineColor: Cesium.Color.BLACK.withAlpha(0.82),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -12),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        }));
+    }
+}
+
+function selectSatellite(id = "") {
+    const selectedId = cleanText(id);
+    clearFocusEntities();
+    if (state.selectedId && state.entities.has(state.selectedId)) {
+        const previous = state.entities.get(state.selectedId);
+        if (previous?.point) previous.point.show = true;
+    }
+    state.selectedId = selectedId;
+    if (!selectedId) {
+        hideFocusCard();
+        updateControlsOptions();
+        state.viewer?.scene?.requestRender?.();
+        return;
+    }
+    const record = getSatelliteRecord(selectedId);
+    if (!record || !state.viewer) return;
+    const now = new Date();
+    const position = createSampledPosition(
+        record,
+        now,
+        Number(state.config.pastOrbitMinutes) || 45,
+        Number(state.config.futureOrbitMinutes) || 60
+    );
+    const current = propagateRecord(record, now);
+    if (!position || !current) return;
+    const entry = state.entities.get(record.id);
+    if (entry?.point) entry.point.show = false;
+    const selectedPosition = current.position;
+    addFocusEntity(state.viewer.entities.add({
+        id: `wz-orbital-selected-${record.noradId}`,
+        position,
+        orientation: new Cesium.VelocityOrientationProperty(position),
+        model: {
+            uri: MODEL_CONFIG.uri,
+            scale: getCssNumber("--warzone-orbital-selected-model-scale", MODEL_CONFIG.scale),
+            minimumPixelSize: getCssNumber("--warzone-orbital-selected-model-min-px", MODEL_CONFIG.minimumPixelSize),
+            maximumScale: getCssNumber("--warzone-orbital-selected-model-max-scale", MODEL_CONFIG.maximumScale),
+            shadows: Cesium.ShadowMode.DISABLED,
+        },
+        point: {
+            pixelSize: getCssNumber("--warzone-orbital-selected-fallback-size", 10),
+            color: colorFromCss("--warzone-orbital-selected-color", "#e7edf5", 0.92),
+            outlineColor: colorFromCss("--warzone-orbital-symbol-color", "#9fd7ff", 0.9),
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+            text: formatUpper(record.name || record.noradId),
+            font: `${getCssNumber("--warzone-orbital-label-size", 10)}px var(--text-font)`,
+            fillColor: colorFromCss("--warzone-orbital-label-color", "#9fd7ff", 0.9),
+            outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -20),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+    }));
+    addOrbitContext(record, now, selectedPosition);
+    showFocusCard(record);
+    updateControlsOptions();
+    state.viewer.scene.requestRender?.();
+}
+
+function stopTimers() {
+    if (state.refreshTimer) clearInterval(state.refreshTimer);
+    if (state.visibleTimer) clearInterval(state.visibleTimer);
+    state.refreshTimer = null;
+    state.visibleTimer = null;
+}
+
+function startTimers() {
+    stopTimers();
+    const refreshMs = Math.max(15000, Number(state.config.positionRefreshIntervalMs) || DEFAULT_CONFIG.positionRefreshIntervalMs);
+    state.visibleTimer = setInterval(() => {
+        if (!state.enabled || document.hidden) return;
+        updateDefaultEntities();
+        if (state.selectedId) selectSatellite(state.selectedId);
+    }, refreshMs);
+    state.refreshTimer = setInterval(() => {
+        if (!state.enabled || document.hidden) return;
+        void fetchOrbitalData();
+    }, Math.max(refreshMs * 4, 5 * 60 * 1000));
+}
+
+function cleanupLayer() {
+    stopTimers();
+    destroyHandler();
+    hideHoverCard();
+    clearFocusEntities();
+    for (const entry of state.entities.values()) {
+        removeEntity(entry.point);
+    }
+    state.entities.clear();
+    state.satrecs.clear();
+    state.visibleRecords = [];
+    state.selectedId = "";
+    state.hoverCard?.remove?.();
+    state.controls?.remove?.();
+    state.hoverCard = null;
+    state.focusCard = null;
+    state.controls = null;
+    hideOrbitalWidget();
+    state.viewer?.scene?.requestRender?.();
+}
+
+function handleVisibilityChange() {
+    if (!state.enabled || document.hidden) return;
+    updateDefaultEntities();
+    if (state.selectedId) selectSatellite(state.selectedId);
+    void fetchOrbitalData();
+}
+
+function handleAppEntered() {
+    setWarzoneMilSatsStartupDemoEnabled(false);
 }
 
 export function setWarzoneMilSatsEnabled(enabled) {
-    const nextEnabled = enabled !== false;
-    __warzoneMilSatsState.enabled = nextEnabled;
-
-    __warzoneMilSatsState.groups.forEach((group) => {
-        group.entities.forEach((entity) => {
-            entity.show = nextEnabled;
-        });
-    });
-
-    __warzoneMilSatsState.viewer?.scene?.requestRender?.();
-}
-
-// ─── Public init ──────────────────────────────────────────────────────────────
-export function initWarzoneMilSats(viewer) {
-    if (!viewer) return;
-    if (window.__stratopsConfig?.enableMilSatsLayer === false) {
-        __warzoneMilSatsState.enabled = false;
+    mergeConfig();
+    const shouldEnable = enabled !== false && state.config.enabled !== false;
+    if (!state.viewer) {
+        state.enabled = shouldEnable;
         return;
     }
-
-    __warzoneMilSatsState.viewer = viewer;
-    __warzoneMilSatsState.lastFrameTime = Date.now();
-
-    // One group per satellite — each owns its live currentLon
-    __warzoneMilSatsState.groups = WARZONE_MIL_SATS.map(satDef => {
-        const group = {
-            satDef,
-            currentLon: satDef.lon,
-            entities: [],
-        };
-        group.entities = createSatellite(viewer, satDef);
-        return group;
-    });
-
-    // ── Interval-based position update — 4x/sec ──────────────────────────────
-    // Satellites move 0.025 deg/sec → 0.006 deg per 250ms interval.
-    // At globe scale this is completely smooth. Between intervals Cesium sleeps
-    // in on-demand mode → navigation is 100% smooth and unaffected.
-    const SAT_UPDATE_INTERVAL_MS = 250;
-    if (__warzoneMilSatsState.updateTimer) {
-        clearInterval(__warzoneMilSatsState.updateTimer);
+    if (!shouldEnable) {
+        state.enabled = false;
+        cleanupLayer();
+        return;
     }
-    __warzoneMilSatsState.updateTimer = setInterval(() => {
-        if (!__warzoneMilSatsState.viewer) return;
-        if (!__warzoneMilSatsState.enabled) return;
+    if (state.enabled) {
+        updateControlsOptions();
+        return;
+    }
+    stopStartupDemo();
+    state.enabled = true;
+    showOrbitalWidget({ expand: true });
+    ensureControls();
+    ensureHandler();
+    startTimers();
+    void fetchOrbitalData();
+}
 
-        const now = Date.now();
-        const last = __warzoneMilSatsState.lastFrameTime;
-        __warzoneMilSatsState.lastFrameTime = now;
-        const dt = Math.min((now - last) / 1000, 0.5); // cap 500ms (tab switch)
-        const degPerSec = getRotationDegPerSec();
-
-        if (degPerSec > 0) {
-            __warzoneMilSatsState.groups.forEach(group => {
-                group.currentLon += degPerSec * dt;
-                if (group.currentLon > 180) group.currentLon -= 360;
-                if (group.currentLon < -180) group.currentLon += 360;
-
-                // Direct property write — no Cesium polling overhead
-                const entity = group.entities[0];
-                if (entity) {
-                    entity.position = Cesium.Cartesian3.fromDegrees(
-                        group.currentLon, group.satDef.lat, group.satDef.altitude
-                    );
-                }
-            });
-
-            // Single requestRender per interval — Cesium renders once, then sleeps
-            viewer.scene.requestRender();
-        }
-    }, SAT_UPDATE_INTERVAL_MS);
-
-    // Also re-check visibility when camera zooms in/out (no render cost)
-    let visibilityRaf = 0;
-    viewer.camera.changed.addEventListener(() => {
-        if (!__warzoneMilSatsState.enabled) return;
-        if (visibilityRaf) return;
-        visibilityRaf = requestAnimationFrame(() => {
-            visibilityRaf = 0;
-            updateVisibility(viewer);
-        });
-    });
-
-    // Expose scale refresh — called from index.js at 150ms after CSS vars settle
+export function initWarzoneMilSats(viewer) {
+    if (!viewer) return;
+    mergeConfig();
+    state.viewer = viewer;
+    state.enabled = false;
     window.refreshWarzoneMilSatsScale = () => {
-        __warzoneMilSatsState.groups.forEach(group => {
-            const entity = group.entities[0];
-            if (!entity?.model) return;
-            const modelCfg = getSatelliteModelConfig(group.satDef);
-            entity.model.scale = getCssVarNumber("--warzone-mil-sat-scale", modelCfg.scale);
-            entity.model.minimumPixelSize = getCssVarNumber("--warzone-mil-sat-min-px", modelCfg.minimumPixelSize);
-            entity.model.maximumScale = getCssVarNumber("--warzone-mil-sat-max-scale", modelCfg.maximumScale);
-        });
+        if (startupDemoState.enabled) refreshStartupDemoScale();
+        if (state.enabled) updateDefaultEntities();
     };
-
-    updateVisibility(viewer);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.removeEventListener("wz:app-entered", handleAppEntered);
+    document.addEventListener("wz:app-entered", handleAppEntered);
 }

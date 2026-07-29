@@ -2490,7 +2490,7 @@ function startStartupGlobeRotation(viewer) {
     const state = {
         active: true,
         lastTime: 0,
-        speedDeg: Math.max(0.01, Math.min(numberVar("--warzone-startup-rotation-speed", 0.045), 0.3)),
+        speedDeg: Math.max(0.01, Math.min(numberVar("--warzone-startup-rotation-speed", 0.045), 0.75)),
     };
     const rotate = () => {
         if (!state.active) return;
@@ -5810,7 +5810,8 @@ export async function initWarzoneGlobe() {
             const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
             const count = Math.max(0, Number(visibleCount || 0));
             const adaptiveProfile = normalizeAdaptiveProfile(viewer.__warzoneAdaptiveProfile);
-            const adaptiveCaps = getAdaptiveProfileCaps(adaptiveProfile);
+            const noLayerMode = count <= 0;
+            const adaptiveCaps = getAdaptiveProfileCaps(noLayerMode ? "normal" : adaptiveProfile);
             const hardMaxResolutionScale = clamp(numberVar("--warzone-resolution-hard-max", 1.22), 0.7, 1.4);
             const hardMaxMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-hard-max", 2)));
             const baseResolution = clamp(numberVar("--warzone-resolution-scale", 1), 0.5, 2);

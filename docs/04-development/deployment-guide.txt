@@ -1,33 +1,97 @@
-
-WARZONE - BATTLESPACEX | DEPLOYMENT GUIDE
+STRATOPS - BATTLESPACEX DEPLOYMENT GUIDE
+Last updated: 2026-07-28
 
 1. DEPLOYMENT MODEL
+
 Typical deployment architecture:
-• frontend static assets hosted on static hosting or CDN
-• supporting data services for event ingestion
-• JSON feed ingestion or API-backed retrieval
-• environment-based configuration for development and production
+- Static frontend assets served by the StratOps web host/CDN.
+- Express frontend server/proxy for local and static-host routing.
+- StratOps API service for event, report, GNSS, media, and satellite endpoints.
+- Worker services for ingestion, Copernicus/Sentinel observation processing, reports, and related background jobs.
+- Supabase for normalized event/report data where configured.
+- S3/CloudFront for generated imagery/report assets where configured.
 
-2. RECOMMENDED INFRASTRUCTURE
-• static hosting for frontend assets
-• CDN for map and application delivery
-• Supabase or equivalent data backend for normalized events
-• optional workers for feed ingestion and transformation
+2. STAGING RULE
 
-3. BUILD AND RELEASE FLOW
-1. prepare production build
-2. validate asset paths and environment variables
-3. deploy JS / CSS / HTML assets
-4. verify feed connectivity
-5. test map initialization and layer toggles
-6. validate live event polling
-7. confirm widgets and hotspots are functioning
+Use the staging branch and staging host for team validation.
+
+Do not:
+- merge staging into main until validation is complete
+- deploy staging changes to production
+- change production AWS resources
+- change production data
+
+3. STAGING RELEASE FLOW
+
+1. Confirm branch:
+   git branch --show-current
+
+2. Confirm changed files:
+   git status --short
+
+3. Run local checks:
+   node --check apps/api/src/strategic-satellites.js
+   node --check apps/api/src/routes.satellites.js
+   node --check apps/api/src/index.js
+   node --check dev/assets/js/warzone-mil-sats.js
+   node --check dev/assets/js/essential.js
+   node --check dev/assets/js/warzone-layers.js
+   node --check dev/assets/js/stratops-feature-config.js
+   node --check dev/assets/js/warzone-live-naval.js
+   npm run build
+
+4. Deploy the built staging frontend assets to the staging web root only.
+
+5. Deploy or restart the staging API service so new API route files are active.
+
+6. Verify staging URL:
+   https://stratops-staging.battlespacex.com/
+
+7. Validate the API route through the same staging API/proxy path:
+   GET /api/satellites/military
 
 4. POST-DEPLOYMENT VALIDATION
-• globe loads correctly
-• event rendering works
-• satellite / terrain toggle works
-• region switching works
-• live updates appear
-• hotspots render correctly
-• no blocking console errors
+
+Validate on staging:
+- globe loads correctly
+- region switching works
+- map layer panel opens
+- premium locked layers require sign-in unless staging auth bypass is intentionally configured
+- Aircraft Tracker and Naval Tracker cards are readable and uppercase
+- Orbital Assets is locked for anonymous users
+- authenticated staging users can enable Orbital Assets
+- disabled Orbital Assets makes no satellite API request
+- enabled Orbital Assets calls /api/satellites/military
+- satellite hover card uses public orbital estimate language
+- selected satellite shows orbit path, ground track, nadir line, and theoretical line-of-sight footprint
+- closing or disabling Orbital Assets removes selected satellite visualization
+- Satellite Observations remain separately controllable
+- reports and event-linked satellite observations still use contextual imagery wording
+- no blocking console errors
+
+5. ORBITAL ASSETS DEPLOYMENT NOTES
+
+New API endpoint:
+GET /api/satellites/military
+
+Upstream sources:
+- https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=JSON
+- https://celestrak.org/pub/satcat.csv
+
+Runtime cache:
+- apps/api/.cache/strategic-satellites-military.json
+- This directory is gitignored and should be created by the running API service.
+
+No new environment variable is required.
+
+Optional environment variable:
+- STRATOPS_SATELLITE_CACHE_PATH can override the local API cache path if the staging API process needs a persistent writable directory.
+
+6. PRODUCTION PROMOTION
+
+Only after staging validation:
+1. Merge or cherry-pick the approved staging commit into main.
+2. Rebuild from main.
+3. Deploy frontend production assets.
+4. Deploy or restart the production API service.
+5. Validate production health, route availability, layer toggles, and console output.

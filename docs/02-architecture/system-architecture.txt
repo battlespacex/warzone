@@ -1,72 +1,91 @@
-BATTLESPACEX – SYSTEM ARCHITECTURE
+BATTLESPACEX STRATOPS - SYSTEM ARCHITECTURE
+Last updated: 2026-07-28
 
 1. FRONTEND STACK
-• CesiumJS for 3D globe rendering
-• Vanilla JavaScript modular architecture
-• Custom CSS-based UI system
-• Canvas-generated icons and map assets
-• HTML partial-based interface composition
-• Webpack bundling pipeline
+
+- CesiumJS for 3D globe rendering
+- Vanilla JavaScript modular architecture
+- Custom CSS-based UI system
+- HTML partial-based interface composition
+- Webpack bundling pipeline
+- satellite.js for public orbital propagation in the Orbital Assets layer
 
 2. BACKEND / DATA LAYER
-• OSINT feeds
-• Manual JSON feeds
-• Curated event pipelines
-• Supabase-backed event storage / retrieval
-• Signal ingestion workers and parsing services
+
+- OSINT feeds
+- Manual JSON feeds
+- Curated event pipelines
+- Supabase-backed event storage and retrieval
+- Signal ingestion workers and parsing services
+- StratOps API cache endpoint for public CelesTrak orbital elements
+- Copernicus/Sentinel observation workflow for event-linked satellite context where configured
 
 3. KEY FRONTEND MODULES
 
-warzone-globe.js
-Responsible for:
-• Cesium globe initialization
-• event rendering
-• event entity cleanup
-• map style and imagery layers
-• terrain / satellite toggles
-• viewport bounds reporting
-• missile track and alert visuals
+warzone-globe.js:
+- Cesium globe initialization
+- event rendering
+- event entity cleanup
+- map style and imagery layers
+- terrain and satellite basemap controls
+- viewport bounds reporting
+- missile track and alert visuals
 
-essential.js
-Responsible for:
-• application initialization
-• event normalization
-• region filtering
-• layer control
-• hotspot synchronization
-• military track synchronization
-• live polling
-• viewport-based event refresh flow
-• UI rendering for widgets and analytics
+essential.js:
+- application initialization
+- event normalization
+- region filtering
+- layer control
+- hotspot synchronization
+- aircraft/naval widget synchronization
+- viewport and region refresh
+- live polling
+- widget and analytics UI rendering
+- Orbital Assets layer enable/disable coordination
 
-warzone-military-tracks.js
-Responsible for:
-• military aircraft movement tracks
-• naval tracks
-• drone / UAV track rendering
-• trail generation and cleanup
+warzone-layers.js:
+- layer definitions
+- event visibility by category
+- layer toggle state
+- premium layer gating
+- separation between Orbital Assets and Satellite Observations
 
-warzone-layers.js
-Responsible for:
-• layer definitions
-• event visibility by category
-• layer toggle state
-• terrain / imagery control integration
+warzone-mil-sats.js:
+- Orbital Assets frontend rendering
+- fetches /api/satellites/military only when enabled
+- satellite.js propagation in the browser
+- lightweight global satellite symbols
+- selected satellite model, orbit path, ground track, nadir line, and theoretical line-of-sight footprint
 
-warzone-realtime.js and workers
-Responsible for:
-• feed polling
-• source ingestion
-• event generation / parsing
-• specialized telemetry and signal handling
+warzone-live-airforce.js:
+- live aircraft tracker
+- subtype and asset resolution
+- PNG/model display policy
+- focus, selection, trails, and widget cards
+
+warzone-live-naval.js:
+- live naval tracker
+- subtype and asset resolution
+- PNG/model display policy
+- focus, selection, trails, and widget cards
+
+routes.satellites.js and strategic-satellites.js:
+- GET /satellites/military
+- CelesTrak GP and SATCAT fetch
+- two-hour server cache and stale fallback
+- conservative classification normalization
 
 4. DATA FLOW SUMMARY
-• Source feeds generate raw events
-• Events are normalized into a common schema
-• Events are stored / retrieved
-• essential.js applies filters and visibility logic
-• warzone-globe.js renders globe entities
-• hotspot and military subsystems render specialized overlays
+
+- Source feeds generate raw events.
+- Events are normalized into a common schema.
+- Events are stored or retrieved.
+- essential.js applies filters and visibility logic.
+- warzone-globe.js renders event globe entities.
+- hotspot, aircraft, naval, GNSS, and military-base subsystems render specialized overlays.
+- orbital-assets fetches and propagates public satellite estimates only when enabled.
+- satellite-imagery remains separate for event-linked observation/imagery context.
 
 5. ARCHITECTURAL NOTE
-The platform currently depends heavily on tight coordination between essential.js and warzone-globe.js. Large rewrites in either file can break the application contract and should be avoided unless carefully planned.
+
+The platform depends on tight coordination between essential.js, warzone-globe.js, warzone-layers.js, and the live asset renderers. Large rewrites in these files can break the application contract and should be avoided unless carefully planned and tested.

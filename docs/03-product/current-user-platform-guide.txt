@@ -1,54 +1,114 @@
 BATTLESPACEX STRATOPS - CURRENT USER PLATFORM GUIDE
-Last updated: 2026-05-07
+Last updated: 2026-07-28
 
 Purpose:
-This document explains the current StratOps platform in user-facing language. It is for operators, analysts, demos, and non-developer users who need to understand what the map shows and how the main classifications work.
+This document explains the current StratOps platform in user-facing language for operators, analysts, demos, and non-developer users.
 
 ------------------------------------------------------------
 1. PLATFORM OVERVIEW
 ------------------------------------------------------------
 
-StratOps is a Cesium-based 3D operational map for conflict and military OSINT visualization.
+StratOps is a Cesium-based operational map for OSINT-informed conflict, military activity, aircraft, naval, space, satellite, and infrastructure visualization.
 
 The interface combines:
-- 3D globe navigation
-- region selection
+- 3D globe navigation with optional 2D scene support
+- region selection and current-region filtering
 - live and near-live event layers
-- hotspot labels
-- military base icons
-- aircraft tracker
-- naval tracker
-- airspace, cyber, range, and radar-style widgets
-- popups and status panels
-- premium-gated layers for sensitive/high-value overlays
+- aircraft and naval trackers
+- military base and strategic asset overlays
+- orbital asset estimates from public CelesTrak GP elements
+- event-linked satellite observation and imagery context
+- GNSS, airspace, cyber, alert, thermal, radar, range, and hotspot layers
+- operational popups, widgets, report viewing, and premium layer gating
+
+Important limitation:
+StratOps is not an official warning network, classified intelligence product, or independent verification authority. Map items are visualizations of available source data and may be incomplete, delayed, inferred, duplicated, or wrong.
 
 ------------------------------------------------------------
 2. MAIN MAP LAYERS
 ------------------------------------------------------------
 
-The current layer panel includes:
+Current layer panel:
 
-- Strikes & Artillery: mapped strike, shelling, and impact reports.
-- Missiles & Rockets: missile, rocket, ballistic missile, cruise missile, and related launch/impact activity.
-- Drones / UAVs: drone, UAV, loitering munition, Shahed-style, and kamikaze drone activity.
-- Air Strikes: air-delivered strike and bombing activity.
-- Aircraft Tracker: live or near-live military aircraft telemetry and movement.
-- Airspace Status: regional airspace closure, restriction, or status widget.
-- Naval Activity: military naval contacts and vessel-linked signals.
-- Military Bases: known military bases, military installations, and nuclear explosion/test sites.
-- Radar / Threat Ranges: estimated fighter, AWACS, naval-defense, and SAM/radar coverage overlays.
-- Radar Sweepers: animated sweep sectors for active radar and air-defense visualization.
-- Alerts & Sirens: warning banners, sirens, active alert events, and urgent public warning signals.
-- Cyber Operations: cyber threat, network disruption, cyberattack, and digital infrastructure events.
+- Shelling / Ground Strikes: artillery, shelling, and uncategorized impact reports.
+- Missiles & Rockets: missile, rocket, ballistic, cruise, launch, and impact activity.
+- Drone / UAV Activity: drone sightings, loitering munitions, UAV, and drone-delivered activity.
+- Air-Delivered Strikes: aircraft-delivered strike and bombing reports.
+- Aircraft Tracker: live or near-live military aircraft telemetry and movement. Premium.
+- Airspace Status: regional closure or restriction status widget. Premium.
+- Naval Activity: military naval contacts and vessel-linked signals. Premium.
+- Military Bases: known military base and installation locations. Premium.
+- GNSS Jamming: sanitized GNSS/GPS interference cells and navigation anomaly context. Premium.
+- Radar / Threat Ranges: estimated fighter, AWACS, naval-defense, and SAM/radar envelopes. Premium.
+- Radar Sweepers: animated sweep sectors for active radar and air-defense visualization. Premium.
+- Alerts & Sirens: warning banners, sirens, active alerts, and urgent public warning signals.
+- Cyber Operations: cyber threat and network disruption signals. Premium.
 - Thermal / Fires: thermal anomalies, fires, heat signatures, and fire-related detections.
-- Recon / Intelligence: reconnaissance, intelligence, surveillance, and general military observation reports.
+- Recon / Intelligence: reconnaissance, surveillance, and military observation reports.
 - Seismic / Explosions: seismic, blast, and explosion-linked detections.
-- Hotspot Labels: cluster labels for active event concentrations.
-- Satellite Imagery: satellite basemap imagery on the globe.
+- Activity Areas: passive density circles and cluster context behind event markers.
+- Orbital Assets: public orbital estimates for military-associated and dual-use satellites. Premium.
+- Satellite Observations: available Sentinel/Copernicus-style image observations tied to events. Premium.
+- Satellite Basemap: satellite basemap imagery on the globe.
+- Raised Region: selected-region emphasis plate.
 - Country Borders: country boundary overlay.
 
+Orbital Assets and Satellite Observations are separate:
+- Orbital Assets shows predicted satellite positions calculated from public orbital elements.
+- Satellite Observations shows imagery/context records tied to events.
+- A satellite position is not the same thing as a satellite image observation.
+
 ------------------------------------------------------------
-3. HOTSPOT CLASSIFICATIONS
+3. ORBITAL ASSETS
+------------------------------------------------------------
+
+The Orbital Assets layer uses public CelesTrak orbital element data and satellite.js propagation in the browser. The backend endpoint is:
+
+GET /api/satellites/military
+
+The source query is:
+https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=JSON
+
+The system also reads required public SATCAT metadata from:
+https://celestrak.org/pub/satcat.csv
+
+Language used in the interface:
+- Public orbital estimate
+- Predicted position
+- Publicly tracked
+- Military-associated
+- Dual-use
+- Mission unconfirmed
+
+Language not used:
+- confirmed live satellite detection
+- sensor coverage
+- radar coverage
+- surveillance coverage
+- strike range
+
+Normal view:
+- lightweight satellite symbols
+- restrained opacity and distance scaling
+- no global labels by default
+- no orbit paths, ground tracks, nadir lines, or footprints for every satellite
+
+Hover view:
+- compact public orbital information card
+- satellite name, classification, confidence, country/owner, mission, NORAD ID, orbit class, altitude, speed, inclination, epoch, data age, and source
+
+Click/focus view:
+- selected satellite model when supported
+- recent and predicted orbit arc
+- sub-satellite ground track
+- nadir line
+- theoretical line-of-sight footprint
+- focused satellite information card
+
+The focused card clearly states that the position is propagated from public orbital elements and is not a direct sensor detection.
+
+------------------------------------------------------------
+4. HOTSPOT CLASSIFICATIONS
 ------------------------------------------------------------
 
 Hotspots are grouped labels for active events. A hotspot may represent one event or a cluster of nearby events.
@@ -59,91 +119,59 @@ Current hotspot categories:
 - air_activity: fighters, AWACS, ISR/recon aircraft, tankers, bombers, helicopters, air-defense aircraft, or SAM/air-defense context.
 - naval_activity: carrier, destroyer, frigate, corvette, cruiser, submarine, fleet, vessel, naval movement, patrol, or naval-linked activity.
 - ground_activity: military activity that is not clearly air or naval, including troop movement, land forces, convoys, buildup, or unclear military reports.
-- recon_intel: intelligence, reconnaissance, surveillance, observation, SIGINT/ELINT-style reporting, or situational reports that do not fit a specific air/naval/ground bucket.
+- recon_intel: intelligence, reconnaissance, surveillance, observation, SIGINT/ELINT-style reporting, or situational reports.
 - alert: air raid warnings, emergency alerts, sirens, restrictions, evacuation warnings, or urgent status changes.
 - airspace: airspace closure, airspace restriction, NOTAM-style status, or air route disruption.
 - cyber: cyberattack, hacking, network outage, digital infrastructure disruption, or cyber operation.
 - thermal: thermal anomaly, fire, heat detection, or wildfire/fire-linked event.
-- signal: signal/seismic/blast detection. In the current layer router, signal routes to Seismic / Explosions.
+- signal: signal/seismic/blast detection.
 - seismic: seismic or explosion-linked detection.
-- unknown_activity: generic activity when the input category is default/activity or the event cannot be confidently classified.
-
-How military/recon events are split:
-- Aircraft, fighters, AWACS, ISR, tanker, bomber, helicopter, air defense, or SAM context becomes air_activity.
-- Carrier, destroyer, frigate, corvette, cruiser, submarine, warship, naval, fleet, or vessel context becomes naval_activity.
-- Military reports not clearly air/naval become ground_activity.
-- Recon reports not clearly air/naval become recon_intel.
+- unknown_activity: generic activity when the event cannot be confidently classified.
 
 ------------------------------------------------------------
-4. MILITARY BASE CLASSIFICATIONS
+5. MILITARY BASE CLASSIFICATIONS
 ------------------------------------------------------------
 
 Current canonical military base types:
 
 - airbase: air base, air force base, airfield, military airport, air station.
-- naval: naval base, navy base, naval station, naval port, fleet base, submarine base, marine/coast guard military base.
+- naval: naval base, navy base, naval station, naval port, fleet base, submarine base.
 - army: army base, fort, garrison, camp, barracks, armored/infantry/land-force installation.
-- missile: missile site, ICBM site, ballistic missile site, SAM site, air-defense missile site, rocket-force site, missile test range.
-- cyber: cyber command, signals intelligence, communications command, electronic warfare command, cyber/space operations command where not a physical launch site.
+- missile: missile site, ICBM site, ballistic missile site, SAM site, air-defense missile site, rocket-force site.
+- cyber: cyber command, signals intelligence, communications command, electronic warfare command.
 - joint: joint base, multi-service base, coalition base, NATO base, combined forces installation.
 - hq: headquarters, command center, military command, defense/ministry command facility.
-- space_launch: space launch site, cosmodrome, satellite launch facility, rocket launch center. This is separate from missile/ICBM launch sites.
+- space_launch: space launch site, cosmodrome, satellite launch facility, rocket launch center.
 - radar: radar site, early-warning radar, tracking station, ISR radar, communications/radar station.
 - drone: drone base, UAV/UAS facility, remotely piloted aircraft facility.
-- weapons_storage: weapons storage, ammunition depot, nuclear storage, ordnance depot, arms depot, munitions depot.
-- training_logistics: training base, academy, training center, logistics base, supply depot, maintenance depot, repair depot.
+- weapons_storage: weapons storage, ammunition depot, nuclear storage, ordnance depot.
+- training_logistics: training base, academy, training center, logistics base, supply depot.
 - wmd: nuclear explosion/test site.
 - unknown: military installation when the type is unclear.
 
-Current military base dataset stats:
-- Existing StratOps records before merge: 186
-- External uMap records imported: 808
-- Final merged records: 981
-- Duplicates merged or removed: 51
-- Records flagged for dedupe review: 20
-
-Current count by base type:
-- airbase: 374
-- naval: 117
-- army: 158
-- missile: 39
-- cyber: 4
-- joint: 18
-- hq: 56
-- space_launch: 100
-- radar: 13
-- drone: 33
-- weapons_storage: 3
-- training_logistics: 26
-- wmd: 40
-- unknown: 0
-
-Current size/classification values:
-- major: 357
-- significant: 539
-- regional: 85
+Space launch sites and missile/ICBM sites are intentionally separate categories.
 
 ------------------------------------------------------------
-5. MILITARY BASE POPUP DETAILS
+6. AIRCRAFT TRACKER
 ------------------------------------------------------------
 
-When a user clicks a military base marker, the popup can show:
-- type
+The Aircraft Tracker always shows assets for the selected region. The widget no longer needs a region dropdown for ordinary use.
+
+Current filters:
 - country
-- operator
-- classification/size
-- coordinates
-- extra metadata fields when available
+- aircraft type
 
-Extra fields are record-specific. Some bases have only basic information. Nuclear explosion/test sites and imported records may have additional display fields such as category, test/site details, notes, or external reference fields. The popup intentionally hides "Source" and "Source section" rows in the UI.
+Widget card fields:
+- title/callsign in uppercase
+- type
+- force/country/operator when available
+- altitude
+- speed
+- heading
+- last seen / status
+- Focus or Unlock action
 
-The popup follows the selected base as the map moves and hides when the selected base moves out of the browser viewport.
-
-------------------------------------------------------------
-6. AIRCRAFT TRACKER TYPES
-------------------------------------------------------------
-
-Aircraft tracker classifications currently include:
+Aircraft tracker classifications include:
 - fighter
 - awacs
 - recon
@@ -152,32 +180,35 @@ Aircraft tracker classifications currently include:
 - refueler
 - transport
 - logistics
-- logistic
 - bomber
 - helicopter
 - drone/uav
 - vip
-- trainer
 - aircraft
 
-Common meaning:
-- Fighter: combat jet or interceptor.
-- AWACS: airborne warning and control aircraft.
-- Recon/ISR: surveillance, reconnaissance, maritime patrol, intelligence aircraft.
-- Tanker/Refueler: aerial refueling aircraft.
-- Transport/Logistics: airlift, cargo, and support aircraft.
-- Bomber: strategic or tactical bomber.
-- Helicopter: rotary-wing aircraft.
-- Drone/UAV: unmanned aircraft.
-- VIP: government or command transport.
-- Trainer: training aircraft.
-- Aircraft: fallback when the platform cannot classify more specifically.
+Fighter records are identified through explicit type metadata and expanded model/name patterns when available. If the source does not provide enough aircraft detail, the system keeps a broader aircraft fallback instead of inventing a fighter label.
 
 ------------------------------------------------------------
-7. NAVAL TRACKER TYPES
+7. NAVAL TRACKER
 ------------------------------------------------------------
 
-Naval tracker classifications currently include:
+The Naval Tracker always shows assets for the selected region. The widget no longer needs a region dropdown for ordinary use.
+
+Current filters:
+- country
+- naval type
+
+Widget card fields:
+- vessel/callsign in uppercase
+- category/class
+- force/country/operator when available
+- speed
+- heading
+- position
+- last seen / status
+- Focus or Unlock action
+
+Naval tracker classifications include:
 - carrier
 - amphibious
 - cruiser
@@ -196,28 +227,49 @@ Naval tracker classifications currently include:
 - minesweeper
 - naval
 
-Common meaning:
-- Carrier: aircraft carrier or carrier group.
-- Amphibious: amphibious assault, LHD/LHA/LPD/LSD/LST type vessel.
-- Cruiser/Destroyer/Frigate/Corvette: surface combatants by class/role.
-- Intelligence: SIGINT, ELINT, tracking, reconnaissance, surveillance, special mission vessel.
-- SSBN: ballistic missile submarine.
-- SSN: nuclear attack submarine.
-- SSK: diesel-electric submarine.
-- AIP Sub: air-independent-propulsion submarine.
-- Submarine: fallback submarine class.
-- Missile Boat: fast attack/missile craft.
-- Patrol: patrol ship or coast guard cutter in military context.
-- Logistics: oiler, replenishment, sealift, auxiliary, support ship.
-- Minesweeper: mine countermeasure or minehunter.
-- Naval: fallback when the platform knows it is naval but not the exact class.
+When a naval asset is focused, the focused asset is prioritized at the top of the Naval Tracker list so it can be unlocked from the widget.
 
 ------------------------------------------------------------
-8. USER NOTES
+8. SATELLITE OBSERVATIONS AND REPORTS
+------------------------------------------------------------
+
+Satellite Observations are contextual imagery records tied to events or report periods. They are separate from orbital tracking.
+
+Current satellite observation behavior:
+- Uses sanitized public metadata and image URLs only.
+- May include provider, collection, acquisition time, resolution, cloud cover, and preview image when available.
+- Does not claim live imagery, live detection, damage confirmation, attribution, or battle outcome.
+- Reports may include satellite observation counts and a contextual satellite page when a cached observation is available.
+
+If a report says satellite observations were available, that refers to rows in the event satellite observation table, not live satellite detection.
+
+------------------------------------------------------------
+9. AUTHENTICATION AND PREMIUM ACCESS
+------------------------------------------------------------
+
+Premium layer gates require the user to sign in before enabling selected high-value overlays.
+
+Current premium-gated layers include:
+- Aircraft Tracker
+- Airspace Status
+- Naval Activity
+- Military Bases
+- GNSS Jamming
+- Radar / Threat Ranges
+- Radar Sweepers
+- Cyber Operations
+- Orbital Assets
+- Satellite Observations
+
+If a premium layer is locked, clicking it opens the StratOps sign-in flow. Production authentication remains separate from staging authentication behavior.
+
+------------------------------------------------------------
+10. USER NOTES
 ------------------------------------------------------------
 
 - A marker or hotspot is a visualization of available data, not automatic confirmation of every source claim.
 - Some records have richer details than others.
-- Military base records can have different metadata fields depending on source and type.
-- Space launch sites and missile/ICBM sites are intentionally separate categories.
-- Aircraft and naval assets may use PNG icons or GLB 3D models depending on active render settings.
+- Aircraft and naval assets may use PNG icons or selected 3D models depending on active render settings.
+- Orbital satellite positions are propagated estimates based on public orbital elements.
+- Satellite observation imagery is contextual review material, not live sensor feed data.
+- Users should verify critical findings through authoritative channels before making operational, safety, legal, or policy decisions.

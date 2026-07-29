@@ -22,4 +22,5 @@
  * Portions licensed separately.
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
-import{a as C}from"./chunk-3E7FIXV7.js";import{b as g}from"./chunk-NZBME2JK.js";import{f}from"./chunk-6DLS2UKD.js";var d=C.EPSILON10;function x(r,e,s,n){if(g.defined("equalsEpsilon",e),!f(r))return;s=s??!1;let t=f(n),i=r.length;if(i<2)return r;let u,l,o,h=r[0],p=0,a=-1;for(u=1;u<i;++u)l=r[u],e(h,l,d)?(f(o)||(o=r.slice(0,u),p=u-1,a=0),t&&n.push(u)):(f(o)&&(o.push(l),p=u,t&&(a=n.length)),h=l);return s&&e(r[0],r[i-1],d)&&(t&&(f(o)?n.splice(a,0,p):n.push(i-1)),f(o)?o.length-=1:o=r.slice(0,-1)),f(o)?o:r}var k=x;export{k as a};
+
+import{a as C}from"./chunk-3E7FIXV7.js";import{b as g}from"./chunk-NZBME2JK.js";import{f}from"./chunk-6DLS2UKD.js";var d=C.EPSILON10;function x(e,r,h,n){if(g.defined("equalsEpsilon",r),!f(e))return;h=h??!1;let c=f(n),l=e.length;if(l<2)return e;let i,s=e[0],o,t,p=0,m=-1;for(i=1;i<l;++i)o=e[i],r(s,o,d)?(f(t)||(t=e.slice(0,i),p=i-1,m=0),c&&n.push(i)):(f(t)&&(t.push(o),p=i,c&&(m=n.length)),s=o);return h&&r(e[0],e[l-1],d)&&(c&&(f(t)?n.splice(m,0,p):n.push(l-1)),f(t)?t.length-=1:t=e.slice(0,-1)),f(t)?t:e}var k=x;export{k as a};

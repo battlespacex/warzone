@@ -1,158 +1,200 @@
-BATTLESPACEX – SOFTWARE REQUIREMENTS SPECIFICATION (SRS)
+BATTLESPACEX STRATOPS - SOFTWARE REQUIREMENTS SPECIFICATION
+Last updated: 2026-07-28
 
 1. INTRODUCTION
-This document defines the core functional and non-functional requirements of the BattlespaceX platform.
+
+This document defines core functional and non-functional requirements for the BattlespaceX StratOps platform.
 
 2. PROJECT OVERVIEW
-BattlespaceX is a military-style global conflict monitoring platform designed to visualize real-time or near-real-time conflict events on a 3D globe, including missile strikes, drone activity, airspace alerts, cyber events, and other military-related activity.
+
+BattlespaceX StratOps is a military-style global conflict monitoring platform designed to visualize real-time and near-real-time conflict events on a 3D globe, including missile strikes, drone activity, aircraft and naval assets, orbital asset estimates, satellite observations, airspace alerts, cyber events, and other military-related activity.
 
 3. CORE TECHNOLOGIES
+
 Frontend:
-• CesiumJS
-• Vanilla JavaScript modules
-• Custom CSS UI system
-• Canvas-generated icons
-• JSON event feeds
+- CesiumJS
+- Vanilla JavaScript modules
+- Custom CSS UI system
+- Webpack
+- satellite.js for public orbital propagation
 
 Backend / Data:
-• OSINT feeds
-• manual JSON feeds
-• ACLED-style / GDELT-style / curated feeds
-• Telegram-based OSINT parsing
-• environmental and alert feeds
+- OSINT feeds
+- manual JSON feeds
+- curated feeds
+- Telegram-based OSINT parsing
+- environmental and alert feeds
+- Supabase-backed event storage where configured
+- StratOps API route/cache layer for CelesTrak orbital data
 
 4. FUNCTIONAL REQUIREMENTS
 
 4.1 Globe Initialization
+
 The system shall initialize a Cesium-based 3D globe.
 The system shall support initial camera focus on a configured region.
-The system shall support satellite imagery and terrain-style base map toggles.
+The system shall support satellite basemap and terrain-style map controls.
+The system shall keep public orbital satellite estimates separate from event-linked satellite imagery observations.
 
 4.2 Event Rendering
+
 The system shall render events on the globe using circles, markers, or other visual entities.
 The system shall support strike categories including:
-• ballistic missiles
-• cruise missiles
-• rockets
-• drone strikes
-• air strikes
+- ballistic missiles
+- cruise missiles
+- rockets
+- drone strikes
+- air strikes
 
-4.3 Military Track Rendering
-The system shall support military track rendering for:
-• UAV / drone activity
-• AWACS aircraft
-• tankers
-• reconnaissance aircraft
-• aircraft patrol lines
-• naval activity
-The system shall render these as animated or directional movement paths.
+4.3 Military And Strategic Track Rendering
+
+The system shall support track rendering for:
+- UAV / drone activity
+- AWACS aircraft
+- tankers
+- reconnaissance aircraft
+- aircraft patrol lines
+- naval activity
+- public military-associated and dual-use orbital asset estimates
+
+The system shall render these as directional, animated, sampled, or focused movement paths as appropriate to the data source.
+Orbital asset positions shall be propagated from public CelesTrak GP elements and shall not be described as confirmed live satellite detection.
 
 4.4 Event Intelligence Schema
+
 Each event should support fields such as:
-• category
-• title
-• summary
-• lat
-• lon
-• actor_side
-• target_side
-• weapon_type
-• target_type
-• severity
-• confidence
-• country_code
-• airspace_status
-• cyber_status
-• tags
+- category
+- title
+- summary
+- lat
+- lon
+- actor_side
+- target_side
+- weapon_type
+- target_type
+- severity
+- confidence
+- country_code
+- airspace_status
+- cyber_status
+- tags
+- satellite_context when an event-linked observation exists
 
 4.5 Hotspot Cards
+
 The system shall generate interactive hotspot cards for relevant events.
 A hotspot card should be able to display:
-• strike summary
-• actor information
-• weapon type
-• confidence
-• timestamp
-• source link
+- strike summary
+- actor information
+- weapon type
+- confidence
+- timestamp
+- source link
+
 Hotspot cards should remain geographically associated with the relevant event region.
 
-4.6 Feed and Layer System
+4.6 Feed And Layer System
+
 The system shall support multiple feed types including:
-• curated JSON feeds
-• Telegram OSINT monitoring
-• GDELT-style feeds
-• ACLED-style feeds
-• thermal / anomaly feeds
-• airspace / NOTAM-style feeds
+- curated JSON feeds
+- Telegram OSINT monitoring
+- GDELT-style feeds
+- ACLED-style feeds
+- thermal / anomaly feeds
+- airspace / NOTAM-style feeds
+- CelesTrak public GP orbital element feed through the StratOps API cache
+
 The system shall allow event visibility to be controlled through layer toggles.
+The system shall allow premium Orbital Assets and Satellite Observations to be controlled independently.
+When Orbital Assets is disabled, the frontend shall not fetch its API, propagate satellite records, register Cesium handlers, create satellite entities, or start orbital timers.
 
 4.7 UI Components
-The system shall support the following UI panels and controls:
-• Strike Counter
-• Layer Control Panel
-• Region Selector
-• Dev Panel
-• Event Cards
-• Globe container
-• Military tracks overlay
 
-4.8 Region and Viewport Behavior
+The system shall support the following UI panels and controls:
+- Theater Intelligence
+- Layer Control Panel
+- Region Selector
+- Event Cards
+- Globe container
+- Aircraft Tracker
+- Naval Tracker
+- GNSS legend
+- Report viewer
+- Operational report modal
+- Orbital Assets inline filters within the layer interface
+
+4.8 Region And Viewport Behavior
+
 The system shall allow users to switch regions and move across the globe.
 The system shall support viewport-based regional data loading so that moving to a different region can retrieve relevant data for that area.
 The system shall avoid rendering unnecessary off-screen event load.
 
 4.9 Live Update System
+
 The system shall support live or near-live event updates.
 The system shall periodically check for events newer than the last known event timestamp.
 Newly received events shall be added to the map, feed, and hotspot system if they satisfy visibility rules.
 
-4.10 Alert and Escalation Indicators
+4.10 Alert And Escalation Indicators
+
 The system shall support operational alerts, siren-style notifications, escalation scoring, and related indicators.
 
 5. NON-FUNCTIONAL REQUIREMENTS
 
 5.1 Performance
+
 The system shall maintain smooth globe movement.
 The system shall minimize hotspot flicker.
 The system shall support event clustering and throttled updates.
 The system shall avoid unnecessary entity recreation where possible.
+The system shall avoid per-frame orbital propagation and direct CelesTrak browser requests.
 
 5.2 Visual Design
+
 The interface shall resemble a military command theater rather than a generic map.
 Desired visual characteristics include:
-• cinematic glow effects
-• radar style color language
-• missile arcs
-• animated tracks
-• siren alerts
-• minimal UI clutter
+- cinematic but restrained operational styling
+- radar-style color language
+- missile arcs
+- animated tracks
+- siren alerts
+- minimal UI clutter
+- professional orbital visualization, not science-fiction or arcade styling
 
 5.3 Reliability
+
 The platform shall tolerate partial source gaps.
 The platform shall continue functioning when some data categories are sparse or unavailable.
+The orbital API shall serve the last valid cached public orbital data if CelesTrak is temporarily unavailable.
 
 5.4 Modularity
-The platform shall preserve the working contract between essential.js and warzone-globe.js.
+
+The platform shall preserve the working contract between essential.js, warzone-globe.js, warzone-layers.js, and the live asset modules.
 Large rewrites should be avoided unless validated carefully.
 
 6. CURRENT KNOWN ISSUES / RISKS
-• performance degradation after some rendering changes
-• hotspot card flickering
-• map rendering quality inconsistency
-• missing visual elements after failed optimization attempts
-• incorrect event origins in some data cases
-• tight coupling between major core files
+
+- performance degradation after some rendering changes
+- hotspot card flickering
+- map rendering quality inconsistency
+- missing visual elements after failed optimization attempts
+- incorrect event origins in some data cases
+- tight coupling between major core files
+- stale CelesTrak cache if the API process cannot write to its cache directory
 
 7. DESIRED END STATE
+
 The final platform should provide:
-• real-time intelligence layers
-• missile strikes
-• drone activity
-• airspace closures
-• cyber events
-• naval activity
-• aircraft patrols
-• efficient event clustering
-• stable UI panels
-• smooth rendering
-• a cinematic global command-center style experience
+- real-time intelligence layers
+- missile strikes
+- drone activity
+- airspace closures
+- cyber events
+- naval activity
+- aircraft patrols
+- public orbital asset estimates
+- event-linked satellite observation context
+- efficient event clustering
+- stable UI panels
+- smooth rendering
+- a cinematic global command-center style experience

@@ -8,7 +8,7 @@ The platform is designed for OSINT-informed situational awareness, partner brief
 
 ## Multi-Domain Operational Visualization
 
-StratOps presents multiple operational domains on one map surface, including strikes, missiles, drones, air-delivered activity, aircraft telemetry, naval activity, known military bases, radar or threat ranges, cyber signals, airspace status, GNSS interference, thermal or fire-related events, reconnaissance indicators, seismic or explosion signals, activity hotspots, satellite observations, country borders, and selected-region focus overlays.
+StratOps presents multiple operational domains on one map surface, including strikes, missiles, drones, air-delivered activity, aircraft telemetry, naval activity, known military bases, radar or threat ranges, cyber signals, airspace status, GNSS interference, thermal or fire-related events, reconnaissance indicators, seismic or explosion signals, activity hotspots, public orbital asset estimates, satellite observations, country borders, and selected-region focus overlays.
 
 Layer availability and accuracy depend on the underlying data available to the platform. Some layers are visual or contextual overlays rather than confirmed operational detections.
 
@@ -20,15 +20,21 @@ Intel Wire is a separate feed surface for slower contextual intelligence and med
 
 ## Live Aircraft Tracking
 
-StratOps includes a live aircraft tracker with map symbols, selected-asset focus, aircraft labels, heading information, recent aircraft history, filtering by scope, country, and aircraft type, and focused 3D model rendering for selected assets.
+StratOps includes a live aircraft tracker with map symbols, selected-asset focus, aircraft labels, heading information, recent aircraft history, current-region filtering, country and aircraft-type filters, readable uppercase widget cards, and focused 3D model rendering for selected assets.
 
 This capability is conditional on aircraft data availability and source reliability. Aircraft positions, headings, callsigns, and metadata should be treated as operational telemetry for context, not as an authoritative air picture.
 
 ## Naval Tracking
 
-The naval tracker displays naval contacts and vessel-linked signals with map symbols, labels, filtering, focused asset interaction, and 3D context rendering for selected or nearby naval assets.
+The naval tracker displays naval contacts and vessel-linked signals with map symbols, labels, current-region filtering, country and vessel-type filters, readable uppercase widget cards, focused asset interaction, and 3D context rendering for selected or nearby naval assets.
 
 Naval visibility is conditional on available data and classification quality. Vessel type, role, and identity labels may be inferred or incomplete.
+
+## Orbital Assets
+
+StratOps includes a premium Orbital Assets layer for public military-associated and dual-use satellite tracking. The layer retrieves CelesTrak public GP orbital elements through the StratOps API, caches the result, and uses satellite.js in the browser to propagate estimated satellite positions.
+
+This is not live satellite detection. It presents public orbital estimates, predicted positions, public associations, mission categories, and confidence labels. The focused view can show a selected satellite model, recent and predicted orbit path, sub-satellite ground track, nadir line, and a theoretical line-of-sight footprint. The footprint is geometric context only and is not labeled as sensor range or surveillance coverage.
 
 ## Military Bases and Strategic Assets
 
@@ -74,7 +80,7 @@ Report generation and availability are backend-dependent. A report may not appea
 
 ## Authentication and Access Controls
 
-The interface includes StratOps sign-in, intro/terms acceptance flows, authenticated-state handling, premium layer gating, and support/billing entry points. Some layers and widgets can be gated based on authentication state.
+The interface includes StratOps sign-in, intro/terms acceptance flows, authenticated-state handling, premium layer gating, and support/billing entry points. Current premium gates include aircraft tracking, naval tracking, military bases, GNSS jamming, radar/threat ranges, radar sweepers, cyber operations, airspace status, Orbital Assets, and Satellite Observations.
 
 Authentication behavior depends on the configured deployment environment and supporting API availability.
 
@@ -83,6 +89,7 @@ Authentication behavior depends on the configured deployment environment and sup
 - Rapid regional monitoring of open-source operational events.
 - Shared map review for aircraft, naval, airspace, GNSS, cyber, and strike activity.
 - Visual partner briefings using focused assets, layers, AOI tools, and report output.
+- Public orbital review for military-associated and dual-use satellites using CelesTrak GP elements.
 - Contextual review of event-linked satellite observations and Intel Wire items.
 - Operational dashboarding for teams that need a consolidated map and panel interface.
 

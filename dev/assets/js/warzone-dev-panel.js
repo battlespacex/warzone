@@ -1369,6 +1369,257 @@ function initDevEventUiTunerControls() {
     loadCurrentValues();
 }
 
+const DEV_ORBITAL_UI_NUMERIC_FIELDS = [
+    { key: "footprint-outline-width", cssVar: "--warzone-orbital-footprint-outline-width", min: 0.5, max: 12, step: 0.1, fallback: 2 },
+    { key: "footprint-outline-alpha", cssVar: "--warzone-orbital-footprint-outline-alpha", min: 0, max: 1, step: 0.01, fallback: 0.24 },
+    { key: "footprint-fill-alpha", cssVar: "--warzone-orbital-footprint-fill-alpha", min: 0, max: 0.4, step: 0.01, fallback: 0.035 },
+    { key: "path-width", cssVar: "--warzone-orbital-path-width", min: 0.5, max: 8, step: 0.1, fallback: 1.4 },
+    { key: "path-alpha", cssVar: "--warzone-orbital-path-alpha", min: 0, max: 1, step: 0.01, fallback: 0.34 },
+    { key: "ground-track-width", cssVar: "--warzone-orbital-ground-track-width", min: 0.5, max: 8, step: 0.1, fallback: 1 },
+    { key: "nadir-width", cssVar: "--warzone-orbital-nadir-width", min: 0.5, max: 8, step: 0.1, fallback: 1 },
+    { key: "model-min-px", cssVar: "--warzone-orbital-model-min-px", min: 6, max: 80, step: 1, fallback: 18 },
+    { key: "selected-model-min-px", cssVar: "--warzone-orbital-selected-model-min-px", min: 6, max: 120, step: 1, fallback: 18 },
+];
+
+const DEV_STARTUP_SCENE_CSS_FIELDS = [
+    { key: "lon", cssVar: "--warzone-start-lon", min: -180, max: 180, step: 0.1, fallback: 40 },
+    { key: "lat", cssVar: "--warzone-start-lat", min: -85, max: 85, step: 0.1, fallback: 26 },
+    { key: "height", cssVar: "--warzone-start-height", min: 2000000, max: 15000000, step: 50000, fallback: 9200000 },
+    { key: "pitch", cssVar: "--warzone-start-pitch", min: -89, max: -20, step: 1, fallback: -90 },
+    { key: "rotation-speed", cssVar: "--warzone-startup-rotation-speed", min: 0.05, max: 2, step: 0.01, fallback: 0.4 },
+    { key: "sat-scale", cssVar: "--warzone-mil-sat-scale", min: 10000, max: 500000, step: 1000, fallback: 200000 },
+    { key: "sat-min-px", cssVar: "--warzone-mil-sat-min-px", min: 1, max: 120, step: 1, fallback: 20 },
+    { key: "sat-max-scale", cssVar: "--warzone-mil-sat-max-scale", min: 10000, max: 600000, step: 1000, fallback: 320000 },
+];
+const DEV_STARTUP_SCENE_CONFIG_FIELDS = [
+    { key: "rotation-multiplier", path: "startupRotationMultiplier", min: 0.1, max: 4, step: 0.01, fallback: 1 },
+    { key: "sat-rotation-speed", path: "milSatsRotationSpeed", min: 0, max: 20, step: 0.1, fallback: 5 },
+];
+
+function buildDevOrbitalUiCssBlock() {
+    const lines = [":root {"];
+    DEV_ORBITAL_UI_NUMERIC_FIELDS.forEach((def) => {
+        const value = document.getElementById(`wz-orbital-${def.key}-input`)?.value;
+        lines.push(`    ${def.cssVar}: ${formatDevMapValue(value, def)};`);
+    });
+    lines.push("}");
+    return lines.join("\n");
+}
+
+function initDevOrbitalUiTunerControls() {
+    const root = document.documentElement;
+    const tunerRoot = document.getElementById("wz-dev-orbital-ui-tuner");
+    if (!tunerRoot || tunerRoot.dataset.bound === "1") return;
+    tunerRoot.dataset.bound = "1";
+    const output = document.getElementById("wz-orbital-css-output");
+    const controls = new Map();
+
+    const updateOutput = () => {
+        if (output) output.value = buildDevOrbitalUiCssBlock();
+    };
+    const refreshOrbitalLayer = () => {
+        window.refreshWarzoneMilSatsScale?.();
+        window.__warzoneViewer?.scene?.requestRender?.();
+    };
+    const applyNumericValue = (def, nextValue, source = "") => {
+        const entry = controls.get(def.key);
+        if (!entry) return;
+        const formatted = formatDevMapValue(nextValue, def);
+        if (source !== "range") entry.range.value = formatted;
+        if (source !== "input") entry.input.value = formatted;
+        root.style.setProperty(def.cssVar, formatted);
+        updateOutput();
+        refreshOrbitalLayer();
+    };
+    const loadCurrentValues = () => {
+        DEV_ORBITAL_UI_NUMERIC_FIELDS.forEach((def) => {
+            applyNumericValue(def, getRootCssNumber(def.cssVar, def.fallback));
+        });
+        updateOutput();
+    };
+
+    DEV_ORBITAL_UI_NUMERIC_FIELDS.forEach((def) => {
+        const range = document.getElementById(`wz-orbital-${def.key}-range`);
+        const input = document.getElementById(`wz-orbital-${def.key}-input`);
+        if (!range || !input) return;
+        controls.set(def.key, { range, input });
+        range.addEventListener("input", () => applyNumericValue(def, range.value, "range"));
+        input.addEventListener("input", () => applyNumericValue(def, input.value, "input"));
+        input.addEventListener("change", () => applyNumericValue(def, input.value, "input"));
+    });
+    document.getElementById("wz-orbital-preview-refresh")?.addEventListener("click", () => {
+        refreshOrbitalLayer();
+        devLog("Orbital layer refresh triggered");
+    });
+    document.getElementById("wz-orbital-load-current")?.addEventListener("click", () => {
+        loadCurrentValues();
+        devLog("Loaded current orbital CSS values");
+    });
+    document.getElementById("wz-orbital-copy-css")?.addEventListener("click", async (event) => {
+        const ok = await copyTextToClipboard(output?.value || buildDevOrbitalUiCssBlock());
+        showCopyButtonFeedback(event.currentTarget, ok);
+        devLog(ok ? "Copied orbital :root block" : "Copy blocked; select and copy manually");
+    });
+    loadCurrentValues();
+}
+
+function buildDevStartupSceneBlock(prefix = "wz-startup") {
+    const lines = [":root {"];
+    DEV_STARTUP_SCENE_CSS_FIELDS.forEach((def) => {
+        const value = document.getElementById(`${prefix}-${def.key}-input`)?.value;
+        lines.push(`    ${def.cssVar}: ${formatDevMapValue(value, def)};`);
+    });
+    lines.push("}");
+    lines.push("");
+    DEV_STARTUP_SCENE_CONFIG_FIELDS.forEach((def) => {
+        const value = document.getElementById(`${prefix}-${def.key}-input`)?.value;
+        lines.push(`${def.path}: ${formatDevMapValue(value, def)},`);
+    });
+    return lines.join("\n");
+}
+
+function applyStartupSceneCamera() {
+    const viewer = window.__warzoneViewer;
+    if (!viewer?.camera) return;
+    const lon = getRootCssNumber("--warzone-start-lon", 40);
+    const lat = getRootCssNumber("--warzone-start-lat", 26);
+    const height = getRootCssNumber("--warzone-start-height", 9200000);
+    const pitch = getRootCssNumber("--warzone-start-pitch", -90);
+    const heading = getRootCssNumber("--warzone-start-heading", 0);
+    const roll = getRootCssNumber("--warzone-start-roll", 0);
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+        orientation: {
+            heading: Cesium.Math.toRadians(heading),
+            pitch: Cesium.Math.toRadians(pitch),
+            roll: Cesium.Math.toRadians(roll),
+        },
+    });
+    viewer.scene?.requestRender?.();
+}
+
+function refreshStartupScenePreview() {
+    const viewer = window.__warzoneViewer;
+    if (viewer?.__warzoneStartupRotation) {
+        const base = getRootCssNumber("--warzone-startup-rotation-speed", 0.4);
+        const multiplier = Math.max(0.1, Math.min(Number(window.__stratopsConfig?.startupRotationMultiplier || 1), 4));
+        viewer.__warzoneStartupRotation.speedDeg = Math.max(0.01, Math.min(base * multiplier, 0.5));
+    }
+    window.refreshWarzoneMilSatsScale?.();
+    applyStartupSceneCamera();
+}
+
+function initStartupSceneTunerControls({
+    tunerId,
+    prefix = "wz-startup",
+    outputId = "wz-startup-scene-output",
+    applyButtonId = "wz-startup-scene-apply",
+    loadButtonId = "wz-startup-scene-load-current",
+    copyButtonId = "wz-startup-scene-copy",
+    revealWhenBound = false,
+} = {}) {
+    const root = document.documentElement;
+    const tunerRoot = document.getElementById(tunerId);
+    if (!tunerRoot || tunerRoot.dataset.bound === "1") return;
+    tunerRoot.dataset.bound = "1";
+    const output = document.getElementById(outputId);
+    const controls = new Map();
+
+    const updateOutput = () => {
+        if (output) output.value = buildDevStartupSceneBlock(prefix);
+    };
+    const applyCssValue = (def, nextValue, source = "") => {
+        const entry = controls.get(def.key);
+        if (!entry) return;
+        const formatted = formatDevMapValue(nextValue, def);
+        if (source !== "range") entry.range.value = formatted;
+        if (source !== "input") entry.input.value = formatted;
+        root.style.setProperty(def.cssVar, formatted);
+        updateOutput();
+        refreshStartupScenePreview();
+    };
+    const applyConfigValue = (def, nextValue, source = "") => {
+        const entry = controls.get(def.key);
+        if (!entry) return;
+        const formatted = formatDevMapValue(nextValue, def);
+        if (source !== "range") entry.range.value = formatted;
+        if (source !== "input") entry.input.value = formatted;
+        window.__stratopsConfig = window.__stratopsConfig || {};
+        window.__stratopsConfig[def.path] = Number(formatted);
+        updateOutput();
+        refreshStartupScenePreview();
+    };
+    const loadCurrentValues = () => {
+        DEV_STARTUP_SCENE_CSS_FIELDS.forEach((def) => {
+            applyCssValue(def, getRootCssNumber(def.cssVar, def.fallback));
+        });
+        DEV_STARTUP_SCENE_CONFIG_FIELDS.forEach((def) => {
+            const current = Number(window.__stratopsConfig?.[def.path]);
+            applyConfigValue(def, Number.isFinite(current) ? current : def.fallback);
+        });
+        updateOutput();
+    };
+
+    DEV_STARTUP_SCENE_CSS_FIELDS.forEach((def) => {
+        const range = document.getElementById(`${prefix}-${def.key}-range`);
+        const input = document.getElementById(`${prefix}-${def.key}-input`);
+        if (!range || !input) return;
+        controls.set(def.key, { range, input });
+        range.addEventListener("input", () => applyCssValue(def, range.value, "range"));
+        input.addEventListener("input", () => applyCssValue(def, input.value, "input"));
+        input.addEventListener("change", () => applyCssValue(def, input.value, "input"));
+    });
+    DEV_STARTUP_SCENE_CONFIG_FIELDS.forEach((def) => {
+        const range = document.getElementById(`${prefix}-${def.key}-range`);
+        const input = document.getElementById(`${prefix}-${def.key}-input`);
+        if (!range || !input) return;
+        controls.set(def.key, { range, input });
+        range.addEventListener("input", () => applyConfigValue(def, range.value, "range"));
+        input.addEventListener("input", () => applyConfigValue(def, input.value, "input"));
+        input.addEventListener("change", () => applyConfigValue(def, input.value, "input"));
+    });
+    document.getElementById(applyButtonId)?.addEventListener("click", () => {
+        refreshStartupScenePreview();
+        devLog("Applied startup scene tuner values");
+    });
+    document.getElementById(loadButtonId)?.addEventListener("click", () => {
+        loadCurrentValues();
+        devLog("Loaded current startup scene values");
+    });
+    document.getElementById(copyButtonId)?.addEventListener("click", async (event) => {
+        const ok = await copyTextToClipboard(output?.value || buildDevStartupSceneBlock(prefix));
+        showCopyButtonFeedback(event.currentTarget, ok);
+        devLog(ok ? "Copied startup scene values" : "Copy blocked; select and copy manually");
+    });
+    loadCurrentValues();
+    if (revealWhenBound) {
+        tunerRoot.closest("#wz-intro-startup-tuner-slot")?.removeAttribute("hidden");
+    }
+}
+
+function initDevStartupSceneTunerControls() {
+    initStartupSceneTunerControls({
+        tunerId: "wz-dev-startup-scene-tuner",
+        prefix: "wz-startup",
+        outputId: "wz-startup-scene-output",
+        applyButtonId: "wz-startup-scene-apply",
+        loadButtonId: "wz-startup-scene-load-current",
+        copyButtonId: "wz-startup-scene-copy",
+    });
+}
+
+function initIntroStartupSceneTunerControls() {
+    initStartupSceneTunerControls({
+        tunerId: "wz-intro-startup-scene-tuner",
+        prefix: "wz-intro-startup",
+        outputId: "wz-intro-startup-scene-output",
+        applyButtonId: "wz-intro-startup-scene-apply",
+        loadButtonId: "wz-intro-startup-scene-load-current",
+        copyButtonId: "wz-intro-startup-scene-copy",
+        revealWhenBound: true,
+    });
+}
+
 const DEV_LIVE_AIRCRAFT_LABEL_FIELDS = [
     { key: "label-max-chars", label: "Label max chars/line", cssVar: "--warzone-live-label-max-chars", min: 8, max: 80, step: 1, fallback: 24 },
     { key: "label-align", label: "Label align", cssVar: "--warzone-live-label-align", fallback: "left", type: "select", options: ["left", "center", "right"] },
@@ -2338,6 +2589,41 @@ function openDevSharedModal(modal) {
     requestAnimationFrame(() => modal.classList.add("is-visible"));
 }
 
+export function showStartupSceneDevPanelOnly() {
+    document.body.classList.add("wz-dev-startup-visible");
+    document.getElementById("wz-intro-startup-tuner-slot")?.removeAttribute("hidden");
+}
+
+export function showFullDevPanel() {
+    const panel = document.getElementById("wz-dev-panel");
+    const toggle = document.getElementById("wz-dev-toggle");
+    const body = document.getElementById("wz-dev-body");
+    const grid = document.querySelector("#wz-dev-body .wz-dev-grid");
+    const introSlot = document.getElementById("wz-intro-startup-tuner-slot");
+    const startupLabel = document.querySelector('.wz-dev-label[data-wz-dev-startup-only="1"]');
+    const startupTuner = document.getElementById("wz-dev-startup-scene-tuner");
+    if (!panel || !toggle || !body || !grid) return;
+    document.body.classList.remove("wz-dev-startup-visible");
+    delete panel.dataset.startupVisible;
+    panel.hidden = false;
+    toggle.hidden = false;
+    body.hidden = false;
+    panel.style.right = "";
+    panel.style.top = "";
+    panel.style.bottom = "";
+    panel.style.width = "";
+    body.style.position = "";
+    body.style.right = "";
+    body.style.bottom = "";
+    body.style.maxHeight = "";
+    if (introSlot) introSlot.hidden = true;
+    if (startupLabel && startupLabel.parentElement !== grid) grid.appendChild(startupLabel);
+    if (startupTuner && startupTuner.parentElement !== grid) grid.appendChild(startupTuner);
+    grid.querySelectorAll(":scope > *").forEach((child) => {
+        child.hidden = false;
+    });
+}
+
 function closeDevSharedModal(modal, callback) {
     if (!modal) {
         if (typeof callback === "function") callback();
@@ -2635,6 +2921,9 @@ export function initDevPanel() {
     initDevSimulatorControls();
     initMapTunerControls();
     initDevEventUiTunerControls();
+    initDevOrbitalUiTunerControls();
+    initDevStartupSceneTunerControls();
+    initIntroStartupSceneTunerControls();
     initLiveAssetTunerControls();
     initDevPanelAccordions();
     devLog("Dev panel ready");

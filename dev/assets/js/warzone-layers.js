@@ -13,20 +13,21 @@ const ALL_LAYER_DEFS = [
     // airspace is uiOnly — it controls the Airspace Status widget visibility.
     // It is intentionally decoupled from the "aircraft" layer so toggling
     // live flight tracks on the globe does NOT affect the airspace panel.
-    { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "GLO", color: "#33d9ff", uiOnly: true },
+    { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "GLO", color: "#33d9ff", uiOnly: true, premium: true },
     { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "NAV", color: "#9b7bff", premium: true },
     { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "BASE", color: "#3a8eff", uiOnly: true, premium: true },
-    { id: "gnss", label: "GNSS Jamming", description: "Sanitized GNSS/GPS Jamming zones and navigation anomaly cells", icon: "GNSS", color: "#ffd24d" },
-    { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "RNG", color: "#33d9ff" },
-    { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "SWP", color: "#18e2db", uiOnly: true },
+    { id: "gnss", label: "GNSS Jamming", description: "Sanitized GNSS/GPS Jamming zones and navigation anomaly cells", icon: "GNSS", color: "#ffd24d", premium: true },
+    { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "RNG", color: "#33d9ff", premium: true },
+    { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "SWP", color: "#18e2db", uiOnly: true, premium: true },
     { id: "alerts", label: "Alerts & Sirens", description: "Warning banners, sirens, and alert signals", icon: "ALT", color: "#ff2a2a" },
-    { id: "cyber", label: "Cyber Operations", description: "Cyber threat and network disruption signals", icon: "CYB", color: "#9b7bff" },
+    { id: "cyber", label: "Cyber Operations", description: "Cyber threat and network disruption signals", icon: "CYB", color: "#9b7bff", premium: true },
     { id: "thermal", label: "Thermal / Fires", description: "Thermal anomalies, fires, and heat events", icon: "THM", color: "#ff6600" },
     { id: "recon", label: "Recon / Intelligence", description: "Reconnaissance and intelligence-linked events", icon: "REC", color: "#00d9b2" },
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "SEIS", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "NEWS", color: "#888" },
     { id: "hotspots", label: "Activity Areas", description: "Passive density circles behind clickable event markers", icon: "AREA", color: "#00d8b2", uiOnly: true },
-    { id: "satellite-imagery", label: "Satellite Observations", description: "Available Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true },
+    { id: "orbital-assets", label: "Orbital Assets", description: "Public orbital estimates for military-associated and dual-use satellites", icon: "ORB", color: "#9fd7ff", premium: true },
+    { id: "satellite-imagery", label: "Satellite Observations", description: "Available Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true, premium: true },
     { id: "terrain", label: "Satellite Basemap", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
     { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "BRD", color: "#33e1ff", uiOnly: true },
@@ -40,7 +41,7 @@ const LAYER_DEFS = ALL_LAYER_DEFS.filter((layer) => {
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
-const WZ_LAYER_LAYOUT_VERSION = "2026-07-satellite-observations";
+const WZ_LAYER_LAYOUT_VERSION = "2026-07-orbital-assets";
 const DEFAULT_LAYER_STATE = {
     strikes: false,
     missiles: false,
@@ -59,6 +60,7 @@ const DEFAULT_LAYER_STATE = {
     recon: false,
     seismic: false,
     hotspots: true,
+    "orbital-assets": false,
     "satellite-imagery": true,
     terrain: true,
     "region-plate": true,

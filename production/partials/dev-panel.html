@@ -307,6 +307,127 @@
                 </label>
             </div>
 
+            <div class="wz-dev-label">ORBITAL ASSET TUNER</div>
+            <div class="wz-dev-map-tuner" id="wz-dev-orbital-ui-tuner">
+                <label class="wz-dev-map-row">
+                    <span>Footprint Outline Width</span>
+                    <input id="wz-orbital-footprint-outline-width-range" type="range" min="0.5" max="12" step="0.1">
+                    <input id="wz-orbital-footprint-outline-width-input" class="wz-dev-input wz-dev-map-value" type="number" min="0.5" max="12" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Footprint Outline Alpha</span>
+                    <input id="wz-orbital-footprint-outline-alpha-range" type="range" min="0" max="1" step="0.01">
+                    <input id="wz-orbital-footprint-outline-alpha-input" class="wz-dev-input wz-dev-map-value" type="number" min="0" max="1" step="0.01">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Footprint Fill Alpha</span>
+                    <input id="wz-orbital-footprint-fill-alpha-range" type="range" min="0" max="0.4" step="0.01">
+                    <input id="wz-orbital-footprint-fill-alpha-input" class="wz-dev-input wz-dev-map-value" type="number" min="0" max="0.4" step="0.01">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Orbit Path Width</span>
+                    <input id="wz-orbital-path-width-range" type="range" min="0.5" max="8" step="0.1">
+                    <input id="wz-orbital-path-width-input" class="wz-dev-input wz-dev-map-value" type="number" min="0.5" max="8" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Orbit Path Alpha</span>
+                    <input id="wz-orbital-path-alpha-range" type="range" min="0" max="1" step="0.01">
+                    <input id="wz-orbital-path-alpha-input" class="wz-dev-input wz-dev-map-value" type="number" min="0" max="1" step="0.01">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Ground Track Width</span>
+                    <input id="wz-orbital-ground-track-width-range" type="range" min="0.5" max="8" step="0.1">
+                    <input id="wz-orbital-ground-track-width-input" class="wz-dev-input wz-dev-map-value" type="number" min="0.5" max="8" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Nadir Width</span>
+                    <input id="wz-orbital-nadir-width-range" type="range" min="0.5" max="8" step="0.1">
+                    <input id="wz-orbital-nadir-width-input" class="wz-dev-input wz-dev-map-value" type="number" min="0.5" max="8" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Idle Model Min Pixel</span>
+                    <input id="wz-orbital-model-min-px-range" type="range" min="6" max="80" step="1">
+                    <input id="wz-orbital-model-min-px-input" class="wz-dev-input wz-dev-map-value" type="number" min="6" max="80" step="1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Selected Model Min Pixel</span>
+                    <input id="wz-orbital-selected-model-min-px-range" type="range" min="6" max="120" step="1">
+                    <input id="wz-orbital-selected-model-min-px-input" class="wz-dev-input wz-dev-map-value" type="number" min="6" max="120" step="1">
+                </label>
+                <div class="wz-dev-map-actions">
+                    <button id="wz-orbital-preview-refresh" type="button" class="wz-dev-action wz-dev-action--fire">Refresh Orbital Layer</button>
+                    <button id="wz-orbital-load-current" type="button" class="wz-dev-action">Load Current</button>
+                    <button id="wz-orbital-copy-css" type="button" class="wz-dev-action">Copy :root Block</button>
+                </div>
+                <label class="wz-dev-field wz-dev-field--full">
+                    <span>Copy to <code>root.css</code></span>
+                    <textarea id="wz-orbital-css-output" class="wz-dev-input wz-dev-map-output" rows="10" readonly></textarea>
+                </label>
+            </div>
+
+            <div class="wz-dev-label" data-wz-dev-startup-only="1">STARTUP SCENE TUNER</div>
+            <div class="wz-dev-map-tuner" id="wz-dev-startup-scene-tuner" data-wz-dev-startup-only="1">
+                <label class="wz-dev-map-row">
+                    <span>Start Longitude</span>
+                    <input id="wz-startup-lon-range" type="range" min="-180" max="180" step="0.1">
+                    <input id="wz-startup-lon-input" class="wz-dev-input wz-dev-map-value" type="number" min="-180" max="180" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Start Latitude</span>
+                    <input id="wz-startup-lat-range" type="range" min="-85" max="85" step="0.1">
+                    <input id="wz-startup-lat-input" class="wz-dev-input wz-dev-map-value" type="number" min="-85" max="85" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Start Height</span>
+                    <input id="wz-startup-height-range" type="range" min="2000000" max="15000000" step="50000">
+                    <input id="wz-startup-height-input" class="wz-dev-input wz-dev-map-value" type="number" min="2000000" max="15000000" step="50000">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Start Pitch</span>
+                    <input id="wz-startup-pitch-range" type="range" min="-89" max="-20" step="1">
+                    <input id="wz-startup-pitch-input" class="wz-dev-input wz-dev-map-value" type="number" min="-89" max="-20" step="1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Startup Rotation Speed</span>
+                    <input id="wz-startup-rotation-speed-range" type="range" min="0.05" max="2" step="0.01">
+                    <input id="wz-startup-rotation-speed-input" class="wz-dev-input wz-dev-map-value" type="number" min="0.05" max="2" step="0.01">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Startup Multiplier</span>
+                    <input id="wz-startup-rotation-multiplier-range" type="range" min="0.1" max="4" step="0.01">
+                    <input id="wz-startup-rotation-multiplier-input" class="wz-dev-input wz-dev-map-value" type="number" min="0.1" max="4" step="0.01">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Dummy Sat Rotation Speed</span>
+                    <input id="wz-startup-sat-rotation-speed-range" type="range" min="0" max="20" step="0.1">
+                    <input id="wz-startup-sat-rotation-speed-input" class="wz-dev-input wz-dev-map-value" type="number" min="0" max="20" step="0.1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Dummy Sat Scale</span>
+                    <input id="wz-startup-sat-scale-range" type="range" min="10000" max="500000" step="1000">
+                    <input id="wz-startup-sat-scale-input" class="wz-dev-input wz-dev-map-value" type="number" min="10000" max="500000" step="1000">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Dummy Sat Min Pixel</span>
+                    <input id="wz-startup-sat-min-px-range" type="range" min="1" max="120" step="1">
+                    <input id="wz-startup-sat-min-px-input" class="wz-dev-input wz-dev-map-value" type="number" min="1" max="120" step="1">
+                </label>
+                <label class="wz-dev-map-row">
+                    <span>Dummy Sat Max Scale</span>
+                    <input id="wz-startup-sat-max-scale-range" type="range" min="10000" max="600000" step="1000">
+                    <input id="wz-startup-sat-max-scale-input" class="wz-dev-input wz-dev-map-value" type="number" min="10000" max="600000" step="1000">
+                </label>
+                <div class="wz-dev-map-actions">
+                    <button id="wz-startup-scene-apply" type="button" class="wz-dev-action wz-dev-action--fire">Apply Startup Scene</button>
+                    <button id="wz-startup-scene-load-current" type="button" class="wz-dev-action">Load Current</button>
+                    <button id="wz-startup-scene-copy" type="button" class="wz-dev-action">Copy Values</button>
+                </div>
+                <label class="wz-dev-field wz-dev-field--full">
+                    <span>Copy these startup values</span>
+                    <textarea id="wz-startup-scene-output" class="wz-dev-input wz-dev-map-output" rows="14" readonly></textarea>
+                </label>
+            </div>
+
             <div class="wz-dev-actions">
                 <button type="button" id="wz-dev-fire-all" class="wz-dev-action wz-dev-action--fire">FIRE ALL</button>
                 <button type="button" id="wz-dev-clear" class="wz-dev-action wz-dev-action--clear">CLEAR LOG</button>

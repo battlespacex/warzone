@@ -25,6 +25,7 @@ import cors from "cors";
 import { attachWs } from "./ws.js";
 import { eventsRouter } from "./routes.events.js";
 import { stratopsRouter } from "./routes.stratops.js";
+import { satellitesRouter } from "./routes.satellites.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -60,6 +61,7 @@ const server = http.createServer(app);
 const { broadcast } = attachWs(server);
 app.use("/events", eventsRouter({ broadcast }));
 app.use("/stratops", stratopsRouter());
+app.use("/satellites", satellitesRouter());
 server.listen(PORT, () => {
     console.log(`Warzone API listening on :${PORT}`);
 });

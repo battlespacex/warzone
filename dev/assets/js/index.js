@@ -17,7 +17,6 @@ import {
     subscribeToSirenBroadcast,
 } from "./warzone-realtime.js";
 import { bindWarzoneUi } from "./warzone-ui.js";
-import { initWarzoneMilSats } from "./warzone-mil-sats.js";
 import { initStratopsBilling } from "./warzone-billing.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 import { initWarzoneAoiLens } from "./warzone-aoi-lens.js";
@@ -61,9 +60,28 @@ window.__stratopsConfig = {
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
     optimizeBackgroundOnAircraftFocus: true,
-    enableMilSatsLayer: isStratOpsFeatureEnabled("system.milSatOrbit"),
-    milSatsRotation: false, 
+    enableMilSatsLayer: isStratOpsFeatureEnabled("system.milSatOrbit")
+        && isStratOpsFeatureEnabled("tracking.strategicSatellites"),
+    strategicSatellites: {
+        enabled: isStratOpsFeatureEnabled("system.milSatOrbit")
+            && isStratOpsFeatureEnabled("tracking.strategicSatellites"),
+        apiPath: "/api/satellites/military",
+        maximumVisibleSatellites: 160,
+        sampleIntervalSeconds: 120,
+        pastOrbitMinutes: 45,
+        futureOrbitMinutes: 60,
+        positionRefreshIntervalMs: 30000,
+        focusedModelCount: 1,
+        showOrbitPath: true,
+        showGroundTrack: true,
+        showNadirLine: true,
+        showTheoreticalFootprint: true,
+        showLabels: false,
+        minimumClassificationConfidence: "unconfirmed",
+    },
+    milSatsRotation: true,
     milSatsRotationSpeed: 5, 
+    startupMilSatsDemo: true,
     billing: {
         enabled: false,
     },
@@ -242,16 +260,46 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
+        let devPanelModulePromise = null;
+        let startupMilSatsModulePromise = null;
+        const loadDevPanelModule = () => {
+            if (!devPanelModulePromise) {
+                devPanelModulePromise = import("./warzone-dev-panel.js")
+                    .catch((error) => {
+                        console.warn("Dev panel failed to load:", error);
+                        return null;
+                    });
+            }
+            return devPanelModulePromise;
+        };
+        const loadStartupMilSatsModule = () => {
+            if (!startupMilSatsModulePromise) {
+                startupMilSatsModulePromise = import("./warzone-startup-mil-sats.js")
+                    .catch((error) => {
+                        console.warn("Startup mil-sat demo failed to load:", error);
+                        return null;
+                    });
+            }
+            return startupMilSatsModulePromise;
+        };
+
         const viewer = await initWarzoneGlobe();
         window.__warzoneViewer = viewer;
         viewer?.__warzone?.setAdaptiveQualityProfile?.("safe");
         viewer?.__warzone?.setPerformanceMode?.(0);
-        if (window.__stratopsConfig?.enableMilSatsLayer !== false && isStratOpsFeatureEnabled("system.milSatOrbit")) {
-            initWarzoneMilSats(viewer);
-            setTimeout(() => {
+        let started = false;
+        if (window.__stratopsConfig?.startupMilSatsDemo !== false) {
+            setTimeout(async () => {
+                const startupMilSatsModule = await loadStartupMilSatsModule();
+                if (started) {
+                    startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(false);
+                    return;
+                }
+                startupMilSatsModule?.initWarzoneStartupMilSats?.(viewer);
+                startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(true);
                 try { window.refreshWarzoneMilSatsScale?.(); }
                 catch { }
-            }, 150);
+            }, 450);
         }
         if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
             initRegionSelector(viewer);
@@ -262,11 +310,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.__warzoneShowRegionModal?.(instant);
         }
 
-        let started = false;
         window.__warzoneStartDeferredApp = async () => {
             if (started) return;
             started = true;
             try {
+                if (startupMilSatsModulePromise) {
+                    const startupMilSatsModule = await loadStartupMilSatsModule();
+                    startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(false);
+                }
                 viewer?.__warzone?.stopStartupRotation?.();
                 viewer?.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
                 viewer?.__warzone?.setPerformanceMode?.(0);
@@ -276,10 +327,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (isStratOpsFeatureEnabled("system.captureShot") && isStratOpsFeatureEnabled("header.captureShot")) {
                     initWarzoneCaptureShot(viewer);
                 }
-                if (isLocalDevHost && isStratOpsFeatureEnabled("system.devPanel")) {
-                    import("./warzone-dev-panel.js")
-                        .then((module) => module.initDevPanel?.())
-                        .catch((error) => console.warn("Dev panel failed to load:", error));
+                const shouldLoadFullDevPanelAfterEntry = (
+                    isLocalDevHost &&
+                    isStratOpsFeatureEnabled("system.devPanel") &&
+                    window.location.search.includes("devpanel=1")
+                );
+                if (shouldLoadFullDevPanelAfterEntry) {
+                    const devPanelModule = await loadDevPanelModule();
+                    devPanelModule?.initDevPanel?.();
+                    devPanelModule?.showFullDevPanel?.();
                 }
                 await initWarzoneApp();
 

@@ -1,5 +1,5 @@
 BATTLESPACEX STRATOPS - CURRENT INTERNAL DEVELOPMENT REFERENCE
-Last updated: 2026-05-07
+Last updated: 2026-07-28
 
 Purpose:
 This document captures the current implementation-level reference for developers and AI agents. It is based on the current codebase and should be updated when classifications, assets, data files, or popup behavior change.
@@ -54,6 +54,7 @@ dev/assets/js/warzone-layers.js
 - layer state persistence
 - premium layer gating
 - event-to-layer routing
+- Orbital Assets and Satellite Observations are separate layers
 
 dev/assets/js/warzone-hotspots.js
 - DOM hotspot card layer
@@ -83,6 +84,22 @@ dev/assets/js/warzone-live-naval.js
 - naval subtype resolution
 - PNG/model asset resolution
 - focus/selection/trails/widgets
+
+dev/assets/js/warzone-mil-sats.js
+- Orbital Assets layer
+- fetches /api/satellites/military only when the orbital-assets layer is enabled
+- uses satellite.js json2satrec propagation on CelesTrak OMM-compatible GP JSON
+- renders lightweight global symbols and selected-satellite GLB context only
+- owns hover card, focused satellite card, selected orbit path, ground track, nadir line, and theoretical line-of-sight footprint cleanup
+
+apps/api/src/routes.satellites.js
+- API router for /satellites/military
+
+apps/api/src/strategic-satellites.js
+- CelesTrak GP + SATCAT fetch, normalization, cache, stale fallback, and classification handling
+
+apps/api/src/config/strategic-satellite-catalog.json
+- optional verified public override catalog for specific satellites
 
 ------------------------------------------------------------
 3. MILITARY BASE DATA
@@ -344,7 +361,73 @@ Asset filename rule:
 Use exact workbook filenames for new exports, for example Fighter-F16.glb, AWACS-Phalcon.png, Carrier-US.glb, and Vessel-Frigate.png.
 
 ------------------------------------------------------------
-9. BUILD AND TEST
+9. ORBITAL ASSETS REFERENCE
+------------------------------------------------------------
+
+Primary frontend file:
+dev/assets/js/warzone-mil-sats.js
+
+Primary API files:
+apps/api/src/routes.satellites.js
+apps/api/src/strategic-satellites.js
+apps/api/src/config/strategic-satellite-catalog.json
+
+Frontend package:
+satellite.js 7.1.0
+
+API endpoint:
+GET /api/satellites/military
+
+CelesTrak source:
+https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=JSON
+
+SATCAT metadata source:
+https://celestrak.org/pub/satcat.csv
+
+Feature flags:
+- mapLayers.orbitalAssets
+- mapLayers.satelliteObservations
+- tracking.strategicSatellites
+- system.milSatOrbit
+
+Runtime config:
+window.__stratopsConfig.strategicSatellites
+
+Important config fields:
+- apiPath
+- maximumVisibleSatellites
+- sampleIntervalSeconds
+- pastOrbitMinutes
+- futureOrbitMinutes
+- positionRefreshIntervalMs
+- focusedModelCount
+- showOrbitPath
+- showGroundTrack
+- showNadirLine
+- showTheoreticalFootprint
+- showLabels
+- minimumClassificationConfidence
+
+Data limitations:
+- Positions are propagated estimates from public orbital elements.
+- CelesTrak is not a StratOps live sensor feed.
+- Mission classification must remain careful and must not mark every military-group record as confirmed active intelligence collection.
+- Name/operator inference is isolated in apps/api/src/strategic-satellites.js.
+- Verified overrides belong in apps/api/src/config/strategic-satellite-catalog.json and must not contain fabricated information.
+
+Layer separation rule:
+- orbital-assets controls moving satellite positions.
+- satellite-imagery controls event-linked Sentinel/Copernicus observation markers and imagery context.
+- Do not merge these concepts into one layer or one report label.
+
+Cache behavior:
+- API refreshes CelesTrak no more frequently than once every two hours.
+- API serves the last valid cache if CelesTrak is temporarily unavailable.
+- Local runtime cache path is apps/api/.cache/strategic-satellites-military.json and is gitignored.
+- Cache is considered stale after 24 hours and the payload marks stale/status fields for the UI.
+
+------------------------------------------------------------
+10. BUILD AND TEST
 ------------------------------------------------------------
 
 Development:
@@ -362,5 +445,10 @@ Manual smoke checks after classification or asset changes:
 - base popup opens, follows selected marker, hides offscreen, and closes
 - aircraft tracker shows correct type labels, icons/models, heading, trail, focus, and widget cards
 - naval tracker shows correct type labels, icons/models, heading, sea-level placement, trail, focus, and widget cards
+- Orbital Assets stays idle while disabled and makes no API request
+- enabling Orbital Assets calls /api/satellites/military through the API proxy
+- orbital hover card uses public estimate language
+- selected orbital asset shows orbit path, ground track, nadir line, theoretical line-of-sight footprint, and cleans up when closed
+- Satellite Observations remain independently toggleable
 - region select and return-to-region controls still work
 - build succeeds

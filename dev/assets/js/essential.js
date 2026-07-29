@@ -42,11 +42,37 @@ import {
     getAllNavalSnapshots,
 } from "./warzone-live-naval.js";
 import { startPublicAirIngestion, refreshPublicAirTracksNow, stopPublicAirIngestion } from "./warzone-air-ingestion.js";
-import { setWarzoneMilSatsEnabled } from "./warzone-mil-sats.js";
 import {
     applyStratOpsFeatureVisibility,
     isStratOpsFeatureEnabled,
 } from "./stratops-feature-config.js";
+let __warzoneMilSatsModulePromise = null;
+let __warzoneMilSatsInitialized = false;
+function loadWarzoneMilSatsModule() {
+    if (!__warzoneMilSatsModulePromise) {
+        __warzoneMilSatsModulePromise = import("./warzone-mil-sats.js")
+            .catch((error) => {
+                console.warn("Mil-sat module failed to load:", error);
+                return null;
+            });
+    }
+    return __warzoneMilSatsModulePromise;
+}
+function setWarzoneMilSatsEnabledDeferred(enabled) {
+    const shouldEnable = enabled !== false;
+    if (!shouldEnable && !__warzoneMilSatsModulePromise) {
+        return Promise.resolve();
+    }
+    return loadWarzoneMilSatsModule()
+        .then((module) => {
+            if (!module) return;
+            if (!__warzoneMilSatsInitialized && window.__warzoneViewer) {
+                module.initWarzoneMilSats?.(window.__warzoneViewer);
+                __warzoneMilSatsInitialized = true;
+            }
+            module.setWarzoneMilSatsEnabled?.(shouldEnable);
+        });
+}
 let __eventsCache = [];
 let __allEventsCache = [];
 let __visibleEventsCache = [];
@@ -1578,11 +1604,14 @@ function syncFocusAwareBackgroundLoops() {
     scheduleViewportFetch(180);
 }
 function shouldEnableMilSatsLayer() {
-    return window.__stratopsConfig?.enableMilSatsLayer !== false;
+    return (
+        window.__stratopsConfig?.enableMilSatsLayer !== false &&
+        isStratOpsFeatureEnabled("tracking.strategicSatellites") &&
+        isLayerEnabled("orbital-assets")
+    );
 }
 function syncIdleSceneState() {
-    // Keep MIL-SATS independent from map layer toggles.
-    setWarzoneMilSatsEnabled(shouldEnableMilSatsLayer());
+    void setWarzoneMilSatsEnabledDeferred(shouldEnableMilSatsLayer());
 }
 function isAuthModalVisible() {
     const introModal = document.getElementById("wz-intro-modal");
@@ -6520,15 +6549,30 @@ function updateAircraftWidgetCard(card, track, selection) {
     }
     statusWrap.className = `wz-aircraft-title__status ${track.active ? "is-active" : "is-ended"}`;
     statusWrap.setAttribute("aria-label", statusLabel);
-    titleText.textContent = title;
-    timeEl.textContent = timeLabel;
+    titleText.textContent = String(title || "").toUpperCase();
+    timeEl.textContent = String(timeLabel || "").toUpperCase();
     const metaSpans = meta.querySelectorAll("span");
-    if (metaSpans[0]) metaSpans[0].textContent = detailLabel;
-    if (metaSpans[1]) metaSpans[1].textContent = affiliationLabel;
+    if (metaSpans[0]) {
+        metaSpans[0].dataset.label = "TYPE";
+        metaSpans[0].textContent = String(detailLabel || "").toUpperCase();
+    }
+    if (metaSpans[1]) {
+        metaSpans[1].dataset.label = "FORCE";
+        metaSpans[1].textContent = String(affiliationLabel || "").toUpperCase();
+    }
     const statSpans = stats.querySelectorAll("span");
-    if (statSpans[0]) statSpans[0].textContent = altitudeLabel;
-    if (statSpans[1]) statSpans[1].textContent = speedLabel;
-    if (statSpans[2]) statSpans[2].textContent = headingLabel;
+    if (statSpans[0]) {
+        statSpans[0].dataset.label = "ALT";
+        statSpans[0].textContent = String(altitudeLabel || "").toUpperCase();
+    }
+    if (statSpans[1]) {
+        statSpans[1].dataset.label = "SPEED";
+        statSpans[1].textContent = String(speedLabel || "").toUpperCase();
+    }
+    if (statSpans[2]) {
+        statSpans[2].dataset.label = "HEADING";
+        statSpans[2].textContent = String(headingLabel || "").toUpperCase();
+    }
     actionBtn.dataset.trackAction = action;
     actionBtn.dataset.trackToggle = String(track.track_key || "");
     actionBtn.disabled = isFocusDisabled;
@@ -8627,12 +8671,14 @@ export function initStratopsIntro() {
     const authBypassState = getAuthBypassState();
     if (authBypassState) {
         applyResolvedAuthState(true, authBypassState.user, authBypassState.base);
-        try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
-        requestAnimationFrame(() => {
-            document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: authBypassState.base } }));
-            window.__warzoneShowRegionModal?.();
-        });
-        return;
+        if (authBypassState.base === "staging-bypass") {
+            try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
+            requestAnimationFrame(() => {
+                document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: authBypassState.base } }));
+                window.__warzoneShowRegionModal?.();
+            });
+            return;
+        }
     }
 
     // ── Helper: show/hide inline error ──────────────────────────────────────

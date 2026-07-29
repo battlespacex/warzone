@@ -2340,6 +2340,7 @@ function bindNavalFocusInteraction(viewer) {
         if (!__navalState.selectedKey) return;
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         const deltaY = Number(event?.deltaY || 0);
         const zoomDelta = deltaY > 0 ? getNavalFocusWheelZoomStepMeters() : -getNavalFocusWheelZoomStepMeters();
         if (!setNavalFocusRangeMeters(Number(__navalState.focusRangeMeters || NAVAL_FOCUS_CAMERA_RANGE_METERS) + zoomDelta)) return;
@@ -3183,12 +3184,27 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "", aircraftFocusLock
     timeEl.textContent = timeLabel;
 
     const metaSpans = meta.querySelectorAll("span");
-    if (metaSpans[0]) metaSpans[0].textContent = detailLabel;
-    if (metaSpans[1]) metaSpans[1].textContent = affiliationLabel;
+    if (metaSpans[0]) {
+        metaSpans[0].dataset.label = "CATEGORY";
+        metaSpans[0].textContent = detailLabel;
+    }
+    if (metaSpans[1]) {
+        metaSpans[1].dataset.label = "FORCE";
+        metaSpans[1].textContent = affiliationLabel;
+    }
     const statSpans = stats.querySelectorAll("span");
-    if (statSpans[0]) statSpans[0].textContent = speedLabel;
-    if (statSpans[1]) statSpans[1].textContent = headingLabel;
-    if (statSpans[2]) statSpans[2].textContent = coordLabel;
+    if (statSpans[0]) {
+        statSpans[0].dataset.label = "SPEED";
+        statSpans[0].textContent = String(speedLabel || "").toUpperCase();
+    }
+    if (statSpans[1]) {
+        statSpans[1].dataset.label = "HEADING";
+        statSpans[1].textContent = String(headingLabel || "").toUpperCase();
+    }
+    if (statSpans[2]) {
+        statSpans[2].dataset.label = "POSITION";
+        statSpans[2].textContent = String(coordLabel || "").toUpperCase();
+    }
 
     actionBtn.disabled = isFocusDisabled;
     actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");

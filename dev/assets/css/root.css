@@ -233,6 +233,40 @@
     --warzone-satellite-imagery-marker-size-px: 42;
     --warzone-satellite-imagery-viewer-width: 82rem;
     --warzone-satellite-imagery-viewer-max-height: 82vh;
+    --warzone-orbital-symbol-size: 6;
+    --warzone-orbital-symbol-hover-size: 9;
+    --warzone-orbital-symbol-color: #9fd7ff;
+    --warzone-orbital-symbol-alpha: 0.72;
+    --warzone-orbital-symbol-outline-color: #08131c;
+    --warzone-orbital-symbol-outline-width: 1;
+    --warzone-orbital-max-visible-distance: 26000000;
+    --warzone-orbital-label-size: 10;
+    --warzone-orbital-label-color: #9fd7ff;
+    --warzone-orbital-path-color: #9fd7ff;
+    --warzone-orbital-path-alpha: 0.34;
+    --warzone-orbital-predicted-color: #e7edf5;
+    --warzone-orbital-predicted-alpha: 0.26;
+    --warzone-orbital-path-width: 1.4;
+    --warzone-orbital-ground-track-color: var(--color-teal-glow);
+    --warzone-orbital-ground-track-alpha: 0.24;
+    --warzone-orbital-ground-track-width: 1;
+    --warzone-orbital-ground-point-size: 7;
+    --warzone-orbital-nadir-color: #9fd7ff;
+    --warzone-orbital-nadir-alpha: 0.3;
+    --warzone-orbital-nadir-width: 1;
+    --warzone-orbital-footprint-color: #9fd7ff;
+    --warzone-orbital-footprint-fill-alpha: 0.035;
+    --warzone-orbital-footprint-outline-color: #9fd7ff;
+    --warzone-orbital-footprint-outline-alpha: 0.24;
+    --warzone-orbital-footprint-outline-width: 2;
+    --warzone-orbital-selected-color: #e7edf5;
+    --warzone-orbital-selected-fallback-size: 10;
+    --warzone-orbital-model-scale: 170000;
+    --warzone-orbital-model-min-px: 18;
+    --warzone-orbital-model-max-scale: 260000;
+    --warzone-orbital-selected-model-scale: 170000;
+    --warzone-orbital-selected-model-min-px: 18;
+    --warzone-orbital-selected-model-max-scale: 260000;
 }
 /* #endregion =========== */
 /* #region =========== Globe Render Quality =========== */
@@ -246,11 +280,11 @@
     --warzone-moving-resolution-scale: 1;
     --warzone-moving-msaa-samples: 1;
     --warzone-focus-resolution-scale: 1.12;
-    --warzone-focus-performance-resolution-scale: 0.82;
-    --warzone-focus-performance-msaa-samples: 1;
-    --warzone-focus-performance-screen-space-error: 2.2;
-    --warzone-focus-performance-tile-cache: 96;
-    --warzone-focus-performance-render-time: 0.28;
+    --warzone-focus-performance-resolution-scale: 1;
+    --warzone-focus-performance-msaa-samples: 2;
+    --warzone-focus-performance-screen-space-error: 1.9;
+    --warzone-focus-performance-tile-cache: 120;
+    --warzone-focus-performance-render-time: 0.32;
     --warzone-close-resolution-scale: 1.06;
     --warzone-focus-msaa-samples: 2;
     --warzone-close-msaa-samples: 2;
@@ -330,14 +364,14 @@
 /* #endregion =========== */
 /* #region =========== Camera Defaults =========== */
 :root {
-    --warzone-start-lon: 40;
-    --warzone-start-lat: 26;
-    --warzone-start-height: 9200000;
+    --warzone-start-lon: 40.4;
+    --warzone-start-lat: 12.3;
+    --warzone-start-height: 5200000;
     --warzone-focus-height: 2350000;
     --warzone-start-heading: 0;
-    --warzone-start-pitch: -90;
+    --warzone-start-pitch: -74;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 0.4;
+    --warzone-startup-rotation-speed: 0.52;
 }
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
@@ -955,7 +989,7 @@
 /* #endregion =========== */
 /* #region =========== SATELLITE SCALING =========== */
 :root {
-    --warzone-mil-sat-scale: 200000;
+    --warzone-mil-sat-scale: 194000;
     --warzone-mil-sat-min-px: 20;
     --warzone-mil-sat-max-scale: 320000;
     --warzone-mil-sat-near-height: 500000;

@@ -1,64 +1,91 @@
-BATTLESPACEX – DATA FLOW AND OPERATIONS
+BATTLESPACEX STRATOPS - DATA FLOW AND OPERATIONS
+Last updated: 2026-07-28
 
 1. EVENT PIPELINE
+
 Incoming data is normalized into a structured event format before rendering. A normalized event may include:
-• id
-• category
-• title
-• summary
-• occurred_at
-• lat
-• lon
-• origin_lat
-• origin_lon
-• impact_lat
-• impact_lon
-• actor_side
-• target_side
-• weapon_type
-• target_type
-• severity
-• confidence
-• country_code
-• airspace_status
-• cyber_status
-• tags
+- id
+- category
+- title
+- summary
+- occurred_at
+- lat
+- lon
+- origin_lat
+- origin_lon
+- impact_lat
+- impact_lon
+- actor_side
+- target_side
+- weapon_type
+- target_type
+- severity
+- confidence
+- country_code
+- airspace_status
+- cyber_status
+- tags
+- satellite_context when event-linked observation context is available
 
 2. INITIAL LOAD
+
 On application start, the platform loads a recent event dataset, normalizes it, and renders:
-• strike counters
-• cyber and airspace widgets
-• globe event circles
-• hotspot cards
-• military tracks
-• summary and analytics views
+- strike counters
+- cyber and airspace widgets
+- globe event circles
+- hotspot cards
+- aircraft and naval trackers when enabled
+- GNSS cells when enabled
+- military bases when enabled
+- summary and analytics views
+
+Orbital Assets is separate from event loading. It does not fetch until the premium `orbital-assets` layer is enabled.
 
 3. VIEWPORT-BASED LOADING
-The platform is being evolved toward viewport-based event loading to keep performance fast.
-Intended workflow:
+
+The platform supports viewport and current-region filtering to keep performance fast:
 1. user moves the globe
 2. camera movement stops
 3. current visible bounds are calculated
-4. events for that region are fetched
+4. events for that area can be fetched or filtered
 5. only relevant regional events are rendered
 
 4. LIVE UPDATES
-The platform also supports periodic live polling.
-• system checks for events newer than the last known timestamp
-• new events are merged into the active dataset
-• new markers, hotspots, and tracks are added when valid
-• active UI counters and feeds update
 
-5. RENDER STRATEGY
+The platform supports periodic live polling:
+- checks for events newer than the last known timestamp
+- merges new events into the active dataset
+- adds new markers, hotspots, and tracks when valid
+- updates active UI counters and feeds
+
+5. ORBITAL ASSET DATA FLOW
+
+Orbital Assets uses a separate data path:
+
+1. CelesTrak public GP military-group JSON and SATCAT CSV are fetched by the StratOps API.
+2. The API validates, normalizes, classifies, and caches the response.
+3. The frontend requests `/api/satellites/military` only when the `orbital-assets` layer is enabled.
+4. `warzone-mil-sats.js` uses satellite.js to propagate estimated positions.
+5. Cesium renders lightweight satellite symbols globally and selected-satellite context on click.
+
+The layer does not make direct browser requests to CelesTrak and does not calculate orbital propagation every render frame.
+
+6. RENDER STRATEGY
+
 To maintain performance:
-• events may be clustered
-• hotspots are limited
-• military tracks are handled separately
-• rendering is filtered by region and layer visibility
-• heavy UI sections are debounced
+- events may be clustered
+- hotspots are limited
+- aircraft and naval tracks are handled separately
+- rendering is filtered by region and layer visibility
+- heavy UI sections are debounced
+- orbital propagation uses sampled intervals
+- only selected satellites use GLB context
 
-6. LIMITATIONS
-• coverage depends on source availability
-• some signals may be delayed or incomplete
-• absence of telemetry does not mean absence of activity
-• platform output is OSINT-informed, not verified intelligence
+7. LIMITATIONS
+
+- coverage depends on source availability
+- some signals may be delayed or incomplete
+- absence of telemetry does not mean absence of activity
+- platform output is OSINT-informed, not verified intelligence
+- orbital satellite positions are public propagated estimates, not live sensor detections
+- event-linked Satellite Observations are contextual imagery records, not live orbital tracking

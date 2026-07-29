@@ -3678,6 +3678,7 @@ function bindFocusInteractionTracking(viewer) {
         if (!isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         const deltaY = Number(event?.deltaY || 0);
         const zoomStepMeters = getLiveTrackFocusWheelZoomStepMeters();
         const zoomDelta = deltaY > 0 ? zoomStepMeters : -zoomStepMeters;
