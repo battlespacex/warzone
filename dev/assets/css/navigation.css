@@ -2,11 +2,14 @@
 /* #region =========== COMMAND CENTER HEADER =========== */
 .warzone-commandbar {
     position: fixed;
-    inset: 0 0 auto 0;
+    top: 0;
+    left: var(--wz-left-pane-offset);
+    right: 0;
     z-index: 140;
     box-sizing: border-box;
-    width: 100%;
+    width: calc(100% - var(--wz-left-pane-offset));
     pointer-events: none;
+    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1), width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
     .warzone-commandbar > * {
@@ -16,17 +19,17 @@
 .warzone-brand {
     position: fixed;
     top: 0;
-    left: 0;
+    left: var(--wz-left-pane-offset);
     right: 0;
     z-index: 10020;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
+    width: calc(100% - var(--wz-left-pane-offset));
     border-top: .7rem solid var(--color-teal-glow);
     filter: var(--header-shadow);
     transform: translateY(-8rem);
-    transition: transform 0.8s ease;
+    transition: transform 0.8s ease, left 320ms cubic-bezier(0.22, 1, 0.36, 1), width 320ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
 }
 
@@ -63,7 +66,7 @@
     align-items: center;
     gap: .5rem;
     opacity: 0;
-    transition: opacity 0.5s ease, transform 0.35s ease;
+    transition: opacity 0.5s ease, transform 0.35s ease, left 320ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: opacity;
     z-index: 9000
 }
@@ -82,7 +85,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 }
 
 .warzone-region-bar {
-    left: 2rem;
+    left: calc(2rem + var(--wz-left-pane-offset));
 }
 
     .warzone-region-bar .static-icon {
@@ -158,14 +161,14 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 .wz-dock {
     position: fixed;
     bottom: 2.5rem;
-    left: 50%;
+    left: calc(50% + (var(--wz-left-pane-offset) / 2));
     z-index: 10010;
     pointer-events: auto;
     max-width: calc(100vw - 4rem);
     /* filter: var(--widget-shadow); */
     opacity: 0;
     transform: translateX(-50%) translateY(6rem);
-    transition: opacity 0.65s ease, transform 0.65s ease;
+    transition: opacity 0.65s ease, transform 0.65s ease, left 320ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: opacity, transform;
 }
 
@@ -405,9 +408,10 @@ body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible=
     gap: 0;
     clip-path: var(--clippath-shape-3);
     position: fixed;
-    left: 2rem;
+    left: calc(2rem + var(--wz-left-pane-offset));
     flex-direction: column;
     top: 50%;
+    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .wz-globe-toggle__btn {

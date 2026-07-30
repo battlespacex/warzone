@@ -5,6 +5,7 @@ import {
     getStratOpsWidgetFeaturePath,
     isStratOpsFeatureEnabled,
 } from "./stratops-feature-config.js";
+import { resetLayerStateForFreshLoad } from "./warzone-layers.js";
 
 let __siteLoaderHideTimer = 0;
 let __siteLoaderHardStopTimer = 0;
@@ -88,6 +89,80 @@ document.addEventListener("DOMContentLoaded", () => {
         cyber: false,
         aoi: false,
     };
+    const MAP_LAYERS_PANE_ID = "wz-map-layers-pane";
+    let mapLayersResizeBurstRaf = 0;
+    let mapLayersResizeBurstUntil = 0;
+    function getMapLayersPane() {
+        return document.getElementById(MAP_LAYERS_PANE_ID);
+    }
+    function isMapLayersOpen() {
+        return document.body.classList.contains("is-map-layers-open");
+    }
+    function requestMapLayersResizeBurst(durationMs = 420) {
+        const viewer = window.__warzoneViewer;
+        if (!viewer?.scene?.requestRender) return;
+        mapLayersResizeBurstUntil = Math.max(
+            mapLayersResizeBurstUntil,
+            performance.now() + Math.max(180, Number(durationMs) || 420)
+        );
+        if (mapLayersResizeBurstRaf) return;
+        const step = () => {
+            try {
+                viewer.resize?.();
+            } catch {
+                // ignore resize failures
+            }
+            viewer.scene.requestRender?.();
+            if (performance.now() >= mapLayersResizeBurstUntil) {
+                mapLayersResizeBurstRaf = 0;
+                return;
+            }
+            mapLayersResizeBurstRaf = requestAnimationFrame(step);
+        };
+        mapLayersResizeBurstRaf = requestAnimationFrame(step);
+    }
+    function syncMapLayersPaneUi() {
+        const pane = getMapLayersPane();
+        const open = isMapLayersOpen();
+        pane?.setAttribute("aria-hidden", String(!open));
+        document.querySelectorAll('.wz-dock__btn[data-dock-widget="layers"], [data-dock-proxy="layers"]').forEach((btn) => {
+            btn.classList.toggle("is-active", open);
+            btn.setAttribute("aria-expanded", String(open));
+            btn.setAttribute("aria-controls", MAP_LAYERS_PANE_ID);
+        });
+    }
+    function setMapLayersPaneOpen(open = false) {
+        if (!getMapLayersPane()) return;
+        document.body.classList.toggle("is-map-layers-open", Boolean(open));
+        syncMapLayersPaneUi();
+        requestMapLayersResizeBurst(480);
+    }
+    function toggleMapLayersPane() {
+        setMapLayersPaneOpen(!isMapLayersOpen());
+    }
+    function bindMapLayersPane() {
+        const pane = getMapLayersPane();
+        if (!pane || pane.dataset.paneBound === "true") return;
+        pane.dataset.paneBound = "true";
+        pane.querySelector("[data-map-layers-close]")?.addEventListener("click", () => {
+            setMapLayersPaneOpen(false);
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape" || !isMapLayersOpen()) return;
+            const active = document.activeElement;
+            if (!active || !pane.contains(active)) return;
+            event.preventDefault();
+            setMapLayersPaneOpen(false);
+        });
+        const globeEl = document.getElementById("warzone-globe");
+        if (globeEl && typeof ResizeObserver === "function") {
+            const observer = new ResizeObserver(() => {
+                requestMapLayersResizeBurst(180);
+            });
+            observer.observe(globeEl);
+        }
+        syncMapLayersPaneUi();
+    }
     function isMobileLayout() {
         return window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)").matches;
     }
@@ -797,6 +872,14 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll("[data-dock-proxy]").forEach((btn) => {
             const widgetId = String(btn.dataset.dockProxy || "");
             if (!widgetId || widgetId === "about") return;
+            if (widgetId === "layers") {
+                const enabled = isDockWidgetFeatureEnabled(widgetId);
+                btn.hidden = !enabled;
+                btn.classList.toggle("is-active", Boolean(enabled && isMapLayersOpen()));
+                btn.setAttribute("aria-expanded", String(Boolean(enabled && isMapLayersOpen())));
+                btn.setAttribute("aria-controls", MAP_LAYERS_PANE_ID);
+                return;
+            }
             const enabled = isUiOnlyWidgetLayerEnabled(widgetId);
             const widget = document.querySelector(`.warzone-widget[data-widget-id="${widgetId}"]`);
             btn.hidden = !enabled || !widget;
@@ -806,6 +889,15 @@ document.addEventListener("DOMContentLoaded", () => {
     function syncDock() {
         document.querySelectorAll(".wz-dock__btn[data-dock-widget]").forEach((btn) => {
             const id = btn.dataset.dockWidget;
+            if (id === "layers") {
+                const enabled = isDockWidgetFeatureEnabled(id);
+                btn.classList.toggle("wz-dock--gone", !enabled);
+                btn.setAttribute("aria-hidden", String(!enabled));
+                btn.classList.toggle("is-active", Boolean(enabled && isMapLayersOpen()));
+                btn.setAttribute("aria-expanded", String(Boolean(enabled && isMapLayersOpen())));
+                btn.setAttribute("aria-controls", MAP_LAYERS_PANE_ID);
+                return;
+            }
             if (!isUiOnlyWidgetLayerEnabled(id)) {
                 btn.classList.add("wz-dock--gone");
                 btn.setAttribute("aria-hidden", "true");
@@ -838,6 +930,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function bindUiInteractionIsolation() {
         const selectors = [
             ".warzone-panel--floating",
+            ".wz-map-layers-pane",
             ".wz-modal-box",
             ".wz-dock",
             ".wz-mobile-dock-menu",
@@ -869,7 +962,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.documentElement.classList.add("wz-no-transitions");
     applyStratOpsFeatureVisibility();
+    resetLayerStateForFreshLoad();
     loadWidgetState();
+    bindMapLayersPane();
     syncWidgetChrome();
     const widgetObserver = new MutationObserver(() => {
         saveWidgetState();
@@ -898,6 +993,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.querySelectorAll(".wz-dock__btn[data-dock-widget]").forEach((btn) => {
         btn.addEventListener("click", () => {
+            if (btn.dataset.dockWidget === "layers") {
+                if (!isDockWidgetFeatureEnabled("layers")) return;
+                toggleMapLayersPane();
+                syncWidgetChrome();
+                return;
+            }
             if (!isUiOnlyWidgetLayerEnabled(btn.dataset.dockWidget || "")) return;
             const widget = document.querySelector(`.warzone-widget[data-widget-id="${btn.dataset.dockWidget}"]`);
             if (!widget) return;

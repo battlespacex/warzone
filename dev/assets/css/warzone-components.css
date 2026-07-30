@@ -1424,6 +1424,77 @@
 
 /* #endregion =========== */
 /* #region =========== LAYERS =========== */
+:root {
+    --map-layers-pane-width: min(34rem, 88vw);
+    --map-layers-pane-gap: 2rem;
+    --wz-left-pane-offset: 0px;
+}
+
+body.is-map-layers-open {
+    --wz-left-pane-offset: calc(var(--map-layers-pane-width) + var(--map-layers-pane-gap));
+}
+
+.wz-map-layers-pane {
+    position: fixed;
+    top: 9rem;
+    left: 2rem;
+    bottom: 9rem;
+    z-index: 10025;
+    width: var(--map-layers-pane-width);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(calc(-100% - 2.5rem));
+    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+}
+
+body.is-map-layers-open .wz-map-layers-pane {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+}
+
+.wz-map-layers-pane__shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
+    background: rgba(9, 16, 26, 0.92);
+    border: 1px solid rgba(121, 242, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    clip-path: var(--clippath-shape-1);
+    overflow: hidden;
+}
+
+.wz-map-layers-pane__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.4rem 1.5rem 1.2rem;
+    background: var(--color-bg-header);
+}
+
+.wz-map-layers-pane__heading {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.wz-map-layers-pane__heading h2 {
+    margin: 0;
+}
+
+.wz-map-layers-pane__summary {
+    margin: 0;
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+}
+
+.wz-map-layers-pane__body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.4rem 1.5rem 1.6rem;
+}
+
 .wz-layers__toolbar {
     display: flex;
     gap: 1rem;
@@ -1443,10 +1514,47 @@
     background: var(--color-white);
 }
 
+.wz-layers__summary {
+    margin: 0.9rem 0 1rem;
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+}
+
 .wz-layers__list {
+    display: grid;
+    gap: 1.2rem;
+}
+
+.wz-layer-section {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.wz-layer-section__head {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
     gap: 1rem;
+}
+
+.wz-layer-section__title {
+    margin: 0;
+    color: var(--color-text-heading);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+}
+
+.wz-layer-section__count {
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.wz-layer-section__list {
+    display: grid;
+    gap: 0.7rem;
 }
 
 .wz-layer-item {
@@ -1456,7 +1564,18 @@
     gap: 1rem;
     cursor: pointer;
     user-select: none;
-    transition: background 0.12s;
+    padding: 0.9rem 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(121, 242, 255, 0.08);
+    clip-path: var(--clippath-shape-3);
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.wz-layer-item:hover,
+.wz-layer-item:focus-visible {
+    background: rgba(24, 226, 219, 0.08);
+    border-color: rgba(24, 226, 219, 0.22);
+    outline: none;
 }
 
 .wz-layer-copy {
@@ -1477,29 +1596,44 @@
 }
 
 .wz-layer-icon {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 2.5rem;
     flex-shrink: 0;
     font-size: var(--text-sm);
     text-align: center;
+    color: var(--color-text-dim);
 }
 
 .wz-layer-label {
     overflow: hidden;
     font-weight: 600;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     color: var(--color-text-heading);
     display: flex;
-    gap: 0.3rem
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
 }
 
 .wz-layer-desc {
     overflow: hidden;
     color: var(--color-text-dim);
     font-size: var(--text-xs);
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+
+.wz-layer-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.8rem;
+    padding: 0 0.55rem;
+    color: var(--color-teal-glow);
+    border: 1px solid rgba(34, 211, 238, 0.28);
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .wz-layer-toggle {
@@ -2263,7 +2397,7 @@
 /* #endregion =========== */
 /* #region =========== WIDGETS POSITIONINGS/SIZES =========== */
 .warzone-widget--counter {
-    left: 0;
+    left: var(--wz-left-pane-offset);
     top: 0
 }
 
@@ -2271,11 +2405,6 @@
     right: 30rem;
     top: auto;
     bottom: 0;
-}
-
-.warzone-widget--layers {
-    left: 0rem;
-    top: calc(30vh - -6rem)
 }
 
 .warzone-panel--floating.warzone-widget--feed {
@@ -2308,12 +2437,12 @@
 }
 
 .warzone-widget--aircraft {
-    left: 30rem;
+    left: calc(30rem + var(--wz-left-pane-offset));
     top: 0;
 }
 
 .warzone-widget--gnss {
-    left: 30rem;
+    left: calc(30rem + var(--wz-left-pane-offset));
     top: calc(55vh - -2rem)
 }
 
@@ -2323,13 +2452,13 @@
 }
 
 .warzone-widget--naval {
-    left: 60rem;
+    left: calc(60rem + var(--wz-left-pane-offset));
     top: 0;
     bottom: auto;
 }
 
 .warzone-widget--orbital {
-    left: 60rem;
+    left: calc(60rem + var(--wz-left-pane-offset));
     top: calc(55vh + 2rem);
     bottom: auto;
 }
@@ -4442,18 +4571,16 @@ padding: 1.5rem;
     opacity: 0.7;
 }
 
- .wz-support-open-btn {
-    position: fixed;
-    left: 0;
-    top: 50%;
-    z-index: 56;
+.wz-support-open-btn {
+    position: relative;
+    z-index: auto;
     display: none;
     align-items: center;
-    gap: 1rem;
-    min-height: 3.2rem;
-    padding: 1rem 1rem 1rem 3rem;
+    gap: 0.6rem;
+    min-height: 3.4rem;
+    padding: 0 1.2rem;
     border: 0;
-    background: rgba(13, 20, 31, .86);
+    background: rgba(24, 226, 219, 0.12);
     color: var(--color-teal-glow);
     clip-path: var(--clippath-shape-3);
     cursor: pointer;
@@ -4461,10 +4588,8 @@ padding: 1.5rem;
     font-size: var(--text-sm);
     font-weight: 800;
     text-transform: uppercase;
-    transform: translateY(-50%);
     pointer-events: auto;
-    flex-direction: column;
-} 
+}
 
  .wz-support-open-btn .static-icon{
     font-size: var(--icon-xl);
@@ -4473,6 +4598,13 @@ padding: 1.5rem;
 
 body.is-app-active .wz-support-open-btn {
     display: flex;
+}
+
+#wz-intro-modal.is-visible ~ .warzone-ui-shell .wz-support-open-btn,
+#wz-region-modal.is-visible ~ .warzone-ui-shell .wz-support-open-btn,
+#wz-intro-modal:not([hidden]) ~ .warzone-ui-shell .wz-support-open-btn,
+#wz-region-modal:not([hidden]) ~ .warzone-ui-shell .wz-support-open-btn {
+    display: none !important;
 }
 
 .wz-support-open-btn:hover {
@@ -5194,7 +5326,7 @@ display: inline-flex;
 
 .wz-altitude-readout {
     position: fixed;
-    left: 2.5rem;
+    left: calc(2.5rem + var(--wz-left-pane-offset));
     bottom: 2.5rem;
     z-index: 5;
     color: var(--color-teal-glow);
@@ -5207,6 +5339,7 @@ display: inline-flex;
     pointer-events: none;
     display: grid;
     gap: .7rem;
+    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .wz-altitude-readout__line {

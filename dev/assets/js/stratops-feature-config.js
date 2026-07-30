@@ -146,7 +146,7 @@ const FEATURE_SELECTOR_MAP = {
     "reports.reportViewer": "#wz-operational-report-viewer",
 
     "widgets.counter": "[data-widget-id=\"counter\"]",
-    "widgets.layers": "[data-widget-id=\"layers\"]",
+    "widgets.layers": "#wz-map-layers-pane",
     "widgets.escalation": "[data-widget-id=\"escalation\"]",
     "widgets.aircraftTracker": "[data-widget-id=\"aircraft\"]",
     "widgets.navalTracker": "[data-widget-id=\"naval\"]",

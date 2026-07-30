@@ -308,8 +308,8 @@ padding: 1rem 1rem 0.6rem;
 /* #region =========== CESIUM JS GLOBE =========== */
 .warzone-globe {
     position: fixed;
-    inset: 0;
-
+    inset: 0 0 0 var(--wz-left-pane-offset);
+    transition: inset 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
     .warzone-globe .cesium-widget,
     .warzone-globe canvas {

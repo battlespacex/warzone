@@ -1,5 +1,30 @@
 ﻿<div class="warzone-ui-layer">
     <div class="secondary-content">
+        <aside id="wz-map-layers-pane"
+               class="wz-map-layers-pane"
+               role="region"
+               aria-labelledby="wz-map-layers-pane-title"
+               aria-hidden="true">
+            <div class="wz-map-layers-pane__shell">
+                <div class="wz-map-layers-pane__head">
+                    <div class="wz-map-layers-pane__heading">
+                        <h2 id="wz-map-layers-pane-title">Map Layers</h2>
+                        <p class="wz-map-layers-pane__summary">Base map, curated events, and optional operational overlays.</p>
+                    </div>
+                    <button type="button"
+                            class="static-icon"
+                            data-map-layers-close
+                            aria-label="Close map layers pane"
+                            title="Close map layers pane">
+                        <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <div class="wz-map-layers-pane__body">
+                    <div id="wz-layer-panel" class="wz-layer-panel" aria-live="polite"></div>
+                </div>
+            </div>
+        </aside>
+
         <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--counter"
                data-widget-id="counter"
                aria-labelledby="widget-counter-title">
@@ -60,36 +85,6 @@
                 </div>
                 <div class="panel-content">
                     <div id="airspace-status-list" class="status-list" aria-live="polite"></div>
-                </div>
-            </div>
-        </aside>
-
-        <aside class="warzone-panel warzone-panel--floating warzone-widget warzone-widget--layers"
-               data-widget-id="layers"
-               aria-labelledby="widget-layers-title">
-            <div class="panel-container">
-                <div class="panel-head">
-                    <h2 id="widget-layers-title">Map Layers</h2>
-                    <div class="panel-actions">
-                        <button type="button"
-                                class="static-icon"
-                                data-panel-collapse
-                                aria-expanded="true"
-                                aria-label="Collapse map layers widget"
-                                title="Collapse widget">
-                            <span class="stratops-ico-top-1" aria-hidden="true"></span>
-                        </button>
-                        <button type="button"
-                                class="static-icon"
-                                data-widget-close
-                                aria-label="Hide map layers widget"
-                                title="Hide widget">
-                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
-                        </button>
-                    </div>
-                </div>
-                <div class="panel-content">
-                    <div id="wz-layer-panel" class="wz-layer-panel" aria-live="polite"></div>
                 </div>
             </div>
         </aside>

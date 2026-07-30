@@ -41,12 +41,12 @@ const LAYER_DEFS = ALL_LAYER_DEFS.filter((layer) => {
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
-const WZ_LAYER_LAYOUT_VERSION = "2026-07-orbital-assets";
+const WZ_LAYER_LAYOUT_VERSION = "2026-07-map-layers-pane";
 const DEFAULT_LAYER_STATE = {
-    strikes: false,
-    missiles: false,
-    drones: false,
-    airstrikes: false,
+    strikes: true,
+    missiles: true,
+    drones: true,
+    airstrikes: true,
     aircraft: false,
     airspace: false,
     gnss: false,
@@ -54,18 +54,40 @@ const DEFAULT_LAYER_STATE = {
     "military-bases": false,
     ranges: false,
     sweepers: false,
-    alerts: false,
+    alerts: true,
     cyber: false,
     thermal: false,
-    recon: false,
+    recon: true,
     seismic: false,
     hotspots: true,
     "orbital-assets": false,
-    "satellite-imagery": true,
+    "satellite-imagery": false,
     terrain: true,
-    "region-plate": true,
-    "country-borders": true,
+    "region-plate": false,
+    "country-borders": false,
 };
+const LAYER_SECTIONS = [
+    {
+        id: "core-intelligence",
+        title: "Core Intelligence",
+        layers: ["strikes", "missiles", "drones", "airstrikes", "recon", "alerts", "thermal", "seismic", "hotspots"],
+    },
+    {
+        id: "live-operations",
+        title: "Live Operations",
+        layers: ["aircraft", "airspace", "naval"],
+    },
+    {
+        id: "infrastructure-disruptions",
+        title: "Infrastructure & Disruptions",
+        layers: ["cyber", "gnss"],
+    },
+    {
+        id: "strategic-overlays",
+        title: "Strategic Overlays",
+        layers: ["military-bases", "ranges", "sweepers", "orbital-assets", "satellite-imagery", "terrain", "region-plate", "country-borders"],
+    },
+];
 
 let __layerState = {};
 let __callbacks = [];
@@ -116,7 +138,11 @@ function getLayerDef(id) {
 }
 
 function hasPremiumAccess() {
-    return !!window.__stratopsAuthState?.isAuthenticated;
+    const isAuthenticated = !!window.__stratopsAuthState?.isAuthenticated;
+    if (!isAuthenticated) return false;
+    const body = document.body;
+    if (!body?.classList?.contains("is-billing-enabled")) return true;
+    return body.classList.contains("is-advanced-tier") || body.classList.contains("is-expert-tier");
 }
 
 function isPremiumLayer(id) {
@@ -128,8 +154,12 @@ function canUseLayer(id) {
     return hasPremiumAccess();
 }
 
-function openLoginForPremiumLayer() {
+function openPremiumAccessFlow() {
     try {
+        if (window.__stratopsAuthState?.isAuthenticated) {
+            window.__stratopsBilling?.openUpgradeForFeature?.("premiumLayers");
+            return;
+        }
         window.__openLoginModal?.();
     } catch {
         // ignore
@@ -144,42 +174,20 @@ function getEffectiveLayerState(id) {
 
 function loadState() {
     if (__layerStateLoaded) return;
-    let saved = {};
-    let savedVersion = "";
-    try {
-        saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-        savedVersion = String(localStorage.getItem(WZ_LAYER_LAYOUT_VERSION_KEY) || "");
-        const shouldResetLayout = savedVersion !== WZ_LAYER_LAYOUT_VERSION;
-
-        if (shouldResetLayout) {
-            // Hard reset to the new baseline defaults so old saved preferences
-            // do not keep enabling heavy layers unexpectedly.
-            LAYER_DEFS.forEach((l) => {
-                __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
-            });
-            saveState();
-            try {
-                localStorage.setItem(WZ_LAYER_LAYOUT_VERSION_KEY, WZ_LAYER_LAYOUT_VERSION);
-            } catch {
-                // ignore storage failures
-            }
-            __layerStateLoaded = true;
-            return;
-        }
-
-        LAYER_DEFS.forEach((l) => {
-            if (l.id in saved) {
-                __layerState[l.id] = !!saved[l.id];
-            }
-        });
-    } catch {
-        // keep defaults
-    }
+    LAYER_DEFS.forEach((l) => {
+        __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
+    });
     __layerStateLoaded = true;
 }
 
 export function hydrateLayerStateFromStorage() {
     loadState();
+}
+
+export function resetLayerStateForFreshLoad() {
+    __layerStateLoaded = false;
+    loadState();
+    saveState();
 }
 
 function saveState() {
@@ -402,7 +410,7 @@ export function toggleLayer(id) {
     if (!getLayerDef(id)) return false;
 
     if (!canUseLayer(id)) {
-        openLoginForPremiumLayer();
+        openPremiumAccessFlow();
         notifyChange(id, false);
         return false;
     }
@@ -500,6 +508,14 @@ function updateBulkToggleState(container) {
 
     allOnBtn.classList.toggle("is-active", allOn);
     allOffBtn.classList.toggle("is-active", allOff);
+    updateLayerSummary(container);
+}
+
+function updateLayerSummary(container) {
+    const summary = container?.querySelector(".wz-layers__summary");
+    if (!summary) return;
+    const enabledCount = LAYER_DEFS.reduce((count, layer) => count + (getEffectiveLayerState(layer.id) ? 1 : 0), 0);
+    summary.textContent = `${enabledCount} active layer${enabledCount === 1 ? "" : "s"} across the current operational view.`;
 }
 
 function setAllLayers(enabled, container) {
@@ -523,6 +539,102 @@ export function refreshLayerAccessUi() {
     updateBulkToggleState(container);
 }
 
+function renderLayerBadge(layer) {
+    if (!layer.premium) return "";
+    return `<span class="wz-layer-badge" aria-hidden="true">Premium</span>`;
+}
+
+function renderLayerRow(layer) {
+    const locked = layer.premium && !hasPremiumAccess();
+    return `
+        <div class="wz-layer-item${getEffectiveLayerState(layer.id) ? " is-on" : ""}${layer.premium ? " is-premium" : ""}${locked ? " is-locked" : ""}"
+             data-layer="${layer.id}"
+             aria-disabled="${locked ? "true" : "false"}"
+             data-locked="${locked ? "true" : "false"}"
+             role="button"
+             tabindex="0"
+             title="${layer.description || layer.label}">
+            <span class="wz-layer-icon">${layer.icon}</span>
+            <span class="wz-layer-dot" style="background:${layer.color}"></span>
+            <span class="wz-layer-copy">
+                <span class="wz-layer-label">${layer.label}${renderLayerBadge(layer)}</span>
+                <span class="wz-layer-desc">${layer.description || ""}</span>
+            </span>
+            <span class="wz-layer-toggle${locked ? " is-locked" : ""}"></span>
+        </div>
+    `;
+}
+
+function getRenderedSections() {
+    const defsById = new Map(LAYER_DEFS.map((layer) => [layer.id, layer]));
+    const consumed = new Set();
+    const sections = [];
+
+    LAYER_SECTIONS.forEach((section) => {
+        const layers = section.layers
+            .map((id) => defsById.get(id))
+            .filter(Boolean);
+        if (!layers.length) return;
+        layers.forEach((layer) => consumed.add(layer.id));
+        sections.push({
+            ...section,
+            layers,
+        });
+    });
+
+    const uncategorized = LAYER_DEFS.filter((layer) => !consumed.has(layer.id));
+    if (uncategorized.length) {
+        sections.push({
+            id: "additional-overlays",
+            title: "Additional Overlays",
+            layers: uncategorized,
+        });
+    }
+
+    return sections;
+}
+
+function bindLayerItem(container, item) {
+    const handleToggle = async () => {
+        const id = item.dataset.layer;
+        const currentlyEnabled = getEffectiveLayerState(id);
+        let newVal = currentlyEnabled;
+
+        if (currentlyEnabled) {
+            newVal = setLayer(id, false);
+        } else {
+            const nextState = buildSingleToggleState(id, true);
+            if (shouldWarnForLayerTransition(nextState)) {
+                const approved = await requestPerformanceApproval({
+                    mode: "toggle",
+                    pendingId: id,
+                    nextCount: countWarnableEnabledLayers(nextState),
+                });
+                if (!approved) {
+                    syncLayerItemState(item, id);
+                    updateBulkToggleState(container);
+                    return;
+                }
+            }
+            newVal = setLayer(id, true);
+        }
+
+        syncLayerItemState(item, id);
+        updateBulkToggleState(container);
+
+        if (!newVal && isPremiumLayer(id) && !hasPremiumAccess()) {
+            openPremiumAccessFlow();
+        }
+    };
+
+    item.addEventListener("click", handleToggle);
+    item.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        void handleToggle();
+    });
+}
+
 // ── Layer panel UI ─────────────────────────────────────────────────────────────
 export function initLayerPanel() {
     loadState();
@@ -530,61 +642,34 @@ export function initLayerPanel() {
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
 
-    const rows = LAYER_DEFS.map((l) => `
-        <div class="wz-layer-item${getEffectiveLayerState(l.id) ? " is-on" : ""}${l.premium ? " is-premium" : ""}${l.premium && !hasPremiumAccess() ? " is-locked" : ""}" data-layer="${l.id}" aria-disabled="${l.premium && !hasPremiumAccess() ? "true" : "false"}" data-locked="${l.premium && !hasPremiumAccess() ? "true" : "false"}" title="${l.description || l.label}">
-            <span class="wz-layer-icon">${l.icon}</span>
-            <span class="wz-layer-dot" style="background:${l.color}"></span>
-            <span class="wz-layer-copy">
-                <span class="wz-layer-label">${l.label}</span>
-                <span class="wz-layer-desc">${l.description || ""}</span>
-            </span>
-            <span class="wz-layer-toggle${l.premium && !hasPremiumAccess() ? " is-locked" : ""}"></span>
-        </div>
-    `).join("");
+    const sections = getRenderedSections();
 
     container.innerHTML = `
         <div class="wz-layers__toolbar">
             <button class="btn-secondary white" id="wz-layers-all-on">All On<span aria-hidden="true"></span></button>
             <button class="btn-secondary white" id="wz-layers-all-off">All Off<span aria-hidden="true"></span></button>
         </div>
-        <div class="wz-layers__list">${rows}</div>
+        <div class="wz-layers__summary"></div>
+        <div class="wz-layers__list">
+            ${sections.map((section) => `
+                <section class="wz-layer-section" aria-labelledby="wz-layer-section-${section.id}">
+                    <div class="wz-layer-section__head">
+                        <h3 id="wz-layer-section-${section.id}" class="wz-layer-section__title">${section.title}</h3>
+                        <span class="wz-layer-section__count">${section.layers.length}</span>
+                    </div>
+                    <div class="wz-layer-section__list">
+                        ${section.layers.map(renderLayerRow).join("")}
+                    </div>
+                </section>
+            `).join("")}
+        </div>
     `;
 
     syncAllLayerItemStates(container);
     updateBulkToggleState(container);
 
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
-        item.addEventListener("click", async () => {
-            const id = item.dataset.layer;
-            const currentlyEnabled = getEffectiveLayerState(id);
-            let newVal = currentlyEnabled;
-
-            if (currentlyEnabled) {
-                newVal = setLayer(id, false);
-            } else {
-                const nextState = buildSingleToggleState(id, true);
-                if (shouldWarnForLayerTransition(nextState)) {
-                    const approved = await requestPerformanceApproval({
-                        mode: "toggle",
-                        pendingId: id,
-                        nextCount: countWarnableEnabledLayers(nextState),
-                    });
-                    if (!approved) {
-                        syncLayerItemState(item, id);
-                        updateBulkToggleState(container);
-                        return;
-                    }
-                }
-                newVal = setLayer(id, true);
-            }
-
-            syncLayerItemState(item, id);
-            updateBulkToggleState(container);
-
-            if (!newVal && isPremiumLayer(id) && !hasPremiumAccess()) {
-                openLoginForPremiumLayer();
-            }
-        });
+        bindLayerItem(container, item);
     });
 
     document.getElementById("wz-layers-all-on")?.addEventListener("click", async (e) => {
