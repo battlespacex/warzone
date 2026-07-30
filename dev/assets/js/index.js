@@ -303,14 +303,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
             initRegionSelector(viewer);
         }
-        if (pendingRegionModal) {
-            const { instant } = pendingRegionModal;
-            pendingRegionModal = null;
-            window.__warzoneShowRegionModal?.(instant);
-        }
 
         if (isStratOpsFeatureEnabled("system.intro")) {
             initStratopsIntro();
+        } else if (pendingRegionModal) {
+            const { instant } = pendingRegionModal;
+            pendingRegionModal = null;
+            window.__warzoneShowRegionModal?.(instant);
         }
 
         window.__warzoneStartDeferredApp = async () => {

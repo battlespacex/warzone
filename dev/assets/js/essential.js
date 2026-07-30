@@ -8158,7 +8158,11 @@ const STAGING_AUTH_BYPASS_HOSTS = new Set([
 
 function isStagingAuthBypassEnabled() {
     const host = String(window.location.hostname || "").toLowerCase();
-    return STAGING_AUTH_BYPASS_HOSTS.has(host);
+    return STAGING_AUTH_BYPASS_HOSTS.has(host)
+        || (
+            host.endsWith(".battlespacex.com")
+            && /\bstag(?:e|ing|ging)\b|(?:^|[-.])stag(?:e|ing|ging)(?:[-.]|$)/i.test(host)
+        );
 }
 
 function getLocalDevAuthUser() {
@@ -8672,14 +8676,9 @@ export function initStratopsIntro() {
     const authBypassState = getAuthBypassState();
     if (authBypassState) {
         applyResolvedAuthState(true, authBypassState.user, authBypassState.base);
-        if (authBypassState.base === "staging-bypass") {
-            try { localStorage.setItem("wz_intro_accepted", "1"); } catch { }
-            requestAnimationFrame(() => {
-                document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: authBypassState.base } }));
-                window.__warzoneShowRegionModal?.();
-            });
-            return;
-        }
+        requestAnimationFrame(() => {
+            document.dispatchEvent(new CustomEvent("wz:auth-success", { detail: { source: authBypassState.base } }));
+        });
     }
 
     // ── Helper: show/hide inline error ──────────────────────────────────────
