@@ -8,6 +8,7 @@ const NORMALIZATION_VERSION = "event-normalizer-current";
 const VALID_REPORT_TYPES = new Set(["daily", "weekly"]);
 const VALID_SCOPE_TYPES = new Set(["global", "region", "country", "aoi"]);
 const HIGH_SEVERITIES = new Set(["high", "critical"]);
+const inFlightReportGenerations = new Map();
 const DOMAIN_CATEGORY_MAP = new Map([
   ["air", ["air_activity", "military"]],
   ["maritime", ["naval_activity"]],
@@ -158,6 +159,25 @@ function getScopeKey(scope = normalizeScope()) {
 
 function getReportKey({ reportType, dateKey, scope }) {
   return `${reportType}:${dateKey}:${getScopeKey(scope)}`;
+}
+
+function withInFlightReportGeneration(reportKey, createPromise) {
+  const key = String(reportKey || "").trim();
+  if (!key) {
+    return Promise.resolve().then(createPromise);
+  }
+  if (inFlightReportGenerations.has(key)) {
+    return inFlightReportGenerations.get(key);
+  }
+  const promise = Promise.resolve()
+    .then(createPromise)
+    .finally(() => {
+      if (inFlightReportGenerations.get(key) === promise) {
+        inFlightReportGenerations.delete(key);
+      }
+    });
+  inFlightReportGenerations.set(key, promise);
+  return promise;
 }
 
 function countBy(rows, key) {
@@ -716,21 +736,23 @@ async function upsertReportRecord({ supabase, reportType, dateKey, scope, body, 
 async function ensureDailyReport({ supabase, dateKey = getPreviousUtcDateKey(), scope = {}, config = readReportingConfig(), force = false } = {}) {
   const normalizedScope = normalizeScope(scope);
   const reportKey = getReportKey({ reportType: "daily", dateKey, scope: normalizedScope });
-  if (!force) {
-    const existing = await getAvailableReportByKey(supabase, reportKey);
-    if (existing) return existing;
-  }
-  const snapshot = await generateDailySnapshot({ supabase, dateKey, scope: normalizedScope, config });
-  const body = buildDailyReportBody(snapshot);
-  const report = await upsertReportRecord({
-    supabase,
-    reportType: "daily",
-    dateKey,
-    scope: normalizedScope,
-    body,
-    snapshotIds: [snapshot.snapshot_id || snapshot.id].filter(Boolean),
+  return withInFlightReportGeneration(reportKey, async () => {
+    if (!force) {
+      const existing = await getAvailableReportByKey(supabase, reportKey);
+      if (existing) return existing;
+    }
+    const snapshot = await generateDailySnapshot({ supabase, dateKey, scope: normalizedScope, config });
+    const body = buildDailyReportBody(snapshot);
+    const report = await upsertReportRecord({
+      supabase,
+      reportType: "daily",
+      dateKey,
+      scope: normalizedScope,
+      body,
+      snapshotIds: [snapshot.snapshot_id || snapshot.id].filter(Boolean),
+    });
+    return uploadReportPdf({ supabase, report, config });
   });
-  return uploadReportPdf({ supabase, report, config });
 }
 
 async function getAvailableReportByKey(supabase, reportKey) {
@@ -762,25 +784,36 @@ async function getSnapshotsForWeeklyReport(supabase, { dateKey, scope }) {
 async function ensureWeeklyReport({ supabase, dateKey = getPreviousUtcDateKey(), scope = {}, config = readReportingConfig(), force = false } = {}) {
   const normalizedScope = normalizeScope(scope);
   const reportKey = getReportKey({ reportType: "weekly", dateKey, scope: normalizedScope });
-  if (!force) {
-    const existing = await getAvailableReportByKey(supabase, reportKey);
-    if (existing) return existing;
-  }
-  const snapshots = await getSnapshotsForWeeklyReport(supabase, { dateKey, scope: normalizedScope });
-  if (snapshots.length < 7) {
-    throw new Error(`Weekly report requires 7 daily snapshots; found ${snapshots.length}`);
-  }
-  const body = buildWeeklyReportBody(snapshots, { dateKey, scope: normalizedScope });
-  const report = await upsertReportRecord({
-    supabase,
-    reportType: "weekly",
-    dateKey,
-    scope: normalizedScope,
-    body,
-    snapshotIds: snapshots.map((snapshot) => snapshot.snapshot_id || snapshot.id).filter(Boolean),
+  return withInFlightReportGeneration(reportKey, async () => {
+    if (!force) {
+      const existing = await getAvailableReportByKey(supabase, reportKey);
+      if (existing) return existing;
+    }
+    const snapshots = await getSnapshotsForWeeklyReport(supabase, { dateKey, scope: normalizedScope });
+    if (snapshots.length < 7) {
+      throw new Error(`Weekly report requires 7 daily snapshots; found ${snapshots.length}`);
+    }
+    const body = buildWeeklyReportBody(snapshots, { dateKey, scope: normalizedScope });
+    const report = await upsertReportRecord({
+      supabase,
+      reportType: "weekly",
+      dateKey,
+      scope: normalizedScope,
+      body,
+      snapshotIds: snapshots.map((snapshot) => snapshot.snapshot_id || snapshot.id).filter(Boolean),
+    });
+    return uploadReportPdf({ supabase, report, config });
   });
-  return uploadReportPdf({ supabase, report, config });
 }
+
+function resetInFlightReportGenerationsForTests() {
+  inFlightReportGenerations.clear();
+}
+
+const __reportingServiceTestUtils = {
+  resetInFlightReportGenerationsForTests,
+  withInFlightReportGeneration,
+};
 
 async function ensureOperationalReport({ supabase, reportType = "daily", dateKey, scope = {}, config = readReportingConfig(), force = false } = {}) {
   const type = String(reportType || "daily").toLowerCase();
@@ -867,6 +900,7 @@ function toPublicReport(report = {}) {
 
 export {
   REPORT_VERSION,
+  __reportingServiceTestUtils,
   buildReportSlug,
   ensureDailyReport,
   ensureOperationalReport,
