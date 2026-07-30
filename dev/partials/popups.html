@@ -75,7 +75,7 @@
     </div>
     <div class="primary-content">
         <div id="wz-intro-modal" class="wz-modal wz-intro" aria-modal="true" role="dialog"
-            aria-labelledby="wz-intro-title" aria-describedby="wz-intro-summary" hidden>
+            aria-labelledby="wz-capabilities-core" aria-describedby="wz-intro-capabilities-summary" hidden>
             <div class="wz-modal-box wz-max-modal">
                 <div class="wz-modal-inner">
                     <header>
@@ -85,12 +85,8 @@
                         </div>
                     </header>
                     <nav class="wz-modal__tabs" role="tablist" aria-label="StratOps introduction sections">
-                        <button class="wz-modal__tab is-active" type="button" data-tab="intro" id="wz-intro-tab-intro"
-                            role="tab" aria-selected="true" aria-controls="wz-intro-content-view" tabindex="0">
-                            Overview
-                        </button>
-                        <button class="wz-modal__tab" type="button" data-tab="capabilities" id="wz-intro-tab-capabilities"
-                            role="tab" aria-selected="false" aria-controls="wz-intro-capabilities" tabindex="-1">
+                        <button class="wz-modal__tab is-active" type="button" data-tab="capabilities" id="wz-intro-tab-capabilities"
+                            role="tab" aria-selected="true" aria-controls="wz-intro-capabilities" tabindex="0">
                             Operational Capabilities
                         </button>
                         <button class="wz-modal__tab" type="button" data-tab="terms" id="wz-intro-tab-terms"
@@ -99,21 +95,6 @@
                         </button>
                     </nav>
                     <section class="wz-modal-body">
-                        <div id="wz-intro-content-view" class="wz-content is-active" data-pane="intro" role="tabpanel"
-                            aria-labelledby="wz-intro-tab-intro" aria-hidden="false">
-                            <h1 id="wz-intro-title">
-                                Real-Time Multi-Domain Battlespace Intelligence
-                            </h1>
-                            <p id="wz-intro-summary">
-                                <strong>StratOps</strong>, powered by <strong><a href="https://battlespacex.com"
-                                        target="_blank" rel="noopener noreferrer">BattlespaceX</a></strong>, is a real-time, multi-domain
-                                intelligence visualization platform that leverages OSINT to synthesize aggregated
-                                telemetry streams and event signals into a live, 3D layered battlespace spanning air,
-                                land, sea, space, and cyberspace. It supports tracking of military movements, assessment
-                                of escalation dynamics, and continuous interpretation of operational changes within a
-                                theater of operations, in near real time.
-                            </p>
-                        </div>
                         <div id="wz-intro-login-view" class="wz-content" aria-hidden="true">
                             <h2 id="wz-login-title">StratOps Sign In</h2>
                             <p>
@@ -159,8 +140,11 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="wz-intro-capabilities" class="wz-content" data-pane="capabilities" role="tabpanel"
-                            aria-labelledby="wz-intro-tab-capabilities" aria-hidden="true">
+                        <div id="wz-intro-capabilities" class="wz-content is-active" data-pane="capabilities" role="tabpanel"
+                            aria-labelledby="wz-intro-tab-capabilities" aria-hidden="false">
+                            <p id="wz-intro-capabilities-summary" class="sr-only">
+                                Operational capabilities and rules of engagement before entering StratOps.
+                            </p>
 
                             <section class="wz-capabilities-section" aria-labelledby="wz-capabilities-core">
                                 <h2 id="wz-capabilities-core" class="no-margin">Core Operational Capabilities</h2>

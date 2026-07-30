@@ -339,6 +339,17 @@ padding: 1rem 1rem 0.6rem;
     z-index: 1;
     gap: 1.5rem;
     font-size: var(--text-sm);
+    opacity: 0.8;
+    transition: opacity 260ms ease;
+}
+
+body.wz-pre-entry-active .warzone-map-credits {
+    opacity: 0;
+    pointer-events: none;
+}
+
+body.wz-pre-entry-complete .warzone-map-credits {
+    opacity: 0.8;
 }
     .warzone-map-credits a,
     .warzone-map-credits button,
@@ -374,7 +385,7 @@ padding: 1rem 1rem 0.6rem;
     width: auto;
     max-width: none;
     object-fit: contain;
-    opacity: 0.8;
+    opacity: 1;
 }
 
 /* #endregion =========== */

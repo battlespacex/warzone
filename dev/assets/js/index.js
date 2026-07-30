@@ -245,10 +245,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             pendingRegionModal = { instant: !!instant };
         };
 
-        if (isStratOpsFeatureEnabled("system.intro")) {
-            initStratopsIntro();
-        }
-
         await new Promise((resolve) => {
             requestAnimationFrame(() => {
                 requestAnimationFrame(resolve);
@@ -288,6 +284,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         viewer?.__warzone?.setAdaptiveQualityProfile?.("safe");
         viewer?.__warzone?.setPerformanceMode?.(0);
         let started = false;
+        window.SiteLoader?.forceHide?.();
+
         if (window.__stratopsConfig?.startupMilSatsDemo !== false) {
             setTimeout(async () => {
                 const startupMilSatsModule = await loadStartupMilSatsModule();
@@ -299,8 +297,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(true);
                 try { window.refreshWarzoneMilSatsScale?.(); }
                 catch { }
-            }, 450);
+            }, 0);
         }
+
         if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
             initRegionSelector(viewer);
         }
@@ -308,6 +307,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             const { instant } = pendingRegionModal;
             pendingRegionModal = null;
             window.__warzoneShowRegionModal?.(instant);
+        }
+
+        if (isStratOpsFeatureEnabled("system.intro")) {
+            initStratopsIntro();
         }
 
         window.__warzoneStartDeferredApp = async () => {

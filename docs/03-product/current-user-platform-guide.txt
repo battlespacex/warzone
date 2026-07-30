@@ -1,8 +1,9 @@
 BATTLESPACEX STRATOPS - CURRENT USER PLATFORM GUIDE
-Last updated: 2026-07-28
+Last updated: 2026-07-29
+Branch context: current staging branch
 
 Purpose:
-This document explains the current StratOps platform in user-facing language for operators, analysts, demos, and non-developer users.
+This document explains the current StratOps platform in user-facing language for operators, analysts, demos, and non-developer users. It also records the latest staging behavior for the startup experience, intro flow, and visible platform capabilities.
 
 ------------------------------------------------------------
 1. PLATFORM OVERVIEW
@@ -12,6 +13,7 @@ StratOps is a Cesium-based operational map for OSINT-informed conflict, military
 
 The interface combines:
 - 3D globe navigation with optional 2D scene support
+- pre-entry showcase over the live globe
 - region selection and current-region filtering
 - live and near-live event layers
 - aircraft and naval trackers
@@ -25,7 +27,72 @@ Important limitation:
 StratOps is not an official warning network, classified intelligence product, or independent verification authority. Map items are visualizations of available source data and may be incomplete, delayed, inferred, duplicated, or wrong.
 
 ------------------------------------------------------------
-2. MAIN MAP LAYERS
+2. STARTUP AND ENTRY EXPERIENCE
+------------------------------------------------------------
+
+Current staging startup flow:
+- The Cesium globe initializes before the first user-facing entry screen.
+- The pre-entry showcase appears centered over the live globe.
+- The globe is intended to remain visible behind the first step.
+- Startup dummy military satellite models are enabled during the first step when the startup satellite demo is enabled.
+- The showcase is controlled by the feature flag system.preEntryShowcase.
+- If system.preEntryShowcase is true, users see the pre-entry showcase first.
+- If system.preEntryShowcase is false, users skip the showcase and go directly to the existing intro modal.
+- The Enter StratOps button fades the showcase out and then opens the existing intro modal.
+- The globe viewer is not destroyed or recreated between the showcase and the intro modal.
+
+Current pre-entry showcase content:
+- StratOps / BattlespaceX logo
+- main title
+- descriptive summary
+- six primary capability items
+- four secondary capability items
+- CesiumJS, Esri, and BattlespaceX provider logos
+- Enter StratOps button
+
+Current pre-entry visual behavior:
+- The showcase content is centered in the middle of the viewport.
+- The showcase is transparent/unframed so the globe remains the background.
+- The bottom-corner CesiumJS, Esri, and BattlespaceX map credits are hidden during the first step.
+- After the user enters, the bottom-corner map credits fade in at the bottom corner.
+- Provider logos inside the showcase are separate from the bottom-corner map credits.
+
+Current intro modal behavior after Enter:
+- The old Overview tab has been removed from the first popup.
+- Operational Capabilities is the default active tab.
+- Rules of Engagement remains available as the second tab.
+- Login, account, terms, and premium gating behavior remain part of the existing intro/auth flow.
+
+------------------------------------------------------------
+3. STARTUP GLOBE AND SATELLITE SETTINGS
+------------------------------------------------------------
+
+The staging startup globe uses CSS variables for the initial camera and startup satellite visual scale.
+
+Current startup camera variables:
+- --warzone-start-lon: 40.4
+- --warzone-start-lat: 12.3
+- --warzone-start-height: 5200000
+- --warzone-start-pitch: -74
+- --warzone-startup-rotation-speed: 0.52
+
+Current startup dummy satellite variables:
+- --warzone-mil-sat-scale: 194000
+- --warzone-mil-sat-min-px: 20
+- --warzone-mil-sat-max-scale: 320000
+
+Current startup satellite behavior:
+- Dummy startup satellites are visual demo entities, not live detections.
+- They use public-facing 3D satellite models for the startup scene.
+- They are shown during the startup/pre-entry phase when enabled.
+- They are disabled once the full deferred app starts after user entry.
+- Their visible scale is read from the CSS variables above.
+
+Operational caution:
+Startup dummy satellites are visual context only. They do not represent real-time sensor coverage, classified orbital assets, or confirmed live satellite observations.
+
+------------------------------------------------------------
+4. MAIN MAP LAYERS
 ------------------------------------------------------------
 
 Current layer panel:
@@ -59,7 +126,7 @@ Orbital Assets and Satellite Observations are separate:
 - A satellite position is not the same thing as a satellite image observation.
 
 ------------------------------------------------------------
-3. ORBITAL ASSETS
+5. ORBITAL ASSETS
 ------------------------------------------------------------
 
 The Orbital Assets layer uses public CelesTrak orbital element data and satellite.js propagation in the browser. The backend endpoint is:
@@ -108,7 +175,7 @@ Click/focus view:
 The focused card clearly states that the position is propagated from public orbital elements and is not a direct sensor detection.
 
 ------------------------------------------------------------
-4. HOTSPOT CLASSIFICATIONS
+6. HOTSPOT CLASSIFICATIONS
 ------------------------------------------------------------
 
 Hotspots are grouped labels for active events. A hotspot may represent one event or a cluster of nearby events.
@@ -129,7 +196,7 @@ Current hotspot categories:
 - unknown_activity: generic activity when the event cannot be confidently classified.
 
 ------------------------------------------------------------
-5. MILITARY BASE CLASSIFICATIONS
+7. MILITARY BASE CLASSIFICATIONS
 ------------------------------------------------------------
 
 Current canonical military base types:
@@ -152,7 +219,7 @@ Current canonical military base types:
 Space launch sites and missile/ICBM sites are intentionally separate categories.
 
 ------------------------------------------------------------
-6. AIRCRAFT TRACKER
+8. AIRCRAFT TRACKER
 ------------------------------------------------------------
 
 The Aircraft Tracker always shows assets for the selected region. The widget no longer needs a region dropdown for ordinary use.
@@ -189,7 +256,7 @@ Aircraft tracker classifications include:
 Fighter records are identified through explicit type metadata and expanded model/name patterns when available. If the source does not provide enough aircraft detail, the system keeps a broader aircraft fallback instead of inventing a fighter label.
 
 ------------------------------------------------------------
-7. NAVAL TRACKER
+9. NAVAL TRACKER
 ------------------------------------------------------------
 
 The Naval Tracker always shows assets for the selected region. The widget no longer needs a region dropdown for ordinary use.
@@ -230,7 +297,7 @@ Naval tracker classifications include:
 When a naval asset is focused, the focused asset is prioritized at the top of the Naval Tracker list so it can be unlocked from the widget.
 
 ------------------------------------------------------------
-8. SATELLITE OBSERVATIONS AND REPORTS
+10. SATELLITE OBSERVATIONS AND REPORTS
 ------------------------------------------------------------
 
 Satellite Observations are contextual imagery records tied to events or report periods. They are separate from orbital tracking.
@@ -244,7 +311,7 @@ Current satellite observation behavior:
 If a report says satellite observations were available, that refers to rows in the event satellite observation table, not live satellite detection.
 
 ------------------------------------------------------------
-9. AUTHENTICATION AND PREMIUM ACCESS
+11. AUTHENTICATION AND PREMIUM ACCESS
 ------------------------------------------------------------
 
 Premium layer gates require the user to sign in before enabling selected high-value overlays.
@@ -264,12 +331,40 @@ Current premium-gated layers include:
 If a premium layer is locked, clicking it opens the StratOps sign-in flow. Production authentication remains separate from staging authentication behavior.
 
 ------------------------------------------------------------
-10. USER NOTES
+12. DEVELOPMENT AND STAGING NOTES
+------------------------------------------------------------
+
+Current staging UI changes recorded in this guide:
+- New pre-entry showcase partial: dev/partials/pre-entry-showcase.html
+- New pre-entry showcase controller: dev/assets/js/pre-entry-showcase.js
+- Index page now includes the pre-entry showcase before the existing popup layer.
+- Feature config now includes system.preEntryShowcase, enabled by default.
+- The intro modal now starts on Operational Capabilities instead of Overview.
+- The old Overview pane/tab has been removed from the first popup.
+- Startup ordering now initializes the globe before opening the entry experience.
+- Startup dummy satellites are requested immediately after globe setup instead of after a visible delay.
+- Bottom-corner CesiumJS, Esri, and BattlespaceX map credits are hidden during the first step and fade in after entry.
+
+Current local workspace notes:
+- A production build artifact folder exists in the working tree as production/.
+- The production/ folder currently measures about 32.2 MB.
+- Most production asset weight is Cesium static assets, followed by bundled JavaScript.
+- The page itself is not a 300 MB HTML document.
+- DevTools inspection can feel slow when inspecting a live Cesium/WebGL scene while startup rotation and demo satellite updates are active.
+
+Current validation notes:
+- JavaScript syntax checks were run for the touched startup/intro modules.
+- A production build completed during the staging work, but the latest follow-up startup-order edits should be rebuilt again before release packaging.
+- Browser QA confirmed the pre-entry showcase, Enter flow, intro modal tab behavior, mobile layout, and feature-flag skip path during the staging work.
+
+------------------------------------------------------------
+13. USER NOTES
 ------------------------------------------------------------
 
 - A marker or hotspot is a visualization of available data, not automatic confirmation of every source claim.
 - Some records have richer details than others.
 - Aircraft and naval assets may use PNG icons or selected 3D models depending on active render settings.
+- Startup dummy satellites are visual demo entities only.
 - Orbital satellite positions are propagated estimates based on public orbital elements.
 - Satellite observation imagery is contextual review material, not live sensor feed data.
 - Users should verify critical findings through authoritative channels before making operational, safety, legal, or policy decisions.

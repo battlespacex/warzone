@@ -46,6 +46,7 @@ import {
     applyStratOpsFeatureVisibility,
     isStratOpsFeatureEnabled,
 } from "./stratops-feature-config.js";
+import { initPreEntryShowcase } from "./pre-entry-showcase.js";
 let __warzoneMilSatsModulePromise = null;
 let __warzoneMilSatsInitialized = false;
 function loadWarzoneMilSatsModule() {
@@ -8483,7 +8484,7 @@ export function initStratopsIntro() {
     const openLoginBtn = document.getElementById("wz-intro-open-login");
     const backBtn = document.getElementById("wz-intro-back");
     const loginHint = document.getElementById("wz-hint");
-    const contentView = document.getElementById("wz-intro-content-view");
+    const contentView = document.getElementById("wz-intro-capabilities");
     const loginView = document.getElementById("wz-intro-login-view");
     const termsView = document.getElementById("wz-intro-terms");
     const termsTab = document.getElementById("wz-intro-tab-terms");
@@ -8854,7 +8855,7 @@ export function initStratopsIntro() {
         loginHint?.classList.remove("is-hidden-hint");
         if (backBtn) { backBtn.hidden = true; backBtn.style.display = "none"; }
         if (acceptLabel) acceptLabel.textContent = "Enter";
-        setIntroTabSelection("intro");
+        setIntroTabSelection("capabilities");
 
         // Cross-fade panels after footer state is settled
         crossfadeIntroViews(previousView, contentView);
@@ -8951,7 +8952,7 @@ export function initStratopsIntro() {
     });
     introModal?.addEventListener("wz:modal-tab-activated", (event) => {
         const tab = String(event.detail?.tab || "");
-        if (tab === "intro" || tab === "capabilities" || tab === "terms") {
+        if (tab === "capabilities" || tab === "terms") {
             resetIntroInlineMode();
         }
     });
@@ -9000,7 +9001,11 @@ export function initStratopsIntro() {
     }
 
     // ── Show modal ───────────────────────────────────────────────────────────
-    openEntryIntroModal();
+    if (isStratOpsFeatureEnabled("system.preEntryShowcase")) {
+        initPreEntryShowcase({ onEnter: openEntryIntroModal });
+    } else {
+        openEntryIntroModal();
+    }
 }
 
 export function initStratopsAuth() {

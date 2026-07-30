@@ -100,6 +100,7 @@ const DEFAULT_STRATOPS_FEATURES = {
 
     system: {
         intro: true,
+        preEntryShowcase: true,
         authentication: true,
         billing: true,
         realtimeEvents: true,
