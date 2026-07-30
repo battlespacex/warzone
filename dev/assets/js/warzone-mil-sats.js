@@ -6,7 +6,7 @@ import { gstime } from "../../../node_modules/satellite.js/dist/propagation/gsti
 import { eciToGeodetic } from "../../../node_modules/satellite.js/dist/transforms.js";
 
 const SAT_MODEL_BASE = "/assets/images/models/space/";
-const DEFAULT_API_PATH = "/api/satellites/military";
+const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
 const EARTH_RADIUS_M = 6371008.8;
 const DEFAULT_CONFIG = Object.freeze({
     enabled: true,

@@ -1,5 +1,5 @@
 STRATOPS - BATTLESPACEX DEPLOYMENT GUIDE
-Last updated: 2026-07-28
+Last updated: 2026-07-30
 
 1. DEPLOYMENT MODEL
 
@@ -48,7 +48,7 @@ Do not:
    https://stratops-staging.battlespacex.com/
 
 7. Validate the API route through the same staging API/proxy path:
-   GET /api/satellites/military
+   GET https://api.battlespacex.com/satellites/military
 
 4. POST-DEPLOYMENT VALIDATION
 
@@ -69,10 +69,20 @@ Validate on staging:
 - reports and event-linked satellite observations still use contextual imagery wording
 - no blocking console errors
 
-5. ORBITAL ASSETS DEPLOYMENT NOTES
+5. API CORS DEPLOYMENT NOTES
+
+Allowed browser origins are controlled by the API service using:
+   CORS_ORIGIN
+
+Required production value:
+   CORS_ORIGIN=https://stratops.battlespacex.com,https://stratops-staging.battlespacex.com
+
+The API code also preserves localhost development origins by default. Do not use Access-Control-Allow-Origin: *.
+
+6. ORBITAL ASSETS DEPLOYMENT NOTES
 
 New API endpoint:
-GET /api/satellites/military
+GET https://api.battlespacex.com/satellites/military
 
 Upstream sources:
 - https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=JSON
@@ -87,7 +97,20 @@ No new environment variable is required.
 Optional environment variable:
 - STRATOPS_SATELLITE_CACHE_PATH can override the local API cache path if the staging API process needs a persistent writable directory.
 
-6. PRODUCTION PROMOTION
+7. OPERATIONAL REPORTS DEPLOYMENT NOTES
+
+Report generation endpoint:
+POST https://api.battlespacex.com/stratops/reports/generate
+
+Report list endpoint:
+GET https://api.battlespacex.com/stratops/reports
+
+Generated reports return an absolute API download URL. The frontend must open the URL returned by the API and must not construct /reports/<slug> on the static frontend domain.
+
+Optional environment variable:
+- STRATOPS_API_PUBLIC_URL can override the public API base used in report download URLs. Default: https://api.battlespacex.com.
+
+8. PRODUCTION PROMOTION
 
 Only after staging validation:
 1. Merge or cherry-pick the approved staging commit into main.

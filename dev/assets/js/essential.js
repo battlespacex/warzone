@@ -9519,14 +9519,6 @@ function getYesterdayUtcDateKey() {
     return date.toISOString().slice(0, 10);
 }
 
-function buildDailyReportSlug(dateKey = getYesterdayUtcDateKey()) {
-    return `stratops-report-${String(dateKey || "").slice(0, 10)}`;
-}
-
-function buildDailyReportUrl(dateKey = getYesterdayUtcDateKey()) {
-    return `/reports/${encodeURIComponent(buildDailyReportSlug(dateKey))}`;
-}
-
 function formatReportDate(value = "") {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value || "");
@@ -9686,19 +9678,12 @@ async function generateDailyOperationalReport(button) {
     const label = getReportsButtonLabel(button);
     const originalLabel = label?.textContent || "";
     const dateKey = getYesterdayUtcDateKey();
-    const reportUrl = buildDailyReportUrl(dateKey);
-    const openedReportWindow = window.open(`${reportUrl}?generating=1`, "_blank");
-    try {
-        if (openedReportWindow) openedReportWindow.opener = null;
-    } catch { }
     if (button) {
         button.disabled = true;
         button.setAttribute("aria-busy", "true");
     }
     if (label) label.textContent = "Generating...";
-    setReportsStatus(openedReportWindow
-        ? "Opening the report page and preparing the cached daily PDF..."
-        : "Preparing the cached daily PDF. Your browser blocked the report tab.");
+    setReportsStatus("Preparing the cached daily PDF...");
     try {
         const { data } = await api.generateOperationalReport({
             type: "daily",
@@ -9706,14 +9691,18 @@ async function generateDailyOperationalReport(button) {
             date: dateKey,
             force: false,
         });
-        const readyUrl = api.getOperationalReportViewerUrl(data) || reportUrl;
-        if (!openedReportWindow) {
-            const readyWindow = window.open(readyUrl, "_blank");
-            try {
-                if (readyWindow) readyWindow.opener = null;
-            } catch { }
+        const readyUrl = api.getOperationalReportViewerUrl(data);
+        if (!readyUrl) {
+            setReportsStatus("Daily report was generated, but no download URL was returned.", true);
+            return;
         }
-        setReportsStatus("Daily report is ready in the report tab.");
+        const readyWindow = window.open(readyUrl, "_blank", "noopener,noreferrer");
+        try {
+            if (readyWindow) readyWindow.opener = null;
+        } catch { }
+        setReportsStatus(readyWindow
+            ? "Daily report is ready."
+            : "Daily report is ready, but your browser blocked the report tab.");
     } catch (error) {
         console.warn("[reports] generation failed:", error);
         setReportsStatus(String(error?.message || "Unable to generate daily report."), true);

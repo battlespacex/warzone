@@ -27,10 +27,11 @@ const isLocalDevHost =
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "::1" ||
     window.location.hostname === "[::1]";
+const STRATOPS_API_BASE = isLocalDevHost ? "/api" : "https://api.battlespacex.com";
 
 window.__stratopsConfig = {
-    apiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
-    supportApiBase: isLocalDevHost ? "/api" : "https://api.battlespacex.com",
+    apiBase: STRATOPS_API_BASE,
+    supportApiBase: STRATOPS_API_BASE,
     enableIntelWireMedia: isStratOpsFeatureEnabled("system.intelWireMedia"),
     // Localhost uses a same-origin cached proxy for live aircraft polling so
     // we keep the old smooth movement path without direct third-party CORS calls.
@@ -65,7 +66,7 @@ window.__stratopsConfig = {
     strategicSatellites: {
         enabled: isStratOpsFeatureEnabled("system.milSatOrbit")
             && isStratOpsFeatureEnabled("tracking.strategicSatellites"),
-        apiPath: "/api/satellites/military",
+        apiPath: `${STRATOPS_API_BASE}/satellites/military`,
         maximumVisibleSatellites: 160,
         sampleIntervalSeconds: 120,
         pastOrbitMinutes: 45,

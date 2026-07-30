@@ -37,6 +37,33 @@ function getStratopsDomain() {
         .replace(/\/+$/, "");
 }
 
+function getApiPublicBase(req) {
+    const configured = String(
+        process.env.STRATOPS_API_PUBLIC_URL ||
+        process.env.API_PUBLIC_URL ||
+        ""
+    ).trim();
+    if (configured) return configured.replace(/\/+$/, "");
+    const host = String(req.get("x-forwarded-host") || req.get("host") || "").split(",")[0].trim();
+    const proto = String(req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0].trim();
+    return host ? `${proto}://${host}` : "https://api.battlespacex.com";
+}
+
+function toPublicApiReport(req, report = {}) {
+    const publicReport = toPublicReport(report);
+    const id = String(publicReport.id || "").trim();
+    const token = String(publicReport.download_token || "").trim();
+    const base = getApiPublicBase(req);
+    const downloadUrl = id && token && base
+        ? `${base}/stratops/reports/${encodeURIComponent(id)}/download?token=${encodeURIComponent(token)}`
+        : "";
+    return {
+        ...publicReport,
+        public_url: downloadUrl || publicReport.public_url,
+        download_url: downloadUrl,
+    };
+}
+
 function getSupabase() {
     return createClient(
         process.env.SUPABASE_URL,
@@ -132,7 +159,7 @@ export function stratopsRouter() {
             }
             const { data, error } = await builder;
             if (error) return res.status(500).json({ error: "Failed" });
-            res.json({ reports: (data || []).map(toPublicReport) });
+            res.json({ reports: (data || []).map((report) => toPublicApiReport(req, report)) });
         } catch (error) {
             console.error("[stratops] report list failed:", error);
             res.status(500).json({ error: "Failed" });
@@ -156,7 +183,7 @@ export function stratopsRouter() {
                 scope,
                 force: req.body?.force === true,
             });
-            res.json({ report: toPublicReport(report) });
+            res.json({ report: toPublicApiReport(req, report) });
         } catch (error) {
             console.error("[stratops] report generation failed:", error);
             const status = String(error?.message || "").includes("requires 7 daily snapshots") ? 409 : 500;
@@ -225,7 +252,7 @@ export function stratopsRouter() {
                 return res.status(404).json({ error: "Report unavailable" });
             }
             if (wantsJson) {
-                return res.json({ report: toPublicReport(match) });
+                return res.json({ report: toPublicApiReport(req, match) });
             }
             res.redirect(302, match.pdf_url);
         } catch (error) {

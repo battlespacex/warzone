@@ -29,14 +29,25 @@ import { satellitesRouter } from "./routes.satellites.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
-const DEFAULT_CORS_ORIGINS = ["https://stratops.battlespacex.com"];
+const DEFAULT_CORS_ORIGINS = [
+    "https://stratops.battlespacex.com",
+    "https://stratops-staging.battlespacex.com",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:4173",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:4173",
+    "http://127.0.0.1:5173",
+];
 
 function getAllowedCorsOrigins() {
     const configured = String(process.env.CORS_ORIGIN || "")
         .split(",")
         .map((origin) => origin.trim())
-        .filter(Boolean);
-    return configured.length ? configured : DEFAULT_CORS_ORIGINS;
+        .filter((origin) => origin && origin !== "*");
+    return [...new Set([...DEFAULT_CORS_ORIGINS, ...configured])];
 }
 
 const allowedCorsOrigins = getAllowedCorsOrigins();
@@ -49,7 +60,7 @@ const corsOptions = {
         callback(new Error(`CORS origin not allowed: ${origin}`));
     },
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Accept"],
+    allowedHeaders: ["Content-Type", "Accept", "Authorization", "X-Requested-With"],
     optionsSuccessStatus: 204,
 };
 

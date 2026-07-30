@@ -47,6 +47,18 @@ let __warnedActiveAlertsUnavailable = false;
 let __warnedGnssUnavailable = false;
 const __activeApiRequests = new Map();
 
+function toAbsoluteApiUrl(value = "", apiBase = REPORTS_API_BASE) {
+    const url = String(value || "").trim();
+    if (!url) return "";
+    if (/^https?:\/\//i.test(url)) return url;
+    const normalizedBase = String(apiBase || "").replace(/\/+$/, "");
+    const normalizedPath = url.replace(/^\/+/, "");
+    if (/^https?:\/\//i.test(normalizedBase)) {
+        return `${normalizedBase}/${normalizedPath}`;
+    }
+    return new URL(`${normalizedBase}/${normalizedPath}`, window.location.origin).href;
+}
+
 async function fetchLatest(key, url, options = {}) {
     const requestKey = String(key || url);
     __activeApiRequests.get(requestKey)?.abort();
@@ -244,27 +256,17 @@ export const api = {
     },
 
     getOperationalReportDownloadUrl(report = {}) {
+        const directUrl = String(report?.download_url || report?.pdf_url || "").trim();
+        if (directUrl) return toAbsoluteApiUrl(directUrl);
         const publicUrl = String(report?.public_url || "").trim();
-        if (publicUrl) {
-            if (/^https?:\/\//i.test(publicUrl)) return publicUrl;
-            return publicUrl;
-        }
-        const slug = String(report?.report_slug || "").trim();
-        if (slug) return `/reports/${encodeURIComponent(slug)}`;
+        if (/^https?:\/\//i.test(publicUrl)) return publicUrl;
         const id = String(report?.id || "").trim();
         const token = String(report?.download_token || "").trim();
         if (!id || !token) return "";
-        return `${REPORTS_API_BASE}/stratops/reports/${encodeURIComponent(id)}/download?token=${encodeURIComponent(token)}`;
+        return toAbsoluteApiUrl(`/stratops/reports/${encodeURIComponent(id)}/download?token=${encodeURIComponent(token)}`);
     },
 
     getOperationalReportViewerUrl(report = {}) {
-        const publicUrl = String(report?.public_url || "").trim();
-        if (publicUrl) {
-            if (/^https?:\/\//i.test(publicUrl)) return publicUrl;
-            return publicUrl;
-        }
-        const slug = String(report?.report_slug || "").trim();
-        if (slug) return `/reports/${encodeURIComponent(slug)}`;
         return this.getOperationalReportDownloadUrl(report);
     },
 

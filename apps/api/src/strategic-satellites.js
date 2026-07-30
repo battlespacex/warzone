@@ -605,7 +605,7 @@ export async function getMilitarySatellitePayload({ forceRefresh = false, logger
 
 export function getStrategicSatelliteSourceConfig() {
     return {
-        endpoint: "/api/satellites/military",
+        endpoint: "/satellites/military",
         gpQuery: CELESTRAK_GP_URL,
         satcatQuery: CELESTRAK_SATCAT_URL,
         minimumFetchIntervalSeconds: Math.floor(CACHE_TTL_MS / 1000),
