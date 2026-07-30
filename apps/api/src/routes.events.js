@@ -20,6 +20,7 @@ const DEFAULT_INTEL_FEED_LIMIT = 120;
 const MAX_INTEL_FEED_LIMIT = 300;
 const DEFAULT_GNSS_CELL_LIMIT = 240;
 const MAX_GNSS_CELL_LIMIT = 600;
+const DEFAULT_PUBLIC_API_BASE_URL = "https://api.battlespacex.com/";
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -38,6 +39,53 @@ function getRequestBaseUrl(req) {
     const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
     const proto = forwardedProto || req.protocol || "http";
     return `${proto}://${host}/`;
+}
+
+function normalizeBaseUrl(value = "") {
+    try {
+        const url = new URL(String(value || "").trim());
+        return `${url.origin}/`;
+    } catch {
+        return "";
+    }
+}
+
+function isLocalNetworkHost(hostname = "") {
+    const host = String(hostname || "").trim().toLowerCase();
+    if (!host) return false;
+    if (host === "localhost" || host === "::1" || host === "[::1]") return true;
+    if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true;
+    const private172 = /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+    return private172;
+}
+
+function getPublicMediaBaseUrl(req) {
+    const configured = normalizeBaseUrl(
+        process.env.EVENTS_MEDIA_PUBLIC_URL ||
+        process.env.STRATOPS_API_PUBLIC_URL ||
+        process.env.API_PUBLIC_URL ||
+        ""
+    );
+    if (configured) return configured;
+
+    const requestBase = normalizeBaseUrl(getRequestBaseUrl(req));
+    if (!requestBase) return DEFAULT_PUBLIC_API_BASE_URL;
+
+    try {
+        const requestUrl = new URL(requestBase);
+        const originUrl = new URL(String(req.get("origin") || ""));
+        if (!isLocalNetworkHost(originUrl.hostname) && isLocalNetworkHost(requestUrl.hostname)) {
+            return DEFAULT_PUBLIC_API_BASE_URL;
+        }
+    } catch {
+        // No Origin header or malformed Origin: fall back to the request base below.
+    }
+
+    if (process.env.NODE_ENV === "production" && isLocalNetworkHost(new URL(requestBase).hostname)) {
+        return DEFAULT_PUBLIC_API_BASE_URL;
+    }
+
+    return requestBase;
 }
 
 function toAirspaceStatusRow(event = {}) {
@@ -84,7 +132,7 @@ export function eventsRouter({ broadcast }) {
                 .order("occurred_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            const mediaBaseUrl = getRequestBaseUrl(req);
+            const mediaBaseUrl = getPublicMediaBaseUrl(req);
             const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
             const eventsWithMedia = await attachEventMediaToEvents(supabase, eventsWithSatellite, { mediaBaseUrl });
             const events = eventsWithMedia.map(toPublicEvent);
@@ -111,7 +159,7 @@ export function eventsRouter({ broadcast }) {
                 .order("occurred_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            const mediaBaseUrl = getRequestBaseUrl(req);
+            const mediaBaseUrl = getPublicMediaBaseUrl(req);
             const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
             const eventsWithMedia = await attachEventMediaToEvents(supabase, eventsWithSatellite, { mediaBaseUrl });
             const events = eventsWithMedia.map(toPublicEvent);
@@ -191,7 +239,7 @@ export function eventsRouter({ broadcast }) {
                 .order("fetched_at", { ascending: false })
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
-            const mediaBaseUrl = getRequestBaseUrl(req);
+            const mediaBaseUrl = getPublicMediaBaseUrl(req);
             res.json({ items: (data || []).map((item) => toPublicIntelWireItem(item, { mediaBaseUrl })) });
         } catch {
             res.status(500).json({ error: "Failed" });

@@ -59,6 +59,26 @@ function toAbsoluteApiUrl(value = "", apiBase = REPORTS_API_BASE) {
     return new URL(`${normalizedBase}/${normalizedPath}`, window.location.origin).href;
 }
 
+function isLocalNetworkUrl(value = "") {
+    try {
+        const url = new URL(String(value || "").trim(), window.location.href);
+        const host = url.hostname.toLowerCase();
+        if (host === "localhost" || host === "::1" || host === "[::1]") return true;
+        if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true;
+        return /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+    } catch {
+        return false;
+    }
+}
+
+function isUsablePublicUrl(value = "") {
+    const url = String(value || "").trim();
+    if (!/^https?:\/\//i.test(url)) return false;
+    if (!isLocalhost && isLocalNetworkUrl(url)) return false;
+    if (!isLocalhost && window.location.protocol === "https:" && !/^https:\/\//i.test(url)) return false;
+    return true;
+}
+
 async function fetchLatest(key, url, options = {}) {
     const requestKey = String(key || url);
     __activeApiRequests.get(requestKey)?.abort();
@@ -257,9 +277,9 @@ export const api = {
 
     getOperationalReportDownloadUrl(report = {}) {
         const directUrl = String(report?.download_url || report?.pdf_url || "").trim();
-        if (directUrl) return toAbsoluteApiUrl(directUrl);
+        if (isUsablePublicUrl(directUrl)) return directUrl;
         const publicUrl = String(report?.public_url || "").trim();
-        if (/^https?:\/\//i.test(publicUrl)) return publicUrl;
+        if (isUsablePublicUrl(publicUrl)) return publicUrl;
         const id = String(report?.id || "").trim();
         const token = String(report?.download_token || "").trim();
         if (!id || !token) return "";

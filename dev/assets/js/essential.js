@@ -2077,10 +2077,10 @@ function normalizeEventPopupImageEntry(entry = {}, fallbackTitle = "") {
         || ""
     ).trim();
     const fullUrl = String(entry.full_url || entry.fullUrl || previewUrl || "").trim();
-    if (!/^https?:\/\//i.test(previewUrl || fullUrl)) return null;
+    if (!isPublicRenderableMediaUrl(previewUrl || fullUrl)) return null;
     return {
-        previewUrl: /^https?:\/\//i.test(previewUrl) ? previewUrl : fullUrl,
-        fullUrl: /^https?:\/\//i.test(fullUrl) ? fullUrl : previewUrl,
+        previewUrl: isPublicRenderableMediaUrl(previewUrl) ? previewUrl : fullUrl,
+        fullUrl: isPublicRenderableMediaUrl(fullUrl) ? fullUrl : previewUrl,
         alt: sanitizeEventPopupText(entry.alt || entry.title || fallbackTitle || "Event image", "Event image") || "Event image",
         width: Number.isFinite(Number(entry.width)) ? Number(entry.width) : null,
         height: Number.isFinite(Number(entry.height)) ? Number(entry.height) : null,
@@ -3990,14 +3990,36 @@ function sanitizeIntelWireSummary(value = "") {
 function isIntelWireMediaEnabled() {
     return window.__stratopsConfig?.enableIntelWireMedia === true;
 }
+function isLocalNetworkMediaHost(hostname = "") {
+    const host = String(hostname || "").trim().toLowerCase();
+    if (!host) return false;
+    if (host === "localhost" || host === "::1" || host === "[::1]") return true;
+    if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true;
+    return /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+}
+function isPublicRenderableMediaUrl(value = "") {
+    const raw = String(value || "").trim();
+    if (!/^https?:\/\//i.test(raw)) return false;
+    try {
+        const url = new URL(raw, window.location.href);
+        const isLocalPage = typeof isLocalHostName === "function" && isLocalHostName(window.location.hostname);
+        if (!isLocalPage && isLocalNetworkMediaHost(url.hostname)) return false;
+        if (window.location.protocol === "https:" && url.protocol !== "https:" && !isLocalPage) return false;
+        return true;
+    } catch {
+        return false;
+    }
+}
 function getIntelWireItemMedia(event = {}) {
     if (!isIntelWireMediaEnabled()) return { images: [], videos: [] };
     const media = event.media && typeof event.media === "object"
         ? event.media
         : (event.metadata?.media && typeof event.metadata.media === "object" ? event.metadata.media : null);
-    const images = Array.isArray(media?.images) ? media.images.filter((entry) => /^https?:\/\//i.test(String(entry?.thumbUrl || entry?.fullUrl || "").trim())) : [];
+    const images = Array.isArray(media?.images)
+        ? media.images.filter((entry) => isPublicRenderableMediaUrl(entry?.thumbUrl || entry?.fullUrl || ""))
+        : [];
     const videos = Array.isArray(media?.videos)
-        ? media.videos.filter((entry) => /^https?:\/\//i.test(String(entry?.videoUrl || entry?.thumbUrl || entry?.embedUrl || "").trim()))
+        ? media.videos.filter((entry) => isPublicRenderableMediaUrl(entry?.videoUrl || entry?.thumbUrl || entry?.embedUrl || ""))
         : [];
     return { images, videos };
 }

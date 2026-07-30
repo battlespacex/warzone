@@ -109,6 +109,9 @@ Generated reports return an absolute API download URL. The frontend must open th
 
 Optional environment variable:
 - STRATOPS_API_PUBLIC_URL can override the public API base used in report download URLs. Default: https://api.battlespacex.com.
+- EVENTS_MEDIA_PUBLIC_URL can override the public API base used for Intel Wire/event media proxy URLs. If omitted, STRATOPS_API_PUBLIC_URL or API_PUBLIC_URL is used. Default for production/local-proxy requests: https://api.battlespacex.com.
+
+Public staging/production JSON must never return media URLs such as http://localhost:8080/events/intel-feed/media/... because browsers will block them as mixed content and they cannot resolve outside the EC2 host.
 
 8. PRODUCTION PROMOTION
 

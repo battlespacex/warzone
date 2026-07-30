@@ -37,6 +37,14 @@ function getStratopsDomain() {
         .replace(/\/+$/, "");
 }
 
+function isLocalNetworkHost(hostname = "") {
+    const host = String(hostname || "").trim().toLowerCase();
+    if (!host) return false;
+    if (host === "localhost" || host === "::1" || host === "[::1]") return true;
+    if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true;
+    return /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+}
+
 function getApiPublicBase(req) {
     const configured = String(
         process.env.STRATOPS_API_PUBLIC_URL ||
@@ -46,7 +54,20 @@ function getApiPublicBase(req) {
     if (configured) return configured.replace(/\/+$/, "");
     const host = String(req.get("x-forwarded-host") || req.get("host") || "").split(",")[0].trim();
     const proto = String(req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0].trim();
-    return host ? `${proto}://${host}` : "https://api.battlespacex.com";
+    if (!host) return "https://api.battlespacex.com";
+    try {
+        const requestUrl = new URL(`${proto}://${host}`);
+        const originUrl = new URL(String(req.get("origin") || ""));
+        if (!isLocalNetworkHost(originUrl.hostname) && isLocalNetworkHost(requestUrl.hostname)) {
+            return "https://api.battlespacex.com";
+        }
+        if (process.env.NODE_ENV === "production" && isLocalNetworkHost(requestUrl.hostname)) {
+            return "https://api.battlespacex.com";
+        }
+    } catch {
+        // Fall through to the forwarded host when it is usable.
+    }
+    return `${proto}://${host}`;
 }
 
 function toPublicApiReport(req, report = {}) {
