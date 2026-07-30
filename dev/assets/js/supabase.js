@@ -276,10 +276,10 @@ export const api = {
     },
 
     getOperationalReportDownloadUrl(report = {}) {
-        const directUrl = String(report?.download_url || report?.pdf_url || "").trim();
-        if (isUsablePublicUrl(directUrl)) return directUrl;
         const publicUrl = String(report?.public_url || "").trim();
         if (isUsablePublicUrl(publicUrl)) return publicUrl;
+        const directUrl = String(report?.download_url || report?.pdf_url || "").trim();
+        if (isUsablePublicUrl(directUrl)) return directUrl;
         const id = String(report?.id || "").trim();
         const token = String(report?.download_token || "").trim();
         if (!id || !token) return "";

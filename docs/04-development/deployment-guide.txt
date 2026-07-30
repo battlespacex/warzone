@@ -105,10 +105,15 @@ POST https://api.battlespacex.com/stratops/reports/generate
 Report list endpoint:
 GET https://api.battlespacex.com/stratops/reports
 
-Generated reports return an absolute API download URL. The frontend must open the URL returned by the API and must not construct /reports/<slug> on the static frontend domain.
+Generated reports return a public static report URL on the caller's StratOps site domain:
+- production callers receive https://stratops.battlespacex.com/reports/...
+- staging callers receive https://stratops-staging.battlespacex.com/reports/...
+
+The frontend must open the returned public_url/download_url and must not expose api.battlespacex.com report download links in the user-facing browser URL.
 
 Optional environment variable:
-- STRATOPS_API_PUBLIC_URL can override the public API base used in report download URLs. Default: https://api.battlespacex.com.
+- STRATOPS_REPORTS_PUBLIC_URL can override the default public report asset domain for direct/no-Origin API requests. Default: STRATOPS_DOMAIN or https://stratops.battlespacex.com.
+- STRATOPS_API_PUBLIC_URL can override the fallback API base used only for compatibility API download URLs. Default: https://api.battlespacex.com.
 - EVENTS_MEDIA_PUBLIC_URL can override the public API base used for Intel Wire/event media proxy URLs. If omitted, STRATOPS_API_PUBLIC_URL or API_PUBLIC_URL is used. Default for production/local-proxy requests: https://api.battlespacex.com.
 
 Public staging/production JSON must never return media URLs such as http://localhost:8080/events/intel-feed/media/... because browsers will block them as mixed content and they cannot resolve outside the EC2 host.
