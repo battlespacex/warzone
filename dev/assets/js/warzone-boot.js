@@ -92,15 +92,78 @@ document.addEventListener("DOMContentLoaded", () => {
     const MAP_LAYERS_PANE_ID = "wz-map-layers-pane";
     let mapLayersResizeBurstRaf = 0;
     let mapLayersResizeBurstUntil = 0;
+    let mapLayersViewportSyncBound = false;
     function getMapLayersPane() {
         return document.getElementById(MAP_LAYERS_PANE_ID);
     }
     function isMapLayersOpen() {
         return document.body.classList.contains("is-map-layers-open");
     }
+    function clampNumber(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+    }
+    function readPx(value) {
+        const parsed = Number.parseFloat(String(value || "").trim());
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    function getMapLayersTargetOffsetPx() {
+        const pane = getMapLayersPane();
+        if (!pane) return 0;
+        const bodyStyles = window.getComputedStyle(document.body);
+        return Math.max(0, readPx(window.getComputedStyle(pane).width) + readPx(bodyStyles.getPropertyValue("--map-layers-pane-gap")));
+    }
+    function getCurrentMapLayersVisibleOffsetPx() {
+        const pane = getMapLayersPane();
+        if (!pane) return 0;
+        const paneRect = pane.getBoundingClientRect();
+        return clampNumber(paneRect.right, 0, getMapLayersTargetOffsetPx());
+    }
+    function syncMapLayersViewportOffset(requestRender = false) {
+        const viewer = window.__warzoneViewer;
+        const frustum = viewer?.camera?.frustum;
+        if (!viewer?.scene || !frustum) return;
+        const canvasWidth = Math.max(
+            1,
+            Number(viewer.canvas?.clientWidth || viewer.scene.canvas?.clientWidth || window.innerWidth || 1),
+        );
+        const offCenterFrustum = frustum.offCenterFrustum || frustum._offCenterFrustum || null;
+        if (!offCenterFrustum) return;
+        const visibleOffsetPx = getCurrentMapLayersVisibleOffsetPx();
+        const offsetRatio = clampNumber(visibleOffsetPx / canvasWidth, 0, 0.48);
+        const halfFrustumWidth = Math.abs(offCenterFrustum.right - offCenterFrustum.left) * 0.5;
+        const targetCenterOffset = -halfFrustumWidth * offsetRatio;
+        if (typeof frustum.xOffset === "number") {
+            if (Math.abs((frustum.xOffset || 0) - targetCenterOffset) > 1e-7) {
+                frustum.xOffset = targetCenterOffset;
+            }
+        } else {
+            const currentHalfWidth = Math.abs(offCenterFrustum.right - offCenterFrustum.left) * 0.5;
+            const currentCenter = (offCenterFrustum.right + offCenterFrustum.left) * 0.5;
+            if (
+                Math.abs(currentHalfWidth - halfFrustumWidth) > 1e-7 ||
+                Math.abs(currentCenter - targetCenterOffset) > 1e-7
+            ) {
+                offCenterFrustum.right = targetCenterOffset + halfFrustumWidth;
+                offCenterFrustum.left = targetCenterOffset - halfFrustumWidth;
+            }
+        }
+        if (requestRender) {
+            viewer.scene.requestRender?.();
+        }
+    }
+    function ensureMapLayersViewportSync() {
+        if (mapLayersViewportSyncBound) return;
+        const viewer = window.__warzoneViewer;
+        if (!viewer?.scene?.preRender?.addEventListener) return;
+        viewer.scene.preRender.addEventListener(() => {
+            syncMapLayersViewportOffset(false);
+        });
+        mapLayersViewportSyncBound = true;
+    }
     function requestMapLayersResizeBurst(durationMs = 420) {
         const viewer = window.__warzoneViewer;
         if (!viewer?.scene?.requestRender) return;
+        ensureMapLayersViewportSync();
         mapLayersResizeBurstUntil = Math.max(
             mapLayersResizeBurstUntil,
             performance.now() + Math.max(180, Number(durationMs) || 420)
@@ -112,7 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch {
                 // ignore resize failures
             }
-            viewer.scene.requestRender?.();
+            syncMapLayersViewportOffset(true);
             if (performance.now() >= mapLayersResizeBurstUntil) {
                 mapLayersResizeBurstRaf = 0;
                 return;
@@ -135,6 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!getMapLayersPane()) return;
         document.body.classList.toggle("is-map-layers-open", Boolean(open));
         syncMapLayersPaneUi();
+        syncWidgetChrome();
         requestMapLayersResizeBurst(480);
     }
     function toggleMapLayersPane() {
@@ -153,6 +217,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!active || !pane.contains(active)) return;
             event.preventDefault();
             setMapLayersPaneOpen(false);
+        });
+        document.addEventListener("wz:scene-mode-changed", () => {
+            requestMapLayersResizeBurst(620);
         });
         const globeEl = document.getElementById("warzone-globe");
         if (globeEl && typeof ResizeObserver === "function") {
@@ -874,7 +941,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!widgetId || widgetId === "about") return;
             if (widgetId === "layers") {
                 const enabled = isDockWidgetFeatureEnabled(widgetId);
-                btn.hidden = !enabled;
+                btn.hidden = !enabled || isMapLayersOpen();
                 btn.classList.toggle("is-active", Boolean(enabled && isMapLayersOpen()));
                 btn.setAttribute("aria-expanded", String(Boolean(enabled && isMapLayersOpen())));
                 btn.setAttribute("aria-controls", MAP_LAYERS_PANE_ID);
@@ -891,8 +958,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const id = btn.dataset.dockWidget;
             if (id === "layers") {
                 const enabled = isDockWidgetFeatureEnabled(id);
-                btn.classList.toggle("wz-dock--gone", !enabled);
-                btn.setAttribute("aria-hidden", String(!enabled));
+                const shouldBeGone = !enabled || isMapLayersOpen();
+                btn.classList.toggle("wz-dock--gone", shouldBeGone);
+                btn.setAttribute("aria-hidden", String(shouldBeGone));
                 btn.classList.toggle("is-active", Boolean(enabled && isMapLayersOpen()));
                 btn.setAttribute("aria-expanded", String(Boolean(enabled && isMapLayersOpen())));
                 btn.setAttribute("aria-controls", MAP_LAYERS_PANE_ID);

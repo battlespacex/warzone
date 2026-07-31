@@ -26,7 +26,7 @@ const ALL_LAYER_DEFS = [
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "SEIS", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "NEWS", color: "#888" },
     { id: "hotspots", label: "Activity Areas", description: "Passive density circles behind clickable event markers", icon: "AREA", color: "#00d8b2", uiOnly: true },
-    { id: "orbital-assets", label: "Orbital Assets", description: "Public orbital estimates for military-associated and dual-use satellites", icon: "ORB", color: "#9fd7ff", premium: true },
+    { id: "orbital-assets", label: "Orbital Satellite Intelligence", description: "Public orbital estimates for military-associated and dual-use satellites", icon: "ORB", color: "#9fd7ff", premium: true },
     { id: "satellite-imagery", label: "Satellite Observations", description: "Available Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true, premium: true },
     { id: "terrain", label: "Satellite Basemap", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
     { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
@@ -554,7 +554,6 @@ function renderLayerRow(layer) {
              role="button"
              tabindex="0"
              title="${layer.description || layer.label}">
-            <span class="wz-layer-icon">${layer.icon}</span>
             <span class="wz-layer-dot" style="background:${layer.color}"></span>
             <span class="wz-layer-copy">
                 <span class="wz-layer-label">${layer.label}${renderLayerBadge(layer)}</span>
@@ -649,7 +648,6 @@ export function initLayerPanel() {
             <button class="btn-secondary white" id="wz-layers-all-on">All On<span aria-hidden="true"></span></button>
             <button class="btn-secondary white" id="wz-layers-all-off">All Off<span aria-hidden="true"></span></button>
         </div>
-        <div class="wz-layers__summary"></div>
         <div class="wz-layers__list">
             ${sections.map((section) => `
                 <section class="wz-layer-section" aria-labelledby="wz-layer-section-${section.id}">

@@ -1426,8 +1426,9 @@
 /* #region =========== LAYERS =========== */
 :root {
     --map-layers-pane-width: min(34rem, 88vw);
-    --map-layers-pane-gap: 2rem;
-    --wz-left-pane-offset: 0px;
+    --map-layers-pane-gap: 0rem;
+    --wz-left-pane-offset: 0rem;
+    --map-layers-pane-transition: 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body.is-map-layers-open {
@@ -1435,16 +1436,18 @@ body.is-map-layers-open {
 }
 
 .wz-map-layers-pane {
-    position: fixed;
-    top: 9rem;
-    left: 2rem;
-    bottom: 9rem;
+position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
     z-index: 10025;
     width: var(--map-layers-pane-width);
     opacity: 0;
     pointer-events: none;
     transform: translateX(calc(-100% - 2.5rem));
-    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+    transition: transform var(--map-layers-pane-transition), opacity 280ms ease;
+    border-top: .7rem solid var(--color-teal-glow);
+    padding: 3rem 0 3rem 3rem;
 }
 
 body.is-map-layers-open .wz-map-layers-pane {
@@ -1457,11 +1460,8 @@ body.is-map-layers-open .wz-map-layers-pane {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     height: 100%;
-    background: rgba(9, 16, 26, 0.92);
-    border: 1px solid rgba(121, 242, 255, 0.14);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-    clip-path: var(--clippath-shape-1);
     overflow: hidden;
+    background: var(--color-bg-dark)
 }
 
 .wz-map-layers-pane__head {
@@ -1503,7 +1503,6 @@ body.is-map-layers-open .wz-map-layers-pane {
 .wz-layers__toolbar .btn-secondary {
     flex: 1;
     height: 3rem;
-    padding: 0.6rem 1.5rem 0.4rem;
     font-size: var(--text-sm);
     color: var(--color-white);
     background: var(--color-bg-header)
@@ -1514,13 +1513,6 @@ body.is-map-layers-open .wz-map-layers-pane {
     background: var(--color-white);
 }
 
-.wz-layers__summary {
-    margin: 0.9rem 0 1rem;
-    color: var(--color-text-dim);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-}
-
 .wz-layers__list {
     display: grid;
     gap: 1.2rem;
@@ -1528,7 +1520,7 @@ body.is-map-layers-open .wz-map-layers-pane {
 
 .wz-layer-section {
     display: grid;
-    gap: 0.8rem;
+    gap: 1rem;
 }
 
 .wz-layer-section__head {
@@ -1541,7 +1533,7 @@ body.is-map-layers-open .wz-map-layers-pane {
 .wz-layer-section__title {
     margin: 0;
     color: var(--color-text-heading);
-    font-size: var(--text-sm);
+    font-size: var(--text-lg);
     text-transform: uppercase;
 }
 
@@ -1554,7 +1546,7 @@ body.is-map-layers-open .wz-map-layers-pane {
 
 .wz-layer-section__list {
     display: grid;
-    gap: 0.7rem;
+    gap: 1rem;
 }
 
 .wz-layer-item {
@@ -1564,10 +1556,6 @@ body.is-map-layers-open .wz-map-layers-pane {
     gap: 1rem;
     cursor: pointer;
     user-select: none;
-    padding: 0.9rem 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(121, 242, 255, 0.08);
-    clip-path: var(--clippath-shape-3);
     transition: background 0.12s ease, border-color 0.12s ease;
 }
 
@@ -1595,17 +1583,6 @@ body.is-map-layers-open .wz-map-layers-pane {
     transition: opacity 0.15s;
 }
 
-.wz-layer-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    flex-shrink: 0;
-    font-size: var(--text-sm);
-    text-align: center;
-    color: var(--color-text-dim);
-}
-
 .wz-layer-label {
     overflow: hidden;
     font-weight: 600;
@@ -1628,12 +1605,13 @@ body.is-map-layers-open .wz-map-layers-pane {
     align-items: center;
     justify-content: center;
     min-height: 1.8rem;
-    padding: 0 0.55rem;
+    padding: .5rem .5rem .2rem;
     color: var(--color-teal-glow);
-    border: 1px solid rgba(34, 211, 238, 0.28);
-    font-size: 1rem;
+    font-size: var(--text-xs);
     letter-spacing: 0.08em;
+    font-family: var(--text-font);
     text-transform: uppercase;
+    background: var(--color-teal-hover);
 }
 
 .wz-layer-toggle {
@@ -2815,7 +2793,7 @@ display: flex;
 }
 
 .wz-layer-panel {
-    padding: 1.5rem;
+    padding: 0;
     gap: 1.5rem;
     display: flex;
     flex-direction: column;
@@ -5339,7 +5317,7 @@ display: inline-flex;
     pointer-events: none;
     display: grid;
     gap: .7rem;
-    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: left var(--map-layers-pane-transition);
 }
 
 .wz-altitude-readout__line {

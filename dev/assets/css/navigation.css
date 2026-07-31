@@ -9,7 +9,7 @@
     box-sizing: border-box;
     width: calc(100% - var(--wz-left-pane-offset));
     pointer-events: none;
-    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1), width 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: left var(--map-layers-pane-transition), width var(--map-layers-pane-transition);
 }
 
     .warzone-commandbar > * {
@@ -26,11 +26,21 @@
     align-items: center;
     justify-content: center;
     width: calc(100% - var(--wz-left-pane-offset));
-    border-top: .7rem solid var(--color-teal-glow);
     filter: var(--header-shadow);
     transform: translateY(-8rem);
-    transition: transform 0.8s ease, left 320ms cubic-bezier(0.22, 1, 0.36, 1), width 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.8s ease, left var(--map-layers-pane-transition), width var(--map-layers-pane-transition);
     will-change: transform;
+}
+
+.warzone-brand::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: .7rem;
+    background: var(--color-teal-glow);
+    pointer-events: none;
 }
 
 .is-app-active .warzone-brand {
@@ -66,7 +76,7 @@
     align-items: center;
     gap: .5rem;
     opacity: 0;
-    transition: opacity 0.5s ease, transform 0.35s ease, left 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 0.5s ease, transform 0.35s ease, left var(--map-layers-pane-transition);
     will-change: opacity;
     z-index: 9000
 }
@@ -74,7 +84,7 @@
 body.is-app-active .warzone-region-bar,
 body.is-app-active .warzone-actions {
     opacity: 1;
-    transition-delay: 0.95s;
+    transition-delay: 0.95s, 0.95s, 0s;
 }
 
 body.is-app-active .warzone-region-bar.is-region-prompt-visible {
@@ -85,7 +95,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 }
 
 .warzone-region-bar {
-    left: calc(2rem + var(--wz-left-pane-offset));
+    left: 2rem;
 }
 
     .warzone-region-bar .static-icon {
@@ -168,14 +178,14 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
     /* filter: var(--widget-shadow); */
     opacity: 0;
     transform: translateX(-50%) translateY(6rem);
-    transition: opacity 0.65s ease, transform 0.65s ease, left 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 0.65s ease, transform 0.65s ease, left var(--map-layers-pane-transition);
     will-change: opacity, transform;
 }
 
 body.is-app-active .wz-dock {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
-    transition-delay: 0.5s;
+    transition-delay: 0.5s, 0.5s, 0s;
 }
 
 .wz-btn-container {
@@ -411,7 +421,7 @@ body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible=
     left: calc(2rem + var(--wz-left-pane-offset));
     flex-direction: column;
     top: 50%;
-    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: left var(--map-layers-pane-transition);
 }
 
 .wz-globe-toggle__btn {

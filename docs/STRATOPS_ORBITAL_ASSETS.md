@@ -4,7 +4,7 @@ Last updated: 2026-07-28
 
 ## What The Layer Does
 
-Orbital Assets displays public orbital estimates for publicly tracked military-associated and dual-use satellites. It is an analytical visualization layer, not a live sensor feed.
+Orbital Satllite Intelligence displays public orbital estimates for publicly tracked military-associated and dual-use satellites. It is an analytical visualization layer, not a live sensor feed.
 
 The default globe view uses lightweight symbols. Hover shows a compact public orbital information card. Click/focus shows selected-satellite context: model fallback, recent/predicted orbit path, sub-satellite ground track, nadir line, and a theoretical line-of-sight footprint.
 
@@ -210,9 +210,9 @@ npm run build
 
 Manual staging checks:
 
-- Anonymous user sees Orbital Assets locked as premium.
-- Enabling Orbital Assets after sign-in calls `/api/satellites/military`.
-- Disabling Orbital Assets removes symbols, focus graphics, timers, and Cesium handlers.
+- Anonymous user sees Orbital Satellite Intelligence locked as premium.
+- Enabling Orbital Satellite Intelligence after sign-in calls `/api/satellites/military`.
+- Disabling Orbital Satellite Intelligence removes symbols, focus graphics, timers, and Cesium handlers.
 - Hover card says public orbital estimate and CelesTrak public GP elements.
 - Focus card says position is propagated from public orbital elements and is not a direct sensor detection.
 - Satellite Observations remain independently controllable.
