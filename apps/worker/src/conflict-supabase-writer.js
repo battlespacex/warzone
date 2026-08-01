@@ -61,7 +61,7 @@ async function upsertConflictFeedItems(items = []) {
         onConflict: "url",
         ignoreDuplicates: false
       })
-      .select("id, title, source_name, category, confidence_score");
+      .select("id, title, summary, source_name, region, country, category, confidence_score");
 
     data = result.data;
     error = result.error;

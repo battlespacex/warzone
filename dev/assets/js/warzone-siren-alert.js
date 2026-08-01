@@ -133,7 +133,7 @@ function enforceCap() {
 function startSirenLoop() {
     if (__sirenLoopTimer) return;
     if (!__sirenAudioEl) {
-        __sirenAudioEl = new Audio("/assets/audio/warzone-alert-loop.mp3");
+        __sirenAudioEl = new Audio("/assets/audio/stratops-siren.mp3");
         __sirenAudioEl.preload = "auto";
         __sirenAudioEl.volume = 0.7;
     }

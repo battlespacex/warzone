@@ -4780,8 +4780,8 @@ function safeCreateAudio(src, volume = 1, loop = false) {
 }
 function ensureAudioStore(viewer) {
     if (viewer.__warzoneAudio) return viewer.__warzoneAudio;
-    const alertSrc = readCssAssetPath("--warzone-sound-alert-loop", "/assets/audio/warzone-alert-loop.mp3");
-    const impactSrc = readCssAssetPath("--warzone-sound-impact", "/assets/audio/warzone-impact.mp3");
+    const alertSrc = readCssAssetPath("--warzone-sound-alert-loop", "/assets/audio/stratops-siren.mp3");
+    const impactSrc = readCssAssetPath("--warzone-sound-impact", "");
     viewer.__warzoneAudio = {
         alertLoop: safeCreateAudio(alertSrc, numberVar("--warzone-sound-alert-volume", 0.65), true),
         impactSrc,
@@ -4811,16 +4811,7 @@ function stopMissileAlertSound(viewer) {
     }
 }
 function playImpactSound(viewer) {
-    const store = ensureAudioStore(viewer);
-    if (!store.impactSrc) return;
-    if (Date.now() < Number(window.__warzoneOperationalAudioMutedUntil || 0)) return;
-    try {
-        const audio = new Audio(store.impactSrc);
-        audio.preload = "auto";
-        audio.volume = store.impactVolume;
-        audio.currentTime = 0;
-        audio.play().catch(() => { });
-    } catch { }
+    return;
 }
 /* ---------- Missile store ---------- */
 function ensureMissileStore(viewer) {
@@ -5554,6 +5545,7 @@ export async function initWarzoneGlobe() {
         shouldAnimate: false,
         scene3DOnly: false,
         mapMode2D: Cesium.MapMode2D.ROTATE,
+        mapProjection: new Cesium.WebMercatorProjection(Cesium.Ellipsoid.WGS84),
         requestRenderMode: true,
         contextOptions: {
             webgl: {

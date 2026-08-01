@@ -119,6 +119,7 @@ let __lastOverlaySourceKey = "__empty__";
 let __lastOverlayClusterRadiusBucket = "";
 let __cachedOverlayClusters = [];
 let __lastNavalSignalsSyncKey = "__empty__";
+let __foregroundRenderModeRestoreTimer = 0;
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
@@ -557,6 +558,33 @@ function requestWarzoneLifecycleRenderBurst(reason = "lifecycle", durationMs = 9
     };
     __warzoneLifecycleRenderBurstRaf = requestAnimationFrame(step);
     return true;
+}
+function forceForegroundViewerWake({ reason = "foreground", backgroundIdleMs = 0 } = {}) {
+    const viewer = window.__warzoneViewer;
+    const scene = viewer?.scene;
+    if (!viewer || !scene || isDocumentHidden()) return;
+    try {
+        viewer.resize?.();
+    } catch { }
+    try {
+        scene.requestRender?.();
+    } catch { }
+    const idleMs = Math.max(0, Number(backgroundIdleMs || 0));
+    const longIdle = idleMs >= 5 * 60 * 1000;
+    window.__warzoneLifecycle?.requestRenderBurst?.(reason, longIdle ? 2600 : 900);
+    startForegroundRenderWakeBurst(longIdle ? 2200 : 900);
+    if (!longIdle) return;
+    clearTimeout(__foregroundRenderModeRestoreTimer);
+    const previousRequestRenderMode = scene.requestRenderMode;
+    try {
+        scene.requestRenderMode = false;
+    } catch { }
+    __foregroundRenderModeRestoreTimer = window.setTimeout(() => {
+        try {
+            scene.requestRenderMode = previousRequestRenderMode !== false;
+            scene.requestRender?.();
+        } catch { }
+    }, 2400);
 }
 function pauseWarzoneLifecycle(reason = "pause") {
     if (__warzoneLifecyclePaused) return false;
@@ -1611,7 +1639,20 @@ function shouldEnableMilSatsLayer() {
         isLayerEnabled("orbital-assets")
     );
 }
+function syncOrbitalWidgetVisibilityForLayer() {
+    const enabled = shouldEnableMilSatsLayer();
+    const widget = document.querySelector('[data-widget-id="orbital"]');
+    if (!widget || enabled) return;
+    widget.classList.add("wz-is-hidden");
+    try {
+        const saved = JSON.parse(localStorage.getItem("wz_widget_visibility") || "{}");
+        saved.orbital = false;
+        localStorage.setItem("wz_widget_visibility", JSON.stringify(saved));
+    } catch { }
+    window.__syncWarzoneDock?.();
+}
 function syncIdleSceneState() {
+    syncOrbitalWidgetVisibilityForLayer();
     void setWarzoneMilSatsEnabledDeferred(shouldEnableMilSatsLayer());
 }
 function isAuthModalVisible() {
@@ -3965,6 +4006,9 @@ function decodeBasicHtmlEntities(value = "") {
 }
 function stripNonEnglishText(value = "", fallback = "") {
     const cleaned = String(value ?? "")
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+        .replace(/\b[01]{12,}\b/g, " ")
+        .replace(/\b(?:0x[0-9a-f]{8,}|[a-f0-9]{24,})\b/gi, " ")
         .replace(/[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}\p{Number}\s]/gu, " ")
         .replace(/\s+/g, " ")
         .trim();
@@ -7436,9 +7480,7 @@ export async function initWarzoneApp() {
             const lifecycleResumed = window.__warzoneLifecycle?.resume?.("document-foreground") === true;
             resumeForegroundLivePipelines({ backgroundIdleMs });
             if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
-                startForegroundRenderWakeBurst(650);
-                window.__warzoneLifecycle?.requestRenderBurst?.("foreground-throttle", 650);
-                window.__warzoneViewer?.scene?.requestRender?.();
+                forceForegroundViewerWake({ reason: "foreground-throttle", backgroundIdleMs });
                 return;
             }
             __lastForegroundRecoveryAt = now;
@@ -7471,7 +7513,7 @@ export async function initWarzoneApp() {
             if (isLayerEnabled("gnss")) {
                 void refreshGnssInterferenceCells();
             }
-            startForegroundRenderWakeBurst(700);
+            forceForegroundViewerWake({ reason: "document-foreground", backgroundIdleMs });
             scheduleForegroundAdaptiveRecovery(window.__warzoneViewer, backgroundIdleMs);
             window.__warzoneViewer?.scene?.requestRender?.();
         };
@@ -8107,6 +8149,21 @@ export function initGlobal() {
 export function initBoot() {
     document.addEventListener("DOMContentLoaded", () => {
         initGlobal();
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Tab") {
+                document.body.classList.add("using-keyboard");
+            }
+        });
+
+        document.addEventListener("pointerdown", () => {
+            document.body.classList.remove("using-keyboard");
+        });
+
+        if (isStratOpsFeatureEnabled("system.audio")) {
+            initAudio();
+        }
+
         window.SiteLoader?.forceHide?.();
     });
 }
@@ -8116,13 +8173,17 @@ export function initAudio() {
     const playIcon = toggle?.querySelector(".audio-toggle__icon--play");
     const pauseIcon = toggle?.querySelector(".audio-toggle__icon--pause");
     if (!audio || !toggle || !playIcon || !pauseIcon) return;
+    if (toggle.dataset.audioBound === "true") return;
+    toggle.dataset.audioBound = "true";
     audio.loop = true;
     audio.volume = 0.35;
+    audio.src = audio.getAttribute("src") || "/assets/audio/stratops-radio-soundtrack.mp3";
     let isPlaying = false;
     function syncUi(playing) {
         isPlaying = playing;
         toggle.classList.toggle("is-on", playing);
         toggle.setAttribute("aria-pressed", String(playing));
+        toggle.setAttribute("aria-label", playing ? "Pause background soundtrack" : "Play background soundtrack");
         playIcon.classList.toggle("is-active", !playing);
         pauseIcon.classList.toggle("is-active", playing);
     }
@@ -8140,6 +8201,7 @@ export function initAudio() {
         if (isPlaying) pauseAudio();
         else await playAudio();
     });
+    syncUi(false);
     playAudio();
     const unlock = async () => {
         if (!isPlaying) {
@@ -8150,7 +8212,6 @@ export function initAudio() {
     };
     document.addEventListener("click", unlock);
     document.addEventListener("keydown", unlock);
-    syncUi(false);
 }
 
 const LOCAL_AUTH_BASES = [
@@ -9534,6 +9595,7 @@ function showSupportModal() {
 
 let __reportsModalBound = false;
 let __reportsModalCloseTimer = 0;
+let __latestOperationalReport = null;
 
 function getYesterdayUtcDateKey() {
     const date = new Date();
@@ -9615,126 +9677,75 @@ function openOperationalReportViewer(report = {}) {
     setReportsStatus("");
 }
 
-function renderOperationalReports(reports = []) {
-    const list = document.getElementById("wz-operational-reports-list");
-    if (!list) return;
-    list.innerHTML = "";
-    const source = Array.isArray(reports) ? reports : [];
-    if (!source.length) {
-        const empty = document.createElement("p");
-        empty.className = "wz-report-card__meta";
-        empty.textContent = "No generated reports are available yet.";
-        list.appendChild(empty);
+function setLatestReportDownloadState(report = null, isReady = false) {
+    const button = document.getElementById("wz-operational-reports-download");
+    const label = button?.querySelector("span:last-child") || button;
+    const hasUrl = Boolean(report && api.getOperationalReportViewerUrl(report));
+    if (button) {
+        button.disabled = !isReady || !hasUrl;
+        button.setAttribute("aria-busy", isReady ? "false" : "true");
+    }
+    if (label) label.textContent = isReady && hasUrl ? "Download PDF" : "Report Preparing";
+}
+
+function renderLatestOperationalReportState(payload = {}) {
+    const status = String(payload.status || "missing").toLowerCase();
+    const report = payload.report || null;
+    const title = document.getElementById("wz-operational-reports-latest-title");
+    const badge = document.getElementById("wz-operational-reports-latest-badge");
+    const meta = document.getElementById("wz-operational-reports-latest-meta");
+    const summary = document.getElementById("wz-operational-reports-latest-summary");
+    const isReady = status === "available" && report;
+
+    __latestOperationalReport = isReady ? report : null;
+    if (title) title.textContent = report ? getReportTitle(report) : "Latest Daily Report";
+    if (badge) badge.textContent = isReady ? "Ready" : (status === "preparing" ? "Preparing" : "Pending");
+    if (meta) {
+        meta.textContent = isReady
+            ? [
+                formatReportPeriod(report),
+                report.expires_at ? `Available until ${formatReportDate(report.expires_at)}` : "",
+            ].filter(Boolean).join(" | ")
+            : "The scheduled reporting worker has not published a downloadable PDF yet.";
+    }
+    if (summary) {
+        summary.textContent = isReady
+            ? String(report.generated_summary || "Latest cached operational briefing is ready for download.")
+            : String(payload.message || "The latest cached report is being prepared. Please check again shortly.");
+    }
+    setLatestReportDownloadState(report, isReady);
+    setReportsStatus(isReady ? "Latest cached report is ready." : (payload.message || "Report is being prepared."), !isReady && status === "unavailable");
+}
+
+async function loadLatestOperationalReport() {
+    setReportsStatus("Checking latest cached report...");
+    setLatestReportDownloadState(null, false);
+    try {
+        const { data } = await api.getLatestOperationalReport("daily", "global");
+        renderLatestOperationalReportState(data || {});
+    } catch (error) {
+        console.warn("[reports] latest report lookup failed:", error);
+        __latestOperationalReport = null;
+        renderLatestOperationalReportState({
+            status: "unavailable",
+            message: String(error?.message || "Unable to check the latest cached report."),
+        });
+    }
+}
+
+function openLatestOperationalReport() {
+    const readyUrl = __latestOperationalReport ? api.getOperationalReportViewerUrl(__latestOperationalReport) : "";
+    if (!readyUrl) {
+        setReportsStatus("The latest report is still being prepared. Please check again shortly.", true);
         return;
     }
-    source.forEach((report) => {
-        const card = document.createElement("article");
-        card.className = "wz-report-card";
-
-        const head = document.createElement("div");
-        head.className = "wz-report-card__head";
-
-        const title = document.createElement("h3");
-        title.className = "wz-report-card__title";
-        title.textContent = getReportTitle(report);
-
-        const badge = document.createElement("span");
-        badge.className = "wz-report-card__badge";
-        badge.textContent = String(report.status || "available");
-
-        head.append(title, badge);
-
-        const meta = document.createElement("p");
-        meta.className = "wz-report-card__meta";
-        meta.textContent = [
-            formatReportPeriod(report),
-            report.expires_at ? `Expires ${formatReportDate(report.expires_at)}` : "",
-        ].filter(Boolean).join(" | ");
-
-        const summary = document.createElement("p");
-        summary.className = "wz-report-card__summary";
-        summary.textContent = String(report.generated_summary || "Report generated from operational snapshots.");
-
-        const actions = document.createElement("div");
-        actions.className = "wz-report-card__actions";
-        if (isStratOpsFeatureEnabled("reports.reportDownloads") || isStratOpsFeatureEnabled("reports.reportViewer")) {
-            const download = document.createElement("button");
-            download.type = "button";
-            download.className = "btn-primary";
-            download.textContent = "Open PDF";
-            download.disabled = !api.getOperationalReportViewerUrl(report);
-            download.addEventListener("click", () => {
-                if (!api.getOperationalReportViewerUrl(report)) {
-                    setReportsStatus("This report does not have a download token yet.", true);
-                    return;
-                }
-                openOperationalReportViewer(report);
-            });
-            actions.appendChild(download);
-        }
-
-        card.append(head, meta, summary, actions);
-        list.appendChild(card);
-    });
-}
-
-async function loadOperationalReports() {
-    setReportsStatus("Loading reports...");
+    const readyWindow = window.open(readyUrl, "_blank", "noopener,noreferrer");
     try {
-        const { data } = await api.getOperationalReports();
-        renderOperationalReports(data || []);
-        setReportsStatus("");
-    } catch (error) {
-        console.warn("[reports] load failed:", error);
-        renderOperationalReports([]);
-        setReportsStatus(String(error?.message || "Unable to load reports."), true);
-    }
-}
-
-function getReportsButtonLabel(button) {
-    return button?.querySelector("span:last-child") || button;
-}
-
-async function generateDailyOperationalReport(button) {
-    if (!isStratOpsFeatureEnabled("reports.reportGeneration")) return;
-    const label = getReportsButtonLabel(button);
-    const originalLabel = label?.textContent || "";
-    const dateKey = getYesterdayUtcDateKey();
-    if (button) {
-        button.disabled = true;
-        button.setAttribute("aria-busy", "true");
-    }
-    if (label) label.textContent = "Generating...";
-    setReportsStatus("Preparing the cached daily PDF...");
-    try {
-        const { data } = await api.generateOperationalReport({
-            type: "daily",
-            scope_type: "global",
-            date: dateKey,
-            force: false,
-        });
-        const readyUrl = api.getOperationalReportViewerUrl(data);
-        if (!readyUrl) {
-            setReportsStatus("Daily report was generated, but no download URL was returned.", true);
-            return;
-        }
-        const readyWindow = window.open(readyUrl, "_blank", "noopener,noreferrer");
-        try {
-            if (readyWindow) readyWindow.opener = null;
-        } catch { }
-        setReportsStatus(readyWindow
-            ? "Daily report is ready."
-            : "Daily report is ready, but your browser blocked the report tab.");
-    } catch (error) {
-        console.warn("[reports] generation failed:", error);
-        setReportsStatus(String(error?.message || "Unable to generate daily report."), true);
-    } finally {
-        if (button) {
-            button.disabled = false;
-            button.removeAttribute("aria-busy");
-        }
-        if (label) label.textContent = originalLabel;
-    }
+        if (readyWindow) readyWindow.opener = null;
+    } catch { }
+    setReportsStatus(readyWindow
+        ? "Latest cached report opened."
+        : "Latest report is ready, but your browser blocked the report tab.");
 }
 
 function closeMobileDockMenuAfterReportsOpen() {
@@ -9755,6 +9766,7 @@ function openOperationalReportsModal() {
     setReportsStatus("");
     modal.scrollTop = 0;
     openSharedModal(modal);
+    void loadLatestOperationalReport();
 }
 
 function closeOperationalReportsModal() {
@@ -9773,11 +9785,7 @@ function initOperationalReportsModal() {
     __reportsModalBound = true;
     applyStratOpsFeatureVisibility();
     document.getElementById("wz-operational-reports-close")?.addEventListener("click", closeOperationalReportsModal);
-    if (isStratOpsFeatureEnabled("reports.reportGeneration")) {
-        document.getElementById("wz-operational-reports-generate")?.addEventListener("click", (event) => {
-            void generateDailyOperationalReport(event.currentTarget);
-        });
-    }
+    document.getElementById("wz-operational-reports-download")?.addEventListener("click", openLatestOperationalReport);
     document.getElementById("dock-reports")?.addEventListener("click", openOperationalReportsModal);
     document.getElementById("wz-mobile-reports")?.addEventListener("click", () => {
         closeMobileDockMenuAfterReportsOpen();

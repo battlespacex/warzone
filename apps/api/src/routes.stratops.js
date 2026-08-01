@@ -41,6 +41,8 @@ const PUBLIC_REPORT_ORIGINS = new Set([
     "https://stratops.battlespacex.com",
     "https://stratops-staging.battlespacex.com",
 ]);
+const REPORT_STATUS_CACHE_TTL_MS = 30 * 1000;
+const reportStatusCache = new Map();
 
 function isLocalNetworkHost(hostname = "") {
     const host = String(hostname || "").trim().toLowerCase();
@@ -48,31 +50,6 @@ function isLocalNetworkHost(hostname = "") {
     if (host === "localhost" || host === "::1" || host === "[::1]") return true;
     if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true;
     return /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
-}
-
-function getApiPublicBase(req) {
-    const configured = String(
-        process.env.STRATOPS_API_PUBLIC_URL ||
-        process.env.API_PUBLIC_URL ||
-        ""
-    ).trim();
-    if (configured) return configured.replace(/\/+$/, "");
-    const host = String(req.get("x-forwarded-host") || req.get("host") || "").split(",")[0].trim();
-    const proto = String(req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0].trim();
-    if (!host) return "https://api.battlespacex.com";
-    try {
-        const requestUrl = new URL(`${proto}://${host}`);
-        const originUrl = new URL(String(req.get("origin") || ""));
-        if (!isLocalNetworkHost(originUrl.hostname) && isLocalNetworkHost(requestUrl.hostname)) {
-            return "https://api.battlespacex.com";
-        }
-        if (process.env.NODE_ENV === "production" && isLocalNetworkHost(requestUrl.hostname)) {
-            return "https://api.battlespacex.com";
-        }
-    } catch {
-        // Fall through to the forwarded host when it is usable.
-    }
-    return `${proto}://${host}`;
 }
 
 function getRequestPublicOrigin(req) {
@@ -129,12 +106,6 @@ function getPublicReportAssetUrl(req, report = {}) {
 
 function toPublicApiReport(req, report = {}) {
     const publicReport = toPublicReport(report);
-    const id = String(publicReport.id || "").trim();
-    const token = String(publicReport.download_token || "").trim();
-    const base = getApiPublicBase(req);
-    const downloadUrl = id && token && base
-        ? `${base}/stratops/reports/${encodeURIComponent(id)}/download?token=${encodeURIComponent(token)}`
-        : "";
     const reportUrl = getPublicReportAssetUrl(req, report) || publicReport.public_url;
     return {
         ...publicReport,
@@ -201,6 +172,33 @@ function normalizeReportScope(body = {}, query = {}) {
         label,
         bbox: bbox.length === 4 ? bbox : null,
     };
+}
+
+function getReportScopeKey(scope = {}) {
+    const type = String(scope.type || "global").trim().toLowerCase();
+    if (type === "global") return "global";
+    const value = String(scope.value || scope.label || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    return `${type}:${value || "all"}`;
+}
+
+function getCachedReportStatus(cacheKey) {
+    const cached = reportStatusCache.get(cacheKey);
+    if (!cached || Date.now() > cached.expiresAt) {
+        reportStatusCache.delete(cacheKey);
+        return null;
+    }
+    return cached.value;
+}
+
+function setCachedReportStatus(cacheKey, value) {
+    reportStatusCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + REPORT_STATUS_CACHE_TTL_MS,
+    });
 }
 
 function normalizeSupportEmail(value = "") {
@@ -274,7 +272,7 @@ export function stratopsRouter() {
     router.post("/reports/generate", express.json({ limit: "128kb" }), async (req, res) => {
         try {
             const config = readReportingConfig();
-            if (!config.enabled) {
+            if (!config.apiEnabled) {
                 return res.status(503).json({ error: "Reporting is disabled." });
             }
             const reportType = normalizeReportType(req.body?.type || req.body?.report_type);
@@ -293,6 +291,76 @@ export function stratopsRouter() {
             console.error("[stratops] report generation failed:", error);
             const status = String(error?.message || "").includes("requires 7 daily snapshots") ? 409 : 500;
             res.status(status).json({ error: error?.message || "Report generation failed" });
+        }
+    });
+
+    router.get("/reports/latest", async (req, res) => {
+        try {
+            const reportType = normalizeReportType(req.query.type);
+            const scope = normalizeReportScope({}, req.query || {});
+            const scopeKey = getReportScopeKey(scope);
+            const cacheKey = `${reportType}:${scopeKey}`;
+            const cached = getCachedReportStatus(cacheKey);
+            if (cached) return res.json(cached);
+
+            const supabase = getSupabase();
+            const commonColumns = "id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at";
+            const now = new Date().toISOString();
+            const available = await supabase
+                .from("operational_reports")
+                .select(commonColumns)
+                .eq("report_type", reportType)
+                .eq("scope_key", scopeKey)
+                .eq("report_version", REPORT_VERSION)
+                .eq("status", "available")
+                .gt("expires_at", now)
+                .order("period_start", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (available.error) {
+                return res.status(500).json({ error: "Failed" });
+            }
+
+            if (available.data) {
+                const payload = {
+                    status: "available",
+                    report: toPublicApiReport(req, available.data),
+                    message: "Latest cached operational report is ready.",
+                };
+                setCachedReportStatus(cacheKey, payload);
+                return res.json(payload);
+            }
+
+            const pending = await supabase
+                .from("operational_reports")
+                .select("id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_version, expires_at, created_at, updated_at")
+                .eq("report_type", reportType)
+                .eq("scope_key", scopeKey)
+                .in("status", ["generating", "failed"])
+                .order("updated_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (pending.error) {
+                return res.status(500).json({ error: "Failed" });
+            }
+
+            const status = pending.data?.status === "failed"
+                ? "unavailable"
+                : (pending.data ? "preparing" : "missing");
+            const payload = {
+                status,
+                report: pending.data ? toPublicApiReport(req, pending.data) : null,
+                message: status === "preparing"
+                    ? "The latest operational report is being prepared."
+                    : "No cached operational report is available yet.",
+            };
+            setCachedReportStatus(cacheKey, payload);
+            res.json(payload);
+        } catch (error) {
+            console.error("[stratops] latest report lookup failed:", error);
+            res.status(500).json({ error: "Failed" });
         }
     });
 

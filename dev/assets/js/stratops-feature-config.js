@@ -93,7 +93,7 @@ const DEFAULT_STRATOPS_FEATURES = {
 
     reports: {
         operationalReports: true,
-        reportGeneration: true,
+        reportGeneration: false,
         reportDownloads: true,
         reportViewer: true,
     },
@@ -142,7 +142,6 @@ const FEATURE_SELECTOR_MAP = {
     "dock.about": "#dock-about, [data-dock-proxy=\"about\"]",
     "dock.mobileMenu": "#wz-mobile-dock-menu-open, #wz-mobile-dock-menu, #wz-mobile-dock-backdrop",
 
-    "reports.reportGeneration": "#wz-operational-reports-generate",
     "reports.reportViewer": "#wz-operational-report-viewer",
 
     "widgets.counter": "[data-widget-id=\"counter\"]",

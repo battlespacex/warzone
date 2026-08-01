@@ -1,0 +1,503 @@
+BATTLESPACEX STRATOPS - REVISED ENTRY / ABOUT COPY
+Last updated: 2026-07-31
+Source: sanitized from latest requested copy for the current StratOps platform scope.
+
+Purpose:
+This file is the current source text for the StratOps entrance page, About popup,
+Operational Capabilities tab, Rules of Engagement tab, acceptance checkbox, short
+About summaries, and footer copy.
+
+------------------------------------------------------------
+1. ENTRANCE PAGE / PRE-ENTRY SHOWCASE
+------------------------------------------------------------
+
+Logo:
+StratOps by BattlespaceX
+
+Main title:
+Real-Time Multi-Domain
+Battlespace Intelligence
+
+Description:
+StratOps transforms curated conflict intelligence, public telemetry, military
+activity, orbital estimates, satellite context, and regional signals into a
+unified real-time 3D battlespace across air, land, sea, space, cyber, and
+infrastructure domains.
+
+Primary capability items:
+
+1. Curated Warzone OSINT
+Military-focused conflict intelligence filtered for relevance, clarity, and
+operational context, without unrelated civilian or repetitive noise.
+
+2. Interactive 3D Battlespace
+Explore events, assets, regions, and intelligence layers across an interactive
+Cesium-powered globe.
+
+3. Military Aircraft Tracking
+Track military-associated aircraft using available movement data, focused views,
+activity history, and supported 3D models.
+
+4. Naval Activity Monitoring
+Monitor naval contacts, vessel movement, focused tracking views, and operational
+maritime context.
+
+5. Orbital Asset Intelligence
+View publicly tracked military-associated and dual-use satellites using
+propagated positions, orbit paths, and ground tracks.
+
+6. Airspace and GNSS
+Review airspace restrictions, aviation status, GNSS interference, navigation
+anomalies, and related operational conditions.
+
+Secondary capability items:
+
+1. Cyber and Infrastructure Signals
+Monitor cyber activity, network disruption, infrastructure incidents, and
+digital signals related to operational environments.
+
+2. Satellite Observations
+Access available event-linked imagery context, observation metadata, and cached
+geospatial references when available.
+
+3. Strategic Focus
+Focus active conflicts, strategic regions, flashpoints, escalation indicators,
+and theater activity.
+
+4. AOI Intelligence
+Scan user-defined areas for nearby events, assets, routes, military sites,
+infrastructure, and strategic locations.
+
+Provider logos:
+CesiumJS
+Esri
+BattlespaceX
+
+Entry button:
+Enter StratOps
+
+Entrance footer copy:
+Built with CesiumJS, using imagery and elevation data from Esri.
+
+Demo satellites provide visual context only and do not represent live
+detections, classified assets, confirmed surveillance coverage, or real-time
+sensor tracking.
+
+(c) 2026 StratOps, powered by BattlespaceX.
+
+Entrance behavior note:
+The entrance page appears over the startup globe with moving demo satellites.
+The platform soundtrack may start automatically when the browser allows it, and
+a small play/pause control remains available throughout the experience.
+
+------------------------------------------------------------
+2. ABOUT POPUP TAB LABELS
+------------------------------------------------------------
+
+Tab 1:
+Operational Capabilities
+
+Tab 2:
+Rules of Engagement
+
+Default active tab:
+Operational Capabilities
+
+Intro heading:
+A Unified Operational Picture
+
+Intro summary:
+StratOps is an OSINT-informed situational intelligence and visualization
+platform. It brings curated conflict events, public telemetry, regional
+intelligence, military-associated aircraft, naval activity, orbital estimates,
+satellite context, infrastructure signals, and operational reports into a single
+briefing-grade 3D environment.
+
+Supporting summary:
+The platform is designed to help analysts, researchers, journalists, educators,
+security teams, and partner audiences understand fast-changing global activity
+through regional filters, Strategic Focus, intelligence layers, focused
+asset tracking, and area-of-interest scanning.
+
+------------------------------------------------------------
+3. OPERATIONAL CAPABILITIES TAB
+------------------------------------------------------------
+
+Heading:
+Core Operational Capabilities
+
+Global Situational Awareness
+Monitor reported military activity, operational developments, strategic
+movements, escalation indicators, airspace changes, naval signals, orbital
+context, infrastructure disruption, and emerging flashpoints from a single
+environment.
+
+Unified Multi-Domain View
+Analyze activity across air, land, sea, space, cyber, infrastructure, and
+regional theater layers without switching between disconnected tools.
+
+Curated Intelligence Environment
+Correlate OSINT events, aircraft and naval telemetry, public orbital estimates,
+military infrastructure, GNSS interference, airspace status, cyber signals,
+satellite observation context, and operational reports inside one common
+operating picture.
+
+Conflict and Theater Analysis
+Focus on active conflicts, strategic regions, flashpoints, and theaters of
+interest using region selection, Strategic Focus, theater intelligence, layer
+controls, and current-region filtering.
+
+Cross-Domain Correlation
+Understand how assets, events, infrastructure, routes, alert signals, airspace
+restrictions, and geopolitical developments interact across a region instead of
+viewing isolated data points.
+
+AOI Intelligence
+Draw a custom area of interest and generate localized context around events,
+assets, routes, bases, infrastructure, and strategic locations inside or near the
+selected area.
+
+Military Activity Monitoring
+Track military-associated aircraft, naval contacts, strategic assets, orbital
+estimates, reported strikes, alerts, and other operational developments in near
+real time where source data is available.
+
+Heading:
+Analysis and Intelligence Tools
+
+Operational Layer Suite
+Visualize radar and threat ranges, activity areas, raised regions, country
+borders, airspace status, GNSS interference, military bases, satellite
+observations, and other operational overlays.
+
+Focused Asset Tracking
+Inspect selected aircraft, naval vessels, and orbital assets with focused camera
+views, readable labels, contextual panels, and supported 3D visualization.
+
+Regional Intelligence Filtering
+Use theater selection, country filtering, layer controls, current-region logic,
+and Operational views to narrow the operational picture.
+
+Hotspot and Activity Analysis
+Use hotspots, activity areas, event clusters, and classification filters to
+identify concentrations of reported activity and developing operational patterns.
+
+Intel Wire
+Review broader reporting, contextual intelligence, media-rich items, and
+slower-moving developments separately from immediate map events.
+
+Operational Reports
+View generated operational summaries based on available cached snapshots,
+activity totals, regional trends, and supporting intelligence when the reporting
+service is available.
+
+Satellite Observation Context
+Review event-linked imagery records and observation metadata separately from
+orbital tracking. Satellite Observations provide contextual imagery references,
+while Orbital Assets show propagated positions derived from public orbital
+elements.
+
+Heading:
+Visualization Experience
+
+Immersive 3D Battlespace Environment
+Explore global and regional activity through a Cesium-powered globe with smooth
+region focus, interactive layers, dock controls, operational panels, and
+performance-aware rendering.
+
+3D Military Asset Visualization
+View selected aircraft, naval vessels, and satellites using supported 3D models,
+with broader icon-based rendering used where detailed models or source
+information are unavailable.
+
+Public Orbital Visualization
+Display military-associated and dual-use satellites using public orbital
+elements, predicted positions, orbit arcs, ground tracks, nadir lines, and
+theoretical line-of-sight context.
+
+Alerts and Interface Audio
+Use visual alert banners and siren indicators for relevant public-warning-style
+signals. These interface elements are informational and are not official
+emergency broadcasts.
+
+Premium Access
+Selected high-value layers require authentication, including aircraft tracking,
+naval activity, military bases, airspace status, GNSS interference, radar and
+threat ranges, cyber operations, orbital assets, and satellite observations.
+
+Heading:
+Built For
+
+OSINT analysts, defense researchers, journalists, security professionals,
+geopolitical observers, educators, partner teams, and organizations that need a
+consolidated visual environment for understanding global security activity.
+
+------------------------------------------------------------
+4. RULES OF ENGAGEMENT TAB
+------------------------------------------------------------
+
+Acceptance of These Rules
+By accessing or using StratOps, you acknowledge and agree to these Rules of
+Engagement and Terms of Use.
+
+If you do not agree, discontinue use of the platform.
+
+Information Sources
+StratOps may collect, aggregate, summarize, classify, visualize, or reference
+information from publicly available and partner-accessible sources, including:
+
+- Open-source intelligence
+- Public aviation and maritime data
+- Public orbital element data
+- Government publications
+- News and media reporting
+- Public telemetry and event feeds
+- Public satellite and geospatial information
+- Event-linked satellite observation metadata
+- User-submitted or community-sourced observations where applicable
+
+Displayed information may be incomplete, delayed, inaccurate, inferred,
+duplicated, disputed, unavailable, or later corrected.
+
+Users are responsible for independently verifying information before relying on
+it.
+
+No Operational Authority
+StratOps does not issue:
+
+- Military orders
+- Security instructions
+- Emergency directives
+- Airspace advisories
+- Maritime navigation instructions
+- Evacuation notices
+- Civil-defense guidance
+- Official threat warnings
+- Sensor-tasking instructions
+- Targeting guidance
+
+Nothing displayed on StratOps should be interpreted as official direction from
+any government, military, intelligence organization, emergency agency, aviation
+authority, maritime authority, public institution, or safety authority.
+
+Accuracy and Reliability
+StratOps makes reasonable efforts to improve data quality, filtering,
+classification, and operational readability, but does not guarantee:
+
+- Accuracy
+- Completeness
+- Reliability
+- Timeliness
+- Availability
+- Source continuity
+- Correct attribution
+- Correct asset identity
+- Correct classification
+- Operational relevance
+
+Tracks, events, alerts, reports, locations, movements, classifications,
+satellite context, orbital estimates, and other visualizations may contain
+errors or omissions.
+
+Users assume responsibility for how platform information is interpreted or used.
+
+Open-Source Intelligence Disclaimer
+StratOps uses publicly accessible, open-source, or partner-accessible
+information unless clearly stated otherwise.
+
+StratOps does not claim access to classified, restricted, protected,
+confidential, or government-controlled intelligence.
+
+Platform-generated labels, summaries, classifications, reports, and
+visualizations are informational interpretations of available source data and
+are not authoritative intelligence products.
+
+Aircraft and Naval Tracking Disclaimer
+Aircraft and naval records depend on available public or partner-accessible
+telemetry and may be delayed, incomplete, misidentified, unavailable, or
+affected by coverage limitations.
+
+The absence of a displayed aircraft or vessel does not confirm that no activity
+is present in the area.
+
+Satellite and Orbital Disclaimer
+Orbital Assets are predicted positions propagated from public orbital elements.
+They are not live satellite detections, classified orbital intelligence,
+real-time sensor tracks, or confirmation of active surveillance coverage.
+
+Satellite Observations are contextual imagery records tied to events or
+reporting periods. They do not independently confirm damage, attribution, cause,
+live activity, or operational outcome.
+
+Hotspot and Event Disclaimer
+A marker, hotspot, activity area, or cluster represents available source data
+and platform classification. It is not automatic confirmation that every
+underlying report is accurate.
+
+A hotspot may represent one event or multiple nearby events.
+
+Reports Disclaimer
+Operational reports summarize available cached data, aggregated activity, and
+source-derived context. Reports may be incomplete or unavailable when feeds,
+processing services, storage, or public report access are unavailable.
+
+Reports are briefing aids and must not be treated as official intelligence
+assessments, legal findings, safety instructions, or command documents.
+
+Alerts and Audio Disclaimer
+Alert banners and siren sounds are interface indicators for relevant
+public-warning-style signals. They are not official emergency broadcasts and
+must not be used as the sole basis for evacuation, security, travel, or safety
+decisions.
+
+Permitted Use
+StratOps may be used for:
+
+- Research
+- Education
+- Journalism
+- Situational awareness
+- Academic work
+- Public-interest analysis
+- Security and geopolitical observation
+- Product demonstrations
+- Authorized evaluation
+
+All use must comply with applicable laws, regulations, source restrictions, and
+platform terms.
+
+Prohibited Activities
+Users may not:
+
+- Attempt unauthorized access to systems or infrastructure
+- Interfere with platform operation or availability
+- Circumvent authentication, access controls, or premium restrictions
+- Reverse engineer proprietary platform functionality except where legally
+  permitted
+- Use the platform to facilitate unlawful activity
+- Misrepresent StratOps content as official intelligence
+- Falsely claim affiliation with StratOps or BattlespaceX
+- Redistribute platform content in a deceptive or misleading manner
+- Conduct abusive or unauthorized automated collection
+- Use orbital estimates or satellite context for targeting or sensor tasking
+- Use alerts, tracks, reports, or map visualizations as a substitute for
+  official authority or safety channels
+
+StratOps may restrict or terminate access when these terms are violated.
+
+Intellectual Property
+StratOps branding, interface design, software, graphics, logos, documentation,
+report templates, and proprietary content remain the property of BattlespaceX
+and/or their respective rights holders.
+
+No ownership rights are transferred to users by accessing the platform.
+
+Third-Party Content
+StratOps may reference, aggregate, summarize, cache, proxy, classify, or
+visualize information originating from third-party sources.
+
+Third-party content remains subject to the rights and terms of its respective
+owners.
+
+StratOps does not guarantee the accuracy, legality, availability, timeliness, or
+continued operation of external sources.
+
+Platform Availability
+StratOps is provided on an "as available" basis and may experience:
+
+- Maintenance
+- Service interruptions
+- Data delays
+- Source-feed outages
+- API failures
+- Report-generation failures
+- Satellite-processing delays
+- Mapping inaccuracies
+- Visualization issues
+- Browser restrictions
+- Technical failures
+
+Continuous availability is not guaranteed.
+
+Limitation of Liability
+To the maximum extent permitted by law, BattlespaceX, StratOps, its operators,
+contributors, partners, and affiliates are not liable for losses, damages,
+interruptions, decisions, or actions arising from reliance on platform content.
+
+Use of StratOps is at the user's own risk.
+
+Access Restriction and Enforcement
+StratOps may suspend, restrict, or permanently revoke access to users or
+entities that:
+
+- Violate these Rules of Engagement
+- Harm platform operation
+- Abuse platform resources
+- Engage in unlawful conduct
+- Threaten platform security or integrity
+- Misuse reports, alerts, tracking data, satellite context, or operational
+  visualizations
+
+Enforcement action may occur without prior notice.
+
+Modifications
+These Rules of Engagement may be revised or replaced at any time.
+
+Continued use after revised terms are published constitutes acceptance of the
+updated version.
+
+Governing Principle
+StratOps is an informational situational-awareness and visualization platform
+designed to improve understanding of global security activity through
+open-source information, public telemetry, geospatial context, and operational
+presentation.
+
+Critical findings must be independently verified through authoritative channels
+before they are used for operational, legal, financial, safety, governmental,
+military, aviation, maritime, or security-related decisions.
+
+------------------------------------------------------------
+5. ACCEPTANCE CHECKBOX COPY
+------------------------------------------------------------
+
+I understand that StratOps presents OSINT-informed events, public telemetry,
+propagated orbital estimates, satellite observation context, and generated
+operational summaries. I understand that StratOps is not an official warning
+network, classified intelligence product, emergency authority, or independent
+verification source, and I accept the Rules of Engagement.
+
+------------------------------------------------------------
+6. SHORT ABOUT SUMMARY
+------------------------------------------------------------
+
+StratOps turns fragmented open-source conflict, military, air, maritime,
+orbital, satellite, cyber, infrastructure, and regional signals into a unified
+3D operational picture. It is built for situational awareness, research,
+briefings, and visual analysis, not for official orders, emergency guidance,
+classified intelligence, or unverified operational decisions.
+
+------------------------------------------------------------
+7. COMPACT MARKETING SUMMARY
+------------------------------------------------------------
+
+StratOps is a real-time multi-domain battlespace intelligence platform that
+fuses curated OSINT, public telemetry, military activity, orbital estimates,
+satellite context, and regional signals into an interactive 3D global operating
+picture.
+
+It gives users a unified view of conflict activity, aircraft, naval movement,
+orbital assets, satellite observations, airspace status, infrastructure
+disruption, cyber signals, alerts, and operational reports while clearly
+distinguishing public estimates from verified authority.
+
+------------------------------------------------------------
+8. FOOTER COPY
+------------------------------------------------------------
+
+Built with CesiumJS, using imagery and elevation data from Esri.
+
+Demo satellites provide visual context only and do not represent live
+detections, classified assets, confirmed surveillance coverage, or real-time
+sensor tracking.
+
+(c) 2026 StratOps, powered by BattlespaceX.

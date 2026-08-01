@@ -72,6 +72,16 @@
             <div id="wz-global-status" class="sr-only" aria-live="polite" aria-atomic="true">
                 StratOps interface is loading...
             </div>
+            <audio id="bg-audio" src="/assets/audio/stratops-radio-soundtrack.mp3" preload="auto" loop></audio>
+            <button id="audio-toggle"
+                    class="audio-toggle"
+                    type="button"
+                    aria-label="Pause background soundtrack"
+                    aria-pressed="false"
+                    title="Background soundtrack">
+                <span class="audio-toggle__icon audio-toggle__icon--play" aria-hidden="true"></span>
+                <span class="audio-toggle__icon audio-toggle__icon--pause" aria-hidden="true"></span>
+            </button>
             <section class="warzone-view is-active"
                      id="view-strikes"
                      data-view-panel="strikes"

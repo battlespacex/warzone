@@ -90,9 +90,6 @@ document.addEventListener("DOMContentLoaded", () => {
         aoi: false,
     };
     const MAP_LAYERS_PANE_ID = "wz-map-layers-pane";
-    let mapLayersResizeBurstRaf = 0;
-    let mapLayersResizeBurstUntil = 0;
-    let mapLayersViewportSyncBound = false;
     function getMapLayersPane() {
         return document.getElementById(MAP_LAYERS_PANE_ID);
     }
@@ -118,75 +115,44 @@ document.addEventListener("DOMContentLoaded", () => {
         const paneRect = pane.getBoundingClientRect();
         return clampNumber(paneRect.right, 0, getMapLayersTargetOffsetPx());
     }
+    function blurIfFocusInside(root) {
+        const active = document.activeElement;
+        if (!root || !active || active === document.body || !root.contains(active)) return;
+        try {
+            active.blur?.();
+        } catch { }
+    }
     function syncMapLayersViewportOffset(requestRender = false) {
         const viewer = window.__warzoneViewer;
         const frustum = viewer?.camera?.frustum;
         if (!viewer?.scene || !frustum) return;
-        const canvasWidth = Math.max(
-            1,
-            Number(viewer.canvas?.clientWidth || viewer.scene.canvas?.clientWidth || window.innerWidth || 1),
-        );
         const offCenterFrustum = frustum.offCenterFrustum || frustum._offCenterFrustum || null;
-        if (!offCenterFrustum) return;
-        const visibleOffsetPx = getCurrentMapLayersVisibleOffsetPx();
-        const offsetRatio = clampNumber(visibleOffsetPx / canvasWidth, 0, 0.48);
-        const halfFrustumWidth = Math.abs(offCenterFrustum.right - offCenterFrustum.left) * 0.5;
-        const targetCenterOffset = -halfFrustumWidth * offsetRatio;
         if (typeof frustum.xOffset === "number") {
-            if (Math.abs((frustum.xOffset || 0) - targetCenterOffset) > 1e-7) {
-                frustum.xOffset = targetCenterOffset;
-            }
-        } else {
-            const currentHalfWidth = Math.abs(offCenterFrustum.right - offCenterFrustum.left) * 0.5;
-            const currentCenter = (offCenterFrustum.right + offCenterFrustum.left) * 0.5;
-            if (
-                Math.abs(currentHalfWidth - halfFrustumWidth) > 1e-7 ||
-                Math.abs(currentCenter - targetCenterOffset) > 1e-7
-            ) {
-                offCenterFrustum.right = targetCenterOffset + halfFrustumWidth;
-                offCenterFrustum.left = targetCenterOffset - halfFrustumWidth;
-            }
+            frustum.xOffset = 0;
+        } else if (offCenterFrustum && Number.isFinite(viewer.__wzBaseFrustumLeft) && Number.isFinite(viewer.__wzBaseFrustumRight)) {
+            offCenterFrustum.left = viewer.__wzBaseFrustumLeft;
+            offCenterFrustum.right = viewer.__wzBaseFrustumRight;
+        } else if (offCenterFrustum) {
+            viewer.__wzBaseFrustumLeft = offCenterFrustum.left;
+            viewer.__wzBaseFrustumRight = offCenterFrustum.right;
         }
         if (requestRender) {
             viewer.scene.requestRender?.();
         }
     }
     function ensureMapLayersViewportSync() {
-        if (mapLayersViewportSyncBound) return;
-        const viewer = window.__warzoneViewer;
-        if (!viewer?.scene?.preRender?.addEventListener) return;
-        viewer.scene.preRender.addEventListener(() => {
-            syncMapLayersViewportOffset(false);
-        });
-        mapLayersViewportSyncBound = true;
+        syncMapLayersViewportOffset(true);
     }
     function requestMapLayersResizeBurst(durationMs = 420) {
         const viewer = window.__warzoneViewer;
         if (!viewer?.scene?.requestRender) return;
         ensureMapLayersViewportSync();
-        mapLayersResizeBurstUntil = Math.max(
-            mapLayersResizeBurstUntil,
-            performance.now() + Math.max(180, Number(durationMs) || 420)
-        );
-        if (mapLayersResizeBurstRaf) return;
-        const step = () => {
-            try {
-                viewer.resize?.();
-            } catch {
-                // ignore resize failures
-            }
-            syncMapLayersViewportOffset(true);
-            if (performance.now() >= mapLayersResizeBurstUntil) {
-                mapLayersResizeBurstRaf = 0;
-                return;
-            }
-            mapLayersResizeBurstRaf = requestAnimationFrame(step);
-        };
-        mapLayersResizeBurstRaf = requestAnimationFrame(step);
+        syncMapLayersViewportOffset(true);
     }
     function syncMapLayersPaneUi() {
         const pane = getMapLayersPane();
         const open = isMapLayersOpen();
+        if (!open) blurIfFocusInside(pane);
         pane?.setAttribute("aria-hidden", String(!open));
         document.querySelectorAll('.wz-dock__btn[data-dock-widget="layers"], [data-dock-proxy="layers"]').forEach((btn) => {
             btn.classList.toggle("is-active", open);
@@ -536,6 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     function closeModal(modal, callback) {
         if (!modal) return;
+        blurIfFocusInside(modal);
         modal.classList.remove("is-visible");
         sharedModalClosing = true;
         if (shouldHideAppChromeForModal(modal)) {
@@ -941,6 +908,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!widgetId || widgetId === "about") return;
             if (widgetId === "layers") {
                 const enabled = isDockWidgetFeatureEnabled(widgetId);
+                if ((!enabled || isMapLayersOpen()) && btn.contains(document.activeElement)) {
+                    blurIfFocusInside(btn);
+                }
                 btn.hidden = !enabled || isMapLayersOpen();
                 btn.classList.toggle("is-active", Boolean(enabled && isMapLayersOpen()));
                 btn.setAttribute("aria-expanded", String(Boolean(enabled && isMapLayersOpen())));
@@ -959,6 +929,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (id === "layers") {
                 const enabled = isDockWidgetFeatureEnabled(id);
                 const shouldBeGone = !enabled || isMapLayersOpen();
+                if (shouldBeGone) blurIfFocusInside(btn);
                 btn.classList.toggle("wz-dock--gone", shouldBeGone);
                 btn.setAttribute("aria-hidden", String(shouldBeGone));
                 btn.classList.toggle("is-active", Boolean(enabled && isMapLayersOpen()));
@@ -967,6 +938,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
             if (!isUiOnlyWidgetLayerEnabled(id)) {
+                blurIfFocusInside(btn);
                 btn.classList.add("wz-dock--gone");
                 btn.setAttribute("aria-hidden", "true");
                 return;
@@ -975,6 +947,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!widget) return;
             const shouldBeGone = isWidgetVisible(widget);
             if (shouldBeGone && !btn.classList.contains("wz-dock--gone")) {
+                blurIfFocusInside(btn);
                 btn.classList.add("wz-dock--gone");
                 btn.setAttribute("aria-hidden", "true");
             } else if (!shouldBeGone && btn.classList.contains("wz-dock--gone")) {

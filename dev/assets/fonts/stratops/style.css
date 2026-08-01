@@ -24,8 +24,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-
+.stratops-ico-hexa-1:before {
+  content: "\e93f";
+}
+.stratops-ico-assets-alert-1:before {
+  content: "\e916";
+}
+.stratops-ico-circle-1:before {
+  content: "\e940";
+}
+.stratops-ico-focus-1:before {
+  content: "\e941";
+}
+.stratops-ico-dock-report-1:before {
+  content: "\e93e";
+}
 .stratops-ico-next-1:before {
   content: "\e900";
 }
@@ -91,9 +104,6 @@
 }
 .stratops-ico-assets-alert-2:before {
   content: "\e915";
-}
-.stratops-ico-assets-alert-1:before {
-  content: "\e916";
 }
 .stratops-ico-assets-signal-thermal-1:before {
   content: "\e917";
@@ -164,14 +174,26 @@
 .stratops-ico-dock-news-1:before {
   content: "\e92b";
 }
+.stratops-ico-dock-3d-layered-1:before {
+  content: "\e93a";
+}
 .stratops-ico-dock-naval-tracker-1:before {
   content: "\e92c";
 }
 .stratops-ico-dock-air-tracker-1:before {
   content: "\e92d";
 }
+.stratops-ico-dock-naval-tracker-2:before {
+  content: "\e93b";
+}
+.stratops-ico-dock-orbital-intel-1:before {
+  content: "\e93c";
+}
 .stratops-ico-dock-airspace-1:before {
   content: "\e92e";
+}
+.stratops-ico-dock-orbital-intel-2:before {
+  content: "\e93d";
 }
 .stratops-ico-dock-cyberspace-1:before {
   content: "\e92f";

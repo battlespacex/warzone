@@ -69,6 +69,7 @@ let __liveTrackManualCameraIntent = false;
 let __liveTrackHardLockEnabled = false;
 let __liveTrackFocusInputBound = false;
 let __liveTrackFocusRangeMeters = 95000;
+let __liveTrackFocusTargetRangeMeters = 95000;
 let __liveTrackFocusBaseRangeMeters = 95000;
 let __liveTrackFocusHeadingDeg = 0;
 let __liveTrackFocusPitchDeg = -89;
@@ -117,6 +118,7 @@ const LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS = 3200000;
 const LIVE_TRACK_FOCUS_WARNING_RANGE_METERS = 70000;
 const LIVE_TRACK_FOCUS_FINAL_RANGE_METERS = 120000;
 const LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS = 33;
+const LIVE_TRACK_FOCUS_CAMERA_ZOOM_EPSILON_METERS = 20;
 const LIVE_TRACK_FOCUS_VISUAL_REFRESH_MIN_MS = 260;
 const LIVE_TRACK_FOCUS_VISIBILITY_RADIUS_METERS = 100000;
 const LIVE_TRACK_REGISTRY_DISPATCH_DEBOUNCE_MS = 260;
@@ -3265,6 +3267,13 @@ function getLiveTrackFocusWheelZoomStepMeters() {
         LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS
     );
 }
+function getLiveTrackFocusWheelZoomEase() {
+    return clamp(
+        getCssNumber("--warzone-live-aircraft-focus-wheel-zoom-ease", 0.22),
+        0.04,
+        1
+    );
+}
 function getLiveTrackFocusWarningRangeMeters() {
     return clamp(
         getCssNumber("--warzone-live-aircraft-focus-warning-range", LIVE_TRACK_FOCUS_WARNING_RANGE_METERS),
@@ -3339,6 +3348,7 @@ function showAircraftFocusWarning() {
         onStay: () => {
             __liveTrackFocusWarningActive = false;
             __liveTrackFocusRangeMeters = getLiveTrackFocusSafeRangeMeters();
+            __liveTrackFocusTargetRangeMeters = __liveTrackFocusRangeMeters;
             __liveTrackLastFocusCameraSyncAt = 0;
             syncFocusedTrackCamera({ preserveRange: true });
             requestWarzoneRenderBatched();
@@ -3356,21 +3366,34 @@ function handleAircraftFocusRangeChange(nextRangeMeters) {
     const finalRange = getLiveTrackFocusFinalRangeMeters();
     const warningRange = getLiveTrackFocusWarningRangeMeters();
     if (nextRangeMeters >= finalRange) {
-        __liveTrackFocusRangeMeters = finalRange;
+        __liveTrackFocusTargetRangeMeters = finalRange;
         refreshFocusedContextLiveTrackSizing();
         showAircraftFocusWarning();
         return true;
     }
-    __liveTrackFocusRangeMeters = clamp(
+    __liveTrackFocusTargetRangeMeters = clamp(
         nextRangeMeters,
         LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS,
         finalRange
     );
     refreshFocusedContextLiveTrackSizing();
-    if (__liveTrackFocusRangeMeters >= warningRange) {
+    if (__liveTrackFocusTargetRangeMeters >= warningRange) {
         showAircraftFocusWarning();
     }
     return true;
+}
+function resolveLiveTrackFocusCameraRange() {
+    const target = Number(__liveTrackFocusTargetRangeMeters || __liveTrackFocusRangeMeters || getLiveTrackFocusCameraRangeMeters());
+    const current = Number(__liveTrackFocusRangeMeters || target);
+    if (!Number.isFinite(target) || !Number.isFinite(current)) return getLiveTrackFocusCameraRangeMeters();
+    const delta = target - current;
+    if (Math.abs(delta) <= LIVE_TRACK_FOCUS_CAMERA_ZOOM_EPSILON_METERS) {
+        __liveTrackFocusRangeMeters = target;
+        return target;
+    }
+    const next = current + delta * getLiveTrackFocusWheelZoomEase();
+    __liveTrackFocusRangeMeters = next;
+    return next;
 }
 function refreshFocusedContextLiveTrackSizing() {
     const viewer = window.__warzoneViewer;
@@ -3682,7 +3705,7 @@ function bindFocusInteractionTracking(viewer) {
         const deltaY = Number(event?.deltaY || 0);
         const zoomStepMeters = getLiveTrackFocusWheelZoomStepMeters();
         const zoomDelta = deltaY > 0 ? zoomStepMeters : -zoomStepMeters;
-        const nextRange = Number(__liveTrackFocusRangeMeters || __liveTrackFocusBaseRangeMeters) + zoomDelta;
+        const nextRange = Number(__liveTrackFocusTargetRangeMeters || __liveTrackFocusRangeMeters || __liveTrackFocusBaseRangeMeters) + zoomDelta;
         if (!handleAircraftFocusRangeChange(nextRange)) return;
         __liveTrackUserCameraInteracting = false;
         __liveTrackLastFocusCameraSyncAt = 0;
@@ -4160,6 +4183,30 @@ function getScreenPositionForTrack(trackKey = "") {
         return null;
     }
 }
+function getMapLayersProjectionCorrectionPx() {
+    const pane = document.getElementById("wz-map-layers-pane");
+    if (!pane) return 0;
+    const paneRect = pane.getBoundingClientRect();
+    const targetOffsetPx = Math.max(0, Number(paneRect.width || 0));
+    const visibleOffsetPx = Math.min(targetOffsetPx, Math.max(0, Number(paneRect.right || 0)));
+    if (!Number.isFinite(visibleOffsetPx) || visibleOffsetPx <= 0) return 0;
+    return visibleOffsetPx * 0.5;
+}
+function getCorrectedFocusScreenPosition(screenPosition = null) {
+    if (
+        !screenPosition ||
+        !Number.isFinite(screenPosition.x) ||
+        !Number.isFinite(screenPosition.y)
+    ) {
+        return null;
+    }
+    const correctionX = getMapLayersProjectionCorrectionPx();
+    if (!correctionX) return screenPosition;
+    return {
+        x: screenPosition.x - correctionX,
+        y: screenPosition.y,
+    };
+}
 function syncFocusedTrackOverlayModeButtons() {
     const root = __liveTrackOverlayRoot;
     if (!root) return;
@@ -4294,14 +4341,20 @@ function getViewerCenterScreenPosition(viewer = window.__warzoneViewer) {
     return { x: width / 2, y: height / 2 };
 }
 function getFocusVisualAnchorScreenPosition(viewer = window.__warzoneViewer, trackKey = "") {
+    const trackScreenPosition = getScreenPositionForTrack(trackKey);
+    const correctedTrackScreenPosition = getCorrectedFocusScreenPosition(trackScreenPosition);
+    if (correctedTrackScreenPosition) {
+        return correctedTrackScreenPosition;
+    }
     if (
         String(__liveTrackReplayState.mode || "") === "focus" &&
         __liveTrackHardLockEnabled
     ) {
         const center = getViewerCenterScreenPosition(viewer);
-        if (center) return center;
+        const correctedCenter = getCorrectedFocusScreenPosition(center);
+        if (correctedCenter) return correctedCenter;
     }
-    return getScreenPositionForTrack(trackKey);
+    return getCorrectedFocusScreenPosition(getScreenPositionForTrack(trackKey));
 }
 function syncLiveTrackFocusOverlay() {
     const viewer = window.__warzoneViewer;
@@ -4444,6 +4497,7 @@ function syncFocusedTrackCameraOrientationFromViewer(position, options = {}) {
                 LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS,
                 LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS
             );
+            __liveTrackFocusTargetRangeMeters = __liveTrackFocusRangeMeters;
         }
     }
 }
@@ -4479,7 +4533,7 @@ function syncFocusedTrackCamera(options = {}) {
             new Cesium.HeadingPitchRange(
                 Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
                 Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
-                __liveTrackFocusRangeMeters
+                resolveLiveTrackFocusCameraRange()
             )
         );
         if (
@@ -7259,6 +7313,7 @@ export function focusLiveTrack(trackKey, options = {}) {
         LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS,
         LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS
     );
+    __liveTrackFocusTargetRangeMeters = __liveTrackFocusRangeMeters;
     __liveTrackFocusBaseRangeMeters = __liveTrackFocusRangeMeters;
     __liveTrackManualCameraIntent = false;
     __liveTrackUserCameraInteracting = false;
@@ -7339,6 +7394,7 @@ export function clearLiveTrackSelection(options = {}) {
     __liveTrackFocusWarningActive = false;
     __liveTrackManualCameraIntent = false;
     __liveTrackFocusRangeMeters = getLiveTrackFocusCameraRangeMeters();
+    __liveTrackFocusTargetRangeMeters = __liveTrackFocusRangeMeters;
     __liveTrackFocusBaseRangeMeters = __liveTrackFocusRangeMeters;
     resetFocusedTrackCameraOrientation();
     clearReplayEntities();
@@ -7444,10 +7500,16 @@ export function refreshLiveTrackFocusCamera(options = {}) {
     if (resetRange) {
         __liveTrackFocusBaseRangeMeters = getLiveTrackFocusCameraRangeMeters();
         __liveTrackFocusRangeMeters = __liveTrackFocusBaseRangeMeters;
+        __liveTrackFocusTargetRangeMeters = __liveTrackFocusRangeMeters;
     } else {
         const bounds = getFocusedTrackRangeBounds();
         __liveTrackFocusRangeMeters = clamp(
             Number(__liveTrackFocusRangeMeters || __liveTrackFocusBaseRangeMeters || getLiveTrackFocusCameraRangeMeters()),
+            bounds.min,
+            bounds.max
+        );
+        __liveTrackFocusTargetRangeMeters = clamp(
+            Number(__liveTrackFocusTargetRangeMeters || __liveTrackFocusRangeMeters),
             bounds.min,
             bounds.max
         );

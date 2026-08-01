@@ -1,5 +1,5 @@
 BATTLESPACEX STRATOPS - CURRENT USER PLATFORM GUIDE
-Last updated: 2026-07-29
+Last updated: 2026-07-31
 Branch context: current staging branch
 
 Purpose:

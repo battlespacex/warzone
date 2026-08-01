@@ -107,16 +107,7 @@ function requestRender(viewer) {
     } catch { }
 }
 function playMilitaryAppearSound() {
-    const src = stripCssUrl(cssVar("--warzone-military-sound", ""));
-    if (!src) return;
-    if (Date.now() < Number(window.__warzoneOperationalAudioMutedUntil || 0)) return;
-    try {
-        const audio = new Audio(src);
-        audio.preload = "auto";
-        audio.volume = Math.max(0, Math.min(1, numberVar("--warzone-military-sound-volume", 0.72)));
-        audio.currentTime = 0;
-        audio.play().catch(() => { });
-    } catch { }
+    return;
 }
 
 const CFG = {

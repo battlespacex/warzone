@@ -240,7 +240,8 @@ export function eventsRouter({ broadcast }) {
                 .limit(limit);
             if (error) return res.status(500).json({ error: "Failed" });
             const mediaBaseUrl = getPublicMediaBaseUrl(req);
-            res.json({ items: (data || []).map((item) => toPublicIntelWireItem(item, { mediaBaseUrl })) });
+            const items = (data || []).map((item) => toPublicIntelWireItem(item, { mediaBaseUrl }));
+            res.json({ items });
         } catch {
             res.status(500).json({ error: "Failed" });
         }

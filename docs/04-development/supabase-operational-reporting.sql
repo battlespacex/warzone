@@ -1,5 +1,5 @@
 -- StratOps operational reporting schema
--- Apply in Supabase SQL editor before enabling REPORTING_ENABLED=true.
+-- Apply in Supabase SQL editor before enabling REPORTING_SCHEDULE_ENABLED=true.
 -- This stores summarized snapshots and generated report metadata only.
 -- It does not duplicate full raw events and does not change existing event retention.
 

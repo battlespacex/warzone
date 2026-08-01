@@ -34,6 +34,7 @@ const __navalState = {
     focusHeadingDeg: 0,
     focusPitchDeg: -58,
     focusRangeMeters: 120000,
+    focusTargetRangeMeters: 120000,
     lastFocusCameraSyncAt: 0,
     hoverGuideEl: null,
     hoverLabelEntity: null,
@@ -56,6 +57,7 @@ const NAVAL_FOCUS_CAMERA_PITCH_MAX_DEG = -8;
 const NAVAL_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.18;
 const NAVAL_FOCUS_CAMERA_PITCH_SENSITIVITY_DEG_PER_PX = 0.11;
 const NAVAL_FOCUS_CAMERA_SYNC_MIN_MS = 16;
+const NAVAL_FOCUS_CAMERA_ZOOM_EPSILON_METERS = 20;
 const NAVAL_FOCUS_WARNING_RANGE_METERS = 90000;
 const NAVAL_FOCUS_FINAL_RANGE_METERS = 160000;
 const NAVAL_BILLBOARD_CANVAS_SIZE = 64;
@@ -2127,6 +2129,30 @@ function getScreenPosForVessel(trackKey) {
         return screen;
     } catch { return null; }
 }
+function getMapLayersProjectionCorrectionPx() {
+    const pane = document.getElementById("wz-map-layers-pane");
+    if (!pane) return 0;
+    const paneRect = pane.getBoundingClientRect();
+    const targetOffsetPx = Math.max(0, Number(paneRect.width || 0));
+    const visibleOffsetPx = Math.min(targetOffsetPx, Math.max(0, Number(paneRect.right || 0)));
+    if (!Number.isFinite(visibleOffsetPx) || visibleOffsetPx <= 0) return 0;
+    return visibleOffsetPx * 0.5;
+}
+function getCorrectedNavalFocusScreenPosition(screenPosition = null) {
+    if (
+        !screenPosition ||
+        !Number.isFinite(screenPosition.x) ||
+        !Number.isFinite(screenPosition.y)
+    ) {
+        return null;
+    }
+    const correctionX = getMapLayersProjectionCorrectionPx();
+    if (!correctionX) return screenPosition;
+    return {
+        x: screenPosition.x - correctionX,
+        y: screenPosition.y,
+    };
+}
 
 function syncNavalOverlay() {
     const root = __navalState.overlayRoot;
@@ -2141,7 +2167,7 @@ function syncNavalOverlay() {
         }
         return;
     }
-    const screen = getScreenPosForVessel(key);
+    const screen = getCorrectedNavalFocusScreenPosition(getScreenPosForVessel(key));
     if (!screen) {
         if (__navalState.overlayLastVisible) {
             root.style.display = "none";
@@ -2178,6 +2204,8 @@ function clearNavalSelection() {
     __navalState.selectedKey = null;
     hideNavalHoverLabel();
     __navalState.focusDragState = null;
+    __navalState.focusRangeMeters = NAVAL_FOCUS_CAMERA_RANGE_METERS;
+    __navalState.focusTargetRangeMeters = __navalState.focusRangeMeters;
     const focusController = getAssetFocusController();
     if (previousKey && focusController.isActiveAsset(previousKey, "naval")) {
         focusController.exitFocus("naval-clear");
@@ -2246,15 +2274,38 @@ function getNavalFocusWheelZoomStepMeters() {
         100000
     );
 }
-function setNavalFocusRangeMeters(value) {
+function getNavalFocusWheelZoomEase() {
+    return clamp(
+        getCssNumber("--warzone-live-naval-focus-wheel-zoom-ease", 0.22),
+        0.04,
+        1
+    );
+}
+function setNavalFocusRangeMeters(value, options = {}) {
     const next = clamp(
         Number(value),
         NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS,
         NAVAL_FOCUS_CAMERA_RANGE_MAX_METERS
     );
     if (!Number.isFinite(next)) return false;
-    __navalState.focusRangeMeters = next;
+    __navalState.focusTargetRangeMeters = next;
+    if (options?.immediate === true) {
+        __navalState.focusRangeMeters = next;
+    }
     return true;
+}
+function resolveNavalFocusCameraRange() {
+    const target = Number(__navalState.focusTargetRangeMeters || __navalState.focusRangeMeters || NAVAL_FOCUS_CAMERA_RANGE_METERS);
+    const current = Number(__navalState.focusRangeMeters || target);
+    if (!Number.isFinite(target) || !Number.isFinite(current)) return NAVAL_FOCUS_CAMERA_RANGE_METERS;
+    const delta = target - current;
+    if (Math.abs(delta) <= NAVAL_FOCUS_CAMERA_ZOOM_EPSILON_METERS) {
+        __navalState.focusRangeMeters = target;
+        return target;
+    }
+    const next = current + delta * getNavalFocusWheelZoomEase();
+    __navalState.focusRangeMeters = next;
+    return next;
 }
 function syncFocusedNavalCamera(options = {}) {
     const viewer = window.__warzoneViewer;
@@ -2265,13 +2316,14 @@ function syncFocusedNavalCamera(options = {}) {
     __navalState.lastFocusCameraSyncAt = now;
     const position = getNavalEntryPosition(getFocusedNavalEntry());
     if (!position) return;
+    const cameraRange = resolveNavalFocusCameraRange();
     try {
         viewer.camera.lookAt(
             position,
             new Cesium.HeadingPitchRange(
                 Cesium.Math.toRadians(__navalState.focusHeadingDeg),
                 Cesium.Math.toRadians(__navalState.focusPitchDeg),
-                __navalState.focusRangeMeters
+                cameraRange
             )
         );
     } catch { }
@@ -2343,7 +2395,7 @@ function bindNavalFocusInteraction(viewer) {
         event.stopImmediatePropagation?.();
         const deltaY = Number(event?.deltaY || 0);
         const zoomDelta = deltaY > 0 ? getNavalFocusWheelZoomStepMeters() : -getNavalFocusWheelZoomStepMeters();
-        if (!setNavalFocusRangeMeters(Number(__navalState.focusRangeMeters || NAVAL_FOCUS_CAMERA_RANGE_METERS) + zoomDelta)) return;
+        if (!setNavalFocusRangeMeters(Number(__navalState.focusTargetRangeMeters || __navalState.focusRangeMeters || NAVAL_FOCUS_CAMERA_RANGE_METERS) + zoomDelta)) return;
         __navalState.lastFocusCameraSyncAt = 0;
         syncFocusedNavalCamera({ force: true });
         requestNavalRenderBatched();
@@ -2414,7 +2466,7 @@ function focusNavalVessel(trackKey, options = {}) {
     setNavalFocusRangeMeters(Math.max(
         getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
         Number(options.cameraHeight || 0)
-    ));
+    ), { immediate: true });
     getAssetFocusController().enterFocus({
         assetType: "naval",
         assetId: trackKey,

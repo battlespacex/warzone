@@ -201,12 +201,15 @@ function alertIsNew(alert) {
 // ─── Supabase helpers ─────────────────────────────────────────────────────────
 
 async function upsertSirenAlert(payload) {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from("active_alerts")
-        .upsert(payload, { onConflict: "alert_key" });
+        .upsert(payload, { onConflict: "alert_key" })
+        .select("id")
+        .maybeSingle();
 
     if (error) {
         console.error("[oref] Supabase upsert error:", error.message);
+        return;
     }
 }
 
@@ -356,7 +359,7 @@ async function insertSirenEventToMap({ city, lat, lon, alertId, meta, regionLabe
 
     if (existing) return;
 
-    const { error } = await supabase.from("events").insert({
+    const eventPayload = {
         category: "alert",
         subcategory: "siren",
         title: `${meta.label.toUpperCase()} — ${city}`,
@@ -381,7 +384,12 @@ async function insertSirenEventToMap({ city, lat, lon, alertId, meta, regionLabe
         cyber_status: "unknown",
         fir_code: "LLLL",
         dedupe_key: dedupeKey,
-    });
+    };
+    const { data, error } = await supabase
+        .from("events")
+        .insert(eventPayload)
+        .select("id")
+        .maybeSingle();
 
     if (error) console.error("[oref] Map event insert error:", error.message);
 }

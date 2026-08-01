@@ -14,13 +14,14 @@ export const supabase = createClient(
     }
 );
 
-// Dev = direct Supabase | Production = public API service (Supabase hidden).
+// Dev = same-origin API proxy | Production = public API service (Supabase hidden).
 // The production frontend is static-hosted and does not expose a same-origin /api proxy.
 const isLocalhost = window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
-const API_BASE = isLocalhost ? null : "https://api.battlespacex.com";
 const LOCAL_PROXY_API_BASE = "/api";
+const CONFIG_API_BASE = window.__stratopsConfig?.apiBase || "";
+const API_BASE = CONFIG_API_BASE || (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
 const INTEL_FEED_API_BASE =
     window.__stratopsConfig?.intelFeedApiBase ||
     window.__stratopsConfig?.apiBase ||
@@ -256,23 +257,15 @@ export const api = {
         return { data: json.reports || [], error: null };
     },
 
-    async generateOperationalReport(options = {}) {
-        const res = await fetch(`${REPORTS_API_BASE}/stratops/reports/generate`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            body: JSON.stringify({
-                type: options.type || "daily",
-                scope_type: options.scope_type || "global",
-                scope_value: options.scope_value || "",
-                date: options.date || "",
-                force: options.force === true,
-            }),
+    async getLatestOperationalReport(type = "daily", scopeType = "global") {
+        const reportType = String(type || "daily").trim().toLowerCase();
+        const params = new URLSearchParams({
+            type: reportType === "weekly" ? "weekly" : "daily",
+            scope_type: scopeType || "global",
         });
-        const json = await readJsonResponse(res, "Report generation");
-        return { data: json.report || null, error: null };
+        const res = await fetch(`${REPORTS_API_BASE}/stratops/reports/latest?${params.toString()}`);
+        const json = await readJsonResponse(res, "Latest report fetch");
+        return { data: json, error: null };
     },
 
     getOperationalReportDownloadUrl(report = {}) {
@@ -341,9 +334,15 @@ export const api = {
                 .order("updated_at", { ascending: false }).limit(AIRCRAFT_HISTORY_LIMIT);
             return { data: data || [], error };
         }
-        const res = await fetch(`${API_BASE}/events/aircraft`);
-        if (!res.ok) throw new Error("Aircraft fetch failed");
-        const json = await res.json();
-        return { data: json.tracks || [], error: null };
+        try {
+            const res = await fetch(`${API_BASE}/events/aircraft`);
+            if (!res.ok) {
+                return { data: [], error: new Error("Aircraft fetch failed") };
+            }
+            const json = await res.json();
+            return { data: json.tracks || [], error: null };
+        } catch (error) {
+            return { data: [], error };
+        }
     },
 };

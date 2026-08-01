@@ -7,9 +7,11 @@ import { normalizeMilitaryBaseDisplayData } from "./warzone-military-base-qualit
 const __state = {
     viewer: null,
     entities: [],
+    ctrHighlightEntities: [],
     dataSource: null,
     activePanel: null,
     visible: true,
+    ctrHighlightsVisible: false,
     // authGated: true until wz:auth-success fires or user is already logged in
     authGated: true,
     baseCameraFlightActive: false,
@@ -101,6 +103,51 @@ function getTypeColor(type) {
     return `var(${varName}, #aaa)`;
 }
 
+function getCtrAirbaseHighlightRadius(base = {}) {
+    const fallback = base.size === "major"
+        ? 3600
+        : base.size === "significant"
+            ? 2600
+            : 1900;
+    return Math.max(700, cssNumber("--warzone-ctr-airbase-highlight-radius", fallback));
+}
+
+function createCtrAirbaseHighlightEntity(dataSource, base) {
+    const displayBase = normalizeMilitaryBaseDisplayData(base);
+    if (displayBase.type !== "airbase") return null;
+    const lat = Number(displayBase.lat ?? displayBase.coordinates?.lat);
+    const lon = Number(displayBase.lon ?? displayBase.coordinates?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const radius = getCtrAirbaseHighlightRadius(displayBase);
+    const fillAlpha = Math.max(0.08, Math.min(0.55, cssNumber("--warzone-ctr-airbase-highlight-fill-alpha", 0.28)));
+    const outlineAlpha = Math.max(0.2, Math.min(0.95, cssNumber("--warzone-ctr-airbase-highlight-outline-alpha", 0.82)));
+    const magenta = Cesium.Color.fromCssColorString("#ff1b83");
+    const entity = dataSource.entities.add({
+        id: `milbase-ctr:${displayBase.id}`,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 18),
+        ellipse: {
+            semiMajorAxis: radius * 1.45,
+            semiMinorAxis: radius * 0.78,
+            rotation: Cesium.Math.toRadians(Number(displayBase.heading || displayBase.runwayHeading || -28) || -28),
+            material: magenta.withAlpha(fillAlpha),
+            outline: true,
+            outlineColor: magenta.withAlpha(outlineAlpha),
+            outlineWidth: Math.max(1, cssNumber("--warzone-ctr-airbase-highlight-outline-width", 2)),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            classificationType: Cesium.ClassificationType.BOTH,
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1500000),
+        },
+        properties: {
+            milbaseCtrHighlight: true,
+            baseId: displayBase.id,
+            type: displayBase.type,
+        },
+        show: false,
+    });
+    entity.__militaryBaseCtrHighlight = true;
+    return entity;
+}
+
 
 /* ─── Entity creation ───────────────────────────────────────────────────── */
 function createBaseEntity(dataSource, base) {
@@ -151,7 +198,14 @@ function applyVisibility() {
     } else {
         __state.entities.forEach(e => { e.show = shouldShow; });
     }
+    applyCtrHighlightVisibility();
     __state.viewer?.scene.requestRender();
+}
+function applyCtrHighlightVisibility() {
+    const shouldShow = __state.visible && !__state.authGated && __state.ctrHighlightsVisible;
+    __state.ctrHighlightEntities.forEach((entity) => {
+        if (entity) entity.show = shouldShow;
+    });
 }
 function refreshBaseIconSizing() {
     __state.entities.forEach((entity) => {
@@ -507,6 +561,11 @@ export function initWarzoneMilitaryBases(viewer) {
         .map((base) => normalizeMilitaryBaseDisplayData(base))
         .filter((base) => Number.isFinite(base.lat) && Number.isFinite(base.lon))
         .map((base) => createBaseEntity(ds, base));
+    __state.ctrHighlightEntities = MILITARY_BASES
+        .map((base) => normalizeMilitaryBaseDisplayData(base))
+        .filter((base) => Number.isFinite(base.lat) && Number.isFinite(base.lon))
+        .map((base) => createCtrAirbaseHighlightEntity(ds, base))
+        .filter(Boolean);
     viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);
     viewer.scene.morphStart?.addEventListener?.(closeActiveBasePanel);
     viewer.scene.morphComplete?.addEventListener?.(() => {
@@ -530,6 +589,12 @@ export function initWarzoneMilitaryBases(viewer) {
         __state.authGated = false;
         applyVisibility();
     }, { once: true });
+    document.addEventListener("wz:contour-layer-changed", (event) => {
+        __state.ctrHighlightsVisible = event?.detail?.visible === true;
+        applyCtrHighlightVisibility();
+        viewer.scene?.requestRender?.();
+    });
+    __state.ctrHighlightsVisible = viewer.__contourLayerVisible === true;
 
     applyVisibility();
 }

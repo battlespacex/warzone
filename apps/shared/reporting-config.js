@@ -33,8 +33,17 @@ function normalizeRetentionDays(value = "") {
 }
 
 function readReportingConfig(env = process.env) {
+  const enabled = readBooleanEnv(env.REPORTING_ENABLED, true);
+  const apiEnabled = readBooleanEnv(env.REPORTING_API_ENABLED, enabled);
+  const scheduleEnabled = readBooleanEnv(env.REPORTING_SCHEDULE_ENABLED, enabled);
+  const dailyEnabled = readBooleanEnv(env.REPORTING_DAILY_ENABLED, true);
+  const weeklyEnabled = readBooleanEnv(env.REPORTING_WEEKLY_ENABLED, false);
   return {
-    enabled: readBooleanEnv(env.REPORTING_ENABLED, true),
+    enabled,
+    apiEnabled,
+    scheduleEnabled,
+    dailyEnabled,
+    weeklyEnabled,
     dailyCron: String(env.REPORTING_DAILY_CRON || "18 0 * * *").trim(),
     weeklyCron: String(env.REPORTING_WEEKLY_CRON || "42 0 * * 1").trim(),
     retentionDays: normalizeRetentionDays(env.REPORTING_SNAPSHOT_RETENTION_DAYS),
@@ -70,7 +79,11 @@ function getReportingConfigStatus(config = readReportingConfig()) {
   }
   return {
     enabled: config.enabled,
-    ready: config.enabled && missing.length === 0,
+    apiEnabled: config.apiEnabled,
+    scheduleEnabled: config.scheduleEnabled,
+    dailyEnabled: config.dailyEnabled,
+    weeklyEnabled: config.weeklyEnabled,
+    ready: (config.apiEnabled || config.scheduleEnabled) && missing.length === 0,
     missing,
   };
 }

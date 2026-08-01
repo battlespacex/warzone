@@ -79,7 +79,7 @@ const LAYER_SECTIONS = [
     },
     {
         id: "infrastructure-disruptions",
-        title: "Infrastructure & Disruptions",
+        title: "Infrastructure Disruptions",
         layers: ["cyber", "gnss"],
     },
     {
@@ -88,6 +88,30 @@ const LAYER_SECTIONS = [
         layers: ["military-bases", "ranges", "sweepers", "orbital-assets", "satellite-imagery", "terrain", "region-plate", "country-borders"],
     },
 ];
+const LAYER_ICON_CLASS_BY_ID = {
+    strikes: "stratops-ico-assets-alert-1",
+    missiles: "stratops-ico-assets-alert-1",
+    drones: "stratops-ico-assets-alert-1",
+    airstrikes: "stratops-ico-assets-alert-1",
+    alerts: "stratops-ico-assets-alert-1",
+    thermal: "stratops-ico-assets-alert-1",
+    seismic: "stratops-ico-assets-alert-1",
+    aircraft: "stratops-ico-circle-1",
+    airspace: "stratops-ico-circle-1",
+    naval: "stratops-ico-circle-1",
+    cyber: "stratops-ico-circle-1",
+    gnss: "stratops-ico-circle-1",
+    recon: "stratops-ico-focus-1",
+    hotspots: "stratops-ico-focus-1",
+    "military-bases": "stratops-ico-focus-1",
+    ranges: "stratops-ico-focus-1",
+    sweepers: "stratops-ico-focus-1",
+    "region-plate": "stratops-ico-focus-1",
+    "orbital-assets": "stratops-ico-hexa-1",
+    "satellite-imagery": "stratops-ico-hexa-1",
+    terrain: "stratops-ico-hexa-1",
+    "country-borders": "stratops-ico-hexa-1",
+};
 
 let __layerState = {};
 let __callbacks = [];
@@ -544,6 +568,28 @@ function renderLayerBadge(layer) {
     return `<span class="wz-layer-badge" aria-hidden="true">Premium</span>`;
 }
 
+function getLayerIconClass(layer) {
+    return LAYER_ICON_CLASS_BY_ID[layer?.id] || "stratops-ico-circle-1";
+}
+
+function escapeLayerHtml(value = "") {
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function renderTextStack(value = "") {
+    const words = String(value || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    if (!words.length) return "";
+    return `<span class="text-stack">${escapeLayerHtml(words.join("\n"))}</span>`;
+}
+
 function renderLayerRow(layer) {
     const locked = layer.premium && !hasPremiumAccess();
     return `
@@ -554,7 +600,7 @@ function renderLayerRow(layer) {
              role="button"
              tabindex="0"
              title="${layer.description || layer.label}">
-            <span class="wz-layer-dot" style="background:${layer.color}"></span>
+            <span class="wz-layer-icon static-icon ${getLayerIconClass(layer)}" style="color:${layer.color}" aria-hidden="true"></span>
             <span class="wz-layer-copy">
                 <span class="wz-layer-label">${layer.label}${renderLayerBadge(layer)}</span>
                 <span class="wz-layer-desc">${layer.description || ""}</span>
@@ -652,7 +698,7 @@ export function initLayerPanel() {
             ${sections.map((section) => `
                 <section class="wz-layer-section" aria-labelledby="wz-layer-section-${section.id}">
                     <div class="wz-layer-section__head">
-                        <h3 id="wz-layer-section-${section.id}" class="wz-layer-section__title">${section.title}</h3>
+                        <h3 id="wz-layer-section-${section.id}" class="wz-layer-section__title">${renderTextStack(section.title)}</h3>
                         <span class="wz-layer-section__count">${section.layers.length}</span>
                     </div>
                     <div class="wz-layer-section__list">

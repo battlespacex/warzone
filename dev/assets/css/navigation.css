@@ -95,7 +95,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 }
 
 .warzone-region-bar {
-    left: 2rem;
+    left: calc(2rem + var(--wz-ui-pane-offset));
 }
 
     .warzone-region-bar .static-icon {
@@ -133,13 +133,20 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
         list-style: none;
     }
 
-    .warzone-actions .action-icon {
-        color: var(--color-teal-glow);
-        font-size: var(--icon-xxl);
-        height: 3.4rem;
-        width: 3.4rem;
-        overflow: hidden;
-    }
+.warzone-actions .action-icon {
+    font-size: var(--icon-xxl);
+    height: 3.4rem;
+    width: 3.4rem;
+    overflow: hidden;
+}
+
+.warzone-actions .action-icon::before {
+    content: "\e938";
+}
+
+.warzone-actions .action-icon:hover::before {
+    content: "\e928";
+}
 
 .icon-chip,
 .support-chip,
@@ -171,7 +178,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 .wz-dock {
     position: fixed;
     bottom: 2.5rem;
-    left: calc(50% + (var(--wz-left-pane-offset) / 2));
+    left: calc(50% + (var(--wz-ui-pane-offset) / 2));
     z-index: 10010;
     pointer-events: auto;
     max-width: calc(100vw - 4rem);
@@ -418,7 +425,7 @@ body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible=
     gap: 0;
     clip-path: var(--clippath-shape-3);
     position: fixed;
-    left: calc(2rem + var(--wz-left-pane-offset));
+    left: calc(2rem + var(--wz-ui-pane-offset));
     flex-direction: column;
     top: 50%;
     transition: left var(--map-layers-pane-transition);

@@ -1,5 +1,10 @@
 # dependencies
 node_modules/
+**/.venv/
+**/venv/
+services/translation/
+*.pyc
+**pycache**/
 
 # build outputs (keep only if you want these tracked)
 dist/

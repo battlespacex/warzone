@@ -150,15 +150,16 @@ background: var(--color-bg-row);
 
 
 .wz-aoi-status--scan {
-    color: var(--color-teal-glow);
-    border-color: rgba(24,226,219,0.22);
+color: var(--color-teal-glow);
     animation: wz-aoi-scan-pulse 1.8s ease-in-out infinite;
+    background: var(--color-teal-hover);
+    padding: 1rem 1rem .8rem;
 }
 .wz-aoi-timeline,
 .wz-aoi-asset-counts {
     display: flex;
     flex-wrap: wrap;
-    gap: .6rem;
+    gap: .5rem;
 }
 .wz-aoi-timeline span,
 .wz-aoi-asset-counts span,
@@ -338,7 +339,6 @@ padding: 1rem 1rem 0.6rem;
     z-index: 1;
     gap: 1.5rem;
     font-size: var(--text-sm);
-    opacity: 0.8;
     transition: opacity 260ms ease;
 }
 

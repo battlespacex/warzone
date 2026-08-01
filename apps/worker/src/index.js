@@ -1180,26 +1180,27 @@ async function insertEvent(event) {
     }
 }
 async function upsertActiveAlert(alert) {
-    const { error } = await supabase
+    const payload = {
+        alert_key: alert.alert_key,
+        category: alert.category || "alert",
+        region: alert.region,
+        title: alert.title,
+        summary: alert.summary || "",
+        status: alert.status || "active",
+        source_name: alert.source_name || "",
+        source_url: alert.source_url || "",
+        updated_at: new Date().toISOString(),
+        started_at: alert.started_at || new Date().toISOString(),
+        expires_at: alert.expires_at || null
+    };
+    const { data, error } = await supabase
         .from("active_alerts")
-        .upsert(
-            {
-                alert_key: alert.alert_key,
-                category: alert.category || "alert",
-                region: alert.region,
-                title: alert.title,
-                summary: alert.summary || "",
-                status: alert.status || "active",
-                source_name: alert.source_name || "",
-                source_url: alert.source_url || "",
-                updated_at: new Date().toISOString(),
-                started_at: alert.started_at || new Date().toISOString(),
-                expires_at: alert.expires_at || null
-            },
-            { onConflict: "alert_key" }
-        );
+        .upsert(payload, { onConflict: "alert_key" })
+        .select("id")
+        .maybeSingle();
     if (error) {
         console.error("Active alert upsert error:", error.message);
+        return;
     }
 }
 function shouldPersistStatusEventHistory(event, maxAgeDays = 7) {
@@ -4231,8 +4232,8 @@ async function runCopernicusCycle() {
         isCopernicusRunning = false;
     }
 }
-async function runReportingCycle() {
-    if (!REPORTING_CONFIG.enabled) return;
+async function runReportingCycle(reportTypes = null) {
+    if (!REPORTING_CONFIG.scheduleEnabled) return;
     if (isReportingRunning) {
         console.log("[reports] Previous reporting cycle still running, skipping this tick");
         return;
@@ -4242,7 +4243,8 @@ async function runReportingCycle() {
         const result = await generateScheduledReports({
             supabase,
             config: REPORTING_CONFIG,
-            logger: console
+            logger: console,
+            reportTypes
         });
         console.log("[reports] scheduled result", JSON.stringify(result, null, 2));
     } catch (err) {
@@ -4288,17 +4290,22 @@ function startCopernicusLoop() {
     if (typeof timer.unref === "function") timer.unref();
 }
 function startReportingLoop() {
-    if (!REPORTING_CONFIG.enabled) {
-        console.log("[reports] disabled; set REPORTING_ENABLED=true to enable");
+    if (!REPORTING_CONFIG.scheduleEnabled) {
+        console.log("[reports] scheduled generation disabled; set REPORTING_SCHEDULE_ENABLED=true to enable");
         return;
     }
-    console.log(`[reports] enabled, daily cron "${REPORTING_CONFIG.dailyCron}", weekly cron "${REPORTING_CONFIG.weeklyCron}"`);
-    cron.schedule(REPORTING_CONFIG.dailyCron, () => {
-        runReportingCycle();
-    }, { timezone: "UTC" });
-    cron.schedule(REPORTING_CONFIG.weeklyCron, () => {
-        runReportingCycle();
-    }, { timezone: "UTC" });
+    console.log(`[reports] scheduled generation enabled, daily=${REPORTING_CONFIG.dailyEnabled !== false}, weekly=${REPORTING_CONFIG.weeklyEnabled === true}`);
+    console.log(`[reports] daily cron "${REPORTING_CONFIG.dailyCron}", weekly cron "${REPORTING_CONFIG.weeklyCron}"`);
+    if (REPORTING_CONFIG.dailyEnabled !== false) {
+        cron.schedule(REPORTING_CONFIG.dailyCron, () => {
+            runReportingCycle(["daily"]);
+        }, { timezone: "UTC" });
+    }
+    if (REPORTING_CONFIG.weeklyEnabled === true) {
+        cron.schedule(REPORTING_CONFIG.weeklyCron, () => {
+            runReportingCycle(["weekly"]);
+        }, { timezone: "UTC" });
+    }
 }
 cron.schedule("*/5 * * * *", () => {
     runWorker();

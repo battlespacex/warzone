@@ -66,8 +66,8 @@
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
     --text-xs: 1rem;
     --text-sm: 1.2rem;
-    --text-base: 1.4rem;
-    --text-lg: 1.7rem;
+    --text-base: 1.3rem;
+    --text-lg: 1.6rem;
     --text-xl: 2.4rem;
     --text-xxl: 3.4rem;
     --text-xxxl: 4.5rem;
@@ -85,11 +85,11 @@
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
     --text-xs: 1rem;
     --text-sm: 1.2rem;
-    --text-base: 1.4rem;
-    --text-lg: 1.7rem;
-    --text-xl: 2.2rem;
-    --text-xxl: 3rem;
-    --text-xxxl: 4rem;
+    --text-base: 1.35rem;
+    --text-lg: 1.6rem;
+    --text-xl: 2.4rem;
+    --text-xxl: 3.4rem;
+    --text-xxxl: 4.5rem;
     --text-heading-weight: 700;
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
@@ -601,12 +601,12 @@
 /* #endregion =========== */
 /* #region =========== Audio =========== */
 :root {
-    --warzone-sound-alert-loop: "/assets/audio/warzone-alert-loop.mp3";
-    --warzone-sound-impact: "/assets/audio/warzone-impact.mp3";
-    --warzone-military-sound: "/assets/audio/warzone-impact.mp3";
+    --warzone-sound-alert-loop: "/assets/audio/stratops-siren.mp3";
+    --warzone-sound-impact: "";
+    --warzone-military-sound: "";
     --warzone-military-sound-volume: 0.7;
     --warzone-sound-alert-volume: 0.65;
-    --warzone-sound-impact-volume: 0.9;
+    --warzone-sound-impact-volume: 0;
 }
 /* #endregion =========== */
 /* #region =========== Operational Range Tokens =========== */
@@ -703,7 +703,7 @@
     --warzone-live-naval-render-mode-focused: glb;
     --warzone-live-naval-model-auto-enabled: 0;
     --warzone-live-naval-model-scale: 1.2;
-    --warzone-live-naval-model-scale-focused: 1.34;
+    --warzone-live-naval-model-scale-focused: 1.54;
     --warzone-live-naval-model-min-pixel-size: 82;
     --warzone-live-naval-model-min-pixel-size-focused: 118;
     --warzone-live-naval-model-max-scale: 160;
@@ -715,6 +715,7 @@
     --warzone-live-naval-focus-camera-range: 45000;
     --warzone-live-naval-focus-camera-pitch: -58;
     --warzone-live-naval-focus-wheel-zoom-step: 5000;
+    --warzone-live-naval-focus-wheel-zoom-ease: 0.22;
     --warzone-live-naval-focus-warning-range: 90000;
     --warzone-live-naval-focus-final-range: 160000;
     --warzone-live-naval-focus-visible-radius: 100000;
@@ -790,6 +791,7 @@
     --warzone-live-aircraft-unfocus-zoom-out-delta: 26000;
     --warzone-live-aircraft-focus-zoom-range: 22000;
     --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
+    --warzone-live-aircraft-focus-wheel-zoom-ease: 0.22;
     --warzone-live-aircraft-focus-warning-range: 125000;
     --warzone-live-aircraft-focus-final-range: 220000;
     --warzone-live-aircraft-heading-smoothing: 0.42;
@@ -989,12 +991,14 @@
 /* #endregion =========== */
 /* #region =========== SATELLITE SCALING =========== */
 :root {
-    --warzone-mil-sat-scale: 194000;
-    --warzone-mil-sat-min-px: 20;
+    --warzone-satellite-model-scale: 2200;
+    --warzone-satellite-model-heading-deg: 320;
+    --warzone-mil-sat-scale: var(--warzone-satellite-model-scale);
+    --warzone-mil-sat-min-px: 30;
     --warzone-mil-sat-max-scale: 320000;
     --warzone-mil-sat-near-height: 500000;
     --warzone-mil-sat-far-height: 5000000;
-    --warzone-mil-sat-near-scale-multiplier: 0.22;
+    --warzone-mil-sat-near-scale-multiplier: 0.24;
     --warzone-mil-sat-far-scale-multiplier: 1;
     --warzone-mil-sat-min-px-near: 6;
 }

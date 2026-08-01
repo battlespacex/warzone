@@ -108,6 +108,8 @@ function cleanText(value = "", fallback = "") {
     .replace(/\bfloat(?:left|right)\b/gi, " ")
     .replace(/\(\s*max-width:[^)]+\)/gi, " ")
     .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\b[01]{12,}\b/g, " ")
+    .replace(/\b(?:0x[0-9a-f]{8,}|[a-f0-9]{24,})\b/gi, " ")
     .replace(/[^\S\r\n]+/g, " ")
     .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
     .replace(/\s+/g, " ")
@@ -824,8 +826,14 @@ async function ensureOperationalReport({ supabase, reportType = "daily", dateKey
   return ensureDailyReport({ supabase, dateKey: dateKey || getPreviousUtcDateKey(), scope, config, force });
 }
 
-async function generateScheduledReports({ supabase, config = readReportingConfig(), logger = console, referenceDate = new Date() } = {}) {
-  if (!config.enabled) return { ok: true, skipped: true, reason: "disabled" };
+async function generateScheduledReports({ supabase, config = readReportingConfig(), logger = console, referenceDate = new Date(), reportTypes = null } = {}) {
+  if (!config.scheduleEnabled) return { ok: true, skipped: true, reason: "schedule_disabled" };
+  const selectedTypes = Array.isArray(reportTypes)
+    ? new Set(reportTypes.map((type) => String(type || "").toLowerCase()))
+    : null;
+  const runDaily = selectedTypes ? selectedTypes.has("daily") : config.dailyEnabled !== false;
+  const runWeekly = selectedTypes ? selectedTypes.has("weekly") : config.weeklyEnabled === true;
+  if (!runDaily && !runWeekly) return { ok: true, skipped: true, reason: "report_types_disabled" };
   const dateKey = getPreviousUtcDateKey(referenceDate);
   const scopes = [
     normalizeScope({ type: "global" }),
@@ -835,19 +843,23 @@ async function generateScheduledReports({ supabase, config = readReportingConfig
   ];
   const results = [];
   for (const scope of scopes) {
-    try {
-      const daily = await ensureDailyReport({ supabase, dateKey, scope, config });
-      results.push({ ok: true, report_type: "daily", scope: getScopeKey(scope), id: daily.id });
-    } catch (error) {
-      logger.warn?.(`[reports] daily generation failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
-      results.push({ ok: false, report_type: "daily", scope: getScopeKey(scope), error: error?.message || String(error) });
+    if (runDaily) {
+      try {
+        const daily = await ensureDailyReport({ supabase, dateKey, scope, config });
+        results.push({ ok: true, report_type: "daily", scope: getScopeKey(scope), id: daily.id });
+      } catch (error) {
+        logger.warn?.(`[reports] daily generation failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
+        results.push({ ok: false, report_type: "daily", scope: getScopeKey(scope), error: error?.message || String(error) });
+      }
     }
-    try {
-      const weekly = await ensureWeeklyReport({ supabase, dateKey, scope, config });
-      results.push({ ok: true, report_type: "weekly", scope: getScopeKey(scope), id: weekly.id });
-    } catch (error) {
-      if (!String(error?.message || "").includes("requires 7 daily snapshots")) {
-        logger.warn?.(`[reports] weekly generation failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
+    if (runWeekly) {
+      try {
+        const weekly = await ensureWeeklyReport({ supabase, dateKey, scope, config });
+        results.push({ ok: true, report_type: "weekly", scope: getScopeKey(scope), id: weekly.id });
+      } catch (error) {
+        if (!String(error?.message || "").includes("requires 7 daily snapshots")) {
+          logger.warn?.(`[reports] weekly generation failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
+        }
       }
     }
   }
