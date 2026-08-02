@@ -140,12 +140,12 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
     overflow: hidden;
 }
 
-.warzone-actions .action-icon::before {
-    content: "\e938";
+.warzone-actions .action-icon:before {
+    content: "\e947";
 }
 
-.warzone-actions .action-icon:hover::before {
-    content: "\e928";
+.warzone-actions .action-icon:hover:before {
+    content: "\e948";
 }
 
 .icon-chip,
@@ -412,10 +412,29 @@ body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible=
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    transition:
+        opacity 320ms ease,
+        transform 320ms ease,
+        visibility 0s linear 0s;
 }
 
 .wz-utc-clock__label, .wz-utc-clock__time {
 
+}
+
+body.is-scene-2d .wz-utc-clock,
+body.is-scene-2d .wz-globe-rotate-btn {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+        opacity 260ms ease,
+        transform 260ms ease,
+        visibility 0s linear 260ms;
 }
 
 /* ── 2D/3D Toggle ── */

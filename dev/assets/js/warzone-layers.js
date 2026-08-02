@@ -29,6 +29,7 @@ const ALL_LAYER_DEFS = [
     { id: "orbital-assets", label: "Orbital Satellite Intelligence", description: "Public orbital estimates for military-associated and dual-use satellites", icon: "ORB", color: "#9fd7ff", premium: true },
     { id: "satellite-imagery", label: "Satellite Observations", description: "Available Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true, premium: true },
     { id: "terrain", label: "Satellite Basemap", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
+    { id: "map-labels", label: "Map Labels", description: "Country, province, city and place names on the map", icon: "LBL", color: "#9fd7ff", uiOnly: true },
     { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "BRD", color: "#33e1ff", uiOnly: true },
 ];
@@ -63,6 +64,7 @@ const DEFAULT_LAYER_STATE = {
     "orbital-assets": false,
     "satellite-imagery": false,
     terrain: true,
+    "map-labels": false,
     "region-plate": false,
     "country-borders": false,
 };
@@ -85,7 +87,7 @@ const LAYER_SECTIONS = [
     {
         id: "strategic-overlays",
         title: "Strategic Overlays",
-        layers: ["military-bases", "ranges", "sweepers", "orbital-assets", "satellite-imagery", "terrain", "region-plate", "country-borders"],
+        layers: ["military-bases", "ranges", "sweepers", "orbital-assets", "satellite-imagery", "terrain", "map-labels", "region-plate", "country-borders"],
     },
 ];
 const LAYER_ICON_CLASS_BY_ID = {
@@ -110,6 +112,7 @@ const LAYER_ICON_CLASS_BY_ID = {
     "orbital-assets": "stratops-ico-hexa-1",
     "satellite-imagery": "stratops-ico-hexa-1",
     terrain: "stratops-ico-hexa-1",
+    "map-labels": "stratops-ico-hexa-1",
     "country-borders": "stratops-ico-hexa-1",
 };
 
@@ -117,7 +120,7 @@ let __layerState = {};
 let __callbacks = [];
 let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
-const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "region-plate", "satellite-imagery"]);
+const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "map-labels", "region-plate", "satellite-imagery"]);
 const NAVAL_LAYER_SUBTYPES = new Set([
     "carrier",
     "amphibious",
@@ -512,6 +515,7 @@ function syncAllLayerItemStates(container) {
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
         syncLayerItemState(item, item.dataset.layer);
     });
+    syncAllSectionToggleStates(container);
 }
 
 function updateBulkToggleState(container) {
@@ -533,6 +537,7 @@ function updateBulkToggleState(container) {
     allOnBtn.classList.toggle("is-active", allOn);
     allOffBtn.classList.toggle("is-active", allOff);
     updateLayerSummary(container);
+    syncAllSectionToggleStates(container);
 }
 
 function updateLayerSummary(container) {
@@ -548,6 +553,40 @@ function setAllLayers(enabled, container) {
         __layerState[l.id] = !!enabled;
     });
 
+    saveState();
+    syncAllLayerItemStates(container);
+    notifyChange("*", !!enabled);
+    updateBulkToggleState(container);
+}
+
+function getSectionLayerIds(sectionId = "") {
+    const section = getRenderedSections().find((item) => item.id === sectionId);
+    return (section?.layers || []).map((layer) => layer.id);
+}
+
+function syncSectionToggleState(button, sectionId) {
+    if (!button) return;
+    const layerIds = getSectionLayerIds(sectionId).filter(canUseLayer);
+    const enabledCount = layerIds.filter(getEffectiveLayerState).length;
+    const allOn = layerIds.length > 0 && enabledCount === layerIds.length;
+    const someOn = enabledCount > 0 && !allOn;
+    button.classList.toggle("is-on", allOn);
+    button.classList.toggle("is-partial", someOn);
+    button.setAttribute("aria-pressed", allOn ? "true" : "false");
+    button.setAttribute("title", allOn ? "Turn category off" : "Turn category on");
+}
+
+function syncAllSectionToggleStates(container) {
+    container?.querySelectorAll("[data-layer-section-toggle]").forEach((button) => {
+        syncSectionToggleState(button, button.getAttribute("data-layer-section-toggle") || "");
+    });
+}
+
+function setSectionLayers(sectionId, enabled, container) {
+    getSectionLayerIds(sectionId).forEach((id) => {
+        if (!canUseLayer(id)) return;
+        __layerState[id] = !!enabled;
+    });
     saveState();
     syncAllLayerItemStates(container);
     notifyChange("*", !!enabled);
@@ -587,7 +626,7 @@ function renderTextStack(value = "") {
         .split(/\s+/)
         .filter(Boolean);
     if (!words.length) return "";
-    return `<span class="text-stack">${escapeLayerHtml(words.join("\n"))}</span>`;
+    return `${escapeLayerHtml(words.join("\n"))}`;
 }
 
 function renderLayerRow(layer) {
@@ -698,8 +737,11 @@ export function initLayerPanel() {
             ${sections.map((section) => `
                 <section class="wz-layer-section" aria-labelledby="wz-layer-section-${section.id}">
                     <div class="wz-layer-section__head">
-                        <h3 id="wz-layer-section-${section.id}" class="wz-layer-section__title">${renderTextStack(section.title)}</h3>
-                        <span class="wz-layer-section__count">${section.layers.length}</span>
+                        <h3 id="wz-layer-section-${section.id}" class="wz-layer-section__title text-stack">${renderTextStack(section.title)}</h3>
+                        <span class="wz-layer-section__meta">
+                            <button type="button" class="wz-layer-section-toggle" data-layer-section-toggle="${section.id}" aria-label="Toggle ${escapeLayerHtml(section.title)} category" aria-pressed="false"></button>
+                            <span class="wz-layer-section__count sr-only">${section.layers.length}</span>
+                        </span>
                     </div>
                     <div class="wz-layer-section__list">
                         ${section.layers.map(renderLayerRow).join("")}
@@ -714,6 +756,16 @@ export function initLayerPanel() {
 
     container.querySelectorAll(".wz-layer-item").forEach((item) => {
         bindLayerItem(container, item);
+    });
+
+    container.querySelectorAll("[data-layer-section-toggle]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const sectionId = button.getAttribute("data-layer-section-toggle") || "";
+            const layerIds = getSectionLayerIds(sectionId).filter(canUseLayer);
+            const allOn = layerIds.length > 0 && layerIds.every(getEffectiveLayerState);
+            setSectionLayers(sectionId, !allOn, container);
+        });
     });
 
     document.getElementById("wz-layers-all-on")?.addEventListener("click", async (e) => {

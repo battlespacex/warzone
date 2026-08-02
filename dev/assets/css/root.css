@@ -158,9 +158,20 @@
     --wzhs-radius-size: 20rem;
     --wzhs-radius-max-size: 42rem;
     --wzhs-radius-fit-padding: 9rem;
+    --wzhs-radius-min-px: 72;
+    --wzhs-radius-max-px: 920;
+    --wzhs-radius-base-km: 170;
+    --wzhs-radius-count-km: 18;
+    --wzhs-radius-cluster-padding-px: 110;
+    --wzhs-radius-split-fade-ms: 360ms;
     --wzhs-radius-outline-width: 0.4rem;
     --wzhs-radius-outline-color: var(--warzone-strike-color);
     --wzhs-radius-fill-color: var(--color-magenta-overlay);
+    --wzhs-radius-zoom-scale-world: 0.58;
+    --wzhs-radius-zoom-scale-theater: 0.76;
+    --wzhs-radius-zoom-scale-regional: 1;
+    --wzhs-radius-zoom-scale-local: 1.28;
+    --wzhs-radius-zoom-scale-street: 1.55;
     --wzhs-cards-enabled: 0;
 }
 /* #endregion =========== */
@@ -260,6 +271,7 @@
     --warzone-orbital-footprint-outline-alpha: 0.24;
     --warzone-orbital-footprint-outline-width: 2;
     --warzone-orbital-selected-color: #e7edf5;
+    --warzone-orbital-selected-ring-color: var(--warzone-orbital-selected-color);
     --warzone-orbital-selected-fallback-size: 10;
     --warzone-orbital-model-scale: 170000;
     --warzone-orbital-model-min-px: 18;
@@ -267,6 +279,8 @@
     --warzone-orbital-selected-model-scale: 170000;
     --warzone-orbital-selected-model-min-px: 18;
     --warzone-orbital-selected-model-max-scale: 260000;
+    --warzone-orbital-unfocus-camera-height: 3200000;
+    --warzone-orbital-unfocus-camera-duration: 1.15;
 }
 /* #endregion =========== */
 /* #region =========== Globe Render Quality =========== */
@@ -336,16 +350,29 @@
     --warzone-labels-saturation: 0;
     --warzone-labels-hue: 50;
     --warzone-labels-alpha: 0.9;
-    --warzone-labels-max-height: 3000000;
-    --warzone-country-label-scale: 0.62;
+    --warzone-labels-max-height: 9000000;
+    --warzone-country-label-scale: 0.78;
     --warzone-country-label-near-distance: 900000;
     --warzone-country-label-far-distance: 7000000;
     --warzone-country-label-near-multiplier: 0.82;
     --warzone-country-label-far-multiplier: 1.9;
-    --warzone-country-label-font: 700 17px Oxanium, sans-serif;
+    --warzone-country-label-font: 800 20px Oxanium, sans-serif;
     --warzone-country-label-color: var(--color-white-slate);
     --warzone-country-label-outline: #000000;
     --warzone-country-label-outline-width: 0;
+    --warzone-place-label-font: 800 13px Oxanium, sans-serif;
+    --warzone-province-label-font: 800 13px Oxanium, sans-serif;
+    --warzone-sea-label-font: 800 13px Oxanium, sans-serif;
+    --warzone-place-label-scale: 0.9;
+    --warzone-province-label-scale: 0.82;
+    --warzone-sea-label-scale: 0.78;
+    --warzone-place-label-color: rgba(238, 240, 245, 0.9);
+    --warzone-province-label-color: rgba(159, 215, 255, 0.78);
+    --warzone-sea-label-color: rgba(24, 226, 219, 0.72);
+    --warzone-place-label-outline: rgba(6, 16, 24, 0.86);
+    --warzone-place-label-outline-width: 3;
+    --warzone-place-label-near-distance: 600000;
+    --warzone-place-label-far-distance: 9000000;
 }
 /* #endregion =========== */
 /* #region =========== Country / Province Borders =========== */
@@ -376,32 +403,94 @@
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
 :root {
-    --warzone-marker-scale: 1.25;
+
+
+    --warzone-marker-scale: 1;
     --warzone-event-markers-visible: 1;
     --warzone-event-rings-visible: 1;
     --warzone-event-ring-entity-cap: 160;
-    --warzone-event-marker-size: 112;
-    --warzone-event-marker-cluster-step: 20;
-    --warzone-event-marker-max-size: 192;
-    --warzone-event-marker-fill-alpha: 0.70;
-    --warzone-event-count-font-size: 19px;
-    --warzone-event-count-font-size-10plus: 18px;
-    --warzone-event-count-font-size-100plus: 16px;
+    --warzone-event-marker-size: 70;
+    --warzone-event-marker-scale-near-distance: 600000;
+    --warzone-event-marker-scale-far-distance: 12000000;
+    --warzone-event-marker-scale-near: 1.45;
+    --warzone-event-marker-scale-far: 0.52;
+    --warzone-event-marker-canvas-size: 1024;
+    --warzone-event-marker-single-canvas-size: 256;
+    --warzone-event-marker-cluster-step: 5;
+    --warzone-event-marker-max-size: 70;
+    --warzone-event-marker-disc-scale: 0.62;
+    --warzone-event-marker-fill-alpha: 0.82;
+    --warzone-event-marker-border-width: 9;
+    --warzone-event-marker-border-alpha: 0.3;
+    --warzone-event-marker-border-color: currentColor;
+    --warzone-event-marker-text-color: var(--color-white);
+    --warzone-event-unified-color: var(--warzone-strike-color);
+    --warzone-event-marker-color-strike: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-recon: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-military: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-air-activity: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-naval-activity: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-alert: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-airspace: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-cyber: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-thermal: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-signal: var(--warzone-event-unified-color);
+    --warzone-event-marker-color-default: var(--warzone-event-unified-color);
+    --warzone-event-count-font-size: 14px;
+    --warzone-event-count-font-size-10plus: 14px;
+    --warzone-event-count-font-size-100plus: 14px;
+    --warzone-event-count-font-family: var(--heading-font), sans-serif;
     --warzone-event-ring-size: 36000;
-    --warzone-event-ring-fill-alpha: 0.40;
+    --warzone-event-cluster-parent-ring-min-km: 120;
+    --warzone-event-cluster-parent-ring-padding-km: 55;
+    --warzone-event-cluster-parent-ring-max-km: 520;
+    --warzone-event-cluster-real-split-min-km: 35;
+    --warzone-event-cluster-synthetic-spread-km: 60;
+    --warzone-event-ring-fill-alpha: 0.6;
     --warzone-event-ring-outline-alpha: 0;
     --warzone-event-ring-outline-width: 0;
+    --warzone-event-hotspot-line-width: 3;
+    --warzone-event-hotspot-line-color: var(--warzone-event-unified-color);
+    --warzone-event-hotspot-color-strike: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-recon: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-military: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-air-activity: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-naval-activity: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-alert: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-airspace: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-cyber: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-thermal: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-signal: var(--warzone-event-hotspot-line-color);
+    --warzone-event-hotspot-color-default: var(--warzone-event-hotspot-line-color);
     --warzone-event-marker-perspective-squash: 0.72;
     --warzone-event-pulse-radius: 22000;
-    --warzone-event-pulse-fill-alpha: 0.40;
+    --warzone-event-pulse-fill-alpha: 0.6;
     --warzone-event-pulse-outline-alpha: 0;
-    --warzone-event-ring-pulse-enabled: 1;
+    --warzone-event-pulse-line-width: 18;
+    --warzone-event-pulse-line-color: currentColor;
+    --warzone-event-pulse-alpha-max: 0.96;
+    --warzone-event-pulse-start-scale: 1.02;
+    --warzone-event-pulse-ring-inner-scale: 0.40;
+    --warzone-event-pulse-color-strike: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-recon: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-military: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-air-activity: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-naval-activity: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-alert: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-airspace: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-cyber: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-thermal: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-signal: var(--warzone-event-pulse-line-color);
+    --warzone-event-pulse-color-default: var(--warzone-event-pulse-line-color);
+    --warzone-event-ring-pulse-enabled: 0;
     --warzone-event-ring-pulse-duration-a: 1500;
     --warzone-event-ring-pulse-duration-b: 2100;
     --warzone-event-ring-pulse-duration-c: 2800;
-    --warzone-event-ring-pulse-scale: 0.30;
-    --warzone-event-ring-pulse-alpha-scale: 0.85;
+    --warzone-event-marker-pulse-max-height: 6500000;
+    --warzone-event-ring-pulse-scale: 0.16;
+    --warzone-event-ring-pulse-alpha-scale: 1;
     --warzone-event-ring-pulse-fps: 36;
+    --warzone-event-cluster-transition-ms: 1350;
     --wzhs-perspective-depth: 900px;
     --wzhs-perspective-max-tilt: 46;
     --wzhs-perspective-tilt: 0deg;
@@ -993,6 +1082,9 @@
 :root {
     --warzone-satellite-model-scale: 2200;
     --warzone-satellite-model-heading-deg: 320;
+    --warzone-satellite-model-rotate-x-deg: -15;
+    --warzone-satellite-model-rotate-y-deg: -150;
+    --warzone-satellite-model-rotate-z-deg: var(--warzone-satellite-model-heading-deg);
     --warzone-mil-sat-scale: var(--warzone-satellite-model-scale);
     --warzone-mil-sat-min-px: 30;
     --warzone-mil-sat-max-scale: 320000;

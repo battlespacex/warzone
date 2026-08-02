@@ -212,6 +212,8 @@ function bindGlobeToggle() {
         btn2d.disabled = focusLocked;
         btn3d.setAttribute("aria-disabled", String(focusLocked));
         btn2d.setAttribute("aria-disabled", String(focusLocked));
+        document.body?.classList.toggle("is-scene-3d", is3d);
+        document.body?.classList.toggle("is-scene-2d", !is3d);
         __sceneModeUiState.currentMode = nextMode;
     };
     const updateContourButton = (visible = false) => {

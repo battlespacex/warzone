@@ -113,6 +113,8 @@ let __viewportFetchInFlight = false;
 let __viewportFetchSeq = 0;
 let __lastViewportKey = "";
 let __lastGlobeSyncKey = "";
+let __lastGlobeClusterBucket = "";
+let __globeReclusterTimer = 0;
 let __lastRangesSyncKey = "";
 let __lastSweepersSyncKey = "";
 let __lastOverlaySourceKey = "__empty__";
@@ -6942,7 +6944,7 @@ function ensureHotspotLayer(viewer, hotspotRoot) {
         stackDistancePx: 76,
         maxVisiblePerHotspot: 6,
         minItemsForCluster: 1,
-        throttleMove: 44,
+        throttleMove: 16,
     });
     window.__hotspotLayer = __hotspotLayer;
     return __hotspotLayer;
@@ -7152,7 +7154,8 @@ function syncInitialEventsToGlobe(events, {
         )
         : [];
     const renderVisible = globeVisible.length ? globeVisible : hotspotGlobeVisible;
-    const visibleSignature = makeEventSignature(renderVisible);
+    const globeClusterBucket = String(globe.getEventClusterBucket?.() || "default");
+    const visibleSignature = `${makeEventSignature(renderVisible)}|cluster:${globeClusterBucket}`;
     const rangesEnabled = isLayerEnabled("ranges");
     const sweepersEnabled = isLayerEnabled("sweepers");
     const overlaysEnabled = rangesEnabled || sweepersEnabled;
@@ -7197,6 +7200,7 @@ function syncInitialEventsToGlobe(events, {
                 clearSweepers(window.__warzoneViewer);
             }
             __lastGlobeSyncKey = "__empty__";
+            __lastGlobeClusterBucket = "";
             __lastRangesSyncKey = "__off__";
             __lastSweepersSyncKey = "__off__";
             __lastOverlaySourceKey = "__empty__";
@@ -7219,6 +7223,7 @@ function syncInitialEventsToGlobe(events, {
             );
         }
         __lastGlobeSyncKey = visibleSignature;
+        __lastGlobeClusterBucket = globeClusterBucket;
     }
     if (__hotspotLayer) {
         if (syncHotspots) {
@@ -7256,6 +7261,22 @@ function syncInitialEventsToGlobe(events, {
 }
 function getCurrentMapSourceEvents() {
     return __viewportScoped ? __visibleEventsCache : __eventsCache;
+}
+function scheduleGlobeEventRecluster(delay = 120) {
+    clearTimeout(__globeReclusterTimer);
+    __globeReclusterTimer = window.setTimeout(() => {
+        __globeReclusterTimer = 0;
+        const globe = window.__warzoneViewer?.__warzone;
+        if (!globe?.getEventClusterBucket) return;
+        const nextBucket = String(globe.getEventClusterBucket() || "default");
+        if (nextBucket === __lastGlobeClusterBucket) return;
+        syncInitialEventsToGlobe(getCurrentMapSourceEvents(), {
+            animateTracks: false,
+            updatePerformance: false,
+            syncHotspots: true,
+            syncNaval: false,
+        });
+    }, Math.max(0, Number(delay || 0)));
 }
 function scheduleHotspotLayerRefresh(delay = 80) {
     clearTimeout(__hotspotDeferredSyncTimer);
@@ -7458,8 +7479,12 @@ export async function initWarzoneApp() {
         if (viewer.camera?.moveEnd) {
             viewer.camera.moveEnd.addEventListener(() => {
                 scheduleViewportFetch(500);
+                scheduleGlobeEventRecluster(80);
             });
         }
+        document.addEventListener("wz:scene-mode-changed", () => {
+            scheduleGlobeEventRecluster(80);
+        });
     }
     syncIdleSceneState();
     syncAircraftLivePipelines();
@@ -7568,6 +7593,11 @@ export async function initWarzoneApp() {
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
         }
+        if (id === "map-labels") {
+            globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
+            window.__warzoneViewer?.scene?.requestRender?.();
+            return;
+        }
         if (id === "satellite-imagery") {
             const satelliteImageryEnabled = isLayerEnabled("satellite-imagery");
             globe?.setSatelliteImageryLayerVisible?.(satelliteImageryEnabled);
@@ -7636,6 +7666,7 @@ export async function initWarzoneApp() {
         if (id === "*") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
             globe?.setSatelliteImageryLayerVisible?.(isLayerEnabled("satellite-imagery"));
+            globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
             globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
             globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
             syncGnssInterferenceLayer();
@@ -7657,6 +7688,7 @@ export async function initWarzoneApp() {
         const globe = window.__warzoneViewer?.__warzone;
         globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
         globe?.setSatelliteImageryLayerVisible?.(isLayerEnabled("satellite-imagery"));
+        globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
         globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
         globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { animate: false });
         window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
@@ -8176,7 +8208,7 @@ export function initAudio() {
     if (toggle.dataset.audioBound === "true") return;
     toggle.dataset.audioBound = "true";
     audio.loop = true;
-    audio.volume = 0.35;
+    audio.volume = 0.95;
     audio.src = audio.getAttribute("src") || "/assets/audio/stratops-radio-soundtrack.mp3";
     let isPlaying = false;
     function syncUi(playing) {

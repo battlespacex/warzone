@@ -99,9 +99,23 @@ function getSatelliteModelScale(fallback = 194000) {
 
 function getSatelliteModelHeadingDeg(fallback = 0) {
     const styles = getComputedStyle(document.documentElement);
+    const rotateZ = Number(styles.getPropertyValue("--warzone-satellite-model-rotate-z-deg"));
+    if (Number.isFinite(rotateZ)) return rotateZ;
     const primary = Number(styles.getPropertyValue("--warzone-satellite-model-heading-deg"));
     if (Number.isFinite(primary)) return primary;
     return Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+}
+
+function getSatelliteModelPitchDeg(fallback = -150) {
+    const styles = getComputedStyle(document.documentElement);
+    const primary = Number(styles.getPropertyValue("--warzone-satellite-model-rotate-y-deg"));
+    return Number.isFinite(primary) ? primary : (Number.isFinite(Number(fallback)) ? Number(fallback) : -150);
+}
+
+function getSatelliteModelRollDeg(fallback = -15) {
+    const styles = getComputedStyle(document.documentElement);
+    const primary = Number(styles.getPropertyValue("--warzone-satellite-model-rotate-x-deg"));
+    return Number.isFinite(primary) ? primary : (Number.isFinite(Number(fallback)) ? Number(fallback) : -15);
 }
 
 function getStartupSatelliteModelProfile(indexOrKey = 0) {
@@ -150,6 +164,8 @@ export {
     SATELLITE_MODEL_PROFILES,
     STARTUP_MODEL_KEYS,
     getSatelliteModelHeadingDeg,
+    getSatelliteModelPitchDeg,
+    getSatelliteModelRollDeg,
     getSatelliteModelScale,
     getStartupSatelliteModelProfile,
     resolveSatelliteModelProfile,

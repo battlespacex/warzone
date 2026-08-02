@@ -1,6 +1,8 @@
 import * as Cesium from "cesium";
 import {
     getSatelliteModelHeadingDeg,
+    getSatelliteModelPitchDeg,
+    getSatelliteModelRollDeg,
     getSatelliteModelScale,
     getStartupSatelliteModelProfile,
 } from "./warzone-satellite-models.js";
@@ -73,8 +75,8 @@ function getModelConfig(sat = {}) {
 function createOrientation(position, sat = {}) {
     const modelCfg = getModelConfig(sat);
     const heading = getSatelliteModelHeadingDeg(Number.isFinite(Number(sat?.heading)) ? Number(sat.heading) : 0);
-    const pitch = Number.isFinite(Number(sat?.pitch)) ? Number(sat.pitch) : -150;
-    const roll = Number.isFinite(Number(sat?.roll)) ? Number(sat.roll) : -15;
+    const pitch = getSatelliteModelPitchDeg(Number.isFinite(Number(sat?.pitch)) ? Number(sat.pitch) : -150);
+    const roll = getSatelliteModelRollDeg(Number.isFinite(Number(sat?.roll)) ? Number(sat.roll) : -15);
     const enu = Cesium.Transforms.eastNorthUpToFixedFrame(position);
     const base = Cesium.Matrix4.getMatrix3(enu, new Cesium.Matrix3());
     const hpr = Cesium.Matrix3.fromHeadingPitchRoll(

@@ -24,6 +24,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
 .stratops-ico-hexa-1:before {
   content: "\e93f";
 }
@@ -38,6 +39,9 @@
 }
 .stratops-ico-dock-report-1:before {
   content: "\e93e";
+}
+.stratops-ico-pause-1:before {
+  content: "\e945";
 }
 .stratops-ico-next-1:before {
   content: "\e900";
@@ -192,14 +196,32 @@
 .stratops-ico-dock-airspace-1:before {
   content: "\e92e";
 }
+.stratops-ico-dock-airspace-4:before {
+  content: "\e944";
+}
+.stratops-ico-dock-airspace-2:before {
+  content: "\e942";
+}
+.stratops-ico-dock-airspace-3:before {
+  content: "\e943";
+}
 .stratops-ico-dock-orbital-intel-2:before {
   content: "\e93d";
 }
 .stratops-ico-dock-cyberspace-1:before {
   content: "\e92f";
 }
+.stratops-ico-dock-intel-wire-2:before {
+  content: "\e946";
+}
 .stratops-ico-dock-strike-counter-1:before {
   content: "\e930";
+}
+.stratops-ico-screenshot-2:before {
+  content: "\e947";
+}
+.stratops-ico-screenshot-3:before {
+  content: "\e948";
 }
 .stratops-ico-social-insta-1:before {
   content: "\e931";

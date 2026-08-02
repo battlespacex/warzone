@@ -10,6 +10,57 @@ const BORDER_SOURCES = {
     provinces: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
     cities: "https://raw.githubusercontent.com/drei01/geojson-world-cities/master/cities.geojson",
 };
+const PLACE_LABELS = [
+    { name: "RIYADH", lon: 46.6753, lat: 24.7136, type: "city" },
+    { name: "JEDDAH", lon: 39.1979, lat: 21.4858, type: "city" },
+    { name: "MAKKAH", lon: 39.8579, lat: 21.3891, type: "province" },
+    { name: "EASTERN PROVINCE", lon: 49.6833, lat: 24.0, type: "province" },
+    { name: "KUWAIT CITY", lon: 47.9774, lat: 29.3759, type: "city" },
+    { name: "DOHA", lon: 51.531, lat: 25.2854, type: "city" },
+    { name: "ABU DHABI", lon: 54.3773, lat: 24.4539, type: "city" },
+    { name: "DUBAI", lon: 55.2708, lat: 25.2048, type: "city" },
+    { name: "MUSCAT", lon: 58.4059, lat: 23.588, type: "city" },
+    { name: "TEHRAN", lon: 51.389, lat: 35.6892, type: "city" },
+    { name: "ISFAHAN", lon: 51.6776, lat: 32.6539, type: "city" },
+    { name: "BAGHDAD", lon: 44.3661, lat: 33.3152, type: "city" },
+    { name: "BASRA", lon: 47.7835, lat: 30.5085, type: "city" },
+    { name: "AMMAN", lon: 35.9304, lat: 31.9539, type: "city" },
+    { name: "DAMASCUS", lon: 36.2765, lat: 33.5138, type: "city" },
+    { name: "TEL AVIV", lon: 34.7818, lat: 32.0853, type: "city" },
+    { name: "GAZA", lon: 34.4668, lat: 31.5017, type: "city" },
+    { name: "SANAA", lon: 44.191, lat: 15.3694, type: "city" },
+    { name: "ADEN", lon: 45.0187, lat: 12.7855, type: "city" },
+    { name: "KARACHI", lon: 67.0011, lat: 24.8607, type: "city" },
+    { name: "ISLAMABAD", lon: 73.0479, lat: 33.6844, type: "city" },
+    { name: "LAHORE", lon: 74.3587, lat: 31.5204, type: "city" },
+    { name: "BALOCHISTAN", lon: 65.0, lat: 28.5, type: "province" },
+    { name: "SINDH", lon: 68.8, lat: 26.3, type: "province" },
+    { name: "PUNJAB", lon: 72.4, lat: 31.0, type: "province" },
+    { name: "NEW DELHI", lon: 77.209, lat: 28.6139, type: "city" },
+    { name: "MUMBAI", lon: 72.8777, lat: 19.076, type: "city" },
+    { name: "GUJARAT", lon: 71.1924, lat: 22.2587, type: "province" },
+    { name: "MAHARASHTRA", lon: 75.7139, lat: 19.7515, type: "province" },
+    { name: "BEIJING", lon: 116.4074, lat: 39.9042, type: "city" },
+    { name: "SHANGHAI", lon: 121.4737, lat: 31.2304, type: "city" },
+    { name: "GUANGDONG", lon: 113.2665, lat: 23.1322, type: "province" },
+    { name: "TAIWAN", lon: 120.9605, lat: 23.6978, type: "province" },
+    { name: "TAIPEI", lon: 121.5654, lat: 25.033, type: "city" },
+    { name: "HANOI", lon: 105.8342, lat: 21.0278, type: "city" },
+    { name: "HO CHI MINH CITY", lon: 106.6297, lat: 10.8231, type: "city" },
+    { name: "MANILA", lon: 120.9842, lat: 14.5995, type: "city" },
+    { name: "SOUTH CHINA SEA", lon: 114.5, lat: 12.0, type: "sea" },
+    { name: "SPRATLY ISLANDS", lon: 114.3, lat: 10.0, type: "sea" },
+    { name: "TOKYO", lon: 139.6917, lat: 35.6895, type: "city" },
+    { name: "OSAKA", lon: 135.5023, lat: 34.6937, type: "city" },
+    { name: "OKINAWA", lon: 127.6792, lat: 26.2124, type: "province" },
+    { name: "SEOUL", lon: 126.978, lat: 37.5665, type: "city" },
+    { name: "BUSAN", lon: 129.0756, lat: 35.1796, type: "city" },
+    { name: "KYIV", lon: 30.5234, lat: 50.4501, type: "city" },
+    { name: "DONBAS", lon: 37.8, lat: 48.2, type: "province" },
+    { name: "CRIMEA", lon: 34.2, lat: 45.3, type: "province" },
+    { name: "MOSCOW", lon: 37.6173, lat: 55.7558, type: "city" },
+    { name: "ST PETERSBURG", lon: 30.3351, lat: 59.9343, type: "city" },
+];
 const RAISED_REGION_EXPLICIT_ISO2 = {
     middle_east: new Set(["AE", "BH", "CY", "EG", "IL", "IQ", "IR", "JO", "KW", "LB", "OM", "PS", "QA", "SA", "SY", "TR", "YE"]),
     levant: new Set(["CY", "EG", "IL", "JO", "LB", "PS", "SY", "TR"]),
@@ -49,6 +100,10 @@ const STARTUP_CAMERA = {
     pitch: -90,
     roll: 0,
 };
+function clearEventMarkerVisualCaches() {
+    markerCache.clear();
+    ringCanvasCache.clear();
+}
 function normalizeAdaptiveProfile(profile = "normal") {
     const value = String(profile || "").toLowerCase();
     return ADAPTIVE_QUALITY_PROFILES.includes(value) ? value : "normal";
@@ -118,8 +173,79 @@ function getCameraHeight(viewer) {
 function shouldClusterEvents(viewer) {
     return getCameraHeight(viewer) > numberVar("--warzone-event-cluster-height", 1800000);
 }
+function getEventClusterZoomBucket(viewer) {
+    const height = getCameraHeight(viewer);
+    if (height > 9500000) return "world";
+    if (height > 5200000) return "theater";
+    if (height > 2600000) return "regional";
+    if (height > 1200000) return "local";
+    if (height > 620000) return "district";
+    return "street";
+}
+function getEventClusterPrecision(viewer) {
+    const base = numberVar("--warzone-event-cluster-precision", 0.18);
+    switch (getEventClusterZoomBucket(viewer)) {
+        case "world":
+            return Math.max(base, 0.9);
+        case "theater":
+            return Math.max(base, 0.62);
+        case "regional":
+            return Math.max(base, 0.38);
+        case "local":
+            return Math.max(base, 0.24);
+        case "district":
+            return Math.min(base, 0.14);
+        default:
+            return Math.min(base, 0.08);
+    }
+}
+function getEventClusterSplitCount(viewer, totalCount = 1) {
+    const count = Math.max(1, Math.round(Number(totalCount) || 1));
+    if (count < 2) return 1;
+    switch (getEventClusterZoomBucket(viewer)) {
+        case "world":
+        case "theater":
+        case "regional":
+        case "local":
+            return 1;
+        case "district":
+            return count >= 20 ? Math.min(2, count) : 1;
+        default:
+            if (count >= 48) return Math.min(4, Math.ceil(count / 14));
+            if (count >= 24) return 2;
+            return 1;
+    }
+}
+function distanceMetersBetween(a = {}, b = {}) {
+    const lat1 = Cesium.Math.toRadians(Number(a.lat));
+    const lon1 = Cesium.Math.toRadians(Number(a.lon));
+    const lat2 = Cesium.Math.toRadians(Number(b.lat));
+    const lon2 = Cesium.Math.toRadians(Number(b.lon));
+    if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return 0;
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
+    const h = Math.sin(dLat / 2) ** 2
+        + Math.cos(lat1) * Math.cos(lat2) * (Math.sin(dLon / 2) ** 2);
+    return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+}
+function averageEventItems(items = []) {
+    const valid = items.filter((item) => Number.isFinite(Number(item?.lat)) && Number.isFinite(Number(item?.lon)));
+    if (!valid.length) return null;
+    const total = valid.reduce((sum, item) => sum + getEventClusterCount(item), 0) || valid.length;
+    return {
+        lat: valid.reduce((sum, item) => sum + Number(item.lat) * getEventClusterCount(item), 0) / total,
+        lon: valid.reduce((sum, item) => sum + Number(item.lon) * getEventClusterCount(item), 0) / total,
+        count: total,
+    };
+}
+function getGroupLocationSpreadMeters(items = [], center = {}) {
+    return items.reduce((max, item) => Math.max(max, distanceMetersBetween(center, item)), 0);
+}
 function shouldShowEventRingsAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-event-ring-max-height", 6500000);
+}
+function shouldShowEventMarkerPulseAtCurrentZoom(viewer) {
+    return getCameraHeight(viewer) <= numberVar("--warzone-event-marker-pulse-max-height", 3600000);
 }
 function shouldShowEventOutlinesAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-event-outline-max-height", 1800000);
@@ -135,9 +261,51 @@ function getMaxRenderableEvents(viewer) {
     const height = getCameraHeight(viewer);
     return getMaxRenderableEventsAtHeight(height);
 }
-function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520) {
+function getClusterSeverityRank(severity = "") {
+    switch (String(severity || "").trim().toLowerCase()) {
+        case "critical": return 4;
+        case "high": return 3;
+        case "medium": return 2;
+        case "low": return 1;
+        default: return 0;
+    }
+}
+function getEmbeddedClusterEvents(event = {}) {
+    const embedded = Array.isArray(event?._clusterEvents)
+        ? event._clusterEvents
+        : (Array.isArray(event?.cluster_events) ? event.cluster_events : []);
+    return embedded
+        .filter((item) => {
+            const lat = Number(item?.lat ?? item?.display_lat);
+            const lon = Number(item?.lon ?? item?.display_lon);
+            return Number.isFinite(lat) && Number.isFinite(lon);
+        })
+        .map((item, index) => ({
+            ...event,
+            ...item,
+            id: item?.id || `${event.id || "cluster"}-child-${index}`,
+            lat: Number(item.lat ?? item.display_lat),
+            lon: Number(item.lon ?? item.display_lon),
+            cluster_count: Number(item.cluster_count || item._clusterCount || 1),
+            _clusterCount: Number(item.cluster_count || item._clusterCount || 1),
+            _clusterEvents: Array.isArray(item?._clusterEvents) ? item._clusterEvents : [item],
+        }));
+}
+function expandEventsForLocationClustering(events = []) {
+    const expanded = [];
+    for (const event of Array.isArray(events) ? events : []) {
+        const children = getEmbeddedClusterEvents(event);
+        if (children.length > 1) {
+            expanded.push(...children);
+            continue;
+        }
+        expanded.push(event);
+    }
+    return expanded;
+}
+function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520, viewer = window.__warzoneViewer) {
     const groups = new Map();
-    for (const event of events) {
+    for (const event of expandEventsForLocationClustering(events)) {
         const lat = Number(event?.lat);
         const lon = Number(event?.lon);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
@@ -156,7 +324,72 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
             group.items.push(event);
         }
     }
-    return Array.from(groups.values())
+    const expandedGroups = [];
+    for (const group of groups.values()) {
+        const items = Array.isArray(group.items) ? group.items : [];
+        const totalCount = items.reduce((acc, item) => acc + getEventClusterCount(item), 0);
+        let splitCount = getEventClusterSplitCount(viewer, totalCount);
+        if (splitCount <= 1) {
+            expandedGroups.push(group);
+            continue;
+        }
+        const sortedItems = items
+            .slice()
+            .sort((a, b) => {
+                const severityDelta = getClusterSeverityRank(b?.severity) - getClusterSeverityRank(a?.severity);
+                if (severityDelta) return severityDelta;
+                return new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0);
+            });
+        const chunks = Array.from({ length: splitCount }, () => []);
+        sortedItems.forEach((item, index) => {
+            const itemCount = getEventClusterCount(item);
+            if (itemCount <= 1) {
+                chunks[index % splitCount].push(item);
+                return;
+            }
+            for (let chunkIndex = 0; chunkIndex < splitCount; chunkIndex += 1) {
+                const base = Math.floor(itemCount / splitCount);
+                const extra = chunkIndex < (itemCount % splitCount) ? 1 : 0;
+                const chunkCount = base + extra;
+                if (chunkCount <= 0) continue;
+                chunks[chunkIndex].push({
+                    ...item,
+                    id: `${item.id || "event"}-split-${chunkIndex}`,
+                    cluster_count: chunkCount,
+                    _clusterCount: chunkCount,
+                    _clusterEvents: Array.isArray(item?._clusterEvents)
+                        ? item._clusterEvents.slice(chunkIndex, chunkIndex + chunkCount)
+                        : [item],
+                });
+            }
+        });
+        const center = { lat: group.lat, lon: group.lon };
+        const hasRealSpread = getGroupLocationSpreadMeters(items, center)
+            >= Math.max(1000, numberVar("--warzone-event-cluster-real-split-min-km", 18) * 1000);
+        const syntheticOffsetDeg = Math.max(
+            0.02,
+            Math.min(
+                0.9,
+                numberVar("--warzone-event-cluster-synthetic-spread-km", 75) / 111.32
+            )
+        );
+        chunks.forEach((chunk, index) => {
+            if (!chunk.length) return;
+            const angle = (Math.PI * 2 * index) / splitCount - Math.PI / 2;
+            const ring = 1 + Math.floor(index / 6) * 0.45;
+            const chunkCenter = hasRealSpread ? averageEventItems(chunk) : null;
+            expandedGroups.push({
+                lat: chunkCenter?.lat ?? (group.lat + Math.sin(angle) * syntheticOffsetDeg * ring),
+                lon: chunkCenter?.lon ?? (group.lon + Math.cos(angle) * syntheticOffsetDeg * ring),
+                items: chunk,
+                subclusterIndex: index,
+                splitGroupId: `${group.lat.toFixed(3)}:${group.lon.toFixed(3)}`,
+                splitParentLat: group.lat,
+                splitParentLon: group.lon,
+            });
+        });
+    }
+    return expandedGroups
         .map((group, index) => {
             const items = group.items;
             const clusterCount = items.reduce((acc, item) => {
@@ -172,6 +405,7 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
             const latest = items
                 .slice()
                 .sort((a, b) => new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0))[0] || items[0];
+            const categoryKey = String(latest?.category || "default").trim() || "default";
             const getClusterSatelliteContext = (item) => {
                 const context = item?.satellite_context || item?.satelliteContext || null;
                 const imageUrl = String(context?.imageUrl || context?.image_url || "").trim();
@@ -183,7 +417,9 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
                 || getClusterSatelliteContext(clusterEvents.find(getClusterSatelliteContext) || null);
             return {
                 ...latest,
-                id: latest?.id || `cluster-${index + 1}`,
+                id: clusterCount > 1
+                    ? `cluster-${categoryKey}-${group.lat.toFixed(3)}-${group.lon.toFixed(3)}-${Number(group.subclusterIndex || 0)}`
+                    : (latest?.id || `event-${index + 1}`),
                 lat: group.lat,
                 lon: group.lon,
                 title: clusterCount > 1 ? `${clusterCount} related events` : latest?.title,
@@ -192,12 +428,354 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
                 cluster_count: clusterCount,
                 _clusterCount: clusterCount,
                 _clusterEvents: clusterEvents,
+                _splitGroupId: group.splitGroupId || "",
+                _splitIndex: Number(group.subclusterIndex || 0),
+                _splitParentLat: Number.isFinite(Number(group.splitParentLat)) ? Number(group.splitParentLat) : null,
+                _splitParentLon: Number.isFinite(Number(group.splitParentLon)) ? Number(group.splitParentLon) : null,
                 satellite_context: satelliteContext,
                 satellite_available: !!satelliteContext,
             };
         })
         .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
         .slice(0, maxItems);
+}
+function getEventClusterItems(event = {}) {
+    const items = Array.isArray(event?._clusterEvents) && event._clusterEvents.length
+        ? event._clusterEvents
+        : [event];
+    return items.filter(Boolean);
+}
+function getEventClusterCount(event = {}) {
+    const direct = Number(event?.cluster_count || event?._clusterCount || 0);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    return Math.max(1, getEventClusterItems(event).length);
+}
+function getScreenPointForEvent(viewer, event = {}) {
+    try {
+        const scene = viewer?.scene;
+        const lon = Number(event?.lon);
+        const lat = Number(event?.lat);
+        if (!scene || !Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+        const fn = Cesium.SceneTransforms.worldToWindowCoordinates
+            || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+        if (!fn) return null;
+        const point = fn(scene, Cesium.Cartesian3.fromDegrees(lon, lat, 0));
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+        return { x: point.x, y: point.y };
+    } catch {
+        return null;
+    }
+}
+function getEventTransitionMs() {
+    return Math.max(0, numberVar("--warzone-event-cluster-transition-ms", 680));
+}
+function getNowMs() {
+    return typeof performance !== "undefined" && typeof performance.now === "function"
+        ? performance.now()
+        : Date.now();
+}
+function getTransitionProgress(event = {}) {
+    const duration = Math.max(1, Number(event?._transitionMs || 0));
+    const start = Number(event?._transitionStartMs || 0);
+    if (!(duration > 0) || !(start > 0)) return 1;
+    return Math.max(0, Math.min(1, (getNowMs() - start) / duration));
+}
+function getAnimatedEventCoordinates(event = {}) {
+    const targetLat = Number(event?.lat);
+    const targetLon = Number(event?.lon);
+    const fromLat = Number(event?._fromLat);
+    const fromLon = Number(event?._fromLon);
+    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLon)) return null;
+    if (!Number.isFinite(fromLat) || !Number.isFinite(fromLon)) {
+        return { lat: targetLat, lon: targetLon };
+    }
+    const progress = easeOutCubic(getTransitionProgress(event));
+    return {
+        lat: fromLat + (targetLat - fromLat) * progress,
+        lon: fromLon + (targetLon - fromLon) * progress,
+    };
+}
+function createEventPositionProperty(event = {}) {
+    const targetLat = Number(event?.lat);
+    const targetLon = Number(event?.lon);
+    const fromLat = Number(event?._fromLat);
+    const fromLon = Number(event?._fromLon);
+    if (
+        !Number.isFinite(fromLat) ||
+        !Number.isFinite(fromLon) ||
+        !Number.isFinite(targetLat) ||
+        !Number.isFinite(targetLon) ||
+        getEventTransitionMs() <= 0
+    ) {
+        return Cesium.Cartesian3.fromDegrees(targetLon, targetLat);
+    }
+    return new Cesium.CallbackProperty(() => {
+        const coords = getAnimatedEventCoordinates(event);
+        return Cesium.Cartesian3.fromDegrees(coords.lon, coords.lat);
+    }, false);
+}
+function getAnimatedEventCount(event = {}) {
+    const target = Math.max(1, Math.round(Number(event?.cluster_count || event?._clusterCount || 1)));
+    const from = Math.max(1, Math.round(Number(event?._fromCount || target)));
+    if (from === target) return target;
+    const progress = easeOutCubic(getTransitionProgress(event));
+    return Math.max(1, Math.round(from + (target - from) * progress));
+}
+function createEventMarkerImageProperty(event = {}, colorCss = "#f51e58") {
+    const from = Math.round(Number(event?._fromCount || 0));
+    const target = Math.round(Number(event?.cluster_count || event?._clusterCount || 1));
+    if (!(from > 0) || from === target || getEventTransitionMs() <= 0) {
+        return createClusterMarkerCanvas(colorCss, Math.max(1, target));
+    }
+    return new Cesium.CallbackProperty(() => (
+        createClusterMarkerCanvas(colorCss, getAnimatedEventCount(event))
+    ), false);
+}
+function mergeEventMarkerGroup(group, index = 0) {
+    const entries = Array.isArray(group?.entries) ? group.entries : [];
+    if (!entries.length) return null;
+    const allItems = entries.flatMap((entry) => getEventClusterItems(entry.event));
+    const clusterCount = entries.reduce((sum, entry) => sum + getEventClusterCount(entry.event), 0);
+    const weightSum = entries.reduce((sum, entry) => sum + Math.max(1, entry.count), 0) || 1;
+    const lat = entries.reduce((sum, entry) => sum + Number(entry.event.lat) * Math.max(1, entry.count), 0) / weightSum;
+    const lon = entries.reduce((sum, entry) => sum + Number(entry.event.lon) * Math.max(1, entry.count), 0) / weightSum;
+    const latest = allItems
+        .slice()
+        .sort((a, b) => {
+            const severityDelta = getClusterSeverityRank(b?.severity) - getClusterSeverityRank(a?.severity);
+            if (severityDelta) return severityDelta;
+            return new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0);
+        })[0] || entries[0].event;
+    const critical = allItems.some((event) => String(event?.severity || "").toLowerCase() === "critical");
+    const high = allItems.some((event) => String(event?.severity || "").toLowerCase() === "high");
+    const categoryKey = String(latest?.category || "default").trim() || "default";
+    if (entries.length === 1 && clusterCount <= 1) {
+        return {
+            ...entries[0].event,
+            lat,
+            lon,
+        };
+    }
+    return {
+        ...latest,
+        id: `screen-cluster-${categoryKey}-${lat.toFixed(3)}-${lon.toFixed(3)}-${index}`,
+        lat,
+        lon,
+        title: `${clusterCount} related events`,
+        summary: `${clusterCount} related events are grouped in this operational area.`,
+        severity: critical ? "critical" : (high ? "high" : (latest?.severity || "medium")),
+        cluster_count: clusterCount,
+        _clusterCount: clusterCount,
+        _clusterEvents: allItems,
+    };
+}
+function mergeOverlappingEventMarkers(viewer, events = [], maxItems = 520) {
+    if (!viewer || !Array.isArray(events) || events.length < 2) return events;
+    const groups = [];
+    const sorted = events
+        .slice()
+        .sort((a, b) => getEventClusterCount(b) - getEventClusterCount(a));
+    for (const event of sorted) {
+        const point = getScreenPointForEvent(viewer, event);
+        const count = getEventClusterCount(event);
+        const radius = getEventMarkerSizePx(count) * 0.5;
+        if (!point) {
+            groups.push({ x: 0, y: 0, radius, count, projectable: false, entries: [{ event, count }] });
+            continue;
+        }
+        let target = null;
+        for (const group of groups) {
+            if (group.projectable === false) continue;
+            const groupSplitId = String(group.entries?.[0]?.event?._splitGroupId || "");
+            const eventSplitId = String(event?._splitGroupId || "");
+            const distance = Math.hypot(group.x - point.x, group.y - point.y);
+            const sameSplitGroup = groupSplitId && eventSplitId && groupSplitId === eventSplitId;
+            const mergeDistance = (group.radius + radius) * (sameSplitGroup ? 1.18 : 0.88);
+            if (distance <= mergeDistance) {
+                target = group;
+                break;
+            }
+        }
+        if (!target) {
+            groups.push({ x: point.x, y: point.y, radius, count, projectable: true, entries: [{ event, count }] });
+            continue;
+        }
+        const nextWeight = target.count + count;
+        target.x = ((target.x * target.count) + (point.x * count)) / nextWeight;
+        target.y = ((target.y * target.count) + (point.y * count)) / nextWeight;
+        target.radius = Math.max(target.radius, radius, getEventMarkerSizePx(nextWeight) * 0.5);
+        target.count = nextWeight;
+        target.entries.push({ event, count });
+    }
+    return groups
+        .map((group, index) => mergeEventMarkerGroup(group, index))
+        .filter(Boolean)
+        .slice(0, maxItems);
+}
+function addClusterParentRings(events = []) {
+    const groups = new Map();
+    for (const event of Array.isArray(events) ? events : []) {
+        const splitId = String(event?._splitGroupId || "");
+        if (!splitId) continue;
+        if (!groups.has(splitId)) groups.set(splitId, []);
+        groups.get(splitId).push(event);
+    }
+    const parentRings = [];
+    for (const [splitId, items] of groups.entries()) {
+        if (!Array.isArray(items) || items.length < 2) continue;
+        const center = {
+            lat: Number(items[0]._splitParentLat),
+            lon: Number(items[0]._splitParentLon),
+        };
+        const fallbackCenter = averageEventItems(items);
+        const ringCenter = Number.isFinite(center.lat) && Number.isFinite(center.lon) ? center : fallbackCenter;
+        if (!ringCenter) continue;
+        const maxDistance = items.reduce((max, item) => Math.max(max, distanceMetersBetween(ringCenter, item)), 0);
+        const minRadius = Math.max(1000, numberVar("--warzone-event-cluster-parent-ring-min-km", 120) * 1000);
+        const padding = Math.max(0, numberVar("--warzone-event-cluster-parent-ring-padding-km", 45) * 1000);
+        const maxRadius = Math.max(minRadius, numberVar("--warzone-event-cluster-parent-ring-max-km", 420) * 1000);
+        const radius = Math.max(minRadius, Math.min(maxRadius, maxDistance + padding));
+        const totalCount = items.reduce((sum, item) => sum + getEventClusterCount(item), 0);
+        const strongest = items
+            .slice()
+            .sort((a, b) => getClusterSeverityRank(b?.severity) - getClusterSeverityRank(a?.severity))[0] || items[0];
+        parentRings.push({
+            ...strongest,
+            id: `cluster-parent-ring-${splitId}`,
+            lat: ringCenter.lat,
+            lon: ringCenter.lon,
+            cluster_count: totalCount,
+            _clusterCount: totalCount,
+            _isClusterParentRing: true,
+            _parentRingRadius: radius,
+            _splitGroupId: splitId,
+        });
+    }
+    const filteredParentRings = parentRings
+        .slice()
+        .sort((a, b) => Number(b?._parentRingRadius || 0) - Number(a?._parentRingRadius || 0))
+        .filter((ring, index, sorted) => {
+            const radius = Number(ring?._parentRingRadius || 0);
+            if (!(radius > 0)) return false;
+            return !sorted.slice(0, index).some((larger) => {
+                const largerRadius = Number(larger?._parentRingRadius || 0);
+                if (!(largerRadius > 0)) return false;
+                const distance = distanceMetersBetween(larger, ring);
+                if (!Number.isFinite(distance)) return false;
+                const contained = distance + radius <= largerRadius * 1.12;
+                const centerNested = distance <= Math.max(22000, largerRadius * 0.24);
+                const mostlyOverlapping =
+                    distance <= (largerRadius + radius) * 0.42
+                    && radius <= largerRadius * 0.94;
+                return contained || centerNested || mostlyOverlapping;
+            });
+        });
+    return [...events, ...filteredParentRings].slice(0, Math.max(events.length, events.length + filteredParentRings.length));
+}
+function prepareEventsForCurrentZoom(viewer, events = []) {
+    const normalized = normalizeEvents(events);
+    const maxItems = getMaxRenderableEvents(viewer);
+    const clustered = clusterEventsForDisplay(normalized, getEventClusterPrecision(viewer), maxItems, viewer);
+    return mergeOverlappingEventMarkers(viewer, clustered, maxItems);
+}
+function eventDistanceDeg(a = {}, b = {}) {
+    const alat = Number(a.lat);
+    const alon = Number(a.lon);
+    const blat = Number(b.lat);
+    const blon = Number(b.lon);
+    if (![alat, alon, blat, blon].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
+    return Math.hypot(alat - blat, alon - blon);
+}
+function averageEvents(events = []) {
+    const valid = events.filter((event) => !event?._isClusterParentRing && Number.isFinite(Number(event.lat)) && Number.isFinite(Number(event.lon)));
+    if (!valid.length) return null;
+    const total = valid.reduce((sum, event) => sum + getEventClusterCount(event), 0) || valid.length;
+    return {
+        lat: valid.reduce((sum, event) => sum + Number(event.lat) * getEventClusterCount(event), 0) / total,
+        lon: valid.reduce((sum, event) => sum + Number(event.lon) * getEventClusterCount(event), 0) / total,
+        count: total,
+    };
+}
+function findEventTransitionAnchor(previous = [], event = {}) {
+    const byId = previous.find((prev) => String(prev?.id || "") === String(event?.id || ""));
+    if (byId) return { lat: Number(byId.lat), lon: Number(byId.lon), count: getEventClusterCount(byId) };
+    const splitId = String(event?._splitGroupId || "");
+    if (splitId) {
+        const splitGroup = previous.filter((prev) => String(prev?._splitGroupId || "") === splitId);
+        const averaged = averageEvents(splitGroup);
+        if (averaged) return averaged;
+    }
+    const category = String(event?.category || "");
+    let nearest = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const prev of previous) {
+        if (category && String(prev?.category || "") !== category) continue;
+        const distance = eventDistanceDeg(prev, event);
+        if (distance < nearestDistance) {
+            nearest = prev;
+            nearestDistance = distance;
+        }
+    }
+    return nearest && nearestDistance <= numberVar("--warzone-event-cluster-transition-anchor-deg", 2.8)
+        ? { lat: Number(nearest.lat), lon: Number(nearest.lon), count: getEventClusterCount(nearest) }
+        : null;
+}
+function applyEventClusterTransitions(viewer, prepared = []) {
+    const previous = Array.isArray(viewer?.__warzoneLastPreparedEvents)
+        ? viewer.__warzoneLastPreparedEvents
+        : [];
+    const duration = getEventTransitionMs();
+    if (!previous.length || !(duration > 0)) return prepared;
+    const start = getNowMs();
+    return prepared.map((event) => {
+        if (event?._isClusterParentRing) return event;
+        const anchor = findEventTransitionAnchor(previous, event);
+        if (!anchor) return event;
+        const distance = eventDistanceDeg(anchor, event);
+        const fromCount = Math.max(1, Math.round(Number(anchor.count || 1)));
+        const toCount = getEventClusterCount(event);
+        if (distance < 0.01 && fromCount === toCount) return event;
+        return {
+            ...event,
+            _fromLat: anchor.lat,
+            _fromLon: anchor.lon,
+            _fromCount: fromCount,
+            _transitionStartMs: start,
+            _transitionMs: duration,
+        };
+    });
+}
+function refreshEventClustersForZoom(viewer) {
+    const sourceEvents = viewer?.__warzoneLastSourceEvents;
+    if (!viewer || !Array.isArray(sourceEvents) || !sourceEvents.length) {
+        applyEventLod(viewer);
+        return;
+    }
+    const nextBucket = getEventClusterZoomBucket(viewer);
+    if (viewer.__warzoneLastClusterBucket === nextBucket) {
+        applyEventLod(viewer);
+        return;
+    }
+    viewer.__warzoneLastClusterBucket = nextBucket;
+    const prepared = applyEventClusterTransitions(viewer, prepareEventsForCurrentZoom(viewer, sourceEvents));
+    const ringEntityCap = Math.max(40, Math.round(numberVar("--warzone-event-ring-entity-cap", 160)));
+    const shouldDisableRingsForBatch = prepared.length > ringEntityCap;
+    reconcileEventEntities(viewer, prepared, {
+        disableEllipse: shouldDisableRingsForBatch,
+        disableOutline: shouldDisableRingsForBatch,
+        suppressMarkers: viewer.__warzoneSuppressEventMarkers === true,
+    });
+    viewer.__warzoneLastPreparedEvents = prepared.map((event) => ({
+        id: event.id,
+        lat: event.lat,
+        lon: event.lon,
+        category: event.category,
+        cluster_count: event.cluster_count,
+        _clusterCount: event._clusterCount,
+        _splitGroupId: event._splitGroupId || "",
+        _isClusterParentRing: event._isClusterParentRing === true,
+        _parentRingRadius: event._parentRingRadius || 0,
+    }));
 }
 function applyEventLod(viewer) {
     if (!viewer) return;
@@ -221,7 +799,9 @@ function applyEventLod(viewer) {
         const isEventOutline = !!entity.properties?.isEventOutline?.getValue?.();
         const isEventFill = !!entity.properties?.isEventFill?.getValue?.();
         const isEventMarkerFill = !!entity.properties?.isEventMarkerFill?.getValue?.();
+        const isEventCountLabel = !!entity.properties?.isEventCountLabel?.getValue?.();
         const isEventPulse = !!entity.properties?.isEventPulse?.getValue?.();
+        const isEventClusterParentRing = !!entity.properties?.isEventClusterParentRing?.getValue?.();
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
@@ -231,6 +811,35 @@ function applyEventLod(viewer) {
         const colorCss = getCategoryColorCss(category);
         const color = Cesium.Color.fromCssColorString(colorCss);
         const baseRadius = getSeverityRadius({ severity, cluster_count: clusterCount });
+        if (isEventCountLabel) {
+            if (entity.label) {
+                const labelConfig = createClusterCountLabel(clusterCount);
+                const showCountLabel = mode !== "heatmap" && !suppressMarkers && !!labelConfig;
+                entity.label.show = showCountLabel;
+                if (labelConfig) {
+                    entity.label.text = labelConfig.text;
+                    entity.label.font = labelConfig.font;
+                    entity.label.fillColor = labelConfig.fillColor;
+                    entity.label.outlineColor = labelConfig.outlineColor;
+                    entity.label.outlineWidth = labelConfig.outlineWidth;
+                    entity.label.style = labelConfig.style;
+                    entity.label.pixelOffset = labelConfig.pixelOffset;
+                    entity.label.eyeOffset = labelConfig.eyeOffset;
+                    entity.label.disableDepthTestDistance = labelConfig.disableDepthTestDistance;
+                    entity.label.zIndex = labelConfig.zIndex;
+                    entity.label.showBackground = false;
+                }
+            }
+            continue;
+        }
+        if (isEventClusterParentRing && entity.ellipse) {
+            entity.ellipse.show = allowRings && showRingsByZoom;
+            entity.ellipse.material = Cesium.Color.TRANSPARENT;
+            entity.ellipse.outline = true;
+            entity.ellipse.outlineColor = Cesium.Color.fromCssColorString(getEventHotspotColorCss(category)).withAlpha(0.96);
+            entity.ellipse.outlineWidth = Math.max(1, numberVar("--warzone-event-hotspot-line-width", 2.6));
+            continue;
+        }
         const fillAlpha = isCluster
             ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
             : numberVar("--warzone-event-ring-fill-alpha", 0.14);
@@ -239,35 +848,23 @@ function applyEventLod(viewer) {
                 const showMarkerFill = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
                 if (entity.billboard) {
                     entity.billboard.show = showMarkerFill;
+                    entity.billboard.width = getEventMarkerSizePx(clusterCount);
+                    entity.billboard.height = getEventMarkerSizePx(clusterCount) * getEventMarkerPerspectiveSquash(viewer);
+                    entity.billboard.scaleByDistance = getEventMarkerScaleByDistance();
+                    entity.billboard.color = Cesium.Color.WHITE.withAlpha(1);
                 }
                 if (entity.ellipse) {
-                    entity.ellipse.show = showMarkerFill;
-                    if (showMarkerFill) {
-                        applyEventMarkerEllipsePulse(
-                            entity,
-                            getEventMarkerSizePx(clusterCount),
-                            color,
-                            Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82))),
-                            {
-                                id: entity.id,
-                                event_id: entity.properties?.event_id?.getValue?.(),
-                                category,
-                                severity,
-                                cluster_count: clusterCount,
-                                lat: entity.properties?.lat?.getValue?.(),
-                                lon: entity.properties?.lon?.getValue?.(),
-                            }
-                        );
-                    } else {
-                        clearEventEllipsePulse(entity);
-                    }
+                    entity.ellipse.show = false;
+                    clearEventEllipsePulse(entity);
                 }
                 continue;
             }
             if (entity.billboard) {
-                const showRing = mode !== "heatmap" && allowRings && showRingsByZoom;
-                entity.billboard.show = showRing;
-                if (!showRing) clearEventEllipsePulse(entity);
+                const showBillboard = isEventPulse
+                    ? mode !== "heatmap" && allowMarkers && !suppressMarkers && shouldShowEventMarkerPulseAtCurrentZoom(viewer)
+                    : mode !== "heatmap" && allowRings && showRingsByZoom;
+                entity.billboard.show = showBillboard;
+                if (!showBillboard) clearEventEllipsePulse(entity);
             }
             if (entity.ellipse) {
                 const showPulse = mode !== "heatmap" && allowRings && showRingsByZoom;
@@ -294,7 +891,7 @@ function applyEventLod(viewer) {
             entity.billboard.show = false;
         }
         if (entity.label) {
-            entity.label.show = mode !== "heatmap" && !suppressMarkers && isCluster;
+            entity.label.show = false;
         }
         if (mode === "heatmap" && allowRings && showRingsByZoom) {
             ensureEventEllipse(entity, baseRadius, color, fillAlpha);
@@ -331,7 +928,7 @@ function attachEventLodController(viewer) {
     let pending = false;
     const run = () => {
         pending = false;
-        applyEventLod(viewer);
+        refreshEventClustersForZoom(viewer);
     };
     const queue = () => {
         if (pending) return;
@@ -408,7 +1005,7 @@ function unregisterEventPulseEntity(entity) {
 }
 function removeExistingEventEntity(viewer, entityId) {
     if (!viewer || !entityId) return;
-    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-outline`, `${String(entityId)}-satellite`, `${String(entityId)}-satellite-imagery`];
+    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-count`, `${String(entityId)}-outline`, `${String(entityId)}-satellite`, `${String(entityId)}-satellite-imagery`];
     for (const id of ids) {
         try {
             const existing = viewer.entities.getById(id);
@@ -440,13 +1037,16 @@ function buildEventRenderSignature(event = {}) {
     const lat = Number(event.lat);
     const lon = Number(event.lon);
     const clusterCount = Number(event.cluster_count || event._clusterCount || 1);
+    const isParentRing = event?._isClusterParentRing === true ? "1" : "0";
+    const parentRingRadius = Number(event?._parentRingRadius || event?.parent_ring_radius || 0);
     const satelliteContext = event?.satellite_context || event?.satelliteContext || null;
     const satelliteStatus = String(satelliteContext?.status || "");
     const satelliteImageUrl = String(satelliteContext?.imageUrl || satelliteContext?.image_url || "");
     const latKey = Number.isFinite(lat) ? lat.toFixed(4) : "x";
     const lonKey = Number.isFinite(lon) ? lon.toFixed(4) : "x";
     const clusterKey = Number.isFinite(clusterCount) ? String(clusterCount) : "1";
-    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${latKey}|${lonKey}|${satelliteStatus}|${satelliteImageUrl}`;
+    const parentRingKey = Number.isFinite(parentRingRadius) ? parentRingRadius.toFixed(0) : "0";
+    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${latKey}|${lonKey}|${isParentRing}|${parentRingKey}|${satelliteStatus}|${satelliteImageUrl}`;
 }
 function reconcileEventEntities(viewer, events = [], options = {}) {
     if (!viewer) return;
@@ -548,7 +1148,14 @@ function setTrackedEventLayerVisible(viewer, layerId = "", visible = true) {
     const show = visible !== false;
     for (const id of __eventEntityIds) {
         const entity = viewer.entities?.getById?.(id);
-        const entityLayerId = String(getEntityPropertyValue(entity, "layer_id", "") || "").trim();
+        let entityLayerId = String(getEntityPropertyValue(entity, "layer_id", "") || "").trim();
+        if (!entityLayerId) {
+            const parentEventId = String(getEntityPropertyValue(entity, "event_id", "") || "").trim();
+            if (parentEventId) {
+                const parentEntity = viewer.entities?.getById?.(parentEventId);
+                entityLayerId = String(getEntityPropertyValue(parentEntity, "layer_id", "") || "").trim();
+            }
+        }
         if (entityLayerId !== targetLayerId) continue;
         entity.show = show;
     }
@@ -575,6 +1182,11 @@ function cssVar(name, fallback) {
 function numberVar(name, fallback) {
     const raw = cssVar(name, String(fallback));
     const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+function cssPixelNumberVar(name, fallback) {
+    const raw = cssVar(name, String(fallback));
+    const parsed = Number(String(raw).replace(/px$/i, "").trim());
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 function boolVar(name, fallback = false) {
@@ -667,6 +1279,13 @@ function getEventMarkerSizePx(count = 1) {
     }
     return baseSize;
 }
+function getEventMarkerScaleByDistance() {
+    const nearDistance = Math.max(1, numberVar("--warzone-event-marker-scale-near-distance", 600000));
+    const farDistance = Math.max(nearDistance + 1, numberVar("--warzone-event-marker-scale-far-distance", 12000000));
+    const nearScale = Math.max(0.05, numberVar("--warzone-event-marker-scale-near", 1.45));
+    const farScale = Math.max(0.05, numberVar("--warzone-event-marker-scale-far", 0.52));
+    return new Cesium.NearFarScalar(nearDistance, nearScale, farDistance, farScale);
+}
 function getEventMarkerPerspectiveSquash(viewer) {
     const pitch = Math.abs(Number(viewer?.camera?.pitch ?? (-Math.PI / 2)));
     const topDownPitch = Math.PI / 2;
@@ -732,7 +1351,12 @@ function hashEventPulseSeed(event = {}) {
     return hash >>> 0;
 }
 function getEventPulseSettings(event = {}) {
-    const enabled = boolVar("--warzone-event-ring-pulse-enabled", true);
+    const globalEnabled = boolVar("--warzone-event-ring-pulse-enabled", true);
+    const count = Number(event?.cluster_count || event?._clusterCount || 1);
+    const severityRank = getClusterSeverityRank(event?.severity);
+    const occurredMs = new Date(event?.occurred_at || 0).getTime();
+    const isRecent = Number.isFinite(occurredMs) && (Date.now() - occurredMs) <= 90 * 60 * 1000;
+    const enabled = globalEnabled && (severityRank >= 3 || count >= 4 || isRecent);
     const hash = hashEventPulseSeed(event);
     const group = hash % 3;
     const durationVars = [
@@ -760,14 +1384,14 @@ function getEventPulseValue(settings) {
 function getEventPulsedRadius(radius, settings) {
     if (!settings?.enabled) return radius;
     const progress = getEventPulseValue(settings);
-    const wave = 0.5 - (0.5 * Math.cos(progress * Math.PI * 2));
-    return radius * (1 + wave * settings.radiusScale);
+    const release = 1 - Math.pow(1 - progress, 2.2);
+    return radius * (1 + release * settings.radiusScale);
 }
 function getEventPulsedFillAlpha(fillAlpha, settings) {
     if (!settings?.enabled) return fillAlpha;
     const progress = getEventPulseValue(settings);
-    const alphaWave = Math.pow(0.5 - (0.5 * Math.cos(progress * Math.PI * 2)), 0.92);
-    const alpha = fillAlpha * (0.24 + alphaWave * Math.max(0.10, settings.alphaScale));
+    const fade = Math.pow(1 - progress, 1.35);
+    const alpha = fillAlpha * Math.max(0, fade) * Math.max(0.10, settings.alphaScale);
     return Math.max(0.01, Math.min(alpha, 0.42));
 }
 function clearEventEllipsePulse(entity) {
@@ -808,15 +1432,15 @@ function applyEventPulseFrame(entity) {
             }
         } else {
             const progress = getEventPulseValue(settings);
-            const smoothWave = 0.5 - (0.5 * Math.cos(progress * Math.PI * 2));
-            const alphaWave = Math.pow(smoothWave, 0.92);
-            const pulseDiameterPx = markerBaseSizePx * (0.74 + smoothWave * 0.26);
+            const release = 1 - Math.pow(1 - progress, 2.2);
+            const fade = Math.pow(1 - progress, 1.35);
+            const pulseDiameterPx = markerBaseSizePx * (0.78 + release * 0.32);
             const radiusMeters = Math.max(1, metersPerPixel * pulseDiameterPx * 0.5);
             ellipse.semiMinorAxis = radiusMeters;
             ellipse.semiMajorAxis = radiusMeters;
             if (entity.__wzPulseColor && Number.isFinite(entity.__wzPulseFillAlpha)) {
                 const maxAlpha = Math.max(0, Math.min(0.70, entity.__wzPulseFillAlpha));
-                const alpha = Math.max(0, Math.min(maxAlpha, maxAlpha * alphaWave));
+                const alpha = Math.max(0, Math.min(maxAlpha, maxAlpha * fade));
                 ellipse.material = entity.__wzPulseColor.withAlpha(alpha);
             }
         }
@@ -844,15 +1468,58 @@ function applyEventPulseFrame(entity) {
             return;
         }
         const progress = getEventPulseValue(settings);
-        const smoothWave = 0.5 - (0.5 * Math.cos(progress * Math.PI * 2));
-        const alphaWave = Math.pow(smoothWave, 0.92);
-        const pulseSize = baseSizePx * (0.82 + smoothWave * 0.18);
+        const release = 1 - Math.pow(1 - progress, 2.2);
+        const fade = Math.pow(1 - progress, 1.45);
+        const pulseSize = baseSizePx * (0.92 + release * settings.radiusScale);
         billboard.width = pulseSize;
         billboard.height = pulseSize * squash;
         billboard.scale = 1;
-        const alpha = Math.max(0, Math.min(0.70, alphaWave * 0.70));
+        const maxAlpha = Math.max(0.1, Math.min(1, numberVar("--warzone-event-pulse-alpha-max", 0.96)));
+        const alpha = Math.max(0, Math.min(maxAlpha, fade * maxAlpha));
         billboard.color = Cesium.Color.WHITE.withAlpha(alpha);
     }
+    if (entity?.__wzTransitionOnly && getTransitionProgress(entity.__wzTransitionEvent || {}) >= 1) {
+        unregisterEventPulseEntity(entity);
+        delete entity.__wzTransitionOnly;
+        delete entity.__wzTransitionEvent;
+    }
+}
+function getCategoryCssKey(category) {
+    switch (String(category || "").toLowerCase()) {
+        case "strike": return "strike";
+        case "recon":
+        case "recon_intel": return "recon";
+        case "military":
+        case "ground_activity": return "military";
+        case "air_activity": return "air-activity";
+        case "naval_activity": return "naval-activity";
+        case "alert": return "alert";
+        case "airspace": return "airspace";
+        case "cyber": return "cyber";
+        case "thermal": return "thermal";
+        case "signal":
+        case "seismic": return "signal";
+        default: return "default";
+    }
+}
+function getEventMarkerColorCss(category) {
+    const unified = cssVar("--warzone-event-unified-color", "").trim();
+    if (unified) return unified;
+    const key = getCategoryCssKey(category);
+    return cssVar(`--warzone-event-marker-color-${key}`, getCategoryColorCss(category));
+}
+function getEventPulseColorCss(category) {
+    const specific = cssVar(`--warzone-event-pulse-color-${getCategoryCssKey(category)}`, "");
+    const global = cssVar("--warzone-event-pulse-line-color", "currentColor");
+    if (specific && specific !== "currentColor") return specific;
+    return global && global !== "currentColor" ? global : getEventMarkerColorCss(category);
+}
+function getEventHotspotColorCss(category) {
+    const unified = cssVar("--warzone-event-unified-color", "").trim();
+    if (unified) return unified;
+    const specific = cssVar(`--warzone-event-hotspot-color-${getCategoryCssKey(category)}`, "");
+    const global = cssVar("--warzone-event-hotspot-line-color", "");
+    return specific || global || getCategoryColorCss(category);
 }
 function updateEventPulseFrame(viewer) {
     if (!viewer) return;
@@ -977,6 +1644,11 @@ function normalizeEvents(events) {
                 source_name: item.source_name || "",
                 satellite_context: item.satellite_context || item.satelliteContext || null,
                 satellite_available: item.satellite_available === true || item.satelliteAvailable === true,
+                cluster_count: Number(item.cluster_count || item._clusterCount || 0) || undefined,
+                _clusterCount: Number(item.cluster_count || item._clusterCount || 0) || undefined,
+                _clusterEvents: Array.isArray(item._clusterEvents)
+                    ? item._clusterEvents
+                    : (Array.isArray(item.cluster_events) ? item.cluster_events : []),
                 media: item.media || null,
                 primary_image: item.primary_image || item.primaryImage || null,
                 additional_images: Array.isArray(item.additional_images)
@@ -1035,30 +1707,49 @@ function colorCssWithAlpha(colorCss, alpha = 1) {
     }
 }
 function createMarkerCanvas(colorCss) {
-    if (markerCache.has(colorCss)) return markerCache.get(colorCss);
-    const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext("2d");
-    const cx = 64;
-    const cy = 64;
-    ctx.clearRect(0, 0, 128, 128);
-    ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
-    ctx.beginPath();
-    ctx.arc(cx, cy, 31, 0, Math.PI * 2);
-    ctx.fill();
-    const dataUrl = canvas.toDataURL("image/png");
-    setLimitedCache(markerCache, colorCss, dataUrl, MARKER_CACHE_MAX_ITEMS);
-    return dataUrl;
-}
-// Cluster marker — flat color fill only. Count is rendered as a separate static label.
-function createClusterMarkerCanvas(colorCss, count) {
-    const key = `cluster:${colorCss}:${Math.min(count, 999)}`;
+    const sz = Math.max(128, Math.min(512, Math.round(numberVar("--warzone-event-marker-single-canvas-size", 256))));
+    const borderColorCss = cssVar("--warzone-event-marker-border-color", colorCss);
+    const borderAlpha = Math.max(0, Math.min(1, numberVar("--warzone-event-marker-border-alpha", 0.38)));
+    const borderWidthPx = Math.max(0, numberVar("--warzone-event-marker-border-width", 9));
+    const key = `marker:${colorCss}:${borderColorCss}:${borderAlpha}:${borderWidthPx}:${sz}`;
     if (markerCache.has(key)) return markerCache.get(key);
-    const sz = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = sz;
+    canvas.height = sz;
+    const ctx = canvas.getContext("2d");
     const cx = sz / 2;
     const cy = sz / 2;
-    const discR = Math.min(46 + Math.log2(Math.max(count, 2)) * 7.2, 92);
+    ctx.clearRect(0, 0, sz, sz);
+    ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
+    ctx.beginPath();
+    ctx.arc(cx, cy, sz * 0.242, 0, Math.PI * 2);
+    ctx.fill();
+    if (borderWidthPx > 0 && borderAlpha > 0) {
+        const screenMarkerSize = Math.max(1, getEventMarkerSizePx(1));
+        const lineWidth = Math.max(1, borderWidthPx * (sz / screenMarkerSize));
+        ctx.strokeStyle = colorCssWithAlpha(borderColorCss === "currentColor" ? colorCss : borderColorCss, borderAlpha);
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.min((sz / 2) - lineWidth / 2, (sz * 0.242) + lineWidth / 2), 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    const dataUrl = canvas.toDataURL("image/png");
+    setLimitedCache(markerCache, key, dataUrl, MARKER_CACHE_MAX_ITEMS);
+    return dataUrl;
+}
+// Cluster marker with embedded count text; avoids duplicate Cesium labels at close zoom.
+function createClusterMarkerCanvas(colorCss, count) {
+    const discScale = Math.max(0.28, Math.min(0.82, numberVar("--warzone-event-marker-disc-scale", 0.58)));
+    const borderColorCss = cssVar("--warzone-event-marker-border-color", colorCss);
+    const borderAlpha = Math.max(0, Math.min(1, numberVar("--warzone-event-marker-border-alpha", 0.38)));
+    const borderWidthPx = Math.max(0, numberVar("--warzone-event-marker-border-width", 9));
+    const canvasSize = Math.max(512, Math.min(2048, Math.round(numberVar("--warzone-event-marker-canvas-size", 1024))));
+    const key = `cluster:${colorCss}:${Math.min(count, 999)}:${discScale}:${borderColorCss}:${borderAlpha}:${borderWidthPx}:${canvasSize}`;
+    if (markerCache.has(key)) return markerCache.get(key);
+    const sz = canvasSize;
+    const cx = sz / 2;
+    const cy = sz / 2;
+    const discR = Math.min((158 + Math.log2(Math.max(count, 2)) * 14) * (sz / 512), sz * discScale);
     const canvas = document.createElement("canvas");
     canvas.width = sz;
     canvas.height = sz;
@@ -1068,8 +1759,44 @@ function createClusterMarkerCanvas(colorCss, count) {
     ctx.beginPath();
     ctx.arc(cx, cy, discR, 0, Math.PI * 2);
     ctx.fill();
+    if (borderWidthPx > 0 && borderAlpha > 0) {
+        const screenMarkerSize = Math.max(1, getEventMarkerSizePx(count));
+        const lineWidth = Math.max(1, borderWidthPx * (sz / screenMarkerSize));
+        const ringR = Math.min((sz / 2) - (lineWidth / 2) - 4, discR + (lineWidth / 2));
+        if (ringR > 0) {
+            ctx.strokeStyle = colorCssWithAlpha(borderColorCss === "currentColor" ? colorCss : borderColorCss, borderAlpha);
+            ctx.lineWidth = lineWidth;
+            ctx.beginPath();
+            ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    }
     const dataUrl = canvas.toDataURL("image/png");
     setLimitedCache(markerCache, key, dataUrl, MARKER_CACHE_MAX_ITEMS);
+    return dataUrl;
+}
+function createEventPulseRingCanvas(colorCss = "#f51e58", size = 512) {
+    const lineWidth = Math.max(1, Math.min(32, numberVar("--warzone-event-pulse-line-width", 8)));
+    const innerScale = Math.max(0.20, Math.min(0.48, numberVar("--warzone-event-pulse-ring-inner-scale", 0.40)));
+    const key = `event-pulse-ring|${colorCss}|${size}|${lineWidth}|${innerScale}`;
+    if (ringCanvasCache.has(key)) return ringCanvasCache.get(key);
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const cx = size / 2;
+    const cy = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    ctx.strokeStyle = colorCssWithAlpha(colorCss, 1);
+    ctx.lineCap = "round";
+    ctx.lineWidth = lineWidth;
+    ctx.shadowColor = colorCssWithAlpha(colorCss, 0.55);
+    ctx.shadowBlur = lineWidth * 1.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * innerScale, 0, Math.PI * 2);
+    ctx.stroke();
+    const dataUrl = canvas.toDataURL("image/png");
+    setLimitedCache(ringCanvasCache, key, dataUrl, RING_CACHE_MAX_ITEMS);
     return dataUrl;
 }
 function createSatelliteBadgeCanvas() {
@@ -1151,25 +1878,50 @@ function createSatelliteImageryMarkerCanvas() {
     return dataUrl;
 }
 function createClusterCountLabel(count = 1) {
-    if (!(count > 1)) return undefined;
-    const text = count > 999 ? "999+" : String(count);
+    if (!(count >= 1)) return undefined;
+    const text = count > 999 ? "999+" : String(Math.max(1, count));
     const fontSize = count > 99
-        ? cssVar("--warzone-event-count-font-size-100plus", "16px")
+        ? cssVar("--warzone-event-count-font-size-100plus", "20px")
         : count > 9
-            ? cssVar("--warzone-event-count-font-size-10plus", "18px")
-            : cssVar("--warzone-event-count-font-size", "19px");
+            ? cssVar("--warzone-event-count-font-size-10plus", "24px")
+            : cssVar("--warzone-event-count-font-size", "26px");
     return {
         text,
-        font: `700 ${fontSize} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
-        fillColor: colorFromCssVar("--color-text-heading", "#eef0f5", 0.98),
+        font: `800 ${fontSize} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
+        fillColor: colorFromCssVar("--warzone-event-marker-text-color", "#ffffff", 0.98),
         outlineColor: Cesium.Color.TRANSPARENT,
         outlineWidth: 0,
         style: Cesium.LabelStyle.FILL,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         pixelOffset: new Cesium.Cartesian2(0, 0),
+        eyeOffset: new Cesium.Cartesian3(0, 0, -5000),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        zIndex: 1000,
         showBackground: false,
+    };
+}
+function createEventCountEntity(event) {
+    const count = Number(event?.cluster_count || 1);
+    const label = createClusterCountLabel(count);
+    if (!label) return null;
+    return {
+        id: `${event.id}-count`,
+        position: createEventPositionProperty(event),
+        label: {
+            ...label,
+            show: true,
+        },
+        properties: {
+            event_id: event.id,
+            isEventCountLabel: true,
+            layer_id: event._layerId || event.layer_id || "",
+            category: event.category,
+            severity: event.severity,
+            cluster_count: count,
+            lat: event.lat,
+            lon: event.lon,
+        },
     };
 }
 function createRingCanvas(strokeCss = "#f51e58", size = 512, lineWidth = 20) {
@@ -1263,7 +2015,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
     const satelliteVisible = options?.satelliteImageryVisible !== false;
     return {
         id: `${event.id}-satellite-imagery`,
-        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+        position: createEventPositionProperty(event),
         billboard: {
             image: createSatelliteImageryMarkerCanvas(),
             width: markerSizePx,
@@ -1278,6 +2030,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
         properties: {
             event_id: event.id,
             isSatelliteImageryMarker: true,
+            layer_id: event._layerId || event.layer_id || "",
             cluster_count: count,
             lat: event.lat,
             lon: event.lon,
@@ -1296,7 +2049,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
     };
 }
 function createEventMarkerFillEntity(event, options = {}) {
-    const colorCss = getCategoryColorCss(event.category);
+    const colorCss = getEventMarkerColorCss(event.category);
     const color = Cesium.Color.fromCssColorString(colorCss);
     const count = Number(event?.cluster_count || 1);
     const isCluster = count > 1;
@@ -1308,14 +2061,13 @@ function createEventMarkerFillEntity(event, options = {}) {
     const markerSquash = getEventMarkerPerspectiveSquash(window.__warzoneViewer);
     return {
         id: `${event.id}-fill`,
-        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
+        position: createEventPositionProperty(event),
         billboard: {
-            image: isCluster
-                ? createClusterMarkerCanvas(colorCss, count)
-                : createEventCircleCanvas(colorCss, 512),
+            image: createEventMarkerImageProperty(event, colorCss),
             width: markerSizePx,
             height: markerSizePx * markerSquash,
             color: Cesium.Color.WHITE,
+            scaleByDistance: getEventMarkerScaleByDistance(),
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -1336,6 +2088,42 @@ function createEventMarkerFillEntity(event, options = {}) {
             event_id: event.id,
             isEventFill: true,
             isEventMarkerFill: true,
+            layer_id: event._layerId || event.layer_id || "",
+            category: event.category,
+            severity: event.severity,
+            cluster_count: count,
+            lat: event.lat,
+            lon: event.lon,
+        },
+    };
+}
+function createEventMarkerPulseEntity(event, options = {}) {
+    const settings = getEventPulseSettings(event);
+    if (!settings.enabled) return null;
+    const colorCss = getEventPulseColorCss(event.category);
+    const count = Number(event?.cluster_count || 1);
+    const markerSizePx = getEventMarkerSizePx(count);
+    const startScale = Math.max(0.8, Math.min(1.6, numberVar("--warzone-event-pulse-start-scale", 1.08)));
+    const pulseSizePx = Math.max(markerSizePx * startScale, markerSizePx + 6);
+    const suppressMarkers = options?.suppressMarkers === true;
+    return {
+        id: `${event.id}-pulse`,
+        position: createEventPositionProperty(event),
+        billboard: {
+            image: createEventPulseRingCanvas(colorCss, 512),
+            width: pulseSizePx,
+            height: pulseSizePx * getEventMarkerPerspectiveSquash(window.__warzoneViewer),
+            color: Cesium.Color.WHITE.withAlpha(numberVar("--warzone-event-pulse-alpha-max", 0.96)),
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            show: !suppressMarkers && shouldShowEventMarkerPulseAtCurrentZoom(window.__warzoneViewer),
+        },
+        properties: {
+            event_id: event.id,
+            isEventPulse: true,
+            layer_id: event._layerId || event.layer_id || "",
             category: event.category,
             severity: event.severity,
             cluster_count: count,
@@ -1348,11 +2136,14 @@ function createEventMarkerFillEntity(event, options = {}) {
 function createEventEntity(event, options = {}) {
     const count = Number(event?.cluster_count || 1);
     const isCluster = count > 1;
-    const radius = getSeverityRadius(event); // already scaled by cluster_count
+    const isParentRing = event?._isClusterParentRing === true;
+    const radius = isParentRing
+        ? Math.max(1000, Number(event?._parentRingRadius || 0))
+        : getSeverityRadius(event); // already scaled by cluster_count
     const heatRadius = getHeatRadius(event);
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
     const suppressMarkers = options?.suppressMarkers === true;
-    const showEventRings = false;
+    const showEventRings = isParentRing;
     // Clusters always show their marker (count badge) regardless of zoom CSS var
     const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
     const sourceUrl = resolveGlobeEventSourceUrl(event);
@@ -1391,23 +2182,22 @@ function createEventEntity(event, options = {}) {
     return {
         id: event.id,
         name: event.title,
-        position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
-        label: isCluster ? { ...createClusterCountLabel(count), show: showMarker } : undefined,
+        position: createEventPositionProperty(event),
+        label: undefined,
         ellipse: showEventRings ? {
             semiMinorAxis: radius,
             semiMajorAxis: radius,
-            material: Cesium.Color.fromCssColorString(getCategoryColorCss(event.category)).withAlpha(
-                isCluster
-                    ? Math.min(numberVar("--warzone-event-ring-fill-alpha", 0.14) * 1.6, 0.38)
-                    : numberVar("--warzone-event-ring-fill-alpha", 0.14)
-            ),
-            outline: false,
-            outlineWidth: 0,
+            material: Cesium.Color.TRANSPARENT,
+            outline: true,
+            outlineColor: Cesium.Color.fromCssColorString(getEventHotspotColorCss(event.category)).withAlpha(0.96),
+            outlineWidth: Math.max(1, numberVar("--warzone-event-hotspot-line-width", 2.6)),
             height: 0,
-            show: false,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            show: true,
         } : undefined,
         properties: {
             event_id: event.id,
+            isEventClusterParentRing: isParentRing,
             layer_id: event._layerId || event.layer_id || "",
             title: event.title,
             summary: event.summary,
@@ -1427,6 +2217,7 @@ function createEventEntity(event, options = {}) {
             confidence: event.confidence,
             heatRadius,
             radius,
+            parent_ring_radius: radius,
             weapon_type: event.weapon_type,
             source_url: sourceUrl,
             satellite_context: event.satellite_context || null,
@@ -1450,7 +2241,15 @@ function createEventEntity(event, options = {}) {
 function addEventEntity(viewer, event, options = {}) {
     removeExistingEventEntity(viewer, event?.id);
     const entity = viewer.entities.add(createEventEntity(event, options));
+    if (event?._isClusterParentRing === true) {
+        rememberEventEntity(entity);
+        return { entity, fillEntity: null, countEntity: null, satelliteBadgeEntity: null, ringEntity: entity, pulseEntity: null };
+    }
     const fillEntity = viewer.entities.add(createEventMarkerFillEntity(event, options));
+    const countEntityConfig = createEventCountEntity(event);
+    const countEntity = countEntityConfig ? viewer.entities.add(countEntityConfig) : null;
+    const pulseEntityConfig = createEventMarkerPulseEntity(event, options);
+    const pulseEntity = pulseEntityConfig ? viewer.entities.add(pulseEntityConfig) : null;
     const satelliteBadgeEntityConfig = createEventSatelliteBadgeEntity(event, {
         ...options,
         satelliteImageryVisible: viewer.__warzoneSatelliteImageryLayerVisible !== false,
@@ -1458,18 +2257,34 @@ function addEventEntity(viewer, event, options = {}) {
     const satelliteBadgeEntity = satelliteBadgeEntityConfig ? viewer.entities.add(satelliteBadgeEntityConfig) : null;
     const count = Number(event?.cluster_count || 1);
     const markerSizePx = getEventMarkerSizePx(count);
-    applyEventMarkerEllipsePulse(
-        fillEntity,
-        markerSizePx,
-        Cesium.Color.fromCssColorString(getCategoryColorCss(event.category)),
-        Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82))),
-        event
-    );
+    if (fillEntity?.ellipse) fillEntity.ellipse.show = false;
+    if (
+        fillEntity &&
+        (
+            Number.isFinite(Number(event?._fromLat)) ||
+            Number.isFinite(Number(event?._fromLon)) ||
+            Number(event?._fromCount || 0) > 0
+        )
+    ) {
+        fillEntity.__wzTransitionOnly = true;
+        fillEntity.__wzTransitionEvent = event;
+        registerEventPulseEntity(fillEntity);
+    }
+    if (pulseEntity) {
+        applyEventBillboardPulse(
+            pulseEntity,
+            Math.max(markerSizePx * Math.max(0.8, Math.min(1.6, numberVar("--warzone-event-pulse-start-scale", 1.08))), markerSizePx + 6),
+            0.72,
+            event
+        );
+    }
     rememberEventEntity(entity);
     rememberEventEntity(fillEntity);
+    rememberEventEntity(countEntity);
+    rememberEventEntity(pulseEntity);
     rememberEventEntity(satelliteBadgeEntity);
     startEventPulseRenderLoop(viewer);
-    return { entity, fillEntity, satelliteBadgeEntity, ringEntity: null, pulseEntity: null };
+    return { entity, fillEntity, countEntity, satelliteBadgeEntity, ringEntity: null, pulseEntity };
 }
 function getEntityPropertyValue(entity, key, fallback = "") {
     if (!entity?.properties) return fallback;
@@ -1969,13 +2784,15 @@ function updateLabelsLayerVisibility(viewer) {
     if (viewer.__warzoneCtrImagerySuspended === true) {
         if (viewer.__imageryLabels) viewer.__imageryLabels.show = false;
         if (viewer.__countryLabelDataSource) viewer.__countryLabelDataSource.show = false;
+        if (viewer.__placeLabelDataSource) viewer.__placeLabelDataSource.show = false;
         return;
     }
     const contourReady = viewer.__contourLayerVisible === true && viewer.__contourOverlayState?.hasVisibleContours === true;
     const terrainVisible = viewer.__terrainVisible !== false && !contourReady;
     const zoomVisible = shouldShowCityLabelsAtCurrentZoom(viewer);
-    const countryLabelsEnabled = boolVar("--warzone-country-labels-enabled", false);
-    const detailedLabelsEnabled = boolVar("--warzone-places-layer-enabled", false);
+    const mapLabelsEnabled = viewer.__warzoneMapLabelsVisible === true;
+    const countryLabelsEnabled = mapLabelsEnabled || boolVar("--warzone-country-labels-enabled", false);
+    const detailedLabelsEnabled = mapLabelsEnabled || boolVar("--warzone-places-layer-enabled", false);
     viewer.__labelsVisibleByZoom = zoomVisible;
     const hasDetailedPlaceLayer = !!viewer.__imageryLabels;
     if (viewer.__imageryLabels) {
@@ -1987,6 +2804,28 @@ function updateLabelsLayerVisibility(viewer) {
             && terrainVisible
             && (!hasDetailedPlaceLayer || !zoomVisible);
     }
+    if (viewer.__placeLabelDataSource) {
+        viewer.__placeLabelDataSource.show = detailedLabelsEnabled && terrainVisible && zoomVisible;
+    }
+}
+function setMapLabelsLayerVisible(viewer, visible = true) {
+    if (!viewer) return false;
+    const show = visible !== false;
+    viewer.__warzoneMapLabelsVisible = show;
+    if (show && !viewer.__countryLabelDataSource) {
+        addCountryNameLabels(viewer)
+            .then(() => {
+                updateLabelsLayerVisibility(viewer);
+                viewer.scene?.requestRender?.();
+            })
+            .catch(() => { });
+    }
+    if (show && !viewer.__placeLabelDataSource) {
+        addPlaceNameLabels(viewer);
+    }
+    updateLabelsLayerVisibility(viewer);
+    viewer.scene?.requestRender?.();
+    return show;
 }
 function getImageryLayerIndex(collection, layer) {
     if (!collection || !layer) return -1;
@@ -2334,7 +3173,7 @@ async function addCountryNameLabels(viewer) {
             entities.add({
                 position: Cesium.Cartesian3.fromDegrees(center.lon, center.lat, 1000),
                 label: {
-                    text: name,
+                    text: name.toUpperCase(),
                     font: labelFont,
                     scale: labelScale,
                     scaleByDistance: new Cesium.NearFarScalar(
@@ -2355,6 +3194,65 @@ async function addCountryNameLabels(viewer) {
     } catch (error) {
         void error;
     }
+    updateLabelsLayerVisibility(viewer);
+    viewer.scene.requestRender?.();
+}
+function addPlaceNameLabels(viewer) {
+    if (!viewer) return;
+    if (!viewer.__placeLabelDataSource) {
+        viewer.__placeLabelDataSource = new Cesium.CustomDataSource("warzone-place-labels");
+        viewer.dataSources.add(viewer.__placeLabelDataSource);
+    }
+    const ds = viewer.__placeLabelDataSource;
+    const entities = ds.entities;
+    entities.removeAll();
+    const cityFont = stringVar("--warzone-place-label-font", "800 13px Oxanium, sans-serif");
+    const provinceFont = stringVar("--warzone-province-label-font", cityFont);
+    const seaFont = stringVar("--warzone-sea-label-font", provinceFont);
+    const cityScale = numberVar("--warzone-place-label-scale", 0.9);
+    const provinceScale = numberVar("--warzone-province-label-scale", 0.82);
+    const seaScale = numberVar("--warzone-sea-label-scale", 0.78);
+    const nearDistance = numberVar("--warzone-place-label-near-distance", 600000);
+    const farDistance = numberVar("--warzone-place-label-far-distance", 9000000);
+    const labelColor = colorFromCssVar("--warzone-place-label-color", "#eef0f5", 0.9);
+    const provinceColor = colorFromCssVar("--warzone-province-label-color", "#9fd7ff", 0.78);
+    const seaColor = colorFromCssVar("--warzone-sea-label-color", "#18e2db", 0.72);
+    const outlineColor = colorFromCssVar("--warzone-place-label-outline", "#061018", 0.86);
+    const outlineWidth = numberVar("--warzone-place-label-outline-width", 3);
+    const getTypeStyle = (type = "city") => {
+        if (type === "sea") {
+            return { font: seaFont, scale: seaScale, color: seaColor, height: 1200 };
+        }
+        if (type === "province") {
+            return { font: provinceFont, scale: provinceScale, color: provinceColor, height: 1100 };
+        }
+        return { font: cityFont, scale: cityScale, color: labelColor, height: 1000 };
+    };
+    PLACE_LABELS.forEach((place) => {
+        const style = getTypeStyle(place.type);
+        entities.add({
+            position: Cesium.Cartesian3.fromDegrees(place.lon, place.lat, style.height),
+            label: {
+                text: String(place.name || "").toUpperCase(),
+                font: style.font,
+                scale: style.scale,
+                scaleByDistance: new Cesium.NearFarScalar(
+                    nearDistance,
+                    Math.max(0.1, style.scale),
+                    farDistance,
+                    Math.max(0.05, style.scale * 0.42)
+                ),
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, farDistance),
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                fillColor: style.color,
+                outlineColor,
+                outlineWidth,
+                horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        });
+    });
     updateLabelsLayerVisibility(viewer);
     viewer.scene.requestRender?.();
 }
@@ -5597,12 +6495,15 @@ export async function initWarzoneGlobe() {
             console.warn("ArcGIS imagery provider failed; continuing without ion imagery fallback:", error);
             return false;
         });
-    if (boolVar("--warzone-country-labels-enabled", false)) {
+    viewer.__warzoneMapLabelsVisible = boolVar("--warzone-country-labels-enabled", false)
+        || boolVar("--warzone-places-layer-enabled", false);
+    if (viewer.__warzoneMapLabelsVisible) {
         addCountryNameLabels(viewer)
             .then(() => {
                 viewer.scene.requestRender();
             })
             .catch(() => { });
+        addPlaceNameLabels(viewer);
     }
     viewer.__warzone = {
         addEvent(event) {
@@ -5612,11 +6513,9 @@ export async function initWarzoneGlobe() {
             return entity;
         },
         addEvents(events = []) {
-            const normalized = normalizeEvents(events);
-            const maxItems = getMaxRenderableEvents(viewer);
-            const prepared = shouldClusterEvents(viewer)
-                ? clusterEventsForDisplay(normalized, numberVar("--warzone-event-cluster-precision", 0.55), maxItems)
-                : normalized.slice(0, maxItems);
+            viewer.__warzoneLastSourceEvents = Array.isArray(events) ? events.slice() : [];
+            viewer.__warzoneLastClusterBucket = getEventClusterZoomBucket(viewer);
+            const prepared = applyEventClusterTransitions(viewer, prepareEventsForCurrentZoom(viewer, events));
             const ringEntityCap = Math.max(40, Math.round(numberVar("--warzone-event-ring-entity-cap", 160)));
             const shouldDisableRingsForBatch = prepared.length > ringEntityCap;
             reconcileEventEntities(viewer, prepared, {
@@ -5624,6 +6523,27 @@ export async function initWarzoneGlobe() {
                 disableOutline: shouldDisableRingsForBatch,
                 suppressMarkers: viewer.__warzoneSuppressEventMarkers === true,
             });
+            viewer.__warzoneLastPreparedEvents = prepared.map((event) => ({
+                id: event.id,
+                lat: event.lat,
+                lon: event.lon,
+                category: event.category,
+                cluster_count: event.cluster_count,
+                _clusterCount: event._clusterCount,
+                _splitGroupId: event._splitGroupId || "",
+                _isClusterParentRing: event._isClusterParentRing === true,
+                _parentRingRadius: event._parentRingRadius || 0,
+            }));
+            viewer.scene?.requestRender?.();
+        },
+        refreshEventMarkerVisuals() {
+            clearEventMarkerVisualCaches();
+            if (Array.isArray(viewer.__warzoneLastSourceEvents) && viewer.__warzoneLastSourceEvents.length) {
+                this.addEvents(viewer.__warzoneLastSourceEvents);
+            } else {
+                applyEventLod(viewer);
+                viewer.scene?.requestRender?.();
+            }
         },
         setEventMarkersSuppressed(suppressed) {
             const next = !!suppressed;
@@ -5643,6 +6563,12 @@ export async function initWarzoneGlobe() {
         },
         isSatelliteImageryLayerVisible() {
             return viewer.__warzoneSatelliteImageryLayerVisible !== false;
+        },
+        setMapLabelsLayerVisible(visible) {
+            return setMapLabelsLayerVisible(viewer, visible);
+        },
+        isMapLabelsLayerVisible() {
+            return viewer.__warzoneMapLabelsVisible === true;
         },
         removeEvent(eventId) {
             removeExistingEventEntity(viewer, eventId);
@@ -5679,6 +6605,9 @@ export async function initWarzoneGlobe() {
         getSceneMode() {
             return getSceneMode(viewer);
         },
+        getEventClusterBucket() {
+            return getEventClusterZoomBucket(viewer);
+        },
         refreshMapTuning() {
             if (viewer.__imageryBase) {
                 tuneImageryLayer(viewer.__imageryBase, "--warzone-map");
@@ -5700,6 +6629,7 @@ export async function initWarzoneGlobe() {
             viewer.__terrainVisible = show;
             applyRenderedTerrainVisibility(viewer);
             applyContourLayerState(viewer);
+            updateLabelsLayerVisibility(viewer);
             viewer.scene.requestRender();
         },
         isTerrainVisible() {
@@ -6139,6 +7069,14 @@ export async function initWarzoneGlobe() {
                 }, 520);
             });
         }
+    }
+    if (document?.fonts?.ready && !viewer.__warzoneEventMarkerFontsRefreshBound) {
+        viewer.__warzoneEventMarkerFontsRefreshBound = true;
+        document.fonts.ready
+            .then(() => {
+                viewer.__warzone?.refreshEventMarkerVisuals?.();
+            })
+            .catch(() => { });
     }
     bindContourViewportRefresh(viewer);
     return viewer;

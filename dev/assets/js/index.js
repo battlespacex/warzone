@@ -331,9 +331,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     initWarzoneCaptureShot(viewer);
                 }
                 const shouldLoadFullDevPanelAfterEntry = (
-                    isLocalDevHost &&
                     isStratOpsFeatureEnabled("system.devPanel") &&
-                    window.location.search.includes("devpanel=1")
+                    (
+                        isLocalDevHost ||
+                        window.location.hostname.includes("staging") ||
+                        window.location.search.includes("devpanel=1") ||
+                        localStorage.getItem("wz_dev") === "1"
+                    )
                 );
                 if (shouldLoadFullDevPanelAfterEntry) {
                     const devPanelModule = await loadDevPanelModule();

@@ -817,19 +817,17 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 .audio-toggle {
     position: fixed;
     right: 2.5rem;
-    bottom: 8rem; /* adjust if needed above dock */
+    bottom: 5rem; 
     z-index: 10050;
-    width: 3.4rem;
-    height: 3.4rem;
+    width: 2.2rem;
+    height: 2.2rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(10, 12, 16, 0.88);
     color: #fff;
     cursor: pointer;
     overflow: hidden;
-    backdrop-filter: blur(0.4rem);
-    transition: border-color 0.25s ease, color 0.25s ease;
+    transition:  color 0.25s ease;
 }
 
 body.wz-pre-entry-active .audio-toggle {
@@ -841,7 +839,6 @@ body.wz-pre-entry-active .audio-toggle {
 
     .audio-toggle.is-on {
         color: #19d8b3;
-        border-color: rgba(25,216,179,0.45);
     }
 
 .audio-toggle__icon {
@@ -854,26 +851,18 @@ body.wz-pre-entry-active .audio-toggle {
     line-height: 1;
     opacity: 0;
     transform: scale(0.85);
-    transition: opacity 220ms ease, transform 220ms ease;
+    transition: opacity 220ms ease;
     pointer-events: none;
+    font-family: var(--font-icon)
 }
 
-    .audio-toggle__icon--play::before {
-        content: "";
-        width: 0;
-        height: 0;
-        border-top: .55rem solid transparent;
-        border-bottom: .55rem solid transparent;
-        border-left: .85rem solid currentColor;
-        transform: translateX(.1rem);
+    .audio-toggle__icon--play:before {
+        content: "\e900";
     }
 
-    .audio-toggle__icon--pause::before,
-    .audio-toggle__icon--pause::after {
-        content: "";
-        width: .32rem;
-        height: 1.1rem;
-        margin: 0 .12rem;
+    .audio-toggle__icon--pause:before,
+    .audio-toggle__icon--pause:after {
+        content: "\e945";
         background: currentColor;
     }
 

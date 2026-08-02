@@ -81,6 +81,7 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
 function getHotspotPerspectiveTilt(viewer) {
+    if (viewer?.scene?.mode === Cesium.SceneMode.SCENE2D) return "0deg";
     const pitch = Math.abs(Number(viewer?.camera?.pitch ?? (-Math.PI / 2)));
     const topDownPitch = Math.PI / 2;
     const horizonRatio = clamp01(1 - (pitch / topDownPitch));
@@ -89,6 +90,7 @@ function getHotspotPerspectiveTilt(viewer) {
 }
 function getHotspotSurfaceMatrix(viewer, lon, lat) {
     const scene = viewer?.scene;
+    if (scene?.mode === Cesium.SceneMode.SCENE2D) return "";
     const center = scene ? toScreen(scene, lon, lat) : null;
     if (!center) return "";
     const metersSample = Math.max(1200, cssNumber("--wzhs-surface-sample-meters", 24000));
@@ -104,6 +106,20 @@ function getHotspotSurfaceMatrix(viewer, lon, lat) {
     const avg = (exLen + nyLen) * 0.5;
     if (!(avg > 0.0001)) return "";
     return `matrix(${(ex.x / avg).toFixed(5)}, ${(ex.y / avg).toFixed(5)}, ${(ny.x / avg).toFixed(5)}, ${(ny.y / avg).toFixed(5)}, 0, 0)`;
+}
+function getProjectedMetersToPixels(scene, lon, lat, meters = 100000) {
+    if (!scene || !(meters > 0)) return 0;
+    const center = toScreen(scene, lon, lat);
+    if (!center) return 0;
+    const latMeters = 111320;
+    const lonMeters = Math.max(1, Math.cos((lat * Math.PI) / 180) * 111320);
+    const eastPoint = toScreen(scene, lon + (meters / lonMeters), lat);
+    const northPoint = toScreen(scene, lon, lat + (meters / latMeters));
+    const distances = [];
+    if (eastPoint) distances.push(Math.hypot(eastPoint.x - center.x, eastPoint.y - center.y));
+    if (northPoint) distances.push(Math.hypot(northPoint.x - center.x, northPoint.y - center.y));
+    if (!distances.length) return 0;
+    return distances.reduce((sum, value) => sum + value, 0) / distances.length;
 }
 function compactPlaceLabel(v) {
     const clean = sanitizeText(v);
@@ -585,15 +601,17 @@ function makeHotspotEventSignature(events = []) {
 function toScreen(scene, lon, lat) {
     try {
         const cart = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
-        const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, new Cesium.Cartesian3());
-        const ptNorm = Cesium.Cartesian3.normalize(cart, new Cesium.Cartesian3());
-        const cameraMagnitude = Cesium.Cartesian3.magnitude(scene.camera.position);
-        const ellipsoidRadius = Number(scene.globe?.ellipsoid?.minimumRadius || Cesium.Ellipsoid.WGS84.minimumRadius || 6378137);
-        const horizonDot = Number.isFinite(cameraMagnitude) && cameraMagnitude > ellipsoidRadius
-            ? ellipsoidRadius / cameraMagnitude
-            : 0.92;
-        const frontSideThreshold = clamp01(horizonDot - 0.04);
-        if (Cesium.Cartesian3.dot(camNorm, ptNorm) < frontSideThreshold) return null;
+        if (scene.mode !== Cesium.SceneMode.SCENE2D) {
+            const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, new Cesium.Cartesian3());
+            const ptNorm = Cesium.Cartesian3.normalize(cart, new Cesium.Cartesian3());
+            const cameraMagnitude = Cesium.Cartesian3.magnitude(scene.camera.position);
+            const ellipsoidRadius = Number(scene.globe?.ellipsoid?.minimumRadius || Cesium.Ellipsoid.WGS84.minimumRadius || 6378137);
+            const horizonDot = Number.isFinite(cameraMagnitude) && cameraMagnitude > ellipsoidRadius
+                ? ellipsoidRadius / cameraMagnitude
+                : 0.92;
+            const frontSideThreshold = clamp01(horizonDot - 0.04);
+            if (Cesium.Cartesian3.dot(camNorm, ptNorm) < frontSideThreshold) return null;
+        }
         const fn = Cesium.SceneTransforms.worldToWindowCoordinates
             || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
         if (!fn) return null;
@@ -613,42 +631,62 @@ function getCameraHeight(viewer) {
 }
 function getZoomAwareHotspotConfig(viewer, cfg) {
     const height = getCameraHeight(viewer);
-    if (height > 9000000) {
+    if (height > 12000000) {
         return {
-            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 1.2),
-            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 1.45),
+            key: "world",
+            radiusScale: cssNumber("--wzhs-radius-zoom-scale-world", 0.58),
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 3.4),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 4.2),
+            maxCards: 28,
+            maxVisiblePerHotspot: 2,
+            stackDistancePx: Math.max(cfg.stackDistancePx, 120),
+            edgePad: 260,
+        };
+    }
+    if (height > 7000000) {
+        return {
+            key: "theater",
+            radiusScale: cssNumber("--wzhs-radius-zoom-scale-theater", 0.76),
+            clusterDistanceLat: Math.max(cfg.clusterDistanceLat, 2.2),
+            clusterDistanceLon: Math.max(cfg.clusterDistanceLon, 2.8),
+            maxCards: 42,
+            maxVisiblePerHotspot: 3,
+            stackDistancePx: Math.max(cfg.stackDistancePx, 106),
+            edgePad: 230,
+        };
+    }
+    if (height > 3500000) {
+        return {
+            key: "regional",
+            radiusScale: cssNumber("--wzhs-radius-zoom-scale-regional", 1),
+            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 1.25),
+            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 1.5),
             maxCards: Math.max(cfg.maxCards, 64),
             maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 5),
             stackDistancePx: Math.max(cfg.stackDistancePx, 90),
-            edgePad: 220,
+            edgePad: 190,
         };
     }
-    if (height > 4500000) {
+    if (height > 1600000) {
         return {
-            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 0.95),
-            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 1.15),
-            maxCards: Math.max(cfg.maxCards, 76),
-            maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 6),
-            stackDistancePx: Math.max(cfg.stackDistancePx, 82),
-            edgePad: 180,
-        };
-    }
-    if (height > 2200000) {
-        return {
-            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 0.78),
-            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 0.96),
+            key: "local",
+            radiusScale: cssNumber("--wzhs-radius-zoom-scale-local", 1.28),
+            clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 0.72),
+            clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 0.9),
             maxCards: Math.max(cfg.maxCards, 88),
             maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 6),
-            stackDistancePx: Math.max(cfg.stackDistancePx, 80),
+            stackDistancePx: Math.max(cfg.stackDistancePx, 78),
             edgePad: 160,
         };
     }
     return {
-        clusterDistanceLat: cfg.clusterDistanceLat,
-        clusterDistanceLon: cfg.clusterDistanceLon,
-        maxCards: cfg.maxCards,
-        maxVisiblePerHotspot: cfg.maxVisiblePerHotspot,
-        stackDistancePx: cfg.stackDistancePx,
+        key: "street",
+        radiusScale: cssNumber("--wzhs-radius-zoom-scale-street", 1.55),
+        clusterDistanceLat: Math.min(cfg.clusterDistanceLat, 0.34),
+        clusterDistanceLon: Math.min(cfg.clusterDistanceLon, 0.42),
+        maxCards: Math.max(cfg.maxCards, 128),
+        maxVisiblePerHotspot: Math.max(cfg.maxVisiblePerHotspot, 8),
+        stackDistancePx: Math.max(cfg.stackDistancePx, 68),
         edgePad: 140,
     };
 }
@@ -742,14 +780,47 @@ function createHotspotRadiusEl(cluster) {
     el.setAttribute("aria-hidden", "true");
     return el;
 }
+function removeHotspotNode(node) {
+    if (!node) return;
+    node.el?.classList.add("wzhs--leaving");
+    node.radiusEl?.classList.add("wzhs-radius--leaving");
+    const el = node.el;
+    const radiusEl = node.radiusEl;
+    window.setTimeout(() => {
+        el?.remove?.();
+        radiusEl?.remove?.();
+    }, 280);
+}
+function markHotspotNodeEntered(node) {
+    if (!node) return;
+    node.el?.classList.add("wzhs--entering");
+    node.radiusEl?.classList.add("wzhs-radius--entering");
+    requestAnimationFrame(() => {
+        node.el?.classList.remove("wzhs--entering");
+        node.radiusEl?.classList.remove("wzhs-radius--entering");
+    });
+}
+function isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster) {
+    const count = Math.max(1, Number(cluster?.count || cluster?.items?.length || 1));
+    if (count < 2) return false;
+    const eventBucket = viewer?.__warzone?.getEventClusterBucket?.();
+    const bucket = String(eventBucket || zoomCfg?.key || "").toLowerCase();
+    return bucket === "street";
+}
+function syncHotspotRadiusSplitState(radiusEl, hidden) {
+    if (!radiusEl) return;
+    radiusEl.classList.toggle("wzhs-radius--split-hidden", !!hidden);
+}
 function getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg) {
-    const minDiameter = cssLengthToPx("--wzhs-radius-size", 176);
-    const fitPadding = cssNumber("--wzhs-radius-fit-padding", 56);
-    const maxDiameter = Math.max(minDiameter, cssLengthToPx("--wzhs-radius-max-size", 520));
+    const zoomScale = Math.max(0.15, Number(zoomCfg?.radiusScale || 1));
+    const cssReferenceDiameter = cssLengthToPx("--wzhs-radius-size", 176) * zoomScale;
+    const minDiameter = Math.max(16, cssNumber("--wzhs-radius-min-px", 72));
+    const maxDiameter = Math.max(minDiameter, cssNumber("--wzhs-radius-max-px", 920));
+    const fitPadding = Math.max(0, cssNumber("--wzhs-radius-cluster-padding-px", 110)) * zoomScale;
     const scene = viewer?.scene;
-    if (!scene || !Array.isArray(cluster?.items) || !cluster.items.length) return minDiameter;
+    if (!scene || !Array.isArray(cluster?.items) || !cluster.items.length) return Math.max(minDiameter, cssReferenceDiameter);
     const center = toScreen(scene, cluster.lon, cluster.lat);
-    if (!center) return minDiameter;
+    if (!center) return Math.max(minDiameter, cssReferenceDiameter);
     let maxDistance = 0;
     let visiblePoints = 0;
     for (const item of cluster.items) {
@@ -763,9 +834,15 @@ function getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg) {
         const dy = pt.y - center.y;
         maxDistance = Math.max(maxDistance, Math.hypot(dx, dy));
     }
-    if (!visiblePoints) return minDiameter;
+    const count = Math.max(1, Number(cluster?.count || cluster?.items?.length || 1));
+    const radiusKm = Math.max(1, cssNumber("--wzhs-radius-base-km", 170))
+        + Math.log2(Math.max(2, count)) * Math.max(0, cssNumber("--wzhs-radius-count-km", 18));
+    const meterDiameter = getProjectedMetersToPixels(scene, cluster.lon, cluster.lat, radiusKm * 1000) * 2 * zoomScale;
+    if (!visiblePoints) {
+        return Math.max(minDiameter, Math.min(maxDiameter, meterDiameter || cssReferenceDiameter));
+    }
     const stackAllowance = (cluster.stackIdx || 0) * 10;
-    const diameter = Math.max(minDiameter, maxDistance * 2 + fitPadding + stackAllowance);
+    const diameter = Math.max(minDiameter, meterDiameter, maxDistance * 2 + fitPadding + stackAllowance);
     return Math.min(maxDiameter, diameter);
 }
 function stackVisible(clusters, overlapPx, maxPer) {
@@ -818,9 +895,11 @@ function buildExpandedHTML(cluster) {
 }
 function createCardEl(cluster, onToggle) {
     const root = document.createElement("div");
+    let activeCluster = cluster;
     root.dataset.clusterId = cluster.id;
     root.__clusterItems = dedupeDisplayItems(cluster?.items || []);
     function refreshContent(isExpanded) {
+        const cluster = activeCluster;
         const loc = compactPlaceLabel(
             cluster.latest?.display_location_label ||
             cluster.latest?.location_label ||
@@ -870,6 +949,11 @@ function createCardEl(cluster, onToggle) {
     }
     refreshContent(false);
     root._refreshContent = refreshContent;
+    root.render = (nextCluster, isExpanded) => {
+        activeCluster = nextCluster || activeCluster;
+        root.dataset.clusterId = activeCluster.id;
+        refreshContent(isExpanded);
+    };
     root.addEventListener("click", (e) => {
         const eventButton = e.target?.closest?.("[data-hotspot-event-index]");
         if (eventButton) {
@@ -896,6 +980,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let destroyed = false;
     let clustersDirty = true;
     let cachedClusters = [];
+    let lastZoomConfigKey = "";
     let lastEventsSignature = "";
     const nodeMap = new Map();
     let rafPending = false;
@@ -948,7 +1033,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const offY = canvasRect.top - overlayRect.top;
         rootEl.style.setProperty("--wzhs-perspective-tilt", getHotspotPerspectiveTilt(viewer));
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
-        if (clustersDirty) {
+        rootEl.dataset.zoomBucket = zoomCfg.key || "default";
+        if (clustersDirty || lastZoomConfigKey !== zoomCfg.key) {
             cachedClusters = geoCluster(
                 allEvents,
                 zoomCfg.clusterDistanceLat,
@@ -957,6 +1043,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 zoomCfg.maxCards
             );
             clustersDirty = false;
+            lastZoomConfigKey = zoomCfg.key;
         }
         const projected = [];
         for (const c of cachedClusters) {
@@ -972,8 +1059,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const visibleIds = new Set(visible.map((v) => v.id));
         for (const [id, node] of nodeMap) {
             if (!visibleIds.has(id)) {
-                node.el?.remove?.();
-                node.radiusEl?.remove?.();
+                removeHotspotNode(node);
                 nodeMap.delete(id);
             }
         }
@@ -987,6 +1073,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             const ry = cluster.screen.y + HOTSPOT_RADIUS_OFFSET.y;
             const hotspotDiameter = getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg);
             const hotspotMatrix = getHotspotSurfaceMatrix(viewer, cluster.lon, cluster.lat);
+            const radiusSplitHidden = isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster);
             const zi = 25 - cluster.stackIdx;
             if (nodeMap.has(cluster.id)) {
                 const node = nodeMap.get(cluster.id);
@@ -994,6 +1081,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusEl = createHotspotRadiusEl(cluster);
                     rootEl.appendChild(node.radiusEl);
                 }
+                syncHotspotRadiusSplitState(node.radiusEl, radiusSplitHidden);
                 if (node.el && !cardsEnabled) {
                     node.el.remove();
                     node.el = null;
@@ -1023,7 +1111,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusSize = hotspotDiameter;
                 }
                 if (node.radiusMatrix !== hotspotMatrix) {
-                    node.radiusEl.style.transform = hotspotMatrix || "";
+                    node.radiusEl.style.transform = hotspotMatrix || "none";
                     node.radiusMatrix = hotspotMatrix;
                 }
                 node.radiusEl.style.zIndex = zi - 1;
@@ -1031,10 +1119,11 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
                     node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
                     node.el.__clusterItems = dedupeDisplayItems(cluster?.items || []);
-                    node.el.render(cluster, expandedId === cluster.id);
+                    node.el.render?.(cluster, expandedId === cluster.id);
                 }
             } else {
                 const radiusEl = createHotspotRadiusEl(cluster);
+                syncHotspotRadiusSplitState(radiusEl, radiusSplitHidden);
                 radiusEl.style.cssText = `position:absolute;left:${rx - hotspotDiameter * 0.5}px;top:${ry - hotspotDiameter * 0.5}px;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;transform:${hotspotMatrix || "none"};`;
                 rootEl.appendChild(radiusEl);
                 const el = cardsEnabled ? createCardEl(cluster, handleToggle) : null;
@@ -1042,7 +1131,9 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     el.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;z-index:${zi};`;
                     rootEl.appendChild(el);
                 }
-                nodeMap.set(cluster.id, { el, radiusEl, x: el ? tx : null, y: el ? ty : null, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix });
+                const node = { el, radiusEl, x: el ? tx : null, y: el ? ty : null, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix };
+                nodeMap.set(cluster.id, node);
+                markHotspotNodeEntered(node);
             }
         }
     }
@@ -1085,10 +1176,15 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     function onResize() {
         scheduleRender(0);
     }
+    function onSceneModeChanged() {
+        clustersDirty = true;
+        scheduleRender(0);
+    }
     viewer.scene.postRender.addEventListener(onPostRender);
     viewer.camera.moveStart.addEventListener(onCameraMoveStart);
     viewer.camera.moveEnd.addEventListener(onCameraMoveEnd);
     window.addEventListener("resize", onResize, { passive: true });
+    document.addEventListener("wz:scene-mode-changed", onSceneModeChanged);
     return {
         setEvents(next = []) {
             const arr = Array.isArray(next) ? next : [];
@@ -1139,6 +1235,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             viewer.camera.moveStart.removeEventListener(onCameraMoveStart);
             viewer.camera.moveEnd.removeEventListener(onCameraMoveEnd);
             window.removeEventListener("resize", onResize);
+            document.removeEventListener("wz:scene-mode-changed", onSceneModeChanged);
         },
     };
 }

@@ -1063,11 +1063,12 @@ function clampDevMapValue(value, def) {
 function formatDevMapValue(value, def) {
     const precision = getStepPrecision(def.step);
     const rounded = Number(clampDevMapValue(value, def).toFixed(precision));
-    return precision > 0 ? rounded.toFixed(precision) : String(Math.round(rounded));
+    const formatted = precision > 0 ? rounded.toFixed(precision) : String(Math.round(rounded));
+    return def.unit ? `${formatted}${def.unit}` : formatted;
 }
 function getRootCssNumber(varName, fallback = 0) {
     const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-    const parsed = Number(raw);
+    const parsed = Number(String(raw).replace(/px$/i, "").trim());
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 function getRootCssText(varName, fallback = "") {
@@ -1182,16 +1183,45 @@ function initMapTunerControls() {
 }
 
 const DEV_EVENT_UI_PREVIEW_ID = "dev-event-ui-preview";
+const DEV_EVENT_UI_COLOR_FIELDS = [
+    { key: "recon-color", label: "Recon Marker Color", cssVar: "--warzone-event-marker-color-recon", fallback: "var(--warzone-recon-color)" },
+    { key: "military-color", label: "Military Marker Color", cssVar: "--warzone-event-marker-color-military", fallback: "var(--warzone-military-color)" },
+    { key: "air-color", label: "Air Marker Color", cssVar: "--warzone-event-marker-color-air-activity", fallback: "var(--warzone-air-activity-color)" },
+    { key: "naval-color", label: "Naval Marker Color", cssVar: "--warzone-event-marker-color-naval-activity", fallback: "var(--warzone-naval-activity-color)" },
+    { key: "alert-color", label: "Alert Marker Color", cssVar: "--warzone-event-marker-color-alert", fallback: "var(--warzone-alert-color)" },
+    { key: "default-color", label: "Default Marker Color", cssVar: "--warzone-event-marker-color-default", fallback: "var(--warzone-default-color)" },
+    { key: "marker-border-color", label: "Marker Border Color", cssVar: "--warzone-event-marker-border-color", fallback: "currentColor" },
+    { key: "hotspot-color", label: "Hotspot Ring Color", cssVar: "--warzone-event-hotspot-line-color", fallback: "var(--warzone-strike-color)" },
+];
 const DEV_EVENT_UI_NUMERIC_FIELDS = [
-    { key: "marker-scale", cssVar: "--warzone-marker-scale", min: 0.1, max: 2, step: 0.01, fallback: 0.55 },
-    { key: "ring-size", cssVar: "--warzone-event-ring-size", min: 5000, max: 500000, step: 1000, fallback: 55000 },
-    { key: "ring-fill-alpha", cssVar: "--warzone-event-ring-fill-alpha", min: 0, max: 1, step: 0.01, fallback: 0.22 },
-    { key: "ring-outline-alpha", cssVar: "--warzone-event-ring-outline-alpha", min: 0, max: 1, step: 0.01, fallback: 0.55 },
-    { key: "ring-outline-width", cssVar: "--warzone-event-ring-outline-width", min: 0, max: 16, step: 0.1, fallback: 1.5 },
+    { key: "marker-scale", label: "Global Marker Scale", cssVar: "--warzone-marker-scale", min: 0.1, max: 2, step: 0.01, fallback: 1 },
+    { key: "marker-size", label: "Event Circle Size", cssVar: "--warzone-event-marker-size", min: 18, max: 180, step: 1, fallback: 88 },
+    { key: "marker-canvas-size", label: "Marker Canvas Quality", cssVar: "--warzone-event-marker-canvas-size", min: 512, max: 2048, step: 128, fallback: 1024 },
+    { key: "marker-cluster-step", label: "Count Size Step", cssVar: "--warzone-event-marker-cluster-step", min: 0, max: 24, step: 1, fallback: 12 },
+    { key: "marker-max-size", label: "Max Count Circle Size", cssVar: "--warzone-event-marker-max-size", min: 24, max: 240, step: 1, fallback: 156 },
+    { key: "count-font-size", label: "Count Text Size 1 Digit", cssVar: "--warzone-event-count-font-size", min: 10, max: 52, step: 1, fallback: 26, unit: "px" },
+    { key: "count-font-size-10plus", label: "Count Text Size 2 Digit", cssVar: "--warzone-event-count-font-size-10plus", min: 10, max: 52, step: 1, fallback: 24, unit: "px" },
+    { key: "count-font-size-100plus", label: "Count Text Size 3 Digit", cssVar: "--warzone-event-count-font-size-100plus", min: 8, max: 44, step: 1, fallback: 20, unit: "px" },
+    { key: "marker-disc-scale", label: "Solid Disc Scale", cssVar: "--warzone-event-marker-disc-scale", min: 0.25, max: 1, step: 0.01, fallback: 0.62 },
+    { key: "marker-fill-alpha", label: "Solid Disc Alpha", cssVar: "--warzone-event-marker-fill-alpha", min: 0.05, max: 1, step: 0.01, fallback: 0.82 },
+    { key: "marker-border-width", label: "Marker Border Width PX", cssVar: "--warzone-event-marker-border-width", min: 0, max: 28, step: 1, fallback: 9 },
+    { key: "marker-border-alpha", label: "Marker Border Alpha", cssVar: "--warzone-event-marker-border-alpha", min: 0, max: 1, step: 0.01, fallback: 0.38 },
+    { key: "ring-size", label: "Event Ring Size", cssVar: "--warzone-event-ring-size", min: 5000, max: 500000, step: 1000, fallback: 36000 },
+    { key: "ring-fill-alpha", label: "Event Ring Fill Alpha", cssVar: "--warzone-event-ring-fill-alpha", min: 0, max: 1, step: 0.01, fallback: 0.6 },
+    { key: "ring-outline-alpha", label: "Event Ring Outline Alpha", cssVar: "--warzone-event-ring-outline-alpha", min: 0, max: 1, step: 0.01, fallback: 0 },
+    { key: "ring-outline-width", label: "Event Ring Outline Width", cssVar: "--warzone-event-ring-outline-width", min: 0, max: 16, step: 0.1, fallback: 0 },
+    { key: "hotspot-line-width", label: "Hotspot Ring Width", cssVar: "--warzone-event-hotspot-line-width", min: 0.5, max: 12, step: 0.1, fallback: 3 },
+    { key: "parent-ring-min-km", label: "Hotspot Min KM", cssVar: "--warzone-event-cluster-parent-ring-min-km", min: 20, max: 800, step: 5, fallback: 120 },
+    { key: "parent-ring-padding-km", label: "Hotspot Padding KM", cssVar: "--warzone-event-cluster-parent-ring-padding-km", min: 0, max: 300, step: 5, fallback: 55 },
+    { key: "parent-ring-max-km", label: "Hotspot Max KM", cssVar: "--warzone-event-cluster-parent-ring-max-km", min: 80, max: 1200, step: 10, fallback: 520 },
+    { key: "real-split-min-km", label: "Real Split Min KM", cssVar: "--warzone-event-cluster-real-split-min-km", min: 1, max: 250, step: 1, fallback: 35 },
+    { key: "synthetic-spread-km", label: "Fallback Split Spread KM", cssVar: "--warzone-event-cluster-synthetic-spread-km", min: 10, max: 300, step: 5, fallback: 60 },
+    { key: "transition-ms", label: "Split / Merge Duration MS", cssVar: "--warzone-event-cluster-transition-ms", min: 0, max: 3000, step: 50, fallback: 1350 },
 ];
 const DEV_EVENT_UI_TOGGLE_FIELDS = [
-    { key: "markers-visible", cssVar: "--warzone-event-markers-visible", fallback: 1 },
-    { key: "rings-visible", cssVar: "--warzone-event-rings-visible", fallback: 1 },
+    { key: "markers-visible", label: "Show Center Dot", cssVar: "--warzone-event-markers-visible", fallback: 1 },
+    { key: "rings-visible", label: "Show Circle Ring", cssVar: "--warzone-event-rings-visible", fallback: 1 },
+    { key: "pulse-enabled", label: "Pulse Enabled", cssVar: "--warzone-event-ring-pulse-enabled", fallback: 0 },
 ];
 let __devEventUiPreviewVisible = false;
 
@@ -1275,10 +1305,68 @@ function closeDevEventUiPreview(logAction = true) {
     if (logAction) devLog("Closed event marker and popup preview");
 }
 
+function ensureDevEventUiTunerDynamicControls() {
+    const tunerRoot = document.getElementById("wz-dev-event-ui-tuner");
+    const actions = tunerRoot?.querySelector(".wz-dev-map-actions");
+    if (!tunerRoot || !actions || tunerRoot.dataset.dynamicControls === "1") return;
+    tunerRoot.dataset.dynamicControls = "1";
+
+    const firstColorRow = document.getElementById("wz-event-marker-color-input")?.closest(".wz-dev-field");
+    DEV_EVENT_UI_COLOR_FIELDS.forEach((def) => {
+        if (document.getElementById(`wz-event-${def.key}-input`)) return;
+        const row = document.createElement("label");
+        row.className = "wz-dev-field wz-dev-field--full";
+        row.innerHTML = `<span>${def.label}</span>
+            <input id="wz-event-${def.key}-input" class="wz-dev-input" type="text">`;
+        if (firstColorRow?.parentElement) firstColorRow.parentElement.appendChild(row);
+    });
+
+    const formGrid = tunerRoot.querySelector(".wz-dev-form-grid");
+    DEV_EVENT_UI_TOGGLE_FIELDS.forEach((def) => {
+        if (document.getElementById(`wz-event-${def.key}-input`)) return;
+        const row = document.createElement("label");
+        row.className = "wz-dev-field wz-dev-check";
+        row.innerHTML = `<input id="wz-event-${def.key}-input" type="checkbox">
+            <span>${def.label || def.key}</span>`;
+        formGrid?.appendChild(row);
+    });
+
+    DEV_EVENT_UI_NUMERIC_FIELDS.forEach((def) => {
+        if (document.getElementById(`wz-event-${def.key}-input`)) return;
+        const row = document.createElement("label");
+        row.className = "wz-dev-map-row";
+        row.innerHTML = `<span>${def.label || def.key}</span>
+            <input id="wz-event-${def.key}-range" type="range" min="${def.min}" max="${def.max}" step="${def.step}">
+            <input id="wz-event-${def.key}-input" class="wz-dev-input wz-dev-map-value" type="number" min="${def.min}" max="${def.max}" step="${def.step}">`;
+        tunerRoot.insertBefore(row, actions);
+    });
+}
+
+function refreshEventMarkerTuning() {
+    const viewer = window.__warzoneViewer;
+    if (viewer?.__warzone?.refreshEventMarkerVisuals) {
+        viewer.__warzone.refreshEventMarkerVisuals();
+        return;
+    }
+    const sourceEvents = viewer?.__warzoneLastSourceEvents;
+    if (viewer?.__warzone?.addEvents && Array.isArray(sourceEvents) && sourceEvents.length) {
+        viewer.__warzone.addEvents(sourceEvents);
+    } else {
+        viewer?.scene?.requestRender?.();
+    }
+}
+
 function buildDevEventUiCssBlock() {
     const colorValue = document.getElementById("wz-event-marker-color-input")?.value
         || getRootCssText("--warzone-strike-color", "#ff0753");
     const lines = [":root {", `    --warzone-strike-color: ${colorValue};`];
+    DEV_EVENT_UI_COLOR_FIELDS.forEach((def) => {
+        const value = document.getElementById(`wz-event-${def.key}-input`)?.value
+            || (def.cssVar === "--warzone-strike-color"
+                ? document.getElementById("wz-event-marker-color-input")?.value
+                : getRootCssText(def.cssVar, def.fallback));
+        lines.push(`    ${def.cssVar}: ${value || def.fallback};`);
+    });
     DEV_EVENT_UI_TOGGLE_FIELDS.forEach((def) => {
         const enabled = document.getElementById(`wz-event-${def.key}-input`)?.checked;
         lines.push(`    ${def.cssVar}: ${enabled ? "1" : "0"};`);
@@ -1296,6 +1384,7 @@ function initDevEventUiTunerControls() {
     const tunerRoot = document.getElementById("wz-dev-event-ui-tuner");
     if (!tunerRoot || tunerRoot.dataset.bound === "1") return;
     tunerRoot.dataset.bound = "1";
+    ensureDevEventUiTunerDynamicControls();
     const output = document.getElementById("wz-event-css-output");
     const colorPicker = document.getElementById("wz-event-marker-color-picker");
     const colorInput = document.getElementById("wz-event-marker-color-input");
@@ -1306,6 +1395,7 @@ function initDevEventUiTunerControls() {
     };
     const updatePreview = () => {
         if (__devEventUiPreviewVisible) openDevEventUiPreview(false);
+        refreshEventMarkerTuning();
         window.__warzoneViewer?.scene?.requestRender?.();
     };
     const applyColor = (nextValue, source = "") => {
@@ -1335,6 +1425,14 @@ function initDevEventUiTunerControls() {
             if (!input) return;
             input.checked = getRootCssNumber(def.cssVar, def.fallback) >= 0.5;
         });
+        DEV_EVENT_UI_COLOR_FIELDS.forEach((def) => {
+            const input = document.getElementById(`wz-event-${def.key}-input`);
+            const value = getRootCssText(def.cssVar, def.fallback);
+            if (input) input.value = value;
+        });
+        const strikeColor = getRootCssText("--warzone-strike-color", "#ff0753");
+        if (colorInput) colorInput.value = strikeColor;
+        if (colorPicker) colorPicker.value = getResolvedColorHex(strikeColor);
         DEV_EVENT_UI_NUMERIC_FIELDS.forEach((def) => {
             applyNumericValue(def, getRootCssNumber(def.cssVar, def.fallback));
         });
@@ -1355,6 +1453,20 @@ function initDevEventUiTunerControls() {
             root.style.setProperty(def.cssVar, event.currentTarget.checked ? "1" : "0");
             updateOutput();
             updatePreview();
+        });
+    });
+    DEV_EVENT_UI_COLOR_FIELDS.forEach((def) => {
+        const input = document.getElementById(`wz-event-${def.key}-input`);
+        if (!input) return;
+        input.addEventListener("change", () => {
+            const value = input.value.trim() || def.fallback;
+            root.style.setProperty(def.cssVar, value);
+            if (def.cssVar === "--warzone-strike-color") {
+                applyColor(value, "input");
+            } else {
+                updateOutput();
+                updatePreview();
+            }
         });
     });
     colorPicker?.addEventListener("input", () => applyColor(colorPicker.value, "picker"));
@@ -2218,6 +2330,7 @@ function initLiveAssetTunerControls() {
 }
 
 const DEV_PANEL_SECTIONS = [
+    { value: "event-hotspots", label: "Event Markers / Hotspots" },
     { value: "live-aircraft", label: "Live Aircraft Settings" },
     { value: "live-naval", label: "Live Naval Settings" },
     { value: "live-glb", label: "Shared GLB / Lighting" },
@@ -2259,6 +2372,14 @@ function annotateDevPanelSections() {
             previous.dataset.wzDevSection = "map-performance";
         }
     }
+    const eventUiTuner = document.getElementById("wz-dev-event-ui-tuner");
+    if (eventUiTuner) {
+        eventUiTuner.dataset.wzDevSection = "event-hotspots";
+        const previous = eventUiTuner.previousElementSibling;
+        if (previous?.classList?.contains("wz-dev-label")) {
+            previous.dataset.wzDevSection = "event-hotspots";
+        }
+    }
 }
 function applyDevPanelSectionFilter(section = "general-debug") {
     const selected = DEV_PANEL_SECTIONS.some((item) => item.value === section) ? section : "general-debug";
@@ -2289,7 +2410,7 @@ function initDevPanelSectionFilter() {
     select?.addEventListener("change", () => {
         applyDevPanelSectionFilter(select.value);
     });
-    applyDevPanelSectionFilter("live-asset-tuner");
+    applyDevPanelSectionFilter("event-hotspots");
 }
 
 function getDevMapApi() {
@@ -2622,6 +2743,8 @@ export function showFullDevPanel() {
     grid.querySelectorAll(":scope > *").forEach((child) => {
         child.hidden = false;
     });
+    initDevPanelSectionFilter();
+    applyDevPanelSectionFilter(document.getElementById("wz-dev-section-select")?.value || "event-hotspots");
 }
 
 function closeDevSharedModal(modal, callback) {
@@ -2741,9 +2864,16 @@ function initDevPanelAccordions() {
     let currentDetails = null;
     let currentContent = null;
     let sectionIndex = 0;
-    const startSection = (title = "Dev Section", open = false) => {
+    const mergeCurrentSection = (section) => {
+        if (!currentDetails || !section) return;
+        const existing = new Set(String(currentDetails.dataset.wzDevSection || "").split(/\s+/).filter(Boolean));
+        String(section).split(/\s+/).filter(Boolean).forEach((item) => existing.add(item));
+        currentDetails.dataset.wzDevSection = Array.from(existing).join(" ");
+    };
+    const startSection = (title = "Dev Section", open = false, section = "general-debug") => {
         const details = document.createElement("details");
         details.className = "wz-dev-accordion";
+        details.dataset.wzDevSection = section;
         if (open) details.open = true;
         const summary = document.createElement("summary");
         summary.className = "wz-dev-accordion__summary";
@@ -2760,7 +2890,7 @@ function initDevPanelAccordions() {
     grid.innerHTML = "";
     children.forEach((child) => {
         if (child.classList?.contains("wz-dev-label")) {
-            startSection(child.textContent.trim() || "Dev Section", sectionIndex === 0);
+            startSection(child.textContent.trim() || "Dev Section", sectionIndex === 0, child.dataset.wzDevSection || "general-debug");
             return;
         }
         if (child.classList?.contains("wz-dev-live-asset-block")) {
@@ -2770,6 +2900,7 @@ function initDevPanelAccordions() {
             return;
         }
         if (!currentContent) startSection("DEV CONTROLS", true);
+        mergeCurrentSection(child.dataset?.wzDevSection);
         currentContent.appendChild(child);
     });
 }
@@ -2778,6 +2909,7 @@ export function initDevPanel() {
         window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1" ||
         window.location.hostname === "" ||
+        window.location.hostname.includes("staging") ||
         window.location.search.includes("devpanel=1") ||
         localStorage.getItem("wz_dev") === "1";
     const panel = document.getElementById("wz-dev-panel");
@@ -2925,7 +3057,9 @@ export function initDevPanel() {
     initDevStartupSceneTunerControls();
     initIntroStartupSceneTunerControls();
     initLiveAssetTunerControls();
+    annotateDevPanelSections();
     initDevPanelAccordions();
+    initDevPanelSectionFilter();
     devLog("Dev panel ready");
 }
 

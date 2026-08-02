@@ -2,7 +2,7 @@
   "feeds": [
     {
       "name": "Warzone Seed",
-      "enabled": false,
+      "enabled": true,
       "type": "manual-json",
       "parser": "events-array",
       "url": "${SEED_FEED_URL}",
@@ -11,7 +11,7 @@
     {
       "name": "Telegram OSINT High Signal",
       "parser": "telegram",
-      "enabled": false,
+      "enabled": true,
       "channels": [
         "DSquadOfficial",
         "OSINTWarfare",
@@ -25,7 +25,8 @@
         "milinfolive",
         "war_translated",
         "ourwarstoday",
-        "sitreports"
+        "sitreports",
+        "wfwitness"
       ],
       "limit": 30,
       "category": "military",
@@ -39,7 +40,7 @@
     {
       "name": "Telegram OSINT Mixed",
       "parser": "telegram",
-      "enabled": false,
+      "enabled": true,
       "channels": [
         "sentdefender",
         "OSINTLive",
@@ -64,7 +65,7 @@
     {
       "name": "Telegram Narrative / Official",
       "parser": "telegram",
-      "enabled": false,
+      "enabled": true,
       "channels": [
         "U_S_CENTCOM",
         "IranintlTV",
@@ -86,7 +87,7 @@
     {
       "name": "Telegram NOTAM / Aviation Alerts",
       "parser": "telegram",
-      "enabled": false,
+      "enabled": true,
       "channels": [
         "seaaero",
         "irannotam"
@@ -103,7 +104,7 @@
     {
       "name": "X OSINT High Signal",
       "parser": "x-search",
-      "enabled": false,
+      "enabled": true,
       "usernames": [
         "OSINTdefender",
         "OSINT_defender",
@@ -796,7 +797,7 @@
     {
       "name": "Janes Defense",
       "parser": "rss",
-      "enabled": false,
+      "enabled": true,
       "url": "https://www.janes.com/feeds/news",
       "source_name": "Janes",
       "category": "military",
