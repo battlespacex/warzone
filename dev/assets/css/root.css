@@ -399,6 +399,7 @@
     --warzone-start-pitch: -74;
     --warzone-start-roll: 0;
     --warzone-startup-rotation-speed: 0.52;
+    --warzone-startup-sat-update-ms: 160;
 }
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */

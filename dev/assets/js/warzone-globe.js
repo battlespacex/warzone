@@ -1896,7 +1896,7 @@ function createClusterCountLabel(count = 1) {
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         pixelOffset: new Cesium.Cartesian2(0, 0),
         eyeOffset: new Cesium.Cartesian3(0, 0, -5000),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
         zIndex: 1000,
         showBackground: false,
     };
@@ -2024,7 +2024,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
             show: satelliteVisible,
         },
         properties: {
@@ -2071,7 +2071,7 @@ function createEventMarkerFillEntity(event, options = {}) {
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
             show: showMarker,
         },
         ellipse: {
@@ -2117,7 +2117,7 @@ function createEventMarkerPulseEntity(event, options = {}) {
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
             show: !suppressMarkers && shouldShowEventMarkerPulseAtCurrentZoom(window.__warzoneViewer),
         },
         properties: {

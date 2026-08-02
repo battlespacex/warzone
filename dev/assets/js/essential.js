@@ -270,6 +270,17 @@ const GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS = new Set([
     "hotspots",
     "satellite-imagery",
 ]);
+const GLOBE_EVENT_LAYER_IDS = [
+    "strikes",
+    "missiles",
+    "drones",
+    "airstrikes",
+    "recon",
+    "alerts",
+    "thermal",
+    "seismic",
+    "cyber",
+];
 const NAVAL_EVENT_SUBTYPES = new Set([
     "carrier",
     "amphibious",
@@ -1640,6 +1651,9 @@ function shouldEnableMilSatsLayer() {
         isStratOpsFeatureEnabled("tracking.strategicSatellites") &&
         isLayerEnabled("orbital-assets")
     );
+}
+function hasEnabledGlobeEventLayer() {
+    return GLOBE_EVENT_LAYER_IDS.some((id) => isLayerEnabled(id));
 }
 function syncOrbitalWidgetVisibilityForLayer() {
     const enabled = shouldEnableMilSatsLayer();
@@ -6920,7 +6934,7 @@ function syncFilteredUi(events) {
 }
 function syncHotspotLayerEvents(events = []) {
     if (!__hotspotLayer) return;
-    if (!isLayerEnabled("hotspots")) {
+    if (!isLayerEnabled("hotspots") || !hasEnabledGlobeEventLayer()) {
         __hotspotLayer.setEvents([]);
         return;
     }
@@ -6931,7 +6945,7 @@ function syncHotspotLayerEvents(events = []) {
     }
     // Fallback: viewport-scoped sources can occasionally be empty due bounds
     // edge cases while theater counters still have valid conflict events.
-    const fallback = applyHotspotFilters(__eventsCache, { respectRegion: true });
+    const fallback = applyHotspotFilters(__eventsCache, { respectRegion: true }).filter((event) => isEventVisible(event));
     __hotspotLayer.setEvents(getHotspotSourceEvents(fallback));
 }
 function ensureHotspotLayer(viewer, hotspotRoot) {
@@ -7133,11 +7147,32 @@ function syncInitialEventsToGlobe(events, {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const hotspotsEnabled = isLayerEnabled("hotspots");
-    globe.setEventMarkersSuppressed?.(false);
+    const globeEventLayersEnabled = hasEnabledGlobeEventLayer();
+    globe.setEventMarkersSuppressed?.(!globeEventLayersEnabled);
+    if (!globeEventLayersEnabled) {
+        if (syncHotspots) {
+            syncHotspotLayerEvents([]);
+        }
+        globe.clearEventEntities?.();
+        __militaryTracks?.setTracks([]);
+        if (window.__warzoneViewer) {
+            clearRanges(window.__warzoneViewer);
+            clearSweepers(window.__warzoneViewer);
+        }
+        __lastGlobeSyncKey = "__empty__";
+        __lastGlobeClusterBucket = "";
+        __lastRangesSyncKey = "__off__";
+        __lastSweepersSyncKey = "__off__";
+        __lastOverlaySourceKey = "__empty__";
+        __lastOverlayClusterRadiusBucket = "";
+        __cachedOverlayClusters = [];
+        window.__warzoneViewer?.scene?.requestRender?.();
+        return;
+    }
     const visible = applyAllFilters(events);
     const hotspotStableSource = hotspotsEnabled
         && syncHotspots
-        ? applyHotspotFilters(events, { respectRegion: true })
+        ? applyHotspotFilters(events, { respectRegion: true }).filter((event) => isEventVisible(event))
         : [];
     // Naval tracker panel should follow selected region/lens, not camera bounds.
     if (syncNaval && isNavalTrackingFeatureEnabled() && isLayerEnabled("naval")) {
@@ -7587,7 +7622,7 @@ export async function initWarzoneApp() {
         syncFocusAwareBackgroundLoops();
         const globe = window.__warzoneViewer?.__warzone;
         const mapSourceEvents = getCurrentMapSourceEvents();
-        globe?.setEventMarkersSuppressed?.(false);
+        globe?.setEventMarkersSuppressed?.(!hasEnabledGlobeEventLayer());
         if (id === "terrain") {
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
             window.__warzoneViewer?.scene?.requestRender?.();
@@ -7602,6 +7637,12 @@ export async function initWarzoneApp() {
             const satelliteImageryEnabled = isLayerEnabled("satellite-imagery");
             globe?.setSatelliteImageryLayerVisible?.(satelliteImageryEnabled);
             if (!satelliteImageryEnabled) closeSatelliteImageryViewer();
+            window.__warzoneViewer?.scene?.requestRender?.();
+            return;
+        }
+        if (id === "orbital-assets") {
+            syncOrbitalWidgetVisibilityForLayer();
+            void setWarzoneMilSatsEnabledDeferred(shouldEnableMilSatsLayer());
             window.__warzoneViewer?.scene?.requestRender?.();
             return;
         }
@@ -8593,7 +8634,9 @@ function setButtonTextOutsideSpan(button, label = "") {
     button.append(document.createTextNode(` ${label}`));
 }
 
-export function initStratopsIntro() {
+export function initStratopsIntro(options = {}) {
+    const skipPreEntryShowcase = options?.skipPreEntryShowcase === true;
+    const openImmediately = options?.openImmediately !== false;
     // ── Elements ────────────────────────────────────────────────────────────
     const introModal = document.getElementById("wz-intro-modal");
     const acceptBtn = document.getElementById("wz-intro-accept");
@@ -8689,6 +8732,7 @@ export function initStratopsIntro() {
         }
         openIntroModal();
     }
+    window.__warzoneOpenEntryIntroModal = openEntryIntroModal;
 
     function closeSupportReturnModal(afterClose) {
         if (!supportReturnModal) {
@@ -9115,9 +9159,9 @@ export function initStratopsIntro() {
     }
 
     // ── Show modal ───────────────────────────────────────────────────────────
-    if (isStratOpsFeatureEnabled("system.preEntryShowcase")) {
+    if (!skipPreEntryShowcase && isStratOpsFeatureEnabled("system.preEntryShowcase")) {
         initPreEntryShowcase({ onEnter: openEntryIntroModal });
-    } else {
+    } else if (openImmediately) {
         openEntryIntroModal();
     }
 }

@@ -2534,7 +2534,8 @@ body.is-map-layers-open .wz-map-layers-pane {
 /* #region =========== WIDGETS POSITIONINGS/SIZES =========== */
 .warzone-widget--counter {
     left: var(--wz-ui-pane-offset);
-    top: 0
+    top: 0;
+    max-height: 38vh !important;
 }
 
 .warzone-widget--airspace {
@@ -2578,8 +2579,8 @@ body.is-map-layers-open .wz-map-layers-pane {
 }
 
 .warzone-widget--gnss {
-    left: calc(30rem + var(--wz-ui-pane-offset));
-    top: calc(55vh - -2rem)
+    left: calc(0rem + var(--wz-ui-pane-offset));
+    top: calc(40vh - -2rem);
 }
 
 .warzone-panel--floating.warzone-widget--aircraft,
@@ -2598,9 +2599,9 @@ body.is-map-layers-open .wz-map-layers-pane {
     max-height: 65vh;
     min-width: 42rem;
     max-width: 42rem;
-    left: calc(60rem + var(--wz-ui-pane-offset));
-    top: calc(55vh + 2rem);
-    bottom: auto;
+    left: calc(14rem + var(--wz-ui-pane-offset));
+    top: auto;
+    bottom: 2rem;
 }
 
 

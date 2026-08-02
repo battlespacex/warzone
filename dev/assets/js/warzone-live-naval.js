@@ -2129,16 +2129,7 @@ function getScreenPosForVessel(trackKey) {
         return screen;
     } catch { return null; }
 }
-function getMapLayersProjectionCorrectionPx() {
-    const pane = document.getElementById("wz-map-layers-pane");
-    if (!pane) return 0;
-    const paneRect = pane.getBoundingClientRect();
-    const targetOffsetPx = Math.max(0, Number(paneRect.width || 0));
-    const visibleOffsetPx = Math.min(targetOffsetPx, Math.max(0, Number(paneRect.right || 0)));
-    if (!Number.isFinite(visibleOffsetPx) || visibleOffsetPx <= 0) return 0;
-    return visibleOffsetPx * 0.5;
-}
-function getCorrectedNavalFocusScreenPosition(screenPosition = null) {
+function getNavalFocusScreenPosition(screenPosition = null) {
     if (
         !screenPosition ||
         !Number.isFinite(screenPosition.x) ||
@@ -2146,12 +2137,7 @@ function getCorrectedNavalFocusScreenPosition(screenPosition = null) {
     ) {
         return null;
     }
-    const correctionX = getMapLayersProjectionCorrectionPx();
-    if (!correctionX) return screenPosition;
-    return {
-        x: screenPosition.x - correctionX,
-        y: screenPosition.y,
-    };
+    return screenPosition;
 }
 
 function syncNavalOverlay() {
@@ -2167,7 +2153,7 @@ function syncNavalOverlay() {
         }
         return;
     }
-    const screen = getCorrectedNavalFocusScreenPosition(getScreenPosForVessel(key));
+    const screen = getNavalFocusScreenPosition(getScreenPosForVessel(key));
     if (!screen) {
         if (__navalState.overlayLastVisible) {
             root.style.display = "none";

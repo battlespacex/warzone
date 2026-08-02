@@ -52,6 +52,7 @@ const startupDemoState = {
     groups: [],
     frameListener: null,
     lastFrameTime: 0,
+    lastUpdateTime: 0,
 };
 
 function getCssVar(name, fallback) {
@@ -143,12 +144,17 @@ function getRotationDegPerSec() {
     return globeSpeed * speedRatio * 1.18;
 }
 
+function getStartupSatUpdateIntervalMs() {
+    return Math.max(80, Math.min(getCssNumber("--warzone-startup-sat-update-ms", 160), 500));
+}
+
 function stopDemo() {
     if (startupDemoState.frameListener && startupDemoState.viewer?.scene) {
         startupDemoState.viewer.scene.postRender.removeEventListener(startupDemoState.frameListener);
     }
     startupDemoState.frameListener = null;
     startupDemoState.lastFrameTime = 0;
+    startupDemoState.lastUpdateTime = 0;
     startupDemoState.enabled = false;
     startupDemoState.groups.forEach((group) => removeEntity(group?.entity));
     startupDemoState.groups = [];
@@ -171,6 +177,7 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
     if (!startupDemoState.viewer || startupDemoState.enabled) return;
     startupDemoState.enabled = true;
     startupDemoState.lastFrameTime = Date.now();
+    startupDemoState.lastUpdateTime = 0;
     startupDemoState.groups = STARTUP_DEMO_SATS.map((satDef) => ({
         satDef,
         currentLon: Number(satDef.lon) || 0,
@@ -181,8 +188,13 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
         if (!startupDemoState.enabled || !startupDemoState.viewer) return;
         if (document.hidden) return;
         const now = Date.now();
+        const updateIntervalMs = getStartupSatUpdateIntervalMs();
+        if (startupDemoState.lastUpdateTime && now - startupDemoState.lastUpdateTime < updateIntervalMs) {
+            return;
+        }
         const last = Number(startupDemoState.lastFrameTime || now);
         startupDemoState.lastFrameTime = now;
+        startupDemoState.lastUpdateTime = now;
         const dt = Math.min(Math.max(0, (now - last) / 1000), 0.1);
         const degPerSec = getRotationDegPerSec();
         if (!(degPerSec > 0)) return;
