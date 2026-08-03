@@ -37,9 +37,6 @@
 .stratops-ico-focus-1:before {
   content: "\e941";
 }
-.stratops-ico-dock-report-1:before {
-  content: "\e93e";
-}
 .stratops-ico-pause-1:before {
   content: "\e945";
 }
@@ -127,6 +124,9 @@
 .stratops-ico-assets-army-1:before {
   content: "\e91c";
 }
+.stratops-ico-bases-army-2:before {
+  content: "\e949";
+}
 .stratops-ico-assets-missile-1:before {
   content: "\e91d";
 }
@@ -205,6 +205,12 @@
 .stratops-ico-dock-airspace-3:before {
   content: "\e943";
 }
+.stratops-ico-dock-sats-1:before {
+  content: "\e94a";
+}
+.stratops-ico-dock-sats-2:before {
+  content: "\e94b";
+}
 .stratops-ico-dock-orbital-intel-2:before {
   content: "\e93d";
 }
@@ -216,6 +222,15 @@
 }
 .stratops-ico-dock-strike-counter-1:before {
   content: "\e930";
+}
+.stratops-ico-dock-report-1:before {
+  content: "\e93e";
+}
+.stratops-ico-dock-report-2:before {
+  content: "\e94c";
+}
+.stratops-ico-dock-report-3:before {
+  content: "\e94d";
 }
 .stratops-ico-screenshot-2:before {
   content: "\e947";

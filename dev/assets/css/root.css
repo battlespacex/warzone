@@ -213,8 +213,8 @@
     --warzone-base-training-logistics-color: var(--color-green);
     --warzone-base-wmd-color: var(--color-yellow-glow);
     --warzone-base-unknown-color: var(--color-green);
-    --warzone-base-icon-px: 22;
-    --warzone-base-icon-significant-px: 22;
+    --warzone-base-icon-px: 24;
+    --warzone-base-icon-significant-px: 24;
     --warzone-base-icon-major-px: 24;
     --warzone-base-icon-min-px: 16;
     --warzone-base-icon-pixel-offset-y: 6;

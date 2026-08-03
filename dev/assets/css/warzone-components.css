@@ -643,7 +643,6 @@
     gap: .75rem;
     margin-top: .25rem;
     padding-top: .9rem;
-    border-top: 1px solid var(--color-border);
 }
 
 .wz-event-popup-media[hidden],
@@ -861,7 +860,7 @@
     justify-content: space-between;
     gap: 1.5rem;
     padding: 1.3rem 1.5rem;
-    background: red;
+    background: yellow;
 }
 
 .wz-satellite-imagery-viewer__kicker {
@@ -893,7 +892,6 @@
 .wz-satellite-imagery-viewer__image-wrap {
     position: relative;
     min-height: 28rem;
-    background: red;
 }
 
 .wz-satellite-imagery-viewer__image {
@@ -998,9 +996,9 @@
     z-index: 66;
     width: min(34rem, calc(100vw - 2rem));
     padding: 1rem;
-    background: red;
+    background: var(--color-bg-dark);
     color: var(--color-text-heading);
-    box-shadow: var(--widget-shadow), 0 0 1.8rem rgba(24, 226, 219, .10);
+    box-shadow: var(--widget-shadow);
     clip-path: var(--clippath-shape-5);
     pointer-events: none;
     backdrop-filter: blur(.2rem);
@@ -1017,7 +1015,6 @@
     color: var(--color-text-heading);
     font-family: var(--heading-font1);
     font-size: var(--text-base);
-    line-height: 1.35;
     text-transform: uppercase;
 }
 
@@ -1027,7 +1024,6 @@
     margin-bottom: 1rem;
     color: var(--color-text-dim);
     font-size: var(--text-sm);
-    line-height: 1.35;
     text-transform: uppercase;
 }
 
@@ -1049,7 +1045,6 @@
     color: rgba(143, 163, 184, .86);
     font-family: var(--text-font);
     font-size: var(--text-sm);
-    line-height: 1;
     text-transform: uppercase;
 }
 
@@ -1070,7 +1065,6 @@
     margin: 1rem 0 0;
     color: var(--color-text-dim);
     font-size: var(--text-xs);
-    line-height: 1.25;
 }
 
 .wz-orbital-focus-card {
@@ -1133,6 +1127,9 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
+    background: var(--color-bg-row);
+    padding: 1.5rem;
+    clip-path: var(--clippath-shape-3);
 }
 
 .wz-orbital-controls__field {
@@ -1145,7 +1142,6 @@
 .wz-orbital-controls__field span {
     color: var(--color-text-dim);
     font-size: var(--text-sm);
-    line-height: 1.1;
     text-transform: uppercase;
     letter-spacing: .1rem;
     font-weight: 500;
@@ -1169,12 +1165,9 @@
 } */
 
 .wz-orbital-widget__summary-body {
-    background: var(--color-bg-row);
-    padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    margin-top: 1rem;
+    margin-top: .5rem;
     clip-path: var(--clippath-shape-3);
 }
 
@@ -1188,9 +1181,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1rem;
-    background: var(--color-blue);
-    padding: 1rem;
+    margin-bottom: .5rem;
 }
 
 .wz-orbital-widget__summary-head strong,
@@ -1219,6 +1210,10 @@ color: var(--color-text-dim);
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
+    background: var(--color-bg-row);
+    padding: 1.5rem;
+    font-weight: 700;
+    clip-path: var(--clippath-shape-3);
 }
 
 .wz-orbital-widget__summary-grid span,
@@ -1227,40 +1222,33 @@ color: var(--color-text-dim);
     min-width: 0;
     flex-direction: column;
     gap: .25rem;
-    color: rgba(232, 241, 250, .9);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 700;
-    line-height: 1.16;
-    text-transform: uppercase;
+    font-size: var(--text-sm);
     overflow-wrap: anywhere;
 }
 
 .wz-orbital-widget__summary-grid span:before,
 .wz-orbital-widget__details-grid span:before {
     content: attr(data-label);
-    color: rgba(143, 163, 184, .86);
-    font-family: var(--text-font);
+    color: var(--color-text-dim);
     font-size: var(--text-sm);
-    font-weight: 800;
-    line-height: 1;
     letter-spacing: 0;
 }
 
 .wz-orbital-widget__details-note,
 .wz-orbital-widget__summary-note {
-    margin: .8rem 0 0;
-    color: rgba(185, 202, 222, .8);
+    margin: 1rem 0 0;
+    color: var(--color-text-dim);
     font-size: var(--text-sm);
-    line-height: 1.25;
 }
 
 .wz-orbital-widget__details-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: .8rem;
-    margin-bottom: .75rem;
+    gap: 1rem;
+    margin-bottom: 0;
+    background: var(--color-blue);
+    padding: 1.5rem;
 }
 
 .wz-orbital-widget__details-close {
@@ -1454,7 +1442,7 @@ position: fixed;
     pointer-events: none;
     transform: translateX(calc(-100% - 2.5rem));
     transition: transform var(--map-layers-pane-transition), opacity 280ms ease;
-    border-top: .7rem solid var(--color-teal-glow);
+  
     padding: 3rem 0 3rem 3rem;
     filter: var(--widget-shadow);
     backdrop-filter: blur(.2rem);
@@ -1733,7 +1721,6 @@ body.is-map-layers-open .wz-map-layers-pane {
     pointer-events: none;
     transition: opacity 220ms ease;
     backdrop-filter: none;
-    background: var(--color-bg-overlay);
 }
 
 .wz-modal:before {
@@ -1742,7 +1729,6 @@ body.is-map-layers-open .wz-map-layers-pane {
     width: 100%;
     top: 0;
     content: '';
-    box-shadow: 0 -1rem 5rem 1rem var(--color-teal-glow);
 }
 
 
@@ -3610,7 +3596,6 @@ UNUSED CANDIDATE END */
     gap: 2rem;
     padding: 1rem 0;
     align-items: start;
-    border-top: 0.2rem solid rgba(255, 255, 255, 0.06);
 }
 
     .wz-feed-list .timeline-item:first-child {
@@ -3740,7 +3725,6 @@ UNUSED CANDIDATE END */
     gap: 0.7rem;
     margin-top: 1rem;
     padding-top: 0.9rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .wz-feed-satellite__head {
@@ -5440,7 +5424,7 @@ display: inline-flex;
     text-shadow: 0 0 .5rem var(--color-teal-glow);
     pointer-events: none;
     display: grid;
-    gap: .7rem;
+    gap: 1rem;
     transition: left var(--map-layers-pane-transition);
 }
 
@@ -5504,19 +5488,16 @@ body.wz-hide-altitude-km .wz-altitude-readout__line--km {
 
 .wz-operational-reports__list {
     display: grid;
-    gap: 0.8rem;
+    gap: 1rem;
     max-height: min(52vh, 36rem);
     overflow-y: auto;
-    padding-right: 0.3rem;
 }
 
 .wz-operational-report-viewer {
     display: grid;
-    gap: 0.8rem;
+    gap: 1rem;
     padding: 1rem;
     background: rgba(20, 28, 40, 0.76);
-    border: 1px solid rgba(121, 242, 255, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 .wz-operational-report-viewer__head {
@@ -5528,16 +5509,13 @@ body.wz-hide-altitude-km .wz-altitude-readout__line--km {
 
 .wz-operational-report-viewer__head h3 {
     margin: 0;
-    color: var(--color-text-primary);
     font-size: var(--text-base);
-    letter-spacing: 0.04em;
     text-transform: uppercase;
 }
 
 .wz-operational-report-viewer__frame-wrap {
     min-height: min(68vh, 48rem);
     background: rgba(8, 13, 20, 0.92);
-    border: 1px solid rgba(121, 242, 255, 0.12);
 }
 
 .wz-operational-report-viewer__frame {
@@ -5560,12 +5538,11 @@ body.wz-hide-altitude-km .wz-altitude-readout__line--km {
 
 .wz-report-card {
     display: grid;
-    gap: 0.55rem;
-    padding: 1rem;
-    background: rgba(20, 28, 40, 0.76);
-    border: 1px solid rgba(121, 242, 255, 0.16);
+    gap: .5rem;
+    padding: 1.5rem;
+    background: var(--color-bg-header);
     border-radius: 0;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    clip-path: var(--clippath-shape-3);
 }
 
 .wz-report-card__head {
@@ -5575,40 +5552,28 @@ body.wz-hide-altitude-km .wz-altitude-readout__line--km {
     gap: 1rem;
 }
 
-.wz-report-card__title {
-    margin: 0;
-    color: var(--color-text-primary);
-    font-size: var(--text-base);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
 .wz-report-card__meta,
 .wz-report-card__summary {
     margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-}
-
-.wz-report-card__summary {
-    color: var(--color-text-primary);
+    color: var(--color-text-dim);
 }
 
 .wz-report-card__badge {
     flex-shrink: 0;
     color: var(--color-teal-glow);
-    border: 1px solid rgba(34, 211, 238, 0.35);
-    padding: 0.25rem 0.55rem;
-    font-size: var(--text-xs);
-    letter-spacing: 0.12em;
     text-transform: uppercase;
+    background: var(--color-teal-hover);
+    height: 3rem;
+    padding: .3rem 1.5rem 0;
+    display: flex;
+    align-items: center;
+    clip-path: var(--clippath-shape-3);
 }
 
 .wz-report-card__actions {
     display: flex;
     justify-content: flex-start;
-    gap: 0.6rem;
+    gap: 1rem;
 }
 
 /* #endregion */
