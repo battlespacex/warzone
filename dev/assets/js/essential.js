@@ -10277,13 +10277,18 @@ function openLatestOperationalReport() {
         setReportsStatus("The latest report is still being prepared. Please check again shortly.", true);
         return;
     }
-    const readyWindow = window.open(readyUrl, "_blank", "noopener,noreferrer");
-    try {
-        if (readyWindow) readyWindow.opener = null;
-    } catch { }
-    setReportsStatus(readyWindow
-        ? "Latest cached report opened."
-        : "Latest report is ready, but your browser blocked the report tab.");
+
+    // Use a real link activation from the user's click. Browsers may return null
+    // from window.open when noopener is used even though the tab opened successfully.
+    const reportLink = document.createElement("a");
+    reportLink.href = readyUrl;
+    reportLink.target = "_blank";
+    reportLink.rel = "noopener noreferrer";
+    reportLink.hidden = true;
+    document.body.appendChild(reportLink);
+    reportLink.click();
+    reportLink.remove();
+    setReportsStatus("Latest cached report opened.");
 }
 
 function closeMobileDockMenuAfterReportsOpen() {

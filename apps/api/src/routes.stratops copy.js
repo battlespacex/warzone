@@ -37,11 +37,9 @@ function getStratopsDomain() {
         .replace(/\/+$/, "");
 }
 
-const PRODUCTION_REPORT_ORIGIN = "https://stratops.battlespacex.com";
-const STAGING_REPORT_ORIGIN = "https://stratops-staging.battlespacex.com";
 const PUBLIC_REPORT_ORIGINS = new Set([
-    PRODUCTION_REPORT_ORIGIN,
-    STAGING_REPORT_ORIGIN,
+    "https://stratops.battlespacex.com",
+    "https://stratops-staging.battlespacex.com",
 ]);
 const REPORT_STATUS_CACHE_TTL_MS = 30 * 1000;
 const reportStatusCache = new Map();
@@ -75,18 +73,14 @@ function getRequestPublicOrigin(req) {
 }
 
 function getReportsPublicBase(req) {
-    // A configured reports origin must take priority over the requesting site.
-    // This lets staging reuse PDFs published by the production worker/bucket.
+    const requestOrigin = getRequestPublicOrigin(req);
+    if (PUBLIC_REPORT_ORIGINS.has(requestOrigin)) return requestOrigin;
     const configured = String(
         process.env.STRATOPS_REPORTS_PUBLIC_URL ||
         process.env.REPORTS_PUBLIC_URL ||
         ""
     ).trim().replace(/\/+$/, "");
     if (configured) return configured;
-
-    const requestOrigin = getRequestPublicOrigin(req);
-    if (requestOrigin === STAGING_REPORT_ORIGIN) return PRODUCTION_REPORT_ORIGIN;
-    if (PUBLIC_REPORT_ORIGINS.has(requestOrigin)) return requestOrigin;
     return getStratopsDomain();
 }
 
