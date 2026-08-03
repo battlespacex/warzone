@@ -74,7 +74,7 @@ Asset focus supports selected aircraft and naval contacts. Historical/replay-sty
 
 ## Reports, Summaries, and Exports
 
-StratOps includes an operational reports modal, report listing, daily report generation request, PDF report viewer, and report opening/downloading flow. Reports are intended to present cached or generated operational summaries in a shareable format.
+StratOps includes an operational briefings modal, report listing, daily report generation request, PDF report viewer, and report opening/downloading flow. Reports are intended to present cached or generated operational summaries in a shareable format.
 
 Report generation and availability are backend-dependent. A report may not appear if the report endpoint, cached file, or download token is unavailable.
 

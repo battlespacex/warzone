@@ -332,7 +332,7 @@ export function stratopsRouter() {
                 const payload = {
                     status: "available",
                     report: toPublicApiReport(req, available.data),
-                    message: "Latest cached operational report is ready.",
+                    message: "Latest cached operational briefings is ready.",
                 };
                 setCachedReportStatus(cacheKey, payload);
                 return res.json(payload);
@@ -359,8 +359,8 @@ export function stratopsRouter() {
                 status,
                 report: pending.data ? toPublicApiReport(req, pending.data) : null,
                 message: status === "preparing"
-                    ? "The latest operational report is being prepared."
-                    : "No cached operational report is available yet.",
+                    ? "The latest operational briefings is being prepared."
+                    : "No cached operational briefings is available yet.",
             };
             setCachedReportStatus(cacheKey, payload);
             res.json(payload);

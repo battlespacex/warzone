@@ -110,7 +110,7 @@ Intro summary:
 StratOps is an OSINT-informed situational intelligence and visualization
 platform. It brings curated conflict events, public telemetry, regional
 intelligence, military-associated aircraft, naval activity, orbital estimates,
-satellite context, infrastructure signals, and operational reports into a single
+satellite context, infrastructure signals, and operational briefings into a single
 briefing-grade 3D environment.
 
 Supporting summary:
@@ -186,7 +186,7 @@ Intel Wire
 Review broader reporting, contextual intelligence, media-rich items, and
 slower-moving developments separately from immediate map events.
 
-Operational Reports
+Operational Briefings
 View generated operational summaries based on available cached snapshots,
 activity totals, regional trends, and supporting intelligence when the reporting
 service is available.

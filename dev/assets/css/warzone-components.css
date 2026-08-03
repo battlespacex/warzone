@@ -4118,23 +4118,57 @@ body.wz-intel-wire-detail-open {
 }
 
 .wz-intel-wire-detail__content {
-    margin: 0;
+    width: min(100%, 82ch);
+    margin: 0 auto;
     color: var(--color-text-body);
     font-size: var(--text-base);
-    line-height: 1.65;
-    white-space: pre-wrap;
+    line-height: 1.72;
     overflow-wrap: anywhere;
 }
 
+.wz-intel-wire-detail__content > :first-child {
+    margin-top: 0;
+}
+
+.wz-intel-wire-detail__content > :last-child {
+    margin-bottom: 0;
+}
+
+.wz-intel-wire-detail__content p {
+    margin: 0 0 1.25rem;
+}
+
+.wz-intel-wire-detail__content h3 {
+    margin: 2rem 0 0.75rem;
+    color: var(--color-text-heading);
+    font-family: var(--heading-font);
+    font-size: var(--text-lg);
+    line-height: 1.3;
+    letter-spacing: 0.02rem;
+}
+
+.wz-intel-wire-detail__content ul {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0 0 1.35rem;
+    padding-left: 1.5rem;
+}
+
+.wz-intel-wire-detail__content li {
+    padding-left: 0.25rem;
+}
+
 .wz-intel-wire-detail__location {
-    margin: 0;
+    width: min(100%, 82ch);
+    margin: 0 auto;
     color: var(--color-text-dim);
 }
 
 .wz-intel-wire-detail__media {
     display: grid;
     gap: 1rem;
-    padding-top: 0.4rem;
+    width: 100%;
+    padding-top: 0.8rem;
 }
 
 .wz-intel-wire-detail__media h3 {

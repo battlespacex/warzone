@@ -586,6 +586,33 @@ function trimWords(value = "", maxWords = 300, maxLength = 2200) {
     const limited = words.length > maxWords ? `${words.slice(0, maxWords).join(" ")}...` : text;
     return limited.length > maxLength ? `${limited.slice(0, Math.max(0, maxLength - 3)).trim()}...` : limited;
 }
+function trimStructuredWords(value = "", maxWords = 1600, maxLength = 14000) {
+    const text = String(value || "")
+        .replace(/\r\n?/g, "\n")
+        .replace(/[ \t]+/g, " ")
+        .replace(/ *\n */g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    if (!text) return "";
+    const words = text.match(/\S+/g) || [];
+    let limited = text;
+    if (words.length > maxWords) {
+        let count = 0;
+        limited = text.replace(/\S+/g, (word) => {
+            count += 1;
+            return count <= maxWords ? word : "";
+        })
+            .replace(/[ \t]+\n/g, "\n")
+            .replace(/[ \t]{2,}/g, " ")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+        limited = `${limited}...`;
+    }
+    if (limited.length > maxLength) {
+        limited = `${limited.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+    }
+    return limited;
+}
 
 function getHostname(value = "") {
     try {
@@ -669,6 +696,32 @@ function decodeHtmlEntities(value = "") {
     return current;
 }
 
+function stripIntelContentNoise(value = "") {
+    let text = String(value || "");
+
+    // Remove ad-loader fragments that are sometimes already flattened into RSS/article text.
+    text = text
+        .replace(/\(\s*adsbygoogle\s*=\s*window\.adsbygoogle\s*\|\|\s*\[\]\s*\)\s*\.\s*push\s*\(\s*\{[\s\S]{0,240}?\}\s*\)\s*;?/gi, " ")
+        .replace(/\(?\s*adsbygoogle\s*=\s*window\.adsbygoogle\s*\|\|\s*\[\]\s*\)?\s*;?\s*\(?\s*adsbygoogle\s*\)?\s*\.\s*push\s*\(\s*\{[\s\S]{0,240}?\}\s*\)\s*;?/gi, " ")
+        .replace(/\(?\s*adsbygoogle\s*=\s*window\.adsbygoogle\s*\|\|\s*\[\]\s*\)?\s*;?/gi, " ")
+        .replace(/\(?\s*adsbygoogle\s*\)?\s*\.\s*push\s*\(\s*\{[\s\S]{0,240}?\}\s*\)\s*;?/gi, " ")
+        .replace(/\badsbygoogle\b[\s\S]{0,180}?\bpush\s*\([^)]*\)\s*;?/gi, " ")
+        .replace(/\bwindow\.adsbygoogle\b/gi, " ");
+
+    // Remove complete CMS metadata footers before stripping their individual fields.
+    text = text
+        .replace(/\bWar on [A-Za-z0-9 &'’\-]{2,60} News\s+Post\s+Date\s+Override\b[\s\S]{0,600}$/i, " ")
+        .replace(/\bPost\s+Date\s+Override\b[\s\S]{0,600}$/i, " ");
+
+    // Remove CMS-only date/debug fields appended to article bodies.
+    text = text
+        .replace(/\b(?:Post|Update|Published|Modified)\s+Date\s+Override\s*[:=\-]?\s*\d*\b/gi, " ")
+        .replace(/\b(?:Post|Update|Published|Modified)\s+Date\s*[:=\-]?\s*(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?[,]?\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*(?:[-–—]\s*)?\d{1,2}:\d{2}[ap]?m?\b/gi, " ")
+        .replace(/\b(?:Post|Update|Published|Modified)\s+Date\s*[:=\-]?\s*\d{4}-\d{2}-\d{2}(?:[T\s][0-9:.+\-Z]+)?\b/gi, " ");
+
+    return text;
+}
+
 function stripHtmlToText(value = "") {
     const decoded = decodeHtmlEntities(value);
     const withoutTags = decoded
@@ -681,9 +734,46 @@ function stripHtmlToText(value = "") {
         .replace(/\{[^{}]*(?:url|uri|html|node|data-history)[^{}]*\}/gi, " ");
     const leakedIndex = withoutTags.search(/\b(?:data-history-node-id|about=|href=|class=|src=|<article|<\/article|<p>|<\/p>)/i);
     const text = leakedIndex >= 0 ? withoutTags.slice(0, leakedIndex) : withoutTags;
-    return text
+    return stripIntelContentNoise(text)
         .replace(/\s+/g, " ")
         .trim();
+}
+function stripNonEnglishStructuredText(value = "") {
+    return String(value ?? "")
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, " ")
+        .replace(/[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}\p{Number}\s]/gu, " ")
+        .replace(/[ \t]+/g, " ")
+        .replace(/ *\n */g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
+
+function stripHtmlToStructuredText(value = "") {
+    const decoded = decodeHtmlEntities(value)
+        .replace(/\r\n?/g, "\n")
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+        .replace(/<br\s*\/?\s*>/gi, "\n")
+        .replace(/<\/?(?:p|div|article|section|header|footer|aside|blockquote|h[1-6]|figure|figcaption|table|tr)\b[^>]*>/gi, "\n\n")
+        .replace(/<li\b[^>]*>/gi, "\n- ")
+        .replace(/<\/li>/gi, "\n")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=["'][^"']*["']/gi, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/\{[^{}]*(?:url|uri|html|node|data-history)[^{}]*\}/gi, " ");
+
+    const text = stripNonEnglishStructuredText(stripIntelContentNoise(decoded));
+    const blocks = text
+        .split(/\n{2,}/)
+        .map((block) => block
+            .split("\n")
+            .map((line) => line.replace(/\s+/g, " ").trim())
+            .filter(Boolean)
+            .join("\n"))
+        .filter(Boolean);
+
+    return blocks.join("\n\n").trim();
 }
 
 function looksLikeLeakedHtmlSummary(value = "") {
@@ -758,7 +848,7 @@ function collectHtmlMetadataCandidates(html = "", pushImage = () => {}, pushVide
         const content = normalizeAssetUrl(attrs.content || "");
         if (!content) continue;
         if (key === "og:image" || key === "og:image:url" || key === "twitter:image" || key === "twitter:image:src") {
-            pushImage(content, { sourceKind: "metadata" });
+            pushImage(content, { sourceKind: "metadata", trustedArticleMedia: true });
         }
         if (key === "og:video" || key === "twitter:player") {
             pushVideo(content, { sourceKind: "metadata" });
@@ -780,12 +870,12 @@ function collectHtmlMetadataCandidates(html = "", pushImage = () => {}, pushVide
                 if (Array.isArray(imageValue)) {
                     imageValue.forEach((entry) => {
                         const url = normalizeAssetUrl(typeof entry === "string" ? entry : entry?.url || entry?.contentUrl || "");
-                        if (url) pushImage(url, { sourceKind: "metadata" });
+                        if (url) pushImage(url, { sourceKind: "metadata", trustedArticleMedia: true });
                     });
                     return;
                 }
                 const url = normalizeAssetUrl(typeof imageValue === "string" ? imageValue : imageValue?.url || imageValue?.contentUrl || "");
-                if (url) pushImage(url, { sourceKind: "metadata" });
+                if (url) pushImage(url, { sourceKind: "metadata", trustedArticleMedia: true });
             });
         } catch {}
     }
@@ -854,53 +944,83 @@ function isRejectedIntelImageCandidate(entry = {}) {
     return false;
 }
 
+function getIntelImageKeywordHits(entry = {}, item = {}) {
+    const keywords = getIntelTitleKeywords(item);
+    if (!keywords.length) return 0;
+    let decodedUrl = "";
+    try {
+        decodedUrl = decodeURIComponent(String(entry.url || ""));
+    } catch {
+        decodedUrl = String(entry.url || "");
+    }
+    const contextTokens = new Set(normalizeTokenList([
+        entry.alt || "",
+        entry.caption || "",
+        decodedUrl,
+    ].join(" ")));
+    return keywords.filter((token) => contextTokens.has(token)).length;
+}
+
+function getIntelImageCanonicalKey(value = "") {
+    try {
+        const url = new URL(String(value || "").trim());
+        const path = decodeURIComponent(url.pathname)
+            .toLowerCase()
+            .replace(/[-_.](?:\d{2,4})x(?:\d{2,4})(?=\.[a-z0-9]{2,5}$)/gi, "")
+            .replace(/[-_.](?:small|medium|large|thumb|thumbnail|preview|full)(?=\.[a-z0-9]{2,5}$)/gi, "");
+        return `${url.hostname.toLowerCase()}${path}`;
+    } catch {
+        return String(value || "").trim().toLowerCase().replace(/[?#].*$/, "");
+    }
+}
+
 function scoreIntelMediaImage(entry = {}, item = {}) {
     const url = String(entry.url || "").toLowerCase();
-    const keywords = getIntelTitleKeywords(item);
     const metadataText = `${entry.alt || ""} ${entry.caption || ""}`;
-    const metadataTokens = normalizeTokenList(metadataText);
-    const keywordHits = keywords.filter((token) => metadataTokens.includes(token)).length;
+    const keywordHits = getIntelImageKeywordHits(entry, item);
     const { width, height } = inferImageDimensions(entry);
     const aspectRatio = width && height ? width / height : 0;
     let score = 0;
 
     switch (String(entry.sourceKind || "")) {
         case "rss":
-            score += 48;
+            score += 32;
             break;
         case "metadata":
-            score += 44;
+            score += 30;
             break;
         case "figure":
-            score += 34;
-            break;
-        case "article-html":
             score += 24;
             break;
+        case "article-html":
+            score += 14;
+            break;
         default:
-            score += 10;
+            score += 4;
             break;
     }
 
+    if (entry.trustedArticleMedia === true) score += 10;
     if (width && height) {
-        if (width >= 1200 || height >= 675) score += 14;
-        else if (width >= 640 && height >= 360) score += 10;
-        else if (width >= MIN_PUBLIC_IMAGE_WIDTH && height >= MIN_PUBLIC_IMAGE_HEIGHT) score += 4;
+        if (width >= 1200 || height >= 675) score += 12;
+        else if (width >= 640 && height >= 360) score += 8;
+        else if (width >= MIN_PUBLIC_IMAGE_WIDTH && height >= MIN_PUBLIC_IMAGE_HEIGHT) score += 3;
     }
-    if (aspectRatio >= 1.2 && aspectRatio <= 2.2) score += 8;
-    else if (aspectRatio >= 0.8 && aspectRatio <= 2.8) score += 4;
-    if (entry.inFigure) score += 8;
-    if (entry.hasCaption) score += 10;
-    if (entry.articleContext) score += 8;
-    if (containsIntelPositiveToken(url)) score += 6;
-    if (keywordHits) score += Math.min(12, keywordHits * 4);
-    if (containsIntelNegativeToken(url) || containsIntelNegativeToken(metadataText)) score -= 40;
+    if (aspectRatio >= 1.2 && aspectRatio <= 2.2) score += 7;
+    else if (aspectRatio >= 0.8 && aspectRatio <= 2.8) score += 3;
+    if (entry.inFigure) score += 7;
+    if (entry.hasCaption) score += 8;
+    if (entry.articleContext) score += 7;
+    if (containsIntelPositiveToken(url)) score += 4;
+    if (keywordHits) score += Math.min(30, keywordHits * 6);
+    else score -= entry.trustedArticleMedia === true ? 6 : 18;
+    if (containsIntelNegativeToken(url) || containsIntelNegativeToken(metadataText)) score -= 50;
 
     return score;
 }
 
 function selectIntelImageCandidates(candidates = [], item = {}) {
-    const bestByUrl = new Map();
+    const bestByKey = new Map();
     candidates.forEach((entry, index) => {
         const url = normalizeAssetUrl(entry?.url || "");
         if (!url) return;
@@ -910,26 +1030,45 @@ function selectIntelImageCandidates(candidates = [], item = {}) {
             _order: index,
         };
         if (isRejectedIntelImageCandidate(candidate)) return;
+        candidate._keywordHits = getIntelImageKeywordHits(candidate, item);
         candidate._score = scoreIntelMediaImage(candidate, item);
-        if (candidate._score < MIN_PUBLIC_IMAGE_SCORE) return;
 
-        const key = url.toLowerCase();
-        const current = bestByUrl.get(key);
+        const hasArticleSignal =
+            candidate.trustedArticleMedia === true ||
+            candidate.articleContext === true ||
+            candidate.inFigure === true ||
+            candidate.hasCaption === true ||
+            candidate._keywordHits > 0;
+        if (!hasArticleSignal || candidate._score < MIN_PUBLIC_IMAGE_SCORE) return;
+
+        const key = getIntelImageCanonicalKey(url);
+        const current = bestByKey.get(key);
         if (!current || candidate._score > current._score || (candidate._score === current._score && candidate._order < current._order)) {
-            bestByUrl.set(key, candidate);
+            bestByKey.set(key, candidate);
         }
     });
 
-    const selected = [...bestByUrl.values()].sort((left, right) => {
+    const ranked = [...bestByKey.values()].sort((left, right) => {
         if (right._score !== left._score) return right._score - left._score;
         return left._order - right._order;
     });
+    if (!ranked.length) return [];
+
+    const selected = [ranked[0]];
+    for (const candidate of ranked.slice(1)) {
+        const stronglyRelevant =
+            candidate._keywordHits >= 2 ||
+            (candidate._keywordHits >= 1 && (candidate.inFigure || candidate.hasCaption || candidate.articleContext));
+        if (!stronglyRelevant) continue;
+        selected.push(candidate);
+        if (selected.length >= MAX_PUBLIC_IMAGES) break;
+    }
 
     if (selected.length > 1 && selected[0]._score >= STRONG_PUBLIC_IMAGE_SCORE && selected[1]._score <= selected[0]._score - 18) {
         return [selected[0]];
     }
 
-    return selected.slice(0, MAX_PUBLIC_IMAGES);
+    return selected;
 }
 
 function scoreIntelMediaVideo(entry = {}) {
@@ -994,13 +1133,14 @@ function collectRawMediaCandidates(item = {}) {
         candidates.images.push({
             url: normalizedUrl,
             thumbUrl: normalizeAssetUrl(meta.thumbUrl || meta.thumbnail || normalizedUrl),
-            alt: trimString(meta.alt || item.title || ""),
+            alt: trimString(meta.alt || ""),
             width: Number.isFinite(Number(meta.width)) ? Number(meta.width) : null,
             height: Number.isFinite(Number(meta.height)) ? Number(meta.height) : null,
             caption: trimString(meta.caption || "", 180),
             hasCaption: meta.hasCaption === true,
             inFigure: meta.inFigure === true,
             articleContext: meta.articleContext === true,
+            trustedArticleMedia: meta.trustedArticleMedia === true,
             sourceKind: meta.sourceKind || "fallback",
         });
     };
@@ -1036,6 +1176,56 @@ function collectRawMediaCandidates(item = {}) {
         }
     };
 
+    const collectNormalizedMediaObject = (value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return;
+
+        const imageEntries = Array.isArray(value.images) ? value.images : [];
+        imageEntries.forEach((entry) => {
+            if (typeof entry === "string") {
+                pushImage(entry, { sourceKind: "rss", trustedArticleMedia: true });
+                return;
+            }
+            if (!entry || typeof entry !== "object") return;
+            const fullUrl = entry.fullUrl || entry.full_url || entry.url || entry.src || entry.previewUrl || entry.preview_url;
+            const thumbUrl = entry.thumbUrl || entry.thumb_url || entry.thumbnail || entry.thumbnailUrl || entry.thumbnail_url || entry.previewUrl || entry.preview_url || fullUrl;
+            pushImage(fullUrl || thumbUrl, {
+                ...entry,
+                thumbUrl,
+                alt: entry.alt || entry.title || "",
+                sourceKind: entry.sourceKind || "rss",
+                trustedArticleMedia: true,
+            });
+        });
+
+        const videoEntries = Array.isArray(value.videos) ? value.videos : [];
+        videoEntries.forEach((entry) => {
+            if (typeof entry === "string") {
+                pushDirectAsset(entry, { sourceKind: "rss" });
+                return;
+            }
+            if (!entry || typeof entry !== "object") return;
+            const videoUrl = entry.videoUrl || entry.video_url || entry.mediaUrl || entry.media_url || entry.url || entry.src || "";
+            const embedUrl = entry.embedUrl || entry.embed_url || "";
+            const thumbUrl = entry.thumbUrl || entry.thumb_url || entry.thumbnail || entry.thumbnailUrl || entry.thumbnail_url || entry.poster || "";
+            pushVideo(videoUrl, {
+                ...entry,
+                embedUrl,
+                thumbUrl,
+                sourceKind: entry.sourceKind || "rss",
+                trustedArticleMedia: true,
+            });
+        });
+    };
+
+    [
+        item.media,
+        item.metadata?.media,
+        raw.stratops_media,
+        raw.normalized_media,
+        raw.intel_media,
+        raw.media,
+    ].forEach(collectNormalizedMediaObject);
+
     [
         item.image,
         item.image_url,
@@ -1059,20 +1249,20 @@ function collectRawMediaCandidates(item = {}) {
         raw.twitter_image,
         raw.twitterImage,
         raw.photo,
-    ].forEach((value) => pushDirectAsset(value, { sourceKind: "metadata" }));
+    ].forEach((value) => pushDirectAsset(value, { sourceKind: "metadata", trustedArticleMedia: true }));
 
     [raw.enclosure, raw.media, raw.media_content, raw["media:content"], raw.media_thumbnail, raw["media:thumbnail"]]
         .filter(Boolean)
         .forEach((value) => {
             if (Array.isArray(value)) {
-                value.forEach((entry) => pushDirectAsset(entry?.url || entry?.href || entry?.src || entry, { ...entry, sourceKind: "rss" }));
+                value.forEach((entry) => pushDirectAsset(entry?.url || entry?.href || entry?.src || entry, { ...entry, sourceKind: "rss", trustedArticleMedia: true }));
                 return;
             }
             if (typeof value === "object") {
-                pushDirectAsset(value.url || value.href || value.src || value.contentUrl, { ...value, sourceKind: "rss" });
+                pushDirectAsset(value.url || value.href || value.src || value.contentUrl, { ...value, sourceKind: "rss", trustedArticleMedia: true });
                 return;
             }
-            pushDirectAsset(value, { sourceKind: "rss" });
+            pushDirectAsset(value, { sourceKind: "rss", trustedArticleMedia: true });
         });
 
     const rawTextSources = [
@@ -1106,18 +1296,35 @@ function collectRawMediaCandidates(item = {}) {
             pushImage(entry.url, {
                 ...entry,
                 sourceKind: entry.inFigure || entry.hasCaption ? "figure" : "article-html",
+                trustedArticleMedia: entry.inFigure || entry.hasCaption || entry.articleContext,
             });
         });
     });
 
     walkValues(raw, (node) => {
+        const nodeKeys = Object.keys(node || {}).map((key) => String(key).toLowerCase());
+        const isExplicitMediaNode = nodeKeys.some((key) =>
+            /^(?:image|image_url|imageurl|thumbnail|thumbnailurl|thumbnail_url|poster|fullurl|full_url|thumburl|thumb_url|previewurl|preview_url|videourl|video_url|embedurl|embed_url|enclosure|media)$/.test(key)
+        );
+        if (!isExplicitMediaNode) return;
         const urlCandidates = [
             node.url,
             node.href,
             node.src,
+            node.fullUrl,
+            node.full_url,
+            node.thumbUrl,
+            node.thumb_url,
+            node.previewUrl,
+            node.preview_url,
+            node.videoUrl,
+            node.video_url,
+            node.embedUrl,
+            node.embed_url,
             node.poster,
             node.thumbnail,
             node.thumbnailUrl,
+            node.thumbnail_url,
             node.image,
             node.image_url,
             node.imageUrl,
@@ -1126,11 +1333,11 @@ function collectRawMediaCandidates(item = {}) {
 
         urlCandidates.forEach((url) => {
             if (isDirectVideoUrl(url)) {
-                pushVideo(url, node);
+                pushVideo(url, { ...node, sourceKind: "fallback" });
                 return;
             }
             if (isDirectImageUrl(url)) {
-                pushImage(url, node);
+                pushImage(url, { ...node, sourceKind: "fallback" });
                 return;
             }
             if (isSafePublicEmbedUrl(url)) {
@@ -1243,14 +1450,20 @@ function getIntelWireMediaAsset(item = {}, kind = "", index = 0, variant = "full
     return null;
 }
 
+function normalizeComparableIntelText(value = "") {
+    return normalizeToken(stripHtmlToText(value));
+}
+
 function buildPublicSummary(item = {}) {
     const raw = getRawObject(item.raw);
     const candidates = [
+        item.summary,
         raw.summary,
         raw.description,
+        raw.contentSnippet,
+        raw.content_snippet,
         raw.content,
         raw["content:encoded"],
-        item.summary,
     ];
     for (const candidate of candidates) {
         const cleaned = stripHtmlToText(candidate);
@@ -1263,14 +1476,66 @@ function buildPublicSummary(item = {}) {
     return "";
 }
 
+function buildPublicFullContent(item = {}, summary = "") {
+    const raw = getRawObject(item.raw);
+    const candidates = [
+        item.full_content,
+        item.fullContent,
+        item.content_text,
+        item.contentText,
+        item.content,
+        item.description,
+        raw.stratops_full_content,
+        raw.full_content,
+        raw.fullContent,
+        raw.content_text,
+        raw.contentText,
+        raw.article_text,
+        raw.articleText,
+        raw.body,
+        raw["content:encoded"],
+        raw.content,
+        raw.description,
+        raw.summary,
+        item.summary,
+    ];
+
+    const cleanedCandidates = candidates
+        .map((candidate) => stripHtmlToStructuredText(candidate))
+        .filter(Boolean)
+        .filter((candidate) => !looksLikeLeakedHtmlSummary(candidate))
+        .map((candidate) => trimStructuredWords(candidate, 1600, 14000))
+        .sort((left, right) => right.length - left.length);
+
+    const summaryKey = normalizeComparableIntelText(summary);
+    for (const candidate of cleanedCandidates) {
+        const candidateKey = normalizeComparableIntelText(candidate);
+        if (!candidateKey) continue;
+        if (!summaryKey) return candidate;
+        if (candidateKey === summaryKey) continue;
+        const meaningfulExtraLength = candidate.length - summary.length;
+        if (meaningfulExtraLength >= 80 || !candidateKey.startsWith(summaryKey)) {
+            return candidate;
+        }
+    }
+    return "";
+}
+
 function toPublicIntelWireItem(item = {}, options = {}) {
     const source = sanitizeIntelSource(item);
     const timestamp = item.published_at || item.fetched_at || new Date().toISOString();
     const media = buildPublicIntelWireMedia(item, options.mediaBaseUrl || "");
+    const summary = buildPublicSummary(item);
+    const fullContent = buildPublicFullContent(item, summary);
     return {
         id: item.id,
         title: stripNonEnglishText(stripHtmlToText(item.title || ""), "Intel update"),
-        summary: buildPublicSummary(item),
+        summary,
+        ...(fullContent ? {
+            full_content: fullContent,
+            content: fullContent,
+            description: fullContent,
+        } : {}),
         category: item.category || item.source_category || "intel",
         severity: extractSeverity(item),
         location: stripNonEnglishText(item.country || item.region || "", ""),

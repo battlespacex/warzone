@@ -1129,7 +1129,7 @@ function getIntelWireTimestamp(item = {}) {
 }
 function getLongestIntelWireTextCandidate(values = []) {
     return (Array.isArray(values) ? values : [])
-        .map((value) => sanitizeIntelWireSummary(value))
+        .map((value) => sanitizeIntelWireStructuredText(value))
         .filter(Boolean)
         .sort((a, b) => b.length - a.length)[0] || "";
 }
@@ -1156,6 +1156,10 @@ function normalizeIntelWireItem(item = {}) {
         item.body,
         item.article_text,
         item.articleText,
+        item.raw?.stratops_full_content,
+        item.raw?.full_content,
+        item.raw?.contentEncoded,
+        item.raw?.["content:encoded"],
         item.summary,
         item.display_summary,
         item.displaySummary,
@@ -1168,10 +1172,15 @@ function normalizeIntelWireItem(item = {}) {
         || "",
         ""
     );
-    const locationLabel = sanitizeEventPopupText(item.region || item.country || item.location_label || item.locationLabel || "", "");
+    const rawLocationLabel = sanitizeEventPopupText(item.region || item.country || item.location_label || item.locationLabel || "", "");
+    const locationLabel = isMeaningfulIntelWireText(rawLocationLabel) ? rawLocationLabel : "";
     const rawMedia = item.media && typeof item.media === "object"
         ? item.media
-        : (item.metadata?.media && typeof item.metadata.media === "object" ? item.metadata.media : null);
+        : (item.metadata?.media && typeof item.metadata.media === "object"
+            ? item.metadata.media
+            : (item.raw?.stratops_media && typeof item.raw.stratops_media === "object"
+                ? item.raw.stratops_media
+                : (item.raw?.media && typeof item.raw.media === "object" ? item.raw.media : null)));
     const media = rawMedia
         ? {
             images: Array.isArray(rawMedia.images) ? rawMedia.images : [],
@@ -4104,6 +4113,42 @@ function sanitizeIntelWireSummary(value = "") {
         .replace(/\s+/g, " ")
         .trim());
 }
+function sanitizeIntelWireStructuredText(value = "") {
+    const decoded = decodeBasicHtmlEntities(value)
+        .replace(/\r\n?/g, "\n")
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+        .replace(/<br\s*\/?\s*>/gi, "\n")
+        .replace(/<\/?(?:p|div|article|section|header|footer|aside|blockquote|h[1-6]|figure|figcaption|table|tr)\b[^>]*>/gi, "\n\n")
+        .replace(/<li\b[^>]*>/gi, "\n- ")
+        .replace(/<\/li>/gi, "\n")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=["'][^"']*["']/gi, " ")
+        .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, " ");
+
+    const cleanedLines = decoded
+        .split("\n")
+        .map((line) => stripNonEnglishText(line, ""))
+        .map((line) => line.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+
+    const paragraphs = [];
+    for (const line of cleanedLines) {
+        if (/^-\s+/.test(line)) {
+            paragraphs.push(line);
+            continue;
+        }
+        const previous = paragraphs[paragraphs.length - 1] || "";
+        if (previous && !/^-\s+/.test(previous) && previous.length < 120 && !/[.!?:;]$/.test(previous)) {
+            paragraphs[paragraphs.length - 1] = `${previous} ${line}`.trim();
+        } else {
+            paragraphs.push(line);
+        }
+    }
+    return paragraphs.join("\n\n").trim();
+}
 function isIntelWireMediaEnabled() {
     return window.__stratopsConfig?.enableIntelWireMedia !== false;
 }
@@ -4114,11 +4159,40 @@ function isLocalNetworkMediaHost(hostname = "") {
     if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true;
     return /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
 }
-function isPublicRenderableMediaUrl(value = "") {
-    const raw = String(value || "").trim();
-    if (!raw) return false;
+function getIntelWireMediaBaseUrl() {
+    const isLocalPage = typeof isLocalHostName === "function"
+        ? isLocalHostName(window.location.hostname)
+        : ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(window.location.hostname || "").toLowerCase());
+    const configured = String(
+        window.__stratopsConfig?.intelFeedMediaBase
+        || window.__stratopsConfig?.intelFeedApiBase
+        || window.__stratopsConfig?.apiBase
+        || (isLocalPage ? "/api" : "https://api.battlespacex.com")
+    ).trim();
+    if (!configured) return window.location.origin;
     try {
-        const url = new URL(raw, window.location.href);
+        return new URL(configured, window.location.origin).href.replace(/\/+$/, "");
+    } catch {
+        return window.location.origin;
+    }
+}
+function resolveIntelWireMediaUrl(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw || /^(?:data|blob|javascript):/i.test(raw)) return "";
+    try {
+        if (/^\/\//.test(raw)) return `${window.location.protocol}${raw}`;
+        if (/^https?:\/\//i.test(raw)) return new URL(raw).href;
+        const base = `${getIntelWireMediaBaseUrl().replace(/\/+$/, "")}/`;
+        return new URL(raw.replace(/^\/+/, ""), base).href;
+    } catch {
+        return "";
+    }
+}
+function isPublicRenderableMediaUrl(value = "") {
+    const resolved = resolveIntelWireMediaUrl(value);
+    if (!resolved) return false;
+    try {
+        const url = new URL(resolved);
         if (!["http:", "https:"].includes(url.protocol)) return false;
         const isLocalPage = typeof isLocalHostName === "function" && isLocalHostName(window.location.hostname);
         if (!isLocalPage && isLocalNetworkMediaHost(url.hostname)) return false;
@@ -4131,7 +4205,7 @@ function isPublicRenderableMediaUrl(value = "") {
 function normalizeIntelWireImageEntry(entry = {}, fallbackTitle = "") {
     const value = typeof entry === "string" ? { fullUrl: entry } : entry;
     if (!value || typeof value !== "object") return null;
-    const thumbUrl = String(
+    const thumbUrl = resolveIntelWireMediaUrl(
         value.thumbUrl
         || value.thumb_url
         || value.thumbnail
@@ -4144,15 +4218,15 @@ function normalizeIntelWireImageEntry(entry = {}, fallbackTitle = "") {
         || value.url
         || value.src
         || ""
-    ).trim();
-    const fullUrl = String(
+    );
+    const fullUrl = resolveIntelWireMediaUrl(
         value.fullUrl
         || value.full_url
         || value.url
         || value.src
         || thumbUrl
         || ""
-    ).trim();
+    );
     const renderUrl = isPublicRenderableMediaUrl(thumbUrl) ? thumbUrl : fullUrl;
     if (!isPublicRenderableMediaUrl(renderUrl)) return null;
     return {
@@ -4166,7 +4240,7 @@ function normalizeIntelWireImageEntry(entry = {}, fallbackTitle = "") {
 function normalizeIntelWireVideoEntry(entry = {}, fallbackTitle = "") {
     const value = typeof entry === "string" ? { videoUrl: entry } : entry;
     if (!value || typeof value !== "object") return null;
-    const videoUrl = String(
+    const videoUrl = resolveIntelWireMediaUrl(
         value.videoUrl
         || value.video_url
         || value.mediaUrl
@@ -4174,9 +4248,9 @@ function normalizeIntelWireVideoEntry(entry = {}, fallbackTitle = "") {
         || value.src
         || value.url
         || ""
-    ).trim();
-    const embedUrl = String(value.embedUrl || value.embed_url || "").trim();
-    const thumbUrl = String(
+    );
+    const embedUrl = resolveIntelWireMediaUrl(value.embedUrl || value.embed_url || "");
+    const thumbUrl = resolveIntelWireMediaUrl(
         value.thumbUrl
         || value.thumb_url
         || value.thumbnail
@@ -4186,7 +4260,7 @@ function normalizeIntelWireVideoEntry(entry = {}, fallbackTitle = "") {
         || value.preview_url
         || value.poster
         || ""
-    ).trim();
+    );
     const safeVideoUrl = isPublicRenderableMediaUrl(videoUrl) ? videoUrl : "";
     const safeEmbedUrl = isPublicRenderableMediaUrl(embedUrl) ? embedUrl : "";
     if (!safeVideoUrl && !safeEmbedUrl) return null;
@@ -4209,20 +4283,22 @@ function dedupeIntelWireMediaEntries(entries = [], keyResolver = () => "") {
 }
 function getIntelWireItemMedia(event = {}) {
     if (!isIntelWireMediaEnabled()) return { images: [], videos: [] };
-    const media = event.media && typeof event.media === "object"
-        ? event.media
-        : (event.metadata?.media && typeof event.metadata.media === "object" ? event.metadata.media : null);
+    const mediaCandidates = [
+        event.media,
+        event.metadata?.media,
+        event.raw?.stratops_media,
+        event.raw?.media,
+        event.metadata?.raw?.stratops_media,
+    ].filter((value) => value && typeof value === "object" && !Array.isArray(value));
     const fallbackTitle = event.display_title || event.title || "";
+    const rawImages = mediaCandidates.flatMap((media) => Array.isArray(media.images) ? media.images : []);
+    const rawVideos = mediaCandidates.flatMap((media) => Array.isArray(media.videos) ? media.videos : []);
     const images = dedupeIntelWireMediaEntries(
-        (Array.isArray(media?.images) ? media.images : [])
-            .map((entry) => normalizeIntelWireImageEntry(entry, fallbackTitle))
-            .filter(Boolean),
+        rawImages.map((entry) => normalizeIntelWireImageEntry(entry, fallbackTitle)).filter(Boolean),
         (entry) => entry.fullUrl || entry.thumbUrl
     );
     const videos = dedupeIntelWireMediaEntries(
-        (Array.isArray(media?.videos) ? media.videos : [])
-            .map((entry) => normalizeIntelWireVideoEntry(entry, fallbackTitle))
-            .filter(Boolean),
+        rawVideos.map((entry) => normalizeIntelWireVideoEntry(entry, fallbackTitle)).filter(Boolean),
         (entry) => entry.embedUrl || entry.videoUrl
     );
     return { images, videos };
@@ -4383,7 +4459,55 @@ function stopIntelWireCardMedia(card) {
         } catch {}
     });
 }
+function normalizeIntelWireComparisonText(value = "") {
+    return sanitizeIntelWireSummary(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\b(?:the|a|an|and|or|of|in|on|to|for|at|by|with|from)\b/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function isMeaningfulIntelWireText(value = "") {
+    const clean = sanitizeIntelWireSummary(value);
+    if (!clean || /^[\s.,:;|/\\_-]+$/.test(clean)) return false;
+    const words = clean.match(/[A-Za-z0-9][A-Za-z0-9'’-]*/g) || [];
+    const letters = (clean.match(/[A-Za-z]/g) || []).length;
+    return letters >= 8 && words.length >= 3;
+}
+function stripIntelWireMetadataEcho(value = "", metadataValues = []) {
+    let clean = sanitizeIntelWireSummary(value);
+    for (const metadataValue of metadataValues) {
+        const meta = sanitizeIntelWireSummary(metadataValue);
+        if (!meta) continue;
+        const cleanKey = normalizeIntelWireComparisonText(clean);
+        const metaKey = normalizeIntelWireComparisonText(meta);
+        if (cleanKey && cleanKey === metaKey) return "";
+        const escaped = meta.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        clean = clean
+            .replace(new RegExp(`^${escaped}[\\s:;|,.-]*`, "i"), "")
+            .replace(new RegExp(`[\\s:;|,.-]*${escaped}$`, "i"), "")
+            .trim();
+    }
+    return clean;
+}
+function hasMeaningfulIntelWireAdditionalText(fullText = "", summaryText = "") {
+    if (!isMeaningfulIntelWireText(fullText)) return false;
+    const fullKey = normalizeIntelWireComparisonText(fullText);
+    const summaryKey = normalizeIntelWireComparisonText(summaryText);
+    if (!summaryKey) return fullKey.length >= 80;
+    if (!fullKey || fullKey === summaryKey) return false;
+    if (summaryKey.includes(fullKey)) return false;
+    const summaryWords = new Set(summaryKey.split(" ").filter(Boolean));
+    const additionalWords = fullKey.split(" ").filter((word) => word && !summaryWords.has(word));
+    return fullText.length >= summaryText.length + 80 && additionalWords.length >= 8;
+}
+function getMeaningfulIntelWireLocation(event = {}) {
+    const location = sanitizeEventPopupText(compactEventPlaceLabel(event), "");
+    return isMeaningfulIntelWireText(location) ? location : "";
+}
 function getIntelWireFullText(event = {}, title = "") {
+    const sourceName = sanitizeEventPopupText(event.display_source_name || event.source_name || "", "");
+    const location = getMeaningfulIntelWireLocation(event);
     const candidates = [
         event.full_content,
         event.fullContent,
@@ -4391,13 +4515,20 @@ function getIntelWireFullText(event = {}, title = "") {
         event.description,
         event.metadata?.full_content,
         event.metadata?.fullContent,
+        event.raw?.stratops_full_content,
+        event.raw?.full_content,
+        event.raw?.contentEncoded,
+        event.raw?.["content:encoded"],
         event.display_summary,
         event.summary,
     ]
-        .map((value) => sanitizeIntelWireSummary(value))
+        .map((value) => sanitizeIntelWireStructuredText(value))
         .filter(Boolean)
+        .map((value) => stripRepeatedEventTitle(value, title))
+        .map((value) => stripIntelWireMetadataEcho(value, [sourceName, location]))
+        .filter(isMeaningfulIntelWireText)
         .sort((a, b) => b.length - a.length);
-    return stripRepeatedEventTitle(candidates[0] || "", title);
+    return candidates[0] || "";
 }
 function formatIntelWireDisplayTime(value, now = Date.now()) {
     const timestamp = new Date(value || "").getTime();
@@ -4457,6 +4588,63 @@ function getIntelWireEventDomKey(event = {}, index = 0) {
         || event.source_url
         || `${event.source_name || "intel"}:${event.occurred_at || "unknown"}:${event.title || index}`
     );
+}
+function splitIntelWireLongParagraph(value = "") {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (!text || text.length <= 760) return text ? [text] : [];
+    const sentences = text.match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g) || [text];
+    const paragraphs = [];
+    let current = "";
+    for (const sentenceValue of sentences) {
+        const sentence = String(sentenceValue || "").trim();
+        if (!sentence) continue;
+        if (current && (current.length + sentence.length > 620 || (current.match(/[.!?]/g) || []).length >= 3)) {
+            paragraphs.push(current.trim());
+            current = sentence;
+        } else {
+            current = `${current} ${sentence}`.trim();
+        }
+    }
+    if (current) paragraphs.push(current.trim());
+    return paragraphs;
+}
+function buildIntelWireDetailContentMarkup(value = "") {
+    const structured = sanitizeIntelWireStructuredText(value);
+    if (!structured) return "";
+    const blocks = structured
+        .split(/\n{2,}/)
+        .map((block) => block.trim())
+        .filter(Boolean);
+    const markup = [];
+    let bulletItems = [];
+    const flushBullets = () => {
+        if (!bulletItems.length) return;
+        markup.push(`<ul>${bulletItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`);
+        bulletItems = [];
+    };
+    for (const block of blocks) {
+        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+        for (const line of lines) {
+            if (/^-\s+/.test(line)) {
+                bulletItems.push(line.replace(/^-\s+/, "").trim());
+                continue;
+            }
+            flushBullets();
+            const isHeading =
+                line.length <= 92 &&
+                !/[.!?]$/.test(line) &&
+                (/^[A-Z0-9][A-Z0-9\s/&:–—-]{5,}$/.test(line) || /^(?:Background|Overview|Key points?|Capabilities|Assessment|Analysis|Impact|Details|Context|What this means)$/i.test(line));
+            if (isHeading) {
+                markup.push(`<h3>${escapeHtml(line)}</h3>`);
+                continue;
+            }
+            splitIntelWireLongParagraph(line).forEach((paragraph) => {
+                markup.push(`<p>${escapeHtml(paragraph)}</p>`);
+            });
+        }
+    }
+    flushBullets();
+    return markup.join("");
 }
 function buildIntelWireDetailMediaMarkup(event = {}) {
     const media = getIntelWireItemMedia(event);
@@ -4619,6 +4807,7 @@ function openIntelWireDetailModal(event = {}, trigger = null) {
     const confidenceText = Number.isFinite(Number(confidenceValue))
         ? `Confidence ${Math.round(Number(confidenceValue))}`
         : "";
+    const contentMarkup = buildIntelWireDetailContentMarkup(fullText);
     const mediaMarkup = buildIntelWireDetailMediaMarkup(event);
     const sourceMeta = sourceName
         ? `<span class="wz-intel-wire-detail__source">${escapeHtml(sourceName)}</span>`
@@ -4649,7 +4838,7 @@ function openIntelWireDetailModal(event = {}, trigger = null) {
                     </button>
                 </header>
                 <div class="wz-modal-body wz-intel-wire-detail__body">
-                    <p id="wz-intel-wire-detail-content" class="wz-intel-wire-detail__content">${escapeHtml(fullText || "No additional article text is available for this report.")}</p>
+                    <div id="wz-intel-wire-detail-content" class="wz-intel-wire-detail__content">${contentMarkup}</div>
                     ${location ? `<p class="wz-intel-wire-detail__location"><strong>Location:</strong> ${escapeHtml(location)}</p>` : ""}
                     ${mediaMarkup}
                 </div>
@@ -4682,12 +4871,13 @@ function syncIntelWireReadFullControl(card, event = {}) {
     const title = sanitizeEventPopupText(event.display_title || event.title || "", "");
     const summaryText = String(summaryEl.textContent || "").trim();
     const fullText = getIntelWireFullText(event, title);
-    const hasAdditionalText = fullText.length > summaryText.length + 8;
     const hasLayout = summaryEl.clientHeight > 0;
     const visuallyTrimmed = hasLayout
-        ? summaryEl.scrollHeight > summaryEl.clientHeight + 2
-        : summaryText.length > 240;
-    button.hidden = !(visuallyTrimmed || hasAdditionalText);
+        ? summaryEl.scrollHeight > summaryEl.clientHeight + 3
+        : summaryText.length > 280;
+    const hasAdditionalText = hasMeaningfulIntelWireAdditionalText(fullText, summaryText);
+    const canReadFullText = isMeaningfulIntelWireText(fullText) && (visuallyTrimmed || hasAdditionalText);
+    button.hidden = !canReadFullText;
 }
 function syncVisibleIntelWireReadFullControls() {
     const feed = document.getElementById("live-feed-list");

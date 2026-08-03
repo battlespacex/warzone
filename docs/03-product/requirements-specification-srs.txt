@@ -120,7 +120,7 @@ The system shall support the following UI panels and controls:
 - Naval Tracker
 - GNSS legend
 - Report viewer
-- Operational report modal
+- Operational briefings modal
 - Orbital Assets inline filters within the layer interface
 
 4.8 Region And Viewport Behavior
