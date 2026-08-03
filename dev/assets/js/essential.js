@@ -181,6 +181,9 @@ let __intelWireNextRefreshAt = 0;
 let __intelWireRefreshInterval = null;
 let __intelWireRefreshInFlight = false;
 let __intelWireEndpointBackoffUntil = 0;
+let __intelWireRelativeTimeInterval = null;
+let __intelWireDetailModalBound = false;
+let __intelWireDetailModalLastFocusedElement = null;
 let __layerDeferredRefreshTimer = 0;
 let __hotspotDeferredSyncTimer = 0;
 let __seededAircraftTrackKeys = new Set();
@@ -229,6 +232,8 @@ const FEED_EXPAND_MAX_WIDTH = 1120;
 const INTEL_WIRE_REFRESH_MS = 5 * 60 * 1000;
 const INTEL_WIRE_ENDPOINT_BACKOFF_MS = 30 * 60 * 1000;
 const INTEL_WIRE_MAX_ITEMS = 120;
+const INTEL_WIRE_RELATIVE_TIME_REFRESH_MS = 30 * 1000;
+const INTEL_WIRE_COLLAPSED_MEDIA_PREVIEW_COUNT = 2;
 const GNSS_LAYER_REFRESH_MS = 10 * 60 * 1000;
 const FOCUS_MODE_STATUS_REFRESH_MS = 45 * 1000;
 const FOCUS_MODE_GNSS_REFRESH_MS = 60 * 1000;
@@ -1120,32 +1125,82 @@ function getHotspotSourceEvents(events = []) {
     });
 }
 function getIntelWireTimestamp(item = {}) {
-    return item.timestamp || item.published_at || item.fetched_at || new Date().toISOString();
+    return item.timestamp || item.published_at || item.publishedAt || item.fetched_at || item.fetchedAt || new Date().toISOString();
+}
+function getLongestIntelWireTextCandidate(values = []) {
+    return (Array.isArray(values) ? values : [])
+        .map((value) => sanitizeIntelWireSummary(value))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length)[0] || "";
 }
 function normalizeIntelWireItem(item = {}) {
     const occurredAt = getIntelWireTimestamp(item);
-    const idSource = item.id || `${item.title || "intel"}-${occurredAt}`;
-    const title = sanitizeEventPopupText(item.title || item.display_title || "", "");
-    const summary = sanitizeIntelWireSummary(item.summary || item.display_summary || "");
-    const sourceName = sanitizeEventPopupText(item.sourceLabel || item.source_name || "", "");
-    const locationLabel = sanitizeEventPopupText(item.region || item.country || item.location_label || "", "");
-    const media = item.media && typeof item.media === "object"
+    const idSource = item.id || item.guid || item.publicUrl || item.public_url || item.url || `${item.title || "intel"}-${occurredAt}`;
+    const title = sanitizeEventPopupText(item.title || item.display_title || item.displayTitle || "", "");
+    const summary = sanitizeIntelWireSummary(
+        item.summary
+        || item.display_summary
+        || item.displaySummary
+        || item.description
+        || item.content
+        || item.content_text
+        || ""
+    );
+    const fullContent = getLongestIntelWireTextCandidate([
+        item.full_content,
+        item.fullContent,
+        item.content_text,
+        item.contentText,
+        item.content,
+        item.description,
+        item.body,
+        item.article_text,
+        item.articleText,
+        item.summary,
+        item.display_summary,
+        item.displaySummary,
+    ]) || summary;
+    const sourceName = sanitizeEventPopupText(
+        item.sourceLabel
+        || item.source_label
+        || item.source_name
+        || item.sourceName
+        || "",
+        ""
+    );
+    const locationLabel = sanitizeEventPopupText(item.region || item.country || item.location_label || item.locationLabel || "", "");
+    const rawMedia = item.media && typeof item.media === "object"
+        ? item.media
+        : (item.metadata?.media && typeof item.metadata.media === "object" ? item.metadata.media : null);
+    const media = rawMedia
         ? {
-            images: Array.isArray(item.media.images) ? item.media.images : [],
-            videos: Array.isArray(item.media.videos) ? item.media.videos : [],
+            images: Array.isArray(rawMedia.images) ? rawMedia.images : [],
+            videos: Array.isArray(rawMedia.videos) ? rawMedia.videos : [],
         }
         : null;
+    const sourceUrl = String(
+        item.publicUrl
+        || item.public_url
+        || item.source_url
+        || item.sourceUrl
+        || item.url
+        || ""
+    ).trim();
     return {
         id: `intel-${idSource}`,
         title,
         summary,
+        description: fullContent,
+        content: fullContent,
+        full_content: fullContent,
         category: item.category || "intel",
         severity: isUnknownEventDisplayValue(item.severity) ? "medium" : (item.severity || "medium"),
         source_name: sourceName,
-        source_type_label: item.sourceTypeLabel || null,
-        source_attribution_level: item.sourceAttributionLevel || "grouped",
-        source_url: item.publicUrl || "",
+        source_type_label: item.sourceTypeLabel || item.source_type_label || null,
+        source_attribution_level: item.sourceAttributionLevel || item.source_attribution_level || "grouped",
+        source_url: sourceUrl,
         occurred_at: occurredAt,
+        published_at: occurredAt,
         country: item.country || "",
         location_label: locationLabel,
         report_type: "intel_wire",
@@ -1154,10 +1209,12 @@ function normalizeIntelWireItem(item = {}) {
         media,
         satellite_context: item.satellite_context || item.satelliteContext || null,
         metadata: {
+            ...(item.metadata && typeof item.metadata === "object" ? item.metadata : {}),
             display_surface: "intel_wire",
-            confidence_score: item.confidence_score ?? item.confidence ?? null,
-            source_attribution_level: item.sourceAttributionLevel || "grouped",
-            source_type_label: item.sourceTypeLabel || null,
+            confidence_score: item.confidence_score ?? item.confidence ?? item.metadata?.confidence_score ?? null,
+            source_attribution_level: item.sourceAttributionLevel || item.source_attribution_level || "grouped",
+            source_type_label: item.sourceTypeLabel || item.source_type_label || null,
+            full_content: fullContent,
             media,
             satellite_context: item.satellite_context || item.satelliteContext || null,
         }
@@ -4048,7 +4105,7 @@ function sanitizeIntelWireSummary(value = "") {
         .trim());
 }
 function isIntelWireMediaEnabled() {
-    return window.__stratopsConfig?.enableIntelWireMedia === true;
+    return window.__stratopsConfig?.enableIntelWireMedia !== false;
 }
 function isLocalNetworkMediaHost(hostname = "") {
     const host = String(hostname || "").trim().toLowerCase();
@@ -4059,9 +4116,10 @@ function isLocalNetworkMediaHost(hostname = "") {
 }
 function isPublicRenderableMediaUrl(value = "") {
     const raw = String(value || "").trim();
-    if (!/^https?:\/\//i.test(raw)) return false;
+    if (!raw) return false;
     try {
         const url = new URL(raw, window.location.href);
+        if (!["http:", "https:"].includes(url.protocol)) return false;
         const isLocalPage = typeof isLocalHostName === "function" && isLocalHostName(window.location.hostname);
         if (!isLocalPage && isLocalNetworkMediaHost(url.hostname)) return false;
         if (window.location.protocol === "https:" && url.protocol !== "https:" && !isLocalPage) return false;
@@ -4070,23 +4128,110 @@ function isPublicRenderableMediaUrl(value = "") {
         return false;
     }
 }
+function normalizeIntelWireImageEntry(entry = {}, fallbackTitle = "") {
+    const value = typeof entry === "string" ? { fullUrl: entry } : entry;
+    if (!value || typeof value !== "object") return null;
+    const thumbUrl = String(
+        value.thumbUrl
+        || value.thumb_url
+        || value.thumbnail
+        || value.thumbnailUrl
+        || value.thumbnail_url
+        || value.previewUrl
+        || value.preview_url
+        || value.fullUrl
+        || value.full_url
+        || value.url
+        || value.src
+        || ""
+    ).trim();
+    const fullUrl = String(
+        value.fullUrl
+        || value.full_url
+        || value.url
+        || value.src
+        || thumbUrl
+        || ""
+    ).trim();
+    const renderUrl = isPublicRenderableMediaUrl(thumbUrl) ? thumbUrl : fullUrl;
+    if (!isPublicRenderableMediaUrl(renderUrl)) return null;
+    return {
+        thumbUrl: renderUrl,
+        fullUrl: isPublicRenderableMediaUrl(fullUrl) ? fullUrl : renderUrl,
+        alt: sanitizeEventPopupText(value.alt || value.title || fallbackTitle || "Intel Wire image", "Intel Wire image") || "Intel Wire image",
+        width: Number.isFinite(Number(value.width)) ? Number(value.width) : null,
+        height: Number.isFinite(Number(value.height)) ? Number(value.height) : null,
+    };
+}
+function normalizeIntelWireVideoEntry(entry = {}, fallbackTitle = "") {
+    const value = typeof entry === "string" ? { videoUrl: entry } : entry;
+    if (!value || typeof value !== "object") return null;
+    const videoUrl = String(
+        value.videoUrl
+        || value.video_url
+        || value.mediaUrl
+        || value.media_url
+        || value.src
+        || value.url
+        || ""
+    ).trim();
+    const embedUrl = String(value.embedUrl || value.embed_url || "").trim();
+    const thumbUrl = String(
+        value.thumbUrl
+        || value.thumb_url
+        || value.thumbnail
+        || value.thumbnailUrl
+        || value.thumbnail_url
+        || value.previewUrl
+        || value.preview_url
+        || value.poster
+        || ""
+    ).trim();
+    const safeVideoUrl = isPublicRenderableMediaUrl(videoUrl) ? videoUrl : "";
+    const safeEmbedUrl = isPublicRenderableMediaUrl(embedUrl) ? embedUrl : "";
+    if (!safeVideoUrl && !safeEmbedUrl) return null;
+    return {
+        videoUrl: safeVideoUrl,
+        embedUrl: safeEmbedUrl,
+        thumbUrl: isPublicRenderableMediaUrl(thumbUrl) ? thumbUrl : "",
+        title: sanitizeEventPopupText(value.title || fallbackTitle || "Intel Wire video", "Intel Wire video") || "Intel Wire video",
+        duration: sanitizeEventPopupText(value.duration || "", ""),
+    };
+}
+function dedupeIntelWireMediaEntries(entries = [], keyResolver = () => "") {
+    const seen = new Set();
+    return entries.filter((entry) => {
+        const key = String(keyResolver(entry) || "").trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
 function getIntelWireItemMedia(event = {}) {
     if (!isIntelWireMediaEnabled()) return { images: [], videos: [] };
     const media = event.media && typeof event.media === "object"
         ? event.media
         : (event.metadata?.media && typeof event.metadata.media === "object" ? event.metadata.media : null);
-    const images = Array.isArray(media?.images)
-        ? media.images.filter((entry) => isPublicRenderableMediaUrl(entry?.thumbUrl || entry?.fullUrl || ""))
-        : [];
-    const videos = Array.isArray(media?.videos)
-        ? media.videos.filter((entry) => isPublicRenderableMediaUrl(entry?.videoUrl || entry?.thumbUrl || entry?.embedUrl || ""))
-        : [];
+    const fallbackTitle = event.display_title || event.title || "";
+    const images = dedupeIntelWireMediaEntries(
+        (Array.isArray(media?.images) ? media.images : [])
+            .map((entry) => normalizeIntelWireImageEntry(entry, fallbackTitle))
+            .filter(Boolean),
+        (entry) => entry.fullUrl || entry.thumbUrl
+    );
+    const videos = dedupeIntelWireMediaEntries(
+        (Array.isArray(media?.videos) ? media.videos : [])
+            .map((entry) => normalizeIntelWireVideoEntry(entry, fallbackTitle))
+            .filter(Boolean),
+        (entry) => entry.embedUrl || entry.videoUrl
+    );
     return { images, videos };
 }
 function getIntelWireMediaState(itemId = "") {
     const key = String(itemId || "").trim();
     if (!key) {
         return {
+            allOpen: false,
             imagesOpen: false,
             videosOpen: false,
             activeVideoIndex: -1,
@@ -4094,12 +4239,16 @@ function getIntelWireMediaState(itemId = "") {
     }
     if (!__intelWireMediaState.has(key)) {
         __intelWireMediaState.set(key, {
+            allOpen: false,
             imagesOpen: false,
             videosOpen: false,
             activeVideoIndex: -1,
         });
     }
-    return __intelWireMediaState.get(key);
+    const state = __intelWireMediaState.get(key);
+    if (typeof state.allOpen !== "boolean") state.allOpen = false;
+    if (!Number.isInteger(state.activeVideoIndex)) state.activeVideoIndex = -1;
+    return state;
 }
 function getIntelWireMediaPanelId(itemId = "", panel = "") {
     return `wz-feed-media-${panel}-${String(itemId || "").replace(/[^a-z0-9_-]+/gi, "-")}`;
@@ -4111,22 +4260,9 @@ function getIntelWireMediaGridClass(prefix = "", count = 0, layoutMode = "collap
 function isIntelWireCardExpanded(card) {
     return card?.closest?.(".warzone-widget--feed")?.classList?.contains?.("is-feed-expanded") === true;
 }
-function getIntelWireImagePreviewLimit(count = 0, expanded = false) {
-    if (count <= 1) return Math.max(0, count);
-    return expanded ? Math.min(3, count) : Math.min(2, count);
-}
-function getIntelWireVideoPreviewLimit(count = 0, expanded = false) {
-    if (count <= 1) return Math.max(0, count);
-    return expanded ? Math.min(2, count) : Math.min(2, count);
-}
-function formatIntelWireMediaToggleLabel(kind = "image", hiddenCount = 0, totalCount = 0, isOpen = false) {
-    if (isOpen) {
-        return kind === "video" ? "Hide videos" : "Hide images";
-    }
-    if (hiddenCount > 0 && hiddenCount < totalCount) {
-        return `+${hiddenCount} more`;
-    }
-    return `${totalCount} ${totalCount === 1 ? kind : `${kind}s`}`;
+function formatIntelWireMediaToggleLabel(hiddenCount = 0, isOpen = false) {
+    if (isOpen) return "Show less";
+    return `+${Math.max(1, Number(hiddenCount) || 1)} more`;
 }
 function buildIntelWireMediaIcon(kind = "image") {
     if (kind === "video") {
@@ -4146,9 +4282,9 @@ function buildIntelWireMediaIcon(kind = "image") {
     `;
 }
 function buildIntelWireImagePanelMarkup(event = {}, images = [], options = {}) {
-    if (!images.length) return "";
+    const visibleImages = Array.isArray(images) ? images : [];
+    if (!visibleImages.length) return "";
     const layoutMode = options.expanded === true ? "expanded" : "collapsed";
-    const visibleImages = images.slice(0, 4);
     const gridClass = getIntelWireMediaGridClass("wz-feed-media-grid", visibleImages.length, layoutMode);
     return `
         <div class="${gridClass}">
@@ -4169,15 +4305,16 @@ function buildIntelWireImagePanelMarkup(event = {}, images = [], options = {}) {
     `;
 }
 function buildIntelWireVideoPanelMarkup(event = {}, videos = [], state = {}, options = {}) {
-    if (!videos.length) return "";
+    const visibleVideos = Array.isArray(videos) ? videos : [];
+    if (!visibleVideos.length) return "";
     const layoutMode = options.expanded === true ? "expanded" : "collapsed";
-    const visibleVideos = videos.slice(0, 4);
     const gridClass = getIntelWireMediaGridClass("wz-feed-video-grid", visibleVideos.length, layoutMode);
     const activeVideoIndex = Number.isInteger(state.activeVideoIndex) ? state.activeVideoIndex : -1;
+    const forcePlayers = options.expanded === true;
     return `
         <div class="${gridClass}">
             ${visibleVideos.map((entry, index) => {
-                const isActive = activeVideoIndex === index;
+                const isActive = forcePlayers || activeVideoIndex === index;
                 const title = stripPresentationEmoji(entry.title || event.title || `Video ${index + 1}`) || `Video ${index + 1}`;
                 if (isActive) {
                     if (entry.embedUrl) {
@@ -4199,9 +4336,10 @@ function buildIntelWireVideoPanelMarkup(event = {}, videos = [], state = {}, opt
                             <video
                                 class="wz-feed-video-player"
                                 src="${escapeHtml(entry.videoUrl || "")}"
+                                ${entry.thumbUrl ? `poster="${escapeHtml(entry.thumbUrl)}"` : ""}
                                 controls
                                 playsinline
-                                preload="none"></video>
+                                preload="metadata"></video>
                         </div>
                     `;
                 }
@@ -4239,6 +4377,58 @@ function stopIntelWireCardMedia(card) {
             video.load();
         } catch {}
     });
+    card.querySelectorAll("iframe.wz-feed-video-embed").forEach((frame) => {
+        try {
+            frame.src = "about:blank";
+        } catch {}
+    });
+}
+function getIntelWireFullText(event = {}, title = "") {
+    const candidates = [
+        event.full_content,
+        event.fullContent,
+        event.content,
+        event.description,
+        event.metadata?.full_content,
+        event.metadata?.fullContent,
+        event.display_summary,
+        event.summary,
+    ]
+        .map((value) => sanitizeIntelWireSummary(value))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+    return stripRepeatedEventTitle(candidates[0] || "", title);
+}
+function formatIntelWireDisplayTime(value, now = Date.now()) {
+    const timestamp = new Date(value || "").getTime();
+    if (!Number.isFinite(timestamp)) return formatTime(value);
+    const deltaMs = Math.max(0, Number(now) - timestamp);
+    const maxRelativeMs = 24 * 60 * 60 * 1000;
+    if (deltaMs <= maxRelativeMs) {
+        const totalMinutes = Math.max(1, Math.floor(deltaMs / 60000));
+        if (totalMinutes < 60) {
+            return `${totalMinutes} ${totalMinutes === 1 ? "min" : "mins"} ago`;
+        }
+        const totalHours = Math.max(1, Math.min(24, Math.floor(deltaMs / 3600000)));
+        return `${totalHours} ${totalHours === 1 ? "hr" : "hrs"} ago`;
+    }
+    return formatTime(value);
+}
+function refreshIntelWireRelativeTimes(root = document) {
+    root?.querySelectorAll?.("[data-intel-wire-time]").forEach((timeEl) => {
+        const value = String(timeEl.getAttribute("data-intel-wire-time") || timeEl.getAttribute("datetime") || "").trim();
+        if (!value) return;
+        const nextText = formatIntelWireDisplayTime(value);
+        if (timeEl.textContent !== nextText) timeEl.textContent = nextText;
+    });
+}
+function startIntelWireRelativeTimeLoop() {
+    refreshIntelWireRelativeTimes(document);
+    if (__intelWireRelativeTimeInterval) return;
+    __intelWireRelativeTimeInterval = window.setInterval(() => {
+        if (isDocumentHidden()) return;
+        refreshIntelWireRelativeTimes(document);
+    }, INTEL_WIRE_RELATIVE_TIME_REFRESH_MS);
 }
 function getIntelWireCardRenderSignature(event = {}) {
     const media = getIntelWireItemMedia(event);
@@ -4252,6 +4442,7 @@ function getIntelWireCardRenderSignature(event = {}) {
         event.source_url || "",
         event.title || "",
         event.summary || "",
+        event.full_content || event.content || event.description || "",
         compactEventPlaceLabel(event),
         media.images,
         media.videos,
@@ -4266,6 +4457,246 @@ function getIntelWireEventDomKey(event = {}, index = 0) {
         || event.source_url
         || `${event.source_name || "intel"}:${event.occurred_at || "unknown"}:${event.title || index}`
     );
+}
+function buildIntelWireDetailMediaMarkup(event = {}) {
+    const media = getIntelWireItemMedia(event);
+    const entries = [
+        ...media.images.map((entry, index) => {
+            const targetUrl = entry.fullUrl || entry.thumbUrl;
+            return `
+                <a
+                    class="wz-intel-wire-detail__media-card wz-intel-wire-detail__media-card--image"
+                    href="${escapeHtml(targetUrl)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open image ${index + 1} in a new tab">
+                    <img
+                        src="${escapeHtml(entry.thumbUrl || targetUrl)}"
+                        ${entry.fullUrl ? `data-fallback-src="${escapeHtml(entry.fullUrl)}"` : ""}
+                        alt="${escapeHtml(entry.alt || event.title || `Intel Wire image ${index + 1}`)}"
+                        loading="lazy"
+                        decoding="async">
+                </a>
+            `;
+        }),
+        ...media.videos.map((entry, index) => {
+            const title = entry.title || event.title || `Intel Wire video ${index + 1}`;
+            if (entry.embedUrl) {
+                return `
+                    <div class="wz-intel-wire-detail__media-card wz-intel-wire-detail__media-card--video">
+                        <iframe
+                            src="${escapeHtml(entry.embedUrl)}"
+                            title="${escapeHtml(title)}"
+                            loading="lazy"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+            return `
+                <div class="wz-intel-wire-detail__media-card wz-intel-wire-detail__media-card--video">
+                    <video
+                        src="${escapeHtml(entry.videoUrl || "")}"
+                        ${entry.thumbUrl ? `poster="${escapeHtml(entry.thumbUrl)}"` : ""}
+                        controls
+                        playsinline
+                        preload="metadata"></video>
+                </div>
+            `;
+        }),
+    ];
+    if (!entries.length) return "";
+    return `
+        <section class="wz-intel-wire-detail__media" aria-labelledby="wz-intel-wire-detail-media-title">
+            <h3 id="wz-intel-wire-detail-media-title">Media</h3>
+            <div class="wz-intel-wire-detail__media-grid">
+                ${entries.join("")}
+            </div>
+        </section>
+    `;
+}
+function ensureIntelWireDetailModal() {
+    let modal = document.getElementById("wz-intel-wire-detail-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "wz-intel-wire-detail-modal";
+        modal.className = "wz-modal wz-intel-wire-detail-modal";
+        modal.hidden = true;
+        modal.setAttribute("role", "dialog");
+        modal.setAttribute("aria-modal", "true");
+        modal.setAttribute("aria-hidden", "true");
+        modal.setAttribute("aria-labelledby", "wz-intel-wire-detail-title");
+        modal.setAttribute("aria-describedby", "wz-intel-wire-detail-content");
+        document.body.appendChild(modal);
+    }
+    if (!__intelWireDetailModalBound) {
+        __intelWireDetailModalBound = true;
+        modal.addEventListener("click", (event) => {
+            const closeTarget = event.target?.closest?.("[data-intel-wire-modal-close]");
+            if (!closeTarget) return;
+            event.preventDefault();
+            event.stopPropagation();
+            closeIntelWireDetailModal();
+        });
+        modal.addEventListener("error", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLImageElement)) return;
+            const fallbackSrc = String(target.dataset.fallbackSrc || "").trim();
+            const currentSrc = String(target.currentSrc || target.src || "").trim();
+            if (fallbackSrc && target.dataset.fallbackTried !== "1" && currentSrc !== fallbackSrc) {
+                target.dataset.fallbackTried = "1";
+                target.src = fallbackSrc;
+                return;
+            }
+            target.closest(".wz-intel-wire-detail__media-card")?.classList.add("is-media-unavailable");
+        }, true);
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") return;
+            const activeModal = document.getElementById("wz-intel-wire-detail-modal");
+            if (!activeModal || activeModal.hidden || !activeModal.classList.contains("is-visible")) return;
+            event.preventDefault();
+            closeIntelWireDetailModal();
+        });
+    }
+    return modal;
+}
+function closeIntelWireDetailModal() {
+    const modal = document.getElementById("wz-intel-wire-detail-modal");
+    if (!modal || modal.hidden) return;
+    modal.querySelectorAll("video").forEach((video) => {
+        try {
+            video.pause();
+        } catch {}
+    });
+    modal.querySelectorAll("iframe").forEach((frame) => {
+        try {
+            frame.src = "about:blank";
+        } catch {}
+    });
+    modal.classList.remove("is-visible");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("wz-intel-wire-detail-open");
+    const priorTimer = Number(modal.dataset.hideTimer || 0);
+    if (priorTimer) window.clearTimeout(priorTimer);
+    const timer = window.setTimeout(() => {
+        modal.hidden = true;
+        modal.innerHTML = "";
+        modal.dataset.hideTimer = "";
+    }, 220);
+    modal.dataset.hideTimer = String(timer);
+    const focusTarget = __intelWireDetailModalLastFocusedElement;
+    __intelWireDetailModalLastFocusedElement = null;
+    focusTarget?.focus?.({ preventScroll: true });
+}
+function openIntelWireDetailModal(event = {}, trigger = null) {
+    const modal = ensureIntelWireDetailModal();
+    const priorTimer = Number(modal.dataset.hideTimer || 0);
+    if (priorTimer) {
+        window.clearTimeout(priorTimer);
+        modal.dataset.hideTimer = "";
+    }
+    const categoryLabel = getPlatformCategoryLabel(event, {
+        surface: "intel-wire",
+        uppercase: true,
+        fallback: "INTEL",
+    });
+    const categoryClass = getPlatformCategoryClass(event, { surface: "intel-wire" });
+    const severityClass = getPlatformSeverityClass(event.severity || "medium");
+    const severityLabel = getPlatformSeverityLabel(event.severity || "", "Medium");
+    const location = sanitizeEventPopupText(compactEventPlaceLabel(event), "");
+    const fallbackTitle = location
+        ? `${toUiLabel(categoryClass, "Activity")} report near ${location}`
+        : `${toUiLabel(categoryClass, "Activity")} report`;
+    const title = sanitizeEventPopupText(event.display_title || event.title || "", "") || fallbackTitle;
+    const fullText = getIntelWireFullText(event, title);
+    const sourceName = sanitizeEventPopupText(event.display_source_name || event.source_name || "", "");
+    const sourceUrl = /^https?:\/\//i.test(String(event.source_url || "").trim())
+        ? String(event.source_url || "").trim()
+        : "";
+    const occurredAt = String(event.occurred_at || event.published_at || "").trim();
+    const confidenceValue = event.confidence_score ?? event.confidence ?? event.metadata?.confidence_score;
+    const confidenceText = Number.isFinite(Number(confidenceValue))
+        ? `Confidence ${Math.round(Number(confidenceValue))}`
+        : "";
+    const mediaMarkup = buildIntelWireDetailMediaMarkup(event);
+    const sourceMeta = sourceName
+        ? `<span class="wz-intel-wire-detail__source">${escapeHtml(sourceName)}</span>`
+        : "";
+    modal.innerHTML = `
+        <div class="wz-intel-wire-detail__backdrop" data-intel-wire-modal-close aria-hidden="true"></div>
+        <div class="wz-modal-box wz-max-modal wz-intel-wire-detail__box" role="document">
+            <div class="wz-modal-inner">
+                <header class="wz-intel-wire-detail__header">
+                    <div class="wz-intel-wire-detail__heading">
+                        <p class="wz-intel-wire-detail__eyebrow">Intel Wire</p>
+                        <h2 id="wz-intel-wire-detail-title">${escapeHtml(title)}</h2>
+                        <div class="wz-intel-wire-detail__meta">
+                            <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
+                            <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                            ${occurredAt ? `<time datetime="${escapeHtml(occurredAt)}" data-intel-wire-time="${escapeHtml(occurredAt)}">${escapeHtml(formatIntelWireDisplayTime(occurredAt))}</time>` : ""}
+                            ${sourceMeta}
+                            ${confidenceText ? `<span>${escapeHtml(confidenceText)}</span>` : ""}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="wz-intel-wire-detail__close"
+                        data-intel-wire-modal-close
+                        aria-label="Close full Intel Wire report"
+                        title="Close">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </header>
+                <div class="wz-modal-body wz-intel-wire-detail__body">
+                    <p id="wz-intel-wire-detail-content" class="wz-intel-wire-detail__content">${escapeHtml(fullText || "No additional article text is available for this report.")}</p>
+                    ${location ? `<p class="wz-intel-wire-detail__location"><strong>Location:</strong> ${escapeHtml(location)}</p>` : ""}
+                    ${mediaMarkup}
+                </div>
+                ${sourceUrl ? `
+                    <footer class="wz-intel-wire-detail__footer">
+                        <span>${sourceName ? `Source: ${escapeHtml(sourceName)}` : "Original source available"}</span>
+                        <a class="btn-primary" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">
+                            <span>Open source</span>
+                        </a>
+                    </footer>
+                ` : ""}
+            </div>
+        </div>
+    `;
+    __intelWireDetailModalLastFocusedElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("wz-intel-wire-detail-open");
+    refreshIntelWireRelativeTimes(modal);
+    requestAnimationFrame(() => {
+        modal.classList.add("is-visible");
+        modal.querySelector(".wz-intel-wire-detail__close")?.focus?.({ preventScroll: true });
+    });
+}
+function syncIntelWireReadFullControl(card, event = {}) {
+    if (!card) return;
+    const summaryEl = card.querySelector(".wz-feed-summary");
+    const button = card.querySelector("[data-intel-wire-read-full]");
+    if (!summaryEl || !button) return;
+    const title = sanitizeEventPopupText(event.display_title || event.title || "", "");
+    const summaryText = String(summaryEl.textContent || "").trim();
+    const fullText = getIntelWireFullText(event, title);
+    const hasAdditionalText = fullText.length > summaryText.length + 8;
+    const hasLayout = summaryEl.clientHeight > 0;
+    const visuallyTrimmed = hasLayout
+        ? summaryEl.scrollHeight > summaryEl.clientHeight + 2
+        : summaryText.length > 240;
+    button.hidden = !(visuallyTrimmed || hasAdditionalText);
+}
+function syncVisibleIntelWireReadFullControls() {
+    const feed = document.getElementById("live-feed-list");
+    if (!feed) return;
+    feed.querySelectorAll(".wz-feed-item").forEach((card) => {
+        const itemId = String(card.dataset.eventId || "");
+        const event = __intelWireRenderedItems.get(itemId);
+        if (event) syncIntelWireReadFullControl(card, event);
+    });
 }
 function createIntelWireFeedCard(event = {}, eventId = "") {
     const card = document.createElement("article");
@@ -4295,6 +4726,7 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
         ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`
         : `${escapeHtml(sourceName)}`;
     const satelliteMarkup = buildIntelWireSatelliteMarkup(event);
+    const occurredAt = String(event.occurred_at || event.published_at || "").trim();
     if (satelliteMarkup) card.dataset.satelliteContext = "available";
     card.innerHTML = `
         <div class="timeline-time wz-feed-time">
@@ -4302,20 +4734,31 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
                 <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
                 <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
             </div>
-            <time>${escapeHtml(formatTime(event.occurred_at))}</time>
+            ${occurredAt ? `<time datetime="${escapeHtml(occurredAt)}" data-intel-wire-time="${escapeHtml(occurredAt)}">${escapeHtml(formatIntelWireDisplayTime(occurredAt))}</time>` : ""}
             ${sourceName ? `<small class="wz-feed-source">${sourceMarkup}</small>` : ""}
         </div>
         <div class="timeline-body">
             <strong class="wz-feed-title">${escapeHtml(title)}</strong>
-            ${summary ? `<p class="wz-feed-summary">${escapeHtml(summary)}</p>` : ""}
+            ${summary ? `
+                <p class="wz-feed-summary">${escapeHtml(summary)}</p>
+                <button
+                    type="button"
+                    class="wz-feed-read-full btn-secondary white"
+                    data-intel-wire-read-full
+                    hidden
+                    aria-label="Read the complete Intel Wire report">
+                    <span aria-hidden="true">⌄</span>
+                    <span>Read full intel</span>
+                </button>
+            ` : ""}
             ${location ? `<small class="wz-feed-location">${escapeHtml(location)}</small>` : ""}
             ${satelliteMarkup}
-            <div class="wz-feed-actions" data-feed-media-actions></div>
             <div class="wz-feed-media-panel wz-feed-media-panel--images" data-feed-image-panel hidden></div>
             <div class="wz-feed-media-panel wz-feed-media-panel--videos" data-feed-video-panel hidden></div>
+            <div class="wz-feed-actions" data-feed-media-actions hidden></div>
         </div>
     `;
-    renderIntelWireMediaCard(card, event);
+    renderIntelWireMediaCard(card, event, eventId);
     return card;
 }
 function rerenderVisibleIntelWireMediaCards() {
@@ -4325,10 +4768,10 @@ function rerenderVisibleIntelWireMediaCards() {
         const itemId = String(card?.dataset?.eventId || "");
         const feedItem = __intelWireRenderedItems.get(itemId);
         if (!feedItem) return;
-        renderIntelWireMediaCard(card, feedItem);
+        renderIntelWireMediaCard(card, feedItem, itemId);
     });
 }
-function renderIntelWireMediaCard(card, event = {}) {
+function renderIntelWireMediaCard(card, event = {}, eventId = "") {
     if (!card) return;
     const actionHost = card.querySelector("[data-feed-media-actions]");
     const imageHost = card.querySelector("[data-feed-image-panel]");
@@ -4337,11 +4780,13 @@ function renderIntelWireMediaCard(card, event = {}) {
     const media = getIntelWireItemMedia(event);
     const imageCount = media.images.length;
     const videoCount = media.videos.length;
-    const hasMedia = imageCount > 0 || videoCount > 0;
-    const state = getIntelWireMediaState(event.id);
+    const totalCount = imageCount + videoCount;
+    const stableItemId = String(eventId || card.dataset.eventId || getIntelWireEventDomKey(event)).trim();
+    const state = getIntelWireMediaState(stableItemId);
     const isExpanded = isIntelWireCardExpanded(card);
-    if (!isIntelWireMediaEnabled() || !hasMedia) {
+    if (!isIntelWireMediaEnabled() || totalCount <= 0) {
         stopIntelWireCardMedia(card);
+        actionHost.hidden = true;
         actionHost.innerHTML = "";
         imageHost.hidden = true;
         imageHost.innerHTML = "";
@@ -4350,46 +4795,41 @@ function renderIntelWireMediaCard(card, event = {}) {
         return;
     }
 
-    const defaultImageCount = getIntelWireImagePreviewLimit(imageCount, isExpanded);
-    const visibleImageCount = state.imagesOpen ? Math.min(4, imageCount) : defaultImageCount;
-    const renderImages = media.images.slice(0, visibleImageCount);
-    const hiddenImageCount = Math.max(0, Math.min(4, imageCount) - renderImages.length);
+    const revealAll = isExpanded || state.allOpen;
+    let renderImages = [];
+    let renderVideos = [];
+    if (revealAll) {
+        renderImages = media.images;
+        renderVideos = media.videos;
+    } else {
+        const imagePreviewCount = Math.min(imageCount, INTEL_WIRE_COLLAPSED_MEDIA_PREVIEW_COUNT);
+        const remainingPreviewSlots = Math.max(0, INTEL_WIRE_COLLAPSED_MEDIA_PREVIEW_COUNT - imagePreviewCount);
+        renderImages = media.images.slice(0, imagePreviewCount);
+        renderVideos = media.videos.slice(0, remainingPreviewSlots);
+    }
 
-    const showVideoPreviewByDefault = imageCount === 0 && videoCount > 0;
-    const defaultVideoCount = showVideoPreviewByDefault ? getIntelWireVideoPreviewLimit(videoCount, isExpanded) : 0;
-    const visibleVideoCount = state.videosOpen ? Math.min(4, videoCount) : defaultVideoCount;
-    const renderVideos = media.videos.slice(0, visibleVideoCount);
-    const hiddenVideoCount = Math.max(0, Math.min(4, videoCount) - renderVideos.length);
-
-    actionHost.innerHTML = `
-        ${(imageCount > defaultImageCount || state.imagesOpen) ? `
+    const renderedCount = renderImages.length + renderVideos.length;
+    const hiddenCount = Math.max(0, totalCount - renderedCount);
+    const shouldShowToggle = !isExpanded && (hiddenCount > 0 || state.allOpen);
+    actionHost.hidden = !shouldShowToggle;
+    actionHost.innerHTML = shouldShowToggle
+        ? `
             <button
                 type="button"
                 class="wz-feed-media-toggle btn-secondary white"
-                data-feed-media-toggle="images"
-                aria-expanded="${state.imagesOpen ? "true" : "false"}"
-                aria-controls="${escapeHtml(getIntelWireMediaPanelId(event.id, "images"))}"
-                title="${escapeHtml(formatIntelWireMediaToggleLabel("image", hiddenImageCount, imageCount, state.imagesOpen))}">
-                <span>${escapeHtml(formatIntelWireMediaToggleLabel("image", hiddenImageCount, imageCount, state.imagesOpen))}</span>
+                data-feed-media-toggle="all"
+                aria-expanded="${state.allOpen ? "true" : "false"}"
+                aria-controls="${escapeHtml(getIntelWireMediaPanelId(stableItemId, "images"))} ${escapeHtml(getIntelWireMediaPanelId(stableItemId, "videos"))}"
+                title="${escapeHtml(formatIntelWireMediaToggleLabel(hiddenCount, state.allOpen))}">
+                <span>${escapeHtml(formatIntelWireMediaToggleLabel(hiddenCount, state.allOpen))}</span>
             </button>
-        ` : ""}
-        ${(videoCount && (!showVideoPreviewByDefault || hiddenVideoCount > 0 || state.videosOpen)) ? `
-            <button
-                type="button"
-                class="wz-feed-media-toggle btn-secondary white"
-                data-feed-media-toggle="videos"
-                aria-expanded="${state.videosOpen ? "true" : "false"}"
-                aria-controls="${escapeHtml(getIntelWireMediaPanelId(event.id, "videos"))}"
-                title="${escapeHtml(formatIntelWireMediaToggleLabel("video", hiddenVideoCount, videoCount, state.videosOpen))}">
-                <span>${escapeHtml(formatIntelWireMediaToggleLabel("video", hiddenVideoCount, videoCount, state.videosOpen))}</span>
-            </button>
-        ` : ""}
-    `;
+        `
+        : "";
 
     if (renderImages.length) {
         imageHost.hidden = false;
-        imageHost.id = getIntelWireMediaPanelId(event.id, "images");
-        imageHost.className = `wz-feed-media-panel wz-feed-media-panel--images${state.imagesOpen ? " is-open" : ""}`;
+        imageHost.id = getIntelWireMediaPanelId(stableItemId, "images");
+        imageHost.className = `wz-feed-media-panel wz-feed-media-panel--images${revealAll ? " is-open" : ""}`;
         imageHost.innerHTML = buildIntelWireImagePanelMarkup(event, renderImages, { expanded: isExpanded });
     } else {
         imageHost.hidden = true;
@@ -4399,11 +4839,11 @@ function renderIntelWireMediaCard(card, event = {}) {
 
     if (renderVideos.length) {
         videoHost.hidden = false;
-        videoHost.id = getIntelWireMediaPanelId(event.id, "videos");
-        videoHost.className = `wz-feed-media-panel wz-feed-media-panel--videos${state.videosOpen ? " is-open" : ""}`;
+        videoHost.id = getIntelWireMediaPanelId(stableItemId, "videos");
+        videoHost.className = `wz-feed-media-panel wz-feed-media-panel--videos${revealAll ? " is-open" : ""}`;
         videoHost.innerHTML = buildIntelWireVideoPanelMarkup(event, renderVideos, state, { expanded: isExpanded });
     } else {
-        stopIntelWireCardMedia(card);
+        stopIntelWireCardMedia(videoHost);
         videoHost.hidden = true;
         videoHost.className = "wz-feed-media-panel wz-feed-media-panel--videos";
         videoHost.innerHTML = "";
@@ -4488,6 +4928,7 @@ function syncIntelWireFilterControls(viewModel = buildIntelWireViewModel()) {
 function bindFeedControls() {
     if (__feedControlsBound) return;
     __feedControlsBound = true;
+    startIntelWireRelativeTimeLoop();
     const loadMoreBtn = document.getElementById("live-feed-load-more");
     const expandBtn = document.getElementById("wz-feed-expand");
     const feedPanel = document.querySelector('[data-widget-id="feed"]');
@@ -4505,11 +4946,16 @@ function bindFeedControls() {
         expandBtn.setAttribute("aria-pressed", String(expanded));
         expandBtn.setAttribute("aria-label", expanded ? "Shrink intel wire widget" : "Expand intel wire widget");
         expandBtn.title = expanded ? "Shrink widget" : "Expand widget";
-        requestAnimationFrame(() => rerenderVisibleIntelWireMediaCards());
+        requestAnimationFrame(() => {
+            rerenderVisibleIntelWireMediaCards();
+            syncVisibleIntelWireReadFullControls();
+        });
     });
     window.addEventListener("resize", () => {
-        if (!feedPanel?.classList.contains("is-feed-expanded")) return;
-        requestAnimationFrame(() => positionExpandedFeedPanel(feedPanel));
+        if (feedPanel?.classList.contains("is-feed-expanded")) {
+            requestAnimationFrame(() => positionExpandedFeedPanel(feedPanel));
+        }
+        requestAnimationFrame(() => syncVisibleIntelWireReadFullControls());
     }, { passive: true });
     if (!__intelWireFilterControlsBound) {
         __intelWireFilterControlsBound = true;
@@ -4539,38 +4985,49 @@ function bindFeedControls() {
     if (!__intelWireMediaControlsBound && feedList) {
         __intelWireMediaControlsBound = true;
         feedList.addEventListener("click", (event) => {
+            const readFullBtn = event.target?.closest?.("[data-intel-wire-read-full]");
+            if (readFullBtn) {
+                event.preventDefault();
+                event.stopPropagation();
+                const card = readFullBtn.closest(".wz-feed-item");
+                const itemId = String(card?.dataset?.eventId || "");
+                const feedItem = __intelWireRenderedItems.get(itemId);
+                if (!card || !feedItem) return;
+                openIntelWireDetailModal(feedItem, readFullBtn);
+                return;
+            }
             const toggleBtn = event.target?.closest?.("[data-feed-media-toggle]");
             if (toggleBtn) {
+                event.preventDefault();
+                event.stopPropagation();
                 const card = toggleBtn.closest(".wz-feed-item");
                 const itemId = String(card?.dataset?.eventId || "");
                 const feedItem = __intelWireRenderedItems.get(itemId);
                 if (!card || !feedItem) return;
-                const panel = String(toggleBtn.getAttribute("data-feed-media-toggle") || "").toLowerCase();
                 const state = getIntelWireMediaState(itemId);
-                if (panel === "images") {
-                    state.imagesOpen = !state.imagesOpen;
-                } else if (panel === "videos") {
-                    const nextOpen = !state.videosOpen;
-                    state.videosOpen = nextOpen;
-                    if (!nextOpen) state.activeVideoIndex = -1;
-                }
-                renderIntelWireMediaCard(card, feedItem);
+                state.allOpen = !state.allOpen;
+                state.imagesOpen = state.allOpen;
+                state.videosOpen = state.allOpen;
+                if (!state.allOpen) state.activeVideoIndex = -1;
+                renderIntelWireMediaCard(card, feedItem, itemId);
                 return;
             }
             const playBtn = event.target?.closest?.("[data-feed-video-play]");
             if (playBtn) {
+                event.preventDefault();
+                event.stopPropagation();
                 const card = playBtn.closest(".wz-feed-item");
                 const itemId = String(card?.dataset?.eventId || "");
                 const feedItem = __intelWireRenderedItems.get(itemId);
                 if (!card || !feedItem) return;
                 const state = getIntelWireMediaState(itemId);
-                state.videosOpen = true;
                 state.activeVideoIndex = Math.max(0, Number(playBtn.getAttribute("data-feed-video-play")) || 0);
-                renderIntelWireMediaCard(card, feedItem);
+                renderIntelWireMediaCard(card, feedItem, itemId);
                 const player = card.querySelector(".wz-feed-video-player");
                 if (player) {
                     player.play?.().catch?.(() => {});
                 }
+                return;
             }
         });
         feedList.addEventListener("error", (event) => {
@@ -4679,9 +5136,6 @@ function renderFeed(viewModelOrEvents) {
         }
         previousCard = card;
     });
-    [...__intelWireMediaState.keys()].forEach((key) => {
-        if (!visibleIds.has(key)) __intelWireMediaState.delete(key);
-    });
     const shown = rows.length;
     const remaining = Math.max(0, filteredTotal - shown);
     if (countEl) {
@@ -4706,6 +5160,14 @@ function renderFeed(viewModelOrEvents) {
             ? `Load ${Math.min(FEED_LOAD_MORE_COUNT, remaining)} more`
             : "All loaded";
     }
+    requestAnimationFrame(() => {
+        refreshIntelWireRelativeTimes(feed);
+        cardsInOrder.forEach((card) => {
+            const itemId = String(card.dataset.eventId || "");
+            const event = __intelWireRenderedItems.get(itemId);
+            if (event) syncIntelWireReadFullControl(card, event);
+        });
+    });
 }
 function renderStrikeCounters(events) {
     const mapped = events.filter((e) => Number.isFinite(e.lat) && Number.isFinite(e.lon)).length;
