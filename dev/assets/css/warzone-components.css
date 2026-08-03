@@ -514,19 +514,21 @@
 }
 
 .wz-event-popup__cat, .wz-event-popup__sev {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    min-height: 2.2rem;
-    padding: 0 1rem;
-    font-size: var(--text-xs);
-    line-height: 1;
-    text-transform: uppercase;
+    flex-shrink: 0;
+
     height: 2.6rem;
-    clip-path: var(--clippath-shape-3);
+    min-height: 1.6rem;
     width: fit-content;
-    padding: 0 1rem;
-    font-weight: 700;
-    letter-spacing: 0.05rem;
+    padding: .1rem 0.8rem 0;
+    clip-path: var(--clippath-shape-3);
+
+    font-size: var(--text-xs);
+    letter-spacing: .07rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    line-height: 1;
 }
 
 .wz-event-popup__cat {
@@ -608,21 +610,28 @@
 
 .wz-event-popup__action,
 .wz-event-popup__source {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    min-height: 2.4rem;
-    background: var(--color-teal-hover);
-    color: var(--color-teal-glow);
-    padding: 0 0.9rem;
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    text-decoration: none;
-    cursor: pointer;
+    flex-shrink: 0;
+
+    height: 2.6rem;
+    min-height: 1.6rem;
+    width: fit-content;
+    padding: .1rem 0.8rem 0;
     clip-path: var(--clippath-shape-3);
-    border: 0;
-    letter-spacing: .1rem;
+
+    font-size: var(--text-xs);
+    letter-spacing: .07rem;
     font-weight: 600;
+    text-transform: uppercase;
+    line-height: 1;
+
+    color: var(--color-teal-glow);
+    background: var(--color-teal-hover);
+
+    cursor: pointer;    
+    text-decoration: none;
+    border: 0;
 }
 
 .wz-event-popup__action:hover,
@@ -3692,17 +3701,22 @@ UNUSED CANDIDATE END */
 
 
 .feed-pill {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    min-height: 2.2rem;
-    font-size: var(--text-xs);
-    line-height: 1;
-    text-transform: uppercase;
-    clip-path: var(--clippath-shape-3);
+    flex-shrink: 0;
+
+    height: 2.6rem;
+    min-height: 1.6rem;
     width: fit-content;
-    padding: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.05rem;
+    padding: .1rem 0.8rem 0;
+    clip-path: var(--clippath-shape-3);
+
+    font-size: var(--text-xs);
+    letter-spacing: .07rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    line-height: 1;
+
     color: var(--color-text-heading);
     background: var(--color-orange);
 }
@@ -5559,15 +5573,23 @@ body.wz-hide-altitude-km .wz-altitude-readout__line--km {
 }
 
 .wz-report-card__badge {
-    flex-shrink: 0;
-    color: var(--color-teal-glow);
-    text-transform: uppercase;
-    background: var(--color-teal-hover);
-    height: 3rem;
-    padding: .3rem 1.5rem 0;
     display: flex;
     align-items: center;
+    flex-shrink: 0;
+
+    height: 3rem;
+    min-height: 2.2rem;
+    width: fit-content;
+    padding: .3rem 1.5rem 0;
     clip-path: var(--clippath-shape-3);
+
+    font-size: var(--text-sm);
+    letter-spacing: .1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+
+    color: var(--color-teal-glow);
+    background: var(--color-teal-hover);
 }
 
 .wz-report-card__actions {
