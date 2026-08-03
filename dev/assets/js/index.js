@@ -11,7 +11,6 @@ import {
     initStratopsIntro, initStratopsAuth, schedulePostEntryActions
 } from "./essential.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
-import { initPreEntryShowcase } from "./pre-entry-showcase.js";
 import { initRegionSelector } from "./warzone-region-selector.js";
 import {
     subscribeToLiveEvents,
@@ -179,10 +178,13 @@ function installDeferredMilitaryBasesLayer(viewer) {
         }
     };
 }
-async function warmupInitialTheater(viewer) {
-    window.__wzKeepSiteLoaderVisible = true;
-    window.__wzKeepSiteLoaderVisibleUntil = Date.now() + INITIAL_THEATER_WARMUP_KEEP_MS;
-    window.SiteLoader?.start?.();
+async function warmupInitialTheater(viewer, options = {}) {
+    const showLoader = options?.showLoader !== false;
+    if (showLoader) {
+        window.__wzKeepSiteLoaderVisible = true;
+        window.__wzKeepSiteLoaderVisibleUntil = Date.now() + INITIAL_THEATER_WARMUP_KEEP_MS;
+        window.SiteLoader?.start?.();
+    }
     try {
         viewer?.scene?.requestRender?.();
         const criticalImages = INITIAL_THEATER_CRITICAL_ASSETS.filter((url) => /\.(png|jpe?g|webp|gif|svg)(?:[?#].*)?$/i.test(url));
@@ -200,9 +202,11 @@ async function warmupInitialTheater(viewer) {
             });
         }, 8000);
     } finally {
-        window.__wzKeepSiteLoaderVisible = false;
-        window.__wzKeepSiteLoaderVisibleUntil = 0;
-        window.SiteLoader?.stop?.();
+        if (showLoader) {
+            window.__wzKeepSiteLoaderVisible = false;
+            window.__wzKeepSiteLoaderVisibleUntil = 0;
+            window.SiteLoader?.stop?.();
+        }
     }
     window.setTimeout(() => {
         INITIAL_THEATER_BACKGROUND_ASSETS.forEach((url) => {
@@ -235,6 +239,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         applyStratOpsFeatureVisibility();
         bindWarzoneUi();
+        if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
+            initStratopsAuth();
+        }
+        if (isStratOpsFeatureEnabled("system.billing")) {
+            initStratopsBilling();
+        }
 
         let pendingRegionModal = null;
         window.__warzoneShowRegionModal = (instant = false) => {
@@ -269,34 +279,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         viewer?.__warzone?.setAdaptiveQualityProfile?.("safe");
         viewer?.__warzone?.setPerformanceMode?.(0);
         let started = false;
-        let entryFlowUiReady = false;
         window.SiteLoader?.forceHide?.();
-
-        const ensureEntryFlowUi = ({ openIntro = false, showPendingRegion = false } = {}) => {
-            if (!entryFlowUiReady) {
-                if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
-                    initRegionSelector(viewer);
-                }
-                if (isStratOpsFeatureEnabled("system.intro")) {
-                    initStratopsIntro({
-                        skipPreEntryShowcase: true,
-                        openImmediately: false,
-                    });
-                }
-                entryFlowUiReady = true;
-            }
-
-            if (openIntro && isStratOpsFeatureEnabled("system.intro")) {
-                window.__warzoneOpenEntryIntroModal?.();
-                return;
-            }
-
-            if (showPendingRegion && pendingRegionModal) {
-                const { instant } = pendingRegionModal;
-                pendingRegionModal = null;
-                window.__warzoneShowRegionModal?.(instant);
-            }
-        };
 
         if (window.__stratopsConfig?.startupMilSatsDemo !== false) {
             setTimeout(async () => {
@@ -312,24 +295,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             }, 0);
         }
 
+        if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
+            initRegionSelector(viewer);
+        }
+
         if (isStratOpsFeatureEnabled("system.intro")) {
-            if (isStratOpsFeatureEnabled("system.preEntryShowcase")) {
-                initPreEntryShowcase({
-                    onEnter: () => {
-                        ensureEntryFlowUi({ openIntro: true });
-                    },
-                });
-            } else {
-                ensureEntryFlowUi({ openIntro: true });
-            }
-        } else if (isStratOpsFeatureEnabled("system.preEntryShowcase")) {
-            initPreEntryShowcase({
-                onEnter: () => {
-                    ensureEntryFlowUi({ showPendingRegion: true });
-                },
-            });
+            initStratopsIntro();
         } else if (pendingRegionModal) {
-            ensureEntryFlowUi({ showPendingRegion: true });
+            const { instant } = pendingRegionModal;
+            pendingRegionModal = null;
+            window.__warzoneShowRegionModal?.(instant);
         }
 
         window.__warzoneStartDeferredApp = async () => {
@@ -343,13 +318,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 viewer?.__warzone?.stopStartupRotation?.();
                 viewer?.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
                 viewer?.__warzone?.setPerformanceMode?.(0);
-                ensureEntryFlowUi();
-                if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
-                    initStratopsAuth();
-                }
-                if (isStratOpsFeatureEnabled("system.billing")) {
-                    initStratopsBilling();
-                }
                 if (isStratOpsFeatureEnabled("system.aoiLens") && isStratOpsFeatureEnabled("dock.aoiScan")) {
                     initWarzoneAoiLens(viewer);
                 }
@@ -365,7 +333,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
                 }
 
-                await warmupInitialTheater(viewer);
+                await warmupInitialTheater(viewer, { showLoader: false });
 
                 if (isStratOpsFeatureEnabled("system.realtimeEvents")) {
                     await subscribeToLiveEvents();

@@ -1083,7 +1083,7 @@
 :root {
     --warzone-satellite-model-scale: 2200;
     --warzone-satellite-model-heading-deg: 320;
-    --warzone-satellite-model-rotate-x-deg: -15;
+    --warzone-satellite-model-rotate-x-deg: -35;
     --warzone-satellite-model-rotate-y-deg: -150;
     --warzone-satellite-model-rotate-z-deg: var(--warzone-satellite-model-heading-deg);
     --warzone-mil-sat-scale: var(--warzone-satellite-model-scale);

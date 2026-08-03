@@ -828,8 +828,8 @@ function ensureControls() {
     controls.className = "wz-orbital-widget";
     const head = document.createElement("div");
     head.className = "wz-orbital-controls__head";
-    const title = document.createElement("strong");
-    title.textContent = "ORBITAL ASSETS";
+    const title = document.createElement("h3");
+    title.textContent = "Orbital Assets";
     const status = document.createElement("span");
     status.className = "wz-orbital-controls__status";
     status.textContent = "Layer off";
@@ -871,12 +871,12 @@ function ensureControls() {
                 <span class="wz-orbital-widget__details-kicker">PUBLIC ORBITAL ESTIMATE</span>
                 <h3 class="wz-orbital-widget__details-title">UNSPECIFIED ASSET</h3>
             </div>
-            <button type="button" class="wz-orbital-widget__details-close">Unlock</button>
+            <button type="button" class="btn-secondary white">Unlock</button>
         </div>
         <div class="wz-orbital-widget__details-grid"></div>
         <p class="wz-orbital-widget__details-note"></p>
     `;
-    details.querySelector(".wz-orbital-widget__details-close")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
+    details.querySelector(".btn-secondary white")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
 
     controls.appendChild(controlsPanel);
     controls.appendChild(summary);

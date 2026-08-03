@@ -1221,13 +1221,12 @@ function showRegionModal(viewer, instant = false, options = {}) {
             try { localStorage.setItem(VISITED_KEY, "1"); } catch { }
 
             window.__warzoneEnterApp?.();
-            window.SiteLoader?.start?.();
 
             closeRegionModal(overlay, () => {
                 if (!lensRegions.some((region) => region.id === chosen)) {
                     __activeLens = "all";
                 }
-                selectRegion(viewer, chosen, { showLoader: true });
+                selectRegion(viewer, chosen, { showLoader: false });
                 viewer?.__warzone?.setBorderLayersVisible?.(
                     getSavedCountryBorderLayerVisibility(),
                     { animate: true, duration: 780 }

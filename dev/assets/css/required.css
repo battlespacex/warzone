@@ -824,10 +824,12 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--color-white);
     cursor: pointer;
     overflow: hidden;
     transition:  color 0.25s ease;
+        background: transparent;
+    border: 0;
 }
 
 body.wz-pre-entry-active .audio-toggle {
@@ -835,10 +837,12 @@ body.wz-pre-entry-active .audio-toggle {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+    background: transparent;
+    border: 0;
 }
 
     .audio-toggle.is-on {
-        color: #19d8b3;
+    color: var(--color-white);
     }
 
 .audio-toggle__icon {

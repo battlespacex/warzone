@@ -8243,8 +8243,8 @@ export function initBoot() {
 export function initAudio() {
     const audio = document.getElementById("bg-audio");
     const toggle = document.getElementById("audio-toggle");
-    const playIcon = toggle?.querySelector(".audio-toggle__icon--play");
-    const pauseIcon = toggle?.querySelector(".audio-toggle__icon--pause");
+    const playIcon = toggle?.querySelector(".stratops-ico-next-1");
+    const pauseIcon = toggle?.querySelector(".stratops-ico-pause-1");
     if (!audio || !toggle || !playIcon || !pauseIcon) return;
     if (toggle.dataset.audioBound === "true") return;
     toggle.dataset.audioBound = "true";
