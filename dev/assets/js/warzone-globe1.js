@@ -3388,30 +3388,27 @@ function startStartupGlobeRotation(viewer) {
     const state = {
         active: true,
         lastTime: 0,
-      speedDeg: Math.max(0.001, Math.min(numberVar("--warzone-startup-rotation-speed", 0.52), 3)),
+      speedDeg: Math.max(0.001, Math.min(
+    numberVar("--warzone-startup-rotation-speed", 0.52)
+        * Math.max(0.1, Math.min(Number(window.__stratopsConfig?.startupRotationMultiplier || 1), 4)),
+    2
+)),
     };
     const rotate = () => {
         if (!state.active) return;
         if (getSceneMode(viewer) !== "3d") {
             state.lastTime = 0;
             return;
-    }
-    const now = performance.now();
-    if (!state.lastTime) {
+        }
+        const now = Date.now();
+        if (!state.lastTime) {
+            state.lastTime = now;
+            return;
+        }
+        const dt = Math.min((now - state.lastTime) / 1000, 0.1);
         state.lastTime = now;
+        viewer.camera.rotate(Cesium.Cartesian3.UNIT_Z, -(state.speedDeg * Cesium.Math.RADIANS_PER_DEGREE) * dt);
         viewer.scene.requestRender?.();
-        return;
-    }
-
-    const dt = Math.min(Math.max(0, (now - state.lastTime) / 1000), 0.05);
-    state.lastTime = now;
-
-    viewer.camera.rotate(
-        Cesium.Cartesian3.UNIT_Z,
-        -(state.speedDeg * Cesium.Math.RADIANS_PER_DEGREE) * dt
-    );
-
-    viewer.scene.requestRender?.();
     };
     state.rotate = rotate;
     viewer.__warzoneStartupRotation = state;
@@ -3683,30 +3680,21 @@ function addPolylineForRing(viewer, ring, options) {
     viewer.__borderEntities.push(entity);
 }
 function setBorderLayersVisible(viewer, visible, options = {}) {
-    if (!viewer) return Promise.resolve(false);
-
+    if (!viewer) return;
     const show = !!visible;
     viewer.__borderLayersVisible = show;
-
     if (show && !viewer.__borderLayersLoaded) {
-        return ensureBorderLayersLoaded(viewer).then(() => {
-            if (viewer.__borderLayersVisible !== show) return false;
-
-            void options;
-            stopBorderFadeAnimation(viewer);
-            applyBorderVisibilityAlpha(viewer, 1);
+        ensureBorderLayersLoaded(viewer).then(() => {
+            if (viewer.__borderLayersVisible !== show) return;
+            setBorderLayersVisible(viewer, show, options);
             viewer.scene?.requestRender?.();
-
-            return true;
         });
+        return;
     }
-
     void options;
     stopBorderFadeAnimation(viewer);
     applyBorderVisibilityAlpha(viewer, show ? 1 : 0);
     viewer.scene?.requestRender?.();
-
-    return Promise.resolve(show);
 }
 async function fetchGeoJson(url) {
     const candidates = Array.isArray(url) ? url.filter(Boolean) : [url];
@@ -3812,28 +3800,11 @@ function ensureBorderLayersLoaded(viewer) {
     return viewer.__borderLayerLoadPromise;
 }
 async function addArcGisLayers(viewer) {
-    if (!viewer?.imageryLayers) return { baseLayer: null, labelsLayer: null };
-    if (viewer.__warzoneEntryMapImageryVisible === false) {
-        viewer.imageryLayers.removeAll();
-        viewer.__imageryBase = null;
-        viewer.__imageryLabels = null;
-        updateMapCredits();
-        return { baseLayer: null, labelsLayer: null };
-    }
-
-    const generation = Number(viewer.__warzoneImageryGeneration || 0);
     viewer.imageryLayers.removeAll();
     const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
         { enablePickFeatures: false }
     );
-    if (viewer.__warzoneEntryMapImageryVisible === false || generation !== Number(viewer.__warzoneImageryGeneration || 0)) {
-        viewer.imageryLayers.removeAll();
-        viewer.__imageryBase = null;
-        viewer.__imageryLabels = null;
-        return { baseLayer: null, labelsLayer: null };
-    }
-
     const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
     tuneImageryLayer(baseLayer, "--warzone-map");
     let labelsLayer = null;
@@ -3842,10 +3813,8 @@ async function addArcGisLayers(viewer) {
             "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
             { enablePickFeatures: false }
         );
-        if (viewer.__warzoneEntryMapImageryVisible !== false && generation === Number(viewer.__warzoneImageryGeneration || 0)) {
-            labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-            tuneImageryLayer(labelsLayer, "--warzone-labels");
-        }
+        labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
+        tuneImageryLayer(labelsLayer, "--warzone-labels");
     }
     const show = viewer.__terrainVisible !== false;
     baseLayer.show = show;
@@ -3855,45 +3824,6 @@ async function addArcGisLayers(viewer) {
     updateMapCredits();
     updateLabelsLayerVisibility(viewer);
     return { baseLayer, labelsLayer };
-}
-
-function setEntryMapImageryVisible(viewer, visible) {
-    if (!viewer?.imageryLayers) return Promise.resolve(false);
-    const show = visible !== false;
-    viewer.__warzoneEntryMapImageryVisible = show;
-    viewer.__warzoneImageryGeneration = Number(viewer.__warzoneImageryGeneration || 0) + 1;
-
-    if (!show) {
-        viewer.imageryLayers.removeAll();
-        viewer.__imageryBase = null;
-        viewer.__imageryLabels = null;
-        updateMapCredits();
-        viewer.scene?.requestRender?.();
-        return Promise.resolve(false);
-    }
-
-    viewer.__warzoneImageryReadyPromise = addArcGisLayers(viewer)
-        .then((result) => {
-            viewer.scene?.requestRender?.();
-            return !!result?.baseLayer;
-        })
-        .catch((error) => {
-            console.warn("ArcGIS imagery provider failed; continuing without ion imagery fallback:", error);
-            return false;
-        });
-    return viewer.__warzoneImageryReadyPromise;
-}
-
-function applyEntrySceneLayerSwitches(viewer) {
-    if (!viewer || !document.body.classList.contains("wz-pre-entry-active")) return;
-
-    const showMapImagery = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
-    const showBorders = numberVar("--wz-entry-show-borders", 0) !== 0;
-
-    setEntryMapImageryVisible(viewer, showMapImagery);
-    setBorderLayersVisible(viewer, showBorders, { immediate: true });
-
-    viewer.scene?.requestRender?.();
 }
 
 function setContourGridLayerVisible(viewer, visible) {
@@ -6541,7 +6471,6 @@ export async function initWarzoneGlobe() {
     viewer.__warzoneSceneMode = getSceneMode(viewer);
     viewer.__warzoneAdaptiveProfile = "normal";
     viewer.__warzoneSuppressEventMarkers = false;
-viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
     viewer.__borderLayersVisible = false;
     viewer.__borderVisibilityAlpha = 0;
     viewer.__borderLayersLoaded = false;
@@ -6561,10 +6490,15 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
     attachLabelsZoomController(viewer);
     bindEventMarkerPicking(viewer);
     viewer.scene.requestRender();
-    viewer.__warzoneImageryReadyPromise = setEntryMapImageryVisible(
-        viewer,
-        viewer.__warzoneEntryMapImageryVisible !== false
-    );
+    viewer.__warzoneImageryReadyPromise = addArcGisLayers(viewer)
+        .then(() => {
+            viewer.scene.requestRender();
+            return true;
+        })
+        .catch((error) => {
+            console.warn("ArcGIS imagery provider failed; continuing without ion imagery fallback:", error);
+            return false;
+        });
     viewer.__warzoneMapLabelsVisible = boolVar("--warzone-country-labels-enabled", false)
         || boolVar("--warzone-places-layer-enabled", false);
     if (viewer.__warzoneMapLabelsVisible) {
@@ -6672,9 +6606,6 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
         stopStartupRotation() {
             stopStartupGlobeRotation(viewer);
         },
-        startStartupRotation() {
-            startStartupGlobeRotation(viewer);
-        },
         getSceneMode() {
             return getSceneMode(viewer);
         },
@@ -6696,12 +6627,6 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
             updateLabelsLayerVisibility(viewer);
             applyMapColorMixer(viewer, "--warzone-map");
             viewer.scene.requestRender();
-        },
-        setEntryMapImageryVisible(visible) {
-            return setEntryMapImageryVisible(viewer, visible);
-        },
-        isEntryMapImageryVisible() {
-            return viewer.__warzoneEntryMapImageryVisible !== false && !!viewer.__imageryBase;
         },
         setTerrainVisible(visible) {
             const show = !!visible;
@@ -6790,9 +6715,8 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
             return viewer.__raisedRegionVisible === true;
         },
         setBorderLayersVisible(visible, options = {}) {
-            const result = setBorderLayersVisible(viewer, visible, options);
+            setBorderLayersVisible(viewer, visible, options);
             viewer.scene.requestRender();
-            return result;
         },
         isBorderLayersVisible() {
             return viewer.__borderLayersVisible !== false;
@@ -7093,9 +7017,6 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
             playImpactSound(viewer);
         },
     };
-    if (typeof window !== "undefined") {
-        window.__warzone = viewer.__warzone;
-    }
     if (!viewer.__warzonePerfZoomBound) {
         viewer.__warzonePerfZoomBound = true;
         let perfRaf = 0;
@@ -7161,7 +7082,6 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
             })
             .catch(() => { });
     }
-    applyEntrySceneLayerSwitches(viewer);
     bindContourViewportRefresh(viewer);
     return viewer;
 }

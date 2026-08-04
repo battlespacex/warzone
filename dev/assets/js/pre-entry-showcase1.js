@@ -3,16 +3,6 @@ const PRE_ENTRY_VIEWER_WAIT_MS = 8000;
 
 let activeSceneSession = null;
 
-function getEntryCssFlag(name, fallback = 1) {
-    try {
-        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        const value = Number(raw);
-        return Number.isFinite(value) ? value !== 0 : fallback !== 0;
-    } catch {
-        return fallback !== 0;
-    }
-}
-
 function waitForWarzoneViewer(timeoutMs = PRE_ENTRY_VIEWER_WAIT_MS) {
     if (window.__warzoneViewer) return Promise.resolve(window.__warzoneViewer);
     return new Promise((resolve) => {
@@ -54,7 +44,6 @@ async function startPreEntrySceneSession(overlay) {
         tunerModule: null,
         handleAppEntered: () => stopPreEntrySceneSession(),
     };
-
     activeSceneSession = session;
     document.addEventListener("wz:app-entered", session.handleAppEntered, { once: true });
 
@@ -74,53 +63,22 @@ async function startPreEntrySceneSession(overlay) {
             && !session.cancelled
             && overlay?.isConnected
             && document.body.classList.contains("wz-pre-entry-active");
-
         if (!stillActive || !viewer) {
             stopPreEntrySceneSession();
             return;
         }
 
-        const warzoneApi = viewer.__warzone || window.__warzoneViewer?.__warzone || window.__warzone || null;
-
-        const showMapImagery = getEntryCssFlag("--wz-entry-show-map-imagery", 1);
-        const showBorders = getEntryCssFlag("--wz-entry-show-borders", 0);
-        const showSatellites = getEntryCssFlag("--wz-entry-show-satellites", 1);
-        const showNaval = getEntryCssFlag("--wz-entry-show-naval-assets", 1);
-        const showAir = getEntryCssFlag("--wz-entry-show-air-assets", 1);
-
-        document.body.classList.add("show-loader");
-        warzoneApi?.stopStartupRotation?.();
-
-        await Promise.all([
-            warzoneApi?.setEntryMapImageryVisible?.(showMapImagery) ?? Promise.resolve(false),
-            warzoneApi?.setBorderLayersVisible?.(showBorders, { immediate: true }) ?? Promise.resolve(false),
-        ]);
-
-        const stillReady = activeSceneSession === session
-            && !session.cancelled
-            && overlay?.isConnected
-            && document.body.classList.contains("wz-pre-entry-active");
-
-        if (!stillReady) {
-            stopPreEntrySceneSession();
-            return;
-        }
-
         satellitesModule.initWarzoneStartupMilSats?.(viewer);
-        satellitesModule.setWarzoneStartupMilSatsDemoEnabled?.(showSatellites);
+        satellitesModule.setWarzoneStartupMilSatsDemoEnabled?.(true);
 
         assetsModule.initWarzoneStartupDemoAssets?.(viewer);
-        assetsModule.setWarzoneStartupDemoAssetsEnabled?.(showNaval || showAir);
+        assetsModule.setWarzoneStartupDemoAssetsEnabled?.(true);
 
         tunerModule.initIntroStartupSceneTuner?.();
-
-        warzoneApi?.startStartupRotation?.();
         viewer.scene?.requestRender?.();
     } catch (error) {
         console.warn("Pre-entry scene assets failed to initialize:", error);
         stopPreEntrySceneSession();
-    } finally {
-        document.body.classList.remove("show-loader");
     }
 }
 

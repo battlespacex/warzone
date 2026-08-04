@@ -1934,6 +1934,8 @@ body.is-map-layers-open .wz-map-layers-pane {
     backdrop-filter: none;
     transform: translateY(1rem) scale(0.985);
     transition: transform 220ms ease;
+    
+    /* display: none */
 }
 
 .wz-pre-entry-showcase.is-visible .wz-pre-entry-showcase__panel {

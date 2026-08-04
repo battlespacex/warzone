@@ -11,10 +11,7 @@ const SCENE_FIELDS = Object.freeze([
     { label: "Satellite update ms", cssVar: "--warzone-startup-sat-update-ms", min: 80, max: 500, step: 10, fallback: 160 },
     { label: "Satellite minimum latitude", cssVar: "--wz-startup-sat-min-lat", min: -90, max: 90, step: 1, fallback: 0 },
     { label: "Satellite maximum latitude", cssVar: "--wz-startup-sat-max-lat", min: -90, max: 90, step: 1, fallback: 60 },
-    { label: "Aircraft/naval update ms", cssVar: "--wz-startup-demo-update-ms", min: 0, max: 1000, step: 10, fallback: 16 },
-    { label: "Aircraft turn bank degree", cssVar: "--wz-startup-air-bank-deg", min: -65, max: 65, step: 1, fallback: 24 },
-    { label: "Aircraft bank smoothing", cssVar: "--wz-startup-air-bank-smoothing", min: 0.01, max: 1, step: 0.01, fallback: 0.18 },
-    { label: "B-2/KC-135 world speed", cssVar: "--wz-startup-b2-world-speed", min: 0, max: 0.08, step: 0.001, fallback: 0.008 },
+    { label: "Aircraft/naval update ms", cssVar: "--wz-startup-demo-update-ms", min: 40, max: 1000, step: 10, fallback: 80 },
     { label: "F22 back distance km", cssVar: "--wz-startup-f22-back-distance", min: 0, max: 120, step: 1, fallback: 25 },
     { label: "F22 side distance km", cssVar: "--wz-startup-f22-side-distance", min: 0, max: 80, step: 1, fallback: 18 },
     { label: "Satellite scale", cssVar: "--warzone-satellite-model-scale", min: 100, max: 500000, step: 100, fallback: 2200 },
@@ -231,159 +228,6 @@ const GROUPS = Object.freeze([
             visible: 1,
         }),
     },
-
-    {
-        id: "sd-carrier-1",
-        label: "San Diego Carrier 1",
-        fields: buildAssetFields("--wz-startup-sd-carrier-1", STATIC_FIELD_TEMPLATE, {
-            lon: -118.4, lat: 31.8, altitude: 0, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 70, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-carrier-2",
-        label: "San Diego Carrier 2",
-        fields: buildAssetFields("--wz-startup-sd-carrier-2", STATIC_FIELD_TEMPLATE, {
-            lon: -119.6, lat: 30.9, altitude: 0, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 70, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-frigate-1",
-        label: "San Diego Frigate 1",
-        fields: buildAssetFields("--wz-startup-sd-frigate-1", STATIC_FIELD_TEMPLATE, {
-            lon: -117.8, lat: 32.5, altitude: 1000, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 46, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-frigate-2",
-        label: "San Diego Frigate 2",
-        fields: buildAssetFields("--wz-startup-sd-frigate-2", STATIC_FIELD_TEMPLATE, {
-            lon: -118.9, lat: 32.2, altitude: 1000, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 46, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-frigate-3",
-        label: "San Diego Frigate 3",
-        fields: buildAssetFields("--wz-startup-sd-frigate-3", STATIC_FIELD_TEMPLATE, {
-            lon: -119.4, lat: 31.5, altitude: 1000, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 46, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-frigate-4",
-        label: "San Diego Frigate 4",
-        fields: buildAssetFields("--wz-startup-sd-frigate-4", STATIC_FIELD_TEMPLATE, {
-            lon: -120.1, lat: 30.6, altitude: 1000, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 46, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-frigate-5",
-        label: "San Diego Frigate 5",
-        fields: buildAssetFields("--wz-startup-sd-frigate-5", STATIC_FIELD_TEMPLATE, {
-            lon: -118.6, lat: 30.4, altitude: 1000, heading: 285, pitch: 0, roll: 0,
-            scale: 1, "min-px": 46, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-ssbn-1",
-        label: "San Diego SSBN 1",
-        fields: buildAssetFields("--wz-startup-sd-ssbn-1", STATIC_FIELD_TEMPLATE, {
-            lon: -120.6, lat: 29.8, altitude: 500, heading: 305, pitch: 0, roll: 0,
-            scale: 1, "min-px": 52, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "sd-ssbn-2",
-        label: "San Diego SSBN 2",
-        fields: buildAssetFields("--wz-startup-sd-ssbn-2", STATIC_FIELD_TEMPLATE, {
-            lon: -121.4, lat: 28.9, altitude: 500, heading: 305, pitch: 0, roll: 0,
-            scale: 1, "min-px": 52, "max-scale": 5000, visible: 1,
-        }),
-    },
-    {
-        id: "b2-1",
-        label: "B-2 Spirit Lead",
-        fields: buildAssetFields("--wz-startup-b2-1", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -160, "start-lat": 22, "end-lon": 160, "end-lat": 22,
-            "loop-width-km": 520, altitude: 210000, speed: 0.008, phase: 0,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 76, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "b2-2",
-        label: "B-2 Spirit Trail",
-        fields: buildAssetFields("--wz-startup-b2-2", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -160, "start-lat": 22, "end-lon": 160, "end-lat": 22,
-            "loop-width-km": 520, altitude: 210000, speed: 0.008, phase: 0,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 76, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "kc135-1",
-        label: "KC-135 Refueler",
-        fields: buildAssetFields("--wz-startup-kc135-1", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -160, "start-lat": 20, "end-lon": 160, "end-lat": 20,
-            "loop-width-km": 520, altitude: 205000, speed: 0.008, phase: 0,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 72, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "b52-1",
-        label: "B-52 Lead",
-        fields: buildAssetFields("--wz-startup-b52-1", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -86.8, "start-lat": 32.7, "end-lon": -116.9, "end-lat": 37.2,
-            "loop-width-km": 360, altitude: 190000, speed: 0.014, phase: 0,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 76, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "b52-2",
-        label: "B-52 Wing",
-        fields: buildAssetFields("--wz-startup-b52-2", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -86.8, "start-lat": 32.7, "end-lon": -116.9, "end-lat": 37.2,
-            "loop-width-km": 360, altitude: 190000, speed: 0.014, phase: 0,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 76, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "b1-1",
-        label: "B-1 Lancer",
-        fields: buildAssetFields("--wz-startup-b1-1", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -86.8, "start-lat": 32.7, "end-lon": -116.9, "end-lat": 37.2,
-            "loop-width-km": 360, altitude: 195000, speed: 0.014, phase: 0,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 74, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "c5-1",
-        label: "C-5 Galaxy",
-        fields: buildAssetFields("--wz-startup-c5-1", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -42, "start-lat": 42, "end-lon": 17, "end-lat": 29,
-            "loop-width-km": 420, altitude: 180000, speed: 0.009, phase: 0.12,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 76, "max-scale": 9000, visible: 1,
-        }),
-    },
-    {
-        id: "c17-1",
-        label: "C-17 Globemaster",
-        fields: buildAssetFields("--wz-startup-c17-1", MOVING_FIELD_TEMPLATE, {
-            "start-lon": -81.2, "start-lat": 28.4, "end-lon": -3.7, "end-lat": 40.2,
-            "loop-width-km": 420, altitude: 180000, speed: 0.01, phase: 0.2,
-            "heading-offset": 90, pitch: 0, roll: 0, scale: 1,
-            "min-px": 74, "max-scale": 9000, visible: 1,
-        }),
-    },
 ]);
 
 const ENTRY_LAYER_SWITCH_CSS_VARS = new Set([
@@ -491,7 +335,7 @@ function refreshPreview(groupId = tunerState.currentGroupId, changedCssVar = "")
             window.__warzoneStartupMilSats?.refresh?.();
         }
     }
-    if (changedCssVar.endsWith("-phase") && ["awacs", "globalhawk", "f22-1", "f22-2", "f22-3", "b2-1", "b2-2", "kc135-1", "b52-1", "b52-2", "b1-1", "c5-1", "c17-1"].includes(groupId)) {
+    if (changedCssVar.endsWith("-phase") && ["awacs", "globalhawk", "f22-1", "f22-2", "f22-3"].includes(groupId)) {
         window.__warzoneStartupDemoAssets?.setPhase?.(
             groupId,
             getRootCssNumber(changedCssVar, 0)

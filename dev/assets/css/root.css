@@ -285,23 +285,29 @@
 /* #endregion =========== */
 /* #region =========== Globe Render Quality =========== */
 :root {
+    /* Smooth premium Cesium performance */
     --warzone-resolution-scale: 1.0;
     --warzone-msaa-samples: 1;
-    --warzone-msaa-hard-max: 4;
+    --warzone-msaa-hard-max: 2;
     --warzone-fxaa-enabled: 1;
+
     --warzone-idle-resolution-min: 1.0;
     --warzone-idle-msaa-min: 1;
-    --warzone-moving-resolution-scale: 1;
+
+    --warzone-moving-resolution-scale: 0.9;
     --warzone-moving-msaa-samples: 1;
-    --warzone-focus-resolution-scale: 1.12;
-    --warzone-focus-performance-resolution-scale: 1;
-    --warzone-focus-performance-msaa-samples: 2;
-    --warzone-focus-performance-screen-space-error: 1.9;
-    --warzone-focus-performance-tile-cache: 120;
-    --warzone-focus-performance-render-time: 0.32;
-    --warzone-close-resolution-scale: 1.06;
-    --warzone-focus-msaa-samples: 2;
-    --warzone-close-msaa-samples: 2;
+
+    --warzone-focus-resolution-scale: 0.96;
+    --warzone-focus-performance-resolution-scale: 0.86;
+    --warzone-focus-performance-msaa-samples: 1;
+    --warzone-focus-performance-screen-space-error: 2.35;
+    --warzone-focus-performance-tile-cache: 110;
+    --warzone-focus-performance-render-time: 0.22;
+
+    --warzone-close-resolution-scale: 0.98;
+    --warzone-focus-msaa-samples: 1;
+    --warzone-close-msaa-samples: 1;
+
     --warzone-camera-zoom-factor: 7.5;
     --warzone-focus-sharp-height: 120000;
     --warzone-close-sharp-height: 450000;
@@ -309,31 +315,42 @@
     --warzone-camera-min-zoom: 100;
     --warzone-camera-max-zoom: 20000000;
     --warzone-2d-max-zoom-factor: 4;
-    --warzone-globe-max-screen-space-error: 2.05;
-    --warzone-globe-close-screen-space-error: 1.4;
-    --warzone-globe-moving-screen-space-error: 2.45;
+
+    /* Terrain / imagery tile quality */
+    --warzone-globe-max-screen-space-error: 1.65;
+    --warzone-globe-close-screen-space-error: 1.25;
+    --warzone-globe-moving-screen-space-error: 2.65;
+
     --warzone-globe-tile-cache-size: 420;
-    --warzone-globe-tile-cache-moving: 240;
-    --warzone-globe-tile-cache-heavy: 170;
-    --warzone-globe-tile-cache-loading: 220;
-    --warzone-globe-loading-descendant-limit: 28;
+    --warzone-globe-tile-cache-moving: 260;
+    --warzone-globe-tile-cache-heavy: 220;
+    --warzone-globe-tile-cache-loading: 280;
+
+    --warzone-globe-loading-descendant-limit: 24;
     --warzone-globe-loading-descendant-limit-busy: 10;
-    --warzone-globe-loading-queue-threshold: 8;
-    --warzone-globe-loading-resolution-scale: .86;
-    --warzone-globe-loading-screen-space-error: 3.1;
+    --warzone-globe-loading-queue-threshold: 10;
+    --warzone-globe-loading-resolution-scale: 0.92;
+    --warzone-globe-loading-screen-space-error: 2.4;
+
     --warzone-globe-preload-ancestors: 1;
     --warzone-globe-preload-siblings: 0;
     --warzone-imagery-max-anisotropy: 2;
-    --warzone-max-renderable-events: 140;
-    --warzone-event-cluster-height: 1500000; /* cluster event rings before overlapping fills stack into solid disks */
-    --warzone-event-ring-max-height: 15000000;
-    --warzone-event-cluster-precision: 0.28; /* finer clustering keeps more individual hotspots/markers visible */
-    --warzone-event-ring-budget: 120;
-    --warzone-event-outline-budget: 80;
+
+    /* Events / rings */
+    --warzone-max-renderable-events: 120;
+    --warzone-event-cluster-height: 1700000;
+    --warzone-event-ring-max-height: 12000000;
+    --warzone-event-cluster-precision: 0.32;
+    --warzone-event-ring-budget: 90;
+    --warzone-event-outline-budget: 60;
+
+    /* Terrain focus */
     --warzone-topography-exaggeration: 1;
-    --warzone-focus-terrain-exaggeration: 1.45;
-    --warzone-focus-terrain-detail: 3.2;
-    --warzone-focus-terrain-prewarm-delay: 1400;
+    --warzone-focus-terrain-exaggeration: 1.25;
+    --warzone-focus-terrain-detail: 2.4;
+    --warzone-focus-terrain-prewarm-delay: 1800;
+
+
     --warzone-raised-region-height: 32000;
     --warzone-raised-region-color: var(--color-teal-slate);
     --warzone-raised-region-fill-alpha: 0.10;
@@ -1032,7 +1049,7 @@
 :root {
     --warzone-live-label-scale: 0.62;
     --warzone-live-label-offset-y: 0;
-    --warzone-live-label-font: 22px var(--font-mono);
+    --warzone-live-label-font: 20px var(--heading-font);
     --warzone-live-label-fill: var(--color-teal-glow);
     --warzone-live-label-outline: rgba(0, 16, 18, 0.92);
     --warzone-live-label-outline-width: 1.8;
@@ -1099,23 +1116,32 @@
 }
 /* #endregion =========== */
 
-/* #region =========== PRE-ENTRY DEMO ASSETS =========== */
 :root {
     /* Scene & Satellites */
     --warzone-start-lon: 40.4;
-    --warzone-start-lat: 12.3;
+    --warzone-start-lat: 12.4;
     --warzone-start-height: 5200000;
     --warzone-start-heading: 0;
     --warzone-start-pitch: -74;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 1.1;
-    --warzone-startup-sat-update-ms: 160;
+    --warzone-startup-rotation-speed: 1.6;
+    --warzone-startup-sat-update-ms: 140;
     --wz-startup-sat-min-lat: 0;
     --wz-startup-sat-max-lat: 60;
-    --wz-startup-demo-update-ms: 120;
+    --wz-startup-demo-update-ms: 16;
+    --wz-startup-air-bank-deg: -17;
+    --wz-startup-air-bank-smoothing: 0.10;
+    --wz-startup-b2-world-speed: 0.013;
+    --wz-startup-f22-back-distance: 90;
+    --wz-startup-f22-side-distance: 80;
     --warzone-satellite-model-scale: 2200;
     --warzone-mil-sat-min-px: 30;
     --warzone-mil-sat-max-scale: 320000;
+    --wz-entry-show-satellites: 1;
+    --wz-entry-show-naval-assets: 1;
+    --wz-entry-show-air-assets: 1;
+    --wz-entry-show-map-imagery: 1;
+    --wz-entry-show-borders: 0;
     /* Oman Carrier */
     --wz-startup-oman-carrier-lon: 63.8;
     --wz-startup-oman-carrier-lat: 18.6;
@@ -1167,14 +1193,14 @@
     --wz-startup-awacs-end-lat: 18.2;
     --wz-startup-awacs-loop-width-km: 260;
     --wz-startup-awacs-altitude: 220000;
-    --wz-startup-awacs-speed: 0.012;
+    --wz-startup-awacs-speed: 0.014;
     --wz-startup-awacs-phase: 0.00;
     --wz-startup-awacs-heading-offset: 90;
     --wz-startup-awacs-pitch: 0;
     --wz-startup-awacs-roll: 0;
-    --wz-startup-awacs-scale: 0.01;
-    --wz-startup-awacs-min-px: 100;
-    --wz-startup-awacs-max-scale: 4501;
+    --wz-startup-awacs-scale: 1.00;
+    --wz-startup-awacs-min-px: 80;
+    --wz-startup-awacs-max-scale: 5000;
     --wz-startup-awacs-visible: 1;
     /* Global Hawk */
     --wz-startup-globalhawk-start-lon: 52.8;
@@ -1188,10 +1214,58 @@
     --wz-startup-globalhawk-heading-offset: 90;
     --wz-startup-globalhawk-pitch: 0;
     --wz-startup-globalhawk-roll: 0;
-    --wz-startup-globalhawk-scale: 5000.00;
-    --wz-startup-globalhawk-min-px: 64;
-    --wz-startup-globalhawk-max-scale: 420000;
+    --wz-startup-globalhawk-scale: 1;
+    --wz-startup-globalhawk-min-px: 74;
+    --wz-startup-globalhawk-max-scale: 5000;
     --wz-startup-globalhawk-visible: 1;
+    /* F22 Lead */
+    --wz-startup-f22-1-start-lon: 138.0;
+    --wz-startup-f22-1-start-lat: 38.0;
+    --wz-startup-f22-1-end-lon: 145.0;
+    --wz-startup-f22-1-end-lat: 32.0;
+    --wz-startup-f22-1-loop-width-km: 160;
+    --wz-startup-f22-1-altitude: 180000;
+    --wz-startup-f22-1-speed: 0.030;
+    --wz-startup-f22-1-phase: 0.00;
+    --wz-startup-f22-1-heading-offset: 90;
+    --wz-startup-f22-1-pitch: 0;
+    --wz-startup-f22-1-roll: 0;
+    --wz-startup-f22-1-scale: 1;
+    --wz-startup-f22-1-min-px: 64;
+    --wz-startup-f22-1-max-scale: 8000;
+    --wz-startup-f22-1-visible: 1;
+    /* F22 Wing 1 */
+    --wz-startup-f22-2-start-lon: 138.0;
+    --wz-startup-f22-2-start-lat: 38.0;
+    --wz-startup-f22-2-end-lon: 145.0;
+    --wz-startup-f22-2-end-lat: 32.0;
+    --wz-startup-f22-2-loop-width-km: 160;
+    --wz-startup-f22-2-altitude: 180000;
+    --wz-startup-f22-2-speed: 0.030;
+    --wz-startup-f22-2-phase: 0.00;
+    --wz-startup-f22-2-heading-offset: 90;
+    --wz-startup-f22-2-pitch: 0;
+    --wz-startup-f22-2-roll: 0;
+    --wz-startup-f22-2-scale: 1;
+    --wz-startup-f22-2-min-px: 64;
+    --wz-startup-f22-2-max-scale: 8000;
+    --wz-startup-f22-2-visible: 1;
+    /* F22 Wing 2 */
+    --wz-startup-f22-3-start-lon: 138.0;
+    --wz-startup-f22-3-start-lat: 38.0;
+    --wz-startup-f22-3-end-lon: 145.0;
+    --wz-startup-f22-3-end-lat: 32.0;
+    --wz-startup-f22-3-loop-width-km: 160;
+    --wz-startup-f22-3-altitude: 180000;
+    --wz-startup-f22-3-speed: 0.030;
+    --wz-startup-f22-3-phase: 0.00;
+    --wz-startup-f22-3-heading-offset: 90;
+    --wz-startup-f22-3-pitch: 0;
+    --wz-startup-f22-3-roll: 0;
+    --wz-startup-f22-3-scale: 1;
+    --wz-startup-f22-3-min-px: 64;
+    --wz-startup-f22-3-max-scale: 8000;
+    --wz-startup-f22-3-visible: 1;
     /* China Carrier Fujian */
     --wz-startup-china-carrier-lon: 116.2;
     --wz-startup-china-carrier-lat: 20.4;
@@ -1225,71 +1299,234 @@
     --wz-startup-china-sub-min-px: 64;
     --wz-startup-china-sub-max-scale: 5000;
     --wz-startup-china-sub-visible: 1;
-
-/* ===== F22 RAPTOR FORMATION (JAPAN REGION) ===== */
-    --wz-startup-f22-1-start-lon: 138;
-    --wz-startup-f22-1-start-lat: 38;
-    --wz-startup-f22-1-end-lon: 145;
-    --wz-startup-f22-1-end-lat: 32;
-    --wz-startup-f22-1-loop-width-km: 260;
-    --wz-startup-f22-1-altitude: 180000;
-    --wz-startup-f22-1-speed: 0.020;
-    --wz-startup-f22-1-phase: 0.00;
-    --wz-startup-f22-1-heading-offset: 90;
-    --wz-startup-f22-1-pitch: 0;
-    --wz-startup-f22-1-roll: 0;
-    --wz-startup-f22-1-scale: 1;
-    --wz-startup-f22-1-min-px: 64;
-    --wz-startup-f22-1-max-scale: 4200;
-    --wz-startup-f22-1-visible: 1;
-
-    --wz-startup-f22-2-start-lon: 138;
-    --wz-startup-f22-2-start-lat: 38;
-    --wz-startup-f22-2-end-lon: 145;
-    --wz-startup-f22-2-end-lat: 32;
-    --wz-startup-f22-2-loop-width-km: 260;
-    --wz-startup-f22-2-altitude: 180000;
-    --wz-startup-f22-2-speed: 0.020;
-    --wz-startup-f22-2-phase: 0.00;
-    --wz-startup-f22-2-heading-offset: 90;
-    --wz-startup-f22-2-pitch: 0;
-    --wz-startup-f22-2-roll: 0;
-    --wz-startup-f22-2-scale: 1;
-    --wz-startup-f22-2-min-px: 64;
-    --wz-startup-f22-2-max-scale: 4200;
-    --wz-startup-f22-2-visible: 1;
-
-    --wz-startup-f22-3-start-lon: 138;
-    --wz-startup-f22-3-start-lat: 38;
-    --wz-startup-f22-3-end-lon: 145;
-    --wz-startup-f22-3-end-lat: 32;
-    --wz-startup-f22-3-loop-width-km: 260;
-    --wz-startup-f22-3-altitude: 180000;
-    --wz-startup-f22-3-speed: 0.020;
-    --wz-startup-f22-3-phase: 0.00;
-    --wz-startup-f22-3-heading-offset: 90;
-    --wz-startup-f22-3-pitch: 0;
-    --wz-startup-f22-3-roll: 0;
-    --wz-startup-f22-3-scale: 1;
-    --wz-startup-f22-3-min-px: 64;
-    --wz-startup-f22-3-max-scale: 4200;
-    --wz-startup-f22-3-visible: 1;
-
-    --wz-startup-f22-back-distance: 25;
-    --wz-startup-f22-side-distance: 18;
-
---wz-startup-f22-3-visible: 1;
-
-/* ===== FORMATION CONTROL (🔥 YOU CAN TUNE THIS LIVE) ===== */
-
-/* distance behind lead (km) */
---wz-startup-f22-back-distance: 25;
-
-/* horizontal spread (km) */
---wz-startup-f22-side-distance: 18;
+    /* San Diego Carrier 1 */
+    --wz-startup-sd-carrier-1-lon: -130.3;
+    --wz-startup-sd-carrier-1-lat: 31.8;
+    --wz-startup-sd-carrier-1-altitude: 0;
+    --wz-startup-sd-carrier-1-heading: 7;
+    --wz-startup-sd-carrier-1-pitch: 0;
+    --wz-startup-sd-carrier-1-roll: 0;
+    --wz-startup-sd-carrier-1-scale: 1.00;
+    --wz-startup-sd-carrier-1-min-px: 80;
+    --wz-startup-sd-carrier-1-max-scale: 5000;
+    --wz-startup-sd-carrier-1-visible: 1;
+    /* San Diego Carrier 2 */
+    --wz-startup-sd-carrier-2-lon: -125.0;
+    --wz-startup-sd-carrier-2-lat: 30.1;
+    --wz-startup-sd-carrier-2-altitude: 0;
+    --wz-startup-sd-carrier-2-heading: 7;
+    --wz-startup-sd-carrier-2-pitch: 0;
+    --wz-startup-sd-carrier-2-roll: 0;
+    --wz-startup-sd-carrier-2-scale: 1.00;
+    --wz-startup-sd-carrier-2-min-px: 70;
+    --wz-startup-sd-carrier-2-max-scale: 5000;
+    --wz-startup-sd-carrier-2-visible: 1;
+    /* San Diego Frigate 1 */
+    --wz-startup-sd-frigate-1-lon: -127.1;
+    --wz-startup-sd-frigate-1-lat: 32.9;
+    --wz-startup-sd-frigate-1-altitude: 1000;
+    --wz-startup-sd-frigate-1-heading: 7;
+    --wz-startup-sd-frigate-1-pitch: 0;
+    --wz-startup-sd-frigate-1-roll: 0;
+    --wz-startup-sd-frigate-1-scale: 1.00;
+    --wz-startup-sd-frigate-1-min-px: 46;
+    --wz-startup-sd-frigate-1-max-scale: 5000;
+    --wz-startup-sd-frigate-1-visible: 1;
+    /* San Diego Frigate 2 */
+    --wz-startup-sd-frigate-2-lon: -128.4;
+    --wz-startup-sd-frigate-2-lat: 30.1;
+    --wz-startup-sd-frigate-2-altitude: 1000;
+    --wz-startup-sd-frigate-2-heading: 7;
+    --wz-startup-sd-frigate-2-pitch: 0;
+    --wz-startup-sd-frigate-2-roll: 0;
+    --wz-startup-sd-frigate-2-scale: 1.00;
+    --wz-startup-sd-frigate-2-min-px: 46;
+    --wz-startup-sd-frigate-2-max-scale: 5000;
+    --wz-startup-sd-frigate-2-visible: 1;
+    /* San Diego Frigate 3 */
+    --wz-startup-sd-frigate-3-lon: -130.9;
+    --wz-startup-sd-frigate-3-lat: 33.6;
+    --wz-startup-sd-frigate-3-altitude: 1000;
+    --wz-startup-sd-frigate-3-heading: 7;
+    --wz-startup-sd-frigate-3-pitch: 0;
+    --wz-startup-sd-frigate-3-roll: 0;
+    --wz-startup-sd-frigate-3-scale: 1.00;
+    --wz-startup-sd-frigate-3-min-px: 46;
+    --wz-startup-sd-frigate-3-max-scale: 5000;
+    --wz-startup-sd-frigate-3-visible: 1;
+    /* San Diego Frigate 4 */
+    --wz-startup-sd-frigate-4-lon: -126.4;
+    --wz-startup-sd-frigate-4-lat: 28.8;
+    --wz-startup-sd-frigate-4-altitude: 1000;
+    --wz-startup-sd-frigate-4-heading: 7;
+    --wz-startup-sd-frigate-4-pitch: 0;
+    --wz-startup-sd-frigate-4-roll: 0;
+    --wz-startup-sd-frigate-4-scale: 1.00;
+    --wz-startup-sd-frigate-4-min-px: 46;
+    --wz-startup-sd-frigate-4-max-scale: 5000;
+    --wz-startup-sd-frigate-4-visible: 1;
+    /* San Diego Frigate 5 */
+    --wz-startup-sd-frigate-5-lon: -123.8;
+    --wz-startup-sd-frigate-5-lat: 31.5;
+    --wz-startup-sd-frigate-5-altitude: 1000;
+    --wz-startup-sd-frigate-5-heading: 7;
+    --wz-startup-sd-frigate-5-pitch: 0;
+    --wz-startup-sd-frigate-5-roll: 0;
+    --wz-startup-sd-frigate-5-scale: 1.00;
+    --wz-startup-sd-frigate-5-min-px: 46;
+    --wz-startup-sd-frigate-5-max-scale: 5000;
+    --wz-startup-sd-frigate-5-visible: 1;
+    /* San Diego SSBN 1 */
+    --wz-startup-sd-ssbn-1-lon: -131.6;
+    --wz-startup-sd-ssbn-1-lat: 30.1;
+    --wz-startup-sd-ssbn-1-altitude: 500;
+    --wz-startup-sd-ssbn-1-heading: 7;
+    --wz-startup-sd-ssbn-1-pitch: 0;
+    --wz-startup-sd-ssbn-1-roll: 0;
+    --wz-startup-sd-ssbn-1-scale: 1.00;
+    --wz-startup-sd-ssbn-1-min-px: 52;
+    --wz-startup-sd-ssbn-1-max-scale: 5000;
+    --wz-startup-sd-ssbn-1-visible: 1;
+    /* San Diego SSBN 2 */
+    --wz-startup-sd-ssbn-2-lon: -134.1;
+    --wz-startup-sd-ssbn-2-lat: 32.1;
+    --wz-startup-sd-ssbn-2-altitude: 500;
+    --wz-startup-sd-ssbn-2-heading: 7;
+    --wz-startup-sd-ssbn-2-pitch: 0;
+    --wz-startup-sd-ssbn-2-roll: 0;
+    --wz-startup-sd-ssbn-2-scale: 1.00;
+    --wz-startup-sd-ssbn-2-min-px: 52;
+    --wz-startup-sd-ssbn-2-max-scale: 5000;
+    --wz-startup-sd-ssbn-2-visible: 1;
+    /* B-2 Spirit Lead */
+    --wz-startup-b2-1-start-lon: -158.2;
+    --wz-startup-b2-1-start-lat: 21.2;
+    --wz-startup-b2-1-end-lon: 160.0;
+    --wz-startup-b2-1-end-lat: 22.0;
+    --wz-startup-b2-1-loop-width-km: 520;
+    --wz-startup-b2-1-altitude: 210000;
+    --wz-startup-b2-1-speed: 0.008;
+    --wz-startup-b2-1-phase: 0.00;
+    --wz-startup-b2-1-heading-offset: 90;
+    --wz-startup-b2-1-pitch: 0;
+    --wz-startup-b2-1-roll: 0;
+    --wz-startup-b2-1-scale: 1;
+    --wz-startup-b2-1-min-px: 80;
+    --wz-startup-b2-1-max-scale: 9000;
+    --wz-startup-b2-1-visible: 1;
+    /* B-2 Spirit Trail */
+    --wz-startup-b2-2-start-lon: -160.0;
+    --wz-startup-b2-2-start-lat: 22.0;
+    --wz-startup-b2-2-end-lon: 160.0;
+    --wz-startup-b2-2-end-lat: 22.0;
+    --wz-startup-b2-2-loop-width-km: 520;
+    --wz-startup-b2-2-altitude: 210000;
+    --wz-startup-b2-2-speed: 0.008;
+    --wz-startup-b2-2-phase: 0.00;
+    --wz-startup-b2-2-heading-offset: 90;
+    --wz-startup-b2-2-pitch: 0;
+    --wz-startup-b2-2-roll: 0;
+    --wz-startup-b2-2-scale: 1;
+    --wz-startup-b2-2-min-px: 80;
+    --wz-startup-b2-2-max-scale: 9000;
+    --wz-startup-b2-2-visible: 1;
+    /* KC-135 Refueler */
+    --wz-startup-kc135-1-start-lon: -163.0;
+    --wz-startup-kc135-1-start-lat: 18.8;
+    --wz-startup-kc135-1-end-lon: 160.0;
+    --wz-startup-kc135-1-end-lat: 20.0;
+    --wz-startup-kc135-1-loop-width-km: 520;
+    --wz-startup-kc135-1-altitude: 205000;
+    --wz-startup-kc135-1-speed: 0.008;
+    --wz-startup-kc135-1-phase: 0.00;
+    --wz-startup-kc135-1-heading-offset: 90;
+    --wz-startup-kc135-1-pitch: 0;
+    --wz-startup-kc135-1-roll: 0;
+    --wz-startup-kc135-1-scale: 1;
+    --wz-startup-kc135-1-min-px: 90;
+    --wz-startup-kc135-1-max-scale: 11000;
+    --wz-startup-kc135-1-visible: 1;
+    /* B-52 Lead */
+    --wz-startup-b52-1-start-lon: -85.1;
+    --wz-startup-b52-1-start-lat: 32.7;
+    --wz-startup-b52-1-end-lon: -116.9;
+    --wz-startup-b52-1-end-lat: 37.2;
+    --wz-startup-b52-1-loop-width-km: 360;
+    --wz-startup-b52-1-altitude: 190000;
+    --wz-startup-b52-1-speed: 0.014;
+    --wz-startup-b52-1-phase: 0.00;
+    --wz-startup-b52-1-heading-offset: 90;
+    --wz-startup-b52-1-pitch: 0;
+    --wz-startup-b52-1-roll: 0;
+    --wz-startup-b52-1-scale: 1;
+    --wz-startup-b52-1-min-px: 76;
+    --wz-startup-b52-1-max-scale: 9000;
+    --wz-startup-b52-1-visible: 0;
+    /* B-52 Wing */
+    --wz-startup-b52-2-start-lon: -86.8;
+    --wz-startup-b52-2-start-lat: 32.7;
+    --wz-startup-b52-2-end-lon: -116.9;
+    --wz-startup-b52-2-end-lat: 37.2;
+    --wz-startup-b52-2-loop-width-km: 360;
+    --wz-startup-b52-2-altitude: 190000;
+    --wz-startup-b52-2-speed: 0.014;
+    --wz-startup-b52-2-phase: 0.00;
+    --wz-startup-b52-2-heading-offset: 90;
+    --wz-startup-b52-2-pitch: 0;
+    --wz-startup-b52-2-roll: 0;
+    --wz-startup-b52-2-scale: 1;
+    --wz-startup-b52-2-min-px: 76;
+    --wz-startup-b52-2-max-scale: 9000;
+    --wz-startup-b52-2-visible: 0;
+    /* B-1 Lancer */
+    --wz-startup-b1-1-start-lon: -86.8;
+    --wz-startup-b1-1-start-lat: 32.7;
+    --wz-startup-b1-1-end-lon: -116.9;
+    --wz-startup-b1-1-end-lat: 37.2;
+    --wz-startup-b1-1-loop-width-km: 360;
+    --wz-startup-b1-1-altitude: 195000;
+    --wz-startup-b1-1-speed: 0.014;
+    --wz-startup-b1-1-phase: 0.00;
+    --wz-startup-b1-1-heading-offset: 90;
+    --wz-startup-b1-1-pitch: 0;
+    --wz-startup-b1-1-roll: 0;
+    --wz-startup-b1-1-scale: 1;
+    --wz-startup-b1-1-min-px: 74;
+    --wz-startup-b1-1-max-scale: 9000;
+    --wz-startup-b1-1-visible: 1;
+    /* C-5 Galaxy */
+    --wz-startup-c5-1-start-lon: -42.0;
+    --wz-startup-c5-1-start-lat: 42.0;
+    --wz-startup-c5-1-end-lon: 17.0;
+    --wz-startup-c5-1-end-lat: 29.0;
+    --wz-startup-c5-1-loop-width-km: 420;
+    --wz-startup-c5-1-altitude: 320000;
+    --wz-startup-c5-1-speed: 0.009;
+    --wz-startup-c5-1-phase: 0.12;
+    --wz-startup-c5-1-heading-offset: 80;
+    --wz-startup-c5-1-pitch: 0;
+    --wz-startup-c5-1-roll: 0;
+    --wz-startup-c5-1-scale: 1;
+    --wz-startup-c5-1-min-px: 70;
+    --wz-startup-c5-1-max-scale: 9000;
+    --wz-startup-c5-1-visible: 1;
+    /* C-17 Globemaster */
+    --wz-startup-c17-1-start-lon: -81.2;
+    --wz-startup-c17-1-start-lat: 28.4;
+    --wz-startup-c17-1-end-lon: -3.7;
+    --wz-startup-c17-1-end-lat: 40.2;
+    --wz-startup-c17-1-loop-width-km: 420;
+    --wz-startup-c17-1-altitude: 200000;
+    --wz-startup-c17-1-speed: 0.010;
+    --wz-startup-c17-1-phase: 0.20;
+    --wz-startup-c17-1-heading-offset: 90;
+    --wz-startup-c17-1-pitch: 0;
+    --wz-startup-c17-1-roll: 0;
+    --wz-startup-c17-1-scale: 1;
+    --wz-startup-c17-1-min-px: 70;
+    --wz-startup-c17-1-max-scale: 9000;
+    --wz-startup-c17-1-visible: 1;
 }
-/* #endregion =========== */
-
 /* #region =========== TEMPORARY PRE-ENTRY SCENE TUNER =========== */
 .wz-startup-tuner {
     position: fixed;
@@ -1464,3 +1701,4 @@
     }
 }
 /* #endregion =========== */
+

@@ -73,10 +73,6 @@ function getCssNumber(name, fallback) {
     return Number.isFinite(value) ? value : fallback;
 }
 
-function isStartupSatelliteLayerEnabled() {
-    return getCssNumber("--wz-entry-show-satellites", 1) !== 0;
-}
-
 function getModelConfig(sat = {}) {
     return getStartupSatelliteModelProfile(sat?.modelKey || 0);
 }
@@ -146,10 +142,6 @@ function removeEntity(entity) {
 }
 
 function rebuildStartupSatellites() {
-    if (!isStartupSatelliteLayerEnabled()) {
-        stopDemo();
-        return;
-    }
     if (!startupDemoState.enabled || !startupDemoState.viewer) return;
     const previousLongitude = new Map(
         startupDemoState.groups.map((group) => [group?.satDef?.id, group?.currentLon])
@@ -164,10 +156,6 @@ function rebuildStartupSatellites() {
 }
 
 function refreshScale() {
-    if (!isStartupSatelliteLayerEnabled()) {
-        stopDemo();
-        return;
-    }
     startupDemoState.groups.forEach((group) => {
         const entity = group?.entity;
         const modelCfg = getModelConfig(group?.satDef);
@@ -228,7 +216,6 @@ export function initWarzoneStartupMilSats(viewer) {
         rebuild: rebuildStartupSatellites,
         setPaused: setWarzoneStartupMilSatsPaused,
         setEnabled: setWarzoneStartupMilSatsDemoEnabled,
-        syncLayers: () => setWarzoneStartupMilSatsDemoEnabled(isStartupSatelliteLayerEnabled()),
         isPaused: () => startupDemoState.paused,
         isEnabled: () => startupDemoState.enabled,
     };
@@ -237,7 +224,7 @@ export function initWarzoneStartupMilSats(viewer) {
 }
 
 export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
-    const shouldEnable = enabled !== false && isStartupSatelliteLayerEnabled();
+    const shouldEnable = enabled !== false;
     if (!shouldEnable) {
         stopDemo();
         return;
@@ -246,7 +233,7 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
     if (!document.body.classList.contains("wz-pre-entry-active")) return;
     startupDemoState.enabled = true;
     startupDemoState.paused = false;
-    startupDemoState.lastFrameTime = performance.now();
+    startupDemoState.lastFrameTime = Date.now();
     startupDemoState.lastUpdateTime = 0;
     startupDemoState.groups = getVisibleStartupSatelliteDefs().map((satDef) => ({
         satDef,
@@ -261,13 +248,16 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
             setWarzoneStartupMilSatsDemoEnabled(false);
             return;
         }
-        const now = performance.now();
+        const now = Date.now();
+        const updateIntervalMs = getStartupSatUpdateIntervalMs();
+        if (startupDemoState.lastUpdateTime && now - startupDemoState.lastUpdateTime < updateIntervalMs) {
+            return;
+        }
         const last = Number(startupDemoState.lastFrameTime || now);
         startupDemoState.lastFrameTime = now;
-
+        startupDemoState.lastUpdateTime = now;
         if (startupDemoState.paused) return;
-
-        const dt = Math.min(Math.max(0, (now - last) / 1000), 0.05);
+        const dt = Math.min(Math.max(0, (now - last) / 1000), 0.1);
         const degPerSec = getRotationDegPerSec();
         if (!(degPerSec > 0)) return;
         startupDemoState.groups.forEach((group) => {
