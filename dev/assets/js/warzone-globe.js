@@ -3388,7 +3388,11 @@ function startStartupGlobeRotation(viewer) {
     const state = {
         active: true,
         lastTime: 0,
-        speedDeg: Math.max(0.01, Math.min(numberVar("--warzone-startup-rotation-speed", 0.045), 0.75)),
+      speedDeg: Math.max(0.001, Math.min(
+    numberVar("--warzone-startup-rotation-speed", 0.52)
+        * Math.max(0.1, Math.min(Number(window.__stratopsConfig?.startupRotationMultiplier || 1), 4)),
+    2
+)),
     };
     const rotate = () => {
         if (!state.active) return;

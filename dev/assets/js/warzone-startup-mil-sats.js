@@ -7,6 +7,9 @@ import {
     getStartupSatelliteModelProfile,
 } from "./warzone-satellite-models.js";
 
+const STARTUP_DEMO_MIN_LAT_FALLBACK = 0;
+const STARTUP_DEMO_MAX_LAT_FALLBACK = 60;
+
 const STARTUP_DEMO_SATS = Object.freeze([
     { id: "sat-gulf-1", lat: 24.5, lon: 45.0, altitude: 440000, modelKey: "ge-sar-lupe" },
     { id: "sat-gulf-3", lat: 18.5, lon: 58.5, altitude: 1520000, modelKey: "uk-skynet" },
@@ -49,6 +52,7 @@ const STARTUP_DEMO_SATS = Object.freeze([
 const startupDemoState = {
     viewer: null,
     enabled: false,
+    paused: false,
     groups: [],
     frameListener: null,
     lastFrameTime: 0,
@@ -91,6 +95,17 @@ function createOrientation(position, sat = {}) {
     return Cesium.Quaternion.fromRotationMatrix(final);
 }
 
+function getVisibleStartupSatelliteDefs() {
+    const minLat = getCssNumber("--wz-startup-sat-min-lat", STARTUP_DEMO_MIN_LAT_FALLBACK);
+    const maxLat = getCssNumber("--wz-startup-sat-max-lat", STARTUP_DEMO_MAX_LAT_FALLBACK);
+    const lower = Math.min(minLat, maxLat);
+    const upper = Math.max(minLat, maxLat);
+    return STARTUP_DEMO_SATS.filter((sat) => {
+        const lat = Number(sat?.lat);
+        return Number.isFinite(lat) && lat >= lower && lat <= upper;
+    });
+}
+
 function createEntity(viewer, sat = {}) {
     const modelCfg = getModelConfig(sat);
     const position = Cesium.Cartesian3.fromDegrees(
@@ -98,8 +113,13 @@ function createEntity(viewer, sat = {}) {
         Number(sat.lat) || 0,
         Math.max(0, Number(sat.altitude) || 0)
     );
+    const entityId = `wz-startup-sat-${sat.id}`;
+    const existing = viewer.entities.getById?.(entityId);
+    if (existing) {
+        try { viewer.entities.remove(existing); } catch { }
+    }
     return viewer.entities.add({
-        id: `wz-startup-sat-${sat.id}`,
+        id: entityId,
         position,
         orientation: createOrientation(position, sat),
         model: {
@@ -119,6 +139,20 @@ function removeEntity(entity) {
     } catch {
         // no-op
     }
+}
+
+function rebuildStartupSatellites() {
+    if (!startupDemoState.enabled || !startupDemoState.viewer) return;
+    const previousLongitude = new Map(
+        startupDemoState.groups.map((group) => [group?.satDef?.id, group?.currentLon])
+    );
+    startupDemoState.groups.forEach((group) => removeEntity(group?.entity));
+    startupDemoState.groups = getVisibleStartupSatelliteDefs().map((satDef) => ({
+        satDef,
+        currentLon: Number(previousLongitude.get(satDef.id) ?? satDef.lon) || 0,
+        entity: createEntity(startupDemoState.viewer, satDef),
+    }));
+    refreshScale();
 }
 
 function refreshScale() {
@@ -156,9 +190,20 @@ function stopDemo() {
     startupDemoState.lastFrameTime = 0;
     startupDemoState.lastUpdateTime = 0;
     startupDemoState.enabled = false;
+    startupDemoState.paused = false;
     startupDemoState.groups.forEach((group) => removeEntity(group?.entity));
     startupDemoState.groups = [];
     startupDemoState.viewer?.scene?.requestRender?.();
+}
+
+export function setWarzoneStartupMilSatsPaused(paused) {
+    startupDemoState.paused = paused === true;
+    startupDemoState.lastFrameTime = Date.now();
+    return startupDemoState.paused;
+}
+
+function handleAppEntered() {
+    setWarzoneStartupMilSatsDemoEnabled(false);
 }
 
 export function initWarzoneStartupMilSats(viewer) {
@@ -166,6 +211,16 @@ export function initWarzoneStartupMilSats(viewer) {
     window.refreshWarzoneMilSatsScale = () => {
         if (startupDemoState.enabled) refreshScale();
     };
+    window.__warzoneStartupMilSats = {
+        refresh: refreshScale,
+        rebuild: rebuildStartupSatellites,
+        setPaused: setWarzoneStartupMilSatsPaused,
+        setEnabled: setWarzoneStartupMilSatsDemoEnabled,
+        isPaused: () => startupDemoState.paused,
+        isEnabled: () => startupDemoState.enabled,
+    };
+    document.removeEventListener("wz:app-entered", handleAppEntered);
+    document.addEventListener("wz:app-entered", handleAppEntered);
 }
 
 export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
@@ -175,10 +230,12 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
         return;
     }
     if (!startupDemoState.viewer || startupDemoState.enabled) return;
+    if (!document.body.classList.contains("wz-pre-entry-active")) return;
     startupDemoState.enabled = true;
+    startupDemoState.paused = false;
     startupDemoState.lastFrameTime = Date.now();
     startupDemoState.lastUpdateTime = 0;
-    startupDemoState.groups = STARTUP_DEMO_SATS.map((satDef) => ({
+    startupDemoState.groups = getVisibleStartupSatelliteDefs().map((satDef) => ({
         satDef,
         currentLon: Number(satDef.lon) || 0,
         entity: createEntity(startupDemoState.viewer, satDef),
@@ -187,6 +244,10 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
     startupDemoState.frameListener = () => {
         if (!startupDemoState.enabled || !startupDemoState.viewer) return;
         if (document.hidden) return;
+        if (!document.body.classList.contains("wz-pre-entry-active")) {
+            setWarzoneStartupMilSatsDemoEnabled(false);
+            return;
+        }
         const now = Date.now();
         const updateIntervalMs = getStartupSatUpdateIntervalMs();
         if (startupDemoState.lastUpdateTime && now - startupDemoState.lastUpdateTime < updateIntervalMs) {
@@ -195,6 +256,7 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
         const last = Number(startupDemoState.lastFrameTime || now);
         startupDemoState.lastFrameTime = now;
         startupDemoState.lastUpdateTime = now;
+        if (startupDemoState.paused) return;
         const dt = Math.min(Math.max(0, (now - last) / 1000), 0.1);
         const degPerSec = getRotationDegPerSec();
         if (!(degPerSec > 0)) return;

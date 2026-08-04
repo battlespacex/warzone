@@ -324,10 +324,12 @@
     --warzone-globe-preload-ancestors: 1;
     --warzone-globe-preload-siblings: 0;
     --warzone-imagery-max-anisotropy: 2;
-    --warzone-max-renderable-events: 340;
+    --warzone-max-renderable-events: 140;
     --warzone-event-cluster-height: 1500000; /* cluster event rings before overlapping fills stack into solid disks */
     --warzone-event-ring-max-height: 15000000;
-    --warzone-event-cluster-precision: 0.18; /* finer clustering keeps more individual hotspots/markers visible */
+    --warzone-event-cluster-precision: 0.28; /* finer clustering keeps more individual hotspots/markers visible */
+    --warzone-event-ring-budget: 120;
+    --warzone-event-outline-budget: 80;
     --warzone-topography-exaggeration: 1;
     --warzone-focus-terrain-exaggeration: 1.45;
     --warzone-focus-terrain-detail: 3.2;
@@ -398,8 +400,8 @@
     --warzone-start-heading: 0;
     --warzone-start-pitch: -74;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 0.52;
-    --warzone-startup-sat-update-ms: 160;
+    --warzone-startup-rotation-speed: 0.45;
+    --warzone-startup-sat-update-ms: 260;
 }
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
@@ -487,11 +489,11 @@
     --warzone-event-ring-pulse-duration-a: 1500;
     --warzone-event-ring-pulse-duration-b: 2100;
     --warzone-event-ring-pulse-duration-c: 2800;
-    --warzone-event-marker-pulse-max-height: 6500000;
+    --warzone-event-marker-pulse-max-height: 0;
     --warzone-event-ring-pulse-scale: 0.16;
     --warzone-event-ring-pulse-alpha-scale: 1;
     --warzone-event-ring-pulse-fps: 36;
-    --warzone-event-cluster-transition-ms: 1350;
+    --warzone-event-cluster-transition-ms: 400;
     --wzhs-perspective-depth: 900px;
     --wzhs-perspective-max-tilt: 46;
     --wzhs-perspective-tilt: 0deg;
@@ -1094,5 +1096,371 @@
     --warzone-mil-sat-near-scale-multiplier: 0.24;
     --warzone-mil-sat-far-scale-multiplier: 1;
     --warzone-mil-sat-min-px-near: 6;
+}
+/* #endregion =========== */
+
+/* #region =========== PRE-ENTRY DEMO ASSETS =========== */
+:root {
+    /* Scene & Satellites */
+    --warzone-start-lon: 40.4;
+    --warzone-start-lat: 12.3;
+    --warzone-start-height: 5200000;
+    --warzone-start-heading: 0;
+    --warzone-start-pitch: -74;
+    --warzone-start-roll: 0;
+    --warzone-startup-rotation-speed: 1.1;
+    --warzone-startup-sat-update-ms: 160;
+    --wz-startup-sat-min-lat: 0;
+    --wz-startup-sat-max-lat: 60;
+    --wz-startup-demo-update-ms: 120;
+    --warzone-satellite-model-scale: 2200;
+    --warzone-mil-sat-min-px: 30;
+    --warzone-mil-sat-max-scale: 320000;
+    /* Oman Carrier */
+    --wz-startup-oman-carrier-lon: 63.8;
+    --wz-startup-oman-carrier-lat: 18.6;
+    --wz-startup-oman-carrier-altitude: 0;
+    --wz-startup-oman-carrier-heading: 45;
+    --wz-startup-oman-carrier-pitch: 0;
+    --wz-startup-oman-carrier-roll: 0;
+    --wz-startup-oman-carrier-scale: 1.00;
+    --wz-startup-oman-carrier-min-px: 70;
+    --wz-startup-oman-carrier-max-scale: 4991;
+    --wz-startup-oman-carrier-visible: 1;
+    /* Oman Frigate 1 */
+    --wz-startup-oman-frigate-1-lon: 65.3;
+    --wz-startup-oman-frigate-1-lat: 18.7;
+    --wz-startup-oman-frigate-1-altitude: 1000;
+    --wz-startup-oman-frigate-1-heading: 45;
+    --wz-startup-oman-frigate-1-pitch: 0;
+    --wz-startup-oman-frigate-1-roll: 0;
+    --wz-startup-oman-frigate-1-scale: 1.00;
+    --wz-startup-oman-frigate-1-min-px: 42;
+    --wz-startup-oman-frigate-1-max-scale: 5000;
+    --wz-startup-oman-frigate-1-visible: 1;
+    /* Oman Frigate 2 */
+    --wz-startup-oman-frigate-2-lon: 64.0;
+    --wz-startup-oman-frigate-2-lat: 17.1;
+    --wz-startup-oman-frigate-2-altitude: 1000;
+    --wz-startup-oman-frigate-2-heading: 45;
+    --wz-startup-oman-frigate-2-pitch: 0;
+    --wz-startup-oman-frigate-2-roll: 0;
+    --wz-startup-oman-frigate-2-scale: 1.00;
+    --wz-startup-oman-frigate-2-min-px: 42;
+    --wz-startup-oman-frigate-2-max-scale: 5000;
+    --wz-startup-oman-frigate-2-visible: 1;
+    /* Cyprus Carrier */
+    --wz-startup-cyprus-carrier-lon: 30.6;
+    --wz-startup-cyprus-carrier-lat: 32.8;
+    --wz-startup-cyprus-carrier-altitude: 1000;
+    --wz-startup-cyprus-carrier-heading: 182;
+    --wz-startup-cyprus-carrier-pitch: 0;
+    --wz-startup-cyprus-carrier-roll: 0;
+    --wz-startup-cyprus-carrier-scale: 1.00;
+    --wz-startup-cyprus-carrier-min-px: 70;
+    --wz-startup-cyprus-carrier-max-scale: 5000;
+    --wz-startup-cyprus-carrier-visible: 1;
+    /* AWACS E-3 */
+    --wz-startup-awacs-start-lon: 51.3;
+    --wz-startup-awacs-start-lat: 25.3;
+    --wz-startup-awacs-end-lon: 42.5;
+    --wz-startup-awacs-end-lat: 18.2;
+    --wz-startup-awacs-loop-width-km: 260;
+    --wz-startup-awacs-altitude: 220000;
+    --wz-startup-awacs-speed: 0.012;
+    --wz-startup-awacs-phase: 0.00;
+    --wz-startup-awacs-heading-offset: 90;
+    --wz-startup-awacs-pitch: 0;
+    --wz-startup-awacs-roll: 0;
+    --wz-startup-awacs-scale: 0.01;
+    --wz-startup-awacs-min-px: 100;
+    --wz-startup-awacs-max-scale: 4501;
+    --wz-startup-awacs-visible: 1;
+    /* Global Hawk */
+    --wz-startup-globalhawk-start-lon: 52.8;
+    --wz-startup-globalhawk-start-lat: 29.2;
+    --wz-startup-globalhawk-end-lon: 64.2;
+    --wz-startup-globalhawk-end-lat: 34.3;
+    --wz-startup-globalhawk-loop-width-km: 300;
+    --wz-startup-globalhawk-altitude: 320000;
+    --wz-startup-globalhawk-speed: 0.014;
+    --wz-startup-globalhawk-phase: 0.00;
+    --wz-startup-globalhawk-heading-offset: 90;
+    --wz-startup-globalhawk-pitch: 0;
+    --wz-startup-globalhawk-roll: 0;
+    --wz-startup-globalhawk-scale: 5000.00;
+    --wz-startup-globalhawk-min-px: 64;
+    --wz-startup-globalhawk-max-scale: 420000;
+    --wz-startup-globalhawk-visible: 1;
+    /* China Carrier Fujian */
+    --wz-startup-china-carrier-lon: 116.2;
+    --wz-startup-china-carrier-lat: 20.4;
+    --wz-startup-china-carrier-altitude: 1000;
+    --wz-startup-china-carrier-heading: 154;
+    --wz-startup-china-carrier-pitch: 0;
+    --wz-startup-china-carrier-roll: 0;
+    --wz-startup-china-carrier-scale: 1.00;
+    --wz-startup-china-carrier-min-px: 70;
+    --wz-startup-china-carrier-max-scale: 5000;
+    --wz-startup-china-carrier-visible: 1;
+    /* China ISR Vessel */
+    --wz-startup-china-isr-lon: 125.6;
+    --wz-startup-china-isr-lat: 20.4;
+    --wz-startup-china-isr-altitude: 1000;
+    --wz-startup-china-isr-heading: 68;
+    --wz-startup-china-isr-pitch: 0;
+    --wz-startup-china-isr-roll: 0;
+    --wz-startup-china-isr-scale: 1.00;
+    --wz-startup-china-isr-min-px: 54;
+    --wz-startup-china-isr-max-scale: 5000;
+    --wz-startup-china-isr-visible: 1;
+    /* China Submarine SSN */
+    --wz-startup-china-sub-lon: 132.0;
+    --wz-startup-china-sub-lat: 31.5;
+    --wz-startup-china-sub-altitude: 500;
+    --wz-startup-china-sub-heading: 71;
+    --wz-startup-china-sub-pitch: 0;
+    --wz-startup-china-sub-roll: 0;
+    --wz-startup-china-sub-scale: 1.00;
+    --wz-startup-china-sub-min-px: 64;
+    --wz-startup-china-sub-max-scale: 5000;
+    --wz-startup-china-sub-visible: 1;
+
+/* ===== F22 RAPTOR FORMATION (JAPAN REGION) ===== */
+    --wz-startup-f22-1-start-lon: 138;
+    --wz-startup-f22-1-start-lat: 38;
+    --wz-startup-f22-1-end-lon: 145;
+    --wz-startup-f22-1-end-lat: 32;
+    --wz-startup-f22-1-loop-width-km: 260;
+    --wz-startup-f22-1-altitude: 180000;
+    --wz-startup-f22-1-speed: 0.020;
+    --wz-startup-f22-1-phase: 0.00;
+    --wz-startup-f22-1-heading-offset: 90;
+    --wz-startup-f22-1-pitch: 0;
+    --wz-startup-f22-1-roll: 0;
+    --wz-startup-f22-1-scale: 1;
+    --wz-startup-f22-1-min-px: 64;
+    --wz-startup-f22-1-max-scale: 4200;
+    --wz-startup-f22-1-visible: 1;
+
+    --wz-startup-f22-2-start-lon: 138;
+    --wz-startup-f22-2-start-lat: 38;
+    --wz-startup-f22-2-end-lon: 145;
+    --wz-startup-f22-2-end-lat: 32;
+    --wz-startup-f22-2-loop-width-km: 260;
+    --wz-startup-f22-2-altitude: 180000;
+    --wz-startup-f22-2-speed: 0.020;
+    --wz-startup-f22-2-phase: 0.00;
+    --wz-startup-f22-2-heading-offset: 90;
+    --wz-startup-f22-2-pitch: 0;
+    --wz-startup-f22-2-roll: 0;
+    --wz-startup-f22-2-scale: 1;
+    --wz-startup-f22-2-min-px: 64;
+    --wz-startup-f22-2-max-scale: 4200;
+    --wz-startup-f22-2-visible: 1;
+
+    --wz-startup-f22-3-start-lon: 138;
+    --wz-startup-f22-3-start-lat: 38;
+    --wz-startup-f22-3-end-lon: 145;
+    --wz-startup-f22-3-end-lat: 32;
+    --wz-startup-f22-3-loop-width-km: 260;
+    --wz-startup-f22-3-altitude: 180000;
+    --wz-startup-f22-3-speed: 0.020;
+    --wz-startup-f22-3-phase: 0.00;
+    --wz-startup-f22-3-heading-offset: 90;
+    --wz-startup-f22-3-pitch: 0;
+    --wz-startup-f22-3-roll: 0;
+    --wz-startup-f22-3-scale: 1;
+    --wz-startup-f22-3-min-px: 64;
+    --wz-startup-f22-3-max-scale: 4200;
+    --wz-startup-f22-3-visible: 1;
+
+    --wz-startup-f22-back-distance: 25;
+    --wz-startup-f22-side-distance: 18;
+
+--wz-startup-f22-3-visible: 1;
+
+/* ===== FORMATION CONTROL (🔥 YOU CAN TUNE THIS LIVE) ===== */
+
+/* distance behind lead (km) */
+--wz-startup-f22-back-distance: 25;
+
+/* horizontal spread (km) */
+--wz-startup-f22-side-distance: 18;
+}
+/* #endregion =========== */
+
+/* #region =========== TEMPORARY PRE-ENTRY SCENE TUNER =========== */
+.wz-startup-tuner {
+    position: fixed;
+    z-index: 40;
+    top: 1.2rem;
+    right: 1.2rem;
+    width: min(34rem, calc(100vw - 2.4rem));
+    max-height: calc(100vh - 2.4rem);
+    overflow: auto;
+    border: 1px solid rgb(143 163 184 / 42%);
+    background: rgb(9 14 23 / 94%);
+    color: var(--color-white-slate);
+    font-family: var(--text-font);
+    box-shadow: 0 1.2rem 4rem rgb(0 0 0 / 48%);
+    backdrop-filter: blur(12px);
+}
+
+.wz-startup-tuner[hidden] {
+    display: none;
+}
+
+.wz-startup-tuner__header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid rgb(143 163 184 / 26%);
+    background: rgb(15 22 33 / 98%);
+}
+
+.wz-startup-tuner__header > div {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.wz-startup-tuner__header strong {
+    color: var(--color-white);
+    font-size: 1.25rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.wz-startup-tuner__header span,
+.wz-startup-tuner__status {
+    color: var(--color-gray-glow);
+    font-size: 1rem;
+}
+
+.wz-startup-tuner button,
+.wz-startup-tuner select,
+.wz-startup-tuner input,
+.wz-startup-tuner textarea {
+    font: inherit;
+}
+
+.wz-startup-tuner button,
+.wz-startup-tuner select {
+    min-height: 3rem;
+    border: 1px solid rgb(143 163 184 / 38%);
+    background: rgb(35 45 58 / 92%);
+    color: var(--color-white);
+}
+
+.wz-startup-tuner button {
+    padding: 0.55rem 0.8rem;
+    cursor: pointer;
+}
+
+.wz-startup-tuner button:hover,
+.wz-startup-tuner button:focus-visible {
+    border-color: var(--color-teal-glow);
+}
+
+.wz-startup-tuner__body {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.wz-startup-tuner.is-collapsed .wz-startup-tuner__body {
+    display: none;
+}
+
+.wz-startup-tuner__pause-row,
+.wz-startup-tuner__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.wz-startup-tuner__target {
+    display: grid;
+    gap: 0.45rem;
+    color: var(--color-white);
+    font-size: 1.05rem;
+}
+
+.wz-startup-tuner__target select {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+}
+
+.wz-startup-tuner__fields {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.wz-startup-tuner__field {
+    display: grid;
+    gap: 0.4rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgb(143 163 184 / 16%);
+}
+
+.wz-startup-tuner__field-label {
+    color: var(--color-white-slate);
+    font-size: 1rem;
+}
+
+.wz-startup-tuner__field-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 8.8rem;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.wz-startup-tuner__field input[type="range"] {
+    width: 100%;
+}
+
+.wz-startup-tuner__field input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgb(143 163 184 / 34%);
+    background: rgb(17 25 37 / 94%);
+    color: var(--color-white);
+    padding: 0.55rem 0.65rem;
+}
+
+.wz-startup-tuner__output {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid rgb(143 163 184 / 30%);
+    background: rgb(5 9 15 / 96%);
+    color: var(--color-teal-glow);
+    padding: 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.wz-startup-tuner__status {
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+@media (max-width: 760px) {
+    .wz-startup-tuner {
+        top: 0.8rem;
+        right: 0.8rem;
+        width: calc(100vw - 1.6rem);
+        max-height: calc(100vh - 1.6rem);
+    }
+
+    .wz-startup-tuner__pause-row,
+    .wz-startup-tuner__actions {
+        grid-template-columns: 1fr;
+    }
 }
 /* #endregion =========== */
