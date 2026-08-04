@@ -59,11 +59,18 @@ async function startPreEntrySceneSession(overlay) {
     document.addEventListener("wz:app-entered", session.handleAppEntered, { once: true });
 
     try {
+        const isLocalDev =
+            import.meta.env?.DEV === true ||
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1";
+
         const [viewer, satellitesModule, assetsModule, tunerModule] = await Promise.all([
             waitForWarzoneViewer(),
             import("./warzone-startup-mil-sats.js"),
             import("./warzone-startup-demo-assets.js"),
-            import("./warzone-startup-scene-tuner.js"),
+            isLocalDev
+                ? import("./warzone-startup-scene-tuner.js")
+                : Promise.resolve(null),
         ]);
 
         session.satellitesModule = satellitesModule;
@@ -112,7 +119,7 @@ async function startPreEntrySceneSession(overlay) {
         assetsModule.initWarzoneStartupDemoAssets?.(viewer);
         assetsModule.setWarzoneStartupDemoAssetsEnabled?.(showNaval || showAir);
 
-        tunerModule.initIntroStartupSceneTuner?.();
+    tunerModule?.initIntroStartupSceneTuner?.();
 
         warzoneApi?.startStartupRotation?.();
         viewer.scene?.requestRender?.();

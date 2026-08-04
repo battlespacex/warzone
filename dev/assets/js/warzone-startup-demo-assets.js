@@ -341,8 +341,8 @@ function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
 
     if (!entry || !(dtSeconds > 0)) return targetBank;
 
-    const smoothing = Math.max(0.01, Math.min(getCssNumber("--wz-startup-air-bank-smoothing", 0.18), 1));
-    const factor = Math.min(1, Math.max(smoothing, dtSeconds * 8));
+    const smoothing = Math.max(0.05, Math.min(getCssNumber("--wz-startup-air-bank-smoothing", 1.2), 6));
+    const factor = 1 - Math.exp(-smoothing * Math.max(0, dtSeconds));
     entry.bank = Number(entry.bank || 0) + (targetBank - Number(entry.bank || 0)) * factor;
     return entry.bank;
 }

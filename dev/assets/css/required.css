@@ -817,7 +817,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 .audio-toggle {
     position: fixed;
     right: 2.5rem;
-    bottom: 5rem; 
+    bottom: 2.5rem; 
     z-index: 10050;
     width: 2.2rem;
     height: 2.2rem;

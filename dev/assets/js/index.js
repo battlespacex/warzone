@@ -7,7 +7,7 @@ import {
 } from "./stratops-feature-config.js";
 import "./warzone-boot.js";
 import {
-    initBoot, initWarzoneApp, initAudio, startEventPollingFallback,
+    initBoot, initWarzoneApp, initAudio, stopStratOpsAudio, startEventPollingFallback,
     initStratopsIntro, initStratopsAuth, schedulePostEntryActions
 } from "./essential.js";
 import { initWarzoneGlobe } from "./warzone-globe.js";
@@ -347,6 +347,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (isStratOpsFeatureEnabled("system.audio")) {
                     initAudio();
                 }
+                window.__warzoneEnterApp?.();
+                stopStratOpsAudio({ lock: true });
                 window.__warzoneEnterApp?.();
 
                 // After app is fully running: globe rotation, delayed popups, nav button

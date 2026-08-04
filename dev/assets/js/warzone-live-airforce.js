@@ -4183,15 +4183,6 @@ function getScreenPositionForTrack(trackKey = "") {
         return null;
     }
 }
-function getMapLayersProjectionCorrectionPx() {
-    const pane = document.getElementById("wz-map-layers-pane");
-    if (!pane) return 0;
-    const paneRect = pane.getBoundingClientRect();
-    const targetOffsetPx = Math.max(0, Number(paneRect.width || 0));
-    const visibleOffsetPx = Math.min(targetOffsetPx, Math.max(0, Number(paneRect.right || 0)));
-    if (!Number.isFinite(visibleOffsetPx) || visibleOffsetPx <= 0) return 0;
-    return visibleOffsetPx * 0.5;
-}
 function getCorrectedFocusScreenPosition(screenPosition = null) {
     if (
         !screenPosition ||
@@ -4200,12 +4191,8 @@ function getCorrectedFocusScreenPosition(screenPosition = null) {
     ) {
         return null;
     }
-    const correctionX = getMapLayersProjectionCorrectionPx();
-    if (!correctionX) return screenPosition;
-    return {
-        x: screenPosition.x - correctionX,
-        y: screenPosition.y,
-    };
+
+    return screenPosition;
 }
 function syncFocusedTrackOverlayModeButtons() {
     const root = __liveTrackOverlayRoot;

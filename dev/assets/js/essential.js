@@ -8898,6 +8898,10 @@ export function initAudio() {
     const playIcon = toggle?.querySelector(".stratops-ico-next-1");
     const pauseIcon = toggle?.querySelector(".stratops-ico-pause-1");
     if (!audio || !toggle || !playIcon || !pauseIcon) return;
+    if (window.__stratopsAudioLocked === true) {
+        stopStratOpsAudio({ lock: false });
+        return;
+    }
     if (toggle.dataset.audioBound === "true") return;
     toggle.dataset.audioBound = "true";
     audio.loop = true;
@@ -8913,6 +8917,7 @@ export function initAudio() {
         pauseIcon.classList.toggle("is-active", playing);
     }
     async function playAudio() {
+        if (window.__stratopsAudioLocked === true) return;
         try {
             await audio.play();
             syncUi(true);
@@ -8937,6 +8942,33 @@ export function initAudio() {
     };
     document.addEventListener("click", unlock);
     document.addEventListener("keydown", unlock);
+}
+export function stopStratOpsAudio({ lock = true } = {}) {
+    if (lock) window.__stratopsAudioLocked = true;
+
+    const audio = document.getElementById("bg-audio");
+    const toggle = document.getElementById("audio-toggle");
+    const playIcon = toggle?.querySelector(".stratops-ico-next-1");
+    const pauseIcon = toggle?.querySelector(".stratops-ico-pause-1");
+
+    if (audio) {
+        try {
+            audio.pause();
+            audio.currentTime = 0;
+        } catch { }
+    }
+
+    if (toggle) {
+        toggle.classList.remove("is-on");
+        toggle.setAttribute("aria-pressed", "false");
+        toggle.setAttribute("aria-label", "Background soundtrack disabled");
+        toggle.hidden = true;
+        toggle.setAttribute("aria-hidden", "true");
+        toggle.style.display = "none";
+    }
+
+    playIcon?.classList.add("is-active");
+    pauseIcon?.classList.remove("is-active");
 }
 
 const LOCAL_AUTH_BASES = [
@@ -9374,14 +9406,22 @@ export function initStratopsIntro(options = {}) {
             });
         }
         onAuthModalVisibilityChanged();
+
+        if (mobileWarningContinue) {
+        mobileWarningContinue.hidden = true;
+        mobileWarningContinue.disabled = true;
+        mobileWarningContinue.setAttribute("aria-hidden", "true");
+}
         return true;
     }
 
     function openEntryIntroModal() {
-        if (!mobileWarningShown && isMobileStratopsViewport() && openMobileWarningModal()) {
+        if (isMobileStratopsViewport()) {
             mobileWarningShown = true;
+            openMobileWarningModal();
             return;
         }
+
         openIntroModal();
     }
     window.__warzoneOpenEntryIntroModal = openEntryIntroModal;
@@ -10949,6 +10989,16 @@ function scheduleAdaptivePerformanceGuard(viewer) {
 
 export function schedulePostEntryActions(viewer) {
     applyStratOpsFeatureVisibility();
+
+        if (import.meta.env?.DEV === true) {
+            import("./pre-entry-dev-panel.js")
+                .then((module) => {
+                    module.initLocalDevPanelOnly?.();
+                })
+                .catch((error) => {
+                    console.warn("Local dev panel failed to initialize:", error);
+                });
+        }
     if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
         stratopsCheckAuth().then((isAuth) => {
             if (!isAuth) {

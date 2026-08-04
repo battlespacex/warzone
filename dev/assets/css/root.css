@@ -882,9 +882,9 @@
     --warzone-live-aircraft-model-focused-min-pixel-far-factor: 0.34;
     --warzone-live-aircraft-model-max-scale: 1200;
     --warzone-live-aircraft-model-scale-helicopter: 1;
-    --warzone-live-aircraft-model-focused-scale-helicopter: 1.33;
-    --warzone-live-aircraft-model-min-pixel-size-helicopter: 320;
-    --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 388;
+    --warzone-live-aircraft-model-focused-scale-helicopter: 1;
+    --warzone-live-aircraft-model-min-pixel-size-helicopter: 280;
+    --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 320;
     --warzone-live-aircraft-model-max-scale-helicopter: 1100;
     --warzone-live-aircraft-model-alpha: 1;
     --warzone-live-aircraft-model-whiteness: 0.18;
@@ -1129,8 +1129,10 @@
     --wz-startup-sat-min-lat: 0;
     --wz-startup-sat-max-lat: 60;
     --wz-startup-demo-update-ms: 16;
-    --wz-startup-air-bank-deg: -17;
-    --wz-startup-air-bank-smoothing: 0.10;
+    --wz-startup-air-bank-deg: -14;
+    --wz-startup-air-bank-smoothing: 0.65;
+    --wz-startup-air-bank-probe: 0.0009;
+    --wz-startup-air-bank-deadzone: 0.12;
     --wz-startup-b2-world-speed: 0.013;
     --wz-startup-f22-back-distance: 90;
     --wz-startup-f22-side-distance: 80;

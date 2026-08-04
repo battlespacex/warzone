@@ -13,7 +13,7 @@ const SCENE_FIELDS = Object.freeze([
     { label: "Satellite maximum latitude", cssVar: "--wz-startup-sat-max-lat", min: -90, max: 90, step: 1, fallback: 60 },
     { label: "Aircraft/naval update ms", cssVar: "--wz-startup-demo-update-ms", min: 0, max: 1000, step: 10, fallback: 16 },
     { label: "Aircraft turn bank degree", cssVar: "--wz-startup-air-bank-deg", min: -65, max: 65, step: 1, fallback: 24 },
-    { label: "Aircraft bank smoothing", cssVar: "--wz-startup-air-bank-smoothing", min: 0.01, max: 1, step: 0.01, fallback: 0.18 },
+    { label: "Aircraft bank smoothing", cssVar: "--wz-startup-air-bank-smoothing", min: 0.05, max: 6, step: 0.05, fallback: 0.65 },
     { label: "B-2/KC-135 world speed", cssVar: "--wz-startup-b2-world-speed", min: 0, max: 0.08, step: 0.001, fallback: 0.008 },
     { label: "F22 back distance km", cssVar: "--wz-startup-f22-back-distance", min: 0, max: 120, step: 1, fallback: 25 },
     { label: "F22 side distance km", cssVar: "--wz-startup-f22-side-distance", min: 0, max: 80, step: 1, fallback: 18 },
@@ -683,6 +683,22 @@ function bindPanel(root) {
         const collapsed = root.classList.toggle("is-collapsed");
         event.currentTarget.textContent = collapsed ? "Expand" : "Collapse";
     });
+
+    root.querySelector("[data-startup-action='fullscreen']")?.addEventListener("click", () => {
+    const target =
+        document.getElementById("warzone-app") ||
+        document.getElementById("warzone-globe") ||
+        document.documentElement;
+
+    if (!document.fullscreenElement) {
+        target.requestFullscreen?.();
+        setStatus("Full screen enabled.");
+        return;
+    }
+
+    document.exitFullscreen?.();
+    setStatus("Full screen closed.");
+});
 
     root.querySelector("[data-startup-action='pause-globe']")?.addEventListener("click", () => {
         setGlobePaused(!tunerState.globePaused);
