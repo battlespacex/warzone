@@ -4937,7 +4937,7 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
                     data-intel-wire-read-full
                     hidden
                     aria-label="Read the complete Intel Wire report">
-                    <span aria-hidden="true">⌄</span>
+                    <span aria-hidden="true"></span>
                     <span>Read full intel</span>
                 </button>
             ` : ""}

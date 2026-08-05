@@ -363,6 +363,7 @@
 :root {
     --warzone-places-layer-enabled: 0;
     --warzone-country-labels-enabled: 0;
+
     --warzone-labels-brightness: 1;
     --warzone-labels-contrast: 1;
     --warzone-labels-gamma: 1;
@@ -370,29 +371,38 @@
     --warzone-labels-hue: 50;
     --warzone-labels-alpha: 0.9;
     --warzone-labels-max-height: 9000000;
-    --warzone-country-label-scale: 0.78;
-    --warzone-country-label-near-distance: 900000;
-    --warzone-country-label-far-distance: 7000000;
-    --warzone-country-label-near-multiplier: 0.82;
-    --warzone-country-label-far-multiplier: 1.9;
-    --warzone-country-label-font: 800 20px Oxanium, sans-serif;
+
+    /* Country labels — consistent screen size */
+--warzone-country-label-scale: 0.9;
+    --warzone-country-label-near-distance: 300000;
+    --warzone-country-label-far-distance: 18000000;
+    --warzone-country-label-near-multiplier: 1;
+    --warzone-country-label-far-multiplier: 1;
+    --warzone-country-label-font: 700 17px Oxanium, sans-serif;
     --warzone-country-label-color: var(--color-white-slate);
     --warzone-country-label-outline: #000000;
-    --warzone-country-label-outline-width: 0;
-    --warzone-place-label-font: 800 13px Oxanium, sans-serif;
-    --warzone-province-label-font: 800 13px Oxanium, sans-serif;
-    --warzone-sea-label-font: 800 13px Oxanium, sans-serif;
-    --warzone-place-label-scale: 0.9;
-    --warzone-province-label-scale: 0.82;
-    --warzone-sea-label-scale: 0.78;
+    --warzone-country-label-outline-width: 2;
+
+    /* City, province and sea labels */
+    --warzone-place-label-font: 700 14px Oxanium, sans-serif;
+    --warzone-province-label-font: 700 14px Oxanium, sans-serif;
+    --warzone-sea-label-font: 700 14px Oxanium, sans-serif;
+
+--warzone-place-label-scale: 0.95;
+--warzone-province-label-scale: 0.9;
+--warzone-sea-label-scale: 0.9;
+
     --warzone-place-label-color: rgba(238, 240, 245, 0.9);
     --warzone-province-label-color: rgba(159, 215, 255, 0.78);
     --warzone-sea-label-color: rgba(24, 226, 219, 0.72);
-    --warzone-place-label-outline: rgba(6, 16, 24, 0.86);
-    --warzone-place-label-outline-width: 3;
-    --warzone-place-label-near-distance: 600000;
-    --warzone-place-label-far-distance: 9000000;
+
+    --warzone-place-label-outline: rgba(6, 16, 24, 0.9);
+    --warzone-place-label-outline-width: 2;
+
+    --warzone-place-label-near-distance: 300000;
+    --warzone-place-label-far-distance: 18000000;
 }
+/* #endregion =========== */
 /* #endregion =========== */
 /* #region =========== Country / Province Borders =========== */
 :root {

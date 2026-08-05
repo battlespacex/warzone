@@ -256,6 +256,7 @@
 
             <div class="wz-startup-tuner__body">
                 <div class="wz-startup-tuner__pause-row">
+                    <button type="button" data-startup-action="fullscreen">Full Screen</button>
                     <button type="button" data-startup-action="pause-globe">Pause Globe</button>
                     <button type="button" data-startup-action="pause-assets">Pause Aircraft</button>
                     <button type="button" data-startup-action="pause-satellites">Pause Satellites</button>
@@ -286,3 +287,183 @@
         </aside>
     </div>
 </template>
+
+
+<style>
+    /* #region =========== TEMPORARY PRE-ENTRY SCENE TUNER =========== */
+.wz-startup-tuner {
+    position: fixed;
+    z-index: 40;
+    top: 1.2rem;
+    right: 1.2rem;
+    width: min(34rem, calc(100vw - 2.4rem));
+    max-height: calc(100vh - 2.4rem);
+    overflow: auto;
+    border: 1px solid rgb(143 163 184 / 42%);
+    background: rgb(9 14 23 / 94%);
+    color: var(--color-white-slate);
+    font-family: var(--text-font);
+    box-shadow: 0 1.2rem 4rem rgb(0 0 0 / 48%);
+    backdrop-filter: blur(12px);
+}
+
+.wz-startup-tuner[hidden] {
+    display: none;
+}
+
+.wz-startup-tuner__header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid rgb(143 163 184 / 26%);
+    background: rgb(15 22 33 / 98%);
+}
+
+.wz-startup-tuner__header > div {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.wz-startup-tuner__header strong {
+    color: var(--color-white);
+    font-size: 1.25rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.wz-startup-tuner__header span,
+.wz-startup-tuner__status {
+    color: var(--color-gray-glow);
+    font-size: 1rem;
+}
+
+.wz-startup-tuner button,
+.wz-startup-tuner select,
+.wz-startup-tuner input,
+.wz-startup-tuner textarea {
+    font: inherit;
+}
+
+.wz-startup-tuner button,
+.wz-startup-tuner select {
+    min-height: 3rem;
+    border: 1px solid rgb(143 163 184 / 38%);
+    background: rgb(35 45 58 / 92%);
+    color: var(--color-white);
+}
+
+.wz-startup-tuner button {
+    padding: 0.55rem 0.8rem;
+    cursor: pointer;
+}
+
+.wz-startup-tuner button:hover,
+.wz-startup-tuner button:focus-visible {
+    border-color: var(--color-teal-glow);
+}
+
+.wz-startup-tuner__body {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.wz-startup-tuner.is-collapsed .wz-startup-tuner__body {
+    display: none;
+}
+
+.wz-startup-tuner__pause-row,
+.wz-startup-tuner__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.wz-startup-tuner__target {
+    display: grid;
+    gap: 0.45rem;
+    color: var(--color-white);
+    font-size: 1.05rem;
+}
+
+.wz-startup-tuner__target select {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+}
+
+.wz-startup-tuner__fields {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.wz-startup-tuner__field {
+    display: grid;
+    gap: 0.4rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgb(143 163 184 / 16%);
+}
+
+.wz-startup-tuner__field-label {
+    color: var(--color-white-slate);
+    font-size: 1rem;
+}
+
+.wz-startup-tuner__field-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 8.8rem;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.wz-startup-tuner__field input[type="range"] {
+    width: 100%;
+}
+
+.wz-startup-tuner__field input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgb(143 163 184 / 34%);
+    background: rgb(17 25 37 / 94%);
+    color: var(--color-white);
+    padding: 0.55rem 0.65rem;
+}
+
+.wz-startup-tuner__output {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid rgb(143 163 184 / 30%);
+    background: rgb(5 9 15 / 96%);
+    color: var(--color-teal-glow);
+    padding: 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.wz-startup-tuner__status {
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+@media (max-width: 760px) {
+    .wz-startup-tuner {
+        top: 0.8rem;
+        right: 0.8rem;
+        width: calc(100vw - 1.6rem);
+        max-height: calc(100vh - 1.6rem);
+    }
+
+    .wz-startup-tuner__pause-row,
+    .wz-startup-tuner__actions {
+        grid-template-columns: 1fr;
+    }
+}
+/* #endregion =========== */
+
+
+</style>

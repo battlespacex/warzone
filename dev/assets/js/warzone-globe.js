@@ -3154,17 +3154,20 @@ async function addCountryNameLabels(viewer) {
     try {
         const geojson = await fetchGeoJson(BORDER_SOURCES.countries);
         const features = Array.isArray(geojson?.features) ? geojson.features : [];
-        const labelScale = numberVar("--warzone-country-label-scale", 0.5);
-        const nearDistance = numberVar("--warzone-country-label-near-distance", 1600000);
-        const farDistance = numberVar("--warzone-country-label-far-distance", 22000000);
-        const nearMultiplier = numberVar("--warzone-country-label-near-multiplier", 0.9);
-        const farMultiplier = numberVar("--warzone-country-label-far-multiplier", 1.28);
+        const labelScale = numberVar("--warzone-country-label-scale", 0.72);
+        const nearDistance = numberVar("--warzone-country-label-near-distance", 300000);
+        const farDistance = numberVar("--warzone-country-label-far-distance", 16000000);
+        const nearMultiplier = numberVar("--warzone-country-label-near-multiplier", 1);
+        const farMultiplier = numberVar("--warzone-country-label-far-multiplier", 0.28);
         const nearScale = Math.max(0.05, labelScale * nearMultiplier);
         const farScale = Math.max(0.05, labelScale * farMultiplier);
         const labelColor = colorFromCssVar("--warzone-country-label-color", "#eef0f5", 0.92);
         const outlineColor = colorFromCssVar("--warzone-country-label-outline", "#101111", 0.78);
         const outlineWidth = numberVar("--warzone-country-label-outline-width", 2);
-        const labelFont = stringVar("--warzone-country-label-font", "600 15px Oxanium, sans-serif");
+       const labelFont = stringVar(
+    "--warzone-country-label-font",
+    "700 18px Chakra Petch, Oxanium, sans-serif"
+);
         for (const feature of features) {
             const name = readCountryName(feature);
             if (!name) continue;
@@ -3218,7 +3221,7 @@ function addPlaceNameLabels(viewer) {
     const provinceColor = colorFromCssVar("--warzone-province-label-color", "#9fd7ff", 0.78);
     const seaColor = colorFromCssVar("--warzone-sea-label-color", "#18e2db", 0.72);
     const outlineColor = colorFromCssVar("--warzone-place-label-outline", "#061018", 0.86);
-    const outlineWidth = numberVar("--warzone-place-label-outline-width", 3);
+    const outlineWidth = numberVar("--warzone-place-label-outline-width", 2);
     const getTypeStyle = (type = "city") => {
         if (type === "sea") {
             return { font: seaFont, scale: seaScale, color: seaColor, height: 1200 };
@@ -3238,9 +3241,9 @@ function addPlaceNameLabels(viewer) {
                 scale: style.scale,
                 scaleByDistance: new Cesium.NearFarScalar(
                     nearDistance,
-                    Math.max(0.1, style.scale),
+                    style.scale,
                     farDistance,
-                    Math.max(0.05, style.scale * 0.42)
+                    style.scale
                 ),
                 distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, farDistance),
                 style: Cesium.LabelStyle.FILL_AND_OUTLINE,
