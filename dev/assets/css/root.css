@@ -288,7 +288,7 @@
     /* Smooth premium Cesium performance */
     --warzone-resolution-scale: 1.0;
     --warzone-msaa-samples: 1;
-    --warzone-msaa-hard-max: 2;
+    --warzone-msaa-hard-max: 1;
     --warzone-fxaa-enabled: 1;
 
     --warzone-idle-resolution-min: 1.0;
@@ -423,8 +423,6 @@
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
 :root {
-
-
     --warzone-marker-scale: 1;
     --warzone-event-markers-visible: 1;
     --warzone-event-rings-visible: 1;
@@ -756,7 +754,7 @@
 /* #region =========== LIVE FIGHTER =========== */
 :root {
     --warzone-live-track-color: rgb(0 255 92);
-    --warzone-live-track-opacity: 1;
+    --warzone-live-track-opacity: 0.8;
     --warzone-live-track-width: 4.1;
     --warzone-live-focus-route-width: 4.56;
     --warzone-live-focus-route-width-factor: 1;
@@ -894,20 +892,20 @@
     --warzone-live-aircraft-focus-context-model-radius: 100000;
     --warzone-live-aircraft-focus-context-model-max-active: 12;
     --warzone-live-track-focused-trail-anchor-down-meters: 62;
-    --warzone-live-aircraft-focus-camera-range: 18000;
+    --warzone-live-aircraft-focus-camera-range: 24000;
     --warzone-live-aircraft-focus-camera-pitch: -58;
     --warzone-live-aircraft-unfocus-camera-range: 72000;
     --warzone-live-aircraft-unfocus-zoom-out-delta: 26000;
-    --warzone-live-aircraft-focus-zoom-range: 22000;
+    --warzone-live-aircraft-focus-zoom-range: 30000;
     --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
-    --warzone-live-aircraft-focus-wheel-zoom-ease: 0.22;
+    --warzone-live-aircraft-focus-wheel-zoom-ease: 0.14;
     --warzone-live-aircraft-focus-warning-range: 125000;
     --warzone-live-aircraft-focus-final-range: 220000;
-    --warzone-live-aircraft-heading-smoothing: 0.42;
-    --warzone-live-aircraft-focus-anim-min-ms: 900;
+    --warzone-live-aircraft-heading-smoothing: 0.24;
+    --warzone-live-aircraft-focus-anim-min-ms: 1400;
     --warzone-live-aircraft-focus-anim-max-ms: 9000;
-    --warzone-live-aircraft-focus-anim-default-ms: 1850;
-    --warzone-live-aircraft-focus-anim-cadence-factor: 1.04;
+    --warzone-live-aircraft-focus-anim-default-ms: 2600;
+    --warzone-live-aircraft-focus-anim-cadence-factor: 1.18;
     --warzone-live-aircraft-focus-visible-radius: 100000;
     --warzone-contour-layer-alpha: 0.38;
     --warzone-contour-relief-alpha: 0.30;
@@ -920,15 +918,15 @@
 
     
     /* Live focus contour shared line style */
-    --warzone-live-contour-color: var(--color-teal-glow);
-    --warzone-live-contour-alpha: 0.78;
+  --warzone-live-contour-color: var(--color-teal-glow);
+    --warzone-live-contour-alpha: 0.88;
     --warzone-live-contour-spacing: 12;
-    --warzone-live-contour-width: 1;
-    --warzone-live-contour-softness: 9;
-    --warzone-live-contour-emission: 0.02;
-    --warzone-live-contour-min-alpha: 0.01;
+    --warzone-live-contour-width: 1.8;
+    --warzone-live-contour-softness: 7;
+    --warzone-live-contour-emission: 0.05;
+    --warzone-live-contour-min-alpha: 0.025;
     --warzone-live-contour-major-every: 4;
-    --warzone-live-contour-major-width-scale: 1.45;
+    --warzone-live-contour-major-width-scale: 1.55;
     --warzone-focus-contour-color: var(--warzone-live-contour-color);
 
 
@@ -975,11 +973,11 @@
     --warzone-live-aircraft-model-max-zoom-height: 280000;
     --warzone-live-aircraft-model-auto-radius: 240000;
     --warzone-live-aircraft-model-dynamic-bank-enabled: 1;
-    --warzone-live-aircraft-model-bank-factor: -2.8;
-    --warzone-live-aircraft-model-bank-max-deg: 36;
+    --warzone-live-aircraft-model-bank-factor: -1.8;
+    --warzone-live-aircraft-model-bank-max-deg: 24;
     --warzone-live-aircraft-model-bank-deadband-deg: 0.6;
-    --warzone-live-aircraft-model-bank-smoothing: 0.28;
-    --warzone-live-aircraft-model-bank-return-smoothing: 0.18;
+    --warzone-live-aircraft-model-bank-smoothing: 0.16;
+    --warzone-live-aircraft-model-bank-return-smoothing: 0.10;
     --warzone-live-aircraft-model-preview-roll: 0;
     --warzone-live-aircraft-model-dynamic-pitch-enabled: 0;
     --warzone-live-aircraft-model-heading-offset-default: 90;
@@ -1000,49 +998,60 @@
     --warzone-live-aircraft-arrow-glow: rgba(96, 99, 99, 0.2);
     --warzone-live-aircraft-arrow-heading-offset-deg: 0;
 
+    --warzone-live-aircraft-focus-camera-follow-ease: 0.12;
+
+
     /* Focused Asset Config */
-    --warzone-contour-line-width: 2.25;
-    --warzone-contour-elevation-width-scale: 0.06;
-    --warzone-contour-halo-width: 2.6;
-    --warzone-contour-halo-alpha: 0.14;
-    --warzone-contour-grid-enabled: 1;
-    --warzone-contour-grid-color: #ff2b62;
-    --warzone-contour-grid-alpha: 0.26;
-    --warzone-contour-grid-major-alpha: 0.42;
-    --warzone-contour-grid-width: 1.15;
-    --warzone-contour-grid-ring-enabled: 1;
-    --warzone-contour-grid-ring-color: #ff2b62;
-    --warzone-contour-grid-ring-alpha: 0.58;
-    --warzone-contour-grid-ring-inner-alpha: 0.36;
-    --warzone-contour-grid-ring-width: 1.7;
-    --warzone-contour-grid-ring-inner-scale: 0.58;
-    --warzone-contour-grid-rows: 10;
-    --warzone-contour-grid-cols: 10;
-    --warzone-contour-grid-radius: 18000;
-    --warzone-contour-grid-fade-start: 14500;
-    --warzone-contour-grid-fade-segments: 10;
-    --warzone-contour-grid-height-offset: 260;
-    --warzone-contour-grid-major-every: 4;
-    --warzone-contour-grid-size: 78;
-    --warzone-contour-target-lines: 34;
-    --warzone-contour-max-lines: 620;
-    --warzone-contour-max-samples: 5200;
-    --warzone-contour-refresh-distance: 120000;
-    --warzone-contour-max-build-span: 1800000;
-    --warzone-contour-local-span: 240000;
-    --warzone-contour-sample-padding: 85000;
-    --warzone-ctr-globe-base-color: #07111c;
-    --warzone-ctr-imagery-max-anisotropy: 1;
-    --warzone-contour-height-offset: 180;
-    --warzone-contour-smoothing-passes: 5;
-    --warzone-contour-height-smoothing-passes: 4;
-    --warzone-contour-sample-level: 9;
-    --warzone-contour-stylized-relief: 0;
-    --warzone-contour-dem-enabled: 1;
-    --warzone-contour-dem-zoom: 10;
-    --warzone-contour-dem-max-tiles: 40;
-    --warzone-contour-dem-tile-cache: 128;
-    --warzone-contour-dem-url: /__warzone/terrain/terrarium/{z}/{x}/{y}.png;
+--warzone-contour-line-width: 1.8;
+--warzone-contour-elevation-width-scale: 0.10;
+--warzone-contour-halo-width: 4.6;
+--warzone-contour-halo-alpha: 0.18;
+
+--warzone-contour-grid-enabled: 1;
+--warzone-contour-grid-color: var(--color-magenta-glow);
+--warzone-contour-grid-alpha: 0.20;
+--warzone-contour-grid-major-alpha: 0.34;
+--warzone-contour-grid-width: 1.0;
+
+--warzone-contour-grid-ring-enabled: 1;
+--warzone-contour-grid-ring-color: var(--color-magenta-glow);
+--warzone-contour-grid-ring-alpha: 0.48;
+--warzone-contour-grid-ring-inner-alpha: 0.28;
+--warzone-contour-grid-ring-width: 1.5;
+--warzone-contour-grid-ring-inner-scale: 0.58;
+
+--warzone-contour-grid-rows: 10;
+--warzone-contour-grid-cols: 10;
+--warzone-contour-grid-radius: 18000;
+--warzone-contour-grid-fade-start: 14500;
+--warzone-contour-grid-fade-segments: 10;
+--warzone-contour-grid-height-offset: 220;
+--warzone-contour-grid-major-every: 4;
+--warzone-contour-grid-size: 78;
+
+--warzone-contour-target-lines: 30;
+--warzone-contour-max-lines: 420;
+--warzone-contour-max-samples: 3600;
+
+--warzone-contour-refresh-distance: 150000;
+--warzone-contour-max-build-span: 1400000;
+--warzone-contour-local-span: 220000;
+--warzone-contour-sample-padding: 70000;
+
+--warzone-ctr-globe-base-color: var(--color-black);
+--warzone-ctr-imagery-max-anisotropy: 1;
+
+--warzone-contour-height-offset: 140;
+--warzone-contour-smoothing-passes: 4;
+--warzone-contour-height-smoothing-passes: 3;
+--warzone-contour-sample-level: 8;
+
+--warzone-contour-stylized-relief: 0;
+--warzone-contour-dem-enabled: 1;
+--warzone-contour-dem-zoom: 9;
+--warzone-contour-dem-max-tiles: 24;
+--warzone-contour-dem-tile-cache: 72;
+--warzone-contour-dem-url: /__warzone/terrain/terrarium/{z}/{x}/{y}.png;
 }
 /* #endregion =========== */
 /* #region =========== LIVE LABELS =========== */
@@ -1124,7 +1133,7 @@
     --warzone-start-heading: 0;
     --warzone-start-pitch: -74;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 1.6;
+    --warzone-startup-rotation-speed: 1.4;
     --warzone-startup-sat-update-ms: 140;
     --wz-startup-sat-min-lat: 0;
     --wz-startup-sat-max-lat: 60;
@@ -1529,178 +1538,3 @@
     --wz-startup-c17-1-max-scale: 9000;
     --wz-startup-c17-1-visible: 1;
 }
-/* #region =========== TEMPORARY PRE-ENTRY SCENE TUNER =========== */
-.wz-startup-tuner {
-    position: fixed;
-    z-index: 40;
-    top: 1.2rem;
-    right: 1.2rem;
-    width: min(34rem, calc(100vw - 2.4rem));
-    max-height: calc(100vh - 2.4rem);
-    overflow: auto;
-    border: 1px solid rgb(143 163 184 / 42%);
-    background: rgb(9 14 23 / 94%);
-    color: var(--color-white-slate);
-    font-family: var(--text-font);
-    box-shadow: 0 1.2rem 4rem rgb(0 0 0 / 48%);
-    backdrop-filter: blur(12px);
-}
-
-.wz-startup-tuner[hidden] {
-    display: none;
-}
-
-.wz-startup-tuner__header {
-    position: sticky;
-    z-index: 2;
-    top: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
-    border-bottom: 1px solid rgb(143 163 184 / 26%);
-    background: rgb(15 22 33 / 98%);
-}
-
-.wz-startup-tuner__header > div {
-    display: grid;
-    gap: 0.15rem;
-}
-
-.wz-startup-tuner__header strong {
-    color: var(--color-white);
-    font-size: 1.25rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.wz-startup-tuner__header span,
-.wz-startup-tuner__status {
-    color: var(--color-gray-glow);
-    font-size: 1rem;
-}
-
-.wz-startup-tuner button,
-.wz-startup-tuner select,
-.wz-startup-tuner input,
-.wz-startup-tuner textarea {
-    font: inherit;
-}
-
-.wz-startup-tuner button,
-.wz-startup-tuner select {
-    min-height: 3rem;
-    border: 1px solid rgb(143 163 184 / 38%);
-    background: rgb(35 45 58 / 92%);
-    color: var(--color-white);
-}
-
-.wz-startup-tuner button {
-    padding: 0.55rem 0.8rem;
-    cursor: pointer;
-}
-
-.wz-startup-tuner button:hover,
-.wz-startup-tuner button:focus-visible {
-    border-color: var(--color-teal-glow);
-}
-
-.wz-startup-tuner__body {
-    display: grid;
-    gap: 1rem;
-    padding: 1rem;
-}
-
-.wz-startup-tuner.is-collapsed .wz-startup-tuner__body {
-    display: none;
-}
-
-.wz-startup-tuner__pause-row,
-.wz-startup-tuner__actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.6rem;
-}
-
-.wz-startup-tuner__target {
-    display: grid;
-    gap: 0.45rem;
-    color: var(--color-white);
-    font-size: 1.05rem;
-}
-
-.wz-startup-tuner__target select {
-    width: 100%;
-    padding: 0.55rem 0.7rem;
-}
-
-.wz-startup-tuner__fields {
-    display: grid;
-    gap: 0.75rem;
-}
-
-.wz-startup-tuner__field {
-    display: grid;
-    gap: 0.4rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid rgb(143 163 184 / 16%);
-}
-
-.wz-startup-tuner__field-label {
-    color: var(--color-white-slate);
-    font-size: 1rem;
-}
-
-.wz-startup-tuner__field-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 8.8rem;
-    align-items: center;
-    gap: 0.7rem;
-}
-
-.wz-startup-tuner__field input[type="range"] {
-    width: 100%;
-}
-
-.wz-startup-tuner__field input[type="number"] {
-    width: 100%;
-    min-width: 0;
-    border: 1px solid rgb(143 163 184 / 34%);
-    background: rgb(17 25 37 / 94%);
-    color: var(--color-white);
-    padding: 0.55rem 0.65rem;
-}
-
-.wz-startup-tuner__output {
-    width: 100%;
-    resize: vertical;
-    border: 1px solid rgb(143 163 184 / 30%);
-    background: rgb(5 9 15 / 96%);
-    color: var(--color-teal-glow);
-    padding: 0.8rem;
-    font-family: var(--font-mono);
-    font-size: 0.95rem;
-    line-height: 1.45;
-}
-
-.wz-startup-tuner__status {
-    min-height: 1.4rem;
-    margin: 0;
-}
-
-@media (max-width: 760px) {
-    .wz-startup-tuner {
-        top: 0.8rem;
-        right: 0.8rem;
-        width: calc(100vw - 1.6rem);
-        max-height: calc(100vh - 1.6rem);
-    }
-
-    .wz-startup-tuner__pause-row,
-    .wz-startup-tuner__actions {
-        grid-template-columns: 1fr;
-    }
-}
-/* #endregion =========== */
-
