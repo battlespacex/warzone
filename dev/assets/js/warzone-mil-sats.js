@@ -542,12 +542,37 @@ function showHoverCard(record, movement) {
     const card = ensureHoverCard();
     const point = propagateRecord(record, new Date());
     const classification = record.classification || {};
+
     card.replaceChildren();
-    const title = document.createElement("strong");
-    title.textContent = formatUpper(record.name || record.objectName || record.noradId);
+
+    const header = document.createElement("div");
+    header.className = "wz-orbital-hover-card__header";
+
+    const icon = document.createElement("div");
+    icon.className = "static-icon stratops-ico-assets-recon-intel-1";
+
+    const titleGroup = document.createElement("div");
+    titleGroup.className = "wz-orbital-hover-card__title-group";
+
+    const title = document.createElement("h3");
+    title.textContent = formatUpper(
+        record.name || record.objectName || record.noradId
+    );
+
     const sub = document.createElement("span");
-    sub.textContent = `${formatUpper(classification.associationLabel || "PUBLIC ORBITAL ESTIMATE")} / ${formatUpper(record.orbitClass)}`;
+    sub.textContent =
+        `${formatUpper(
+            classification.associationLabel || "PUBLIC ORBITAL ESTIMATE"
+        )} / ${formatUpper(record.orbitClass)}`;
+
+    titleGroup.appendChild(title);
+    titleGroup.appendChild(sub);
+
+    header.appendChild(icon);
+    header.appendChild(titleGroup);
+
     const list = document.createElement("dl");
+
     [
         ["MISSION", classification.missionLabel || "Mission unconfirmed"],
         ["CONFIDENCE", classification.confidenceLabel || "Unconfirmed"],
@@ -560,18 +585,34 @@ function showHoverCard(record, movement) {
         ["EPOCH", record.orbital?.epoch || "Unknown"],
         ["DATA AGE", formatAge(state.data?.cacheAgeSeconds)],
         ["SOURCE", "CelesTrak public GP elements"],
-    ].forEach(([label, value]) => list.appendChild(buildValueRow(label, value)));
+    ].forEach(([label, value]) => {
+        list.appendChild(buildValueRow(label, value));
+    });
+
     const note = document.createElement("p");
-    note.textContent = "Positions are propagated estimates, not direct sensor detections.";
-    card.appendChild(title);
-    card.appendChild(sub);
+    note.textContent =
+        "Positions are propagated estimates, not direct sensor detections.";
+
+    card.appendChild(header);
     card.appendChild(list);
     card.appendChild(note);
+
     const rect = state.viewer?.scene?.canvas?.getBoundingClientRect?.();
-    const x = Number(movement?.endPosition?.x ?? movement?.position?.x ?? 0) + (rect?.left || 0);
-    const y = Number(movement?.endPosition?.y ?? movement?.position?.y ?? 0) + (rect?.top || 0);
-    card.style.left = `${Math.min(window.innerWidth - 340, Math.max(12, x + 18))}px`;
-    card.style.top = `${Math.min(window.innerHeight - 420, Math.max(12, y + 18))}px`;
+
+    const x =
+        Number(movement?.endPosition?.x ?? movement?.position?.x ?? 0) +
+        (rect?.left || 0);
+
+    const y =
+        Number(movement?.endPosition?.y ?? movement?.position?.y ?? 0) +
+        (rect?.top || 0);
+
+    card.style.left =
+        `${Math.min(window.innerWidth - 340, Math.max(12, x + 18))}px`;
+
+    card.style.top =
+        `${Math.min(window.innerHeight - 420, Math.max(12, y + 18))}px`;
+
     card.hidden = false;
 }
 
@@ -586,33 +627,59 @@ function hideFocusCard() {
 
 function flyToSatelliteOverview(record = null) {
     if (!state.viewer?.camera) return;
+
+    const viewer = state.viewer;
     const point = record ? propagateRecord(record, new Date()) : null;
+
     const lon = Number(point?.lon ?? record?.lon);
     const lat = Number(point?.lat ?? record?.lat);
+
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
-    const height = Math.max(1200000, getCssNumber("--warzone-orbital-unfocus-camera-height", 3200000));
-    const duration = Math.max(0.4, getCssNumber("--warzone-orbital-unfocus-camera-duration", 1.15));
+
+    const height = Math.max(
+        1200000,
+        getCssNumber("--warzone-orbital-unfocus-camera-height", 3200000)
+    );
+
+    const duration = Math.max(
+        0.4,
+        getCssNumber("--warzone-orbital-unfocus-camera-duration", 1.15)
+    );
+
     try {
-        state.viewer.trackedEntity = undefined;
-        state.viewer.selectedEntity = undefined;
+        viewer.camera.cancelFlight?.();
+        viewer.trackedEntity = undefined;
+        viewer.selectedEntity = undefined;
     } catch { }
+
     try {
-        state.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+                lon,
+                lat,
+                height
+            ),
             orientation: {
-                heading: Number(state.viewer.camera.heading || 0),
-                pitch: Cesium.Math.toRadians(-72),
+                heading: 0,
+                pitch: Cesium.Math.toRadians(-90),
                 roll: 0,
             },
             duration,
-            complete: () => state.viewer?.scene?.requestRender?.(),
-            cancel: () => state.viewer?.scene?.requestRender?.(),
+            complete: () => {
+                viewer.trackedEntity = undefined;
+                viewer.selectedEntity = undefined;
+                viewer.scene?.requestRender?.();
+            },
+            cancel: () => {
+                viewer.trackedEntity = undefined;
+                viewer.selectedEntity = undefined;
+                viewer.scene?.requestRender?.();
+            },
         });
     } catch {
-        state.viewer?.scene?.requestRender?.();
+        viewer.scene?.requestRender?.();
     }
 }
-
 function showFocusCard(record) {
     const card = ensureFocusCard();
     if (!card) return;
@@ -876,7 +943,7 @@ function ensureControls() {
         <div class="wz-orbital-widget__details-grid"></div>
         <p class="wz-orbital-widget__details-note"></p>
     `;
-    details.querySelector(".btn-secondary white")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
+    details.querySelector(".btn-secondary.white")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
 
     controls.appendChild(controlsPanel);
     controls.appendChild(summary);
@@ -1165,68 +1232,181 @@ function addOrbitContext(record, now, selectedPosition) {
 
 function selectSatellite(id = "", options = {}) {
     const selectedId = cleanText(id);
-    const previousRecord = state.selectedId ? getSatelliteRecord(state.selectedId) : null;
+    const viewer = state.viewer;
+
+    const previousRecord = state.selectedId
+        ? getSatelliteRecord(state.selectedId)
+        : null;
+
+    // Release the previous tracked satellite before removing its entity.
+    try {
+        if (viewer) {
+            viewer.trackedEntity = undefined;
+            viewer.selectedEntity = undefined;
+        }
+    } catch { }
+
     clearFocusEntities();
+
     if (state.selectedId && state.entities.has(state.selectedId)) {
         const previous = state.entities.get(state.selectedId);
-        if (previous?.point) previous.point.show = true;
+
+        if (previous?.point) {
+            previous.point.show = true;
+        }
     }
+
     state.selectedId = selectedId;
+
+    // UNLOCK / UNFOCUS
     if (!selectedId) {
         hideFocusCard();
         updateControlsOptions();
-        if (options.flyOut !== false) flyToSatelliteOverview(previousRecord);
-        state.viewer?.scene?.requestRender?.();
+
+        if (options.flyOut !== false) {
+            flyToSatelliteOverview(previousRecord);
+        }
+
+        viewer?.scene?.requestRender?.();
         return;
     }
+
     const record = getSatelliteRecord(selectedId);
-    if (!record || !state.viewer) return;
+
+    if (!record || !viewer) return;
+
     const now = new Date();
+
     const position = createSampledPosition(
         record,
         now,
         Number(state.config.pastOrbitMinutes) || 45,
         Number(state.config.futureOrbitMinutes) || 60
     );
+
     const current = propagateRecord(record, now);
+
     if (!position || !current) return;
+
     const entry = state.entities.get(record.id);
-    if (entry?.point) entry.point.show = false;
+
+    if (entry?.point) {
+        entry.point.show = false;
+    }
+
     const selectedPosition = current.position;
     const modelProfile = resolveSatelliteModelProfile(record);
-    addFocusEntity(state.viewer.entities.add({
-        id: `wz-orbital-selected-${record.noradId}`,
-        position,
-        orientation: createSatelliteModelOrientationProperty(position),
-        model: {
-            uri: modelProfile.uri,
-            scale: getSatelliteModelScale(getCssNumber("--warzone-orbital-selected-model-scale", 170000)),
-            minimumPixelSize: getCssNumber("--warzone-orbital-selected-model-min-px", 18),
-            maximumScale: getCssNumber("--warzone-orbital-selected-model-max-scale", 260000),
-            shadows: Cesium.ShadowMode.DISABLED,
-        },
-        point: {
-            pixelSize: getCssNumber("--warzone-orbital-selected-fallback-size", 10),
-            color: colorFromCss("--warzone-orbital-selected-color", "#e7edf5", 0.92),
-            outlineColor: colorFromCss("--warzone-orbital-selected-ring-color", "#9fd7ff", 0.9),
-            outlineWidth: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-        label: {
-            text: formatUpper(record.name || record.noradId),
-            font: `${getCssNumber("--warzone-orbital-label-size", 10)}px var(--text-font)`,
-            fillColor: colorFromCss("--warzone-orbital-label-color", "#9fd7ff", 0.9),
-            outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
-            outlineWidth: 2,
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            pixelOffset: new Cesium.Cartesian2(0, -20),
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-    }));
+
+    const selectedEntity = addFocusEntity(
+        viewer.entities.add({
+            id: `wz-orbital-selected-${record.noradId}`,
+            position,
+            orientation: createSatelliteModelOrientationProperty(position),
+
+            // Camera position used while tracking the satellite.
+            viewFrom: new Cesium.Cartesian3(
+                -650000,
+                -650000,
+                380000
+            ),
+
+            model: {
+                uri: modelProfile.uri,
+                scale: getSatelliteModelScale(
+                    getCssNumber(
+                        "--warzone-orbital-selected-model-scale",
+                        170000
+                    )
+                ),
+                minimumPixelSize: getCssNumber(
+                    "--warzone-orbital-selected-model-min-px",
+                    18
+                ),
+                maximumScale: getCssNumber(
+                    "--warzone-orbital-selected-model-max-scale",
+                    260000
+                ),
+                shadows: Cesium.ShadowMode.DISABLED,
+            },
+
+            point: {
+                pixelSize: getCssNumber(
+                    "--warzone-orbital-selected-fallback-size",
+                    10
+                ),
+                color: colorFromCss(
+                    "--warzone-orbital-selected-color",
+                    "#e7edf5",
+                    0.92
+                ),
+                outlineColor: colorFromCss(
+                    "--warzone-orbital-selected-ring-color",
+                    "#9fd7ff",
+                    0.9
+                ),
+                outlineWidth: 2,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+
+            label: {
+                text: formatUpper(record.name || record.noradId),
+                font: `${getCssNumber(
+                    "--warzone-orbital-label-size",
+                    10
+                )}px var(--text-font)`,
+                fillColor: colorFromCss(
+                    "--warzone-orbital-label-color",
+                    "#9fd7ff",
+                    0.9
+                ),
+                outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -20),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        })
+    );
+
     addOrbitContext(record, now, selectedPosition);
     showFocusCard(record);
     updateControlsOptions();
-    state.viewer.scene.requestRender?.();
+
+    if (!selectedEntity) {
+        viewer.scene.requestRender?.();
+        return;
+    }
+
+    // Smoothly approach the satellite in a slightly angled 3D view.
+    viewer.flyTo(selectedEntity, {
+        duration: 1.2,
+        offset: new Cesium.HeadingPitchRange(
+            Cesium.Math.toRadians(25),
+            Cesium.Math.toRadians(-28),
+            950000
+        ),
+    }).then((completed) => {
+        if (
+            completed !== false &&
+            state.selectedId === selectedId &&
+            viewer.entities.contains(selectedEntity)
+        ) {
+            // Anchor the camera so it continues following the moving satellite.
+            viewer.trackedEntity = selectedEntity;
+            viewer.selectedEntity = selectedEntity;
+        }
+
+        viewer.scene.requestRender?.();
+    }).catch(() => {
+        if (
+            state.selectedId === selectedId &&
+            viewer.entities.contains(selectedEntity)
+        ) {
+            viewer.trackedEntity = selectedEntity;
+        }
+
+        viewer.scene.requestRender?.();
+    });
 }
 
 function stopTimers() {

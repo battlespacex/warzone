@@ -1004,7 +1004,6 @@
     position: fixed;
     z-index: 66;
     width: min(34rem, calc(100vw - 2rem));
-    padding: 1rem;
     background: var(--color-bg-dark);
     color: var(--color-text-heading);
     box-shadow: var(--widget-shadow);
@@ -1018,13 +1017,44 @@
     display: none;
 }
 
-.wz-orbital-hover-card strong,
-.wz-orbital-focus-card h3 {
+
+
+.wz-orbital-hover-card__header {
+    display: flex;
+    gap: 1rem;
+    background: var(--color-bg-header);
+    padding: 1rem;
+    align-items: center;
+}
+
+.wz-orbital-hover-card__header .static-icon {
+font-size: var(--icon-xxl);
+    color: var(--color-purple-slate);
+    height: 4rem;
+    width: 4rem;
+}
+
+
+.wz-orbital-hover-card__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.wz-orbital-hover-card span {
     display: block;
-    color: var(--color-text-heading);
-    font-family: var(--heading-font1);
-    font-size: var(--text-base);
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
     text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: .02rem;
+}
+
+.wz-orbital-hover-card h3,
+.wz-orbital-hover-card span {
+         white-space: nowrap;  
+  overflow: hidden;  
+  text-overflow: ellipsis;
 }
 
 .wz-orbital-hover-card>span,
@@ -1042,36 +1072,48 @@
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
     margin: 0;
+    padding: 1.5rem 1.5rem 0;
 }
 
 .wz-orbital-hover-card dl div,
 .wz-orbital-focus-card dl div {
     min-width: 0;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: .35rem;
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
 }
 
 .wz-orbital-hover-card dt,
-.wz-orbital-focus-card dt {
-    color: rgba(143, 163, 184, .86);
-    font-family: var(--text-font);
-    font-size: var(--text-sm);
+.wz-orbital-focus-card dt,
+.wz-orbital-hover-card dd,
+.wz-orbital-focus-card dd {
+    font-weight: 600;
     text-transform: uppercase;
+    overflow-wrap: anywhere;
+    letter-spacing: .1rem;
 }
+
+
+.wz-orbital-hover-card dt,
+.wz-orbital-focus-card dt {
+    color: var(--color-text-dim);
+}
+
 
 .wz-orbital-hover-card dd,
 .wz-orbital-focus-card dd {
-    margin: .16rem 0 0;
-    color: rgba(232, 241, 250, .9);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.25;
-    text-transform: uppercase;
-    overflow-wrap: anywhere;
+    color: var(--color-text-heading);
 }
+
+
 
 .wz-orbital-hover-card p,
 .wz-orbital-focus-card p,
 .wz-orbital-controls p {
-    margin: 1rem 0 0;
+    margin: 1.5rem;
     color: var(--color-text-dim);
     font-size: var(--text-xs);
 }

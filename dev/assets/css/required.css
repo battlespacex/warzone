@@ -827,9 +827,20 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     color: var(--color-white);
     cursor: pointer;
     overflow: hidden;
-    transition:  color 0.25s ease;
+transition:
+    opacity 700ms ease,
+    transform 700ms ease,
+    filter 700ms ease,
+    color 250ms ease;
         background: transparent;
     border: 0;
+}
+
+.audio-toggle.is-audio-exiting {
+    opacity: 0;
+    transform: scale(0.72);
+    filter: blur(2px);
+    pointer-events: none;
 }
 
 body.wz-pre-entry-active .audio-toggle {

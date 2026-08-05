@@ -1231,6 +1231,11 @@ function showRegionModal(viewer, instant = false, options = {}) {
                     getSavedCountryBorderLayerVisibility(),
                     { animate: true, duration: 780 }
                 );
+                window.stopStratOpsAudio?.({
+                    lock: true,
+                    duration: 700
+                });
+
                 window.__warzoneStartDeferredApp?.();
             });
         });

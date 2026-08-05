@@ -8897,79 +8897,191 @@ export function initAudio() {
     const toggle = document.getElementById("audio-toggle");
     const playIcon = toggle?.querySelector(".stratops-ico-next-1");
     const pauseIcon = toggle?.querySelector(".stratops-ico-pause-1");
+
     if (!audio || !toggle || !playIcon || !pauseIcon) return;
+
     if (window.__stratopsAudioLocked === true) {
-        stopStratOpsAudio({ lock: false });
+        stopStratOpsAudio({
+            lock: false,
+            duration: 0
+        });
         return;
     }
+
     if (toggle.dataset.audioBound === "true") return;
     toggle.dataset.audioBound = "true";
+
     audio.loop = true;
     audio.volume = 0.95;
-    audio.src = audio.getAttribute("src") || "/assets/audio/stratops-radio-soundtrack.mp3";
+    audio.src =
+        audio.getAttribute("src") ||
+        "/assets/audio/stratops-radio-soundtrack.mp3";
+
     let isPlaying = false;
+
     function syncUi(playing) {
         isPlaying = playing;
+
         toggle.classList.toggle("is-on", playing);
         toggle.setAttribute("aria-pressed", String(playing));
-        toggle.setAttribute("aria-label", playing ? "Pause background soundtrack" : "Play background soundtrack");
+        toggle.setAttribute(
+            "aria-label",
+            playing
+                ? "Pause background soundtrack"
+                : "Play background soundtrack"
+        );
+
         playIcon.classList.toggle("is-active", !playing);
         pauseIcon.classList.toggle("is-active", playing);
     }
+
     async function playAudio() {
         if (window.__stratopsAudioLocked === true) return;
+
         try {
             await audio.play();
             syncUi(true);
         } catch { }
     }
+
     function pauseAudio() {
         audio.pause();
         syncUi(false);
     }
+
     toggle.addEventListener("click", async () => {
-        if (isPlaying) pauseAudio();
-        else await playAudio();
+        if (window.__stratopsAudioLocked === true) return;
+
+        if (isPlaying) {
+            pauseAudio();
+        } else {
+            await playAudio();
+        }
     });
+
     syncUi(false);
     playAudio();
+
     const unlock = async () => {
+        if (window.__stratopsAudioLocked === true) {
+            document.removeEventListener("click", unlock);
+            document.removeEventListener("keydown", unlock);
+            return;
+        }
+
         if (!isPlaying) {
             await playAudio();
         }
+
         document.removeEventListener("click", unlock);
         document.removeEventListener("keydown", unlock);
     };
+
     document.addEventListener("click", unlock);
     document.addEventListener("keydown", unlock);
 }
-export function stopStratOpsAudio({ lock = true } = {}) {
-    if (lock) window.__stratopsAudioLocked = true;
+
+export function stopStratOpsAudio({
+    lock = true,
+    duration = 700
+} = {}) {
+    if (lock) {
+        window.__stratopsAudioLocked = true;
+    }
 
     const audio = document.getElementById("bg-audio");
     const toggle = document.getElementById("audio-toggle");
     const playIcon = toggle?.querySelector(".stratops-ico-next-1");
     const pauseIcon = toggle?.querySelector(".stratops-ico-pause-1");
 
-    if (audio) {
-        try {
-            audio.pause();
-            audio.currentTime = 0;
-        } catch { }
-    }
+    const fadeDuration = Math.max(
+        0,
+        Number(duration) || 0
+    );
 
     if (toggle) {
         toggle.classList.remove("is-on");
+        toggle.classList.add("is-audio-exiting");
+
         toggle.setAttribute("aria-pressed", "false");
-        toggle.setAttribute("aria-label", "Background soundtrack disabled");
-        toggle.hidden = true;
+        toggle.setAttribute(
+            "aria-label",
+            "Background soundtrack disabled"
+        );
         toggle.setAttribute("aria-hidden", "true");
-        toggle.style.display = "none";
+
+        toggle.style.pointerEvents = "none";
     }
 
     playIcon?.classList.add("is-active");
     pauseIcon?.classList.remove("is-active");
+
+    const hideToggle = () => {
+        if (!toggle) return;
+
+        toggle.hidden = true;
+        toggle.style.display = "none";
+    };
+
+    if (!audio) {
+        window.setTimeout(
+            hideToggle,
+            fadeDuration
+        );
+        return;
+    }
+
+    const startingVolume = Math.max(
+        0,
+        Math.min(
+            1,
+            Number(audio.volume) || 0
+        )
+    );
+
+    const startedAt = performance.now();
+
+    function finishAudioStop() {
+        try {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.volume = startingVolume || 0.95;
+        } catch { }
+
+        hideToggle();
+    }
+
+    if (fadeDuration === 0 || audio.paused) {
+        audio.volume = 0;
+        finishAudioStop();
+        return;
+    }
+
+    function fadeAudio(now) {
+        const elapsed = now - startedAt;
+        const progress = Math.min(
+            1,
+            elapsed / fadeDuration
+        );
+
+        const easedProgress =
+            1 - Math.pow(1 - progress, 2);
+
+        audio.volume =
+            startingVolume * (1 - easedProgress);
+
+        if (progress < 1) {
+            requestAnimationFrame(fadeAudio);
+            return;
+        }
+
+        finishAudioStop();
+    }
+
+    requestAnimationFrame(fadeAudio);
 }
+
+window.stopStratOpsAudio = stopStratOpsAudio;
 
 const LOCAL_AUTH_BASES = [
     "http://localhost:55147/api/auth",

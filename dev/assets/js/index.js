@@ -56,7 +56,7 @@ window.__stratopsConfig = {
         zoomModel: false,
     },
     autoContourOnAircraftFocus: false,
-    enableFocusedContextModels: isStratOpsFeatureEnabled("tracking.focusedContextModels"),
+    enableFocusedContextModels: false,
     autoTerrainOnAircraftFocus: false,
     focusedTerrainProvider: "arcgis",
     focusedTerrainArcGisUrl: "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",
@@ -347,8 +347,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (isStratOpsFeatureEnabled("system.audio")) {
                     initAudio();
                 }
-                window.__warzoneEnterApp?.();
-                stopStratOpsAudio({ lock: true });
+
                 window.__warzoneEnterApp?.();
 
                 // After app is fully running: globe rotation, delayed popups, nav button

@@ -2204,9 +2204,21 @@ function clearNavalSelection() {
     __navalState.overlayLastVisible = false;
     __navalState.overlayLastX = Number.NaN;
     __navalState.overlayLastY = Number.NaN;
-    window.__warzoneViewer?.__warzone?.clearContourFocusPosition?.();
-    window.__warzoneViewer?.__warzone?.setContourLayerVisible?.(false);
-    window.__warzoneViewer?.__warzone?.disableFocusedTerrain?.();
+const mapApi = window.__warzoneViewer?.__warzone;
+
+mapApi?.clearContourFocusPosition?.();
+
+const contourActive =
+    mapApi?.isContourLayerVisible?.() === true ||
+    mapApi?.isContourGridVisible?.() === true;
+
+if (contourActive) {
+    void Promise.resolve(mapApi?.setContourLayerVisible?.(false));
+}
+
+if (mapApi?.isFocusedTerrainActive?.() === true) {
+    mapApi?.disableFocusedTerrain?.();
+}
     syncNavalWidgetHighlight(null);
     const previousEntry = previousKey ? __navalState.vessels.get(previousKey) : null;
     if (previousEntry?.entity && previousEntry?.data) {

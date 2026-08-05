@@ -23,7 +23,7 @@ const DEFAULT_STRATOPS_FEATURES = {
         cyber: true,
         airspace: true,
         aoiScan: true,
-        reports: true,
+        reports: false,
         fullscreen: true,
         about: true,
         mobileMenu: true,

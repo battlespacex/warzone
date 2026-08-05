@@ -15,6 +15,8 @@ const __liveTrackRegistry = new Map();
 const __liveTrackBillboardCache = new Map();
 const __liveTrackIconCodeCache = new Map();
 const LIVE_TRACK_BILLBOARD_CACHE_MAX_ITEMS = 160;
+let __liveTrackFocusSmoothedTarget = null;
+const __liveTrackFocusSmoothedTargetScratch = new Cesium.Cartesian3();
 function setLimitedMapCache(map, key, value, maxItems = LIVE_TRACK_BILLBOARD_CACHE_MAX_ITEMS) {
     if (!(map instanceof Map)) return value;
     if (map.has(key)) map.delete(key);
@@ -117,7 +119,7 @@ const LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS = 6000;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS = 3200000;
 const LIVE_TRACK_FOCUS_WARNING_RANGE_METERS = 70000;
 const LIVE_TRACK_FOCUS_FINAL_RANGE_METERS = 120000;
-const LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS = 33;
+const LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS = 24;
 const LIVE_TRACK_FOCUS_CAMERA_ZOOM_EPSILON_METERS = 20;
 const LIVE_TRACK_FOCUS_VISUAL_REFRESH_MIN_MS = 260;
 const LIVE_TRACK_FOCUS_VISIBILITY_RADIUS_METERS = 100000;
@@ -2825,15 +2827,30 @@ function getTrackFallbackAltitudeFt(track = {}) {
         ?? LIVE_TRACK_FALLBACK_ALTITUDE_FT_BY_SUBTYPE.aircraft;
 }
 function getTrackResolvedAltitudeFt(track = {}) {
-    if (isTrackOnGround(track)) return 0;
     const reportedAltitudeFt = getTrackReportedAltitudeFt(track);
-    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) return reportedAltitudeFt;
+
+    // A valid positive altitude must override stale/incorrect on_ground data.
+    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) {
+        return reportedAltitudeFt;
+    }
+
+    if (isTrackOnGround(track)) {
+        return 0;
+    }
+
     return getTrackFallbackAltitudeFt(track);
 }
 function getTrackPointResolvedAltitudeFt(point = {}, track = {}) {
-    if (isTrackPointOnGround(point)) return 0;
     const reportedAltitudeFt = getTrackPointReportedAltitudeFt(point);
-    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) return reportedAltitudeFt;
+
+    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) {
+        return reportedAltitudeFt;
+    }
+
+    if (isTrackPointOnGround(point)) {
+        return 0;
+    }
+
     return getTrackResolvedAltitudeFt(track);
 }
 function getRenderAltitudeClearanceMeters(altitudeFt = 0) {
@@ -3562,6 +3579,7 @@ function hideLiveTrackFocusVisuals() {
         __liveTrackOverlayRoot.classList.remove("is-visible");
         __liveTrackOverlayRoot.style.display = "none";
     }
+    __liveTrackFocusSmoothedTarget = null;
     __liveTrackOverlayLastVisible = false;
     __liveTrackOverlayLastX = Number.NaN;
     __liveTrackOverlayLastY = Number.NaN;
@@ -4274,16 +4292,21 @@ function syncFocusedTrackContourCenter(trackKey = "", options = {}) {
 function syncFocusedTrackContourMode(focused = false) {
     const autoEnabled = window.__stratopsConfig?.autoContourOnAircraftFocus === true;
     const mapApi = window.__warzoneViewer?.__warzone;
-    if (!autoEnabled || !mapApi?.setContourLayerVisible || !mapApi?.isContourLayerVisible) {
-        if (!focused && mapApi?.setContourLayerVisible) {
-            __liveTrackContourAnchorKey = "";
-            __liveTrackContourAnchorLon = Number.NaN;
-            __liveTrackContourAnchorLat = Number.NaN;
-            mapApi.clearContourFocusPosition?.();
-            void Promise.resolve(mapApi.restoreDefaultMapRender?.() || mapApi.setContourLayerVisible(false))
-                .finally(() => syncFocusedTrackOverlayModeButtons());
-            return;
-        }
+
+    if (!mapApi?.setContourLayerVisible || !mapApi?.isContourLayerVisible) {
+        syncFocusedTrackOverlayModeButtons();
+        return;
+    }
+
+    /*
+    * Aircraft focus must not rebuild or restore the map when automatic
+    * contour focus is disabled.
+    */
+    if (!autoEnabled) {
+        __liveTrackContourStateBeforeFocus = null;
+        __liveTrackContourAnchorKey = "";
+        __liveTrackContourAnchorLon = Number.NaN;
+        __liveTrackContourAnchorLat = Number.NaN;
         syncFocusedTrackOverlayModeButtons();
         return;
     }
@@ -4317,6 +4340,30 @@ function syncFocusedTrackContourMode(focused = false) {
             .finally(() => syncFocusedTrackOverlayModeButtons());
     }
 }
+
+function exitFocusedTrackMapModes() {
+    const viewer = window.__warzoneViewer;
+    const mapApi = viewer?.__warzone;
+
+    if (!mapApi) return;
+
+    __liveTrackContourStateBeforeFocus = null;
+    __liveTrackContourAnchorKey = "";
+    __liveTrackContourAnchorLon = Number.NaN;
+    __liveTrackContourAnchorLat = Number.NaN;
+
+    mapApi.clearContourFocusPosition?.();
+    mapApi.exitCtrMode?.({ reason: "aircraft-unfocus" });
+    mapApi.setContourGridVisible?.(false);
+
+    void Promise.resolve(mapApi.setContourLayerVisible?.(false))
+        .finally(() => {
+            mapApi.setSatelliteVisible?.(true);
+            mapApi.setGreyedSatelliteVisible?.(false);
+            syncFocusedTrackOverlayModeButtons();
+        });
+}
+
 function getViewerCenterScreenPosition(viewer = window.__warzoneViewer) {
     const canvas = viewer?.scene?.canvas;
     const host = viewer?.container || viewer?.cesiumWidget?.container;
@@ -4494,9 +4541,11 @@ function syncFocusedTrackCamera(options = {}) {
     const viewer = window.__warzoneViewer;
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";
+
     if (viewer?.scene?.mode !== Cesium.SceneMode.SCENE3D) {
         return;
     }
+
     if (
         !viewer ||
         !selectedTrackKey ||
@@ -4504,25 +4553,56 @@ function syncFocusedTrackCamera(options = {}) {
         __liveTrackIsCameraFlying ||
         !__liveTrackHardLockEnabled
     ) return;
+
     if (!forceLifecycleSync && __liveTrackUserCameraInteracting && !__liveTrackCtrlTiltDragState?.active) return;
+
     const now = performance.now();
+
     if (!forceLifecycleSync && (now - __liveTrackLastFocusCameraSyncAt) < LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS) {
         return;
     }
+
     __liveTrackLastFocusCameraSyncAt = now;
+
     const entity = viewer.entities.getById(`track-${selectedTrackKey}`);
     const position = getPositionCartesian(entity);
     if (!position) return;
+
     const preserveRange = options?.preserveRange === true;
+    void preserveRange;
+
+    const ease = clamp(
+        getCssNumber("--warzone-live-aircraft-focus-camera-follow-ease", 0.08),
+        0.02,
+        1
+    );
+
+    if (!__liveTrackFocusSmoothedTarget) {
+        __liveTrackFocusSmoothedTarget = Cesium.Cartesian3.clone(position);
+    } else {
+        Cesium.Cartesian3.lerp(
+            __liveTrackFocusSmoothedTarget,
+            position,
+            ease,
+            __liveTrackFocusSmoothedTargetScratch
+        );
+
+        Cesium.Cartesian3.clone(
+            __liveTrackFocusSmoothedTargetScratch,
+            __liveTrackFocusSmoothedTarget
+        );
+    }
+
     try {
         viewer.camera.lookAt(
-            position,
+            __liveTrackFocusSmoothedTarget,
             new Cesium.HeadingPitchRange(
                 Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
                 Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
                 resolveLiveTrackFocusCameraRange()
             )
         );
+
         if (
             forceVisualRefresh ||
             (now - __liveTrackLastFocusVisualRefreshAt) >= LIVE_TRACK_FOCUS_VISUAL_REFRESH_MIN_MS
@@ -4539,10 +4619,12 @@ function bindLiveTrackOverlay(viewer) {
     document.addEventListener("wz:contour-layer-changed", syncFocusedTrackOverlayModeButtons);
     bindFocusInteractionTracking(viewer);
     const focusController = getAssetFocusController();
-    focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera(), { hz: 18 });
-    focusController.registerTask("aircraft-focus-overlay", () => syncLiveTrackFocusOverlay(), { hz: 10 });
-    viewer.scene.preRender.addEventListener(() => focusController.requestFrame());
-    viewer.scene.postRender.addEventListener(() => focusController.requestFrame());
+    focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera(), { hz: 45 });
+    focusController.registerTask("aircraft-focus-overlay", () => syncLiveTrackFocusOverlay(), { hz: 30 });
+    viewer.scene.preRender.addEventListener(() => {
+        focusController.requestFrame();
+    });
+    //viewer.scene.postRender.addEventListener(() => focusController.requestFrame());
 
     // Clear X-lines when user manually drags/rotates the globe.
     // __liveTrackIsCameraFlying guards against clearing during programmatic flyTo.
@@ -7325,7 +7407,7 @@ export function focusLiveTrack(trackKey, options = {}) {
     disableAircraftFocusTerrain(viewer);
     syncFocusedTrackContourMode(true);
     refreshLiveTrackVisualMode(trackKey);
-    refreshFocusedContextLiveTrackVisualModes(trackKey);
+    // refreshFocusedContextLiveTrackVisualModes(trackKey);
     setLiveTrackHardLockInternal(true);
     bindFocusGuideTracking();
     updateFocusGuideElement();
@@ -7385,10 +7467,10 @@ export function clearLiveTrackSelection(options = {}) {
     __liveTrackFocusBaseRangeMeters = __liveTrackFocusRangeMeters;
     resetFocusedTrackCameraOrientation();
     clearReplayEntities();
-    setSelectedTrack("", "");
-    syncFocusedTrackContourMode(false);
-    refreshLiveTrackVisualMode(previousTrackKey);
-    scheduleRefreshAllLiveTrackVisualModes(80);
+setSelectedTrack("", "");
+exitFocusedTrackMapModes();
+refreshLiveTrackVisualMode(previousTrackKey);
+    //scheduleRefreshAllLiveTrackVisualModes(80);
     clearFocusedTrackCameraLock();
     hideLiveTrackFocusVisuals();
     const restoreSceneModeIfNeeded = () => {

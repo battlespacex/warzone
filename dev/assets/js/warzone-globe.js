@@ -4173,6 +4173,10 @@ async function enableFocusedTerrain(viewer) {
 }
 function disableFocusedTerrain(viewer) {
     if (!viewer) return false;
+
+    if (viewer.__warzoneFocusedTerrainActive !== true) {
+        return false;
+    }
     if (viewer.__warzoneFlatTerrainProvider) {
         viewer.terrainProvider = viewer.__warzoneFlatTerrainProvider;
     } else {
@@ -5487,7 +5491,21 @@ function dispatchFocusedTerrainChanged(viewer) {
 }
 async function setContourLayerVisible(viewer, visible = false) {
     if (!viewer) return false;
-    viewer.__contourLayerVisible = !!visible;
+        const nextVisible = Boolean(visible);
+
+    /*
+     * Do not repeatedly clear imagery, contour entities and cache when
+     * contour/grid are already disabled.
+     */
+    if (
+        !nextVisible &&
+        viewer.__contourLayerVisible !== true &&
+        viewer.__contourGridLayerVisible !== true
+    ) {
+        return false;
+    }
+
+    viewer.__contourLayerVisible = nextVisible;
     if (viewer.__contourLayerVisible) retainContourDemCache();
     if (viewer.__contourLayerVisible) {
         enterCtrMode(viewer, { reason: "contour-layer-on" });
