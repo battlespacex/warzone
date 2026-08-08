@@ -6,9 +6,14 @@ import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachSatelliteContextToEvents } from "./satellite-context.js";
 import { toPublicEvent } from "./public-event-normalizer.js";
-const DEFAULT_EVENTS_WINDOW_HOURS = 48;
+import {
+    MAP_EVENT_HISTORY_WINDOW_HOURS,
+    applyGeneralEventDeliveryFilters,
+    applyMapEventHistoricalQueryFilter,
+} from "../../shared/map-event-policy.js";
+const DEFAULT_EVENTS_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const MIN_EVENTS_WINDOW_HOURS = 6;
-const MAX_EVENTS_WINDOW_HOURS = 168;
+const MAX_EVENTS_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const DEFAULT_EVENTS_LIMIT = 2000;
 const MIN_EVENTS_LIMIT = 200;
 const MAX_EVENTS_LIMIT = 4000;
@@ -109,6 +114,21 @@ function toAirspaceStatusRow(event = {}) {
     };
 }
 
+export function buildGeneralEventsQuery(supabase, options = {}) {
+    let eventsQuery = supabase.from("events").select("*");
+    if (options.cutoffIso) {
+        eventsQuery = eventsQuery.gte("occurred_at", options.cutoffIso);
+    }
+    if (options.sinceIso) {
+        eventsQuery = eventsQuery.gt("occurred_at", options.sinceIso);
+    }
+    eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+    eventsQuery = applyMapEventHistoricalQueryFilter(eventsQuery, { now: options.now });
+    return eventsQuery
+        .order("occurred_at", { ascending: false })
+        .limit(options.limit);
+}
+
 export function eventsRouter({ broadcast }) {
     const router = express.Router();
 
@@ -125,12 +145,10 @@ export function eventsRouter({ broadcast }) {
                 : DEFAULT_EVENTS_LIMIT;
             const cutoffIso = new Date(Date.now() - (windowHours * 60 * 60 * 1000)).toISOString();
             const supabase = getSupabase();
-            const { data, error } = await supabase
-                .from("events")
-                .select("*")
-                .gte("occurred_at", cutoffIso)
-                .order("occurred_at", { ascending: false })
-                .limit(limit);
+            const { data, error } = await buildGeneralEventsQuery(supabase, {
+                cutoffIso,
+                limit,
+            });
             if (error) return res.status(500).json({ error: "Failed" });
             const mediaBaseUrl = getPublicMediaBaseUrl(req);
             const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
@@ -152,12 +170,10 @@ export function eventsRouter({ broadcast }) {
                 ? clamp(Math.floor(requestedLimit), 25, MAX_EVENTS_SINCE_LIMIT)
                 : DEFAULT_EVENTS_SINCE_LIMIT;
             const supabase = getSupabase();
-            const { data, error } = await supabase
-                .from("events")
-                .select("*")
-                .gt("occurred_at", since)
-                .order("occurred_at", { ascending: false })
-                .limit(limit);
+            const { data, error } = await buildGeneralEventsQuery(supabase, {
+                sinceIso: since,
+                limit,
+            });
             if (error) return res.status(500).json({ error: "Failed" });
             const mediaBaseUrl = getPublicMediaBaseUrl(req);
             const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);

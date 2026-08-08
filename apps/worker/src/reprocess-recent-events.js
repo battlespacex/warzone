@@ -4,10 +4,15 @@ import {
   NORMALIZATION_VERSION,
   normalizeEventRowForStorage
 } from "./intelligence-normalizer.js";
+import {
+  MAP_EVENT_HISTORY_WINDOW_HOURS,
+  applyGeneralEventDeliveryFilters,
+  applyMapEventHistoricalQueryFilter
+} from "../../shared/map-event-policy.js";
 
 loadWorkerEnv();
 
-const DEFAULT_WINDOW_HOURS = 72;
+const DEFAULT_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 2000;
 const ALLOW_NULL_COORDINATE_WRITES = hasFlag("null-coordinates");
@@ -171,10 +176,13 @@ function summarizeChange(row = {}, patchInfo = {}) {
 
 async function fetchRecentEvents({ hours, limit }) {
   const cutoffIso = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
+  let eventsQuery = supabase
     .from("events")
     .select("*")
-    .gte("occurred_at", cutoffIso)
+    .gte("occurred_at", cutoffIso);
+  eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+  eventsQuery = applyMapEventHistoricalQueryFilter(eventsQuery);
+  const { data, error } = await eventsQuery
     .order("occurred_at", { ascending: false })
     .limit(limit);
 
@@ -224,7 +232,12 @@ async function resetSatelliteErrorsForEvents(eventIds = []) {
 async function main() {
   const apply = hasFlag("apply");
   const resetSatelliteErrors = hasFlag("reset-satellite-errors");
-  const hours = clampInt(readArg("hours", DEFAULT_WINDOW_HOURS), DEFAULT_WINDOW_HOURS, 1, 168);
+  const hours = clampInt(
+    readArg("hours", DEFAULT_WINDOW_HOURS),
+    DEFAULT_WINDOW_HOURS,
+    1,
+    MAP_EVENT_HISTORY_WINDOW_HOURS
+  );
   const limit = clampInt(readArg("limit", DEFAULT_LIMIT), DEFAULT_LIMIT, 1, MAX_LIMIT);
   const events = await fetchRecentEvents({ hours, limit });
   const changes = [];

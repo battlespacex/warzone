@@ -65,6 +65,7 @@ import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
 import { readCopernicusConfig } from "./copernicus-config.js";
 import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from "./copernicus-runner.js";
+import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { generateScheduledReports } from "../../shared/reporting-service.js";
 import {
@@ -1473,14 +1474,14 @@ async function insertEventIfValid(event) {
 }
 async function pruneStaleData() {
     const now = new Date();
-    // Events older than 72 hours
-    const eventsCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
+    // Keep the same seven-day working history used by the general map event pipeline.
+    const eventsCutoff = new Date(now.getTime() - MAP_EVENT_HISTORY_WINDOW_MS).toISOString();
     const { error: eventsError } = await supabase
         .from("events")
         .delete()
         .lt("occurred_at", eventsCutoff);
     if (eventsError) console.error("Events prune error:", eventsError.message);
-    else console.log("[prune] Events older than 72 hours removed");
+    else console.log("[prune] Events older than seven days removed");
     // Aircraft tracks older than 72 hours
     const aircraftCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
     const { error: aircraftError } = await supabase
@@ -1489,14 +1490,14 @@ async function pruneStaleData() {
         .lt("last_seen_at", aircraftCutoff);
     if (aircraftError) console.error("Aircraft prune error:", aircraftError.message);
     else console.log("[prune] Aircraft tracks older than 72 hours removed");
-    // Raw items older than 48 hours
-    const rawCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+    // Preserve source material for the full map working window.
+    const rawCutoff = new Date(now.getTime() - MAP_EVENT_HISTORY_WINDOW_MS).toISOString();
     const { error: rawError } = await supabase
         .from("raw_items")
         .delete()
         .lt("created_at", rawCutoff);
     if (rawError) console.error("Raw items prune error:", rawError.message);
-    else console.log("[prune] Raw items older than 48 hours removed");
+    else console.log("[prune] Raw items older than seven days removed");
     // Event clusters older than 7 days
     const clusterCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error: clusterError } = await supabase

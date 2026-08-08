@@ -1,5 +1,10 @@
 ﻿// File Path: /assets/js/supabase.js
 import { createClient } from "@supabase/supabase-js";
+import {
+    MAP_EVENT_HISTORY_WINDOW_HOURS,
+    applyGeneralEventDeliveryFilters,
+    applyMapEventHistoricalQueryFilter,
+} from "../../../apps/shared/map-event-policy.js";
 
 // Supabase — realtime WebSocket subscriptions only
 export const supabase = createClient(
@@ -34,7 +39,7 @@ const REPORTS_API_BASE =
     window.__stratopsConfig?.reportsApiBase ||
     window.__stratopsConfig?.apiBase ||
     (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
-const EVENTS_HISTORY_WINDOW_HOURS = 48;
+const EVENTS_HISTORY_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
 const EVENTS_SINCE_LIMIT = 200;
@@ -173,9 +178,12 @@ export const api = {
     async getEvents(options = {}) {
         const cutoffIso = getEventsHistoryCutoffIso();
         if (!API_BASE) {
-            const { data, error } = await supabase
+            let eventsQuery = supabase
                 .from("events").select("*")
-                .gte("occurred_at", cutoffIso)
+                .gte("occurred_at", cutoffIso);
+            eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+            eventsQuery = applyMapEventHistoricalQueryFilter(eventsQuery);
+            const { data, error } = await eventsQuery
                 .order("occurred_at", { ascending: false })
                 .limit(EVENTS_INITIAL_LIMIT);
             return { data: data || [], error };
@@ -192,9 +200,12 @@ export const api = {
 
     async getEventsSince(since, options = {}) {
         if (!API_BASE) {
-            const { data, error } = await supabase
+            let eventsQuery = supabase
                 .from("events").select("*")
-                .gt("occurred_at", since)
+                .gt("occurred_at", since);
+            eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+            eventsQuery = applyMapEventHistoricalQueryFilter(eventsQuery);
+            const { data, error } = await eventsQuery
                 .order("occurred_at", { ascending: false })
                 .limit(EVENTS_SINCE_LIMIT);
             return { data: data || [], error };

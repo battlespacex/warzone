@@ -8,9 +8,13 @@ import {
   normalizeConflictItemToEventPayload,
   safeDate
 } from "./intelligence-normalizer.js";
+import {
+  MAP_EVENT_HISTORY_WINDOW_HOURS,
+  isMapEventHistoricallyRelevant
+} from "../../shared/map-event-policy.js";
 
 const DEFAULT_PROMOTION_LIMIT = 40;
-const DEFAULT_MAX_AGE_HOURS = 72;
+const DEFAULT_MAX_AGE_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 
 function readPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value || ""), 10);
@@ -22,9 +26,9 @@ const PROMOTION_LIMIT = readPositiveInteger(
   DEFAULT_PROMOTION_LIMIT
 );
 
-const MAX_AGE_HOURS = readPositiveInteger(
-  process.env.CONFLICT_EVENT_MAX_AGE_HOURS,
-  DEFAULT_MAX_AGE_HOURS
+const MAX_AGE_HOURS = Math.max(
+  DEFAULT_MAX_AGE_HOURS,
+  readPositiveInteger(process.env.CONFLICT_EVENT_MAX_AGE_HOURS, DEFAULT_MAX_AGE_HOURS)
 );
 
 function getItemText(item = {}) {
@@ -111,6 +115,7 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
     duplicate_count: 0,
     skipped_non_operational_count: 0,
     skipped_old_count: 0,
+    skipped_low_relevance_count: 0,
     skipped_no_location_count: 0,
     error_count: 0,
     errors: []
@@ -144,6 +149,10 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
     }
 
     const payload = normalized.event;
+    if (!isMapEventHistoricallyRelevant(payload)) {
+      result.skipped_low_relevance_count += 1;
+      continue;
+    }
 
     try {
       if (await eventAlreadyExists(payload)) {

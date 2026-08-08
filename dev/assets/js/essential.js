@@ -20,6 +20,10 @@ import {
     getPlatformSeverityClass,
     getPlatformSeverityLabel,
 } from "./warzone-taxonomy.js";
+import {
+    MAP_EVENT_HISTORY_WINDOW_MS,
+    isMapEventHistoricallyRelevant,
+} from "../../../apps/shared/map-event-policy.js";
 import { resolveDisplayCoordinates, eventMatchesBounds } from "./warzone-location-resolver.js";
 import {
     upsertLiveTrack,
@@ -243,7 +247,7 @@ const HIGH_VALUE_ASSET_NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 const EVENT_POLL_INTERVAL_MS = 12 * 1000;
 const EVENT_CACHE_MAX_ITEMS = 2600;
 const EVENT_VISIBLE_CACHE_MAX_ITEMS = 1800;
-const EVENT_CACHE_RETENTION_MS = 48 * 60 * 60 * 1000;
+const EVENT_CACHE_RETENTION_MS = MAP_EVENT_HISTORY_WINDOW_MS;
 const POLL_SINCE_MAX_FUTURE_SKEW_MS = 60 * 1000;
 const POLL_FULL_REFRESH_EMPTY_STREAK = 15;
 const EVENTS_API_ERROR_LOG_THROTTLE_MS = 45 * 1000;
@@ -770,7 +774,7 @@ function isEventInLens(event, lens) {
     const place = eventPlaceText(event);
     const occurredAt = new Date(event.occurred_at || 0).getTime();
     const ageMs = Date.now() - occurredAt;
-    const isRecent = Number.isFinite(ageMs) && ageMs <= 14 * 24 * 60 * 60 * 1000;
+    const isRecent = Number.isFinite(ageMs) && ageMs <= MAP_EVENT_HISTORY_WINDOW_MS;
     const isHighSignal =
         category === "alert" ||
         category === "strike" ||
@@ -945,6 +949,7 @@ function isIntelWireOnlyEvent(event = {}) {
 }
 function isOperationalMapEvent(event = {}) {
     if (!event || !isMilitaryRelevant(event)) return false;
+    if (!isMapEventHistoricallyRelevant(event)) return false;
     if (event.map_eligible === false || event.mapEligible === false) return false;
     if (isLowInformationPublicSignal(event)) return false;
     if (isIntelWireOnlyEvent(event)) return false;
@@ -8713,6 +8718,7 @@ function estimateSirenOrigin(event) {
 export function handleIncomingEvent(event) {
     let normalized = normalizeEvent(event);
     normalized = resolveStrikeGeometry(normalized);
+    if (isAircraftTelemetryEvent(normalized)) return;
     if (isTrainerAircraftSignalEvent(normalized)) return;
     if (!isMilitaryRelevant(normalized)) return;
     const allEventsMatch = __allEventsCache.findIndex((e) => String(e.id) === String(normalized.id));
