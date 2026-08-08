@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPublicIntelWireMedia, getPublicSourceLabel, toPublicIntelWireItem } from "../src/intel-source-sanitizer.js";
 
-test("public intel wire media uses same-origin proxy urls when a media base is available", () => {
+test("public intel wire media uses same-origin proxy urls without duplicating thumbnail derivatives", () => {
     const item = {
         id: "feed-item-1",
         title: "Regional conflict update",
@@ -16,7 +16,7 @@ test("public intel wire media uses same-origin proxy urls when a media base is a
     const media = buildPublicIntelWireMedia(item, "https://stratops.battlespacex.com/");
 
     assert.ok(media);
-    assert.equal(media.images.length, 2);
+    assert.equal(media.images.length, 1);
     assert.equal(media.images[0].thumbUrl, "https://stratops.battlespacex.com/events/intel-feed/media/feed-item-1/image/0/thumb");
     assert.equal(media.images[0].fullUrl, "https://stratops.battlespacex.com/events/intel-feed/media/feed-item-1/image/0/full");
 });

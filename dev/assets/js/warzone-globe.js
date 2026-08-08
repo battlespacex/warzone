@@ -6795,11 +6795,28 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
             });
             viewer.__warzoneLastPreparedEvents = prepared.map((event) => ({
                 id: event.id,
+                cluster_id: event.cluster_id || event.id,
+                event_ids: Array.isArray(event.event_ids) ? event.event_ids.slice() : [event.id],
                 lat: event.lat,
                 lon: event.lon,
                 category: event.category,
+                severity: event.severity,
+                dominant_domain: event.dominant_domain || event._dominantDomain || classifyEventDomain(event),
+                domain_distribution: event.domain_distribution ? { ...event.domain_distribution } : null,
+                weighted_activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
+                actual_event_count: Number(event.actual_event_count || event.cluster_count || event._clusterCount || 1),
                 cluster_count: event.cluster_count,
                 _clusterCount: event._clusterCount,
+                center_method: event.center_method || (Number(event.cluster_count || 1) > 1 ? "weighted_medoid" : "event_coordinate"),
+                centroid: event.centroid ? { ...event.centroid } : { lat: event.lat, lon: event.lon },
+                bounds: event.bounds ? { ...event.bounds } : {
+                    south: event.lat,
+                    north: event.lat,
+                    west: event.lon,
+                    east: event.lon,
+                    crosses_antimeridian: false,
+                },
+                latest_event_time: event.latest_event_time || event.occurred_at || null,
                 _splitGroupId: event._splitGroupId || "",
                 _isClusterParentRing: event._isClusterParentRing === true,
                 _parentRingRadius: event._parentRingRadius || 0,
@@ -6880,6 +6897,32 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
         },
         getEventClusterBucket() {
             return getEventClusterZoomBucket(viewer);
+        },
+        getEventClusterSnapshot() {
+            const camera = viewer.camera?.positionCartographic;
+            const zoomState = getEventZoomState(viewer);
+            const zoomBucket = getClusterBucketForZoomState(zoomState, getEventClusterZoomBucket(viewer));
+            return {
+                version: "phase6-pre-reporting-v1",
+                captured_at: new Date().toISOString(),
+                zoom_state: zoomState,
+                zoom_bucket: zoomBucket,
+                camera: camera ? {
+                    longitude: Cesium.Math.toDegrees(camera.longitude),
+                    latitude: Cesium.Math.toDegrees(camera.latitude),
+                    height: Number(camera.height || 0),
+                    heading: Number(viewer.camera.heading || 0),
+                    pitch: Number(viewer.camera.pitch || 0),
+                    roll: Number(viewer.camera.roll || 0),
+                } : null,
+                clusters: (viewer.__warzoneLastPreparedEvents || []).map((cluster) => ({
+                    ...cluster,
+                    event_ids: Array.isArray(cluster.event_ids) ? cluster.event_ids.slice() : [],
+                    centroid: cluster.centroid ? { ...cluster.centroid } : null,
+                    bounds: cluster.bounds ? { ...cluster.bounds } : null,
+                    domain_distribution: cluster.domain_distribution ? { ...cluster.domain_distribution } : null,
+                })),
+            };
         },
         refreshMapTuning() {
             if (viewer.__imageryBase) {
