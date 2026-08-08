@@ -412,9 +412,48 @@
     height: 100%;
     box-sizing: border-box;
     border-radius: 999px;
-    background: transparent;
-    border: var(--wzhs-radius-outline-width, calc(var(--warzone-event-hotspot-line-width, 2.6) * 0.1rem)) solid var(--wzhs-radius-outline-color, var(--warzone-event-hotspot-line-color, var(--warzone-strike-color)));
-    box-shadow: none;
+    background: radial-gradient(circle,
+        color-mix(in srgb, var(--wzhs-radius-color, var(--activity-mixed)) 18%, transparent) 0%,
+        color-mix(in srgb, var(--wzhs-radius-color, var(--activity-mixed)) 8%, transparent) 58%,
+        transparent 72%);
+    border: var(--wzhs-radius-severity-width, var(--hotspot-border-width)) solid
+        var(--wzhs-radius-severity-color, var(--hotspot-severity-medium-color));
+    box-shadow:
+        0 0 calc(var(--hotspot-glow) * 1px) color-mix(in srgb, var(--wzhs-radius-severity-color, var(--hotspot-severity-medium-color)) 62%, transparent),
+        inset 0 0 calc(var(--hotspot-glow) * 1px) color-mix(in srgb, var(--wzhs-radius-color, var(--activity-mixed)) 34%, transparent);
+    opacity: var(--hotspot-opacity);
+}
+
+.wzhs-radius--air { --wzhs-radius-color: var(--activity-air); }
+.wzhs-radius--strike { --wzhs-radius-color: var(--activity-strike); }
+.wzhs-radius--missile { --wzhs-radius-color: var(--activity-missile); }
+.wzhs-radius--artillery { --wzhs-radius-color: var(--activity-artillery); }
+.wzhs-radius--air_defence { --wzhs-radius-color: var(--activity-airdefence); }
+.wzhs-radius--maritime { --wzhs-radius-color: var(--activity-maritime); }
+.wzhs-radius--cyber { --wzhs-radius-color: var(--activity-cyber); }
+.wzhs-radius--gnss { --wzhs-radius-color: var(--activity-gnss); }
+.wzhs-radius--alert { --wzhs-radius-color: var(--activity-alert); }
+.wzhs-radius--mixed { --wzhs-radius-color: var(--activity-mixed); }
+
+.wzhs-radius--pulse-strong .wzhs-radius__ring {
+    animation: wzhs-hotspot-pulse var(--hotspot-pulse-css-duration) ease-out infinite;
+}
+
+.wzhs-radius--pulse-subtle .wzhs-radius__ring {
+    animation: wzhs-hotspot-pulse var(--hotspot-pulse-subtle-css-duration) ease-out infinite;
+    animation-timing-function: ease-in-out;
+}
+
+@keyframes wzhs-hotspot-pulse {
+    0%, 100% { transform: scale(1); opacity: var(--hotspot-opacity); }
+    50% { transform: scale(1.06); opacity: 0.58; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wzhs-radius--pulse-strong .wzhs-radius__ring,
+    .wzhs-radius--pulse-subtle .wzhs-radius__ring {
+        animation: none;
+    }
 }
 
 .wzhs--entering,

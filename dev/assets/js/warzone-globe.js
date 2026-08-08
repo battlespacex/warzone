@@ -1,6 +1,12 @@
 ﻿// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
+import {
+    buildSpatialEventClusters,
+    classifyEventDomain,
+    getClusterDistanceKm,
+    scoreToRadius,
+} from "./warzone-event-cluster-model.js";
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
     countries: [
@@ -303,7 +309,7 @@ function expandEventsForLocationClustering(events = []) {
     }
     return expanded;
 }
-function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520, viewer = window.__warzoneViewer) {
+function clusterEventsForDisplayLegacy(events = [], precisionDeg = 0.32, maxItems = 520, viewer = window.__warzoneViewer) {
     const groups = new Map();
     for (const event of expandEventsForLocationClustering(events)) {
         const lat = Number(event?.lat);
@@ -434,6 +440,20 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
         .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
         .slice(0, maxItems);
 }
+function getEventClusterDistanceKm(viewer) {
+    const bucket = getEventClusterZoomBucket(viewer);
+    return Math.max(0, numberVar(`--hotspot-cluster-distance-${bucket}-km`, getClusterDistanceKm(bucket)));
+}
+function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520, viewer = window.__warzoneViewer) {
+    const zoomBucket = getEventClusterZoomBucket(viewer);
+    return buildSpatialEventClusters(events, {
+        zoomBucket,
+        distanceKm: getEventClusterDistanceKm(viewer),
+        dominanceThreshold: numberVar("--hotspot-dominance-threshold", 0.48),
+        dominanceMargin: numberVar("--hotspot-dominance-margin", 0.12),
+        pulseCap: numberVar("--hotspot-pulse-cap", 12),
+    }).slice(0, maxItems);
+}
 function getEventClusterItems(event = {}) {
     const items = Array.isArray(event?._clusterEvents) && event._clusterEvents.length
         ? event._clusterEvents
@@ -520,10 +540,10 @@ function createEventMarkerImageProperty(event = {}, colorCss = "#f51e58") {
     const from = Math.round(Number(event?._fromCount || 0));
     const target = Math.round(Number(event?.cluster_count || event?._clusterCount || 1));
     if (!(from > 0) || from === target || getEventTransitionMs() <= 0) {
-        return createClusterMarkerCanvas(colorCss, Math.max(1, target));
+        return createClusterMarkerCanvas(colorCss, Math.max(1, target), event.severity);
     }
     return new Cesium.CallbackProperty(() => (
-        createClusterMarkerCanvas(colorCss, getAnimatedEventCount(event))
+        createClusterMarkerCanvas(colorCss, getAnimatedEventCount(event), event.severity)
     ), false);
 }
 function mergeEventMarkerGroup(group, index = 0) {
@@ -670,8 +690,7 @@ function addClusterParentRings(events = []) {
 function prepareEventsForCurrentZoom(viewer, events = []) {
     const normalized = normalizeEvents(events);
     const maxItems = getMaxRenderableEvents(viewer);
-    const clustered = clusterEventsForDisplay(normalized, getEventClusterPrecision(viewer), maxItems, viewer);
-    return mergeOverlappingEventMarkers(viewer, clustered, maxItems);
+    return clusterEventsForDisplay(normalized, getEventClusterPrecision(viewer), maxItems, viewer);
 }
 function eventDistanceDeg(a = {}, b = {}) {
     const alat = Number(a.lat);
@@ -724,6 +743,7 @@ function applyEventClusterTransitions(viewer, prepared = []) {
     const start = getNowMs();
     return prepared.map((event) => {
         if (event?._isClusterParentRing) return event;
+        if (getEventClusterCount(event) <= 1) return event;
         const anchor = findEventTransitionAnchor(previous, event);
         if (!anchor) return event;
         const distance = eventDistanceDeg(anchor, event);
@@ -800,10 +820,12 @@ function applyEventLod(viewer) {
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
+        const dominantDomain = String(entity.properties?.dominant_domain?.getValue?.() ?? "");
+        const activityScore = Number(entity.properties?.activity_score?.getValue?.() ?? 0);
         // Read cluster_count stored by createEventEntity — clusters keep their scaled radius
         const clusterCount = Number(entity.properties?.cluster_count?.getValue?.() ?? 1);
         const isCluster = clusterCount > 1;
-        const colorCss = getCategoryColorCss(category);
+        const colorCss = getEventMarkerColorCss({ category, dominant_domain: dominantDomain });
         const color = Cesium.Color.fromCssColorString(colorCss);
         const baseRadius = getSeverityRadius({ severity, cluster_count: clusterCount });
         if (isEventCountLabel) {
@@ -831,8 +853,8 @@ function applyEventLod(viewer) {
             entity.ellipse.show = allowRings && showRingsByZoom;
             entity.ellipse.material = Cesium.Color.TRANSPARENT;
             entity.ellipse.outline = true;
-            entity.ellipse.outlineColor = Cesium.Color.fromCssColorString(getEventHotspotColorCss(category)).withAlpha(0.96);
-            entity.ellipse.outlineWidth = Math.max(1, numberVar("--warzone-event-hotspot-line-width", 2.6));
+            entity.ellipse.outlineColor = Cesium.Color.fromCssColorString(getEventHotspotColorCss({ category, dominant_domain: dominantDomain })).withAlpha(0.96);
+            entity.ellipse.outlineWidth = Math.max(1, numberVar(`--hotspot-severity-${severity}-width`, numberVar("--hotspot-border-width", 4)));
             continue;
         }
         const fillAlpha = isCluster
@@ -843,8 +865,8 @@ function applyEventLod(viewer) {
                 const showMarkerFill = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
                 if (entity.billboard) {
                     entity.billboard.show = showMarkerFill;
-                    entity.billboard.width = getEventMarkerSizePx(clusterCount);
-                    entity.billboard.height = getEventMarkerSizePx(clusterCount) * getEventMarkerPerspectiveSquash(viewer);
+                    entity.billboard.width = getEventMarkerSizePx(clusterCount, activityScore);
+                    entity.billboard.height = getEventMarkerSizePx(clusterCount, activityScore) * getEventMarkerPerspectiveSquash(viewer);
                     entity.billboard.scaleByDistance = getEventMarkerScaleByDistance();
                     entity.billboard.color = Cesium.Color.WHITE.withAlpha(1);
                 }
@@ -1032,6 +1054,9 @@ function buildEventRenderSignature(event = {}) {
     const lat = Number(event.lat);
     const lon = Number(event.lon);
     const clusterCount = Number(event.cluster_count || event._clusterCount || 1);
+    const activityScore = Number(event.weighted_activity_score || event._activityScore || 0);
+    const dominantDomain = String(event.dominant_domain || event._dominantDomain || "");
+    const pulseMode = event.pulse_eligible === true ? String(event.pulse_mode || "subtle") : "none";
     const isParentRing = event?._isClusterParentRing === true ? "1" : "0";
     const parentRingRadius = Number(event?._parentRingRadius || event?.parent_ring_radius || 0);
     const satelliteContext = event?.satellite_context || event?.satelliteContext || null;
@@ -1041,7 +1066,7 @@ function buildEventRenderSignature(event = {}) {
     const lonKey = Number.isFinite(lon) ? lon.toFixed(4) : "x";
     const clusterKey = Number.isFinite(clusterCount) ? String(clusterCount) : "1";
     const parentRingKey = Number.isFinite(parentRingRadius) ? parentRingRadius.toFixed(0) : "0";
-    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${latKey}|${lonKey}|${isParentRing}|${parentRingKey}|${satelliteStatus}|${satelliteImageUrl}`;
+    return `${id}|${occurredAt}|${category}|${severity}|${clusterKey}|${activityScore.toFixed(3)}|${dominantDomain}|${pulseMode}|${latKey}|${lonKey}|${isParentRing}|${parentRingKey}|${satelliteStatus}|${satelliteImageUrl}`;
 }
 function reconcileEventEntities(viewer, events = [], options = {}) {
     if (!viewer) return;
@@ -1252,27 +1277,20 @@ function getCategoryColorCss(category) {
     }
 }
 function getSeverityRadius(event) {
-    const base = numberVar("--warzone-event-ring-size", 70000);
-    const count = Number(event?.cluster_count || 1);
-    // Logarithmic cluster scaling — cluster of 10 → 1.5x, cluster of 100 → 2.0x, cluster of 500 → 2.5x
-    // This makes dense regions visually obvious at any zoom level
-    const countScale = count > 1 ? (1 + Math.log2(count) * 0.28) : 1;
-    switch (event?.severity) {
-        case "critical": return base * 4 * countScale;
-        case "high": return base * 3 * countScale;
-        case "medium": return base * 2.5 * countScale;
-        case "low": return base * countScale;
-        default: return base * 1.8 * countScale;
-    }
+    return scoreToRadius(event?.weighted_activity_score || event?._activityScore || 0, {
+        min: numberVar("--hotspot-ground-radius-min", 18000),
+        max: numberVar("--hotspot-ground-radius-max", 120000),
+        scoreAtMax: numberVar("--hotspot-score-at-max", 80),
+    });
 }
-function getEventMarkerSizePx(count = 1) {
-    const baseSize = Math.max(16, numberVar("--warzone-event-marker-size", 56));
-    const step = Math.max(0, numberVar("--warzone-event-marker-cluster-step", 10));
-    const maxSize = Math.max(baseSize, numberVar("--warzone-event-marker-max-size", 108));
-    if (count > 1) {
-        return Math.min(baseSize + Math.log2(Math.max(count, 2)) * step, maxSize);
-    }
-    return baseSize;
+function getEventMarkerSizePx(count = 1, activityScore = 0) {
+    const eventSize = Math.max(16, numberVar("--event-marker-size", numberVar("--warzone-event-marker-size", 44)));
+    if (!(Number(count) > 1)) return eventSize;
+    return scoreToRadius(activityScore, {
+        min: Math.max(eventSize, numberVar("--hotspot-size-min", 48)),
+        max: Math.max(eventSize, numberVar("--hotspot-size-max", 96)),
+        scoreAtMax: numberVar("--hotspot-score-at-max", 80),
+    });
 }
 function getEventMarkerScaleByDistance() {
     const nearDistance = Math.max(1, numberVar("--warzone-event-marker-scale-near-distance", 600000));
@@ -1347,11 +1365,8 @@ function hashEventPulseSeed(event = {}) {
 }
 function getEventPulseSettings(event = {}) {
     const globalEnabled = boolVar("--warzone-event-ring-pulse-enabled", true);
-    const count = Number(event?.cluster_count || event?._clusterCount || 1);
-    const severityRank = getClusterSeverityRank(event?.severity);
-    const occurredMs = new Date(event?.occurred_at || 0).getTime();
-    const isRecent = Number.isFinite(occurredMs) && (Date.now() - occurredMs) <= 90 * 60 * 1000;
-    const enabled = globalEnabled && (severityRank >= 3 || count >= 4 || isRecent);
+    const pulseMode = event?.pulse_eligible === true ? String(event?.pulse_mode || "subtle") : "none";
+    const enabled = globalEnabled && pulseMode !== "none";
     const hash = hashEventPulseSeed(event);
     const group = hash % 3;
     const durationVars = [
@@ -1360,13 +1375,21 @@ function getEventPulseSettings(event = {}) {
         "--warzone-event-ring-pulse-duration-c",
     ];
     const fallbackDurations = [2200, 3000, 3900];
-    const durationMs = Math.max(1400, numberVar(durationVars[group], fallbackDurations[group]) * 1.5);
+    const baseDuration = numberVar("--hotspot-pulse-duration", numberVar(durationVars[group], fallbackDurations[group]));
+    const durationMs = Math.max(1400, baseDuration * (pulseMode === "strong" ? 0.72 : 1));
     return {
         enabled,
+        pulseMode,
         durationMs,
         offsetMs: ((hash >>> 3) % 1000) / 1000 * durationMs,
-        radiusScale: Math.max(0, numberVar("--warzone-event-ring-pulse-scale", 0.12)),
-        alphaScale: Math.max(0, numberVar("--warzone-event-ring-pulse-alpha-scale", 0.35)),
+        radiusScale: Math.max(0, numberVar(
+            pulseMode === "strong" ? "--hotspot-pulse-strong-scale" : "--hotspot-pulse-subtle-scale",
+            pulseMode === "strong" ? 0.18 : 0.1
+        )),
+        alphaScale: Math.max(0, numberVar(
+            pulseMode === "strong" ? "--hotspot-pulse-strong-alpha" : "--hotspot-pulse-subtle-alpha",
+            pulseMode === "strong" ? 0.7 : 0.35
+        )),
     };
 }
 function getEventPulseValue(settings) {
@@ -1497,24 +1520,25 @@ function getCategoryCssKey(category) {
         default: return "default";
     }
 }
-function getEventMarkerColorCss(category) {
-    const unified = cssVar("--warzone-event-unified-color", "").trim();
-    if (unified) return unified;
-    const key = getCategoryCssKey(category);
-    return cssVar(`--warzone-event-marker-color-${key}`, getCategoryColorCss(category));
+function getEventDomain(eventOrCategory) {
+    if (eventOrCategory && typeof eventOrCategory === "object") {
+        return String(eventOrCategory.dominant_domain || eventOrCategory._dominantDomain || classifyEventDomain(eventOrCategory)).toUpperCase();
+    }
+    return classifyEventDomain({ category: eventOrCategory });
 }
-function getEventPulseColorCss(category) {
-    const specific = cssVar(`--warzone-event-pulse-color-${getCategoryCssKey(category)}`, "");
-    const global = cssVar("--warzone-event-pulse-line-color", "currentColor");
-    if (specific && specific !== "currentColor") return specific;
-    return global && global !== "currentColor" ? global : getEventMarkerColorCss(category);
+function getEventDomainColorCss(eventOrCategory) {
+    const domain = getEventDomain(eventOrCategory).toLowerCase();
+    const key = domain === "air_defence" ? "airdefence" : domain;
+    return cssVar(`--activity-${key}`, getCategoryColorCss(eventOrCategory?.category || eventOrCategory));
 }
-function getEventHotspotColorCss(category) {
-    const unified = cssVar("--warzone-event-unified-color", "").trim();
-    if (unified) return unified;
-    const specific = cssVar(`--warzone-event-hotspot-color-${getCategoryCssKey(category)}`, "");
-    const global = cssVar("--warzone-event-hotspot-line-color", "");
-    return specific || global || getCategoryColorCss(category);
+function getEventMarkerColorCss(eventOrCategory) {
+    return getEventDomainColorCss(eventOrCategory);
+}
+function getEventPulseColorCss(eventOrCategory) {
+    return getEventDomainColorCss(eventOrCategory);
+}
+function getEventHotspotColorCss(eventOrCategory) {
+    return getEventDomainColorCss(eventOrCategory);
 }
 function updateEventPulseFrame(viewer) {
     if (!viewer) return;
@@ -1657,6 +1681,13 @@ function normalizeEvents(events) {
                 mapEligible: item.mapEligible,
                 report_type: item.report_type || "",
                 tags: Array.isArray(item.tags) ? item.tags : [],
+                metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
+                location_precision: item.location_precision || "",
+                location_confidence: Number(item.location_confidence || 0),
+                corroboration_state: item.corroboration_state || item.verification_state || "",
+                independent_source_family_count: Number(item.independent_source_family_count || 1),
+                source_tier: item.source_tier || "",
+                confidence_score: Number(item.confidence_score ?? item.confidence ?? 50),
                 country: item.country || item.countryName || "",
                 city: item.city || "",
                 province: item.province || item.state || item.admin1 || "",
@@ -1733,13 +1764,15 @@ function createMarkerCanvas(colorCss) {
     return dataUrl;
 }
 // Cluster marker with embedded count text; avoids duplicate Cesium labels at close zoom.
-function createClusterMarkerCanvas(colorCss, count) {
+function createClusterMarkerCanvas(colorCss, count, severity = "medium") {
     const discScale = Math.max(0.28, Math.min(0.82, numberVar("--warzone-event-marker-disc-scale", 0.58)));
-    const borderColorCss = cssVar("--warzone-event-marker-border-color", colorCss);
-    const borderAlpha = Math.max(0, Math.min(1, numberVar("--warzone-event-marker-border-alpha", 0.38)));
-    const borderWidthPx = Math.max(0, numberVar("--warzone-event-marker-border-width", 9));
+    const severityKey = String(severity || "medium").toLowerCase();
+    const borderColorCss = cssVar(`--hotspot-severity-${severityKey}-color`, cssVar("--warzone-event-marker-border-color", colorCss));
+    const borderAlpha = Math.max(0, Math.min(1, numberVar(`--hotspot-severity-${severityKey}-alpha`, 0.86)));
+    const borderWidthPx = Math.max(0, numberVar(`--hotspot-severity-${severityKey}-width`, numberVar("--hotspot-border-width", 4)));
+    const glowPx = Math.max(0, numberVar(`--hotspot-severity-${severityKey}-glow`, numberVar("--hotspot-glow", 12)));
     const canvasSize = Math.max(512, Math.min(2048, Math.round(numberVar("--warzone-event-marker-canvas-size", 1024))));
-    const key = `cluster:${colorCss}:${Math.min(count, 999)}:${discScale}:${borderColorCss}:${borderAlpha}:${borderWidthPx}:${canvasSize}`;
+    const key = `cluster:${colorCss}:${Math.min(count, 999)}:${discScale}:${borderColorCss}:${borderAlpha}:${borderWidthPx}:${glowPx}:${canvasSize}`;
     if (markerCache.has(key)) return markerCache.get(key);
     const sz = canvasSize;
     const cx = sz / 2;
@@ -1751,9 +1784,12 @@ function createClusterMarkerCanvas(colorCss, count) {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, sz, sz);
     ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
+    ctx.shadowColor = colorCssWithAlpha(borderColorCss, borderAlpha * 0.72);
+    ctx.shadowBlur = glowPx * (sz / 256);
     ctx.beginPath();
     ctx.arc(cx, cy, discR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
     if (borderWidthPx > 0 && borderAlpha > 0) {
         const screenMarkerSize = Math.max(1, getEventMarkerSizePx(count));
         const lineWidth = Math.max(1, borderWidthPx * (sz / screenMarkerSize));
@@ -2044,7 +2080,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
     };
 }
 function createEventMarkerFillEntity(event, options = {}) {
-    const colorCss = getEventMarkerColorCss(event.category);
+    const colorCss = getEventMarkerColorCss(event);
     const color = Cesium.Color.fromCssColorString(colorCss);
     const count = Number(event?.cluster_count || 1);
     const isCluster = count > 1;
@@ -2052,7 +2088,7 @@ function createEventMarkerFillEntity(event, options = {}) {
     const suppressMarkers = options?.suppressMarkers === true;
     const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
     const fillAlpha = Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82)));
-    const markerSizePx = getEventMarkerSizePx(count);
+    const markerSizePx = getEventMarkerSizePx(count, event.weighted_activity_score || event._activityScore);
     const markerSquash = getEventMarkerPerspectiveSquash(window.__warzoneViewer);
     return {
         id: `${event.id}-fill`,
@@ -2087,6 +2123,8 @@ function createEventMarkerFillEntity(event, options = {}) {
             category: event.category,
             severity: event.severity,
             cluster_count: count,
+            dominant_domain: event.dominant_domain || event._dominantDomain || classifyEventDomain(event),
+            activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
             lat: event.lat,
             lon: event.lon,
         },
@@ -2095,9 +2133,9 @@ function createEventMarkerFillEntity(event, options = {}) {
 function createEventMarkerPulseEntity(event, options = {}) {
     const settings = getEventPulseSettings(event);
     if (!settings.enabled) return null;
-    const colorCss = getEventPulseColorCss(event.category);
+    const colorCss = getEventPulseColorCss(event);
     const count = Number(event?.cluster_count || 1);
-    const markerSizePx = getEventMarkerSizePx(count);
+    const markerSizePx = getEventMarkerSizePx(count, event.weighted_activity_score || event._activityScore);
     const startScale = Math.max(0.8, Math.min(1.6, numberVar("--warzone-event-pulse-start-scale", 1.08)));
     const pulseSizePx = Math.max(markerSizePx * startScale, markerSizePx + 6);
     const suppressMarkers = options?.suppressMarkers === true;
@@ -2122,6 +2160,8 @@ function createEventMarkerPulseEntity(event, options = {}) {
             category: event.category,
             severity: event.severity,
             cluster_count: count,
+            dominant_domain: event.dominant_domain || event._dominantDomain || classifyEventDomain(event),
+            activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
             lat: event.lat,
             lon: event.lon,
         },
@@ -2184,8 +2224,8 @@ function createEventEntity(event, options = {}) {
             semiMajorAxis: radius,
             material: Cesium.Color.TRANSPARENT,
             outline: true,
-            outlineColor: Cesium.Color.fromCssColorString(getEventHotspotColorCss(event.category)).withAlpha(0.96),
-            outlineWidth: Math.max(1, numberVar("--warzone-event-hotspot-line-width", 2.6)),
+            outlineColor: Cesium.Color.fromCssColorString(getEventHotspotColorCss(event)).withAlpha(0.96),
+            outlineWidth: Math.max(1, numberVar(`--hotspot-severity-${String(event.severity || "medium").toLowerCase()}-width`, numberVar("--hotspot-border-width", 4))),
             height: 0,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             show: true,
@@ -2204,7 +2244,19 @@ function createEventEntity(event, options = {}) {
             category: event.category,
             severity: event.severity,
             cluster_count: count,
+            dominant_domain: event.dominant_domain || event._dominantDomain || classifyEventDomain(event),
+            activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
+            weighted_activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
+            pulse_mode: event.pulse_mode || "none",
+            pulse_eligible: event.pulse_eligible === true,
             cluster_events: clusterEvents,
+            event_ids: Array.isArray(event.event_ids) ? event.event_ids : [event.id],
+            actual_event_count: Number(event.actual_event_count || count),
+            cluster_bounds: event.bounds || null,
+            cluster_centroid: event.centroid || null,
+            domain_distribution: event.domain_distribution || null,
+            latest_event_time: event.latest_event_time || event.occurred_at || null,
+            trend_inputs: event.trend_inputs || null,
             lat: event.lat,
             lon: event.lon,
             location_label: event.location_label,
@@ -2251,7 +2303,7 @@ function addEventEntity(viewer, event, options = {}) {
     });
     const satelliteBadgeEntity = satelliteBadgeEntityConfig ? viewer.entities.add(satelliteBadgeEntityConfig) : null;
     const count = Number(event?.cluster_count || 1);
-    const markerSizePx = getEventMarkerSizePx(count);
+    const markerSizePx = getEventMarkerSizePx(count, event.weighted_activity_score || event._activityScore);
     if (fillEntity?.ellipse) fillEntity.ellipse.show = false;
     if (
         fillEntity &&
@@ -6593,7 +6645,9 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
     }
     viewer.__warzone = {
         addEvent(event) {
-            const entity = addEventEntity(viewer, event);
+            const prepared = prepareEventsForCurrentZoom(viewer, [event])[0];
+            if (!prepared) return null;
+            const entity = addEventEntity(viewer, prepared);
             applyEventLod(viewer);
             viewer.scene.requestRender();
             return entity;

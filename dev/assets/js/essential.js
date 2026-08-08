@@ -7679,7 +7679,7 @@ function ensureHotspotLayer(viewer, hotspotRoot) {
         stackDistancePx: 76,
         maxVisiblePerHotspot: 6,
         minItemsForCluster: 1,
-        throttleMove: 16,
+        throttleMove: 90,
     });
     window.__hotspotLayer = __hotspotLayer;
     return __hotspotLayer;

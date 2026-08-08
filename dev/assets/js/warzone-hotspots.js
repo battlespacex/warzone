@@ -7,6 +7,11 @@ import {
     getPlatformSeverityClass,
     getPlatformSeverityLabel,
 } from "./warzone-taxonomy.js";
+import {
+    buildSpatialEventClusters,
+    getClusterDistanceKm,
+    scoreToRadius,
+} from "./warzone-event-cluster-model.js";
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 function sanitizeText(v) {
     if (!v) return "";
@@ -584,6 +589,15 @@ function makeHotspotEventSignature(events = []) {
         const lon = Number(event?.lon);
         const latKey = Number.isFinite(lat) ? Math.round(lat * 1000) : 0;
         const lonKey = Number.isFinite(lon) ? Math.round(lon * 1000) : 0;
+        const qualityKey = [
+            event?.category,
+            event?.severity,
+            event?.confidence,
+            event?.corroboration_state,
+            event?.independent_source_family_count,
+            event?.location_precision,
+            event?.map_eligible,
+        ].join("|");
         hash ^= idLen;
         hash = Math.imul(hash, 16777619);
         hash ^= ts;
@@ -592,6 +606,10 @@ function makeHotspotEventSignature(events = []) {
         hash = Math.imul(hash, 16777619);
         hash ^= lonKey;
         hash = Math.imul(hash, 16777619);
+        for (let index = 0; index < qualityKey.length; index += 1) {
+            hash ^= qualityKey.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
+        }
     }
     const first = arr[0];
     const last = arr[arr.length - 1];
@@ -691,73 +709,33 @@ function getZoomAwareHotspotConfig(viewer, cfg) {
     };
 }
 // ─── geo clustering ────────────────────────────────────────────────────────────
-function geoCluster(events, dLat, dLon, minCount, maxCards) {
-    const groups = [];
-    const buckets = new Map();
-    const bucketLat = Math.max(0.1, Number(dLat) || 1);
-    const bucketLon = Math.max(0.1, Number(dLon) || 1);
-    const getBucketKey = (lat, lon) => `${Math.floor(lat / bucketLat)}:${Math.floor(lon / bucketLon)}`;
-    const getNearbyGroups = (lat, lon) => {
-        const latBucket = Math.floor(lat / bucketLat);
-        const lonBucket = Math.floor(lon / bucketLon);
-        const nearby = [];
-        for (let y = latBucket - 1; y <= latBucket + 1; y += 1) {
-            for (let x = lonBucket - 1; x <= lonBucket + 1; x += 1) {
-                const list = buckets.get(`${y}:${x}`);
-                if (list?.length) nearby.push(...list);
-            }
-        }
-        return nearby;
-    };
-    for (const e of events) {
-        const lat = Number(e.lat);
-        const lon = Number(e.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-        let g = null;
-        for (const gr of getNearbyGroups(lat, lon)) {
-            if (Math.abs(gr.lat - lat) <= dLat && Math.abs(gr.lon - lon) <= dLon) {
-                g = gr;
-                break;
-            }
-        }
-        if (g) {
-            const n = g.items.length;
-            g.lat = (g.lat * n + lat) / (n + 1);
-            g.lon = (g.lon * n + lon) / (n + 1);
-            g.items.push(e);
-        } else {
-            const nextGroup = { lat, lon, items: [e] };
-            groups.push(nextGroup);
-            const key = getBucketKey(lat, lon);
-            if (!buckets.has(key)) buckets.set(key, []);
-            buckets.get(key).push(nextGroup);
-        }
-    }
-    return groups
-        .map((g) => ({
-            ...g,
-            items: dedupeDisplayItems(g.items),
-        }))
-        .filter((g) => g.items.length >= minCount)
-        .map((g) => {
-            const cat = dominantCat(g.items);
-            const sev = dominantSev(g.items);
-            const latest = latestEvt(g.items);
+function geoCluster(events, zoomBucket, minCount, maxCards) {
+    const key = String(zoomBucket || "regional").toLowerCase();
+    const fallbackDistance = getClusterDistanceKm(key);
+    const distanceKm = Math.max(0, cssNumber(`--hotspot-cluster-distance-${key}-km`, fallbackDistance));
+    return buildSpatialEventClusters(events, {
+        zoomBucket: key,
+        distanceKm,
+        dominanceThreshold: cssNumber("--hotspot-dominance-threshold", 0.48),
+        dominanceMargin: cssNumber("--hotspot-dominance-margin", 0.12),
+        pulseCap: cssNumber("--hotspot-pulse-cap", 12),
+    })
+        .filter((cluster) => cluster.event_count >= minCount)
+        .slice(0, maxCards)
+        .map((cluster) => {
+            const cat = String(cluster.dominant_domain || "MIXED").toLowerCase();
             return {
-                id: `hs-${cat}-${g.lat.toFixed(2)}-${g.lon.toFixed(2)}`,
-                lat: g.lat,
-                lon: g.lon,
-                count: g.items.length,
+                ...cluster,
+                id: cluster.cluster_id,
+                count: cluster.event_count,
                 cat,
-                sev,
+                sev: cluster.severity,
                 icon: icon(cat),
-                label: label(cat),
-                latest,
-                items: g.items,
+                label: cat.replace(/_/g, " ").toUpperCase(),
+                latest: cluster,
+                items: cluster._clusterEvents,
             };
-        })
-        .sort((a, b) => b.count - a.count)
-        .slice(0, maxCards);
+        });
 }
 // ─── screen stacking ──────────────────────────────────────────────────────────
 const STACK_OFF = [
@@ -769,16 +747,27 @@ const HOTSPOT_LABEL_OFFSET = { x: 86, y: -52 };
 const HOTSPOT_RADIUS_OFFSET = { x: 0, y: 0 };
 function createHotspotRadiusEl(cluster) {
     const el = document.createElement("div");
-    el.className = [
-        "wzhs-radius",
-        `wzhs-radius--${cluster.cat}`,
-        `wzhs-radius--sev-${cluster.sev}`,
-    ].filter(Boolean).join(" ");
-    el.dataset.category = categoryDataValue(cluster.cat);
-    el.dataset.severity = getPlatformSeverityClass(cluster.sev);
+    applyHotspotRadiusModel(el, cluster);
     el.innerHTML = `<div class="wzhs-radius__ring" aria-hidden="true"></div>`;
     el.setAttribute("aria-hidden", "true");
     return el;
+}
+function applyHotspotRadiusModel(el, cluster) {
+    if (!el) return;
+    const domain = String(cluster?.cat || cluster?.dominant_domain || "mixed").toLowerCase();
+    const severity = getPlatformSeverityClass(cluster?.sev || cluster?.severity || "medium");
+    el.className = [
+        "wzhs-radius",
+        `wzhs-radius--${domain}`,
+        `wzhs-radius--sev-${severity}`,
+        cluster?.pulse_eligible ? `wzhs-radius--pulse-${cluster.pulse_mode || "subtle"}` : "",
+    ].filter(Boolean).join(" ");
+    el.dataset.category = domain;
+    el.dataset.severity = severity;
+    const colorKey = domain === "air_defence" ? "airdefence" : domain;
+    el.style.setProperty("--wzhs-radius-color", `var(--activity-${colorKey})`);
+    el.style.setProperty("--wzhs-radius-severity-color", `var(--hotspot-severity-${severity}-color)`);
+    el.style.setProperty("--wzhs-radius-severity-width", `var(--hotspot-severity-${severity}-width)`);
 }
 function removeHotspotNode(node) {
     if (!node) return;
@@ -813,37 +802,13 @@ function syncHotspotRadiusSplitState(radiusEl, hidden) {
 }
 function getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg) {
     const zoomScale = Math.max(0.15, Number(zoomCfg?.radiusScale || 1));
-    const cssReferenceDiameter = cssLengthToPx("--wzhs-radius-size", 176) * zoomScale;
-    const minDiameter = Math.max(16, cssNumber("--wzhs-radius-min-px", 72));
-    const maxDiameter = Math.max(minDiameter, cssNumber("--wzhs-radius-max-px", 920));
-    const fitPadding = Math.max(0, cssNumber("--wzhs-radius-cluster-padding-px", 110)) * zoomScale;
-    const scene = viewer?.scene;
-    if (!scene || !Array.isArray(cluster?.items) || !cluster.items.length) return Math.max(minDiameter, cssReferenceDiameter);
-    const center = toScreen(scene, cluster.lon, cluster.lat);
-    if (!center) return Math.max(minDiameter, cssReferenceDiameter);
-    let maxDistance = 0;
-    let visiblePoints = 0;
-    for (const item of cluster.items) {
-        const lat = Number(item?.lat);
-        const lon = Number(item?.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-        const pt = toScreen(scene, lon, lat);
-        if (!pt) continue;
-        visiblePoints += 1;
-        const dx = pt.x - center.x;
-        const dy = pt.y - center.y;
-        maxDistance = Math.max(maxDistance, Math.hypot(dx, dy));
-    }
-    const count = Math.max(1, Number(cluster?.count || cluster?.items?.length || 1));
-    const radiusKm = Math.max(1, cssNumber("--wzhs-radius-base-km", 170))
-        + Math.log2(Math.max(2, count)) * Math.max(0, cssNumber("--wzhs-radius-count-km", 18));
-    const meterDiameter = getProjectedMetersToPixels(scene, cluster.lon, cluster.lat, radiusKm * 1000) * 2 * zoomScale;
-    if (!visiblePoints) {
-        return Math.max(minDiameter, Math.min(maxDiameter, meterDiameter || cssReferenceDiameter));
-    }
-    const stackAllowance = (cluster.stackIdx || 0) * 10;
-    const diameter = Math.max(minDiameter, meterDiameter, maxDistance * 2 + fitPadding + stackAllowance);
-    return Math.min(maxDiameter, diameter);
+    const minDiameter = Math.max(16, cssNumber("--hotspot-overlay-size-min", 58));
+    const maxDiameter = Math.max(minDiameter, cssNumber("--hotspot-overlay-size-max", 168));
+    return scoreToRadius(cluster?.weighted_activity_score || cluster?._activityScore || 0, {
+        min: minDiameter,
+        max: maxDiameter,
+        scoreAtMax: cssNumber("--hotspot-score-at-max", 80),
+    }) * zoomScale;
 }
 function stackVisible(clusters, overlapPx, maxPer) {
     const stacks = [];
@@ -1035,13 +1000,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
         rootEl.dataset.zoomBucket = zoomCfg.key || "default";
         if (clustersDirty || lastZoomConfigKey !== zoomCfg.key) {
-            cachedClusters = geoCluster(
-                allEvents,
-                zoomCfg.clusterDistanceLat,
-                zoomCfg.clusterDistanceLon,
-                cfg.minItemsForCluster,
-                zoomCfg.maxCards
-            );
+            cachedClusters = geoCluster(allEvents, zoomCfg.key, cfg.minItemsForCluster, zoomCfg.maxCards);
             clustersDirty = false;
             lastZoomConfigKey = zoomCfg.key;
         }
@@ -1081,6 +1040,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusEl = createHotspotRadiusEl(cluster);
                     rootEl.appendChild(node.radiusEl);
                 }
+                applyHotspotRadiusModel(node.radiusEl, cluster);
                 syncHotspotRadiusSplitState(node.radiusEl, radiusSplitHidden);
                 if (node.el && !cardsEnabled) {
                     node.el.remove();
