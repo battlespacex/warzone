@@ -66,3 +66,27 @@ test("public source labeling recognizes newly added feed ids", () => {
     assert.equal(meeLive.sourceLabel, "Middle East Regional Feed");
     assert.equal(intelSlava.sourceLabel, "Intel Slava");
 });
+
+test("public Intel Wire quality fields are explicit without exposing provenance", () => {
+    const publicItem = toPublicIntelWireItem({
+        id: "feed-quality-1",
+        title: "Regional incident report",
+        source_name: "Regional Alerts",
+        source_type: "telegram",
+        raw: {
+            _event_quality: {
+                corroboration_state: "UNVERIFIED",
+                raw_report_count: 1,
+                independent_source_family_count: 1,
+                source_provenance: [{ url: "https://secret.example/raw" }],
+            },
+        },
+    });
+
+    assert.equal(publicItem.corroboration_state, "UNVERIFIED");
+    assert.equal(publicItem.verification_state, "UNVERIFIED");
+    assert.equal(publicItem.source_class, "TELEGRAM");
+    assert.equal(publicItem.source_tier, "TIER_3");
+    assert.equal(publicItem.raw_report_count, 1);
+    assert.equal("source_provenance" in publicItem, false);
+});

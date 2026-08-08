@@ -9,6 +9,8 @@
 //   until explicit public endpoint contracts are approved for this worker.
 // - Cloudflare Radar should use documented API access, not radar.cloudflare.com scraping.
 
+import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
+
 const STATUS_SOURCES = [
   {
     id: "ooni-incidents-api",
@@ -144,16 +146,16 @@ const STATUS_SOURCES = [
 ];
 
 function getStatusSources() {
-  return STATUS_SOURCES.slice();
+  return STATUS_SOURCES.map(normalizeSourceDefinition);
 }
 
 function getEnabledStatusSources() {
-  return STATUS_SOURCES.filter((source) => source.enabled === true);
+  return STATUS_SOURCES.filter((source) => source.enabled === true).map(normalizeSourceDefinition);
 }
 
 function getStatusSourcesByType(type = "") {
   const key = String(type || "").trim().toLowerCase();
-  return STATUS_SOURCES.filter((source) => String(source.type || "").toLowerCase() === key);
+  return STATUS_SOURCES.filter((source) => String(source.type || "").toLowerCase() === key).map(normalizeSourceDefinition);
 }
 
 export {

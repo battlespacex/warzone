@@ -31,7 +31,7 @@ test("conflict source registry includes requested NYT and regional France 24 fee
 });
 
 test("existing requested conflict sources expose source policy metadata", () => {
-  const sources = getRssSources();
+  const sources = getRssSources({ includeDisabled: true });
   const france24 = sources.find((source) => source.id === "france24-en");
   const mee = sources.find((source) => source.id === "middle-east-eye");
 
@@ -41,6 +41,8 @@ test("existing requested conflict sources expose source policy metadata", () => 
   assert.equal(mee?.attribution, "Middle East Eye RSS");
   assert.ok(Number(france24?.minimumScore) > 0);
   assert.ok(Number(mee?.minimumScore) > 0);
+  assert.equal(france24?.enabled, false);
+  assert.match(france24?.disabled_reason || "", /HTML.*index/i);
 });
 
 test("live html and telegram source registries include requested additions", () => {

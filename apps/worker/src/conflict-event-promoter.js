@@ -12,6 +12,8 @@ import {
   MAP_EVENT_HISTORY_WINDOW_HOURS,
   isMapEventHistoricallyRelevant
 } from "../../shared/map-event-policy.js";
+import { mergeEventQuality, readEventQuality } from "./event-quality.js";
+import { CORROBORATION_STATES } from "../../shared/source-quality-policy.js";
 
 const DEFAULT_PROMOTION_LIMIT = 40;
 const DEFAULT_MAX_AGE_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
@@ -73,27 +75,62 @@ function isSchemaColumnError(error) {
   return /column|schema cache|priority_score|metadata|tags|weapon_type|subcategory|severity|report_type/i.test(message);
 }
 
-async function eventAlreadyExists(payload = {}) {
+async function findExistingEvent(payload = {}) {
+  const selection = "id, metadata, confidence, status, source_count, dedupe_key, source_url";
   const dedupeKey = payload.dedupe_key;
   if (dedupeKey) {
     const { data, error } = await supabase
       .from("events")
-      .select("id")
+      .select(selection)
       .eq("dedupe_key", dedupeKey)
       .limit(1);
-    if (!error && Array.isArray(data) && data.length > 0) return true;
+    if (!error && Array.isArray(data) && data.length > 0) return data[0];
   }
 
   if (payload.source_url) {
     const { data, error } = await supabase
       .from("events")
-      .select("id")
+      .select(selection)
       .eq("source_url", payload.source_url)
       .limit(1);
-    if (!error && Array.isArray(data) && data.length > 0) return true;
+    if (!error && Array.isArray(data) && data.length > 0) return data[0];
   }
 
-  return false;
+  const fingerprint = readEventQuality(payload).event_fingerprint;
+  if (fingerprint) {
+    const { data, error } = await supabase
+      .from("events")
+      .select(selection)
+      .eq("metadata->event_quality->>event_fingerprint", fingerprint)
+      .limit(1);
+    if (!error && Array.isArray(data) && data.length > 0) return data[0];
+  }
+
+  return null;
+}
+
+async function mergePromotedEvent(existing = {}, incoming = {}) {
+  const quality = mergeEventQuality(existing, incoming);
+  const metadata = existing.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+  const confidence = quality.corroboration_state === CORROBORATION_STATES.DISPUTED
+    ? quality.confidence
+    : Math.min(96, Math.max(Number(existing.confidence || 0), Number(incoming.confidence || 0), quality.confidence));
+  const status = quality.corroboration_state === CORROBORATION_STATES.CONFIRMED
+    ? "verified"
+    : quality.corroboration_state === CORROBORATION_STATES.UNVERIFIED || quality.corroboration_state === CORROBORATION_STATES.DISPUTED
+      ? "signal"
+      : "developing";
+  const updateResult = await supabase
+    .from("events")
+    .update({
+      metadata: { ...metadata, event_quality: quality },
+      confidence,
+      status,
+      source_count: quality.raw_report_count,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existing.id);
+  return { ...updateResult, quality };
 }
 
 async function insertPromotedEvent(payload = {}) {
@@ -112,6 +149,7 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
     considered_count: 0,
     candidate_count: 0,
     promoted_count: 0,
+    merged_count: 0,
     duplicate_count: 0,
     skipped_non_operational_count: 0,
     skipped_old_count: 0,
@@ -155,8 +193,18 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
     }
 
     try {
-      if (await eventAlreadyExists(payload)) {
-        result.duplicate_count += 1;
+      const existing = await findExistingEvent(payload);
+      if (existing) {
+        const beforeCount = Number(readEventQuality(existing).raw_report_count || 0);
+        const mergeResult = await mergePromotedEvent(existing, payload);
+        if (mergeResult.error) {
+          result.error_count += 1;
+          result.errors.push(mergeResult.error.message || String(mergeResult.error));
+        } else if (Number(mergeResult.quality?.raw_report_count || 0) > beforeCount) {
+          result.merged_count += 1;
+        } else {
+          result.duplicate_count += 1;
+        }
         continue;
       }
 

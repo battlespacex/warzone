@@ -1137,6 +1137,18 @@ function getHotspotSourceEvents(events = []) {
 function getIntelWireTimestamp(item = {}) {
     return item.timestamp || item.published_at || item.publishedAt || item.fetched_at || item.fetchedAt || new Date().toISOString();
 }
+function getIntelWireVerificationState(item = {}) {
+    const value = String(
+        item.corroboration_state
+        || item.verification_state
+        || item.metadata?.corroboration_state
+        || item.metadata?.verification_state
+        || "REPORTED"
+    ).trim().toUpperCase();
+    return ["CONFIRMED", "CORROBORATED", "REPORTED", "UNVERIFIED", "DISPUTED"].includes(value)
+        ? value
+        : "REPORTED";
+}
 function getLongestIntelWireTextCandidate(values = []) {
     return (Array.isArray(values) ? values : [])
         .map((value) => sanitizeIntelWireStructuredText(value))
@@ -1145,6 +1157,7 @@ function getLongestIntelWireTextCandidate(values = []) {
 }
 function normalizeIntelWireItem(item = {}) {
     const occurredAt = getIntelWireTimestamp(item);
+    const verificationState = getIntelWireVerificationState(item);
     const idSource = item.id || item.guid || item.publicUrl || item.public_url || item.url || `${item.title || "intel"}-${occurredAt}`;
     const title = sanitizeEventPopupText(item.title || item.display_title || item.displayTitle || "", "");
     const summary = sanitizeIntelWireSummary(
@@ -1224,6 +1237,16 @@ function normalizeIntelWireItem(item = {}) {
         location_label: locationLabel,
         report_type: "intel_wire",
         display_surface: "intel_wire",
+        corroboration_state: verificationState,
+        verification_state: verificationState,
+        raw_report_count: Number(item.raw_report_count || 1),
+        independent_source_family_count: Number(item.independent_source_family_count || 1),
+        official_confirmation: item.official_confirmation === true,
+        direct_evidence: item.direct_evidence === true,
+        disputed: item.disputed === true || verificationState === "DISPUTED",
+        source_class: item.source_class || null,
+        source_tier: item.source_tier || null,
+        source_reliability: Number.isFinite(Number(item.source_reliability)) ? Number(item.source_reliability) : null,
         tags: ["intel-wire-only", "conflict-feed"],
         media,
         satellite_context: item.satellite_context || item.satelliteContext || null,
@@ -1231,6 +1254,9 @@ function normalizeIntelWireItem(item = {}) {
             ...(item.metadata && typeof item.metadata === "object" ? item.metadata : {}),
             display_surface: "intel_wire",
             confidence_score: item.confidence_score ?? item.confidence ?? item.metadata?.confidence_score ?? null,
+            corroboration_state: verificationState,
+            raw_report_count: Number(item.raw_report_count || 1),
+            independent_source_family_count: Number(item.independent_source_family_count || 1),
             source_attribution_level: item.sourceAttributionLevel || item.source_attribution_level || "grouped",
             source_type_label: item.sourceTypeLabel || item.source_type_label || null,
             full_content: fullContent,
@@ -4580,6 +4606,7 @@ function getIntelWireCardRenderSignature(event = {}) {
         event.occurred_at || "",
         event.category || "",
         event.severity || "",
+        getIntelWireVerificationState(event),
         event.source_name || "",
         event.source_url || "",
         event.title || "",
@@ -4803,6 +4830,7 @@ function openIntelWireDetailModal(event = {}, trigger = null) {
     const categoryClass = getPlatformCategoryClass(event, { surface: "intel-wire" });
     const severityClass = getPlatformSeverityClass(event.severity || "medium");
     const severityLabel = getPlatformSeverityLabel(event.severity || "", "Medium");
+    const verificationState = getIntelWireVerificationState(event);
     const location = sanitizeEventPopupText(compactEventPlaceLabel(event), "");
     const fallbackTitle = location
         ? `${toUiLabel(categoryClass, "Activity")} report near ${location}`
@@ -4834,6 +4862,7 @@ function openIntelWireDetailModal(event = {}, trigger = null) {
                         <div class="wz-intel-wire-detail__meta">
                             <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
                             <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                            <span class="feed-pill" data-verification-state="${escapeHtml(verificationState.toLowerCase())}">${escapeHtml(verificationState)}</span>
                             ${occurredAt ? `<time datetime="${escapeHtml(occurredAt)}" data-intel-wire-time="${escapeHtml(occurredAt)}">${escapeHtml(formatIntelWireDisplayTime(occurredAt))}</time>` : ""}
                             ${sourceMeta}
                             ${confidenceText ? `<span>${escapeHtml(confidenceText)}</span>` : ""}
@@ -4932,6 +4961,7 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
     const categoryClass = getPlatformCategoryClass(event, { surface: "intel-wire" });
     const severityClass = getPlatformSeverityClass(event.severity || "medium");
     const severityLabel = getPlatformSeverityLabel(event.severity || "", "Medium");
+    const verificationState = getIntelWireVerificationState(event);
     card.dataset.category = categoryClass;
     card.dataset.severity = severityClass;
     const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
@@ -4961,6 +4991,7 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
             <div class="wz-feed-capsule">
                 <span class="feed-pill feed-pill--${escapeHtml(categoryClass)}" data-category="${escapeHtml(categoryClass)}">${escapeHtml(categoryLabel)}</span>
                 <span class="feed-pill feed-pill--severity feed-pill--severity-${escapeHtml(severityClass)}" data-severity="${escapeHtml(severityClass)}">${escapeHtml(severityLabel)}</span>
+                <span class="feed-pill" data-verification-state="${escapeHtml(verificationState.toLowerCase())}">${escapeHtml(verificationState)}</span>
             </div>
             ${occurredAt ? `<time datetime="${escapeHtml(occurredAt)}" data-intel-wire-time="${escapeHtml(occurredAt)}">${escapeHtml(formatIntelWireDisplayTime(occurredAt))}</time>` : ""}
             ${sourceName ? `<small class="wz-feed-source">${sourceMarkup}</small>` : ""}

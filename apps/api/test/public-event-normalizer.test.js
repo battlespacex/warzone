@@ -225,3 +225,30 @@ test("preserves normalized media and satellite availability fields", () => {
     assert.equal(event.image_type, "News Image");
     assert.equal(event.satellite_available, true);
 });
+
+test("publishes event corroboration state and counts without raw provenance", () => {
+    const event = toPublicEvent({
+        id: "evt-quality",
+        category: "strike",
+        title: "Confirmed strike report",
+        source_name: "Reuters",
+        lat: 32.65,
+        lon: 51.67,
+        metadata: {
+            event_quality: {
+                corroboration_state: "CORROBORATED",
+                raw_report_count: 4,
+                independent_source_family_count: 2,
+                direct_evidence: true,
+                source_provenance: [{ url: "https://internal.example/report" }],
+            },
+        },
+    });
+
+    assert.equal(event.corroboration_state, "CORROBORATED");
+    assert.equal(event.raw_report_count, 4);
+    assert.equal(event.independent_source_family_count, 2);
+    assert.equal(event.direct_evidence, true);
+    assert.equal("source_provenance" in event, false);
+    assert.equal("source_provenance" in event.metadata.event_quality, false);
+});

@@ -68,12 +68,16 @@ import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from 
 import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { generateScheduledReports } from "../../shared/reporting-service.js";
+import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
 import {
     cleanDisplayText,
+    makeEventFingerprint,
     normalizeEventRowForStorage,
     normalizeSourceName,
     resolveEventLocation
 } from "./intelligence-normalizer.js";
+import { mergeEventQuality, readEventQuality } from "./event-quality.js";
+import { CORROBORATION_STATES } from "../../shared/source-quality-policy.js";
 async function getSourceConfig(sourceName) {
     if (!sourceName) return null;
     const { data, error } = await supabase
@@ -92,7 +96,9 @@ function buildSourceRegistryRows(feeds = []) {
             source_name: normalizeSourceName(feed.source_name || feed.name) || "Worker Feed",
             source_type: feed.type || feed.parser || "feed",
             enabled: feed.enabled !== false,
-            trust_score: Number.isFinite(Number(feed.trust_score)) ? Number(feed.trust_score) : 50,
+            trust_score: Number.isFinite(Number(feed.trust_score))
+                ? Number(feed.trust_score)
+                : Number(feed.source_reliability || 50),
             publish_mode: feed.publish_mode || "normal",
             category_default: feed.category || null,
             tags: Array.isArray(feed.tags) ? feed.tags : null,
@@ -127,6 +133,7 @@ function interpolateEnvPlaceholders(str) {
     return String(str || "").replace(/\$\{([A-Z0-9_]+)\}/g, (_, key) => process.env[key] || "");
 }
 const sources = JSON.parse(interpolateEnvPlaceholders(rawSources));
+sources.feeds = (Array.isArray(sources.feeds) ? sources.feeds : []).map(normalizeSourceDefinition);
 let isWorkerRunning = false;
 let isConflictFeedRunning = false;
 let isStatusFeedRunning = false;
@@ -1131,34 +1138,32 @@ function isMilitaryRelevantEvent(event) {
 }
 function deriveEventStatus(event) {
     const confidence = Number(event?.confidence || 0);
-    const source = String(event?.source_name || "").toLowerCase();
-    const summary = String(event?.summary || "").toLowerCase();
-    if (confidence >= 85 || source.includes("official") || /confirmed|official|verified/.test(summary)) {
+    const state = readEventQuality(event).corroboration_state;
+    if (state === CORROBORATION_STATES.DISPUTED || state === CORROBORATION_STATES.UNVERIFIED) {
+        return "signal";
+    }
+    if (state === CORROBORATION_STATES.CONFIRMED || confidence >= 90) {
         return "verified";
     }
-    if (confidence >= 60) {
+    if (state === CORROBORATION_STATES.CORROBORATED || state === CORROBORATION_STATES.REPORTED || confidence >= 60) {
         return "developing";
     }
     return "signal";
 }
 function applyEscalation(existing, incoming) {
-    const out = {};
-    const baseConf = Number(existing?.confidence || 50);
-    const inc = Number(incoming?.confidence || 50);
-    // boost confidence on corroboration
-    const boosted = Math.min(95, Math.max(baseConf, inc) + 5);
-    out.confidence = boosted;
-    // escalate status
-    const statusOrder = ["signal", "developing", "verified"];
-    const cur = String(existing?.status || "signal");
-    let idx = statusOrder.indexOf(cur);
-    if (boosted >= 85) idx = 2;
-    else if (boosted >= 60) idx = Math.max(idx, 1);
-    out.status = statusOrder[idx] || "signal";
-    // increment sources
-    out.source_count = (existing?.source_count || 1) + 1;
-    out.updated_at = new Date().toISOString();
-    return out;
+    const eventFingerprint = readEventQuality(incoming).event_fingerprint || makeEventFingerprint(incoming);
+    const quality = mergeEventQuality(existing, incoming, { event_fingerprint: eventFingerprint });
+    const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+    const confidence = quality.corroboration_state === CORROBORATION_STATES.DISPUTED
+        ? quality.confidence
+        : Math.min(96, Math.max(Number(existing?.confidence || 0), Number(incoming?.confidence || 0), quality.confidence));
+    return {
+        confidence,
+        status: deriveEventStatus({ confidence, metadata: { ...metadata, event_quality: quality } }),
+        source_count: quality.raw_report_count,
+        metadata: { ...metadata, event_quality: quality },
+        updated_at: new Date().toISOString()
+    };
 }
 /* ----------------------------------------
  * Supabase helpers
@@ -1390,8 +1395,8 @@ async function findSimilarEvent(event) {
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return null;
     const eventTime = new Date(event.occurred_at).getTime();
     if (!Number.isFinite(eventTime)) return null;
-    const fromTime = new Date(eventTime - 60 * 60 * 1000).toISOString();
-    const toTime = new Date(eventTime + 60 * 60 * 1000).toISOString();
+    const fromTime = new Date(eventTime - 6 * 60 * 60 * 1000).toISOString();
+    const toTime = new Date(eventTime + 6 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
         .from("events")
         .select("*")
@@ -1402,18 +1407,10 @@ async function findSimilarEvent(event) {
         console.error("Find similar error:", error.message);
         return null;
     }
+    const incomingFingerprint = readEventQuality(event).event_fingerprint || makeEventFingerprint(event);
     for (const row of data || []) {
-        const latDiff = Math.abs(Number(row.lat) - Number(event.lat));
-        const lonDiff = Math.abs(Number(row.lon) - Number(event.lon));
-        const sameArea = latDiff < 0.3 && lonDiff < 0.3;
-        const titleA = (row.title || "").toLowerCase();
-        const titleB = (event.title || "").toLowerCase();
-        const sameTitle =
-            titleA.includes(titleB.slice(0, 20)) ||
-            titleB.includes(titleA.slice(0, 20));
-        if (sameArea && sameTitle) {
-            return row;
-        }
+        const existingFingerprint = readEventQuality(row).event_fingerprint || makeEventFingerprint(row);
+        if (incomingFingerprint && existingFingerprint === incomingFingerprint) return row;
     }
     return null;
 }
@@ -1489,7 +1486,11 @@ async function insertEventIfValid(event) {
     if (!Number.isFinite(event.confidence)) {
         event.confidence = deriveConfidence(event);
     }
-    if (sourceConfig && Number.isFinite(Number(sourceConfig.default_confidence))) {
+    if (
+        sourceConfig &&
+        Number.isFinite(Number(sourceConfig.default_confidence)) &&
+        !Array.isArray(readEventQuality(event).source_provenance)
+    ) {
         event.confidence = Number(sourceConfig.default_confidence);
     }
     if (typeof deriveEventStatus === "function") {

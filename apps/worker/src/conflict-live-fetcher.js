@@ -1,6 +1,12 @@
 import { getLiveHtmlSources } from "./conflict-sources.js";
 import { enrichConflictItem } from "./conflict-filter.js";
 import { enrichConflictItemsWithArticleMetadata } from "./conflict-media-enricher.js";
+import {
+  getSourceHealth,
+  recordSourceFailure,
+  recordSourceSuccess,
+  shouldAttemptSource,
+} from "./source-health.js";
 
 const LIVE_FETCH_TIMEOUT_MS = Number.parseInt(process.env.CONFLICT_LIVE_FETCH_TIMEOUT_MS || "", 10) || 15000;
 const LIVE_FETCH_CONCURRENCY = Math.max(1, Number.parseInt(process.env.CONFLICT_LIVE_FETCH_CONCURRENCY || "", 10) || 3);
@@ -118,6 +124,9 @@ function parseLiveHtmlSource(html = "", source = {}) {
 }
 
 async function fetchSingleLiveHtmlSource(source = {}) {
+  if (!shouldAttemptSource(source)) {
+    return { source, ok: false, skipped: true, fetched_count: 0, count: 0, items: [], health: getSourceHealth(source) };
+  }
   const retryAttempts = Math.max(0, Number(source.retry_attempts) || 0);
   const retryBackoffMs = Math.max(0, Number(source.retry_backoff_ms) || 0);
   const minimumScore = Number.isFinite(Number(source?.minimumScore))
@@ -134,12 +143,14 @@ async function fetchSingleLiveHtmlSource(source = {}) {
         .map((item) => enrichConflictItem(item, { minimumScore }))
         .filter((item) => item.is_conflict_relevant);
 
+      const health = recordSourceSuccess(source, parsedItems.length);
       return {
         source,
         ok: true,
         fetched_count: parsedItems.length,
         count: items.length,
         items,
+        health,
       };
     } catch (error) {
       lastError = error;
@@ -153,6 +164,7 @@ async function fetchSingleLiveHtmlSource(source = {}) {
   console.warn(`Live HTML failed: ${source.name}`);
   console.warn(lastError?.message || "Unknown live HTML error");
 
+  const health = recordSourceFailure(source, lastError);
   return {
     source,
     ok: false,
@@ -160,6 +172,7 @@ async function fetchSingleLiveHtmlSource(source = {}) {
     count: 0,
     items: [],
     error: lastError?.message || "Unknown live HTML error",
+    health,
   };
 }
 

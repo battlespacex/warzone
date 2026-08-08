@@ -4,6 +4,12 @@ import Parser from "rss-parser";
 import { getRssSources } from "./conflict-sources.js";
 import { enrichConflictItem } from "./conflict-filter.js";
 import { enrichConflictItemsWithArticleMetadata } from "./conflict-media-enricher.js";
+import {
+  getSourceHealth,
+  recordSourceFailure,
+  recordSourceSuccess,
+  shouldAttemptSource,
+} from "./source-health.js";
 
 const parser = new Parser({
   headers: {
@@ -205,6 +211,9 @@ function normalizeRssItem(item = {}, source = {}) {
 }
 
 async function fetchSingleRssSource(source) {
+  if (!shouldAttemptSource(source)) {
+    return { source, ok: false, skipped: true, fetched_count: 0, count: 0, items: [], health: getSourceHealth(source) };
+  }
   const retryAttempts = Math.max(0, Number(source?.retry_attempts) || 0);
   const retryBackoffMs = Math.max(0, Number(source?.retry_backoff_ms) || 0);
   const minimumScore = Number.isFinite(Number(source?.minimumScore))
@@ -234,12 +243,14 @@ async function fetchSingleRssSource(source) {
 
       const items = await enrichConflictItemsWithArticleMetadata(relevantItems);
 
+      const health = recordSourceSuccess(source, normalizedItems.length);
       return {
         source,
         ok: true,
         fetched_count: normalizedItems.length,
         count: items.length,
-        items
+        items,
+        health
       };
     } catch (error) {
       lastError = error;
@@ -254,13 +265,15 @@ async function fetchSingleRssSource(source) {
     console.warn(`RSS failed: ${source.name}`);
     console.warn(lastError?.message || "Unknown RSS error");
 
+    const health = recordSourceFailure(source, lastError);
     return {
       source,
       ok: false,
       fetched_count: 0,
       count: 0,
       items: [],
-      error: lastError?.message || "Unknown RSS error"
+      error: lastError?.message || "Unknown RSS error",
+      health
     };
   } catch {
     return {
@@ -269,7 +282,8 @@ async function fetchSingleRssSource(source) {
       fetched_count: 0,
       count: 0,
       items: [],
-      error: "Unknown RSS error"
+      error: "Unknown RSS error",
+      health: recordSourceFailure(source, lastError || new Error("Unknown RSS error"))
     };
   }
 }

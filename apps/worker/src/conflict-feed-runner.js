@@ -4,6 +4,9 @@ import { fetchAllRssConflictItems } from "./conflict-rss-fetcher.js";
 import { fetchAllLiveHtmlConflictItems } from "./conflict-live-fetcher.js";
 import { fetchAllTelegramConflictItems } from "./conflict-telegram-fetcher.js";
 import { fetchReliefWebConflictItems } from "./conflict-reliefweb-fetcher.js";
+import { resolveEventLocation } from "./intelligence-normalizer.js";
+import { aggregateEventQuality } from "./event-quality.js";
+import { resolveSourceProfile } from "../../shared/source-quality-policy.js";
 
 const DEDUPE_STOP_WORDS = new Set([
   "the", "and", "for", "with", "from", "that", "this", "after", "into", "over",
@@ -12,16 +15,7 @@ const DEDUPE_STOP_WORDS = new Set([
   "defence", "military", "official", "global"
 ]);
 
-const SOURCE_RELIABILITY = new Map([
-  ["reuters", 95],
-  ["associated press", 94],
-  ["ap news", 94],
-  ["bbc", 92],
-  ["the guardian", 91],
-  ["france 24", 90],
-  ["deutsche welle", 89],
-  ["gdelt", 58],
-]);
+const resolvedLocationCache = new WeakMap();
 
 function safeText(value = "") {
   return String(value || "")
@@ -51,7 +45,16 @@ function canonicalizeUrl(url = "") {
 function tokenize(value = "") {
   return safeText(value)
     .split(" ")
-    .map((token) => token.trim())
+    .map((token) => ({
+      blast: "explosion",
+      blasts: "explosion",
+      exploded: "explosion",
+      explosions: "explosion",
+      attacked: "attack",
+      attacks: "attack",
+      strikes: "strike",
+      struck: "strike",
+    })[token.trim()] || token.trim())
     .filter((token) => token && token.length >= 3 && !DEDUPE_STOP_WORDS.has(token));
 }
 
@@ -75,16 +78,29 @@ function safeTimestamp(value) {
 }
 
 function getLocationBucket(item = {}) {
-  const country = safeText(item.country || "");
-  const region = safeText(item.region || "");
-  if (country) return `country:${country}`;
-  if (region) return `region:${region}`;
-  const lat = Number(item.lat);
-  const lon = Number(item.lon);
-  if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    return `geo:${lat.toFixed(1)}:${lon.toFixed(1)}`;
+  let location = resolvedLocationCache.get(item);
+  if (!location) {
+    location = resolveEventLocation(item);
+    resolvedLocationCache.set(item, location);
   }
+  const country = safeText(location.country || "");
+  const place = safeText(location.place || location.city || location.region || "");
+  if (place) return `${location.precision || "location"}:${country}:${place}`;
+  if (country) return `country:${country}`;
   return "";
+}
+
+function getIncidentAction(item = {}) {
+  const text = safeText([item.title, item.summary, item.category].filter(Boolean).join(" "));
+  if (/\b(?:deny|denies|denied|dispute|disputed|false report)\b/.test(text)) return "denial";
+  if (/\b(?:air defense|air defence|intercept|shot down)\b/.test(text)) return "air_defence";
+  if (/\b(?:explosion|blast|detonation)\b/.test(text)) return "explosion";
+  if (/\b(?:airstrike|air strike|strike|struck|attack|attacked|hit)\b/.test(text)) return "strike";
+  if (/\b(?:missile|rocket)\b/.test(text)) return "missile";
+  if (/\b(?:drone|uav|shahed)\b/.test(text)) return "drone";
+  if (/\b(?:artillery|shelling|bombardment)\b/.test(text)) return "artillery";
+  if (/\b(?:cyber|malware|ransomware|network outage)\b/.test(text)) return "cyber";
+  return safeText(item.category || "event") || "event";
 }
 
 function getEntityTokenSet(item = {}) {
@@ -104,20 +120,7 @@ function getEntityTokenSet(item = {}) {
 }
 
 function getSourceReliability(item = {}) {
-  const sourceId = String(item.source_id || "").trim().toLowerCase();
-  const sourceName = safeText(item.source_name || "");
-  if (SOURCE_RELIABILITY.has(sourceId)) return SOURCE_RELIABILITY.get(sourceId);
-  if (SOURCE_RELIABILITY.has(sourceName)) return SOURCE_RELIABILITY.get(sourceName);
-  if (sourceName.includes("reuters")) return 95;
-  if (sourceName.includes("associated press") || sourceName.includes("ap news")) return 94;
-  if (sourceName.includes("bbc")) return 92;
-  if (sourceName.includes("guardian")) return 91;
-  if (sourceName.includes("france 24")) return 90;
-  if (sourceName.includes("deutsche welle") || sourceName === "dw") return 89;
-  if (sourceName.includes("government") || sourceName.includes("department of")) return 84;
-  if (sourceName.includes("telegram")) return 50;
-  if (sourceName.includes("gdelt")) return 58;
-  return 70;
+  return resolveSourceProfile(item).source_reliability;
 }
 
 function comparePrimaryItem(a = {}, b = {}) {
@@ -147,19 +150,25 @@ function areNearDuplicateItems(a = {}, b = {}) {
   const locationA = getLocationBucket(a);
   const locationB = getLocationBucket(b);
   const locationCompatible = !locationA || !locationB || locationA === locationB;
+  const actionA = getIncidentAction(a);
+  const actionB = getIncidentAction(b);
+  const actionCompatible = actionA === actionB || actionA === "denial" || actionB === "denial";
   const timeDeltaMs = Math.abs(safeTimestamp(a.published_at || a.fetched_at) - safeTimestamp(b.published_at || b.fetched_at));
   const within6Hours = timeDeltaMs <= 6 * 60 * 60 * 1000;
   const within12Hours = timeDeltaMs <= 12 * 60 * 60 * 1000;
   const within18Hours = timeDeltaMs <= 18 * 60 * 60 * 1000;
 
+  if (!actionCompatible) return false;
   if (titleSimilarity >= 0.96 && within18Hours && locationCompatible) return true;
   if (titleSimilarity >= 0.84 && summarySimilarity >= 0.56 && within12Hours && locationCompatible) return true;
-  if (titleSimilarity >= 0.78 && entitySimilarity >= 0.74 && within6Hours && locationCompatible) return true;
+  if (titleSimilarity >= 0.72 && locationA && locationA === locationB && within6Hours) return true;
+  if (titleSimilarity >= 0.72 && entitySimilarity >= 0.68 && within6Hours && locationCompatible) return true;
   return false;
 }
 
 function mergeDuplicateGroup(items = []) {
   const ordered = [...items].sort(comparePrimaryItem);
+  const quality = aggregateEventQuality(ordered);
   const primary = {
     ...ordered[0],
   };
@@ -168,6 +177,8 @@ function mergeDuplicateGroup(items = []) {
     source_name: item.source_name || null,
     source_type: item.source_type || null,
     source_category: item.source_category || null,
+    source_family: resolveSourceProfile(item).source_family,
+    source_tier: resolveSourceProfile(item).source_tier,
     url: item.url || null,
     published_at: item.published_at || null,
   }));
@@ -176,14 +187,27 @@ function mergeDuplicateGroup(items = []) {
     : {};
   primary.raw = {
     ...existingRaw,
+    _event_quality: quality,
     _dedupe: {
       merged: supporting.length > 0,
       supporting_source_count: supporting.length,
       supporting_sources: supporting,
+      raw_report_count: quality.raw_report_count,
+      independent_source_family_count: quality.independent_source_family_count,
     },
   };
+  const primaryProfile = resolveSourceProfile(primary);
+  primary.source_class = primaryProfile.source_class;
+  primary.source_tier = primaryProfile.source_tier;
+  primary.source_reliability = primaryProfile.source_reliability;
+  primary.source_family = primaryProfile.source_family;
+  primary.official_status = primaryProfile.official_status;
+  primary.corroboration_state = quality.corroboration_state;
+  primary.confidence_score = quality.confidence;
   primary.supporting_source_count = supporting.length;
-  primary.source_count = supporting.length + 1;
+  primary.source_count = quality.raw_report_count;
+  primary.raw_report_count = quality.raw_report_count;
+  primary.independent_source_family_count = quality.independent_source_family_count;
   return primary;
 }
 
@@ -201,6 +225,22 @@ function dedupeConflictItems(items = []) {
   }
 
   return groups.map((group) => mergeDuplicateGroup(group));
+}
+
+function summarizeSourceHealth(resultGroups = []) {
+  const entries = resultGroups.flatMap((group) => group?.results || []).map((result) => ({
+    source_id: result.source?.id || null,
+    source_name: result.source?.name || null,
+    status: result.health?.status || (result.ok ? "healthy" : "failing"),
+    reason: result.health?.reason || result.error || null,
+    last_success: result.health?.last_success || null,
+    retry_after: result.health?.retry_after || null,
+  }));
+  const counts = entries.reduce((out, entry) => {
+    out[entry.status] = (out[entry.status] || 0) + 1;
+    return out;
+  }, {});
+  return { counts, entries };
 }
 
 async function runConflictFeedFetch(options = {}) {
@@ -231,6 +271,7 @@ async function runConflictFeedFetch(options = {}) {
     ...telegramResult.items,
     ...reliefWebResult.items
   ]);
+  const sourceHealth = summarizeSourceHealth([rssResult, liveHtmlResult, telegramResult]);
 
   const reliefWebFailedCount =
     reliefWebResult.skipped || reliefWebResult.ok ? 0 : 1;
@@ -282,6 +323,7 @@ async function runConflictFeedFetch(options = {}) {
       + (reliefWebResult.fetched_count || 0),
     filtered_item_count: items.length,
     total_items: items.length,
+    source_health: sourceHealth,
     items
   };
 }
@@ -301,6 +343,7 @@ async function runConflictFeedSync(options = {}) {
     logger.log(`[conflict] fetched item count: ${fetchResult.fetched_item_count}`);
     logger.log(`[conflict] filtered item count: ${fetchResult.filtered_item_count}`);
     logger.log(`[conflict] failed source count: ${fetchResult.failed_source_count}`);
+    logger.log(`[conflict] source health: ${JSON.stringify(fetchResult.source_health?.counts || {})}`);
 
     const { upsertConflictFeedItems } = await import("./conflict-supabase-writer.js");
     const writeResult = await upsertConflictFeedItems(fetchResult.items);
@@ -351,6 +394,10 @@ async function runConflictFeedSync(options = {}) {
 }
 
 export {
+  areNearDuplicateItems,
+  dedupeConflictItems,
+  mergeDuplicateGroup,
+  summarizeSourceHealth,
   runConflictFeedFetch,
   runConflictFeedSync
 };

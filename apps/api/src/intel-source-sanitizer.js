@@ -1,3 +1,5 @@
+import { getPublicEventQuality } from "./public-event-quality.js";
+
 function normalizeToken(value = "") {
     return String(value || "")
         .trim()
@@ -1523,6 +1525,7 @@ function buildPublicFullContent(item = {}, summary = "") {
 
 function toPublicIntelWireItem(item = {}, options = {}) {
     const source = sanitizeIntelSource(item);
+    const eventQuality = getPublicEventQuality(item);
     const timestamp = item.published_at || item.fetched_at || new Date().toISOString();
     const media = buildPublicIntelWireMedia(item, options.mediaBaseUrl || "");
     const summary = buildPublicSummary(item);
@@ -1546,6 +1549,7 @@ function toPublicIntelWireItem(item = {}, options = {}) {
         country: stripNonEnglishText(item.country || "", "") || null,
         confidence: Number(item.confidence_score || 0),
         confidence_score: Number(item.confidence_score || 0),
+        ...eventQuality,
         is_conflict_relevant: item.is_conflict_relevant === true,
         sourceLabel: source.sourceLabel,
         sourceTypeLabel: source.sourceTypeLabel,

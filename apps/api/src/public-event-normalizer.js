@@ -3,6 +3,7 @@ import {
     hasTrustedMapCoordinates,
     readEventLocation,
 } from "../../shared/event-location-policy.js";
+import { getPublicEventQuality } from "./public-event-quality.js";
 
 const UNKNOWN_TEXT_RE =
     /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/i;
@@ -307,8 +308,14 @@ function toPublicEvent(event = {}) {
     }
     const satelliteAvailable = String(event?.satellite_context?.status || "").toLowerCase() === "available";
 
+    const eventQuality = getPublicEventQuality(event);
+    const publicMetadata = event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+        ? { ...event.metadata, event_quality: { ...eventQuality } }
+        : { event_quality: { ...eventQuality } };
+
     return {
         ...event,
+        metadata: publicMetadata,
         title,
         summary,
         category,
@@ -320,6 +327,7 @@ function toPublicEvent(event = {}) {
         lat: coordinatesOk ? lat : null,
         lon: coordinatesOk ? lon : null,
         map_eligible: coordinatesOk && !lowInformationSignal,
+        ...eventQuality,
         event_country: eventLocation.event_country,
         event_region: eventLocation.event_region,
         event_city: eventLocation.event_city,

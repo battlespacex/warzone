@@ -7,6 +7,8 @@ import {
   readEventLocation
 } from "../../shared/event-location-policy.js";
 import { OPERATIONAL_LOCATION_CATALOG } from "./operational-location-catalog.js";
+import { aggregateEventQuality, readEventQuality } from "./event-quality.js";
+import { CORROBORATION_STATES, resolveSourceProfile } from "../../shared/source-quality-policy.js";
 
 const NORMALIZATION_VERSION = "2026-08-08.location-v2";
 
@@ -779,6 +781,15 @@ function normalizeEventRowForStorage(event = {}) {
   const originLabel = normalizeLocationLabel(event.origin_label);
   const sourceName = normalizeSourceName(event.source_name);
 
+  const locationMetadata = buildLocationMetadata(event, location);
+  const existingQuality = readEventQuality(event);
+  const baseQuality = Array.isArray(existingQuality.source_provenance)
+    ? existingQuality
+    : aggregateEventQuality([event]);
+  const eventFingerprint = makeEventFingerprint(event, {
+    category: normalizeCategory(event.category, "military"),
+    location,
+  });
   return {
     ...event,
     category: normalizeCategory(event.category, "military"),
@@ -793,7 +804,13 @@ function normalizeEventRowForStorage(event = {}) {
     severity: normalizeSeverity(event.severity, "medium"),
     occurred_at: safeDate(event.occurred_at) || new Date().toISOString(),
     confidence: Number.isFinite(Number(event.confidence)) ? Number(event.confidence) : null,
-    metadata: buildLocationMetadata(event, location)
+    metadata: {
+      ...locationMetadata,
+      event_quality: {
+        ...baseQuality,
+        event_fingerprint: baseQuality.event_fingerprint || eventFingerprint,
+      }
+    }
   };
 }
 
@@ -962,11 +979,18 @@ function inferSeverity(text = "") {
 }
 
 function deriveConfidence(item = {}, severity = "medium", location = {}) {
-  const score = Number(item.confidence_score);
-  const base = Number.isFinite(score) ? clamp(score, 35, 88) : 62;
-  const severityBoost = severity === "critical" ? 8 : severity === "high" ? 5 : severity === "medium" ? 2 : 0;
-  const locationBoost = location.quality === "exact" ? 8 : location.mapEligible ? 4 : -10;
-  return clamp(Math.round(base + severityBoost + locationBoost), 20, 96);
+  const quality = readEventQuality(item);
+  const qualityConfidence = Number(quality.confidence);
+  const legacyScore = Number(item.confidence_score);
+  const base = Number.isFinite(qualityConfidence)
+    ? qualityConfidence
+    : Number.isFinite(legacyScore) ? clamp(legacyScore, 35, 88) : 62;
+  const extractionConfidence = clamp(Number(item.extraction_confidence || 75), 20, 100);
+  const locationConfidence = clamp(Number(location.confidence || 0), 0, 100);
+  let score = base * 0.82 + extractionConfidence * 0.08 + locationConfidence * 0.1;
+  if (quality.corroboration_state === CORROBORATION_STATES.UNVERIFIED) score = Math.min(score, 55);
+  if (quality.corroboration_state === CORROBORATION_STATES.DISPUTED) score = Math.min(score, 62);
+  return clamp(Math.round(score), 20, 96);
 }
 
 function derivePriorityScore(category, severity, location = {}) {
@@ -1006,12 +1030,46 @@ function makeDedupeKey(item = {}, fields = {}) {
   return `conflict-feed:${hash}`;
 }
 
+function getIncidentActionSignature(item = {}, category = "") {
+  const text = normalizeForHash([item.title, item.summary, category].filter(Boolean).join(" "));
+  if (/\b(?:air defense|air defence|intercept|shot down)\b/.test(text)) return "air-defence";
+  if (/\b(?:explosion|blast|detonation)\b/.test(text)) return "explosion";
+  if (/\b(?:airstrike|air strike|strike|struck|attack|attacked|hit)\b/.test(text)) return "strike";
+  if (/\b(?:missile|rocket)\b/.test(text)) return "missile";
+  if (/\b(?:drone|uav|shahed)\b/.test(text)) return "drone";
+  if (/\b(?:artillery|shelling|bombardment)\b/.test(text)) return "artillery";
+  return normalizeForHash(category || "event") || "event";
+}
+
+function makeEventFingerprint(item = {}, fields = {}) {
+  const occurredAtMs = Date.parse(item.occurred_at || item.published_at || item.fetched_at || "");
+  const sixHourBucket = Number.isFinite(occurredAtMs) ? Math.floor(occurredAtMs / (6 * 60 * 60 * 1000)) : "unknown";
+  const location = fields.location || resolveEventLocation(item);
+  const locationKey = normalizeForHash([
+    location.place,
+    location.city,
+    location.region,
+    location.country,
+    location.label,
+  ].filter(Boolean).join(" ")) || "unknown-location";
+  const action = getIncidentActionSignature(item, fields.category || item.category);
+  const rawKey = `${action}|${locationKey}|${sixHourBucket}`;
+  return crypto.createHash("sha1").update(rawKey).digest("hex").slice(0, 24);
+}
+
 function normalizeConflictFeedItemForStorage(item = {}) {
   const title = cleanTitle(item.title);
   const summary = cleanDisplayText(item.summary, 1200);
   const sourceName = normalizeSourceName(item.source_name);
   const rawSourceName = normalizeSourceName(item.raw?.source_name || item.raw?.source || item.feed_name);
 
+  const sourceProfile = resolveSourceProfile(item);
+  const existingQuality = readEventQuality(item);
+  const hasExistingQuality = Array.isArray(existingQuality.source_provenance);
+  const quality = hasExistingQuality
+    ? existingQuality
+    : aggregateEventQuality([item]);
+  const raw = item.raw && typeof item.raw === "object" && !Array.isArray(item.raw) ? item.raw : {};
   return {
     ...item,
     source_name: sourceName || rawSourceName,
@@ -1022,9 +1080,17 @@ function normalizeConflictFeedItemForStorage(item = {}) {
     region: isBlankOrUnknown(item.region) ? null : cleanDisplayText(item.region, 80),
     country: isBlankOrUnknown(item.country) ? null : cleanDisplayText(item.country, 80),
     category: cleanDisplayText(item.category, 80) || "general",
-    confidence_score: Number.isFinite(Number(item.confidence_score)) ? Number(item.confidence_score) : 0,
+    confidence_score: !hasExistingQuality && Number.isFinite(Number(item.confidence_score))
+      ? Number(item.confidence_score)
+      : Number.isFinite(Number(quality.confidence)) ? Number(quality.confidence) : 0,
     is_conflict_relevant: item.is_conflict_relevant === true,
-    raw: item.raw || item
+    source_class: sourceProfile.source_class,
+    source_tier: sourceProfile.source_tier,
+    source_reliability: sourceProfile.source_reliability,
+    source_family: sourceProfile.source_family,
+    official_status: sourceProfile.official_status,
+    corroboration_state: quality.corroboration_state,
+    raw: { ...raw, _event_quality: quality }
   };
 }
 
@@ -1041,6 +1107,11 @@ function normalizeConflictItemToEventPayload(item = {}) {
   const mapEligible = Boolean(location.mapEligible && title && hasOperationalEventSignal(text));
   const occurredAt = safeDate(normalizedItem.published_at || normalizedItem.fetched_at) || new Date().toISOString();
   const locationMetadata = buildLocationMetadata(normalizedItem, { ...location, mapEligible });
+  const eventFingerprint = makeEventFingerprint(normalizedItem, { category, location });
+  const eventQuality = {
+    ...readEventQuality(normalizedItem),
+    event_fingerprint: eventFingerprint,
+  };
 
   return {
     map_eligible: mapEligible,
@@ -1069,6 +1140,7 @@ function normalizeConflictItemToEventPayload(item = {}) {
       tags: ["rss", "conflict-feed", "operational", "normalized"],
       metadata: {
         ...locationMetadata,
+        event_quality: eventQuality,
         normalization: {
           ...locationMetadata.normalization,
           reason: mapEligible ? "eligible" : `${String(location.precision || LOCATION_PRECISION.UNKNOWN).toLowerCase()}_location_not_marker_eligible`,
@@ -1093,6 +1165,7 @@ export {
   isCoarseCountryCentroid,
   isValidCoordinate,
   makeDedupeKey,
+  makeEventFingerprint,
   normalizeConflictFeedItemForStorage,
   normalizeConflictItemToEventPayload,
   normalizeEventRowForStorage,

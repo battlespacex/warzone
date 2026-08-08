@@ -10,6 +10,8 @@
 // - If a source returns 403/404/timeout, set enabled:false until fixed.
 // - ReliefWeb API and GDELT are kept disabled here. Use separate approved/throttled workers for them.
 
+import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
+
 const RSS_SOURCES = [
   // ---------------------------------------------------------------------------
   // Global conflict / geopolitical analysis
@@ -412,7 +414,9 @@ const RSS_SOURCES = [
     retry_attempts: 1,
     retry_backoff_ms: 2500,
     minimumScore: 38,
-    enabled: true
+    enabled: false,
+    health: "disabled",
+    disabled_reason: "Verified 2026-08-08: /en/rss redirects to an HTML RSS index. Working live-news and regional France 24 feeds remain enabled."
   },
   {
     id: "france24-live-news",
@@ -861,6 +865,8 @@ const RSS_SOURCES = [
     category: "regional-conflict",
     region_scope: "israel-palestine-middle-east",
     url: "https://www.jpost.com/rss/rssfeedsheadlines.aspx",
+    health: "healthy",
+    last_verified: "2026-08-08",
     enabled: true
   },
   {
@@ -886,6 +892,8 @@ const RSS_SOURCES = [
     category: "regional-conflict",
     region_scope: "ukraine",
     url: "https://kyivindependent.com/news-archive/rss/",
+    health: "healthy",
+    last_verified: "2026-08-08",
     enabled: true
   },
   {
@@ -1294,40 +1302,40 @@ function getRssSources(options = {}) {
   const includeDisabled = options.includeDisabled || false;
 
   if (includeDisabled) {
-    return RSS_SOURCES;
+    return RSS_SOURCES.map(normalizeSourceDefinition);
   }
 
-  return RSS_SOURCES.filter(source => source.enabled !== false);
+  return RSS_SOURCES.filter(source => source.enabled !== false).map(normalizeSourceDefinition);
 }
 
 function getApiSources(options = {}) {
   const includeDisabled = options.includeDisabled || false;
 
   if (includeDisabled) {
-    return API_SOURCES;
+    return API_SOURCES.map(normalizeSourceDefinition);
   }
 
-  return API_SOURCES.filter(source => source.enabled !== false);
+  return API_SOURCES.filter(source => source.enabled !== false).map(normalizeSourceDefinition);
 }
 
 function getLiveHtmlSources(options = {}) {
   const includeDisabled = options.includeDisabled || false;
 
   if (includeDisabled) {
-    return LIVE_HTML_SOURCES;
+    return LIVE_HTML_SOURCES.map(normalizeSourceDefinition);
   }
 
-  return LIVE_HTML_SOURCES.filter(source => source.enabled !== false);
+  return LIVE_HTML_SOURCES.filter(source => source.enabled !== false).map(normalizeSourceDefinition);
 }
 
 function getTelegramSources(options = {}) {
   const includeDisabled = options.includeDisabled || false;
 
   if (includeDisabled) {
-    return TELEGRAM_SOURCES;
+    return TELEGRAM_SOURCES.map(normalizeSourceDefinition);
   }
 
-  return TELEGRAM_SOURCES.filter(source => source.enabled !== false);
+  return TELEGRAM_SOURCES.filter(source => source.enabled !== false).map(normalizeSourceDefinition);
 }
 
 function getAllConflictSources(options = {}) {

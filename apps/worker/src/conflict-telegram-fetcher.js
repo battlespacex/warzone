@@ -1,5 +1,11 @@
 import { getTelegramSources } from "./conflict-sources.js";
 import { enrichConflictItem } from "./conflict-filter.js";
+import {
+  getSourceHealth,
+  recordSourceFailure,
+  recordSourceSuccess,
+  shouldAttemptSource,
+} from "./source-health.js";
 
 const TELEGRAM_FETCH_TIMEOUT_MS = Number.parseInt(process.env.CONFLICT_TELEGRAM_FETCH_TIMEOUT_MS || "", 10) || 15000;
 const TELEGRAM_FETCH_CONCURRENCY = Math.max(1, Number.parseInt(process.env.CONFLICT_TELEGRAM_FETCH_CONCURRENCY || "", 10) || 2);
@@ -132,6 +138,9 @@ function extractTelegramPreviewMessages(html = "", source = {}) {
 }
 
 async function fetchSingleTelegramSource(source = {}) {
+  if (!shouldAttemptSource(source)) {
+    return { source, ok: false, skipped: true, fetched_count: 0, count: 0, items: [], health: getSourceHealth(source) };
+  }
   const retryAttempts = Math.max(0, Number(source.retry_attempts) || 0);
   const retryBackoffMs = Math.max(0, Number(source.retry_backoff_ms) || 0);
   const minimumScore = Number.isFinite(Number(source?.minimumScore))
@@ -147,12 +156,14 @@ async function fetchSingleTelegramSource(source = {}) {
         .map((item) => enrichConflictItem(item, { minimumScore }))
         .filter((item) => item.is_conflict_relevant);
 
+      const health = recordSourceSuccess(source, parsedItems.length);
       return {
         source,
         ok: true,
         fetched_count: parsedItems.length,
         count: items.length,
         items,
+        health,
       };
     } catch (error) {
       lastError = error;
@@ -166,6 +177,7 @@ async function fetchSingleTelegramSource(source = {}) {
   console.warn(`Telegram preview failed: ${source.name}`);
   console.warn(lastError?.message || "Unknown Telegram error");
 
+  const health = recordSourceFailure(source, lastError);
   return {
     source,
     ok: false,
@@ -173,6 +185,7 @@ async function fetchSingleTelegramSource(source = {}) {
     count: 0,
     items: [],
     error: lastError?.message || "Unknown Telegram error",
+    health,
   };
 }
 
