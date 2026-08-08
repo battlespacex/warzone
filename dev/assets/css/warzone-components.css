@@ -4,15 +4,15 @@
 /* #region =========== HOT-SPOTS =========== */
 .wzhs {
     position: absolute;
-    transform: translate(-50%, -50%);
+    left: 0;
+    top: 0;
+    transform: translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0) translate(-50%, -50%);
     pointer-events: auto;
     cursor: default;
     text-align: left;
     animation: wzhs-in 0.6s ease both;
-    transition:
-        left 260ms ease,
-        top 260ms ease,
-        opacity 220ms ease;
+    transition: opacity 220ms ease;
+    will-change: transform, opacity;
     /*filter: var(--widget-shadow);*/
 }
 
@@ -390,9 +390,13 @@
 }
 
 .wzhs-radius {
+    left: 0;
+    top: 0;
     width: var(--wzhs-radius-size, 11rem);
     height: var(--wzhs-radius-size, 11rem);
-    transform: none;
+    transform:
+        translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0)
+        var(--wzhs-surface-matrix, matrix(1, 0, 0, 1, 0, 0));
     transform-origin: center center;
     pointer-events: none;
     background: transparent;
@@ -458,16 +462,19 @@
 
 .wzhs-cluster-label {
     position: absolute;
+    left: 0;
+    top: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    transform: translate(-50%, -50%);
+    transform: translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0) translate(-50%, -50%);
     pointer-events: none;
     color: var(--color-white);
     font-family: var(--heading-font), sans-serif;
     text-align: center;
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.96);
-    transition: left 260ms ease, top 260ms ease, opacity 220ms ease, transform 220ms ease;
+    transition: opacity 220ms ease;
+    will-change: transform, opacity;
 }
 
 .wzhs-cluster-label--regional strong {
@@ -521,7 +528,7 @@
 .wzhs-cluster-label--entering,
 .wzhs-cluster-label--leaving {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.86);
+    transform: translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0) translate(-50%, -50%) scale(0.86);
 }
 
 .wzhs-activity-stack {
@@ -4675,12 +4682,12 @@ body.wz-intel-wire-detail-open {
 @keyframes wzhs-in {
     from {
         opacity: 0;
-        transform: translate(-50%, -56%) scale(0.88);
+        transform: translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0) translate(-50%, -56%) scale(0.88);
     }
 
     to {
         opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
+        transform: translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0) translate(-50%, -50%) scale(1);
     }
 }
 

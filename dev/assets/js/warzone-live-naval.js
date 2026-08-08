@@ -1372,6 +1372,19 @@ function resolveNavalModelUri(vessel = {}) {
     const asset = getNavalAssetFile(resolveNavalAssetKey(vessel));
     return asset?.model ? `${NAVAL_MODEL_BASE_PATH}/${asset.model}` : "";
 }
+export function getNavalModelDescriptor(vessel = {}) {
+    const modelCode = resolveNavalAssetKey(vessel);
+    return {
+        model_code: modelCode,
+        model_family: String(modelCode || "").split("-")[0] || "NAVAL",
+        model_uri: resolveNavalModelUri(vessel),
+        subtype: normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval",
+        scale: getNavalModelScale(vessel),
+        minimum_pixel_size: getNavalModelMinPixelSize(vessel),
+        maximum_scale: getNavalModelMaxScale(vessel),
+        heading_offset_degrees: getNavalModelHeadingOffsetDeg(vessel),
+    };
+}
 function getNavalModelScale(vessel = {}) {
     const focused = isFocusedNavalVessel(vessel);
     return clamp(
@@ -2445,7 +2458,7 @@ function checkNavalFocusRangeWarning() {
         showNavalFocusWarning();
     }
 }
-function focusNavalVessel(trackKey, options = {}) {
+export function focusNavalVessel(trackKey, options = {}) {
     if (isAircraftFocusLockActive()) return false;
     const viewer = window.__warzoneViewer;
     const entry = __navalState.vessels.get(trackKey);
@@ -2455,16 +2468,23 @@ function focusNavalVessel(trackKey, options = {}) {
 
     __navalState.selectedKey = trackKey;
     hideNavalHoverLabel();
-    __navalState.focusHeadingDeg = 0;
+    __navalState.focusHeadingDeg = Number.isFinite(Number(options.headingDegrees))
+        ? ((Number(options.headingDegrees) % 360) + 360) % 360
+        : 0;
     __navalState.focusPitchDeg = clamp(
-        getCssNumber("--warzone-live-naval-focus-camera-pitch", NAVAL_FOCUS_CAMERA_PITCH_DEG),
+        Number.isFinite(Number(options.pitchDegrees))
+            ? Number(options.pitchDegrees)
+            : getCssNumber("--warzone-live-naval-focus-camera-pitch", NAVAL_FOCUS_CAMERA_PITCH_DEG),
         NAVAL_FOCUS_CAMERA_PITCH_MIN_DEG,
         NAVAL_FOCUS_CAMERA_PITCH_MAX_DEG
     );
-    setNavalFocusRangeMeters(Math.max(
-        getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
-        Number(options.cameraHeight || 0)
-    ), { immediate: true });
+    const requestedRange = Number(options.rangeMeters);
+    setNavalFocusRangeMeters(Number.isFinite(requestedRange) && requestedRange > 0
+        ? requestedRange
+        : Math.max(
+            getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
+            Number(options.cameraHeight || 0)
+        ), { immediate: true });
     getAssetFocusController().enterFocus({
         assetType: "naval",
         assetId: trackKey,
@@ -2486,7 +2506,7 @@ function focusNavalVessel(trackKey, options = {}) {
         syncNavalOverlay();
     };
     viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(targetPosition, 1), {
-        duration: Number(options.duration || 1.0),
+        duration: Number(options.duration ?? 1.0),
         offset,
         complete: finishFocusFlight,
         cancel: finishFocusFlight,
@@ -3045,6 +3065,7 @@ export function upsertNavalVessel(event) {
 
     requestNavalRenderBatched();
     dispatchNavalRegistryUpdate();
+    return __navalState.vessels.get(trackKey)?.entity || null;
 }
 
 // ─── Public: clear vessel ─────────────────────────────────────────────────────

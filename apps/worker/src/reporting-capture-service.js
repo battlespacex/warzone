@@ -80,19 +80,41 @@ async function launchCaptureBrowser(config) {
 async function captureTargetPage({ page, snapshot, descriptor, config }) {
   const url = buildCapturePageUrl(config.capture.baseUrl, snapshot.snapshot_key, descriptor.capture_id);
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: config.capture.timeoutMs });
-  await page.waitForFunction(() => (
-    window.__stratopsReportCapture?.ready === true
-    && window.__stratopsReportCapture?.getState?.().status === "READY"
-  ), null, { timeout: config.capture.timeoutMs });
+  await page.waitForFunction(() => {
+    const status = window.__stratopsReportCapture?.getState?.().status;
+    return status === "READY" || status === "FAILED";
+  }, null, { timeout: config.capture.timeoutMs });
   const captureState = await page.evaluate(() => window.__stratopsReportCapture.getState());
-  const screenshot = await page.screenshot({
-    type: config.capture.format,
-    ...(config.capture.format === "jpeg" ? { quality: config.capture.quality } : {}),
-    animations: "disabled",
-    caret: "hide",
-    fullPage: false,
-  });
+  validateSemanticCaptureState(descriptor, captureState);
+  let screenshot;
+  let cleanupState = null;
+  try {
+    screenshot = await page.screenshot({
+      type: config.capture.format,
+      ...(config.capture.format === "jpeg" ? { quality: config.capture.quality } : {}),
+      animations: "disabled",
+      caret: "hide",
+      fullPage: false,
+    });
+  } finally {
+    cleanupState = await page.evaluate(() => window.__stratopsReportCapture?.cleanup?.() || null).catch(() => null);
+  }
+  captureState.asset_cleanup = cleanupState;
   return { screenshot, captureState };
+}
+
+function validateSemanticCaptureState(descriptor = {}, captureState = {}) {
+  if (captureState.status !== "READY") {
+    throw new Error(captureState.semantic_quality?.failure_reason || captureState.error || "capture_scene_failed");
+  }
+  const quality = captureState.semantic_quality;
+  if (!quality || quality.status !== "READY") {
+    throw new Error(quality?.failure_reason || "semantic_quality_not_ready");
+  }
+  if (captureState.capture_type && captureState.capture_type !== descriptor.capture_type) {
+    throw new Error("capture_type_mismatch");
+  }
+  return true;
 }
 
 async function storeCaptureImage({ descriptor, screenshot, config, uploadObject = s3PutObject }) {
@@ -131,6 +153,9 @@ function buildCaptureResult(descriptor, status, overrides = {}) {
     source_target: descriptor.source_target,
     failure_reason: null,
     attempt_count: 0,
+    semantic_quality: null,
+    asset_focus_debug: null,
+    asset_cleanup: null,
     ...overrides,
   };
 }
@@ -212,6 +237,9 @@ async function generateSnapshotCaptures({
             generated_at: nowIso(),
             camera: captureState?.camera || null,
             cluster_snapshot: captureState?.cluster_snapshot || null,
+            semantic_quality: captureState?.semantic_quality || null,
+            asset_focus_debug: captureState?.asset_focus_debug || null,
+            asset_cleanup: captureState?.asset_cleanup || null,
             attempt_count: attempt,
           });
           break;
@@ -313,9 +341,11 @@ async function generateScheduledCaptures({ supabase, config = readReportingConfi
 const __reportingCaptureTestUtils = {
   CAPTURE_ROOT,
   buildCaptureResult,
+  captureTargetPage,
   getCaptureFilePath,
   persistCaptureState,
   storeCaptureImage,
+  validateSemanticCaptureState,
 };
 
 export {

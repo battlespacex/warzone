@@ -108,7 +108,9 @@ function findDevelopment(reportContent = {}, eventId = "") {
 
 function findAsset(reportContent = {}, assetId = "") {
   const wanted = cleanText(assetId);
-  return (reportContent.high_value_assets?.all_qualified || []).find((asset) => cleanText(asset.asset_id) === wanted) || null;
+  const selected = reportContent.high_value_assets?.selected_for_report || [];
+  return [...selected, ...(reportContent.high_value_assets?.all_qualified || [])]
+    .find((asset) => cleanText(asset.asset_id) === wanted) || null;
 }
 
 function aggregateClusterBounds(clusters = []) {
@@ -320,9 +322,9 @@ function calculateCaptureCamera(target = {}) {
     TACTICAL_OVERVIEW_2D: { scene_mode: "2d", min: 500000, max: 6500000, factor: 2.25, pitch: -90 },
     MAJOR_DEVELOPMENT_CONTEXT: { scene_mode: "3d", min: 260000, max: 1300000, factor: 2.1, pitch: -58 },
     CLUSTER_CONTEXT: { scene_mode: "3d", min: 360000, max: 1800000, factor: 2.25, pitch: -58 },
-    HVA_FOCUS_3D: { scene_mode: "3d", min: 130000, max: 420000, factor: 1.5, pitch: -42 },
-    HVA_REGIONAL_CONTEXT: { scene_mode: "3d", min: 650000, max: 2500000, factor: 2.2, pitch: -55 },
-    NAVAL_FOCUS: { scene_mode: "3d", min: 150000, max: 500000, factor: 1.6, pitch: -48 },
+    HVA_FOCUS_3D: { scene_mode: "3d", min: 24000, max: 70000, factor: 1, pitch: -58 },
+    HVA_REGIONAL_CONTEXT: { scene_mode: "3d", min: 140000, max: 450000, factor: 1.6, pitch: -50 },
+    NAVAL_FOCUS: { scene_mode: "3d", min: 45000, max: 90000, factor: 1, pitch: -58 },
     AOI_CONTEXT: { scene_mode: "2d", min: 300000, max: 6000000, factor: 2.35, pitch: -90 },
     ORBITAL_CONTEXT: { scene_mode: "3d", min: 2200000, max: 10000000, factor: 2.8, pitch: -62 },
   };
@@ -334,11 +336,116 @@ function calculateCaptureCamera(target = {}) {
     center,
     bounds,
     heading_degrees: captureType === "HVA_FOCUS_3D" || captureType === "NAVAL_FOCUS"
-      ? (finiteNumber(target.asset_heading_deg) ?? 20)
-      : 20,
+      ? ((finiteNumber(target.asset_heading_deg) ?? 0) + 30) % 360
+      : captureType === "HVA_REGIONAL_CONTEXT"
+        ? ((finiteNumber(target.asset_heading_deg) ?? 0) + 345) % 360
+        : 20,
     pitch_degrees: preset.pitch,
     roll_degrees: 0,
     range_meters: Math.round(range),
+  };
+}
+
+function classifySnapshotAssetModelFamily(asset = {}) {
+  const trackType = cleanText(asset.track_type, "aircraft").toLowerCase();
+  const text = [asset.type, asset.variant, asset.name, asset.role, asset.callsign]
+    .map((value) => cleanText(value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  if (trackType === "naval") {
+    if (/\b(?:aircraft[_ -]?carrier|carrier|cvn[- ]?\d+)\b/.test(text)) return "CARRIER";
+    if (/\b(?:amphibious|lhd|lha)\b/.test(text)) return "AMPHIBIOUS";
+    if (/\b(?:command ship|intelligence|isr)\b/.test(text)) return "NAVAL_ISR";
+    return "NAVAL";
+  }
+  if (/\b(?:e[- ]?3|sentry)\b/.test(text)) return "AWACS-E3";
+  if (/\b(?:e[- ]?7|wedgetail|737 aew)\b/.test(text)) return "AWACS-E7";
+  if (/\b(?:rc[- ]?135|rivet joint|cobra ball|combat sent)\b/.test(text)) return "ISR-RC135";
+  if (/\b(?:p[- ]?8|poseidon)\b/.test(text)) return "ISR-P8";
+  if (/\b(?:awacs|aew|airborne[_ -]?early[_ -]?warning)\b/.test(text)) return "AWACS";
+  if (/\b(?:recon|isr|surveillance)\b/.test(text)) return "ISR";
+  return "AIRCRAFT";
+}
+
+function buildSnapshotAssetRenderInput(asset = {}) {
+  const latitude = asset.latitude === null || asset.latitude === undefined || asset.latitude === "" ? null : finiteNumber(asset.latitude);
+  const longitude = asset.longitude === null || asset.longitude === undefined || asset.longitude === "" ? null : finiteNumber(asset.longitude);
+  if (!cleanText(asset.asset_id)) return { valid: false, reason: "asset_id_unavailable" };
+  if (latitude === null || longitude === null || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return { valid: false, reason: "invalid_asset_coordinates" };
+  }
+  const trackType = cleanText(asset.track_type, "aircraft").toLowerCase() === "naval" ? "naval" : "aircraft";
+  const heading = finiteNumber(asset.heading_deg);
+  const headingDegrees = heading === null ? 0 : ((heading % 360) + 360) % 360;
+  const common = {
+    track_key: cleanText(asset.asset_id),
+    title: cleanText(asset.name || asset.callsign || asset.asset_id),
+    category: "military",
+    subcategory: cleanText(asset.role, trackType === "naval" ? "naval" : "military"),
+    lat: latitude,
+    lon: longitude,
+    speed_kts: finiteNumber(asset.speed_kts),
+    heading_deg: headingDegrees,
+    country: cleanText(asset.country),
+    operator: cleanText(asset.operator),
+    status: cleanText(asset.status, "active"),
+    updated_at: cleanText(asset.last_observed),
+    __reportSnapshotAsset: true,
+  };
+  const event = trackType === "naval" ? {
+    ...common,
+    id: common.track_key,
+    source_key: common.track_key,
+    dedupe_key: common.track_key,
+    occurred_at: common.updated_at,
+    metadata: {
+      track_key: common.track_key,
+      vessel_name: cleanText(asset.name),
+      vessel_class: cleanText(asset.variant || asset.role),
+      ship_type: cleanText(asset.type),
+      operator: common.operator,
+      country: common.country,
+      lat: latitude,
+      lon: longitude,
+      speed_kts: common.speed_kts,
+      heading_deg: headingDegrees,
+    },
+  } : {
+    ...common,
+    altitude_ft: finiteNumber(asset.altitude_ft),
+    render_mode: "model",
+    model_render_mode: "model",
+    metadata: {
+      callsign: cleanText(asset.callsign),
+      type_code: cleanText(asset.type),
+      model_name: cleanText(asset.variant),
+      role: cleanText(asset.role),
+      operator: common.operator,
+      squawk: cleanText(asset.squawk),
+    },
+  };
+  return {
+    valid: true,
+    track_type: trackType,
+    track_key: common.track_key,
+    position: { latitude, longitude, altitude_ft: finiteNumber(asset.altitude_ft) },
+    heading_degrees: headingDegrees,
+    expected_model_family: classifySnapshotAssetModelFamily(asset),
+    event,
+  };
+}
+
+function buildReportAssetFocusPreset(captureType = "", camera = {}) {
+  const type = normalizeCaptureType(captureType);
+  const regional = type === "HVA_REGIONAL_CONTEXT";
+  return {
+    capture_type: type,
+    mode: regional ? "REGIONAL" : "FOCUS",
+    heading_degrees: finiteNumber(camera.heading_degrees) ?? 30,
+    pitch_degrees: finiteNumber(camera.pitch_degrees) ?? (regional ? -50 : -58),
+    range_meters: finiteNumber(camera.range_meters) ?? (regional ? 140000 : 24000),
+    minimum_visual_pixels: regional ? 96 : 180,
+    safe_viewport_margin_pixels: regional ? 36 : 52,
   };
 }
 
@@ -346,8 +453,8 @@ function sanitizeDevelopment(item = {}) {
   return {
     event_id: item.event_id,
     report_item_id: item.report_item_id,
-    title: item.title,
-    summary: item.summary,
+    title: item.display_title || item.title,
+    summary: item.display_summary || item.summary,
     occurred_at: item.occurred_at,
     domain: item.domain,
     category: item.category,
@@ -358,10 +465,40 @@ function sanitizeDevelopment(item = {}) {
     event_region: item.event_region,
     event_city: item.event_city,
     event_place: item.event_place,
+    display_location: item.display_location,
     latitude: finiteNumber(item.latitude),
     longitude: finiteNumber(item.longitude),
     location_precision: item.location_precision,
     relevant_cluster_id: item.relevant_cluster_id,
+  };
+}
+
+function assessCaptureSemanticQuality(captureType = "", evidence = {}) {
+  const type = normalizeCaptureType(captureType);
+  const requirements = {
+    HVA_FOCUS_3D: ["asset_visible"],
+    HVA_REGIONAL_CONTEXT: ["asset_visible", "meaningful_operational_layer_visible"],
+    NAVAL_FOCUS: ["asset_visible"],
+    MAJOR_DEVELOPMENT_CONTEXT: ["target_event_visible"],
+    CLUSTER_CONTEXT: ["target_cluster_visible"],
+    REGIONAL_OVERVIEW_3D: ["meaningful_operational_layer_visible"],
+    TACTICAL_OVERVIEW_2D: ["meaningful_operational_layer_visible"],
+    ORBITAL_CONTEXT: ["orbital_entity_visible"],
+    AOI_CONTEXT: ["meaningful_operational_layer_visible"],
+  }[type] || [];
+  const missing = requirements.filter((key) => evidence[key] !== true);
+  return {
+    status: missing.length ? "FAILED" : "READY",
+    required_checks: requirements,
+    passed_checks: requirements.filter((key) => evidence[key] === true),
+    failed_checks: missing,
+    failure_reason: missing.length ? missing.map((key) => ({
+      asset_visible: "asset_not_visible",
+      target_event_visible: "event_marker_not_visible",
+      target_cluster_visible: "cluster_not_visible",
+      meaningful_operational_layer_visible: "operational_layer_empty",
+      orbital_entity_visible: "orbital_entity_not_visible",
+    }[key] || `missing_${key}`)).join(",") : null,
   };
 }
 
@@ -388,6 +525,23 @@ function sanitizeAsset(asset = {}) {
     theater: asset.theater,
     nearby_event_ids: asset.nearby_event_ids || [],
     nearby_cluster_ids: asset.nearby_cluster_ids || [],
+  };
+}
+
+function buildCaptureClusterLabel(cluster = {}, developments = []) {
+  const count = Math.max(1, Number(cluster.incident_count || cluster.actual_event_count || cluster.cluster_count || 1));
+  const broadLocation = /^(?:europe|asia|africa|global|unspecified|unknown location)$/i.test(cleanText(cluster.location_label))
+    || /\b(?:area|corridor|region|theater)\b/i.test(cleanText(cluster.location_label));
+  const linked = developments.find((item) => item.relevant_cluster_id === cluster.cluster_id
+    || (cluster.event_ids || []).includes(item.event_id));
+  const linkedLocation = cleanText(linked?.display_location || linked?.event_place || linked?.event_city || linked?.location_label, "");
+  const location = cleanText(broadLocation && linkedLocation ? linkedLocation : cluster.location_label, "Operational area").toUpperCase();
+  const domain = cleanText(cluster.dominant_domain, "MIXED").replace(/_/g, " ").toUpperCase();
+  return {
+    count,
+    location,
+    domain,
+    text: `${count} EVENT${count === 1 ? "" : "S"}\n${location}\n${domain}`,
   };
 }
 
@@ -420,9 +574,10 @@ function buildCaptureScenePayload(snapshot = {}, captureId = "", options = {}) {
       bounds: cluster.bounds,
       location_label: cluster.location_label,
       corroborated_count: cluster.corroborated_count,
+      report_label: buildCaptureClusterLabel(cluster, reportContent.major_developments || []),
     })),
     developments: (reportContent.major_developments || []).map(sanitizeDevelopment),
-    high_value_assets: (reportContent.high_value_assets?.all_qualified || []).map(sanitizeAsset),
+    high_value_assets: (reportContent.high_value_assets?.selected_for_report || reportContent.high_value_assets?.all_qualified || []).map(sanitizeAsset),
     selected_asset: asset ? sanitizeAsset(asset) : null,
     orbital: {
       selected: target.capture_type === "ORBITAL_CONTEXT",
@@ -478,6 +633,7 @@ function buildInitialCaptureResults(descriptors = []) {
     center: descriptor.center,
     source_target: descriptor.source_target,
     failure_reason: null,
+    semantic_quality: null,
   }));
 }
 
@@ -498,12 +654,17 @@ function buildCapturePageUrl(baseUrl = "", snapshotKey = "", captureId = "") {
 
 export {
   CAPTURE_STATUS,
+  assessCaptureSemanticQuality,
+  buildReportAssetFocusPreset,
   buildCaptureDescriptors,
   buildCapturePageUrl,
   buildCaptureScenePayload,
+  buildCaptureClusterLabel,
   buildInitialCaptureResults,
   buildReportImageDirectory,
+  buildSnapshotAssetRenderInput,
   calculateCaptureCamera,
+  classifySnapshotAssetModelFamily,
   isCaptureCleanupEligible,
   mergeCaptureResult,
   normalizeCaptureType,

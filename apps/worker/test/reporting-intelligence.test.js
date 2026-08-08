@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   buildMajorDevelopments,
   buildPreviousDayComparison,
+  buildReportContent,
   qualifyHighValueAsset,
+  selectHighValueAssetsForReport,
 } from "../../shared/reporting-intelligence.js";
 import { buildReportingFoundation } from "../../shared/reporting-snapshot.js";
 import { __reportingServiceTestUtils, normalizeScope } from "../../shared/reporting-service.js";
@@ -173,6 +175,7 @@ test("report content selects multiple HVA and prepares per-asset and daily captu
   const foundation = foundationFixture();
   const content = foundation.snapshotData.report_content;
   assert.equal(content.high_value_assets.all_qualified.length, 3);
+  assert.equal(content.high_value_assets.selected_for_report.length, 3);
   assert.ok(content.high_value_assets.primary);
   assert.equal(content.high_value_assets.secondary.length, 2);
   assert.equal(content.high_value_assets.capture_requirements.length, 6);
@@ -181,6 +184,107 @@ test("report content selects multiple HVA and prepares per-asset and daily captu
   assert.ok(content.operational_imagery_targets.some((target) => target.type === "ORBITAL_CONTEXT"));
   assert.deepEqual(foundation.manifest.selected_hva.sort(), ["adsb-awacs", "adsb-tanker", "ais-carrier"].sort());
   assert.equal(foundation.manifest.selected_capture_targets.length, content.operational_imagery_targets.length);
+});
+
+test("HVA report selection suppresses invalid telemetry and same-role catalog repetition", () => {
+  const assets = Array.from({ length: 6 }, (_, index) => ({
+    asset_id: `awacs-${index + 1}`,
+    track_type: "aircraft",
+    role: "AIRBORNE_EARLY_WARNING",
+    altitude_ft: 31000,
+    speed_kts: index === 5 ? 0 : 360,
+    last_observed: `2026-08-08T${String(23 - index).padStart(2, "0")}:00:00.000Z`,
+    confidence: 94,
+    priority_score: 96,
+    nearby_event_ids: index < 2 ? [`event-${index + 1}`] : [],
+    nearby_cluster_ids: index < 2 ? [`cluster-${index + 1}`] : [],
+    theater: index < 3 ? "Middle East" : null,
+  }));
+  const result = selectHighValueAssetsForReport(assets, { windowEndIso: "2026-08-09T00:00:00.000Z" });
+  assert.deepEqual(result.selected.map((asset) => asset.asset_id), ["awacs-1", "awacs-2"]);
+  assert.equal(result.excluded.find((entry) => entry.asset_id === "awacs-6").reason, "inconsistent_airborne_speed");
+  assert.ok(result.excluded.some((entry) => entry.reason === "same_role_redundancy"));
+});
+
+test("sustained HVA without linked regional activity requests only a meaningful focus capture", () => {
+  const sustainedAwacs = track("adsb-sustained-awacs", {
+    title: "E-3 Sentry AWACS",
+    subcategory: "awacs",
+    lat: 27.3,
+    lon: 46.2,
+    metadata: {
+      callsign: "MAGIC02",
+      type_code: "E3",
+      model_name: "E-3 Sentry",
+      role: "awacs",
+      operator: "USAF",
+      first_observed: "2026-08-08T04:00:00.000Z",
+      last_observed: "2026-08-08T09:00:00.000Z",
+    },
+  });
+  const foundation = buildReportingFoundation({
+    ...WINDOW,
+    scope: normalizeScope({ type: "global" }),
+    scopeKey: "global",
+    events: [],
+    intelligence: [],
+    tracks: [sustainedAwacs],
+    counts: { aircraft_total: 1, naval_total: 0, satellite_total: 0 },
+  });
+  const hva = foundation.snapshotData.report_content.high_value_assets;
+  assert.deepEqual(hva.selected_for_report.map((asset) => asset.asset_id), ["adsb-sustained-awacs"]);
+  assert.deepEqual(hva.capture_requirements.map((capture) => capture.type), ["HVA_FOCUS_3D"]);
+});
+
+test("weak single-item theaters remain in snapshot data but are omitted from report theater cards", () => {
+  const item = {
+    report_item_id: "event:weak",
+    event_id: "weak",
+    record_type: "operational_event",
+    report_display_eligible: true,
+    display_title: "Routine activity update",
+    title: "Routine activity update",
+    domain: "AIR",
+    category: "air_activity",
+    severity: "low",
+    verification_state: "REPORTED",
+    report_relevance_score: 20,
+    theater_id: "weak-theater",
+    theater_name: "Weak Theater",
+    raw_report_count: 1,
+    independent_source_family_count: 1,
+    independent_source_families: ["source-a"],
+    occurred_at: "2026-08-08T12:00:00.000Z",
+  };
+  const snapshotData = {
+    window: { end: "2026-08-09T00:00:00.000Z" },
+    overall_activity: { total_report_items: 1, operational_event_total: 1 },
+    aggregates: { by_severity: { low: 1 }, by_verification_state: { reported: 1 }, by_domain: { air: 1 }, by_theater: [] },
+    source_consensus: { independent_source_family_count: 1 },
+    cluster_summaries: [],
+  };
+  const content = buildReportContent({
+    snapshotData,
+    items: [item],
+    clusters: [],
+    tracks: [],
+    theaters: [{
+      theater_id: "weak-theater",
+      theater_name: "Weak Theater",
+      event_count: 1,
+      critical_count: 0,
+      high_count: 0,
+      corroborated_count: 0,
+      dominant_domains: [{ domain: "AIR", count: 1 }],
+      major_clusters: [],
+      source_family_count: 1,
+      latest_activity: item.occurred_at,
+      activity_change: { direction: "not established" },
+    }],
+    scope: { type: "global" },
+  });
+  assert.equal(content.theater_sections.length, 0);
+  assert.equal(content.major_developments.length, 1, "underlying selected development remains available");
 });
 
 test("Key Judgments and Watch Indicators retain auditable evidence references", () => {
@@ -238,20 +342,34 @@ test("previous-day comparison calculates deltas and degrades safely without hist
 });
 
 test("track selection preserves latest-row telemetry across the scheduled UTC snapshot boundary", async () => {
-  let upperBound = null;
-  const builder = {
-    select() { return this; },
-    gte() { return this; },
-    lt(column, value) { if (column === "updated_at") upperBound = value; return this; },
-    order() { return this; },
-    async range() { return { data: [], error: null }; },
+  const upperBounds = {};
+  const rowsByTable = {
+    tracks: [{
+      id: "track-1",
+      track_key: "adsb-track-1",
+      track_type: "aircraft",
+      metadata: { type_code: "E3" },
+    }],
+    aircraft_tracks_log: [{
+      track_key: "adsb-track-1",
+      first_seen_at: "2026-08-08T06:00:00.000Z",
+      last_seen_at: "2026-08-08T09:00:00.000Z",
+    }],
+    naval_tracks_log: [],
   };
   const rows = await __reportingServiceTestUtils.fetchTracksForDay({
     from(table) {
-      assert.equal(table, "tracks");
-      return builder;
+      return {
+        select() { return this; },
+        gte() { return this; },
+        lt(column, value) { upperBounds[`${table}:${column}`] = value; return this; },
+        order() { return this; },
+        async range() { return { data: rowsByTable[table] || [], error: null }; },
+      };
     },
   }, WINDOW.dateKey);
-  assert.deepEqual(rows, []);
-  assert.equal(upperBound, "2026-08-09T00:15:00.000Z");
+  assert.equal(upperBounds["tracks:updated_at"], "2026-08-09T00:15:00.000Z");
+  assert.equal(upperBounds["aircraft_tracks_log:last_seen_at"], "2026-08-09T00:15:00.000Z");
+  assert.equal(rows[0].metadata.first_observed, "2026-08-08T06:00:00.000Z");
+  assert.equal(rows[0].metadata.last_observed, "2026-08-08T09:00:00.000Z");
 });

@@ -444,13 +444,50 @@ async function fetchTracksForDay(supabase, dateKey) {
   const { startIso, endIso } = getDayRange(dateKey);
   const trackWindowEndIso = new Date(Date.parse(endIso) + TRACK_BOUNDARY_GRACE_MINUTES * 60000).toISOString();
   try {
-    return await fetchPagedRows(() => supabase
+    const tracks = await fetchPagedRows(() => supabase
       .from("tracks")
       .select("id, track_key, track_type, category, subcategory, source_name, title, lat, lon, altitude_ft, speed_kts, heading_deg, region, country, status, occurred_at, updated_at, metadata")
       .gte("updated_at", startIso)
       .lt("updated_at", trackWindowEndIso)
       .order("updated_at", { ascending: false })
       .order("id", { ascending: true }));
+    const [aircraftHistory, navalHistory] = await Promise.all([
+      fetchPagedRows(() => supabase
+        .from("aircraft_tracks_log")
+        .select("track_key, first_seen_at, last_seen_at")
+        .gte("last_seen_at", startIso)
+        .lt("last_seen_at", trackWindowEndIso)
+        .order("last_seen_at", { ascending: false })
+        .order("track_key", { ascending: true })).catch(() => []),
+      fetchPagedRows(() => supabase
+        .from("naval_tracks_log")
+        .select("mmsi, created_at, last_seen_at")
+        .gte("last_seen_at", startIso)
+        .lt("last_seen_at", trackWindowEndIso)
+        .order("last_seen_at", { ascending: false })
+        .order("mmsi", { ascending: true })).catch(() => []),
+    ]);
+    const historyByTrackKey = new Map();
+    aircraftHistory.forEach((row) => historyByTrackKey.set(String(row.track_key), {
+      first_observed: row.first_seen_at,
+      last_observed: row.last_seen_at,
+    }));
+    navalHistory.forEach((row) => historyByTrackKey.set(`ais-${row.mmsi}`, {
+      first_observed: row.created_at,
+      last_observed: row.last_seen_at,
+    }));
+    return tracks.map((track) => {
+      const history = historyByTrackKey.get(String(track.track_key));
+      if (!history) return track;
+      return {
+        ...track,
+        metadata: {
+          ...(track.metadata && typeof track.metadata === "object" ? track.metadata : {}),
+          first_observed: history.first_observed,
+          last_observed: history.last_observed,
+        },
+      };
+    });
   } catch {
     return [];
   }

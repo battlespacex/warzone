@@ -1,6 +1,7 @@
 ﻿// webpack.config.js
 const fs = require("fs");
 const path = require("path");
+const express = require("express");
 const webpack = require("webpack");
 const dotenv = require("dotenv");
 
@@ -22,6 +23,7 @@ module.exports = (env, argv) => {
     const ROOT_DIR = __dirname;
     const PROD_DIR = path.resolve(ROOT_DIR, "production");
     const DEV_DIR = path.resolve(ROOT_DIR, "dev");
+    const GENERATED_REPORT_DIR = path.resolve(ROOT_DIR, ".generated", "reports");
     const SEO_DIR = path.resolve(ROOT_DIR, "seo");
     const PARTIALS_DIR = path.resolve(DEV_DIR, "partials");
     const SITE_PATH = path.resolve(SEO_DIR, "site.js");
@@ -497,6 +499,13 @@ module.exports = (env, argv) => {
                             res.type(lastType).send(lastPayload || JSON.stringify({ error: "API unavailable" }));
                         }
 
+                        const generatedReportStatic = express.static(GENERATED_REPORT_DIR, {
+                            dotfiles: "deny",
+                            index: false,
+                            setHeaders: (res) => res.set("Cache-Control", "no-store, max-age=0"),
+                        });
+                        devServer.app.use("/generated-reports", generatedReportStatic);
+                        devServer.app.use("/warzone/generated-reports", generatedReportStatic);
                         devServer.app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);

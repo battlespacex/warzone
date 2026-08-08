@@ -22,6 +22,8 @@ import {
     selectClusterLocalityLabel,
     selectCollisionSafeLabels,
 } from "./warzone-map-zoom-ux.js";
+const HOTSPOT_CAMERA_NORMAL = new Cesium.Cartesian3();
+const HOTSPOT_POINT_NORMAL = new Cesium.Cartesian3();
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 function sanitizeText(v) {
     if (!v) return "";
@@ -102,25 +104,6 @@ function getHotspotPerspectiveTilt(viewer) {
     const horizonRatio = clamp01(1 - (pitch / topDownPitch));
     const maxTilt = cssNumber("--wzhs-perspective-max-tilt", 46);
     return `${(horizonRatio * maxTilt).toFixed(2)}deg`;
-}
-function getHotspotSurfaceMatrix(viewer, lon, lat) {
-    const scene = viewer?.scene;
-    if (scene?.mode === Cesium.SceneMode.SCENE2D) return "";
-    const center = scene ? toScreen(scene, lon, lat) : null;
-    if (!center) return "";
-    const metersSample = Math.max(1200, cssNumber("--wzhs-surface-sample-meters", 24000));
-    const latMeters = 111320;
-    const lonMeters = Math.max(1, Math.cos((lat * Math.PI) / 180) * 111320);
-    const eastPoint = toScreen(scene, lon + (metersSample / lonMeters), lat);
-    const northPoint = toScreen(scene, lon, lat + (metersSample / latMeters));
-    if (!eastPoint || !northPoint) return "";
-    const ex = { x: eastPoint.x - center.x, y: eastPoint.y - center.y };
-    const ny = { x: northPoint.x - center.x, y: northPoint.y - center.y };
-    const exLen = Math.hypot(ex.x, ex.y);
-    const nyLen = Math.hypot(ny.x, ny.y);
-    const avg = (exLen + nyLen) * 0.5;
-    if (!(avg > 0.0001)) return "";
-    return `matrix(${(ex.x / avg).toFixed(5)}, ${(ex.y / avg).toFixed(5)}, ${(ny.x / avg).toFixed(5)}, ${(ny.y / avg).toFixed(5)}, 0, 0)`;
 }
 function getProjectedMetersToPixels(scene, lon, lat, meters = 100000) {
     if (!scene || !(meters > 0)) return 0;
@@ -626,12 +609,12 @@ function makeHotspotEventSignature(events = []) {
     return `${arr.length}:${String(first?.id || "")}:${String(last?.id || "")}:${(hash >>> 0).toString(16)}`;
 }
 // ─── hemisphere cull + Cesium projection ──────────────────────────────────────
-function toScreen(scene, lon, lat) {
+function projectWorldPosition(scene, cart) {
     try {
-        const cart = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+        if (!scene || !cart) return null;
         if (scene.mode !== Cesium.SceneMode.SCENE2D) {
-            const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, new Cesium.Cartesian3());
-            const ptNorm = Cesium.Cartesian3.normalize(cart, new Cesium.Cartesian3());
+            const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, HOTSPOT_CAMERA_NORMAL);
+            const ptNorm = Cesium.Cartesian3.normalize(cart, HOTSPOT_POINT_NORMAL);
             const cameraMagnitude = Cesium.Cartesian3.magnitude(scene.camera.position);
             const ellipsoidRadius = Number(scene.globe?.ellipsoid?.minimumRadius || Cesium.Ellipsoid.WGS84.minimumRadius || 6378137);
             const horizonDot = Number.isFinite(cameraMagnitude) && cameraMagnitude > ellipsoidRadius
@@ -649,6 +632,44 @@ function toScreen(scene, lon, lat) {
     } catch {
         return null;
     }
+}
+function toScreen(scene, lon, lat) {
+    try {
+        return projectWorldPosition(scene, Cesium.Cartesian3.fromDegrees(lon, lat, 0));
+    } catch {
+        return null;
+    }
+}
+function createHotspotWorldAnchor(lon, lat) {
+    const longitude = Number(lon);
+    const latitude = Number(lat);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+    const metersSample = Math.max(1200, cssNumber("--wzhs-surface-sample-meters", 24000));
+    const latMeters = 111320;
+    const lonMeters = Math.max(1, Math.cos((latitude * Math.PI) / 180) * 111320);
+    return {
+        longitude,
+        latitude,
+        center: Cesium.Cartesian3.fromDegrees(longitude, latitude, 0),
+        east: Cesium.Cartesian3.fromDegrees(longitude + (metersSample / lonMeters), latitude, 0),
+        north: Cesium.Cartesian3.fromDegrees(longitude, latitude + (metersSample / latMeters), 0),
+    };
+}
+function projectHotspotWorldAnchor(scene, anchor) {
+    const center = projectWorldPosition(scene, anchor?.center);
+    if (!center) return null;
+    if (scene?.mode === Cesium.SceneMode.SCENE2D) return { ...center, matrix: "" };
+    const east = projectWorldPosition(scene, anchor?.east);
+    const north = projectWorldPosition(scene, anchor?.north);
+    if (!east || !north) return { ...center, matrix: "" };
+    const ex = { x: east.x - center.x, y: east.y - center.y };
+    const ny = { x: north.x - center.x, y: north.y - center.y };
+    const avg = (Math.hypot(ex.x, ex.y) + Math.hypot(ny.x, ny.y)) * 0.5;
+    if (!(avg > 0.0001)) return { ...center, matrix: "" };
+    return {
+        ...center,
+        matrix: `matrix(${(ex.x / avg).toFixed(5)}, ${(ex.y / avg).toFixed(5)}, ${(ny.x / avg).toFixed(5)}, ${(ny.y / avg).toFixed(5)}, 0, 0)`,
+    };
 }
 function getCameraHeight(viewer) {
     try {
@@ -882,6 +903,41 @@ function hideActivityStack(stackNode) {
     stackNode.lineEl.hidden = true;
     stackNode.signature = "";
 }
+export function computeActivityStackLeaderGeometry(anchor, panel, minLineLength = 24) {
+    if (!anchor || !panel) return { hidden: true };
+    const anchorX = Number(anchor.x);
+    const anchorY = Number(anchor.y);
+    const left = Number(panel.left);
+    const top = Number(panel.top);
+    const width = Number(panel.width);
+    const height = Number(panel.height);
+    if (![anchorX, anchorY, left, top, width, height].every(Number.isFinite)) return { hidden: true };
+    const targetX = panel.side === "left" ? left + width : left;
+    const targetY = Math.max(top + 20, Math.min(top + height - 20, anchorY));
+    const distance = Math.hypot(targetX - anchorX, targetY - anchorY);
+    if (distance <= minLineLength) return { hidden: true };
+    return {
+        hidden: false,
+        left: anchorX,
+        top: anchorY,
+        width: distance,
+        rotation: Math.atan2(targetY - anchorY, targetX - anchorX),
+    };
+}
+function updateActivityStackLeader(stackNode, anchor) {
+    if (!stackNode?.lineEl || stackNode.stackEl?.hidden) return;
+    const geometry = computeActivityStackLeaderGeometry(
+        anchor,
+        stackNode.panel,
+        cssLengthToPx("--hotspot-stack-line-min-length", 24)
+    );
+    stackNode.lineEl.hidden = geometry.hidden;
+    if (geometry.hidden) return;
+    stackNode.lineEl.style.left = `${geometry.left}px`;
+    stackNode.lineEl.style.top = `${geometry.top}px`;
+    stackNode.lineEl.style.width = `${geometry.width}px`;
+    stackNode.lineEl.style.transform = `rotate(${geometry.rotation}rad)`;
+}
 function renderActivityStack(stackNode, model, group, viewport) {
     if (!stackNode || !model || !group?.bounds || !model.entries?.length) {
         hideActivityStack(stackNode);
@@ -957,22 +1013,8 @@ function renderActivityStack(stackNode, model, group, viewport) {
     const top = Math.max(topInset, Math.min(maxTop, group.bounds.centerY - stackNode.height / 2));
     stackEl.style.left = `${left}px`;
     stackEl.style.top = `${top}px`;
-
-    const anchorX = group.bounds.centerX;
-    const anchorY = group.bounds.centerY;
-    const targetX = side === "left" ? left + panelWidth : left;
-    const targetY = Math.max(top + 20, Math.min(top + stackNode.height - 20, anchorY));
-    const distance = Math.hypot(targetX - anchorX, targetY - anchorY);
-    const minLineLength = cssLengthToPx("--hotspot-stack-line-min-length", 24);
-    if (distance <= minLineLength) {
-        stackNode.lineEl.hidden = true;
-    } else {
-        stackNode.lineEl.hidden = false;
-        stackNode.lineEl.style.left = `${anchorX}px`;
-        stackNode.lineEl.style.top = `${anchorY}px`;
-        stackNode.lineEl.style.width = `${distance}px`;
-        stackNode.lineEl.style.transform = `rotate(${Math.atan2(targetY - anchorY, targetX - anchorX)}rad)`;
-    }
+    stackNode.panel = { side, left, top, width: panelWidth, height: stackNode.height };
+    updateActivityStackLeader(stackNode, { x: group.bounds.centerX, y: group.bounds.centerY });
 }
 function stackVisible(clusters, overlapPx, maxPer) {
     const stacks = [];
@@ -1101,6 +1143,63 @@ function createCardEl(cluster, onToggle) {
     });
     return root;
 }
+function setAnchorCssPosition(el, x, y) {
+    if (!el?.style) return;
+    if (el._wzhsAnchorX !== x) {
+        el.style.setProperty("--wzhs-anchor-x", `${x}px`);
+        el._wzhsAnchorX = x;
+    }
+    if (el._wzhsAnchorY !== y) {
+        el.style.setProperty("--wzhs-anchor-y", `${y}px`);
+        el._wzhsAnchorY = y;
+    }
+}
+function setElementHidden(el, hidden) {
+    if (el && el.hidden !== hidden) el.hidden = hidden;
+}
+export function applyHotspotNodeAnchorPosition(node, projected, viewport) {
+    if (!node) return false;
+    const x = Number(projected?.x) + Number(viewport?.offsetX || 0);
+    const y = Number(projected?.y) + Number(viewport?.offsetY || 0);
+    const edgePad = Math.max(0, Number(viewport?.edgePad || 0));
+    const width = Number(viewport?.width);
+    const height = Number(viewport?.height);
+    const visible = Number.isFinite(x) && Number.isFinite(y)
+        && Number.isFinite(width) && Number.isFinite(height)
+        && x >= -edgePad && x <= width + edgePad
+        && y >= -edgePad && y <= height + edgePad;
+    node.anchorVisible = visible;
+    setElementHidden(node.radiusEl, !visible);
+    setElementHidden(node.el, !visible);
+    setElementHidden(node.uxLabelEl, !visible || node.uxLabelEligible === false);
+    if (!visible) return false;
+
+    const off = node.stackOffset || STACK_OFF[0];
+    setAnchorCssPosition(node.el, x + HOTSPOT_LABEL_OFFSET.x + Number(off.x || 0), y + HOTSPOT_LABEL_OFFSET.y + Number(off.y || 0));
+    setAnchorCssPosition(node.uxLabelEl, x + HOTSPOT_RADIUS_OFFSET.x, y + HOTSPOT_RADIUS_OFFSET.y);
+    if (node.radiusEl?.style) {
+        const diameter = Math.max(0, Number(node.radiusSize || 0));
+        setAnchorCssPosition(
+            node.radiusEl,
+            x + HOTSPOT_RADIUS_OFFSET.x - diameter * 0.5,
+            y + HOTSPOT_RADIUS_OFFSET.y - diameter * 0.5
+        );
+        const surfaceMatrix = projected?.matrix || "matrix(1, 0, 0, 1, 0, 0)";
+        if (node.surfaceMatrix !== surfaceMatrix) {
+            node.radiusEl.style.setProperty("--wzhs-surface-matrix", surfaceMatrix);
+            node.surfaceMatrix = surfaceMatrix;
+        }
+    }
+    node.screenX = x;
+    node.screenY = y;
+    return true;
+}
+export function isHotspotReconciliationDue(now, lastReconcile, throttleMs) {
+    const current = Number(now);
+    const previous = Number(lastReconcile);
+    const throttle = Math.max(0, Number(throttleMs || 0));
+    return Number.isFinite(current) && Number.isFinite(previous) && (current - previous) >= throttle;
+}
 // ─── main export ──────────────────────────────────────────────────────────────
 export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     if (!viewer || !rootEl) return null;
@@ -1117,6 +1216,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let lastMoveRenderMs = 0;
     let cameraMoving = false;
     let moveEndTimer = 0;
+    let anchorViewport = null;
     const activityStack = createActivityStackElements(rootEl);
     const cfg = {
         maxCards: options.maxCards ?? 52,
@@ -1143,6 +1243,48 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         }
         el._refreshContent(!wasOpen);
     }
+    function syncNodeWorldAnchor(node, cluster) {
+        const longitude = Number(cluster?.lon);
+        const latitude = Number(cluster?.lat);
+        if (!node || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
+        if (node.anchorLongitude === longitude && node.anchorLatitude === latitude && node.worldAnchor) return;
+        node.anchorLongitude = longitude;
+        node.anchorLatitude = latitude;
+        node.worldAnchor = createHotspotWorldAnchor(longitude, latitude);
+    }
+    function updateActivityStackLeaderAnchor() {
+        if (activityStack.stackEl.hidden || !activityStack.groupIds.length) return;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        let pointCount = 0;
+        for (const id of activityStack.groupIds) {
+            const node = nodeMap.get(String(id));
+            if (!node?.anchorVisible || !Number.isFinite(node.screenX) || !Number.isFinite(node.screenY)) continue;
+            minX = Math.min(minX, node.screenX);
+            maxX = Math.max(maxX, node.screenX);
+            minY = Math.min(minY, node.screenY);
+            maxY = Math.max(maxY, node.screenY);
+            pointCount += 1;
+        }
+        if (!pointCount) {
+            activityStack.lineEl.hidden = true;
+            return;
+        }
+        updateActivityStackLeader(activityStack, {
+            x: (minX + maxX) * 0.5,
+            y: (minY + maxY) * 0.5,
+        });
+    }
+    function updateCurrentAnchorPositions() {
+        if (destroyed || !anchorViewport || !viewer.scene) return;
+        for (const [, node] of nodeMap) {
+            const projected = projectHotspotWorldAnchor(viewer.scene, node.worldAnchor);
+            applyHotspotNodeAnchorPosition(node, projected, anchorViewport);
+        }
+        updateActivityStackLeaderAnchor();
+    }
     function render(fromPostRender) {
         if (!fromPostRender) rafPending = false;
         if (destroyed || !viewer.scene || !rootEl) return;
@@ -1165,6 +1307,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
         const zoomState = getHotspotZoomState(viewer);
         const clusterBucket = getClusterBucketForZoomState(zoomState, zoomCfg.key);
+        anchorViewport = {
+            offsetX: offX,
+            offsetY: offY,
+            width: overlayRect.width,
+            height: overlayRect.height,
+            edgePad: zoomCfg.edgePad,
+        };
         rootEl.dataset.zoomBucket = zoomCfg.key || "default";
         rootEl.dataset.zoomState = zoomState;
         const clusterCacheKey = `${zoomState}:${clusterBucket}`;
@@ -1241,64 +1390,46 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         if (!cardsEnabled && expandedId) expandedId = null;
         for (const cluster of visible) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
-            const tx = cluster.screen.x + HOTSPOT_LABEL_OFFSET.x + off.x;
-            const ty = cluster.screen.y + HOTSPOT_LABEL_OFFSET.y + off.y;
-            const rx = cluster.screen.x + HOTSPOT_RADIUS_OFFSET.x;
-            const ry = cluster.screen.y + HOTSPOT_RADIUS_OFFSET.y;
             const hotspotDiameter = getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg);
-            const hotspotMatrix = getHotspotSurfaceMatrix(viewer, cluster.lon, cluster.lat);
             const radiusSplitHidden = isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster);
             const zi = 25 - cluster.stackIdx;
             if (nodeMap.has(cluster.id)) {
                 const node = nodeMap.get(cluster.id);
                 if (!node.radiusEl) {
                     node.radiusEl = createHotspotRadiusEl(cluster);
+                    node.radiusEl.style.position = "absolute";
+                    node.radiusEl.style.left = "0";
+                    node.radiusEl.style.top = "0";
                     rootEl.appendChild(node.radiusEl);
                 }
                 if (!node.uxLabelEl) {
                     node.uxLabelEl = createClusterUxLabelEl();
                     rootEl.appendChild(node.uxLabelEl);
                 }
+                node.stackOffset = off;
+                node.uxLabelEligible = localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true;
+                syncNodeWorldAnchor(node, cluster);
                 applyHotspotRadiusModel(node.radiusEl, cluster);
                 syncHotspotRadiusSplitState(node.radiusEl, radiusSplitHidden);
                 renderClusterUxLabel(node.uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
-                node.uxLabelEl.hidden = localityLabelIds ? !localityLabelIds.has(String(cluster.id)) : false;
                 if (node.el && !cardsEnabled) {
                     node.el.remove();
                     node.el = null;
-                    node.x = null;
-                    node.y = null;
                 }
                 if (cardsEnabled && !node.el) {
                     node.el = createCardEl(cluster, handleToggle);
+                    node.el.style.left = "0";
+                    node.el.style.top = "0";
                     rootEl.appendChild(node.el);
-                }
-                if (cardsEnabled && node.el && (node.x !== tx || node.y !== ty)) {
-                    node.el.style.left = `${tx}px`;
-                    node.el.style.top = `${ty}px`;
-                    node.el.style.zIndex = zi;
-                    node.x = tx;
-                    node.y = ty;
-                }
-                if (node.rx !== rx || node.ry !== ry || node.radiusSize !== hotspotDiameter) {
-                    node.radiusEl.style.left = `${rx - hotspotDiameter * 0.5}px`;
-                    node.radiusEl.style.top = `${ry - hotspotDiameter * 0.5}px`;
-                    node.rx = rx;
-                    node.ry = ry;
                 }
                 if (node.radiusSize !== hotspotDiameter) {
                     node.radiusEl.style.width = `${hotspotDiameter}px`;
                     node.radiusEl.style.height = `${hotspotDiameter}px`;
                     node.radiusSize = hotspotDiameter;
                 }
-                if (node.radiusMatrix !== hotspotMatrix) {
-                    node.radiusEl.style.transform = hotspotMatrix || "none";
-                    node.radiusMatrix = hotspotMatrix;
-                }
                 node.radiusEl.style.zIndex = zi - 1;
-                node.uxLabelEl.style.left = `${rx}px`;
-                node.uxLabelEl.style.top = `${ry}px`;
                 node.uxLabelEl.style.zIndex = zi;
+                if (node.el) node.el.style.zIndex = zi;
                 if (cardsEnabled && node.el) {
                     node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
                     node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
@@ -1308,23 +1439,31 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             } else {
                 const radiusEl = createHotspotRadiusEl(cluster);
                 syncHotspotRadiusSplitState(radiusEl, radiusSplitHidden);
-                radiusEl.style.cssText = `position:absolute;left:${rx - hotspotDiameter * 0.5}px;top:${ry - hotspotDiameter * 0.5}px;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;transform:${hotspotMatrix || "none"};`;
+                radiusEl.style.cssText = `position:absolute;left:0;top:0;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;`;
                 rootEl.appendChild(radiusEl);
                 const uxLabelEl = createClusterUxLabelEl();
                 renderClusterUxLabel(uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
-                uxLabelEl.hidden = localityLabelIds ? !localityLabelIds.has(String(cluster.id)) : false;
-                uxLabelEl.style.cssText = `left:${rx}px;top:${ry}px;z-index:${zi};`;
+                uxLabelEl.style.cssText = `left:0;top:0;z-index:${zi};`;
                 rootEl.appendChild(uxLabelEl);
                 const el = cardsEnabled ? createCardEl(cluster, handleToggle) : null;
                 if (el) {
-                    el.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;z-index:${zi};`;
+                    el.style.cssText = `position:absolute;left:0;top:0;z-index:${zi};`;
                     rootEl.appendChild(el);
                 }
-                const node = { el, radiusEl, uxLabelEl, x: el ? tx : null, y: el ? ty : null, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix };
+                const node = {
+                    el,
+                    radiusEl,
+                    uxLabelEl,
+                    stackOffset: off,
+                    uxLabelEligible: localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true,
+                    radiusSize: hotspotDiameter,
+                };
+                syncNodeWorldAnchor(node, cluster);
                 nodeMap.set(cluster.id, node);
                 markHotspotNodeEntered(node);
             }
         }
+        updateCurrentAnchorPositions();
     }
     function scheduleRender(delay = 0) {
         if (destroyed || rafPending) return;
@@ -1339,6 +1478,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         }
     }
     function onPostRender() {
+        updateCurrentAnchorPositions();
         if (!cameraMoving) return;
         const now = performance.now();
         const moveThrottle = allEvents.length > 2000
@@ -1346,7 +1486,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             : allEvents.length > 1000
                 ? Math.max(cfg.throttleMove, 72)
                 : cfg.throttleMove;
-        if ((now - lastMoveRenderMs) < moveThrottle) return;
+        if (!isHotspotReconciliationDue(now, lastMoveRenderMs, moveThrottle)) return;
         lastMoveRenderMs = now;
         render(true);
     }

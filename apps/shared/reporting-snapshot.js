@@ -12,6 +12,7 @@ import {
   classifyEventDomain,
 } from "../../dev/assets/js/warzone-event-cluster-model.js";
 import { buildReportContent } from "./reporting-intelligence.js";
+import { buildReportDisplayFields } from "./reporting-display.js";
 
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const MAX_MAJOR_DEVELOPMENTS = 25;
@@ -202,6 +203,11 @@ function normalizeReportItem(item = {}, recordType = "operational_event") {
     lon: location.longitude,
     location_precision: location.location_precision,
   });
+  const display = buildReportDisplayFields({
+    ...item,
+    ...location,
+    ...quality,
+  });
   return {
     report_item_id: reportItemId,
     record_type: recordType,
@@ -225,6 +231,7 @@ function normalizeReportItem(item = {}, recordType = "operational_event") {
     ),
     ...location,
     ...quality,
+    ...display,
   };
 }
 
@@ -538,12 +545,13 @@ function buildReportingFoundation({
   snapshotData.report_content = reportContent;
   snapshotData.selections.major_developments = reportContent.major_developments;
   snapshotData.selections.high_value_asset_candidates = reportContent.high_value_assets.all_qualified;
+  snapshotData.selections.high_value_assets = reportContent.high_value_assets.selected_for_report;
   snapshotData.reserved.key_judgments = reportContent.key_judgments;
   snapshotData.reserved.watch_indicators = reportContent.watch_indicators;
   snapshotData.reserved.cross_domain_assessment = reportContent.cross_domain_assessment;
   snapshotData.reserved.outlook = reportContent.outlook;
   manifest.selected_developments = reportContent.major_developments.map((item) => item.report_item_id);
-  manifest.selected_hva = reportContent.high_value_assets.all_qualified.map((asset) => asset.asset_id);
+  manifest.selected_hva = reportContent.high_value_assets.selected_for_report.map((asset) => asset.asset_id);
   manifest.selected_capture_targets = reportContent.operational_imagery_targets;
   manifest.capture_requirements = reportContent.high_value_assets.capture_requirements;
   return { snapshotKey, snapshotData, manifest, items, operationalItems, broaderItems, clusters, theaters };

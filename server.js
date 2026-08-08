@@ -12,6 +12,7 @@ dotenv.config({
 const app = express();
 const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
+const GENERATED_REPORT_ROOT = path.join(__dirname, ".generated", "reports");
 const BASE = "/warzone";
 const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
 const API_UPSTREAM_URL = process.env.API_UPSTREAM_URL || (
@@ -198,6 +199,13 @@ app.get(["/unsuccess", "/unsuccess/"], (req, res) => {
     res.redirect(302, buildSupportReturnUrl("cancel", req));
 });
 
+const generatedReportStatic = express.static(GENERATED_REPORT_ROOT, {
+    dotfiles: "deny",
+    index: false,
+    setHeaders: (res) => res.set("Cache-Control", "no-store, max-age=0"),
+});
+app.use("/generated-reports", generatedReportStatic);
+app.use(`${BASE}/generated-reports`, generatedReportStatic);
 app.use(express.static(ROOT));
 
 function sendPage(res, name, status = 200) {

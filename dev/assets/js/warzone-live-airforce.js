@@ -6865,13 +6865,26 @@ function resolveLiveTrackModelUri(track = {}) {
     const asset = getAircraftAssetFile(modelCode);
     return asset?.model ? `${LIVE_AIRCRAFT_MODEL_BASE_PATH}/${asset.model}` : "";
 }
+export function getLiveTrackModelDescriptor(track = {}) {
+    const style = getLiveTrackStyleConfig(track);
+    const modelCode = resolveLiveTrackModelCode(track);
+    return {
+        model_code: modelCode,
+        model_family: String(modelCode || "").split("-")[0] || "AIRCRAFT",
+        model_uri: resolveLiveTrackModelUri(track),
+        subtype: resolveLiveTrackSizingSubtype(track),
+        scale: getLiveTrackSubtypeScale(track, style.scale),
+        minimum_pixel_size: getLiveTrackSubtypeMinPixelSize(track, style.minimumPixelSize),
+        maximum_scale: getLiveTrackSubtypeMaxScale(track, style.maximumScale),
+    };
+}
 export function upsertLiveTrack(track) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const viewer = window.__warzoneViewer;
     const forceVisualRefresh = track?.__forceVisualRefresh === true;
     const originalTrackKey = String(track?.track_key || "").trim();
-    if (!isLayerEnabled("aircraft")) {
+    if (!isLayerEnabled("aircraft") && track?.__reportSnapshotAsset !== true) {
         if (originalTrackKey) clearLiveTrack(originalTrackKey);
         return;
     }
@@ -7049,7 +7062,7 @@ export function upsertLiveTrack(track) {
     if (forceVisualRefresh) {
         applyLiveTrackFocusVisibility(track.track_key);
         wakeLiveTrackRenderAfterAssetUpdate();
-        return;
+        return entity;
     }
 
     const existingRegistryEntry = __liveTrackRegistry.get(track.track_key);
@@ -7077,6 +7090,7 @@ export function upsertLiveTrack(track) {
         altitude_ft: resolvedAltitudeFt,
     });
     wakeLiveTrackRenderAfterAssetUpdate();
+    return entity;
 }
 
 export function clearLiveTrack(trackKey) {
@@ -7373,10 +7387,10 @@ export function focusLiveTrack(trackKey, options = {}) {
     }
     __liveTrackSceneModeBeforeFocus = getViewerSceneModeLabel(viewer);
     const configuredFocusRange = getLiveTrackFocusCameraRangeMeters();
-    const focusRange = Math.max(
-        configuredFocusRange,
-        Number(options.cameraHeight || 0)
-    );
+    const requestedRange = Number(options.rangeMeters);
+    const focusRange = Number.isFinite(requestedRange) && requestedRange > 0
+        ? requestedRange
+        : Math.max(configuredFocusRange, Number(options.cameraHeight || 0));
     __liveTrackFocusRangeMeters = clamp(
         focusRange,
         LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS,
@@ -7393,6 +7407,16 @@ export function focusLiveTrack(trackKey, options = {}) {
         __liveTrackFocusResumeTimer = null;
     }
     resetFocusedTrackCameraOrientation();
+    if (Number.isFinite(Number(options.headingDegrees))) {
+        __liveTrackFocusHeadingDeg = normalizeDegrees(Number(options.headingDegrees));
+    }
+    if (Number.isFinite(Number(options.pitchDegrees))) {
+        __liveTrackFocusPitchDeg = clamp(
+            Number(options.pitchDegrees),
+            LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG,
+            LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG
+        );
+    }
     getAssetFocusController().enterFocus({
         assetType: "aircraft",
         assetId: trackKey,
@@ -7414,7 +7438,7 @@ export function focusLiveTrack(trackKey, options = {}) {
     const offset = new Cesium.HeadingPitchRange(
         Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
         Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
-        focusRange
+        __liveTrackFocusRangeMeters
     );
     const startFocusFlight = () => {
         viewer.camera.cancelFlight?.();
@@ -7424,7 +7448,7 @@ export function focusLiveTrack(trackKey, options = {}) {
             syncFocusedTrackCamera({ visualRefresh: true });
         };
         viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(targetPosition, 1), {
-            duration: Number(options.duration || 1.5),
+            duration: Number(options.duration ?? 1.5),
             offset,
             complete: finishFocusFlight,
             cancel: finishFocusFlight,

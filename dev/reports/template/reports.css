@@ -1155,6 +1155,26 @@ body {
   margin-bottom: 3mm;
 }
 
+.report-watch-list {
+  display: grid;
+  gap: 3mm;
+}
+
+.report-watch-item {
+  padding-bottom: 3mm;
+  border-bottom: 0.3mm solid #d6dce2;
+}
+
+.report-watch-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.report-watch-item h3,
+.report-watch-item p {
+  margin: 0 0 1.5mm;
+}
+
 .event-card--feature .event-grid {
   grid-template-columns: 72mm minmax(0, 1fr);
 }
@@ -1262,6 +1282,13 @@ body {
   margin: 0;
 }
 
+.report-theater-grid.report-theater-grid--single,
+.report-hva-grid.report-hva-grid--single,
+.report-wire-list.report-wire-list--single,
+.report-image-grid.report-image-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .report-asset-card,
 .report-domain-card {
   border-top: 2mm solid var(--teal-color);
@@ -1332,7 +1359,7 @@ body {
 }
 
 .report-forecast-card h3 {
-  margin-top: 6mm;
+  margin: 4mm 0 1mm;
 }
 
 /* Missing report images collapse instead of showing a broken placeholder. */
@@ -1386,7 +1413,40 @@ body {
 
 /* LARGE REPORT PROTOTYPE V2 — INNER REPORT ONLY; COVER UNTOUCHED */
 .generated-pages .inner-content {
-  line-height: 4.3mm
+  line-height: 4.3mm;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 4mm;
+  align-content: start
+}
+
+.generated-pages .inner-content>.pagination-block {
+  grid-column: 1 / -1;
+  min-width: 0
+}
+
+.generated-pages .inner-content>.pagination-card-unit--half {
+  grid-column: span 1
+}
+
+.generated-pages .inner-content>.pagination-card-unit--half.report-theater-grid,
+.generated-pages .inner-content>.pagination-card-unit--half.report-hva-grid,
+.generated-pages .inner-content>.pagination-card-unit--half.report-wire-list {
+  grid-template-columns: minmax(0, 1fr)
+}
+
+.pagination-card-unit--half>.report-text-panel,
+.pagination-card-unit--half>.report-news-card,
+.pagination-card-unit--half>.event-card,
+.pagination-card-unit--half.report-theater-grid>.report-theater-card,
+.pagination-card-unit--half.report-hva-grid>.report-hva-card,
+.pagination-card-unit--half.report-wire-list>article {
+  height: 100%;
+  box-sizing: border-box
+}
+
+.event-card--compact .event-meta {
+  font-size: var(--font-size-xsmall)
 }
 
 .generated-pages .inner-content h1 {
@@ -1622,6 +1682,10 @@ body {
 }
 
 @media screen and (max-width:767px) {
+
+  .generated-pages .inner-content {
+    display: block
+  }
 
   .report-theater-grid,
   .report-hva-grid,

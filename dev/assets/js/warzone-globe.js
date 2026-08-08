@@ -879,6 +879,8 @@ function applyEventLod(viewer) {
         const isEventPulse = !!entity.properties?.isEventPulse?.getValue?.();
         const isEventClusterParentRing = !!entity.properties?.isEventClusterParentRing?.getValue?.();
         const isSatelliteImageryMarker = !!entity.properties?.isSatelliteImageryMarker?.getValue?.();
+        const isReportClusterSummary = window.__stratopsReportCaptureMode === true
+            && entity.properties?.is_report_cluster_summary?.getValue?.() === true;
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
@@ -901,15 +903,23 @@ function applyEventLod(viewer) {
         if (isEventCountLabel) {
             if (entity.label) {
                 const markerLabel = String(entity.properties?.event_marker_label?.getValue?.() ?? "Event");
-                const labelConfig = clusterCount === 1
+                const labelConfig = isReportClusterSummary
+                    ? createReportClusterLabel({
+                        cluster_count: clusterCount,
+                        location_label: entity.properties?.location_label?.getValue?.() || "OPERATIONAL AREA",
+                        dominant_domain: entity.properties?.dominant_domain?.getValue?.() || category,
+                        report_label: entity.properties?.report_label?.getValue?.() || null,
+                    })
+                    : clusterCount === 1
                     ? createEventMarkerTextLabel(markerLabel)
                     : createClusterCountLabel(clusterCount);
-                const showCountLabel = mode !== "heatmap"
+                const showCountLabel = (isReportClusterSummary && entity.properties?.report_label_visible?.getValue?.() === true)
+                    || (mode !== "heatmap"
                     && !suppressMarkers
                     && showIndividualEvents
                     && clusterCount === 1
                     && visibleEventLabelIds.has(String(entity.id))
-                    && !!labelConfig;
+                    && !!labelConfig);
                 entity.label.show = showCountLabel;
                 if (labelConfig) {
                     entity.label.text = labelConfig.text;
@@ -942,11 +952,11 @@ function applyEventLod(viewer) {
             : numberVar("--warzone-event-ring-fill-alpha", 0.14);
         if (isEventOutline || isEventFill || isEventPulse) {
             if (isEventMarkerFill) {
-                const showMarkerFill = mode !== "heatmap"
+                const showMarkerFill = isReportClusterSummary || (mode !== "heatmap"
                     && !suppressMarkers
                     && allowMarkers
                     && showIndividualEvents
-                    && !isCluster;
+                    && !isCluster);
                 if (entity.billboard) {
                     entity.billboard.show = showMarkerFill;
                     entity.billboard.width = getEventMarkerSizePx(clusterCount, activityScore);
@@ -1759,6 +1769,8 @@ function normalizeEvents(events) {
                 centroid: item.centroid && typeof item.centroid === "object" ? item.centroid : null,
                 bounds: item.bounds && typeof item.bounds === "object" ? item.bounds : null,
                 is_report_cluster_summary: item.is_report_cluster_summary === true,
+                report_label_visible: item.report_label_visible === true,
+                report_label: item.report_label && typeof item.report_label === "object" ? item.report_label : null,
                 _clusterEvents: Array.isArray(item._clusterEvents)
                     ? item._clusterEvents
                     : (Array.isArray(item.cluster_events) ? item.cluster_events : []),
@@ -2026,6 +2038,29 @@ function createClusterCountLabel(count = 1) {
         showBackground: false,
     };
 }
+function createReportClusterLabel(event = {}) {
+    const count = Math.max(1, Number(event.cluster_count || event.actual_event_count || 1));
+    const reportLabel = event.report_label && typeof event.report_label === "object" ? event.report_label : {};
+    const location = String(reportLabel.location || event.location_label || event.display_location_label || "OPERATIONAL AREA").trim().toUpperCase();
+    const domain = String(reportLabel.domain || event.dominant_domain || event.category || "MIXED").replace(/_/g, " ").trim().toUpperCase();
+    return {
+        text: `${count} EVENT${count === 1 ? "" : "S"}\n${location}\n${domain}`,
+        font: `800 15px ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
+        fillColor: colorFromCssVar("--warzone-event-marker-text-color", "#ffffff", 0.98),
+        outlineColor: Cesium.Color.BLACK.withAlpha(0.96),
+        outlineWidth: 4,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        pixelOffset: new Cesium.Cartesian2(34, 0),
+        eyeOffset: new Cesium.Cartesian3(0, 0, -5000),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        zIndex: 1100,
+        showBackground: true,
+        backgroundColor: Cesium.Color.BLACK.withAlpha(0.76),
+        backgroundPadding: new Cesium.Cartesian2(8, 6),
+    };
+}
 function getEventMarkerText(event = {}) {
     const title = String(event.title || event.display_title || "").toLowerCase();
     const domain = getEventDomain(event);
@@ -2069,7 +2104,8 @@ function createEventMarkerTextLabel(text = "Event") {
 function createEventCountEntity(event) {
     const count = Number(event?.cluster_count || 1);
     const eventMarkerLabel = getEventMarkerText(event);
-    const label = count === 1 ? createEventMarkerTextLabel(eventMarkerLabel) : createClusterCountLabel(count);
+    const isReportCluster = window.__stratopsReportCaptureMode === true && event.is_report_cluster_summary === true;
+    const label = isReportCluster ? createReportClusterLabel(event) : (count === 1 ? createEventMarkerTextLabel(eventMarkerLabel) : createClusterCountLabel(count));
     if (!label) return null;
     return {
         id: `${event.id}-count`,
@@ -2087,6 +2123,11 @@ function createEventCountEntity(event) {
             severity: event.severity,
             cluster_count: count,
             activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
+            dominant_domain: event.dominant_domain || event._dominantDomain || classifyEventDomain(event),
+            location_label: event.location_label || event.display_location_label || "",
+            is_report_cluster_summary: event.is_report_cluster_summary === true,
+            report_label_visible: event.report_label_visible === true,
+            report_label: event.report_label || null,
             lat: event.lat,
             lon: event.lon,
         },
@@ -2260,6 +2301,7 @@ function createEventMarkerFillEntity(event, options = {}) {
             event_id: event.id,
             isEventFill: true,
             isEventMarkerFill: true,
+            is_report_cluster_summary: event.is_report_cluster_summary === true,
             layer_id: event._layerId || event.layer_id || "",
             category: event.category,
             severity: event.severity,

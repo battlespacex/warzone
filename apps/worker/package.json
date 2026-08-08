@@ -9,6 +9,7 @@
     "copernicus:once": "node src/copernicus-once.js",
     "reports:once": "node src/reporting-once.js",
     "reports:capture": "node src/reporting-capture-once.js",
+    "reports:render": "node src/reporting-render-once.js",
     "events:reprocess": "node src/reprocess-recent-events.js",
     "test": "node --test test/*.test.js"
   },

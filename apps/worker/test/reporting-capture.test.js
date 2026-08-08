@@ -2,16 +2,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CAPTURE_STATUS,
+  assessCaptureSemanticQuality,
   buildCaptureDescriptors,
+  buildCaptureClusterLabel,
   buildCapturePageUrl,
   buildCaptureScenePayload,
+  buildReportAssetFocusPreset,
   buildReportImageDirectory,
+  buildSnapshotAssetRenderInput,
   calculateCaptureCamera,
+  classifySnapshotAssetModelFamily,
   isCaptureCleanupEligible,
   mergeCaptureResult,
   resolveCaptureTarget,
 } from "../../shared/reporting-capture.js";
-import { generateSnapshotCaptures } from "../src/reporting-capture-service.js";
+import { __reportingCaptureTestUtils, generateSnapshotCaptures } from "../src/reporting-capture-service.js";
 
 function snapshotFixture(overrides = {}) {
   const snapshot = {
@@ -229,8 +234,49 @@ test("camera framing is deterministic for bounds, exact events and HVA targets",
   assert.equal(cluster.scene_mode, "3d");
   assert.ok(cluster.range_meters >= 360000);
   assert.deepEqual(event.center, { latitude: 26.2, longitude: 50.1 });
-  assert.equal(hva.heading_degrees, 92);
-  assert.ok(hva.range_meters >= 130000 && hva.range_meters <= 420000);
+  assert.equal(hva.heading_degrees, 122);
+  assert.ok(hva.range_meters >= 24000 && hva.range_meters <= 70000);
+});
+
+test("frozen E-3, E-7 and naval snapshots build deterministic live-render inputs without a realtime track", () => {
+  const base = {
+    asset_id: "frozen-awacs",
+    track_type: "aircraft",
+    latitude: 26.5,
+    longitude: 50.4,
+    altitude_ft: 31000,
+    speed_kts: 410,
+    heading_deg: 452,
+    role: "AIRBORNE_EARLY_WARNING",
+  };
+  const e3 = buildSnapshotAssetRenderInput({ ...base, type: "E-3", variant: "E-3 Sentry" });
+  const e7 = buildSnapshotAssetRenderInput({ ...base, asset_id: "frozen-e7", type: "E-7", variant: "E-7 Wedgetail" });
+  const carrier = buildSnapshotAssetRenderInput({ ...base, asset_id: "frozen-carrier", track_type: "naval", type: "Aircraft carrier", role: "AIRCRAFT_CARRIER", altitude_ft: null });
+  assert.equal(e3.valid, true);
+  assert.equal(e3.expected_model_family, "AWACS-E3");
+  assert.equal(e7.expected_model_family, "AWACS-E7");
+  assert.equal(e3.heading_degrees, 92);
+  assert.equal(e3.event.metadata.type_code, "E-3");
+  assert.equal(e7.event.metadata.model_name, "E-7 Wedgetail");
+  assert.equal(carrier.track_type, "naval");
+  assert.equal(carrier.expected_model_family, "CARRIER");
+  assert.equal(carrier.event.dedupe_key, "frozen-carrier");
+  assert.equal(classifySnapshotAssetModelFamily({ type: "RC-135 Rivet Joint" }), "ISR-RC135");
+  assert.equal(classifySnapshotAssetModelFamily({ type: "P-8 Poseidon" }), "ISR-P8");
+  assert.equal(buildSnapshotAssetRenderInput({ ...base, latitude: null }).reason, "invalid_asset_coordinates");
+});
+
+test("focus and regional HVA presets use distinct heading, pitch, range and visibility thresholds", () => {
+  const focusCamera = calculateCaptureCamera({ capture_type: "HVA_FOCUS_3D", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92 });
+  const regionalCamera = calculateCaptureCamera({ capture_type: "HVA_REGIONAL_CONTEXT", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92, recommended_context_radius_km: 700 });
+  const focus = buildReportAssetFocusPreset("HVA_FOCUS_3D", focusCamera);
+  const regional = buildReportAssetFocusPreset("HVA_REGIONAL_CONTEXT", regionalCamera);
+  assert.equal(focus.mode, "FOCUS");
+  assert.equal(regional.mode, "REGIONAL");
+  assert.notEqual(focus.heading_degrees, regional.heading_degrees);
+  assert.notEqual(focus.pitch_degrees, regional.pitch_degrees);
+  assert.ok(regional.range_meters > focus.range_meters * 2);
+  assert.ok(focus.minimum_visual_pixels > regional.minimum_visual_pixels);
 });
 
 test("regional and unknown developments never become fake point captures", () => {
@@ -247,8 +293,76 @@ test("capture scene payload is sanitized and traceable", () => {
   assert.equal(payload.target.event_id, "event-exact");
   assert.equal(payload.camera.center.latitude, 26.2);
   assert.equal(payload.clusters[0].event_ids.includes("event-exact"), true);
+  assert.deepEqual(payload.clusters[0].report_label, {
+    count: 4,
+    location: "GULF PORT",
+    domain: "MISSILE",
+    text: "4 EVENTS\nGULF PORT\nMISSILE",
+  });
   assert.equal(JSON.stringify(payload).includes("must-not-leak"), false);
   assert.equal(buildCapturePageUrl("http://127.0.0.1:4173/", snapshot.snapshot_key, descriptor.capture_id).includes("test-capture-token"), false);
+});
+
+test("capture semantic quality rejects terrain-only HVA and empty operational scenes", () => {
+  assert.deepEqual(buildCaptureClusterLabel({ incident_count: 14, location_label: "South Lebanon", dominant_domain: "STRIKE" }), {
+    count: 14,
+    location: "SOUTH LEBANON",
+    domain: "STRIKE",
+    text: "14 EVENTS\nSOUTH LEBANON\nSTRIKE",
+  });
+  const hvaFailure = assessCaptureSemanticQuality("HVA_FOCUS_3D", { asset_visible: false });
+  assert.equal(hvaFailure.status, "FAILED");
+  assert.equal(hvaFailure.failure_reason, "asset_not_visible");
+  const overviewFailure = assessCaptureSemanticQuality("REGIONAL_OVERVIEW_3D", { meaningful_operational_layer_visible: false });
+  assert.equal(overviewFailure.failure_reason, "operational_layer_empty");
+  assert.equal(assessCaptureSemanticQuality("CLUSTER_CONTEXT", { target_cluster_visible: true }).status, "READY");
+});
+
+test("capture service accepts READY only with matching semantic-quality evidence", () => {
+  const descriptor = { capture_type: "HVA_FOCUS_3D" };
+  assert.throws(() => __reportingCaptureTestUtils.validateSemanticCaptureState(descriptor, {
+    status: "READY",
+    capture_type: "HVA_FOCUS_3D",
+    semantic_quality: { status: "FAILED", failure_reason: "asset_not_visible" },
+  }), /asset_not_visible/);
+  assert.equal(__reportingCaptureTestUtils.validateSemanticCaptureState(descriptor, {
+    status: "READY",
+    capture_type: "HVA_FOCUS_3D",
+    semantic_quality: { status: "READY" },
+  }), true);
+});
+
+test("real page capture cleans up the report-only entity after the screenshot", async () => {
+  let evaluateCount = 0;
+  let screenshotTaken = false;
+  const page = {
+    async goto() {},
+    async waitForFunction() {},
+    async evaluate() {
+      evaluateCount += 1;
+      if (evaluateCount === 1) return {
+        status: "READY",
+        capture_type: "HVA_FOCUS_3D",
+        semantic_quality: { status: "READY" },
+        asset_focus_debug: { model_uri: "/assets/models/AWACS-E3.glb" },
+      };
+      return { completed: true, entity_id: "track-frozen-awacs", entity_removed: true };
+    },
+    async screenshot() {
+      screenshotTaken = true;
+      return Buffer.from("image");
+    },
+  };
+  const result = await __reportingCaptureTestUtils.captureTargetPage({
+    page,
+    snapshot: snapshotFixture(),
+    descriptor: { capture_type: "HVA_FOCUS_3D", capture_id: "capture-hva" },
+    config: configFixture(),
+  });
+  assert.equal(screenshotTaken, true);
+  assert.equal(result.captureState.asset_cleanup.completed, true);
+  assert.equal(result.captureState.asset_cleanup.entity_removed, true);
+  assert.equal(evaluateCount, 2);
 });
 
 test("manifest updates preserve target traceability and separate ready from failed images", () => {

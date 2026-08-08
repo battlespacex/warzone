@@ -3,9 +3,13 @@ import { haversineDistanceKm } from "../../dev/assets/js/warzone-event-cluster-m
 const REPORT_CONTENT_MODEL_VERSION = 1;
 const MAX_MAJOR_DEVELOPMENTS = 10;
 const MAX_SELECTED_HVA = 6;
+const MAX_REPORT_HVA = 4;
+const MAX_REPORT_HVA_PER_ROLE = 2;
 const MAX_CAPTURE_TARGETS = 8;
 const SIGNIFICANT_SEVERITIES = new Set(["high", "critical"]);
 const VERIFIED_STATES = new Set(["CONFIRMED", "CORROBORATED"]);
+const UNASSIGNED_THEATER_PATTERN = /^(?:unspecified(?: theater)?|unknown(?: theater)?|unassigned)$/i;
+const NON_EXECUTIVE_THEATER_PATTERN = /^(?:unspecified(?: theater)?|unknown(?: theater)?|unassigned|global|europe|asia)$/i;
 const GENERIC_TITLE_WORDS = new Set([
   "a", "an", "and", "at", "by", "for", "from", "in", "near", "of", "on", "reported", "reports", "the", "to", "with",
 ]);
@@ -84,12 +88,13 @@ function isSameIncident(left = {}, right = {}) {
   const rightPlace = cleanText(right.event_place || right.event_city || right.event_region || right.event_country).toLowerCase();
   if (leftPlace && rightPlace && leftPlace !== rightPlace) return false;
   const timeDelta = Math.abs(Date.parse(left.occurred_at || 0) - Date.parse(right.occurred_at || 0));
-  return timeDelta <= 12 * 3600000 && tokenSimilarity(left.title, right.title) >= 0.72;
+  return timeDelta <= 12 * 3600000
+    && tokenSimilarity(left.display_title || left.title, right.display_title || right.title) >= 0.72;
 }
 
 function buildMajorDevelopments(items = [], clusters = [], theaters = []) {
   const theaterById = new Map(theaters.map((theater) => [theater.theater_id, theater]));
-  const ranked = items.filter((item) => item.record_type !== "broader_intelligence").map((item) => {
+  const ranked = items.filter((item) => item.record_type !== "broader_intelligence" && item.report_display_eligible !== false).map((item) => {
     const cluster = clusterForItem(item, clusters);
     const theater = theaterById.get(item.theater_id);
     const clusterBoost = Math.min(18, Number(cluster?.activity_score || 0) * 1.5 + Math.max(0, Number(cluster?.incident_count || 0) - 1) * 3);
@@ -296,19 +301,21 @@ function buildHighValueAssets(tracks = [], context = {}) {
     .map((result) => result.asset)
     .sort((left, right) => right.priority_score - left.priority_score || left.asset_id.localeCompare(right.asset_id))
     .slice(0, MAX_SELECTED_HVA);
-  const captureRequirements = qualified.flatMap((asset) => {
+  const selection = selectHighValueAssetsForReport(qualified, context);
+  const selected = selection.selected;
+  const captureRequirements = selected.flatMap((asset) => {
     if (asset.latitude === null || asset.longitude === null) return [];
     const radius = asset.track_type === "naval" ? 250 : 350;
-    return [
-      {
-        type: "HVA_FOCUS_3D",
-        asset_id: asset.asset_id,
-        latitude: asset.latitude,
-        longitude: asset.longitude,
-        recommended_context_radius_km: radius,
-        recommended_camera_mode: "3D_TRACK_FOCUS",
-      },
-      {
+    const requirements = [{
+      type: "HVA_FOCUS_3D",
+      asset_id: asset.asset_id,
+      latitude: asset.latitude,
+      longitude: asset.longitude,
+      recommended_context_radius_km: radius,
+      recommended_camera_mode: "3D_TRACK_FOCUS",
+    }];
+    if ((asset.nearby_cluster_ids || []).length || (asset.nearby_event_ids || []).length) {
+      requirements.push({
         type: "HVA_REGIONAL_CONTEXT",
         asset_id: asset.asset_id,
         latitude: asset.latitude,
@@ -316,15 +323,75 @@ function buildHighValueAssets(tracks = [], context = {}) {
         related_cluster_ids: asset.nearby_cluster_ids,
         recommended_context_radius_km: radius * 2,
         recommended_camera_mode: "REGIONAL_2D_OR_3D",
-      },
-    ];
+      });
+    }
+    return requirements;
   });
   return {
-    primary: qualified[0] || null,
-    secondary: qualified.slice(1),
+    primary: selected[0] || null,
+    secondary: selected.slice(1),
     all_qualified: qualified,
+    selected_for_report: selected,
+    excluded_from_report: selection.excluded,
     capture_requirements: captureRequirements,
   };
+}
+
+function selectHighValueAssetsForReport(qualified = [], context = {}) {
+  const windowEnd = Date.parse(context.windowEndIso || context.window_end || "");
+  const evaluated = qualified.map((asset) => {
+    const reasons = [];
+    const lastObserved = Date.parse(asset.last_observed || "");
+    const ageHours = Number.isFinite(windowEnd) && Number.isFinite(lastObserved)
+      ? Math.max(0, (windowEnd - lastObserved) / 3600000)
+      : null;
+    const speed = asset.speed_kts === null || asset.speed_kts === undefined ? null : Number(asset.speed_kts);
+    const altitude = asset.altitude_ft === null || asset.altitude_ft === undefined ? null : Number(asset.altitude_ft);
+    if (asset.track_type === "aircraft" && Number.isFinite(altitude) && altitude >= 5000 && Number.isFinite(speed) && speed < 30) {
+      return { asset, selected: false, reason: "inconsistent_airborne_speed" };
+    }
+    if (ageHours !== null && ageHours > 18) return { asset, selected: false, reason: "stale_snapshot_telemetry" };
+    const hasLinkedActivity = (asset.nearby_event_ids || []).length > 0 || (asset.nearby_cluster_ids || []).length > 0;
+    const hasTheaterContext = Boolean(asset.theater);
+    const hasSustainedObservation = Number(asset.observation_count || 0) >= 2 || Number(asset.duration_minutes || 0) >= 30;
+    const hasOperationalProximity = asset.nearest_activity_km !== null && asset.nearest_activity_km !== undefined
+      && Number.isFinite(Number(asset.nearest_activity_km)) && Number(asset.nearest_activity_km) <= 400;
+    if (!(hasLinkedActivity || hasTheaterContext || hasSustainedObservation || hasOperationalProximity)) {
+      return { asset, selected: false, reason: "insufficient_report_context" };
+    }
+    let score = Number(asset.priority_score || 0);
+    if ((asset.nearby_event_ids || []).length) { score += Math.min(24, asset.nearby_event_ids.length * 6); reasons.push("linked_operational_events"); }
+    if ((asset.nearby_cluster_ids || []).length) { score += Math.min(24, asset.nearby_cluster_ids.length * 8); reasons.push("linked_operational_clusters"); }
+    if (asset.theater) { score += 8; reasons.push("named_theater_context"); }
+    if (hasSustainedObservation) { score += 8; reasons.push("sustained_observation"); }
+    if (ageHours !== null) { score += Math.max(0, 18 - ageHours); reasons.push("recent_snapshot_state"); }
+    if (Number(asset.confidence || 0) >= 85) score += 5;
+    return {
+      asset: { ...asset, report_selection_score: Number(score.toFixed(2)), report_selection_reasons: reasons },
+      selected: true,
+      score,
+      ageHours,
+    };
+  });
+  const candidates = evaluated.filter((entry) => entry.selected)
+    .sort((left, right) => right.score - left.score
+      || (left.ageHours ?? Infinity) - (right.ageHours ?? Infinity)
+      || left.asset.asset_id.localeCompare(right.asset.asset_id));
+  const selected = [];
+  const roleCounts = new Map();
+  for (const entry of candidates) {
+    const role = cleanText(entry.asset.role, "UNSPECIFIED");
+    if ((roleCounts.get(role) || 0) >= MAX_REPORT_HVA_PER_ROLE) continue;
+    selected.push(entry.asset);
+    roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
+    if (selected.length >= MAX_REPORT_HVA) break;
+  }
+  const selectedIds = new Set(selected.map((asset) => asset.asset_id));
+  const excluded = evaluated.filter((entry) => !selectedIds.has(entry.asset.asset_id)).map((entry) => ({
+    asset_id: entry.asset.asset_id,
+    reason: entry.reason || ((roleCounts.get(entry.asset.role) || 0) >= MAX_REPORT_HVA_PER_ROLE ? "same_role_redundancy" : "lower_report_significance"),
+  }));
+  return { selected, excluded };
 }
 
 function buildPreviousDayComparison(snapshotData = {}, previousSnapshot = null) {
@@ -371,7 +438,7 @@ function buildHeadlineStats(snapshotData = {}, hva = {}) {
     { id: "high_critical", label: "High / critical", value: highCritical, supporting_text: `${Number(severity.critical || 0)} critical`, state: highCritical ? "ATTENTION" : "NORMAL" },
     { id: "corroborated", label: "Corroborated+", value: corroborated, supporting_text: "Confirmed or independently corroborated", state: corroborated ? "VERIFIED" : "LIMITED" },
     { id: "active_clusters", label: "Active clusters", value: (snapshotData.cluster_summaries || []).length, supporting_text: "Spatial operational groupings", state: "OBSERVED" },
-    { id: "qualified_hva", label: "Qualified HVA", value: hva.all_qualified?.length || 0, supporting_text: "Context-qualified strategic assets", state: hva.all_qualified?.length ? "NOTABLE" : "NONE" },
+    { id: "qualified_hva", label: "Selected HVA", value: hva.selected_for_report?.length || 0, supporting_text: `${hva.all_qualified?.length || 0} type-qualified assets reviewed`, state: hva.selected_for_report?.length ? "NOTABLE" : "NONE" },
     { id: "source_families", label: "Independent sources", value: Number(snapshotData.source_consensus?.independent_source_family_count || 0), supporting_text: "Independent source families", state: "SOURCE_BASE" },
   ];
 }
@@ -381,10 +448,15 @@ function buildKeyJudgments(snapshotData = {}, major = [], hva = {}, comparison =
   const clusters = snapshotData.cluster_summaries || [];
   const strongest = [...clusters].sort((left, right) => Number(right.incident_count || 0) - Number(left.incident_count || 0)
     || Number(right.activity_score || 0) - Number(left.activity_score || 0))[0];
-  if (Number(strongest?.incident_count || 0) >= 2) {
+  const broadLocation = /^(?:europe|asia|global|unspecified|unknown location)$/i.test(cleanText(strongest?.location_label));
+  const linkedLocation = major.find((item) => item.relevant_cluster_id === strongest?.cluster_id);
+  const judgmentLocation = broadLocation
+    ? cleanText(linkedLocation?.display_location || linkedLocation?.event_place || linkedLocation?.event_city || linkedLocation?.event_region, "")
+    : cleanText(strongest?.location_label, "");
+  if (Number(strongest?.incident_count || 0) >= 2 && judgmentLocation) {
     judgments.push({
       id: `judgment-cluster-${slugify(strongest.cluster_id)}`,
-      judgment: `OBSERVED: Repeated operational activity was concentrated in ${strongest.location_label}.`,
+      judgment: `OBSERVED: Repeated operational activity was concentrated in ${judgmentLocation}.`,
       supporting_event_ids: strongest.event_ids,
       supporting_cluster_ids: [strongest.cluster_id],
       confidence: strongest.corroborated_count >= 2 ? "HIGH" : "MODERATE",
@@ -438,17 +510,17 @@ function buildKeyJudgments(snapshotData = {}, major = [], hva = {}, comparison =
       reasoning_basis: "previous_day_snapshot_comparison",
     });
   }
-  if ((hva.all_qualified || []).length >= 2) {
+  if ((hva.selected_for_report || []).length >= 2) {
     judgments.push({
       id: "judgment-multiple-hva",
       judgment: "SUGGESTS: Multiple qualified high-value assets contributed to an elevated strategic support or surveillance posture.",
-      supporting_event_ids: [...new Set(hva.all_qualified.flatMap((asset) => asset.nearby_event_ids))],
-      supporting_cluster_ids: [...new Set(hva.all_qualified.flatMap((asset) => asset.nearby_cluster_ids))],
-      supporting_asset_ids: hva.all_qualified.map((asset) => asset.asset_id),
+      supporting_event_ids: [...new Set(hva.selected_for_report.flatMap((asset) => asset.nearby_event_ids))],
+      supporting_cluster_ids: [...new Set(hva.selected_for_report.flatMap((asset) => asset.nearby_cluster_ids))],
+      supporting_asset_ids: hva.selected_for_report.map((asset) => asset.asset_id),
       confidence: "MODERATE",
       theater: hva.primary?.theater || null,
       domain: "AIR_MARITIME",
-      evidence_summary: `${hva.all_qualified.length} assets passed role, identification, scope and operational-context checks.`,
+      evidence_summary: `${hva.selected_for_report.length} non-redundant assets passed report significance and telemetry checks.`,
       reasoning_basis: "multiple_context_qualified_hva",
     });
   }
@@ -491,7 +563,7 @@ function buildWatchIndicators(snapshotData = {}, hva = {}, items = []) {
       watch_window: "24-72H",
     });
   });
-  (hva.all_qualified || []).slice(0, 3).forEach((asset) => {
+  (hva.selected_for_report || []).slice(0, 3).forEach((asset) => {
     indicators.push({
       id: `watch-hva-${slugify(asset.asset_id)}`,
       indicator: `Continued presence or repositioning of ${asset.role.replace(/_/g, " ")}`,
@@ -511,9 +583,18 @@ function buildWatchIndicators(snapshotData = {}, hva = {}, items = []) {
 }
 
 function buildTheaterSections(theaters = [], major = [], hva = {}) {
-  return theaters.map((theater) => {
+  return theaters.flatMap((theater) => {
+    if (UNASSIGNED_THEATER_PATTERN.test(cleanText(theater.theater_name))) return [];
     const developments = major.filter((item) => item.theater_id === theater.theater_id);
-    const assets = (hva.all_qualified || []).filter((asset) => asset.theater === theater.theater_name);
+    const assets = (hva.selected_for_report || []).filter((asset) => asset.theater === theater.theater_name);
+    const hasSignificantDevelopment = developments.some((item) => SIGNIFICANT_SEVERITIES.has(item.severity)
+      || VERIFIED_STATES.has(item.verification_state));
+    const qualifies = Number(theater.event_count || 0) >= 3
+      || Number(theater.critical_count || 0) + Number(theater.high_count || 0) > 0
+      || hasSignificantDevelopment
+      || (theater.major_clusters || []).length > 0
+      || assets.length > 0;
+    if (!qualifies) return [];
     const themes = [...theater.dominant_domains].sort((left, right) => right.count - left.count).map((entry) => ({
       theme: entry.domain,
       weight: entry.count,
@@ -522,7 +603,13 @@ function buildTheaterSections(theaters = [], major = [], hva = {}) {
     assets.forEach((asset) => {
       themes.push({ theme: asset.role, weight: 1, evidence_asset_ids: [asset.asset_id] });
     });
-    return {
+    const leadingDomain = theater.dominant_domains?.[0]?.domain?.replace(/_/g, " ").toLowerCase() || "mixed-domain";
+    const severityTotal = Number(theater.critical_count || 0) + Number(theater.high_count || 0);
+    const summaryParts = [`${leadingDomain.charAt(0).toUpperCase()}${leadingDomain.slice(1)} reporting led activity in ${theater.theater_name} during the period.`];
+    if (severityTotal) summaryParts.push(`${severityTotal} high- or critical-severity development${severityTotal === 1 ? " met" : "s met"} escalation thresholds.`);
+    else summaryParts.push("No high- or critical-severity development met escalation thresholds.");
+    if (theater.corroborated_count) summaryParts.push(`${theater.corroborated_count} item${theater.corroborated_count === 1 ? " was" : "s were"} confirmed or corroborated.`);
+    return [{
       theater_id: theater.theater_id,
       theater: theater.theater_name,
       activity_level: activityLevel(theater.event_count, theater.critical_count + theater.high_count),
@@ -536,13 +623,14 @@ function buildTheaterSections(theaters = [], major = [], hva = {}) {
       qualified_hva_ids: assets.map((asset) => asset.asset_id),
       latest_significant_activity: developments[0]?.occurred_at || theater.latest_activity,
       trend: theater.activity_change,
+      briefing_summary: summaryParts.join(" "),
       key_operational_themes: themes.slice(0, 6),
       assessment_inputs: {
         source_family_count: theater.source_family_count,
         repeated_cluster_count: theater.major_clusters.length,
         high_value_asset_roles: assets.map((asset) => asset.role),
       },
-    };
+    }];
   });
 }
 
@@ -641,7 +729,7 @@ function buildCaptureTargets({ major = [], clusters = [], hva = {}, counts = {},
     reason: `${item.severity} selected development with trusted coordinates`,
     recommended_camera_mode: "EVENT_CONTEXT_3D",
   }));
-  (hva.all_qualified || []).slice(0, 2).forEach((asset, index) => add({
+  (hva.selected_for_report || []).slice(0, 2).forEach((asset, index) => add({
     type: asset.track_type === "naval" ? "NAVAL_ASSET_FOCUS" : "HVA_FOCUS_3D",
     priority: 90 - index,
     asset_id: asset.asset_id,
@@ -651,10 +739,10 @@ function buildCaptureTargets({ major = [], clusters = [], hva = {}, counts = {},
     reason: asset.operational_significance,
     recommended_camera_mode: asset.track_type === "naval" ? "MARITIME_3D" : "3D_TRACK_FOCUS",
   }));
-  if (Number(counts.satellite_total || 0) > 0) add({
+  if (Number(counts.satellite_total || 0) > 0 && cleanText(satellitePreview?.event_id, "")) add({
     type: "ORBITAL_CONTEXT",
     priority: 80,
-    satellite_event_id: cleanText(satellitePreview?.event_id, "") || null,
+    satellite_event_id: cleanText(satellitePreview.event_id),
     location: null,
     bounds: null,
     reason: "Available satellite observation metadata for the reporting window",
@@ -675,7 +763,8 @@ function buildExecutiveSummaryInputs(snapshotData = {}, major = [], hva = {}, co
   const severity = asObject(snapshotData.aggregates?.by_severity);
   const highCritical = Number(severity.high || 0) + Number(severity.critical || 0);
   const domains = sortCounts(asObject(snapshotData.aggregates?.by_domain));
-  const theaters = snapshotData.aggregates?.by_theater || [];
+  const theaters = (snapshotData.aggregates?.by_theater || [])
+    .filter((theater) => !NON_EXECUTIVE_THEATER_PATTERN.test(cleanText(theater.theater_name)));
   const domainSignals = Object.fromEntries(["air", "maritime", "strike", "missile", "air_defence", "alert", "cyber", "infrastructure", "gnss"]
     .map((domain) => [domain, Number(snapshotData.aggregates?.by_domain?.[domain] || 0)]));
   return {
@@ -688,7 +777,7 @@ function buildExecutiveSummaryInputs(snapshotData = {}, major = [], hva = {}, co
     escalation_signals: major.filter((item) => SIGNIFICANT_SEVERITIES.has(item.severity) || Number(item.relevant_cluster_id ? 1 : 0)).slice(0, 8)
       .map((item) => ({ event_id: item.event_id, severity: item.severity, domain: item.domain, cluster_id: item.relevant_cluster_id })),
     significant_domain_activity: domainSignals,
-    notable_asset_ids: (hva.all_qualified || []).map((asset) => asset.asset_id),
+    notable_asset_ids: (hva.selected_for_report || []).map((asset) => asset.asset_id),
     notable_airspace_changes: major.filter((item) => ["AIR", "AIR_DEFENCE", "ALERT"].includes(item.domain)).map((item) => item.report_item_id),
     notable_disruptions: major.filter((item) => ["CYBER", "GNSS"].includes(item.domain) || item.category === "infrastructure").map((item) => item.report_item_id),
     significant_satellite_observation_count: Number(snapshotData.overall_activity?.satellite_total || 0),
@@ -698,8 +787,9 @@ function buildExecutiveSummaryInputs(snapshotData = {}, major = [], hva = {}, co
 
 function buildReportContent({ snapshotData = {}, items = [], clusters = [], theaters = [], tracks = [], previousSnapshot = null, counts = {}, scope = {}, satellitePreview = null } = {}) {
   const major = buildMajorDevelopments(items, clusters, theaters);
-  const hva = buildHighValueAssets(tracks, { items, clusters, scope });
+  const hva = buildHighValueAssets(tracks, { items, clusters, scope, windowEndIso: snapshotData.window?.end });
   snapshotData.overall_activity.high_value_asset_candidate_total = hva.all_qualified.length;
+  snapshotData.overall_activity.high_value_asset_selected_total = hva.selected_for_report.length;
   const comparison = buildPreviousDayComparison(snapshotData, previousSnapshot);
   const theaterSections = buildTheaterSections(theaters, major, hva);
   const judgments = buildKeyJudgments(snapshotData, major, hva, comparison);
@@ -727,7 +817,7 @@ function buildReportContent({ snapshotData = {}, items = [], clusters = [], thea
       asset_track: hva.capture_requirements,
     },
     intelligence_wire_synthesis: {
-      selected_intelligence_ids: items.filter((item) => item.record_type === "broader_intelligence").sort((left, right) => Number(right.report_relevance_score || 0) - Number(left.report_relevance_score || 0)).slice(0, 20).map((item) => item.intelligence_id),
+      selected_intelligence_ids: items.filter((item) => item.record_type === "broader_intelligence" && item.report_display_eligible !== false).sort((left, right) => Number(right.report_relevance_score || 0) - Number(left.report_relevance_score || 0)).slice(0, 20).map((item) => item.intelligence_id),
       by_verification_state: snapshotData.aggregates?.by_verification_state || {},
       by_source_class: snapshotData.aggregates?.by_source_class || {},
       leading_source_families: snapshotData.source_consensus?.independent_source_families?.slice(0, 20) || [],
@@ -742,6 +832,7 @@ function buildReportContent({ snapshotData = {}, items = [], clusters = [], thea
       broader_intelligence_total: Number(snapshotData.overall_activity?.broader_intelligence_total || 0),
       independent_source_family_count: Number(snapshotData.source_consensus?.independent_source_family_count || 0),
       qualified_hva_total: hva.all_qualified.length,
+      selected_hva_total: hva.selected_for_report.length,
       location_precision_distribution: countValues(items, (item) => item.location_precision),
       verification_distribution: snapshotData.aggregates?.by_verification_state || {},
       selection_method: "deterministic_relevance_deduplication_and_context_scoring",
@@ -762,4 +853,5 @@ export {
   buildPreviousDayComparison,
   buildReportContent,
   qualifyHighValueAsset,
+  selectHighValueAssetsForReport,
 };
