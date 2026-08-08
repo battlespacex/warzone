@@ -12,6 +12,15 @@ import {
     getClusterDistanceKm,
     scoreToRadius,
 } from "./warzone-event-cluster-model.js";
+import {
+    ZOOM_UX_STATES,
+    buildLocalActivityStackModel,
+    chooseStackSide,
+    getClusterBucketForZoomState,
+    getZoomUxState,
+    selectActiveClusterGroup,
+    selectClusterLocalityLabel,
+} from "./warzone-map-zoom-ux.js";
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 function sanitizeText(v) {
     if (!v) return "";
@@ -737,6 +746,13 @@ function geoCluster(events, zoomBucket, minCount, maxCards) {
             };
         });
 }
+function getHotspotZoomState(viewer) {
+    return getZoomUxState(getCameraHeight(viewer), {
+        regionalMinHeight: cssNumber("--hotspot-zoom-regional-min-height", 5200000),
+        localStackMinHeight: cssNumber("--hotspot-zoom-local-stack-min-height", 2600000),
+        localityMinHeight: cssNumber("--hotspot-zoom-locality-min-height", 620000),
+    });
+}
 // ─── screen stacking ──────────────────────────────────────────────────────────
 const STACK_OFF = [
     { x: 0, y: 0 },
@@ -773,20 +789,25 @@ function removeHotspotNode(node) {
     if (!node) return;
     node.el?.classList.add("wzhs--leaving");
     node.radiusEl?.classList.add("wzhs-radius--leaving");
+    node.uxLabelEl?.classList.add("wzhs-cluster-label--leaving");
     const el = node.el;
     const radiusEl = node.radiusEl;
+    const uxLabelEl = node.uxLabelEl;
     window.setTimeout(() => {
         el?.remove?.();
         radiusEl?.remove?.();
+        uxLabelEl?.remove?.();
     }, 280);
 }
 function markHotspotNodeEntered(node) {
     if (!node) return;
     node.el?.classList.add("wzhs--entering");
     node.radiusEl?.classList.add("wzhs-radius--entering");
+    node.uxLabelEl?.classList.add("wzhs-cluster-label--entering");
     requestAnimationFrame(() => {
         node.el?.classList.remove("wzhs--entering");
         node.radiusEl?.classList.remove("wzhs-radius--entering");
+        node.uxLabelEl?.classList.remove("wzhs-cluster-label--entering");
     });
 }
 function isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster) {
@@ -809,6 +830,145 @@ function getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg) {
         max: maxDiameter,
         scoreAtMax: cssNumber("--hotspot-score-at-max", 80),
     }) * zoomScale;
+}
+function createClusterUxLabelEl() {
+    const el = document.createElement("div");
+    el.className = "wzhs-cluster-label";
+    el.setAttribute("aria-hidden", "true");
+    return el;
+}
+function renderClusterUxLabel(el, cluster, zoomState, number = "") {
+    if (!el) return;
+    const count = Math.max(1, Number(cluster?.actual_event_count || cluster?.event_count || cluster?.count || 1));
+    if (zoomState === ZOOM_UX_STATES.LOCAL_STACK) {
+        const signature = `${zoomState}:${number || count}`;
+        if (el.__wzLabelSignature === signature) return;
+        el.__wzLabelSignature = signature;
+        el.className = `wzhs-cluster-label wzhs-cluster-label--number${number ? "" : " wzhs-cluster-label--unlisted"}`;
+        el.innerHTML = `<strong>${escapeHtml(number || count)}</strong>`;
+        return;
+    }
+    if (zoomState === ZOOM_UX_STATES.LOCALITY) {
+        const locality = sanitizeText(selectClusterLocalityLabel(cluster));
+        const signature = `${zoomState}:${locality}:${count}`;
+        if (el.__wzLabelSignature === signature) return;
+        el.__wzLabelSignature = signature;
+        el.className = "wzhs-cluster-label wzhs-cluster-label--locality";
+        el.innerHTML = `<strong>${escapeHtml(locality)}</strong><span>${escapeHtml(count)} ${count === 1 ? "EVENT" : "EVENTS"}</span>`;
+        return;
+    }
+    const signature = `${zoomState}:${count}`;
+    if (el.__wzLabelSignature === signature) return;
+    el.__wzLabelSignature = signature;
+    el.className = "wzhs-cluster-label wzhs-cluster-label--regional";
+    el.innerHTML = `<strong>${escapeHtml(count)}</strong>`;
+}
+function createActivityStackElements(rootEl) {
+    const lineEl = document.createElement("div");
+    lineEl.className = "wzhs-stack-line";
+    lineEl.hidden = true;
+    rootEl.appendChild(lineEl);
+    const stackEl = document.createElement("aside");
+    stackEl.className = "wzhs-activity-stack";
+    stackEl.setAttribute("aria-label", "Local activity summary");
+    stackEl.hidden = true;
+    rootEl.appendChild(stackEl);
+    return { stackEl, lineEl, signature: "", height: 0 };
+}
+function hideActivityStack(stackNode) {
+    if (!stackNode) return;
+    stackNode.stackEl.hidden = true;
+    stackNode.lineEl.hidden = true;
+    stackNode.signature = "";
+}
+function renderActivityStack(stackNode, model, group, viewport) {
+    if (!stackNode || !model || !group?.bounds || !model.entries?.length) {
+        hideActivityStack(stackNode);
+        return;
+    }
+    const signature = JSON.stringify({
+        area: model.area_label,
+        total: model.total_event_count,
+        latest: model.latest_event_time,
+        verified: model.verified_count,
+        trend: model.trend?.state || "",
+        entries: model.entries,
+    });
+    const stackEl = stackNode.stackEl;
+    if (signature !== stackNode.signature) {
+        const trendArrow = model.trend?.state === "INCREASING" ? "↑" : model.trend?.state === "DECREASING" ? "↓" : "→";
+        stackEl.innerHTML = `
+            <header class="wzhs-activity-stack__header">
+                <span>${escapeHtml(sanitizeText(model.area_label))}</span>
+                <strong>${escapeHtml(model.total_event_count)} ACTIVE ${model.total_event_count === 1 ? "EVENT" : "EVENTS"}</strong>
+            </header>
+            <div class="wzhs-activity-stack__entries">
+                ${model.entries.map((entry) => `
+                    <div class="wzhs-activity-stack__entry" data-severity="${escapeHtml(entry.severity)}">
+                        <span class="wzhs-activity-stack__number">${escapeHtml(entry.number)}</span>
+                        <div class="wzhs-activity-stack__entry-copy">
+                            <strong>${escapeHtml(sanitizeText(entry.locality))}</strong>
+                            <span>${escapeHtml(entry.event_count)} ${entry.event_count === 1 ? "EVENT" : "EVENTS"}${entry.domains.length ? ` · ${escapeHtml(entry.domains.join(" / "))}` : ""}</span>
+                            ${entry.latest_event_time ? `<small>Latest ${escapeHtml(timeAgo(entry.latest_event_time))}</small>` : ""}
+                        </div>
+                    </div>`).join("")}
+            </div>
+            <footer class="wzhs-activity-stack__footer">
+                ${model.trend ? `<span>TREND <strong>${escapeHtml(model.trend.state)} ${trendArrow}</strong></span>` : ""}
+                <span><strong>${escapeHtml(model.verified_count)} / ${escapeHtml(model.total_event_count)}</strong> ${escapeHtml(model.verification_label)}</span>
+            </footer>`;
+        stackNode.signature = signature;
+        stackNode.height = 0;
+    }
+    stackEl.hidden = false;
+    const panelWidth = Math.min(
+        viewport.width - 24,
+        viewport.width <= 720
+            ? cssLengthToPx("--hotspot-stack-width-small", 270)
+            : cssLengthToPx("--hotspot-stack-width", 320)
+    );
+    if (stackNode.viewportWidth !== viewport.width) {
+        stackNode.viewportWidth = viewport.width;
+        stackNode.height = 0;
+    }
+    const offset = cssLengthToPx("--hotspot-stack-offset", 34);
+    const viewportPad = cssLengthToPx("--hotspot-stack-viewport-pad", 18);
+    const topInset = cssLengthToPx("--hotspot-stack-top-inset", 92);
+    const bottomInset = cssLengthToPx("--hotspot-stack-bottom-inset", 78);
+    const leftInset = cssLengthToPx("--hotspot-stack-left-inset", 80);
+    const rightInset = cssLengthToPx("--hotspot-stack-right-inset", 28);
+    const side = chooseStackSide(group.bounds, {
+        viewportWidth: viewport.width,
+        leftInset,
+        rightInset,
+    });
+    stackEl.dataset.side = side;
+    const maxLeft = Math.max(viewportPad, viewport.width - panelWidth - viewportPad - rightInset);
+    const desiredLeft = side === "left"
+        ? group.bounds.left - offset - panelWidth
+        : group.bounds.right + offset;
+    const left = Math.max(leftInset, Math.min(maxLeft, desiredLeft));
+    if (!stackNode.height) stackNode.height = stackEl.offsetHeight || 260;
+    const maxTop = Math.max(topInset, viewport.height - stackNode.height - bottomInset);
+    const top = Math.max(topInset, Math.min(maxTop, group.bounds.centerY - stackNode.height / 2));
+    stackEl.style.left = `${left}px`;
+    stackEl.style.top = `${top}px`;
+
+    const anchorX = group.bounds.centerX;
+    const anchorY = group.bounds.centerY;
+    const targetX = side === "left" ? left + panelWidth : left;
+    const targetY = Math.max(top + 20, Math.min(top + stackNode.height - 20, anchorY));
+    const distance = Math.hypot(targetX - anchorX, targetY - anchorY);
+    const minLineLength = cssLengthToPx("--hotspot-stack-line-min-length", 24);
+    if (distance <= minLineLength) {
+        stackNode.lineEl.hidden = true;
+    } else {
+        stackNode.lineEl.hidden = false;
+        stackNode.lineEl.style.left = `${anchorX}px`;
+        stackNode.lineEl.style.top = `${anchorY}px`;
+        stackNode.lineEl.style.width = `${distance}px`;
+        stackNode.lineEl.style.transform = `rotate(${Math.atan2(targetY - anchorY, targetX - anchorX)}rad)`;
+    }
 }
 function stackVisible(clusters, overlapPx, maxPer) {
     const stacks = [];
@@ -953,6 +1113,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let lastMoveRenderMs = 0;
     let cameraMoving = false;
     let moveEndTimer = 0;
+    const activityStack = createActivityStackElements(rootEl);
     const cfg = {
         maxCards: options.maxCards ?? 52,
         maxEvents: options.maxEvents ?? 1800,
@@ -998,11 +1159,17 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const offY = canvasRect.top - overlayRect.top;
         rootEl.style.setProperty("--wzhs-perspective-tilt", getHotspotPerspectiveTilt(viewer));
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
+        const zoomState = getHotspotZoomState(viewer);
+        const clusterBucket = getClusterBucketForZoomState(zoomState, zoomCfg.key);
         rootEl.dataset.zoomBucket = zoomCfg.key || "default";
-        if (clustersDirty || lastZoomConfigKey !== zoomCfg.key) {
-            cachedClusters = geoCluster(allEvents, zoomCfg.key, cfg.minItemsForCluster, zoomCfg.maxCards);
+        rootEl.dataset.zoomState = zoomState;
+        const clusterCacheKey = `${zoomState}:${clusterBucket}`;
+        if (clustersDirty || lastZoomConfigKey !== clusterCacheKey) {
+            cachedClusters = zoomState === ZOOM_UX_STATES.EVENT
+                ? []
+                : geoCluster(allEvents, clusterBucket, cfg.minItemsForCluster, zoomCfg.maxCards);
             clustersDirty = false;
-            lastZoomConfigKey = zoomCfg.key;
+            lastZoomConfigKey = clusterCacheKey;
         }
         const projected = [];
         for (const c of cachedClusters) {
@@ -1015,6 +1182,24 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             projected.push({ ...c, screen: { x, y } });
         }
         const visible = stackVisible(projected, zoomCfg.stackDistancePx, zoomCfg.maxVisiblePerHotspot);
+        const activeGroup = zoomState === ZOOM_UX_STATES.LOCAL_STACK
+            ? selectActiveClusterGroup(visible, {
+                viewportWidth: overlayRect.width,
+                viewportHeight: overlayRect.height,
+                maxGapPx: cssLengthToPx("--hotspot-stack-group-gap", 340),
+            })
+            : null;
+        const stackEntryLimit = overlayRect.width <= 720
+            ? cssNumber("--hotspot-stack-entry-limit-small", 4)
+            : cssNumber("--hotspot-stack-entry-limit", 6);
+        const stackModel = activeGroup
+            ? buildLocalActivityStackModel(activeGroup.clusters, { maxEntries: stackEntryLimit })
+            : null;
+        const clusterNumbers = new Map((stackModel?.entries || []).map((entry) => [entry.cluster_id, entry.number]));
+        renderActivityStack(activityStack, stackModel, activeGroup, {
+            width: overlayRect.width,
+            height: overlayRect.height,
+        });
         const visibleIds = new Set(visible.map((v) => v.id));
         for (const [id, node] of nodeMap) {
             if (!visibleIds.has(id)) {
@@ -1040,8 +1225,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusEl = createHotspotRadiusEl(cluster);
                     rootEl.appendChild(node.radiusEl);
                 }
+                if (!node.uxLabelEl) {
+                    node.uxLabelEl = createClusterUxLabelEl();
+                    rootEl.appendChild(node.uxLabelEl);
+                }
                 applyHotspotRadiusModel(node.radiusEl, cluster);
                 syncHotspotRadiusSplitState(node.radiusEl, radiusSplitHidden);
+                renderClusterUxLabel(node.uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
                 if (node.el && !cardsEnabled) {
                     node.el.remove();
                     node.el = null;
@@ -1075,6 +1265,9 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusMatrix = hotspotMatrix;
                 }
                 node.radiusEl.style.zIndex = zi - 1;
+                node.uxLabelEl.style.left = `${rx}px`;
+                node.uxLabelEl.style.top = `${ry}px`;
+                node.uxLabelEl.style.zIndex = zi;
                 if (cardsEnabled && node.el) {
                     node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
                     node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
@@ -1086,12 +1279,16 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 syncHotspotRadiusSplitState(radiusEl, radiusSplitHidden);
                 radiusEl.style.cssText = `position:absolute;left:${rx - hotspotDiameter * 0.5}px;top:${ry - hotspotDiameter * 0.5}px;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;transform:${hotspotMatrix || "none"};`;
                 rootEl.appendChild(radiusEl);
+                const uxLabelEl = createClusterUxLabelEl();
+                renderClusterUxLabel(uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
+                uxLabelEl.style.cssText = `left:${rx}px;top:${ry}px;z-index:${zi};`;
+                rootEl.appendChild(uxLabelEl);
                 const el = cardsEnabled ? createCardEl(cluster, handleToggle) : null;
                 if (el) {
                     el.style.cssText = `position:absolute;left:${tx}px;top:${ty}px;z-index:${zi};`;
                     rootEl.appendChild(el);
                 }
-                const node = { el, radiusEl, x: el ? tx : null, y: el ? ty : null, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix };
+                const node = { el, radiusEl, uxLabelEl, x: el ? tx : null, y: el ? ty : null, rx, ry, radiusSize: hotspotDiameter, radiusMatrix: hotspotMatrix };
                 nodeMap.set(cluster.id, node);
                 markHotspotNodeEntered(node);
             }
@@ -1180,8 +1377,10 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             for (const [, node] of nodeMap) {
                 node.el?.remove?.();
                 node.radiusEl?.remove?.();
+                node.uxLabelEl?.remove?.();
             }
             nodeMap.clear();
+            hideActivityStack(activityStack);
         },
         destroy() {
             destroyed = true;
@@ -1189,8 +1388,11 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             for (const [, node] of nodeMap) {
                 node.el?.remove?.();
                 node.radiusEl?.remove?.();
+                node.uxLabelEl?.remove?.();
             }
             nodeMap.clear();
+            activityStack.stackEl.remove();
+            activityStack.lineEl.remove();
             viewer.scene.postRender.removeEventListener(onPostRender);
             viewer.camera.moveStart.removeEventListener(onCameraMoveStart);
             viewer.camera.moveEnd.removeEventListener(onCameraMoveEnd);

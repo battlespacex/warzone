@@ -7,6 +7,11 @@ import {
     getClusterDistanceKm,
     scoreToRadius,
 } from "./warzone-event-cluster-model.js";
+import {
+    ZOOM_UX_STATES,
+    getClusterBucketForZoomState,
+    getZoomUxState,
+} from "./warzone-map-zoom-ux.js";
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
     countries: [
@@ -440,12 +445,23 @@ function clusterEventsForDisplayLegacy(events = [], precisionDeg = 0.32, maxItem
         .sort((a, b) => (Number(b.cluster_count || 1) - Number(a.cluster_count || 1)))
         .slice(0, maxItems);
 }
+function getEventZoomState(viewer) {
+    return getZoomUxState(getCameraHeight(viewer), {
+        regionalMinHeight: numberVar("--hotspot-zoom-regional-min-height", 5200000),
+        localStackMinHeight: numberVar("--hotspot-zoom-local-stack-min-height", 2600000),
+        localityMinHeight: numberVar("--hotspot-zoom-locality-min-height", 620000),
+    });
+}
 function getEventClusterDistanceKm(viewer) {
     const bucket = getEventClusterZoomBucket(viewer);
-    return Math.max(0, numberVar(`--hotspot-cluster-distance-${bucket}-km`, getClusterDistanceKm(bucket)));
+    const zoomState = getEventZoomState(viewer);
+    if (zoomState === ZOOM_UX_STATES.EVENT) return 0;
+    const presentationBucket = getClusterBucketForZoomState(zoomState, bucket);
+    return Math.max(0, numberVar(`--hotspot-cluster-distance-${presentationBucket}-km`, getClusterDistanceKm(presentationBucket)));
 }
 function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 520, viewer = window.__warzoneViewer) {
-    const zoomBucket = getEventClusterZoomBucket(viewer);
+    const zoomState = getEventZoomState(viewer);
+    const zoomBucket = getClusterBucketForZoomState(zoomState, getEventClusterZoomBucket(viewer));
     return buildSpatialEventClusters(events, {
         zoomBucket,
         distanceKm: getEventClusterDistanceKm(viewer),
@@ -796,6 +812,8 @@ function applyEventLod(viewer) {
     if (!viewer) return;
     const mode = viewer.__warzoneMapMode || __EVENT_LOD_STATE.mode || "map";
     const cameraHeight = getCameraHeight(viewer);
+    const zoomState = getEventZoomState(viewer);
+    const showIndividualEvents = zoomState === ZOOM_UX_STATES.EVENT;
     const allowMarkers = boolVar("--warzone-event-markers-visible", true);
     const allowRings = boolVar("--warzone-event-rings-visible", true);
     const suppressMarkers = viewer.__warzoneSuppressEventMarkers === true;
@@ -817,6 +835,7 @@ function applyEventLod(viewer) {
         const isEventCountLabel = !!entity.properties?.isEventCountLabel?.getValue?.();
         const isEventPulse = !!entity.properties?.isEventPulse?.getValue?.();
         const isEventClusterParentRing = !!entity.properties?.isEventClusterParentRing?.getValue?.();
+        const isSatelliteImageryMarker = !!entity.properties?.isSatelliteImageryMarker?.getValue?.();
         const heatRadius = Number(entity.properties?.heatRadius?.getValue?.() ?? 140000);
         const category = String(entity.properties?.category?.getValue?.() ?? "strike");
         const severity = String(entity.properties?.severity?.getValue?.() ?? "medium");
@@ -825,13 +844,28 @@ function applyEventLod(viewer) {
         // Read cluster_count stored by createEventEntity — clusters keep their scaled radius
         const clusterCount = Number(entity.properties?.cluster_count?.getValue?.() ?? 1);
         const isCluster = clusterCount > 1;
+        if (isSatelliteImageryMarker) {
+            if (entity.billboard) {
+                entity.billboard.show = showIndividualEvents
+                    && clusterCount === 1
+                    && viewer.__warzoneSatelliteImageryLayerVisible !== false;
+            }
+            continue;
+        }
         const colorCss = getEventMarkerColorCss({ category, dominant_domain: dominantDomain });
         const color = Cesium.Color.fromCssColorString(colorCss);
         const baseRadius = getSeverityRadius({ severity, cluster_count: clusterCount });
         if (isEventCountLabel) {
             if (entity.label) {
-                const labelConfig = createClusterCountLabel(clusterCount);
-                const showCountLabel = mode !== "heatmap" && !suppressMarkers && !!labelConfig;
+                const markerLabel = String(entity.properties?.event_marker_label?.getValue?.() ?? "Event");
+                const labelConfig = clusterCount === 1
+                    ? createEventMarkerTextLabel(markerLabel)
+                    : createClusterCountLabel(clusterCount);
+                const showCountLabel = mode !== "heatmap"
+                    && !suppressMarkers
+                    && showIndividualEvents
+                    && clusterCount === 1
+                    && !!labelConfig;
                 entity.label.show = showCountLabel;
                 if (labelConfig) {
                     entity.label.text = labelConfig.text;
@@ -850,7 +884,7 @@ function applyEventLod(viewer) {
             continue;
         }
         if (isEventClusterParentRing && entity.ellipse) {
-            entity.ellipse.show = allowRings && showRingsByZoom;
+            entity.ellipse.show = mode === "heatmap" && allowRings && showRingsByZoom;
             entity.ellipse.material = Cesium.Color.TRANSPARENT;
             entity.ellipse.outline = true;
             entity.ellipse.outlineColor = Cesium.Color.fromCssColorString(getEventHotspotColorCss({ category, dominant_domain: dominantDomain })).withAlpha(0.96);
@@ -862,7 +896,11 @@ function applyEventLod(viewer) {
             : numberVar("--warzone-event-ring-fill-alpha", 0.14);
         if (isEventOutline || isEventFill || isEventPulse) {
             if (isEventMarkerFill) {
-                const showMarkerFill = mode !== "heatmap" && !suppressMarkers && (isCluster || allowMarkers);
+                const showMarkerFill = mode !== "heatmap"
+                    && !suppressMarkers
+                    && allowMarkers
+                    && showIndividualEvents
+                    && !isCluster;
                 if (entity.billboard) {
                     entity.billboard.show = showMarkerFill;
                     entity.billboard.width = getEventMarkerSizePx(clusterCount, activityScore);
@@ -878,13 +916,13 @@ function applyEventLod(viewer) {
             }
             if (entity.billboard) {
                 const showBillboard = isEventPulse
-                    ? mode !== "heatmap" && allowMarkers && !suppressMarkers && shouldShowEventMarkerPulseAtCurrentZoom(viewer)
+                    ? mode !== "heatmap" && allowMarkers && !suppressMarkers && showIndividualEvents && !isCluster && shouldShowEventMarkerPulseAtCurrentZoom(viewer)
                     : mode !== "heatmap" && allowRings && showRingsByZoom;
                 entity.billboard.show = showBillboard;
                 if (!showBillboard) clearEventEllipsePulse(entity);
             }
             if (entity.ellipse) {
-                const showPulse = mode !== "heatmap" && allowRings && showRingsByZoom;
+                const showPulse = mode !== "heatmap" && allowRings && showRingsByZoom && showIndividualEvents && !isCluster;
                 entity.ellipse.show = showPulse;
                 if (showPulse && isEventPulse) {
                     const pulseRadius = Math.max(2000, numberVar("--warzone-event-pulse-radius", 22000));
@@ -1932,20 +1970,62 @@ function createClusterCountLabel(count = 1) {
         showBackground: false,
     };
 }
+function getEventMarkerText(event = {}) {
+    const title = String(event.title || event.display_title || "").toLowerCase();
+    const domain = getEventDomain(event);
+    if (domain === "AIR") return /\b(?:uav|drone)\b/.test(title) ? "UAV Activity" : "Air Activity";
+    if (domain === "STRIKE") {
+        if (/\b(?:explosion|blast|detonation)\b/.test(title)) return "Explosion";
+        if (/\bairstrike\b/.test(title)) return "Airstrike";
+        return "Strike";
+    }
+    const labels = {
+        MISSILE: "Missile",
+        ARTILLERY: "Artillery",
+        AIR_DEFENCE: "Air Defence",
+        MARITIME: "Maritime",
+        CYBER: "Cyber",
+        GNSS: "GNSS",
+        ALERT: "Alert",
+        MIXED: "Event",
+    };
+    return labels[domain] || "Event";
+}
+function createEventMarkerTextLabel(text = "Event") {
+    return {
+        text: String(text || "Event"),
+        font: `700 ${cssVar("--event-marker-label-size", "12px")} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
+        fillColor: colorFromCssVar("--warzone-event-marker-text-color", "#ffffff", 0.98),
+        outlineColor: Cesium.Color.BLACK.withAlpha(0.94),
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        pixelOffset: new Cesium.Cartesian2(numberVar("--event-marker-label-offset-x", 30), 0),
+        eyeOffset: new Cesium.Cartesian3(0, 0, -5000),
+        disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
+        zIndex: 1000,
+        showBackground: true,
+        backgroundColor: Cesium.Color.BLACK.withAlpha(numberVar("--event-marker-label-background-alpha", 0.68)),
+        backgroundPadding: new Cesium.Cartesian2(7, 4),
+    };
+}
 function createEventCountEntity(event) {
     const count = Number(event?.cluster_count || 1);
-    const label = createClusterCountLabel(count);
+    const eventMarkerLabel = getEventMarkerText(event);
+    const label = count === 1 ? createEventMarkerTextLabel(eventMarkerLabel) : createClusterCountLabel(count);
     if (!label) return null;
     return {
         id: `${event.id}-count`,
         position: createEventPositionProperty(event),
         label: {
             ...label,
-            show: true,
+            show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT && count === 1,
         },
         properties: {
             event_id: event.id,
             isEventCountLabel: true,
+            event_marker_label: eventMarkerLabel,
             layer_id: event._layerId || event.layer_id || "",
             category: event.category,
             severity: event.severity,
@@ -2044,6 +2124,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
     const count = Number(event?.cluster_count || 1);
     const markerSizePx = Math.max(28, numberVar("--warzone-satellite-imagery-marker-size-px", 42));
     const satelliteVisible = options?.satelliteImageryVisible !== false;
+    const showAtCurrentZoom = getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT && count === 1;
     return {
         id: `${event.id}-satellite-imagery`,
         position: createEventPositionProperty(event),
@@ -2056,7 +2137,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
-            show: satelliteVisible,
+            show: satelliteVisible && showAtCurrentZoom,
         },
         properties: {
             event_id: event.id,
@@ -2086,7 +2167,10 @@ function createEventMarkerFillEntity(event, options = {}) {
     const isCluster = count > 1;
     const showEventMarkers = boolVar("--warzone-event-markers-visible", true);
     const suppressMarkers = options?.suppressMarkers === true;
-    const showMarker = !suppressMarkers && (isCluster || showEventMarkers);
+    const showMarker = !suppressMarkers
+        && showEventMarkers
+        && !isCluster
+        && getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT;
     const fillAlpha = Math.max(0.02, Math.min(1, numberVar("--warzone-event-marker-fill-alpha", 0.82)));
     const markerSizePx = getEventMarkerSizePx(count, event.weighted_activity_score || event._activityScore);
     const markerSquash = getEventMarkerPerspectiveSquash(window.__warzoneViewer);
@@ -2151,7 +2235,10 @@ function createEventMarkerPulseEntity(event, options = {}) {
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
-            show: !suppressMarkers && shouldShowEventMarkerPulseAtCurrentZoom(window.__warzoneViewer),
+            show: !suppressMarkers
+                && count === 1
+                && getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT
+                && shouldShowEventMarkerPulseAtCurrentZoom(window.__warzoneViewer),
         },
         properties: {
             event_id: event.id,
@@ -2360,6 +2447,12 @@ function resolvePickedEventMarkerEntity(viewer, picked) {
     const pickedEntity = picked?.id;
     if (!pickedEntity) return null;
     if (isSatelliteImageryMarkerEntity(pickedEntity)) return null;
+    if (!!getEntityPropertyValue(pickedEntity, "isEventCountLabel", false)) {
+        const pickedId = String(pickedEntity.id || "");
+        const parentId = pickedId.endsWith("-count") ? pickedId.slice(0, -6) : "";
+        const parentEntity = parentId ? viewer?.entities?.getById?.(parentId) : null;
+        return isEventMarkerEntity(parentEntity) ? parentEntity : null;
+    }
     if (isEventSatelliteBadgeEntity(pickedEntity)) {
         const parentId = String(getEntityPropertyValue(pickedEntity, "event_id", "") || "");
         const parentEntity = parentId ? viewer?.entities?.getById?.(parentId) : null;
