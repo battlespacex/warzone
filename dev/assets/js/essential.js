@@ -24,6 +24,10 @@ import {
     MAP_EVENT_HISTORY_WINDOW_MS,
     isMapEventHistoricallyRelevant,
 } from "../../../apps/shared/map-event-policy.js";
+import {
+    hasTrustedMapCoordinates,
+    readEventLocation,
+} from "../../../apps/shared/event-location-policy.js";
 import { resolveDisplayCoordinates, eventMatchesBounds } from "./warzone-location-resolver.js";
 import {
     upsertLiveTrack,
@@ -951,6 +955,7 @@ function isOperationalMapEvent(event = {}) {
     if (!event || !isMilitaryRelevant(event)) return false;
     if (!isMapEventHistoricallyRelevant(event)) return false;
     if (event.map_eligible === false || event.mapEligible === false) return false;
+    if (!hasTrustedMapCoordinates(event)) return false;
     if (isLowInformationPublicSignal(event)) return false;
     if (isIntelWireOnlyEvent(event)) return false;
     const category = String(event.category || "").toLowerCase();
@@ -3049,8 +3054,9 @@ function clearAllNavalSignals() {
     requestNavalWidgetRender(0);
 }
 function normalizeEvent(event = {}) {
-    const sourceLat = event.source_lat ?? event.raw_lat ?? event.lat ?? event.latitude ?? null;
-    const sourceLon = event.source_lon ?? event.raw_lon ?? event.lon ?? event.longitude ?? null;
+    const eventLocation = readEventLocation(event);
+    const sourceLat = event.source_lat ?? event.raw_lat ?? null;
+    const sourceLon = event.source_lon ?? event.raw_lon ?? null;
     const impactLatRaw = event.impact_lat ?? event.impactLatitude ?? event.impactLat ?? null;
     const impactLonRaw = event.impact_lon ?? event.impactLongitude ?? event.impactLon ?? null;
     const base = {
@@ -3067,12 +3073,12 @@ function normalizeEvent(event = {}) {
         impact_lon: impactLonRaw != null ? Number(impactLonRaw) : null,
         origin_lat: event.origin_lat != null ? Number(event.origin_lat) : null,
         origin_lon: event.origin_lon != null ? Number(event.origin_lon) : null,
-        country: event.country || event.countryName || "",
-        city: event.city || "",
-        province: event.province || event.state || event.admin1 || "",
-        location: event.location || "",
-        location_label: event.location_label || event.impact_label || event.country || "",
-        impact_label: event.impact_label || event.location_label || event.country || "",
+        country: eventLocation.event_country || event.event_country || event.country || event.countryName || "",
+        city: eventLocation.event_city || event.event_city || event.city || "",
+        province: eventLocation.event_region || event.event_region || event.province || event.state || event.admin1 || "",
+        location: eventLocation.event_place || event.event_place || event.location || "",
+        location_label: event.location_label || event.impact_label || eventLocation.event_place || eventLocation.event_city || eventLocation.event_region || eventLocation.event_country || "",
+        impact_label: event.impact_label || event.location_label || eventLocation.event_place || eventLocation.event_city || eventLocation.event_region || eventLocation.event_country || "",
         occurred_at: event.occurred_at || new Date().toISOString()
     };
     const placement = resolveDisplayCoordinates(base);

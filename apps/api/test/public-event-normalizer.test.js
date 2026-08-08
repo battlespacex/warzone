@@ -69,6 +69,75 @@ test("broad country centroid coordinates are not public map eligible", () => {
     assert.equal(event.map_eligible, false);
 });
 
+test("legacy feed-region placeholder coordinates are not public map eligible", () => {
+    const event = toPublicEvent({
+        title: "Reported operational activity",
+        summary: "No usable incident place was identified.",
+        source_name: "Regional feed",
+        location_label: "Middle East",
+        lat: 29.5,
+        lon: 45
+    });
+
+    assert.equal(event.map_eligible, false);
+    assert.equal(event.lat, null);
+    assert.equal(event.lon, null);
+});
+
+test("regional metadata preserves geography but suppresses marker coordinates", () => {
+    const event = toPublicEvent({
+        id: "evt-regional",
+        category: "strike",
+        title: "Strikes reported in southern Lebanon",
+        location_label: "Southern Lebanon",
+        lat: 33.25,
+        lon: 35.45,
+        metadata: {
+            normalization: {
+                location_precision: "REGIONAL",
+                location_confidence: 52,
+                location_method: "text_region",
+                event_country: "Lebanon",
+                event_region: "Southern Lebanon",
+                source_country: "United Kingdom"
+            }
+        }
+    });
+
+    assert.equal(event.lat, null);
+    assert.equal(event.lon, null);
+    assert.equal(event.map_eligible, false);
+    assert.equal(event.location_precision, "REGIONAL");
+    assert.equal(event.event_country, "Lebanon");
+    assert.equal(event.event_region, "Southern Lebanon");
+    assert.equal(event.source_country, "United Kingdom");
+});
+
+test("source-derived coordinates are never public map eligible", () => {
+    const event = toPublicEvent({
+        id: "evt-source-location",
+        category: "strike",
+        title: "Explosion reported in Iran",
+        location_label: "Seoul",
+        lat: 37.5667,
+        lon: 126.9783,
+        metadata: {
+            normalization: {
+                location_precision: "EXACT",
+                location_method: "publisher_coordinates",
+                source_country: "South Korea",
+                event_country: "Iran"
+            }
+        }
+    });
+
+    assert.equal(event.lat, null);
+    assert.equal(event.lon, null);
+    assert.equal(event.map_eligible, false);
+    assert.equal(event.event_country, "Iran");
+    assert.equal(event.source_country, "South Korea");
+});
+
 test("hides low-information GDELT fragments from the operational map", () => {
     const event = toPublicEvent({
         id: "evt-gdelt-fragment",

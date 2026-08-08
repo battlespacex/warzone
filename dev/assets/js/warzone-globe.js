@@ -366,21 +366,16 @@ function clusterEventsForDisplay(events = [], precisionDeg = 0.32, maxItems = 52
         const center = { lat: group.lat, lon: group.lon };
         const hasRealSpread = getGroupLocationSpreadMeters(items, center)
             >= Math.max(1000, numberVar("--warzone-event-cluster-real-split-min-km", 18) * 1000);
-        const syntheticOffsetDeg = Math.max(
-            0.02,
-            Math.min(
-                0.9,
-                numberVar("--warzone-event-cluster-synthetic-spread-km", 75) / 111.32
-            )
-        );
+        if (!hasRealSpread) {
+            expandedGroups.push(group);
+            continue;
+        }
         chunks.forEach((chunk, index) => {
             if (!chunk.length) return;
-            const angle = (Math.PI * 2 * index) / splitCount - Math.PI / 2;
-            const ring = 1 + Math.floor(index / 6) * 0.45;
-            const chunkCenter = hasRealSpread ? averageEventItems(chunk) : null;
+            const chunkCenter = averageEventItems(chunk);
             expandedGroups.push({
-                lat: chunkCenter?.lat ?? (group.lat + Math.sin(angle) * syntheticOffsetDeg * ring),
-                lon: chunkCenter?.lon ?? (group.lon + Math.cos(angle) * syntheticOffsetDeg * ring),
+                lat: chunkCenter?.lat ?? group.lat,
+                lon: chunkCenter?.lon ?? group.lon,
                 items: chunk,
                 subclusterIndex: index,
                 splitGroupId: `${group.lat.toFixed(3)}:${group.lon.toFixed(3)}`,
@@ -1626,8 +1621,8 @@ function normalizeEvents(events) {
                 summary: item.display_summary || item.summary || "",
                 category: item.category || "strike",
                 severity: item.severity || "medium",
-                source_lat: optionalNumber(item.source_lat ?? item.lat),
-                source_lon: optionalNumber(item.source_lon ?? item.lon),
+                source_lat: optionalNumber(item.source_lat),
+                source_lon: optionalNumber(item.source_lon),
                 lat: optionalNumber(item.lat),
                 lon: optionalNumber(item.lon),
                 origin_lat: optionalNumber(item.origin_lat),

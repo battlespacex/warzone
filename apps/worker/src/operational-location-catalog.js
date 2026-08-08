@@ -1,0 +1,72 @@
+// Focused operational-place overrides for locations frequently reported by StratOps sources.
+// Keep this list limited to stable, unambiguous facilities/localities and broad named regions.
+const OPERATIONAL_LOCATION_CATALOG = [
+  // Middle East / Gulf facilities
+  { label: "King Khalid International Airport", place: "King Khalid International Airport", city: "Riyadh", country: "Saudi Arabia", region: "Riyadh Province", lat: 24.9576, lon: 46.6988, precision: "facility", aliases: ["king khalid international airport", "king khalid airport", "riyadh airport"] },
+  { label: "King Fahd International Airport", place: "King Fahd International Airport", city: "Dammam", country: "Saudi Arabia", region: "Eastern Province", lat: 26.4712, lon: 49.7979, precision: "facility", aliases: ["king fahd international airport", "king fahd airport", "dammam airport"] },
+  { label: "King Abdulaziz International Airport", place: "King Abdulaziz International Airport", city: "Jeddah", country: "Saudi Arabia", region: "Makkah Province", lat: 21.6702, lon: 39.1525, precision: "facility", aliases: ["king abdulaziz international airport", "king abdulaziz airport", "jeddah airport"] },
+  { label: "Imam Khomeini International Airport", place: "Imam Khomeini International Airport", city: "Tehran", country: "Iran", region: "Tehran Province", lat: 35.4161, lon: 51.1522, precision: "facility", aliases: ["imam khomeini international airport", "imam khomeini airport", "tehran imam khomeini", "ika airport"] },
+  { label: "Mehrabad International Airport", place: "Mehrabad International Airport", city: "Tehran", country: "Iran", region: "Tehran Province", lat: 35.6892, lon: 51.3134, precision: "facility", aliases: ["mehrabad international airport", "mehrabad airport"] },
+  { label: "Isfahan International Airport", place: "Isfahan International Airport", city: "Isfahan", country: "Iran", region: "Isfahan Province", lat: 32.7508, lon: 51.8613, precision: "facility", aliases: ["isfahan international airport", "isfahan airport", "shahid beheshti airport"] },
+  { label: "Ben Gurion Airport", place: "Ben Gurion Airport", city: "Lod", country: "Israel", region: "Central District", lat: 32.0114, lon: 34.8867, precision: "facility", aliases: ["ben gurion airport", "ben gurion international airport"] },
+  { label: "Port of Haifa", place: "Port of Haifa", city: "Haifa", country: "Israel", region: "Haifa District", lat: 32.8191, lon: 35.0027, precision: "facility", aliases: ["port of haifa", "haifa port"] },
+  { label: "Port of Ashdod", place: "Port of Ashdod", city: "Ashdod", country: "Israel", region: "Southern District", lat: 31.8311, lon: 34.6435, precision: "facility", aliases: ["port of ashdod", "ashdod port"] },
+  { label: "Beirut-Rafic Hariri International Airport", place: "Beirut-Rafic Hariri International Airport", city: "Beirut", country: "Lebanon", region: "Beirut Governorate", lat: 33.8209, lon: 35.4884, precision: "facility", aliases: ["beirut airport", "beirut international airport", "rafik hariri airport", "rafic hariri airport"] },
+  { label: "Port of Beirut", place: "Port of Beirut", city: "Beirut", country: "Lebanon", region: "Beirut Governorate", lat: 33.9038, lon: 35.5241, precision: "facility", aliases: ["port of beirut", "beirut port"] },
+  { label: "Damascus International Airport", place: "Damascus International Airport", city: "Damascus", country: "Syria", region: "Rif Dimashq", lat: 33.4115, lon: 36.5156, precision: "facility", aliases: ["damascus international airport", "damascus airport"] },
+  { label: "Aleppo International Airport", place: "Aleppo International Airport", city: "Aleppo", country: "Syria", region: "Aleppo Governorate", lat: 36.1807, lon: 37.2244, precision: "facility", aliases: ["aleppo international airport", "aleppo airport"] },
+  { label: "Baghdad International Airport", place: "Baghdad International Airport", city: "Baghdad", country: "Iraq", region: "Baghdad Governorate", lat: 33.2625, lon: 44.2346, precision: "facility", aliases: ["baghdad international airport", "baghdad airport"] },
+  { label: "Al Asad Air Base", place: "Al Asad Air Base", city: null, country: "Iraq", region: "Al Anbar", lat: 33.7856, lon: 42.4412, precision: "facility", aliases: ["al asad air base", "ain al asad air base", "ayn al asad air base"] },
+  { label: "Hamad International Airport", place: "Hamad International Airport", city: "Doha", country: "Qatar", region: "Doha", lat: 25.2731, lon: 51.6081, precision: "facility", aliases: ["hamad international airport", "hamad airport", "doha airport"] },
+  { label: "Bahrain International Airport", place: "Bahrain International Airport", city: "Manama", country: "Bahrain", region: "Muharraq", lat: 26.2708, lon: 50.6336, precision: "facility", aliases: ["bahrain international airport", "bahrain airport"] },
+  { label: "Kuwait International Airport", place: "Kuwait International Airport", city: "Kuwait City", country: "Kuwait", region: "Farwaniya", lat: 29.2266, lon: 47.9689, precision: "facility", aliases: ["kuwait international airport", "kuwait airport"] },
+  { label: "Dubai International Airport", place: "Dubai International Airport", city: "Dubai", country: "United Arab Emirates", region: "Dubai", lat: 25.2532, lon: 55.3657, precision: "facility", aliases: ["dubai international airport", "dubai airport"] },
+  { label: "Jebel Ali Port", place: "Jebel Ali Port", city: "Dubai", country: "United Arab Emirates", region: "Dubai", lat: 24.9857, lon: 55.0273, precision: "facility", aliases: ["jebel ali port", "port of jebel ali"] },
+  { label: "Muscat International Airport", place: "Muscat International Airport", city: "Muscat", country: "Oman", region: "Muscat", lat: 23.5933, lon: 58.2844, precision: "facility", aliases: ["muscat international airport", "muscat airport"] },
+  { label: "Port of Hodeidah", place: "Port of Hodeidah", city: "Hodeidah", country: "Yemen", region: "Al Hudaydah", lat: 14.8416, lon: 42.9309, precision: "facility", aliases: ["port of hodeidah", "hodeidah port", "hudaydah port"] },
+
+  // Ukraine / Russia facilities
+  { label: "Boryspil International Airport", place: "Boryspil International Airport", city: "Kyiv", country: "Ukraine", region: "Kyiv Oblast", lat: 50.3450, lon: 30.8947, precision: "facility", aliases: ["boryspil international airport", "boryspil airport", "borispol airport"] },
+  { label: "Port of Odesa", place: "Port of Odesa", city: "Odesa", country: "Ukraine", region: "Odesa Oblast", lat: 46.4903, lon: 30.7445, precision: "facility", aliases: ["port of odesa", "odesa port", "odessa port"] },
+  { label: "Zaporizhzhia Nuclear Power Plant", place: "Zaporizhzhia Nuclear Power Plant", city: "Enerhodar", country: "Ukraine", region: "Zaporizhzhia Oblast", lat: 47.5089, lon: 34.5853, precision: "facility", aliases: ["zaporizhzhia nuclear power plant", "zaporizhia nuclear power plant", "znpp"] },
+  { label: "Engels-2 Air Base", place: "Engels-2 Air Base", city: "Engels", country: "Russia", region: "Saratov Oblast", lat: 51.4803, lon: 46.2131, precision: "facility", aliases: ["engels-2 air base", "engels 2 air base", "engels air base"] },
+
+  // Frequently reported localities
+  { label: "Riyadh, Saudi Arabia", city: "Riyadh", country: "Saudi Arabia", region: "Riyadh Province", lat: 24.6320, lon: 46.7151, precision: "city", aliases: ["riyadh"] },
+  { label: "Dammam, Saudi Arabia", city: "Dammam", country: "Saudi Arabia", region: "Eastern Province", lat: 26.4207, lon: 50.0888, precision: "city", aliases: ["dammam"] },
+  { label: "Jeddah, Saudi Arabia", city: "Jeddah", country: "Saudi Arabia", region: "Makkah Province", lat: 21.5433, lon: 39.1728, precision: "city", aliases: ["jeddah"] },
+  { label: "Tehran, Iran", city: "Tehran", country: "Iran", region: "Tehran Province", lat: 35.6892, lon: 51.3890, precision: "city", aliases: ["tehran"] },
+  { label: "Isfahan, Iran", city: "Isfahan", country: "Iran", region: "Isfahan Province", lat: 32.6546, lon: 51.6680, precision: "city", aliases: ["isfahan", "esfahan"] },
+  { label: "Bandar Abbas, Iran", city: "Bandar Abbas", country: "Iran", region: "Hormozgan", lat: 27.1832, lon: 56.2666, precision: "city", aliases: ["bandar abbas"] },
+  { label: "Tyre, Lebanon", city: "Tyre", country: "Lebanon", region: "South Governorate", lat: 33.2705, lon: 35.2038, precision: "city", aliases: ["tyre", "sur lebanon"] },
+  { label: "Nabatieh, Lebanon", city: "Nabatieh", country: "Lebanon", region: "Nabatieh Governorate", lat: 33.3772, lon: 35.4839, precision: "city", aliases: ["nabatieh", "nabatiyeh"] },
+  { label: "Bint Jbeil, Lebanon", city: "Bint Jbeil", country: "Lebanon", region: "Nabatieh Governorate", lat: 33.1194, lon: 35.4333, precision: "city", aliases: ["bint jbeil", "bint jubayl"] },
+  { label: "Latakia, Syria", city: "Latakia", country: "Syria", region: "Latakia Governorate", lat: 35.5317, lon: 35.7901, precision: "city", aliases: ["latakia"] },
+  { label: "Basra, Iraq", city: "Basra", country: "Iraq", region: "Basra Governorate", lat: 30.5085, lon: 47.7804, precision: "city", aliases: ["basra"] },
+  { label: "Sana'a, Yemen", city: "Sana'a", country: "Yemen", region: "Sana'a", lat: 15.3539, lon: 44.2060, precision: "city", aliases: ["sana'a", "sanaa"] },
+  { label: "Aden, Yemen", city: "Aden", country: "Yemen", region: "Aden Governorate", lat: 12.7855, lon: 45.0187, precision: "city", aliases: ["aden"] },
+  { label: "Hodeidah, Yemen", city: "Hodeidah", country: "Yemen", region: "Al Hudaydah", lat: 14.7978, lon: 42.9545, precision: "city", aliases: ["hodeidah", "hudaydah"] },
+  { label: "Dubai, United Arab Emirates", city: "Dubai", country: "United Arab Emirates", region: "Dubai", lat: 25.2048, lon: 55.2708, precision: "city", aliases: ["dubai"] },
+  { label: "Abu Dhabi, United Arab Emirates", city: "Abu Dhabi", country: "United Arab Emirates", region: "Abu Dhabi", lat: 24.4539, lon: 54.3773, precision: "city", aliases: ["abu dhabi"] },
+  { label: "Doha, Qatar", city: "Doha", country: "Qatar", region: "Doha", lat: 25.2856, lon: 51.5264, precision: "city", aliases: ["doha"] },
+  { label: "Manama, Bahrain", city: "Manama", country: "Bahrain", region: "Capital Governorate", lat: 26.2235, lon: 50.5876, precision: "city", aliases: ["manama"] },
+  { label: "Kuwait City, Kuwait", city: "Kuwait City", country: "Kuwait", region: "Capital Governorate", lat: 29.3759, lon: 47.9774, precision: "city", aliases: ["kuwait city"] },
+  { label: "Muscat, Oman", city: "Muscat", country: "Oman", region: "Muscat", lat: 23.5880, lon: 58.3829, precision: "city", aliases: ["muscat"] },
+  { label: "Dnipro, Ukraine", city: "Dnipro", country: "Ukraine", region: "Dnipropetrovsk Oblast", lat: 48.4647, lon: 35.0462, precision: "city", aliases: ["dnipro", "dnipropetrovsk"] },
+  { label: "Lviv, Ukraine", city: "Lviv", country: "Ukraine", region: "Lviv Oblast", lat: 49.8397, lon: 24.0297, precision: "city", aliases: ["lviv", "lvov"] },
+  { label: "Mykolaiv, Ukraine", city: "Mykolaiv", country: "Ukraine", region: "Mykolaiv Oblast", lat: 46.9750, lon: 31.9946, precision: "city", aliases: ["mykolaiv", "nikolaev"] },
+  { label: "Sumy, Ukraine", city: "Sumy", country: "Ukraine", region: "Sumy Oblast", lat: 50.9077, lon: 34.7981, precision: "city", aliases: ["sumy"] },
+  { label: "Moscow, Russia", city: "Moscow", country: "Russia", region: "Moscow", lat: 55.7504, lon: 37.6175, precision: "city", aliases: ["moscow"] },
+  { label: "Rostov-on-Don, Russia", city: "Rostov-on-Don", country: "Russia", region: "Rostov Oblast", lat: 47.2357, lon: 39.7015, precision: "city", aliases: ["rostov-on-don", "rostov on don"] },
+  { label: "Bryansk, Russia", city: "Bryansk", country: "Russia", region: "Bryansk Oblast", lat: 53.2521, lon: 34.3717, precision: "city", aliases: ["bryansk"] },
+
+  // Broad areas are classified for reporting but never promoted as exact markers.
+  { label: "Southern Lebanon", country: "Lebanon", region: "Southern Lebanon", lat: 33.2500, lon: 35.4500, precision: "region", mapEligible: false, aliases: ["southern lebanon", "south lebanon"] },
+  { label: "Northern Israel", country: "Israel", region: "Northern Israel", lat: 32.9500, lon: 35.3500, precision: "region", mapEligible: false, aliases: ["northern israel", "north israel"] },
+  { label: "Western Iran", country: "Iran", region: "Western Iran", lat: 33.5000, lon: 48.5000, precision: "region", mapEligible: false, aliases: ["western iran", "west iran"] },
+  { label: "Eastern Ukraine", country: "Ukraine", region: "Eastern Ukraine", lat: 48.5000, lon: 37.0000, precision: "region", mapEligible: false, aliases: ["eastern ukraine", "east ukraine"] },
+  { label: "Southern Ukraine", country: "Ukraine", region: "Southern Ukraine", lat: 46.7000, lon: 33.5000, precision: "region", mapEligible: false, aliases: ["southern ukraine", "south ukraine"] },
+  { label: "Western Russia", country: "Russia", region: "Western Russia", lat: 54.0000, lon: 38.0000, precision: "region", mapEligible: false, aliases: ["western russia", "west russia"] },
+];
+
+export { OPERATIONAL_LOCATION_CATALOG };

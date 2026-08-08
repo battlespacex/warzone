@@ -3,6 +3,7 @@ import * as Cesium from "cesium";
 import { getAllLiveTrackSnapshots } from "./warzone-live-airforce.js";
 import { getAllNavalSnapshots } from "./warzone-live-naval.js";
 import { isEventVisible } from "./warzone-layers.js";
+import { hasTrustedMapCoordinates } from "../../../apps/shared/event-location-policy.js";
 
 const AOI_SOURCE_NAME = "warzone-aoi-lens";
 const EARTH_RADIUS_KM = 6371.0088;
@@ -581,9 +582,9 @@ async function getBaseMatches(polygon) {
 }
 
 function getEventPoint(event = {}) {
-    const lat = Number(event.display_lat ?? event.lat ?? event.impact_lat ?? event.source_lat);
-    const lon = Number(event.display_lon ?? event.lon ?? event.impact_lon ?? event.source_lon);
-    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+    const lat = Number(event.display_lat ?? event.lat ?? event.impact_lat);
+    const lon = Number(event.display_lon ?? event.lon ?? event.impact_lon);
+    return hasTrustedMapCoordinates(event, { lat, lon }) ? { lat, lon } : null;
 }
 
 function getTrackPoint(track = {}) {

@@ -2,8 +2,14 @@ import { loadWorkerEnv } from "./env.js";
 import { supabase } from "./supabase.js";
 import {
   NORMALIZATION_VERSION,
+  isCoarseCountryCentroid,
   normalizeEventRowForStorage
 } from "./intelligence-normalizer.js";
+import {
+  hasFiniteCoordinates,
+  isUnsafeLocationMethod,
+  readEventLocation
+} from "../../shared/event-location-policy.js";
 import {
   MAP_EVENT_HISTORY_WINDOW_HOURS,
   applyGeneralEventDeliveryFilters,
@@ -76,11 +82,23 @@ function mergeNormalizationMetadata(row = {}, normalized = {}) {
   const previousNormalization = existing.normalization && typeof existing.normalization === "object"
     ? existing.normalization
     : {};
+  const normalizedMetadata = normalized.metadata && typeof normalized.metadata === "object" && !Array.isArray(normalized.metadata)
+    ? normalized.metadata
+    : {};
+  const normalizedLocation = normalizedMetadata.event_location && typeof normalizedMetadata.event_location === "object"
+    ? normalizedMetadata.event_location
+    : null;
+  const nextNormalization = normalizedMetadata.normalization && typeof normalizedMetadata.normalization === "object"
+    ? normalizedMetadata.normalization
+    : {};
 
   return {
     ...existing,
+    ...normalizedMetadata,
+    ...(normalizedLocation ? { event_location: normalizedLocation } : {}),
     normalization: {
       ...previousNormalization,
+      ...nextNormalization,
       version: NORMALIZATION_VERSION,
       reprocessed_at: new Date().toISOString(),
       reprocess_source: "worker:reprocess-recent-events",
@@ -98,6 +116,16 @@ function buildEventPatch(row = {}) {
   const normalized = normalizeEventRowForStorage(row);
   if (!normalized) {
     return { skipped: true, reason: "normalizer_rejected" };
+  }
+
+  const existingLocation = readEventLocation(row);
+  const existingPointNeedsManualReview =
+    hasFiniteCoordinates(row.lat, row.lon) &&
+    !hasFiniteCoordinates(normalized.lat, normalized.lon) &&
+    !isCoarseCountryCentroid(row.lat, row.lon, row.location_label) &&
+    !(existingLocation.method && isUnsafeLocationMethod(existingLocation.method));
+  if (existingPointNeedsManualReview) {
+    return { skipped: true, reason: "legacy_point_requires_review" };
   }
 
   const candidate = {

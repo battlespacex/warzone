@@ -39,6 +39,7 @@ function normalizeReliefWebItem(row = {}) {
     guid: row.id ? `reliefweb-${row.id}` : fields.url || null,
 
     country,
+    event_country: country,
     region: null,
 
     published_at: fields.date?.created || null,

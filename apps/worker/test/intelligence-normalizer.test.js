@@ -17,23 +17,25 @@ test("does not use publisher country as event geography", () => {
     title: "Vessel attacked in the Red Sea after drone launch",
     summary: "Maritime incident reported by regional monitors.",
     source_name: "China Daily",
-    country: "China",
-    region: "Asia",
+    source_country: "China",
+    source_region: "Asia",
     url: "https://example.com/red-sea-attack",
     is_conflict_relevant: true
   };
 
   const normalized = normalizeConflictItemToEventPayload(item);
 
-  assert.equal(normalized.map_eligible, true);
+  assert.equal(normalized.map_eligible, false);
   assert.equal(normalized.event.location_label, "Red Sea");
   assert.equal(normalized.event.metadata.normalization.event_country, null);
+  assert.equal(normalized.event.metadata.normalization.event_region, "Middle East");
   assert.equal(normalized.event.metadata.normalization.publisher_country, "China");
-  assert.equal(normalized.event.lat, 18);
-  assert.equal(normalized.event.lon, 39);
+  assert.equal(normalized.event.metadata.normalization.location_precision, "REGIONAL");
+  assert.equal(normalized.event.lat, null);
+  assert.equal(normalized.event.lon, null);
 });
 
-test("country-only location hints are retained but not made map eligible", () => {
+test("actor nationality alone does not become event geography", () => {
   const location = resolveEventLocation({
     title: "Russia says Ukrainian drone attack caused blast",
     summary: "No city or coordinates were reported.",
@@ -41,11 +43,13 @@ test("country-only location hints are retained but not made map eligible", () =>
     region: "Europe"
   });
 
-  assert.equal(location.label, "Ukraine");
+  assert.equal(location.label, null);
+  assert.equal(location.country, null);
   assert.equal(location.mapEligible, false);
   assert.equal(location.lat, null);
   assert.equal(location.lon, null);
-  assert.equal(location.quality, "coarse_country_hint");
+  assert.equal(location.quality, "unknown");
+  assert.equal(location.precision, "UNKNOWN");
 });
 
 test("city location beats country attribution and remains map eligible", () => {
@@ -63,7 +67,107 @@ test("city location beats country attribution and remains map eligible", () => {
   assert.equal(normalized.event.location_label, "Chuhuiv, Ukraine");
   assert.equal(normalized.event.category, "strike");
   assert.equal(normalized.event.severity, "medium");
-  assert.equal(normalized.event.metadata.normalization.location_precision, "city");
+  assert.equal(normalized.event.metadata.normalization.location_precision, "LOCAL");
+});
+
+test("foreign publisher geography remains separate from Riyadh incident geography", () => {
+  const normalized = normalizeConflictItemToEventPayload({
+    title: "Drone attack near Riyadh, Saudi Arabia.",
+    summary: "The incident was reported overnight.",
+    source_name: "Korea Daily",
+    source_country: "South Korea",
+    source_region: "East Asia",
+    url: "https://example.com/riyadh",
+    is_conflict_relevant: true
+  });
+
+  assert.equal(normalized.map_eligible, true);
+  assert.equal(normalized.event.location_label, "Riyadh, Saudi Arabia");
+  assert.equal(normalized.event.metadata.normalization.source_country, "South Korea");
+  assert.equal(normalized.event.metadata.normalization.event_country, "Saudi Arabia");
+  assert.equal(normalized.event.metadata.normalization.event_city, "Riyadh");
+  assert.equal(normalized.event.metadata.normalization.location_precision, "LOCAL");
+  assert.ok(normalized.event.lat > 24 && normalized.event.lat < 25);
+  assert.ok(normalized.event.lon > 46 && normalized.event.lon < 47);
+});
+
+test("named airport resolves as an exact facility", () => {
+  const normalized = normalizeConflictItemToEventPayload({
+    title: "Attack reported at King Khalid International Airport.",
+    summary: "Security forces responded to the incident.",
+    url: "https://example.com/king-khalid",
+    is_conflict_relevant: true
+  });
+
+  assert.equal(normalized.map_eligible, true);
+  assert.equal(normalized.event.lat, 24.9576);
+  assert.equal(normalized.event.lon, 46.6988);
+  assert.equal(normalized.event.metadata.normalization.location_precision, "EXACT");
+  assert.equal(normalized.event.metadata.normalization.event_place, "King Khalid International Airport");
+  assert.equal(normalized.event.metadata.normalization.location_method, "text_facility");
+});
+
+test("city and near-city reports resolve as local with different confidence", () => {
+  const isfahan = resolveEventLocation({ title: "Explosion reported in Isfahan." });
+  const dammam = resolveEventLocation({ title: "Drone intercepted near Dammam." });
+
+  assert.equal(isfahan.precision, "LOCAL");
+  assert.equal(isfahan.city, "Isfahan");
+  assert.equal(isfahan.mapEligible, true);
+  assert.equal(dammam.precision, "LOCAL");
+  assert.equal(dammam.city, "Dammam");
+  assert.equal(dammam.method, "text_near_city");
+  assert.ok(dammam.confidence < isfahan.confidence);
+});
+
+test("regional and unknown reports are retained without marker coordinates", () => {
+  const regional = normalizeConflictItemToEventPayload({
+    title: "Strikes reported in southern Lebanon.",
+    summary: "Military activity continued overnight.",
+    url: "https://example.com/south-lebanon",
+    is_conflict_relevant: true
+  });
+  const unknown = normalizeConflictItemToEventPayload({
+    title: "Drone attack reported by defence officials.",
+    summary: "The report contains no usable incident location.",
+    url: "https://example.com/unknown",
+    is_conflict_relevant: true
+  });
+
+  assert.equal(regional.event.metadata.normalization.location_precision, "REGIONAL");
+  assert.equal(regional.event.location_label, "Southern Lebanon");
+  assert.equal(regional.event.lat, null);
+  assert.equal(regional.event.lon, null);
+  assert.equal(regional.event.metadata.event_location.regional_anchor_latitude, 33.25);
+  assert.equal(unknown.event.metadata.normalization.location_precision, "UNKNOWN");
+  assert.equal(unknown.event.lat, null);
+  assert.equal(unknown.event.lon, null);
+});
+
+test("source coordinates are rejected when incident text identifies another country", () => {
+  const location = resolveEventLocation({
+    title: "Explosion reported in Isfahan, Iran.",
+    lat: 37.5667,
+    lon: 126.9783,
+    source_country: "South Korea"
+  });
+
+  assert.equal(location.country, "Iran");
+  assert.equal(location.city, "Isfahan");
+  assert.equal(location.precision, "LOCAL");
+  assert.ok(location.lon < 52);
+});
+
+test("foreign source countries never replace an Iran incident location", () => {
+  for (const sourceCountry of ["United Kingdom", "United States", "South Korea", "Japan"]) {
+    const location = resolveEventLocation({
+      title: "Drone attack reported in Isfahan, Iran.",
+      source_country: sourceCountry
+    });
+    assert.equal(location.country, "Iran");
+    assert.equal(location.city, "Isfahan");
+    assert.equal(location.precision, "LOCAL");
+  }
 });
 
 test("explicit valid coordinates are accepted and invalid zero coordinates are rejected", () => {

@@ -1,3 +1,9 @@
+import {
+    LOCATION_PRECISION,
+    hasTrustedMapCoordinates,
+    readEventLocation,
+} from "../../shared/event-location-policy.js";
+
 const UNKNOWN_TEXT_RE =
     /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/i;
 
@@ -25,7 +31,17 @@ const COARSE_COUNTRY_CENTROIDS = [
     { label: "Ukraine", lat: 49.0, lon: 32.0 },
     { label: "Russia", lat: 55.0, lon: 38.0 },
     { label: "Taiwan", lat: 23.8, lon: 121.0 },
-    { label: "Lebanon", lat: 33.9, lon: 35.8 }
+    { label: "Lebanon", lat: 33.9, lon: 35.8 },
+    { label: "Middle East", lat: 29.5, lon: 45.0 },
+    { label: "Middle East & Gulf", lat: 27.5, lon: 48.0 },
+    { label: "Eastern Europe", lat: 49.0, lon: 30.0 },
+    { label: "Europe", lat: 52.0, lon: 15.0 },
+    { label: "East Asia", lat: 31.0, lon: 121.0 },
+    { label: "Asia Pacific", lat: 24.0, lon: 121.0 },
+    { label: "South Asia", lat: 28.0, lon: 78.0 },
+    { label: "North America", lat: 39.0, lon: -98.0 },
+    { label: "Africa", lat: 12.0, lon: 20.0 },
+    { label: "Latin America", lat: 12.0, lon: -75.0 }
 ];
 
 const RAW_TIMESTAMP_RE =
@@ -260,7 +276,11 @@ function toPublicEvent(event = {}) {
     const lat = Number(event.lat);
     const lon = Number(event.lon);
     const locationLabel = cleanLocationLabel(event.location_label);
-    const coordinatesOk = isValidCoordinate(lat, lon) && !isCoarseCountryCentroid(lat, lon, locationLabel);
+    const eventLocation = readEventLocation(event);
+    const coordinatesOk =
+        isValidCoordinate(lat, lon) &&
+        !isCoarseCountryCentroid(lat, lon, locationLabel) &&
+        hasTrustedMapCoordinates(event, { lat, lon });
     const sourceName = cleanSourceName(event.source_name);
     const rawTitle = cleanPublicText(event.title, 240);
     const rawSummary = cleanPublicText(event.summary, 1200);
@@ -300,6 +320,15 @@ function toPublicEvent(event = {}) {
         lat: coordinatesOk ? lat : null,
         lon: coordinatesOk ? lon : null,
         map_eligible: coordinatesOk && !lowInformationSignal,
+        event_country: eventLocation.event_country,
+        event_region: eventLocation.event_region,
+        event_city: eventLocation.event_city,
+        event_place: eventLocation.event_place,
+        source_country: eventLocation.source_country,
+        source_region: eventLocation.source_region,
+        location_precision: eventLocation.precision || (coordinatesOk ? LOCATION_PRECISION.EXACT : LOCATION_PRECISION.UNKNOWN),
+        location_confidence: eventLocation.confidence,
+        location_method: eventLocation.method,
         display_title: title,
         display_summary: summary,
         display_source_name: sourceName,

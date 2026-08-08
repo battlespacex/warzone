@@ -71,7 +71,8 @@ import { generateScheduledReports } from "../../shared/reporting-service.js";
 import {
     cleanDisplayText,
     normalizeEventRowForStorage,
-    normalizeSourceName
+    normalizeSourceName,
+    resolveEventLocation
 } from "./intelligence-normalizer.js";
 async function getSourceConfig(sourceName) {
     if (!sourceName) return null;
@@ -645,25 +646,6 @@ function parseBBox(value) {
     const [minLon, minLat, maxLon, maxLat] = parts;
     return { minLon, minLat, maxLon, maxLat };
 }
-const FEED_REGION_CENTERS = new Map([
-    ["middle east", { lat: 29.5, lon: 45.0, label: "Middle East" }],
-    ["middle east & gulf", { lat: 27.5, lon: 48.0, label: "Middle East & Gulf" }],
-    ["ukraine", { lat: 49.0, lon: 32.0, label: "Ukraine" }],
-    ["eastern europe", { lat: 49.0, lon: 30.0, label: "Eastern Europe" }],
-    ["europe", { lat: 52.0, lon: 15.0, label: "Europe" }],
-    ["east asia", { lat: 31.0, lon: 121.0, label: "East Asia" }],
-    ["asia pacific", { lat: 24.0, lon: 121.0, label: "Asia Pacific" }],
-    ["south asia", { lat: 28.0, lon: 78.0, label: "South Asia" }],
-    ["north america", { lat: 39.0, lon: -98.0, label: "North America" }],
-    ["africa", { lat: 12.0, lon: 20.0, label: "Africa" }],
-    ["latin america", { lat: 12.0, lon: -75.0, label: "Latin America" }],
-    ["global", null]
-]);
-function resolveFeedRegionCenter(feed = {}) {
-    const region = normalizeText(feed.region || "").toLowerCase();
-    if (!region) return null;
-    return FEED_REGION_CENTERS.get(region) || null;
-}
 function isWithinBBox(lat, lon, bbox = REGION_BBOX) {
     if (!bbox) return true;
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
@@ -847,7 +829,20 @@ async function geocodeLocation(query) {
             "";
         const country = addr.country || "";
         const label = [city, country].filter(Boolean).join(", ") || query;
-        const result = { lat, lon, label };
+        const locationType = String(item.addresstype || item.type || "").toLowerCase();
+        const locationClass = String(item.class || "").toLowerCase();
+        const isRegional = /^(country|state|province|region|administrative)$/.test(locationType);
+        const isFacility = /^(aeroway|railway|amenity|man_made|military|harbour)$/.test(locationClass)
+            || /^(airport|aerodrome|port|military|industrial|power)$/.test(locationType);
+        const result = {
+            lat,
+            lon,
+            label,
+            precision: isRegional ? "REGIONAL" : isFacility ? "EXACT" : "LOCAL",
+            confidence: isRegional ? 50 : isFacility ? 88 : 70,
+            method: isFacility ? "nominatim_facility" : isRegional ? "nominatim_region" : "nominatim_locality",
+            mapEligible: !isRegional
+        };
         geocodeCache.set(key, result);
         return result;
     } catch (error) {
@@ -857,12 +852,20 @@ async function geocodeLocation(query) {
     }
 }
 async function resolveLocationFromText(text, options = {}) {
+    const catalogLocation = resolveEventLocation({ title: text });
+    if (catalogLocation.precision !== "UNKNOWN") {
+        return catalogLocation;
+    }
     const coordinateMatch = extractCoordinatesFromText(text);
     if (coordinateMatch) {
         return {
             lat: coordinateMatch.lat,
             lon: coordinateMatch.lon,
-            label: `${coordinateMatch.lat}, ${coordinateMatch.lon}`
+            label: `${coordinateMatch.lat}, ${coordinateMatch.lon}`,
+            precision: "EXACT",
+            confidence: 100,
+            method: "text_coordinates",
+            mapEligible: true
         };
     }
     const candidates = extractLocationCandidates(text);
@@ -870,12 +873,57 @@ async function resolveLocationFromText(text, options = {}) {
         const geocoded = await geocodeLocation(candidate);
         if (!geocoded) continue;
         if (!Number.isFinite(geocoded.lat) || !Number.isFinite(geocoded.lon)) continue;
+        if (geocoded.mapEligible === false) return geocoded;
         if (options.requireBBox !== false && !isWithinBBox(geocoded.lat, geocoded.lon)) {
             continue;
         }
         return geocoded;
     }
     return null;
+}
+function buildWorkerLocationMetadata(location = {}, source = {}) {
+    const hasEventPoint = Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lon))
+        && location.lat !== null && location.lon !== null;
+    const hasRegionalAnchor = Number.isFinite(Number(location.anchor_lat)) && Number.isFinite(Number(location.anchor_lon))
+        && location.anchor_lat !== null && location.anchor_lon !== null;
+    return {
+        normalization: {
+            map_eligible: location.mapEligible === true,
+            location_precision: location.precision || "UNKNOWN",
+            location_confidence: Number(location.confidence || 0),
+            location_method: location.method || "not_found",
+            event_country: location.country || null,
+            event_region: location.region || null,
+            event_city: location.city || null,
+            event_place: location.place || null,
+            source_country: source.country || null,
+            source_region: source.region || null
+        },
+        event_location: {
+            country: location.country || null,
+            region: location.region || null,
+            city: location.city || null,
+            place: location.place || null,
+            latitude: hasEventPoint ? Number(location.lat) : null,
+            longitude: hasEventPoint ? Number(location.lon) : null,
+            regional_anchor_latitude: hasRegionalAnchor ? Number(location.anchor_lat) : null,
+            regional_anchor_longitude: hasRegionalAnchor ? Number(location.anchor_lon) : null,
+            precision: location.precision || "UNKNOWN",
+            confidence: Number(location.confidence || 0),
+            method: location.method || "not_found"
+        }
+    };
+}
+function attachLocationToRawPayload(payload, location = {}, source = {}) {
+    const rawPayload = payload && typeof payload === "object" && !Array.isArray(payload)
+        ? payload
+        : { value: payload ?? null };
+    return {
+        ...rawPayload,
+        stratops_location: location?.event_location || location?.normalization
+            ? location
+            : buildWorkerLocationMetadata(location, source)
+    };
 }
 function makeDedupeKey(item, feed) {
     const title = (item.title || "").toLowerCase().slice(0, 120);
@@ -1836,12 +1884,10 @@ async function normalizeRssItem(item, feed) {
     const cyberStatus = category === "cyber"
         ? deriveCyberStatusFromText(fullText)
         : "unknown";
-    const resolvedLocation =
-        (feed.geocode === true
-            ? await resolveLocationFromText(`${cleanTitle} ${cleanSummary.slice(0, 500)}`, { requireBBox: false })
-            : null) ||
-        resolveFeedRegionCenter(feed);
-    if (!resolvedLocation) return null;
+    const resolvedLocation = feed.geocode === true
+        ? await resolveLocationFromText(`${cleanTitle} ${cleanSummary.slice(0, 500)}`, { requireBBox: false })
+        : resolveEventLocation({ title: cleanTitle, summary: cleanSummary });
+    const mapEligible = resolvedLocation?.mapEligible === true;
     const imageUrl =
         rssAttr(item, "media:thumbnail", "url") ||
         rssAttr(item, "media:content", "url") ||
@@ -1861,9 +1907,9 @@ async function normalizeRssItem(item, feed) {
         source_name: feed.source_name || feed.name || "RSS",
         source_url: link || feed.url || "",
         occurred_at: normalizeOccurredAt(pubDate),
-        lat: Number(resolvedLocation.lat),
-        lon: Number(resolvedLocation.lon),
-        location_label: resolvedLocation.label || feed.region || "Global",
+        lat: mapEligible ? Number(resolvedLocation.lat) : null,
+        lon: mapEligible ? Number(resolvedLocation.lon) : null,
+        location_label: resolvedLocation?.label || null,
         confidence: 55,
         weapon_type: "",
         target_type: "unknown",
@@ -1875,6 +1921,10 @@ async function normalizeRssItem(item, feed) {
         fir_code: "",
         tags: uniqueTags(["rss", ...(feed.tags || [])]),
         metadata: {
+            ...buildWorkerLocationMetadata(resolvedLocation || {}, {
+                country: feed.source_country || feed.publisher_country || null,
+                region: feed.source_region || feed.region || null
+            }),
             image_url: /\.(jpe?g|png|gif|webp|avif)(?:\?|#|$)/i.test(imageUrl) ? imageUrl : "",
             media_url: imageUrl
         },
@@ -1899,6 +1949,24 @@ async function processRssFeed(feed) {
         for (const item of items.slice(0, 30)) {
             const event = await normalizeRssItem(item, feed);
             if (!event) continue;
+            if (!Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) {
+                await saveRawItem({
+                    source_name: event.source_name,
+                    source_type: "rss",
+                    parser: "rss",
+                    external_id: event.dedupe_key,
+                    url: event.source_url,
+                    title: event.title,
+                    text: event.summary,
+                    payload: attachLocationToRawPayload(item, event.metadata || {}, {
+                        country: feed.source_country || feed.publisher_country || null,
+                        region: feed.source_region || feed.region || null
+                    }),
+                    published_at: event.occurred_at,
+                    location_hint: event.location_label
+                });
+                continue;
+            }
             await insertEventIfValid(event);
             saved++;
         }
@@ -2654,8 +2722,16 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
     const rawText = extractTelegramText(msg);
     if (!rawText) return null;
     if (!isRelevantTelegramText(rawText, feed)) return null;
-    const location = await resolveLocationFromText(rawText, { requireBBox: false });
-    if (!location) return null;
+    const location = await resolveLocationFromText(rawText, { requireBBox: false }) || {
+        lat: null,
+        lon: null,
+        label: null,
+        precision: "UNKNOWN",
+        confidence: 0,
+        method: "not_found",
+        mapEligible: false
+    };
+    const mapEligible = location.mapEligible === true;
     const normalizedText = normalizeText(rawText);
     const category = detectTelegramCategory(rawText);
     const severity = detectTelegramSeverity(rawText);
@@ -2674,8 +2750,8 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         source_name: cleanSourceName(`Telegram / ${channelKey}`),
         source_url: buildTelegramMessageUrl(channelKey, msg.id),
         occurred_at: msg.date?.toISOString?.() || new Date().toISOString(),
-        lat: Number(location.lat),
-        lon: Number(location.lon),
+        lat: mapEligible ? Number(location.lat) : null,
+        lon: mapEligible ? Number(location.lon) : null,
         location_label: location.label || null,
         confidence,
         actor_side: actorSide,
@@ -2690,6 +2766,10 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         airspace_status: category === "airspace" ? "restricted" : "unknown",
         cyber_status: category === "cyber" ? "elevated" : "unknown",
         fir_code: "",
+        metadata: buildWorkerLocationMetadata(location, {
+            country: feed.source_country || feed.publisher_country || null,
+            region: feed.source_region || feed.region || null
+        }),
         dedupe_key: [
             "TELEGRAM",
             channelKey,
@@ -2749,6 +2829,25 @@ async function processTelegramFeed(feed) {
                         await handleIsraelWarRoomMessage(rawText).catch(e =>
                             console.error("[siren-tg] handler error:", e.message)
                         );
+                    }
+                    if (!Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) {
+                        await saveRawItem({
+                            source_name: event.source_name,
+                            source_type: "telegram",
+                            parser: "telegram",
+                            external_id: event.dedupe_key,
+                            url: event.source_url,
+                            title: event.title,
+                            text: event.summary,
+                            payload: attachLocationToRawPayload(
+                                { channel: channelKey, message_id: msg.id },
+                                event.metadata || {},
+                                { country: feed.source_country || feed.publisher_country || null, region: feed.source_region || feed.region || null }
+                            ),
+                            published_at: event.occurred_at,
+                            location_hint: event.location_label
+                        });
+                        continue;
                     }
                     const inserted = await insertEventIfValid(event);
                     if (inserted && event.category === "alert") {
@@ -2836,25 +2935,24 @@ function getXPlaceLocation(place = null) {
     return label ? { lat: NaN, lon: NaN, label } : null;
 }
 async function resolveXLocation(post = {}, placeMap = new Map()) {
-    const placeId = String(post?.geo?.place_id || "").trim();
-    if (placeId && placeMap.has(placeId)) {
-        const placeLocation = getXPlaceLocation(placeMap.get(placeId));
-        if (placeLocation && Number.isFinite(placeLocation.lat) && Number.isFinite(placeLocation.lon)) {
-            return placeLocation;
-        }
-        if (placeLocation?.label) {
-            const geocoded = await resolveLocationFromText(placeLocation.label, { requireBBox: false });
-            if (geocoded) return geocoded;
-        }
-    }
+    // A post's geotag describes where the publisher posted, not necessarily where the incident occurred.
+    // Incident placement is derived from the report text only.
     return resolveLocationFromText(extractXText(post), { requireBBox: false });
 }
 async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new Map()) {
     const rawText = extractXText(post);
     if (!rawText) return null;
     if (!isRelevantTelegramText(rawText, feed)) return null;
-    const location = await resolveXLocation(post, placeMap);
-    if (!location || !Number.isFinite(Number(location.lat)) || !Number.isFinite(Number(location.lon))) return null;
+    const location = await resolveXLocation(post, placeMap) || {
+        lat: null,
+        lon: null,
+        label: null,
+        precision: "UNKNOWN",
+        confidence: 0,
+        method: "not_found",
+        mapEligible: false
+    };
+    const mapEligible = location.mapEligible === true;
     const author = authorMap.get(String(post?.author_id || "").trim()) || {};
     const normalizedText = normalizeText(rawText);
     const category = detectTelegramCategory(rawText);
@@ -2875,8 +2973,8 @@ async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new 
             ? `https://x.com/${username}/status/${post.id}`
             : `https://x.com/i/web/status/${post.id}`,
         occurred_at: post?.created_at || new Date().toISOString(),
-        lat: Number(location.lat),
-        lon: Number(location.lon),
+        lat: mapEligible ? Number(location.lat) : null,
+        lon: mapEligible ? Number(location.lon) : null,
         location_label: location.label || null,
         confidence,
         actor_side: actorSide,
@@ -2896,6 +2994,10 @@ async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new 
         airspace_status: category === "airspace" ? "restricted" : "unknown",
         cyber_status: category === "cyber" ? "elevated" : "unknown",
         fir_code: "",
+        metadata: buildWorkerLocationMetadata(location, {
+            country: feed.source_country || feed.publisher_country || null,
+            region: feed.source_region || feed.region || null
+        }),
         dedupe_key: [
             "X",
             post?.id || "",
@@ -2949,6 +3051,24 @@ async function processXFeed(feed) {
         try {
             const event = await normalizeXPost(post, feed, authorMap, placeMap);
             if (!event) continue;
+            if (!Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) {
+                await saveRawItem({
+                    source_name: event.source_name,
+                    source_type: "x",
+                    parser: "x-search",
+                    external_id: event.dedupe_key,
+                    url: event.source_url,
+                    title: event.title,
+                    text: event.summary,
+                    payload: attachLocationToRawPayload(post, event.metadata || {}, {
+                        country: feed.source_country || feed.publisher_country || null,
+                        region: feed.source_region || feed.region || null
+                    }),
+                    published_at: event.occurred_at,
+                    location_hint: event.location_label
+                });
+                continue;
+            }
             await insertEventIfValid(event);
             const createdAtMs = new Date(post?.created_at || 0).getTime();
             if (Number.isFinite(createdAtMs) && createdAtMs > newestSeenAtMs) {
@@ -3013,8 +3133,16 @@ function isRelevantRedditPost(post) {
 async function normalizeRedditPost(post, feed) {
     if (!post || !isRelevantRedditPost(post)) return null;
     const text = `${post.title || ""} ${post.selftext || ""}`;
-    const location = await resolveRedditLocation(post);
-    if (!location) return null;
+    const location = await resolveRedditLocation(post) || {
+        lat: null,
+        lon: null,
+        label: null,
+        precision: "UNKNOWN",
+        confidence: 0,
+        method: "not_found",
+        mapEligible: false
+    };
+    const mapEligible = location.mapEligible === true;
     const lower = text.toLowerCase();
     let weaponType = "unknown";
     if (lower.includes("ballistic missile")) weaponType = "ballistic missile";
@@ -3041,9 +3169,9 @@ async function normalizeRedditPost(post, feed) {
         occurred_at: post.created_utc
             ? new Date(post.created_utc * 1000).toISOString()
             : new Date().toISOString(),
-        lat: Number(location.lat),
-        lon: Number(location.lon),
-        location_label: location.label || post.subreddit_name_prefixed || "Reddit",
+        lat: mapEligible ? Number(location.lat) : null,
+        lon: mapEligible ? Number(location.lon) : null,
+        location_label: location.label || null,
         confidence: 35,
         actor_side: "unknown",
         target_side: "unknown",
@@ -3061,6 +3189,10 @@ async function normalizeRedditPost(post, feed) {
         airspace_status: "unknown",
         cyber_status: "unknown",
         fir_code: "",
+        metadata: buildWorkerLocationMetadata(location, {
+            country: feed.source_country || feed.publisher_country || null,
+            region: feed.source_region || feed.region || null
+        }),
         dedupe_key: [
             "REDDIT",
             post.id || "",
@@ -3084,6 +3216,24 @@ async function processRedditFeed(feed) {
         try {
             const event = await normalizeRedditPost(post, feed);
             if (!event) continue;
+            if (!Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) {
+                await saveRawItem({
+                    source_name: event.source_name,
+                    source_type: "reddit",
+                    parser: "reddit",
+                    external_id: event.dedupe_key,
+                    url: event.source_url,
+                    title: event.title,
+                    text: event.summary,
+                    payload: attachLocationToRawPayload(post, event.metadata || {}, {
+                        country: feed.source_country || feed.publisher_country || null,
+                        region: feed.source_region || feed.region || null
+                    }),
+                    published_at: event.occurred_at,
+                    location_hint: event.location_label
+                });
+                continue;
+            }
             await insertEventIfValid(event);
         } catch (error) {
             console.error("Reddit parse error:", feed.name, post?.id, error.message);
