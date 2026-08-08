@@ -20,6 +20,7 @@ import {
     getZoomUxState,
     selectActiveClusterGroup,
     selectClusterLocalityLabel,
+    selectCollisionSafeLabels,
 } from "./warzone-map-zoom-ux.js";
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 function sanitizeText(v) {
@@ -873,7 +874,7 @@ function createActivityStackElements(rootEl) {
     stackEl.setAttribute("aria-label", "Local activity summary");
     stackEl.hidden = true;
     rootEl.appendChild(stackEl);
-    return { stackEl, lineEl, signature: "", height: 0 };
+    return { stackEl, lineEl, signature: "", height: 0, side: "", groupIds: [] };
 }
 function hideActivityStack(stackNode) {
     if (!stackNode) return;
@@ -941,7 +942,10 @@ function renderActivityStack(stackNode, model, group, viewport) {
         viewportWidth: viewport.width,
         leftInset,
         rightInset,
+        currentSide: stackNode.side,
+        hysteresisPx: cssLengthToPx("--hotspot-stack-side-hysteresis", 64),
     });
+    stackNode.side = side;
     stackEl.dataset.side = side;
     const maxLeft = Math.max(viewportPad, viewport.width - panelWidth - viewportPad - rightInset);
     const desiredLeft = side === "left"
@@ -1187,8 +1191,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 viewportWidth: overlayRect.width,
                 viewportHeight: overlayRect.height,
                 maxGapPx: cssLengthToPx("--hotspot-stack-group-gap", 340),
+                preferredClusterIds: activityStack.groupIds,
+                switchMargin: cssNumber("--hotspot-stack-selection-hysteresis", 0.55),
             })
             : null;
+        activityStack.groupIds = activeGroup
+            ? activeGroup.clusters.map((cluster) => String(cluster.cluster_id || cluster.id))
+            : [];
         const stackEntryLimit = overlayRect.width <= 720
             ? cssNumber("--hotspot-stack-entry-limit-small", 4)
             : cssNumber("--hotspot-stack-entry-limit", 6);
@@ -1196,6 +1205,27 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             ? buildLocalActivityStackModel(activeGroup.clusters, { maxEntries: stackEntryLimit })
             : null;
         const clusterNumbers = new Map((stackModel?.entries || []).map((entry) => [entry.cluster_id, entry.number]));
+        const localityLabelIds = zoomState === ZOOM_UX_STATES.LOCALITY
+            ? selectCollisionSafeLabels(visible.map((cluster) => {
+                const locality = selectClusterLocalityLabel(cluster);
+                const count = Math.max(1, Number(cluster.actual_event_count || cluster.event_count || cluster.count || 1));
+                return {
+                    id: cluster.id,
+                    screen: cluster.screen,
+                    width: Math.max(90, Math.min(180, 34 + locality.length * 8)),
+                    height: 48,
+                    priority: Number(cluster.weighted_activity_score || cluster._activityScore || 0) * 10 + Math.log1p(count),
+                };
+            }), {
+                viewportWidth: overlayRect.width,
+                viewportHeight: overlayRect.height,
+                viewportPad: cssLengthToPx("--hotspot-stack-viewport-pad", 18),
+                gapPx: cssLengthToPx("--hotspot-local-label-collision-gap", 10),
+                maxVisible: overlayRect.width <= 720
+                    ? cssNumber("--hotspot-local-label-max-visible-small", 16)
+                    : cssNumber("--hotspot-local-label-max-visible", 30),
+            })
+            : null;
         renderActivityStack(activityStack, stackModel, activeGroup, {
             width: overlayRect.width,
             height: overlayRect.height,
@@ -1232,6 +1262,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 applyHotspotRadiusModel(node.radiusEl, cluster);
                 syncHotspotRadiusSplitState(node.radiusEl, radiusSplitHidden);
                 renderClusterUxLabel(node.uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
+                node.uxLabelEl.hidden = localityLabelIds ? !localityLabelIds.has(String(cluster.id)) : false;
                 if (node.el && !cardsEnabled) {
                     node.el.remove();
                     node.el = null;
@@ -1281,6 +1312,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 rootEl.appendChild(radiusEl);
                 const uxLabelEl = createClusterUxLabelEl();
                 renderClusterUxLabel(uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
+                uxLabelEl.hidden = localityLabelIds ? !localityLabelIds.has(String(cluster.id)) : false;
                 uxLabelEl.style.cssText = `left:${rx}px;top:${ry}px;z-index:${zi};`;
                 rootEl.appendChild(uxLabelEl);
                 const el = cardsEnabled ? createCardEl(cluster, handleToggle) : null;

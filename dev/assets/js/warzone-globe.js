@@ -11,6 +11,7 @@ import {
     ZOOM_UX_STATES,
     getClusterBucketForZoomState,
     getZoomUxState,
+    selectCollisionSafeLabels,
 } from "./warzone-map-zoom-ux.js";
 /* ---------- Data sources ---------- */
 const BORDER_SOURCES = {
@@ -827,6 +828,38 @@ function applyEventLod(viewer) {
     __EVENT_LOD_STATE.mode = mode;
     __EVENT_LOD_STATE.cameraHeight = cameraHeight;
     const entities = viewer.entities.values;
+    const canvas = viewer.scene?.canvas;
+    const labelMaxVisible = (canvas?.clientWidth || 0) <= 720
+        ? numberVar("--event-marker-label-max-visible-small", 18)
+        : numberVar("--event-marker-label-max-visible", 36);
+    const visibleEventLabelIds = showIndividualEvents && mode !== "heatmap" && !suppressMarkers
+        ? selectCollisionSafeLabels(entities.flatMap((entity) => {
+            if (!entity?.properties || !getEntityPropertyValue(entity, "isEventCountLabel", false)) return [];
+            if (Number(getEntityPropertyValue(entity, "cluster_count", 1)) !== 1) return [];
+            const lat = Number(getEntityPropertyValue(entity, "lat", NaN));
+            const lon = Number(getEntityPropertyValue(entity, "lon", NaN));
+            const screen = getScreenPointForEvent(viewer, { lat, lon });
+            if (!screen) return [];
+            const text = String(getEntityPropertyValue(entity, "event_marker_label", "Event"));
+            const severityRank = { low: 1, medium: 2, high: 3, critical: 4 }[String(getEntityPropertyValue(entity, "severity", "medium")).toLowerCase()] || 2;
+            const activityScore = Math.max(0, Number(getEntityPropertyValue(entity, "activity_score", 0)) || 0);
+            const labelWidth = Math.max(64, Math.min(148, 24 + text.length * 7));
+            return [{
+                id: entity.id,
+                screen,
+                width: labelWidth,
+                height: 28,
+                centerOffsetX: numberVar("--event-marker-label-offset-x", 30) + labelWidth / 2,
+                priority: severityRank * 1000 + activityScore,
+            }];
+        }), {
+            viewportWidth: canvas?.clientWidth || Number.POSITIVE_INFINITY,
+            viewportHeight: canvas?.clientHeight || Number.POSITIVE_INFINITY,
+            viewportPad: numberVar("--event-marker-label-viewport-pad", 8),
+            gapPx: numberVar("--event-marker-label-collision-gap", 8),
+            maxVisible: labelMaxVisible,
+        })
+        : new Set();
     for (const entity of entities) {
         if (!entity?.properties) continue;
         const isEventOutline = !!entity.properties?.isEventOutline?.getValue?.();
@@ -865,6 +898,7 @@ function applyEventLod(viewer) {
                     && !suppressMarkers
                     && showIndividualEvents
                     && clusterCount === 1
+                    && visibleEventLabelIds.has(String(entity.id))
                     && !!labelConfig;
                 entity.label.show = showCountLabel;
                 if (labelConfig) {
@@ -878,7 +912,9 @@ function applyEventLod(viewer) {
                     entity.label.eyeOffset = labelConfig.eyeOffset;
                     entity.label.disableDepthTestDistance = labelConfig.disableDepthTestDistance;
                     entity.label.zIndex = labelConfig.zIndex;
-                    entity.label.showBackground = false;
+                    entity.label.showBackground = labelConfig.showBackground === true;
+                    if (labelConfig.backgroundColor) entity.label.backgroundColor = labelConfig.backgroundColor;
+                    if (labelConfig.backgroundPadding) entity.label.backgroundPadding = labelConfig.backgroundPadding;
                 }
             }
             continue;
@@ -2030,6 +2066,7 @@ function createEventCountEntity(event) {
             category: event.category,
             severity: event.severity,
             cluster_count: count,
+            activity_score: Number(event.weighted_activity_score || event._activityScore || 0),
             lat: event.lat,
             lon: event.lon,
         },

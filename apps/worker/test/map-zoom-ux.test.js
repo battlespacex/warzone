@@ -9,6 +9,7 @@ import {
   getZoomUxState,
   isIndividualEventMarkerEligible,
   selectActiveClusterGroup,
+  selectCollisionSafeLabels,
   selectClusterLocalityLabel,
 } from "../../../dev/assets/js/warzone-map-zoom-ux.js";
 
@@ -112,6 +113,32 @@ test("trend compares the recent three hours with the preceding three hours", () 
 test("stack side uses available viewport space", () => {
   assert.equal(chooseStackSide({ left: 980, right: 1100 }, { viewportWidth: 1200, leftInset: 80, rightInset: 40 }), "left");
   assert.equal(chooseStackSide({ left: 80, right: 220 }, { viewportWidth: 1200, leftInset: 80, rightInset: 40 }), "right");
+  assert.equal(chooseStackSide(
+    { left: 500, right: 700 },
+    { viewportWidth: 1200, currentSide: "left", hysteresisPx: 80 },
+  ), "left");
+});
+
+test("active group and stack side hysteresis resist insignificant camera movement", () => {
+  const preferred = [cluster("preferred", 430, 380, [event("a")], { weighted_activity_score: 8 })];
+  const challenger = [cluster("challenger", 760, 380, [event("b")], { weighted_activity_score: 8.2 })];
+  const active = selectActiveClusterGroup([...preferred, ...challenger], {
+    viewportWidth: 1200,
+    viewportHeight: 800,
+    maxGapPx: 120,
+    preferredClusterIds: ["preferred"],
+    switchMargin: 0.55,
+  });
+  assert.equal(active.clusters[0].id, "preferred");
+});
+
+test("collision suppression keeps higher-priority labels without moving coordinates", () => {
+  const visible = selectCollisionSafeLabels([
+    { id: "routine", screen: { x: 100, y: 100 }, width: 100, height: 30, priority: 1 },
+    { id: "critical", screen: { x: 105, y: 102 }, width: 100, height: 30, priority: 20 },
+    { id: "separate", screen: { x: 300, y: 100 }, width: 100, height: 30, priority: 2 },
+  ], { viewportWidth: 500, viewportHeight: 300, gapPx: 4 });
+  assert.deepEqual([...visible].sort(), ["critical", "separate"]);
 });
 
 test("stack entries are relevance ordered and numbers match that order", () => {

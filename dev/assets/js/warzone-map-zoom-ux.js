@@ -189,13 +189,27 @@ function selectActiveClusterGroup(clusters = [], options = {}) {
     const centerX = viewportWidth / 2;
     const centerY = viewportHeight / 2;
     const maxDistance = Math.hypot(centerX, centerY) || 1;
-    return groups.map((group) => {
+    const ranked = groups.map((group) => {
         const distance = Math.hypot(group.bounds.centerX - centerX, group.bounds.centerY - centerY);
         const proximity = Math.max(0, 1 - distance / maxDistance);
         const activity = group.clusters.reduce((sum, cluster) => sum + Math.max(0, Number(cluster.weighted_activity_score || cluster._activityScore || 0)), 0);
         const incidents = group.clusters.reduce((sum, cluster) => sum + Math.max(1, Number(cluster.actual_event_count || cluster.event_count || cluster.count || 1)), 0);
         return { ...group, relevance: Math.log1p(activity) * 1.6 + proximity * 2.4 + Math.log1p(incidents) * 0.35 };
-    }).sort((a, b) => b.relevance - a.relevance || b.clusters.length - a.clusters.length || a.bounds.centerX - b.bounds.centerX)[0] || null;
+    }).sort((a, b) => b.relevance - a.relevance || b.clusters.length - a.clusters.length || a.bounds.centerX - b.bounds.centerX);
+    const best = ranked[0] || null;
+    const preferredIds = new Set((options.preferredClusterIds || []).map(String));
+    const switchMargin = Math.max(0, Number(options.switchMargin) || 0);
+    if (!best || !preferredIds.size || !(switchMargin > 0)) return best;
+    const preferred = ranked
+        .map((group) => ({
+            group,
+            overlap: group.clusters.reduce((count, cluster) => (
+                count + (preferredIds.has(String(cluster.cluster_id || cluster.id)) ? 1 : 0)
+            ), 0),
+        }))
+        .filter((candidate) => candidate.overlap > 0)
+        .sort((a, b) => b.overlap - a.overlap || b.group.relevance - a.group.relevance)[0]?.group;
+    return preferred && best.relevance - preferred.relevance <= switchMargin ? preferred : best;
 }
 
 function chooseStackSide(groupBounds, options = {}) {
@@ -205,7 +219,70 @@ function chooseStackSide(groupBounds, options = {}) {
     const rightInset = Math.max(0, Number(options.rightInset) || 0);
     const freeLeft = groupBounds.left - leftInset;
     const freeRight = viewportWidth - rightInset - groupBounds.right;
+    const currentSide = ["left", "right"].includes(options.currentSide) ? options.currentSide : "";
+    const hysteresisPx = Math.max(0, Number(options.hysteresisPx) || 0);
+    const difference = freeLeft - freeRight;
+    if (currentSide === "left" && difference >= -hysteresisPx) return "left";
+    if (currentSide === "right" && difference <= hysteresisPx) return "right";
     return freeLeft > freeRight ? "left" : "right";
+}
+
+function selectCollisionSafeLabels(items = [], options = {}) {
+    const gap = Math.max(0, Number(options.gapPx) || 0);
+    const viewportWidth = Math.max(1, Number(options.viewportWidth) || Number.POSITIVE_INFINITY);
+    const viewportHeight = Math.max(1, Number(options.viewportHeight) || Number.POSITIVE_INFINITY);
+    const viewportPad = Math.max(0, Number(options.viewportPad) || 0);
+    const requestedMax = options.maxVisible == null ? items.length : Number(options.maxVisible);
+    const maxVisible = Math.max(0, Math.round(Number.isFinite(requestedMax) ? requestedMax : items.length));
+    const cellSize = Math.max(32, Number(options.cellSize) || 96);
+    const accepted = new Set();
+    const grid = new Map();
+    const ordered = items
+        .filter((item) => item && item.id != null && Number.isFinite(item?.screen?.x) && Number.isFinite(item?.screen?.y))
+        .slice()
+        .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0) || String(a.id).localeCompare(String(b.id)));
+    for (const item of ordered) {
+        if (accepted.size >= maxVisible) break;
+        const width = Math.max(1, Number(item.width) || 1);
+        const height = Math.max(1, Number(item.height) || 1);
+        const centerX = Number(item.screen.x) + Number(item.centerOffsetX || 0);
+        const centerY = Number(item.screen.y) + Number(item.centerOffsetY || 0);
+        const box = {
+            left: centerX - width / 2 - gap,
+            right: centerX + width / 2 + gap,
+            top: centerY - height / 2 - gap,
+            bottom: centerY + height / 2 + gap,
+        };
+        if (
+            box.right < viewportPad || box.left > viewportWidth - viewportPad
+            || box.bottom < viewportPad || box.top > viewportHeight - viewportPad
+        ) continue;
+        const minCellX = Math.floor(box.left / cellSize);
+        const maxCellX = Math.floor(box.right / cellSize);
+        const minCellY = Math.floor(box.top / cellSize);
+        const maxCellY = Math.floor(box.bottom / cellSize);
+        let collides = false;
+        for (let x = minCellX; x <= maxCellX && !collides; x += 1) {
+            for (let y = minCellY; y <= maxCellY && !collides; y += 1) {
+                for (const other of grid.get(`${x}:${y}`) || []) {
+                    if (box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top) {
+                        collides = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (collides) continue;
+        accepted.add(String(item.id));
+        for (let x = minCellX; x <= maxCellX; x += 1) {
+            for (let y = minCellY; y <= maxCellY; y += 1) {
+                const key = `${x}:${y}`;
+                if (!grid.has(key)) grid.set(key, []);
+                grid.get(key).push(box);
+            }
+        }
+    }
+    return accepted;
 }
 
 function getTopDomains(cluster = {}, limit = 3) {
@@ -319,6 +396,7 @@ export {
     getClusterBucketForZoomState,
     getZoomUxState,
     isIndividualEventMarkerEligible,
+    selectCollisionSafeLabels,
     selectActiveClusterGroup,
     selectClusterLocalityLabel,
 };

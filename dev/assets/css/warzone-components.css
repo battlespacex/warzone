@@ -682,14 +682,6 @@
         visibility 0s linear var(--wzhs-radius-split-fade-ms, 360ms);
 }
 
-.wzhs-radius--strike {
-    --wzhs-radius-color: var(--warzone-strike-color);
-}
-
-.wzhs-radius--alert {
-    --wzhs-radius-color: var(--warzone-alert-color);
-}
-
 .wzhs-radius--military {
     --wzhs-radius-color: var(--warzone-military-color);
 }
@@ -716,10 +708,6 @@
 
 .wzhs-radius--airspace {
     --wzhs-radius-color: var(--warzone-airspace-color);
-}
-
-.wzhs-radius--cyber {
-    --wzhs-radius-color: var(--warzone-cyber-color);
 }
 
 .wzhs-radius--thermal {
