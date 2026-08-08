@@ -144,7 +144,7 @@ export function initPreEntryShowcase({ onEnter } = {}) {
     const fragment = template.content.cloneNode(true);
     const overlay = fragment.querySelector("#wz-pre-entry-showcase");
     const enterButton = fragment.querySelector("#wz-pre-entry-enter");
-    const mount = document.querySelector("#warzone-gate-layer .primary-content")
+    const mount = document.querySelector("#warzone-app")
         || document.getElementById("warzone-gate-layer")
         || document.getElementById("warzone-app")
         || document.body;

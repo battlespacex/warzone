@@ -216,14 +216,20 @@ body.is-aoi-drawing .cesium-widget canvas {
     }
 }
 .wz-gnss-legend__tag {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 2rem;
-    padding: 0 0.7rem;
+    display: flex;
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    height: 2.6rem;
+    letter-spacing: .07rem;
+    line-height: 1;
+    min-height: 1.6rem;
+    padding: .0rem 0.8rem;
+    text-transform: uppercase;
+    width: fit-content;
+
     background: var(--color-yellow-overlay);
     color: var(--color-yellow-slate);
-    font-size: var(--text-sm);
 }
 .wz-gnss-panel__body {
     display: grid;

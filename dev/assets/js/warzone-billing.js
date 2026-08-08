@@ -20,7 +20,7 @@ const FEATURE_ACCESS = Object.freeze({
     focusedAssetTrails: { tier: "advanced", label: "Focused asset trails" },
     savedViews: { tier: "expert", label: "Saved views" },
     alertTools: { tier: "expert", label: "Alert tools" },
-    briefingWorkflow: { tier: "expert", label: "Briefing export" },
+    briefingWorkflow: { tier: "expert", label: "Report export" },
     priorityBeta: { tier: "expert", label: "Priority beta access" },
     teamUpgrade: { tier: "expert", label: "Client/team upgrade path" },
 });

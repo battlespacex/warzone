@@ -305,7 +305,7 @@ function buildTextCommands(pageLines, pageNumber, pageCount) {
   commands.push("0.62 0.68 0.76 rg");
   commands.push("/F1 8 Tf");
   commands.push(`${MARGIN_X} 32 Td`);
-  commands.push(`(StratOps Operational Briefings | Page ${pageNumber} of ${pageCount}) Tj`);
+  commands.push(`(StratOps Operational Report | Page ${pageNumber} of ${pageCount}) Tj`);
   commands.push("ET");
   return commands;
 }
