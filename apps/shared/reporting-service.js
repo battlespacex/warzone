@@ -6,6 +6,7 @@ import { applyGeneralEventDeliveryFilters } from "./map-event-policy.js";
 import {
   SNAPSHOT_SCHEMA_VERSION,
   buildReportingFoundation,
+  buildSnapshotKey,
 } from "./reporting-snapshot.js";
 
 const REPORT_VERSION = "2026-07-stratops-report-v2";
@@ -13,6 +14,7 @@ const NORMALIZATION_VERSION = "event-normalizer-current";
 const VALID_REPORT_TYPES = new Set(["daily", "weekly"]);
 const VALID_SCOPE_TYPES = new Set(["global", "region", "country", "aoi"]);
 const HIGH_SEVERITIES = new Set(["high", "critical"]);
+const TRACK_BOUNDARY_GRACE_MINUTES = 15;
 const inFlightReportGenerations = new Map();
 const DOMAIN_CATEGORY_MAP = new Map([
   ["air", ["air_activity", "military"]],
@@ -214,6 +216,7 @@ function eventMatchesScope(event = {}, scope = normalizeScope()) {
     const wanted = String(scope.value || "").toLowerCase();
     return (
       String(event.country_code || "").toLowerCase() === wanted ||
+      String(event.country || "").toLowerCase() === wanted ||
       String(event.location_label || "").toLowerCase().includes(wanted)
     );
   }
@@ -437,17 +440,35 @@ async function fetchConflictIntelligenceForDay(supabase, dateKey) {
   return [...unique.values()];
 }
 
-async function countTracks(supabase, dateKey, trackType, scope) {
+async function fetchTracksForDay(supabase, dateKey) {
   const { startIso, endIso } = getDayRange(dateKey);
-  const { data, error } = await supabase
-    .from("tracks")
-    .select("id, track_type, category, updated_at, lat, lon, country, operator")
-    .eq("track_type", trackType)
-    .gte("updated_at", startIso)
-    .lt("updated_at", endIso)
-    .limit(2500);
-  if (error) return 0;
-  return (data || []).filter((track) => eventMatchesScope(track, scope)).length;
+  const trackWindowEndIso = new Date(Date.parse(endIso) + TRACK_BOUNDARY_GRACE_MINUTES * 60000).toISOString();
+  try {
+    return await fetchPagedRows(() => supabase
+      .from("tracks")
+      .select("id, track_key, track_type, category, subcategory, source_name, title, lat, lon, altitude_ft, speed_kts, heading_deg, region, country, status, occurred_at, updated_at, metadata")
+      .gte("updated_at", startIso)
+      .lt("updated_at", trackWindowEndIso)
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchPreviousSnapshot(supabase, dateKey, scopeKey) {
+  try {
+    const previousDateKey = addUtcDays(dateKey, -1);
+    const { data, error } = await supabase
+      .from("operational_report_snapshots")
+      .select("snapshot_date, snapshot_key, snapshot_data")
+      .eq("snapshot_key", buildSnapshotKey(previousDateKey, scopeKey))
+      .maybeSingle();
+    if (error) return null;
+    return data || null;
+  } catch {
+    return null;
+  }
 }
 
 async function countAlerts(supabase, dateKey) {
@@ -499,7 +520,17 @@ async function fetchSatellitePreviewForEvents(supabase, eventIds = []) {
   };
 }
 
-function buildSnapshotPayload({ dateKey, scope, events, intelligence = [], counts, satellitePreview = null, config = readReportingConfig() }) {
+function buildSnapshotPayload({
+  dateKey,
+  scope,
+  events,
+  intelligence = [],
+  tracks = [],
+  previousSnapshot = null,
+  counts,
+  satellitePreview = null,
+  config = readReportingConfig(),
+}) {
   const { startIso, endIso } = getDayRange(dateKey);
   const reporting = buildReportingFoundation({
     dateKey,
@@ -509,10 +540,19 @@ function buildSnapshotPayload({ dateKey, scope, events, intelligence = [], count
     scopeKey: getScopeKey(scope),
     events,
     intelligence,
+    tracks,
+    previousSnapshot,
     counts,
+    satellitePreview,
     s3Prefix: config.s3Prefix,
   });
   const scopedEvents = reporting.operationalItems;
+  reporting.snapshotData.report_content.methodology_metrics.telemetry_selection_window = {
+    start: startIso,
+    end: endIso,
+    boundary_grace_minutes: TRACK_BOUNDARY_GRACE_MINUTES,
+    reason: "Preserves latest-row telemetry across the scheduled 00:12 UTC snapshot boundary.",
+  };
   const categoryTotals = countBy(scopedEvents, "category");
   const severityTotals = countBy(scopedEvents, "severity");
   const confidenceTotals = {
@@ -624,17 +664,19 @@ async function upsertSnapshot(supabase, payload) {
 
 async function generateDailySnapshot({ supabase, dateKey = getPreviousUtcDateKey(), scope = {}, config = readReportingConfig() } = {}) {
   const normalizedScope = normalizeScope(scope);
-  const [events, intelligence, aircraftTotal, navalTotal, alertsTotal, satelliteTotal] = await Promise.all([
+  const scopeKey = getScopeKey(normalizedScope);
+  const [events, intelligence, tracks, alertsTotal, satelliteTotal, previousSnapshot] = await Promise.all([
     fetchEventsForDay(supabase, dateKey, normalizedScope),
     fetchConflictIntelligenceForDay(supabase, dateKey),
-    countTracks(supabase, dateKey, "aircraft", normalizedScope),
-    countTracks(supabase, dateKey, "naval", normalizedScope),
+    fetchTracksForDay(supabase, dateKey),
     countAlerts(supabase, dateKey),
     countSatellite(supabase, dateKey),
+    fetchPreviousSnapshot(supabase, dateKey, scopeKey),
   ]);
+  const scopedTracks = tracks.filter((track) => eventMatchesScope(track, normalizedScope));
   const counts = {
-    aircraft_total: aircraftTotal,
-    naval_total: navalTotal,
+    aircraft_total: scopedTracks.filter((track) => track.track_type === "aircraft").length,
+    naval_total: scopedTracks.filter((track) => track.track_type === "naval").length,
     alerts_total: alertsTotal,
     satellite_total: satelliteTotal,
   };
@@ -647,6 +689,8 @@ async function generateDailySnapshot({ supabase, dateKey = getPreviousUtcDateKey
     scope: normalizedScope,
     events,
     intelligence,
+    tracks,
+    previousSnapshot,
     counts,
     satellitePreview,
     config,
@@ -898,6 +942,7 @@ function resetInFlightReportGenerationsForTests() {
 
 const __reportingServiceTestUtils = {
   buildSnapshotPayload,
+  fetchTracksForDay,
   getDayRange,
   resetInFlightReportGenerationsForTests,
   upsertSnapshot,

@@ -11,6 +11,7 @@ import {
   buildSpatialEventClusters,
   classifyEventDomain,
 } from "../../dev/assets/js/warzone-event-cluster-model.js";
+import { buildReportContent } from "./reporting-intelligence.js";
 
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const MAX_MAJOR_DEVELOPMENTS = 25;
@@ -430,7 +431,20 @@ function buildReportObjectKeys({ prefix = "reports", dateKey, scope = {} } = {})
   };
 }
 
-function buildReportingFoundation({ dateKey, windowStartIso, windowEndIso, scope, scopeKey, events = [], intelligence = [], counts = {}, s3Prefix = "reports" } = {}) {
+function buildReportingFoundation({
+  dateKey,
+  windowStartIso,
+  windowEndIso,
+  scope,
+  scopeKey,
+  events = [],
+  intelligence = [],
+  tracks = [],
+  previousSnapshot = null,
+  counts = {},
+  satellitePreview = null,
+  s3Prefix = "reports",
+} = {}) {
   const items = buildReportSnapshotItems(events, intelligence, { windowEndIso })
     .filter((item) => reportItemMatchesScope(item, scope));
   const operationalItems = items.filter((item) => item.record_type === "operational_event");
@@ -510,6 +524,28 @@ function buildReportingFoundation({ dateKey, windowStartIso, windowEndIso, scope
     generation_status: "snapshot_ready",
     object_keys: objectKeys,
   };
+  const reportContent = buildReportContent({
+    snapshotData,
+    items,
+    clusters,
+    theaters,
+    tracks,
+    previousSnapshot,
+    counts,
+    scope,
+    satellitePreview,
+  });
+  snapshotData.report_content = reportContent;
+  snapshotData.selections.major_developments = reportContent.major_developments;
+  snapshotData.selections.high_value_asset_candidates = reportContent.high_value_assets.all_qualified;
+  snapshotData.reserved.key_judgments = reportContent.key_judgments;
+  snapshotData.reserved.watch_indicators = reportContent.watch_indicators;
+  snapshotData.reserved.cross_domain_assessment = reportContent.cross_domain_assessment;
+  snapshotData.reserved.outlook = reportContent.outlook;
+  manifest.selected_developments = reportContent.major_developments.map((item) => item.report_item_id);
+  manifest.selected_hva = reportContent.high_value_assets.all_qualified.map((asset) => asset.asset_id);
+  manifest.selected_capture_targets = reportContent.operational_imagery_targets;
+  manifest.capture_requirements = reportContent.high_value_assets.capture_requirements;
   return { snapshotKey, snapshotData, manifest, items, operationalItems, broaderItems, clusters, theaters };
 }
 

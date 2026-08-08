@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <title>StratOps Automatically Paginated Report</title>
+  <link href="./reports.css" rel="stylesheet">
+</head>
+
+<body data-report-template="stratops-operational-intelligence" data-report-image-base="../images/report-2026-08-08-img">
+  <main class="preview-shell">
+    <section class="a4-page cover-page">
+      <img alt="" class="cover-background" src="../../assets/images/web/StratOps-Briefing-Background-2.jpg" />
+      <div class="cover-safe-area">
+        <img alt="StratOps by BattlespaceX" class="cover-stratops-logo"
+          src="../../assets/images/web/logo-stratops-battlespacex.svg" />
+        <h1 class="cover-title">
+          <span>OPERATIONAL</span>
+          <span>INTELLIGENCE</span>
+          <span>REPORT</span>
+        </h1>
+        <div class="cover-period">
+          <div class="date-strip">
+            <span class="date-strip__text">
+              2026-08-04 TO 2026-08-05
+            </span>
+          </div>
+          <small class="utc-label">UTC</small>
+        </div>
+        <div class="cover-bottom">
+          <img alt="StratOps QR code" class="cover-qr" src="../../assets/images/web/Stratops-QR.png" />
+          <div class="cover-disclosure">
+            <p>
+              Generated from publicly available, open-source intelligence [OSINT] and information for situational
+              awareness only.
+            </p>
+            <a class="cover-website" href="https://stratops.battlespacex.com" rel="noopener noreferrer" target="_blank">
+              stratops.battlespacex.com
+            </a>
+          </div>
+          <a href="https://battlespacex.com" rel="noopener noreferrer" target="_blank">
+            <img alt="BattlespaceX" class="cover-battlespacex-logo"
+              src="../../assets/images/web/Battlespacex-full-logo.svg" />
+          </a>
+        </div>
+      </div>
+    </section>
+    <div class="generated-pages" id="generated-pages"></div>
+    <div class="report-source" data-period="2026-08-04 TO 2026-08-05" data-scope="GLOBAL ACTIVITY" id="report-source">
+      <div class="pagination-block report-page-intro">
+        <h1>EXECUTIVE INTELLIGENCE SUMMARY</h1>
+        <p>Global activity remained elevated during the reporting window. StratOps recorded concentrated kinetic
+          activity in the Middle East and Ukraine, continued high-value airborne surveillance activity, persistent
+          regional airspace and infrastructure indicators, and multiple satellite observations. This briefing
+          prioritizes operationally significant developments rather than reproducing the full intelligence feed.</p>
+      </div>
+      <div class="pagination-block">
+        <div class="report-card-grid report-card-grid--6 compact-stats">
+          <article class="report-stat-card"><small>Total Events</small><strong>1,000</strong>
+            <p>Normalized records</p>
+          </article>
+          <article class="report-stat-card report-stat-card--critical"><small>Critical</small><strong>3</strong>
+            <p>Highest-severity events</p>
+          </article>
+          <article class="report-stat-card report-stat-card--high"><small>Priority Assets</small><strong>4</strong>
+            <p>Qualified HVA detections</p>
+          </article>
+          <article class="report-stat-card report-stat-card--medium"><small>Strike Events</small><strong>57</strong>
+            <p>Mapped in window</p>
+          </article>
+          <article class="report-stat-card report-stat-card--low"><small>Source Families</small><strong>34</strong>
+            <p>Independent families</p>
+          </article>
+          <article class="report-stat-card"><small>Escalation</small><strong>100</strong>
+            <p>Composite index</p>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <div class="report-theater-grid">
+          <article class="report-theater-card report-theater-card--critical">
+            <div class="report-theater-card__top">
+              <div><small>ACTIVE THEATER</small>
+                <h2>IRAN / GULF</h2>
+              </div><span class="capsule-box severity-critical">Critical</span>
+            </div>
+            <p>High-density strike reporting, active military aviation, maritime risk indicators and regional escalation
+              signals remain concentrated across the Gulf. Current reporting emphasizes cross-border strikes,
+              air-defense posture, strategic maritime corridors and high-value ISR support.</p>
+            <div class="report-theater-stats"><span><b>57</b> strikes</span><span><b>23</b> high
+                severity</span><span><b>10</b> alerts</span></div>
+          </article>
+          <article class="report-theater-card report-theater-card--high">
+            <div class="report-theater-card__top">
+              <div><small>ACTIVE THEATER</small>
+                <h2>UKRAINE / RUSSIA</h2>
+              </div><span class="capsule-box severity-high">High</span>
+            </div>
+            <p>Ballistic missile and long-range strike activity continue to define the reporting picture. Key reporting
+              focuses on Kyiv, strategic infrastructure, air-defense activity and attack tempo rather than Gulf-specific
+              maritime indicators.</p>
+            <div class="report-theater-stats"><span><b>19</b> strike reports</span><span><b>3</b>
+                critical</span><span><b>8</b> families</span></div>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <figure class="report-image-block report-image-block--wide report-image-block--feature"><img
+            src="../images/report-2026-08-08-img/operational-overview.jpg" alt="StratOps operational overview">
+          <figcaption>Operational picture — active AOI, strike clusters, intelligence wire, air activity and escalation
+            state.</figcaption>
+        </figure>
+      </div>
+      <div class="pagination-block">
+        <div class="report-two-column">
+          <article class="report-text-panel">
+            <h2>KEY JUDGMENTS</h2>
+            <div class="report-judgment"><span class="capsule-box severity-critical">High</span>
+              <p>Middle East strike density remains the dominant near-term escalation driver.</p>
+            </div>
+            <div class="report-judgment"><span class="capsule-box severity-high">Mod-High</span>
+              <p>Priority airborne ISR and command assets indicate sustained surveillance demand.</p>
+            </div>
+            <div class="report-judgment"><span class="capsule-box severity-medium">Moderate</span>
+              <p>GNSS and cyber indicators remain relevant but geographically uneven.</p>
+            </div>
+          </article>
+          <article class="report-text-panel">
+            <h2>WATCH INDICATORS</h2>
+            <ol class="report-number-list">
+              <li>High-value airborne assets entering active AOIs.</li>
+              <li>New strike clusters near strategic infrastructure.</li>
+              <li>Rapid airspace restriction changes.</li>
+              <li>Carrier or major naval force repositioning.</li>
+              <li>Satellite observations that materially change confidence.</li>
+            </ol>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block pagination-heading" data-keep-with-next="true">
+        <h1>TOP INTELLIGENCE DEVELOPMENTS</h1>
+      </div>
+      <div class="pagination-block">
+        <article class="event-card event-card--feature">
+          <h3 class="event-title">1. Ballistic missile activity reported over Kyiv</h3>
+          <div class="event-grid">
+            <div class="event-image"><img src="../images/report-2026-08-08-img/incident-kyiv.jpg" alt="Operational event capture"></div>
+            <div class="event-content">
+              <p class="event-meta">Time: 2026-08-04T21:49:57+00:00 · Location: Kyiv, Ukraine · Category: strike ·
+                Reports: 12 · Independent families: 5</p>
+              <div class="event-capsule-container"><span class="capsule-box severity-critical">Severity:
+                  critical</span><span class="capsule-box confidence-critical">Confidence: 92%</span></div>
+              <p>Multiple independent sources reported a ballistic missile attack during the reporting window. Core
+                details were corroborated across major wire services, official channels and regional reporting.</p>
+              <div class="report-source-tags">
+                <span>Reuters</span><span>AP</span><span>BBC</span><span>Official</span><span>Regional</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="pagination-block">
+        <article class="event-card event-card--feature">
+          <h3 class="event-title">2. Gulf strike cluster expands near strategic maritime corridor</h3>
+          <div class="event-grid event-grid--reverse">
+            <div class="event-image"><img src="../images/report-2026-08-08-img/gulf-strike.jpg" alt="Gulf operational event capture">
+            </div>
+            <div class="event-content">
+              <p class="event-meta">Time: 2026-08-04T20:12:11+00:00 · Location: Gulf Region · Category: strike ·
+                Reports: 17 · Independent families: 7</p>
+              <div class="event-capsule-container"><span class="capsule-box severity-critical">Severity:
+                  critical</span><span class="capsule-box confidence-critical">Confidence: 94%</span></div>
+              <p>Strike reporting increased near strategic maritime routes. Here the report weights maritime access,
+                regional air-defense posture, tanker routes, military aviation and escalation spillover.</p>
+              <div class="report-source-tags">
+                <span>Official</span><span>Reuters</span><span>Regional</span><span>Defense</span><span>Maritime</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="pagination-block">
+        <div class="report-card-grid report-card-grid--3">
+          <article class="report-news-card">
+            <div class="event-capsule-container"><span class="capsule-box severity-high">High</span><span
+                class="capsule-box confidence-critical">85%</span></div>
+            <h3>Regional air activity increases</h3>
+            <p>Priority ISR and command aircraft remain active around key corridors.</p><small>7 reports · 4
+              families</small>
+          </article>
+          <article class="report-news-card">
+            <div class="event-capsule-container"><span class="capsule-box severity-medium">Medium</span><span
+                class="capsule-box confidence-high">64%</span></div>
+            <h3>GNSS disruption remains localized</h3>
+            <p>Intermittent disruption observed without a confirmed broad regional outage.</p><small>5 reports · 3
+              families</small>
+          </article>
+          <article class="report-news-card">
+            <div class="event-capsule-container"><span class="capsule-box severity-high">High</span><span
+                class="capsule-box confidence-critical">88%</span></div>
+            <h3>Airspace posture shifts</h3>
+            <p>Restrictions and route changes indicate continued regional caution.</p><small>8 reports · 5
+              families</small>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block pagination-heading" data-keep-with-next="true">
+        <h1>HIGH-VALUE ASSET INTELLIGENCE</h1>
+      </div>
+      <div class="pagination-block">
+        <p class="report-section-intro">Only assets meeting StratOps priority criteria are promoted into this section.
+          Routine fighters, transports and general military traffic remain in the event log unless behavior, proximity
+          or mission raises operational significance.</p>
+      </div>
+      <div class="pagination-block">
+        <div class="report-hva-grid">
+          <article class="report-hva-card">
+            <figure class="report-image-block"><img src="../images/report-2026-08-08-img/e3-focus.jpg" alt="E-3 Sentry focus"></figure>
+            <div class="report-hva-card__body">
+              <div class="event-capsule-container"><span class="capsule-box severity-high">High</span><span
+                  class="capsule-box confidence-critical">85%</span></div>
+              <h2>E-3 SENTRY — NORSE02</h2>
+              <p>Airborne command-and-control / AWACS platform.</p>
+              <dl class="report-data-list report-data-list--compact">
+                <div>
+                  <dt>Coordinates</dt>
+                  <dd>35.425° N / 97.335° W</dd>
+                </div>
+                <div>
+                  <dt>Altitude</dt>
+                  <dd>3,050 ft</dd>
+                </div>
+                <div>
+                  <dt>Speed</dt>
+                  <dd>259 kt</dd>
+                </div>
+                <div>
+                  <dt>Heading</dt>
+                  <dd>346°</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+          <article class="report-hva-card">
+            <figure class="report-image-block"><img src="../images/report-2026-08-08-img/rc135-focus.jpg" alt="RC-135 focus"></figure>
+            <div class="report-hva-card__body">
+              <div class="event-capsule-container"><span class="capsule-box severity-high">High</span><span
+                  class="capsule-box confidence-critical">88%</span></div>
+              <h2>RC-135V/W RIVET JOINT</h2>
+              <p>Signals intelligence collection platform near monitored airspace.</p>
+              <dl class="report-data-list report-data-list--compact">
+                <div>
+                  <dt>Coordinates</dt>
+                  <dd>32.914° N / 34.210° E</dd>
+                </div>
+                <div>
+                  <dt>Altitude</dt>
+                  <dd>31,000 ft</dd>
+                </div>
+                <div>
+                  <dt>Speed</dt>
+                  <dd>412 kt</dd>
+                </div>
+                <div>
+                  <dt>Role</dt>
+                  <dd>SIGINT</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <div class="report-hva-grid">
+          <article class="report-hva-card">
+            <figure class="report-image-block"><img src="../images/report-2026-08-08-img/p8-focus.jpg" alt="P-8 Poseidon focus"></figure>
+            <div class="report-hva-card__body">
+              <div class="event-capsule-container"><span class="capsule-box severity-medium">Medium</span><span
+                  class="capsule-box confidence-critical">85%</span></div>
+              <h2>P-8A POSEIDON</h2>
+              <p>Maritime ISR asset in a strategically relevant corridor.</p>
+              <dl class="report-data-list report-data-list--compact">
+                <div>
+                  <dt>Coordinates</dt>
+                  <dd>-34.582° / 138.635°</dd>
+                </div>
+                <div>
+                  <dt>Altitude</dt>
+                  <dd>2,675 ft</dd>
+                </div>
+                <div>
+                  <dt>Speed</dt>
+                  <dd>250 kt</dd>
+                </div>
+                <div>
+                  <dt>Role</dt>
+                  <dd>Maritime ISR</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+          <article class="report-hva-card report-hva-card--naval">
+            <figure class="report-image-block"><img src="../images/report-2026-08-08-img/carrier-focus.jpg" alt="Carrier group focus">
+            </figure>
+            <div class="report-hva-card__body">
+              <div class="event-capsule-container"><span class="capsule-box severity-high">High</span><span
+                  class="capsule-box confidence-high">78%</span></div>
+              <h2>CARRIER STRIKE GROUP</h2>
+              <p>Major naval force inside monitored theater; promoted because strategic class and proximity meet
+                priority criteria.</p>
+              <dl class="report-data-list report-data-list--compact">
+                <div>
+                  <dt>Coordinates</dt>
+                  <dd>26.810° N / 55.740° E</dd>
+                </div>
+                <div>
+                  <dt>Class</dt>
+                  <dd>Carrier group</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>Tracked</dd>
+                </div>
+                <div>
+                  <dt>Theater</dt>
+                  <dd>Middle East & Gulf</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <figure class="report-image-block report-image-block--wide"><img src="../images/report-2026-08-08-img/e3-regional.jpg"
+            alt="Regional high-value asset view">
+          <figcaption>Regional overview showing priority asset positions, AOI relationship and operational overlays.
+          </figcaption>
+        </figure>
+      </div>
+      <div class="pagination-block pagination-heading" data-keep-with-next="true">
+        <h1>OPERATIONAL IMAGERY</h1>
+      </div>
+      <div class="pagination-block">
+        <div class="report-image-grid report-image-grid--feature">
+          <figure class="report-image-block"><img src="../images/report-2026-08-08-img/aoi-capture.jpg" alt="Selected AOI capture">
+            <figcaption>Selected AOI / event density</figcaption>
+          </figure>
+          <figure class="report-image-block"><img src="../images/report-2026-08-08-img/orbital-capture.jpg"
+              alt="Orbital intelligence capture">
+            <figcaption>Orbital intelligence / satellite geometry</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <figure class="report-image-block report-image-block--panorama"><img src="../images/report-2026-08-08-img/asset-track.jpg"
+            alt="3D track history capture">
+          <figcaption>3D high-value asset track history with terrain, trail and operational grid overlays.</figcaption>
+        </figure>
+      </div>
+      <div class="pagination-block">
+        <div class="report-two-column">
+          <article class="report-text-panel">
+            <h2>IMAGE INTERPRETATION</h2>
+            <p>Automated imagery is inserted only when it materially supports a key judgment, priority asset, strike
+              cluster, AOI or domain assessment.</p>
+          </article>
+          <article class="report-text-panel">
+            <h2>CAPTURE TRIGGERS</h2>
+            <ul class="report-compact-list">
+              <li>Priority asset enters AOI</li>
+              <li>Critical cluster threshold reached</li>
+              <li>Escalation index changes materially</li>
+              <li>New satellite observation available</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block pagination-heading" data-keep-with-next="true">
+        <h1>INTELLIGENCE WIRE & SOURCE SYNTHESIS</h1>
+      </div>
+      <div class="pagination-block">
+        <div class="report-consensus-table">
+          <div class="report-consensus-table__head">
+            <span>Development</span><span>Reports</span><span>Families</span><span>Confidence</span>
+          </div>
+          <div><span>Kyiv missile strike</span><span>12</span><span>5</span><span>92%</span></div>
+          <div><span>Gulf strike cluster</span><span>17</span><span>7</span><span>94%</span></div>
+          <div><span>AWACS / ISR activity</span><span>9</span><span>5</span><span>88%</span></div>
+          <div><span>GNSS disruption</span><span>5</span><span>3</span><span>64%</span></div>
+          <div><span>Naval repositioning</span><span>4</span><span>2</span><span>58%</span></div>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <div class="report-wire-list">
+          <article><span class="report-source-mark">REUTERS</span>
+            <h3>Regional governments respond to escalating strike activity</h3>
+            <p>Major-wire reporting used as a high-trust source family and clustered with related official and regional
+              reporting.</p>
+          </article>
+          <article><span class="report-source-mark">OFFICIAL</span>
+            <h3>Military authority confirms operational activity</h3>
+            <p>Official statements remain separate from independent reporting and do not automatically count as
+              independent corroboration.</p>
+          </article>
+          <article><span class="report-source-mark">SPECIALIST</span>
+            <h3>Defense reporting adds platform-level context</h3>
+            <p>Specialist sources contribute aircraft, maritime and technical details general news reporting may omit.
+            </p>
+          </article>
+          <article><span class="report-source-mark">OSINT</span>
+            <h3>Fast-moving reporting remains subject to verification</h3>
+            <p>Low-confidence claims provide early indication but remain clearly distinguished from corroborated
+              reporting.</p>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block pagination-heading" data-keep-with-next="true">
+        <h1>CROSS-DOMAIN ASSESSMENT</h1>
+      </div>
+      <div class="pagination-block">
+        <div class="report-card-grid report-card-grid--3 domain-compact">
+          <article class="report-domain-card"><span class="report-domain-icon">A</span>
+            <h3>AIR</h3><strong>12 signals</strong>
+            <p>ISR, AWACS and fighter activity.</p>
+          </article>
+          <article class="report-domain-card"><span class="report-domain-icon">M</span>
+            <h3>MISSILES</h3><strong>3 critical</strong>
+            <p>Ballistic and long-range strike activity.</p>
+          </article>
+          <article class="report-domain-card"><span class="report-domain-icon">S</span>
+            <h3>SPACE</h3><strong>4 observations</strong>
+            <p>Orbital context and selected observations.</p>
+          </article>
+          <article class="report-domain-card"><span class="report-domain-icon">C</span>
+            <h3>CYBER</h3><strong>5 events</strong>
+            <p>Infrastructure and network disruption indicators.</p>
+          </article>
+          <article class="report-domain-card"><span class="report-domain-icon">N</span>
+            <h3>MARITIME</h3><strong>2 priority</strong>
+            <p>Strategic naval contacts under monitoring.</p>
+          </article>
+          <article class="report-domain-card"><span class="report-domain-icon">G</span>
+            <h3>GNSS</h3><strong>Localized</strong>
+            <p>Jamming remains geographically limited.</p>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <article class="report-assessment-box">
+          <h2>OPERATIONAL ASSESSMENT</h2>
+          <p>Near-term monitoring should prioritize theater-specific risk rather than apply the same summary template
+            globally. Gulf reporting should weight maritime access, regional air-defense posture, tanker routes, ISR
+            activity and cross-border strikes. Ukraine reporting should weight missile waves, air-defense activity,
+            strike geography, strategic infrastructure and operational tempo. The final generator should select the
+            relevant assessment model from region, event composition and dominant domains.</p>
+        </article>
+      </div>
+      <div class="pagination-block pagination-heading" data-keep-with-next="true">
+        <h1>24–72 HOUR INTELLIGENCE OUTLOOK</h1>
+      </div>
+      <div class="pagination-block">
+        <div class="report-card-grid report-card-grid--3">
+          <article class="report-forecast-card report-forecast-card--high"><small>MOST
+              LIKELY</small><strong>55%</strong>
+            <h3>SUSTAINED ELEVATED ACTIVITY</h3>
+            <p>Strike reporting and military aviation remain elevated without a major theater-wide shift.</p>
+          </article>
+          <article class="report-forecast-card report-forecast-card--medium">
+            <small>PLAUSIBLE</small><strong>30%</strong>
+            <h3>REGIONAL EXPANSION</h3>
+            <p>Cross-border activity increases pressure on airspace, ISR and maritime monitoring.</p>
+          </article>
+          <article class="report-forecast-card report-forecast-card--critical"><small>HIGH
+              IMPACT</small><strong>15%</strong>
+            <h3>RAPID ESCALATION</h3>
+            <p>A major strike, closure or multi-domain disruption produces a sharp escalation spike.</p>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <div class="report-two-column">
+          <article class="report-text-panel">
+            <h2>PRIORITY COLLECTION</h2>
+            <ul class="report-compact-list">
+              <li>AWACS / ISR proximity to active theaters</li>
+              <li>Carrier and major naval group movement</li>
+              <li>Airspace closures and route deviations</li>
+              <li>Satellite passes over high-impact AOIs</li>
+              <li>Cross-source confirmation of critical events</li>
+            </ul>
+          </article>
+          <article class="report-text-panel">
+            <h2>REPORTING NOTES</h2>
+            <p>The automated report should expand or contract with actual activity. A quiet day may produce 4–5 pages; a
+              major multi-theater escalation may produce 10–15 pages while keeping the same page-density rules.</p>
+          </article>
+        </div>
+      </div>
+      <div class="pagination-block">
+        <article class="report-text-panel">
+          <h2>SOURCE METHODOLOGY</h2>
+          <p>StratOps can combine official statements, major news organizations, specialist defense and maritime
+            reporting, OSINT channels, telemetry feeds, satellite observations and platform-generated imagery. Raw
+            report counts and independent source families remain separate to avoid overstating corroboration.</p>
+          <div class="report-source-tags">
+            <span>Official</span><span>Reuters</span><span>AP</span><span>BBC</span><span>Defense</span><span>Maritime</span><span>OSINT</span><span>Telemetry</span><span>Satellite</span>
+          </div>
+        </article>
+      </div>
+      <div class="pagination-block disclaimer-section">
+        <h2>SOURCES AND DISCLAIMER</h2>
+        <p>Generated from publicly available and open-source information for situational awareness and analytical
+          reference only. Not an official warning system, classified intelligence product or emergency instruction
+          service. Events may remain unverified, disputed or incomplete.</p>
+      </div>
+    </div>
+  </main>
+  <div class="pattern-animate"></div>
+  <script>
+    (() => {
+      const PAGE_SELECTOR = ".a4-page.inner-page";
+      const SOURCE_SELECTOR = "#report-source";
+      const TARGET_SELECTOR = "#generated-pages";
+
+      function createPage(pageNumber, pageCount, scope, period) {
+        const section = document.createElement("section");
+        section.className = "a4-page inner-page";
+        section.innerHTML = `
+      <header class="inner-header">
+        <div class="inner-header__safe">
+          <h2>
+            <span>STRATOPS</span>
+            <span>OPERATIONAL</span>
+            <span>INTELLIGENCE</span>
+            <span>BRIEFING</span>
+          </h2>
+          <div class="inner-header__meta">
+            <h3>${scope}</h3>
+            <time>${period}</time>
+          </div>
+        </div>
+        <img alt="" class="inner-header__pattern" src="../../assets/images/web/block-pattern.png" />
+      </header>
+
+      <article class="inner-content is-measuring"></article>
+
+      <footer class="inner-footer">
+        <div class="inner-footer__safe">
+          <a href="https://stratops.battlespacex.com"
+             target="_blank"
+             rel="noopener noreferrer">
+            www.stratops.battlespacex.com
+          </a>
+          <span class="footer-page-number">
+            PAGE ${pageNumber} OF ${pageCount}
+          </span>
+          <img class="footer-stratops-logo"
+               src="../../assets/images/web/logo-stratops-battlespacex.svg"
+               alt="StratOps by BattlespaceX" />
+        </div>
+      </footer>
+    `;
+        return section;
+      }
+
+      function contentOverflows(content) {
+        return content.scrollHeight > content.clientHeight + 1;
+      }
+
+      function paginate() {
+        const source = document.querySelector(SOURCE_SELECTOR);
+        const target = document.querySelector(TARGET_SELECTOR);
+        if (!source || !target) return;
+
+        const scope = source.dataset.scope || "GLOBAL ACTIVITY";
+        const period = source.dataset.period || "";
+        const sourceBlocks = [...source.children].map((node) => node.cloneNode(true));
+
+        target.innerHTML = "";
+
+        // Create pages with a temporary page count. It is corrected after layout.
+        let pages = [];
+        let page = createPage(1, 999, scope, period);
+        target.appendChild(page);
+        pages.push(page);
+        let content = page.querySelector(".inner-content");
+
+        sourceBlocks.forEach((block, index) => {
+          content.appendChild(block);
+
+          if (!contentOverflows(content)) return;
+
+          content.removeChild(block);
+
+          // A heading should not be stranded at the bottom of a page.
+          const previous = content.lastElementChild;
+          const movePreviousHeading =
+            previous &&
+            previous.matches("[data-keep-with-next='true']");
+
+          let headingToMove = null;
+          if (movePreviousHeading) {
+            headingToMove = previous;
+            content.removeChild(previous);
+          }
+
+          page = createPage(pages.length + 1, 999, scope, period);
+          target.appendChild(page);
+          pages.push(page);
+          content = page.querySelector(".inner-content");
+
+          if (headingToMove) content.appendChild(headingToMove);
+          content.appendChild(block);
+
+          // A single oversized block cannot fit on a physical A4 page.
+          // Keep it visible and mark it for developer inspection.
+          if (contentOverflows(content)) {
+            block.classList.add("pagination-block--oversized");
+            console.warn("Oversized report block requires internal splitting:", block);
+          }
+        });
+
+        const total = pages.length;
+        pages.forEach((currentPage, index) => {
+          currentPage.querySelector(".footer-page-number").textContent =
+            `PAGE ${index + 1} OF ${total}`;
+          currentPage.querySelector(".inner-content").classList.remove("is-measuring");
+        });
+      }
+
+      async function ready() {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+
+        const images = [...document.images];
+        await Promise.all(images.map((image) => {
+          if (image.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            image.addEventListener("load", resolve, { once: true });
+            image.addEventListener("error", resolve, { once: true });
+          });
+        }));
+
+        paginate();
+      }
+
+      window.addEventListener("resize", () => {
+        clearTimeout(window.__stratOpsPaginationTimer);
+        window.__stratOpsPaginationTimer = setTimeout(paginate, 150);
+      });
+
+      ready();
+    })();
+  </script>
+</body>
+
+</html>
