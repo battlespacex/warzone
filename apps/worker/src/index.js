@@ -68,6 +68,7 @@ import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from 
 import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { generateScheduledReports, generateScheduledSnapshots } from "../../shared/reporting-service.js";
+import { generateScheduledCaptures } from "./reporting-capture-service.js";
 import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
 import {
     cleanDisplayText,
@@ -4420,6 +4421,14 @@ async function runReportingSnapshotCycle() {
             logger: console
         });
         console.log("[reports] scheduled snapshot result", JSON.stringify(result, null, 2));
+        if (REPORTING_CONFIG.capture?.enabled === true) {
+            const captureResult = await generateScheduledCaptures({
+                supabase,
+                config: REPORTING_CONFIG,
+                logger: console,
+            });
+            console.log("[reports] scheduled capture result", JSON.stringify(captureResult, null, 2));
+        }
     } catch (err) {
         console.error("[reports] Scheduled snapshot generation failed:", err?.message || err);
     } finally {

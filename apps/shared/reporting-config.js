@@ -32,6 +32,10 @@ function normalizeRetentionDays(value = "") {
   return 90;
 }
 
+function normalizeCaptureFormat(value = "") {
+  return String(value || "jpeg").trim().toLowerCase() === "png" ? "png" : "jpeg";
+}
+
 function readReportingConfig(env = process.env) {
   const enabled = readBooleanEnv(env.REPORTING_ENABLED, true);
   const apiEnabled = readBooleanEnv(env.REPORTING_API_ENABLED, enabled);
@@ -39,6 +43,7 @@ function readReportingConfig(env = process.env) {
   const snapshotEnabled = readBooleanEnv(env.REPORTING_SNAPSHOT_ENABLED, scheduleEnabled);
   const dailyEnabled = readBooleanEnv(env.REPORTING_DAILY_ENABLED, true);
   const weeklyEnabled = readBooleanEnv(env.REPORTING_WEEKLY_ENABLED, false);
+  const captureEnabled = readBooleanEnv(env.REPORTING_CAPTURE_ENABLED, false);
   return {
     enabled,
     apiEnabled,
@@ -52,6 +57,20 @@ function readReportingConfig(env = process.env) {
     retentionDays: normalizeRetentionDays(env.REPORTING_SNAPSHOT_RETENTION_DAYS),
     pdfExpiryHours: readNumberEnv(env.REPORTING_PDF_EXPIRY_HOURS, 72, { min: 1, max: 24 * 30 }),
     s3Prefix: String(env.REPORTING_S3_PREFIX || "reports").trim().replace(/^\/+|\/+$/g, "") || "reports",
+    capture: {
+      enabled: captureEnabled,
+      baseUrl: trimTrailingSlash(env.REPORTING_CAPTURE_BASE_URL || "http://127.0.0.1:4173"),
+      width: Math.round(readNumberEnv(env.REPORTING_CAPTURE_WIDTH, 1600, { min: 800, max: 3840 })),
+      height: Math.round(readNumberEnv(env.REPORTING_CAPTURE_HEIGHT, 900, { min: 450, max: 2160 })),
+      format: normalizeCaptureFormat(env.REPORTING_CAPTURE_FORMAT),
+      quality: Math.round(readNumberEnv(env.REPORTING_CAPTURE_QUALITY, 88, { min: 50, max: 100 })),
+      timeoutMs: Math.round(readNumberEnv(env.REPORTING_CAPTURE_TIMEOUT_MS, 45000, { min: 10000, max: 180000 })),
+      retentionHours: readNumberEnv(env.REPORTING_CAPTURE_RETENTION_HOURS, 24, { min: 1, max: 24 * 30 }),
+      maxImages: Math.round(readNumberEnv(env.REPORTING_CAPTURE_MAX_IMAGES, 8, { min: 1, max: 24 })),
+      retries: Math.round(readNumberEnv(env.REPORTING_CAPTURE_RETRIES, 2, { min: 0, max: 4 })),
+      token: String(env.REPORTING_CAPTURE_TOKEN || "").trim(),
+      browserExecutablePath: String(env.REPORTING_CAPTURE_BROWSER_EXECUTABLE_PATH || "").trim(),
+    },
     scheduledRegions: String(env.REPORTING_REGIONS || "")
       .split(",")
       .map((value) => value.trim())
@@ -83,6 +102,10 @@ function getReportingConfigStatus(config = readReportingConfig()) {
       missing.push("AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or IAM role support");
     }
   }
+  if (config.capture?.enabled) {
+    if (!config.capture.baseUrl) missing.push("REPORTING_CAPTURE_BASE_URL");
+    if (!config.capture.token) missing.push("REPORTING_CAPTURE_TOKEN");
+  }
   return {
     enabled: config.enabled,
     apiEnabled: config.apiEnabled,
@@ -92,6 +115,7 @@ function getReportingConfigStatus(config = readReportingConfig()) {
     reportStorageReady: reportStorageRequired && missing.length === 0,
     dailyEnabled: config.dailyEnabled,
     weeklyEnabled: config.weeklyEnabled,
+    captureEnabled: config.capture?.enabled === true,
     ready: config.snapshotEnabled || (reportStorageRequired && missing.length === 0),
     missing,
   };

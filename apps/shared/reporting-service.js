@@ -1080,6 +1080,8 @@ export {
   generateScheduledReports,
   generateScheduledSnapshots,
   getPreviousUtcDateKey,
+  getScheduledScopes,
+  getScopeKey,
   normalizeScope,
   pruneExpiredReports,
   pruneExpiredSnapshots,

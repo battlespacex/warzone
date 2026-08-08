@@ -28,7 +28,7 @@ module.exports = (env, argv) => {
     const PAGE_META_PATH = path.resolve(SEO_DIR, "pages.js");
     const SCHEMA_PATH = path.resolve(SEO_DIR, "schema.js");
 
-    const pages = ["index", "404", "report"];
+    const pages = ["index", "404", "report", "report-capture"];
 
     // -----------------------------
     // helpers
@@ -68,11 +68,21 @@ module.exports = (env, argv) => {
     return {
         mode: isDev ? "development" : "production",
 
-        entry: path.resolve(DEV_DIR, "assets/js/index.js"),
+        entry: {
+            main: path.resolve(DEV_DIR, "assets/js/index.js"),
+            reportCapture: path.resolve(DEV_DIR, "assets/js/report-capture.js"),
+        },
 
         output: {
             path: PROD_DIR,
-            filename: isDev ? "assets/js/bundle.js" : "assets/js/bundle.[contenthash:8].js",
+            filename: (pathData) => {
+                const name = pathData.chunk?.name || "main";
+                if (name === "main") {
+                    return isDev ? "assets/js/bundle.js" : "assets/js/bundle.[contenthash:8].js";
+                }
+                return isDev ? `assets/js/${name}.js` : `assets/js/${name}.[contenthash:8].js`;
+            },
+            chunkFilename: isDev ? "assets/js/[id].bundle.js" : "assets/js/[id].bundle.[contenthash:8].js",
             publicPath: "/",
             clean: {
                 keep: (assetPath) => {
@@ -136,7 +146,12 @@ module.exports = (env, argv) => {
             }),
 
             new MiniCssExtractPlugin({
-                filename: isDev ? "assets/css/style.css" : "assets/css/style.[contenthash:8].css",
+                filename: (pathData) => {
+                    if (!isDev) return "assets/css/style.[contenthash:8].css";
+                    return pathData.chunk?.name === "main"
+                        ? "assets/css/style.css"
+                        : `assets/css/${pathData.chunk?.name || "entry"}.css`;
+                },
             }),
 
             new CopyWebpackPlugin({
@@ -193,6 +208,9 @@ module.exports = (env, argv) => {
                     template: path.resolve(DEV_DIR, "pages", `${name}.html`),
                     cache: !isDev,
                     inject: name === "report" ? false : "head",
+                    chunks: name === "report"
+                        ? []
+                        : (name === "report-capture" ? ["reportCapture"] : ["main"]),
                     scriptLoading: "defer",
                     templateParameters: (compilation) => {
                         registerHtmlDependencies(compilation);
@@ -294,6 +312,7 @@ module.exports = (env, argv) => {
                             directory: path.resolve(DEV_DIR, "public"),
                             publicPath: "/",
                             watch: true,
+                            serveIndex: false,
                         },
                         {
                             directory: path.resolve(DEV_DIR, "assets"),
@@ -434,6 +453,10 @@ module.exports = (env, argv) => {
                                         "X-Forwarded-Proto": req.protocol || "http",
                                         "X-Forwarded-Prefix": "/api",
                                     };
+                                    if (upstream.pathname.startsWith("/stratops/reports/internal/capture/")) {
+                                        const captureAuthorization = req.get("authorization");
+                                        if (captureAuthorization) headers.Authorization = captureAuthorization;
+                                    }
                                     const contentType = req.get("content-type");
                                     if (contentType) {
                                         headers["Content-Type"] = contentType;
@@ -478,6 +501,15 @@ module.exports = (env, argv) => {
                         devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
                         devServer.app.get("/warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
+                        devServer.app.get(["/", "/warzone", "/warzone/"], (_req, res) => {
+                            res.redirect(302, "/pages/index.html");
+                        });
+                        devServer.app.get(["/report-capture", "/warzone/report-capture"], (req, res) => {
+                            const query = req.originalUrl.includes("?")
+                                ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
+                                : "";
+                            res.redirect(302, `/pages/report-capture.html${query}`);
+                        });
                         devServer.app.get("/reports/:slug", (req, res) => {
                             const slug = encodeURIComponent(String(req.params.slug || "").trim());
                             if (!slug) {
@@ -520,9 +552,10 @@ module.exports = (env, argv) => {
 
                     historyApiFallback: {
                         rewrites: [
-                            { from: /^\/$/, to: "/pages/index.html" },
+                            { from: /^\/(?:warzone\/?)?$/, to: "/pages/index.html" },
                             { from: /^\/404\/?$/, to: "/pages/404.html" },
                             { from: /^\/(?:warzone\/)?reports\/[^/]+\/?$/, to: "/pages/report.html" },
+                            { from: /^\/(?:warzone\/)?report-capture\/?$/, to: "/pages/report-capture.html" },
                             { from: /./, to: "/pages/404.html" },
                         ],
                     },

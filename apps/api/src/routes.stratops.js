@@ -1,10 +1,12 @@
 import express from "express";
+import crypto from "crypto";
 import { access } from "fs/promises";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { REPORT_VERSION, buildReportSlug, ensureOperationalReport, getPreviousUtcDateKey, toPublicReport } from "../../shared/reporting-service.js";
 import { buildS3PublicUrl, getLocalReportFilePath } from "../../shared/reporting-s3.js";
+import { buildCaptureScenePayload } from "../../shared/reporting-capture.js";
 
 const SUPPORT_TYPES = Object.freeze({
     one_time: {
@@ -153,6 +155,16 @@ function getSupabase() {
     );
 }
 
+function isAuthorizedCaptureRequest(req, expectedToken = "") {
+    const configured = Buffer.from(String(expectedToken || "").trim());
+    const authorization = String(req.get("authorization") || "").trim();
+    const supplied = Buffer.from(authorization.replace(/^Bearer\s+/i, "").trim());
+    return configured.length > 0 && configured.length === supplied.length
+        && crypto.timingSafeEqual(configured, supplied);
+}
+
+const __stratopsRouteTestUtils = { isAuthorizedCaptureRequest };
+
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
@@ -248,6 +260,38 @@ async function findSupportPortalCustomer(stripe, email) {
 
 export function stratopsRouter() {
     const router = express.Router();
+
+    router.get("/reports/internal/capture/:snapshotKey/:captureId", async (req, res) => {
+        const config = readReportingConfig();
+        if (!config.capture?.enabled) {
+            return res.status(404).json({ error: "Capture route unavailable" });
+        }
+        if (!isAuthorizedCaptureRequest(req, config.capture.token)) {
+            return res.status(403).json({ error: "Forbidden" });
+        }
+        try {
+            const snapshotKey = String(req.params.snapshotKey || "").trim();
+            const captureId = String(req.params.captureId || "").trim();
+            if (!snapshotKey || !captureId) return res.status(400).json({ error: "Invalid capture request" });
+            const { data, error } = await getSupabase()
+                .from("operational_report_snapshots")
+                .select("snapshot_key, snapshot_date, scope_type, scope_key, scope_value, scope_label, snapshot_data, report_manifest")
+                .eq("snapshot_key", snapshotKey)
+                .maybeSingle();
+            if (error || !data) return res.status(404).json({ error: "Snapshot unavailable" });
+            const payload = buildCaptureScenePayload(data, captureId, {
+                maxImages: config.capture.maxImages,
+                s3Prefix: config.s3Prefix,
+                format: config.capture.format,
+            });
+            if (!payload) return res.status(404).json({ error: "Capture target unavailable" });
+            res.set("Cache-Control", "no-store, max-age=0");
+            return res.json({ capture: payload });
+        } catch (error) {
+            console.error("[stratops] internal capture payload failed:", error?.message || error);
+            return res.status(500).json({ error: "Capture payload failed" });
+        }
+    });
 
     router.get("/reports", async (req, res) => {
         try {
@@ -526,3 +570,5 @@ export function stratopsRouter() {
 
     return router;
 }
+
+export { __stratopsRouteTestUtils };

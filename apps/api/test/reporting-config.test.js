@@ -47,3 +47,29 @@ test("daily snapshot persistence can run without enabling report or PDF generati
   assert.equal(status.ready, true);
   assert.deepEqual(status.missing, []);
 });
+
+test("capture configuration is centralized and remains disabled by default", () => {
+  const disabled = readReportingConfig({ REPORTING_ENABLED: "false" });
+  assert.equal(disabled.capture.enabled, false);
+
+  const enabled = readReportingConfig({
+    REPORTING_ENABLED: "false",
+    REPORTING_CAPTURE_ENABLED: "true",
+    REPORTING_CAPTURE_BASE_URL: "http://127.0.0.1:4173/",
+    REPORTING_CAPTURE_TOKEN: "capture-token",
+    REPORTING_CAPTURE_WIDTH: "1920",
+    REPORTING_CAPTURE_HEIGHT: "1080",
+    REPORTING_CAPTURE_FORMAT: "png",
+    REPORTING_CAPTURE_MAX_IMAGES: "6",
+    REPORTING_CAPTURE_RETENTION_HOURS: "30",
+  });
+  assert.equal(enabled.capture.enabled, true);
+  assert.equal(enabled.capture.baseUrl, "http://127.0.0.1:4173");
+  assert.equal(enabled.capture.width, 1920);
+  assert.equal(enabled.capture.height, 1080);
+  assert.equal(enabled.capture.format, "png");
+  assert.equal(enabled.capture.maxImages, 6);
+  assert.equal(enabled.capture.retentionHours, 30);
+  assert.equal(getReportingConfigStatus(enabled).captureEnabled, true);
+  assert.deepEqual(getReportingConfigStatus(enabled).missing, []);
+});

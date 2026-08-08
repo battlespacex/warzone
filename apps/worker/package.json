@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "copernicus:once": "node src/copernicus-once.js",
     "reports:once": "node src/reporting-once.js",
+    "reports:capture": "node src/reporting-capture-once.js",
     "events:reprocess": "node src/reprocess-recent-events.js",
     "test": "node --test test/*.test.js"
   },
@@ -18,8 +19,10 @@
     "input": "^1.0.1",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
+    "playwright": "^1.62.1",
     "rss-parser": "^3.13.0",
     "telegram": "^2.26.22",
+    "warzone-frontend": "file:../..",
     "ws": "^8.19.0"
   }
 }

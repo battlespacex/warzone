@@ -1,0 +1,364 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  CAPTURE_STATUS,
+  buildCaptureDescriptors,
+  buildCapturePageUrl,
+  buildCaptureScenePayload,
+  buildReportImageDirectory,
+  calculateCaptureCamera,
+  isCaptureCleanupEligible,
+  mergeCaptureResult,
+  resolveCaptureTarget,
+} from "../../shared/reporting-capture.js";
+import { generateSnapshotCaptures } from "../src/reporting-capture-service.js";
+
+function snapshotFixture(overrides = {}) {
+  const snapshot = {
+    snapshot_key: "daily:2026-08-08:global:v1",
+    snapshot_date: "2026-08-08",
+    scope_type: "global",
+    scope_key: "global",
+    scope_value: null,
+    scope_label: "Global",
+    snapshot_data: {
+      report_date: "2026-08-08",
+      scope: { type: "global", key: "global", value: null, label: "Global" },
+      overall_activity: { satellite_total: 2 },
+      cluster_summaries: [
+        {
+          cluster_id: "cluster-gulf",
+          event_ids: ["event-exact", "event-second"],
+          incident_count: 4,
+          activity_score: 12,
+          dominant_domain: "MISSILE",
+          domain_distribution: { MISSILE: 0.65, AIR_DEFENCE: 0.35 },
+          severity: "critical",
+          latest_activity: "2026-08-08T14:00:00.000Z",
+          medoid: { latitude: 26.2, longitude: 50.1 },
+          centroid: { latitude: 26.25, longitude: 50.15 },
+          bounds: { west: 49.8, south: 25.9, east: 50.5, north: 26.6 },
+          location_label: "Gulf corridor",
+          corroborated_count: 3,
+        },
+        {
+          cluster_id: "cluster-ukraine",
+          event_ids: ["event-ukraine"],
+          incident_count: 2,
+          activity_score: 6,
+          dominant_domain: "STRIKE",
+          domain_distribution: { STRIKE: 1 },
+          severity: "high",
+          latest_activity: "2026-08-08T12:00:00.000Z",
+          medoid: { latitude: 46.48, longitude: 30.72 },
+          centroid: { latitude: 46.48, longitude: 30.72 },
+          bounds: { west: 30.4, south: 46.2, east: 31, north: 46.8 },
+          location_label: "Odesa area",
+          corroborated_count: 1,
+        },
+      ],
+      report_content: {
+        major_developments: [
+          {
+            report_item_id: "event:event-exact",
+            event_id: "event-exact",
+            title: "Missile strike at Gulf port",
+            summary: "Corroborated activity at a named facility.",
+            occurred_at: "2026-08-08T14:00:00.000Z",
+            domain: "MISSILE",
+            category: "missile",
+            severity: "critical",
+            confidence: 91,
+            verification_state: "CORROBORATED",
+            event_country: "Bahrain",
+            event_region: "Iran / Gulf",
+            event_city: "Manama",
+            event_place: "Gulf port",
+            latitude: 26.2,
+            longitude: 50.1,
+            location_precision: "EXACT",
+            relevant_cluster_id: "cluster-gulf",
+            source_provenance: [{ secret: "must-not-leak" }],
+          },
+          {
+            report_item_id: "intel:regional",
+            event_id: "event-regional",
+            title: "Activity in southern region",
+            latitude: null,
+            longitude: null,
+            location_precision: "REGIONAL",
+          },
+        ],
+        high_value_assets: {
+          all_qualified: [
+            {
+              asset_id: "adsb-awacs",
+              track_type: "aircraft",
+              callsign: "MAGIC01",
+              name: "E-3 Sentry",
+              type: "E3",
+              variant: "E-3 Sentry",
+              role: "AIRBORNE_EARLY_WARNING",
+              operator: "USAF",
+              country: "United States",
+              latitude: 26.5,
+              longitude: 50.4,
+              altitude_ft: 31000,
+              speed_kts: 410,
+              heading_deg: 92,
+              last_observed: "2026-08-08T14:10:00.000Z",
+              status: "active",
+              confidence: 96,
+              nearby_event_ids: ["event-exact"],
+              nearby_cluster_ids: ["cluster-gulf"],
+            },
+            {
+              asset_id: "ais-carrier",
+              track_type: "naval",
+              name: "Carrier CVN-76",
+              type: "Aircraft carrier",
+              role: "AIRCRAFT_CARRIER",
+              latitude: 25.9,
+              longitude: 50.7,
+              speed_kts: 18,
+              heading_deg: 40,
+              status: "active",
+              confidence: 94,
+              nearby_cluster_ids: ["cluster-gulf"],
+            },
+          ],
+        },
+        imagery_placeholders: {},
+      },
+      reserved: { selected_images: [] },
+    },
+    report_manifest: {
+      selected_images: [],
+      selected_capture_targets: [
+        { type: "OPERATIONAL_OVERVIEW", priority: 100, cluster_id: "cluster-gulf", location: { latitude: 26.2, longitude: 50.1 }, bounds: { west: 49.8, south: 25.9, east: 50.5, north: 26.6 } },
+        { type: "TACTICAL_OVERVIEW_2D", priority: 99, cluster_id: "cluster-gulf" },
+        { type: "MAJOR_DEVELOPMENT", priority: 95, event_id: "event-exact", cluster_id: "cluster-gulf", location: { latitude: 26.2, longitude: 50.1 } },
+        { type: "MAJOR_DEVELOPMENT", priority: 94, event_id: "event-regional" },
+        { type: "CLUSTER_CONTEXT", priority: 90, cluster_id: "cluster-ukraine" },
+        { type: "HVA_FOCUS_3D", priority: 88, asset_id: "adsb-awacs", location: { latitude: 26.5, longitude: 50.4 } },
+        { type: "NAVAL_ASSET_FOCUS", priority: 86, asset_id: "ais-carrier", location: { latitude: 25.9, longitude: 50.7 } },
+        { type: "AOI_CONTEXT", priority: 82, bounds: [49, 25, 52, 28] },
+        { type: "ORBITAL_CONTEXT", priority: 80, satellite_event_id: "event-exact" },
+      ],
+      capture_requirements: [
+        { type: "HVA_REGIONAL_CONTEXT", asset_id: "adsb-awacs", latitude: 26.5, longitude: 50.4, recommended_context_radius_km: 700, related_cluster_ids: ["cluster-gulf"] },
+      ],
+    },
+  };
+  return { ...snapshot, ...overrides };
+}
+
+function configFixture(overrides = {}) {
+  return {
+    s3Prefix: "reports",
+    aws: { bucket: "" },
+    capture: {
+      enabled: true,
+      baseUrl: "http://127.0.0.1:4173",
+      width: 1600,
+      height: 900,
+      format: "jpeg",
+      quality: 88,
+      timeoutMs: 45000,
+      retentionHours: 24,
+      maxImages: 8,
+      retries: 1,
+      token: "test-capture-token",
+      browserExecutablePath: "",
+      ...overrides,
+    },
+  };
+}
+
+test("capture targets produce deterministic filenames, local directories and S3 keys", () => {
+  const descriptors = buildCaptureDescriptors(snapshotFixture(), { maxImages: 24, s3Prefix: "reports", format: "jpeg" });
+  assert.equal(descriptors.find((item) => item.capture_type === "REGIONAL_OVERVIEW_3D").filename, "operational-overview-3d.jpg");
+  assert.equal(descriptors.find((item) => item.capture_type === "TACTICAL_OVERVIEW_2D").filename, "tactical-overview-2d.jpg");
+  assert.equal(descriptors.find((item) => item.capture_type === "MAJOR_DEVELOPMENT_CONTEXT").filename, "development-01-context.jpg");
+  assert.equal(descriptors.find((item) => item.capture_type === "HVA_FOCUS_3D").filename, "hva-01-focus-3d.jpg");
+  assert.equal(descriptors.find((item) => item.capture_type === "HVA_REGIONAL_CONTEXT").filename, "hva-01-regional.jpg");
+  assert.ok(descriptors.every((item) => item.relative_path.startsWith("daily/global/2026-08-08/images/")));
+  assert.ok(descriptors.every((item) => item.s3_key.startsWith("reports/daily/global/2026-08-08/images/")));
+  assert.equal(descriptors.some((item) => item.event_id === "event-regional"), false);
+});
+
+test("operational imagery targets are accepted directly when manifest mirrors are unavailable", () => {
+  const snapshot = snapshotFixture();
+  snapshot.snapshot_data.report_content.operational_imagery_targets = [{
+    type: "MAJOR_DEVELOPMENT_CONTEXT",
+    event_id: "event-exact",
+    location: { latitude: 26.2, longitude: 50.1 },
+  }];
+  snapshot.report_manifest.selected_capture_targets = [];
+  snapshot.report_manifest.capture_requirements = [];
+  const descriptors = buildCaptureDescriptors(snapshot, { maxImages: 8, format: "jpeg" });
+  assert.equal(descriptors.length, 1);
+  assert.equal(descriptors[0].event_id, "event-exact");
+  assert.equal(descriptors[0].filename, "development-01-context.jpg");
+});
+
+test("global, region, country and AOI report image paths are safe and deterministic", () => {
+  assert.equal(buildReportImageDirectory(snapshotFixture()), "daily/global/2026-08-08/images");
+  for (const [type, value, expected] of [
+    ["region", "Iran / Gulf", "daily/region/iran-gulf/2026-08-08/images"],
+    ["country", "Saudi Arabia", "daily/country/saudi-arabia/2026-08-08/images"],
+    ["aoi", "Red Sea North", "daily/aoi/red-sea-north/2026-08-08/images"],
+  ]) {
+    const snapshot = snapshotFixture({
+      scope_type: type,
+      scope_value: value,
+      snapshot_data: { ...snapshotFixture().snapshot_data, scope: { type, value, label: value } },
+    });
+    assert.equal(buildReportImageDirectory(snapshot), expected);
+  }
+});
+
+test("camera framing is deterministic for bounds, exact events and HVA targets", () => {
+  const cluster = calculateCaptureCamera({
+    capture_type: "CLUSTER_CONTEXT",
+    center: { latitude: 46.48, longitude: 30.72 },
+    bounds: { west: 30.4, south: 46.2, east: 31, north: 46.8 },
+  });
+  const event = calculateCaptureCamera({ capture_type: "MAJOR_DEVELOPMENT_CONTEXT", center: { latitude: 26.2, longitude: 50.1 } });
+  const hva = calculateCaptureCamera({ capture_type: "HVA_FOCUS_3D", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92 });
+  assert.equal(cluster.scene_mode, "3d");
+  assert.ok(cluster.range_meters >= 360000);
+  assert.deepEqual(event.center, { latitude: 26.2, longitude: 50.1 });
+  assert.equal(hva.heading_degrees, 92);
+  assert.ok(hva.range_meters >= 130000 && hva.range_meters <= 420000);
+});
+
+test("regional and unknown developments never become fake point captures", () => {
+  const snapshot = snapshotFixture();
+  assert.equal(resolveCaptureTarget(snapshot, { type: "MAJOR_DEVELOPMENT", event_id: "event-regional" }).safe, false);
+  assert.equal(resolveCaptureTarget(snapshot, { type: "MAJOR_DEVELOPMENT", event_id: "missing", location: { latitude: 1, longitude: 2 } }).safe, false);
+});
+
+test("capture scene payload is sanitized and traceable", () => {
+  const snapshot = snapshotFixture();
+  const descriptor = buildCaptureDescriptors(snapshot, { maxImages: 24 })
+    .find((item) => item.capture_type === "MAJOR_DEVELOPMENT_CONTEXT");
+  const payload = buildCaptureScenePayload(snapshot, descriptor.capture_id, { maxImages: 24 });
+  assert.equal(payload.target.event_id, "event-exact");
+  assert.equal(payload.camera.center.latitude, 26.2);
+  assert.equal(payload.clusters[0].event_ids.includes("event-exact"), true);
+  assert.equal(JSON.stringify(payload).includes("must-not-leak"), false);
+  assert.equal(buildCapturePageUrl("http://127.0.0.1:4173/", snapshot.snapshot_key, descriptor.capture_id).includes("test-capture-token"), false);
+});
+
+test("manifest updates preserve target traceability and separate ready from failed images", () => {
+  let snapshot = snapshotFixture();
+  snapshot = mergeCaptureResult(snapshot, { capture_id: "capture-01", capture_type: "REGIONAL_OVERVIEW_3D", status: CAPTURE_STATUS.READY, event_id: null, cluster_id: "cluster-gulf", asset_id: null });
+  snapshot = mergeCaptureResult(snapshot, { capture_id: "capture-02", capture_type: "HVA_FOCUS_3D", status: CAPTURE_STATUS.FAILED, asset_id: "adsb-awacs", failure_reason: "timeout" });
+  assert.equal(snapshot.report_manifest.capture_results.length, 2);
+  assert.equal(snapshot.report_manifest.selected_images.length, 1);
+  assert.equal(snapshot.snapshot_data.report_content.selected_images[0].capture_id, "capture-01");
+  assert.equal(snapshot.snapshot_data.report_content.imagery_placeholders.failed[0].failure_reason, "timeout");
+});
+
+test("capture cap is respected and PNG configuration changes deterministic extension", () => {
+  const jpeg = buildCaptureDescriptors(snapshotFixture(), { maxImages: 4, format: "jpeg" });
+  const png = buildCaptureDescriptors(snapshotFixture(), { maxImages: 4, format: "png" });
+  assert.equal(jpeg.length, 4);
+  assert.equal(png.length, 4);
+  assert.ok(png.every((item) => item.filename.endsWith(".png")));
+});
+
+test("cleanup eligibility removes only files older than configured retention", () => {
+  const now = Date.parse("2026-08-10T12:00:00.000Z");
+  assert.equal(isCaptureCleanupEligible({ modifiedAt: "2026-08-09T11:59:00.000Z", now, retentionHours: 24 }), true);
+  assert.equal(isCaptureCleanupEligible({ modifiedAt: "2026-08-09T12:01:00.000Z", now, retentionHours: 24 }), false);
+});
+
+function makeSupabase(snapshot) {
+  let stored = structuredClone(snapshot);
+  return {
+    get stored() { return stored; },
+    from(table) {
+      assert.equal(table, "operational_report_snapshots");
+      return {
+        select() {
+          return {
+            eq() {
+              return { async maybeSingle() { return { data: structuredClone(stored), error: null }; } };
+            },
+          };
+        },
+        update(payload) {
+          stored = { ...stored, ...structuredClone(payload) };
+          return {
+            eq() {
+              return {
+                select() {
+                  return { async maybeSingle() { return { data: structuredClone(stored), error: null }; } };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+test("capture orchestration retries transient failures and continues after a failed target", async () => {
+  const snapshot = snapshotFixture();
+  snapshot.report_manifest.selected_capture_targets = snapshot.report_manifest.selected_capture_targets.slice(0, 3);
+  snapshot.report_manifest.capture_requirements = [];
+  const supabase = makeSupabase(snapshot);
+  const attempts = new Map();
+  let contextClosed = false;
+  let browserClosed = false;
+  let captureRoutePattern = "";
+  let browserContextOptions = null;
+  const result = await generateSnapshotCaptures({
+    supabase,
+    snapshotKey: snapshot.snapshot_key,
+    config: configFixture({ maxImages: 3, retries: 1 }),
+    launchBrowser: async () => ({
+      async newContext(options) {
+        browserContextOptions = options;
+        return {
+          async route(pattern) { captureRoutePattern = pattern; },
+          async newPage() { return {}; },
+          async close() { contextClosed = true; },
+        };
+      },
+      async close() { browserClosed = true; },
+    }),
+    capturePage: async ({ descriptor }) => {
+      const attempt = (attempts.get(descriptor.capture_id) || 0) + 1;
+      attempts.set(descriptor.capture_id, attempt);
+      if (descriptor.capture_type === "REGIONAL_OVERVIEW_3D" && attempt === 1) throw new Error("temporary scene timeout");
+      if (descriptor.capture_type === "TACTICAL_OVERVIEW_2D") throw new Error("persistent render failure");
+      return { screenshot: Buffer.from("image"), captureState: { camera: { actual: true }, cluster_snapshot: { clusters: [] } } };
+    },
+    storeImage: async ({ descriptor }) => ({ localPath: `C:/captures/${descriptor.filename}`, upload: null }),
+    logger: { warn() {} },
+  });
+  assert.equal(result.ready, 2);
+  assert.equal(result.failed, 1);
+  assert.equal(attempts.get(result.results.find((entry) => entry.capture_type === "REGIONAL_OVERVIEW_3D").capture_id), 2);
+  assert.equal(attempts.get(result.results.find((entry) => entry.capture_type === "TACTICAL_OVERVIEW_2D").capture_id), 2);
+  assert.equal(supabase.stored.report_manifest.selected_images.length, 2);
+  assert.equal(contextClosed, true);
+  assert.equal(browserClosed, true);
+  assert.equal(captureRoutePattern, "**/api/stratops/reports/internal/capture/**");
+  assert.equal(browserContextOptions.extraHTTPHeaders, undefined);
+});
+
+test("snapshot-only operation does not launch capture while capture is disabled", async () => {
+  let touchedSupabase = false;
+  const result = await generateSnapshotCaptures({
+    supabase: { from() { touchedSupabase = true; } },
+    snapshotKey: "daily:2026-08-08:global:v1",
+    config: configFixture({ enabled: false }),
+  });
+  assert.deepEqual(result, { ok: true, skipped: true, reason: "capture_disabled" });
+  assert.equal(touchedSupabase, false);
+});

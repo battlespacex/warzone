@@ -128,6 +128,10 @@ app.all("/api/*", async (req, res) => {
             "X-Forwarded-Proto": req.protocol || "http",
             "X-Forwarded-Prefix": "/api",
         };
+        if (upstream.pathname.startsWith("/stratops/reports/internal/capture/")) {
+            const captureAuthorization = req.get("authorization");
+            if (captureAuthorization) headers.Authorization = captureAuthorization;
+        }
         const init = {
             method: req.method,
             headers: {
@@ -201,6 +205,10 @@ function sendPage(res, name, status = 200) {
 }
 
 app.get(`${BASE}/`, (req, res) => sendPage(res, "index"));
+app.get(["/report-capture", `${BASE}/report-capture`], (_req, res) => {
+    res.set("Cache-Control", "no-store, max-age=0");
+    return sendPage(res, "report-capture");
+});
 app.get("/reports/:slug", (req, res) => sendPage(res, "report"));
 app.get(`${BASE}/reports/:slug`, (req, res) => sendPage(res, "report"));
 app.get(`${BASE}/404`, (req, res) => sendPage(res, "404", 404));

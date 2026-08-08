@@ -707,6 +707,16 @@ function addClusterParentRings(events = []) {
 function prepareEventsForCurrentZoom(viewer, events = []) {
     const normalized = normalizeEvents(events);
     const maxItems = getMaxRenderableEvents(viewer);
+    if (window.__stratopsReportCaptureMode === true) {
+        const reportClusters = normalized.filter((event) => event.is_report_cluster_summary === true);
+        const sourceEvents = normalized.filter((event) => event.is_report_cluster_summary !== true);
+        return [
+            ...clusterEventsForDisplay(sourceEvents, getEventClusterPrecision(viewer), maxItems, viewer),
+            ...reportClusters,
+        ]
+            .sort((left, right) => Number(right.weighted_activity_score || 0) - Number(left.weighted_activity_score || 0))
+            .slice(0, maxItems);
+    }
     return clusterEventsForDisplay(normalized, getEventClusterPrecision(viewer), maxItems, viewer);
 }
 function eventDistanceDeg(a = {}, b = {}) {
@@ -1739,6 +1749,16 @@ function normalizeEvents(events) {
                 satellite_available: item.satellite_available === true || item.satelliteAvailable === true,
                 cluster_count: Number(item.cluster_count || item._clusterCount || 0) || undefined,
                 _clusterCount: Number(item.cluster_count || item._clusterCount || 0) || undefined,
+                actual_event_count: Number(item.actual_event_count || item.cluster_count || item._clusterCount || 0) || undefined,
+                event_ids: Array.isArray(item.event_ids) ? item.event_ids : [],
+                weighted_activity_score: Number(item.weighted_activity_score || item._activityScore || 0),
+                dominant_domain: item.dominant_domain || item._dominantDomain || "",
+                domain_distribution: item.domain_distribution && typeof item.domain_distribution === "object"
+                    ? item.domain_distribution
+                    : null,
+                centroid: item.centroid && typeof item.centroid === "object" ? item.centroid : null,
+                bounds: item.bounds && typeof item.bounds === "object" ? item.bounds : null,
+                is_report_cluster_summary: item.is_report_cluster_summary === true,
                 _clusterEvents: Array.isArray(item._clusterEvents)
                     ? item._clusterEvents
                     : (Array.isArray(item.cluster_events) ? item.cluster_events : []),
@@ -6701,6 +6721,7 @@ export async function initWarzoneGlobe() {
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!globeEl) return null;
     const cesiumCreditsEl = getCesiumCreditContainer(globeEl);
+    const isReportCaptureMode = window.__stratopsReportCaptureMode === true;
     const viewer = new Cesium.Viewer(globeEl, {
         animation: false,
         timeline: false,
@@ -6721,7 +6742,7 @@ export async function initWarzoneGlobe() {
             webgl: {
                 antialias: true,
                 powerPreference: "high-performance",
-                preserveDrawingBuffer: false,
+                preserveDrawingBuffer: isReportCaptureMode,
             },
         },
         skyAtmosphere: false,
@@ -6749,7 +6770,9 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
     viewer.__warzoneFocusedTerrainActive = false;
     applyViewerStyle(viewer);
     setInitialCamera(viewer);
-    startStartupGlobeRotation(viewer);
+    if (!isReportCaptureMode) {
+        startStartupGlobeRotation(viewer);
+    }
     attachCameraZoomLimiter(viewer);
     attach2DCameraBoundsGuard(viewer);
     syncSceneModeBounds(viewer);

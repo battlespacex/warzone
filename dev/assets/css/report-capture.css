@@ -1,0 +1,49 @@
+html,
+body.wz-report-capture-mode,
+#wz-report-capture-root,
+#warzone-globe {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #02070b;
+}
+
+body.wz-report-capture-mode #wz-report-capture-root {
+    position: fixed;
+    inset: 0;
+}
+
+body.wz-report-capture-mode #warzone-globe,
+body.wz-report-capture-mode .cesium-viewer,
+body.wz-report-capture-mode .cesium-viewer-cesiumWidgetContainer,
+body.wz-report-capture-mode .cesium-widget,
+body.wz-report-capture-mode canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#wz-report-capture-status {
+    position: fixed;
+    left: 18px;
+    bottom: 16px;
+    z-index: 5;
+    padding: 6px 9px;
+    border: 1px solid rgb(66 211 255 / 45%);
+    background: rgb(1 8 13 / 78%);
+    color: #9fe8ff;
+    font: 600 11px/1.2 Arial, sans-serif;
+    letter-spacing: .12em;
+}
+
+body.wz-report-capture-ready #wz-report-capture-status {
+    display: none;
+}
+
+#warzone-map-credits,
+.cesium-viewer-toolbar,
+.cesium-viewer-animationContainer,
+.cesium-viewer-timelineContainer,
+.cesium-viewer-bottom {
+    display: none !important;
+}
