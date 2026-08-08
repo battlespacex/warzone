@@ -133,6 +133,12 @@ test("regional and unknown reports are retained without marker coordinates", () 
     url: "https://example.com/unknown",
     is_conflict_relevant: true
   });
+  const storedRegional = normalizeConflictFeedItemForStorage({
+    title: "Strikes reported in southern Lebanon.",
+    summary: "Military activity continued overnight.",
+    url: "https://example.com/south-lebanon-storage",
+    is_conflict_relevant: true
+  });
 
   assert.equal(regional.event.metadata.normalization.location_precision, "REGIONAL");
   assert.equal(regional.event.location_label, "Southern Lebanon");
@@ -142,6 +148,9 @@ test("regional and unknown reports are retained without marker coordinates", () 
   assert.equal(unknown.event.metadata.normalization.location_precision, "UNKNOWN");
   assert.equal(unknown.event.lat, null);
   assert.equal(unknown.event.lon, null);
+  assert.equal(storedRegional.raw._event_location.precision, "REGIONAL");
+  assert.equal(storedRegional.raw._event_location.latitude, null);
+  assert.equal(storedRegional.raw._event_location.regional_anchor_latitude, 33.25);
 });
 
 test("source coordinates are rejected when incident text identifies another country", () => {

@@ -3,7 +3,7 @@ loadWorkerEnv();
 
 import { supabase } from "./supabase.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
-import { ensureOperationalReport, generateScheduledReports, getPreviousUtcDateKey } from "../../shared/reporting-service.js";
+import { ensureOperationalReport, generateDailySnapshot, generateScheduledReports, generateScheduledSnapshots, getPreviousUtcDateKey } from "../../shared/reporting-service.js";
 
 function readArg(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -21,11 +21,21 @@ const dateKey = readArg("date", getPreviousUtcDateKey());
 const scopeType = readArg("scope", "global").toLowerCase();
 const scopeValue = readArg("value", "");
 const runScheduled = hasFlag("scheduled");
+const snapshotOnly = hasFlag("snapshot-only");
 
 try {
   const result = runScheduled
-    ? await generateScheduledReports({ supabase, config, logger: console })
-    : await ensureOperationalReport({
+    ? snapshotOnly
+      ? await generateScheduledSnapshots({ supabase, config, logger: console })
+      : await generateScheduledReports({ supabase, config, logger: console })
+    : snapshotOnly
+      ? await generateDailySnapshot({
+        supabase,
+        config,
+        dateKey,
+        scope: { type: scopeType, value: scopeValue },
+      })
+      : await ensureOperationalReport({
       supabase,
       config,
       reportType: type,

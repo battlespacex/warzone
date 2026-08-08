@@ -1069,6 +1069,7 @@ function normalizeConflictFeedItemForStorage(item = {}) {
   const quality = hasExistingQuality
     ? existingQuality
     : aggregateEventQuality([item]);
+  const reportLocation = resolveEventLocation(item);
   const raw = item.raw && typeof item.raw === "object" && !Array.isArray(item.raw) ? item.raw : {};
   return {
     ...item,
@@ -1090,7 +1091,27 @@ function normalizeConflictFeedItemForStorage(item = {}) {
     source_family: sourceProfile.source_family,
     official_status: sourceProfile.official_status,
     corroboration_state: quality.corroboration_state,
-    raw: { ...raw, _event_quality: quality }
+    raw: {
+      ...raw,
+      _event_quality: quality,
+      _event_location: {
+        country: reportLocation.country || null,
+        region: reportLocation.region || null,
+        city: reportLocation.city || null,
+        place: reportLocation.place || null,
+        latitude: reportLocation.mapEligible ? safeNumber(reportLocation.lat) : null,
+        longitude: reportLocation.mapEligible ? safeNumber(reportLocation.lon) : null,
+        regional_anchor_latitude: reportLocation.precision === LOCATION_PRECISION.REGIONAL
+          ? safeNumber(reportLocation.anchor_lat)
+          : null,
+        regional_anchor_longitude: reportLocation.precision === LOCATION_PRECISION.REGIONAL
+          ? safeNumber(reportLocation.anchor_lon)
+          : null,
+        precision: reportLocation.precision || LOCATION_PRECISION.UNKNOWN,
+        confidence: Number.isFinite(Number(reportLocation.confidence)) ? Number(reportLocation.confidence) : 0,
+        method: reportLocation.method || reportLocation.source || "not_found"
+      }
+    }
   };
 }
 

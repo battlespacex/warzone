@@ -2,6 +2,11 @@ import crypto from "crypto";
 import { readReportingConfig } from "./reporting-config.js";
 import { createReportPdfBuffer } from "./reporting-pdf.js";
 import { s3PutObject } from "./reporting-s3.js";
+import { applyGeneralEventDeliveryFilters } from "./map-event-policy.js";
+import {
+  SNAPSHOT_SCHEMA_VERSION,
+  buildReportingFoundation,
+} from "./reporting-snapshot.js";
 
 const REPORT_VERSION = "2026-07-stratops-report-v2";
 const NORMALIZATION_VERSION = "event-normalizer-current";
@@ -380,17 +385,56 @@ async function safeCount(builder, fallback = 0) {
   }
 }
 
+async function fetchPagedRows(buildQuery, { pageSize = 1000, maxRows = 8000 } = {}) {
+  const rows = [];
+  for (let offset = 0; offset < maxRows; offset += pageSize) {
+    const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = Array.isArray(data) ? data : [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function fetchEventsForDay(supabase, dateKey, scope) {
   const { startIso, endIso } = getDayRange(dateKey);
-  const { data, error } = await supabase
-    .from("events")
-    .select("id, created_at, occurred_at, category, subcategory, title, summary, source_name, source_url, location_label, country_code, severity, confidence, lat, lon, report_type, weapon_type, source_count, airspace_status, cyber_status, fir_code, tags")
-    .gte("occurred_at", startIso)
-    .lt("occurred_at", endIso)
-    .order("occurred_at", { ascending: false })
-    .limit(4000);
-  if (error) throw error;
-  return (data || []).filter((event) => eventMatchesScope(event, scope));
+  const data = await fetchPagedRows(() => applyGeneralEventDeliveryFilters(
+    supabase
+      .from("events")
+      .select("id, created_at, occurred_at, category, subcategory, title, summary, source_name, source_url, location_label, country_code, severity, confidence, lat, lon, report_type, weapon_type, source_count, airspace_status, cyber_status, fir_code, tags, priority_score, dedupe_key, metadata")
+      .gte("occurred_at", startIso)
+      .lt("occurred_at", endIso)
+  ).order("occurred_at", { ascending: false }).order("id", { ascending: true }));
+  return data;
+}
+
+async function fetchConflictIntelligenceForDay(supabase, dateKey) {
+  const { startIso, endIso } = getDayRange(dateKey);
+  const selection = "id, source_id, source_name, source_type, source_category, title, summary, url, guid, published_at, fetched_at, region, country, lat, lon, category, confidence_score, is_conflict_relevant, raw";
+  const published = await fetchPagedRows(() => supabase
+    .from("conflict_feed_items")
+    .select(selection)
+    .eq("is_conflict_relevant", true)
+    .gte("published_at", startIso)
+    .lt("published_at", endIso)
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: true }));
+  const fetchedWithoutPublishTime = await fetchPagedRows(() => supabase
+    .from("conflict_feed_items")
+    .select(selection)
+    .eq("is_conflict_relevant", true)
+    .is("published_at", null)
+    .gte("fetched_at", startIso)
+    .lt("fetched_at", endIso)
+    .order("fetched_at", { ascending: false })
+    .order("id", { ascending: true }));
+  const unique = new Map();
+  [...published, ...fetchedWithoutPublishTime].forEach((item) => {
+    const key = item.id || item.url || item.guid;
+    if (key && !unique.has(String(key))) unique.set(String(key), item);
+  });
+  return [...unique.values()];
 }
 
 async function countTracks(supabase, dateKey, trackType, scope) {
@@ -455,29 +499,44 @@ async function fetchSatellitePreviewForEvents(supabase, eventIds = []) {
   };
 }
 
-function buildSnapshotPayload({ dateKey, scope, events, counts, satellitePreview = null }) {
-  const categoryTotals = countBy(events, "category");
-  const severityTotals = countBy(events, "severity");
+function buildSnapshotPayload({ dateKey, scope, events, intelligence = [], counts, satellitePreview = null, config = readReportingConfig() }) {
+  const { startIso, endIso } = getDayRange(dateKey);
+  const reporting = buildReportingFoundation({
+    dateKey,
+    windowStartIso: startIso,
+    windowEndIso: endIso,
+    scope,
+    scopeKey: getScopeKey(scope),
+    events,
+    intelligence,
+    counts,
+    s3Prefix: config.s3Prefix,
+  });
+  const scopedEvents = reporting.operationalItems;
+  const categoryTotals = countBy(scopedEvents, "category");
+  const severityTotals = countBy(scopedEvents, "severity");
   const confidenceTotals = {
-    high: events.filter((event) => Number(event.confidence || 0) >= 75).length,
-    medium: events.filter((event) => Number(event.confidence || 0) >= 45 && Number(event.confidence || 0) < 75).length,
-    low: events.filter((event) => Number(event.confidence || 0) < 45).length,
+    high: scopedEvents.filter((event) => Number(event.confidence || 0) >= 75).length,
+    medium: scopedEvents.filter((event) => Number(event.confidence || 0) >= 45 && Number(event.confidence || 0) < 75).length,
+    low: scopedEvents.filter((event) => Number(event.confidence || 0) < 45).length,
   };
-  const escalationScore = deriveEscalationScore(events);
-  const highestSeverityEvents = getMajorEvents(events);
-  const highestConfidenceEvents = [...events]
+  const escalationScore = deriveEscalationScore(scopedEvents);
+  const highestSeverityEvents = reporting.snapshotData.selections.major_developments
+    .filter((item) => item.record_type === "operational_event")
+    .slice(0, 15);
+  const highestConfidenceEvents = [...scopedEvents]
     .sort((left, right) => Number(right.confidence || 0) - Number(left.confidence || 0))
     .slice(0, 10)
     .map((event) => ({
-      id: event.id,
+      id: event.event_id,
       title: cleanText(event.title, "Activity report"),
       confidence: Number(event.confidence || 0),
       severity: cleanText(event.severity, "unknown"),
-      occurred_at: getEventTime(event),
-      location_label: cleanText(event.location_label, "Unknown location"),
+      occurred_at: event.occurred_at,
+      location_label: cleanText(event.event_place || event.event_city || event.event_region || event.event_country, "Unknown location"),
     }));
   const generatedSummary = createExecutiveSummary({
-    events,
+    events: scopedEvents,
     scope,
     categoryTotals,
     severityTotals,
@@ -485,9 +544,16 @@ function buildSnapshotPayload({ dateKey, scope, events, counts, satellitePreview
     aircraftTotal: counts.aircraft_total,
     navalTotal: counts.naval_total,
   });
+  const generatedAt = nowIso();
+  reporting.manifest.generated_at = generatedAt;
   return {
+    snapshot_key: reporting.snapshotKey,
+    snapshot_version: SNAPSHOT_SCHEMA_VERSION,
     snapshot_date: dateKey,
-    generated_at: nowIso(),
+    window_start: startIso,
+    window_end: endIso,
+    generated_at: generatedAt,
+    updated_at: generatedAt,
     scope_type: scope.type,
     scope_key: getScopeKey(scope),
     scope_value: scope.value,
@@ -495,7 +561,10 @@ function buildSnapshotPayload({ dateKey, scope, events, counts, satellitePreview
     region: scope.type === "region" ? scope.value : null,
     country: scope.type === "country" ? scope.value : null,
     aoi: scope.type === "aoi" ? { label: scope.label, bbox: scope.bbox || null } : null,
-    event_total: events.length,
+    event_total: scopedEvents.length,
+    intelligence_total: reporting.broaderItems.length,
+    report_item_total: reporting.items.length,
+    source_family_total: reporting.snapshotData.source_consensus.independent_source_family_count,
     category_totals: categoryTotals,
     severity_totals: severityTotals,
     confidence_totals: confidenceTotals,
@@ -509,13 +578,18 @@ function buildSnapshotPayload({ dateKey, scope, events, counts, satellitePreview
     escalation_score: escalationScore,
     highest_confidence_events: highestConfidenceEvents,
     highest_severity_events: highestSeverityEvents,
-    top_operational_clusters: getTopClusters(events),
+    top_operational_clusters: reporting.clusters,
     regional_summary: generatedSummary,
     trend_metrics: {
-      regional_activity: countBy(events, "location_label"),
+      regional_activity: countBy(reporting.items, "theater_name"),
       high_severity_count: Number(severityTotals.high || 0) + Number(severityTotals.critical || 0),
     },
-    chart_data: buildChartData(events),
+    chart_data: {
+      ...buildChartData(scopedEvents),
+      activity_by_hour: reporting.snapshotData.aggregates.activity_by_hour,
+      domain_distribution: reporting.snapshotData.aggregates.by_domain,
+      verification_distribution: reporting.snapshotData.aggregates.by_verification_state,
+    },
     map_snapshot_reference: null,
     satellite_summary: {
       available_count: counts.satellite_total,
@@ -531,6 +605,8 @@ function buildSnapshotPayload({ dateKey, scope, events, counts, satellitePreview
       cloud_cover: satellitePreview?.cloud_cover ?? null,
     },
     generated_summary: generatedSummary,
+    snapshot_data: reporting.snapshotData,
+    report_manifest: reporting.manifest,
     report_version: REPORT_VERSION,
     normalization_version: NORMALIZATION_VERSION,
   };
@@ -539,7 +615,7 @@ function buildSnapshotPayload({ dateKey, scope, events, counts, satellitePreview
 async function upsertSnapshot(supabase, payload) {
   const { data, error } = await supabase
     .from("operational_report_snapshots")
-    .upsert(payload, { onConflict: "snapshot_date,scope_key" })
+    .upsert(payload, { onConflict: "snapshot_key" })
     .select("*")
     .maybeSingle();
   if (error) throw error;
@@ -548,12 +624,19 @@ async function upsertSnapshot(supabase, payload) {
 
 async function generateDailySnapshot({ supabase, dateKey = getPreviousUtcDateKey(), scope = {}, config = readReportingConfig() } = {}) {
   const normalizedScope = normalizeScope(scope);
-  const events = await fetchEventsForDay(supabase, dateKey, normalizedScope);
+  const [events, intelligence, aircraftTotal, navalTotal, alertsTotal, satelliteTotal] = await Promise.all([
+    fetchEventsForDay(supabase, dateKey, normalizedScope),
+    fetchConflictIntelligenceForDay(supabase, dateKey),
+    countTracks(supabase, dateKey, "aircraft", normalizedScope),
+    countTracks(supabase, dateKey, "naval", normalizedScope),
+    countAlerts(supabase, dateKey),
+    countSatellite(supabase, dateKey),
+  ]);
   const counts = {
-    aircraft_total: await countTracks(supabase, dateKey, "aircraft", normalizedScope),
-    naval_total: await countTracks(supabase, dateKey, "naval", normalizedScope),
-    alerts_total: await countAlerts(supabase, dateKey),
-    satellite_total: await countSatellite(supabase, dateKey),
+    aircraft_total: aircraftTotal,
+    naval_total: navalTotal,
+    alerts_total: alertsTotal,
+    satellite_total: satelliteTotal,
   };
   const satellitePreview = await fetchSatellitePreviewForEvents(
     supabase,
@@ -563,6 +646,7 @@ async function generateDailySnapshot({ supabase, dateKey = getPreviousUtcDateKey
     dateKey,
     scope: normalizedScope,
     events,
+    intelligence,
     counts,
     satellitePreview,
     config,
@@ -813,7 +897,10 @@ function resetInFlightReportGenerationsForTests() {
 }
 
 const __reportingServiceTestUtils = {
+  buildSnapshotPayload,
+  getDayRange,
   resetInFlightReportGenerationsForTests,
+  upsertSnapshot,
   withInFlightReportGeneration,
 };
 
@@ -826,6 +913,34 @@ async function ensureOperationalReport({ supabase, reportType = "daily", dateKey
   return ensureDailyReport({ supabase, dateKey: dateKey || getPreviousUtcDateKey(), scope, config, force });
 }
 
+function getScheduledScopes(config = readReportingConfig()) {
+  return [
+    normalizeScope({ type: "global" }),
+    ...config.scheduledRegions.map((value) => normalizeScope({ type: "region", value })),
+    ...config.scheduledCountries.map((value) => normalizeScope({ type: "country", value })),
+    ...config.scheduledAois.map((aoi) => normalizeScope({ type: "aoi", ...aoi })),
+  ];
+}
+
+async function generateScheduledSnapshots({ supabase, config = readReportingConfig(), logger = console, referenceDate = new Date() } = {}) {
+  if (!config.snapshotEnabled) return { ok: true, skipped: true, reason: "snapshot_schedule_disabled" };
+  const dateKey = getPreviousUtcDateKey(referenceDate);
+  const results = [];
+  for (const scope of getScheduledScopes(config)) {
+    try {
+      const snapshot = await generateDailySnapshot({ supabase, dateKey, scope, config });
+      results.push({ ok: true, scope: getScopeKey(scope), id: snapshot.snapshot_id || snapshot.id });
+    } catch (error) {
+      logger.warn?.(`[reports] daily snapshot failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
+      results.push({ ok: false, scope: getScopeKey(scope), error: error?.message || String(error) });
+    }
+  }
+  await pruneExpiredSnapshots({ supabase, config }).catch((error) => {
+    logger.warn?.(`[reports] snapshot cleanup failed: ${error?.message || error}`);
+  });
+  return { ok: results.some((result) => result.ok), dateKey, results };
+}
+
 async function generateScheduledReports({ supabase, config = readReportingConfig(), logger = console, referenceDate = new Date(), reportTypes = null } = {}) {
   if (!config.scheduleEnabled) return { ok: true, skipped: true, reason: "schedule_disabled" };
   const selectedTypes = Array.isArray(reportTypes)
@@ -835,12 +950,7 @@ async function generateScheduledReports({ supabase, config = readReportingConfig
   const runWeekly = selectedTypes ? selectedTypes.has("weekly") : config.weeklyEnabled === true;
   if (!runDaily && !runWeekly) return { ok: true, skipped: true, reason: "report_types_disabled" };
   const dateKey = getPreviousUtcDateKey(referenceDate);
-  const scopes = [
-    normalizeScope({ type: "global" }),
-    ...config.scheduledRegions.map((value) => normalizeScope({ type: "region", value })),
-    ...config.scheduledCountries.map((value) => normalizeScope({ type: "country", value })),
-    ...config.scheduledAois.map((aoi) => normalizeScope({ type: "aoi", ...aoi })),
-  ];
+  const scopes = getScheduledScopes(config);
   const results = [];
   for (const scope of scopes) {
     if (runDaily) {
@@ -876,15 +986,19 @@ async function pruneExpiredReports({ supabase, config = readReportingConfig() } 
     .lt("expires_at", nowIso())
     .neq("status", "expired");
   if (updates.error) throw updates.error;
-  if (config.retentionDays !== null) {
-    const cutoff = addUtcDays(toUtcDateKey(), -config.retentionDays);
-    const snapshots = await supabase
-      .from("operational_report_snapshots")
-      .delete()
-      .lt("snapshot_date", cutoff);
-    if (snapshots.error) throw snapshots.error;
-  }
+  await pruneExpiredSnapshots({ supabase, config });
   return { ok: true };
+}
+
+async function pruneExpiredSnapshots({ supabase, config = readReportingConfig() } = {}) {
+  if (config.retentionDays === null) return { ok: true, skipped: true, reason: "unlimited_retention" };
+  const cutoff = addUtcDays(toUtcDateKey(), -config.retentionDays);
+  const snapshots = await supabase
+    .from("operational_report_snapshots")
+    .delete()
+    .lt("snapshot_date", cutoff);
+  if (snapshots.error) throw snapshots.error;
+  return { ok: true, cutoff };
 }
 
 function toPublicReport(report = {}) {
@@ -919,8 +1033,10 @@ export {
   ensureWeeklyReport,
   generateDailySnapshot,
   generateScheduledReports,
+  generateScheduledSnapshots,
   getPreviousUtcDateKey,
   normalizeScope,
   pruneExpiredReports,
+  pruneExpiredSnapshots,
   toPublicReport,
 };

@@ -67,7 +67,7 @@ import { readCopernicusConfig } from "./copernicus-config.js";
 import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from "./copernicus-runner.js";
 import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
-import { generateScheduledReports } from "../../shared/reporting-service.js";
+import { generateScheduledReports, generateScheduledSnapshots } from "../../shared/reporting-service.js";
 import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
 import {
     cleanDisplayText,
@@ -139,6 +139,7 @@ let isConflictFeedRunning = false;
 let isStatusFeedRunning = false;
 let isCopernicusRunning = false;
 let isReportingRunning = false;
+let isReportingSnapshotRunning = false;
 const DEFAULT_CONFLICT_FEED_INTERVAL_MS = 15 * 60 * 1000;
 const MIN_CONFLICT_FEED_INTERVAL_MS = 60 * 1000;
 const DEFAULT_STATUS_FEED_INTERVAL_MS = 15 * 60 * 1000;
@@ -4405,6 +4406,26 @@ async function runReportingCycle(reportTypes = null) {
         isReportingRunning = false;
     }
 }
+async function runReportingSnapshotCycle() {
+    if (!REPORTING_CONFIG.snapshotEnabled) return;
+    if (isReportingSnapshotRunning) {
+        console.log("[reports] Previous snapshot cycle still running, skipping this tick");
+        return;
+    }
+    isReportingSnapshotRunning = true;
+    try {
+        const result = await generateScheduledSnapshots({
+            supabase,
+            config: REPORTING_CONFIG,
+            logger: console
+        });
+        console.log("[reports] scheduled snapshot result", JSON.stringify(result, null, 2));
+    } catch (err) {
+        console.error("[reports] Scheduled snapshot generation failed:", err?.message || err);
+    } finally {
+        isReportingSnapshotRunning = false;
+    }
+}
 function startConflictFeedLoop() {
     if (!CONFLICT_FEED_ENABLED) {
         console.log("[conflict] feed disabled; set CONFLICT_FEED_ENABLED=true to enable");
@@ -4442,18 +4463,26 @@ function startCopernicusLoop() {
     if (typeof timer.unref === "function") timer.unref();
 }
 function startReportingLoop() {
-    if (!REPORTING_CONFIG.scheduleEnabled) {
-        console.log("[reports] scheduled generation disabled; set REPORTING_SCHEDULE_ENABLED=true to enable");
+    if (!REPORTING_CONFIG.snapshotEnabled && !REPORTING_CONFIG.scheduleEnabled) {
+        console.log("[reports] scheduled snapshots and report generation disabled");
         return;
     }
-    console.log(`[reports] scheduled generation enabled, daily=${REPORTING_CONFIG.dailyEnabled !== false}, weekly=${REPORTING_CONFIG.weeklyEnabled === true}`);
-    console.log(`[reports] daily cron "${REPORTING_CONFIG.dailyCron}", weekly cron "${REPORTING_CONFIG.weeklyCron}"`);
-    if (REPORTING_CONFIG.dailyEnabled !== false) {
+    console.log(`[reports] snapshot schedule=${REPORTING_CONFIG.snapshotEnabled === true}, report schedule=${REPORTING_CONFIG.scheduleEnabled === true}`);
+    if (REPORTING_CONFIG.snapshotEnabled === true) {
+        console.log(`[reports] snapshot cron "${REPORTING_CONFIG.snapshotCron}"`);
+        cron.schedule(REPORTING_CONFIG.snapshotCron, () => {
+            runReportingSnapshotCycle();
+        }, { timezone: "UTC" });
+    }
+    if (REPORTING_CONFIG.scheduleEnabled === true) {
+        console.log(`[reports] daily cron "${REPORTING_CONFIG.dailyCron}", weekly cron "${REPORTING_CONFIG.weeklyCron}"`);
+    }
+    if (REPORTING_CONFIG.scheduleEnabled === true && REPORTING_CONFIG.dailyEnabled !== false) {
         cron.schedule(REPORTING_CONFIG.dailyCron, () => {
             runReportingCycle(["daily"]);
         }, { timezone: "UTC" });
     }
-    if (REPORTING_CONFIG.weeklyEnabled === true) {
+    if (REPORTING_CONFIG.scheduleEnabled === true && REPORTING_CONFIG.weeklyEnabled === true) {
         cron.schedule(REPORTING_CONFIG.weeklyCron, () => {
             runReportingCycle(["weekly"]);
         }, { timezone: "UTC" });

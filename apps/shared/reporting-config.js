@@ -36,16 +36,19 @@ function readReportingConfig(env = process.env) {
   const enabled = readBooleanEnv(env.REPORTING_ENABLED, true);
   const apiEnabled = readBooleanEnv(env.REPORTING_API_ENABLED, enabled);
   const scheduleEnabled = readBooleanEnv(env.REPORTING_SCHEDULE_ENABLED, enabled);
+  const snapshotEnabled = readBooleanEnv(env.REPORTING_SNAPSHOT_ENABLED, scheduleEnabled);
   const dailyEnabled = readBooleanEnv(env.REPORTING_DAILY_ENABLED, true);
   const weeklyEnabled = readBooleanEnv(env.REPORTING_WEEKLY_ENABLED, false);
   return {
     enabled,
     apiEnabled,
     scheduleEnabled,
+    snapshotEnabled,
     dailyEnabled,
     weeklyEnabled,
     dailyCron: String(env.REPORTING_DAILY_CRON || "18 0 * * *").trim(),
     weeklyCron: String(env.REPORTING_WEEKLY_CRON || "42 0 * * 1").trim(),
+    snapshotCron: String(env.REPORTING_SNAPSHOT_CRON || "12 0 * * *").trim(),
     retentionDays: normalizeRetentionDays(env.REPORTING_SNAPSHOT_RETENTION_DAYS),
     pdfExpiryHours: readNumberEnv(env.REPORTING_PDF_EXPIRY_HOURS, 72, { min: 1, max: 24 * 30 }),
     s3Prefix: String(env.REPORTING_S3_PREFIX || "reports").trim().replace(/^\/+|\/+$/g, "") || "reports",
@@ -73,17 +76,23 @@ function readReportingConfig(env = process.env) {
 
 function getReportingConfigStatus(config = readReportingConfig()) {
   const missing = [];
-  if (!config.aws.bucket) missing.push("AWS_S3_BUCKET");
-  if (!config.aws.accessKeyId || !config.aws.secretAccessKey) {
-    missing.push("AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or IAM role support");
+  const reportStorageRequired = config.apiEnabled || config.scheduleEnabled;
+  if (reportStorageRequired) {
+    if (!config.aws.bucket) missing.push("AWS_S3_BUCKET");
+    if (!config.aws.accessKeyId || !config.aws.secretAccessKey) {
+      missing.push("AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or IAM role support");
+    }
   }
   return {
     enabled: config.enabled,
     apiEnabled: config.apiEnabled,
     scheduleEnabled: config.scheduleEnabled,
+    snapshotEnabled: config.snapshotEnabled,
+    snapshotReady: config.snapshotEnabled,
+    reportStorageReady: reportStorageRequired && missing.length === 0,
     dailyEnabled: config.dailyEnabled,
     weeklyEnabled: config.weeklyEnabled,
-    ready: (config.apiEnabled || config.scheduleEnabled) && missing.length === 0,
+    ready: config.snapshotEnabled || (reportStorageRequired && missing.length === 0),
     missing,
   };
 }
