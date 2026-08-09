@@ -1,21 +1,35 @@
 export async function initLocalDevPanelOnly() {
+    const hostname = String(window.location.hostname || "").toLowerCase();
     const isLocalDev =
         import.meta.env?.DEV === true ||
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1";
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "" ||
+        hostname.includes("staging");
 
     if (!isLocalDev) return;
 
     if (!document.getElementById("wz-dev-panel")) {
-        const response = await fetch("/partials/dev-panel.html", { cache: "no-store" });
-        if (!response.ok) {
-            console.warn("Local dev panel HTML not found at /partials/dev-panel.html");
+        const partialPaths = String(window.location.pathname || "").startsWith("/warzone")
+            ? ["/warzone/partials/dev-panel.html", "/partials/dev-panel.html"]
+            : ["/partials/dev-panel.html", "/warzone/partials/dev-panel.html"];
+        let html = "";
+        for (const partialPath of partialPaths) {
+            try {
+                const response = await fetch(partialPath, { cache: "no-store" });
+                if (!response.ok) continue;
+                html = await response.text();
+                if (html) break;
+            } catch {
+                // Try the alternate staging/base-path location.
+            }
+        }
+        if (!html) {
+            console.warn("Local dev panel HTML was not found at the supported partial paths");
             return;
         }
 
-        const html = await response.text();
-        const mount = document.querySelector(".warzone-ui-layer") || document.body;
-        mount.insertAdjacentHTML("beforeend", html);
+        document.body.insertAdjacentHTML("beforeend", html);
     }
 
     const module = await import("./warzone-dev-panel.js");

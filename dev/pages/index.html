@@ -72,13 +72,22 @@
             <div id="wz-global-status" class="sr-only" aria-live="polite" aria-atomic="true">
                 StratOps interface is loading...
             </div>
-            <audio id="bg-audio" src="/assets/audio/stratops-radio-soundtrack.mp3" preload="auto" loop></audio>
+            <audio id="bg-audio"
+                   src="/assets/audio/stratops-radio-soundtrack.mp3"
+                   preload="none"
+                   loop
+                   hidden
+                   aria-hidden="true"
+                   data-stratops-feature-disabled-by-config="system.audio"></audio>
             <button id="audio-toggle"
                     class="audio-toggle"
                     type="button"
                     aria-label="Pause background soundtrack"
                     aria-pressed="false"
-                    title="Background soundtrack">
+                    aria-hidden="true"
+                    title="Background soundtrack"
+                    hidden
+                    data-stratops-feature-disabled-by-config="system.audio">
                 <span class="audio-toggle__icon stratops-ico-next-1 static-icon" aria-hidden="true"></span>
                 <span class="audio-toggle__icon stratops-ico-pause-1 static-icon" aria-hidden="true"></span>
             </button>

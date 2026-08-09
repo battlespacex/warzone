@@ -5,15 +5,15 @@ let __sweeperTicker = null;
 let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
+const RADAR_FALLBACK_COLOR = "#18e2db";
+export const RADAR_SWEEP_MATERIAL_TYPE = "StratOpsRadarSweep";
+export const RADAR_RING_RATIOS = Object.freeze([0.34, 0.67, 1]);
 const SWEEPER_RENDER = {
     labelFrameSkip: 3,
     requestRenderFrameSkip: 2,
-    polygonStepsNear: 18,
-    polygonStepsFar: 10,
     maxHeight: 10000000,
     maxCount: 7,
     maxOverlap: 0.32,
-    maxFilledRings: 2,
     overlayHeight: 1200,
 };
 function parseEventMetadata(event = {}) {
@@ -35,6 +35,37 @@ function toFiniteNumber(...values) {
         if (Number.isFinite(num)) return num;
     }
     return null;
+}
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+function cssNumber(name, fallback) {
+    if (typeof window === "undefined" || typeof getComputedStyle !== "function") return fallback;
+    const parsed = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+function cssColor(name, fallback) {
+    if (typeof window === "undefined" || typeof getComputedStyle !== "function") return fallback;
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+function readRadarVisualTokens(fallbackColor = RADAR_FALLBACK_COLOR) {
+    const color = cssColor("--radar-color", fallbackColor);
+    const ringColor = cssColor("--radar-ring-color", color);
+    return {
+        color,
+        ringColor,
+        ringOpacity: clamp(cssNumber("--radar-ring-opacity", 0.42), 0, 1),
+        ringOuterOpacity: clamp(cssNumber("--radar-ring-outer-opacity", 0.7), 0, 1),
+        ringWidth: clamp(cssNumber("--radar-ring-width", 1.6), 0.5, 4),
+        sweepOpacityMin: clamp(cssNumber("--radar-sweep-opacity-min", 0.02), 0, 1),
+        sweepOpacityMid: clamp(cssNumber("--radar-sweep-opacity-mid", 0.14), 0, 1),
+        sweepOpacityMax: clamp(cssNumber("--radar-sweep-opacity-max", 0.42), 0, 1),
+        sweepWidthDeg: clamp(cssNumber("--radar-sweep-width", 64), 45, 80),
+        sweepLeadingEdgeDeg: clamp(cssNumber("--radar-sweep-leading-edge-width", 1.4), 0.5, 3),
+        sweepSpeed: clamp(cssNumber("--radar-sweep-speed", 1), 0.1, 3),
+        centerSize: clamp(cssNumber("--radar-center-size", 4), 2, 10),
+        centerGlow: clamp(cssNumber("--radar-center-glow", 2), 0, 6),
+    };
 }
 function normalizeHeading(value) {
     const num = Number(value);
@@ -162,15 +193,15 @@ function getSweepPreset(event = {}) {
     const weapon = String(event.weapon_type || "").toLowerCase();
     const title = String(event.title || "").toLowerCase();
     const text = `${sub} ${weapon} ${title}`;
-    if (text.includes("awacs")) return { radius: 400000, widthDeg: 34, speed: 0.65, color: "#18e2db", label: "ISR Radar" };
-    if (text.includes("fighter")) return { radius: 180000, widthDeg: 24, speed: 0.95, color: "#18e2db", label: "Airborne Radar" };
-    if (text.includes("carrier")) return { radius: 600000, widthDeg: 30, speed: 0.45, color: "#18e2db", label: "Carrier Radar" };
-    if (text.includes("destroyer")) return { radius: 120000, widthDeg: 22, speed: 0.80, color: "#18e2db", label: "Naval Radar" };
-    if (text.includes("frigate")) return { radius: 120000, widthDeg: 22, speed: 0.80, color: "#18e2db", label: "Naval Radar" };
-    if (text.includes("submarine")) return { radius: 80000, widthDeg: 18, speed: 0.40, color: "#18e2db", label: "Sonar Detection" };
-    if (text.includes("sam")) return { radius: 250000, widthDeg: 18, speed: 0.55, color: "#18e2db", label: "SAM Radar" };
-    if (text.includes("air defense")) return { radius: 250000, widthDeg: 18, speed: 0.55, color: "#18e2db", label: "Air Defense Radar" };
-    if (text.includes("airspace") || text.includes("notam")) return { radius: 260000, widthDeg: 24, speed: 0.60, color: "#18e2db", label: "Airspace Watch" };
+    if (text.includes("awacs")) return { radius: 400000, speed: 0.65, label: "ISR Radar" };
+    if (text.includes("fighter")) return { radius: 180000, speed: 0.95, label: "Airborne Radar" };
+    if (text.includes("carrier")) return { radius: 600000, speed: 0.45, label: "Carrier Radar" };
+    if (text.includes("destroyer")) return { radius: 120000, speed: 0.80, label: "Naval Radar" };
+    if (text.includes("frigate")) return { radius: 120000, speed: 0.80, label: "Naval Radar" };
+    if (text.includes("submarine")) return { radius: 80000, speed: 0.40, label: "Sonar Detection" };
+    if (text.includes("sam")) return { radius: 250000, speed: 0.55, label: "SAM Radar" };
+    if (text.includes("air defense")) return { radius: 250000, speed: 0.55, label: "Air Defense Radar" };
+    if (text.includes("airspace") || text.includes("notam")) return { radius: 260000, speed: 0.60, label: "Airspace Watch" };
     return null;
 }
 function getCameraHeight(viewer) {
@@ -183,26 +214,99 @@ function getCameraHeight(viewer) {
 function shouldRenderSweepers(viewer) {
     return getCameraHeight(viewer) <= SWEEPER_RENDER.maxHeight;
 }
-function getPolygonSteps(viewer) {
-    return getCameraHeight(viewer) > 1800000
-        ? SWEEPER_RENDER.polygonStepsFar
-        : SWEEPER_RENDER.polygonStepsNear;
+export function buildRadarSweepStops(widthDeg = 64, {
+    minAlpha = 0.02,
+    midAlpha = 0.14,
+    maxAlpha = 0.42,
+    leadingEdgeDeg = 1.4,
+} = {}) {
+    const width = clamp(Number(widthDeg) || 64, 45, 80);
+    const min = clamp(Number(minAlpha) || 0, 0, 1);
+    const mid = clamp(Number(midAlpha) || 0, min, 1);
+    const max = clamp(Number(maxAlpha) || 0, mid, 1);
+    const trailStart = 1 - (width / 360);
+    const trailSpan = 1 - trailStart;
+    const edgeStop = clamp((Number(leadingEdgeDeg) || 1.4) / 360, 0.001, trailStart * 0.5);
+    return [
+        { offset: 0, alpha: max },
+        { offset: edgeStop, alpha: 0 },
+        { offset: trailStart, alpha: 0 },
+        { offset: trailStart + trailSpan * 0.18, alpha: min },
+        { offset: trailStart + trailSpan * 0.58, alpha: mid },
+        { offset: trailStart + trailSpan * 0.86, alpha: Math.max(mid, max * 0.68) },
+        { offset: 1, alpha: max },
+    ];
 }
-function buildSectorHierarchy(lon, lat, radiusMeters, headingDeg, widthDeg = 28, steps = 28) {
-    const coords = [lon, lat];
-    const start = headingDeg - widthDeg / 2;
-    const end = headingDeg + widthDeg / 2;
-    for (let i = 0; i <= steps; i++) {
-        const a = Cesium.Math.toRadians(start + ((end - start) * i / steps));
-        const dxKm = (radiusMeters / 1000) * Math.sin(a);
-        const dyKm = (radiusMeters / 1000) * Math.cos(a);
-        const dLat = dyKm / 111.32;
-        const dLon = dxKm / (111.32 * Math.cos(Cesium.Math.toRadians(lat)));
-        coords.push(lon + dLon, lat + dLat);
+function ensureRadarSweepMaterialRegistered() {
+    if (Cesium.Material._materialCache.getMaterial(RADAR_SWEEP_MATERIAL_TYPE)) return;
+    Cesium.Material._materialCache.addMaterial(RADAR_SWEEP_MATERIAL_TYPE, {
+        fabric: {
+            type: RADAR_SWEEP_MATERIAL_TYPE,
+            uniforms: {
+                color: Cesium.Color.WHITE,
+                heading: 0,
+                sweepWidth: Cesium.Math.toRadians(64),
+                leadingEdgeWidth: Cesium.Math.toRadians(1.4),
+                minAlpha: 0.02,
+                midAlpha: 0.14,
+                maxAlpha: 0.42,
+            },
+            source: `
+                czm_material czm_getMaterial(czm_materialInput materialInput)
+                {
+                    czm_material material = czm_getDefaultMaterial(materialInput);
+                    vec2 centered = materialInput.st - vec2(0.5);
+                    float radius = length(centered) * 2.0;
+                    float fragmentHeading = atan(centered.x, centered.y);
+                    if (fragmentHeading < 0.0) fragmentHeading += 6.28318530718;
+                    float trail = mod(heading - fragmentHeading + 6.28318530718, 6.28318530718);
+                    float inSweep = 1.0 - step(sweepWidth, trail);
+                    float strength = 1.0 - clamp(trail / max(sweepWidth, 0.0001), 0.0, 1.0);
+                    float fadedAlpha = strength < 0.58
+                        ? mix(minAlpha, midAlpha, smoothstep(0.0, 0.58, strength))
+                        : mix(midAlpha, maxAlpha, smoothstep(0.58, 1.0, strength));
+                    float edgeAlpha = (1.0 - smoothstep(0.0, max(leadingEdgeWidth, 0.0001), trail)) * maxAlpha;
+                    float radialMask = smoothstep(0.0, 0.05, radius) * (1.0 - smoothstep(0.96, 1.0, radius));
+                    material.diffuse = color.rgb;
+                    material.alpha = color.a * max(fadedAlpha * inSweep, edgeAlpha) * radialMask;
+                    return material;
+                }
+            `,
+        },
+        translucent: () => true,
+    });
+}
+ensureRadarSweepMaterialRegistered();
+class RadarSweepMaterialProperty {
+    constructor(state, color, tokens) {
+        ensureRadarSweepMaterialRegistered();
+        this._definitionChanged = new Cesium.Event();
+        this._state = state;
+        this._color = color;
+        this._tokens = tokens;
     }
-    return new Cesium.PolygonHierarchy(
-        Cesium.Cartesian3.fromDegreesArray(coords)
-    );
+    get isConstant() {
+        return false;
+    }
+    get definitionChanged() {
+        return this._definitionChanged;
+    }
+    getType() {
+        return RADAR_SWEEP_MATERIAL_TYPE;
+    }
+    getValue(_time, result = {}) {
+        result.color = Cesium.Color.clone(this._color, result.color);
+        result.heading = Cesium.Math.toRadians(this._state.heading);
+        result.sweepWidth = Cesium.Math.toRadians(this._tokens.sweepWidthDeg);
+        result.leadingEdgeWidth = Cesium.Math.toRadians(this._tokens.sweepLeadingEdgeDeg);
+        result.minAlpha = this._tokens.sweepOpacityMin;
+        result.midAlpha = this._tokens.sweepOpacityMid;
+        result.maxAlpha = this._tokens.sweepOpacityMax;
+        return result;
+    }
+    equals(other) {
+        return this === other;
+    }
 }
 function clearTicker() {
     if (__sweeperTicker) {
@@ -262,6 +366,28 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+}
+function getRadarDestination(lat, lon, radiusMeters, headingDeg) {
+    const angularDistance = radiusMeters / 6371000;
+    const bearing = Cesium.Math.toRadians(headingDeg);
+    const lat1 = Cesium.Math.toRadians(lat);
+    const lon1 = Cesium.Math.toRadians(lon);
+    const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(angularDistance) +
+        Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
+    );
+    const lon2 = lon1 + Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+        Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return [Cesium.Math.toDegrees(lon2), Cesium.Math.toDegrees(lat2)];
+}
+function buildRadarRingPositions(lat, lon, radiusMeters, steps = 96) {
+    const coordinates = [];
+    for (let index = 0; index <= steps; index += 1) {
+        coordinates.push(...getRadarDestination(lat, lon, radiusMeters, (index / steps) * 360));
+    }
+    return Cesium.Cartesian3.fromDegreesArray(coordinates);
 }
 function getCircleOverlapRatio(r1, r2, d) {
     if (d >= r1 + r2) return 0;
@@ -352,77 +478,72 @@ export function renderSweepers(viewer, events = []) {
     }
     __radarViewer = viewer;
     __radarItems = [];
-    const polygonSteps = getPolygonSteps(viewer);
     if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
     candidates.forEach((candidate, index) => {
         const preset = candidate.preset;
         const lat = candidate.lat;
         const lon = candidate.lon;
-        const base = Cesium.Color.fromCssColorString(preset.color);
+        const visualTokens = readRadarVisualTokens();
+        const base = Cesium.Color.fromCssColorString(visualTokens.color) || Cesium.Color.fromCssColorString(RADAR_FALLBACK_COLOR);
+        const ringBase = Cesium.Color.fromCssColorString(visualTokens.ringColor) || base;
         const overlayId = makeOverlayEntityId("sweeper", candidate.event, index);
         const popupProps = buildOverlayPopupProperties(candidate.event, overlayId);
         const state = {
             heading: 320 + (index * 40)
         };
         const overlayHeight = SWEEPER_RENDER.overlayHeight;
-        const coverageFill = viewer.entities.add({
-            id: `${overlayId}-fill`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat),
-            ellipse: {
-                semiMajorAxis: preset.radius,
-                semiMinorAxis: preset.radius,
-                material: base.withAlpha(0.3),
-                outline: false,
-                height: 0,
-                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+        const rings = RADAR_RING_RATIOS.map((ratio, ringIndex) => viewer.entities.add({
+            id: `${overlayId}-ring-${ringIndex + 1}`,
+            polyline: {
+                positions: buildRadarRingPositions(lat, lon, preset.radius * ratio),
+                material: ringBase.withAlpha(
+                    ringIndex === RADAR_RING_RATIOS.length - 1
+                        ? visualTokens.ringOuterOpacity
+                        : visualTokens.ringOpacity
+                ),
+                width: visualTokens.ringWidth,
+                clampToGround: true,
+                arcType: Cesium.ArcType.GEODESIC,
             },
             properties: { ...popupProps },
+        }));
+        const sweepBeam = viewer.entities.add({
+                id: `${overlayId}-sweep`,
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
+                ellipse: {
+                    semiMajorAxis: preset.radius,
+                    semiMinorAxis: preset.radius,
+                    material: new RadarSweepMaterialProperty(state, base, visualTokens),
+                    height: 0,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    zIndex: 40 + index,
+                },
+                properties: { ...popupProps },
         });
-        const outerRing = viewer.entities.add({
-            id: `${overlayId}-ring`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat),
-            ellipse: {
-                semiMajorAxis: preset.radius,
-                semiMinorAxis: preset.radius,
-                material: Cesium.Color.TRANSPARENT,
-                outline: true,
-                outlineColor: base.withAlpha(0.92),
-                outlineWidth: 3,
-                height: 0,
-                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            },
-            properties: { ...popupProps },
-        });
-        const sweepCore = viewer.entities.add({
-            id: `${overlayId}-sector`,
-            polygon: {
-                hierarchy: new Cesium.CallbackProperty(() => {
-                    return buildSectorHierarchy(
-                        lon,
-                        lat,
-                        preset.radius,
-                        state.heading,
-                        preset.widthDeg,
-                        polygonSteps
-                    );
-                }, false),
-                material: base.withAlpha(0.4),
-                outline: false,
-                perPositionHeight: false,
-                height: overlayHeight + 20
+        const centerDot = viewer.entities.add({
+            id: `${overlayId}-center`,
+            position: Cesium.Cartesian3.fromDegrees(lon, lat, overlayHeight + 10),
+            point: {
+                pixelSize: visualTokens.centerSize,
+                color: base.withAlpha(0.72),
+                outlineColor: base.withAlpha(0.20),
+                outlineWidth: visualTokens.centerGlow,
+                heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                disableDepthTestDistance: 0,
             },
             properties: { ...popupProps },
         });
         const labelEl = createRadarLabel(preset.label || "Radar Coverage");
         __sweeperEntities.push(
-            coverageFill,
-            outerRing,
-            sweepCore
+            ...rings,
+            sweepBeam,
+            centerDot
         );
         __radarItems.push({
             lat,
             lon,
             preset,
+            visualTokens,
             state,
             labelEl
         });
@@ -448,7 +569,7 @@ export function renderSweepers(viewer, events = []) {
         }
         __radarItems.forEach((item) => {
             item.state.heading = (
-                item.state.heading + (item.preset.speed * 60 * dt)
+                item.state.heading + (item.preset.speed * item.visualTokens.sweepSpeed * 60 * dt)
             ) % 360;
         });
         if (frameCount % SWEEPER_RENDER.labelFrameSkip === 0) {

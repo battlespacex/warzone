@@ -1,5 +1,7 @@
 ﻿// File Path: /assets/js/warzone-siren-alert.js
 // ── Config ─────────────────────────────────────────────────────────────────────
+import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
+
 const MAX_VISIBLE = 8; 
 const AUTO_DISMISS = {
     red: 15000,   // 12s
@@ -131,6 +133,10 @@ function enforceCap() {
     }
 }
 function startSirenLoop() {
+    if (
+        !isStratOpsFeatureEnabled("system.audio") ||
+        !isStratOpsFeatureEnabled("alerts.audibleSirens")
+    ) return;
     if (__sirenLoopTimer) return;
     if (!__sirenAudioEl) {
         __sirenAudioEl = new Audio("/assets/audio/stratops-siren.mp3");

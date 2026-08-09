@@ -121,6 +121,7 @@ let __callbacks = [];
 let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
 const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "map-labels", "region-plate", "satellite-imagery"]);
+const DEV_INSPECTION_LAYER_IDS = new Set(["sweepers", "satellite-imagery"]);
 const NAVAL_LAYER_SUBTYPES = new Set([
     "carrier",
     "amphibious",
@@ -176,8 +177,19 @@ function isPremiumLayer(id) {
     return !!getLayerDef(id)?.premium;
 }
 
+function isDevInspectionEnvironment() {
+    if (import.meta.env?.DEV === true) return true;
+    if (typeof window === "undefined") return false;
+    const hostname = String(window.location?.hostname || "").toLowerCase();
+    return hostname === "localhost"
+        || hostname === "127.0.0.1"
+        || hostname === ""
+        || hostname.includes("staging");
+}
+
 function canUseLayer(id) {
     if (!isPremiumLayer(id)) return true;
+    if (DEV_INSPECTION_LAYER_IDS.has(id) && isDevInspectionEnvironment()) return true;
     return hasPremiumAccess();
 }
 

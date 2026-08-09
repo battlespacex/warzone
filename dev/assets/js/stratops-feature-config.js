@@ -84,7 +84,7 @@ const DEFAULT_STRATOPS_FEATURES = {
     alerts: {
         stickyAlerts: true,
         sirenBroadcasts: true,
-        audibleSirens: true,
+        audibleSirens: false,
         defconStatus: true,
         cyberStatus: true,
         airspaceStatus: true,
@@ -112,13 +112,14 @@ const DEFAULT_STRATOPS_FEATURES = {
         aoiLens: true,
         captureShot: true,
         milSatOrbit: true,
-        audio: true,
+        audio: false,
         adaptivePerformanceGuard: true,
         devPanel: true,
     },
 };
 
 const FEATURE_SELECTOR_MAP = {
+    "system.audio": "#bg-audio, #audio-toggle",
     "header.sceneModeToggle": ".wz-globe-toggle",
     "header.regionSelector": "#wz-region-control, #wz-region-control-mobile, #wz-mobile-region-menu",
     "header.utcClock": "#wz-utc-clock",

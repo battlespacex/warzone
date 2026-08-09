@@ -1,6 +1,7 @@
 ﻿// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
+import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
 import {
     buildSpatialEventClusters,
     classifyEventDomain,
@@ -1303,6 +1304,18 @@ function cssPixelNumberVar(name, fallback) {
     const parsed = Number(String(raw).replace(/px$/i, "").trim());
     return Number.isFinite(parsed) ? parsed : fallback;
 }
+function cssLengthPixelVar(name, fallback) {
+    const raw = cssVar(name, `${fallback}px`).trim().toLowerCase();
+    const match = raw.match(/^(-?\d+(?:\.\d+)?)(px|rem)?$/);
+    if (!match) return fallback;
+    const value = Number(match[1]);
+    if (!Number.isFinite(value)) return fallback;
+    if (match[2] === "rem") {
+        const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+        return value * (Number.isFinite(rootFontSize) ? rootFontSize : 16);
+    }
+    return value;
+}
 function boolVar(name, fallback = false) {
     const value = cssVar(name, fallback ? "1" : "0").toLowerCase();
     return value === "1" || value === "true" || value === "yes";
@@ -1875,8 +1888,8 @@ function createClusterMarkerCanvas(colorCss, count, severity = "medium") {
     const severityKey = String(severity || "medium").toLowerCase();
     const borderColorCss = cssVar(`--hotspot-severity-${severityKey}-color`, cssVar("--warzone-event-marker-border-color", colorCss));
     const borderAlpha = Math.max(0, Math.min(1, numberVar(`--hotspot-severity-${severityKey}-alpha`, 0.86)));
-    const borderWidthPx = Math.max(0, numberVar(`--hotspot-severity-${severityKey}-width`, numberVar("--hotspot-border-width", 4)));
-    const glowPx = Math.max(0, numberVar(`--hotspot-severity-${severityKey}-glow`, numberVar("--hotspot-glow", 12)));
+    const borderWidthPx = Math.max(0, numberVar(`--event-marker-ring-width-${severityKey}`, numberVar(`--hotspot-severity-${severityKey}-width`, numberVar("--hotspot-border-width", 4))));
+    const glowPx = Math.max(0, numberVar(`--event-marker-ring-glow-${severityKey}`, numberVar(`--hotspot-severity-${severityKey}-glow`, numberVar("--hotspot-glow", 12))));
     const canvasSize = Math.max(512, Math.min(2048, Math.round(numberVar("--warzone-event-marker-canvas-size", 1024))));
     const key = `cluster:${colorCss}:${Math.min(count, 999)}:${discScale}:${borderColorCss}:${borderAlpha}:${borderWidthPx}:${glowPx}:${canvasSize}`;
     if (markerCache.has(key)) return markerCache.get(key);
@@ -1888,6 +1901,10 @@ function createClusterMarkerCanvas(colorCss, count, severity = "medium") {
     canvas.width = sz;
     canvas.height = sz;
     const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.clearRect(0, 0, sz, sz);
     ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
     ctx.shadowColor = colorCssWithAlpha(borderColorCss, borderAlpha * 0.72);
@@ -2082,13 +2099,25 @@ function getEventMarkerText(event = {}) {
     };
     return labels[domain] || "Event";
 }
+function formatEventMarkerLabelText(text = "Event") {
+    const normalized = String(text || "Event").trim().replace(/\s+/g, " ").toUpperCase();
+    const fontSizePx = Math.max(1, cssLengthPixelVar("--event-marker-label-size", 13));
+    const letterSpacingPx = Math.max(0, cssLengthPixelVar("--event-marker-label-letter-spacing", 2));
+    if (!letterSpacingPx) return normalized;
+    const thinSpaceCount = Math.max(1, Math.min(3, Math.round(letterSpacingPx / (fontSizePx * 0.2))));
+    const characterSpacer = "\u2009".repeat(thinSpaceCount);
+    return normalized
+        .split(" ")
+        .map((word) => Array.from(word).join(characterSpacer))
+        .join(`${characterSpacer}${characterSpacer}${characterSpacer}`);
+}
 function createEventMarkerTextLabel(text = "Event") {
     return {
-        text: String(text || "Event"),
-        font: `700 ${cssVar("--event-marker-label-size", "12px")} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
+        text: formatEventMarkerLabelText(text),
+        font: `700 ${cssVar("--event-marker-label-size", "13px")} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
         fillColor: colorFromCssVar("--warzone-event-marker-text-color", "#ffffff", 0.98),
         outlineColor: Cesium.Color.BLACK.withAlpha(0.94),
-        outlineWidth: 3,
+        outlineWidth: Math.max(0, numberVar("--event-marker-label-outline-width", 2)),
         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -2097,8 +2126,11 @@ function createEventMarkerTextLabel(text = "Event") {
         disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
         zIndex: 1000,
         showBackground: true,
-        backgroundColor: Cesium.Color.BLACK.withAlpha(numberVar("--event-marker-label-background-alpha", 0.68)),
-        backgroundPadding: new Cesium.Cartesian2(7, 4),
+        backgroundColor: Cesium.Color.BLACK.withAlpha(numberVar("--event-marker-label-background-alpha", 0.82)),
+        backgroundPadding: new Cesium.Cartesian2(
+            numberVar("--event-marker-label-padding-x", 8),
+            numberVar("--event-marker-label-padding-y", 5)
+        ),
     };
 }
 function createEventCountEntity(event) {
@@ -2234,7 +2266,7 @@ function createEventSatelliteBadgeEntity(event, options = {}) {
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
             show: satelliteVisible && showAtCurrentZoom,
         },
         properties: {
@@ -2696,7 +2728,7 @@ function bindEventMarkerPicking(viewer) {
         const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
         const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
         viewer.scene.canvas.style.cursor = satelliteEntity || eventEntity ? "pointer" : "";
-        viewer.scene.canvas.title = satelliteEntity ? "Open satellite observation" : (eventEntity ? "Click event circle for details" : "");
+        viewer.scene.canvas.title = satelliteEntity ? "Satellite Observation - open imagery viewer" : (eventEntity ? "Click event circle for details" : "");
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     handler.setInputAction((movement) => {
         if (!movement?.position) return;
@@ -6000,6 +6032,7 @@ function alphaRampFromOrigin(t) {
 }
 /* ---------- Audio ---------- */
 function safeCreateAudio(src, volume = 1, loop = false) {
+    if (!isStratOpsFeatureEnabled("system.audio")) return null;
     try {
         const audio = new Audio(src);
         audio.preload = "auto";
@@ -6023,6 +6056,7 @@ function ensureAudioStore(viewer) {
     return viewer.__warzoneAudio;
 }
 function startMissileAlertSound(viewer) {
+    if (!isStratOpsFeatureEnabled("system.audio")) return;
     const store = ensureAudioStore(viewer);
     store.activeAlertCount += 1;
     if (store.activeAlertCount === 1 && store.alertLoop) {

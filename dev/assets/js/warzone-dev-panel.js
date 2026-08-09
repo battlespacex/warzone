@@ -2,8 +2,12 @@
 import * as Cesium from "cesium";
 import {
     handleIncomingEvent,
+    openSatelliteImageryViewer,
+    setDevEventPopupInspectionFrozen,
     triggerWarzoneAlert
 } from "./essential.js";
+import { isLayerEnabled, setLayer } from "./warzone-layers.js";
+import { clearSweepers, renderSweepers } from "./warzone-sweeper.js";
 import {
     startDevTrackSimulation,
     stopDevTrackSimulation,
@@ -1262,13 +1266,36 @@ function getDevEventPreviewEvent() {
     const placement = getDevEventPreviewPlacement();
     return {
         id: DEV_EVENT_UI_PREVIEW_ID,
-        title: "Cruise Missile Strike - DEV Popup Preview",
-        summary: "Preview event for setting marker circle, dot color, ring scale, and detail popup layout.",
+        title: "DEV UAV Interception at Inspection Point",
+        display_title: "DEV UAV Interception at Inspection Point",
+        summary: "DEV PREVIEW ONLY. AIR DEFENCE / CORROBORATED activity at an EXACT named facility, retained as static representative content for popup CSS inspection.",
+        display_summary: "DEV PREVIEW ONLY. AIR DEFENCE / CORROBORATED activity at an EXACT named facility, retained as static representative content for popup CSS inspection.",
         category: "strike",
-        severity: "high",
-        weapon_type: "cruise_missile",
-        location_label: "Preview Location",
+        dominant_domain: "AIR_DEFENCE",
+        severity: "critical",
+        confidence: 92,
+        verification_state: "CORROBORATED",
+        weapon_type: "uav_interception",
+        location_label: "Viewport Inspection Point (EXACT)",
+        display_location_label: "Viewport Inspection Point (EXACT)",
+        location_precision: "EXACT",
+        location_confidence: 0.96,
+        event_country: "DEV FIXTURE",
+        event_city: "Viewport AOI",
+        event_place: "Inspection Point",
         occurred_at: new Date().toISOString(),
+        source_name: "DEV PANEL FIXTURE",
+        display_source_name: "DEV PANEL FIXTURE",
+        source_url: getDevFixtureSourceUrl("event-popup"),
+        primary_image: {
+            preview_url: getDevFixtureImageUrl(),
+            full_url: getDevFixtureImageUrl(),
+            alt: "DEV event media preview",
+        },
+        image_source: "DEV PANEL",
+        image_caption: "Representative DEV-only event media area.",
+        image_credit: "StratOps DEV Fixture",
+        image_type: "DEV Preview",
         lat: placement.lat,
         lon: placement.lon,
         screenPosition: placement.screenPosition,
@@ -1282,14 +1309,31 @@ function openDevEventUiPreview(logAction = true) {
     globe?.addEvent?.(event);
     document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
         detail: {
+            id: event.id,
             title: event.title,
+            displayTitle: event.display_title,
             summary: event.summary,
+            displaySummary: event.display_summary,
             category: event.category,
             severity: event.severity,
+            confidence: event.confidence,
+            verificationState: event.verification_state,
+            dominantDomain: event.dominant_domain,
             locationLabel: event.location_label,
+            locationPrecision: event.location_precision,
             occurredAt: event.occurred_at,
             weaponType: event.weapon_type,
+            sourceName: event.source_name,
+            sourceUrl: event.source_url,
+            lat: event.lat,
+            lon: event.lon,
+            primaryImage: event.primary_image,
+            imageSource: event.image_source,
+            imageCaption: event.image_caption,
+            imageCredit: event.image_credit,
+            imageType: event.image_type,
             screenPosition: event.screenPosition,
+            devInspectionPreview: true,
         },
     }));
     __devEventUiPreviewVisible = true;
@@ -2329,7 +2373,317 @@ function initLiveAssetTunerControls() {
     setDevStaticTunerSelection(__devStaticTunerSelected);
 }
 
+const DEV_SATELLITE_OBSERVATION_ID = "dev-satellite-observation-preview";
+const DEV_RADAR_FIXTURE = Object.freeze({
+    id: "dev-radar-sweeper-preview",
+    title: "DEV Air Defense Radar Preview",
+    summary: "Developer-only radar sweeper fixture for visual inspection.",
+    category: "military",
+    subcategory: "air_defense",
+    weapon_type: "sam_radar",
+    severity: "high",
+    location_label: "Viewport DEV Radar Preview",
+    occurred_at: "2026-08-08T12:00:00Z",
+    source_name: "DEV PANEL",
+});
+let __devSatelliteTriggerHighlightTimer = 0;
+let __devRadarForcedVisible = false;
+
+function getDevRadarFixture() {
+    const placement = getDevEventPreviewPlacement();
+    return {
+        ...DEV_RADAR_FIXTURE,
+        lat: placement.lat,
+        lon: placement.lon,
+    };
+}
+
+function getDevFixtureImageUrl() {
+    const origin = String(window.location.origin || "");
+    const base = origin && origin !== "null" ? origin : "http://localhost";
+    return new URL("/assets/images/web/StratOps-Briefing-Background-2.jpg", base).href;
+}
+
+function getDevFixtureSourceUrl(kind = "event") {
+    const origin = String(window.location.origin || "");
+    const base = origin && origin !== "null" ? origin : "http://localhost";
+    return new URL(`/dev-fixtures/${kind}`, base).href;
+}
+
+function getDevSatelliteObservationDetail() {
+    const imageUrl = getDevFixtureImageUrl();
+    return {
+        id: DEV_SATELLITE_OBSERVATION_ID,
+        title: "DEV Satellite Observation - Beirut Port",
+        displayTitle: "DEV Satellite Observation - Beirut Port",
+        summary: "DEV PREVIEW ONLY. Representative contextual imagery for inspecting the real Satellite Imagery Viewer layout, metadata and controls.",
+        displaySummary: "DEV PREVIEW ONLY. Representative contextual imagery for inspecting the real Satellite Imagery Viewer layout, metadata and controls.",
+        lat: 33.9014,
+        lon: 35.5196,
+        locationLabel: "Beirut Port DEV AOI, Lebanon",
+        occurredAt: new Date().toISOString(),
+        sourceName: "DEV PANEL FIXTURE",
+        sourceUrl: getDevFixtureSourceUrl("satellite-observation"),
+        confidence: 87,
+        status: "CORROBORATED",
+        devInspectionPreview: true,
+        satelliteContext: {
+            status: "available",
+            provider: "Copernicus DEV Fixture",
+            collection: "sentinel-2-l2a",
+            observationType: "Sentinel-2A MSI",
+            acquisitionTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+            eventTimeRelation: "after",
+            cloudCover: 8,
+            imageUrl,
+            width: 1600,
+            height: 900,
+            imageryType: "Optical RGB DEV Preview",
+            approximateResolution: "10 m / pixel",
+            disclaimer: "DEV PREVIEW ONLY. No Supabase record is created and this image is not operational evidence.",
+        },
+    };
+}
+
+function getDevSatelliteObservationEvent() {
+    const detail = getDevSatelliteObservationDetail();
+    return {
+        id: detail.id,
+        title: detail.title,
+        display_title: detail.displayTitle,
+        summary: detail.summary,
+        display_summary: detail.displaySummary,
+        category: "recon_intel",
+        subcategory: "satellite_observation",
+        severity: "high",
+        confidence: detail.confidence,
+        verification_state: detail.status,
+        lat: detail.lat,
+        lon: detail.lon,
+        event_country: "Lebanon",
+        event_city: "Beirut",
+        event_place: "Beirut Port DEV AOI",
+        location_label: detail.locationLabel,
+        display_location_label: detail.locationLabel,
+        location_precision: "EXACT",
+        location_confidence: 0.92,
+        occurred_at: detail.occurredAt,
+        source_name: detail.sourceName,
+        display_source_name: detail.sourceName,
+        source_url: detail.sourceUrl,
+        satellite_context: detail.satelliteContext,
+    };
+}
+
+function ensureDevSatelliteObservationMarker() {
+    const globe = window.__warzoneViewer?.__warzone;
+    if (!globe) return null;
+    setLayer("satellite-imagery", true);
+    globe.setSatelliteImageryLayerVisible?.(true);
+    globe.removeEvent?.(DEV_SATELLITE_OBSERVATION_ID);
+    globe.addEvent?.(getDevSatelliteObservationEvent());
+    window.__warzoneViewer?.scene?.requestRender?.();
+    return window.__warzoneViewer?.entities?.getById?.(`${DEV_SATELLITE_OBSERVATION_ID}-satellite-imagery`) || null;
+}
+
+function highlightDevSatelliteTrigger(entity) {
+    const billboard = entity?.billboard;
+    if (!billboard) return false;
+    window.clearTimeout(__devSatelliteTriggerHighlightTimer);
+    const now = Cesium.JulianDate.now();
+    const originalWidth = Number(billboard.width?.getValue?.(now) || 42);
+    const originalHeight = Number(billboard.height?.getValue?.(now) || originalWidth);
+    const originalColor = billboard.color?.getValue?.(now)?.clone?.() || Cesium.Color.WHITE;
+    const highlightSize = Math.max(originalWidth, getRootCssNumber("--warzone-dev-satellite-trigger-highlight-size-px", 64));
+    const highlightColor = Cesium.Color.fromCssColorString(
+        getRootCssText("--warzone-dev-satellite-trigger-highlight-color", "#ffd24d")
+    ) || Cesium.Color.YELLOW;
+    billboard.show = true;
+    billboard.width = highlightSize;
+    billboard.height = highlightSize;
+    billboard.color = highlightColor;
+    window.__warzoneViewer?.scene?.requestRender?.();
+    __devSatelliteTriggerHighlightTimer = window.setTimeout(() => {
+        billboard.width = originalWidth;
+        billboard.height = originalHeight;
+        billboard.color = originalColor;
+        window.__warzoneViewer?.scene?.requestRender?.();
+    }, Math.max(500, getRootCssNumber("--warzone-dev-satellite-trigger-highlight-ms", 4200)));
+    return true;
+}
+
+function locateDevSatelliteTrigger() {
+    const viewer = window.__warzoneViewer;
+    const entity = ensureDevSatelliteObservationMarker();
+    if (!viewer || !entity) {
+        devLog("Satellite observation trigger is not available");
+        return false;
+    }
+    let highlighted = false;
+    const highlightOnce = () => {
+        if (highlighted) return;
+        highlighted = true;
+        highlightDevSatelliteTrigger(entity);
+    };
+    viewer.camera.cancelFlight?.();
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(35.5196, 33.9014, 280000),
+        duration: 0.9,
+        complete: highlightOnce,
+        cancel: highlightOnce,
+    });
+    window.setTimeout(highlightOnce, 1050);
+    devLog("Located and highlighted the existing Satellite Observation trigger");
+    return true;
+}
+
+function buildDevHotspotPreviewEvents() {
+    const now = Date.now();
+    const localities = [
+        { city: "Beirut", country: "Lebanon", lat: 33.8938, lon: 35.5018, domain: "strike", weapon: "airstrike" },
+        { city: "Haifa", country: "Israel", lat: 32.7940, lon: 34.9896, domain: "air_activity", weapon: "uav" },
+        { city: "Damascus", country: "Syria", lat: 33.5138, lon: 36.2765, domain: "strike", weapon: "missile" },
+        { city: "Amman", country: "Jordan", lat: 31.9539, lon: 35.9106, domain: "military", weapon: "air_defense" },
+    ];
+    return localities.flatMap((locality, localityIndex) => Array.from({ length: 3 }, (_, itemIndex) => ({
+        id: `dev-hotspot-${locality.city.toLowerCase()}-${itemIndex + 1}`,
+        title: `DEV ${locality.city} ${locality.weapon.replace(/_/g, " ")} activity ${itemIndex + 1}`,
+        summary: "Developer-only hotspot fixture rendered through the production hotspot UX.",
+        category: locality.domain,
+        weapon_type: locality.weapon,
+        severity: itemIndex === 0 ? "critical" : (itemIndex === 1 ? "high" : "medium"),
+        confidence: 82 + itemIndex,
+        verification_state: itemIndex === 0 ? "CORROBORATED" : "REPORTED",
+        lat: locality.lat + itemIndex * 0.012,
+        lon: locality.lon + itemIndex * 0.014,
+        event_country: locality.country,
+        event_city: locality.city,
+        event_place: `${locality.city} DEV AOI ${itemIndex + 1}`,
+        location_label: `${locality.city}, ${locality.country}`,
+        display_location_label: `${locality.city}, ${locality.country}`,
+        location_precision: itemIndex === 0 ? "EXACT" : "LOCAL",
+        location_confidence: 0.88,
+        occurred_at: new Date(now - ((localityIndex * 3 + itemIndex + 1) * 32 * 60 * 1000)).toISOString(),
+        source_name: "DEV PANEL",
+        source_quality_score: 0.84,
+        independent_source_family_count: itemIndex + 1,
+    })));
+}
+
+function openDevHotspotUxPreview(zoomState) {
+    const hotspotLayer = window.__hotspotLayer;
+    if (!hotspotLayer?.setDevInspectionPreview) {
+        devLog("Hotspot layer is not ready");
+        return false;
+    }
+    setLayer("hotspots", true);
+    hotspotLayer.setDevInspectionPreview({ events: buildDevHotspotPreviewEvents(), zoomState });
+    const heightByState = { REGIONAL: 5900000, LOCAL_STACK: 3300000, LOCALITY: 1250000 };
+    window.__warzoneViewer?.camera?.flyTo?.({
+        destination: Cesium.Cartesian3.fromDegrees(35.55, 33.45, heightByState[zoomState] || 3300000),
+        duration: 0.8,
+    });
+    devLog(`Opened ${zoomState} hotspot UX preview`);
+    return true;
+}
+
+function clearDevHotspotUxPreview() {
+    window.__hotspotLayer?.clearDevInspectionPreview?.();
+    devLog("Resumed live hotspot UX");
+}
+
+function syncDevVisualInspectionControls() {
+    const radarEnabled = isLayerEnabled("sweepers");
+    const satelliteEnabled = isLayerEnabled("satellite-imagery");
+    const setPressed = (id, pressed) => document.getElementById(id)?.setAttribute("aria-pressed", pressed ? "true" : "false");
+    setPressed("wz-dev-radar-enable", radarEnabled);
+    setPressed("wz-dev-radar-disable", !radarEnabled);
+    setPressed("wz-dev-radar-force", __devRadarForcedVisible);
+    setPressed("wz-dev-satellite-enable", satelliteEnabled);
+    setPressed("wz-dev-satellite-disable", !satelliteEnabled);
+    const status = document.getElementById("wz-dev-map-visuals-status");
+    if (status) status.textContent = `Radar ${radarEnabled ? "ON" : "OFF"} / Satellite ${satelliteEnabled ? "ON" : "OFF"}`;
+}
+
+function initDevVisualInspectionControls() {
+    const root = document.getElementById("wz-dev-visual-inspection");
+    if (!root || root.dataset.bound === "1") return;
+    root.dataset.bound = "1";
+    setLayer("sweepers", true);
+    setLayer("satellite-imagery", true);
+    window.__warzoneViewer?.__warzone?.setSatelliteImageryLayerVisible?.(true);
+    if (window.__warzoneViewer) {
+        __devRadarForcedVisible = true;
+        renderSweepers(window.__warzoneViewer, [getDevRadarFixture()]);
+    }
+
+    document.getElementById("wz-dev-radar-enable")?.addEventListener("click", () => {
+        __devRadarForcedVisible = false;
+        setLayer("sweepers", true);
+        syncDevVisualInspectionControls();
+    });
+    document.getElementById("wz-dev-radar-disable")?.addEventListener("click", () => {
+        __devRadarForcedVisible = false;
+        setLayer("sweepers", false);
+        clearSweepers(window.__warzoneViewer);
+        syncDevVisualInspectionControls();
+    });
+    document.getElementById("wz-dev-radar-force")?.addEventListener("click", () => {
+        __devRadarForcedVisible = true;
+        setLayer("sweepers", true);
+        renderSweepers(window.__warzoneViewer, [getDevRadarFixture()]);
+        syncDevVisualInspectionControls();
+        devLog("Forced the real radar sweeper renderer visible with a DEV fixture");
+    });
+    document.getElementById("wz-dev-satellite-enable")?.addEventListener("click", () => {
+        setLayer("satellite-imagery", true);
+        window.__warzoneViewer?.__warzone?.setSatelliteImageryLayerVisible?.(true);
+        syncDevVisualInspectionControls();
+    });
+    document.getElementById("wz-dev-satellite-disable")?.addEventListener("click", () => {
+        setLayer("satellite-imagery", false);
+        syncDevVisualInspectionControls();
+    });
+    document.getElementById("wz-dev-satellite-refresh")?.addEventListener("click", () => {
+        ensureDevSatelliteObservationMarker();
+        syncDevVisualInspectionControls();
+        devLog("Refreshed the Satellite Observation DEV fixture");
+    });
+    document.getElementById("wz-dev-satellite-viewer-open")?.addEventListener("click", () => {
+        setLayer("satellite-imagery", true);
+        openSatelliteImageryViewer(getDevSatelliteObservationDetail());
+        syncDevVisualInspectionControls();
+        devLog("Opened the real Satellite Imagery Viewer with DEV content");
+    });
+    document.getElementById("wz-dev-satellite-trigger-locate")?.addEventListener("click", locateDevSatelliteTrigger);
+    document.getElementById("wz-dev-popup-open")?.addEventListener("click", () => openDevEventUiPreview());
+    document.getElementById("wz-dev-popup-freeze")?.addEventListener("click", () => {
+        if (document.getElementById("wz-event-popup")?.hidden !== false) openDevEventUiPreview(false);
+        setDevEventPopupInspectionFrozen(true);
+        const status = document.getElementById("wz-dev-popup-freeze-status");
+        if (status) status.textContent = "Popup frozen";
+        devLog("Event popup frozen for DOM inspection");
+    });
+    document.getElementById("wz-dev-popup-resume")?.addEventListener("click", () => {
+        setDevEventPopupInspectionFrozen(false);
+        const status = document.getElementById("wz-dev-popup-freeze-status");
+        if (status) status.textContent = "Popup live";
+        devLog("Event popup resumed normal live behavior");
+    });
+    document.getElementById("wz-dev-popup-refresh")?.addEventListener("click", () => openDevEventUiPreview());
+    document.getElementById("wz-dev-hotspot-regional")?.addEventListener("click", () => openDevHotspotUxPreview("REGIONAL"));
+    document.getElementById("wz-dev-hotspot-stack")?.addEventListener("click", () => openDevHotspotUxPreview("LOCAL_STACK"));
+    document.getElementById("wz-dev-hotspot-locality")?.addEventListener("click", () => openDevHotspotUxPreview("LOCALITY"));
+    document.getElementById("wz-dev-hotspot-event")?.addEventListener("click", () => {
+        clearDevHotspotUxPreview();
+        openDevEventUiPreview();
+    });
+    document.getElementById("wz-dev-hotspot-resume-live")?.addEventListener("click", clearDevHotspotUxPreview);
+    syncDevVisualInspectionControls();
+}
+
 const DEV_PANEL_SECTIONS = [
+    { value: "visual-inspection", label: "Visual Component Inspection" },
     { value: "event-hotspots", label: "Event Markers / Hotspots" },
     { value: "live-aircraft", label: "Live Aircraft Settings" },
     { value: "live-naval", label: "Live Naval Settings" },
@@ -2410,7 +2764,7 @@ function initDevPanelSectionFilter() {
     select?.addEventListener("change", () => {
         applyDevPanelSectionFilter(select.value);
     });
-    applyDevPanelSectionFilter("event-hotspots");
+    applyDevPanelSectionFilter("visual-inspection");
 }
 
 function getDevMapApi() {
@@ -3053,6 +3407,7 @@ export function initDevPanel() {
     initDevSimulatorControls();
     initMapTunerControls();
     initDevEventUiTunerControls();
+    initDevVisualInspectionControls();
     initDevOrbitalUiTunerControls();
     initDevStartupSceneTunerControls();
     initIntroStartupSceneTunerControls();
@@ -3060,6 +3415,7 @@ export function initDevPanel() {
     annotateDevPanelSections();
     initDevPanelAccordions();
     initDevPanelSectionFilter();
+    showFullDevPanel();
     devLog("Dev panel ready");
 }
 

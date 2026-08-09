@@ -243,6 +243,60 @@
             <button type="button" id="wz-dev-naval-calibrate" class="warzone-btn">
                 Naval Calibration Mode
             </button>
+
+            <div class="wz-dev-label" data-wz-dev-section="visual-inspection">VISUAL COMPONENT INSPECTION</div>
+            <div id="wz-dev-visual-inspection" class="wz-dev-map-tuner wz-dev-inspection" data-wz-dev-section="visual-inspection">
+                <section class="wz-dev-inspection__group" aria-labelledby="wz-dev-map-visuals-title">
+                    <div class="wz-dev-inspection__head">
+                        <strong id="wz-dev-map-visuals-title">MAP / VISUALS</strong>
+                        <span id="wz-dev-map-visuals-status">Checking layers...</span>
+                    </div>
+                    <span class="wz-dev-inspection__label">Radar Sweeper</span>
+                    <div class="wz-dev-actions">
+                        <button type="button" id="wz-dev-radar-enable" class="wz-dev-action">Enable</button>
+                        <button type="button" id="wz-dev-radar-disable" class="wz-dev-action">Disable</button>
+                        <button type="button" id="wz-dev-radar-force" class="wz-dev-action wz-dev-action--fire">Force Visible</button>
+                    </div>
+                    <span class="wz-dev-inspection__label">Satellite Observations</span>
+                    <div class="wz-dev-actions">
+                        <button type="button" id="wz-dev-satellite-enable" class="wz-dev-action">Enable</button>
+                        <button type="button" id="wz-dev-satellite-disable" class="wz-dev-action">Disable</button>
+                        <button type="button" id="wz-dev-satellite-refresh" class="wz-dev-action">Refresh</button>
+                    </div>
+                </section>
+
+                <section class="wz-dev-inspection__group" aria-labelledby="wz-dev-satellite-ui-title">
+                    <div class="wz-dev-inspection__head">
+                        <strong id="wz-dev-satellite-ui-title">SATELLITE UI</strong>
+                    </div>
+                    <div class="wz-dev-actions">
+                        <button type="button" id="wz-dev-satellite-viewer-open" class="wz-dev-action wz-dev-action--fire">Open Imagery Viewer</button>
+                        <button type="button" id="wz-dev-satellite-trigger-locate" class="wz-dev-action">Locate Satellite Trigger</button>
+                    </div>
+                </section>
+
+                <section class="wz-dev-inspection__group" aria-labelledby="wz-dev-hotspot-ui-title">
+                    <div class="wz-dev-inspection__head">
+                        <strong id="wz-dev-hotspot-ui-title">HOTSPOT UI</strong>
+                        <span id="wz-dev-popup-freeze-status">Popup live</span>
+                    </div>
+                    <div class="wz-dev-actions">
+                        <button type="button" id="wz-dev-popup-open" class="wz-dev-action wz-dev-action--fire">Open Event Popup</button>
+                        <button type="button" id="wz-dev-popup-freeze" class="wz-dev-action">Freeze</button>
+                        <button type="button" id="wz-dev-popup-resume" class="wz-dev-action">Resume</button>
+                        <button type="button" id="wz-dev-popup-refresh" class="wz-dev-action">Refresh Fixture</button>
+                    </div>
+                    <span class="wz-dev-inspection__label">Hotspot UX Preview</span>
+                    <div class="wz-dev-actions">
+                        <button type="button" id="wz-dev-hotspot-regional" class="wz-dev-action">Regional Hotspot</button>
+                        <button type="button" id="wz-dev-hotspot-stack" class="wz-dev-action">Local Activity Stack</button>
+                        <button type="button" id="wz-dev-hotspot-locality" class="wz-dev-action">Locality Cluster</button>
+                        <button type="button" id="wz-dev-hotspot-event" class="wz-dev-action">Event Marker / Popup</button>
+                        <button type="button" id="wz-dev-hotspot-resume-live" class="wz-dev-action">Resume Live Hotspots</button>
+                    </div>
+                </section>
+            </div>
+
             <div class="wz-dev-label">POPUPS</div>
             <div class="wz-dev-actions">
                 <button type="button" id="wz-dev-open-event-popup" class="wz-dev-action wz-dev-action--fire">Event Marker + Popup</button>

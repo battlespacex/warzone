@@ -129,6 +129,7 @@ let __lastOverlaySourceKey = "__empty__";
 let __lastOverlayClusterRadiusBucket = "";
 let __cachedOverlayClusters = [];
 let __lastNavalSignalsSyncKey = "__empty__";
+let __eventPopupDevInspectionFrozen = false;
 let __foregroundRenderModeRestoreTimer = 0;
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
@@ -2078,15 +2079,19 @@ function ensureSatelliteImageryViewer() {
     viewer.setAttribute("aria-modal", "true");
     viewer.setAttribute("aria-labelledby", "wz-satellite-imagery-title");
     viewer.innerHTML = `
-        <div class="wz-satellite-imagery-viewer__panel">
-            <header class="wz-satellite-imagery-viewer__head">
-                <div>
-                    <span class="wz-satellite-imagery-viewer__kicker">Satellite Observation</span>
-                    <h3 id="wz-satellite-imagery-title">Observation</h3>
-                </div>
-                <button type="button" class="wz-satellite-imagery-viewer__close" data-satellite-imagery-close aria-label="Close satellite observation viewer">×</button>
-            </header>
-            <div class="wz-satellite-imagery-viewer__body" data-satellite-imagery-body></div>
+        <div class="wz-modal-inner wz-satellite-imagery-viewer__panel">
+            <header class="panel-head wz-satellite-imagery-viewer__head">
+                    <span class="wz-header-title">
+                        <small>Satellite Observation</small>
+                        <h3 id="wz-satellite-imagery-title">Observation</h3>
+                    </span>
+                    <span class="wz-close-modal">
+                        <button type="button" class="wz-satellite-imagery-viewer__close static-icon stratops-ico-close-1"
+                        data-satellite-imagery-close aria-label="Close satellite observation viewer">
+                        </button>
+                    </span>
+                </header>
+            <div class="wz-modal-body wz-satellite-imagery-viewer__body" data-satellite-imagery-body></div>
         </div>
     `;
     document.body.appendChild(viewer);
@@ -2103,7 +2108,7 @@ function closeSatelliteImageryViewer() {
     viewer.hidden = true;
     viewer.classList.remove("is-visible", "is-loading", "has-error");
 }
-function openSatelliteImageryViewer(detail = {}) {
+export function openSatelliteImageryViewer(detail = {}) {
     const context = normalizeSatelliteContextForPopup(detail.satelliteContext || detail.satellite_context || null);
     if (!context || context.status !== "available" || !context.imageUrl) {
         debugSatelliteImagery("ignored unavailable observation", detail);
@@ -2119,7 +2124,13 @@ function openSatelliteImageryViewer(detail = {}) {
     const collectionLabel = getSatelliteCollectionLabel(context.collection);
     const relationLabel = formatSatelliteRelation(context.eventTimeRelation);
     const sourceUrl = String(detail.sourceUrl || "").trim();
+    const devPreview = detail.devInspectionPreview === true && isDevInspectionEnvironment();
     const metaRows = [
+        ...(devPreview ? [
+            ["Platform", context.observationType || "DEV Platform"],
+            ["Status", String(detail.status || context.status || "available").toUpperCase()],
+            ["Confidence", Number.isFinite(Number(detail.confidence)) ? `${Math.round(Number(detail.confidence))}%` : ""],
+        ] : []),
         ["Provider", context.provider],
         ["Collection", collectionLabel],
         ["Acquisition", context.acquisitionTime ? formatSatelliteUtcTime(context.acquisitionTime) : ""],
@@ -2495,7 +2506,8 @@ function bindGlobeEventPopup() {
     let popupSatelliteOpen = false;
     let popupTrackingViewer = null;
     const popupScreenScratch = new Cesium.Cartesian2();
-    const hidePopup = () => {
+    const hidePopup = (options = {}) => {
+        if (__eventPopupDevInspectionFrozen && options?.force !== true) return;
         activePopupAnchor = null;
         activePopupDetail = null;
         popupMediaIndex = 0;
@@ -2614,6 +2626,7 @@ function bindGlobeEventPopup() {
     };
     const syncAnchoredPopupPosition = () => {
         if (popup.hidden || !activePopupAnchor) return;
+        if (__eventPopupDevInspectionFrozen) return;
         const screenPosition = getPopupAnchorScreenPosition();
         if (!screenPosition) {
             hidePopup();
@@ -2666,6 +2679,7 @@ function bindGlobeEventPopup() {
         });
     };
     const showPopup = (detail = {}) => {
+        if (__eventPopupDevInspectionFrozen && detail?.devInspectionPreview !== true) return;
         const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
         const categoryLabel = sanitizeEventPopupText(
             getPlatformCategoryLabel(detail, { surface: "popup", fallback: "Event" }),
@@ -2681,6 +2695,7 @@ function bindGlobeEventPopup() {
         const sourceUrl = String(detail.sourceUrl || "").trim();
         const confidenceValue = Number(detail.confidence);
         activePopupDetail = { ...detail, clusterCount };
+        popup.dataset.devInspectionPreview = detail?.devInspectionPreview === true ? "1" : "0";
         popupMediaIndex = 0;
         popupSatelliteOpen = false;
         if (catEl) {
@@ -2779,7 +2794,7 @@ function bindGlobeEventPopup() {
         popupSatelliteOpen = !popupSatelliteOpen;
         renderRichSections();
     });
-    closeBtn?.addEventListener("click", hidePopup);
+    closeBtn?.addEventListener("click", () => hidePopup());
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
             hidePopup();
@@ -2795,6 +2810,26 @@ function bindGlobeEventPopup() {
         hidePopup();
         openSatelliteImageryViewer(event?.detail || {});
     });
+}
+
+function isDevInspectionEnvironment() {
+    if (import.meta.env?.DEV === true) return true;
+    const hostname = String(window.location?.hostname || "").toLowerCase();
+    return hostname === "localhost"
+        || hostname === "127.0.0.1"
+        || hostname === ""
+        || hostname.includes("staging");
+}
+
+export function setDevEventPopupInspectionFrozen(frozen = false) {
+    if (!isDevInspectionEnvironment()) return false;
+    __eventPopupDevInspectionFrozen = frozen === true;
+    const popup = document.getElementById("wz-event-popup");
+    if (popup) {
+        popup.dataset.devInspectionFrozen = __eventPopupDevInspectionFrozen ? "1" : "0";
+    }
+    window.__warzoneViewer?.scene?.requestRender?.();
+    return __eventPopupDevInspectionFrozen;
 }
 function getEventMetadata(event = {}) {
     const raw = event?.metadata;
@@ -11172,7 +11207,7 @@ function scheduleAdaptivePerformanceGuard(viewer) {
 export function schedulePostEntryActions(viewer) {
     applyStratOpsFeatureVisibility();
 
-    if (import.meta.env?.DEV === true) {
+    if (isDevInspectionEnvironment()) {
         import("./pre-entry-dev-panel.js")
             .then((module) => {
                 module.initLocalDevPanelOnly?.();

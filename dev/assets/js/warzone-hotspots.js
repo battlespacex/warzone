@@ -1204,6 +1204,7 @@ export function isHotspotReconciliationDue(now, lastReconcile, throttleMs) {
 export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     if (!viewer || !rootEl) return null;
     let allEvents = [];
+    let devInspectionPreview = null;
     let expandedId = null;
     let destroyed = false;
     let clustersDirty = true;
@@ -1305,7 +1306,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         const offY = canvasRect.top - overlayRect.top;
         rootEl.style.setProperty("--wzhs-perspective-tilt", getHotspotPerspectiveTilt(viewer));
         const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
-        const zoomState = getHotspotZoomState(viewer);
+        const zoomState = devInspectionPreview?.zoomState || getHotspotZoomState(viewer);
+        const renderedEvents = devInspectionPreview?.events || allEvents;
         const clusterBucket = getClusterBucketForZoomState(zoomState, zoomCfg.key);
         anchorViewport = {
             offsetX: offX,
@@ -1320,7 +1322,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         if (clustersDirty || lastZoomConfigKey !== clusterCacheKey) {
             cachedClusters = zoomState === ZOOM_UX_STATES.EVENT
                 ? []
-                : geoCluster(allEvents, clusterBucket, cfg.minItemsForCluster, zoomCfg.maxCards);
+                : geoCluster(renderedEvents, clusterBucket, cfg.minItemsForCluster, zoomCfg.maxCards);
             clustersDirty = false;
             lastZoomConfigKey = clusterCacheKey;
         }
@@ -1528,6 +1530,28 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             allEvents = normalized;
             lastEventsSignature = nextSignature;
             clustersDirty = true;
+            viewer.scene.requestRender();
+            scheduleRender(0);
+        },
+        setDevInspectionPreview({ events = [], zoomState = ZOOM_UX_STATES.REGIONAL } = {}) {
+            const allowedStates = new Set(Object.values(ZOOM_UX_STATES));
+            const normalizedState = allowedStates.has(zoomState) ? zoomState : ZOOM_UX_STATES.REGIONAL;
+            const normalizedEvents = (Array.isArray(events) ? events : [])
+                .filter((evt) => evt && Number.isFinite(Number(evt.lat)) && Number.isFinite(Number(evt.lon)))
+                .map((evt) => normalizeEventForDisplay(evt))
+                .slice(0, Math.max(12, Number(cfg.maxEvents || 1800)));
+            devInspectionPreview = { events: normalizedEvents, zoomState: normalizedState };
+            rootEl.dataset.devInspectionPreview = "1";
+            clustersDirty = true;
+            lastZoomConfigKey = "";
+            viewer.scene.requestRender();
+            scheduleRender(0);
+        },
+        clearDevInspectionPreview() {
+            devInspectionPreview = null;
+            delete rootEl.dataset.devInspectionPreview;
+            clustersDirty = true;
+            lastZoomConfigKey = "";
             viewer.scene.requestRender();
             scheduleRender(0);
         },

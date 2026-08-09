@@ -242,6 +242,9 @@
     --warzone-satellite-imagery-marker-fill-alpha: 0.88;
     --warzone-satellite-imagery-marker-ring-alpha: 0.36;
     --warzone-satellite-imagery-marker-size-px: 42;
+    --warzone-dev-satellite-trigger-highlight-color: var(--color-yellow-glow);
+    --warzone-dev-satellite-trigger-highlight-size-px: 64;
+    --warzone-dev-satellite-trigger-highlight-ms: 4200;
     --warzone-satellite-imagery-viewer-width: 82rem;
     --warzone-satellite-imagery-viewer-max-height: 82vh;
     --warzone-orbital-symbol-size: 6;
@@ -474,9 +477,13 @@
     --hotspot-local-label-collision-gap: 1rem;
     --hotspot-local-label-max-visible: 30;
     --hotspot-local-label-max-visible-small: 16;
-    --event-marker-label-size: 12px;
-    --event-marker-label-offset-x: 30;
-    --event-marker-label-background-alpha: 0.68;
+    --event-marker-label-size: 13px;
+    --event-marker-label-letter-spacing: 0.2rem;
+    --event-marker-label-offset-x: 32;
+    --event-marker-label-background-alpha: 0.82;
+    --event-marker-label-outline-width: 2;
+    --event-marker-label-padding-x: 8;
+    --event-marker-label-padding-y: 5;
     --event-marker-label-collision-gap: 8;
     --event-marker-label-viewport-pad: 8;
     --event-marker-label-max-visible: 36;
@@ -523,6 +530,14 @@
     --hotspot-severity-medium-glow: 8;
     --hotspot-severity-high-glow: 12;
     --hotspot-severity-critical-glow: 18;
+    --event-marker-ring-width-low: 1.5;
+    --event-marker-ring-width-medium: 2;
+    --event-marker-ring-width-high: 2.5;
+    --event-marker-ring-width-critical: 3;
+    --event-marker-ring-glow-low: 0;
+    --event-marker-ring-glow-medium: 0.5;
+    --event-marker-ring-glow-high: 1;
+    --event-marker-ring-glow-critical: 1.5;
     --warzone-marker-scale: 1;
     --warzone-event-markers-visible: 1;
     --warzone-event-rings-visible: 1;
@@ -580,7 +595,7 @@
     --warzone-event-hotspot-color-thermal: var(--warzone-event-hotspot-line-color);
     --warzone-event-hotspot-color-signal: var(--warzone-event-hotspot-line-color);
     --warzone-event-hotspot-color-default: var(--warzone-event-hotspot-line-color);
-    --warzone-event-marker-perspective-squash: 0.72;
+    --warzone-event-marker-perspective-squash: 0;
     --warzone-event-pulse-radius: 22000;
     --warzone-event-pulse-fill-alpha: 0.6;
     --warzone-event-pulse-outline-alpha: 0;
@@ -844,11 +859,19 @@
 /* #endregion */
 /* #region =========== Radar Sweeper =========== */
 :root {
-    --wz-radar-inner-ratio: 0.72;
-    --wz-radar-outline-width: 6;
-    --wz-radar-inner-outline-width: 5;
-    --wz-radar-center-dot-size: 6;
-    --wz-radar-sweep-alpha: 0.4;
+    --radar-color: #18e2db;
+    --radar-ring-color: #18e2db;
+    --radar-ring-opacity: 0.42;
+    --radar-ring-outer-opacity: 0.7;
+    --radar-ring-width: 1.6;
+    --radar-sweep-opacity-min: 0.02;
+    --radar-sweep-opacity-mid: 0.14;
+    --radar-sweep-opacity-max: 0.42;
+    --radar-sweep-width: 64;
+    --radar-sweep-leading-edge-width: 1.4;
+    --radar-sweep-speed: 1;
+    --radar-center-size: 4;
+    --radar-center-glow: 2;
 }
 /* #endregion =========== */
 /* #region =========== LIVE FIGHTER =========== */
