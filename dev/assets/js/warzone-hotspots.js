@@ -571,6 +571,24 @@ function dispatchHotspotEventSelection(event = {}) {
         detail: buildHotspotEventPopupDetail(event),
     }));
 }
+function dispatchHotspotClusterSelection(cluster = {}, screenPosition = null) {
+    const items = dedupeDisplayItems(cluster?.items || []);
+    const primary = items[0] || {};
+    const detail = buildHotspotEventPopupDetail(primary);
+    const count = Math.max(1, Number(cluster?.actual_event_count || cluster?.event_count || cluster?.count || items.length || 1));
+    detail.clusterCount = count;
+    detail.clusterEvents = items;
+    detail.lat = Number(cluster?.lat);
+    detail.lon = Number(cluster?.lon);
+    detail.locationLabel = String(
+        cluster?.location_label
+        || cluster?.label
+        || detail.locationLabel
+        || ""
+    );
+    detail.screenPosition = screenPosition;
+    document.dispatchEvent(new CustomEvent("wz:event-marker-selected", { detail }));
+}
 function makeHotspotEventSignature(events = []) {
     const arr = Array.isArray(events) ? events : [];
     if (!arr.length) return "0";
@@ -856,12 +874,29 @@ function getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg) {
 function createClusterUxLabelEl() {
     const el = document.createElement("div");
     el.className = "wzhs-cluster-label";
-    el.setAttribute("aria-hidden", "true");
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    const selectCluster = (event) => {
+        const cluster = el.__wzCluster;
+        if (!cluster) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const screenPosition = Number.isFinite(Number(event.clientX)) && Number.isFinite(Number(event.clientY))
+            ? { x: Number(event.clientX), y: Number(event.clientY), space: "viewport" }
+            : null;
+        dispatchHotspotClusterSelection(cluster, screenPosition);
+    };
+    el.addEventListener("click", selectCluster);
+    el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") selectCluster(event);
+    });
     return el;
 }
 function renderClusterUxLabel(el, cluster, zoomState, number = "") {
     if (!el) return;
     const count = Math.max(1, Number(cluster?.actual_event_count || cluster?.event_count || cluster?.count || 1));
+    el.__wzCluster = cluster;
+    el.setAttribute("aria-label", `Open ${count} ${count === 1 ? "event" : "events"}`);
     if (zoomState === ZOOM_UX_STATES.LOCAL_STACK) {
         const signature = `${zoomState}:${number || count}`;
         if (el.__wzLabelSignature === signature) return;
@@ -1219,6 +1254,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let moveEndTimer = 0;
     let anchorViewport = null;
     const activityStack = createActivityStackElements(rootEl);
+    const hotspotPickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     const cfg = {
         maxCards: options.maxCards ?? 52,
         maxEvents: options.maxEvents ?? 1800,
@@ -1286,6 +1322,36 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         }
         updateActivityStackLeaderAnchor();
     }
+    function getHotspotNodeAtCanvasPosition(position) {
+        if (!position || !anchorViewport) return null;
+        const x = Number(position.x) + Number(anchorViewport.offsetX || 0);
+        const y = Number(position.y) + Number(anchorViewport.offsetY || 0);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        let closest = null;
+        let closestRatio = Infinity;
+        for (const [, node] of nodeMap) {
+            if (!node?.cluster || !node.anchorVisible || node.radiusEl?.hidden) continue;
+            const radius = Math.max(12, Number(node.radiusSize || 0) * 0.5);
+            const distance = Math.hypot(x - Number(node.screenX), y - Number(node.screenY));
+            const ratio = distance / radius;
+            if (ratio <= 1 && ratio < closestRatio) {
+                closest = node;
+                closestRatio = ratio;
+            }
+        }
+        return closest;
+    }
+    hotspotPickHandler.setInputAction((movement) => {
+        const node = getHotspotNodeAtCanvasPosition(movement?.position);
+        if (!node?.cluster) return;
+        const canvasRect = viewer.scene.canvas.getBoundingClientRect();
+        dispatchHotspotClusterSelection(node.cluster, {
+            x: canvasRect.left + Number(movement.position.x),
+            y: canvasRect.top + Number(movement.position.y),
+            space: "viewport",
+        });
+        viewer.scene.requestRender?.();
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     function render(fromPostRender) {
         if (!fromPostRender) rafPending = false;
         if (destroyed || !viewer.scene || !rootEl) return;
@@ -1409,6 +1475,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     rootEl.appendChild(node.uxLabelEl);
                 }
                 node.stackOffset = off;
+                node.cluster = cluster;
                 node.uxLabelEligible = localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true;
                 syncNodeWorldAnchor(node, cluster);
                 applyHotspotRadiusModel(node.radiusEl, cluster);
@@ -1459,6 +1526,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     stackOffset: off,
                     uxLabelEligible: localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true,
                     radiusSize: hotspotDiameter,
+                    cluster,
                 };
                 syncNodeWorldAnchor(node, cluster);
                 nodeMap.set(cluster.id, node);
@@ -1589,6 +1657,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             nodeMap.clear();
             activityStack.stackEl.remove();
             activityStack.lineEl.remove();
+            hotspotPickHandler.destroy();
             viewer.scene.postRender.removeEventListener(onPostRender);
             viewer.camera.moveStart.removeEventListener(onCameraMoveStart);
             viewer.camera.moveEnd.removeEventListener(onCameraMoveEnd);

@@ -29,11 +29,21 @@ function normalizeRetentionDays(value = "") {
   if (normalized === "unlimited") return null;
   const parsed = Number.parseInt(normalized, 10);
   if ([7, 30, 90, 365].includes(parsed)) return parsed;
-  return 90;
+  return 365;
 }
 
 function normalizeCaptureFormat(value = "") {
   return String(value || "jpeg").trim().toLowerCase() === "png" ? "png" : "jpeg";
+}
+
+function hasAwsRoleCredentialSource(env = process.env) {
+  return Boolean(
+    String(env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI || "").trim()
+    || String(env.AWS_CONTAINER_CREDENTIALS_FULL_URI || "").trim()
+    || String(env.AWS_ECS_CONTAINER_CREDENTIALS_RELATIVE_URI || "").trim()
+    || String(env.AWS_ECS_CONTAINER_CREDENTIALS_FULL_URI || "").trim()
+    || readBooleanEnv(env.REPORTING_AWS_USE_IAM_ROLE, false)
+  );
 }
 
 function readReportingConfig(env = process.env) {
@@ -57,6 +67,11 @@ function readReportingConfig(env = process.env) {
     retentionDays: normalizeRetentionDays(env.REPORTING_SNAPSHOT_RETENTION_DAYS),
     pdfExpiryHours: readNumberEnv(env.REPORTING_PDF_EXPIRY_HOURS, 72, { min: 1, max: 24 * 30 }),
     s3Prefix: String(env.REPORTING_S3_PREFIX || "reports").trim().replace(/^\/+|\/+$/g, "") || "reports",
+    publicAssetBaseUrl: trimTrailingSlash(env.REPORTING_PUBLIC_ASSET_BASE_URL || ""),
+    pdf: {
+      readinessTimeoutMs: Math.round(readNumberEnv(env.REPORTING_PDF_READY_TIMEOUT_MS, 45000, { min: 10000, max: 180000 })),
+      minimumSizeBytes: Math.round(readNumberEnv(env.REPORTING_PDF_MIN_SIZE_BYTES, 10000, { min: 1000, max: 10 * 1024 * 1024 })),
+    },
     capture: {
       enabled: captureEnabled,
       baseUrl: trimTrailingSlash(env.REPORTING_CAPTURE_BASE_URL || "http://127.0.0.1:4173"),
@@ -88,6 +103,7 @@ function readReportingConfig(env = process.env) {
       accessKeyId: String(env.AWS_ACCESS_KEY_ID || env.S3_ACCESS_KEY_ID || "").trim(),
       secretAccessKey: String(env.AWS_SECRET_ACCESS_KEY || env.S3_SECRET_ACCESS_KEY || "").trim(),
       sessionToken: String(env.AWS_SESSION_TOKEN || env.S3_SESSION_TOKEN || "").trim(),
+      roleCredentialSourceAvailable: hasAwsRoleCredentialSource(env),
       cloudFrontUrl: trimTrailingSlash(env.CLOUDFRONT_URL || env.AWS_CLOUDFRONT_URL || env.CLOUDFRONT_DOMAIN || ""),
     },
   };
@@ -98,7 +114,7 @@ function getReportingConfigStatus(config = readReportingConfig()) {
   const reportStorageRequired = config.apiEnabled || config.scheduleEnabled;
   if (reportStorageRequired) {
     if (!config.aws.bucket) missing.push("AWS_S3_BUCKET");
-    if (!config.aws.accessKeyId || !config.aws.secretAccessKey) {
+    if ((!config.aws.accessKeyId || !config.aws.secretAccessKey) && !config.aws.roleCredentialSourceAvailable) {
       missing.push("AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or IAM role support");
     }
   }

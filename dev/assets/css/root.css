@@ -447,6 +447,8 @@
     --hotspot-opacity: 0.82;
     --hotspot-border-width: 4px;
     --hotspot-glow: 12;
+    --hotspot-fill-center: 24%;
+    --hotspot-fill-mid: 11%;
     --hotspot-label-size: 14px;
     --event-marker-size: 44;
     --hotspot-zoom-regional-min-height: 5200000;
@@ -861,14 +863,14 @@
 :root {
     --radar-color: #18e2db;
     --radar-ring-color: #18e2db;
-    --radar-ring-opacity: 0.42;
-    --radar-ring-outer-opacity: 0.7;
-    --radar-ring-width: 1.6;
-    --radar-sweep-opacity-min: 0.02;
-    --radar-sweep-opacity-mid: 0.14;
-    --radar-sweep-opacity-max: 0.42;
+    --radar-ring-opacity: 0.56;
+    --radar-ring-outer-opacity: 0.82;
+    --radar-ring-width: 2.2;
+    --radar-sweep-opacity-min: 0.04;
+    --radar-sweep-opacity-mid: 0.22;
+    --radar-sweep-opacity-max: 0.62;
     --radar-sweep-width: 64;
-    --radar-sweep-leading-edge-width: 1.4;
+    --radar-sweep-leading-edge-width: 1.8;
     --radar-sweep-speed: 1;
     --radar-center-size: 4;
     --radar-center-glow: 2;

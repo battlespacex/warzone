@@ -1,6 +1,7 @@
 ﻿// File Path: /assets/js/warzone-sweeper.js
 import * as Cesium from "cesium";
 let __sweeperEntities = [];
+let __sweeperPrimitives = [];
 let __sweeperTicker = null;
 let __radarViewer = null;
 let __radarItems = [];
@@ -10,7 +11,8 @@ export const RADAR_SWEEP_MATERIAL_TYPE = "StratOpsRadarSweep";
 export const RADAR_RING_RATIOS = Object.freeze([0.34, 0.67, 1]);
 const SWEEPER_RENDER = {
     labelFrameSkip: 3,
-    requestRenderFrameSkip: 2,
+    requestRenderFrameSkip: 1,
+    ringSegments: 256,
     maxHeight: 10000000,
     maxCount: 7,
     maxOverlap: 0.32,
@@ -171,6 +173,8 @@ function buildOverlayPopupProperties(event = {}, fallbackId = "") {
         severity: String(event?.severity || "medium").trim(),
         cluster_count: clusterCount,
         cluster_events: buildOverlayClusterEvents(event),
+        lat: toFiniteNumber(event?.lat),
+        lon: toFiniteNumber(event?.lon),
         location_label: String(
             event?.location_label ||
             event?.impact_label ||
@@ -260,13 +264,20 @@ function ensureRadarSweepMaterialRegistered() {
                     float fragmentHeading = atan(centered.x, centered.y);
                     if (fragmentHeading < 0.0) fragmentHeading += 6.28318530718;
                     float trail = mod(heading - fragmentHeading + 6.28318530718, 6.28318530718);
-                    float inSweep = 1.0 - step(sweepWidth, trail);
+                    float angularFeather = max(fwidth(trail) * 1.5, 0.0025);
+                    float inSweep = 1.0 - smoothstep(
+                        sweepWidth - angularFeather,
+                        sweepWidth + angularFeather,
+                        trail
+                    );
                     float strength = 1.0 - clamp(trail / max(sweepWidth, 0.0001), 0.0, 1.0);
                     float fadedAlpha = strength < 0.58
                         ? mix(minAlpha, midAlpha, smoothstep(0.0, 0.58, strength))
                         : mix(midAlpha, maxAlpha, smoothstep(0.58, 1.0, strength));
                     float edgeAlpha = (1.0 - smoothstep(0.0, max(leadingEdgeWidth, 0.0001), trail)) * maxAlpha;
-                    float radialMask = smoothstep(0.0, 0.05, radius) * (1.0 - smoothstep(0.96, 1.0, radius));
+                    float radialFeather = max(fwidth(radius) * 1.5, 0.003);
+                    float radialMask = smoothstep(0.0, 0.05, radius)
+                        * (1.0 - smoothstep(1.0 - radialFeather, 1.0, radius));
                     material.diffuse = color.rgb;
                     material.alpha = color.a * max(fadedAlpha * inSweep, edgeAlpha) * radialMask;
                     return material;
@@ -277,36 +288,54 @@ function ensureRadarSweepMaterialRegistered() {
     });
 }
 ensureRadarSweepMaterialRegistered();
-class RadarSweepMaterialProperty {
-    constructor(state, color, tokens) {
-        ensureRadarSweepMaterialRegistered();
-        this._definitionChanged = new Cesium.Event();
-        this._state = state;
-        this._color = color;
-        this._tokens = tokens;
-    }
-    get isConstant() {
-        return false;
-    }
-    get definitionChanged() {
-        return this._definitionChanged;
-    }
-    getType() {
-        return RADAR_SWEEP_MATERIAL_TYPE;
-    }
-    getValue(_time, result = {}) {
-        result.color = Cesium.Color.clone(this._color, result.color);
-        result.heading = Cesium.Math.toRadians(this._state.heading);
-        result.sweepWidth = Cesium.Math.toRadians(this._tokens.sweepWidthDeg);
-        result.leadingEdgeWidth = Cesium.Math.toRadians(this._tokens.sweepLeadingEdgeDeg);
-        result.minAlpha = this._tokens.sweepOpacityMin;
-        result.midAlpha = this._tokens.sweepOpacityMid;
-        result.maxAlpha = this._tokens.sweepOpacityMax;
-        return result;
-    }
-    equals(other) {
-        return this === other;
-    }
+function createRadarSweepPrimitive(viewer, {
+    id,
+    lon,
+    lat,
+    radius,
+    state,
+    color,
+    tokens,
+    popupProps,
+}) {
+    const material = Cesium.Material.fromType(RADAR_SWEEP_MATERIAL_TYPE, {
+        color: Cesium.Color.clone(color),
+        heading: Cesium.Math.toRadians(state.heading),
+        sweepWidth: Cesium.Math.toRadians(tokens.sweepWidthDeg),
+        leadingEdgeWidth: Cesium.Math.toRadians(tokens.sweepLeadingEdgeDeg),
+        minAlpha: tokens.sweepOpacityMin,
+        midAlpha: tokens.sweepOpacityMid,
+        maxAlpha: tokens.sweepOpacityMax,
+    });
+    const pickEntity = new Cesium.Entity({
+        id,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        properties: {
+            ...popupProps,
+            lat,
+            lon,
+        },
+    });
+    const primitive = new Cesium.GroundPrimitive({
+        geometryInstances: new Cesium.GeometryInstance({
+            id: pickEntity,
+            geometry: new Cesium.EllipseGeometry({
+                center: Cesium.Cartesian3.fromDegrees(lon, lat),
+                semiMajorAxis: radius,
+                semiMinorAxis: radius,
+                vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
+            }),
+        }),
+        appearance: new Cesium.EllipsoidSurfaceAppearance({
+            material,
+            translucent: true,
+            aboveGround: true,
+        }),
+        classificationType: Cesium.ClassificationType.TERRAIN,
+        asynchronous: true,
+    });
+    viewer.scene.groundPrimitives.add(primitive);
+    return { primitive, material };
 }
 function clearTicker() {
     if (__sweeperTicker) {
@@ -382,7 +411,7 @@ function getRadarDestination(lat, lon, radiusMeters, headingDeg) {
     );
     return [Cesium.Math.toDegrees(lon2), Cesium.Math.toDegrees(lat2)];
 }
-function buildRadarRingPositions(lat, lon, radiusMeters, steps = 96) {
+function buildRadarRingPositions(lat, lon, radiusMeters, steps = SWEEPER_RENDER.ringSegments) {
     const coordinates = [];
     for (let index = 0; index <= steps; index += 1) {
         coordinates.push(...getRadarDestination(lat, lon, radiusMeters, (index / steps) * 360));
@@ -452,7 +481,11 @@ export function clearSweepers(viewer) {
     __sweeperEntities.forEach((entity) => {
         try { viewer?.entities?.remove(entity); } catch { }
     });
+    __sweeperPrimitives.forEach((primitive) => {
+        try { viewer?.scene?.groundPrimitives?.remove(primitive); } catch { }
+    });
     __sweeperEntities = [];
+    __sweeperPrimitives = [];
     __radarItems = [];
     __radarLabels.forEach((el) => {
         try { el.remove(); } catch { }
@@ -507,18 +540,15 @@ export function renderSweepers(viewer, events = []) {
             },
             properties: { ...popupProps },
         }));
-        const sweepBeam = viewer.entities.add({
-                id: `${overlayId}-sweep`,
-                position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                ellipse: {
-                    semiMajorAxis: preset.radius,
-                    semiMinorAxis: preset.radius,
-                    material: new RadarSweepMaterialProperty(state, base, visualTokens),
-                    height: 0,
-                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                    zIndex: 40 + index,
-                },
-                properties: { ...popupProps },
+        const sweepBeam = createRadarSweepPrimitive(viewer, {
+            id: `${overlayId}-sweep`,
+            lon,
+            lat,
+            radius: preset.radius,
+            state,
+            color: base,
+            tokens: visualTokens,
+            popupProps,
         });
         const centerDot = viewer.entities.add({
             id: `${overlayId}-center`,
@@ -536,15 +566,16 @@ export function renderSweepers(viewer, events = []) {
         const labelEl = createRadarLabel(preset.label || "Radar Coverage");
         __sweeperEntities.push(
             ...rings,
-            sweepBeam,
             centerDot
         );
+        __sweeperPrimitives.push(sweepBeam.primitive);
         __radarItems.push({
             lat,
             lon,
             preset,
             visualTokens,
             state,
+            sweepMaterial: sweepBeam.material,
             labelEl
         });
     });
@@ -571,6 +602,9 @@ export function renderSweepers(viewer, events = []) {
             item.state.heading = (
                 item.state.heading + (item.preset.speed * item.visualTokens.sweepSpeed * 60 * dt)
             ) % 360;
+            if (item.sweepMaterial?.uniforms) {
+                item.sweepMaterial.uniforms.heading = Cesium.Math.toRadians(item.state.heading);
+            }
         });
         if (frameCount % SWEEPER_RENDER.labelFrameSkip === 0) {
             updateRadarLabels();

@@ -1,0 +1,1489 @@
+{
+  "render_version": "stratops-html-v1",
+  "report_id": "daily:2026-08-08:global:v1",
+  "snapshot_key": "daily:2026-08-08:global:v1",
+  "snapshot_version": 1,
+  "report_date": "2026-08-08",
+  "window": {
+    "start": "2026-08-08T00:00:00+00:00",
+    "end": "2026-08-09T00:00:00+00:00",
+    "timezone": "UTC"
+  },
+  "period": "2026-08-08 TO 2026-08-09",
+  "scope": {
+    "type": "global",
+    "key": "global",
+    "value": null,
+    "label": "Global"
+  },
+  "executive_summary": "Recorded operational activity was intense during the UTC reporting window. Leading theaters were Ukraine (7 items). The strongest recorded domains were MIXED (56), AIR (31), MISSILE (21), MARITIME (18). 10 major developments met deterministic relevance criteria. 8 escalation signals and 0 disruption indicators were retained. Operational incidents changed by -9 versus the preceding snapshot.",
+  "headline_stats": [
+    {
+      "id": "operational_incidents",
+      "label": "Operational incidents",
+      "value": 88,
+      "supporting_text": "Normalized map-eligible incidents",
+      "state": "INTENSE"
+    },
+    {
+      "id": "high_critical",
+      "label": "High / critical",
+      "value": 45,
+      "supporting_text": "6 critical",
+      "state": "ATTENTION"
+    },
+    {
+      "id": "corroborated",
+      "label": "Corroborated+",
+      "value": 0,
+      "supporting_text": "Confirmed or independently corroborated",
+      "state": "LIMITED"
+    },
+    {
+      "id": "active_clusters",
+      "label": "Active clusters",
+      "value": 5,
+      "supporting_text": "Spatial operational groupings",
+      "state": "OBSERVED"
+    },
+    {
+      "id": "qualified_hva",
+      "label": "Selected HVA",
+      "value": 0,
+      "supporting_text": "5 type-qualified assets reviewed",
+      "state": "NONE"
+    },
+    {
+      "id": "source_families",
+      "label": "Independent sources",
+      "value": 37,
+      "supporting_text": "Independent source families",
+      "state": "SOURCE_BASE"
+    }
+  ],
+  "theaters": [
+    {
+      "theater_id": "ukraine",
+      "theater": "Ukraine",
+      "activity_level": "HIGH",
+      "event_count": 7,
+      "critical_count": 0,
+      "high_count": 6,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "MISSILE",
+          "count": 4
+        },
+        {
+          "domain": "AIR_DEFENCE",
+          "count": 2
+        },
+        {
+          "domain": "AIR",
+          "count": 1
+        }
+      ],
+      "major_development_count": 6,
+      "major_cluster_count": 1,
+      "qualified_hva_count": 0,
+      "trend": "stable",
+      "latest_activity": "2026-08-08T17:09:10+00:00",
+      "themes": [
+        {
+          "theme": "MISSILE",
+          "weight": 4
+        },
+        {
+          "theme": "AIR_DEFENCE",
+          "weight": 2
+        },
+        {
+          "theme": "AIR",
+          "weight": 1
+        }
+      ],
+      "briefing_summary": "Missile reporting led activity in Ukraine during the period. 6 high- or critical-severity developments met escalation thresholds."
+    },
+    {
+      "theater_id": "europe",
+      "theater": "Europe",
+      "activity_level": "ELEVATED",
+      "event_count": 7,
+      "critical_count": 0,
+      "high_count": 2,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "AIR",
+          "count": 2
+        },
+        {
+          "domain": "AIR_DEFENCE",
+          "count": 2
+        },
+        {
+          "domain": "MISSILE",
+          "count": 1
+        }
+      ],
+      "major_development_count": 2,
+      "major_cluster_count": 3,
+      "qualified_hva_count": 0,
+      "trend": "increasing",
+      "latest_activity": "2026-08-08T18:06:25+00:00",
+      "themes": [
+        {
+          "theme": "AIR",
+          "weight": 2
+        },
+        {
+          "theme": "AIR_DEFENCE",
+          "weight": 2
+        },
+        {
+          "theme": "MISSILE",
+          "weight": 1
+        }
+      ],
+      "briefing_summary": "Air reporting led activity in Europe during the period. 2 high- or critical-severity developments met escalation thresholds."
+    },
+    {
+      "theater_id": "israel-gaza",
+      "theater": "Israel-Gaza",
+      "activity_level": "ELEVATED",
+      "event_count": 3,
+      "critical_count": 0,
+      "high_count": 3,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "STRIKE",
+          "count": 3
+        }
+      ],
+      "major_development_count": 0,
+      "major_cluster_count": 0,
+      "qualified_hva_count": 0,
+      "trend": "stable",
+      "latest_activity": "2026-08-08T20:13:38+00:00",
+      "themes": [
+        {
+          "theme": "STRIKE",
+          "weight": 3
+        }
+      ],
+      "briefing_summary": "Strike reporting led activity in Israel-Gaza during the period. 3 high- or critical-severity developments met escalation thresholds."
+    },
+    {
+      "theater_id": "iran",
+      "theater": "Iran",
+      "activity_level": "LIMITED",
+      "event_count": 4,
+      "critical_count": 0,
+      "high_count": 1,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "MARITIME",
+          "count": 2
+        },
+        {
+          "domain": "ARTILLERY",
+          "count": 1
+        },
+        {
+          "domain": "STRIKE",
+          "count": 1
+        }
+      ],
+      "major_development_count": 1,
+      "major_cluster_count": 1,
+      "qualified_hva_count": 0,
+      "trend": "decreasing",
+      "latest_activity": "2026-08-08T06:32:17+00:00",
+      "themes": [
+        {
+          "theme": "MARITIME",
+          "weight": 2
+        },
+        {
+          "theme": "ARTILLERY",
+          "weight": 1
+        },
+        {
+          "theme": "STRIKE",
+          "weight": 1
+        }
+      ],
+      "briefing_summary": "Maritime reporting led activity in Iran during the period. 1 high- or critical-severity development met escalation thresholds."
+    },
+    {
+      "theater_id": "black-sea",
+      "theater": "Black Sea",
+      "activity_level": "LIMITED",
+      "event_count": 2,
+      "critical_count": 0,
+      "high_count": 1,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "AIR",
+          "count": 1
+        },
+        {
+          "domain": "STRIKE",
+          "count": 1
+        }
+      ],
+      "major_development_count": 0,
+      "major_cluster_count": 0,
+      "qualified_hva_count": 0,
+      "trend": "stable",
+      "latest_activity": "2026-08-08T12:13:10+00:00",
+      "themes": [
+        {
+          "theme": "AIR",
+          "weight": 1
+        },
+        {
+          "theme": "STRIKE",
+          "weight": 1
+        }
+      ],
+      "briefing_summary": "Air reporting led activity in Black Sea during the period. 1 high- or critical-severity development met escalation thresholds."
+    },
+    {
+      "theater_id": "sumy-oblast",
+      "theater": "Sumy Oblast",
+      "activity_level": "LIMITED",
+      "event_count": 2,
+      "critical_count": 0,
+      "high_count": 0,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "AIR",
+          "count": 2
+        }
+      ],
+      "major_development_count": 0,
+      "major_cluster_count": 1,
+      "qualified_hva_count": 0,
+      "trend": "increasing",
+      "latest_activity": "2026-08-08T17:48:00+00:00",
+      "themes": [
+        {
+          "theme": "AIR",
+          "weight": 2
+        }
+      ],
+      "briefing_summary": "Air reporting led activity in Sumy Oblast during the period. No high- or critical-severity development met escalation thresholds."
+    },
+    {
+      "theater_id": "middle-east",
+      "theater": "Middle East",
+      "activity_level": "LIMITED",
+      "event_count": 3,
+      "critical_count": 0,
+      "high_count": 0,
+      "corroborated_count": 0,
+      "dominant_domains": [
+        {
+          "domain": "ARTILLERY",
+          "count": 1
+        },
+        {
+          "domain": "MIXED",
+          "count": 1
+        },
+        {
+          "domain": "STRIKE",
+          "count": 1
+        }
+      ],
+      "major_development_count": 0,
+      "major_cluster_count": 0,
+      "qualified_hva_count": 0,
+      "trend": "increasing",
+      "latest_activity": "2026-08-08T22:55:38.177+00:00",
+      "themes": [
+        {
+          "theme": "ARTILLERY",
+          "weight": 1
+        },
+        {
+          "theme": "MIXED",
+          "weight": 1
+        },
+        {
+          "theme": "STRIKE",
+          "weight": 1
+        }
+      ],
+      "briefing_summary": "Artillery reporting led activity in Middle East during the period. No high- or critical-severity development met escalation thresholds."
+    }
+  ],
+  "key_judgments": [
+    {
+      "id": "judgment-cluster-cluster-regional-14a7quk",
+      "judgment": "OBSERVED: Repeated operational activity was concentrated in Kyiv, Ukraine.",
+      "confidence": "MODERATE",
+      "theater": "Ukraine",
+      "domain": "MISSILE",
+      "evidence_summary": "8 incidents contributed to the cluster; 0 were corroborated or confirmed.",
+      "reasoning_basis": "spatial concentration and repetition"
+    },
+    {
+      "id": "judgment-day-over-day-tempo",
+      "judgment": "OBSERVED: Recorded operational tempo decreased versus the preceding daily snapshot.",
+      "confidence": "MODERATE",
+      "theater": null,
+      "domain": "MIXED",
+      "evidence_summary": "Operational event delta: -9.",
+      "reasoning_basis": "previous day snapshot comparison"
+    }
+  ],
+  "watch_indicators": [
+    {
+      "id": "watch-cluster-cluster-regional-14a7quk",
+      "indicator": "Recurring MISSILE activity in Kyiv, Ukraine",
+      "current_state": "8 clustered incidents; latest 2026-08-08T18:06:25+00:00",
+      "location": "Kyiv, Ukraine",
+      "theater": null,
+      "domain": "MISSILE",
+      "confidence": "MODERATE",
+      "why_it_matters": "Further activity in the same area would reinforce an already repeated operational pattern.",
+      "watch_window": "24-72H"
+    },
+    {
+      "id": "watch-cluster-cluster-regional-1m6s72r",
+      "indicator": "Recurring AIR activity in Kharkiv, Ukraine",
+      "current_state": "4 clustered incidents; latest 2026-08-08T20:04:00+00:00",
+      "location": "Kharkiv, Ukraine",
+      "theater": null,
+      "domain": "AIR",
+      "confidence": "MODERATE",
+      "why_it_matters": "Further activity in the same area would reinforce an already repeated operational pattern.",
+      "watch_window": "24-72H"
+    },
+    {
+      "id": "watch-cluster-cluster-regional-11kerwp",
+      "indicator": "Recurring MARITIME activity in Middle East",
+      "current_state": "4 clustered incidents; latest 2026-08-08T20:38:14+00:00",
+      "location": "Middle East",
+      "theater": null,
+      "domain": "MARITIME",
+      "confidence": "MODERATE",
+      "why_it_matters": "Further activity in the same area would reinforce an already repeated operational pattern.",
+      "watch_window": "24-72H"
+    },
+    {
+      "id": "watch-domain-missile",
+      "indicator": "Continued missile activity",
+      "current_state": "21 related report items in the current window",
+      "location": null,
+      "theater": null,
+      "domain": "MISSILE",
+      "confidence": "MODERATE",
+      "why_it_matters": "Persistence or geographic expansion could indicate a material change in operational tempo.",
+      "watch_window": "24-72H"
+    },
+    {
+      "id": "watch-domain-air_defence",
+      "indicator": "Continued air defence activity",
+      "current_state": "13 related report items in the current window",
+      "location": null,
+      "theater": null,
+      "domain": "AIR_DEFENCE",
+      "confidence": "MODERATE",
+      "why_it_matters": "Persistence or geographic expansion could indicate a material change in operational tempo.",
+      "watch_window": "24-72H"
+    }
+  ],
+  "developments": [
+    {
+      "report_item_id": "event:ca4def9f-0c6d-4a21-b94e-357d83b4df54",
+      "event_id": "ca4def9f-0c6d-4a21-b94e-357d83b4df54",
+      "title": "Ukraine denies targeting Bulgaria as drone explodes near pipeline",
+      "summary": "Bulgaria's defence ministry said the drone was of a type \"widely used by the Ukrainian military\", and the foreign minister summoned the Ukrainian ambassador for a meeting on Monday in response, her office told AFP. Kyiv said it was \"in close contact with the Bulgarian side to clarify the circumstances\" of the incident, the latest case of a drone straying into NATO airspace as Ukraine fights off Russia's invasion. \"We can say with certainty that the Ukrainian Armed Forces did not intentionally direct any assets toward Bulgaria,\" Ukraine's foreign…… Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T17:09:10+00:00",
+      "location_label": "Kyiv, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 96,
+      "verification_state": "REPORTED",
+      "domain": "AIR",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "France 24 Live News",
+        "France 24"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": {
+        "capture_id": "capture-02-major-development-context",
+        "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+        "status": "READY",
+        "event_id": "ca4def9f-0c6d-4a21-b94e-357d83b4df54",
+        "cluster_id": "cluster-regional-14a7quk",
+        "asset_id": null,
+        "filename": "development-01-context.jpg",
+        "src": "images/development-01-context.jpg",
+        "width": 1600,
+        "height": 900,
+        "generated_at": "2026-08-09T00:12:42.124Z",
+        "failure_reason": null,
+        "semantic_quality": {
+          "status": "READY",
+          "evidence": {
+            "asset_visible": false,
+            "target_event_visible": true,
+            "orbital_entity_visible": false,
+            "target_cluster_visible": false,
+            "selected_asset_entity_id": null,
+            "visible_report_cluster_count": 0,
+            "meaningful_operational_layer_visible": false
+          },
+          "failed_checks": [],
+          "passed_checks": [
+            "target_event_visible"
+          ],
+          "failure_reason": null,
+          "required_checks": [
+            "target_event_visible"
+          ]
+        }
+      }
+    },
+    {
+      "report_item_id": "event:5d44e35a-eb01-4cc4-91ef-183d021dda6a",
+      "event_id": "5d44e35a-eb01-4cc4-91ef-183d021dda6a",
+      "title": "Russian strikes kill four as Kyiv hits oil refinery",
+      "summary": "At least four people, including a child, were killed in Russian attacks on Kyiv and surrounding regions early Saturday. Moscow has been exploiting Ukraine’s depleted air defences to launch waves of drone and missile strikes, while Kyiv has hit another oil refinery in Russia as part of its near-daily long-range attacks on Russian oil facilities, aiming to deepen pressure on Moscow’s fuel supplies. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T15:29:49+00:00",
+      "location_label": "Kyiv, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 84,
+      "verification_state": "REPORTED",
+      "domain": "MISSILE",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "France 24 English",
+        "France 24"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": {
+        "capture_id": "capture-03-major-development-context",
+        "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+        "status": "READY",
+        "event_id": "5d44e35a-eb01-4cc4-91ef-183d021dda6a",
+        "cluster_id": "cluster-regional-14a7quk",
+        "asset_id": null,
+        "filename": "development-02-context.jpg",
+        "src": "images/development-02-context.jpg",
+        "width": 1600,
+        "height": 900,
+        "generated_at": "2026-08-09T00:13:01.657Z",
+        "failure_reason": null,
+        "semantic_quality": {
+          "status": "READY",
+          "evidence": {
+            "asset_visible": false,
+            "target_event_visible": true,
+            "orbital_entity_visible": false,
+            "target_cluster_visible": false,
+            "selected_asset_entity_id": null,
+            "visible_report_cluster_count": 0,
+            "meaningful_operational_layer_visible": false
+          },
+          "failed_checks": [],
+          "passed_checks": [
+            "target_event_visible"
+          ],
+          "failure_reason": null,
+          "required_checks": [
+            "target_event_visible"
+          ]
+        }
+      }
+    },
+    {
+      "report_item_id": "event:cf2e3d12-b6e3-428f-b336-8464084faf50",
+      "event_id": "cf2e3d12-b6e3-428f-b336-8464084faf50",
+      "title": "Russian attacks kill several in Ukraine",
+      "summary": "At least four people, including a child, were killed in Russian drone and missile strikes on Kyiv and surrounding regions early Saturday. Moscow has been carrying out near-daily attacks, exploiting Ukraine’s strained air defences. Meanwhile, Ukraine struck another oil refinery in Russia, as Kyiv continues its campaign of long-range attacks on Russian energy facilities in an effort to fuel a growing fuel crisis. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T13:12:48+00:00",
+      "location_label": "Kyiv, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 84,
+      "verification_state": "REPORTED",
+      "domain": "MISSILE",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "France 24 English",
+        "France 24"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": {
+        "capture_id": "capture-04-major-development-context",
+        "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+        "status": "READY",
+        "event_id": "cf2e3d12-b6e3-428f-b336-8464084faf50",
+        "cluster_id": "cluster-regional-14a7quk",
+        "asset_id": null,
+        "filename": "development-03-context.jpg",
+        "src": "images/development-03-context.jpg",
+        "width": 1600,
+        "height": 900,
+        "generated_at": "2026-08-09T00:13:20.282Z",
+        "failure_reason": null,
+        "semantic_quality": {
+          "status": "READY",
+          "evidence": {
+            "asset_visible": false,
+            "target_event_visible": true,
+            "orbital_entity_visible": false,
+            "target_cluster_visible": false,
+            "selected_asset_entity_id": null,
+            "visible_report_cluster_count": 0,
+            "meaningful_operational_layer_visible": false
+          },
+          "failed_checks": [],
+          "passed_checks": [
+            "target_event_visible"
+          ],
+          "failure_reason": null,
+          "required_checks": [
+            "target_event_visible"
+          ]
+        }
+      }
+    },
+    {
+      "report_item_id": "event:2276d4f9-c392-4080-a430-47e09a8d5f39",
+      "event_id": "2276d4f9-c392-4080-a430-47e09a8d5f39",
+      "title": "Ukraine's Zelensky visits Russian ally Serbia as Moscow pounds Kyiv",
+      "summary": "Zelensky was to hold talks with his counterpart Alexander Vucic at the presidential palace on Saturday, after another intense bombardment of Kyiv and the surrounding region overnight killed at least four people. Diplomacy is at a standstill more than four years after the start of Russia's large-scale offensive against Ukraine and the two countries are ramping up long-range strikes, causing a growing number of civilian casualties. Moscow has significantly upped its attacks on the Ukrainian capital in recent months, typically firing salvos of…… Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T06:35:12+00:00",
+      "location_label": "Kyiv, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 96,
+      "verification_state": "REPORTED",
+      "domain": "AIR_DEFENCE",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "France 24 Live News",
+        "France 24"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": {
+        "capture_id": "capture-05-major-development-context",
+        "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+        "status": "READY",
+        "event_id": "2276d4f9-c392-4080-a430-47e09a8d5f39",
+        "cluster_id": "cluster-regional-14a7quk",
+        "asset_id": null,
+        "filename": "development-04-context.jpg",
+        "src": "images/development-04-context.jpg",
+        "width": 1600,
+        "height": 900,
+        "generated_at": "2026-08-09T00:13:38.575Z",
+        "failure_reason": null,
+        "semantic_quality": {
+          "status": "READY",
+          "evidence": {
+            "asset_visible": false,
+            "target_event_visible": true,
+            "orbital_entity_visible": false,
+            "target_cluster_visible": false,
+            "selected_asset_entity_id": null,
+            "visible_report_cluster_count": 0,
+            "meaningful_operational_layer_visible": false
+          },
+          "failed_checks": [],
+          "passed_checks": [
+            "target_event_visible"
+          ],
+          "failure_reason": null,
+          "required_checks": [
+            "target_event_visible"
+          ]
+        }
+      }
+    },
+    {
+      "report_item_id": "event:8abc9ff8-6dfd-4aca-980e-6d170f2b99fe",
+      "event_id": "8abc9ff8-6dfd-4aca-980e-6d170f2b99fe",
+      "title": "Child among three killed in Russian missile attacks near Kyiv",
+      "summary": "Russia continued its overnight attacks after President Volodymyr Zelensky warned of Ukraine's dwindling supplies of missile interceptors. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T18:06:25+00:00",
+      "location_label": "Kyiv, Ukraine, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 55,
+      "verification_state": "REPORTED",
+      "domain": "MISSILE",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "BBC News",
+        "BBC"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": null
+    },
+    {
+      "report_item_id": "event:12083f87-3b90-4112-8dc5-c3e5b21e2874",
+      "event_id": "12083f87-3b90-4112-8dc5-c3e5b21e2874",
+      "title": "Russian missile strikes near Kyiv kill three, including a child",
+      "summary": "Russian missile strikes killed three people, including a child, in the Kyiv region on Saturday, said local authorities, as an air raid alert was declared in and around the Ukrainian capital due to the threat of ballistic missiles. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T06:10:11+00:00",
+      "location_label": "Kyiv, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 68,
+      "verification_state": "REPORTED",
+      "domain": "MISSILE",
+      "category": "alert",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "France 24 English",
+        "France 24"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": null
+    },
+    {
+      "report_item_id": "event:83df9eb4-ce44-4f04-917b-c10369a4fb93",
+      "event_id": "83df9eb4-ce44-4f04-917b-c10369a4fb93",
+      "title": "Child among three killed in Russian missile attacks near Kyiv",
+      "summary": "Russia continued its overnight attacks after President Volodymyr Zelensky warned of Ukraine's dwindling supplies of missile interceptors. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T04:23:33+00:00",
+      "location_label": "Kyiv, Ukraine",
+      "location_detail": "Approximate locality | 50.4500, 30.5200",
+      "coordinates": {
+        "latitude": 50.45,
+        "longitude": 30.52
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 44,
+      "verification_state": "REPORTED",
+      "domain": "MISSILE",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "BBC World",
+        "BBC"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": null
+    },
+    {
+      "report_item_id": "event:92dd5454-69b1-4826-a571-a93be6abe965",
+      "event_id": "92dd5454-69b1-4826-a571-a93be6abe965",
+      "title": "Russian strikes in Kharkiv region leave one killed, another injured",
+      "summary": "A man was killed and another person was injured in Russian FPV drone attacks in the Kharkiv region on Saturday. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T20:04:00+00:00",
+      "location_label": "Kharkiv, Ukraine, Ukraine",
+      "location_detail": "Approximate locality | 49.9900, 36.2300",
+      "coordinates": {
+        "latitude": 49.99,
+        "longitude": 36.23
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 55,
+      "verification_state": "REPORTED",
+      "domain": "AIR",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "Ukrinform",
+        "Ukrinform Net"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": null
+    },
+    {
+      "report_item_id": "event:e87b65b9-17c0-4d74-baae-22c35360a445",
+      "event_id": "e87b65b9-17c0-4d74-baae-22c35360a445",
+      "title": "Morning recap",
+      "summary": "Good morning Middle East Eye readers, Secretary-general of the 57-member Organisation of Islamic Cooperation (OIC), Hissen Brahim Taha, has welcomed the joint defence agreement signed by Turkey, Saudi Arabia and Pakistan on Friday. Bahrain, Yemen’s internationally recognised government and a former Qatari prime minister also welcomed the pact. Turkish President Recep Tayyip Erdogan said that the Mecca Joint Defence Agreement was open to the participation of “other friendly nations”. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T06:32:17+00:00",
+      "location_label": "Tehran, Iran",
+      "location_detail": "Approximate locality | 35.6900, 51.3900",
+      "coordinates": {
+        "latitude": 35.69,
+        "longitude": 51.39
+      },
+      "location_precision": "LOCAL",
+      "severity": "high",
+      "confidence": 76,
+      "verification_state": "REPORTED",
+      "domain": "MARITIME",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "Middle East Eye"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": null
+    },
+    {
+      "report_item_id": "event:18feca72-5c51-47f0-a009-405eac376966",
+      "event_id": "18feca72-5c51-47f0-a009-405eac376966",
+      "title": "OSINTtechnical",
+      "summary": "NASA’s FIRMS has detected a massive fire at Russia’s Syzran Oil Refinery this morning after multiple Ukrainian attack drone hits overnight. Independent confirmation remained limited during the reporting window.",
+      "occurred_at": "2026-08-08T03:41:51.66+00:00",
+      "location_label": null,
+      "location_detail": null,
+      "coordinates": null,
+      "location_precision": "UNKNOWN",
+      "severity": "critical",
+      "confidence": 68,
+      "verification_state": "REPORTED",
+      "domain": "AIR",
+      "category": "strike",
+      "raw_report_count": 1,
+      "independent_source_family_count": 1,
+      "source_families": [
+        "OSINT Live"
+      ],
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "disputed": false,
+      "image": null
+    }
+  ],
+  "high_value_assets": [],
+  "imagery": [
+    {
+      "capture_id": "capture-01-regional-overview-3d",
+      "capture_type": "REGIONAL_OVERVIEW_3D",
+      "status": "READY",
+      "event_id": null,
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "operational-overview-3d.jpg",
+      "src": "images/operational-overview-3d.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:12:23.493Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": false,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": true,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 3,
+          "meaningful_operational_layer_visible": true
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "meaningful_operational_layer_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "meaningful_operational_layer_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-02-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "ca4def9f-0c6d-4a21-b94e-357d83b4df54",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-01-context.jpg",
+      "src": "images/development-01-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:12:42.124Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-03-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "5d44e35a-eb01-4cc4-91ef-183d021dda6a",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-02-context.jpg",
+      "src": "images/development-02-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:13:01.657Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-04-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "cf2e3d12-b6e3-428f-b336-8464084faf50",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-03-context.jpg",
+      "src": "images/development-03-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:13:20.282Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-05-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "2276d4f9-c392-4080-a430-47e09a8d5f39",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-04-context.jpg",
+      "src": "images/development-04-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:13:38.575Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    }
+  ],
+  "capture_results": [
+    {
+      "capture_id": "capture-01-regional-overview-3d",
+      "capture_type": "REGIONAL_OVERVIEW_3D",
+      "status": "READY",
+      "event_id": null,
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "operational-overview-3d.jpg",
+      "src": "images/operational-overview-3d.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:12:23.493Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": false,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": true,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 3,
+          "meaningful_operational_layer_visible": true
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "meaningful_operational_layer_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "meaningful_operational_layer_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-02-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "ca4def9f-0c6d-4a21-b94e-357d83b4df54",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-01-context.jpg",
+      "src": "images/development-01-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:12:42.124Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-03-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "5d44e35a-eb01-4cc4-91ef-183d021dda6a",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-02-context.jpg",
+      "src": "images/development-02-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:13:01.657Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-04-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "cf2e3d12-b6e3-428f-b336-8464084faf50",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-03-context.jpg",
+      "src": "images/development-03-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:13:20.282Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    },
+    {
+      "capture_id": "capture-05-major-development-context",
+      "capture_type": "MAJOR_DEVELOPMENT_CONTEXT",
+      "status": "READY",
+      "event_id": "2276d4f9-c392-4080-a430-47e09a8d5f39",
+      "cluster_id": "cluster-regional-14a7quk",
+      "asset_id": null,
+      "filename": "development-04-context.jpg",
+      "src": "images/development-04-context.jpg",
+      "width": 1600,
+      "height": 900,
+      "generated_at": "2026-08-09T00:13:38.575Z",
+      "failure_reason": null,
+      "semantic_quality": {
+        "status": "READY",
+        "evidence": {
+          "asset_visible": false,
+          "target_event_visible": true,
+          "orbital_entity_visible": false,
+          "target_cluster_visible": false,
+          "selected_asset_entity_id": null,
+          "visible_report_cluster_count": 0,
+          "meaningful_operational_layer_visible": false
+        },
+        "failed_checks": [],
+        "passed_checks": [
+          "target_event_visible"
+        ],
+        "failure_reason": null,
+        "required_checks": [
+          "target_event_visible"
+        ]
+      }
+    }
+  ],
+  "intelligence_wire": [
+    {
+      "intelligence_id": "5c561d63-c32e-4900-a7f2-e43746190933",
+      "source_name": "South China Morning Post World",
+      "source_class": "MARITIME",
+      "title": "How Beijing’s hypersonic ‘carrier killers’ could distract US forces in a Taiwan conflict",
+      "summary": "The advancement and diversification of Beijing’s anti-ship missile platforms have bolstered its denial capabilities in the first island chain and could divert US and allied navies from warfare in a Taiwan Strait contingency, according to analysts. Last week, Chinese state broadcaster CCTV released a video of a Type 052D destroyer firing a YJ-20 hypersonic…",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "c48b3bd6-b164-4cb5-a601-4044b862f394",
+      "source_name": "The Guardian World",
+      "source_class": "MAJOR MEDIA",
+      "title": "Navy says it is spending 25% more time monitoring Russian vessels around UK waters",
+      "summary": "Warning of increased activity as patrols spent 21 days in July shadowing Moscow’s ships in Dover Strait and North Sea The Royal Navy has warned of increasing Russian activity around the UK’s waters after it spent 21 days in July monitoring Moscow’s ships. Naval operations to monitor Russian vessels increased by 25% last month compared with the previous…",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "6b1d358d-e51a-44b4-97bd-3d61af560402",
+      "source_name": "Al Jazeera",
+      "source_class": "MAJOR MEDIA",
+      "title": "Yemen’s government forces attack Houthis amid renewed shelling of Marib",
+      "summary": "Fears of a wider conflict grow as Yemen’s army counterattacks and expert warns ‘all the warning signs are there’. Independent confirmation remained limited during the reporting window.",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "28f51faf-5254-4e48-9322-88f8bc815a14",
+      "source_name": "Middle East Eye Live",
+      "source_class": "REGIONAL MEDIA",
+      "title": "Israeli shelling damages homes in Lebanese town",
+      "summary": "Live conflict topic: War on Iran Independent confirmation remained limited during the reporting window.",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "a7847bc9-e32c-4246-af69-ad14d7120dc1",
+      "source_name": "Middle East Eye",
+      "source_class": "REGIONAL MEDIA",
+      "title": "Pentagon orders arms production surge as Israeli-US war on Iran depletes missiles",
+      "summary": "The Pentagon has ordered US arms manufacturers to accelerate weapons production as the Israeli-US war on Iran depletes American munition stockpiles. In a memo obtained by The Washington Post, Deputy Defense Secretary Steve Feinberg gave defence companies 21 days to explain how they would “drive significantly faster, more aggressive delivery schedules…",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "eb87c0fe-19bc-4f1e-bce5-3747ec999046",
+      "source_name": "France 24 English",
+      "source_class": "MAJOR MEDIA",
+      "title": "Ukraine braces for winter power crisis after Russian strikes, Zelensky says",
+      "summary": "Ukrainian President Volodymyr Zelensky warned Saturday that Ukraine faces a winter with virtually no working thermal power plants after overnight Russian strikes killed four people, including a three-year-old child. Speaking in Belgrade, he said the latest attacks and shelling of frontline communities had killed 13 people in 24 hours. Independent…",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "b6f232db-13bd-43d4-ae85-cd9dde199ef7",
+      "source_name": "The War Zone",
+      "source_class": "SPECIALIST DEFENSE",
+      "title": "Russian Nuclear Ballistic Missile Submarines Are Now Cocooned In Nets",
+      "summary": "Growing uncrewed threats look to be prompting various new defensive measures Russian naval bases far and wide. Independent confirmation remained limited during the reporting window.",
+      "verification_state": "REPORTED"
+    },
+    {
+      "intelligence_id": "da4ff9d6-9515-4e6d-aa09-a3757e81c0d1",
+      "source_name": "Ukrainska Pravda English",
+      "source_class": "REGIONAL MEDIA",
+      "title": "Ukraine purchases 70 ATACMS missiles from Türkiye",
+      "summary": "Ukraine has purchased 70 M39 ATACMS ballistic missiles from Türkiye, along with 12 M270 multiple-launch rocket systems (MLRS) capable of firing GMLRS and ATACMS missiles, as well as tens of thousands of cluster munitions. Independent confirmation remained limited during the reporting window.",
+      "verification_state": "REPORTED"
+    }
+  ],
+  "source_consensus": [
+    {
+      "development_id": "event:ca4def9f-0c6d-4a21-b94e-357d83b4df54",
+      "title": "Ukraine denies targeting Bulgaria as drone explodes near pipeline",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:5d44e35a-eb01-4cc4-91ef-183d021dda6a",
+      "title": "Russian strikes kill four as Kyiv hits oil refinery",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:cf2e3d12-b6e3-428f-b336-8464084faf50",
+      "title": "Russian attacks kill several in Ukraine",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:2276d4f9-c392-4080-a430-47e09a8d5f39",
+      "title": "Ukraine's Zelensky visits Russian ally Serbia as Moscow pounds Kyiv",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:8abc9ff8-6dfd-4aca-980e-6d170f2b99fe",
+      "title": "Child among three killed in Russian missile attacks near Kyiv",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": [
+        "MAJOR MEDIA"
+      ]
+    },
+    {
+      "development_id": "event:12083f87-3b90-4112-8dc5-c3e5b21e2874",
+      "title": "Russian missile strikes near Kyiv kill three, including a child",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:83df9eb4-ce44-4f04-917b-c10369a4fb93",
+      "title": "Child among three killed in Russian missile attacks near Kyiv",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:92dd5454-69b1-4826-a571-a93be6abe965",
+      "title": "Russian strikes in Kharkiv region leave one killed, another injured",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": [
+        "SPECIALIST DEFENSE"
+      ]
+    },
+    {
+      "development_id": "event:e87b65b9-17c0-4d74-baae-22c35360a445",
+      "title": "Morning recap",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    },
+    {
+      "development_id": "event:18feca72-5c51-47f0-a009-405eac376966",
+      "title": "OSINTtechnical",
+      "raw_reports": 1,
+      "independent_families": 1,
+      "verification_state": "REPORTED",
+      "official_confirmation": false,
+      "direct_evidence": false,
+      "dispute_status": "NOT_DISPUTED",
+      "source_classes": []
+    }
+  ],
+  "source_consensus_summary": {
+    "raw_report_count": 170,
+    "independent_source_family_count": 37,
+    "official_confirmation_count": 0,
+    "direct_evidence_count": 4,
+    "disputed_count": 0,
+    "verification_distribution": {
+      "reported": 165,
+      "unverified": 3
+    },
+    "source_class_distribution": {
+      "cyber": 21,
+      "unknown": 2,
+      "maritime": 5,
+      "official": 1,
+      "telegram": 30,
+      "major_media": 14,
+      "regional_media": 65,
+      "specialist_defense": 30
+    }
+  },
+  "cross_domain_assessment": [
+    {
+      "id": "cross-domain-cluster-regional-14a7quk",
+      "related_domains": [
+        "MISSILE",
+        "AIR_DEFENCE",
+        "AIR"
+      ],
+      "temporal_relationship": "Co-occurring within the daily reporting window; latest activity 2026-08-08T18:06:25+00:00.",
+      "geographic_relationship": "Grouped within operational cluster Kyiv, Ukraine.",
+      "confidence": "LOW",
+      "assessment_note": "Cross-domain co-occurrence is observed; no causal relationship is inferred."
+    },
+    {
+      "id": "cross-domain-cluster-regional-11kerwp",
+      "related_domains": [
+        "MARITIME",
+        "ARTILLERY",
+        "STRIKE"
+      ],
+      "temporal_relationship": "Co-occurring within the daily reporting window; latest activity 2026-08-08T20:38:14+00:00.",
+      "geographic_relationship": "Grouped within operational cluster Middle East.",
+      "confidence": "LOW",
+      "assessment_note": "Cross-domain co-occurrence is observed; no causal relationship is inferred."
+    }
+  ],
+  "outlook": [
+    {
+      "id": "outlook-watch-cluster-cluster-regional-14a7quk",
+      "theater": null,
+      "domain": "MISSILE",
+      "assessment": "SUGGESTS monitoring for recurring missile activity in kyiv, ukraine during the next reporting cycle.",
+      "confidence": "MODERATE",
+      "time_horizon": "24-72H",
+      "conditions_to_watch": [
+        "additional corroborated reports",
+        "geographic expansion",
+        "increased frequency or duration"
+      ]
+    },
+    {
+      "id": "outlook-watch-cluster-cluster-regional-1m6s72r",
+      "theater": null,
+      "domain": "AIR",
+      "assessment": "SUGGESTS monitoring for recurring air activity in kharkiv, ukraine during the next reporting cycle.",
+      "confidence": "MODERATE",
+      "time_horizon": "24-72H",
+      "conditions_to_watch": [
+        "additional corroborated reports",
+        "geographic expansion",
+        "increased frequency or duration"
+      ]
+    },
+    {
+      "id": "outlook-watch-cluster-cluster-regional-11kerwp",
+      "theater": null,
+      "domain": "MARITIME",
+      "assessment": "SUGGESTS monitoring for recurring maritime activity in middle east during the next reporting cycle.",
+      "confidence": "MODERATE",
+      "time_horizon": "24-72H",
+      "conditions_to_watch": [
+        "additional corroborated reports",
+        "geographic expansion",
+        "increased frequency or duration"
+      ]
+    },
+    {
+      "id": "outlook-watch-domain-missile",
+      "theater": null,
+      "domain": "MISSILE",
+      "assessment": "SUGGESTS monitoring for continued missile activity during the next reporting cycle.",
+      "confidence": "MODERATE",
+      "time_horizon": "24-72H",
+      "conditions_to_watch": [
+        "additional corroborated reports",
+        "geographic expansion",
+        "increased frequency or duration"
+      ]
+    },
+    {
+      "id": "outlook-watch-domain-air-defence",
+      "theater": null,
+      "domain": "AIR_DEFENCE",
+      "assessment": "SUGGESTS monitoring for continued air defence activity during the next reporting cycle.",
+      "confidence": "MODERATE",
+      "time_horizon": "24-72H",
+      "conditions_to_watch": [
+        "additional corroborated reports",
+        "geographic expansion",
+        "increased frequency or duration"
+      ]
+    }
+  ],
+  "methodology": {
+    "selection_method": "deterministic_relevance_deduplication_and_context_scoring",
+    "report_item_total": 168,
+    "selected_hva_total": 0,
+    "qualified_hva_total": 5,
+    "operational_event_total": 88,
+    "verification_distribution": {
+      "reported": 165,
+      "unverified": 3
+    },
+    "broader_intelligence_total": 80,
+    "telemetry_selection_window": {
+      "end": "2026-08-09T00:00:00.000Z",
+      "start": "2026-08-08T00:00:00.000Z",
+      "reason": "Preserves latest-row telemetry across the scheduled 00:12 UTC snapshot boundary.",
+      "boundary_grace_minutes": 15
+    },
+    "independent_source_family_count": 37,
+    "location_precision_distribution": {
+      "exact": 2,
+      "local": 19,
+      "unknown": 136,
+      "regional": 11
+    }
+  }
+}

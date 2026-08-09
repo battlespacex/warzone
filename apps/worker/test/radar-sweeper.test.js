@@ -55,9 +55,16 @@ test("active sweeper source has no solid coverage disc or uniform polygon sector
   assert.doesNotMatch(source, /buildSectorHierarchy/);
   assert.doesNotMatch(source, /sweep-edge|getRadarEdgeCoordinate/);
   assert.equal(RADAR_SWEEP_MATERIAL_TYPE, "StratOpsRadarSweep");
-  assert.match(source, /class RadarSweepMaterialProperty/);
+  assert.match(source, /function createRadarSweepPrimitive/);
+  assert.match(source, /new Cesium\.GroundPrimitive/);
+  assert.match(source, /viewer\.scene\.groundPrimitives\.add\(primitive\)/);
+  assert.match(source, /sweepMaterial\.uniforms\.heading = Cesium\.Math\.toRadians/);
   assert.match(source, /material\.alpha = color\.a \* max\(fadedAlpha \* inSweep, edgeAlpha\) \* radialMask/);
-  assert.match(source, /heightReference:\s*Cesium\.HeightReference\.CLAMP_TO_GROUND/);
+  assert.match(source, /classificationType:\s*Cesium\.ClassificationType\.TERRAIN/);
+  assert.doesNotMatch(source, /id:\s*`\$\{overlayId\}-sweep`[\s\S]{0,500}\bheight\s*:/);
+  assert.match(source, /requestRenderFrameSkip:\s*1/);
+  assert.match(source, /fwidth\(trail\)/);
+  assert.match(source, /ringSegments:\s*256/);
   assert.match(source, /positions:\s*buildRadarRingPositions\(lat, lon, preset\.radius \* ratio\)/);
   assert.match(source, /clampToGround:\s*true/);
 });

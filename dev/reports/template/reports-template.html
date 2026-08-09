@@ -571,7 +571,7 @@
       function paginate() {
         const source = document.querySelector(SOURCE_SELECTOR);
         const target = document.querySelector(TARGET_SELECTOR);
-        if (!source || !target) return;
+        if (!source || !target) return 0;
 
         const scope = source.dataset.scope || "GLOBAL ACTIVITY";
         const period = source.dataset.period || "";
@@ -627,9 +627,18 @@
             `PAGE ${index + 1} OF ${total}`;
           currentPage.querySelector(".inner-content").classList.remove("is-measuring");
         });
+        return total;
       }
 
       async function ready() {
+        window.__stratopsReportReady = false;
+        window.__stratopsReport = {
+          status: "LOADING",
+          pageCount: 0,
+          getState() {
+            return { status: this.status, pageCount: this.pageCount };
+          }
+        };
         if (document.fonts?.ready) {
           await document.fonts.ready;
         }
@@ -643,12 +652,28 @@
           });
         }));
 
-        paginate();
+        const pageCount = paginate();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        window.__stratopsReport.pageCount = 1 + pageCount;
+        window.__stratopsReport.status = "READY";
+        window.__stratopsReportReady = true;
+        document.body.dataset.reportReady = "true";
+        document.body.dataset.reportPageCount = String(1 + pageCount);
+        window.dispatchEvent(new CustomEvent("stratops:report-ready", {
+          detail: window.__stratopsReport.getState()
+        }));
       }
 
       window.addEventListener("resize", () => {
         clearTimeout(window.__stratOpsPaginationTimer);
-        window.__stratOpsPaginationTimer = setTimeout(paginate, 150);
+        window.__stratOpsPaginationTimer = setTimeout(() => {
+          window.__stratopsReportReady = false;
+          const pageCount = paginate();
+          window.__stratopsReport.pageCount = 1 + pageCount;
+          window.__stratopsReport.status = "READY";
+          window.__stratopsReportReady = true;
+          document.body.dataset.reportPageCount = String(1 + pageCount);
+        }, 150);
       });
 
       ready();

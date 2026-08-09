@@ -108,3 +108,19 @@ test("hotspot and locality-label CSS contain no positional transitions", async (
     assert.doesNotMatch(rule, /transition\s*:[^;}]*(?:left|top|transform)/i);
   }
 });
+
+test("visible hotspot labels are interactive and route cluster details to the existing popup event", async () => {
+  const source = await readFile(new URL("../../../dev/assets/js/warzone-hotspots.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../../../dev/assets/css/warzone-components.css", import.meta.url), "utf8");
+  assert.match(source, /function dispatchHotspotClusterSelection/);
+  assert.match(source, /new CustomEvent\("wz:event-marker-selected", \{ detail \}\)/);
+  assert.match(source, /el\.setAttribute\("role", "button"\)/);
+  assert.match(source, /el\.addEventListener\("click", selectCluster\)/);
+  assert.match(source, /hotspotPickHandler\.setInputAction/);
+  assert.match(source, /Cesium\.ScreenSpaceEventType\.LEFT_CLICK/);
+  assert.match(source, /hotspotPickHandler\.destroy\(\)/);
+  const labelRule = css.match(/\.wzhs-cluster-label\s*\{([^}]*)\}/)?.[1] || "";
+  const radiusRule = css.match(/\.wzhs-radius\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(labelRule, /pointer-events:\s*auto/);
+  assert.match(radiusRule, /pointer-events:\s*none/);
+});

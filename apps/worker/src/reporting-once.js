@@ -4,6 +4,7 @@ loadWorkerEnv();
 import { supabase } from "./supabase.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { ensureOperationalReport, generateDailySnapshot, generateScheduledReports, generateScheduledSnapshots, getPreviousUtcDateKey } from "../../shared/reporting-service.js";
+import { generateScheduledDailyPipelines, runDailyReportPipeline } from "./reporting-pipeline-service.js";
 
 function readArg(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -22,9 +23,24 @@ const scopeType = readArg("scope", "global").toLowerCase();
 const scopeValue = readArg("value", "");
 const runScheduled = hasFlag("scheduled");
 const snapshotOnly = hasFlag("snapshot-only");
+const full = hasFlag("full");
 
 try {
-  const result = runScheduled
+  const result = full
+    ? runScheduled
+      ? await generateScheduledDailyPipelines({ supabase, config, logger: console })
+      : await runDailyReportPipeline({
+        supabase,
+        config,
+        dateKey,
+        scope: { type: scopeType, value: scopeValue },
+        force: hasFlag("force"),
+        localOnly: hasFlag("local-only"),
+        skipCapture: hasFlag("skip-capture"),
+        skipUpload: hasFlag("skip-upload"),
+        logger: console,
+      })
+    : runScheduled
     ? snapshotOnly
       ? await generateScheduledSnapshots({ supabase, config, logger: console })
       : await generateScheduledReports({ supabase, config, logger: console })

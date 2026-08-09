@@ -192,7 +192,7 @@ async function writeLocalReportObject(key, body) {
   };
 }
 
-function buildS3PutRequest(region, bucket, key, body, contentType, credentials) {
+function buildS3PutRequest(region, bucket, key, body, contentType, cacheControl, credentials) {
   const normalizedRegion = String(region || "").trim();
   const service = "s3";
   const host = !normalizedRegion || normalizedRegion === "us-east-1"
@@ -212,6 +212,7 @@ function buildS3PutRequest(region, bucket, key, body, contentType, credentials) 
     "x-amz-content-sha256": payloadHash,
     "x-amz-date": amzDate,
   };
+  if (cacheControl) headers["cache-control"] = cacheControl;
   if (credentials.sessionToken) headers["x-amz-security-token"] = credentials.sessionToken;
 
   const sortedHeaderKeys = Object.keys(headers).sort();
@@ -226,23 +227,28 @@ function buildS3PutRequest(region, bucket, key, body, contentType, credentials) 
   return { url, headers };
 }
 
-async function putSignedS3Object(region, bucket, key, body, contentType, credentials) {
-  const request = buildS3PutRequest(region, bucket, key, body, contentType, credentials);
+async function putSignedS3Object(region, bucket, key, body, contentType, cacheControl, credentials) {
+  const request = buildS3PutRequest(region, bucket, key, body, contentType, cacheControl, credentials);
   return getFetch()(request.url, { method: "PUT", headers: request.headers, body });
 }
 
-async function s3PutObject(config, { key, body, contentType = "application/octet-stream" }) {
+async function s3PutObject(config, {
+  key,
+  body,
+  contentType = "application/octet-stream",
+  cacheControl = "no-cache, max-age=0, must-revalidate",
+}) {
   try {
     const credentials = await resolveAwsCredentials(config);
     let region = String(config.aws.region || "").trim() || "us-east-1";
     const bucket = config.aws.bucket;
-    let response = await putSignedS3Object(region, bucket, key, body, contentType, credentials);
+    let response = await putSignedS3Object(region, bucket, key, body, contentType, cacheControl, credentials);
     if (response.status === 301 || response.status === 307) {
       const hintedRegion = String(response.headers.get("x-amz-bucket-region") || "").trim();
       const responseText = await response.text().catch(() => "");
       if (hintedRegion && hintedRegion !== region) {
         region = hintedRegion;
-        response = await putSignedS3Object(region, bucket, key, body, contentType, credentials);
+        response = await putSignedS3Object(region, bucket, key, body, contentType, cacheControl, credentials);
         if (response.ok) {
           return {
             storageKey: key,

@@ -40,7 +40,7 @@ test("daily snapshot persistence can run without enabling report or PDF generati
   assert.equal(config.snapshotEnabled, true);
   assert.equal(config.scheduleEnabled, false);
   assert.equal(config.snapshotCron, "12 0 * * *");
-  assert.equal(config.retentionDays, 90);
+  assert.equal(config.retentionDays, 365);
   const status = getReportingConfigStatus(config);
   assert.equal(status.snapshotReady, true);
   assert.equal(status.reportStorageReady, false);
@@ -72,4 +72,31 @@ test("capture configuration is centralized and remains disabled by default", () 
   assert.equal(enabled.capture.retentionHours, 30);
   assert.equal(getReportingConfigStatus(enabled).captureEnabled, true);
   assert.deepEqual(getReportingConfigStatus(enabled).missing, []);
+});
+
+test("PDF validation and public asset settings have production-safe defaults", () => {
+  const defaults = readReportingConfig({ REPORTING_ENABLED: "false" });
+  assert.equal(defaults.pdf.readinessTimeoutMs, 45000);
+  assert.equal(defaults.pdf.minimumSizeBytes, 10000);
+  assert.equal(defaults.publicAssetBaseUrl, "");
+
+  const configured = readReportingConfig({
+    REPORTING_ENABLED: "false",
+    REPORTING_PUBLIC_ASSET_BASE_URL: "https://stratops.example/",
+    REPORTING_PDF_READY_TIMEOUT_MS: "60000",
+  });
+  assert.equal(configured.publicAssetBaseUrl, "https://stratops.example");
+  assert.equal(configured.pdf.readinessTimeoutMs, 60000);
+});
+
+test("report storage readiness accepts an explicitly configured EC2 IAM role", () => {
+  const config = readReportingConfig({
+    REPORTING_ENABLED: "true",
+    AWS_S3_BUCKET: "reports-bucket",
+    REPORTING_AWS_USE_IAM_ROLE: "true",
+  });
+  const status = getReportingConfigStatus(config);
+  assert.equal(config.aws.roleCredentialSourceAvailable, true);
+  assert.equal(status.reportStorageReady, true);
+  assert.deepEqual(status.missing, []);
 });

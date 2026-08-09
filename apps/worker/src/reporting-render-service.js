@@ -111,6 +111,12 @@ function sanitizeStorageResult(result = {}, fallbackKey = null) {
   };
 }
 
+function applyPublicAssetBaseUrl(html, publicAssetBaseUrl = "") {
+  const base = String(publicAssetBaseUrl || "").trim().replace(/\/+$/, "");
+  if (!base) return html;
+  return String(html || "").replace(/(["'])\/assets\//g, `$1${base}/assets/`);
+}
+
 function buildRenderedManifest(snapshot, model, generatedAt, uploadResults = {}) {
   const existing = snapshot.report_manifest && typeof snapshot.report_manifest === "object"
     ? snapshot.report_manifest
@@ -141,6 +147,13 @@ function buildRenderedManifest(snapshot, model, generatedAt, uploadResults = {})
       report_json: sanitizeStorageResult(uploadResults.reportJson, objectKeys.report_json || null),
       manifest_json: { storageKey: objectKeys.manifest_json || null },
     },
+    html: {
+      status: "READY",
+      path: "report.html",
+      s3_key: objectKeys.report_html || null,
+      generated_at: generatedAt,
+    },
+    overall_status: "HTML",
   };
 }
 
@@ -162,7 +175,10 @@ async function renderSnapshotReport({
     readFile(REPORT_CSS_PATH, "utf8"),
   ]);
   const model = buildReportRenderModel(snapshot, { localImageNames });
-  const html = renderReportHtml({ templateHtml, templateCss, model });
+  const html = applyPublicAssetBaseUrl(
+    renderReportHtml({ templateHtml, templateCss, model }),
+    config.publicAssetBaseUrl
+  );
   const reportJson = `${JSON.stringify(model, null, 2)}\n`;
   const paths = {
     directory: outputDirectory,
@@ -209,6 +225,8 @@ async function renderSnapshotReport({
     report_json_path: objectKeys.report_json || null,
     manifest_json_path: objectKeys.manifest_json || null,
     render_outputs: renderedManifest.render_outputs,
+    html: renderedManifest.html,
+    overall_status: "HTML",
   };
   await persistState(supabase, snapshotKey, persistedManifest);
   return {
@@ -246,6 +264,7 @@ const __reportingRenderTestUtils = {
   REPORT_CSS_PATH,
   REPORT_OUTPUT_ROOT,
   REPORT_TEMPLATE_PATH,
+  applyPublicAssetBaseUrl,
   buildRenderedManifest,
   getAvailableLocalImageNames,
   getReportOutputDirectory,
@@ -255,6 +274,7 @@ const __reportingRenderTestUtils = {
 
 export {
   __reportingRenderTestUtils,
+  getReportOutputDirectory,
   renderSnapshotByDate,
   renderSnapshotReport,
 };
