@@ -322,7 +322,7 @@ function calculateCaptureCamera(target = {}) {
     TACTICAL_OVERVIEW_2D: { scene_mode: "2d", min: 500000, max: 6500000, factor: 2.25, pitch: -90 },
     MAJOR_DEVELOPMENT_CONTEXT: { scene_mode: "3d", min: 260000, max: 1300000, factor: 2.1, pitch: -58 },
     CLUSTER_CONTEXT: { scene_mode: "3d", min: 360000, max: 1800000, factor: 2.25, pitch: -58 },
-    HVA_FOCUS_3D: { scene_mode: "3d", min: 24000, max: 70000, factor: 1, pitch: -58 },
+    HVA_FOCUS_3D: { scene_mode: "3d", min: 24000, max: 70000, factor: 1, pitch: -28 },
     HVA_REGIONAL_CONTEXT: { scene_mode: "3d", min: 140000, max: 450000, factor: 1.6, pitch: -50 },
     NAVAL_FOCUS: { scene_mode: "3d", min: 45000, max: 90000, factor: 1, pitch: -58 },
     AOI_CONTEXT: { scene_mode: "2d", min: 300000, max: 6000000, factor: 2.35, pitch: -90 },
@@ -335,8 +335,12 @@ function calculateCaptureCamera(target = {}) {
     scene_mode: preset.scene_mode,
     center,
     bounds,
-    heading_degrees: captureType === "HVA_FOCUS_3D" || captureType === "NAVAL_FOCUS"
-      ? ((finiteNumber(target.asset_heading_deg) ?? 0) + 30) % 360
+    heading_degrees: captureType === "HVA_FOCUS_3D"
+      // HeadingPitchRange describes the camera's look direction. Reverse the
+      // aircraft heading, then bias 40 degrees to one side for a front-quarter view.
+      ? ((finiteNumber(target.asset_heading_deg) ?? 0) + 140) % 360
+      : captureType === "NAVAL_FOCUS"
+        ? ((finiteNumber(target.asset_heading_deg) ?? 0) + 30) % 360
       : captureType === "HVA_REGIONAL_CONTEXT"
         ? ((finiteNumber(target.asset_heading_deg) ?? 0) + 345) % 360
         : 20,
@@ -441,8 +445,9 @@ function buildReportAssetFocusPreset(captureType = "", camera = {}) {
   return {
     capture_type: type,
     mode: regional ? "REGIONAL" : "FOCUS",
+    map_mode: type === "HVA_FOCUS_3D" || type === "HVA_REGIONAL_CONTEXT" ? "CTR" : "DEFAULT",
     heading_degrees: finiteNumber(camera.heading_degrees) ?? 30,
-    pitch_degrees: finiteNumber(camera.pitch_degrees) ?? (regional ? -50 : -58),
+    pitch_degrees: finiteNumber(camera.pitch_degrees) ?? (regional ? -50 : type === "HVA_FOCUS_3D" ? -28 : -58),
     range_meters: finiteNumber(camera.range_meters) ?? (regional ? 140000 : 24000),
     minimum_visual_pixels: regional ? 96 : 180,
     safe_viewport_margin_pixels: regional ? 36 : 52,

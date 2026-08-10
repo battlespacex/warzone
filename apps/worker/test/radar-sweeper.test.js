@@ -49,7 +49,7 @@ test("sweep width is constrained to the requested 45 to 80 degree visual range",
   assert.equal(wide[2].offset, 1 - (80 / 360));
 });
 
-test("active sweeper source has no solid coverage disc or uniform polygon sector", async () => {
+test("active sweeper uses a tunable translucent shader fill rather than a polygon sector", async () => {
   const source = await readFile(new URL("../../../dev/assets/js/warzone-sweeper.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /coverageFill/);
   assert.doesNotMatch(source, /buildSectorHierarchy/);
@@ -59,14 +59,34 @@ test("active sweeper source has no solid coverage disc or uniform polygon sector
   assert.match(source, /new Cesium\.GroundPrimitive/);
   assert.match(source, /viewer\.scene\.groundPrimitives\.add\(primitive\)/);
   assert.match(source, /sweepMaterial\.uniforms\.heading = Cesium\.Math\.toRadians/);
-  assert.match(source, /material\.alpha = color\.a \* max\(fadedAlpha \* inSweep, edgeAlpha\) \* radialMask/);
+  assert.match(source, /float sweepAlpha = max\(fadedAlpha \* inSweep, edgeAlpha\) \* radialMask/);
+  assert.match(source, /float fillAlpha = fillOpacity \* discMask/);
+  assert.match(source, /\)\) \* innerRingOpacity/);
+  assert.match(source, /material\.alpha = max\(fillLayerAlpha, max\(sweepLayerAlpha, ringLayerAlpha\)\)/);
   assert.match(source, /classificationType:\s*Cesium\.ClassificationType\.TERRAIN/);
   assert.doesNotMatch(source, /id:\s*`\$\{overlayId\}-sweep`[\s\S]{0,500}\bheight\s*:/);
   assert.match(source, /requestRenderFrameSkip:\s*1/);
   assert.match(source, /fwidth\(trail\)/);
-  assert.match(source, /ringSegments:\s*256/);
-  assert.match(source, /positions:\s*buildRadarRingPositions\(lat, lon, preset\.radius \* ratio\)/);
-  assert.match(source, /clampToGround:\s*true/);
+  assert.match(source, /float ringPixel = max\(fwidth\(radius\)/);
+  assert.match(source, /fwidth\(trail\) \* 2\.5/);
+  assert.match(source, /fwidth\(radius\) \* 2\.5/);
+  assert.match(source, /ringFeather = ringPixel \* 1\.5/);
+  assert.match(source, /ringInner:\s*RADAR_RING_RATIOS\[0\]/);
+  assert.match(source, /ringMiddle:\s*RADAR_RING_RATIOS\[1\]/);
+  assert.match(source, /ringOuter:\s*RADAR_RING_RATIOS\[2\]/);
+  assert.doesNotMatch(source, /buildRadarRingPositions|polyline:\s*\{/);
+});
+
+test("radar labels remain below the hotspot activity stack", async () => {
+  const components = await readFile(new URL("../../../dev/assets/css/warzone-components.css", import.meta.url), "utf8");
+  const map = await readFile(new URL("../../../dev/assets/css/warzone-map.css", import.meta.url), "utf8");
+  const radarLayer = components.match(/\.wz-radar-label-layer\s*\{([^}]*)\}/)?.[1] || "";
+  const hotspotLayer = map.match(/\.warzone-hotspot-layer\s*\{([^}]*)\}/)?.[1] || "";
+  const radarZ = Number(radarLayer.match(/z-index:\s*(\d+)/)?.[1]);
+  const hotspotZ = Number(hotspotLayer.match(/z-index:\s*(\d+)/)?.[1]);
+  assert.ok(Number.isFinite(radarZ));
+  assert.ok(Number.isFinite(hotspotZ));
+  assert.ok(hotspotZ > radarZ);
 });
 
 test("radar visual controls are centralized in root CSS", async () => {
@@ -74,6 +94,9 @@ test("radar visual controls are centralized in root CSS", async () => {
   for (const token of [
     "--radar-color",
     "--radar-ring-color",
+    "--radar-fill-color",
+    "--radar-fill-opacity",
+    "--radar-inner-ring-opacity",
     "--radar-ring-opacity",
     "--radar-ring-width",
     "--radar-sweep-opacity-min",
@@ -86,6 +109,9 @@ test("radar visual controls are centralized in root CSS", async () => {
   ]) {
     assert.match(css, new RegExp(`${token}\\s*:`));
   }
+  assert.match(css, /--radar-inner-ring-opacity:\s*0;/);
+  assert.match(css, /--radar-fill-opacity:\s*0;/);
+  assert.match(css, /--radar-sweep-width:\s*72;/);
 });
 
 test("radar toggle remains isolated from hotspot state", async () => {

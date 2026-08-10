@@ -33,7 +33,7 @@
 .warzone-hotspot-layer {
     position: absolute;
     inset: 0;
-    z-index: 5;
+    z-index: 21;
     pointer-events: none;
     overflow: visible;
 }
@@ -216,7 +216,8 @@ body.is-aoi-drawing .cesium-widget canvas {
     }
 }
 .wz-gnss-legend__tag {
-    display: flex;
+display: flex;
+    align-items: center;
     flex-shrink: 0;
     font-size: var(--text-xs);
     font-weight: 700;
@@ -227,9 +228,9 @@ body.is-aoi-drawing .cesium-widget canvas {
     padding: .0rem 0.8rem;
     text-transform: uppercase;
     width: fit-content;
-
     background: var(--color-yellow-overlay);
     color: var(--color-yellow-slate);
+    clip-path: var(--clippath-shape-3);
 }
 .wz-gnss-panel__body {
     display: grid;

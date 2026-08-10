@@ -94,6 +94,7 @@ const RAISED_REGION_SUBREGION_MATCH = {
 };
 const markerCache = new Map();
 const ringCanvasCache = new Map();
+const eventLabelCanvasCache = new Map();
 const MARKER_CACHE_MAX_ITEMS = 220;
 const RING_CACHE_MAX_ITEMS = 40;
 const SATELLITE_BADGE_CACHE_KEY = "event-satellite-badge";
@@ -116,6 +117,7 @@ const STARTUP_CAMERA = {
 function clearEventMarkerVisualCaches() {
     markerCache.clear();
     ringCanvasCache.clear();
+    eventLabelCanvasCache.clear();
 }
 function normalizeAdaptiveProfile(profile = "normal") {
     const value = String(profile || "").toLowerCase();
@@ -902,8 +904,24 @@ function applyEventLod(viewer) {
         const color = Cesium.Color.fromCssColorString(colorCss);
         const baseRadius = getSeverityRadius({ severity, cluster_count: clusterCount });
         if (isEventCountLabel) {
+            const markerLabel = String(entity.properties?.event_marker_label?.getValue?.() ?? "Event");
+            const showCountLabel = (isReportClusterSummary && entity.properties?.report_label_visible?.getValue?.() === true)
+                || (mode !== "heatmap"
+                && !suppressMarkers
+                && showIndividualEvents
+                && clusterCount === 1
+                && visibleEventLabelIds.has(String(entity.id)));
+            if (entity.billboard) {
+                const billboardConfig = createEventMarkerTextLabel(markerLabel);
+                entity.billboard.show = showCountLabel;
+                entity.billboard.image = billboardConfig.image;
+                entity.billboard.width = billboardConfig.width;
+                entity.billboard.height = billboardConfig.height;
+                entity.billboard.pixelOffset = billboardConfig.pixelOffset;
+                entity.billboard.eyeOffset = billboardConfig.eyeOffset;
+                entity.billboard.disableDepthTestDistance = billboardConfig.disableDepthTestDistance;
+            }
             if (entity.label) {
-                const markerLabel = String(entity.properties?.event_marker_label?.getValue?.() ?? "Event");
                 const labelConfig = isReportClusterSummary
                     ? createReportClusterLabel({
                         cluster_count: clusterCount,
@@ -914,14 +932,7 @@ function applyEventLod(viewer) {
                     : clusterCount === 1
                     ? createEventMarkerTextLabel(markerLabel)
                     : createClusterCountLabel(clusterCount);
-                const showCountLabel = (isReportClusterSummary && entity.properties?.report_label_visible?.getValue?.() === true)
-                    || (mode !== "heatmap"
-                    && !suppressMarkers
-                    && showIndividualEvents
-                    && clusterCount === 1
-                    && visibleEventLabelIds.has(String(entity.id))
-                    && !!labelConfig);
-                entity.label.show = showCountLabel;
+                entity.label.show = showCountLabel && !!labelConfig;
                 if (labelConfig) {
                     entity.label.text = labelConfig.text;
                     entity.label.font = labelConfig.font;
@@ -1864,6 +1875,10 @@ function createMarkerCanvas(colorCss) {
     const ctx = canvas.getContext("2d");
     const cx = sz / 2;
     const cy = sz / 2;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.clearRect(0, 0, sz, sz);
     ctx.fillStyle = colorCssWithAlpha(colorCss, numberVar("--warzone-event-marker-fill-alpha", 0.82));
     ctx.beginPath();
@@ -2100,52 +2115,100 @@ function getEventMarkerText(event = {}) {
     return labels[domain] || "Event";
 }
 function formatEventMarkerLabelText(text = "Event") {
-    const normalized = String(text || "Event").trim().replace(/\s+/g, " ").toUpperCase();
-    const fontSizePx = Math.max(1, cssLengthPixelVar("--event-marker-label-size", 13));
-    const letterSpacingPx = Math.max(0, cssLengthPixelVar("--event-marker-label-letter-spacing", 2));
-    if (!letterSpacingPx) return normalized;
-    const thinSpaceCount = Math.max(1, Math.min(3, Math.round(letterSpacingPx / (fontSizePx * 0.2))));
-    const characterSpacer = "\u2009".repeat(thinSpaceCount);
-    return normalized
-        .split(" ")
-        .map((word) => Array.from(word).join(characterSpacer))
-        .join(`${characterSpacer}${characterSpacer}${characterSpacer}`);
+    return String(text || "Event").trim().replace(/\s+/g, " ").toUpperCase();
+}
+function measureTrackedCanvasText(ctx, text, letterSpacing = 0) {
+    const characters = Array.from(text);
+    return characters.reduce((width, character, index) => (
+        width + ctx.measureText(character).width + (index < characters.length - 1 ? letterSpacing : 0)
+    ), 0);
+}
+function drawTrackedCanvasText(ctx, text, x, y, letterSpacing = 0) {
+    let cursorX = x;
+    Array.from(text).forEach((character, index, characters) => {
+        ctx.fillText(character, cursorX, y);
+        cursorX += ctx.measureText(character).width + (index < characters.length - 1 ? letterSpacing : 0);
+    });
+}
+function createEventMarkerTextBillboard(text = "Event") {
+    const normalized = formatEventMarkerLabelText(text);
+    const pixelRatio = Math.max(4, Math.min(6, (Number(window.devicePixelRatio) || 1) * 3));
+    const fontSize = Math.max(1, cssLengthPixelVar("--event-marker-label-size", 12));
+    const letterSpacing = Math.max(0, cssLengthPixelVar("--event-marker-label-letter-spacing", 1));
+    const fontWeight = Math.max(100, Math.min(900, numberVar("--event-marker-label-font-weight", 600)));
+    const fontFamily = stringVar("--text-font", "system-ui, Arial, sans-serif");
+    const paddingX = Math.max(0, cssLengthPixelVar("--event-marker-label-padding-x", 8));
+    const paddingTop = Math.max(0, cssLengthPixelVar("--event-marker-label-padding-top", 8));
+    const paddingBottom = Math.max(0, cssLengthPixelVar("--event-marker-label-padding-bottom", 6));
+    const cutSize = Math.max(0, cssLengthPixelVar("--event-marker-label-cut-size", 10));
+    const background = cssVar("--color-bg-dark", "rgba(32,38,49,0.85)");
+    const foreground = cssVar("--warzone-event-marker-text-color", "#ffffff");
+    const font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    const cacheKey = [normalized, pixelRatio, font, letterSpacing, paddingX, paddingTop, paddingBottom, cutSize, background, foreground].join("|");
+    if (eventLabelCanvasCache.has(cacheKey)) return eventLabelCanvasCache.get(cacheKey);
+
+    const measureCanvas = document.createElement("canvas");
+    const measureContext = measureCanvas.getContext("2d");
+    measureContext.font = font;
+    const textWidth = Math.ceil(measureTrackedCanvasText(measureContext, normalized, letterSpacing));
+    const lineHeight = Math.ceil(fontSize * 1.2);
+    const logicalWidth = Math.max(1, Math.ceil(textWidth + paddingX * 2));
+    const logicalHeight = Math.max(1, Math.ceil(lineHeight + paddingTop + paddingBottom));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(logicalWidth * pixelRatio);
+    canvas.height = Math.ceil(logicalHeight * pixelRatio);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixelRatio, pixelRatio);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(logicalWidth, 0);
+    ctx.lineTo(logicalWidth, logicalHeight - cutSize);
+    ctx.lineTo(logicalWidth - cutSize, logicalHeight);
+    ctx.lineTo(0, logicalHeight);
+    ctx.closePath();
+    ctx.fillStyle = background;
+    ctx.fill();
+    ctx.font = font;
+    ctx.fillStyle = foreground;
+    ctx.textBaseline = "top";
+    drawTrackedCanvasText(ctx, normalized, paddingX, paddingTop, letterSpacing);
+    const result = { image: canvas, width: logicalWidth, height: logicalHeight };
+    setLimitedCache(eventLabelCanvasCache, cacheKey, result, 48);
+    return result;
 }
 function createEventMarkerTextLabel(text = "Event") {
+    const label = createEventMarkerTextBillboard(text);
     return {
-        text: formatEventMarkerLabelText(text),
-        font: `700 ${cssVar("--event-marker-label-size", "13px")} ${stringVar("--heading-font", "system-ui, Arial, sans-serif")}`,
-        fillColor: colorFromCssVar("--warzone-event-marker-text-color", "#ffffff", 0.98),
-        outlineColor: Cesium.Color.BLACK.withAlpha(0.94),
-        outlineWidth: Math.max(0, numberVar("--event-marker-label-outline-width", 2)),
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        image: label.image,
+        width: label.width,
+        height: label.height,
         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         pixelOffset: new Cesium.Cartesian2(numberVar("--event-marker-label-offset-x", 30), 0),
         eyeOffset: new Cesium.Cartesian3(0, 0, -5000),
         disableDepthTestDistance: Math.max(0, numberVar("--warzone-event-marker-depth-test-distance", 0)),
-        zIndex: 1000,
-        showBackground: true,
-        backgroundColor: Cesium.Color.BLACK.withAlpha(numberVar("--event-marker-label-background-alpha", 0.82)),
-        backgroundPadding: new Cesium.Cartesian2(
-            numberVar("--event-marker-label-padding-x", 8),
-            numberVar("--event-marker-label-padding-y", 5)
-        ),
     };
 }
 function createEventCountEntity(event) {
     const count = Number(event?.cluster_count || 1);
     const eventMarkerLabel = getEventMarkerText(event);
     const isReportCluster = window.__stratopsReportCaptureMode === true && event.is_report_cluster_summary === true;
-    const label = isReportCluster ? createReportClusterLabel(event) : (count === 1 ? createEventMarkerTextLabel(eventMarkerLabel) : createClusterCountLabel(count));
-    if (!label) return null;
+    const label = isReportCluster ? createReportClusterLabel(event) : (count > 1 ? createClusterCountLabel(count) : null);
+    const billboard = !isReportCluster && count === 1 ? createEventMarkerTextLabel(eventMarkerLabel) : null;
+    if (!label && !billboard) return null;
     return {
         id: `${event.id}-count`,
         position: createEventPositionProperty(event),
-        label: {
+        ...(label ? { label: {
             ...label,
             show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT && count === 1,
-        },
+        } } : {}),
+        ...(billboard ? { billboard: {
+            ...billboard,
+            show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT,
+        } } : {}),
         properties: {
             event_id: event.id,
             isEventCountLabel: true,
@@ -2184,6 +2247,95 @@ function createRingCanvas(strokeCss = "#f51e58", size = 512, lineWidth = 20) {
     const dataUrl = canvas.toDataURL("image/png");
     setLimitedCache(ringCanvasCache, key, dataUrl, RING_CACHE_MAX_ITEMS);
     return dataUrl;
+}
+function createTacticalStrikeLabel(text, accentCss) {
+    const cleanText = String(text || "ACTIVITY")
+        .replace(/(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|[\u{1F1E6}-\u{1F1FF}]|[\uFE0E\uFE0F\u200D\u20E3])/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase() || "ACTIVITY";
+    const pixelRatio = Math.max(1, Math.min(3, Number(window.devicePixelRatio) || 1));
+    const fontSize = Math.max(11, cssPixelNumberVar("--hotspot-label-size", 14));
+    const lineHeight = Math.ceil(fontSize * 1.25);
+    const horizontalPadding = 12;
+    const verticalPadding = 8;
+    const shadowPadding = 10;
+    const cutSize = 9;
+    const maxTextWidth = 240;
+    const measureCanvas = document.createElement("canvas");
+    const measureContext = measureCanvas.getContext("2d");
+    const fontFamily = cssVar("--heading-font", "sans-serif");
+    const font = `800 ${fontSize}px ${fontFamily}`;
+    measureContext.font = font;
+    if ("letterSpacing" in measureContext) measureContext.letterSpacing = "1.2px";
+    const words = cleanText.split(" ");
+    const lines = [];
+    let currentLine = "";
+    for (const word of words) {
+        const candidate = currentLine ? `${currentLine} ${word}` : word;
+        if (!currentLine || measureContext.measureText(candidate).width <= maxTextWidth) {
+            currentLine = candidate;
+            continue;
+        }
+        lines.push(currentLine);
+        currentLine = word;
+        if (lines.length === 2) break;
+    }
+    if (lines.length < 2 && currentLine) lines.push(currentLine);
+    const consumed = lines.join(" ");
+    if (consumed.length < cleanText.length && lines.length) {
+        let finalLine = lines[lines.length - 1].replace(/[.\s]+$/, "");
+        while (finalLine.length > 1 && measureContext.measureText(`${finalLine}…`).width > maxTextWidth) {
+            finalLine = finalLine.slice(0, -1).trimEnd();
+        }
+        lines[lines.length - 1] = `${finalLine}…`;
+    }
+    const textWidth = Math.min(
+        maxTextWidth,
+        Math.max(...lines.map((line) => measureContext.measureText(line).width), fontSize * 5)
+    );
+    const boxWidth = Math.ceil(textWidth + horizontalPadding * 2);
+    const boxHeight = Math.ceil(lines.length * lineHeight + verticalPadding * 2);
+    const logicalWidth = boxWidth + shadowPadding * 2;
+    const logicalHeight = boxHeight + shadowPadding * 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(logicalWidth * pixelRatio);
+    canvas.height = Math.ceil(logicalHeight * pixelRatio);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixelRatio, pixelRatio);
+    ctx.imageSmoothingEnabled = true;
+    const x = shadowPadding;
+    const y = shadowPadding;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + boxWidth - cutSize, y);
+    ctx.lineTo(x + boxWidth, y + cutSize);
+    ctx.lineTo(x + boxWidth, y + boxHeight);
+    ctx.lineTo(x + cutSize, y + boxHeight);
+    ctx.lineTo(x, y + boxHeight - cutSize);
+    ctx.closePath();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.72)";
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = cssVar("--hotspot-stack-background", "rgba(7, 13, 19, 0.94)");
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = accentCss;
+    ctx.globalAlpha = 0.72;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = accentCss;
+    ctx.fillRect(x, y + 1, 4, boxHeight - 2);
+    ctx.fillStyle = cssVar("--color-text-heading", "#f2f5f7");
+    ctx.font = font;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "1.2px";
+    ctx.textBaseline = "top";
+    lines.forEach((line, index) => {
+        ctx.fillText(line, x + horizontalPadding, y + verticalPadding + index * lineHeight, maxTextWidth);
+    });
+    ctx.restore();
+    return { image: canvas, width: logicalWidth, height: logicalHeight };
 }
 function createEventCircleCanvas(colorCss = "#f51e58", size = 512) {
     const key = `event-circle|${colorCss}|${size}`;
@@ -6466,6 +6618,12 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
             activeTrack.impactMarker.label.fillColor = impactColor.withAlpha(fade);
             activeTrack.impactMarker.label.outlineColor = Cesium.Color.BLACK.withAlpha(fade);
         }
+        if (activeTrack.launchMarker?.billboard) {
+            activeTrack.launchMarker.billboard.color = Cesium.Color.WHITE.withAlpha(fade);
+        }
+        if (activeTrack.impactMarker?.billboard) {
+            activeTrack.impactMarker.billboard.color = Cesium.Color.WHITE.withAlpha(fade);
+        }
         viewer.scene.requestRender();
         if (t < 1) {
             activeTrack.fadeFrame = requestAnimationFrame(step);
@@ -6509,13 +6667,21 @@ function animateMissileTrack(viewer, event) {
                 ? numberVar("--warzone-missile-duration-high", 7500)
                 : numberVar("--warzone-missile-duration-medium", 6200))
     );
-    const persistMs = Number(
+    const requestedPersistMs = Number(
         event.persist_ms ||
         (event.severity === "critical"
             ? numberVar("--warzone-missile-persist-critical", 12000)
             : event.severity === "high"
                 ? numberVar("--warzone-missile-persist-high", 10000)
                 : numberVar("--warzone-missile-persist-medium", 8000))
+    );
+    const completedHoldMinMs = Math.max(
+        10000,
+        numberVar("--warzone-missile-completed-hold-min", 10000)
+    );
+    const persistMs = Math.max(
+        completedHoldMinMs,
+        Number.isFinite(requestedPersistMs) ? requestedPersistMs : completedHoldMinMs
     );
     const { positions, samples } = buildArcState(
         originLon,
@@ -6555,6 +6721,7 @@ function animateMissileTrack(viewer, event) {
     viewer.__warzoneMissileOrder.push(missileId);
     enforceMissileCap(viewer);
     createMissileSegmentEntities(viewer, track, positions);
+    const launchLabel = createTacticalStrikeLabel(event.origin_label || "Launch", cssVar("--warzone-missile-launch-color", "#ff2a2a"));
     const launchMarker = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(originLon, originLat),
         point: {
@@ -6564,19 +6731,19 @@ function animateMissileTrack(viewer, event) {
             outlineWidth: 2,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        label: {
-            text: event.origin_label || "Launch",
-            font: "bold 14px sans-serif",
-            pixelOffset: new Cesium.Cartesian2(0, -34),
-            fillColor: launchColor,
-            outlineColor: Cesium.Color.BLACK,
-            outlineWidth: 3,
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        billboard: {
+            image: launchLabel.image,
+            width: launchLabel.width,
+            height: launchLabel.height,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -14),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
     });
     track.entities.push(launchMarker);
     track.launchMarker = launchMarker;
+    const impactLabel = createTacticalStrikeLabel(event.impact_label || event.location_label || "Impact", cssVar("--warzone-missile-impact-color", "#ff2a2a"));
     const impactMarker = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(impactLon, impactLat, numberVar("--warzone-impact-marker-height", 4000)),
         point: {
@@ -6586,14 +6753,13 @@ function animateMissileTrack(viewer, event) {
             outlineWidth: 1,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        label: {
-            text: event.impact_label || event.location_label || "Impact",
-            font: "bold 14px sans-serif",
-            pixelOffset: new Cesium.Cartesian2(0, -40),
-            fillColor: impactColor,
-            outlineColor: Cesium.Color.BLACK,
-            outlineWidth: 3,
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        billboard: {
+            image: impactLabel.image,
+            width: impactLabel.width,
+            height: impactLabel.height,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -16),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
     });
@@ -7297,9 +7463,9 @@ viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery"
             if (tileLoadBusy && !is2DMode) {
                 nextResolution = Math.min(
                     nextResolution,
-                    clamp(numberVar("--warzone-globe-loading-resolution-scale", 0.86), 0.5, 1)
+                    clamp(numberVar("--warzone-globe-loading-resolution-scale", 1.05), 0.5, 1.25)
                 );
-                nextMsaaSamples = 1;
+                nextMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-globe-loading-msaa-samples", 2)));
                 nextFxaaEnabled = true;
                 nextSse = Math.max(
                     nextSse,

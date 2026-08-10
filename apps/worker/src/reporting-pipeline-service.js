@@ -1,9 +1,9 @@
 import crypto from "crypto";
 import { readdir, readFile, stat, writeFile } from "fs/promises";
 import { basename, relative, resolve } from "path";
-import { readReportingConfig } from "../../shared/reporting-config.js";
+import { DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, readReportingConfig } from "../../shared/reporting-config.js";
 import { buildSnapshotKey } from "../../shared/reporting-snapshot.js";
-import { s3PutObject } from "../../shared/reporting-s3.js";
+import { s3DeleteObject, s3PutObject } from "../../shared/reporting-s3.js";
 import {
   REPORT_VERSION,
   generateDailySnapshot,
@@ -189,7 +189,8 @@ async function uploadReportArtifacts({ snapshot, outputDirectory, config, upload
 }
 
 async function persistOperationalReportAvailable({ supabase, report, snapshot, model, manifest, publication, config }) {
-  const expiresAt = new Date(Date.now() + config.pdfExpiryHours * 60 * 60 * 1000).toISOString();
+  const publishedRetentionDays = Math.max(1, Number(config.publishedRetentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
+  const expiresAt = new Date(Date.now() + publishedRetentionDays * 24 * 60 * 60 * 1000).toISOString();
   const downloadToken = crypto.randomBytes(24).toString("hex");
   const { data, error } = await supabase
     .from("operational_reports")
@@ -216,6 +217,108 @@ async function persistOperationalReportAvailable({ supabase, report, snapshot, m
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+function shiftUtcDateKey(dateKey, days) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ""))) return "";
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function getPublishedReportInstancePrefix(report = {}, config = readReportingConfig()) {
+  const storageKey = String(report.pdf_storage_key || "").trim().replace(/^\/+/, "");
+  const root = `${String(config.s3Prefix || "reports").trim().replace(/^\/+|\/+$/g, "")}/daily/`;
+  if (!storageKey.startsWith(root) || !storageKey.endsWith("/report.pdf")) return "";
+  const relativeKey = storageKey.slice(root.length);
+  const isGlobal = /^global\/\d{4}-\d{2}-\d{2}\/report\.pdf$/.test(relativeKey);
+  const isScoped = /^(?:region|country|aoi)\/[a-z0-9][a-z0-9-]*\/\d{4}-\d{2}-\d{2}\/report\.pdf$/.test(relativeKey);
+  if (!isGlobal && !isScoped) return "";
+  return storageKey.slice(0, -"report.pdf".length);
+}
+
+function collectPublishedReportObjectKeys(report = {}, config = readReportingConfig()) {
+  const prefix = getPublishedReportInstancePrefix(report, config);
+  if (!prefix) return [];
+  const keys = new Set([
+    `${prefix}report.html`,
+    `${prefix}report.pdf`,
+    `${prefix}report.json`,
+    `${prefix}manifest.json`,
+  ]);
+  const manifest = report?.report_body?.pipeline?.manifest || {};
+  const captures = [
+    ...(Array.isArray(manifest.capture_results) ? manifest.capture_results : []),
+    ...(Array.isArray(manifest.selected_images) ? manifest.selected_images : []),
+  ];
+  captures.forEach((capture) => {
+    const key = String(capture?.s3_key || "").trim().replace(/^\/+/, "");
+    if (key.startsWith(`${prefix}images/`) && !key.includes("..")) keys.add(key);
+  });
+  return [...keys];
+}
+
+async function cleanupPublishedDailyReports({
+  supabase,
+  config = readReportingConfig(),
+  latestPublishedDateKey,
+  logger = console,
+  deleteObject = s3DeleteObject,
+} = {}) {
+  if (!supabase) throw new Error("Supabase client is required for published report cleanup");
+  const retentionDays = Math.max(1, Number(config.publishedRetentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
+  const retainedFromDate = shiftUtcDateKey(latestPublishedDateKey, -(retentionDays - 1));
+  if (!retainedFromDate) return { ok: false, skipped: true, reason: "invalid_latest_report_date" };
+  const cutoffIso = `${retainedFromDate}T00:00:00.000Z`;
+  const { data, error } = await supabase
+    .from("operational_reports")
+    .select("id, report_key, report_type, status, period_start, pdf_storage_key, report_body")
+    .eq("report_type", "daily")
+    .in("status", ["available", "expired"])
+    .lt("period_start", cutoffIso)
+    .order("period_start", { ascending: true });
+  if (error) throw error;
+
+  const results = [];
+  for (const report of data || []) {
+    const keys = collectPublishedReportObjectKeys(report, config);
+    if (!keys.length) {
+      logger.warn?.(`[reports:retention] skipped unsafe report prefix id=${report.id}`);
+      results.push({ id: report.id, ok: false, reason: "unsafe_report_prefix" });
+      continue;
+    }
+    try {
+      const expiring = await supabase
+        .from("operational_reports")
+        .update({ status: "expired", expires_at: nowIso(), updated_at: nowIso() })
+        .eq("id", report.id);
+      if (expiring.error) throw expiring.error;
+      for (const key of keys) await deleteObject(config, { key });
+      const expired = await supabase
+        .from("operational_reports")
+        .update({
+          status: "expired",
+          pdf_url: null,
+          pdf_storage_key: null,
+          pdf_etag: null,
+          download_token: null,
+          updated_at: nowIso(),
+        })
+        .eq("id", report.id);
+      if (expired.error) throw expired.error;
+      results.push({ id: report.id, ok: true, deleted: keys.length });
+    } catch (cleanupError) {
+      logger.warn?.(`[reports:retention] cleanup failed id=${report.id} error=${cleanError(cleanupError)}`);
+      results.push({ id: report.id, ok: false, reason: cleanError(cleanupError) });
+    }
+  }
+  return {
+    ok: results.every((result) => result.ok),
+    retained_from_date: retainedFromDate,
+    expired: results.filter((result) => result.ok).length,
+    results,
+  };
 }
 
 async function markOperationalReportFailed(supabase, report, stage, error) {
@@ -369,6 +472,14 @@ async function runDailyReportPipeline({
         publication,
         config,
       });
+      const publishedRetention = localOnly || skipUpload
+        ? { ok: true, skipped: true, reason: "local_publication" }
+        : await cleanupPublishedDailyReports({
+            supabase,
+            config,
+            latestPublishedDateKey: dateKey,
+            logger,
+          }).catch((cleanupError) => ({ ok: false, error: cleanError(cleanupError) }));
       const captureSummary = summarizeCaptures(completeManifest);
       logStage(logger, {
         reportKey,
@@ -393,6 +504,7 @@ async function runDailyReportPipeline({
         output_directory: outputDirectory,
         local_only: localOnly || skipUpload,
         uploads,
+        published_retention: publishedRetention,
         duration_ms: Date.now() - startedAt,
       };
     } catch (error) {
@@ -439,6 +551,8 @@ const __reportingPipelineTestUtils = {
   PIPELINE_STAGES,
   buildPipelineManifest,
   buildPublishableManifest,
+  collectPublishedReportObjectKeys,
+  getPublishedReportInstancePrefix,
   getContentType,
   resetPipelineLocksForTests,
   summarizeCaptures,
@@ -449,6 +563,7 @@ const __reportingPipelineTestUtils = {
 export {
   PIPELINE_STAGES,
   __reportingPipelineTestUtils,
+  cleanupPublishedDailyReports,
   generateScheduledDailyPipelines,
   runDailyReportPipeline,
 };

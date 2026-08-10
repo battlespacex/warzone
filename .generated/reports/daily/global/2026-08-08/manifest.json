@@ -4,126 +4,48 @@
     "status": "READY",
     "local_path": "report.pdf",
     "page_count": 16,
-    "size_bytes": 3823656,
-    "generated_at": "2026-08-09T01:57:14.460Z",
+    "size_bytes": 3823851,
+    "generated_at": "2026-08-10T07:09:21.363Z",
     "dom_page_count": 16,
     "failed_image_count": 0,
-    "render_duration_ms": 5149,
+    "render_duration_ms": 4029,
     "oversized_block_count": 0
   },
   "html": {
+    "status": "READY",
     "path": "report.html",
     "s3_key": "reports/daily/global/2026-08-08/report.html",
-    "status": "READY",
-    "generated_at": "2026-08-09T01:51:18.345Z"
+    "generated_at": "2026-08-10T08:33:19.137Z"
   },
   "scope": {
-    "key": "global",
     "type": "global",
-    "label": "Global",
-    "value": null
+    "key": "global",
+    "value": null,
+    "label": "Global"
   },
   "status": "READY",
   "upload": {
-    "status": "READY",
-    "generated_at": "2026-08-09T02:04:07.911Z",
-    "report_html_key": "reports/daily/global/2026-08-08/report.html",
-    "report_json_key": "reports/daily/global/2026-08-08/report.json",
-    "report_pdf_key": "reports/daily/global/2026-08-08/report.pdf",
-    "image_count": 5
+    "status": "SKIPPED_LOCAL",
+    "image_count": 0,
+    "generated_at": "2026-08-09T21:19:02.406Z",
+    "report_pdf_key": "daily/global/2026-08-08/report.pdf",
+    "report_html_key": null,
+    "report_json_key": null
   },
   "event_ids": [
-    "bf4a1c78-ed9a-437a-bb5f-f709ad51dac9",
-    "f145e94c-c4b1-43f7-a9a7-0e030f9d61fa",
-    "84329eb1-ba5a-4944-8c5b-08f7aec05a05",
-    "94521b60-4fc9-4c12-8316-d5b657d18d07",
-    "e6025fca-f121-4691-84d0-710775aa2166",
-    "92dd5454-69b1-4826-a571-a93be6abe965",
-    "b4fa7f51-4f8a-4d94-8c2c-e54cc991f05c",
-    "1d6b373f-d984-4b09-8831-6ca3cedf7fd4",
-    "842abede-a20a-45d5-8a62-70727692f6aa",
-    "fd9e4619-0b0c-42f9-bde9-b87e588928ef",
-    "8abc9ff8-6dfd-4aca-980e-6d170f2b99fe",
-    "4429d10b-c27e-446f-918f-6cab97dc1fe0",
-    "f0d148cd-6740-470e-811b-85b3572e6a67",
-    "8ee3a526-5226-48f5-a41f-76887cab8b27",
     "ca4def9f-0c6d-4a21-b94e-357d83b4df54",
-    "899cea1b-2290-4ac3-9e91-2938d8bd0d50",
     "5d44e35a-eb01-4cc4-91ef-183d021dda6a",
-    "3554b105-1adb-411b-b6ef-0bf58cfe61af",
-    "dcdcb87a-8800-4a98-8dee-6d16c4a86d54",
-    "58669cdf-8b9f-4eb5-b434-3560f4b8501d",
-    "a620fa46-bda9-4676-b00d-42253f9bd57e",
-    "e0ee8aa1-f3e9-4065-9b0f-6b4111224fd7",
-    "ee3dfc09-b0a4-4985-bc72-00db1e80d8c0",
-    "43442e2c-d21b-4e99-8579-c0017b08d0b5",
-    "07cd5d61-e78b-40a6-bb22-ba551821c665",
-    "beef72a4-3373-4846-965b-4695ad958276",
-    "3e2cece4-6511-421a-a626-5e5a32597b41",
-    "9153c41b-d9aa-49bd-823a-003ad8a1cfda",
     "cf2e3d12-b6e3-428f-b336-8464084faf50",
-    "b869836f-b87a-4871-9dc5-9f374aad3b06",
-    "27b86aac-26ad-4a1a-b8a9-d2d6fadc34ed",
-    "8a3bb655-34ac-41b9-b997-8507d62c4868",
-    "3e0b5de8-7bd3-4710-8965-f406f906bd0e",
-    "6004679b-3857-4376-9e75-d2dd41fc3702",
-    "b16a09cd-dc7a-40e7-bf44-662e827cf69f",
-    "25708d5d-c4cb-4b24-a08b-ac9d6fb4f640",
-    "38d80500-98bc-4aca-91ec-620b65b311e9",
-    "cecdd576-9d3c-4396-958d-f822fef89540",
-    "d3735730-aecf-424e-898c-70c43ac4bc97",
-    "ad404d75-61bc-4a96-9a24-1f0fbf7edaa4",
-    "a13857db-d0c1-411c-aa84-fedefe82e048",
-    "d95f80ab-5b48-4ca9-a05f-b5652d8f176f",
-    "22184b6a-2af3-46ff-a24f-6f22da680aaf",
-    "b5a4ffe5-40b1-4289-b9a9-f0035ac6ca7d",
-    "4412e6f6-820f-47d8-8d77-14c6ea37e2b4",
-    "069671a0-7075-4cab-a667-beadd31e0bea",
-    "426c24f0-4fdd-4cca-9f14-8fef5c8bc7e8",
-    "b6be4164-9909-4ae2-9977-4d14a649ab9e",
-    "43851a74-f185-4b08-8b3f-87d982f8bc79",
     "2276d4f9-c392-4080-a430-47e09a8d5f39",
-    "e87b65b9-17c0-4d74-baae-22c35360a445",
-    "c36b39a7-2df4-48be-926f-88926dd07f17",
+    "8abc9ff8-6dfd-4aca-980e-6d170f2b99fe",
     "12083f87-3b90-4112-8dc5-c3e5b21e2874",
-    "2fffff70-5bc3-49b9-8760-a455b683d653",
-    "a0f59110-cb97-4daf-94fc-59c0578d52a6",
-    "2c6d275b-5130-4f43-92db-26f66111cdd5",
-    "1289e17d-2d63-44bd-8fcb-dc28ce2d03fc",
-    "44470a8b-f745-4e0e-826c-1806416fa3fb",
     "83df9eb4-ce44-4f04-917b-c10369a4fb93",
-    "c31971bf-0db0-415a-abe9-99e0f2cb8f7f",
-    "af1eeb98-86cb-47f5-ae4c-d93d1eeb58a4",
-    "18feca72-5c51-47f0-a009-405eac376966",
-    "2005ca9f-783a-4d48-b087-2af0ed6a3c25",
-    "1d457040-f46f-4229-9b17-8554ac8d0047",
-    "78c866a6-8caf-4d90-b163-7e711bd25491",
-    "a961e1d9-c852-44d6-a3bc-76b3440b45ec",
-    "76f11591-04a6-4946-9c50-befe1348e854",
-    "3527fe52-763f-46c6-94f1-6fd66b8bb71a",
-    "7c8aa72d-7646-4598-bdd6-702f1f719260",
-    "06bd16a5-4c79-4e69-9a60-fc3d6cd9d8a9",
-    "0ab7db20-2a3b-4085-81f3-79dd29f08fb1",
-    "0c8db7a5-f4ba-4593-9dc3-3c0fd49052ee",
-    "26211d16-d388-4684-b27e-f19c69a9d764",
-    "2b67a2c5-9b72-4119-a5ee-9a02f72f7645",
-    "2c50c61e-a0bb-4966-a015-4ca0193621ed",
-    "3d9f4b33-3e94-437a-9b0e-e195167af169",
-    "80b1207f-6aa3-4626-bac9-b7a067efd82f",
-    "8407f0f1-3ffb-4469-a63c-ad44a85aba78",
-    "94a21db0-adfb-41b6-a7b4-bc4639ec7add",
-    "a675b2fc-f56d-4328-b44e-1a2b473832d2",
-    "ac4ff3b1-e02b-46e2-a856-a3af63010a00",
-    "b3371a40-7dce-4785-a73c-098c26537a6f",
-    "b910f7bf-8729-4e7a-a3df-f66de0412e44",
-    "cc51d41b-d64f-4903-9725-72700d013168",
-    "de7eb974-7463-434b-88d2-f3bdf55c52da",
-    "e1b84168-c864-4b29-affa-b0904f61a005",
-    "e8db5873-262c-4a32-a7eb-8f2a279a8119",
-    "fb4b0f7b-ce8b-4ac7-a1c3-1b8d785c7cb0"
+    "92dd5454-69b1-4826-a571-a93be6abe965",
+    "e87b65b9-17c0-4d74-baae-22c35360a445",
+    "18feca72-5c51-47f0-a009-405eac376966"
   ],
   "report_id": "daily:2026-08-08:global:v1",
-  "window_end": "2026-08-09T00:00:00.000Z",
+  "window_end": "2026-08-09T00:00:00+00:00",
   "cluster_ids": [
     "cluster-regional-14a7quk",
     "cluster-regional-1m6s72r",
@@ -139,23 +61,23 @@
     "images_prefix": "reports/daily/global/2026-08-08/images/",
     "manifest_json": "reports/daily/global/2026-08-08/manifest.json"
   },
-  "rendered_at": "2026-08-09T01:51:18.345Z",
+  "rendered_at": "2026-08-10T08:33:19.137Z",
   "report_date": "2026-08-08",
-  "completed_at": "2026-08-09T02:04:07.911Z",
+  "completed_at": "2026-08-09T21:19:02.406Z",
   "generated_at": "2026-08-09T00:12:01.223Z",
   "selected_hva": [],
-  "window_start": "2026-08-08T00:00:00.000Z",
-  "overall_status": "COMPLETE",
+  "window_start": "2026-08-08T00:00:00+00:00",
+  "overall_status": "HTML",
   "render_outputs": {
     "report_html": {
+      "storageKey": "reports/daily/global/2026-08-08/report.html",
       "url": null,
-      "etag": null,
-      "storageKey": "reports/daily/global/2026-08-08/report.html"
+      "etag": null
     },
     "report_json": {
+      "storageKey": "reports/daily/global/2026-08-08/report.json",
       "url": null,
-      "etag": null,
-      "storageKey": "reports/daily/global/2026-08-08/report.json"
+      "etag": null
     },
     "manifest_json": {
       "storageKey": "reports/daily/global/2026-08-08/manifest.json"
@@ -171,34 +93,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/operational-overview-3d.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/operational-overview-3d.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/operational-overview-3d.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:12:23.493Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": false,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": true,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 3,
-          "meaningful_operational_layer_visible": true
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "meaningful_operational_layer_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "meaningful_operational_layer_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-02-major-development-context",
@@ -208,34 +107,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-01-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-01-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-01-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:12:42.124Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-03-major-development-context",
@@ -245,34 +121,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-02-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-02-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-02-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:13:01.657Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-04-major-development-context",
@@ -282,34 +135,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-03-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-03-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-03-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:13:20.282Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-05-major-development-context",
@@ -319,34 +149,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-04-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-04-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-04-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:13:38.575Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     }
   ],
   "report_sections": [
@@ -375,34 +182,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/operational-overview-3d.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/operational-overview-3d.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/operational-overview-3d.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:12:23.493Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": false,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": true,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 3,
-          "meaningful_operational_layer_visible": true
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "meaningful_operational_layer_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "meaningful_operational_layer_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-02-major-development-context",
@@ -412,34 +196,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-01-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-01-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-01-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:12:42.124Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-03-major-development-context",
@@ -449,34 +210,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-02-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-02-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-02-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:13:01.657Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-04-major-development-context",
@@ -486,34 +224,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-03-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-03-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-03-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:13:20.282Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     },
     {
       "capture_id": "capture-05-major-development-context",
@@ -523,34 +238,11 @@
       "cluster_id": "cluster-regional-14a7quk",
       "asset_id": null,
       "relative_path": "images/development-04-context.jpg",
-      "s3_key": "reports/daily/global/2026-08-08/images/development-04-context.jpg",
-      "s3_url": "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/images/development-04-context.jpg",
+      "public_url": null,
       "width": 1600,
       "height": 900,
-      "format": "jpeg",
       "generated_at": "2026-08-09T00:13:38.575Z",
-      "failure_reason": null,
-      "attempt_count": 1,
-      "semantic_quality": {
-        "status": "READY",
-        "evidence": {
-          "asset_visible": false,
-          "target_event_visible": true,
-          "orbital_entity_visible": false,
-          "target_cluster_visible": false,
-          "selected_asset_entity_id": null,
-          "visible_report_cluster_count": 0,
-          "meaningful_operational_layer_visible": false
-        },
-        "failed_checks": [],
-        "passed_checks": [
-          "target_event_visible"
-        ],
-        "failure_reason": null,
-        "required_checks": [
-          "target_event_visible"
-        ]
-      }
+      "failure_reason": null
     }
   ],
   "intelligence_ids": [
@@ -639,7 +331,7 @@
   "report_json_path": "reports/daily/global/2026-08-08/report.json",
   "selected_hva_ids": [],
   "snapshot_version": 1,
-  "generation_status": "complete",
+  "generation_status": "html_ready",
   "manifest_json_path": "reports/daily/global/2026-08-08/manifest.json",
   "selected_event_ids": [
     "bf4a1c78-ed9a-437a-bb5f-f709ad51dac9",
@@ -832,5 +524,6 @@
       "cluster_id": "cluster-regional-14a7quk",
       "recommended_camera_mode": "EVENT_CONTEXT_3D"
     }
-  ]
+  ],
+  "snapshot_key": "daily:2026-08-08:global:v1"
 }

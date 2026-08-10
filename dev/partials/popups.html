@@ -6,9 +6,10 @@
             <div class="wz-siren-banner" role="alert">
                 <div class="wz-siren__content">
                     <span class="wz-siren-alert static-icon" aria-hidden="true">
-                        <span class="stratops-ico-assets-alert-2" aria-hidden="true"></span>
+                        <span class="stratops-ico-assets-alert-1" aria-hidden="true"></span>
                     </span>
                     <span class="wz-siren-body">
+                        <span class="wz-siren-category"></span>
                         <strong class="wz-siren-title"></strong>
                         <span class="wz-siren-meta"></span>
                     </span>
@@ -1198,38 +1199,43 @@
                     <span class="wz-header-title">
                         <span class="static-icon stratops-ico-file-1" aria-hidden="true"></span>
                         <h2 id="wz-operational-reports-title">Operational Reports</h2>
+                        <p id="wz-operational-reports-summary" class="sr-only">
+                            Select and view a recent operational report in HTML or download its matching PDF version.
+                        </p>
+                    </span>
+                    <span class="wz-operational-reports__controls" role="toolbar" aria-label="Report controls">
+                        <label class="wz-operational-reports__selector" for="wz-operational-reports-select">
+                            <span>Report</span>
+                            <select id="wz-operational-reports-select" disabled aria-label="Select operational report date">
+                                <option>Loading reports...</option>
+                            </select>
+                        </label>
+                        <span id="wz-operational-reports-period" class="wz-operational-reports__period"
+                            aria-live="polite"></span>
+                        <button type="button" class="btn-primary" id="wz-operational-reports-download" disabled>
+                            <span></span>
+                            <span>Download Report in PDF</span>
+                        </button>
                     </span>
                     <span class="wz-close-modal">
                         <button type="button" class="static-icon stratops-ico-close-1" id="wz-operational-reports-close"
                             aria-label="Close operational reports"></button>
                     </span>
                 </header>
-                <section class="wz-modal-body">
-                    <p id="wz-operational-reports-summary" class="wz-operational-reports__summary">
-                        StratOps auto-generates operational reports from recent activity.
-                        The latest PDF stays cached for 72 hours, so downloads are fast and
-                        don't trigger reanalysis. Status shows here if a reports is still preparing.
-                    </p>
-                    <article class="wz-report-card wz-report-card--latest" id="wz-operational-reports-latest">
-                        <div class="wz-report-card__head">
-                            <h3 class="wz-report-card__title" id="wz-operational-reports-latest-title">Latest Daily
-                                Report</h3>
-                            <span class="wz-report-card__badge" id="wz-operational-reports-latest-badge">Checking</span>
+                <section class="wz-modal-body wz-operational-reports__body">
+                    <div id="wz-operational-report-viewer" class="wz-operational-report-viewer">
+                        <div id="wz-operational-report-loader" class="wz-operational-report-loader" role="status"
+                            aria-live="polite">
+                            <span class="wz-operational-report-loader__spinner" aria-hidden="true"></span>
+                            <span id="wz-operational-report-loader-label">Loading operational report...</span>
                         </div>
-                        <p class="wz-report-card__meta" id="wz-operational-reports-latest-meta">
-                            Checking report availability.
-                        </p>
-                        <p class="wz-report-card__summary" id="wz-operational-reports-latest-summary">
-                            The latest cached report will appear here when the scheduled reporting worker has finished.
-                        </p>
-                    </article>
-                    <div class="wz-operational-reports__actions" role="toolbar" aria-label="Report actions">
-                        <button type="button" class="btn-primary" id="wz-operational-reports-download" disabled>
-                            <span></span>
-                            <span>Download [PDF]</span>
-                        </button>
+                        <iframe id="wz-operational-report-viewer-frame" class="wz-operational-report-viewer__frame"
+                            title="StratOps operational intelligence report" referrerpolicy="no-referrer"
+                            sandbox="allow-scripts allow-same-origin" loading="eager"
+                            hidden></iframe>
+                        <p id="wz-operational-reports-status" class="wz-operational-report-viewer__status" hidden
+                            aria-live="polite"></p>
                     </div>
-                    <p id="wz-operational-reports-status" class="wz-error-container" hidden aria-live="polite"></p>
                 </section>
             </div>
         </div>

@@ -4,16 +4,34 @@ import { readFile } from "node:fs/promises";
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8");
 
-test("Dev Panel loads only for development, localhost or staging hosts", async () => {
+test("Dev Panel remains unmounted while disabled and retains an explicit re-enable path", async () => {
+  const config = await readSource("../../../dev/assets/js/stratops-feature-config.js");
   const loader = await readSource("../../../dev/assets/js/pre-entry-dev-panel.js");
   const essential = await readSource("../../../dev/assets/js/essential.js");
 
+  assert.match(config, /devPanel:\s*false/);
+  assert.match(loader, /if \(!isStratOpsFeatureEnabled\("system\.devPanel"\)\) return null/);
   assert.match(loader, /import\.meta\.env\?\.DEV\s*===\s*true/);
   assert.match(loader, /hostname\.includes\("staging"\)/);
   assert.match(loader, /document\.body\.insertAdjacentHTML\("beforeend", html\)/);
   assert.match(loader, /\/warzone\/partials\/dev-panel\.html/);
-  assert.match(essential, /if \(isDevInspectionEnvironment\(\)\) \{\s*import\("\.\/pre-entry-dev-panel\.js"\)/);
+  assert.match(essential, /if \(isStratOpsFeatureEnabled\("system\.devPanel"\) && isDevInspectionEnvironment\(\)\) \{\s*import\("\.\/pre-entry-dev-panel\.js"\)/);
   assert.doesNotMatch(loader, /devpanel=1|wz_dev/);
+});
+
+test("entry scene tuner stays outside the page and live DOM while disabled", async () => {
+  const config = await readSource("../../../dev/assets/js/stratops-feature-config.js");
+  const showcase = await readSource("../../../dev/assets/js/pre-entry-showcase.js");
+  const showcasePartial = await readSource("../../../dev/partials/pre-entry-showcase.html");
+  const tunerPartial = await readSource("../../../dev/partials/entry-scene-tuner.html");
+
+  assert.match(config, /entrySceneTuner:\s*false/);
+  assert.match(showcase, /const tunerEnabled = isLocalDev && isStratOpsFeatureEnabled\("system\.entrySceneTuner"\)/);
+  assert.match(showcase, /if \(!overlay \|\| !isStratOpsFeatureEnabled\("system\.entrySceneTuner"\)\) return null/);
+  assert.match(showcase, /await mountEntrySceneTuner\(overlay\)/);
+  assert.match(showcase, /tunerEnabled\s*\? import\("\.\/warzone-startup-scene-tuner\.js"\)/);
+  assert.doesNotMatch(showcasePartial, /id="wz-intro-startup-scene-tuner"/);
+  assert.match(tunerPartial, /id="wz-intro-startup-scene-tuner"/);
 });
 
 test("visual inspection controls use the existing operational renderers", async () => {

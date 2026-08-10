@@ -1,6 +1,10 @@
 // File Path: /assets/js/warzone-capture-shot.js
 const TOP_LOGO_SRC = "/assets/images/web/logo-stratops-battlespacex.svg";
 const WATERMARK_LOGO_SRC = "/assets/images/web/Battlespacex-full-logo.svg";
+export const CAPTURE_OPERATIONAL_OVERLAY_SELECTORS = Object.freeze([
+    "#warzone-hotspot-layer",
+    "#wz-radar-label-layer",
+]);
 
 let captureInFlight = false;
 
@@ -72,6 +76,8 @@ async function composeCaptureBlob(viewer) {
     const height = output.height;
     const ctx = output.getContext("2d");
     if (!ctx) throw new Error("Capture canvas is unavailable.");
+    await waitForOverlayFrame();
+    await drawOperationalOverlayLayers(ctx, output, viewer.scene.canvas);
     await drawBranding(ctx, width, height);
     return new Promise((resolve, reject) => {
         try {
@@ -82,6 +88,92 @@ async function composeCaptureBlob(viewer) {
         } catch (error) {
             reject(error);
         }
+    });
+}
+
+function waitForOverlayFrame() {
+    return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+async function drawOperationalOverlayLayers(ctx, output, sourceCanvas) {
+    const canvasRect = sourceCanvas?.getBoundingClientRect?.();
+    if (!canvasRect?.width || !canvasRect?.height) return;
+    const scaleX = output.width / canvasRect.width;
+    const scaleY = output.height / canvasRect.height;
+    for (const selector of CAPTURE_OPERATIONAL_OVERLAY_SELECTORS) {
+        const layer = document.querySelector(selector);
+        if (!isVisibleCaptureLayer(layer)) continue;
+        const rect = layer.getBoundingClientRect();
+        if (!rect.width || !rect.height) continue;
+        try {
+            const image = await rasterizeDomLayer(layer, rect);
+            if (!image) continue;
+            ctx.drawImage(
+                image,
+                (rect.left - canvasRect.left) * scaleX,
+                (rect.top - canvasRect.top) * scaleY,
+                rect.width * scaleX,
+                rect.height * scaleY
+            );
+        } catch (error) {
+            console.warn(`Capture Shot could not composite ${selector}:`, error);
+        }
+    }
+}
+
+function isVisibleCaptureLayer(layer) {
+    if (!layer || layer.hidden) return false;
+    const style = window.getComputedStyle(layer);
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) > 0;
+}
+
+function rasterizeDomLayer(layer, rect) {
+    const clone = layer.cloneNode(true);
+    inlineComputedTree(layer, clone);
+    clone.removeAttribute("id");
+    clone.setAttribute("aria-hidden", "true");
+    clone.style.position = "absolute";
+    clone.style.inset = "0";
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    clone.style.margin = "0";
+    clone.style.transform = "none";
+    const wrapper = document.createElement("div");
+    wrapper.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+    wrapper.style.position = "relative";
+    wrapper.style.width = `${rect.width}px`;
+    wrapper.style.height = `${rect.height}px`;
+    wrapper.style.overflow = "visible";
+    wrapper.appendChild(clone);
+    const serialized = new XMLSerializer().serializeToString(wrapper);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(rect.width)}" height="${Math.ceil(rect.height)}" viewBox="0 0 ${rect.width} ${rect.height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Operational overlay rasterization failed."));
+        };
+        image.src = url;
+    });
+}
+
+function inlineComputedTree(source, clone) {
+    const style = window.getComputedStyle(source);
+    for (let index = 0; index < style.length; index += 1) {
+        const property = style[index];
+        clone.style.setProperty(property, style.getPropertyValue(property), style.getPropertyPriority(property));
+    }
+    clone.style.setProperty("animation", "none", "important");
+    clone.style.setProperty("transition", "none", "important");
+    const sourceChildren = Array.from(source.children || []);
+    const cloneChildren = Array.from(clone.children || []);
+    sourceChildren.forEach((child, index) => {
+        if (cloneChildren[index]) inlineComputedTree(child, cloneChildren[index]);
     });
 }
 

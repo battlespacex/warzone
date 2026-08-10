@@ -16,8 +16,24 @@ let __seq = 0;
 let __sirenLoopTimer = null;
 let __sirenAudioEl = null;
 const SIREN_STYLE_MODE = false;
+const ALERT_EMOJI_RE = /(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|[\u{1F1E6}-\u{1F1FF}]|[\uFE0E\uFE0F\u200D\u20E3])/gu;
 function getStack() {
     return document.getElementById("wz-siren-stack");
+}
+export function sanitizeAlertDisplayText(value = "") {
+    return String(value || "")
+        .replace(ALERT_EMOJI_RE, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+export function getAlertCategory(title = "", meta = "", level = "orange") {
+    const text = `${title} ${meta}`.toLowerCase();
+    if (/\b(sirens?|air raid|red alert|take shelter)\b/.test(text)) return "SIREN ACTIVITY";
+    if (/\b(airspace|notam|flight restriction)\b/.test(text)) return "AIRSPACE ACTIVITY";
+    if (/\b(strike|missile|rocket|drone attack|impact)\b/.test(text)) return "STRIKE ACTIVITY";
+    if (/\b(gnss|gps|navigation|jamming|spoofing)\b/.test(text)) return "NAVIGATION / GNSS ALERT";
+    if (/\b(security|evacuation|infrastructure)\b/.test(text)) return "SECURITY EVENT";
+    return level === "yellow" ? "INTELLIGENCE UPDATE" : "OPERATIONAL ALERT";
 }
 // ── Classify level from event ──────────────────────────────────────────────────
 export function classifyAlertLevel(event) {
@@ -163,7 +179,7 @@ function stopSirenLoop() {
     }
 }
 // ── Main API ───────────────────────────────────────────────────────────────────
-export function showSirenAlert({ title, meta = "", level = "orange", sound = true, pulse = true } = {}) {
+export function showSirenAlert({ title, meta = "", category = "", level = "orange", sound = true, pulse = true } = {}) {
     enforceCap();
     const id = ++__seq;
     const stack = getStack();
@@ -174,10 +190,13 @@ export function showSirenAlert({ title, meta = "", level = "orange", sound = tru
     banner.className = `wz-siren-banner wz-siren-banner--${level}`;
     banner.classList.toggle("wz-siren-banner--steady", pulse === false);
     banner.dataset.alertId = id;
-    banner.querySelector(".wz-siren-title").textContent = title;
+    const displayTitle = sanitizeAlertDisplayText(title) || "Operational activity reported";
+    const displayMeta = sanitizeAlertDisplayText(meta);
+    banner.querySelector(".wz-siren-category").textContent = sanitizeAlertDisplayText(category) || getAlertCategory(displayTitle, displayMeta, level);
+    banner.querySelector(".wz-siren-title").textContent = displayTitle;
     const metaEl = banner.querySelector(".wz-siren-meta");
-    if (meta) {
-        metaEl.textContent = meta;
+    if (displayMeta) {
+        metaEl.textContent = displayMeta;
         metaEl.hidden = false;
     } else {
         metaEl.hidden = true;

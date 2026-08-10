@@ -157,6 +157,10 @@ async function renderSelectedAsset(payload) {
         state.asset_adapter = {
             input,
             focus: (options) => aircraft.focusLiveTrack(input.track_key, options),
+            enableCtr: (options) => aircraft.enableFocusedLiveTrackContourMode({
+                ...options,
+                trackKey: input.track_key,
+            }),
             describe: () => aircraft.getLiveTrackModelDescriptor(input.event),
             clear: () => {
                 aircraft.clearLiveTrackSelection({ resetCamera: false });
@@ -296,9 +300,18 @@ async function applyAssetFocus(payload, viewer) {
         pitchDegrees: preset.pitch_degrees,
         duration: 0,
     };
-    if (adapter.focus(focusOptions) !== true) throw new Error("asset_focus_failed");
-    await nextFrame();
-    await nextFrame();
+    const focusForCapture = async (options) => {
+        if (adapter.focus(options) !== true) throw new Error("asset_focus_failed");
+        await nextFrame();
+        await nextFrame();
+        if (preset.map_mode === "CTR") {
+            const ctrEnabled = await adapter.enableCtr?.({ reason: "report-hva-capture" });
+            if (ctrEnabled !== true) throw new Error("asset_ctr_mode_failed");
+            await nextFrame();
+            await nextFrame();
+        }
+    };
+    await focusForCapture(focusOptions);
     const descriptor = adapter.describe();
     if (entity.model) {
         entity.model.minimumPixelSize = Math.max(
@@ -317,7 +330,7 @@ async function applyAssetFocus(payload, viewer) {
             minimum_visual_pixels: Math.max(preset.minimum_visual_pixels, preset.mode === "REGIONAL" ? 128 : 220),
         };
         if (entity.model) entity.model.minimumPixelSize = retryPreset.minimum_visual_pixels;
-        adapter.focus({
+        await focusForCapture({
             rangeMeters: retryPreset.range_meters,
             headingDegrees: retryPreset.heading_degrees,
             pitchDegrees: retryPreset.pitch_degrees,
@@ -344,6 +357,8 @@ async function applyAssetFocus(payload, viewer) {
         camera_pitch: preset.pitch_degrees,
         camera_range: preset.range_meters,
         focus_mode: preset.mode,
+        map_mode: preset.map_mode,
+        ctr_mode_active: viewer.__warzone?.isCtrModeActive?.() === true,
         visibility_adjusted_once: adjusted,
         visibility_check: visibility,
         model_ready_state: visibility.render_frame_contains_model ? "MODEL_PICKED_IN_RENDER_FRAME" : "MODEL_NOT_VISIBLE",

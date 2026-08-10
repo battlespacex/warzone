@@ -2,6 +2,7 @@
 const path = require("path");
 const dotenv = require("dotenv");
 const { mountBillingRoutes } = require("./server/billing-routes");
+const { createGeneratedReportPreviewRouter } = require("./server/generated-report-preview");
 
 dotenv.config({
     path: process.env.NODE_ENV === "production"
@@ -199,13 +200,10 @@ app.get(["/unsuccess", "/unsuccess/"], (req, res) => {
     res.redirect(302, buildSupportReturnUrl("cancel", req));
 });
 
-const generatedReportStatic = express.static(GENERATED_REPORT_ROOT, {
-    dotfiles: "deny",
-    index: false,
-    setHeaders: (res) => res.set("Cache-Control", "no-store, max-age=0"),
-});
-app.use("/generated-reports", generatedReportStatic);
-app.use(`${BASE}/generated-reports`, generatedReportStatic);
+if (process.env.NODE_ENV !== "production") {
+    app.use("/generated-reports", createGeneratedReportPreviewRouter({ root: GENERATED_REPORT_ROOT }));
+    app.use(`${BASE}/generated-reports`, createGeneratedReportPreviewRouter({ root: GENERATED_REPORT_ROOT }));
+}
 app.use(express.static(ROOT));
 
 function sendPage(res, name, status = 200) {

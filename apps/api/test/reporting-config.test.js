@@ -76,16 +76,22 @@ test("capture configuration is centralized and remains disabled by default", () 
 
 test("PDF validation and public asset settings have production-safe defaults", () => {
   const defaults = readReportingConfig({ REPORTING_ENABLED: "false" });
+  assert.equal(defaults.publicHistoryDays, 7);
+  assert.equal(defaults.publishedRetentionDays, 7);
   assert.equal(defaults.pdf.readinessTimeoutMs, 45000);
   assert.equal(defaults.pdf.minimumSizeBytes, 10000);
   assert.equal(defaults.publicAssetBaseUrl, "");
 
   const configured = readReportingConfig({
     REPORTING_ENABLED: "false",
+    REPORTING_PUBLIC_HISTORY_DAYS: "9",
+    REPORTING_PUBLISHED_RETENTION_DAYS: "14",
     REPORTING_PUBLIC_ASSET_BASE_URL: "https://stratops.example/",
     REPORTING_PDF_READY_TIMEOUT_MS: "60000",
   });
   assert.equal(configured.publicAssetBaseUrl, "https://stratops.example");
+  assert.equal(configured.publicHistoryDays, 9);
+  assert.equal(configured.publishedRetentionDays, 14);
   assert.equal(configured.pdf.readinessTimeoutMs, 60000);
 });
 

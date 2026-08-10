@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const webpack = require("webpack");
 const dotenv = require("dotenv");
+const { createGeneratedReportPreviewRouter } = require("./server/generated-report-preview");
 
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
@@ -499,13 +500,18 @@ module.exports = (env, argv) => {
                             res.type(lastType).send(lastPayload || JSON.stringify({ error: "API unavailable" }));
                         }
 
-                        const generatedReportStatic = express.static(GENERATED_REPORT_DIR, {
-                            dotfiles: "deny",
-                            index: false,
-                            setHeaders: (res) => res.set("Cache-Control", "no-store, max-age=0"),
-                        });
-                        devServer.app.use("/generated-reports", generatedReportStatic);
-                        devServer.app.use("/warzone/generated-reports", generatedReportStatic);
+                        middlewares.unshift(
+                            {
+                                name: "generated-report-preview",
+                                path: "/generated-reports",
+                                middleware: createGeneratedReportPreviewRouter({ root: GENERATED_REPORT_DIR }),
+                            },
+                            {
+                                name: "warzone-generated-report-preview",
+                                path: "/warzone/generated-reports",
+                                middleware: createGeneratedReportPreviewRouter({ root: GENERATED_REPORT_DIR }),
+                            },
+                        );
                         devServer.app.get("/__warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);

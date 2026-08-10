@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   __reportingPipelineTestUtils,
+  cleanupPublishedDailyReports,
   generateScheduledDailyPipelines,
   PIPELINE_STAGES,
 } from "../src/reporting-pipeline-service.js";
@@ -111,4 +112,81 @@ test("scheduled production pipeline remains inert when scheduling is disabled", 
   assert.equal(result.ok, true);
   assert.equal(result.skipped, true);
   assert.equal(result.reason, "schedule_disabled");
+});
+
+test("published report cleanup is restricted to deterministic daily report folders", () => {
+  const config = { s3Prefix: "reports" };
+  const safe = {
+    pdf_storage_key: "reports/daily/global/2026-08-02/report.pdf",
+    report_body: {
+      pipeline: {
+        manifest: {
+          capture_results: [
+            { s3_key: "reports/daily/global/2026-08-02/images/overview.jpg" },
+            { s3_key: "assets/shared-logo.svg" },
+          ],
+        },
+      },
+    },
+  };
+  assert.equal(
+    __reportingPipelineTestUtils.getPublishedReportInstancePrefix(safe, config),
+    "reports/daily/global/2026-08-02/"
+  );
+  assert.deepEqual(__reportingPipelineTestUtils.collectPublishedReportObjectKeys(safe, config), [
+    "reports/daily/global/2026-08-02/report.html",
+    "reports/daily/global/2026-08-02/report.pdf",
+    "reports/daily/global/2026-08-02/report.json",
+    "reports/daily/global/2026-08-02/manifest.json",
+    "reports/daily/global/2026-08-02/images/overview.jpg",
+  ]);
+  assert.equal(__reportingPipelineTestUtils.getPublishedReportInstancePrefix({
+    pdf_storage_key: "assets/report.pdf",
+  }, config), "");
+});
+
+test("seven-day publication retention expires artifacts without touching snapshots", async () => {
+  const report = {
+    id: "report-aug-02",
+    report_key: "daily:2026-08-02:global",
+    report_type: "daily",
+    status: "available",
+    period_start: "2026-08-02T00:00:00.000Z",
+    pdf_storage_key: "reports/daily/global/2026-08-02/report.pdf",
+    report_body: { pipeline: { manifest: { capture_results: [] } } },
+  };
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push({ action: "from", table });
+      return {
+        select() { return this; },
+        eq() { return this; },
+        in() { return this; },
+        lt() { return this; },
+        order() { return Promise.resolve({ data: [report], error: null }); },
+        update(payload) {
+          calls.push({ action: "update", table, payload });
+          return {
+            eq() { return Promise.resolve({ error: null }); },
+          };
+        },
+      };
+    },
+  };
+  const deleted = [];
+  const result = await cleanupPublishedDailyReports({
+    supabase,
+    config: { s3Prefix: "reports", publishedRetentionDays: 7 },
+    latestPublishedDateKey: "2026-08-09",
+    deleteObject: async (_config, { key }) => { deleted.push(key); },
+    logger: { warn() {} },
+  });
+  assert.equal(result.retained_from_date, "2026-08-03");
+  assert.equal(result.expired, 1);
+  assert.equal(deleted.length, 4);
+  assert.equal(calls.some((call) => call.table === "operational_report_snapshots"), false);
+  const updates = calls.filter((call) => call.action === "update");
+  assert.equal(updates[0].payload.status, "expired");
+  assert.equal(updates[1].payload.pdf_storage_key, null);
 });

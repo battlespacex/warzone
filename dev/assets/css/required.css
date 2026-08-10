@@ -1064,6 +1064,11 @@ body.show-loader .site-loader {
         #warzone-gate-layer .wz-modal.is-visible {
             pointer-events: auto;
         }
+
+        #warzone-gate-layer .wz-modal.is-visible.wz-operational-reports {
+    background: var(--color-bg-row);
+    backdrop-filter: blur(4px);
+        }
 /* #endregion =========== */
 /* #region =========== GENERIC =========== */
 .no-margin {

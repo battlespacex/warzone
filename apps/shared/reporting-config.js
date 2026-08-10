@@ -1,3 +1,6 @@
+const DEFAULT_PUBLIC_REPORT_HISTORY_DAYS = 7;
+const DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS = 7;
+
 function readBooleanEnv(value, fallback = false) {
   if (value === undefined || value === null || value === "") return fallback;
   return /^(1|true|yes|on)$/i.test(String(value).trim());
@@ -65,6 +68,8 @@ function readReportingConfig(env = process.env) {
     weeklyCron: String(env.REPORTING_WEEKLY_CRON || "42 0 * * 1").trim(),
     snapshotCron: String(env.REPORTING_SNAPSHOT_CRON || "12 0 * * *").trim(),
     retentionDays: normalizeRetentionDays(env.REPORTING_SNAPSHOT_RETENTION_DAYS),
+    publicHistoryDays: Math.round(readNumberEnv(env.REPORTING_PUBLIC_HISTORY_DAYS, DEFAULT_PUBLIC_REPORT_HISTORY_DAYS, { min: 1, max: 31 })),
+    publishedRetentionDays: Math.round(readNumberEnv(env.REPORTING_PUBLISHED_RETENTION_DAYS, DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, { min: 1, max: 365 })),
     pdfExpiryHours: readNumberEnv(env.REPORTING_PDF_EXPIRY_HOURS, 72, { min: 1, max: 24 * 30 }),
     s3Prefix: String(env.REPORTING_S3_PREFIX || "reports").trim().replace(/^\/+|\/+$/g, "") || "reports",
     publicAssetBaseUrl: trimTrailingSlash(env.REPORTING_PUBLIC_ASSET_BASE_URL || ""),
@@ -138,6 +143,8 @@ function getReportingConfigStatus(config = readReportingConfig()) {
 }
 
 export {
+  DEFAULT_PUBLIC_REPORT_HISTORY_DAYS,
+  DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS,
   getReportingConfigStatus,
   readBooleanEnv,
   readNumberEnv,

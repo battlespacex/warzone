@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { readReportingConfig } from "./reporting-config.js";
+import { DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, readReportingConfig } from "./reporting-config.js";
 import { createReportPdfBuffer } from "./reporting-pdf.js";
 import { s3PutObject } from "./reporting-s3.js";
 import { applyGeneralEventDeliveryFilters } from "./map-event-policy.js";
@@ -846,7 +846,8 @@ async function uploadReportPdf({ supabase, report, config }) {
     body: pdf,
     contentType: "application/pdf",
   });
-  const expiresAt = new Date(Date.now() + config.pdfExpiryHours * 60 * 60 * 1000).toISOString();
+  const publishedRetentionDays = Math.max(1, Number(config.publishedRetentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
+  const expiresAt = new Date(Date.now() + publishedRetentionDays * 24 * 60 * 60 * 1000).toISOString();
   const downloadToken = crypto.randomBytes(24).toString("hex");
   const { data, error } = await supabase
     .from("operational_reports")

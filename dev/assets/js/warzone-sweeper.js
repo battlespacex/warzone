@@ -12,7 +12,6 @@ export const RADAR_RING_RATIOS = Object.freeze([0.34, 0.67, 1]);
 const SWEEPER_RENDER = {
     labelFrameSkip: 3,
     requestRenderFrameSkip: 1,
-    ringSegments: 256,
     maxHeight: 10000000,
     maxCount: 7,
     maxOverlap: 0.32,
@@ -53,9 +52,13 @@ function cssColor(name, fallback) {
 function readRadarVisualTokens(fallbackColor = RADAR_FALLBACK_COLOR) {
     const color = cssColor("--radar-color", fallbackColor);
     const ringColor = cssColor("--radar-ring-color", color);
+    const fillColor = cssColor("--radar-fill-color", color);
     return {
         color,
         ringColor,
+        fillColor,
+        fillOpacity: clamp(cssNumber("--radar-fill-opacity", 0), 0, 1),
+        innerRingOpacity: clamp(cssNumber("--radar-inner-ring-opacity", 0), 0, 1),
         ringOpacity: clamp(cssNumber("--radar-ring-opacity", 0.42), 0, 1),
         ringOuterOpacity: clamp(cssNumber("--radar-ring-outer-opacity", 0.7), 0, 1),
         ringWidth: clamp(cssNumber("--radar-ring-width", 1.6), 0.5, 4),
@@ -248,12 +251,22 @@ function ensureRadarSweepMaterialRegistered() {
             type: RADAR_SWEEP_MATERIAL_TYPE,
             uniforms: {
                 color: Cesium.Color.WHITE,
+                ringColor: Cesium.Color.WHITE,
+                fillColor: Cesium.Color.WHITE,
                 heading: 0,
                 sweepWidth: Cesium.Math.toRadians(64),
                 leadingEdgeWidth: Cesium.Math.toRadians(1.4),
                 minAlpha: 0.02,
                 midAlpha: 0.14,
                 maxAlpha: 0.42,
+                ringInner: RADAR_RING_RATIOS[0],
+                ringMiddle: RADAR_RING_RATIOS[1],
+                ringOuter: RADAR_RING_RATIOS[2],
+                ringWidth: 1.6,
+                innerRingOpacity: 0,
+                ringOpacity: 0.42,
+                ringOuterOpacity: 0.7,
+                fillOpacity: 0,
             },
             source: `
                 czm_material czm_getMaterial(czm_materialInput materialInput)
@@ -264,7 +277,7 @@ function ensureRadarSweepMaterialRegistered() {
                     float fragmentHeading = atan(centered.x, centered.y);
                     if (fragmentHeading < 0.0) fragmentHeading += 6.28318530718;
                     float trail = mod(heading - fragmentHeading + 6.28318530718, 6.28318530718);
-                    float angularFeather = max(fwidth(trail) * 1.5, 0.0025);
+                    float angularFeather = max(fwidth(trail) * 2.5, 0.0035);
                     float inSweep = 1.0 - smoothstep(
                         sweepWidth - angularFeather,
                         sweepWidth + angularFeather,
@@ -275,11 +288,44 @@ function ensureRadarSweepMaterialRegistered() {
                         ? mix(minAlpha, midAlpha, smoothstep(0.0, 0.58, strength))
                         : mix(midAlpha, maxAlpha, smoothstep(0.58, 1.0, strength));
                     float edgeAlpha = (1.0 - smoothstep(0.0, max(leadingEdgeWidth, 0.0001), trail)) * maxAlpha;
-                    float radialFeather = max(fwidth(radius) * 1.5, 0.003);
+                    float radialFeather = max(fwidth(radius) * 2.5, 0.004);
                     float radialMask = smoothstep(0.0, 0.05, radius)
                         * (1.0 - smoothstep(1.0 - radialFeather, 1.0, radius));
-                    material.diffuse = color.rgb;
-                    material.alpha = color.a * max(fadedAlpha * inSweep, edgeAlpha) * radialMask;
+                    float sweepAlpha = max(fadedAlpha * inSweep, edgeAlpha) * radialMask;
+                    float discMask = 1.0 - smoothstep(1.0 - radialFeather, 1.0, radius);
+                    float fillAlpha = fillOpacity * discMask;
+
+                    float ringPixel = max(fwidth(radius), 0.00035);
+                    float ringHalfWidth = ringPixel * max(ringWidth, 0.5) * 0.5;
+                    float ringFeather = ringPixel * 1.5;
+                    float ringInnerEdge = max(0.0, ringHalfWidth - ringFeather * 0.5);
+                    float ringOuterEdge = ringHalfWidth + ringFeather * 0.5;
+                    float outerTarget = min(ringOuter, 1.0 - ringHalfWidth - ringFeather * 0.5);
+                    float innerRing = (1.0 - smoothstep(
+                        ringInnerEdge,
+                        ringOuterEdge,
+                        abs(radius - ringInner)
+                    )) * innerRingOpacity;
+                    float middleRing = 1.0 - smoothstep(
+                        ringInnerEdge,
+                        ringOuterEdge,
+                        abs(radius - ringMiddle)
+                    );
+                    float outerRing = 1.0 - smoothstep(
+                        ringInnerEdge,
+                        ringOuterEdge,
+                        abs(radius - outerTarget)
+                    );
+                    float ringAlpha = max(innerRing, middleRing) * ringOpacity;
+                    ringAlpha = max(ringAlpha, outerRing * ringOuterOpacity);
+                    float fillLayerAlpha = fillColor.a * fillAlpha;
+                    float sweepLayerAlpha = color.a * sweepAlpha;
+                    float ringLayerAlpha = ringColor.a * ringAlpha;
+                    float useSweepColor = step(fillLayerAlpha, sweepLayerAlpha);
+                    vec3 combinedColor = mix(fillColor.rgb, color.rgb, useSweepColor);
+                    float useRingColor = step(max(fillLayerAlpha, sweepLayerAlpha), ringLayerAlpha);
+                    material.diffuse = mix(combinedColor, ringColor.rgb, useRingColor);
+                    material.alpha = max(fillLayerAlpha, max(sweepLayerAlpha, ringLayerAlpha));
                     return material;
                 }
             `,
@@ -300,12 +346,22 @@ function createRadarSweepPrimitive(viewer, {
 }) {
     const material = Cesium.Material.fromType(RADAR_SWEEP_MATERIAL_TYPE, {
         color: Cesium.Color.clone(color),
+        ringColor: Cesium.Color.fromCssColorString(tokens.ringColor) || Cesium.Color.clone(color),
+        fillColor: Cesium.Color.fromCssColorString(tokens.fillColor) || Cesium.Color.clone(color),
         heading: Cesium.Math.toRadians(state.heading),
         sweepWidth: Cesium.Math.toRadians(tokens.sweepWidthDeg),
         leadingEdgeWidth: Cesium.Math.toRadians(tokens.sweepLeadingEdgeDeg),
         minAlpha: tokens.sweepOpacityMin,
         midAlpha: tokens.sweepOpacityMid,
         maxAlpha: tokens.sweepOpacityMax,
+        ringInner: RADAR_RING_RATIOS[0],
+        ringMiddle: RADAR_RING_RATIOS[1],
+        ringOuter: RADAR_RING_RATIOS[2],
+        ringWidth: tokens.ringWidth,
+        innerRingOpacity: tokens.innerRingOpacity,
+        ringOpacity: tokens.ringOpacity,
+        ringOuterOpacity: tokens.ringOuterOpacity,
+        fillOpacity: tokens.fillOpacity,
     });
     const pickEntity = new Cesium.Entity({
         id,
@@ -395,28 +451,6 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
-}
-function getRadarDestination(lat, lon, radiusMeters, headingDeg) {
-    const angularDistance = radiusMeters / 6371000;
-    const bearing = Cesium.Math.toRadians(headingDeg);
-    const lat1 = Cesium.Math.toRadians(lat);
-    const lon1 = Cesium.Math.toRadians(lon);
-    const lat2 = Math.asin(
-        Math.sin(lat1) * Math.cos(angularDistance) +
-        Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
-    );
-    const lon2 = lon1 + Math.atan2(
-        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
-        Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
-    );
-    return [Cesium.Math.toDegrees(lon2), Cesium.Math.toDegrees(lat2)];
-}
-function buildRadarRingPositions(lat, lon, radiusMeters, steps = SWEEPER_RENDER.ringSegments) {
-    const coordinates = [];
-    for (let index = 0; index <= steps; index += 1) {
-        coordinates.push(...getRadarDestination(lat, lon, radiusMeters, (index / steps) * 360));
-    }
-    return Cesium.Cartesian3.fromDegreesArray(coordinates);
 }
 function getCircleOverlapRatio(r1, r2, d) {
     if (d >= r1 + r2) return 0;
@@ -518,28 +552,12 @@ export function renderSweepers(viewer, events = []) {
         const lon = candidate.lon;
         const visualTokens = readRadarVisualTokens();
         const base = Cesium.Color.fromCssColorString(visualTokens.color) || Cesium.Color.fromCssColorString(RADAR_FALLBACK_COLOR);
-        const ringBase = Cesium.Color.fromCssColorString(visualTokens.ringColor) || base;
         const overlayId = makeOverlayEntityId("sweeper", candidate.event, index);
         const popupProps = buildOverlayPopupProperties(candidate.event, overlayId);
         const state = {
             heading: 320 + (index * 40)
         };
         const overlayHeight = SWEEPER_RENDER.overlayHeight;
-        const rings = RADAR_RING_RATIOS.map((ratio, ringIndex) => viewer.entities.add({
-            id: `${overlayId}-ring-${ringIndex + 1}`,
-            polyline: {
-                positions: buildRadarRingPositions(lat, lon, preset.radius * ratio),
-                material: ringBase.withAlpha(
-                    ringIndex === RADAR_RING_RATIOS.length - 1
-                        ? visualTokens.ringOuterOpacity
-                        : visualTokens.ringOpacity
-                ),
-                width: visualTokens.ringWidth,
-                clampToGround: true,
-                arcType: Cesium.ArcType.GEODESIC,
-            },
-            properties: { ...popupProps },
-        }));
         const sweepBeam = createRadarSweepPrimitive(viewer, {
             id: `${overlayId}-sweep`,
             lon,
@@ -565,7 +583,6 @@ export function renderSweepers(viewer, events = []) {
         });
         const labelEl = createRadarLabel(preset.label || "Radar Coverage");
         __sweeperEntities.push(
-            ...rings,
             centerDot
         );
         __sweeperPrimitives.push(sweepBeam.primitive);

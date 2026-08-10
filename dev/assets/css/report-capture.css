@@ -40,6 +40,11 @@ body.wz-report-capture-ready #wz-report-capture-status {
     display: none;
 }
 
+/* Report captures keep the cyan focus brackets but omit interactive controls. */
+body.wz-report-capture-mode .wz-aircraft-focus-panel {
+    display: none !important;
+}
+
 #warzone-map-credits,
 .cesium-viewer-toolbar,
 .cesium-viewer-animationContainer,

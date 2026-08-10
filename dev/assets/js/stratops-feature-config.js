@@ -114,7 +114,8 @@ const DEFAULT_STRATOPS_FEATURES = {
         milSatOrbit: true,
         audio: false,
         adaptivePerformanceGuard: true,
-        devPanel: true,
+        devPanel: false,
+        entrySceneTuner: false,
     },
 };
 

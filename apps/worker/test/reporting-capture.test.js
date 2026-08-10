@@ -234,7 +234,8 @@ test("camera framing is deterministic for bounds, exact events and HVA targets",
   assert.equal(cluster.scene_mode, "3d");
   assert.ok(cluster.range_meters >= 360000);
   assert.deepEqual(event.center, { latitude: 26.2, longitude: 50.1 });
-  assert.equal(hva.heading_degrees, 122);
+  assert.equal(hva.heading_degrees, 232);
+  assert.equal(hva.pitch_degrees, -28);
   assert.ok(hva.range_meters >= 24000 && hva.range_meters <= 70000);
 });
 
@@ -272,11 +273,21 @@ test("focus and regional HVA presets use distinct heading, pitch, range and visi
   const focus = buildReportAssetFocusPreset("HVA_FOCUS_3D", focusCamera);
   const regional = buildReportAssetFocusPreset("HVA_REGIONAL_CONTEXT", regionalCamera);
   assert.equal(focus.mode, "FOCUS");
+  assert.equal(focus.map_mode, "CTR");
   assert.equal(regional.mode, "REGIONAL");
+  assert.equal(regional.map_mode, "CTR");
   assert.notEqual(focus.heading_degrees, regional.heading_degrees);
   assert.notEqual(focus.pitch_degrees, regional.pitch_degrees);
   assert.ok(regional.range_meters > focus.range_meters * 2);
   assert.ok(focus.minimum_visual_pixels > regional.minimum_visual_pixels);
+  for (const heading of [0, 92, 180, 315]) {
+    const camera = calculateCaptureCamera({
+      capture_type: "HVA_FOCUS_3D",
+      center: { latitude: 26.5, longitude: 50.4 },
+      asset_heading_deg: heading,
+    });
+    assert.equal(camera.heading_degrees, (heading + 140) % 360);
+  }
 });
 
 test("regional and unknown developments never become fake point captures", () => {

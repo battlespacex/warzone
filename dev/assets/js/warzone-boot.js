@@ -280,7 +280,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     function shouldHideAppChromeForModal(modal) {
         const modalId = String(modal?.id || "");
-        return modalId === "wz-about-modal" || modalId === "wz-donate-modal";
+        return modalId === "wz-about-modal"
+            || modalId === "wz-donate-modal";
     }
     const MODAL_HEIGHT_ANIM_MS = 820;
     const modalBoxHeightFrames = new WeakMap();

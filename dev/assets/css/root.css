@@ -213,13 +213,13 @@
     --warzone-base-training-logistics-color: var(--color-green);
     --warzone-base-wmd-color: var(--color-yellow-glow);
     --warzone-base-unknown-color: var(--color-green);
-    --warzone-base-icon-px: 24;
-    --warzone-base-icon-significant-px: 24;
-    --warzone-base-icon-major-px: 24;
-    --warzone-base-icon-min-px: 16;
+    --warzone-base-icon-px: 30;
+    --warzone-base-icon-significant-px: 30;
+    --warzone-base-icon-major-px: 30;
+    --warzone-base-icon-min-px: 30;
     --warzone-base-icon-pixel-offset-y: 6;
-    --warzone-base-flyto-height: 42000;
-    --warzone-base-flyto-duration: 1.2;
+    --warzone-base-flyto-height: 9000;
+    --warzone-base-flyto-duration: 2;
 }
 /* #endregion =========== */
 /* #region =========== Global Satellite Imagery =========== */
@@ -289,27 +289,28 @@
 /* #region =========== Globe Render Quality =========== */
 :root {
     /* Smooth premium Cesium performance */
-    --warzone-resolution-scale: 1.0;
-    --warzone-msaa-samples: 1;
-    --warzone-msaa-hard-max: 1;
+    --warzone-resolution-scale: 1.2;
+    --warzone-resolution-hard-max: 1.25;
+    --warzone-msaa-samples: 4;
+    --warzone-msaa-hard-max: 4;
     --warzone-fxaa-enabled: 1;
 
-    --warzone-idle-resolution-min: 1.0;
-    --warzone-idle-msaa-min: 1;
+    --warzone-idle-resolution-min: 1.2;
+    --warzone-idle-msaa-min: 4;
 
-    --warzone-moving-resolution-scale: 0.9;
-    --warzone-moving-msaa-samples: 1;
+    --warzone-moving-resolution-scale: 1;
+    --warzone-moving-msaa-samples: 2;
 
-    --warzone-focus-resolution-scale: 0.96;
+    --warzone-focus-resolution-scale: 1.2;
     --warzone-focus-performance-resolution-scale: 0.86;
     --warzone-focus-performance-msaa-samples: 1;
     --warzone-focus-performance-screen-space-error: 2.35;
     --warzone-focus-performance-tile-cache: 110;
     --warzone-focus-performance-render-time: 0.22;
 
-    --warzone-close-resolution-scale: 0.98;
-    --warzone-focus-msaa-samples: 1;
-    --warzone-close-msaa-samples: 1;
+    --warzone-close-resolution-scale: 1.2;
+    --warzone-focus-msaa-samples: 4;
+    --warzone-close-msaa-samples: 4;
 
     --warzone-camera-zoom-factor: 7.5;
     --warzone-focus-sharp-height: 120000;
@@ -332,7 +333,8 @@
     --warzone-globe-loading-descendant-limit: 24;
     --warzone-globe-loading-descendant-limit-busy: 10;
     --warzone-globe-loading-queue-threshold: 10;
-    --warzone-globe-loading-resolution-scale: 0.92;
+    --warzone-globe-loading-resolution-scale: 1.05;
+    --warzone-globe-loading-msaa-samples: 2;
     --warzone-globe-loading-screen-space-error: 2.4;
 
     --warzone-globe-preload-ancestors: 1;
@@ -447,6 +449,7 @@
     --hotspot-opacity: 0.82;
     --hotspot-border-width: 4px;
     --hotspot-glow: 12;
+    --hotspot-render-padding: 24px;
     --hotspot-fill-center: 24%;
     --hotspot-fill-mid: 11%;
     --hotspot-label-size: 14px;
@@ -460,7 +463,6 @@
     --hotspot-stack-font-size: 1.1rem;
     --hotspot-stack-offset: 3.4rem;
     --hotspot-stack-gap: 1rem;
-    --hotspot-stack-background: rgba(5, 13, 21, 0.94);
     --hotspot-stack-border: rgba(24, 226, 219, 0.42);
     --hotspot-stack-line-color: rgba(143, 163, 184, 0.64);
     --hotspot-stack-group-gap: 34rem;
@@ -479,13 +481,14 @@
     --hotspot-local-label-collision-gap: 1rem;
     --hotspot-local-label-max-visible: 30;
     --hotspot-local-label-max-visible-small: 16;
-    --event-marker-label-size: 13px;
-    --event-marker-label-letter-spacing: 0.2rem;
+    --event-marker-label-size: var(--text-sm);
+    --event-marker-label-letter-spacing: 0.1rem;
     --event-marker-label-offset-x: 32;
-    --event-marker-label-background-alpha: 0.82;
-    --event-marker-label-outline-width: 2;
-    --event-marker-label-padding-x: 8;
-    --event-marker-label-padding-y: 5;
+    --event-marker-label-font-weight: 600;
+    --event-marker-label-padding-x: 0.8rem;
+    --event-marker-label-padding-top: 0.8rem;
+    --event-marker-label-padding-bottom: 0.6rem;
+    --event-marker-label-cut-size: 1rem;
     --event-marker-label-collision-gap: 8;
     --event-marker-label-viewport-pad: 8;
     --event-marker-label-max-visible: 36;
@@ -550,7 +553,7 @@
     --warzone-event-marker-scale-near: 1.45;
     --warzone-event-marker-scale-far: 0.52;
     --warzone-event-marker-canvas-size: 1024;
-    --warzone-event-marker-single-canvas-size: 256;
+    --warzone-event-marker-single-canvas-size: 512;
     --warzone-event-marker-cluster-step: 5;
     --warzone-event-marker-max-size: 70;
     --warzone-event-marker-disc-scale: 0.62;
@@ -700,6 +703,7 @@
     --warzone-missile-duration-critical: 9000;
     --warzone-missile-duration-high: 7500;
     --warzone-missile-duration-medium: 6200;
+    --warzone-missile-completed-hold-min: 10000;
     --warzone-missile-persist-critical: 24000;
     --warzone-missile-persist-high: 20000;
     --warzone-missile-persist-medium: 16000;
@@ -861,15 +865,18 @@
 /* #endregion */
 /* #region =========== Radar Sweeper =========== */
 :root {
-    --radar-color: #18e2db;
-    --radar-ring-color: #18e2db;
-    --radar-ring-opacity: 0.56;
-    --radar-ring-outer-opacity: 0.82;
+    --radar-color: var(--color-teal-glow);
+    --radar-ring-color: var(--color-teal-glow);
+    --radar-fill-color: var(--color-teal); 
+    --radar-fill-opacity: 0;
+    --radar-inner-ring-opacity: 0;
+    --radar-ring-opacity: 0.7;
+    --radar-ring-outer-opacity: 0.8;
     --radar-ring-width: 2.2;
-    --radar-sweep-opacity-min: 0.04;
+    --radar-sweep-opacity-min: 0;
     --radar-sweep-opacity-mid: 0.22;
     --radar-sweep-opacity-max: 0.62;
-    --radar-sweep-width: 64;
+    --radar-sweep-width: 72;
     --radar-sweep-leading-edge-width: 1.8;
     --radar-sweep-speed: 1;
     --radar-center-size: 4;

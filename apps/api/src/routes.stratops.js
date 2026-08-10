@@ -3,7 +3,11 @@ import crypto from "crypto";
 import { access } from "fs/promises";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
-import { readReportingConfig } from "../../shared/reporting-config.js";
+import {
+    DEFAULT_PUBLIC_REPORT_HISTORY_DAYS,
+    DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS,
+    readReportingConfig,
+} from "../../shared/reporting-config.js";
 import { REPORT_VERSION, buildReportSlug, ensureOperationalReport, getPreviousUtcDateKey, toPublicReport } from "../../shared/reporting-service.js";
 import { buildS3PublicUrl, getLocalReportFilePath } from "../../shared/reporting-s3.js";
 import { buildCaptureScenePayload } from "../../shared/reporting-capture.js";
@@ -112,11 +116,101 @@ function getPublicReportAssetUrl(req, report = {}) {
     return isBadPublicReportUrl(pdfUrl) ? "" : pdfUrl;
 }
 
+function buildReportArtifactStorageKey(report = {}, filename = "") {
+    const storageKey = String(report.pdf_storage_key || "").trim().replace(/^\/+/, "");
+    const artifactName = String(filename || "").trim().replace(/^\/+/, "");
+    if (!storageKey || !artifactName || artifactName.includes("/") || !storageKey.includes("/")) return "";
+    if (!storageKey.endsWith("/report.pdf")) return "";
+    return `${storageKey.slice(0, storageKey.lastIndexOf("/") + 1)}${artifactName}`;
+}
+
+function getPublishedReportArtifactKey(report = {}, artifactName = "") {
+    const manifest = report?.report_body?.pipeline?.manifest || {};
+    const uploadKey = artifactName === "report.html"
+        ? manifest?.upload?.report_html_key
+        : (artifactName === "report.pdf" ? manifest?.upload?.report_pdf_key : "");
+    const key = String(uploadKey || "").trim().replace(/^\/+/, "");
+    const expectedKey = buildReportArtifactStorageKey(report, artifactName);
+    if (key && key === expectedKey) return key;
+    return expectedKey;
+}
+
+function getPublicReportHtmlUrl(req, report = {}) {
+    const storageKey = getPublishedReportArtifactKey(report, "report.html");
+    const publicBase = getReportsPublicBase(req);
+    return storageKey && publicBase
+        ? buildS3PublicUrl({ aws: { cloudFrontUrl: publicBase } }, storageKey)
+        : "";
+}
+
+function getReportDate(report = {}) {
+    const periodStart = String(report.period_start || "").trim();
+    const match = periodStart.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match?.[1] || "";
+}
+
+function formatPublicReportLabel(report = {}) {
+    const reportDate = getReportDate(report);
+    if (!reportDate) return "Operational report";
+    const date = new Date(`${reportDate}T00:00:00.000Z`);
+    return new Intl.DateTimeFormat("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        timeZone: "UTC",
+    }).format(date);
+}
+
+function toPublicHistoryReport(req, report = {}, { isLatest = false } = {}) {
+    const htmlUrl = getPublicReportHtmlUrl(req, report);
+    const pdfUrl = getPublicReportAssetUrl(req, report);
+    const publicStatus = htmlUrl && pdfUrl ? "available" : (htmlUrl ? "preview_only" : "unavailable");
+    return {
+        id: report.id,
+        report_type: report.report_type,
+        report_date: getReportDate(report),
+        scope_type: report.scope_type,
+        scope_value: report.scope_value,
+        scope_label: report.scope_label,
+        period_start: report.period_start,
+        period_end: report.period_end,
+        status: publicStatus,
+        display_label: formatPublicReportLabel(report),
+        is_latest: Boolean(isLatest),
+        generated_at: report.created_at,
+        updated_at: report.updated_at,
+        expires_at: report.expires_at,
+        html_available: Boolean(htmlUrl),
+        html_url: htmlUrl,
+        pdf_available: Boolean(pdfUrl),
+        public_url: pdfUrl,
+        download_url: pdfUrl,
+    };
+}
+
+function selectRecentPublishedReports(req, reports = [], limit = DEFAULT_PUBLIC_REPORT_HISTORY_DAYS) {
+    const boundedLimit = Math.max(1, Math.floor(Number(limit) || DEFAULT_PUBLIC_REPORT_HISTORY_DAYS));
+    return reports
+        .map((report) => toPublicHistoryReport(req, report))
+        .filter((report) => report.html_available)
+        .slice(0, boundedLimit)
+        .map((report, index) => ({ ...report, is_latest: index === 0 }));
+}
+
+function getPublicReportHistoryCutoffIso(retentionDays = DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, referenceDate = new Date()) {
+    const date = referenceDate instanceof Date ? new Date(referenceDate) : new Date(referenceDate);
+    if (Number.isNaN(date.getTime())) return "";
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - Math.max(1, Number(retentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS)));
+    return date.toISOString();
+}
+
 function toPublicApiReport(req, report = {}) {
     const publicReport = toPublicReport(report);
     const reportUrl = getPublicReportAssetUrl(req, report) || publicReport.public_url;
     return {
         ...publicReport,
+        html_url: getPublicReportHtmlUrl(req, report),
         public_url: reportUrl,
         download_url: reportUrl,
     };
@@ -163,7 +257,15 @@ function isAuthorizedCaptureRequest(req, expectedToken = "") {
         && crypto.timingSafeEqual(configured, supplied);
 }
 
-const __stratopsRouteTestUtils = { isAuthorizedCaptureRequest };
+const __stratopsRouteTestUtils = {
+    buildReportArtifactStorageKey,
+    getPublishedReportArtifactKey,
+    getPublicReportHtmlUrl,
+    getPublicReportHistoryCutoffIso,
+    selectRecentPublishedReports,
+    toPublicHistoryReport,
+    isAuthorizedCaptureRequest,
+};
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -295,24 +397,29 @@ export function stratopsRouter() {
 
     router.get("/reports", async (req, res) => {
         try {
+            const config = readReportingConfig();
             const requestedLimit = Number(req.query.limit);
             const limit = Number.isFinite(requestedLimit)
-                ? clamp(Math.floor(requestedLimit), 1, 50)
-                : 12;
-            const reportType = String(req.query.type || "").trim().toLowerCase();
-            let builder = getSupabase()
+                ? clamp(Math.floor(requestedLimit), 1, config.publicHistoryDays)
+                : config.publicHistoryDays;
+            const reportType = normalizeReportType(req.query.type);
+            const scope = normalizeReportScope({}, req.query || {});
+            const scopeKey = getReportScopeKey(scope);
+            const retentionCutoff = getPublicReportHistoryCutoffIso(config.publishedRetentionDays);
+            const { data, error } = await getSupabase()
                 .from("operational_reports")
-                .select("id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at")
-                .eq("status", "available")
-                .gt("expires_at", new Date().toISOString())
+                .select("id, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, report_body, report_version, pdf_url, pdf_storage_key, expires_at, created_at, updated_at")
+                .eq("report_type", reportType)
+                .eq("scope_key", scopeKey)
+                .eq("report_version", REPORT_VERSION)
+                .in("status", ["available", "expired"])
+                .gte("period_start", retentionCutoff)
                 .order("period_start", { ascending: false })
-                .limit(limit);
-            if (reportType === "daily" || reportType === "weekly") {
-                builder = builder.eq("report_type", reportType);
-            }
-            const { data, error } = await builder;
+                .limit(Math.min(50, limit * 3));
             if (error) return res.status(500).json({ error: "Failed" });
-            res.json({ reports: (data || []).map((report) => toPublicApiReport(req, report)) });
+            const reports = selectRecentPublishedReports(req, data || [], limit);
+            res.set("Cache-Control", "private, no-store, max-age=0");
+            res.json({ reports, history_limit: config.publicHistoryDays });
         } catch (error) {
             console.error("[stratops] report list failed:", error);
             res.status(500).json({ error: "Failed" });
@@ -354,7 +461,7 @@ export function stratopsRouter() {
             if (cached) return res.json(cached);
 
             const supabase = getSupabase();
-            const commonColumns = "id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at";
+            const commonColumns = "id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_body, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at";
             const now = new Date().toISOString();
             const available = await supabase
                 .from("operational_reports")

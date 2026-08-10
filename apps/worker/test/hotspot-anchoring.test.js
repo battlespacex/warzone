@@ -27,6 +27,7 @@ test("hotspot wrapper pieces receive the same sub-pixel anchor without positiona
     radiusEl: elementStub(),
     uxLabelEl: elementStub(),
     radiusSize: 100,
+    radiusRenderPadding: 24,
     stackOffset: { x: 0, y: 0 },
     uxLabelEligible: true,
   };
@@ -47,8 +48,8 @@ test("hotspot wrapper pieces receive the same sub-pixel anchor without positiona
   assert.equal(node.screenY, 220.5);
   assert.equal(node.uxLabelEl.style.getPropertyValue("--wzhs-anchor-x"), "110.25px");
   assert.equal(node.uxLabelEl.style.getPropertyValue("--wzhs-anchor-y"), "220.5px");
-  assert.equal(node.radiusEl.style.getPropertyValue("--wzhs-anchor-x"), "60.25px");
-  assert.equal(node.radiusEl.style.getPropertyValue("--wzhs-anchor-y"), "170.5px");
+  assert.equal(node.radiusEl.style.getPropertyValue("--wzhs-anchor-x"), "36.25px");
+  assert.equal(node.radiusEl.style.getPropertyValue("--wzhs-anchor-y"), "146.5px");
   assert.equal(node.el.style.getPropertyValue("--wzhs-anchor-x"), "196.25px");
   assert.equal(node.el.style.getPropertyValue("--wzhs-anchor-y"), "168.5px");
   assert.equal(node.radiusEl.style.getPropertyValue("--wzhs-surface-matrix"), "matrix(1, 0, 0, 1, 0, 0)");
@@ -123,4 +124,14 @@ test("visible hotspot labels are interactive and route cluster details to the ex
   const radiusRule = css.match(/\.wzhs-radius\s*\{([^}]*)\}/)?.[1] || "";
   assert.match(labelRule, /pointer-events:\s*auto/);
   assert.match(radiusRule, /pointer-events:\s*none/);
+});
+
+test("hotspot glow uses padded render bounds without changing the logical circle diameter", async () => {
+  const source = await readFile(new URL("../../../dev/assets/js/warzone-hotspots.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../../../dev/assets/css/warzone-components.css", import.meta.url), "utf8");
+  const rootCss = await readFile(new URL("../../../dev/assets/css/root.css", import.meta.url), "utf8");
+  assert.match(rootCss, /--hotspot-render-padding:\s*24px/);
+  assert.match(source, /hotspotRenderSize = hotspotDiameter \+ hotspotRenderPadding \* 2/);
+  assert.match(source, /radiusRenderPadding:\s*hotspotRenderPadding/);
+  assert.match(css, /\.wzhs-radius__ring\s*\{[\s\S]*?inset:\s*var\(--hotspot-render-padding/);
 });

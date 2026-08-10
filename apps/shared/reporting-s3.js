@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import { dirname, join, normalize, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -232,6 +232,57 @@ async function putSignedS3Object(region, bucket, key, body, contentType, cacheCo
   return getFetch()(request.url, { method: "PUT", headers: request.headers, body });
 }
 
+function buildS3DeleteRequest(region, bucket, key, credentials) {
+  const normalizedRegion = String(region || "").trim() || "us-east-1";
+  const service = "s3";
+  const host = normalizedRegion === "us-east-1" ? "s3.amazonaws.com" : `s3.${normalizedRegion}.amazonaws.com`;
+  const canonicalPath = `/${encodeURIComponent(bucket)}/${encodeS3Key(key)}`;
+  const url = `https://${host}${canonicalPath}`;
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256("");
+  const headers = {
+    host,
+    "x-amz-content-sha256": payloadHash,
+    "x-amz-date": amzDate,
+  };
+  if (credentials.sessionToken) headers["x-amz-security-token"] = credentials.sessionToken;
+  const sortedHeaderKeys = Object.keys(headers).sort();
+  const canonicalHeaders = sortedHeaderKeys.map((name) => `${name}:${headers[name]}\n`).join("");
+  const signedHeaders = sortedHeaderKeys.join(";");
+  const canonicalRequest = ["DELETE", canonicalPath, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const credentialScope = `${dateStamp}/${normalizedRegion}/${service}/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, sha256(canonicalRequest)].join("\n");
+  const signingKey = getSigningKey(credentials.secretAccessKey, dateStamp, normalizedRegion, service);
+  const signature = hmac(signingKey, stringToSign, "hex");
+  headers.authorization = `AWS4-HMAC-SHA256 Credential=${credentials.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  return { url, headers };
+}
+
+async function s3DeleteObject(config, { key } = {}) {
+  const storageKey = String(key || "").trim().replace(/^\/+/, "");
+  if (!storageKey) throw new Error("S3 report deletion requires a storage key");
+  try {
+    const credentials = await resolveAwsCredentials(config);
+    const request = buildS3DeleteRequest(config.aws.region, config.aws.bucket, storageKey, credentials);
+    const response = await getFetch()(request.url, { method: "DELETE", headers: request.headers });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`S3 report deletion failed (${response.status}) ${text.slice(0, 160)}`);
+    }
+    return { ok: true, storageKey };
+  } catch (error) {
+    if (!isLocalReportFallbackEnabled()) throw error;
+    try {
+      await unlink(getLocalReportFilePath(storageKey));
+    } catch (localError) {
+      if (localError?.code !== "ENOENT") throw localError;
+    }
+    return { ok: true, storageKey, local: true };
+  }
+}
+
 async function s3PutObject(config, {
   key,
   body,
@@ -281,5 +332,6 @@ export {
   areAwsCredentialsUsable,
   buildS3PublicUrl,
   getLocalReportFilePath,
+  s3DeleteObject,
   s3PutObject,
 };

@@ -1,4 +1,8 @@
+import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
+
 export async function initLocalDevPanelOnly() {
+    if (!isStratOpsFeatureEnabled("system.devPanel")) return null;
+
     const hostname = String(window.location.hostname || "").toLowerCase();
     const isLocalDev =
         import.meta.env?.DEV === true ||
@@ -7,7 +11,7 @@ export async function initLocalDevPanelOnly() {
         hostname === "" ||
         hostname.includes("staging");
 
-    if (!isLocalDev) return;
+    if (!isLocalDev) return null;
 
     if (!document.getElementById("wz-dev-panel")) {
         const partialPaths = String(window.location.pathname || "").startsWith("/warzone")
@@ -26,7 +30,7 @@ export async function initLocalDevPanelOnly() {
         }
         if (!html) {
             console.warn("Local dev panel HTML was not found at the supported partial paths");
-            return;
+            return null;
         }
 
         document.body.insertAdjacentHTML("beforeend", html);
@@ -34,4 +38,5 @@ export async function initLocalDevPanelOnly() {
 
     const module = await import("./warzone-dev-panel.js");
     module.initDevPanel?.();
+    return document.getElementById("wz-dev-panel");
 }

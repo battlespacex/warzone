@@ -10580,37 +10580,20 @@ function showSupportModal() {
 
 let __reportsModalBound = false;
 let __reportsModalCloseTimer = 0;
-let __latestOperationalReport = null;
-
-function getYesterdayUtcDateKey() {
-    const date = new Date();
-    date.setUTCDate(date.getUTCDate() - 1);
-    return date.toISOString().slice(0, 10);
-}
-
-function formatReportDate(value = "") {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value || "");
-    return date.toLocaleString([], {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
-
-function formatReportPeriod(report = {}) {
-    const start = formatReportDate(report.period_start);
-    const end = formatReportDate(report.period_end);
-    return [start, end].filter(Boolean).join(" to ");
-}
-
-function getReportTitle(report = {}) {
-    const type = String(report.report_type || "daily").toUpperCase();
-    const scope = String(report.scope_label || report.scope_value || "Global");
-    return `${type} - ${scope}`;
-}
+const __operationalReportsState = {
+    isOpen: false,
+    availableReports: [],
+    selectedReport: null,
+    selectedReportId: "",
+    loadSequence: 0,
+    loadTimer: 0,
+    previousFocus: null,
+    inertEntries: [],
+    cameraInputsEnabled: null,
+    previewResizeObserver: null,
+};
+const OPERATIONAL_REPORT_MOBILE_BREAKPOINT = 768;
+const OPERATIONAL_REPORT_DESKTOP_VIEWPORT_WIDTH = 1024;
 
 function setReportsStatus(message = "", isError = false) {
     const status = document.getElementById("wz-operational-reports-status");
@@ -10621,107 +10604,247 @@ function setReportsStatus(message = "", isError = false) {
 }
 
 function resetOperationalReportViewer() {
-    const viewer = document.getElementById("wz-operational-report-viewer");
     const frame = document.getElementById("wz-operational-report-viewer-frame");
-    const title = document.getElementById("wz-operational-report-viewer-title");
-    const link = document.getElementById("wz-operational-report-viewer-link");
-    const fallback = document.getElementById("wz-operational-report-viewer-fallback");
-    if (frame) frame.setAttribute("data", "");
-    if (title) title.textContent = "Report Viewer";
-    if (link) {
-        link.setAttribute("href", "#");
-        link.hidden = true;
+    const loader = document.getElementById("wz-operational-report-loader");
+    const loaderLabel = document.getElementById("wz-operational-report-loader-label");
+    if (frame) {
+        frame.onload = null;
+        frame.onerror = null;
+        frame.hidden = true;
+        frame.removeAttribute("src");
+        delete frame.dataset.reportUrl;
+        delete frame.dataset.reportId;
     }
-    if (fallback) fallback.textContent = "PDF viewing is unavailable in this browser.";
-    if (viewer) viewer.hidden = true;
-}
-
-function openOperationalReportViewer(report = {}) {
-    if (!isStratOpsFeatureEnabled("reports.reportViewer")) return;
-    const viewer = document.getElementById("wz-operational-report-viewer");
-    const frame = document.getElementById("wz-operational-report-viewer-frame");
-    const title = document.getElementById("wz-operational-report-viewer-title");
-    const link = document.getElementById("wz-operational-report-viewer-link");
-    const fallback = document.getElementById("wz-operational-report-viewer-fallback");
-    const viewerUrl = api.getOperationalReportViewerUrl(report);
-    if (!viewer || !frame || !viewerUrl) {
-        setReportsStatus("This report is missing a PDF download link.", true);
-        return;
-    }
-    if (title) title.textContent = getReportTitle(report);
-    if (link) {
-        link.setAttribute("href", viewerUrl);
-        link.hidden = false;
-    }
-    if (fallback) {
-        fallback.textContent = "Embedded PDF viewing is unavailable in this browser or extension set.";
-    }
-    viewer.hidden = false;
-    frame.setAttribute("data", viewerUrl);
-    viewer.scrollIntoView({ block: "start", behavior: "smooth" });
+    clearTimeout(__operationalReportsState.loadTimer);
+    __operationalReportsState.loadTimer = 0;
+    if (loader) loader.hidden = false;
+    if (loaderLabel) loaderLabel.textContent = "Loading operational report...";
     setReportsStatus("");
 }
 
-function setLatestReportDownloadState(report = null, isReady = false) {
+function formatOperationalReportDate(value = "") {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        timeZone: "UTC",
+    }).format(date);
+}
+
+function formatOperationalReportPeriod(report = {}) {
+    const start = formatOperationalReportDate(report.period_start);
+    const end = formatOperationalReportDate(report.period_end);
+    return [start, end].filter(Boolean).join(" - ");
+}
+
+function getOperationalReportFilename(report = {}) {
+    const reportDate = String(report.report_date || report.period_start || "").match(/\d{4}-\d{2}-\d{2}/)?.[0];
+    return `StratOps-Operational-Intelligence-Briefing-${reportDate || "latest"}.pdf`;
+}
+
+function setOperationalReportDownloadState(report = null, htmlReady = false) {
     const button = document.getElementById("wz-operational-reports-download");
     const label = button?.querySelector("span:last-child") || button;
-    const hasUrl = Boolean(report && api.getOperationalReportViewerUrl(report));
+    const pdfUrl = report ? api.getOperationalReportDownloadUrl(report) : "";
+    const pdfAvailable = Boolean(htmlReady && report?.pdf_available !== false && pdfUrl);
     if (button) {
-        button.disabled = !isReady || !hasUrl;
-        button.setAttribute("aria-busy", isReady ? "false" : "true");
+        button.disabled = !pdfAvailable;
+        button.setAttribute("aria-busy", htmlReady ? "false" : "true");
+        button.dataset.downloadUrl = pdfAvailable ? pdfUrl : "";
     }
-    if (label) label.textContent = isReady && hasUrl ? "Download PDF" : "Report Preparing";
+    if (label) {
+        label.textContent = htmlReady && report && !pdfAvailable
+            ? "PDF Unavailable"
+            : "Download Report in PDF";
+    }
 }
 
-function renderLatestOperationalReportState(payload = {}) {
-    const status = String(payload.status || "missing").toLowerCase();
-    const report = payload.report || null;
-    const title = document.getElementById("wz-operational-reports-latest-title");
-    const badge = document.getElementById("wz-operational-reports-latest-badge");
-    const meta = document.getElementById("wz-operational-reports-latest-meta");
-    const summary = document.getElementById("wz-operational-reports-latest-summary");
-    const isReady = status === "available" && report;
-
-    __latestOperationalReport = isReady ? report : null;
-    if (title) title.textContent = report ? getReportTitle(report) : "Latest Daily Report";
-    if (badge) badge.textContent = isReady ? "Ready" : (status === "preparing" ? "Preparing" : "Pending");
-    if (meta) {
-        meta.textContent = isReady
-            ? [
-                formatReportPeriod(report),
-                report.expires_at ? `Available until ${formatReportDate(report.expires_at)}` : "",
-            ].filter(Boolean).join(" | ")
-            : "The scheduled reporting worker has not published a downloadable PDF yet.";
-    }
-    if (summary) {
-        summary.textContent = isReady
-            ? String(report.generated_summary || "Latest cached operational report is ready for download.")
-            : String(payload.message || "The latest cached report is being prepared. Please check again shortly.");
-    }
-    setLatestReportDownloadState(report, isReady);
-    setReportsStatus(isReady ? "Latest cached report is ready." : (payload.message || "Report is being prepared."), !isReady && status === "unavailable");
+function setOperationalReportPeriod(report = null, loading = false) {
+    const period = document.getElementById("wz-operational-reports-period");
+    if (!period) return;
+    period.textContent = loading ? "Loading selected briefing..." : formatOperationalReportPeriod(report || {});
 }
 
-async function loadLatestOperationalReport() {
-    setReportsStatus("Checking latest cached report...");
-    setLatestReportDownloadState(null, false);
+function syncOperationalReportPreviewLayout() {
+    const viewer = document.getElementById("wz-operational-report-viewer");
+    const frame = document.getElementById("wz-operational-report-viewer-frame");
+    if (!viewer || !frame) return;
+    const isDesktop = window.innerWidth > OPERATIONAL_REPORT_MOBILE_BREAKPOINT;
+    viewer.dataset.previewLayout = isDesktop ? "desktop" : "mobile";
+    if (!isDesktop) {
+        frame.style.removeProperty("width");
+        frame.style.removeProperty("height");
+        frame.style.removeProperty("transform");
+        return;
+    }
+    const bounds = viewer.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+    const scale = bounds.width / OPERATIONAL_REPORT_DESKTOP_VIEWPORT_WIDTH;
+    frame.style.width = `${OPERATIONAL_REPORT_DESKTOP_VIEWPORT_WIDTH}px`;
+    frame.style.height = `${Math.max(1, bounds.height / scale)}px`;
+    frame.style.transform = `scale(${scale})`;
+}
+
+function observeOperationalReportPreviewLayout() {
+    const viewer = document.getElementById("wz-operational-report-viewer");
+    __operationalReportsState.previewResizeObserver?.disconnect();
+    __operationalReportsState.previewResizeObserver = null;
+    if (!viewer || typeof ResizeObserver !== "function") {
+        syncOperationalReportPreviewLayout();
+        return;
+    }
+    __operationalReportsState.previewResizeObserver = new ResizeObserver(syncOperationalReportPreviewLayout);
+    __operationalReportsState.previewResizeObserver.observe(viewer);
+    syncOperationalReportPreviewLayout();
+}
+
+function stopOperationalReportPreviewLayout() {
+    __operationalReportsState.previewResizeObserver?.disconnect();
+    __operationalReportsState.previewResizeObserver = null;
+    const viewer = document.getElementById("wz-operational-report-viewer");
+    const frame = document.getElementById("wz-operational-report-viewer-frame");
+    if (viewer) delete viewer.dataset.previewLayout;
+    if (frame) {
+        frame.style.removeProperty("width");
+        frame.style.removeProperty("height");
+        frame.style.removeProperty("transform");
+    }
+}
+
+async function canLoadOperationalReportHtml(htmlUrl, sequence) {
+    let parsed;
     try {
-        const { data } = await api.getLatestOperationalReport("daily", "global");
-        renderLatestOperationalReportState(data || {});
-    } catch (error) {
-        console.warn("[reports] latest report lookup failed:", error);
-        __latestOperationalReport = null;
-        renderLatestOperationalReportState({
-            status: "unavailable",
-            message: String(error?.message || "Unable to check the latest cached report."),
+        parsed = new URL(htmlUrl, window.location.href);
+    } catch {
+        return false;
+    }
+    if (parsed.origin !== window.location.origin) return true;
+    try {
+        const response = await fetch(parsed.href, {
+            method: "HEAD",
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: { Accept: "text/html" },
         });
+        if (sequence !== __operationalReportsState.loadSequence) return false;
+        const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+        return response.ok && contentType.startsWith("text/html");
+    } catch {
+        return false;
     }
 }
 
-function openLatestOperationalReport() {
-    const readyUrl = __latestOperationalReport ? api.getOperationalReportViewerUrl(__latestOperationalReport) : "";
+async function openOperationalReportViewer(report = {}) {
+    if (!isStratOpsFeatureEnabled("reports.reportViewer")) return;
+    const frame = document.getElementById("wz-operational-report-viewer-frame");
+    const loader = document.getElementById("wz-operational-report-loader");
+    const loaderLabel = document.getElementById("wz-operational-report-loader-label");
+    const htmlUrl = api.getOperationalReportHtmlUrl(report);
+    const sequence = ++__operationalReportsState.loadSequence;
+    __operationalReportsState.selectedReport = null;
+    __operationalReportsState.selectedReportId = String(report.id || "");
+    setOperationalReportDownloadState(null, false);
+    setOperationalReportPeriod(report, true);
+    resetOperationalReportViewer();
+    if (!frame || !htmlUrl) {
+        if (loader) loader.hidden = true;
+        setOperationalReportPeriod(report, false);
+        setReportsStatus("REPORT UNAVAILABLE\nUnable to load this briefing.", true);
+        return;
+    }
+
+    if (!(await canLoadOperationalReportHtml(htmlUrl, sequence))) {
+        if (sequence !== __operationalReportsState.loadSequence) return;
+        if (loader) loader.hidden = true;
+        setOperationalReportPeriod(report, false);
+        setReportsStatus("REPORT UNAVAILABLE\nThe selected operational briefing could not be loaded.", true);
+        return;
+    }
+
+    if (loader) loader.hidden = false;
+    if (loaderLabel) loaderLabel.textContent = "Loading operational report...";
+    frame.hidden = true;
+    frame.dataset.reportUrl = htmlUrl;
+    frame.dataset.reportId = String(report.id || "");
+    frame.onload = () => {
+        if (!__operationalReportsState.isOpen || sequence !== __operationalReportsState.loadSequence) return;
+        if (frame.dataset.reportUrl !== htmlUrl || frame.dataset.reportId !== String(report.id || "")) return;
+        clearTimeout(__operationalReportsState.loadTimer);
+        __operationalReportsState.loadTimer = 0;
+        __operationalReportsState.selectedReport = report;
+        if (loader) loader.hidden = true;
+        frame.hidden = false;
+        syncOperationalReportPreviewLayout();
+        setOperationalReportDownloadState(report, true);
+        setOperationalReportPeriod(report, false);
+        setReportsStatus("");
+    };
+    frame.onerror = () => {
+        if (sequence !== __operationalReportsState.loadSequence) return;
+        clearTimeout(__operationalReportsState.loadTimer);
+        __operationalReportsState.loadTimer = 0;
+        if (loader) loader.hidden = true;
+        setOperationalReportPeriod(report, false);
+        setReportsStatus("REPORT UNAVAILABLE\nUnable to load this briefing.", true);
+    };
+    frame.src = htmlUrl;
+    __operationalReportsState.loadTimer = window.setTimeout(() => {
+        if (sequence !== __operationalReportsState.loadSequence || !frame.hidden) return;
+        if (loader) loader.hidden = true;
+        setOperationalReportPeriod(report, false);
+        setReportsStatus("REPORT UNAVAILABLE\nUnable to load this briefing.", true);
+    }, 15000);
+    setReportsStatus("");
+}
+
+function populateOperationalReportSelector(reports = []) {
+    const select = document.getElementById("wz-operational-reports-select");
+    if (!select) return [];
+    const available = reports.filter((report) => Boolean(api.getOperationalReportHtmlUrl(report)));
+    select.replaceChildren();
+    available.forEach((report, index) => {
+        const option = document.createElement("option");
+        option.value = String(report.id || "");
+        const label = String(report.display_label || formatOperationalReportDate(report.period_start) || "Operational report");
+        option.textContent = index === 0 ? `Latest - ${label}` : label;
+        select.appendChild(option);
+    });
+    select.disabled = available.length === 0;
+    return available;
+}
+
+async function loadOperationalReportHistory() {
+    resetOperationalReportViewer();
+    setOperationalReportDownloadState(null, false);
+    try {
+        const { data } = await api.getOperationalReports("daily", "global");
+        if (!__operationalReportsState.isOpen) return;
+        const reports = populateOperationalReportSelector(Array.isArray(data) ? data : []);
+        __operationalReportsState.availableReports = reports;
+        if (!reports.length) {
+            const loader = document.getElementById("wz-operational-report-loader");
+            if (loader) loader.hidden = true;
+            setReportsStatus("REPORT UNAVAILABLE\nNo completed daily briefing is available.", true);
+            return;
+        }
+        const select = document.getElementById("wz-operational-reports-select");
+        if (select) select.value = String(reports[0].id || "");
+        openOperationalReportViewer(reports[0]);
+    } catch (error) {
+        console.warn("[reports] report history lookup failed:", error);
+        const loader = document.getElementById("wz-operational-report-loader");
+        if (loader) loader.hidden = true;
+        setReportsStatus("REPORT UNAVAILABLE\nUnable to load recent briefings.", true);
+    }
+}
+
+function downloadSelectedOperationalReport() {
+    const report = __operationalReportsState.selectedReport;
+    const readyUrl = report ? api.getOperationalReportDownloadUrl(report) : "";
     if (!readyUrl) {
-        setReportsStatus("The latest report is still being prepared. Please check again shortly.", true);
+        setReportsStatus("PDF UNAVAILABLE", true);
         return;
     }
 
@@ -10731,11 +10854,83 @@ function openLatestOperationalReport() {
     reportLink.href = readyUrl;
     reportLink.target = "_blank";
     reportLink.rel = "noopener noreferrer";
+    reportLink.download = getOperationalReportFilename(report);
     reportLink.hidden = true;
     document.body.appendChild(reportLink);
     reportLink.click();
     reportLink.remove();
-    setReportsStatus("Latest cached report opened.");
+}
+
+function getOperationalReportBackgroundTargets() {
+    return [
+        ...document.querySelectorAll("#warzone-app > :not(#warzone-gate-layer)"),
+        document.querySelector("#warzone-gate-layer > .secondary-content"),
+        ...document.querySelectorAll("#warzone-gate-layer > .primary-content > :not(#wz-operational-reports-modal)"),
+    ].filter(Boolean);
+}
+
+function setOperationalReportBackgroundBlocked(blocked) {
+    if (blocked) {
+        if (__operationalReportsState.inertEntries.length) return;
+        __operationalReportsState.inertEntries = getOperationalReportBackgroundTargets().map((node) => ({
+            node,
+            inert: Boolean(node.inert),
+            ariaHidden: node.getAttribute("aria-hidden"),
+        }));
+        __operationalReportsState.inertEntries.forEach(({ node }) => {
+            node.inert = true;
+            node.setAttribute("aria-hidden", "true");
+        });
+        const controller = window.__warzoneViewer?.scene?.screenSpaceCameraController;
+        __operationalReportsState.cameraInputsEnabled = controller ? controller.enableInputs : null;
+        if (controller) controller.enableInputs = false;
+        document.body.classList.add("is-operational-report-open");
+        window.__stratopsReportModalOpen = true;
+        return;
+    }
+    __operationalReportsState.inertEntries.forEach(({ node, inert, ariaHidden }) => {
+        node.inert = inert;
+        if (ariaHidden === null) node.removeAttribute("aria-hidden");
+        else node.setAttribute("aria-hidden", ariaHidden);
+    });
+    __operationalReportsState.inertEntries = [];
+    const controller = window.__warzoneViewer?.scene?.screenSpaceCameraController;
+    if (controller && __operationalReportsState.cameraInputsEnabled !== null) {
+        controller.enableInputs = __operationalReportsState.cameraInputsEnabled;
+    }
+    __operationalReportsState.cameraInputsEnabled = null;
+    document.body.classList.remove("is-operational-report-open");
+    window.__stratopsReportModalOpen = false;
+}
+
+function handleOperationalReportKeydown(event) {
+    if (!__operationalReportsState.isOpen) return;
+    const modal = document.getElementById("wz-operational-reports-modal");
+    if (!modal) return;
+    if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeOperationalReportsModal();
+        return;
+    }
+    if (event.key !== "Tab") {
+        event.stopPropagation();
+        return;
+    }
+    const focusable = Array.from(modal.querySelectorAll(
+        'button:not([disabled]), select:not([disabled]), iframe:not([hidden]), [href], [tabindex]:not([tabindex="-1"])'
+    )).filter((node) => !node.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+    event.stopPropagation();
 }
 
 function closeMobileDockMenuAfterReportsOpen() {
@@ -10753,19 +10948,37 @@ function openOperationalReportsModal() {
     const modal = document.getElementById("wz-operational-reports-modal");
     if (!modal) return;
     clearTimeout(__reportsModalCloseTimer);
-    setReportsStatus("");
+    __operationalReportsState.isOpen = true;
+    __operationalReportsState.previousFocus = document.activeElement;
+    setOperationalReportBackgroundBlocked(true);
+    resetOperationalReportViewer();
     modal.scrollTop = 0;
     openSharedModal(modal);
-    void loadLatestOperationalReport();
+    observeOperationalReportPreviewLayout();
+    void loadOperationalReportHistory();
 }
 
 function closeOperationalReportsModal() {
     const modal = document.getElementById("wz-operational-reports-modal");
     if (!modal) return;
     clearTimeout(__reportsModalCloseTimer);
+    __operationalReportsState.isOpen = false;
+    __operationalReportsState.loadSequence += 1;
     closeSharedModal(modal, () => {
         resetOperationalReportViewer();
+        stopOperationalReportPreviewLayout();
         setReportsStatus("");
+        setOperationalReportBackgroundBlocked(false);
+        __operationalReportsState.availableReports = [];
+        __operationalReportsState.selectedReport = null;
+        __operationalReportsState.selectedReportId = "";
+        const select = document.getElementById("wz-operational-reports-select");
+        if (select) {
+            select.disabled = true;
+            select.replaceChildren(new Option("Loading reports...", ""));
+        }
+        __operationalReportsState.previousFocus?.focus?.();
+        __operationalReportsState.previousFocus = null;
     });
 }
 
@@ -10774,8 +10987,15 @@ function initOperationalReportsModal() {
     if (!modal || __reportsModalBound) return;
     __reportsModalBound = true;
     applyStratOpsFeatureVisibility();
+    modal.addEventListener("keydown", handleOperationalReportKeydown);
+    modal.addEventListener("wheel", (event) => event.stopPropagation(), { passive: true });
     document.getElementById("wz-operational-reports-close")?.addEventListener("click", closeOperationalReportsModal);
-    document.getElementById("wz-operational-reports-download")?.addEventListener("click", openLatestOperationalReport);
+    document.getElementById("wz-operational-reports-download")?.addEventListener("click", downloadSelectedOperationalReport);
+    document.getElementById("wz-operational-reports-select")?.addEventListener("change", (event) => {
+        const reportId = String(event.currentTarget?.value || "");
+        const report = __operationalReportsState.availableReports.find((item) => String(item.id || "") === reportId);
+        if (report) openOperationalReportViewer(report);
+    });
     document.getElementById("dock-reports")?.addEventListener("click", openOperationalReportsModal);
     document.getElementById("wz-mobile-reports")?.addEventListener("click", () => {
         closeMobileDockMenuAfterReportsOpen();
@@ -11207,7 +11427,7 @@ function scheduleAdaptivePerformanceGuard(viewer) {
 export function schedulePostEntryActions(viewer) {
     applyStratOpsFeatureVisibility();
 
-    if (isDevInspectionEnvironment()) {
+    if (isStratOpsFeatureEnabled("system.devPanel") && isDevInspectionEnvironment()) {
         import("./pre-entry-dev-panel.js")
             .then((module) => {
                 module.initLocalDevPanelOnly?.();

@@ -1,3 +1,5 @@
+import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
+
 const PRE_ENTRY_SHOWCASE_TRANSITION_MS = 240;
 const PRE_ENTRY_VIEWER_WAIT_MS = 8000;
 
@@ -32,6 +34,32 @@ function waitForWarzoneViewer(timeoutMs = PRE_ENTRY_VIEWER_WAIT_MS) {
     });
 }
 
+async function mountEntrySceneTuner(overlay) {
+    if (!overlay || !isStratOpsFeatureEnabled("system.entrySceneTuner")) return null;
+    const existing = overlay.querySelector("#wz-intro-startup-scene-tuner");
+    if (existing) return existing;
+
+    const partialPaths = String(window.location.pathname || "").startsWith("/warzone")
+        ? ["/warzone/partials/entry-scene-tuner.html", "/partials/entry-scene-tuner.html"]
+        : ["/partials/entry-scene-tuner.html", "/warzone/partials/entry-scene-tuner.html"];
+
+    for (const partialPath of partialPaths) {
+        try {
+            const response = await fetch(partialPath, { cache: "no-store" });
+            if (!response.ok) continue;
+            const html = await response.text();
+            if (!html) continue;
+            overlay.insertAdjacentHTML("beforeend", html);
+            return overlay.querySelector("#wz-intro-startup-scene-tuner");
+        } catch {
+            // Try the alternate staging/base-path location.
+        }
+    }
+
+    console.warn("Entry scene tuner HTML was not found at the supported partial paths");
+    return null;
+}
+
 function stopPreEntrySceneSession() {
     const session = activeSceneSession;
     if (!session) return;
@@ -63,12 +91,14 @@ async function startPreEntrySceneSession(overlay) {
             import.meta.env?.DEV === true ||
             window.location.hostname === "localhost" ||
             window.location.hostname === "127.0.0.1";
+        const tunerEnabled = isLocalDev && isStratOpsFeatureEnabled("system.entrySceneTuner");
+        if (tunerEnabled) await mountEntrySceneTuner(overlay);
 
         const [viewer, satellitesModule, assetsModule, tunerModule] = await Promise.all([
             waitForWarzoneViewer(),
             import("./warzone-startup-mil-sats.js"),
             import("./warzone-startup-demo-assets.js"),
-            isLocalDev
+            tunerEnabled
                 ? import("./warzone-startup-scene-tuner.js")
                 : Promise.resolve(null),
         ]);
@@ -119,7 +149,7 @@ async function startPreEntrySceneSession(overlay) {
         assetsModule.initWarzoneStartupDemoAssets?.(viewer);
         assetsModule.setWarzoneStartupDemoAssetsEnabled?.(showNaval || showAir);
 
-    tunerModule?.initIntroStartupSceneTuner?.();
+        tunerModule?.initIntroStartupSceneTuner?.();
 
         warzoneApi?.startStartupRotation?.();
         viewer.scene?.requestRender?.();

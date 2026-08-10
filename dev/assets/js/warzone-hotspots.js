@@ -1214,10 +1214,11 @@ export function applyHotspotNodeAnchorPosition(node, projected, viewport) {
     setAnchorCssPosition(node.uxLabelEl, x + HOTSPOT_RADIUS_OFFSET.x, y + HOTSPOT_RADIUS_OFFSET.y);
     if (node.radiusEl?.style) {
         const diameter = Math.max(0, Number(node.radiusSize || 0));
+        const renderPadding = Math.max(0, Number(node.radiusRenderPadding || 0));
         setAnchorCssPosition(
             node.radiusEl,
-            x + HOTSPOT_RADIUS_OFFSET.x - diameter * 0.5,
-            y + HOTSPOT_RADIUS_OFFSET.y - diameter * 0.5
+            x + HOTSPOT_RADIUS_OFFSET.x - diameter * 0.5 - renderPadding,
+            y + HOTSPOT_RADIUS_OFFSET.y - diameter * 0.5 - renderPadding
         );
         const surfaceMatrix = projected?.matrix || "matrix(1, 0, 0, 1, 0, 0)";
         if (node.surfaceMatrix !== surfaceMatrix) {
@@ -1459,6 +1460,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         for (const cluster of visible) {
             const off = STACK_OFF[cluster.stackIdx] || STACK_OFF[0];
             const hotspotDiameter = getHotspotRadiusDiameterPx(viewer, cluster, zoomCfg);
+            const hotspotRenderPadding = Math.max(0, cssNumber("--hotspot-render-padding", 24));
+            const hotspotRenderSize = hotspotDiameter + hotspotRenderPadding * 2;
             const radiusSplitHidden = isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster);
             const zi = 25 - cluster.stackIdx;
             if (nodeMap.has(cluster.id)) {
@@ -1476,6 +1479,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 }
                 node.stackOffset = off;
                 node.cluster = cluster;
+                node.radiusRenderPadding = hotspotRenderPadding;
                 node.uxLabelEligible = localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true;
                 syncNodeWorldAnchor(node, cluster);
                 applyHotspotRadiusModel(node.radiusEl, cluster);
@@ -1491,10 +1495,11 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.el.style.top = "0";
                     rootEl.appendChild(node.el);
                 }
-                if (node.radiusSize !== hotspotDiameter) {
-                    node.radiusEl.style.width = `${hotspotDiameter}px`;
-                    node.radiusEl.style.height = `${hotspotDiameter}px`;
+                if (node.radiusRenderSize !== hotspotRenderSize) {
+                    node.radiusEl.style.width = `${hotspotRenderSize}px`;
+                    node.radiusEl.style.height = `${hotspotRenderSize}px`;
                     node.radiusSize = hotspotDiameter;
+                    node.radiusRenderSize = hotspotRenderSize;
                 }
                 node.radiusEl.style.zIndex = zi - 1;
                 node.uxLabelEl.style.zIndex = zi;
@@ -1508,7 +1513,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             } else {
                 const radiusEl = createHotspotRadiusEl(cluster);
                 syncHotspotRadiusSplitState(radiusEl, radiusSplitHidden);
-                radiusEl.style.cssText = `position:absolute;left:0;top:0;z-index:${zi - 1};width:${hotspotDiameter}px;height:${hotspotDiameter}px;`;
+                radiusEl.style.cssText = `position:absolute;left:0;top:0;z-index:${zi - 1};width:${hotspotRenderSize}px;height:${hotspotRenderSize}px;`;
                 rootEl.appendChild(radiusEl);
                 const uxLabelEl = createClusterUxLabelEl();
                 renderClusterUxLabel(uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
@@ -1526,6 +1531,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     stackOffset: off,
                     uxLabelEligible: localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true,
                     radiusSize: hotspotDiameter,
+                    radiusRenderPadding: hotspotRenderPadding,
+                    radiusRenderSize: hotspotRenderSize,
                     cluster,
                 };
                 syncNodeWorldAnchor(node, cluster);

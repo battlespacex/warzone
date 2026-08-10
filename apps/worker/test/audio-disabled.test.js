@@ -11,14 +11,10 @@ test("temporary frontend audio feature switches are disabled", () => {
   assert.equal(window.STRATOPS_FEATURES.alerts.audibleSirens, false);
 });
 
-test("entry soundtrack does not preload and its toggle is hidden before first paint", async () => {
+test("entry soundtrack and audio toggle are not mounted while audio is disabled", async () => {
   const html = await readFile(new URL("../../../dev/pages/index.html", import.meta.url), "utf8");
-  const audio = html.match(/<audio id="bg-audio"[\s\S]*?<\/audio>/)?.[0] || "";
-  const toggle = html.match(/<button id="audio-toggle"[\s\S]*?>/)?.[0] || "";
-  assert.match(audio, /preload="none"/);
-  assert.match(audio, /hidden/);
-  assert.match(toggle, /hidden/);
-  assert.match(toggle, /data-stratops-feature-disabled-by-config="system\.audio"/);
+  assert.doesNotMatch(html, /id="bg-audio"/);
+  assert.doesNotMatch(html, /id="audio-toggle"/);
 });
 
 test("independent siren and missile audio paths honor the master audio switch", async () => {

@@ -22,7 +22,9 @@ export const supabase = createClient(
 // Dev = same-origin API proxy | Production = public API service (Supabase hidden).
 // The production frontend is static-hosted and does not expose a same-origin /api proxy.
 const isLocalhost = window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "::1" ||
+    window.location.hostname === "[::1]";
 
 const LOCAL_PROXY_API_BASE = "/api";
 const CONFIG_API_BASE = window.__stratopsConfig?.apiBase || "";
@@ -45,7 +47,6 @@ const EVENTS_INITIAL_LIMIT = 2000;
 const EVENTS_SINCE_LIMIT = 200;
 const INTEL_FEED_LIMIT = 120;
 const GNSS_CELL_LIMIT = 240;
-const REPORTS_LIMIT = 12;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
@@ -259,13 +260,40 @@ export const api = {
         }
     },
 
-    async getOperationalReports(type = "") {
-        const reportType = String(type || "").trim().toLowerCase();
-        const params = new URLSearchParams({ limit: String(REPORTS_LIMIT) });
-        if (reportType === "daily" || reportType === "weekly") params.set("type", reportType);
+    async getOperationalReports(type = "daily", scopeType = "global") {
+        const reportType = String(type || "daily").trim().toLowerCase();
+        const params = new URLSearchParams({
+            type: reportType === "weekly" ? "weekly" : "daily",
+            scope_type: scopeType || "global",
+        });
+        if (isLocalhost) {
+            try {
+                const localResponse = await fetch(`/generated-reports/history?${params.toString()}`, {
+                    cache: "no-store",
+                    headers: { Accept: "application/json" },
+                });
+                const localJson = await readJsonResponse(localResponse, "Local reports fetch");
+                if (Array.isArray(localJson.reports) && localJson.reports.length) {
+                    return {
+                        data: localJson.reports,
+                        error: null,
+                        meta: {
+                            historyLimit: Number(localJson.history_limit || 0),
+                            source: "local",
+                        },
+                    };
+                }
+            } catch (error) {
+                console.warn("[reports] local report history unavailable; using API history", error);
+            }
+        }
         const res = await fetch(`${REPORTS_API_BASE}/stratops/reports?${params.toString()}`);
         const json = await readJsonResponse(res, "Reports fetch");
-        return { data: json.reports || [], error: null };
+        return {
+            data: json.reports || [],
+            error: null,
+            meta: { historyLimit: Number(json.history_limit || 0), source: "api" },
+        };
     },
 
     async getLatestOperationalReport(type = "daily", scopeType = "global") {
@@ -292,6 +320,23 @@ export const api = {
 
     getOperationalReportViewerUrl(report = {}) {
         return this.getOperationalReportDownloadUrl(report);
+    },
+
+    getOperationalReportHtmlUrl(report = {}) {
+        const htmlUrl = String(report?.html_url || "").trim();
+        if (isUsablePublicUrl(htmlUrl)) return htmlUrl;
+        const pdfUrl = this.getOperationalReportDownloadUrl(report);
+        if (!isUsablePublicUrl(pdfUrl)) return "";
+        try {
+            const parsed = new URL(pdfUrl, window.location.href);
+            if (!parsed.pathname.endsWith("/report.pdf")) return "";
+            parsed.pathname = parsed.pathname.slice(0, -"report.pdf".length) + "report.html";
+            parsed.search = "";
+            parsed.hash = "";
+            return isUsablePublicUrl(parsed.href) ? parsed.href : "";
+        } catch {
+            return "";
+        }
     },
 
     async getActiveAlerts() {

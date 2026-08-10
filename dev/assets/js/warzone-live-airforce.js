@@ -4143,23 +4143,7 @@ function ensureLiveTrackOverlayRoot(viewer) {
     btnContour.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        __liveTrackContourAnchorKey = "";
-        if (!syncFocusedTrackContourCenter(getFocusedTrackKey(), { force: true })) {
-            syncFocusedTrackOverlayModeButtons();
-            return;
-        }
-        const mapApi = window.__warzoneViewer?.__warzone;
-        void Promise.resolve()
-            .then(() => {
-                mapApi?.enterCtrMode?.({ reason: "aircraft-focus-contour" });
-                mapApi?.setContourGridVisible?.(true);
-                disableAircraftFocusTerrain(window.__warzoneViewer);
-                return mapApi?.setContourLayerVisible?.(true);
-            })
-            .finally(() => {
-                syncFocusedTrackOverlayModeButtons();
-                refreshFocusedTrackModelAfterMapModeChange();
-            });
+        void enableFocusedLiveTrackContourMode({ reason: "aircraft-focus-contour" });
     });
 
     const unfocusButton = document.createElement("button");
@@ -4288,6 +4272,28 @@ function syncFocusedTrackContourCenter(trackKey = "", options = {}) {
         reason: "focused-aircraft-sync",
     });
     return true;
+}
+export async function enableFocusedLiveTrackContourMode(options = {}) {
+    const trackKey = String(options.trackKey || getFocusedTrackKey() || "");
+    const viewer = window.__warzoneViewer;
+    const mapApi = viewer?.__warzone;
+    __liveTrackContourAnchorKey = "";
+    if (!mapApi || !syncFocusedTrackContourCenter(trackKey, { force: true })) {
+        syncFocusedTrackOverlayModeButtons();
+        return false;
+    }
+    try {
+        mapApi.enterCtrMode?.({ reason: options.reason || "aircraft-focus-contour" });
+        mapApi.setContourGridVisible?.(true);
+        disableAircraftFocusTerrain(viewer);
+        await Promise.resolve(mapApi.setContourLayerVisible?.(true));
+        return mapApi.isCtrModeActive?.() === true
+            && mapApi.isContourGridVisible?.() === true
+            && mapApi.isContourLayerVisible?.() === true;
+    } finally {
+        syncFocusedTrackOverlayModeButtons();
+        refreshFocusedTrackModelAfterMapModeChange();
+    }
 }
 function syncFocusedTrackContourMode(focused = false) {
     const autoEnabled = window.__stratopsConfig?.autoContourOnAircraftFocus === true;
