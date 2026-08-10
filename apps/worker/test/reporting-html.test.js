@@ -340,6 +340,7 @@ test("source consensus reuses the exact cleaned development title and cards pagi
   const html = renderReportHtml({ templateHtml, templateCss, model });
   assert.equal((html.match(/pagination-card-unit--half report-hva-grid report-hva-grid--unit/g) || []).length, 2);
   assert.equal((html.match(/pagination-card-unit--half report-wire-list report-wire-list--unit/g) || []).length, 1);
+  assert.match(html, /report-wire-list report-wire-list--unit[^>]*><article>[\s\S]*?<span class="corner-edge-1"><\/span><\/article><\/div>/);
   assert.equal((html.match(/pagination-card-unit--half report-theater-grid report-theater-grid--unit/g) || []).length, 1);
   assert.doesNotMatch(html, /class="[^"]*report-(?:hva-grid|wire-list|theater-grid)--single/);
   assert.match(html, /class="event-grid"/);

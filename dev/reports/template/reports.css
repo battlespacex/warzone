@@ -623,6 +623,17 @@ body {
   object-fit: contain;
 }
 
+.corner-edge-1 {
+  width: 4mm;
+  height: 4mm;
+  aspect-ratio: 1;
+  position: absolute;
+  right: 0;
+  bottom: 0mm;
+  z-index: 2;
+  background: linear-gradient(135deg, var(--white-color) 0, var(--white-color) calc(60% - 0.4mm), var(--paragraph-color) calc(60% - 0.4mm), var(--paragraph-color) calc(60% + 0.4mm), transparent calc(50% + 0.4mm), transparent 100%);
+}
+
 
 /* =========================================================
    MOBILE / RESPONSIVE HTML REPORT VIEW
@@ -1465,8 +1476,8 @@ body {
 }
 
 .generated-pages .inner-content h3 {
-    font-size: var(--font-size-medium);
-    line-height: var(--line-height-4);
+  font-size: var(--font-size-medium);
+  line-height: var(--line-height-4);
 }
 
 .generated-pages .inner-content p,
@@ -1477,9 +1488,9 @@ body {
 }
 
 .generated-pages .pagination-block {
-    margin-bottom: 5mm;
-    gap: 4mm;
-    display: grid;
+  margin-bottom: 5mm;
+  gap: 4mm;
+  display: grid;
 }
 
 .report-section-intro {
@@ -1645,31 +1656,18 @@ body {
 .report-wire-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3mm
+  gap: 3mm;
+  position: relative;
 }
 
 .report-wire-list article {
-  background: var(--paragraph-color);
+  background: var(--white-color);
   padding: 4mm;
   clip-path: var(--clippath-1);
-  position: relative
+  position: relative;
+  border: .4mm solid var(--paragraph-color);
 }
 
-.report-wire-list article:after {
-position: absolute;
-    content: '';
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: block;
-    clip-path: var(--clippath-1-1);
-    background: var(--white-color);
-    width: calc(100% - 1mm);
-    height: calc(100% - 1mm);
-    margin: 0.4mm;
-    z-index: -1;
-}
 
 .report-wire-list h3 {
   margin-top: 2mm

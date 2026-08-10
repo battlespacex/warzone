@@ -158,13 +158,14 @@ async function persistPdfManifest(supabase, snapshotKey, reportManifest) {
 async function generateSnapshotPdf({
   supabase,
   snapshotKey,
+  snapshotOverride = null,
   config = readReportingConfig(),
   launchBrowser,
   persistState = persistPdfManifest,
   generatedAt = nowIso(),
 } = {}) {
-  if (!supabase) throw new Error("Supabase client is required to load the report snapshot");
-  const snapshot = await loadSnapshot(supabase, snapshotKey);
+  if (!supabase && !snapshotOverride) throw new Error("Supabase client is required to load the report snapshot");
+  const snapshot = snapshotOverride || await loadSnapshot(supabase, snapshotKey);
   const outputDirectory = __reportingRenderTestUtils.getReportOutputDirectory(snapshot);
   const htmlPath = resolve(outputDirectory, "report.html");
   await stat(htmlPath);
@@ -213,7 +214,7 @@ async function generateSnapshotPdf({
       },
     };
     await writeFile(resolve(outputDirectory, "manifest.json"), `${JSON.stringify(generatedManifest, null, 2)}\n`, "utf8");
-    await persistState(supabase, snapshotKey, generatedManifest);
+    if (typeof persistState === "function") await persistState(supabase, snapshotKey, generatedManifest);
     return {
       ok: true,
       snapshot_key: snapshotKey,

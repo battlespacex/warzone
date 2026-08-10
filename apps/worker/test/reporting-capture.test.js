@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CAPTURE_STATUS,
+  HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER,
   assessCaptureSemanticQuality,
   buildCaptureDescriptors,
   buildCaptureClusterLabel,
@@ -17,6 +18,7 @@ import {
   resolveCaptureTarget,
 } from "../../shared/reporting-capture.js";
 import { __reportingCaptureTestUtils, generateSnapshotCaptures } from "../src/reporting-capture-service.js";
+import { injectReportingDevHvaFixture } from "../../shared/reporting-dev-hva-fixture.js";
 
 function snapshotFixture(overrides = {}) {
   const snapshot = {
@@ -236,7 +238,8 @@ test("camera framing is deterministic for bounds, exact events and HVA targets",
   assert.deepEqual(event.center, { latitude: 26.2, longitude: 50.1 });
   assert.equal(hva.heading_degrees, 232);
   assert.equal(hva.pitch_degrees, -28);
-  assert.ok(hva.range_meters >= 24000 && hva.range_meters <= 70000);
+  assert.equal(HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER, 0.8);
+  assert.equal(hva.range_meters, 19200);
 });
 
 test("frozen E-3, E-7 and naval snapshots build deterministic live-render inputs without a realtime track", () => {
@@ -268,14 +271,16 @@ test("frozen E-3, E-7 and naval snapshots build deterministic live-render inputs
 });
 
 test("focus and regional HVA presets use distinct heading, pitch, range and visibility thresholds", () => {
-  const focusCamera = calculateCaptureCamera({ capture_type: "HVA_FOCUS_3D", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92 });
+  const focusCamera = calculateCaptureCamera({ capture_type: "HVA_FOCUS_3D", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92, recommended_context_radius_km: 350 });
   const regionalCamera = calculateCaptureCamera({ capture_type: "HVA_REGIONAL_CONTEXT", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92, recommended_context_radius_km: 700 });
   const focus = buildReportAssetFocusPreset("HVA_FOCUS_3D", focusCamera);
   const regional = buildReportAssetFocusPreset("HVA_REGIONAL_CONTEXT", regionalCamera);
   assert.equal(focus.mode, "FOCUS");
   assert.equal(focus.map_mode, "CTR");
+  assert.equal(focus.range_meters, 56000);
   assert.equal(regional.mode, "REGIONAL");
   assert.equal(regional.map_mode, "CTR");
+  assert.equal(regional.range_meters, 450000);
   assert.notEqual(focus.heading_degrees, regional.heading_degrees);
   assert.notEqual(focus.pitch_degrees, regional.pitch_degrees);
   assert.ok(regional.range_meters > focus.range_meters * 2);
@@ -327,6 +332,10 @@ test("capture semantic quality rejects terrain-only HVA and empty operational sc
   const overviewFailure = assessCaptureSemanticQuality("REGIONAL_OVERVIEW_3D", { meaningful_operational_layer_visible: false });
   assert.equal(overviewFailure.failure_reason, "operational_layer_empty");
   assert.equal(assessCaptureSemanticQuality("CLUSTER_CONTEXT", { target_cluster_visible: true }).status, "READY");
+  const fixtureRegional = assessCaptureSemanticQuality("HVA_REGIONAL_CONTEXT", { asset_visible: true, dev_fixture: true });
+  assert.equal(fixtureRegional.status, "READY");
+  assert.deepEqual(fixtureRegional.required_checks, ["asset_visible"]);
+  assert.equal(assessCaptureSemanticQuality("HVA_REGIONAL_CONTEXT", { asset_visible: true }).failure_reason, "operational_layer_empty");
 });
 
 test("capture service accepts READY only with matching semantic-quality evidence", () => {
@@ -486,4 +495,52 @@ test("snapshot-only operation does not launch capture while capture is disabled"
   });
   assert.deepEqual(result, { ok: true, skipped: true, reason: "capture_disabled" });
   assert.equal(touchedSupabase, false);
+});
+
+test("transient dev HVA capture uses the in-memory snapshot without Supabase or S3", async () => {
+  const snapshot = injectReportingDevHvaFixture(snapshotFixture());
+  const savedSnapshots = [];
+  let routedHandler = null;
+  let uploaded = false;
+  const result = await generateSnapshotCaptures({
+    supabase: { from() { throw new Error("Supabase must not be touched"); } },
+    snapshotKey: snapshot.snapshot_key,
+    snapshotOverride: snapshot,
+    persistSnapshot: async (nextSnapshot) => {
+      savedSnapshots.push(nextSnapshot);
+      return nextSnapshot;
+    },
+    config: configFixture({ maxImages: 2, retries: 0, token: "" }),
+    force: true,
+    launchBrowser: async () => ({
+      async newContext() {
+        return {
+          async route(_pattern, handler) { routedHandler = handler; },
+          async newPage() { return {}; },
+          async close() {},
+        };
+      },
+      async close() {},
+    }),
+    capturePage: async ({ descriptor }) => ({
+      screenshot: Buffer.from("fixture-image"),
+      captureState: {
+        camera: { scene_mode: "3d" },
+        semantic_quality: { status: "READY", asset_visible: true },
+        asset_focus_debug: { expected_model_family: "AWACS-E4" },
+      },
+    }),
+    uploadObject: async () => { uploaded = true; },
+    storeImage: async ({ descriptor, config }) => {
+      assert.equal(config.aws.bucket, "");
+      return { localPath: `C:/captures/${descriptor.filename}`, upload: null };
+    },
+  });
+  assert.equal(typeof routedHandler, "function");
+  assert.equal(uploaded, false);
+  assert.equal(result.ready, 2);
+  assert.equal(result.failed, 0);
+  assert.deepEqual(result.results.map((entry) => entry.capture_type).sort(), ["HVA_FOCUS_3D", "HVA_REGIONAL_CONTEXT"]);
+  assert.ok(savedSnapshots.length >= 3);
+  assert.equal(result.snapshot.snapshot_data.dev_fixture.asset_id, "dev-hva-usaf-e4b-001");
 });

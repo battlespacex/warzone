@@ -8,15 +8,20 @@ test("operational reports open the published HTML artifact behind a local loader
   const html = await readSource("../../../dev/partials/popups.html");
   const source = await readSource("../../../dev/assets/js/essential.js");
   const api = await readSource("../../../dev/assets/js/supabase.js");
+  const components = await readSource("../../../dev/assets/css/warzone-components.css");
 
   assert.match(html, /id="wz-operational-report-loader"/);
+  assert.match(html, /class="wz-operational-report-loader__gif"[^>]*src="\/assets\/images\/web\/bx_preloader\.gif"|src="\/assets\/images\/web\/bx_preloader\.gif"[^>]*class="wz-operational-report-loader__gif"/);
   assert.match(html, /id="wz-operational-report-viewer-frame"/);
   assert.match(html, /id="wz-operational-reports-select"/);
   assert.match(html, /sandbox="allow-scripts allow-same-origin"/);
-  assert.match(html, /Download Report in PDF/);
+  assert.match(html, /Download (?:Report in PDF|PDF)/);
   assert.doesNotMatch(html, /wz-report-card--latest|wz-operational-reports-latest-summary/);
   assert.match(source, /const htmlUrl = api\.getOperationalReportHtmlUrl\(report\)/);
   assert.match(source, /frame\.onload = \(\) => \{[\s\S]*?loader\.hidden = true;[\s\S]*?frame\.hidden = false/);
+  assert.match(components, /--wz-operational-report-loader-size:\s*16rem/);
+  assert.match(components, /\.wz-operational-report-loader__gif\s*\{[\s\S]*?width:\s*var\(--wz-operational-report-loader-size\)/);
+  assert.match(components, /\.wz-operational-report-loader\[hidden\][\s\S]*?display:\s*none !important/);
   assert.match(source, /frame\.src = htmlUrl/);
   assert.match(source, /api\.getOperationalReports\("daily", "global"\)/);
   assert.match(source, /api\.getOperationalReportDownloadUrl\(report\)/);

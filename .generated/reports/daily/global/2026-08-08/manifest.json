@@ -3,19 +3,19 @@
     "s3_key": "reports/daily/global/2026-08-08/report.pdf",
     "status": "READY",
     "local_path": "report.pdf",
-    "page_count": 16,
-    "size_bytes": 3823851,
-    "generated_at": "2026-08-10T07:09:21.363Z",
-    "dom_page_count": 16,
+    "page_count": 15,
+    "size_bytes": 3442868,
+    "generated_at": "2026-08-10T11:16:28.361Z",
+    "dom_page_count": 15,
     "failed_image_count": 0,
-    "render_duration_ms": 4029,
+    "render_duration_ms": 2868,
     "oversized_block_count": 0
   },
   "html": {
     "status": "READY",
     "path": "report.html",
     "s3_key": "reports/daily/global/2026-08-08/report.html",
-    "generated_at": "2026-08-10T08:33:19.137Z"
+    "generated_at": "2026-08-10T11:25:43.251Z"
   },
   "scope": {
     "type": "global",
@@ -61,7 +61,7 @@
     "images_prefix": "reports/daily/global/2026-08-08/images/",
     "manifest_json": "reports/daily/global/2026-08-08/manifest.json"
   },
-  "rendered_at": "2026-08-10T08:33:19.137Z",
+  "rendered_at": "2026-08-10T11:25:43.251Z",
   "report_date": "2026-08-08",
   "completed_at": "2026-08-09T21:19:02.406Z",
   "generated_at": "2026-08-09T00:12:01.223Z",

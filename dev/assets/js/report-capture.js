@@ -445,6 +445,7 @@ function collectSemanticEvidence(payload, viewer) {
     const visibleOrbital = viewer.entities.values.some((entity) => String(entity?.id || "").startsWith("wz-startup-sat-")
         && isEntityVisibleInViewport(viewer, entity));
     return {
+        dev_fixture: payload.selected_asset?.is_dev_fixture === true,
         asset_visible: isAssetFocusCapture
             ? state.asset_focus_debug?.visibility_check?.passed === true
             : isEntityVisibleInViewport(viewer, assetEntity),

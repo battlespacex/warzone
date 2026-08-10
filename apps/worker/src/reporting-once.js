@@ -5,6 +5,7 @@ import { supabase } from "./supabase.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { ensureOperationalReport, generateDailySnapshot, generateScheduledReports, generateScheduledSnapshots, getPreviousUtcDateKey } from "../../shared/reporting-service.js";
 import { generateScheduledDailyPipelines, runDailyReportPipeline } from "./reporting-pipeline-service.js";
+import { runReportingDevHvaFixture } from "./reporting-dev-hva-fixture-service.js";
 
 function readArg(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -24,9 +25,23 @@ const scopeValue = readArg("value", "");
 const runScheduled = hasFlag("scheduled");
 const snapshotOnly = hasFlag("snapshot-only");
 const full = hasFlag("full");
+const devHvaFixture = hasFlag("dev-hva-fixture");
 
 try {
-  const result = full
+  if (devHvaFixture && !full) {
+    throw new Error("--dev-hva-fixture requires --full");
+  }
+  const result = devHvaFixture
+    ? await runReportingDevHvaFixture({
+      supabase,
+      config,
+      dateKey,
+      scope: { type: scopeType, value: scopeValue },
+      localOnly: hasFlag("local-only"),
+      scheduled: runScheduled,
+      logger: console,
+    })
+    : full
     ? runScheduled
       ? await generateScheduledDailyPipelines({ supabase, config, logger: console })
       : await runDailyReportPipeline({

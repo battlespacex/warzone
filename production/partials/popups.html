@@ -1198,7 +1198,7 @@
                 <header>
                     <span class="wz-header-title">
                         <span class="static-icon stratops-ico-file-1" aria-hidden="true"></span>
-                        <h2 id="wz-operational-reports-title">Operational Reports</h2>
+                        <h2 id="wz-operational-reports-title">Report</h2>
                         <p id="wz-operational-reports-summary" class="sr-only">
                             Select and view a recent operational report in HTML or download its matching PDF version.
                         </p>
@@ -1214,7 +1214,7 @@
                             aria-live="polite"></span>
                         <button type="button" class="btn-primary" id="wz-operational-reports-download" disabled>
                             <span></span>
-                            <span>Download Report in PDF</span>
+                            <span>Download PDF</span>
                         </button>
                     </span>
                     <span class="wz-close-modal">
@@ -1226,8 +1226,9 @@
                     <div id="wz-operational-report-viewer" class="wz-operational-report-viewer">
                         <div id="wz-operational-report-loader" class="wz-operational-report-loader" role="status"
                             aria-live="polite">
-                            <span class="wz-operational-report-loader__spinner" aria-hidden="true"></span>
-                            <span id="wz-operational-report-loader-label">Loading operational report...</span>
+                            <img src="/assets/images/web/bx_preloader.gif" alt=""
+                                class="wz-operational-report-loader__gif" loading="eager" decoding="async"
+                                aria-hidden="true">
                         </div>
                         <iframe id="wz-operational-report-viewer-frame" class="wz-operational-report-viewer__frame"
                             title="StratOps operational intelligence report" referrerpolicy="no-referrer"

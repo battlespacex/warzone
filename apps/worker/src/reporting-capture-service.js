@@ -5,6 +5,7 @@ import {
   CAPTURE_STATUS,
   buildCaptureDescriptors,
   buildCapturePageUrl,
+  buildCaptureScenePayload,
   buildInitialCaptureResults,
   isCaptureCleanupEligible,
   mergeCaptureResult,
@@ -163,6 +164,8 @@ function buildCaptureResult(descriptor, status, overrides = {}) {
 async function generateSnapshotCaptures({
   supabase,
   snapshotKey,
+  snapshotOverride = null,
+  persistSnapshot = null,
   config = readReportingConfig(),
   logger = console,
   force = false,
@@ -174,8 +177,13 @@ async function generateSnapshotCaptures({
   if (!config.capture?.enabled && !force) {
     return { ok: true, skipped: true, reason: "capture_disabled" };
   }
-  if (!config.capture?.token) throw new Error("REPORTING_CAPTURE_TOKEN is required for report capture");
-  let snapshot = await loadSnapshot(supabase, snapshotKey);
+  if (!snapshotOverride && !config.capture?.token) throw new Error("REPORTING_CAPTURE_TOKEN is required for report capture");
+  let snapshot = snapshotOverride || await loadSnapshot(supabase, snapshotKey);
+  const saveSnapshot = async (nextSnapshot) => {
+    if (typeof persistSnapshot === "function") return persistSnapshot(nextSnapshot);
+    if (snapshotOverride) return nextSnapshot;
+    return persistCaptureState(supabase, nextSnapshot);
+  };
   const descriptors = buildCaptureDescriptors(snapshot, {
     maxImages: config.capture.maxImages,
     s3Prefix: config.s3Prefix,
@@ -187,7 +195,7 @@ async function generateSnapshotCaptures({
   for (const pending of buildInitialCaptureResults(descriptors)) {
     if (!existingById.has(pending.capture_id)) snapshot = mergeCaptureResult(snapshot, pending);
   }
-  snapshot = await persistCaptureState(supabase, snapshot);
+  snapshot = await saveSnapshot(snapshot);
 
   const pendingDescriptors = descriptors.filter((descriptor) => (
     force || existingById.get(descriptor.capture_id)?.status !== CAPTURE_STATUS.READY
@@ -208,6 +216,21 @@ async function generateSnapshotCaptures({
       reducedMotion: "reduce",
     });
     await context.route("**/api/stratops/reports/internal/capture/**", async (route) => {
+      if (snapshotOverride) {
+        const requestUrl = new URL(route.request().url());
+        const requestedCaptureId = decodeURIComponent(requestUrl.pathname.split("/").filter(Boolean).pop() || "");
+        const capture = buildCaptureScenePayload(snapshot, requestedCaptureId, {
+          maxImages: config.capture.maxImages,
+          s3Prefix: config.s3Prefix,
+          format: config.capture.format,
+        });
+        await route.fulfill({
+          status: capture ? 200 : 404,
+          contentType: "application/json",
+          body: JSON.stringify(capture ? { ok: true, capture } : { ok: false, error: "Capture target not found" }),
+        });
+        return;
+      }
       await route.continue({
         headers: {
           ...route.request().headers(),
@@ -223,7 +246,7 @@ async function generateSnapshotCaptures({
         snapshot = mergeCaptureResult(snapshot, buildCaptureResult(descriptor, CAPTURE_STATUS.GENERATING, {
           attempt_count: attempt,
         }));
-        snapshot = await persistCaptureState(supabase, snapshot);
+        snapshot = await saveSnapshot(snapshot);
         try {
           const { screenshot, captureState } = await capturePage({ page, snapshot, descriptor, config });
           const stored = await storeImage({ descriptor, screenshot, config, uploadObject });
@@ -256,7 +279,7 @@ async function generateSnapshotCaptures({
         }
       }
       snapshot = mergeCaptureResult(snapshot, completed);
-      snapshot = await persistCaptureState(supabase, snapshot);
+      snapshot = await saveSnapshot(snapshot);
       results.push(completed);
     }
   } catch (error) {
@@ -270,7 +293,7 @@ async function generateSnapshotCaptures({
       snapshot = mergeCaptureResult(snapshot, failed);
       results.push(failed);
     }
-    snapshot = await persistCaptureState(supabase, snapshot);
+    snapshot = await saveSnapshot(snapshot);
   } finally {
     if (context) await context.close().catch(() => null);
     if (browser) await browser.close().catch(() => null);
@@ -281,6 +304,7 @@ async function generateSnapshotCaptures({
     ready: results.filter((result) => result.status === CAPTURE_STATUS.READY).length,
     failed: results.filter((result) => result.status === CAPTURE_STATUS.FAILED).length,
     results,
+    ...(snapshotOverride ? { snapshot } : {}),
   };
 }
 

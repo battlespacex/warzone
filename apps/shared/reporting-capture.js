@@ -32,6 +32,7 @@ const DEFAULT_CAPTURE_PRIORITY = Object.freeze({
   AOI_CONTEXT: 82,
   ORBITAL_CONTEXT: 80,
 });
+const HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER = 0.8;
 
 function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -330,7 +331,10 @@ function calculateCaptureCamera(target = {}) {
   };
   const preset = presets[captureType];
   const geometryRange = Math.max(spanKm * 1000 * preset.factor, Number(contextKm || 0) * 1000 * 1.5);
-  const range = clamp(geometryRange || preset.min, preset.min, preset.max);
+  const baseRange = clamp(geometryRange || preset.min, preset.min, preset.max);
+  const range = captureType === "HVA_FOCUS_3D"
+    ? baseRange * HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER
+    : baseRange;
   return {
     scene_mode: preset.scene_mode,
     center,
@@ -362,6 +366,7 @@ function classifySnapshotAssetModelFamily(asset = {}) {
     if (/\b(?:command ship|intelligence|isr)\b/.test(text)) return "NAVAL_ISR";
     return "NAVAL";
   }
+  if (/\b(?:e[- ]?4b?|nightwatch|airborne command post)\b/.test(text)) return "AWACS-E4";
   if (/\b(?:e[- ]?3|sentry)\b/.test(text)) return "AWACS-E3";
   if (/\b(?:e[- ]?7|wedgetail|737 aew)\b/.test(text)) return "AWACS-E7";
   if (/\b(?:rc[- ]?135|rivet joint|cobra ball|combat sent)\b/.test(text)) return "ISR-RC135";
@@ -480,9 +485,10 @@ function sanitizeDevelopment(item = {}) {
 
 function assessCaptureSemanticQuality(captureType = "", evidence = {}) {
   const type = normalizeCaptureType(captureType);
+  const devFixtureRegional = type === "HVA_REGIONAL_CONTEXT" && evidence.dev_fixture === true;
   const requirements = {
     HVA_FOCUS_3D: ["asset_visible"],
-    HVA_REGIONAL_CONTEXT: ["asset_visible", "meaningful_operational_layer_visible"],
+    HVA_REGIONAL_CONTEXT: devFixtureRegional ? ["asset_visible"] : ["asset_visible", "meaningful_operational_layer_visible"],
     NAVAL_FOCUS: ["asset_visible"],
     MAJOR_DEVELOPMENT_CONTEXT: ["target_event_visible"],
     CLUSTER_CONTEXT: ["target_cluster_visible"],
@@ -530,6 +536,7 @@ function sanitizeAsset(asset = {}) {
     theater: asset.theater,
     nearby_event_ids: asset.nearby_event_ids || [],
     nearby_cluster_ids: asset.nearby_cluster_ids || [],
+    is_dev_fixture: asset.is_dev_fixture === true,
   };
 }
 
@@ -659,6 +666,7 @@ function buildCapturePageUrl(baseUrl = "", snapshotKey = "", captureId = "") {
 
 export {
   CAPTURE_STATUS,
+  HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER,
   assessCaptureSemanticQuality,
   buildReportAssetFocusPreset,
   buildCaptureDescriptors,

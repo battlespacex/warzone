@@ -160,14 +160,15 @@ function buildRenderedManifest(snapshot, model, generatedAt, uploadResults = {})
 async function renderSnapshotReport({
   supabase,
   snapshotKey,
+  snapshotOverride = null,
   config = readReportingConfig(),
   upload = Boolean(config.aws?.bucket),
   uploadObject = s3PutObject,
   persistState = persistRenderState,
   generatedAt = nowIso(),
 } = {}) {
-  if (!supabase) throw new Error("Supabase client is required to load the report snapshot");
-  const snapshot = await loadSnapshot(supabase, snapshotKey);
+  if (!supabase && !snapshotOverride) throw new Error("Supabase client is required to load the report snapshot");
+  const snapshot = snapshotOverride || await loadSnapshot(supabase, snapshotKey);
   const outputDirectory = getReportOutputDirectory(snapshot);
   const localImageNames = await getAvailableLocalImageNames(snapshot, outputDirectory);
   const [templateHtml, templateCss] = await Promise.all([
@@ -228,7 +229,7 @@ async function renderSnapshotReport({
     html: renderedManifest.html,
     overall_status: "HTML",
   };
-  await persistState(supabase, snapshotKey, persistedManifest);
+  if (typeof persistState === "function") await persistState(supabase, snapshotKey, persistedManifest);
   return {
     ok: true,
     snapshot_key: snapshotKey,

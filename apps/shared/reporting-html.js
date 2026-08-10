@@ -282,6 +282,7 @@ function normalizeAsset(asset = {}, images = []) {
     && altitude !== null && altitude >= 5000 && rawSpeed !== null && rawSpeed < 30;
   const rawHeading = finiteNumber(asset.heading_deg);
   const squawk = /^[0-7]{4}$/.test(cleanText(asset.squawk)) ? cleanText(asset.squawk) : null;
+  const isDevFixture = asset.is_dev_fixture === true;
   return {
     asset_id: assetId,
     track_type: cleanText(asset.track_type, "unknown"),
@@ -300,11 +301,13 @@ function normalizeAsset(asset = {}, images = []) {
     squawk,
     first_observed: cleanText(asset.first_observed) || null,
     last_observed: cleanText(asset.last_observed) || null,
-    status: /^(active|tracked|airborne|underway|stationary)$/i.test(cleanText(asset.status)) ? cleanText(asset.status) : null,
+    status: isDevFixture ? "DEV FIXTURE" : /^(active|tracked|airborne|underway|stationary)$/i.test(cleanText(asset.status)) ? cleanText(asset.status) : null,
     confidence: finiteNumber(asset.confidence),
     theater: cleanText(asset.theater) || null,
     operational_significance: cleanExcerpt(asset.operational_significance, "Qualified by the StratOps high-value asset model.", 300),
     qualification_reasons: asArray(asset.report_selection_reasons || asset.qualification_reasons).map((value) => cleanText(value).replace(/_/g, " ")).filter(Boolean),
+    display_title: isDevFixture ? cleanText(asset.display_title, "DEV TEST HVA") : null,
+    is_dev_fixture: isDevFixture,
     telemetry_note: inconsistentAirborneSpeed ? "Inconsistent airborne speed omitted from display." : null,
     image: image || null,
   };
@@ -496,7 +499,7 @@ function renderHva(assets) {
   const intro = `<div class="pagination-block"><p class="report-section-intro">Only assets meeting StratOps priority and operational-context criteria are included. Routine traffic is excluded.</p></div>`;
   if (!assets.length) return `${heading}${intro}<div class="pagination-block"><article class="report-text-panel"><p>No qualified high-value asset met the Phase 2 selection criteria for this reporting window.</p></article></div>`;
   return `${heading}${intro}${assets.map((asset) => `<div class="pagination-block pagination-card-unit pagination-card-unit--half report-hva-grid report-hva-grid--unit">${[asset].map((asset) => {
-    const title = [[asset.name || asset.type, asset.callsign].filter(Boolean).join(" - "), asset.asset_id].find(Boolean);
+    const title = asset.display_title || [[asset.name || asset.type, asset.callsign].filter(Boolean).join(" - "), asset.asset_id].find(Boolean);
     const image = asset.image ? renderImage(asset.image, `High-value asset ${title}`) : "";
     const reasons = asset.qualification_reasons.length ? `<div class="report-source-tags">${asset.qualification_reasons.slice(0, 5).map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")}</div>` : "";
     return `<article class="report-hva-card${asset.track_type === "naval" ? " report-hva-card--naval" : ""}">${image}<div class="report-hva-card__body"><div class="event-capsule-container">${renderCapsule("Priority", asset.confidence === null ? "qualified" : `${asset.confidence}%`, "confidence")}${renderCapsule("Role", asset.role)}</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(asset.operational_significance)}</p><dl class="report-data-list report-data-list--compact">${renderAssetDetails(asset)}</dl>${reasons}</div></article>`;
@@ -528,7 +531,7 @@ function renderSourceSynthesis(model) {
     ? chunk(model.source_consensus.slice(0, 10), 6).map((group) => `<div class="pagination-block"><div class="report-consensus-table"><div class="report-consensus-table__head"><span>Development</span><span>Reports</span><span>Families</span><span>State</span></div>${group.map((item) => `<div><span>${escapeHtml(item.title)}</span><span>${formatNumber(item.raw_reports)}</span><span>${formatNumber(item.independent_families)}</span><span>${escapeHtml(item.dispute_status === "DISPUTED" ? "DISPUTED" : item.verification_state)}</span></div>`).join("")}</div></div>`).join("")
     : "";
   const wire = model.intelligence_wire.length
-    ? model.intelligence_wire.map((item) => `<div class="pagination-block pagination-card-unit ${`${item.title} ${item.summary}`.length > 500 ? "pagination-card-unit--full" : "pagination-card-unit--half"} report-wire-list report-wire-list--unit"><article><span class="report-source-mark">${escapeHtml(item.source_class)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary)}</p><small>${escapeHtml(item.source_name)} | ${escapeHtml(item.verification_state)}</small></article></div>`).join("")
+    ? model.intelligence_wire.map((item) => `<div class="pagination-block pagination-card-unit ${`${item.title} ${item.summary}`.length > 500 ? "pagination-card-unit--full" : "pagination-card-unit--half"} report-wire-list report-wire-list--unit"><article><span class="report-source-mark">${escapeHtml(item.source_class)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary)}</p><small>${escapeHtml(item.source_name)} | ${escapeHtml(item.verification_state)}</small><span class="corner-edge-1"></span></article></div>`).join("")
     : `<div class="pagination-block"><article class="report-text-panel"><p>No broader intelligence item met selection criteria for this period.</p></article></div>`;
   const metrics = `<div class="pagination-block"><article class="report-text-panel"><p>${formatNumber(summary.raw_report_count)} raw reports were grouped into ${formatNumber(summary.independent_source_family_count)} independent source families. ${formatNumber(summary.official_confirmation_count)} items recorded official confirmation; ${formatNumber(summary.direct_evidence_count)} recorded direct evidence; ${formatNumber(summary.disputed_count)} were disputed. Verification states: ${escapeHtml(verificationSummary)}. Source-class mix: ${escapeHtml(sourceClassSummary)}.</p></article></div>`;
   return `<div class="pagination-block pagination-heading" data-keep-with-next="true"><h1>INTELLIGENCE WIRE &amp; SOURCE SYNTHESIS</h1></div>${metrics}${table}${wire}`;
