@@ -74,6 +74,7 @@ module.exports = (env, argv) => {
         entry: {
             main: path.resolve(DEV_DIR, "assets/js/index.js"),
             reportCapture: path.resolve(DEV_DIR, "assets/js/report-capture.js"),
+            reportPdfViewer: path.resolve(DEV_DIR, "assets/js/report-pdf-viewer.js"),
         },
 
         output: {
@@ -202,7 +203,26 @@ module.exports = (env, argv) => {
                             ignore: ["**/*.css", "**/*.json"],
                         },
                     },
+                    {
+                        from: path.resolve(ROOT_DIR, "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"),
+                        to: path.resolve(PROD_DIR, "assets/pdfjs/pdf.worker.min.mjs"),
+                        noErrorOnMissing: false,
+                    },
+                    {
+                        from: path.resolve(ROOT_DIR, "node_modules/pdfjs-dist/web/images"),
+                        to: path.resolve(PROD_DIR, "assets/pdfjs/images"),
+                        noErrorOnMissing: false,
+                    },
                 ],
+            }),
+
+            new HtmlWebpackPlugin({
+                filename: "pages/report-pdf-viewer.html",
+                template: path.resolve(DEV_DIR, "pages/report-pdf-viewer.html"),
+                cache: !isDev,
+                inject: "head",
+                chunks: ["reportPdfViewer"],
+                scriptLoading: "defer",
             }),
 
             ...pages.map((name) => {
@@ -456,6 +476,8 @@ module.exports = (env, argv) => {
                                         "X-Forwarded-Proto": req.protocol || "http",
                                         "X-Forwarded-Prefix": "/api",
                                     };
+                                    const range = req.get("range");
+                                    if (range) headers.Range = range;
                                     if (upstream.pathname.startsWith("/stratops/reports/internal/capture/")) {
                                         const captureAuthorization = req.get("authorization");
                                         if (captureAuthorization) headers.Authorization = captureAuthorization;
@@ -469,10 +491,14 @@ module.exports = (env, argv) => {
                                         headers,
                                         body: bodyBuffer,
                                     });
-                                    const payload = await response.text();
+                                    const responseType = response.headers.get("content-type") || "application/json";
+                                    const isPdfResponse = /\bapplication\/pdf\b/i.test(responseType);
+                                    const payload = isPdfResponse
+                                        ? Buffer.from(await response.arrayBuffer())
+                                        : await response.text();
                                     lastPayload = payload;
                                     lastStatus = response.status;
-                                    lastType = response.headers.get("content-type") || "application/json";
+                                    lastType = responseType;
                                     const isJsonResponse = /\bjson\b/i.test(lastType);
                                     const isWorkerHealthText =
                                         !isJsonResponse &&
@@ -487,7 +513,26 @@ module.exports = (env, argv) => {
                                     if (shouldReturnResponse) {
                                         res.status(response.status);
                                         res.set("Cache-Control", "no-store, max-age=0");
-                                        res.type(lastType).send(payload);
+                                        res.set("Content-Type", lastType);
+                                        if (isPdfResponse) {
+                                            [
+                                                "content-disposition",
+                                                "content-range",
+                                                "accept-ranges",
+                                                "content-security-policy",
+                                                "x-frame-options",
+                                                "cross-origin-resource-policy",
+                                                "x-content-type-options",
+                                            ].forEach((header) => {
+                                                const value = response.headers.get(header);
+                                                if (value) res.set(header, value);
+                                            });
+                                        }
+                                        if (req.method === "HEAD") {
+                                            res.end();
+                                            return;
+                                        }
+                                        res.send(payload);
                                         return;
                                     }
                                 } catch {

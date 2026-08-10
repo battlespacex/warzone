@@ -22,7 +22,7 @@ const LIVE_HAPPENING_SIGNAL_RE =
   /\b(airstrike|air strike|missile strike|drone strike|strikes|struck|attacks|attacked|shelling|bombardment|explosion|explosions|exploded|explodes|blast|blasts|detonation|detonated|launched|launches|fired|fires|intercepted|interception|shot down|shoots down|downed|crash|crashed|hit|hits|impact|killed|wounded|casualties|clash|clashes|fighting|combat|offensive|incursion|raid|raids|air raid|siren|red alert|take shelter|notam|airspace closed|airspace restricted|closure|restriction|blockade|seized|cyberattack|cyber attack|outage|disrupted|disruption|ransomware|malware|power grid attack|infrastructure attack)\b/i;
 
 const INTEL_WIRE_ONLY_NEWS_RE =
-  /\b(contract|contract award|procurement|acquisition|arms deal|arms sale|arms sales|weapons? sale|defen[cs]e sale|missile sale|foreign military sale|foreign military sales|fms|budget|funding|lawmakers|approved (?:the )?sale|sale of|sell(?:ing)?|purchase|order|program|prototype|production|manufacturing|shipbuilding|industry|startup|military aid package|security assistance|arms transfer|weapons? transfer|replenish(?:ment|ing)?)\b/i;
+  /\b(contract|contract award|procurement|acquisition|arms deal|arms sale|arms sales|foreign military sale|foreign military sales|fms|budget|funding|lawmakers|approved sale|purchase|order|program|prototype|production|manufacturing|shipbuilding|industry|startup)\b/i;
 
 const LEGACY_EVENT_LOCATION_CATALOG = [
   {
@@ -467,29 +467,6 @@ function normalizeSourceName(value = "") {
 
 function getItemText(item = {}) {
   return [item.title, item.summary, item.source_category]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function getEventNarrativeText(item = {}) {
-  const raw = getNestedObject(item.raw);
-  return [
-    item.title,
-    item.summary,
-    item.description,
-    item.content,
-    item.text,
-    item.message,
-    raw.title,
-    raw.summary,
-    raw.description,
-    raw.contentSnippet,
-    raw.content,
-    raw.raw_text,
-    raw.text,
-    raw.message,
-  ]
-    .map((value) => cleanDisplayText(value, 2200))
     .filter(Boolean)
     .join(" ");
 }
@@ -1258,19 +1235,13 @@ function normalizeConflictItemToEventPayload(item = {}) {
   const normalizedItem = normalizeConflictFeedItemForStorage(item);
   const title = cleanTitle(normalizedItem.title);
   const summary = normalizedItem.summary || title;
-  // Only narrative/article content can prove that an incident actually happened.
-  // Source/feed categories are useful classification hints, but must never promote
-  // ordinary news (for example an arms sale) into a map event.
-  const narrativeText = getEventNarrativeText(normalizedItem);
-  const classificationText = [narrativeText, normalizedItem.source_category].filter(Boolean).join(" ");
+  const text = [title, summary, normalizedItem.source_category].filter(Boolean).join(" ");
   const location = resolveEventLocation(normalizedItem);
-  const category = classifyCategory(classificationText);
-  const severity = inferSeverity(narrativeText || classificationText);
+  const category = classifyCategory(text);
+  const severity = inferSeverity(text);
   const confidence = deriveConfidence(normalizedItem, severity, location);
-  const weaponType = inferWeaponType(classificationText);
-  const hasIncidentSignal = Boolean(title && hasOperationalEventSignal(narrativeText));
-  const intelWireOnly = isIntelWireOnlyNewsText(narrativeText);
-  const mapEligible = Boolean(location.mapEligible && hasIncidentSignal && !intelWireOnly);
+  const weaponType = inferWeaponType(text);
+  const mapEligible = Boolean(location.mapEligible && title && hasOperationalEventSignal(text));
   const occurredAt = safeDate(normalizedItem.published_at || normalizedItem.fetched_at) || new Date().toISOString();
   const locationMetadata = buildLocationMetadata(normalizedItem, { ...location, mapEligible });
   const eventFingerprint = makeEventFingerprint(normalizedItem, { category, location });
@@ -1281,15 +1252,7 @@ function normalizeConflictItemToEventPayload(item = {}) {
 
   return {
     map_eligible: mapEligible,
-    reason: mapEligible
-      ? "eligible"
-      : !title
-        ? "missing_title"
-        : intelWireOnly
-          ? "intel_wire_only_news"
-          : !hasIncidentSignal
-            ? "not_operational_incident"
-            : "unreliable_location",
+    reason: mapEligible ? "eligible" : !title ? "missing_title" : !hasOperationalEventSignal(text) ? "not_operational" : "unreliable_location",
     event: {
       category,
       subcategory: weaponType || category,

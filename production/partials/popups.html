@@ -1197,20 +1197,22 @@
             <div class="wz-modal-inner">
                 <header>
                     <span class="wz-header-title">
-                        <span class="static-icon stratops-ico-file-1" aria-hidden="true"></span>
+                        <span class="static-icon stratops-ico-dock-report-3" aria-hidden="true"></span>
                         <h2 id="wz-operational-reports-title">Report</h2>
                         <p id="wz-operational-reports-summary" class="sr-only">
-                            Select and view a recent operational report in HTML or download its matching PDF version.
+                            Select and view a recent operational report in PDF or download the PDF file.
                         </p>
                     </span>
                     <span class="wz-operational-reports__controls" role="toolbar" aria-label="Report controls">
                         <label class="wz-operational-reports__selector" for="wz-operational-reports-select">
-                            <span>Report</span>
-                            <select id="wz-operational-reports-select" disabled aria-label="Select operational report date">
-                                <option>Loading reports...</option>
-                            </select>
+                            <span class="wz-title">Select Report</span>
+                            <span class="wz-selector" role="toolbar" aria-label="Report controls">
+                                <select id="wz-operational-reports-select" class="wz--dropdown" disabled aria-label="Select operational report date">
+                                    <option>Loading reports...</option>
+                                </select>
+                            </span>
                         </label>
-                        <span id="wz-operational-reports-period" class="wz-operational-reports__period"
+                        <span id="wz-operational-reports-period" class="wz-operational-reports__period sr-only"
                             aria-live="polite"></span>
                         <button type="button" class="btn-primary" id="wz-operational-reports-download" disabled>
                             <span></span>
@@ -1232,8 +1234,7 @@
                         </div>
                         <iframe id="wz-operational-report-viewer-frame" class="wz-operational-report-viewer__frame"
                             title="StratOps operational intelligence report" referrerpolicy="no-referrer"
-                            sandbox="allow-scripts allow-same-origin" loading="eager"
-                            hidden></iframe>
+                            loading="eager" hidden></iframe>
                         <p id="wz-operational-reports-status" class="wz-operational-report-viewer__status" hidden
                             aria-live="polite"></p>
                     </div>

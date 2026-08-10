@@ -77,6 +77,15 @@ function getRequestPublicOrigin(req) {
             return "";
         }
     }
+    const forwardedHost = String(req.get("x-forwarded-host") || "").trim();
+    const forwardedProto = String(req.get("x-forwarded-proto") || "https").trim().toLowerCase();
+    if (forwardedHost && /^https?$/.test(forwardedProto)) {
+        try {
+            return new URL(`${forwardedProto}://${forwardedHost}`).origin;
+        } catch {
+            return "";
+        }
+    }
     return "";
 }
 
@@ -143,6 +152,21 @@ function getPublicReportHtmlUrl(req, report = {}) {
         : "";
 }
 
+function getPublicReportAccessUrl(req, report = {}, action = "preview") {
+    const id = String(report.id || "").trim();
+    const token = String(report.download_token || "").trim();
+    if (!id || !token || !["preview", "download"].includes(action)) return "";
+    const origin = getRequestPublicOrigin(req) || getStratopsDomain();
+    const forwardedPrefix = String(req.get("x-forwarded-prefix") || "/api")
+        .trim()
+        .replace(/^\/*/, "/")
+        .replace(/\/+$/, "") || "/api";
+    const pathname = `${forwardedPrefix}/stratops/reports/${encodeURIComponent(id)}/${action}`;
+    const url = new URL(pathname, `${origin}/`);
+    url.searchParams.set("token", token);
+    return url.href;
+}
+
 function getReportDate(report = {}) {
     const periodStart = String(report.period_start || "").trim();
     const match = periodStart.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -164,7 +188,9 @@ function formatPublicReportLabel(report = {}) {
 function toPublicHistoryReport(req, report = {}, { isLatest = false } = {}) {
     const htmlUrl = getPublicReportHtmlUrl(req, report);
     const pdfUrl = getPublicReportAssetUrl(req, report);
-    const publicStatus = htmlUrl && pdfUrl ? "available" : (htmlUrl ? "preview_only" : "unavailable");
+    const previewUrl = getPublicReportAccessUrl(req, report, "preview");
+    const downloadUrl = getPublicReportAccessUrl(req, report, "download");
+    const publicStatus = pdfUrl && previewUrl ? "available" : "unavailable";
     return {
         id: report.id,
         report_type: report.report_type,
@@ -183,8 +209,9 @@ function toPublicHistoryReport(req, report = {}, { isLatest = false } = {}) {
         html_available: Boolean(htmlUrl),
         html_url: htmlUrl,
         pdf_available: Boolean(pdfUrl),
+        preview_url: previewUrl,
         public_url: pdfUrl,
-        download_url: pdfUrl,
+        download_url: downloadUrl,
     };
 }
 
@@ -192,7 +219,7 @@ function selectRecentPublishedReports(req, reports = [], limit = DEFAULT_PUBLIC_
     const boundedLimit = Math.max(1, Math.floor(Number(limit) || DEFAULT_PUBLIC_REPORT_HISTORY_DAYS));
     return reports
         .map((report) => toPublicHistoryReport(req, report))
-        .filter((report) => report.html_available)
+        .filter((report) => report.pdf_available && report.preview_url)
         .slice(0, boundedLimit)
         .map((report, index) => ({ ...report, is_latest: index === 0 }));
 }
@@ -211,8 +238,9 @@ function toPublicApiReport(req, report = {}) {
     return {
         ...publicReport,
         html_url: getPublicReportHtmlUrl(req, report),
+        preview_url: getPublicReportAccessUrl(req, report, "preview"),
         public_url: reportUrl,
-        download_url: reportUrl,
+        download_url: getPublicReportAccessUrl(req, report, "download") || reportUrl,
     };
 }
 
@@ -249,6 +277,78 @@ function getSupabase() {
     );
 }
 
+function getReportDownloadFilename(report = {}) {
+    const dateKey = getReportDate(report) || "latest";
+    return `StratOps-Operational-Intelligence-Briefing-${dateKey}.pdf`;
+}
+
+function isReportInsidePublicRetention(report = {}, config = readReportingConfig()) {
+    if (!["available", "expired"].includes(String(report.status || ""))) return false;
+    if (String(report.report_version || "") !== REPORT_VERSION) return false;
+    const cutoff = Date.parse(getPublicReportHistoryCutoffIso(config.publishedRetentionDays));
+    const periodStart = Date.parse(report.period_start || "");
+    return Number.isFinite(cutoff) && Number.isFinite(periodStart) && periodStart >= cutoff;
+}
+
+function setReportPdfResponseHeaders(res, report = {}, disposition = "inline") {
+    res.set("Cache-Control", "private, no-store, max-age=0");
+    res.set("Content-Type", "application/pdf");
+    res.set("Content-Disposition", `${disposition}; filename="${getReportDownloadFilename(report)}"`);
+    res.set("X-Content-Type-Options", "nosniff");
+    if (disposition === "inline") {
+        res.set("Content-Security-Policy", "frame-ancestors 'self'");
+        res.set("X-Frame-Options", "SAMEORIGIN");
+        res.set("Cross-Origin-Resource-Policy", "same-origin");
+    }
+}
+
+async function sendReportPdf(req, res, report = {}, disposition = "inline") {
+    const sourceUrl = getReportRedirectUrl(req, report);
+    if (!sourceUrl) {
+        res.status(404).json({ error: "Report unavailable" });
+        return;
+    }
+    const upstreamHeaders = { Accept: "application/pdf" };
+    const range = String(req.get("range") || "").trim();
+    if (range) upstreamHeaders.Range = range;
+    const upstream = await fetch(sourceUrl, {
+        method: req.method === "HEAD" ? "HEAD" : "GET",
+        headers: upstreamHeaders,
+        redirect: "follow",
+    });
+    const contentType = String(upstream.headers.get("content-type") || "").toLowerCase();
+    if (!upstream.ok || !contentType.startsWith("application/pdf")) {
+        res.status(upstream.status || 502).json({ error: "Report unavailable" });
+        return;
+    }
+    res.status(upstream.status);
+    setReportPdfResponseHeaders(res, report, disposition);
+    ["accept-ranges", "content-range", "content-length"].forEach((header) => {
+        const value = upstream.headers.get(header);
+        if (value) res.set(header, value);
+    });
+    if (req.method === "HEAD") {
+        res.end();
+        return;
+    }
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+}
+
+async function getAuthorizedReportForAccess(req) {
+    const id = String(req.params.id || "").trim();
+    const token = String(req.query.token || "").trim();
+    if (!id || !token) return { status: 403, report: null };
+    const { data, error } = await getSupabase()
+        .from("operational_reports")
+        .select("id, status, report_version, period_start, pdf_url, pdf_storage_key, download_token")
+        .eq("id", id)
+        .eq("download_token", token)
+        .maybeSingle();
+    if (error || !data) return { status: 404, report: null };
+    if (!isReportInsidePublicRetention(data)) return { status: 410, report: null };
+    return { status: 200, report: data };
+}
+
 function isAuthorizedCaptureRequest(req, expectedToken = "") {
     const configured = Buffer.from(String(expectedToken || "").trim());
     const authorization = String(req.get("authorization") || "").trim();
@@ -259,12 +359,16 @@ function isAuthorizedCaptureRequest(req, expectedToken = "") {
 
 const __stratopsRouteTestUtils = {
     buildReportArtifactStorageKey,
+    getPublicReportAccessUrl,
     getPublishedReportArtifactKey,
     getPublicReportHtmlUrl,
     getPublicReportHistoryCutoffIso,
     selectRecentPublishedReports,
     toPublicHistoryReport,
     isAuthorizedCaptureRequest,
+    getReportDownloadFilename,
+    isReportInsidePublicRetention,
+    setReportPdfResponseHeaders,
 };
 
 function clamp(value, min, max) {
@@ -408,7 +512,7 @@ export function stratopsRouter() {
             const retentionCutoff = getPublicReportHistoryCutoffIso(config.publishedRetentionDays);
             const { data, error } = await getSupabase()
                 .from("operational_reports")
-                .select("id, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, report_body, report_version, pdf_url, pdf_storage_key, expires_at, created_at, updated_at")
+                .select("id, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, report_body, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at")
                 .eq("report_type", reportType)
                 .eq("scope_key", scopeKey)
                 .eq("report_version", REPORT_VERSION)
@@ -521,28 +625,25 @@ export function stratopsRouter() {
         }
     });
 
+    router.get("/reports/:id/preview", async (req, res) => {
+        try {
+            const access = await getAuthorizedReportForAccess(req);
+            if (!access.report) return res.status(access.status).json({ error: "Report unavailable" });
+            return sendReportPdf(req, res, access.report, "inline");
+        } catch (error) {
+            console.error("[stratops] report preview failed:", error);
+            return res.status(500).json({ error: "Failed" });
+        }
+    });
+
     router.get("/reports/:id/download", async (req, res) => {
         try {
-            const id = String(req.params.id || "").trim();
-            const token = String(req.query.token || "").trim();
-            if (!id || !token) return res.status(403).json({ error: "Forbidden" });
-            const { data, error } = await getSupabase()
-                .from("operational_reports")
-                .select("id, status, pdf_url, pdf_storage_key, download_token, expires_at")
-                .eq("id", id)
-                .eq("download_token", token)
-                .maybeSingle();
-            const redirectUrl = data ? getReportRedirectUrl(req, data) : "";
-            if (error || !data || data.status !== "available" || !redirectUrl) {
-                return res.status(404).json({ error: "Report unavailable" });
-            }
-            if (data.expires_at && Date.parse(data.expires_at) <= Date.now()) {
-                return res.status(410).json({ error: "Report expired" });
-            }
-            res.redirect(302, redirectUrl);
+            const access = await getAuthorizedReportForAccess(req);
+            if (!access.report) return res.status(access.status).json({ error: "Report unavailable" });
+            return sendReportPdf(req, res, access.report, "attachment");
         } catch (error) {
             console.error("[stratops] report download failed:", error);
-            res.status(500).json({ error: "Failed" });
+            return res.status(500).json({ error: "Failed" });
         }
     });
 

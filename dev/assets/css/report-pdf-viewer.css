@@ -1,0 +1,361 @@
+@charset "utf-8";
+
+html {
+    font-size: 62.5%;
+}
+
+html,
+body.report-pdf-viewer {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--text-font);
+}
+
+body.report-pdf-viewer {
+    --report-pdf-toolbar-height: auto;
+    --report-pdf-sidebar-width: 19rem;
+}
+
+.report-pdf-viewer .sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+.report-pdf-shell {
+    display: grid;
+    grid-template-rows: var(--report-pdf-toolbar-height) minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    background: transparent;
+}
+
+.report-pdf-toolbar {
+position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+    padding: 1.5rem;
+    border-bottom: 0;
+    background: var(--color-bg-header);
+    color: var(--color-white-slate);
+    border-top: .2rem solid var(--color-bg-header);
+    border-bottom: .2rem solid var(--color-bg-header);
+    box-sizing: border-box;
+}
+
+.report-pdf-toolbar__group {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-width: 0;
+}
+
+.report-pdf-toolbar__group + .report-pdf-toolbar__group {
+    margin-left: .4rem;
+    padding-left: .8rem;
+    border-left: 1px solid var(--color-border-gray);
+}
+
+.report-pdf-toolbar__spacer {
+    flex: 1 1 auto;
+}
+
+.report-pdf-control, 
+.report-pdf-toolbar input,
+.report-pdf-toolbar select {
+    box-sizing: border-box;
+    height: 3rem;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-white-slate);
+    font: var(--text-base) !important;
+    letter-spacing: .05rem;
+    text-transform: uppercase;
+    font-weight: 800 !important;
+}
+
+.report-pdf-control {
+    background: var(--color-gray-slate);
+    clip-path: var(--clippath-shape-3);
+    border: 0 !important;
+}
+
+
+.report-pdf-toolbar input,
+.report-pdf-toolbar select {
+    background: var(--color-bg-header);
+    clip-path: none;
+}
+
+.report-pdf-control {
+    min-width: 3.2rem;
+    padding: 0 .8rem;
+    cursor: pointer;
+}
+
+.report-pdf-control:hover,
+.report-pdf-control:focus-visible,
+.report-pdf-control[aria-pressed="true"] {
+    border-color: var(--report-pdf-thumbnail-hover-border);
+    color: var(--color-white);
+    outline: none;
+}
+
+.report-pdf-control[aria-pressed="true"] {
+color: var(--report-pdf-thumbnail-active-border);
+    background: var(--color-teal);
+}
+
+.report-pdf-control:disabled {
+    cursor: default;
+    opacity: .38;
+}
+
+.report-pdf-toolbar input {
+    width: 6rem;
+    padding: 0 .6rem;
+    background: var(--color-bg-overlay);
+    text-align: center;
+    border: .2rem solid var(--color-bg-header);
+}
+
+.report-pdf-toolbar select {
+    width: 12rem;
+    padding: 0 .5rem 0 1rem;
+    background: var(--color-bg-overlay);
+    text-align: center;
+    border: .2rem solid var(--color-bg-header);
+}
+
+.report-pdf-page-count {
+    min-width: 4.8rem;
+    color: var(--color-gray-glow);
+    font: 600 1.1rem/1 var(--text-font);
+    letter-spacing: .08rem;
+}
+
+#report-pdf-download,
+#report-pdf-rotate {
+  display: none !important;
+}
+
+#report-pdf-print > span[aria-hidden="true"] {
+    display: none !important
+}
+
+#report-pdf-print {
+background: var(--color-white);
+    color: var(--color-black);
+}
+
+.report-pdf-workspace {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--report-pdf-sidebar-width) minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    transition: .6s all;
+}
+
+.report-pdf-sidebar {
+    position: relative;
+    z-index: 2;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-right: 0 !important;
+}
+
+.report-pdf-thumbnails {
+    height: 100%;
+    overflow: auto;
+    padding: 1.5rem;
+    scrollbar-color: var(--color-teal) transparent !important;
+    z-index: 111;
+    position: relative;
+}
+
+.report-pdf-thumbnail {
+       display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0 0 1.5rem;
+    padding: 1rem;
+    border: .5rem solid var(--report-pdf-thumbnail-border);
+    border-radius: 0;
+    outline: 0 ;
+    outline-offset: 0;
+    background: rgb(9 15 20 / 72%);
+    color: var(--color-gray-glow);
+    cursor: pointer;
+    transition: border-color 100ms linear, outline-color 100ms linear, background-color 100ms linear;
+}
+
+.report-pdf-thumbnail:hover,
+.report-pdf-thumbnail:focus-visible,
+.report-pdf-thumbnail.is-active,
+.report-pdf-thumbnail[aria-current="page"] {
+    border-color: var(--report-pdf-thumbnail-hover-border);
+    outline: 0;
+    color: var(--color-white);
+}
+
+.report-pdf-thumbnail canvas {
+display: block;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0;
+    background: #fff;
+}
+
+.report-pdf-thumbnail__label {
+    display: block;
+    padding-top: .7rem;
+    font: 600 1rem/1 var(--text-font);
+    letter-spacing: .1rem;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.report-pdf-main {
+position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: transparent;
+}
+
+#report-pdf-viewer-container {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    background: transparent;
+    scrollbar-color: var(--color-teal) var(--report-pdf-viewer-bg);
+}
+
+#report-pdf-viewer.pdfViewer {
+    --pdfViewer-padding-bottom: 3rem;
+    --page-margin: 1.6rem auto;
+    --page-border: 1px solid rgb(61 72 87 / 80%);
+}
+
+.pdfViewer .page {
+    --scale-round-x: 1px;
+    --scale-round-y: 1px;
+    direction: ltr;
+    width: 816px;
+    height: 1056px;
+    margin: var(--page-margin);
+    position: relative;
+    overflow: visible;
+    border: 0;
+    background-clip: content-box;
+    background-color: var(--page-bg-color, rgb(255 255 255));
+    filter: drop-shadow(0rem 1rem 2rem #0b0d10db);
+    border: .2rem solid var(--color-bg-dark);
+}
+
+
+.report-pdf-loading,
+.report-pdf-error {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+    background: var(--report-pdf-viewer-bg);
+    color: var(--color-white-slate);
+    font: 600 1.2rem/1.5 var(--text-font);
+    letter-spacing: .1rem;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.report-pdf-loading[hidden],
+.report-pdf-error[hidden] {
+    display: none;
+}
+
+.report-pdf-loading img {
+    display: block;
+    width: 7.2rem;
+    height: 7.2rem;
+    margin: 0 auto 1rem;
+    object-fit: contain;
+}
+
+body.report-pdf-sidebar-closed .report-pdf-workspace {
+    grid-template-columns: 0 minmax(0, 1fr);
+}
+
+body.report-pdf-sidebar-closed .report-pdf-sidebar {
+    border-right: 0;
+    visibility: hidden;
+}
+
+@media (max-width: 720px) {
+    .report-pdf-toolbar {
+        overflow-x: auto;
+    }
+
+    .report-pdf-toolbar__group + .report-pdf-toolbar__group {
+        margin-left: 0;
+        padding-left: .4rem;
+    }
+
+    .report-pdf-control__label {
+        display: none;
+    }
+
+    .report-pdf-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .report-pdf-sidebar {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: min(var(--report-pdf-sidebar-width), 72vw);
+        box-shadow: 1rem 0 2rem rgb(0 0 0 / 42%);
+    }
+
+    body.report-pdf-sidebar-closed .report-pdf-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media print {
+    .report-pdf-toolbar,
+    .report-pdf-sidebar {
+        display: none !important;
+    }
+
+    .report-pdf-shell,
+    .report-pdf-workspace {
+        display: block;
+        height: auto;
+    }
+
+    .report-pdf-main,
+    #report-pdf-viewer-container {
+        position: static;
+        overflow: visible;
+        height: auto;
+    }
+}

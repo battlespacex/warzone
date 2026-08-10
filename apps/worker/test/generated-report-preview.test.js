@@ -58,6 +58,19 @@ test("generated report preview serves safe local artifacts, MIME types, history,
   assert.equal(pdf.status, 200);
   assert.match(pdf.headers.get("content-type"), /^application\/pdf/);
 
+  const preview = await fetch(`${server.origin}/generated-reports/preview/daily/global/2026-08-08/report.pdf`);
+  assert.equal(preview.status, 200);
+  assert.match(preview.headers.get("content-type"), /^application\/pdf/);
+  assert.match(preview.headers.get("content-disposition"), /^inline;/);
+  assert.equal(preview.headers.get("x-frame-options"), "SAMEORIGIN");
+  assert.equal(preview.headers.get("content-security-policy"), "frame-ancestors 'self'");
+  assert.equal(preview.headers.get("cross-origin-resource-policy"), "same-origin");
+
+  const download = await fetch(`${server.origin}/generated-reports/download/daily/global/2026-08-08/report.pdf`);
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get("content-disposition"), /^attachment;/);
+  assert.equal(download.headers.get("x-frame-options"), null);
+
   const manifest = await fetch(`${server.origin}/generated-reports/daily/global/2026-08-08/manifest.json`);
   assert.equal(manifest.status, 200);
   assert.match(manifest.headers.get("content-type"), /^application\/json/);
@@ -78,7 +91,8 @@ test("generated report preview serves safe local artifacts, MIME types, history,
   assert.equal(history.reports[0].is_latest, true);
   assert.equal(history.reports[0].pdf_available, true);
   assert.match(history.reports[0].html_url, /\/2026-08-08\/report\.html$/);
-  assert.match(history.reports[0].download_url, /\/2026-08-08\/report\.pdf$/);
+  assert.match(history.reports[0].preview_url, /\/preview\/daily\/global\/2026-08-08\/report\.pdf$/);
+  assert.match(history.reports[0].download_url, /\/download\/daily\/global\/2026-08-08\/report\.pdf$/);
   assert.equal(history.reports[1].status, "preview_only");
   assert.equal(history.reports[1].download_url, "");
 });

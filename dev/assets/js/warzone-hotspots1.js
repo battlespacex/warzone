@@ -1,4 +1,4 @@
-// File Path: /assets/js/warzone-hotspots.js
+﻿// File Path: /assets/js/warzone-hotspots.js
 import * as Cesium from "cesium";
 import { isEventVisible } from "./warzone-layers.js";
 import {
@@ -541,13 +541,11 @@ function buildHotspotEventPopupDetail(event = {}) {
         clusterCount: 1,
         lat: Number(event?.lat),
         lon: Number(event?.lon),
-        // A country alone is not a precise incident location. Keep this empty
-        // when no actual event/place label exists so the popup renderer can omit
-        // the Location row instead of displaying a misleading country or dash.
         locationLabel: String(
             event?.display_location_label
             || event?.location_label
             || event?.impact_label
+            || event?.country
             || ""
         ),
         occurredAt: String(event?.occurred_at || ""),

@@ -6,6 +6,9 @@
     --color-bg-row: rgb(46 53 63 / 86%);
     --color-bg-modal: rgb(40 47 58 / 48%);
     --color-bg-overlay: rgba(25, 30, 39, 0.5);
+    --report-pdf-toolbar-bg: #18222c;
+    --report-pdf-sidebar-bg: #111920;
+    --report-pdf-viewer-bg: #090f14;
 }
 /* #endregion =========== */
 /* #region =========== Colors =========== */
@@ -49,6 +52,9 @@
     --color-gray-slate: #647285;
     --color-border-gray: #3d4857cc;
     --color-gray-overlay: rgba(69, 80, 94, 0.4);
+    --report-pdf-thumbnail-border: var(--color-border-gray);
+    --report-pdf-thumbnail-hover-border: #20d6d6;
+    --report-pdf-thumbnail-active-border: #20d6d6;
 }
 /* #endregion =========== */
 /* #region =========== Typography — Text Colors =========== */

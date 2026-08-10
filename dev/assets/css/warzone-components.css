@@ -6151,7 +6151,6 @@ body.wz-hide-altitude-km .wz-altitude-readout__line--km {
 .wz-operational-reports {
     z-index: 2147483000;
     padding: 2rem;
-    background: rgba(5, 9, 16, 0.36);
     backdrop-filter: blur(0.2rem);
 }
 
@@ -6178,23 +6177,28 @@ body:not(.is-operational-report-open) .warzone-view {
     width: 70vw;
     min-width: min(70vw, 72rem);
     max-width: 144rem;
-    height: 70vh;
+    height: 80vh;
     min-height: min(70vh, 52rem);
     max-height: 96rem;
-    filter: none;
-    backdrop-filter: none;
 }
 
 .wz-operational-reports .wz-modal-inner {
     height: 100%;
-    clip-path: none;
+    clip-path: var(--clippath-shape-1);
 }
 
 .wz-operational-reports header {
     display: flex;
     align-items: center;
     gap: 1.5rem;
-    padding: 1rem 6rem 1rem 1.5rem;
+    padding: 1rem 6rem 1rem 1rem;
+}
+
+.wz-operational-reports .wz-header-title .static-icon {
+    font-size: var(--icon-xxl);
+    color: var(--color-teal-glow);
+    height: 4rem;
+    width: 4rem;
 }
 
 .wz-operational-reports header .wz-header-title {
@@ -6220,41 +6224,15 @@ body:not(.is-operational-report-open) .warzone-view {
 .wz-operational-reports__selector {
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: 1rem;
     min-width: 0;
     color: var(--color-text-dim);
-    font-family: var(--code-font);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    letter-spacing: 0.1rem;
-    text-transform: uppercase;
 }
 
-.wz-operational-reports__selector select {
-    width: clamp(19rem, 22vw, 31rem);
-    max-width: 100%;
-    min-height: 3.8rem;
-    padding: 0.7rem 3.2rem 0.7rem 1rem;
-    border: 0.1rem solid var(--color-border);
-    color: var(--color-text-heading);
-    background: var(--color-bg-dark);
-    font: inherit;
-    letter-spacing: 0.08rem;
-    text-transform: uppercase;
+.wz-operational-reports__selector .wz-title {
+    padding-top: .3rem
 }
 
-.wz-operational-reports__period {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    color: var(--color-text-dim);
-    font-family: var(--code-font);
-    font-size: var(--text-sm);
-    letter-spacing: 0.06rem;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
 
 .wz-operational-reports .wz-modal-body {
     gap: 0;

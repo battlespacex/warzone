@@ -96,6 +96,7 @@ const DEFAULT_STRATOPS_FEATURES = {
         reportGeneration: false,
         reportDownloads: true,
         reportViewer: true,
+        htmlPreview: false,
     },
 
     system: {

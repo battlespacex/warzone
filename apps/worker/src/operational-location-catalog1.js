@@ -46,7 +46,6 @@ const OPERATIONAL_LOCATION_CATALOG = [
   { label: "Sana'a, Yemen", city: "Sana'a", country: "Yemen", region: "Sana'a", lat: 15.3539, lon: 44.2060, precision: "city", aliases: ["sana'a", "sanaa"] },
   { label: "Aden, Yemen", city: "Aden", country: "Yemen", region: "Aden Governorate", lat: 12.7855, lon: 45.0187, precision: "city", aliases: ["aden"] },
   { label: "Hodeidah, Yemen", city: "Hodeidah", country: "Yemen", region: "Al Hudaydah", lat: 14.7978, lon: 42.9545, precision: "city", aliases: ["hodeidah", "hudaydah"] },
-  { label: "Al Khawkhah, Yemen", city: "Al Khawkhah", country: "Yemen", region: "Al Hudaydah", lat: 13.8071, lon: 43.2493, precision: "city", aliases: ["al khawkhah", "al-khawkhah", "al khokha", "al-khokha", "khokha", "al khawkhah district", "al-khawkhah district", "al khokha district", "al-khokha district", "khokha district"] },
   { label: "Dubai, United Arab Emirates", city: "Dubai", country: "United Arab Emirates", region: "Dubai", lat: 25.2048, lon: 55.2708, precision: "city", aliases: ["dubai"] },
   { label: "Abu Dhabi, United Arab Emirates", city: "Abu Dhabi", country: "United Arab Emirates", region: "Abu Dhabi", lat: 24.4539, lon: 54.3773, precision: "city", aliases: ["abu dhabi"] },
   { label: "Doha, Qatar", city: "Doha", country: "Qatar", region: "Doha", lat: 25.2856, lon: 51.5264, precision: "city", aliases: ["doha"] },

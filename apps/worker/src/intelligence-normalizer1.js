@@ -10,7 +10,7 @@ import { OPERATIONAL_LOCATION_CATALOG } from "./operational-location-catalog.js"
 import { aggregateEventQuality, readEventQuality } from "./event-quality.js";
 import { CORROBORATION_STATES, resolveSourceProfile } from "../../shared/source-quality-policy.js";
 
-const NORMALIZATION_VERSION = "2026-08-10.location-v3";
+const NORMALIZATION_VERSION = "2026-08-08.location-v2";
 
 const UNKNOWN_TEXT_RE =
   /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/i;
@@ -22,7 +22,7 @@ const LIVE_HAPPENING_SIGNAL_RE =
   /\b(airstrike|air strike|missile strike|drone strike|strikes|struck|attacks|attacked|shelling|bombardment|explosion|explosions|exploded|explodes|blast|blasts|detonation|detonated|launched|launches|fired|fires|intercepted|interception|shot down|shoots down|downed|crash|crashed|hit|hits|impact|killed|wounded|casualties|clash|clashes|fighting|combat|offensive|incursion|raid|raids|air raid|siren|red alert|take shelter|notam|airspace closed|airspace restricted|closure|restriction|blockade|seized|cyberattack|cyber attack|outage|disrupted|disruption|ransomware|malware|power grid attack|infrastructure attack)\b/i;
 
 const INTEL_WIRE_ONLY_NEWS_RE =
-  /\b(contract|contract award|procurement|acquisition|arms deal|arms sale|arms sales|weapons? sale|defen[cs]e sale|missile sale|foreign military sale|foreign military sales|fms|budget|funding|lawmakers|approved (?:the )?sale|sale of|sell(?:ing)?|purchase|order|program|prototype|production|manufacturing|shipbuilding|industry|startup|military aid package|security assistance|arms transfer|weapons? transfer|replenish(?:ment|ing)?)\b/i;
+  /\b(contract|contract award|procurement|acquisition|arms deal|arms sale|arms sales|foreign military sale|foreign military sales|fms|budget|funding|lawmakers|approved sale|purchase|order|program|prototype|production|manufacturing|shipbuilding|industry|startup)\b/i;
 
 const LEGACY_EVENT_LOCATION_CATALOG = [
   {
@@ -471,29 +471,6 @@ function getItemText(item = {}) {
     .join(" ");
 }
 
-function getEventNarrativeText(item = {}) {
-  const raw = getNestedObject(item.raw);
-  return [
-    item.title,
-    item.summary,
-    item.description,
-    item.content,
-    item.text,
-    item.message,
-    raw.title,
-    raw.summary,
-    raw.description,
-    raw.contentSnippet,
-    raw.content,
-    raw.raw_text,
-    raw.text,
-    raw.message,
-  ]
-    .map((value) => cleanDisplayText(value, 2200))
-    .filter(Boolean)
-    .join(" ");
-}
-
 function hasOperationalEventSignal(text = "") {
   return OPERATIONAL_EVENT_SIGNAL_RE.test(String(text || ""));
 }
@@ -541,12 +518,7 @@ function matchAlias(text = "", alias = "") {
 }
 
 function scoreLocationMatch(entry, alias, source, index) {
-  let score =
-    source === "title" ? 76 :
-    source === "summary" ? 60 :
-    source === "description" ? 54 :
-    source === "entities" ? 50 :
-    44;
+  let score = source === "title" ? 70 : source === "summary" ? 52 : 44;
   const precision = normalizeLocationPrecision(entry.precision);
   if (precision === LOCATION_PRECISION.EXACT) score += 34;
   else if (precision === LOCATION_PRECISION.LOCAL) score += 20;
@@ -722,94 +694,6 @@ function getLocationTextSources(item = {}) {
     .filter(([, value]) => value);
 }
 
-function getCountryContextEntries() {
-  const seen = new Set();
-  const entries = [];
-  for (const entry of EVENT_LOCATION_CATALOG) {
-    if (entry.precision !== "country_hint" || !entry.country) continue;
-    const country = cleanDisplayText(entry.country, 80);
-    if (!country) continue;
-    const key = country.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    entries.push({
-      country,
-      label: entry.label || country,
-      region: entry.region || null,
-      theatre: entry.theatre || null,
-      lat: entry.lat,
-      lon: entry.lon,
-      aliases: [...new Set([
-        country.toLowerCase(),
-        String(entry.label || "").toLowerCase()
-      ].filter(Boolean))]
-    });
-  }
-  return entries;
-}
-
-const EVENT_COUNTRY_CONTEXTS = getCountryContextEntries();
-
-function findExplicitCountryContexts(textSources = []) {
-  const matches = [];
-  const seen = new Set();
-  for (const [source, value] of textSources) {
-    const text = String(value || "");
-    for (const entry of EVENT_COUNTRY_CONTEXTS) {
-      const alias = entry.aliases.find((candidate) => matchAlias(text, candidate) !== -1);
-      if (!alias) continue;
-      const key = entry.country.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      matches.push({ ...entry, match_source: source, matched_alias: alias });
-    }
-  }
-  return matches;
-}
-
-function findCountryInLabel(value = "") {
-  const label = normalizeLocationLabel(value);
-  if (!label) return null;
-  for (const entry of EVENT_COUNTRY_CONTEXTS) {
-    if (entry.aliases.some((alias) => matchAlias(label, alias) !== -1)) {
-      return entry.country;
-    }
-  }
-  return null;
-}
-
-function conflictsWithExplicitCountryContext(locationCountry, explicitCountries = []) {
-  const country = cleanDisplayText(locationCountry, 80);
-  if (!country || !explicitCountries.length) return false;
-  return !explicitCountries.some((entry) => entry.country.toLowerCase() === country.toLowerCase());
-}
-
-function buildCountryFallback(explicitCountries = []) {
-  if (explicitCountries.length !== 1) return null;
-  const country = explicitCountries[0];
-  return {
-    lat: null,
-    lon: null,
-    anchor_lat: isValidCoordinate(country.lat, country.lon) ? safeNumber(country.lat) : null,
-    anchor_lon: isValidCoordinate(country.lat, country.lon) ? safeNumber(country.lon) : null,
-    label: country.label || country.country,
-    country: country.country,
-    region: country.region || null,
-    city: null,
-    place: null,
-    theatre: country.theatre || null,
-    precision: LOCATION_PRECISION.REGIONAL,
-    detail: "country_context",
-    method: "text_country_context",
-    source: country.match_source || "text",
-    matched_alias: country.matched_alias || country.country,
-    confidence: 44,
-    quality: "regional",
-    mapEligible: false,
-    score: 30
-  };
-}
-
 function getSourceGeography(item = {}) {
   const raw = getNestedObject(item.raw);
   const metadata = getNestedObject(item.metadata);
@@ -938,20 +822,19 @@ function resolveEventLocation(item = {}) {
     existingLocation.method &&
     !isUnsafeLocationMethod(existingLocation.method)
   );
-
-  // Explicit incident/event/impact coordinates are authoritative because they
-  // describe the incident itself, not the publisher/source.
-  const explicitCoordinateCandidates = [
+  const coordinateCandidates = [
     [item.incident_lat, item.incident_lon, "incident_coordinates"],
     [item.event_lat ?? item.event_latitude, item.event_lon ?? item.event_longitude, "event_coordinates"],
-    [item.impact_lat, item.impact_lon, "impact_coordinates"]
+    [item.impact_lat, item.impact_lon, "impact_coordinates"],
+    ...(trustedStoredPoint ? [[item.lat, item.lon, "item_coordinates"]] : [])
   ];
-  for (const [latValue, lonValue, method] of explicitCoordinateCandidates) {
+  for (const [latValue, lonValue, method] of coordinateCandidates) {
     if (!isValidCoordinate(latValue, lonValue)) continue;
     if (isCoarseCountryCentroid(latValue, lonValue, item.location_label)) continue;
+    if (method === "item_coordinates" && isSourceDerivedCoordinate(item, latValue, lonValue)) continue;
+    const precision = normalizeLocationPrecision(existingLocation.precision, LOCATION_PRECISION.EXACT);
+    if (!isMapMarkerPrecision(precision)) continue;
     const hints = getEventGeographyHints(item);
-    const storedPrecision = normalizeLocationPrecision(existingLocation.precision);
-    const precision = isMapMarkerPrecision(storedPrecision) ? storedPrecision : LOCATION_PRECISION.EXACT;
     return {
       lat: safeNumber(latValue),
       lon: safeNumber(lonValue),
@@ -963,125 +846,103 @@ function resolveEventLocation(item = {}) {
       theatre: null,
       precision,
       detail: precision === LOCATION_PRECISION.LOCAL ? "local_coordinates" : "exact_coordinates",
-      method,
-      source: method,
-      confidence: existingLocation.confidence ?? (precision === LOCATION_PRECISION.EXACT ? 100 : 84),
+      method: existingLocation.method || method,
+      source: existingLocation.method || method,
+      confidence: existingLocation.confidence ?? (precision === LOCATION_PRECISION.EXACT ? 100 : 82),
       quality: precision === LOCATION_PRECISION.EXACT ? "exact" : "local",
       mapEligible: true,
-      score: 110
+      score: 100
     };
   }
 
-  // Evaluate incident text before previously stored item coordinates. This
-  // prevents stale/ambiguous geocodes from overriding a named incident place.
   const textSources = getLocationTextSources(item);
   const textCoordinates = extractCoordinatesFromText(textSources.map(([, value]) => value).join(" "));
   if (textCoordinates) return { ...textCoordinates, score: 110 };
 
-  const explicitCountries = findExplicitCountryContexts(textSources);
   const candidates = textSources
     .flatMap(([source, value]) => findTextLocationCandidates(value, source))
-    .filter((candidate) => (
-      !candidate.country ||
-      !explicitCountries.length ||
-      explicitCountries.some((entry) => entry.country.toLowerCase() === String(candidate.country).toLowerCase())
-    ))
     .sort((a, b) => b.score - a.score);
 
   const best = candidates[0];
-  if (best) {
-    const precision = normalizeLocationPrecision(best.precision);
-    const mapEligible = best.mapEligible !== false && isMapMarkerPrecision(precision) && isValidCoordinate(best.lat, best.lon);
-    const nearLocality = best.proximity_qualified && precision === LOCATION_PRECISION.LOCAL;
-    const method = nearLocality
-      ? `text_near_${best.precision || "locality"}`
-      : `text_${best.precision || "location"}`;
-    const confidence = precision === LOCATION_PRECISION.EXACT
-      ? 96
-      : precision === LOCATION_PRECISION.LOCAL
-        ? (nearLocality ? 72 : 84)
-        : precision === LOCATION_PRECISION.REGIONAL
-          ? 52
-          : 0;
-    return {
-      lat: mapEligible && isValidCoordinate(best.lat, best.lon) ? best.lat : null,
-      lon: mapEligible && isValidCoordinate(best.lat, best.lon) ? best.lon : null,
-      anchor_lat: precision === LOCATION_PRECISION.REGIONAL && isValidCoordinate(best.lat, best.lon) ? best.lat : null,
-      anchor_lon: precision === LOCATION_PRECISION.REGIONAL && isValidCoordinate(best.lat, best.lon) ? best.lon : null,
-      label: best.label,
-      country: best.country,
-      region: best.region,
-      city: best.city || null,
-      place: best.place || (precision === LOCATION_PRECISION.EXACT ? best.label : null),
-      theatre: best.theatre,
-      precision,
-      detail: best.precision || null,
-      method,
-      source: best.match_source,
-      matched_alias: best.matched_alias,
-      confidence,
-      quality: precision.toLowerCase(),
-      mapEligible,
-      score: best.score
-    };
-  }
-
-  // Only reuse an existing stored point after text extraction failed, and
-  // reject it when the article explicitly names a different country.
-  if (
-    trustedStoredPoint &&
-    isValidCoordinate(item.lat, item.lon) &&
-    !isCoarseCountryCentroid(item.lat, item.lon, item.location_label) &&
-    !isSourceDerivedCoordinate(item, item.lat, item.lon)
-  ) {
+  if (!best) {
     const hints = getEventGeographyHints(item);
-    const storedCountry = hints.country || findCountryInLabel(item.location_label);
-    if (!conflictsWithExplicitCountryContext(storedCountry, explicitCountries)) {
-      const precision = normalizeLocationPrecision(existingLocation.precision, LOCATION_PRECISION.EXACT);
+    if (
+      isValidCoordinate(item.lat, item.lon) &&
+      !isCoarseCountryCentroid(item.lat, item.lon, item.location_label) &&
+      !isSourceDerivedCoordinate(item, item.lat, item.lon)
+    ) {
       return {
         lat: safeNumber(item.lat),
         lon: safeNumber(item.lon),
         label: normalizeLocationLabel(item.location_label) || "Coordinates",
-        country: storedCountry || null,
+        country: hints.country || null,
         region: hints.region || null,
         city: hints.city || null,
         place: hints.place || normalizeLocationLabel(item.location_label),
         theatre: null,
-        precision,
-        detail: precision === LOCATION_PRECISION.LOCAL ? "local_coordinates" : "exact_coordinates",
-        method: existingLocation.method || "item_coordinates",
-        source: existingLocation.method || "item_coordinates",
-        confidence: existingLocation.confidence ?? (precision === LOCATION_PRECISION.EXACT ? 92 : 80),
-        quality: precision === LOCATION_PRECISION.EXACT ? "exact" : "local",
+        precision: LOCATION_PRECISION.EXACT,
+        detail: "legacy_event_coordinates",
+        method: "legacy_event_coordinates",
+        source: "item_coordinates",
+        confidence: 76,
+        quality: "exact",
         mapEligible: true,
-        score: 82
+        score: 76
       };
     }
+    return {
+      lat: null,
+      lon: null,
+      label: null,
+      country: hints.country || null,
+      region: hints.region || null,
+      city: hints.city || null,
+      place: hints.place || null,
+      theatre: null,
+      precision: LOCATION_PRECISION.UNKNOWN,
+      detail: "none",
+      method: "not_found",
+      source: "not_found",
+      confidence: 0,
+      quality: "unknown",
+      mapEligible: false,
+      score: 0
+    };
   }
 
-  // Country is the final text-derived fallback. Keep it as regional context
-  // only; never promote a country centroid to an individual event marker.
-  const countryFallback = buildCountryFallback(explicitCountries);
-  if (countryFallback) return countryFallback;
-
-  const hints = getEventGeographyHints(item);
+  const precision = normalizeLocationPrecision(best.precision);
+  const mapEligible = best.mapEligible !== false && isMapMarkerPrecision(precision) && isValidCoordinate(best.lat, best.lon);
+  const nearLocality = best.proximity_qualified && precision === LOCATION_PRECISION.LOCAL;
+  const method = nearLocality
+    ? `text_near_${best.precision || "locality"}`
+    : `text_${best.precision || "location"}`;
+  const confidence = precision === LOCATION_PRECISION.EXACT
+    ? 96
+    : precision === LOCATION_PRECISION.LOCAL
+      ? (nearLocality ? 72 : 84)
+      : precision === LOCATION_PRECISION.REGIONAL
+        ? 52
+        : 0;
   return {
-    lat: null,
-    lon: null,
-    label: null,
-    country: hints.country || null,
-    region: hints.region || null,
-    city: hints.city || null,
-    place: hints.place || null,
-    theatre: null,
-    precision: LOCATION_PRECISION.UNKNOWN,
-    detail: "none",
-    method: "not_found",
-    source: "not_found",
-    confidence: 0,
-    quality: "unknown",
-    mapEligible: false,
-    score: 0
+    lat: mapEligible && isValidCoordinate(best.lat, best.lon) ? best.lat : null,
+    lon: mapEligible && isValidCoordinate(best.lat, best.lon) ? best.lon : null,
+    anchor_lat: precision === LOCATION_PRECISION.REGIONAL && isValidCoordinate(best.lat, best.lon) ? best.lat : null,
+    anchor_lon: precision === LOCATION_PRECISION.REGIONAL && isValidCoordinate(best.lat, best.lon) ? best.lon : null,
+    label: best.label,
+    country: best.country,
+    region: best.region,
+    city: best.city || null,
+    place: best.place || (precision === LOCATION_PRECISION.EXACT ? best.label : null),
+    theatre: best.theatre,
+    precision,
+    detail: best.precision || null,
+    method,
+    source: best.match_source,
+    matched_alias: best.matched_alias,
+    confidence,
+    quality: precision.toLowerCase(),
+    mapEligible,
+    score: best.score
   };
 }
 
@@ -1258,19 +1119,13 @@ function normalizeConflictItemToEventPayload(item = {}) {
   const normalizedItem = normalizeConflictFeedItemForStorage(item);
   const title = cleanTitle(normalizedItem.title);
   const summary = normalizedItem.summary || title;
-  // Only narrative/article content can prove that an incident actually happened.
-  // Source/feed categories are useful classification hints, but must never promote
-  // ordinary news (for example an arms sale) into a map event.
-  const narrativeText = getEventNarrativeText(normalizedItem);
-  const classificationText = [narrativeText, normalizedItem.source_category].filter(Boolean).join(" ");
+  const text = [title, summary, normalizedItem.source_category].filter(Boolean).join(" ");
   const location = resolveEventLocation(normalizedItem);
-  const category = classifyCategory(classificationText);
-  const severity = inferSeverity(narrativeText || classificationText);
+  const category = classifyCategory(text);
+  const severity = inferSeverity(text);
   const confidence = deriveConfidence(normalizedItem, severity, location);
-  const weaponType = inferWeaponType(classificationText);
-  const hasIncidentSignal = Boolean(title && hasOperationalEventSignal(narrativeText));
-  const intelWireOnly = isIntelWireOnlyNewsText(narrativeText);
-  const mapEligible = Boolean(location.mapEligible && hasIncidentSignal && !intelWireOnly);
+  const weaponType = inferWeaponType(text);
+  const mapEligible = Boolean(location.mapEligible && title && hasOperationalEventSignal(text));
   const occurredAt = safeDate(normalizedItem.published_at || normalizedItem.fetched_at) || new Date().toISOString();
   const locationMetadata = buildLocationMetadata(normalizedItem, { ...location, mapEligible });
   const eventFingerprint = makeEventFingerprint(normalizedItem, { category, location });
@@ -1281,15 +1136,7 @@ function normalizeConflictItemToEventPayload(item = {}) {
 
   return {
     map_eligible: mapEligible,
-    reason: mapEligible
-      ? "eligible"
-      : !title
-        ? "missing_title"
-        : intelWireOnly
-          ? "intel_wire_only_news"
-          : !hasIncidentSignal
-            ? "not_operational_incident"
-            : "unreliable_location",
+    reason: mapEligible ? "eligible" : !title ? "missing_title" : !hasOperationalEventSignal(text) ? "not_operational" : "unreliable_location",
     event: {
       category,
       subcategory: weaponType || category,

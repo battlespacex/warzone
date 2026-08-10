@@ -130,6 +130,8 @@ app.all("/api/*", async (req, res) => {
             "X-Forwarded-Proto": req.protocol || "http",
             "X-Forwarded-Prefix": "/api",
         };
+        const range = req.get("range");
+        if (range) headers.Range = range;
         if (upstream.pathname.startsWith("/stratops/reports/internal/capture/")) {
             const captureAuthorization = req.get("authorization");
             if (captureAuthorization) headers.Authorization = captureAuthorization;
@@ -149,10 +151,30 @@ app.all("/api/*", async (req, res) => {
             }
         }
         const response = await fetch(upstream, init);
-        const payload = await response.text();
+        const responseType = response.headers.get("content-type") || "application/json";
+        const isPdf = /\bapplication\/pdf\b/i.test(responseType);
+        const payload = isPdf
+            ? Buffer.from(await response.arrayBuffer())
+            : await response.text();
         res.status(response.status);
         res.set("Cache-Control", "no-store, max-age=0");
-        res.type(response.headers.get("content-type") || "application/json").send(payload);
+        res.set("Content-Type", responseType);
+        if (isPdf) {
+            [
+                "content-disposition",
+                "content-range",
+                "accept-ranges",
+                "content-security-policy",
+                "x-frame-options",
+                "cross-origin-resource-policy",
+                "x-content-type-options",
+            ].forEach((header) => {
+                const value = response.headers.get(header);
+                if (value) res.set(header, value);
+            });
+        }
+        if (req.method === "HEAD") return res.end();
+        res.send(payload);
     } catch {
         res.status(502).json({ error: "API unavailable" });
     }

@@ -80,6 +80,40 @@ function buildArtifactUrl(req, segments, filename) {
     return origin ? new URL(pathname, origin).href : pathname;
 }
 
+function buildReportPdfFilename(target = "") {
+    const dateKey = path.basename(path.dirname(target));
+    const suffix = /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : "latest";
+    return `StratOps-Operational-Intelligence-Briefing-${suffix}.pdf`;
+}
+
+function setPdfResponseHeaders(res, target, disposition = "inline") {
+    res.set("Content-Type", CONTENT_TYPES[".pdf"]);
+    res.set("Content-Disposition", `${disposition}; filename="${buildReportPdfFilename(target)}"`);
+    res.set("X-Content-Type-Options", "nosniff");
+    if (disposition === "inline") {
+        res.set("Content-Security-Policy", "frame-ancestors 'self'");
+        res.set("X-Frame-Options", "SAMEORIGIN");
+        res.set("Cross-Origin-Resource-Policy", "same-origin");
+    }
+}
+
+async function sendGeneratedReportArtifact(req, res, generatedRoot, requestPath, disposition = "") {
+    const target = resolveGeneratedReportArtifact(generatedRoot, requestPath);
+    if (!target || !(await isFile(target))) {
+        res.status(404).type("text/plain").send("Generated report artifact not found.");
+        return;
+    }
+    const extension = path.extname(target).toLowerCase();
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.set("X-Content-Type-Options", "nosniff");
+    if (extension === ".pdf" && disposition) {
+        setPdfResponseHeaders(res, target, disposition);
+    } else {
+        res.type(CONTENT_TYPES[extension] || "application/octet-stream");
+    }
+    res.sendFile(target);
+}
+
 function formatReportLabel(dateKey) {
     const date = new Date(`${dateKey}T00:00:00.000Z`);
     if (Number.isNaN(date.getTime())) return dateKey;
@@ -137,7 +171,8 @@ async function listLocalGeneratedReports({ root, scope, limit, req }) {
         const htmlStat = await fs.promises.stat(htmlPath);
         const reportId = String(model.report_id || `local:daily:${scope.type}:${scope.value || "global"}:${dateKey}`);
         const htmlUrl = buildArtifactUrl(req, segments, "report.html");
-        const pdfUrl = pdfAvailable ? buildArtifactUrl(req, segments, "report.pdf") : "";
+        const previewUrl = pdfAvailable ? buildArtifactUrl(req, ["preview", ...segments], "report.pdf") : "";
+        const downloadUrl = pdfAvailable ? buildArtifactUrl(req, ["download", ...segments], "report.pdf") : "";
         reports.push({
             id: reportId,
             report_type: "daily",
@@ -156,8 +191,9 @@ async function listLocalGeneratedReports({ root, scope, limit, req }) {
             html_available: true,
             html_url: htmlUrl,
             pdf_available: pdfAvailable,
-            public_url: pdfUrl,
-            download_url: pdfUrl,
+            preview_url: previewUrl,
+            public_url: downloadUrl,
+            download_url: downloadUrl,
             local_preview: true,
         });
     }
@@ -193,6 +229,22 @@ function createGeneratedReportPreviewRouter({
         }
     });
 
+    router.get("/preview/*", async (req, res, next) => {
+        try {
+            await sendGeneratedReportArtifact(req, res, generatedRoot, req.params[0], "inline");
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    router.get("/download/*", async (req, res, next) => {
+        try {
+            await sendGeneratedReportArtifact(req, res, generatedRoot, req.params[0], "attachment");
+        } catch (error) {
+            next(error);
+        }
+    });
+
     router.use(async (req, res) => {
         if (!["GET", "HEAD"].includes(req.method)) {
             res.status(405).type("text/plain").send("Method not allowed.");
@@ -215,10 +267,12 @@ function createGeneratedReportPreviewRouter({
 
 module.exports = {
     CONTENT_TYPES,
+    buildReportPdfFilename,
     clampHistoryLimit,
     createGeneratedReportPreviewRouter,
     getScopeSegments,
     isPathInsideRoot,
     listLocalGeneratedReports,
     resolveGeneratedReportArtifact,
+    setPdfResponseHeaders,
 };

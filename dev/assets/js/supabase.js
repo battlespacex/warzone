@@ -308,10 +308,10 @@ export const api = {
     },
 
     getOperationalReportDownloadUrl(report = {}) {
-        const publicUrl = String(report?.public_url || "").trim();
-        if (isUsablePublicUrl(publicUrl)) return publicUrl;
         const directUrl = String(report?.download_url || report?.pdf_url || "").trim();
         if (isUsablePublicUrl(directUrl)) return directUrl;
+        const publicUrl = String(report?.public_url || "").trim();
+        if (isUsablePublicUrl(publicUrl)) return publicUrl;
         const id = String(report?.id || "").trim();
         const token = String(report?.download_token || "").trim();
         if (!id || !token) return "";
@@ -319,7 +319,19 @@ export const api = {
     },
 
     getOperationalReportViewerUrl(report = {}) {
-        return this.getOperationalReportDownloadUrl(report);
+        const previewUrl = String(report?.preview_url || "").trim();
+        if (isUsablePublicUrl(previewUrl)) return previewUrl;
+        if (report?.local_preview !== true) return "";
+        const localPdfUrl = String(report?.public_url || report?.download_url || report?.pdf_url || "").trim();
+        if (!isUsablePublicUrl(localPdfUrl)) return "";
+        try {
+            const parsed = new URL(localPdfUrl, window.location.href);
+            return parsed.origin === window.location.origin && parsed.pathname.endsWith("/report.pdf")
+                ? parsed.href
+                : "";
+        } catch {
+            return "";
+        }
     },
 
     getOperationalReportHtmlUrl(report = {}) {
