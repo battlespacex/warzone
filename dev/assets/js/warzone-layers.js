@@ -62,7 +62,7 @@ const DEFAULT_LAYER_STATE = {
     seismic: false,
     hotspots: true,
     "orbital-assets": false,
-    "satellite-imagery": false,
+    "satellite-imagery": true,
     terrain: true,
     "map-labels": false,
     "region-plate": false,
@@ -213,9 +213,23 @@ function getEffectiveLayerState(id) {
 
 function loadState() {
     if (__layerStateLoaded) return;
-    LAYER_DEFS.forEach((l) => {
-        __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
+
+    let saved = {};
+
+    try {
+        saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+    } catch {
+        saved = {};
+    }
+
+    LAYER_DEFS.forEach((layer) => {
+        if (Object.prototype.hasOwnProperty.call(saved, layer.id)) {
+            __layerState[layer.id] = saved[layer.id] !== false;
+        } else {
+            __layerState[layer.id] = DEFAULT_LAYER_STATE[layer.id] !== false;
+        }
     });
+
     __layerStateLoaded = true;
 }
 
