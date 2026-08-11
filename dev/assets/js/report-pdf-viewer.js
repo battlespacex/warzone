@@ -9,7 +9,7 @@ import {
     PDFViewer,
 } from "pdfjs-dist/web/pdf_viewer.mjs";
 
-GlobalWorkerOptions.workerSrc = "/assets/pdfjs/pdf.worker.min.mjs";
+GlobalWorkerOptions.workerSrc = "/assets/pdfjs/pdf.worker.min.js";
 
 const elements = {
     container: document.getElementById("report-pdf-viewer-container"),

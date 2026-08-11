@@ -166,6 +166,31 @@ module.exports = (env, argv) => {
                         noErrorOnMissing: false,
                     },
                     {
+                        // PDF.js worker.
+                        // Rename .mjs -> .js so S3 serves it with a JavaScript MIME type.
+                        from: path.resolve(
+                            ROOT_DIR,
+                            "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"
+                        ),
+                        to: path.resolve(
+                            PROD_DIR,
+                            "assets/pdfjs/pdf.worker.min.js"
+                        ),
+                        noErrorOnMissing: false,
+                    },
+                    {
+                        // PDF.js viewer image resources.
+                        from: path.resolve(
+                            ROOT_DIR,
+                            "node_modules/pdfjs-dist/web/images"
+                        ),
+                        to: path.resolve(
+                            PROD_DIR,
+                            "assets/pdfjs/images"
+                        ),
+                        noErrorOnMissing: false,
+                    },
+                    {
                         from: path.resolve(DEV_DIR, "public"),
                         to: PROD_DIR,
                         noErrorOnMissing: true,

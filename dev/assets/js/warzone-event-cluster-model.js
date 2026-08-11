@@ -47,6 +47,38 @@ function asObject(value) {
     return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+function getAvailableSatelliteContext(event = {}) {
+    const metadata = asObject(event?.metadata);
+
+    const context =
+        event?.satellite_context ||
+        event?.satelliteContext ||
+        metadata.satellite_context ||
+        metadata.satelliteContext ||
+        null;
+
+    if (!context || typeof context !== "object") return null;
+
+    const imageUrl = String(
+        context.imageUrl ||
+        context.image_url ||
+        ""
+    ).trim();
+
+    if (String(context.status || "").toLowerCase() !== "available") {
+        return null;
+    }
+
+    if (!/^https?:\/\//i.test(imageUrl)) {
+        return null;
+    }
+
+    return {
+        ...context,
+        imageUrl,
+    };
+}
+
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
@@ -390,6 +422,11 @@ function buildSpatialEventClusters(events = [], options = {}) {
             dominanceMargin: options.dominanceMargin,
         });
         const latest = groupEvents.slice().sort((a, b) => getEventTimeMs(b) - getEventTimeMs(a))[0] || medoid;
+        const satelliteSource =
+            groupEvents.find((event) => getAvailableSatelliteContext(event)) || null;
+
+        const satelliteContext =
+            getAvailableSatelliteContext(satelliteSource);
         const eventIds = groupEvents.map((event) => event.__clusterEventKey).sort();
         const eventCount = eventIds.length;
         const severity = getClusterSeverity(groupEvents);
@@ -422,6 +459,8 @@ function buildSpatialEventClusters(events = [], options = {}) {
                 const { __clusterEventKey, ...original } = event;
                 return original;
             }),
+            satellite_context: satelliteContext,
+            satellite_available: !!satelliteContext,
             weighted_activity_score: Number(activityScore.toFixed(3)),
             dominant_domain: dominance.domain,
             domain_distribution: dominance.distribution,

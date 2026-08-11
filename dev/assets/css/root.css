@@ -1,8 +1,8 @@
 ﻿/* --- assets/css/root.css --- */
 /* #region =========== Backgrounds =========== */
 :root {
-    --color-bg-dark: rgba(32,38,49,0.85);
-    --color-bg-header: rgb(69,80,94,0.6);
+    --color-bg-dark: rgba(32, 38, 49, 0.85);
+    --color-bg-header: rgb(69, 80, 94, 0.6);
     --color-bg-row: rgb(46 53 63 / 86%);
     --color-bg-modal: rgb(40 47 58 / 48%);
     --color-bg-overlay: rgba(25, 30, 39, 0.5);
@@ -10,6 +10,7 @@
     --report-pdf-sidebar-bg: #111920;
     --report-pdf-viewer-bg: #090f14;
 }
+
 /* #endregion =========== */
 /* #region =========== Colors =========== */
 :root {
@@ -48,7 +49,7 @@
     --color-teal-glow: #18e2db;
     --color-teal-slate: #00d8b2;
     --color-gray: #45505eb3;
-    --color-gray-glow: #8fa3b8 ;
+    --color-gray-glow: #8fa3b8;
     --color-gray-slate: #647285;
     --color-border-gray: #3d4857cc;
     --color-gray-overlay: rgba(69, 80, 94, 0.4);
@@ -56,19 +57,26 @@
     --report-pdf-thumbnail-hover-border: #20d6d6;
     --report-pdf-thumbnail-active-border: #20d6d6;
 }
+
 /* #endregion =========== */
 /* #region =========== Typography — Text Colors =========== */
 :root {
-    --color-text-heading: var(--color-white); /* H1 — hero title, commandbar brand, large displays */
-    --color-text-dim: var(--color-gray-glow); /* Muted / secondary text, meta info, timestamps */
+    --color-text-heading: var(--color-white);
+    /* H1 — hero title, commandbar brand, large displays */
+    --color-text-dim: var(--color-gray-glow);
+    /* Muted / secondary text, meta info, timestamps */
     --color-text: var(--color-white-slate);
 }
+
 /* #endregion =========== */
 /* #region =========== Typography — Fonts =========== */
 :root {
-    --heading-font: "Chakra Petch", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
-    --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
-    --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
+    --heading-font: "Chakra Petch", system-ui, Arial, sans-serif;
+    /* Hero titles, commandbar, big numbers */
+    --text-font: "Oxanium", "Rajdhani", sans-serif;
+    /* UI labels, buttons, badges, panels */
+    --font-mono: "JetBrains Mono", "Share Tech Mono", monospace;
+    /* Coordinates, raw data, code */
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
     --text-xs: 1rem;
     --text-sm: 1.2rem;
@@ -81,13 +89,17 @@
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
 }
+
 /* #endregion =========== */
 /* #region =========== Typography — Fonts =========== */
 :root {
     --heading-font: "Chakra Petch", system-ui, Arial, sans-serif;
-    --heading-font1: "BX-H", system-ui, Arial, sans-serif; /* Hero titles, commandbar, big numbers */
-    --text-font: "Oxanium", "Rajdhani", sans-serif; /* UI labels, buttons, badges, panels */
-    --font-mono: "JetBrains Mono", "Share Tech Mono", monospace; /* Coordinates, raw data, code */
+    --heading-font1: "BX-H", system-ui, Arial, sans-serif;
+    /* Hero titles, commandbar, big numbers */
+    --text-font: "Oxanium", "Rajdhani", sans-serif;
+    /* UI labels, buttons, badges, panels */
+    --font-mono: "JetBrains Mono", "Share Tech Mono", monospace;
+    /* Coordinates, raw data, code */
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
     --text-xs: 1rem;
     --text-sm: 1.2rem;
@@ -100,6 +112,7 @@
     --text-base-weight: 500;
     --item-spacing: 0.5rem;
 }
+
 /* #endregion =========== */
 /* #region =========== Icon Sizes =========== */
 :root {
@@ -109,6 +122,7 @@
     --icon-md: 1.8rem;
     --icon-sm: 1rem;
 }
+
 /* #endregion =========== */
 /* #region =========== Spacing & Layout =========== */
 :root {
@@ -116,12 +130,14 @@
     --min-width: calc(100% - 4rem);
     --max-width: 100%;
 }
+
 /* #endregion =========== */
 /* #region =========== Motion =========== */
 :root {
     --transition-fast: 160ms ease;
     --transition-med: 300ms ease;
 }
+
 /* #endregion =========== */
 /* #region =========== Shadows =========== */
 :root {
@@ -129,6 +145,7 @@
     --footer-shadow: drop-shadow(0 0rem 5rem #0f1014e3);
     --widget-shadow: drop-shadow(0 0.5rem 1rem #0f1014e3);
 }
+
 /* #endregion =========== */
 /* #region =========== Clip Paths =========== */
 :root {
@@ -140,6 +157,7 @@
     --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
 }
+
 /* #endregion =========== */
 /* #region =========== Event Type Colors =========== */
 :root {
@@ -158,6 +176,7 @@
     --warzone-thermal-color: var(--color-yellow);
     --warzone-signal-color: var(--color-yellow-glow);
 }
+
 /* #endregion =========== */
 /* #region =========== Hotspot Outline =========== */
 :root {
@@ -180,6 +199,7 @@
     --wzhs-radius-zoom-scale-street: 1.55;
     --wzhs-cards-enabled: 0;
 }
+
 /* #endregion =========== */
 /* #region =========== GNSS Interference =========== */
 :root {
@@ -202,10 +222,11 @@
     --gnss-marker-scale-far-distance-m: 8000000;
     --gnss-marker-scale-far-value: 1.42;
 }
+
 /* #endregion =========== */
 /* #region =========== Military Base Type Colors =========== */
 :root {
-    --warzone-base-airbase-color:var(--color-blue-slate);
+    --warzone-base-airbase-color: var(--color-blue-slate);
     --warzone-base-naval-color: var(--color-magenta-glow);
     --warzone-base-army-color: var(--color-orange-glow);
     --warzone-base-missile-color: var(--color-white);
@@ -227,10 +248,41 @@
     --warzone-base-flyto-height: 9000;
     --warzone-base-flyto-duration: 2;
 }
+
 /* #endregion =========== */
+
+/* #region =========== Satellite Observation Icon =========== */
+:root {
+    --warzone-satellite-imagery-icon-url: url("/assets/images/icons/satellite-observation.png");
+
+    --warzone-satellite-imagery-icon-color: var(--color-teal-glow);
+    --warzone-satellite-imagery-icon-alpha: 1;
+
+    --warzone-satellite-imagery-marker-size-px: 64;
+
+    /* Position relative to event marker */
+    --warzone-satellite-imagery-offset-x-px: 28;
+    --warzone-satellite-imagery-offset-y-px: -28;
+
+    /* More negative = brought farther forward / above event UI */
+    --warzone-satellite-imagery-eye-offset-z: -12000;
+
+
+    /* OPTIONAL RING */
+    --warzone-satellite-imagery-ring-enabled: 0;
+
+    --warzone-satellite-imagery-ring-color: var(--color-teal-glow);
+    --warzone-satellite-imagery-ring-alpha: .75;
+    --warzone-satellite-imagery-ring-size-px: 62;
+    --warzone-satellite-imagery-ring-width-px: 2;
+
+}
+
+/* #endregion =========== */
+
 /* #region =========== Global Satellite Imagery =========== */
 :root {
- --warzone-map-saturation: 0.24;
+    --warzone-map-saturation: 0.24;
     --warzone-map-brightness: 0.44;
     --warzone-map-contrast: 1.02;
     --warzone-map-gamma: 0.68;
@@ -247,12 +299,12 @@
     --warzone-satellite-imagery-marker-color: var(--color-teal-glow);
     --warzone-satellite-imagery-marker-fill-alpha: 0.88;
     --warzone-satellite-imagery-marker-ring-alpha: 0.36;
-    --warzone-satellite-imagery-marker-size-px: 42;
+    --warzone-satellite-imagery-marker-size-px: 58;
     --warzone-dev-satellite-trigger-highlight-color: var(--color-yellow-glow);
     --warzone-dev-satellite-trigger-highlight-size-px: 64;
     --warzone-dev-satellite-trigger-highlight-ms: 4200;
-    --warzone-satellite-imagery-viewer-width: 82rem;
-    --warzone-satellite-imagery-viewer-max-height: 82vh;
+    --warzone-satellite-imagery-viewer-width: 86rem;
+    --warzone-satellite-imagery-viewer-max-height: 75vh;
     --warzone-orbital-symbol-size: 6;
     --warzone-orbital-symbol-hover-size: 9;
     --warzone-orbital-symbol-color: #9fd7ff;
@@ -291,6 +343,7 @@
     --warzone-orbital-unfocus-camera-height: 3200000;
     --warzone-orbital-unfocus-camera-duration: 1.15;
 }
+
 /* #endregion =========== */
 /* #region =========== Globe Render Quality =========== */
 :root {
@@ -369,6 +422,7 @@
     --warzone-raised-region-outline-alpha: 0.78;
     --warzone-raised-region-outline-width: 2.4;
 }
+
 /* #endregion =========== */
 /* #region =========== Labels Layer =========== */
 :root {
@@ -384,7 +438,7 @@
     --warzone-labels-max-height: 9000000;
 
     /* Country labels — consistent screen size */
---warzone-country-label-scale: 0.9;
+    --warzone-country-label-scale: 0.9;
     --warzone-country-label-near-distance: 300000;
     --warzone-country-label-far-distance: 18000000;
     --warzone-country-label-near-multiplier: 1;
@@ -399,9 +453,9 @@
     --warzone-province-label-font: 700 14px Oxanium, sans-serif;
     --warzone-sea-label-font: 700 14px Oxanium, sans-serif;
 
---warzone-place-label-scale: 0.95;
---warzone-province-label-scale: 0.9;
---warzone-sea-label-scale: 0.9;
+    --warzone-place-label-scale: 0.95;
+    --warzone-province-label-scale: 0.9;
+    --warzone-sea-label-scale: 0.9;
 
     --warzone-place-label-color: rgba(238, 240, 245, 0.9);
     --warzone-province-label-color: rgba(159, 215, 255, 0.78);
@@ -413,6 +467,7 @@
     --warzone-place-label-near-distance: 300000;
     --warzone-place-label-far-distance: 18000000;
 }
+
 /* #endregion =========== */
 /* #endregion =========== */
 /* #region =========== Country / Province Borders =========== */
@@ -428,6 +483,7 @@
     --warzone-city-border-width: 0.8;
     --warzone-border-fade-duration: 620;
 }
+
 /* #endregion =========== */
 /* #region =========== Camera Defaults =========== */
 :root {
@@ -441,6 +497,7 @@
     --warzone-startup-rotation-speed: 0.45;
     --warzone-startup-sat-update-ms: 260;
 }
+
 /* #endregion =========== */
 /* #region =========== Event Markers =========== */
 :root {
@@ -606,7 +663,7 @@
     --warzone-event-hotspot-color-thermal: var(--warzone-event-hotspot-line-color);
     --warzone-event-hotspot-color-signal: var(--warzone-event-hotspot-line-color);
     --warzone-event-hotspot-color-default: var(--warzone-event-hotspot-line-color);
-    --warzone-event-marker-perspective-squash: 0;
+    --warzone-event-marker-perspective-squash: 0.72;
     --warzone-event-pulse-radius: 22000;
     --warzone-event-pulse-fill-alpha: 0.6;
     --warzone-event-pulse-outline-alpha: 0;
@@ -639,22 +696,29 @@
     --wzhs-perspective-max-tilt: 46;
     --wzhs-perspective-tilt: 0deg;
 }
+
 /* #endregion =========== */
 /* #region =========== Country Pulse Highlight =========== */
 :root {
-    --warzone-highlight-border-color: var(--color-red-glow); /* Border color */
-    --warzone-highlight-fill-color: var(--color-red); /* Fill color */
-    --warzone-highlight-border-width: 2; /* Border thickness in px — keep low for clean look */
-    --warzone-highlight-pulse-speed: 700; /* Pulse speed in ms — lower = faster */
+    --warzone-highlight-border-color: var(--color-red-glow);
+    /* Border color */
+    --warzone-highlight-fill-color: var(--color-red);
+    /* Fill color */
+    --warzone-highlight-border-width: 2;
+    /* Border thickness in px — keep low for clean look */
+    --warzone-highlight-pulse-speed: 700;
+    /* Pulse speed in ms — lower = faster */
     --warzone-highlight-duration: 14000;
 }
+
 /* #endregion =========== */
 /* #region =========== Missile Colors =========== */
 :root {
-    --warzone-missile-launch-color:  var(--color-magenta-glow);
-    --warzone-missile-impact-color:  var(--color-magenta-glow);
-    --warzone-missile-line-color:  var(--color-magenta);
+    --warzone-missile-launch-color: var(--color-magenta-glow);
+    --warzone-missile-impact-color: var(--color-magenta-glow);
+    --warzone-missile-line-color: var(--color-magenta);
 }
+
 /* #endregion =========== */
 /* #region =========== Missile Peak Heights (meters) =========== */
 :root {
@@ -666,6 +730,7 @@
     --warzone-missile-launch-flash-duration: 900;
     --warzone-missile-launch-ring-size: 65000;
 }
+
 /* #endregion =========== */
 /* #region =========== Incoming Highlight =========== */
 :root {
@@ -675,6 +740,7 @@
     --warzone-incoming-highlight-radius-country: 260000;
     --warzone-incoming-highlight-outline-width: 5;
 }
+
 /* #endregion =========== */
 /* #region =========== Warning / Impact Heights (meters) =========== */
 :root {
@@ -682,6 +748,7 @@
     --warzone-impact-marker-height: 4000;
     --warzone-missile-impact-height: 5000;
 }
+
 /* #endregion =========== */
 /* #region =========== Impact Ring Animation =========== */
 :root {
@@ -695,6 +762,7 @@
     --warzone-missile-impact-ring-alpha-max: 0.40;
     --warzone-missile-impact-ring-stagger-ms: 620;
 }
+
 /* #endregion =========== */
 /* #region =========== Missile Track =========== */
 :root {
@@ -703,6 +771,7 @@
     --warzone-missile-auto-focus: 1;
     --warzone-missile-focus-duration: 0.95;
 }
+
 /* #endregion =========== */
 /* #region =========== Missile Durations (ms) =========== */
 :root {
@@ -714,6 +783,7 @@
     --warzone-missile-persist-high: 20000;
     --warzone-missile-persist-medium: 16000;
 }
+
 /* #endregion =========== */
 /* #region =========== Missile Line Style =========== */
 :root {
@@ -726,6 +796,7 @@
     --warzone-missile-origin-alpha-min: 0.2;
     --warzone-missile-origin-alpha-max: 1;
 }
+
 /* #endregion =========== */
 /* #region =========== Cluster Appearance =========== */
 :root {
@@ -745,6 +816,7 @@
     --warzone-cluster-expanded-width: 19rem;
     --warzone-cluster-expanded-min-height: 10rem;
 }
+
 /* #endregion =========== */
 /* #region =========== Cluster Interactions =========== */
 :root {
@@ -752,6 +824,7 @@
     --warzone-cluster-active-scale: 1.05;
     --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
 }
+
 /* #endregion =========== */
 /* #region =========== Cluster Stack Offsets =========== */
 :root {
@@ -760,6 +833,7 @@
     --warzone-cluster-stack-x-3: 16px;
     --warzone-cluster-stack-y-3: 14px;
 }
+
 /* #endregion =========== */
 /* #region =========== Cluster Event Colors =========== */
 :root {
@@ -769,14 +843,15 @@
     --warzone-cluster-alert: var(--color-red-glow);
     --warzone-cluster-airspace: var(--color-green-slate);
     --warzone-cluster-cyber: var(--color-purple-glow);
-    --warzone-cluster-thermal:var(--color-yellow);
+    --warzone-cluster-thermal: var(--color-yellow);
     --warzone-cluster-signal: var(--color-yellow-slate);
     --warzone-cluster-default: var(--color-orange-slate);
 }
+
 /* #endregion =========== */
 /* #region =========== Hotspot =========== */
 :root {
-    --criticality-level-exx-bg:var(--color-red-overlay);
+    --criticality-level-exx-bg: var(--color-red-overlay);
     --criticality-level-exx-cl: var(--color-red-glow);
     --criticality-level-ex-bg: var(--color-magenta-overlay);
     --criticality-level-ex-cl: var(--color-magenta-glow);
@@ -789,8 +864,9 @@
     --criticality-level-de-bg: var(--color-gray-overlay);
     --criticality-level-de-cl: var(--color-gray-glow);
 
-    
+
 }
+
 /* #endregion =========== */
 /* #region =========== Military Track Controls =========== */
 :root {
@@ -832,6 +908,7 @@
     --warzone-military-heading-offset-submarine: 0;
     --warzone-military-heading-offset-drone: 0;
 }
+
 /* #endregion =========== */
 /* #region =========== Audio =========== */
 :root {
@@ -842,6 +919,7 @@
     --warzone-sound-alert-volume: 0.65;
     --warzone-sound-impact-volume: 0;
 }
+
 /* #endregion =========== */
 /* #region =========== Operational Range Tokens =========== */
 :root {
@@ -868,12 +946,13 @@
     /* shared ring style */
     --range-outline-width: 1.4;
 }
+
 /* #endregion */
 /* #region =========== Radar Sweeper =========== */
 :root {
     --radar-color: var(--color-teal-glow);
     --radar-ring-color: var(--color-teal-glow);
-    --radar-fill-color: var(--color-teal); 
+    --radar-fill-color: var(--color-teal);
     --radar-fill-opacity: 0;
     --radar-inner-ring-opacity: 0;
     --radar-ring-opacity: 0.7;
@@ -888,6 +967,7 @@
     --radar-center-size: 4;
     --radar-center-glow: 2;
 }
+
 /* #endregion =========== */
 /* #region =========== LIVE FIGHTER =========== */
 :root {
@@ -925,8 +1005,8 @@
     --warzone-live-aircraft-model-calibration-enabled: 0;
     --warzone-live-aircraft-model-primary-enabled: 1;
     --warzone-live-aircraft-model-auto-enabled: 0;
-    
-        /* Aircraft: icon glyph fallback */
+
+    /* Aircraft: icon glyph fallback */
     --warzone-live-aircraft-icon-char: "Δ";
     --warzone-live-aircraft-icon-color: var(--color-white);
     --warzone-live-aircraft-icon-glow-color: var(--color-white-glow);
@@ -1054,9 +1134,9 @@
     --warzone-contour-imagery-gamma: 1.23;
 
 
-    
+
     /* Live focus contour shared line style */
-  --warzone-live-contour-color: var(--color-teal-glow);
+    --warzone-live-contour-color: var(--color-teal-glow);
     --warzone-live-contour-alpha: 0.88;
     --warzone-live-contour-spacing: 12;
     --warzone-live-contour-width: 1.8;
@@ -1140,57 +1220,71 @@
 
 
     /* Focused Asset Config */
---warzone-contour-line-width: 1.8;
---warzone-contour-elevation-width-scale: 0.10;
---warzone-contour-halo-width: 4.6;
---warzone-contour-halo-alpha: 0.18;
+    --warzone-contour-line-width: 1.8;
+    --warzone-contour-elevation-width-scale: 0.10;
+    --warzone-contour-halo-width: 4.6;
+    --warzone-contour-halo-alpha: 0.18;
 
---warzone-contour-grid-enabled: 1;
---warzone-contour-grid-color: var(--color-magenta-glow);
---warzone-contour-grid-alpha: 0.20;
---warzone-contour-grid-major-alpha: 0.34;
---warzone-contour-grid-width: 1.0;
+    --warzone-contour-grid-enabled: 1;
+    --warzone-contour-grid-color: var(--color-magenta-glow);
+    --warzone-contour-grid-alpha: 0.20;
+    --warzone-contour-grid-major-alpha: 0.34;
+    --warzone-contour-grid-width: 1.0;
 
---warzone-contour-grid-ring-enabled: 1;
---warzone-contour-grid-ring-color: var(--color-magenta-glow);
---warzone-contour-grid-ring-alpha: 0.48;
---warzone-contour-grid-ring-inner-alpha: 0.28;
---warzone-contour-grid-ring-width: 1.5;
---warzone-contour-grid-ring-inner-scale: 0.58;
+    --warzone-contour-grid-ring-enabled: 1;
+    --warzone-contour-grid-ring-color: var(--color-magenta-glow);
+    --warzone-contour-grid-ring-alpha: 0.48;
+    --warzone-contour-grid-ring-inner-alpha: 0.28;
+    --warzone-contour-grid-ring-width: 1.5;
+    --warzone-contour-grid-ring-inner-scale: 0.58;
 
---warzone-contour-grid-rows: 10;
---warzone-contour-grid-cols: 10;
---warzone-contour-grid-radius: 18000;
---warzone-contour-grid-fade-start: 14500;
---warzone-contour-grid-fade-segments: 10;
---warzone-contour-grid-height-offset: 220;
---warzone-contour-grid-major-every: 4;
---warzone-contour-grid-size: 78;
+    --warzone-contour-grid-rows: 10;
+    --warzone-contour-grid-cols: 10;
+    --warzone-contour-grid-radius: 18000;
+    --warzone-contour-grid-fade-start: 14500;
+    --warzone-contour-grid-fade-segments: 10;
+    --warzone-contour-grid-height-offset: 220;
+    --warzone-contour-grid-major-every: 4;
+    --warzone-contour-grid-size: 78;
 
---warzone-contour-target-lines: 30;
---warzone-contour-max-lines: 420;
---warzone-contour-max-samples: 3600;
+    --warzone-contour-target-lines: 30;
+    --warzone-contour-max-lines: 420;
+    --warzone-contour-max-samples: 3600;
 
---warzone-contour-refresh-distance: 150000;
---warzone-contour-max-build-span: 1400000;
---warzone-contour-local-span: 220000;
---warzone-contour-sample-padding: 70000;
+    --warzone-contour-refresh-distance: 150000;
+    --warzone-contour-max-build-span: 1400000;
+    --warzone-contour-local-span: 220000;
+    --warzone-contour-sample-padding: 70000;
 
---warzone-ctr-globe-base-color: var(--color-black);
---warzone-ctr-imagery-max-anisotropy: 1;
+    --warzone-ctr-globe-base-color: var(--color-black);
+    --warzone-ctr-imagery-max-anisotropy: 1;
 
---warzone-contour-height-offset: 140;
---warzone-contour-smoothing-passes: 4;
---warzone-contour-height-smoothing-passes: 3;
---warzone-contour-sample-level: 8;
+    --warzone-contour-height-offset: 140;
+    --warzone-contour-smoothing-passes: 4;
+    --warzone-contour-height-smoothing-passes: 3;
+    --warzone-contour-sample-level: 8;
 
---warzone-contour-stylized-relief: 0;
---warzone-contour-dem-enabled: 1;
---warzone-contour-dem-zoom: 9;
---warzone-contour-dem-max-tiles: 24;
---warzone-contour-dem-tile-cache: 72;
---warzone-contour-dem-url: /__warzone/terrain/terrarium/{z}/{x}/{y}.png;
+    --warzone-contour-stylized-relief: 0;
+    --warzone-contour-dem-enabled: 1;
+    --warzone-contour-dem-zoom: 9;
+    --warzone-contour-dem-max-tiles: 24;
+    --warzone-contour-dem-tile-cache: 72;
+
+    --warzone-contour-dem-url: /__warzone/terrain/terrarium/ {
+        z
+    }
+
+    / {
+        x
+    }
+
+    / {
+        y
+    }
+
+    .png;
 }
+
 /* #endregion =========== */
 /* #region =========== LIVE LABELS =========== */
 :root {
@@ -1216,6 +1310,7 @@
     --warzone-live-track-anim-height-max: 1600000;
     --warzone-live-naval-anim-height-max: 2200000;
 }
+
 /* #endregion =========== */
 /* #region =========== LIVE AIRCRAFT SUBTYPE TRAILS =========== */
 :root {
@@ -1244,6 +1339,7 @@
     --warzone-live-track-trail-width-uav: 2.66;
     --warzone-live-track-trail-width-helicopter: 2.85;
 }
+
 /* #endregion =========== */
 /* #region =========== SATELLITE SCALING =========== */
 :root {
@@ -1261,6 +1357,7 @@
     --warzone-mil-sat-far-scale-multiplier: 1;
     --warzone-mil-sat-min-px-near: 6;
 }
+
 /* #endregion =========== */
 
 :root {

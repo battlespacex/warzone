@@ -108,21 +108,85 @@ function getReportsPublicBase(req) {
 function getPublicReportAssetUrl(req, report = {}) {
     const storageKey = String(report.pdf_storage_key || "").trim();
     const publicBase = getReportsPublicBase(req);
+
     if (storageKey && publicBase) {
-        return buildS3PublicUrl({ aws: { cloudFrontUrl: publicBase } }, storageKey);
+        return buildS3PublicUrl(
+            { aws: { cloudFrontUrl: publicBase } },
+            storageKey
+        );
     }
 
     const pdfUrl = String(report.pdf_url || "").trim();
+
     if (!/^https?:\/\//i.test(pdfUrl)) return "";
+
     try {
         const url = new URL(pdfUrl);
-        if (url.hostname.toLowerCase() === "api.battlespacex.com" && url.pathname.startsWith("/reports/")) {
+
+        if (
+            url.hostname.toLowerCase() === "api.battlespacex.com" &&
+            url.pathname.startsWith("/reports/")
+        ) {
             return `${publicBase}${url.pathname}${url.search}`;
         }
     } catch {
         return "";
     }
+
     return isBadPublicReportUrl(pdfUrl) ? "" : pdfUrl;
+}
+
+
+async function reportUrlExists(url = "") {
+    if (!/^https?:\/\//i.test(String(url || ""))) return false;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+
+    try {
+        const response = await fetch(url, {
+            method: "HEAD",
+            redirect: "follow",
+            signal: controller.signal,
+        });
+
+        return response.ok;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+
+async function hasPublishedReportFiles(req, report = {}) {
+    const storageKey = String(report.pdf_storage_key || "")
+        .trim()
+        .replace(/^\/+/, "");
+
+    const isCanonical =
+        /^reports\/daily\/(?:global|(?:region|country|aoi)\/[a-z0-9][a-z0-9-]*)\/\d{4}-\d{2}-\d{2}\/report\.pdf$/i
+            .test(storageKey);
+
+    if (!isCanonical) return false;
+
+    const pdfUrl = getPublicReportAssetUrl(req, report);
+
+    if (!pdfUrl) return false;
+
+    const htmlUrl = pdfUrl.replace(
+        /\/report\.pdf(?:\?.*)?$/i,
+        "/report.html"
+    );
+
+    if (!htmlUrl || htmlUrl === pdfUrl) return false;
+
+    const [pdfExists, htmlExists] = await Promise.all([
+        reportUrlExists(pdfUrl),
+        reportUrlExists(htmlUrl),
+    ]);
+
+    return pdfExists && htmlExists;
 }
 
 function buildReportArtifactStorageKey(report = {}, filename = "") {
@@ -521,9 +585,23 @@ export function stratopsRouter() {
                 .order("period_start", { ascending: false })
                 .limit(Math.min(50, limit * 3));
             if (error) return res.status(500).json({ error: "Failed" });
-            const reports = selectRecentPublishedReports(req, data || [], limit);
-            res.set("Cache-Control", "private, no-store, max-age=0");
-            res.json({ reports, history_limit: config.publicHistoryDays });
+const checkedReports = await Promise.all(
+    (data || []).map(async (report) => {
+        const exists = await hasPublishedReportFiles(req, report);
+        return exists ? report : null;
+    })
+);
+
+const validReports = checkedReports.filter(Boolean);
+
+const reports = selectRecentPublishedReports(
+    req,
+    validReports,
+    limit
+);
+
+res.set("Cache-Control", "private, no-store, max-age=0");
+res.json({ reports, history_limit: config.publicHistoryDays });
         } catch (error) {
             console.error("[stratops] report list failed:", error);
             res.status(500).json({ error: "Failed" });

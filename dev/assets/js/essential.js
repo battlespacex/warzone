@@ -2071,35 +2071,53 @@ function formatSatelliteViewerCoord(lat, lon) {
 function ensureSatelliteImageryViewer() {
     let viewer = document.getElementById("wz-satellite-imagery-viewer");
     if (viewer) return viewer;
+
     viewer = document.createElement("section");
     viewer.id = "wz-satellite-imagery-viewer";
     viewer.className = "wz-satellite-imagery-viewer";
     viewer.hidden = true;
+
     viewer.setAttribute("role", "dialog");
-    viewer.setAttribute("aria-modal", "true");
     viewer.setAttribute("aria-labelledby", "wz-satellite-imagery-title");
+
     viewer.innerHTML = `
-        <div class="wz-modal-inner wz-satellite-imagery-viewer__panel">
-            <header class="panel-head wz-satellite-imagery-viewer__head">
-                    <span class="wz-header-title">
-                        <small>Satellite Observation</small>
-                        <h3 id="wz-satellite-imagery-title">Observation</h3>
-                    </span>
-                    <span class="wz-close-modal">
-                        <button type="button" class="wz-satellite-imagery-viewer__close static-icon stratops-ico-close-1"
-                        data-satellite-imagery-close aria-label="Close satellite observation viewer">
+        <div class="wz-satellite-imagery-viewer__panel">
+            <div class="panel-container">
+
+                <div class="panel-head wz-satellite-imagery-viewer__head">
+                    <h2 id="wz-satellite-imagery-title">
+                        Satellite Observation
+                    </h2>
+
+                    <div class="panel-actions">
+                        <button
+                            type="button"
+                            class="static-icon"
+                            data-satellite-imagery-close
+                            aria-label="Close satellite observation"
+                            title="Close">
+                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
                         </button>
-                    </span>
-                </header>
-            <div class="wz-modal-body wz-satellite-imagery-viewer__body" data-satellite-imagery-body></div>
+                    </div>
+                </div>
+
+                <div
+                    class="panel-content wz-satellite-imagery-viewer__body"
+                    data-satellite-imagery-body>
+                </div>
+
+            </div>
         </div>
     `;
+
     document.body.appendChild(viewer);
+
     viewer.addEventListener("click", (event) => {
-        if (event.target === viewer || event.target?.closest?.("[data-satellite-imagery-close]")) {
+        if (event.target?.closest?.("[data-satellite-imagery-close]")) {
             closeSatelliteImageryViewer();
         }
     });
+
     return viewer;
 }
 function closeSatelliteImageryViewer() {
@@ -2125,17 +2143,19 @@ export function openSatelliteImageryViewer(detail = {}) {
     const relationLabel = formatSatelliteRelation(context.eventTimeRelation);
     const sourceUrl = String(detail.sourceUrl || "").trim();
     const devPreview = detail.devInspectionPreview === true && isDevInspectionEnvironment();
-    const metaRows = [
-        ...(devPreview ? [
-            ["Platform", context.observationType || "DEV Platform"],
-            ["Status", String(detail.status || context.status || "available").toUpperCase()],
-            ["Confidence", Number.isFinite(Number(detail.confidence)) ? `${Math.round(Number(detail.confidence))}%` : ""],
-        ] : []),
+    const primaryMetaRows = [
         ["Provider", context.provider],
         ["Collection", collectionLabel],
-        ["Acquisition", context.acquisitionTime ? formatSatelliteUtcTime(context.acquisitionTime) : ""],
+        ["Acquisition", context.acquisitionTime
+            ? formatSatelliteUtcTime(context.acquisitionTime)
+            : ""],
+    ].filter((row) => row[1]);
+
+    const bottomMetaRows = [
         ["Relation", relationLabel],
-        ["Cloud Cover", context.cloudCover != null ? `${context.cloudCover.toFixed(0)}%` : ""],
+        ["Cloud Cover", context.cloudCover != null
+            ? `${context.cloudCover.toFixed(0)}%`
+            : ""],
         ["Imagery Type", context.imageryType],
         ["Resolution", context.approximateResolution],
         ["Location", location],
@@ -2144,8 +2164,15 @@ export function openSatelliteImageryViewer(detail = {}) {
     if (titleEl) titleEl.textContent = title;
     if (body) {
         body.innerHTML = `
+            <!-- TOP LEFT: SATELLITE IMAGE -->
             <div class="wz-satellite-imagery-viewer__image-wrap">
-                <div class="wz-satellite-imagery-viewer__status" data-satellite-imagery-status>Loading observation image...</div>
+
+                <div
+                    class="wz-satellite-imagery-viewer__status"
+                    data-satellite-imagery-status>
+                    Loading satellite observation...
+                </div>
+
                 <img
                     class="wz-satellite-imagery-viewer__image"
                     src="${escapeHtml(context.imageUrl)}"
@@ -2153,25 +2180,106 @@ export function openSatelliteImageryViewer(detail = {}) {
                     loading="eager"
                     decoding="async"
                     data-satellite-imagery-image>
+
+                <div class="wz-satellite-imagery-viewer__image-footer">
+                    <span>${escapeHtml(context.provider || "Copernicus")}</span>
+                    <span>${escapeHtml(collectionLabel)}</span>
+                </div>
             </div>
+
+
+            <!-- TOP RIGHT: ONLY THIS AREA SCROLLS -->
             <div class="wz-satellite-imagery-viewer__content">
-                ${summary ? `<p class="wz-satellite-imagery-viewer__summary">${escapeHtml(summary)}</p>` : ""}
-                <dl class="wz-satellite-imagery-viewer__meta">
-                    ${metaRows.map(([label, value]) => `
+
+                <div class="wz-satellite-imagery-viewer__event">
+
+                    <span class="wz-satellite-imagery-viewer__eyebrow">
+                        SATELLITE OBSERVATION
+                    </span>
+
+                    <h3>${escapeHtml(title)}</h3>
+
+                    ${summary ? `
+                        <p class="wz-satellite-imagery-viewer__summary">
+                            ${escapeHtml(summary)}
+                        </p>
+                    ` : ""}
+
+                </div>
+
+
+                <dl class="
+                    wz-satellite-imagery-viewer__meta
+                    wz-satellite-imagery-viewer__meta--primary
+                ">
+                    ${primaryMetaRows.map(([label, value]) => `
                         <div>
                             <dt>${escapeHtml(label)}</dt>
                             <dd>${escapeHtml(value)}</dd>
                         </div>
                     `).join("")}
                 </dl>
-                <p class="wz-satellite-imagery-viewer__note">${escapeHtml(context.disclaimer)}</p>
-                ${context.radarDisclaimer ? `<p class="wz-satellite-imagery-viewer__note">${escapeHtml(context.radarDisclaimer)}</p>` : ""}
-                <div class="wz-satellite-imagery-viewer__actions">
-                    <a href="${escapeHtml(context.imageUrl)}" download class="wz-satellite-imagery-viewer__action">Download Image</a>
-                    <a href="${escapeHtml(context.imageUrl)}" target="_blank" rel="noopener noreferrer" class="wz-satellite-imagery-viewer__action">Open Full Image</a>
-                    ${/^https?:\/\//i.test(sourceUrl) ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="wz-satellite-imagery-viewer__action">Event Source</a>` : ""}
+
+
+                <div class="wz-satellite-imagery-viewer__disclaimer">
+
+                    <span>OBSERVATION NOTICE</span>
+
+                    <p>${escapeHtml(context.disclaimer)}</p>
+
+                    ${context.radarDisclaimer
+                        ? `<p>${escapeHtml(context.radarDisclaimer)}</p>`
+                        : ""}
+
                 </div>
+
+
+                <div class="wz-satellite-imagery-viewer__actions">
+
+                    <a
+                        href="${escapeHtml(context.imageUrl)}"
+                        download
+                        class="wz-satellite-imagery-viewer__action">
+                        Download Image
+                    </a>
+
+                    <a
+                        href="${escapeHtml(context.imageUrl)}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="wz-satellite-imagery-viewer__action">
+                        Open Full Image
+                    </a>
+
+                    ${/^https?:\/\//i.test(sourceUrl)
+                        ? `
+                            <a
+                                href="${escapeHtml(sourceUrl)}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="wz-satellite-imagery-viewer__action">
+                                Event Source
+                            </a>
+                        `
+                        : ""}
+
+                </div>
+
             </div>
+
+
+            <!-- BOTTOM: 6 BOXES / 3 + 3 -->
+            <dl class="
+                wz-satellite-imagery-viewer__meta
+                wz-satellite-imagery-viewer__meta--bottom
+            ">
+                ${bottomMetaRows.map(([label, value]) => `
+                    <div>
+                        <dt>${escapeHtml(label)}</dt>
+                        <dd>${escapeHtml(value)}</dd>
+                    </div>
+                `).join("")}
+            </dl>
         `;
         const image = body.querySelector("[data-satellite-imagery-image]");
         image?.addEventListener("load", () => {

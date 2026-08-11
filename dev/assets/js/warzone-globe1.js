@@ -584,6 +584,20 @@ function mergeEventMarkerGroup(group, index = 0) {
     const critical = allItems.some((event) => String(event?.severity || "").toLowerCase() === "critical");
     const high = allItems.some((event) => String(event?.severity || "").toLowerCase() === "high");
     const categoryKey = String(latest?.category || "default").trim() || "default";
+    const getSatelliteContext = (item) => {
+        const context = item?.satellite_context || item?.satelliteContext || null;
+        const imageUrl = String(context?.imageUrl || context?.image_url || "").trim();
+
+        if (String(context?.status || "").toLowerCase() !== "available") return null;
+        if (!/^https?:\/\//i.test(imageUrl)) return null;
+
+        return context;
+    };
+
+    const satelliteSource =
+        allItems.find((item) => getSatelliteContext(item)) || null;
+
+    const satelliteContext = getSatelliteContext(satelliteSource);
     if (entries.length === 1 && clusterCount <= 1) {
         return {
             ...entries[0].event,
@@ -602,6 +616,8 @@ function mergeEventMarkerGroup(group, index = 0) {
         cluster_count: clusterCount,
         _clusterCount: clusterCount,
         _clusterEvents: allItems,
+        satellite_context: satelliteContext,
+        satellite_available: !!satelliteContext,
     };
 }
 function mergeOverlappingEventMarkers(viewer, events = [], maxItems = 520) {
@@ -893,11 +909,15 @@ function applyEventLod(viewer) {
         const clusterCount = Number(entity.properties?.cluster_count?.getValue?.() ?? 1);
         const isCluster = clusterCount > 1;
         if (isSatelliteImageryMarker) {
+            const satelliteVisible =
+                viewer.__warzoneSatelliteImageryLayerVisible !== false;
+
+            entity.show = satelliteVisible;
+
             if (entity.billboard) {
-                entity.billboard.show = showIndividualEvents
-                    && clusterCount === 1
-                    && viewer.__warzoneSatelliteImageryLayerVisible !== false;
+                entity.billboard.show = satelliteVisible;
             }
+
             continue;
         }
         const colorCss = getEventMarkerColorCss({ category, dominant_domain: dominantDomain });
@@ -907,10 +927,10 @@ function applyEventLod(viewer) {
             const markerLabel = String(entity.properties?.event_marker_label?.getValue?.() ?? "Event");
             const showCountLabel = (isReportClusterSummary && entity.properties?.report_label_visible?.getValue?.() === true)
                 || (mode !== "heatmap"
-                && !suppressMarkers
-                && showIndividualEvents
-                && clusterCount === 1
-                && visibleEventLabelIds.has(String(entity.id)));
+                    && !suppressMarkers
+                    && showIndividualEvents
+                    && clusterCount === 1
+                    && visibleEventLabelIds.has(String(entity.id)));
             if (entity.billboard) {
                 const billboardConfig = createEventMarkerTextLabel(markerLabel);
                 entity.billboard.show = showCountLabel;
@@ -930,8 +950,8 @@ function applyEventLod(viewer) {
                         report_label: entity.properties?.report_label?.getValue?.() || null,
                     })
                     : clusterCount === 1
-                    ? createEventMarkerTextLabel(markerLabel)
-                    : createClusterCountLabel(clusterCount);
+                        ? createEventMarkerTextLabel(markerLabel)
+                        : createClusterCountLabel(clusterCount);
                 entity.label.show = showCountLabel && !!labelConfig;
                 if (labelConfig) {
                     entity.label.text = labelConfig.text;
@@ -1128,15 +1148,28 @@ function unregisterEventPulseEntity(entity) {
 }
 function removeExistingEventEntity(viewer, entityId) {
     if (!viewer || !entityId) return;
-    const ids = [String(entityId), `${String(entityId)}-pulse`, `${String(entityId)}-fill`, `${String(entityId)}-count`, `${String(entityId)}-outline`, `${String(entityId)}-satellite`, `${String(entityId)}-satellite-imagery`];
+
+    const ids = [
+        String(entityId),
+        `${String(entityId)}-pulse`,
+        `${String(entityId)}-fill`,
+        `${String(entityId)}-count`,
+        `${String(entityId)}-outline`,
+        `${String(entityId)}-satellite`,
+        `${String(entityId)}-satellite-imagery`,
+        `${String(entityId)}-satellite-imagery-ring`,
+    ];
+
     for (const id of ids) {
         try {
             const existing = viewer.entities.getById(id);
+
             if (existing) {
                 unregisterEventPulseEntity(existing);
                 viewer.entities.remove(existing);
             }
         } catch { }
+
         forgetEventEntity(id);
     }
 }
@@ -1996,54 +2029,66 @@ function createSatelliteBadgeCanvas() {
     setLimitedCache(markerCache, SATELLITE_BADGE_CACHE_KEY, dataUrl, MARKER_CACHE_MAX_ITEMS);
     return dataUrl;
 }
-function createSatelliteImageryMarkerCanvas() {
-    if (markerCache.has(SATELLITE_IMAGERY_MARKER_CACHE_KEY)) return markerCache.get(SATELLITE_IMAGERY_MARKER_CACHE_KEY);
+function createSatelliteImageryRingCanvas() {
+    const ringColor = cssVar(
+        "--warzone-satellite-imagery-ring-color",
+        "#18e2db"
+    );
+
+    const ringAlpha = clamp01(
+        numberVar("--warzone-satellite-imagery-ring-alpha", 0.75)
+    );
+
+    const ringSizePx = Math.max(
+        8,
+        numberVar("--warzone-satellite-imagery-ring-size-px", 62)
+    );
+
+    const ringWidthPx = Math.max(
+        1,
+        numberVar("--warzone-satellite-imagery-ring-width-px", 2)
+    );
+
+    const cacheKey =
+        `${SATELLITE_IMAGERY_MARKER_CACHE_KEY}:ring:` +
+        `${ringColor}:${ringAlpha}:${ringSizePx}:${ringWidthPx}`;
+
+    if (markerCache.has(cacheKey)) {
+        return markerCache.get(cacheKey);
+    }
+
     const size = 256;
-    const cx = size / 2;
-    const cy = size / 2;
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
+
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, size, size);
-    const markerColor = cssVar("--warzone-satellite-imagery-marker-color", "#18e2db");
-    const markerFill = colorCssWithAlpha(markerColor, numberVar("--warzone-satellite-imagery-marker-fill-alpha", 0.88));
-    ctx.shadowColor = colorCssWithAlpha(markerColor, 0.52);
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = "rgba(5, 12, 18, 0.88)";
+
+    const scaledWidth = ringWidthPx * (size / ringSizePx);
+
+    ctx.strokeStyle = colorCssWithAlpha(ringColor, ringAlpha);
+    ctx.lineWidth = scaledWidth;
+
     ctx.beginPath();
-    ctx.arc(cx, cy, 88, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = markerFill;
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    ctx.moveTo(70, 74);
-    ctx.lineTo(184, 74);
-    ctx.lineTo(184, 152);
-    ctx.lineTo(164, 172);
-    ctx.lineTo(70, 172);
-    ctx.closePath();
+    ctx.arc(
+        size / 2,
+        size / 2,
+        (size / 2) - scaledWidth - 4,
+        0,
+        Math.PI * 2
+    );
     ctx.stroke();
-    ctx.fillStyle = markerFill;
-    ctx.fillRect(94, 98, 36, 28);
-    ctx.fillRect(137, 98, 25, 28);
-    ctx.beginPath();
-    ctx.moveTo(94, 140);
-    ctx.lineTo(125, 117);
-    ctx.lineTo(145, 138);
-    ctx.lineTo(162, 126);
-    ctx.lineTo(162, 152);
-    ctx.lineTo(94, 152);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 108, 0, Math.PI * 2);
-    ctx.strokeStyle = colorCssWithAlpha(markerColor, numberVar("--warzone-satellite-imagery-marker-ring-alpha", 0.36));
-    ctx.lineWidth = 6;
-    ctx.stroke();
+
     const dataUrl = canvas.toDataURL("image/png");
-    setLimitedCache(markerCache, SATELLITE_IMAGERY_MARKER_CACHE_KEY, dataUrl, MARKER_CACHE_MAX_ITEMS);
+
+    setLimitedCache(
+        markerCache,
+        cacheKey,
+        dataUrl,
+        MARKER_CACHE_MAX_ITEMS
+    );
+
     return dataUrl;
 }
 function createClusterCountLabel(count = 1) {
@@ -2201,14 +2246,18 @@ function createEventCountEntity(event) {
     return {
         id: `${event.id}-count`,
         position: createEventPositionProperty(event),
-        ...(label ? { label: {
-            ...label,
-            show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT && count === 1,
-        } } : {}),
-        ...(billboard ? { billboard: {
-            ...billboard,
-            show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT,
-        } } : {}),
+        ...(label ? {
+            label: {
+                ...label,
+                show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT && count === 1,
+            }
+        } : {}),
+        ...(billboard ? {
+            billboard: {
+                ...billboard,
+                show: getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT,
+            }
+        } : {}),
         properties: {
             event_id: event.id,
             isEventCountLabel: true,
@@ -2401,45 +2450,211 @@ function hasAvailableSatellitePreview(event = {}) {
     const imageUrl = String(context?.imageUrl || context?.image_url || "").trim();
     return String(context?.status || "").toLowerCase() === "available" && /^https?:\/\//i.test(imageUrl);
 }
+function buildSatelliteImageryEntityProperties(event, count, extra = {}) {
+    return {
+        event_id: event.id,
+        isSatelliteImageryMarker: true,
+
+        layer_id: event._layerId || event.layer_id || "",
+        cluster_count: count,
+
+        lat: event.lat,
+        lon: event.lon,
+
+        title: event.title,
+        display_title: event.display_title,
+
+        summary: event.summary,
+        display_summary: event.display_summary,
+
+        display_location_label: event.display_location_label,
+        location_label: event.location_label,
+
+        occurred_at: event.occurred_at,
+
+        source_name: event.source_name,
+        display_source_name: event.display_source_name,
+        source_url: resolveGlobeEventSourceUrl(event),
+
+        satellite_context:
+            event.satellite_context ||
+            event.satelliteContext ||
+            null,
+
+        ...extra,
+    };
+}
+
 function createEventSatelliteBadgeEntity(event, options = {}) {
     if (!hasAvailableSatellitePreview(event)) return null;
+
     const count = Number(event?.cluster_count || 1);
-    const markerSizePx = Math.max(28, numberVar("--warzone-satellite-imagery-marker-size-px", 42));
-    const satelliteVisible = options?.satelliteImageryVisible !== false;
-    const showAtCurrentZoom = getEventZoomState(window.__warzoneViewer) === ZOOM_UX_STATES.EVENT && count === 1;
+
+    const markerSizePx = Math.max(
+        16,
+        numberVar("--warzone-satellite-imagery-marker-size-px", 48)
+    );
+
+    const offsetX = numberVar(
+        "--warzone-satellite-imagery-offset-x-px",
+        28
+    );
+
+    const offsetY = numberVar(
+        "--warzone-satellite-imagery-offset-y-px",
+        -28
+    );
+
+    const eyeOffsetZ = numberVar(
+        "--warzone-satellite-imagery-eye-offset-z",
+        -12000
+    );
+
+    const iconUrl = readCssAssetPath(
+        "--warzone-satellite-imagery-icon-url",
+        "/assets/images/icons/satellite-observation.png"
+    );
+
+    const iconAlpha = clamp01(
+        numberVar("--warzone-satellite-imagery-icon-alpha", 1)
+    );
+
+    const iconColor = colorFromCssVar(
+        "--warzone-satellite-imagery-icon-color",
+        "#18e2db",
+        iconAlpha
+    );
+
+    const satelliteVisible =
+        options?.satelliteImageryVisible !== false;
+
     return {
         id: `${event.id}-satellite-imagery`,
+
         position: createEventPositionProperty(event),
+
         billboard: {
-            image: createSatelliteImageryMarkerCanvas(),
+            image: iconUrl,
+
             width: markerSizePx,
             height: markerSizePx,
-            color: Cesium.Color.WHITE,
+
+            color: iconColor,
+
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: satelliteVisible && showAtCurrentZoom,
+
+            pixelOffset: new Cesium.Cartesian2(
+                offsetX,
+                offsetY
+            ),
+
+            eyeOffset: new Cesium.Cartesian3(
+                0,
+                0,
+                eyeOffsetZ
+            ),
+
+            heightReference:
+                Cesium.HeightReference.CLAMP_TO_GROUND,
+
+            disableDepthTestDistance:
+                Number.POSITIVE_INFINITY,
+
+            show: satelliteVisible,
         },
-        properties: {
-            event_id: event.id,
-            isSatelliteImageryMarker: true,
-            layer_id: event._layerId || event.layer_id || "",
-            cluster_count: count,
-            lat: event.lat,
-            lon: event.lon,
-            title: event.title,
-            display_title: event.display_title,
-            summary: event.summary,
-            display_summary: event.display_summary,
-            display_location_label: event.display_location_label,
-            location_label: event.location_label,
-            occurred_at: event.occurred_at,
-            source_name: event.source_name,
-            display_source_name: event.display_source_name,
-            source_url: resolveGlobeEventSourceUrl(event),
-            satellite_context: event.satellite_context || event.satelliteContext || null,
+
+        properties:
+            buildSatelliteImageryEntityProperties(
+                event,
+                count
+            ),
+    };
+}
+
+function createEventSatelliteRingEntity(event, options = {}) {
+    if (!hasAvailableSatellitePreview(event)) return null;
+
+    if (!boolVar(
+        "--warzone-satellite-imagery-ring-enabled",
+        true
+    )) {
+        return null;
+    }
+
+    const count = Number(event?.cluster_count || 1);
+
+    const ringSizePx = Math.max(
+        20,
+        numberVar(
+            "--warzone-satellite-imagery-ring-size-px",
+            62
+        )
+    );
+
+    const offsetX = numberVar(
+        "--warzone-satellite-imagery-offset-x-px",
+        28
+    );
+
+    const offsetY = numberVar(
+        "--warzone-satellite-imagery-offset-y-px",
+        -28
+    );
+
+    const eyeOffsetZ = numberVar(
+        "--warzone-satellite-imagery-eye-offset-z",
+        -12000
+    );
+
+    const satelliteVisible =
+        options?.satelliteImageryVisible !== false;
+
+    return {
+        id: `${event.id}-satellite-imagery-ring`,
+
+        position: createEventPositionProperty(event),
+
+        billboard: {
+            image: createSatelliteImageryRingCanvas(),
+
+            width: ringSizePx,
+            height: ringSizePx,
+
+            color: Cesium.Color.WHITE,
+
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+
+            pixelOffset: new Cesium.Cartesian2(
+                offsetX,
+                offsetY
+            ),
+
+            /* Slightly behind the PNG, but still above normal events */
+            eyeOffset: new Cesium.Cartesian3(
+                0,
+                0,
+                eyeOffsetZ + 200
+            ),
+
+            heightReference:
+                Cesium.HeightReference.CLAMP_TO_GROUND,
+
+            disableDepthTestDistance:
+                Number.POSITIVE_INFINITY,
+
+            show: satelliteVisible,
         },
+
+        properties:
+            buildSatelliteImageryEntityProperties(
+                event,
+                count,
+                {
+                    isSatelliteImageryRing: true,
+                }
+            ),
     };
 }
 function createEventMarkerFillEntity(event, options = {}) {
@@ -2667,11 +2882,35 @@ function addEventEntity(viewer, event, options = {}) {
     const countEntity = countEntityConfig ? viewer.entities.add(countEntityConfig) : null;
     const pulseEntityConfig = createEventMarkerPulseEntity(event, options);
     const pulseEntity = pulseEntityConfig ? viewer.entities.add(pulseEntityConfig) : null;
-    const satelliteBadgeEntityConfig = createEventSatelliteBadgeEntity(event, {
+    const satelliteOptions = {
         ...options,
-        satelliteImageryVisible: viewer.__warzoneSatelliteImageryLayerVisible !== false,
-    });
-    const satelliteBadgeEntity = satelliteBadgeEntityConfig ? viewer.entities.add(satelliteBadgeEntityConfig) : null;
+        satelliteImageryVisible:
+            viewer.__warzoneSatelliteImageryLayerVisible !== false,
+    };
+
+    /* Add ring FIRST */
+    const satelliteRingEntityConfig =
+        createEventSatelliteRingEntity(
+            event,
+            satelliteOptions
+        );
+
+    const satelliteRingEntity =
+        satelliteRingEntityConfig
+            ? viewer.entities.add(satelliteRingEntityConfig)
+            : null;
+
+    /* Add icon AFTER ring so it is visually above it */
+    const satelliteBadgeEntityConfig =
+        createEventSatelliteBadgeEntity(
+            event,
+            satelliteOptions
+        );
+
+    const satelliteBadgeEntity =
+        satelliteBadgeEntityConfig
+            ? viewer.entities.add(satelliteBadgeEntityConfig)
+            : null;
     const count = Number(event?.cluster_count || 1);
     const markerSizePx = getEventMarkerSizePx(count, event.weighted_activity_score || event._activityScore);
     if (fillEntity?.ellipse) fillEntity.ellipse.show = false;
@@ -2699,6 +2938,7 @@ function addEventEntity(viewer, event, options = {}) {
     rememberEventEntity(fillEntity);
     rememberEventEntity(countEntity);
     rememberEventEntity(pulseEntity);
+    rememberEventEntity(satelliteRingEntity);
     rememberEventEntity(satelliteBadgeEntity);
     startEventPulseRenderLoop(viewer);
     return { entity, fillEntity, countEntity, satelliteBadgeEntity, ringEntity: null, pulseEntity };
@@ -3587,10 +3827,10 @@ async function addCountryNameLabels(viewer) {
         const labelColor = colorFromCssVar("--warzone-country-label-color", "#eef0f5", 0.92);
         const outlineColor = colorFromCssVar("--warzone-country-label-outline", "#101111", 0.78);
         const outlineWidth = numberVar("--warzone-country-label-outline-width", 2);
-       const labelFont = stringVar(
-    "--warzone-country-label-font",
-    "700 18px Chakra Petch, Oxanium, sans-serif"
-);
+        const labelFont = stringVar(
+            "--warzone-country-label-font",
+            "700 18px Chakra Petch, Oxanium, sans-serif"
+        );
         for (const feature of features) {
             const name = readCountryName(feature);
             if (!name) continue;
@@ -3814,30 +4054,30 @@ function startStartupGlobeRotation(viewer) {
     const state = {
         active: true,
         lastTime: 0,
-      speedDeg: Math.max(0.001, Math.min(numberVar("--warzone-startup-rotation-speed", 0.52), 3)),
+        speedDeg: Math.max(0.001, Math.min(numberVar("--warzone-startup-rotation-speed", 0.52), 3)),
     };
     const rotate = () => {
         if (!state.active) return;
         if (getSceneMode(viewer) !== "3d") {
             state.lastTime = 0;
             return;
-    }
-    const now = performance.now();
-    if (!state.lastTime) {
+        }
+        const now = performance.now();
+        if (!state.lastTime) {
+            state.lastTime = now;
+            viewer.scene.requestRender?.();
+            return;
+        }
+
+        const dt = Math.min(Math.max(0, (now - state.lastTime) / 1000), 0.05);
         state.lastTime = now;
+
+        viewer.camera.rotate(
+            Cesium.Cartesian3.UNIT_Z,
+            -(state.speedDeg * Cesium.Math.RADIANS_PER_DEGREE) * dt
+        );
+
         viewer.scene.requestRender?.();
-        return;
-    }
-
-    const dt = Math.min(Math.max(0, (now - state.lastTime) / 1000), 0.05);
-    state.lastTime = now;
-
-    viewer.camera.rotate(
-        Cesium.Cartesian3.UNIT_Z,
-        -(state.speedDeg * Cesium.Math.RADIANS_PER_DEGREE) * dt
-    );
-
-    viewer.scene.requestRender?.();
     };
     state.rotate = rotate;
     viewer.__warzoneStartupRotation = state;
@@ -5518,13 +5758,13 @@ async function buildContourOverlay(viewer, options = {}) {
             return false;
         }
         if (!Number.isFinite(state.centerLon) || !Number.isFinite(state.centerLat)) {
-        const fallbackCenter = getContourFallbackCenter(viewer);
-        if (fallbackCenter) {
-            state.centerLon = fallbackCenter.lon;
-            state.centerLat = fallbackCenter.lat;
-            state.centerHeight = fallbackCenter.height;
-            state.hasFocusPosition = false;
-        }
+            const fallbackCenter = getContourFallbackCenter(viewer);
+            if (fallbackCenter) {
+                state.centerLon = fallbackCenter.lon;
+                state.centerLat = fallbackCenter.lat;
+                state.centerHeight = fallbackCenter.height;
+                state.hasFocusPosition = false;
+            }
         }
         if (!Number.isFinite(state.centerLon) || !Number.isFinite(state.centerLat)) {
             clearContourOverlay(viewer);
@@ -5917,7 +6157,7 @@ function dispatchFocusedTerrainChanged(viewer) {
 }
 async function setContourLayerVisible(viewer, visible = false) {
     if (!viewer) return false;
-        const nextVisible = Boolean(visible);
+    const nextVisible = Boolean(visible);
 
     /*
      * Do not repeatedly clear imagery, contour entities and cache when
@@ -6006,7 +6246,7 @@ function isInteractiveSceneModeSource(source = "") {
     return value === "manual" || value === "map-mode" || value === "ui";
 }
 function startSceneModeTransitionLoader(viewer, durationSeconds = 1.2) {
-    if (typeof window === "undefined") return () => {};
+    if (typeof window === "undefined") return () => { };
     const token = Symbol("warzone-scene-mode-loader");
     const previousKeepVisible = window.__wzKeepSiteLoaderVisible === true;
     const previousKeepUntil = Number(window.__wzKeepSiteLoaderVisibleUntil || 0);
@@ -7002,7 +7242,7 @@ export async function initWarzoneGlobe() {
     viewer.__warzoneSceneMode = getSceneMode(viewer);
     viewer.__warzoneAdaptiveProfile = "normal";
     viewer.__warzoneSuppressEventMarkers = false;
-viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
+    viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
     viewer.__borderLayersVisible = false;
     viewer.__borderVisibilityAlpha = 0;
     viewer.__borderLayersLoaded = false;
