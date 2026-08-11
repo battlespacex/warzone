@@ -2085,7 +2085,7 @@ function ensureSatelliteImageryViewer() {
             <div class="panel-container">
 
                 <div class="panel-head wz-satellite-imagery-viewer__head">
-                    <h2 id="wz-satellite-imagery-title">
+                    <h2>
                         Satellite Observation
                     </h2>
 
@@ -2241,14 +2241,6 @@ export function openSatelliteImageryViewer(detail = {}) {
                         download
                         class="wz-satellite-imagery-viewer__action">
                         Download Image
-                    </a>
-
-                    <a
-                        href="${escapeHtml(context.imageUrl)}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="wz-satellite-imagery-viewer__action">
-                        Open Full Image
                     </a>
 
                     ${/^https?:\/\//i.test(sourceUrl)

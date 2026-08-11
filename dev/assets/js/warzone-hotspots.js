@@ -527,7 +527,23 @@ function dedupeDisplayItems(items = []) {
     }
     return out;
 }
+function getAvailableSatelliteContext(event = {}) {
+    const context = event?.satellite_context || event?.satelliteContext || null;
+    const imageUrl = String(context?.imageUrl || context?.image_url || "").trim();
+    if (String(context?.status || "").toLowerCase() !== "available") return null;
+    if (!/^https?:\/\//i.test(imageUrl)) return null;
+    return context;
+}
+function getClusterSatelliteObservation(cluster = {}) {
+    const items = Array.isArray(cluster?.items) && cluster.items.length
+        ? cluster.items
+        : (cluster?.latest ? [cluster.latest] : []);
+    return items
+        .filter((event) => !!getAvailableSatelliteContext(event))
+        .sort((a, b) => new Date(b?.occurred_at || 0) - new Date(a?.occurred_at || 0))[0] || null;
+}
 function buildHotspotEventPopupDetail(event = {}) {
+    const satelliteContext = getAvailableSatelliteContext(event);
     return {
         entityId: "",
         id: String(event?.id || ""),
@@ -554,8 +570,8 @@ function buildHotspotEventPopupDetail(event = {}) {
         confidence: event?.confidence ?? null,
         weaponType: String(event?.weapon_type || ""),
         sourceUrl: String(event?.source_url || ""),
-        satelliteContext: event?.satellite_context || null,
-        satelliteAvailable: event?.satellite_available === true,
+        satelliteContext,
+        satelliteAvailable: !!satelliteContext,
         media: event?.media || null,
         primaryImage: event?.primary_image || null,
         additionalImages: Array.isArray(event?.additional_images) ? event.additional_images : [],
@@ -567,6 +583,13 @@ function buildHotspotEventPopupDetail(event = {}) {
         anchorCartesian: null,
         screenPosition: null,
     };
+}
+function dispatchHotspotSatelliteObservation(event = {}, screenPosition = null) {
+    const detail = buildHotspotEventPopupDetail(event);
+    if (!detail.satelliteAvailable) return;
+    detail.entityId = `${String(event?.id || "hotspot")}-hotspot-satellite-imagery`;
+    detail.screenPosition = screenPosition;
+    document.dispatchEvent(new CustomEvent("wz:satellite-imagery-selected", { detail }));
 }
 function dispatchHotspotEventSelection(event = {}) {
     document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
@@ -831,13 +854,16 @@ function removeHotspotNode(node) {
     if (!node) return;
     node.el?.classList.add("wzhs--leaving");
     node.radiusEl?.classList.add("wzhs-radius--leaving");
+    node.satelliteEl?.classList.add("wzhs-satellite-observation--leaving");
     node.uxLabelEl?.classList.add("wzhs-cluster-label--leaving");
     const el = node.el;
     const radiusEl = node.radiusEl;
+    const satelliteEl = node.satelliteEl;
     const uxLabelEl = node.uxLabelEl;
     window.setTimeout(() => {
         el?.remove?.();
         radiusEl?.remove?.();
+        satelliteEl?.remove?.();
         uxLabelEl?.remove?.();
     }, 280);
 }
@@ -845,12 +871,61 @@ function markHotspotNodeEntered(node) {
     if (!node) return;
     node.el?.classList.add("wzhs--entering");
     node.radiusEl?.classList.add("wzhs-radius--entering");
+    node.satelliteEl?.classList.add("wzhs-satellite-observation--entering");
     node.uxLabelEl?.classList.add("wzhs-cluster-label--entering");
     requestAnimationFrame(() => {
         node.el?.classList.remove("wzhs--entering");
         node.radiusEl?.classList.remove("wzhs-radius--entering");
+        node.satelliteEl?.classList.remove("wzhs-satellite-observation--entering");
         node.uxLabelEl?.classList.remove("wzhs-cluster-label--entering");
     });
+}
+function createHotspotSatelliteObservationEl() {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "wzhs-satellite-observation";
+    el.innerHTML = `<span class="wzhs-satellite-observation__icon" aria-hidden="true"></span>`;
+    const activate = (event) => {
+        const observation = el.__wzSatelliteObservation;
+        if (!observation) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const screenPosition = Number.isFinite(Number(event.clientX)) && Number.isFinite(Number(event.clientY))
+            ? { x: Number(event.clientX), y: Number(event.clientY), space: "viewport" }
+            : null;
+        dispatchHotspotSatelliteObservation(observation, screenPosition);
+    };
+    el.addEventListener("click", activate);
+    el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+    });
+    return el;
+}
+function syncHotspotSatelliteObservationEl(el, cluster) {
+    if (!el) return null;
+    const observation = getClusterSatelliteObservation(cluster);
+    el.__wzSatelliteObservation = observation;
+    if (!observation) return null;
+    const title = sanitizeText(observation?.display_title || observation?.title || "Satellite observation");
+    el.setAttribute("aria-label", `Open Copernicus satellite observation${title ? `: ${title}` : ""}`);
+    el.title = "Copernicus Satellite Observation";
+    el.classList.toggle(
+        "wzhs-satellite-observation--ring",
+        cssNumber("--warzone-satellite-imagery-ring-enabled", 0) >= 0.5
+    );
+    el.style.setProperty(
+        "--wzhs-satellite-marker-size",
+        `${Math.max(16, cssNumber("--warzone-satellite-imagery-marker-size-px", 58))}px`
+    );
+    el.style.setProperty(
+        "--wzhs-satellite-ring-size",
+        `${Math.max(20, cssNumber("--warzone-satellite-imagery-ring-size-px", 62))}px`
+    );
+    el.style.setProperty(
+        "--wzhs-satellite-ring-width",
+        `${Math.max(1, cssNumber("--warzone-satellite-imagery-ring-width-px", 2))}px`
+    );
+    return observation;
 }
 function isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster) {
     const count = Math.max(1, Number(cluster?.count || cluster?.items?.length || 1));
@@ -1208,11 +1283,20 @@ export function applyHotspotNodeAnchorPosition(node, projected, viewport) {
     node.anchorVisible = visible;
     setElementHidden(node.radiusEl, !visible);
     setElementHidden(node.el, !visible);
+    setElementHidden(
+        node.satelliteEl,
+        !visible || node.satelliteAvailable !== true || node.satelliteLayerVisible === false
+    );
     setElementHidden(node.uxLabelEl, !visible || node.uxLabelEligible === false);
     if (!visible) return false;
 
     const off = node.stackOffset || STACK_OFF[0];
     setAnchorCssPosition(node.el, x + HOTSPOT_LABEL_OFFSET.x + Number(off.x || 0), y + HOTSPOT_LABEL_OFFSET.y + Number(off.y || 0));
+    setAnchorCssPosition(
+        node.satelliteEl,
+        x + HOTSPOT_RADIUS_OFFSET.x + cssNumber("--warzone-satellite-imagery-offset-x-px", 28),
+        y + HOTSPOT_RADIUS_OFFSET.y + cssNumber("--warzone-satellite-imagery-offset-y-px", -28)
+    );
     setAnchorCssPosition(node.uxLabelEl, x + HOTSPOT_RADIUS_OFFSET.x, y + HOTSPOT_RADIUS_OFFSET.y);
     if (node.radiusEl?.style) {
         const diameter = Math.max(0, Number(node.radiusSize || 0));
@@ -1320,6 +1404,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     function updateCurrentAnchorPositions() {
         if (destroyed || !anchorViewport || !viewer.scene) return;
         for (const [, node] of nodeMap) {
+            node.satelliteLayerVisible = viewer.__warzoneSatelliteImageryLayerVisible !== false;
             const projected = projectHotspotWorldAnchor(viewer.scene, node.worldAnchor);
             applyHotspotNodeAnchorPosition(node, projected, anchorViewport);
         }
@@ -1465,7 +1550,11 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             const hotspotRenderPadding = Math.max(0, cssNumber("--hotspot-render-padding", 24));
             const hotspotRenderSize = hotspotDiameter + hotspotRenderPadding * 2;
             const radiusSplitHidden = isHotspotRadiusSplitHidden(viewer, zoomCfg, cluster);
-            const zi = 25 - cluster.stackIdx;
+            const stackIndex = Math.max(0, Number(cluster.stackIdx || 0));
+            const radiusZi = Math.round(cssNumber("--warzone-hotspot-radius-z-base", 20)) - stackIndex;
+            const satelliteZi = Math.round(cssNumber("--warzone-satellite-observation-z-base", 30)) - stackIndex;
+            const labelZi = Math.round(cssNumber("--warzone-hotspot-label-z-base", 40)) - stackIndex;
+            const satelliteObservation = getClusterSatelliteObservation(cluster);
             if (nodeMap.has(cluster.id)) {
                 const node = nodeMap.get(cluster.id);
                 if (!node.radiusEl) {
@@ -1475,6 +1564,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusEl.style.top = "0";
                     rootEl.appendChild(node.radiusEl);
                 }
+                if (satelliteObservation && !node.satelliteEl) {
+                    node.satelliteEl = createHotspotSatelliteObservationEl();
+                    rootEl.appendChild(node.satelliteEl);
+                } else if (!satelliteObservation && node.satelliteEl) {
+                    node.satelliteEl.remove();
+                    node.satelliteEl = null;
+                }
                 if (!node.uxLabelEl) {
                     node.uxLabelEl = createClusterUxLabelEl();
                     rootEl.appendChild(node.uxLabelEl);
@@ -1482,6 +1578,8 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 node.stackOffset = off;
                 node.cluster = cluster;
                 node.radiusRenderPadding = hotspotRenderPadding;
+                node.satelliteAvailable = !!syncHotspotSatelliteObservationEl(node.satelliteEl, cluster);
+                node.satelliteLayerVisible = viewer.__warzoneSatelliteImageryLayerVisible !== false;
                 node.uxLabelEligible = localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true;
                 syncNodeWorldAnchor(node, cluster);
                 applyHotspotRadiusModel(node.radiusEl, cluster);
@@ -1503,9 +1601,10 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                     node.radiusSize = hotspotDiameter;
                     node.radiusRenderSize = hotspotRenderSize;
                 }
-                node.radiusEl.style.zIndex = zi - 1;
-                node.uxLabelEl.style.zIndex = zi;
-                if (node.el) node.el.style.zIndex = zi;
+                node.radiusEl.style.zIndex = radiusZi;
+                if (node.satelliteEl) node.satelliteEl.style.zIndex = satelliteZi;
+                node.uxLabelEl.style.zIndex = labelZi;
+                if (node.el) node.el.style.zIndex = labelZi;
                 if (cardsEnabled && node.el) {
                     node.el.classList.toggle("wzhs--s2", cluster.stackIdx === 1);
                     node.el.classList.toggle("wzhs--s3", cluster.stackIdx === 2);
@@ -1515,22 +1614,31 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             } else {
                 const radiusEl = createHotspotRadiusEl(cluster);
                 syncHotspotRadiusSplitState(radiusEl, radiusSplitHidden);
-                radiusEl.style.cssText = `position:absolute;left:0;top:0;z-index:${zi - 1};width:${hotspotRenderSize}px;height:${hotspotRenderSize}px;`;
+                radiusEl.style.cssText = `position:absolute;left:0;top:0;z-index:${radiusZi};width:${hotspotRenderSize}px;height:${hotspotRenderSize}px;`;
                 rootEl.appendChild(radiusEl);
+                const satelliteEl = satelliteObservation ? createHotspotSatelliteObservationEl() : null;
+                if (satelliteEl) {
+                    syncHotspotSatelliteObservationEl(satelliteEl, cluster);
+                    satelliteEl.style.zIndex = satelliteZi;
+                    rootEl.appendChild(satelliteEl);
+                }
                 const uxLabelEl = createClusterUxLabelEl();
                 renderClusterUxLabel(uxLabelEl, cluster, zoomState, clusterNumbers.get(cluster.id) || "");
-                uxLabelEl.style.cssText = `left:0;top:0;z-index:${zi};`;
+                uxLabelEl.style.cssText = `left:0;top:0;z-index:${labelZi};`;
                 rootEl.appendChild(uxLabelEl);
                 const el = cardsEnabled ? createCardEl(cluster, handleToggle) : null;
                 if (el) {
-                    el.style.cssText = `position:absolute;left:0;top:0;z-index:${zi};`;
+                    el.style.cssText = `position:absolute;left:0;top:0;z-index:${labelZi};`;
                     rootEl.appendChild(el);
                 }
                 const node = {
                     el,
                     radiusEl,
+                    satelliteEl,
                     uxLabelEl,
                     stackOffset: off,
+                    satelliteAvailable: !!satelliteObservation,
+                    satelliteLayerVisible: viewer.__warzoneSatelliteImageryLayerVisible !== false,
                     uxLabelEligible: localityLabelIds ? localityLabelIds.has(String(cluster.id)) : true,
                     radiusSize: hotspotDiameter,
                     radiusRenderPadding: hotspotRenderPadding,
@@ -1650,6 +1758,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             for (const [, node] of nodeMap) {
                 node.el?.remove?.();
                 node.radiusEl?.remove?.();
+                node.satelliteEl?.remove?.();
                 node.uxLabelEl?.remove?.();
             }
             nodeMap.clear();
@@ -1661,6 +1770,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             for (const [, node] of nodeMap) {
                 node.el?.remove?.();
                 node.radiusEl?.remove?.();
+                node.satelliteEl?.remove?.();
                 node.uxLabelEl?.remove?.();
             }
             nodeMap.clear();

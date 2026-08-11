@@ -1,4 +1,64 @@
+import * as Cesium from "cesium";
+
 // Shared focus lifecycle and lightweight frame scheduler for focusable map assets.
+
+export function resetWarzoneCameraReference(viewer = null, options = {}) {
+    const targetViewer = viewer || (typeof window !== "undefined" ? window.__warzoneViewer : null);
+    const camera = targetViewer?.camera;
+    if (!targetViewer || !camera) return false;
+
+    const preserveView = options?.preserveView !== false;
+    const clearSelection = options?.clearSelection === true;
+    const worldPosition = preserveView && camera.positionWC
+        ? Cesium.Cartesian3.clone(camera.positionWC)
+        : null;
+    const worldDirection = preserveView && camera.directionWC
+        ? Cesium.Cartesian3.clone(camera.directionWC)
+        : null;
+    const worldUp = preserveView && camera.upWC
+        ? Cesium.Cartesian3.clone(camera.upWC)
+        : null;
+
+    try {
+        camera.cancelFlight?.();
+    } catch { }
+
+    try {
+        if (targetViewer.trackedEntity) targetViewer.trackedEntity = undefined;
+        if (clearSelection) targetViewer.selectedEntity = undefined;
+    } catch { }
+
+    try {
+        camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        if (worldPosition && worldDirection && worldUp) {
+            camera.setView({
+                destination: worldPosition,
+                orientation: {
+                    direction: worldDirection,
+                    up: worldUp,
+                },
+            });
+        }
+    } catch {
+        try {
+            camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        } catch { }
+    }
+
+    const cameraController = targetViewer.scene?.screenSpaceCameraController;
+    if (cameraController) {
+        cameraController.enableInputs = true;
+        cameraController.enableRotate = true;
+        cameraController.enableTranslate = true;
+        cameraController.enableZoom = true;
+        cameraController.enableTilt = true;
+        cameraController.enableLook = true;
+    }
+
+    targetViewer.scene?.requestRender?.();
+    return true;
+}
+
 const FOCUS_STATES = Object.freeze({
     INACTIVE: "inactive",
     ENTERING: "entering",
@@ -133,6 +193,8 @@ function createAssetFocusController() {
         markUnavailable(reason = "asset-unavailable") {
             state.state = FOCUS_STATES.UNAVAILABLE;
             abortActive(reason);
+            cancelRaf();
+            resetWarzoneCameraReference();
             publish();
         },
         suspend(reason = "visibility") {
@@ -153,7 +215,10 @@ function createAssetFocusController() {
             return true;
         },
         exitFocus(reason = "exit") {
-            if (state.state === FOCUS_STATES.INACTIVE) return false;
+            if (state.state === FOCUS_STATES.INACTIVE) {
+                resetWarzoneCameraReference();
+                return false;
+            }
             state.state = FOCUS_STATES.EXITING;
             abortActive(reason);
             cancelRaf();
@@ -165,6 +230,7 @@ function createAssetFocusController() {
             state.state = FOCUS_STATES.INACTIVE;
             state.frameCount = 0;
             state.lastFrameAt = 0;
+            resetWarzoneCameraReference();
             publish();
             return true;
         },

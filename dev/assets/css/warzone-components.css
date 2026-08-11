@@ -497,6 +497,78 @@
     }
 }
 
+/* Copernicus observation marker used at hotspot/regional zoom.
+   Its z-band is intentionally between activity circles and hotspot labels. */
+.wzhs-satellite-observation {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    place-items: center;
+    width: var(--wzhs-satellite-marker-size, 58px);
+    height: var(--wzhs-satellite-marker-size, 58px);
+    padding: 0;
+    border: 0;
+    outline: 0;
+    transform: translate3d(var(--wzhs-anchor-x, 0px), var(--wzhs-anchor-y, 0px), 0) translate(-50%, -50%);
+    background: transparent;
+    pointer-events: auto;
+    cursor: pointer;
+    opacity: 1;
+    transition: opacity 220ms ease;
+    will-change: transform, opacity;
+}
+
+.wzhs-satellite-observation[hidden] {
+    display: none !important;
+}
+
+.wzhs-satellite-observation::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--wzhs-satellite-ring-size, 62px);
+    height: var(--wzhs-satellite-ring-size, 62px);
+    box-sizing: border-box;
+    border: var(--wzhs-satellite-ring-width, 2px) solid var(--warzone-satellite-imagery-ring-color, var(--color-teal-glow));
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.wzhs-satellite-observation--ring::before {
+    opacity: var(--warzone-satellite-imagery-ring-alpha, .75);
+}
+
+.wzhs-satellite-observation__icon {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--warzone-satellite-imagery-icon-color, var(--color-teal-glow));
+    opacity: var(--warzone-satellite-imagery-icon-alpha, 1);
+    -webkit-mask-image: var(--warzone-satellite-imagery-icon-url);
+    mask-image: var(--warzone-satellite-imagery-icon-url);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    pointer-events: none;
+}
+
+.wzhs-satellite-observation:hover .wzhs-satellite-observation__icon,
+.wzhs-satellite-observation:focus-visible .wzhs-satellite-observation__icon {
+    filter: drop-shadow(0 0 .6rem var(--warzone-satellite-imagery-icon-color, var(--color-teal-glow)));
+}
+
+.wzhs-satellite-observation:focus-visible {
+    outline: .2rem solid var(--color-teal-glow);
+    outline-offset: .35rem;
+}
+
 .wzhs-cluster-label {
     position: absolute;
     left: 0;
@@ -596,7 +668,7 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: geometricPrecision;
     transition: left 180ms ease, top 180ms ease, opacity 160ms ease;
-    z-index: 42;
+    z-index: var(--warzone-hotspot-stack-z, 60);
     filter: var(--widget-shadow);
     backdrop-filter: blur(.2rem);
 }
@@ -722,7 +794,7 @@
     transform-origin: left;
     pointer-events: none;
     background: linear-gradient(134deg, transparent, var(--color-gray-glow));
-    z-index: 40;
+    z-index: var(--warzone-hotspot-stack-line-z, 50);
 }
 
 @media (max-width: 720px) {
@@ -745,12 +817,14 @@
 }
 
 .wzhs--entering,
-.wzhs-radius--entering {
+.wzhs-radius--entering,
+.wzhs-satellite-observation--entering {
     opacity: 0;
 }
 
 .wzhs--leaving,
-.wzhs-radius--leaving {
+.wzhs-radius--leaving,
+.wzhs-satellite-observation--leaving {
     opacity: 0;
     pointer-events: none;
 }
@@ -1209,13 +1283,10 @@
     position: fixed;
     inset: 0;
     z-index: 10030;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 7rem 2rem 5rem;
-
     pointer-events: none;
 }
 
@@ -1229,22 +1300,16 @@
 .wz-satellite-imagery-viewer__panel {
     width: min(var(--warzone-satellite-imagery-viewer-width, 86rem),
             calc(100vw - 4rem));
-
     max-height: var(--warzone-satellite-imagery-viewer-max-height,
             82vh);
-
     pointer-events: auto;
-
     color: var(--color-text);
-
     filter: var(--widget-shadow);
     backdrop-filter: blur(.2rem);
 }
 
 .wz-satellite-imagery-viewer__panel .panel-container {
     max-height: inherit;
-
-    background: var(--color-bg-dark);
 }
 
 
@@ -1272,22 +1337,15 @@
 
 .wz-satellite-imagery-viewer__body {
     display: grid;
-
     grid-template-columns:
         minmax(0, 1.55fr) minmax(28rem, .75fr);
-
     grid-template-rows:
         minmax(0, 1fr) auto;
-
     min-height: 0;
-
     max-height: calc(var(--warzone-satellite-imagery-viewer-max-height, 82vh) - 4rem);
-
     padding: 0;
-
     overflow: hidden;
-
-    background: var(--color-bg-dark);
+    gap: 1rem;
 }
 
 
@@ -1305,6 +1363,9 @@
     padding: 1.5rem;
     overflow: hidden;
     background: transparent;
+    background: var(--color-black);
+    clip-path: var(--clippath-shape-3);
+    margin: 1.5rem 0 0 1.5rem;
 }
 
 .wz-satellite-imagery-viewer__image {
@@ -1328,15 +1389,11 @@
     gap: 1rem;
     padding: .7rem 1rem;
     color: var(--color-text-dim);
-
     background: rgba(5, 9, 14, .88);
-
     font-family: var(--heading-font);
     font-size: var(--text-xs);
-
     letter-spacing: .04rem;
     text-transform: uppercase;
-
     backdrop-filter: blur(.35rem);
 }
 
@@ -1402,8 +1459,8 @@
     margin: 0 0 .8rem;
     color: var(--color-text-heading);
     font-family: var(--heading-font);
-    font-size: var(--text-xl);
-    line-height: var(--text-xl);
+    font-size: var(--text-lg);
+    line-height: 1.8rem;
     text-transform: uppercase;
 }
 

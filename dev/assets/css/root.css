@@ -267,6 +267,12 @@
     /* More negative = brought farther forward / above event UI */
     --warzone-satellite-imagery-eye-offset-z: -12000;
 
+    /* Hotspot overlay stacking: circle < Copernicus X < labels/cards */
+    --warzone-hotspot-radius-z-base: 20;
+    --warzone-satellite-observation-z-base: 30;
+    --warzone-hotspot-label-z-base: 40;
+    --warzone-hotspot-stack-line-z: 50;
+    --warzone-hotspot-stack-z: 60;
 
     /* OPTIONAL RING */
     --warzone-satellite-imagery-ring-enabled: 0;

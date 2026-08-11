@@ -818,6 +818,43 @@
                 </div>
             </div>
         </div>
+        <div id="wz-layer-dependency-warning-modal" class="wz-modal wz-layer-warning wz-performance-warning"
+            aria-modal="true" role="dialog" aria-labelledby="wz-layer-dependency-warning-title"
+            aria-describedby="wz-layer-dependency-warning-summary wz-layer-dependency-warning-detail" hidden>
+            <div class="wz-modal-box wz-min-modal">
+                <div class="wz-modal-inner">
+                    <header>
+                        <span class="wz-header-title">
+                            <span class="static-icon stratops-ico-assets-alert-2" aria-hidden="true"></span>
+                            <h2 id="wz-layer-dependency-warning-header">Layer Dependency</h2>
+                        </span>
+                        <span class="wz-close-modal">
+                            <button type="button" class="static-icon" id="wz-layer-dependency-warning-close"
+                                aria-label="Cancel layer activation">
+                                <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                            </button>
+                        </span>
+                    </header>
+                    <section class="wz-modal-body">
+                        <h3 id="wz-layer-dependency-warning-title">Supporting Layers Required</h3>
+                        <p id="wz-layer-dependency-warning-summary"></p>
+                        <p id="wz-layer-dependency-warning-detail"></p>
+                        <ul id="wz-layer-dependency-required-layers" class="wz-list-view"
+                            aria-label="Supporting layers required for the selected feature"></ul>
+                    </section>
+                    <footer>
+                        <button type="button" class="btn-secondary white" id="wz-layer-dependency-warning-cancel">
+                            <span aria-hidden="true"></span>
+                            Cancel
+                        </button>
+                        <button type="button" class="btn-primary" id="wz-layer-dependency-warning-confirm">
+                            <span aria-hidden="true"></span>
+                            Activate Layers
+                        </button>
+                    </footer>
+                </div>
+            </div>
+        </div>
         <div id="wz-performance-warning-modal" class="wz-modal wz-layer-warning wz-performance-warning"
             aria-modal="true" role="dialog" aria-labelledby="wz-performance-warning-title"
             aria-describedby="wz-performance-warning-summary wz-performance-warning-detail" hidden>

@@ -2,6 +2,7 @@
 import * as Cesium from "cesium";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
 import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
+import { resetWarzoneCameraReference } from "./warzone-asset-focus-controller.js";
 import {
     buildSpatialEventClusters,
     classifyEventDomain,
@@ -909,8 +910,12 @@ function applyEventLod(viewer) {
         const clusterCount = Number(entity.properties?.cluster_count?.getValue?.() ?? 1);
         const isCluster = clusterCount > 1;
         if (isSatelliteImageryMarker) {
+            // Wide/medium zoom uses the DOM Copernicus marker in the hotspot overlay
+            // so it can sit above activity circles but below hotspot labels.
+            // Keep the Cesium marker only for the close EVENT view.
             const satelliteVisible =
-                viewer.__warzoneSatelliteImageryLayerVisible !== false;
+                viewer.__warzoneSatelliteImageryLayerVisible !== false &&
+                showIndividualEvents;
 
             entity.show = satelliteVisible;
 
@@ -989,17 +994,30 @@ function applyEventLod(viewer) {
                     && allowMarkers
                     && showIndividualEvents
                     && !isCluster);
-                if (entity.billboard) {
-                    entity.billboard.show = showMarkerFill;
-                    entity.billboard.width = getEventMarkerSizePx(clusterCount, activityScore);
-                    entity.billboard.height = getEventMarkerSizePx(clusterCount, activityScore) * getEventMarkerPerspectiveSquash(viewer);
-                    entity.billboard.scaleByDistance = getEventMarkerScaleByDistance();
-                    entity.billboard.color = Cesium.Color.WHITE.withAlpha(1);
+                const markerSizePx = getEventMarkerSizePx(clusterCount, activityScore);
+                if (isReportClusterSummary) {
+                    if (entity.billboard) {
+                        entity.billboard.show = showMarkerFill;
+                        entity.billboard.width = markerSizePx;
+                        entity.billboard.height = markerSizePx * getEventMarkerPerspectiveSquash(viewer);
+                        entity.billboard.scaleByDistance = getEventMarkerScaleByDistance();
+                        entity.billboard.color = Cesium.Color.WHITE.withAlpha(1);
+                    }
+                    if (entity.ellipse) entity.ellipse.show = false;
+                } else {
+                    if (entity.billboard) entity.billboard.show = false;
+                    syncGroundAlignedEventMarker(
+                        entity,
+                        viewer,
+                        markerSizePx,
+                        color,
+                        colorCss,
+                        numberVar("--warzone-event-marker-fill-alpha", 0.82),
+                        severity,
+                        showMarkerFill
+                    );
                 }
-                if (entity.ellipse) {
-                    entity.ellipse.show = false;
-                    clearEventEllipsePulse(entity);
-                }
+                clearEventEllipsePulse(entity);
                 continue;
             }
             if (entity.billboard) {
@@ -1473,6 +1491,57 @@ function getEventMarkerMetersPerPixel(entity, viewer = window.__warzoneViewer) {
         if (Number.isFinite(metersPerPixel) && metersPerPixel > 0) return metersPerPixel;
     } catch { }
     return Math.max(40, numberVar("--warzone-event-marker-meters-per-pixel-fallback", 120));
+}
+function getEventMarkerDistanceScale(entity, viewer = window.__warzoneViewer) {
+    const camera = viewer?.camera;
+    const position = entity?.position?.getValue?.(Cesium.JulianDate.now()) || null;
+    if (!camera?.positionWC || !position) return 1;
+    try {
+        const scalar = getEventMarkerScaleByDistance();
+        const distance = Cesium.Cartesian3.distance(camera.positionWC, position);
+        const near = Number(scalar?.near);
+        const far = Number(scalar?.far);
+        const nearValue = Number(scalar?.nearValue);
+        const farValue = Number(scalar?.farValue);
+        if (![distance, near, far, nearValue, farValue].every(Number.isFinite) || far <= near) return 1;
+        if (distance <= near) return nearValue;
+        if (distance >= far) return farValue;
+        const t = (distance - near) / (far - near);
+        return nearValue + (farValue - nearValue) * t;
+    } catch {
+        return 1;
+    }
+}
+function syncGroundAlignedEventMarker(entity, viewer, sizePx, color, colorCss, fillAlpha, severity, show) {
+    const ellipse = entity?.ellipse;
+    if (!ellipse) return;
+    ellipse.show = show === true;
+    if (show !== true) return;
+
+    const metersPerPixel = getEventMarkerMetersPerPixel(entity, viewer);
+    const distanceScale = getEventMarkerDistanceScale(entity, viewer);
+    const radiusMeters = Math.max(1, metersPerPixel * Math.max(1, Number(sizePx) || 1) * Math.max(0.05, distanceScale) * 0.5);
+    const markerFillAlpha = Math.max(0.02, Math.min(1, Number(fillAlpha) || 0.82));
+    const borderCss = cssVar("--warzone-event-marker-border-color", "currentColor");
+    const borderAlpha = Math.max(0, Math.min(1, numberVar("--warzone-event-marker-border-alpha", 0.3)));
+    const borderWidth = Math.max(1, numberVar(`--event-marker-ring-width-${String(severity || "medium").toLowerCase()}`, 2));
+    let borderColor = color;
+    if (borderCss && borderCss !== "currentColor") {
+        try {
+            borderColor = Cesium.Color.fromCssColorString(borderCss);
+        } catch {
+            borderColor = color;
+        }
+    }
+
+    ellipse.semiMinorAxis = radiusMeters;
+    ellipse.semiMajorAxis = radiusMeters;
+    ellipse.material = color.withAlpha(markerFillAlpha);
+    ellipse.outline = borderAlpha > 0 && borderWidth > 0;
+    ellipse.outlineColor = borderColor.withAlpha(borderAlpha);
+    ellipse.outlineWidth = borderWidth;
+    ellipse.height = 0;
+    ellipse.heightReference = Cesium.HeightReference.CLAMP_TO_GROUND;
 }
 function getEventRingBillboardScale(event = {}) {
     const base = Math.max(1, numberVar("--warzone-event-ring-size", 70000));
@@ -2913,7 +2982,9 @@ function addEventEntity(viewer, event, options = {}) {
             : null;
     const count = Number(event?.cluster_count || 1);
     const markerSizePx = getEventMarkerSizePx(count, event.weighted_activity_score || event._activityScore);
-    if (fillEntity?.ellipse) fillEntity.ellipse.show = false;
+    if (fillEntity?.billboard && window.__stratopsReportCaptureMode !== true) {
+        fillEntity.billboard.show = false;
+    }
     if (
         fillEntity &&
         (
@@ -3146,6 +3217,34 @@ function bindEventMarkerPicking(viewer) {
         }));
         viewer.scene.requestRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+}
+function installGlobalCameraInteractionGuards(viewer) {
+    if (!viewer || viewer.__warzoneCameraInteractionGuardsInstalled) return;
+    viewer.__warzoneCameraInteractionGuardsInstalled = true;
+
+    const doubleClickType = Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK;
+    const handlers = [
+        viewer.screenSpaceEventHandler,
+        viewer.cesiumWidget?.screenSpaceEventHandler,
+    ];
+    const seenHandlers = new Set();
+    handlers.forEach((handler) => {
+        if (!handler || seenHandlers.has(handler)) return;
+        seenHandlers.add(handler);
+        try {
+            handler.removeInputAction(doubleClickType);
+        } catch { }
+    });
+
+    try {
+        viewer.trackedEntityChanged?.addEventListener?.((trackedEntity) => {
+            if (trackedEntity) return;
+            resetWarzoneCameraReference(viewer, {
+                preserveView: true,
+                clearSelection: false,
+            });
+        });
+    } catch { }
 }
 /* ---------- Viewer style ---------- */
 function applyViewerStyle(viewer) {
@@ -7232,6 +7331,7 @@ export async function initWarzoneGlobe() {
         creditContainer: cesiumCreditsEl || creditsEl || undefined,
         imageryProvider: false,
     });
+    installGlobalCameraInteractionGuards(viewer);
     labelCesiumCredits(cesiumCreditsEl);
     updateMapCredits();
     viewer.__terrainVisible = true;
@@ -7482,6 +7582,9 @@ export async function initWarzoneGlobe() {
         },
         isGreyedSatelliteVisible() {
             return viewer.__warzoneGreyedSatelliteVisible === true;
+        },
+        resetCameraInteraction(options = {}) {
+            return resetWarzoneCameraReference(viewer, options);
         },
         enterCtrMode(options = {}) {
             return enterCtrMode(viewer, options);

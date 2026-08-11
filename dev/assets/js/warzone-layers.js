@@ -62,7 +62,7 @@ const DEFAULT_LAYER_STATE = {
     seismic: false,
     hotspots: true,
     "orbital-assets": false,
-    "satellite-imagery": true,
+    "satellite-imagery": false,
     terrain: true,
     "map-labels": false,
     "region-plate": false,
@@ -122,6 +122,25 @@ let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
 const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "map-labels", "region-plate", "satellite-imagery"]);
 const DEV_INSPECTION_LAYER_IDS = new Set(["sweepers", "satellite-imagery"]);
+const EVENT_CONTEXT_LAYER_IDS = [
+    "strikes",
+    "missiles",
+    "drones",
+    "airstrikes",
+    "recon",
+    "alerts",
+    "thermal",
+    "seismic",
+    "cyber",
+];
+const RECOMMENDED_EVENT_CONTEXT_LAYER_IDS = [
+    "strikes",
+    "missiles",
+    "drones",
+    "airstrikes",
+    "recon",
+];
+const DERIVED_LAYER_DEPENDENCY_IDS = new Set(["hotspots", "satellite-imagery"]);
 const NAVAL_LAYER_SUBTYPES = new Set([
     "carrier",
     "amphibious",
@@ -444,7 +463,6 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
         openSharedModal(modal);
     });
 }
-
 export function setLayer(id, enabled) {
     if (!getLayerDef(id)) return false;
 
@@ -472,6 +490,120 @@ export function toggleLayer(id) {
     saveState();
     notifyChange(id, __layerState[id]);
     return __layerState[id];
+}
+
+function getAvailableLayerDefs(ids = []) {
+    return ids
+        .map((id) => getLayerDef(id))
+        .filter(Boolean)
+        .filter((layer) => canUseLayer(layer.id));
+}
+
+function hasAnyEventContextLayerEnabled() {
+    return EVENT_CONTEXT_LAYER_IDS.some((id) => getEffectiveLayerState(id));
+}
+
+function getDerivedLayerDependencyState(targetId = "") {
+    if (!DERIVED_LAYER_DEPENDENCY_IDS.has(targetId)) {
+        return { ready: true, missingLayers: [] };
+    }
+
+    const missingIds = [];
+
+    // Activity Areas are derived from operational event layers. They only need
+    // at least one compatible event source to have something meaningful to draw.
+    if (!hasAnyEventContextLayerEnabled()) {
+        missingIds.push(...RECOMMENDED_EVENT_CONTEXT_LAYER_IDS);
+    }
+
+    // Satellite Observations are event-linked and, at regional zoom levels,
+    // rely on Activity Areas for visible operational context.
+    if (targetId === "satellite-imagery" && !getEffectiveLayerState("hotspots")) {
+        missingIds.unshift("hotspots");
+    }
+
+    const uniqueIds = [...new Set(missingIds)];
+    return {
+        ready: uniqueIds.length === 0,
+        missingLayers: getAvailableLayerDefs(uniqueIds),
+    };
+}
+
+function requestDerivedLayerDependencyApproval(targetId = "", missingLayers = []) {
+    const modal = document.getElementById("wz-layer-dependency-warning-modal");
+    if (!modal) return Promise.resolve(false);
+
+    const headerEl = document.getElementById("wz-layer-dependency-warning-header");
+    const titleEl = document.getElementById("wz-layer-dependency-warning-title");
+    const summaryEl = document.getElementById("wz-layer-dependency-warning-summary");
+    const detailEl = document.getElementById("wz-layer-dependency-warning-detail");
+    const listEl = document.getElementById("wz-layer-dependency-required-layers");
+    const closeBtn = document.getElementById("wz-layer-dependency-warning-close");
+    const cancelBtn = document.getElementById("wz-layer-dependency-warning-cancel");
+    const confirmBtn = document.getElementById("wz-layer-dependency-warning-confirm");
+
+    const targetDef = getLayerDef(targetId);
+    const targetLabel = targetDef?.label || "Selected layer";
+
+    if (headerEl) headerEl.textContent = targetLabel;
+    if (titleEl) titleEl.textContent = "Supporting Layers Required";
+
+    if (summaryEl) {
+        summaryEl.textContent = targetId === "hotspots"
+            ? "Activity Areas visualize concentrations derived from operational event layers. No compatible event context is currently active."
+            : "Satellite Observations are linked to operational events and regional activity context. One or more supporting layers are currently disabled.";
+    }
+
+    if (detailEl) {
+        detailEl.textContent =
+            "Activate the required supporting layers to use this feature now. Cancel keeps the selected feature off and leaves your current map layers unchanged.";
+    }
+
+    if (listEl) {
+        listEl.innerHTML = missingLayers
+            .map((layer) => `<li>${escapeLayerHtml(layer.label)}</li>`)
+            .join("");
+        listEl.hidden = missingLayers.length === 0;
+    }
+
+    if (confirmBtn) confirmBtn.textContent = "Activate Layers";
+
+    return new Promise((resolve) => {
+        let settled = false;
+
+        const finish = (approved) => {
+            if (settled) return;
+            settled = true;
+            closeBtn?.removeEventListener("click", handleCancel);
+            cancelBtn?.removeEventListener("click", handleCancel);
+            confirmBtn?.removeEventListener("click", handleApprove);
+            closeSharedModal(modal, () => resolve(approved));
+        };
+
+        const handleCancel = () => finish(false);
+        const handleApprove = () => finish(true);
+
+        closeBtn?.addEventListener("click", handleCancel);
+        cancelBtn?.addEventListener("click", handleCancel);
+        confirmBtn?.addEventListener("click", handleApprove);
+
+        openSharedModal(modal);
+    });
+}
+
+function activateDerivedLayerWithDependencies(targetId = "", missingLayers = [], container) {
+    missingLayers.forEach((layer) => {
+        if (!layer?.id || !canUseLayer(layer.id)) return;
+        __layerState[layer.id] = true;
+    });
+    __layerState[targetId] = true;
+
+    saveState();
+    syncAllLayerItemStates(container);
+    notifyChange("*", true);
+    updateBulkToggleState(container);
+
+    return getEffectiveLayerState(targetId);
 }
 
 function syncUiOnlyLayerToWidget(layerId, enabled) {
@@ -713,6 +845,35 @@ function bindLayerItem(container, item) {
         if (currentlyEnabled) {
             newVal = setLayer(id, false);
         } else {
+            if (DERIVED_LAYER_DEPENDENCY_IDS.has(id)) {
+                if (!canUseLayer(id)) {
+                    syncLayerItemState(item, id);
+                    updateBulkToggleState(container);
+                    openPremiumAccessFlow();
+                    return;
+                }
+
+                const dependencyState = getDerivedLayerDependencyState(id);
+                if (!dependencyState.ready) {
+                    const approved = await requestDerivedLayerDependencyApproval(
+                        id,
+                        dependencyState.missingLayers
+                    );
+                    if (!approved) {
+                        syncLayerItemState(item, id);
+                        updateBulkToggleState(container);
+                        return;
+                    }
+
+                    newVal = activateDerivedLayerWithDependencies(
+                        id,
+                        dependencyState.missingLayers,
+                        container
+                    );
+                    return;
+                }
+            }
+
             const nextState = buildSingleToggleState(id, true);
             if (shouldWarnForLayerTransition(nextState)) {
                 const approved = await requestPerformanceApproval({
