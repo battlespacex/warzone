@@ -246,7 +246,7 @@ position: relative;
     inset: 0;
     overflow: auto;
     background: transparent;
-    scrollbar-color: var(--color-teal) var(--report-pdf-viewer-bg);
+    scrollbar-color: var(--color-teal) transparent !important;
 }
 
 #report-pdf-viewer.pdfViewer {

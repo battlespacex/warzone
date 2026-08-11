@@ -1,7 +1,4 @@
-import crypto from "crypto";
-import { DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, readReportingConfig } from "./reporting-config.js";
-import { createReportPdfBuffer } from "./reporting-pdf.js";
-import { s3PutObject } from "./reporting-s3.js";
+import { readReportingConfig } from "./reporting-config.js";
 import { applyGeneralEventDeliveryFilters } from "./map-event-policy.js";
 import {
   SNAPSHOT_SCHEMA_VERSION,
@@ -832,39 +829,11 @@ function buildWeeklyReportBody(snapshots, { dateKey, scope }) {
   };
 }
 
-function getReportStorageKey(config, report) {
-  const scopeKey = getScopeKey({ type: report.scope_type, value: report.scope_value, label: report.scope_label });
-  return `${config.s3Prefix}/${report.report_type}/${report.period_start}/${scopeKey}/${report.report_key.replace(/[^a-z0-9:_-]+/gi, "-")}.pdf`;
-}
-
-async function uploadReportPdf({ supabase, report, config }) {
-  const body = report.report_body || report.body || {};
-  const pdf = await createReportPdfBuffer({ ...report, body });
-  const storageKey = getReportStorageKey(config, report);
-  const uploaded = await s3PutObject(config, {
-    key: storageKey,
-    body: pdf,
-    contentType: "application/pdf",
-  });
-  const publishedRetentionDays = Math.max(1, Number(config.publishedRetentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
-  const expiresAt = new Date(Date.now() + publishedRetentionDays * 24 * 60 * 60 * 1000).toISOString();
-  const downloadToken = crypto.randomBytes(24).toString("hex");
-  const { data, error } = await supabase
-    .from("operational_reports")
-    .update({
-      status: "available",
-      pdf_url: uploaded.url,
-      pdf_storage_key: uploaded.storageKey,
-      pdf_etag: uploaded.etag,
-      download_token: downloadToken,
-      expires_at: expiresAt,
-      updated_at: nowIso(),
-    })
-    .eq("id", report.id)
-    .select("*")
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+function createLegacyPublisherDisabledError(reportKey = "") {
+  const suffix = reportKey ? ` report=${reportKey}` : "";
+  return new Error(
+    `Legacy report PDF publisher is disabled.${suffix} Use apps/worker/src/reporting-pipeline-service.js for canonical HTML/PDF publication.`
+  );
 }
 
 async function upsertReportRecord({ supabase, reportType, dateKey, scope, body, snapshotIds }) {
@@ -909,17 +878,7 @@ async function ensureDailyReport({ supabase, dateKey = getPreviousUtcDateKey(), 
       const existing = await getAvailableReportByKey(supabase, reportKey);
       if (existing) return existing;
     }
-    const snapshot = await generateDailySnapshot({ supabase, dateKey, scope: normalizedScope, config });
-    const body = buildDailyReportBody(snapshot);
-    const report = await upsertReportRecord({
-      supabase,
-      reportType: "daily",
-      dateKey,
-      scope: normalizedScope,
-      body,
-      snapshotIds: [snapshot.snapshot_id || snapshot.id].filter(Boolean),
-    });
-    return uploadReportPdf({ supabase, report, config });
+    throw createLegacyPublisherDisabledError(reportKey);
   });
 }
 
@@ -957,20 +916,7 @@ async function ensureWeeklyReport({ supabase, dateKey = getPreviousUtcDateKey(),
       const existing = await getAvailableReportByKey(supabase, reportKey);
       if (existing) return existing;
     }
-    const snapshots = await getSnapshotsForWeeklyReport(supabase, { dateKey, scope: normalizedScope });
-    if (snapshots.length < 7) {
-      throw new Error(`Weekly report requires 7 daily snapshots; found ${snapshots.length}`);
-    }
-    const body = buildWeeklyReportBody(snapshots, { dateKey, scope: normalizedScope });
-    const report = await upsertReportRecord({
-      supabase,
-      reportType: "weekly",
-      dateKey,
-      scope: normalizedScope,
-      body,
-      snapshotIds: snapshots.map((snapshot) => snapshot.snapshot_id || snapshot.id).filter(Boolean),
-    });
-    return uploadReportPdf({ supabase, report, config });
+    throw createLegacyPublisherDisabledError(reportKey);
   });
 }
 
@@ -1026,40 +972,18 @@ async function generateScheduledSnapshots({ supabase, config = readReportingConf
 
 async function generateScheduledReports({ supabase, config = readReportingConfig(), logger = console, referenceDate = new Date(), reportTypes = null } = {}) {
   if (!config.scheduleEnabled) return { ok: true, skipped: true, reason: "schedule_disabled" };
-  const selectedTypes = Array.isArray(reportTypes)
-    ? new Set(reportTypes.map((type) => String(type || "").toLowerCase()))
-    : null;
-  const runDaily = selectedTypes ? selectedTypes.has("daily") : config.dailyEnabled !== false;
-  const runWeekly = selectedTypes ? selectedTypes.has("weekly") : config.weeklyEnabled === true;
-  if (!runDaily && !runWeekly) return { ok: true, skipped: true, reason: "report_types_disabled" };
   const dateKey = getPreviousUtcDateKey(referenceDate);
-  const scopes = getScheduledScopes(config);
-  const results = [];
-  for (const scope of scopes) {
-    if (runDaily) {
-      try {
-        const daily = await ensureDailyReport({ supabase, dateKey, scope, config });
-        results.push({ ok: true, report_type: "daily", scope: getScopeKey(scope), id: daily.id });
-      } catch (error) {
-        logger.warn?.(`[reports] daily generation failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
-        results.push({ ok: false, report_type: "daily", scope: getScopeKey(scope), error: error?.message || String(error) });
-      }
-    }
-    if (runWeekly) {
-      try {
-        const weekly = await ensureWeeklyReport({ supabase, dateKey, scope, config });
-        results.push({ ok: true, report_type: "weekly", scope: getScopeKey(scope), id: weekly.id });
-      } catch (error) {
-        if (!String(error?.message || "").includes("requires 7 daily snapshots")) {
-          logger.warn?.(`[reports] weekly generation failed scope=${getScopeKey(scope)} error=${error?.message || error}`);
-        }
-      }
-    }
-  }
-  await pruneExpiredReports({ supabase, config, logger }).catch((error) => {
-    logger.warn?.(`[reports] cleanup failed: ${error?.message || error}`);
-  });
-  return { ok: results.some((result) => result.ok), dateKey, results };
+  logger.warn?.(
+    "[reports] legacy scheduled report publisher is disabled; use generateScheduledDailyPipelines() from apps/worker/src/reporting-pipeline-service.js"
+  );
+  return {
+    ok: false,
+    skipped: true,
+    reason: "legacy_report_publisher_disabled",
+    dateKey,
+    reportTypes: Array.isArray(reportTypes) ? reportTypes : null,
+    results: [],
+  };
 }
 
 async function pruneExpiredReports({ supabase, config = readReportingConfig() } = {}) {

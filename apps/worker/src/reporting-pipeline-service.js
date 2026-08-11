@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { readdir, readFile, stat, writeFile } from "fs/promises";
 import { basename, relative, resolve } from "path";
 import { DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, readReportingConfig } from "../../shared/reporting-config.js";
-import { buildSnapshotKey } from "../../shared/reporting-snapshot.js";
+import { buildReportObjectKeys, buildSnapshotKey } from "../../shared/reporting-snapshot.js";
 import { s3DeleteObject, s3PutObject } from "../../shared/reporting-s3.js";
 import {
   REPORT_VERSION,
@@ -42,6 +42,59 @@ function nowIso() {
 
 function cleanError(error) {
   return String(error?.message || error || "Report pipeline failed").replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
+function normalizeStorageKey(value = "") {
+  return String(value || "").trim().replace(/^\/+/, "");
+}
+
+function getCanonicalReportObjectKeys(snapshot = {}, config = readReportingConfig()) {
+  const dateKey = String(snapshot.snapshot_date || snapshot.snapshot_data?.report_date || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    throw new Error(`Cannot determine canonical report date from snapshot: ${dateKey || "missing"}`);
+  }
+  const scope = normalizeScope({
+    type: snapshot.scope_type || snapshot.snapshot_data?.scope?.type || "global",
+    value: snapshot.scope_value ?? snapshot.snapshot_data?.scope?.value ?? null,
+    label: snapshot.scope_label || snapshot.snapshot_data?.scope?.label || "Global",
+  });
+  const keys = buildReportObjectKeys({
+    prefix: config.s3Prefix || "reports",
+    dateKey,
+    scope,
+  });
+  return Object.fromEntries(Object.entries(keys).map(([key, value]) => [key, normalizeStorageKey(value)]));
+}
+
+function getCanonicalReportPdfKey(snapshot = {}, config = readReportingConfig()) {
+  return getCanonicalReportObjectKeys(snapshot, config).report_pdf;
+}
+
+function assertCanonicalManifestObjectKeys(snapshot = {}, config = readReportingConfig()) {
+  const expected = getCanonicalReportObjectKeys(snapshot, config);
+  const actual = snapshot?.report_manifest?.object_keys || {};
+  for (const key of ["report_html", "report_json", "manifest_json", "report_pdf", "images_prefix"]) {
+    const actualKey = normalizeStorageKey(actual[key]);
+    if (!actualKey || actualKey !== expected[key]) {
+      throw new Error(
+        `Refusing report publication: manifest ${key} is non-canonical; expected=${expected[key]} actual=${actualKey || "missing"}`
+      );
+    }
+  }
+  return expected;
+}
+
+function assertCanonicalReportPublication({ snapshot, publication, config = readReportingConfig() } = {}) {
+  const expected = assertCanonicalManifestObjectKeys(snapshot, config).report_pdf;
+  const actual = normalizeStorageKey(publication?.storageKey);
+
+  if (!actual || actual !== expected) {
+    throw new Error(`Refusing report publication: PDF storage key is non-canonical; expected=${expected} actual=${actual || "missing"}`);
+  }
+  if (actual.includes(":") || /T\d{2}:\d{2}:\d{2}/.test(actual)) {
+    throw new Error(`Refusing report publication: legacy timestamp/report-key format detected in ${actual}`);
+  }
+  return expected;
 }
 
 function withPipelineLock(key, createPromise) {
@@ -146,6 +199,7 @@ function buildPublishableManifest(manifest = {}) {
 }
 
 async function uploadReportArtifacts({ snapshot, outputDirectory, config, uploadObject = s3PutObject }) {
+  assertCanonicalManifestObjectKeys(snapshot, config);
   const objectKeys = snapshot.report_manifest?.object_keys || {};
   for (const key of ["report_html", "report_json", "manifest_json", "report_pdf", "images_prefix"]) {
     if (!objectKeys[key]) throw new Error(`Snapshot manifest is missing object key ${key}`);
@@ -188,7 +242,8 @@ async function uploadReportArtifacts({ snapshot, outputDirectory, config, upload
   return uploads;
 }
 
-async function persistOperationalReportAvailable({ supabase, report, snapshot, model, manifest, publication, config }) {
+async function persistOperationalReportAvailable({ supabase, report, snapshot, model, manifest, publication, config, canonicalRequired = true }) {
+  if (canonicalRequired) assertCanonicalReportPublication({ snapshot, publication, config });
   const publishedRetentionDays = Math.max(1, Number(config.publishedRetentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
   const expiresAt = new Date(Date.now() + publishedRetentionDays * 24 * 60 * 60 * 1000).toISOString();
   const downloadToken = crypto.randomBytes(24).toString("hex");
@@ -438,6 +493,10 @@ async function runDailyReportPipeline({
         publication = uploads.reportPdf;
       }
 
+      if (!(localOnly || skipUpload)) {
+        assertCanonicalReportPublication({ snapshot, publication, config });
+      }
+
       const completedAt = nowIso();
       const completeManifest = buildPipelineManifest(snapshot.report_manifest, {
         generation_status: "complete",
@@ -471,6 +530,7 @@ async function runDailyReportPipeline({
         manifest: publishableManifest,
         publication,
         config,
+        canonicalRequired: !(localOnly || skipUpload),
       });
       const publishedRetention = localOnly || skipUpload
         ? { ok: true, skipped: true, reason: "local_publication" }
@@ -549,9 +609,13 @@ function resetPipelineLocksForTests() {
 
 const __reportingPipelineTestUtils = {
   PIPELINE_STAGES,
+  assertCanonicalManifestObjectKeys,
+  assertCanonicalReportPublication,
   buildPipelineManifest,
   buildPublishableManifest,
   collectPublishedReportObjectKeys,
+  getCanonicalReportObjectKeys,
+  getCanonicalReportPdfKey,
   getPublishedReportInstancePrefix,
   getContentType,
   resetPipelineLocksForTests,

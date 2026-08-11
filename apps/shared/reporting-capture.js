@@ -657,10 +657,24 @@ function isCaptureCleanupEligible({ modifiedAt, now = Date.now(), retentionHours
 
 function buildCapturePageUrl(baseUrl = "", snapshotKey = "", captureId = "") {
   const base = cleanText(baseUrl).replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(base)) throw new Error("REPORTING_CAPTURE_BASE_URL must be an http(s) URL");
-  const url = new URL(`${base}/report-capture`);
+  if (!/^https?:\/\//i.test(base)) {
+    throw new Error("REPORTING_CAPTURE_BASE_URL must be an http(s) URL");
+  }
+
+  const baseUrlObject = new URL(base);
+  const isLocal =
+    baseUrlObject.hostname === "localhost" ||
+    baseUrlObject.hostname === "127.0.0.1";
+
+  const url = new URL(
+    isLocal
+      ? `${base}/report-capture`
+      : `${base}/pages/report-capture.html`
+  );
+
   url.searchParams.set("snapshot_key", snapshotKey);
   url.searchParams.set("capture_id", captureId);
+
   return url.toString();
 }
 

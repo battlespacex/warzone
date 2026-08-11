@@ -3,9 +3,11 @@ loadWorkerEnv();
 
 import { supabase } from "./supabase.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
-import { ensureOperationalReport, generateDailySnapshot, generateScheduledReports, generateScheduledSnapshots, getPreviousUtcDateKey } from "../../shared/reporting-service.js";
-import { generateScheduledDailyPipelines, runDailyReportPipeline } from "./reporting-pipeline-service.js";
-import { runReportingDevHvaFixture } from "./reporting-dev-hva-fixture-service.js";
+import { getPreviousUtcDateKey } from "../../shared/reporting-service.js";
+import {
+  generateScheduledDailyPipelines,
+  runDailyReportPipeline,
+} from "./reporting-pipeline-service.js";
 
 function readArg(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -23,57 +25,28 @@ const dateKey = readArg("date", getPreviousUtcDateKey());
 const scopeType = readArg("scope", "global").toLowerCase();
 const scopeValue = readArg("value", "");
 const runScheduled = hasFlag("scheduled");
-const snapshotOnly = hasFlag("snapshot-only");
-const full = hasFlag("full");
-const devHvaFixture = hasFlag("dev-hva-fixture");
 
 try {
-  if (devHvaFixture && !full) {
-    throw new Error("--dev-hva-fixture requires --full");
+  if (type !== "daily") {
+    throw new Error(
+      `Canonical reports:once currently supports daily reports only. Refusing legacy ${type} PDF generation.`
+    );
   }
-  const result = devHvaFixture
-    ? await runReportingDevHvaFixture({
-      supabase,
-      config,
-      dateKey,
-      scope: { type: scopeType, value: scopeValue },
-      localOnly: hasFlag("local-only"),
-      scheduled: runScheduled,
-      logger: console,
-    })
-    : full
-    ? runScheduled
-      ? await generateScheduledDailyPipelines({ supabase, config, logger: console })
-      : await runDailyReportPipeline({
+
+  const result = runScheduled
+    ? await generateScheduledDailyPipelines({ supabase, config, logger: console })
+    : await runDailyReportPipeline({
         supabase,
         config,
         dateKey,
         scope: { type: scopeType, value: scopeValue },
         force: hasFlag("force"),
-        localOnly: hasFlag("local-only"),
         skipCapture: hasFlag("skip-capture"),
         skipUpload: hasFlag("skip-upload"),
+        localOnly: hasFlag("local-only"),
         logger: console,
-      })
-    : runScheduled
-    ? snapshotOnly
-      ? await generateScheduledSnapshots({ supabase, config, logger: console })
-      : await generateScheduledReports({ supabase, config, logger: console })
-    : snapshotOnly
-      ? await generateDailySnapshot({
-        supabase,
-        config,
-        dateKey,
-        scope: { type: scopeType, value: scopeValue },
-      })
-      : await ensureOperationalReport({
-      supabase,
-      config,
-      reportType: type,
-      dateKey,
-      scope: { type: scopeType, value: scopeValue },
-      force: hasFlag("force"),
-    });
+      });
+
   console.log(JSON.stringify({ ok: true, result }, null, 2));
 } catch (error) {
   console.error("[reports:once] failed:", error?.message || error);
