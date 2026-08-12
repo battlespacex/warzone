@@ -437,6 +437,10 @@ body.is-scene-2d .wz-globe-rotate-btn {
         visibility 0s linear 260ms;
 }
 
+.wz-globe-rotate-btn {
+    display: none !important
+}
+
 /* ── 2D/3D Toggle ── */
 .wz-globe-toggle {
     display: flex;

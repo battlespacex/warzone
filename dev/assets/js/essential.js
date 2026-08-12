@@ -10390,7 +10390,7 @@ export function initGlobeRotation(viewer) {
         const b = document.createElement("button");
         b.id = "wz-globe-rotate-btn";
         b.type = "button";
-        b.className = "static-icon";
+        b.className = "wz-globe-rotate-btn static-icon";
         b.innerHTML = "<span id='wz-rotate-icon'><span class='stratops-ico-next-1'></span></span>";
         b.addEventListener("click", () => {
             const cfg = window.__globeRotation;

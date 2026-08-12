@@ -1770,7 +1770,7 @@
 .wz-orbital-hover-card p,
 .wz-orbital-focus-card p,
 .wz-orbital-controls p {
-    margin-top: 1rem 0 0;
+    margin: 1rem 0 0;
     color: var(--color-text-dim);
     font-size: var(--text-xs);
 }

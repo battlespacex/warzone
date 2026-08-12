@@ -937,8 +937,8 @@ function ensureControls() {
             <div>
                 <span class="wz-orbital-widget__details-kicker">PUBLIC ORBITAL ESTIMATE</span>
                 <h3 class="wz-orbital-widget__details-title">UNSPECIFIED ASSET</h3>
-            </div>
-            <button type="button" class="btn-secondary white">Unlock</button>
+            </div><
+            <button type="button" class="btn-secondary white"><span aria-hidden="true"></span>Unlock</button>
         </div>
         <div class="wz-orbital-widget__details-grid"></div>
         <p class="wz-orbital-widget__details-note"></p>
