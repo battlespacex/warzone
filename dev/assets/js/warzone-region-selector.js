@@ -70,6 +70,7 @@ let __regionSceneModeRefocusTimer = 0;
 let __regionSceneModeRefocusSeq = 0;
 let __currentViewportRegion = __activeRegion;
 let __hasUserSelectedRegion = false;
+let __regionSwitchPromptRequest = null;
 const REGION_HINT_SETTLED_DEBOUNCE_MS = 450;
 const REGION_HINT_ENABLED = true;
 const REGION_HINT_CENTER_DRIFT_RATIO = 0.6;
@@ -667,16 +668,59 @@ function setRegionPromptVisibleOnControls(active) {
 function isAnyBlockingRegionModalVisible() {
     return Boolean(document.querySelector(`.wz-modal.is-visible:not([hidden]):not(#${REGION_OUTSIDE_PROMPT_ID})`));
 }
+function resetRegionOutsidePromptCopy() {
+    const title = document.getElementById("wz-region-outside-title");
+    const summary = document.getElementById("wz-region-outside-summary");
+    const detail = document.getElementById("wz-region-outside-detail");
+    const returnBtn = document.getElementById("wz-region-outside-return");
+    const selectBtn = document.getElementById("wz-region-outside-select");
+    if (title) title.textContent = "Please Select Region";
+    if (summary) summary.textContent = "Your current camera view is outside the selected monitoring region.";
+    if (detail) detail.textContent = "Use Back to Region to return to the selected theater or Select Region to choose a different monitoring region.";
+    if (returnBtn) returnBtn.innerHTML = '<span aria-hidden="true"></span>Back to Region';
+    if (selectBtn) selectBtn.innerHTML = '<span aria-hidden="true"></span>Select Region';
+}
+function settleRegionSwitchPrompt(result = false) {
+    const request = __regionSwitchPromptRequest;
+    __regionSwitchPromptRequest = null;
+    resetRegionOutsidePromptCopy();
+    if (request?.resolve) request.resolve(Boolean(result));
+}
 function ensureRegionOutsidePrompt(viewer) {
     const prompt = document.getElementById(REGION_OUTSIDE_PROMPT_ID);
     if (!prompt) return null;
     if (prompt.dataset.regionPromptBound === "true") return prompt;
     prompt.dataset.regionPromptBound = "true";
     document.getElementById("wz-region-outside-return")?.addEventListener("click", () => {
+        if (__regionSwitchPromptRequest) {
+            setRegionOutsidePromptActive(false, viewer);
+            const request = __regionSwitchPromptRequest;
+            request?.options?.onCancel?.();
+            settleRegionSwitchPrompt(false);
+            return;
+        }
         setRegionHintState(false, viewer);
         flyToRegion(viewer, __activeRegion);
     });
     document.getElementById("wz-region-outside-select")?.addEventListener("click", () => {
+        if (__regionSwitchPromptRequest) {
+            const request = __regionSwitchPromptRequest;
+            const targetRegion = request.targetRegion;
+            setRegionOutsidePromptActive(false, viewer);
+            __regionSwitchPromptRequest = null;
+            resetRegionOutsidePromptCopy();
+            Promise.resolve(selectRegion(viewer, targetRegion.id, {
+                source: request.options?.source || "external",
+                allowAnyRegion: true,
+                showLoader: request.options?.showLoader === true,
+            })).then((success) => {
+                request.options?.onSwitched?.(targetRegion, success !== false);
+                request.resolve?.(success !== false);
+            }).catch(() => {
+                request.resolve?.(false);
+            });
+            return;
+        }
         setRegionHintState(false, viewer);
         showRegionModal(viewer, false, {
             mode: "manual",
@@ -690,9 +734,57 @@ function ensureRegionOutsidePrompt(viewer) {
         });
     });
     document.getElementById("wz-region-outside-close")?.addEventListener("click", () => {
+        if (__regionSwitchPromptRequest) {
+            setRegionOutsidePromptActive(false, viewer);
+            const request = __regionSwitchPromptRequest;
+            request?.options?.onCancel?.();
+            settleRegionSwitchPrompt(false);
+            return;
+        }
         setRegionHintState(false, viewer);
     });
     return prompt;
+}
+export function requestRegionSwitch(viewer, regionId, options = {}) {
+    const targetRegion = getRegionById(regionId);
+    if (!viewer || !targetRegion || targetRegion.id === "global") return Promise.resolve(false);
+    if (__activeRegion?.id === targetRegion.id) {
+        options?.onSwitched?.(targetRegion, true);
+        return Promise.resolve(true);
+    }
+    const prompt = ensureRegionOutsidePrompt(viewer);
+    if (!prompt) {
+        return Promise.resolve(selectRegion(viewer, targetRegion.id, {
+            source: options?.source || "external",
+            allowAnyRegion: true,
+            showLoader: options?.showLoader === true,
+        })).then((success) => {
+            options?.onSwitched?.(targetRegion, success !== false);
+            return success !== false;
+        });
+    }
+    if (__regionSwitchPromptRequest?.resolve) {
+        __regionSwitchPromptRequest.resolve(false);
+    }
+    const currentLabel = getRegionLabelForLens(__activeRegion, __activeLens);
+    const targetLabel = getRegionLabelForLens(targetRegion, __activeLens);
+    const contextLabel = String(options?.contextLabel || "these satellite observations").trim();
+    const title = document.getElementById("wz-region-outside-title");
+    const summary = document.getElementById("wz-region-outside-summary");
+    const detail = document.getElementById("wz-region-outside-detail");
+    const returnBtn = document.getElementById("wz-region-outside-return");
+    const selectBtn = document.getElementById("wz-region-outside-select");
+    if (title) title.textContent = "Switch Monitoring Region?";
+    if (summary) summary.textContent = `You are currently monitoring ${currentLabel}. To view ${contextLabel}, switch to ${targetLabel}.`;
+    if (detail) detail.textContent = `Continuing changes the active StratOps monitoring region from ${currentLabel} to ${targetLabel}.`;
+    if (returnBtn) returnBtn.innerHTML = '<span aria-hidden="true"></span>Cancel';
+    if (selectBtn) selectBtn.innerHTML = '<span aria-hidden="true"></span>Switch Region';
+    clearPendingRegionHintRefresh();
+    setRegionButtonHintActive(false);
+    setRegionOutsidePromptActive(true, viewer);
+    return new Promise((resolve) => {
+        __regionSwitchPromptRequest = { targetRegion, options, resolve };
+    });
 }
 function setRegionOutsidePromptActive(active, viewer) {
     const prompt = active
@@ -709,6 +801,7 @@ function setRegionHintState(active, viewer) {
     setRegionOutsidePromptActive(active, viewer);
 }
 function refreshRegionButtonHint(viewer) {
+    if (__regionSwitchPromptRequest) return;
     const isSceneMorphing = viewer?.scene?.mode === Cesium.SceneMode.MORPHING;
     if (!viewer || __regionTransitionInFlight || isSceneMorphing || !isRegionHintAllowed()) {
         setRegionHintState(false, viewer);
@@ -926,7 +1019,7 @@ export function selectRegion(viewer, regionId, options = {}) {
     __currentViewportRegion = region;
     __regionCameraSyncPauseUntil = Date.now() + 1200;
     notifyChange(region, { source: options?.source || "manual" });
-    flyToRegion(viewer, region, options);
+    return flyToRegion(viewer, region, options);
 }
 function updateNavDropdown(region) {
     const label = __hasUserSelectedRegion && region

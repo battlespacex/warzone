@@ -1,4 +1,4 @@
-﻿// File Path: /assets/js/warzone-layers.js
+// File Path: /assets/js/warzone-layers.js
 import {
     getStratOpsLayerFeaturePath,
     isStratOpsFeatureEnabled,
@@ -492,6 +492,36 @@ export function toggleLayer(id) {
     return __layerState[id];
 }
 
+export async function requestLayerToggle(id) {
+    if (!getLayerDef(id)) return false;
+
+    const currentlyEnabled = getEffectiveLayerState(id);
+    if (currentlyEnabled) {
+        return setLayer(id, false);
+    }
+
+    if (!canUseLayer(id)) {
+        openPremiumAccessFlow();
+        notifyChange(id, false);
+        return false;
+    }
+
+    const nextState = buildSingleToggleState(id, true);
+    if (shouldWarnForLayerTransition(nextState)) {
+        const approved = await requestPerformanceApproval({
+            mode: "toggle",
+            pendingId: id,
+            nextCount: countWarnableEnabledLayers(nextState),
+        });
+        if (!approved) {
+            notifyChange(id, false);
+            return false;
+        }
+    }
+
+    return setLayer(id, true);
+}
+
 function getAvailableLayerDefs(ids = []) {
     return ids
         .map((id) => getLayerDef(id))
@@ -641,6 +671,17 @@ function notifyChange(id, val) {
         if (layerDef?.uiOnly) {
             syncUiOnlyLayerToWidget(id, getEffectiveLayerState(id));
         }
+    }
+
+    const container = document.getElementById("wz-layer-panel");
+    if (container) {
+        if (id === "*") {
+            syncAllLayerItemStates(container);
+        } else {
+            const item = container.querySelector(`[data-layer="${id}"]`);
+            if (item) syncLayerItemState(item, id);
+        }
+        updateBulkToggleState(container);
     }
 
     __callbacks.forEach((cb) => {

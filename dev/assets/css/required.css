@@ -534,6 +534,7 @@ button.pressed {
     text-transform: uppercase;
     letter-spacing: .2rem;
     font-weight: 700;
+    padding: 0 1.5rem;
 }
 
 .btn-secondary.entry-button::before,
@@ -739,7 +740,7 @@ button.pressed {
     width: 100%;
     max-width: 100%;
     min-width: 100%;
-    padding: 0 4rem 0 1rem;
+    padding: .4rem 3.5rem 0 1rem;
     cursor: pointer;
 }
 

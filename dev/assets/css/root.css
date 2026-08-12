@@ -254,36 +254,23 @@
 /* #region =========== Satellite Observation Icon =========== */
 :root {
     --warzone-satellite-imagery-icon-url: url("/assets/images/icons/satellite-observation.png");
-
     --warzone-satellite-imagery-icon-color: var(--color-teal-glow);
     --warzone-satellite-imagery-icon-alpha: 1;
-
     --warzone-satellite-imagery-marker-size-px: 64;
-
-    /* Position relative to event marker */
     --warzone-satellite-imagery-offset-x-px: 28;
     --warzone-satellite-imagery-offset-y-px: -28;
-
-    /* More negative = brought farther forward / above event UI */
     --warzone-satellite-imagery-eye-offset-z: -12000;
-
-    /* Hotspot overlay stacking: circle < Copernicus X < labels/cards */
     --warzone-hotspot-radius-z-base: 20;
     --warzone-satellite-observation-z-base: 30;
     --warzone-hotspot-label-z-base: 40;
     --warzone-hotspot-stack-line-z: 50;
     --warzone-hotspot-stack-z: 60;
-
-    /* OPTIONAL RING */
     --warzone-satellite-imagery-ring-enabled: 0;
-
     --warzone-satellite-imagery-ring-color: var(--color-teal-glow);
     --warzone-satellite-imagery-ring-alpha: .75;
     --warzone-satellite-imagery-ring-size-px: 62;
     --warzone-satellite-imagery-ring-width-px: 2;
-
 }
-
 /* #endregion =========== */
 
 /* #region =========== Global Satellite Imagery =========== */
@@ -313,32 +300,32 @@
     --warzone-satellite-imagery-viewer-max-height: 75vh;
     --warzone-orbital-symbol-size: 6;
     --warzone-orbital-symbol-hover-size: 9;
-    --warzone-orbital-symbol-color: #9fd7ff;
-    --warzone-orbital-symbol-alpha: 0.72;
+    --warzone-orbital-symbol-color: var(--color-teal-glow);
+    --warzone-orbital-symbol-alpha: 0.1;
     --warzone-orbital-symbol-outline-color: #08131c;
-    --warzone-orbital-symbol-outline-width: 1;
+    --warzone-orbital-symbol-outline-width: 2;
     --warzone-orbital-max-visible-distance: 26000000;
     --warzone-orbital-label-size: 10;
-    --warzone-orbital-label-color: #9fd7ff;
-    --warzone-orbital-path-color: #9fd7ff;
-    --warzone-orbital-path-alpha: 0.34;
-    --warzone-orbital-predicted-color: #e7edf5;
-    --warzone-orbital-predicted-alpha: 0.26;
-    --warzone-orbital-path-width: 1.4;
+    --warzone-orbital-label-color: var(--color-teal-glow);
+    --warzone-orbital-path-color: var(--color-teal-glow);
+    --warzone-orbital-path-alpha: 0.3;
+    --warzone-orbital-predicted-color: var(--color-white-slate);
+    --warzone-orbital-predicted-alpha: 0.3;
+    --warzone-orbital-path-width: 2;
     --warzone-orbital-ground-track-color: var(--color-teal-glow);
-    --warzone-orbital-ground-track-alpha: 0.24;
+    --warzone-orbital-ground-track-alpha: 0.4;
     --warzone-orbital-ground-track-width: 1;
     --warzone-orbital-ground-point-size: 7;
-    --warzone-orbital-nadir-color: #9fd7ff;
+    --warzone-orbital-nadir-color: var(--color-teal-glow);
     --warzone-orbital-nadir-alpha: 0.3;
-    --warzone-orbital-nadir-width: 1;
-    --warzone-orbital-footprint-color: #9fd7ff;
-    --warzone-orbital-footprint-fill-alpha: 0.035;
-    --warzone-orbital-footprint-outline-color: #9fd7ff;
-    --warzone-orbital-footprint-outline-alpha: 0.24;
-    --warzone-orbital-footprint-outline-width: 2;
-    --warzone-orbital-selected-color: #e7edf5;
-    --warzone-orbital-selected-ring-color: var(--warzone-orbital-selected-color);
+    --warzone-orbital-nadir-width: 3;
+    --warzone-orbital-footprint-color: var(--color-teal);
+    --warzone-orbital-footprint-fill-alpha: 0.1;
+    --warzone-orbital-footprint-outline-color: var(--color-teal-glow);
+    --warzone-orbital-footprint-outline-alpha: 0.5;
+    --warzone-orbital-footprint-outline-width: 4;
+    --warzone-orbital-selected-color: var(--color-white-slate);
+    --warzone-orbital-selected-ring-color: var(--color-white);
     --warzone-orbital-selected-fallback-size: 10;
     --warzone-orbital-model-scale: 170000;
     --warzone-orbital-model-min-px: 18;

@@ -7,7 +7,7 @@ import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
-import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage } from "./warzone-layers.js";
+import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage, requestLayerToggle } from "./warzone-layers.js";
 import { renderRanges, clearRanges } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
 import { renderGnssInterferenceLayer, clearGnssInterferenceLayer } from "./warzone-gnss.js";
@@ -131,6 +131,7 @@ let __cachedOverlayClusters = [];
 let __lastNavalSignalsSyncKey = "__empty__";
 let __eventPopupDevInspectionFrozen = false;
 let __foregroundRenderModeRestoreTimer = 0;
+let __widgetLayerControlsBound = false;
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
@@ -138,6 +139,84 @@ let __aircraftWidgetScopeFilter = "region";
 let __aircraftWidgetPage = 1;
 let __aircraftWidgetCountryFilter = "all";
 let __aircraftHistoryCache = [];
+
+function syncWidgetLayerToggleState(layerId = "*") {
+    const selector = layerId && layerId !== "*"
+        ? `[data-widget-layer-toggle="${layerId}"]`
+        : "[data-widget-layer-toggle]";
+
+    document.querySelectorAll(selector).forEach((control) => {
+        const id = String(control.dataset.widgetLayerToggle || "").trim();
+        if (!id) return;
+
+        const enabled = isLayerEnabled(id);
+        const label = String(
+            control.dataset.widgetLayerLabel ||
+            LAYER_DEFS.find((layer) => layer.id === id)?.label ||
+            id
+        ).trim();
+
+        control.classList.toggle("is-on", enabled);
+        control.setAttribute("aria-pressed", enabled ? "true" : "false");
+        control.dataset.layerState = enabled ? "on" : "off";
+        control.title = `Turn ${enabled ? "off" : "on"} ${label.toLowerCase()} layer`;
+
+        const stateLabel = control.querySelector("[data-widget-layer-state]");
+        if (stateLabel) {
+            stateLabel.textContent = `${label} layer is ${enabled ? "on" : "off"}`;
+        }
+
+        // The widget itself may be opened directly from the dock while its
+        // underlying layer is disabled. In that state, keep only the layer
+        // activation control visible so stale/irrelevant widget data does not
+        // appear underneath an explicit "layer is off" message.
+        const widget = control.closest?.('[data-widget-id]');
+        if (widget) {
+            const dependentSelectors = {
+                aircraft: [".wz-aircraft-toolbar", "#wz-aircraft-panel"],
+                naval: [".wz-aircraft-toolbar", "#wz-naval-panel-list"],
+                cyber: ["#cyber-status-list"],
+                airspace: ["#airspace-status-list"],
+            }[id] || [];
+
+            dependentSelectors.forEach((dependentSelector) => {
+                widget.querySelectorAll(dependentSelector).forEach((element) => {
+                    element.hidden = !enabled;
+                    element.setAttribute("aria-hidden", enabled ? "false" : "true");
+                });
+            });
+        }
+    });
+}
+
+function bindWidgetLayerToggles() {
+    if (__widgetLayerControlsBound) {
+        syncWidgetLayerToggleState("*");
+        return;
+    }
+
+    __widgetLayerControlsBound = true;
+    document.addEventListener("click", async (event) => {
+        const control = event.target.closest?.("[data-widget-layer-toggle]");
+        if (!control) return;
+
+        const layerId = String(control.dataset.widgetLayerToggle || "").trim();
+        if (!layerId) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        control.disabled = true;
+        try {
+            await requestLayerToggle(layerId);
+        } finally {
+            control.disabled = false;
+            syncWidgetLayerToggleState(layerId);
+        }
+    });
+
+    syncWidgetLayerToggleState("*");
+}
 
 function getWarzoneAoiDataSnapshot() {
     const mapSourceEvents = __viewportScoped ? __visibleEventsCache : __eventsCache;
@@ -5640,6 +5719,13 @@ function rankCountryRows(events, type, max = 10) {
 function renderCyberStatus(events) {
     const container = document.getElementById("cyber-status-list");
     if (!container) return;
+    const enabled = isLayerEnabled("cyber");
+    container.hidden = !enabled;
+    container.setAttribute("aria-hidden", enabled ? "false" : "true");
+    if (!enabled) {
+        container.replaceChildren();
+        return;
+    }
     const rows = rankCountryRows(events, "cyber", 8);
     if (!rows.length) {
         const aggregate = deriveAggregateStatus(events, "cyber");
@@ -5667,6 +5753,13 @@ function renderCyberStatus(events) {
 function renderAirspaceStatus(events) {
     const container = document.getElementById("airspace-status-list");
     if (!container) return;
+    const enabled = isLayerEnabled("airspace");
+    container.hidden = !enabled;
+    container.setAttribute("aria-hidden", enabled ? "false" : "true");
+    if (!enabled) {
+        container.replaceChildren();
+        return;
+    }
     const rows = rankCountryRows(events, "airspace", 10);
     if (!rows.length) {
         const aggregate = deriveAggregateStatus(events, "airspace");
@@ -8235,6 +8328,7 @@ export async function initWarzoneApp() {
     if (isStratOpsFeatureEnabled("widgets.layers") && isStratOpsFeatureEnabled("dock.layers")) {
         initLayerPanel();
     }
+    bindWidgetLayerToggles();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for events
 
@@ -8486,6 +8580,7 @@ export async function initWarzoneApp() {
             requestAircraftMovementsWidgetRender(0);
         }
         onLayerChange((id) => {
+            syncWidgetLayerToggleState(id);
             syncIdleSceneState();
             syncFocusAwareBackgroundLoops();
             const globe = window.__warzoneViewer?.__warzone;

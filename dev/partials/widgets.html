@@ -1,4 +1,4 @@
-﻿<div class="warzone-ui-layer">
+<div class="warzone-ui-layer">
     <div class="secondary-content">
         <aside id="wz-map-layers-pane"
                class="wz-map-layers-pane"
@@ -83,6 +83,15 @@
                     </div>
                 </div>
                 <div class="panel-content">
+                    <button type="button"
+                            class="wz-widget-layer-control"
+                            data-widget-layer-toggle="airspace"
+                            data-widget-layer-label="Airspace"
+                            aria-pressed="false"
+                            title="Toggle airspace layer">
+                        <span class="wz-widget-layer-control__state" data-widget-layer-state>Airspace layer is off</span>
+                        <span class="wz-layer-toggle" aria-hidden="true"></span>
+                    </button>
                     <div id="airspace-status-list" class="status-list" aria-live="polite"></div>
                 </div>
             </div>
@@ -218,6 +227,15 @@
                     </div>
                 </div>
                 <div class="panel-content">
+                    <button type="button"
+                            class="wz-widget-layer-control"
+                            data-widget-layer-toggle="cyber"
+                            data-widget-layer-label="Cyber"
+                            aria-pressed="false"
+                            title="Toggle cyber layer">
+                        <span class="wz-widget-layer-control__state" data-widget-layer-state>Cyber layer is off</span>
+                        <span class="wz-layer-toggle" aria-hidden="true"></span>
+                    </button>
                     <div id="cyber-status-list" class="status-list" aria-live="polite"></div>
                 </div>
             </div>
@@ -252,6 +270,15 @@
                         <p>Sign in to access real-time military aircraft data</p>
                         <button type="button" class="btn-primary" onclick="window.__openLoginModal?.()"><span aria-hidden="true"></span>Sign In</button>
                     </div>
+                    <button type="button"
+                            class="wz-widget-layer-control"
+                            data-widget-layer-toggle="aircraft"
+                            data-widget-layer-label="Aircraft"
+                            aria-pressed="false"
+                            title="Toggle aircraft layer">
+                        <span class="wz-widget-layer-control__state" data-widget-layer-state>Aircraft layer is off</span>
+                        <span class="wz-layer-toggle" aria-hidden="true"></span>
+                    </button>
                     <div class="wz-aircraft-toolbar">
                         <label class="wz-aircraft-type-filter">
                             <span class="sr-only">Filter aircraft by type</span>
@@ -305,6 +332,15 @@
                         <p>Sign in to access live military naval tracking</p>
                         <button type="button" class="btn-primary" onclick="window.__openLoginModal?.()"><span aria-hidden="true"></span>Sign In</button>
                     </div>
+                    <button type="button"
+                            class="wz-widget-layer-control"
+                            data-widget-layer-toggle="naval"
+                            data-widget-layer-label="Naval"
+                            aria-pressed="false"
+                            title="Toggle naval layer">
+                        <span class="wz-widget-layer-control__state" data-widget-layer-state>Naval layer is off</span>
+                        <span class="wz-layer-toggle" aria-hidden="true"></span>
+                    </button>
                     <div class="wz-aircraft-toolbar">
                         <label class="wz-aircraft-type-filter">
                             <span class="sr-only">Filter naval contacts by type</span>

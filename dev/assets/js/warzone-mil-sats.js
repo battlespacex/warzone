@@ -12,6 +12,7 @@ import {
     getStartupSatelliteModelProfile,
     resolveSatelliteModelProfile,
 } from "./warzone-satellite-models.js";
+import { REGIONS, getActiveRegion, requestRegionSwitch } from "./warzone-region-selector.js";
 
 const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
 const EARTH_RADIUS_M = 6371008.8;
@@ -102,6 +103,7 @@ const state = {
     refreshTimer: null,
     visibleTimer: null,
     hoverCard: null,
+    hoverGuide: null,
     focusCard: null,
     controls: null,
     focusEntities: [],
@@ -464,6 +466,154 @@ function chooseVisibleRecords(records = []) {
         .slice(0, limit);
 }
 
+function getRegionArea(region = null) {
+    const bounds = region?.bounds || {};
+    const lonSpan = Number(bounds.maxLon) - Number(bounds.minLon);
+    const latSpan = Number(bounds.maxLat) - Number(bounds.minLat);
+    if (!Number.isFinite(lonSpan) || !Number.isFinite(latSpan) || lonSpan <= 0 || latSpan <= 0) return Number.POSITIVE_INFINITY;
+    return lonSpan * latSpan;
+}
+
+function resolveSatelliteMonitoringRegion(point = null) {
+    const lon = Number(point?.lon);
+    const lat = Number(point?.lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    const containsPoint = (region) => {
+        const bounds = region?.bounds || {};
+        return (
+            lon >= Number(bounds.minLon) &&
+            lon <= Number(bounds.maxLon) &&
+            lat >= Number(bounds.minLat) &&
+            lat <= Number(bounds.maxLat)
+        );
+    };
+    const activeRegion = getActiveRegion?.();
+    if (activeRegion?.id && activeRegion.id !== "global" && containsPoint(activeRegion)) {
+        return activeRegion;
+    }
+    const matches = REGIONS
+        .filter((region) => region?.id && region.id !== "global")
+        .filter(containsPoint)
+        .sort((a, b) => getRegionArea(a) - getRegionArea(b));
+    return matches[0] || null;
+}
+
+function getSatelliteRegionGroups(records = state.visibleRecords) {
+    const groups = new Map();
+    const now = new Date();
+    (Array.isArray(records) ? records : []).forEach((record) => {
+        const point = propagateRecord(record, now);
+        if (!point) return;
+        const region = resolveSatelliteMonitoringRegion(point);
+        const key = region?.id || "outside";
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                region,
+                label: region?.label || "Outside Defined Regions",
+                records: [],
+            });
+        }
+        groups.get(key).records.push({ record, point });
+    });
+    const activeRegionId = getActiveRegion?.()?.id || "";
+    return [...groups.values()].sort((a, b) => {
+        const aCurrent = a.region?.id === activeRegionId ? 1 : 0;
+        const bCurrent = b.region?.id === activeRegionId ? 1 : 0;
+        if (aCurrent !== bCurrent) return bCurrent - aCurrent;
+        if (!!a.region !== !!b.region) return a.region ? -1 : 1;
+        if (b.records.length !== a.records.length) return b.records.length - a.records.length;
+        return a.label.localeCompare(b.label);
+    });
+}
+
+function renderSatelliteRegionList() {
+    const controls = ensureControls();
+    const list = controls?.querySelector?.(".wz-orbital-regions__list");
+    const meta = controls?.querySelector?.(".wz-orbital-regions__meta");
+    if (!list || !meta) return;
+    if (!state.enabled) {
+        meta.textContent = "Layer off";
+        list.replaceChildren();
+        return;
+    }
+    const groups = getSatelliteRegionGroups(state.visibleRecords);
+    const mappedCount = groups.reduce((sum, group) => sum + (group.region ? group.records.length : 0), 0);
+    meta.textContent = state.loading
+        ? "Updating propagated positions"
+        : `${mappedCount}/${state.visibleRecords.length} visible assets inside monitoring regions`;
+    list.replaceChildren();
+    if (!groups.length) {
+        const empty = document.createElement("div");
+        empty.className = "wz-orbital-regions__empty";
+        empty.textContent = state.loading ? "Locating satellites..." : "No visible satellites are currently inside a defined monitoring region.";
+        list.appendChild(empty);
+        return;
+    }
+    const activeRegionId = getActiveRegion?.()?.id || "";
+    groups.forEach((group) => {
+        const row = document.createElement("article");
+        row.className = "wz-orbital-region-row";
+        if (group.region?.id === activeRegionId) row.classList.add("is-current");
+
+        const copy = document.createElement("div");
+        copy.className = "wz-orbital-region-row__copy";
+        const head = document.createElement("div");
+        head.className = "wz-orbital-region-row__head";
+        const title = document.createElement("strong");
+        title.textContent = formatUpper(group.label);
+        const count = document.createElement("span");
+        count.textContent = `${group.records.length} SAT${group.records.length === 1 ? "" : "S"}`;
+        head.appendChild(title);
+        head.appendChild(count);
+
+        const names = document.createElement("p");
+        const visibleNames = group.records
+            .slice(0, 3)
+            .map(({ record }) => formatUpper(record.name || record.objectName || record.noradId));
+        const remaining = Math.max(0, group.records.length - visibleNames.length);
+        names.textContent = `${visibleNames.join(" • ")}${remaining ? ` • +${remaining} MORE` : ""}`;
+        copy.appendChild(head);
+        copy.appendChild(names);
+        row.appendChild(copy);
+
+        if (group.region && group.records.length) {
+            const action = document.createElement("button");
+            const isCurrent = group.region.id === activeRegionId;
+            action.type = "button";
+            action.className = isCurrent ? "btn-secondary white wz-orbital-region-row__action" : "btn-primary wz-orbital-region-row__action";
+            action.innerHTML = `<span aria-hidden="true"></span>${isCurrent ? "View" : "Switch Region"}`;
+            action.setAttribute("aria-label", isCurrent
+                ? `View a satellite currently over ${group.label}`
+                : `Switch monitoring region to ${group.label} to view satellites`);
+            action.addEventListener("click", () => {
+                const primaryRecord = group.records[0]?.record;
+                if (!primaryRecord) return;
+                if (isCurrent) {
+                    selectSatellite(primaryRecord.id);
+                    return;
+                }
+
+                // A region switch must never begin while the camera is still tracking
+                // a focused satellite. Release the tracked/selected entity immediately
+                // before opening the region confirmation prompt.
+                selectSatellite("", { flyOut: false });
+
+                void requestRegionSwitch(state.viewer, group.region.id, {
+                    source: "orbital-satellite-region",
+                    contextLabel: `${group.records.length} satellite${group.records.length === 1 ? "" : "s"} currently over ${group.label}`,
+                    onSwitched: () => {
+                        updateControlsOptions();
+                        window.setTimeout(() => selectSatellite(primaryRecord.id), 180);
+                    },
+                });
+            });
+            row.appendChild(action);
+        }
+        list.appendChild(row);
+    });
+}
+
 function removeEntity(entity) {
     try {
         if (entity && state.viewer?.entities?.contains?.(entity)) {
@@ -487,6 +637,53 @@ function ensureHoverCard() {
     document.body.appendChild(card);
     state.hoverCard = card;
     return card;
+}
+
+function getOrCreateHoverGuide() {
+    if (state.hoverGuide?.isConnected) return state.hoverGuide;
+    const host =
+        state.viewer?.container ||
+        state.viewer?.scene?.canvas?.parentElement ||
+        null;
+    if (!host) return null;
+
+    const guide = document.createElement("div");
+    guide.className = "wz-aircraft-focus-guides is-hover";
+    guide.setAttribute("aria-hidden", "true");
+    guide.innerHTML = `
+        <span class="wz-aircraft-focus-guides__line is-top-left"></span>
+        <span class="wz-aircraft-focus-guides__line is-top-right"></span>
+        <span class="wz-aircraft-focus-guides__line is-bottom-left"></span>
+        <span class="wz-aircraft-focus-guides__line is-bottom-right"></span>
+    `;
+    host.appendChild(guide);
+    state.hoverGuide = guide;
+    return guide;
+}
+
+function hideHoverGuide() {
+    if (!state.hoverGuide) return;
+    state.hoverGuide.classList.remove("is-visible");
+    state.hoverGuide.style.display = "none";
+}
+
+function showHoverGuide(screenPosition = null) {
+    if (
+        !screenPosition ||
+        !Number.isFinite(screenPosition.x) ||
+        !Number.isFinite(screenPosition.y)
+    ) {
+        hideHoverGuide();
+        return;
+    }
+
+    const guide = getOrCreateHoverGuide();
+    if (!guide) return;
+
+    guide.style.left = `${screenPosition.x}px`;
+    guide.style.top = `${screenPosition.y}px`;
+    guide.style.display = "block";
+    guide.classList.add("is-visible");
 }
 
 function hideHoverCard() {
@@ -742,6 +939,7 @@ function handleMouseMove(movement) {
     if (!entity) {
         state.hoveredId = "";
         state.viewer.scene.canvas.style.cursor = "";
+        hideHoverGuide();
         hideHoverCard();
         return;
     }
@@ -749,6 +947,7 @@ function handleMouseMove(movement) {
     if (!record) return;
     state.hoveredId = record.id;
     state.viewer.scene.canvas.style.cursor = "pointer";
+    showHoverGuide(movement.endPosition);
     showHoverCard(record, movement);
     state.viewer.scene.requestRender?.();
 }
@@ -758,6 +957,8 @@ function handleClick(movement) {
     const picked = state.viewer.scene.pick(movement.position);
     const entity = entityForPick(picked);
     if (!entity) return;
+    hideHoverGuide();
+    hideHoverCard();
     selectSatellite(entity.__wzOrbitalId);
 }
 
@@ -916,6 +1117,16 @@ function ensureControls() {
     controlsPanel.appendChild(grid);
     controlsPanel.appendChild(note);
 
+    const regions = document.createElement("section");
+    regions.className = "wz-orbital-regions";
+    regions.innerHTML = `
+        <div class="wz-orbital-regions__head">
+            <h3>Current Satellite Regions</h3>
+            <span class="wz-orbital-regions__meta">Locating satellites...</span>
+        </div>
+        <div class="wz-orbital-regions__list" aria-live="polite"></div>
+    `;
+
     const summary = document.createElement("section");
     summary.className = "wz-orbital-widget__summary";
     summary.innerHTML = `
@@ -937,7 +1148,7 @@ function ensureControls() {
             <div>
                 <span class="wz-orbital-widget__details-kicker">PUBLIC ORBITAL ESTIMATE</span>
                 <h3 class="wz-orbital-widget__details-title">UNSPECIFIED ASSET</h3>
-            </div><
+            </div>
             <button type="button" class="btn-secondary white"><span aria-hidden="true"></span>Unlock</button>
         </div>
         <div class="wz-orbital-widget__details-grid"></div>
@@ -946,8 +1157,9 @@ function ensureControls() {
     details.querySelector(".btn-secondary.white")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
 
     controls.appendChild(controlsPanel);
-    controls.appendChild(summary);
+    controls.appendChild(regions);
     controls.appendChild(details);
+    controls.appendChild(summary);
     panel.replaceChildren(controls);
     state.controls = controls;
     state.focusCard = details;
@@ -1040,6 +1252,7 @@ function updateControlsOptions() {
             ? "Selected asset details are shown below. Orbital positions are propagated estimates from public orbital elements."
             : "Orbital positions are propagated estimates from public GP elements and are not direct sensor detections.";
     }
+    renderSatelliteRegionList();
 }
 
 async function fetchOrbitalData() {
@@ -1433,6 +1646,7 @@ function startTimers() {
 function cleanupLayer() {
     stopTimers();
     destroyHandler();
+    hideHoverGuide();
     hideHoverCard();
     clearFocusEntities();
     for (const entry of state.entities.values()) {
@@ -1443,8 +1657,10 @@ function cleanupLayer() {
     state.visibleRecords = [];
     state.selectedId = "";
     state.hoverCard?.remove?.();
+    state.hoverGuide?.remove?.();
     state.controls?.remove?.();
     state.hoverCard = null;
+    state.hoverGuide = null;
     state.focusCard = null;
     state.controls = null;
     hideOrbitalWidget();
