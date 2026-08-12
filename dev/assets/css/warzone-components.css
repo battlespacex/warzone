@@ -1770,7 +1770,7 @@
 .wz-orbital-hover-card p,
 .wz-orbital-focus-card p,
 .wz-orbital-controls p {
-    margin: 1.5rem;
+    margin-top: 1rem 0 0;
     color: var(--color-text-dim);
     font-size: var(--text-xs);
 }
@@ -2432,13 +2432,7 @@ body.is-map-layers-open .wz-map-layers-pane {
     backdrop-filter: none;
 }
 
-.wz-modal:before {
-    border-top: .7rem solid var(--color-teal-glow);
-    position: absolute;
-    width: 100%;
-    top: 0;
-    content: '';
-}
+
 
 
 .wz-modal footer {
@@ -2585,7 +2579,7 @@ body.is-map-layers-open .wz-map-layers-pane {
 .wz-pre-entry-showcase {
     position: fixed;
     inset: 0;
-    z-index: 190;
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5698,7 +5692,7 @@ body:not(.is-billing-enabled) [data-billing-open-pricing] {
 }
 
 .wz-globe-rotate-btn {
-    background: none;
+    /* background: none;
     border: none;
     color: rgba(255, 255, 255, 0.5);
     cursor: pointer;
@@ -5709,7 +5703,8 @@ body:not(.is-billing-enabled) [data-billing-open-pricing] {
     transition:
         opacity 320ms ease,
         transform 320ms ease,
-        visibility 0s linear 0s;
+        visibility 0s linear 0s; */
+        display: none !important
 }
 
 @keyframes fadeInUp {
@@ -6561,19 +6556,26 @@ body:not(.is-operational-report-open) .warzone-view {
     border: 0;
     transform-origin: top left;
 }
+.wz-operational-report-loader {
+    display: flex;
+    justify-items: center;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    gap: 2rem;
+    padding: 2rem;
+}
 
-.wz-operational-report-loader,
 .wz-operational-report-viewer__status {
     --wz-operational-report-loader-size: 26rem;
-    position: absolute;
     inset: 0;
     z-index: 2;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-    gap: 1.2rem;
     margin: 0;
-    padding: 2rem;
+}
+
+.wz-operational-report-loader p {
     color: var(--color-text-heading);
     font-family: var(--heading-font);
     font-size: var(--text-base);

@@ -1,4 +1,4 @@
-﻿// File Path: /assets/js/essential.js
+// File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
@@ -1160,8 +1160,7 @@ function normalizeIntelWireItem(item = {}) {
     const occurredAt = getIntelWireTimestamp(item);
     const verificationState = getIntelWireVerificationState(item);
     const idSource = item.id || item.guid || item.publicUrl || item.public_url || item.url || `${item.title || "intel"}-${occurredAt}`;
-    const title = sanitizeEventPopupText(item.title || item.display_title || item.displayTitle || "", "");
-    const summary = sanitizeIntelWireSummary(
+    const rawSummary = sanitizeIntelWireSummary(
         item.summary
         || item.display_summary
         || item.displaySummary
@@ -1170,6 +1169,8 @@ function normalizeIntelWireItem(item = {}) {
         || item.content_text
         || ""
     );
+    const summary = stripIntelWirePrivateSourceEcho(rawSummary, item);
+    const title = repairIntelWireTitle(item.title || item.display_title || item.displayTitle || "", summary);
     const fullContent = getLongestIntelWireTextCandidate([
         item.full_content,
         item.fullContent,
@@ -1188,14 +1189,7 @@ function normalizeIntelWireItem(item = {}) {
         item.display_summary,
         item.displaySummary,
     ]) || summary;
-    const sourceName = sanitizeEventPopupText(
-        item.sourceLabel
-        || item.source_label
-        || item.source_name
-        || item.sourceName
-        || "",
-        ""
-    );
+    const sourceName = getIntelWirePublicSourceDisplay(item);
     const rawLocationLabel = sanitizeEventPopupText(item.region || item.country || item.location_label || item.locationLabel || "", "");
     const locationLabel = isMeaningfulIntelWireText(rawLocationLabel) ? rawLocationLabel : "";
     const rawMedia = item.media && typeof item.media === "object"
@@ -1211,14 +1205,7 @@ function normalizeIntelWireItem(item = {}) {
             videos: Array.isArray(rawMedia.videos) ? rawMedia.videos : [],
         }
         : null;
-    const sourceUrl = String(
-        item.publicUrl
-        || item.public_url
-        || item.source_url
-        || item.sourceUrl
-        || item.url
-        || ""
-    ).trim();
+    const sourceUrl = getIntelWireSafeSourceUrl(item);
     return {
         id: `intel-${idSource}`,
         title,
@@ -2166,13 +2153,11 @@ export function openSatelliteImageryViewer(detail = {}) {
         body.innerHTML = `
             <!-- TOP LEFT: SATELLITE IMAGE -->
             <div class="wz-satellite-imagery-viewer__image-wrap">
-
                 <div
                     class="wz-satellite-imagery-viewer__status"
                     data-satellite-imagery-status>
                     Loading satellite observation...
                 </div>
-
                 <img
                     class="wz-satellite-imagery-viewer__image"
                     src="${escapeHtml(context.imageUrl)}"
@@ -2180,34 +2165,23 @@ export function openSatelliteImageryViewer(detail = {}) {
                     loading="eager"
                     decoding="async"
                     data-satellite-imagery-image>
-
                 <div class="wz-satellite-imagery-viewer__image-footer">
                     <span>${escapeHtml(context.provider || "Copernicus")}</span>
                     <span>${escapeHtml(collectionLabel)}</span>
                 </div>
             </div>
-
-
-            <!-- TOP RIGHT: ONLY THIS AREA SCROLLS -->
             <div class="wz-satellite-imagery-viewer__content">
-
                 <div class="wz-satellite-imagery-viewer__event">
-
                     <span class="wz-satellite-imagery-viewer__eyebrow">
                         SATELLITE OBSERVATION
                     </span>
-
                     <h3>${escapeHtml(title)}</h3>
-
                     ${summary ? `
                         <p class="wz-satellite-imagery-viewer__summary">
                             ${escapeHtml(summary)}
                         </p>
                     ` : ""}
-
                 </div>
-
-
                 <dl class="
                     wz-satellite-imagery-viewer__meta
                     wz-satellite-imagery-viewer__meta--primary
@@ -2219,52 +2193,23 @@ export function openSatelliteImageryViewer(detail = {}) {
                         </div>
                     `).join("")}
                 </dl>
-
-
                 <div class="wz-satellite-imagery-viewer__disclaimer">
-
                     <span>OBSERVATION NOTICE</span>
-
                     <p>${escapeHtml(context.disclaimer)}</p>
-
                     ${context.radarDisclaimer
-                        ? `<p>${escapeHtml(context.radarDisclaimer)}</p>`
-                        : ""}
-
+                ? `<p>${escapeHtml(context.radarDisclaimer)}</p>`
+                : ""}
                 </div>
-
-
                 <div class="wz-satellite-imagery-viewer__actions">
-
                     <a
                         href="${escapeHtml(context.imageUrl)}"
                         download
                         class="wz-satellite-imagery-viewer__action">
                         Download Image
                     </a>
-
-                    ${/^https?:\/\//i.test(sourceUrl)
-                        ? `
-                            <a
-                                href="${escapeHtml(sourceUrl)}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="wz-satellite-imagery-viewer__action">
-                                Event Source
-                            </a>
-                        `
-                        : ""}
-
                 </div>
-
             </div>
-
-
-            <!-- BOTTOM: 6 BOXES / 3 + 3 -->
-            <dl class="
-                wz-satellite-imagery-viewer__meta
-                wz-satellite-imagery-viewer__meta--bottom
-            ">
+            <dl class="wz-satellite-imagery-viewer__meta wz-satellite-imagery-viewer__meta--bottom">
                 ${bottomMetaRows.map(([label, value]) => `
                     <div>
                         <dt>${escapeHtml(label)}</dt>
@@ -4268,6 +4213,70 @@ function stripNonEnglishText(value = "", fallback = "") {
         .trim();
     return cleaned || String(fallback || "").trim();
 }
+function stripIntelWirePromotionNoise(value = "") {
+    let text = String(value || "");
+    const promotionIndex = text.search(/\b(?:rainbet(?:\.com)?|non[-\s]?kyc\s+crypto\s+casino|crypto\s+casino\s*(?:&|and)\s*sportsbook|casino\s*(?:&|and)\s*sportsbook|sportsbook\s+rainbet(?:\.com)?|betting\s+bonus|bonus\s+code|promo\s+code|sign[- ]?up\s+bonus|join\s+our\s+(?:telegram\s+)?channel|subscribe\s+to\s+our\s+(?:telegram\s+)?channel)\b/i);
+    if (promotionIndex >= 0) text = text.slice(0, promotionIndex);
+    return text.trim();
+}
+function isIntelWireTelegramSource(event = {}) {
+    const source = [
+        event.sourceLabel, event.source_label, event.display_source_name, event.source_name, event.sourceName,
+        event.source_type, event.sourceType, event.source_url, event.sourceUrl, event.publicUrl, event.public_url
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /(?:^|\s)(?:tg|telegram)\s*\//i.test(source) || source.includes("telegram") || /(?:https?:\/\/)?t\.me\//i.test(source);
+}
+function getIntelWirePrivateSourceTokens(event = {}) {
+    if (!isIntelWireTelegramSource(event)) return [];
+    const raw = event.raw && typeof event.raw === "object" ? event.raw : {};
+    const source = String(event.display_source_name || event.source_name || event.sourceName || "").trim();
+    const sourceTail = /^(?:tg|telegram)\s*\/\s*(.+)$/i.exec(source)?.[1] || "";
+    return [...new Set([raw.channel, raw.telegram_channel, raw.telegramChannel, sourceTail]
+        .map((value) => String(value || "").replace(/^@+/, "").trim())
+        .filter((value) => value.length >= 3 && value.length <= 80))];
+}
+function stripIntelWirePrivateSourceEcho(value = "", event = {}) {
+    let text = String(value || "");
+    for (const token of getIntelWirePrivateSourceTokens(event)) {
+        const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        text = text.replace(new RegExp(`(^|[^A-Za-z0-9_])@?${escaped}(?=$|[^A-Za-z0-9_])`, "gi"), "$1");
+    }
+    return text.replace(/\s+/g, " ").trim();
+}
+function getIntelWirePublicSourceDisplay(event = {}) {
+    if (isIntelWireTelegramSource(event)) return "Telegram OSINT Monitor";
+    return sanitizeEventPopupText(
+        event.sourceLabel || event.source_label || event.display_source_name || event.source_name || event.sourceName || "",
+        ""
+    );
+}
+function getIntelWireSafeSourceUrl(event = {}) {
+    const raw = String(event.publicUrl || event.public_url || event.source_url || event.sourceUrl || event.url || "").trim();
+    if (!/^https?:\/\//i.test(raw) || isIntelWireTelegramSource(event)) return "";
+    try {
+        const url = new URL(raw, window.location.origin);
+        const host = url.hostname.toLowerCase();
+        if (host === "t.me" || host === "telegram.me" || host.endsWith(".telegram.me")) return "";
+        return url.href;
+    } catch {
+        return "";
+    }
+}
+function repairIntelWireTitle(value = "", summary = "") {
+    const title = sanitizeEventPopupText(value, "");
+    const cleanSummary = sanitizeIntelWireSummary(summary);
+    if (!title) return "";
+    if (title.length >= 80 && !/[.!?]$/.test(title)) {
+        const titleKey = normalizeIntelWireComparisonText(title);
+        const summaryKey = normalizeIntelWireComparisonText(cleanSummary);
+        if (titleKey && summaryKey.startsWith(titleKey)) {
+            const sentence = cleanSummary.match(/^.*?[.!?](?=\s|$)/)?.[0]?.trim() || cleanSummary;
+            if (sentence.length > title.length && sentence.length <= 280) return sentence;
+        }
+    }
+    return title;
+}
+
 function sanitizeIntelWireSummary(value = "") {
     const decoded = decodeBasicHtmlEntities(value);
     const stripped = decoded
@@ -4280,10 +4289,12 @@ function sanitizeIntelWireSummary(value = "") {
         .replace(/\b(?:class|href|style|src|srcset|about|rel|target|data-[a-z0-9_-]+|aria-[a-z0-9_-]+|id)=\S+/gi, " ")
         .replace(/https?:\/\/\S+/gi, " ");
     const leakedIndex = stripped.search(/\b(?:data-history-node-id|about=|href=|class=|src=|<article|<\/article|<p>|<\/p>)/i);
-    return stripNonEnglishText((leakedIndex >= 0 ? stripped.slice(0, leakedIndex) : stripped)
-        .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, " ")
-        .replace(/\s+/g, " ")
-        .trim());
+    return stripNonEnglishText(stripIntelWirePromotionNoise(
+        (leakedIndex >= 0 ? stripped.slice(0, leakedIndex) : stripped)
+            .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+    ));
 }
 function sanitizeIntelWireStructuredText(value = "") {
     const decoded = decodeBasicHtmlEntities(value)
@@ -4300,7 +4311,7 @@ function sanitizeIntelWireStructuredText(value = "") {
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, " ");
 
-    const cleanedLines = decoded
+    const cleanedLines = stripIntelWirePromotionNoise(decoded)
         .split("\n")
         .map((line) => stripNonEnglishText(line, ""))
         .map((line) => line.replace(/\s+/g, " ").trim())
@@ -4678,7 +4689,7 @@ function getMeaningfulIntelWireLocation(event = {}) {
     return isMeaningfulIntelWireText(location) ? location : "";
 }
 function getIntelWireFullText(event = {}, title = "") {
-    const sourceName = sanitizeEventPopupText(event.display_source_name || event.source_name || "", "");
+    const sourceName = getIntelWirePublicSourceDisplay(event);
     const location = getMeaningfulIntelWireLocation(event);
     const candidates = [
         event.full_content,
@@ -4694,7 +4705,7 @@ function getIntelWireFullText(event = {}, title = "") {
         event.display_summary,
         event.summary,
     ]
-        .map((value) => sanitizeIntelWireStructuredText(value))
+        .map((value) => stripIntelWirePrivateSourceEcho(sanitizeIntelWireStructuredText(value), event))
         .filter(Boolean)
         .map((value) => stripRepeatedEventTitle(value, title))
         .map((value) => stripIntelWireMetadataEcho(value, [sourceName, location]))
@@ -4970,12 +4981,14 @@ function openIntelWireDetailModal(event = {}, trigger = null) {
     const fallbackTitle = location
         ? `${toUiLabel(categoryClass, "Activity")} report near ${location}`
         : `${toUiLabel(categoryClass, "Activity")} report`;
-    const title = sanitizeEventPopupText(event.display_title || event.title || "", "") || fallbackTitle;
+    const modalSummary = stripIntelWirePrivateSourceEcho(
+        sanitizeIntelWireSummary(event.display_summary || event.summary || event.full_content || event.content || ""),
+        event
+    );
+    const title = repairIntelWireTitle(event.display_title || event.title || "", modalSummary) || fallbackTitle;
     const fullText = getIntelWireFullText(event, title);
-    const sourceName = sanitizeEventPopupText(event.display_source_name || event.source_name || "", "");
-    const sourceUrl = /^https?:\/\//i.test(String(event.source_url || "").trim())
-        ? String(event.source_url || "").trim()
-        : "";
+    const sourceName = getIntelWirePublicSourceDisplay(event);
+    const sourceUrl = getIntelWireSafeSourceUrl(event);
     const occurredAt = String(event.occurred_at || event.published_at || "").trim();
     const confidenceValue = event.confidence_score ?? event.confidence ?? event.metadata?.confidence_score;
     const confidenceText = Number.isFinite(Number(confidenceValue))
@@ -5047,12 +5060,8 @@ function syncIntelWireReadFullControl(card, event = {}) {
 
     if (!summaryEl || !button) return;
 
-    const title = sanitizeEventPopupText(
-        event.display_title || event.title || "",
-        ""
-    );
-
     const summaryText = String(summaryEl.textContent || "").trim();
+    const title = repairIntelWireTitle(event.display_title || event.title || "", summaryText);
     const fullText = getIntelWireFullText(event, title);
     const isExpanded = isIntelWireCardExpanded(card);
 
@@ -5099,9 +5108,12 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
     const verificationState = getIntelWireVerificationState(event);
     card.dataset.category = categoryClass;
     card.dataset.severity = severityClass;
-    const safeUrl = /^https?:\/\//i.test(event.source_url || "") ? event.source_url : "";
-    const sourceName = sanitizeEventPopupText(event.display_source_name || event.source_name || "", "");
-    const rawSummary = sanitizeIntelWireSummary(event.display_summary || event.summary || "");
+    const safeUrl = getIntelWireSafeSourceUrl(event);
+    const sourceName = getIntelWirePublicSourceDisplay(event);
+    const rawSummary = stripIntelWirePrivateSourceEcho(
+        sanitizeIntelWireSummary(event.display_summary || event.summary || ""),
+        event
+    );
     const locationCandidate = sanitizeEventPopupText(
         compactEventPlaceLabel(event),
         ""
@@ -5113,7 +5125,7 @@ function createIntelWireFeedCard(event = {}, eventId = "") {
     const fallbackTitle = location
         ? `${toUiLabel(categoryClass, "Activity")} report near ${location}`
         : `${toUiLabel(categoryClass, "Activity")} report`;
-    const title = sanitizeEventPopupText(event.display_title || event.title || "", "") || fallbackTitle;
+    const title = repairIntelWireTitle(event.display_title || event.title || "", rawSummary) || fallbackTitle;
     const summary = stripRepeatedEventTitle(rawSummary, title);
     const sourceMarkup = safeUrl
         ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceName)}</a>`

@@ -1,5 +1,5 @@
 import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
-
+import { onRegionChange } from "./warzone-region-selector.js";
 const PRE_ENTRY_SHOWCASE_TRANSITION_MS = 240;
 const PRE_ENTRY_VIEWER_WAIT_MS = 8000;
 
@@ -174,6 +174,7 @@ export function initPreEntryShowcase({ onEnter } = {}) {
     const fragment = template.content.cloneNode(true);
     const overlay = fragment.querySelector("#wz-pre-entry-showcase");
     const enterButton = fragment.querySelector("#wz-pre-entry-enter");
+    const fullscreenButton = fragment.querySelector("#wz-pre-entry-fullscreen");
     const mount = document.querySelector("#warzone-app")
         || document.getElementById("warzone-gate-layer")
         || document.getElementById("warzone-app")
@@ -203,6 +204,55 @@ export function initPreEntryShowcase({ onEnter } = {}) {
         window.setTimeout(finish, PRE_ENTRY_SHOWCASE_TRANSITION_MS);
     };
 
+    const syncFullscreenButton = () => {
+        if (!fullscreenButton) return;
+
+        const active = !!document.fullscreenElement;
+
+        fullscreenButton.classList.toggle("is-active", active);
+        fullscreenButton.setAttribute("aria-pressed", String(active));
+        fullscreenButton.setAttribute(
+            "title",
+            active ? "Exit fullscreen" : "Enter fullscreen"
+        );
+    };
+
+    const hideEntryFullscreenButton = () => {
+        if (!fullscreenButton?.isConnected) return;
+
+        fullscreenButton.classList.remove("is-visible");
+        fullscreenButton.classList.add("is-leaving");
+
+        document.removeEventListener(
+            "fullscreenchange",
+            syncFullscreenButton
+        );
+
+        window.setTimeout(() => {
+            fullscreenButton.remove();
+        }, 360);
+    };
+
+    onRegionChange((payload = {}) => {
+        if (String(payload.source || "") !== "manual") return;
+
+        hideEntryFullscreenButton();
+    });
+    fullscreenButton?.addEventListener("click", async () => {
+        try {
+            if (!document.fullscreenElement) {
+                await document.documentElement.requestFullscreen?.();
+            } else {
+                await document.exitFullscreen?.();
+            }
+        } catch (error) {
+            console.warn("Entry fullscreen request failed:", error);
+        }
+
+        syncFullscreenButton();
+    });
+
+    document.addEventListener("fullscreenchange", syncFullscreenButton);
     enterButton.addEventListener("click", handleEnter);
     overlay.addEventListener("keydown", (event) => {
         if (event.key !== "Enter") return;
@@ -216,6 +266,8 @@ export function initPreEntryShowcase({ onEnter } = {}) {
     mount.prepend(fragment);
     requestAnimationFrame(() => {
         overlay.classList.add("is-visible");
+        fullscreenButton?.classList.add("is-visible");
+
         enterButton.focus({ preventScroll: true });
         void startPreEntrySceneSession(overlay);
     });

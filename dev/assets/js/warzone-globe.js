@@ -3218,9 +3218,90 @@ function bindEventMarkerPicking(viewer) {
         viewer.scene.requestRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
+function isMacChromeBrowser() {
+    if (typeof navigator === "undefined") return false;
+
+    const userAgent = String(navigator.userAgent || "");
+    const platform = String(
+        navigator.userAgentData?.platform ||
+        navigator.platform ||
+        ""
+    );
+
+    const isMac =
+        /mac/i.test(platform) ||
+        /Macintosh|Mac OS X/i.test(userAgent);
+
+    const isChrome =
+        /Chrome\/\d+/i.test(userAgent) &&
+        !/Edg\/|OPR\//i.test(userAgent);
+
+    return isMac && isChrome;
+}
+
+function installMacChromeTrackpadGuards(viewer) {
+    if (
+        !viewer ||
+        viewer.__warzoneMacChromeTrackpadGuardsInstalled ||
+        !isMacChromeBrowser()
+    ) {
+        return;
+    }
+
+    viewer.__warzoneMacChromeTrackpadGuardsInstalled = true;
+
+    const controller = viewer.scene?.screenSpaceCameraController;
+    if (controller) {
+        controller.enableInputs = true;
+        controller.enableZoom = true;
+        controller.zoomEventTypes = [
+            Cesium.CameraEventType.RIGHT_DRAG,
+            Cesium.CameraEventType.WHEEL,
+            Cesium.CameraEventType.PINCH,
+        ];
+    }
+
+    const canvas = viewer.scene?.canvas;
+    if (!canvas) return;
+
+    try {
+        document.documentElement.style.overscrollBehaviorX = "none";
+        if (document.body) {
+            document.body.style.overscrollBehaviorX = "none";
+        }
+        canvas.style.overscrollBehaviorX = "none";
+    } catch { }
+
+    const preventChromeTrackpadNavigation = (event) => {
+        if (!event?.cancelable) return;
+
+        const deltaX = Math.abs(Number(event.deltaX || 0));
+        const deltaY = Math.abs(Number(event.deltaY || 0));
+        const isTrackpadPinch = event.ctrlKey === true;
+        const isHorizontalSwipe =
+            deltaX > 2 &&
+            deltaX > (deltaY * 0.75);
+
+        if (isTrackpadPinch || isHorizontalSwipe) {
+            event.preventDefault();
+        }
+    };
+
+    canvas.addEventListener(
+        "wheel",
+        preventChromeTrackpadNavigation,
+        { passive: false, capture: true }
+    );
+
+    viewer.__warzoneMacChromeTrackpadWheelGuard =
+        preventChromeTrackpadNavigation;
+}
+
 function installGlobalCameraInteractionGuards(viewer) {
     if (!viewer || viewer.__warzoneCameraInteractionGuardsInstalled) return;
     viewer.__warzoneCameraInteractionGuardsInstalled = true;
+
+    installMacChromeTrackpadGuards(viewer);
 
     const doubleClickType = Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK;
     const handlers = [

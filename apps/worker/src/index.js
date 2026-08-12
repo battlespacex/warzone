@@ -1,4 +1,4 @@
-﻿// apps/worker/src/index.js
+// apps/worker/src/index.js
 import { loadWorkerEnv } from "./env.js";
 loadWorkerEnv();
 console.log("RUNNING WORKER INDEX FROM apps/worker/src/index.js");
@@ -377,7 +377,11 @@ const STOP_LOCATION_WORDS = new Set([
     "impact",
     "impacts",
     "intercepted",
-    "interception"
+    "interception",
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
 ]);
 const HARD_MILITARY_AIRCRAFT_CODES = new Set([
     // US / NATO fighters
@@ -754,6 +758,9 @@ function isGoodLocationCandidate(value) {
     if (STOP_LOCATION_WORDS.has(lower)) return false;
     if (/^\d+$/.test(cleaned)) return false;
     if (/^(today|tonight|yesterday|tomorrow|morning|evening|afternoon)$/i.test(cleaned)) return false;
+    if (/^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{1,2}(?:st|nd|rd|th)?|\s+\d{4})?$/i.test(cleaned)) return false;
+    if (/^(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)(?:\s+\d{1,2})?$/i.test(cleaned)) return false;
+    if (/^\d{4}$/.test(cleaned)) return false;
     return true;
 }
 function extractLocationCandidates(text) {
@@ -836,6 +843,7 @@ async function geocodeLocation(query) {
             item.name ||
             "";
         const country = addr.country || "";
+        const countryCode = String(addr.country_code || "").trim().toLowerCase();
         const label = [city, country].filter(Boolean).join(", ") || query;
         const locationType = String(item.addresstype || item.type || "").toLowerCase();
         const locationClass = String(item.class || "").toLowerCase();
@@ -846,6 +854,8 @@ async function geocodeLocation(query) {
             lat,
             lon,
             label,
+            country: country || null,
+            country_code: countryCode || null,
             precision: isRegional ? "REGIONAL" : isFacility ? "EXACT" : "LOCAL",
             confidence: isRegional ? 50 : isFacility ? 88 : 70,
             method: isFacility ? "nominatim_facility" : isRegional ? "nominatim_region" : "nominatim_locality",
@@ -881,6 +891,13 @@ async function resolveLocationFromText(text, options = {}) {
         const geocoded = await geocodeLocation(candidate);
         if (!geocoded) continue;
         if (!Number.isFinite(geocoded.lat) || !Number.isFinite(geocoded.lon)) continue;
+        const candidateParts = String(candidate || "").split(",").map((part) => part.trim()).filter(Boolean);
+        const candidateCountry = candidateParts.length > 1 ? candidateParts[candidateParts.length - 1] : "";
+        if (candidateCountry && geocoded.country) {
+            const expected = candidateCountry.toLowerCase().replace(/[^a-z]/g, "");
+            const actual = String(geocoded.country).toLowerCase().replace(/[^a-z]/g, "");
+            if (expected && actual && expected !== actual && !actual.includes(expected) && !expected.includes(actual)) continue;
+        }
         if (geocoded.mapEligible === false) return geocoded;
         if (options.requireBBox !== false && !isWithinBBox(geocoded.lat, geocoded.lon)) {
             continue;
@@ -2599,6 +2616,25 @@ function buildXSearchQuery(feed = {}) {
 function extractTelegramText(msg) {
     return String(msg?.message || msg?.rawText || msg?.text || "").trim();
 }
+function stripTelegramPromotionNoise(value = "") {
+    let text = String(value || "");
+    const promotionIndex = text.search(/\b(?:rainbet(?:\.com)?|non[-\s]?kyc\s+crypto\s+casino|crypto\s+casino\s*(?:&|and)\s*sportsbook|casino\s*(?:&|and)\s*sportsbook|sportsbook\s+rainbet(?:\.com)?|betting\s+bonus|bonus\s+code|promo\s+code|join\s+our\s+(?:telegram\s+)?channel|subscribe\s+to\s+our\s+(?:telegram\s+)?channel)\b/i);
+    if (promotionIndex >= 0) text = text.slice(0, promotionIndex);
+    return text.replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function stripTelegramChannelEcho(value = "", channelKey = "") {
+    const token = String(channelKey || "").replace(/^@+/, "").trim();
+    if (!token) return String(value || "").trim();
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return String(value || "").replace(new RegExp(`(^|[^A-Za-z0-9_])@?${escaped}(?=$|[^A-Za-z0-9_])`, "gi"), "$1").replace(/\s+/g, " ").trim();
+}
+function trimTelegramAtWordBoundary(value = "", maxLength = 220) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (text.length <= maxLength) return text;
+    const clipped = text.slice(0, maxLength + 1);
+    const boundary = clipped.lastIndexOf(" ");
+    return (boundary >= Math.floor(maxLength * 0.7) ? clipped.slice(0, boundary) : text.slice(0, maxLength)).trim();
+}
 function detectTelegramCategory(text) {
     const t = text.toLowerCase();
     if (/(missile|ballistic|cruise missile|rocket barrage|rocket launch)/i.test(t)) return "strike";
@@ -2723,8 +2759,10 @@ function extractTelegramTags(text, channelKey, extraTags = []) {
 async function normalizeTelegramEvent(msg, feed, channelKey) {
     const rawText = extractTelegramText(msg);
     if (!rawText) return null;
-    if (!isRelevantTelegramText(rawText, feed)) return null;
-    const location = await resolveLocationFromText(rawText, { requireBBox: false }) || {
+    const cleanedText = stripTelegramChannelEcho(stripTelegramPromotionNoise(rawText), channelKey);
+    if (!cleanedText) return null;
+    if (!isRelevantTelegramText(cleanedText, feed)) return null;
+    const location = await resolveLocationFromText(cleanedText, { requireBBox: false }) || {
         lat: null,
         lon: null,
         label: null,
@@ -2734,17 +2772,17 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         mapEligible: false
     };
     const mapEligible = location.mapEligible === true;
-    const normalizedText = normalizeText(rawText);
-    const category = detectTelegramCategory(rawText);
-    const severity = detectTelegramSeverity(rawText);
-    const weaponType = detectTelegramWeaponType(rawText);
-    const targetType = detectTelegramTargetType(rawText);
+    const normalizedText = normalizeText(cleanedText);
+    const category = detectTelegramCategory(cleanedText);
+    const severity = detectTelegramSeverity(cleanedText);
+    const weaponType = detectTelegramWeaponType(cleanedText);
+    const targetType = detectTelegramTargetType(cleanedText);
     const impactType = detectTelegramImpactType(targetType);
-    const actorSide = detectTelegramActorSide(rawText);
-    const confidence = detectTelegramConfidence(rawText);
-    const firstLine = rawText.split("\n").map((line) => line.trim()).find(Boolean) || normalizedText;
-    const title = firstLine.slice(0, 160) || "Telegram OSINT event";
-    const summary = normalizedText.slice(0, 1500);
+    const actorSide = detectTelegramActorSide(cleanedText);
+    const confidence = detectTelegramConfidence(cleanedText);
+    const firstLine = cleanedText.split("\n").map((line) => line.trim()).find(Boolean) || normalizedText;
+    const title = trimTelegramAtWordBoundary(firstLine, 220) || "Telegram OSINT event";
+    const summary = trimTelegramAtWordBoundary(normalizedText, 1500);
     return {
         category,
         title,
@@ -2764,7 +2802,7 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         report_type: "osint",
         severity,
         country_code: "",
-        tags: extractTelegramTags(rawText, channelKey, toArray(feed.tags)),
+        tags: extractTelegramTags(cleanedText, channelKey, toArray(feed.tags)),
         airspace_status: category === "airspace" ? "restricted" : "unknown",
         cyber_status: category === "cyber" ? "elevated" : "unknown",
         fir_code: "",

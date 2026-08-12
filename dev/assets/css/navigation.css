@@ -12,9 +12,9 @@
     transition: left var(--map-layers-pane-transition), width var(--map-layers-pane-transition);
 }
 
-    .warzone-commandbar > * {
-        pointer-events: auto;
-    }
+.warzone-commandbar>* {
+    pointer-events: auto;
+}
 
 .warzone-brand {
     position: fixed;
@@ -98,9 +98,9 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
     left: calc(2rem + var(--wz-ui-pane-offset));
 }
 
-    .warzone-region-bar .static-icon {
-        font-size: var(--icon-xl);
-    }
+.warzone-region-bar .static-icon {
+    font-size: var(--icon-xl);
+}
 
 .wz-region-select-btn {
     display: inline-flex;
@@ -127,11 +127,11 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
     right: 2rem;
 }
 
-    .warzone-actions ul {
-        display: flex;
-        align-items: center;
-        list-style: none;
-    }
+.warzone-actions ul {
+    display: flex;
+    align-items: center;
+    list-style: none;
+}
 
 .warzone-actions .action-icon {
     font-size: var(--icon-xxl);
@@ -153,18 +153,19 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 .top-tab,
 .toolbar-select,
 .dock-chip {
-        background: var(--color-black);
+    background: var(--color-black);
     color: #fff;
     min-height: 3.4rem;
     padding: 0 1.2rem;
     clip-path: var(--clippath-shape-3);
 }
 
-    .top-tab.is-active,
-    .toolbar-chip.is-active {
-        background: var(--color-black);
-        color: var(--color-teal-glow);;
-    }
+.top-tab.is-active,
+.toolbar-chip.is-active {
+    background: var(--color-black);
+    color: var(--color-teal-glow);
+    ;
+}
 
 @media (max-width: 900px) {
     .warzone-commandbar {
@@ -172,6 +173,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
         align-items: flex-start;
     }
 }
+
 /* #endregion =========== */
 
 /* #region =========== DOCK BUTTONS =========== */
@@ -234,21 +236,21 @@ body.is-app-active .wz-dock {
     width: 3rem;
     min-width: 3rem;
     transition: width 0.45s ease, max-width 0.45s ease, opacity 0.35s ease, transform 0.35s ease;
-    
+
 }
 
-    .wz-dock__btn:hover {
-        transform: translateY(-0.5rem);
-    }
+.wz-dock__btn:hover {
+    transform: translateY(-0.5rem);
+}
 
-    .wz-dock__btn.wz-dock--gone {
-        opacity: 0;
-        pointer-events: none;
-        transform: scale(0);
-        min-width: 0;
-        width: 0;
-        position: absolute
-    }
+.wz-dock__btn.wz-dock--gone {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0);
+    min-width: 0;
+    width: 0;
+    position: absolute
+}
 
 .wz-dock__icon {
     position: relative;
@@ -259,13 +261,13 @@ body.is-app-active .wz-dock {
     height: 3rem;
 }
 
-    .wz-dock__icon .static-icon {
-        font-size: var(--icon-xl);
-        line-height: 1;
-        display: block;
-        pointer-events: none;
-        height: auto;
-    }
+.wz-dock__icon .static-icon {
+    font-size: var(--icon-xl);
+    line-height: 1;
+    display: block;
+    pointer-events: none;
+    height: auto;
+}
 
 
 .wz-dock__btn.is-active .wz-dock__icon .static-icon {
@@ -300,7 +302,9 @@ body.is-app-active .wz-dock {
 }
 
 @keyframes wz-dock-hva-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
         text-shadow: 0 0 .6rem var(--color-magenta);
         transform: scale(1);
@@ -415,14 +419,10 @@ body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible=
     opacity: 1;
     transform: translateY(0);
     visibility: visible;
-    transition:
-        opacity 320ms ease,
-        transform 320ms ease,
-        visibility 0s linear 0s;
-}
-
-.wz-utc-clock__label, .wz-utc-clock__time {
-
+    transition: opacity 320ms ease, transform 320ms ease, visibility 0s linear 0s;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.2rem;
 }
 
 body.is-scene-2d .wz-utc-clock,
@@ -489,18 +489,18 @@ body.is-scene-2d .wz-globe-rotate-btn {
     clip-path: var(--clippath-shape-3);
 }
 
-    .wz-defcon:before {
-        animation: wz-animate-pulse 1.4s infinite;
-        content: '';
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        z-index: -1;
-    }
+.wz-defcon:before {
+    animation: wz-animate-pulse 1.4s infinite;
+    content: '';
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: -1;
+}
 
 .wz-defcon__label {
     letter-spacing: 0.5rem;
@@ -517,7 +517,8 @@ body.is-scene-2d .wz-globe-rotate-btn {
     background: var(--criticality-level-ex-bg);
 }
 
-.wz-defcon[data-level="1"] .wz-defcon__level, .wz-defcon[data-level="1"] .wz-defcon__label {
+.wz-defcon[data-level="1"] .wz-defcon__level,
+.wz-defcon[data-level="1"] .wz-defcon__label {
     color: var(--criticality-level-ex-cl)
 }
 
@@ -525,7 +526,8 @@ body.is-scene-2d .wz-globe-rotate-btn {
     background: var(--criticality-level-ex-bg);
 }
 
-.wz-defcon[data-level="2"] .wz-defcon__level, .wz-defcon[data-level="2"] .wz-defcon__label {
+.wz-defcon[data-level="2"] .wz-defcon__level,
+.wz-defcon[data-level="2"] .wz-defcon__label {
     color: var(--criticality-level-ex-cl)
 }
 
@@ -533,7 +535,8 @@ body.is-scene-2d .wz-globe-rotate-btn {
     background: var(--criticality-level-hi-bg);
 }
 
-.wz-defcon[data-level="3"] .wz-defcon__level, .wz-defcon[data-level="3"] .wz-defcon__label {
+.wz-defcon[data-level="3"] .wz-defcon__level,
+.wz-defcon[data-level="3"] .wz-defcon__label {
     color: var(--criticality-level-hi-cl)
 }
 
@@ -541,7 +544,8 @@ body.is-scene-2d .wz-globe-rotate-btn {
     background: var(--criticality-level-med-bg);
 }
 
-.wz-defcon[data-level="4"] .wz-defcon__level, .wz-defcon[data-level="4"] .wz-defcon__label {
+.wz-defcon[data-level="4"] .wz-defcon__level,
+.wz-defcon[data-level="4"] .wz-defcon__label {
     color: var(--criticality-level-med-cl)
 }
 
@@ -549,7 +553,8 @@ body.is-scene-2d .wz-globe-rotate-btn {
     background: var(--criticality-level-lo-bg);
 }
 
-.wz-defcon[data-level="5"] .wz-defcon__level, .wz-defcon[data-level="5"] .wz-defcon__label {
+.wz-defcon[data-level="5"] .wz-defcon__level,
+.wz-defcon[data-level="5"] .wz-defcon__label {
     color: var(--criticality-level-lo-cl)
 }
 
@@ -563,7 +568,7 @@ body.is-scene-2d .wz-globe-rotate-btn {
     right: 0;
     z-index: 10000;
     height: 3rem;
-    background: rgba(8,17,26,0.94);
+    background: rgba(8, 17, 26, 0.94);
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -579,26 +584,28 @@ body.is-scene-2d .wz-globe-rotate-btn {
     color: var(--color-teal-glow);
     letter-spacing: 0.5rem;
     text-transform: uppercase;
-    border-right: 1px solid rgba(24,226,219,0.15);
+    border-right: 1px solid rgba(24, 226, 219, 0.15);
     height: 100%;
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    background: rgba(24,226,219,0.05);
+    background: rgba(24, 226, 219, 0.05);
 }
 
-    .wz-news-ticker__label::before {
-        content: "";
-        display: inline-block;
-        width: 0.55rem;
-        height: 0.55rem;
-        border-radius: 50%;
-        background: var(--color-teal-glow);
-        animation: ticker-pulse 1.2s ease infinite;
-    }
+.wz-news-ticker__label::before {
+    content: "";
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--color-teal-glow);
+    animation: ticker-pulse 1.2s ease infinite;
+}
 
 @keyframes ticker-pulse {
-    0%,100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
 
@@ -623,9 +630,9 @@ body.is-scene-2d .wz-globe-rotate-btn {
     will-change: transform;
 }
 
-    .wz-news-ticker__inner:hover {
-        animation-play-state: paused;
-    }
+.wz-news-ticker__inner:hover {
+    animation-play-state: paused;
+}
 
 @keyframes ticker-scroll {
     0% {
@@ -656,31 +663,31 @@ body.is-scene-2d .wz-globe-rotate-btn {
 }
 
 .wz-ticker-item__cat--strike {
-    background: rgba(255,7,83,0.2);
+    background: rgba(255, 7, 83, 0.2);
     color: var(--warzone-strike-color);
 }
 
 .wz-ticker-item__cat--military {
-    background: rgba(86,216,14,0.12);
+    background: rgba(86, 216, 14, 0.12);
     color: var(--warzone-military-color);
 }
 
 .wz-ticker-item__cat--alert {
-    background: rgba(255,42,42,0.2);
+    background: rgba(255, 42, 42, 0.2);
     color: var(--warzone-alert-color);
 }
 
 .wz-ticker-item__cat--airspace {
-    background: rgba(6,178,148,0.12);
+    background: rgba(6, 178, 148, 0.12);
     color: var(--warzone-airspace-color);
 }
 
 .wz-ticker-item__cat--cyber {
-    background: rgba(155,123,255,0.12);
+    background: rgba(155, 123, 255, 0.12);
     color: var(--warzone-cyber-color);
 }
 
 .wz-ticker-item__cat--default {
-    background: rgba(255,122,69,0.12);
+    background: rgba(255, 122, 69, 0.12);
     color: var(--warzone-default-color);
 }

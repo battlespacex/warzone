@@ -1,6 +1,11 @@
 <template id="tpl-wz-pre-entry-showcase">
+    <button id="wz-pre-entry-fullscreen" class="wz-pre-entry-fullscreen" type="button" title="Toggle fullscreen"
+        aria-label="Toggle fullscreen mode" aria-pressed="false">
+        <span class="action-icon stratops-ico-dock-zoom-1" aria-hidden="true"></span>
+    </button>
     <div id="wz-pre-entry-showcase" class="wz-pre-entry-showcase" role="dialog" aria-modal="true"
         aria-labelledby="wz-pre-entry-title" aria-describedby="wz-pre-entry-summary">
+
         <div class="wz-pre-entry-showcase__panel">
             <header class="wz-pre-entry-showcase__header">
                 <img src="/assets/images/web/logo-stratops-battlespacex.svg" alt="StratOps by BattlespaceX"
@@ -185,6 +190,7 @@
 
 <style>
     /* #region =========== TEMPORARY PRE-ENTRY SCENE TUNER =========== */
+
     .wz-startup-tuner {
         position: fixed;
         z-index: 40;

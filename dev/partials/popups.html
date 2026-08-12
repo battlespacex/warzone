@@ -1244,7 +1244,8 @@
                         <label class="wz-operational-reports__selector" for="wz-operational-reports-select">
                             <span class="wz-title">Select Report</span>
                             <span class="wz-selector" role="toolbar" aria-label="Report controls">
-                                <select id="wz-operational-reports-select" class="wz--dropdown" disabled aria-label="Select operational report date">
+                                <select id="wz-operational-reports-select" class="wz--dropdown" disabled
+                                    aria-label="Select operational report date">
                                     <option>Loading reports...</option>
                                 </select>
                             </span>
@@ -1268,12 +1269,12 @@
                             <img src="/assets/images/web/bx_preloader.gif" alt=""
                                 class="wz-operational-report-loader__gif" loading="eager" decoding="async"
                                 aria-hidden="true">
+                            <p id="wz-operational-reports-status" class="wz-operational-report-viewer__status" hidden
+                                aria-live="polite"></p>
                         </div>
                         <iframe id="wz-operational-report-viewer-frame" class="wz-operational-report-viewer__frame"
                             title="StratOps operational intelligence report" referrerpolicy="no-referrer"
                             loading="eager" hidden></iframe>
-                        <p id="wz-operational-reports-status" class="wz-operational-report-viewer__status" hidden
-                            aria-live="polite"></p>
                     </div>
                 </section>
             </div>

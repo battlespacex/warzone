@@ -1,8 +1,11 @@
 ﻿/* assets/css/required.css */
 @import url("./root.css");
 @import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap");
+
 /* #region =========== GENERICS =========== */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
 }
 
@@ -47,17 +50,19 @@ a {
     cursor: pointer;
 }
 
-    a:hover,
-    a:focus-visible {
-        text-decoration: none;
-    }
+a:hover,
+a:focus-visible {
+    text-decoration: none;
+}
 
 button {
     font: inherit;
     cursor: pointer;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
     font: inherit;
 }
 
@@ -91,8 +96,9 @@ button {
 }
 
 [data-tooltip][data-tooltip]:not([data-tooltip=""]):hover:after {
-    clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);
+    clip-path: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
 }
+
 /* #endregion =========== */
 /* #region =========== FONT-FILE =========== */
 @font-face {
@@ -104,69 +110,78 @@ button {
 }
 
 .chakra-petch-light {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 300;
-  font-style: normal;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 300;
+    font-style: normal;
 }
 
 .chakra-petch-regular {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 400;
-  font-style: normal;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 400;
+    font-style: normal;
 }
 
 .chakra-petch-medium {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 500;
-  font-style: normal;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 500;
+    font-style: normal;
 }
 
 .chakra-petch-semibold {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 600;
-  font-style: normal;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 600;
+    font-style: normal;
 }
 
 .chakra-petch-bold {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 700;
-  font-style: normal;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 700;
+    font-style: normal;
 }
 
 .chakra-petch-light-italic {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 300;
-  font-style: italic;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 300;
+    font-style: italic;
 }
 
 .chakra-petch-regular-italic {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 400;
-  font-style: italic;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 400;
+    font-style: italic;
 }
 
 .chakra-petch-medium-italic {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 500;
-  font-style: italic;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 500;
+    font-style: italic;
 }
 
 .chakra-petch-semibold-italic {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 600;
-  font-style: italic;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 600;
+    font-style: italic;
 }
 
 .chakra-petch-bold-italic {
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 700;
-  font-style: italic;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 700;
+    font-style: italic;
 }
 
 
 /* #endregion =========== */
 /* #region =========== HEADINGS / TEXT =========== */
-h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 {
+h1,
+h2,
+h3,
+h4,
+h5,
+.h1,
+.h2,
+.h3,
+.h4,
+.h5 {
     font-family: var(--heading-font);
     text-transform: uppercase;
     color: var(--color-text-heading);
@@ -174,7 +189,8 @@ h1, h2, h3, h4, h5, .h1, .h2, .h3, .h4, .h5 {
     letter-spacing: .05rem;
 }
 
-p, label {
+p,
+label {
     margin: 0;
     font-size: var(--text-base);
     line-height: 1.9rem
@@ -231,7 +247,8 @@ strong {
 
 /* #endregion =========== */
 /* #region =========== ICONS =========== */
-.action-icon, .static-icon {
+.action-icon,
+.static-icon {
     font-family: var(--font-icon);
     font-size: var(--icon-md);
     align-items: center;
@@ -253,6 +270,7 @@ strong {
 .action-icon:hover {
     transform: scale(1.1);
 }
+
 /* #endregion =========== */
 /* #region =========== BUTTONS =========== */
 /* UNUSED CANDIDATE START
@@ -275,34 +293,37 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-5);
 }
 
-    .btn:before {
-        content: "";
-        position: absolute;
-        top: 49%;
-        left: 2rem;
-        height: 0.3rem;
-        width: 0;
-        transition: all 200ms linear;
-    }
+.btn:before {
+    content: "";
+    position: absolute;
+    top: 49%;
+    left: 2rem;
+    height: 0.3rem;
+    width: 0;
+    transition: all 200ms linear;
+}
 
-    .btn:hover {
-        background: rgba(24, 226, 219, 0.7);
-        padding-left: 6rem;
-        box-shadow: 0 0 2rem 0.6rem rgba(24, 226, 219, 0.8);
-        clip-path: unset;
-        border-radius: .3rem !important
-    }
+.btn:hover {
+    background: rgba(24, 226, 219, 0.7);
+    padding-left: 6rem;
+    box-shadow: 0 0 2rem 0.6rem rgba(24, 226, 219, 0.8);
+    clip-path: unset;
+    border-radius: .3rem !important
+}
 
-        .btn:hover:before {
-            width: 3rem;
-        }
+.btn:hover:before {
+    width: 3rem;
+}
 
-    .btn button label, .btn-primary button label, button label {
-        color: var(--text-color-heading);
-        cursor: pointer;
-    }
+.btn button label,
+.btn-primary button label,
+button label {
+    color: var(--text-color-heading);
+    cursor: pointer;
+}
 
-.btn-primary, .btn-add {
+.btn-primary,
+.btn-add {
     background: var(--color-teal);
     border: 0;
     color: var(--color-text-heading);
@@ -316,19 +337,21 @@ UNUSED CANDIDATE END */
     animation: .2s fadeIn all;
 }
 
-.wz-region-select-btn  .btn-primary .static-icon {
-        padding-right: 0rem;
-        margin-left: 0rem;
+.wz-region-select-btn .btn-primary .static-icon {
+    padding-right: 0rem;
+    margin-left: 0rem;
 }
 
-    .btn-primary .static-icon, .btn-secondary .static-icon {
-        font-size: var(--icon-lg);
-        height: 3rem;
-        padding-right: .5rem;
-        margin-left: -.8rem;
-    }
+.btn-primary .static-icon,
+.btn-secondary .static-icon {
+    font-size: var(--icon-lg);
+    height: 3rem;
+    padding-right: .5rem;
+    margin-left: -.8rem;
+}
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
     font-weight: 600;
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -352,108 +375,158 @@ UNUSED CANDIDATE END */
 }
 
 
-    .btn-primary:before, .btn-primary:after, .btn-primary span:before, .btn-primary span:after,
-    .btn-secondary:before, .btn-secondary:after, .btn-secondary span:before, .btn-secondary span:after,
-    .btn-icon:before, .btn-icon:after, .btn-icon span:before, .btn-icon span:after {
-        content: "";
-        position: absolute;
-        width: 0;
-        height: 0;
-        background: transparent;
-        transition: 0.3s ease;
-    }
+.btn-primary:before,
+.btn-primary:after,
+.btn-primary span:before,
+.btn-primary span:after,
+.btn-secondary:before,
+.btn-secondary:after,
+.btn-secondary span:before,
+.btn-secondary span:after,
+.btn-icon:before,
+.btn-icon:after,
+.btn-icon span:before,
+.btn-icon span:after {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    background: transparent;
+    transition: 0.3s ease;
+}
 
-    .btn-primary:before, .btn-secondary:before, .btn-icon:before {
-        top: -0.1rem;
-        left: -0.1rem;
-        border-top: 0;
-        border-left: 0;
-    }
+.btn-primary:before,
+.btn-secondary:before,
+.btn-icon:before {
+    top: -0.1rem;
+    left: -0.1rem;
+    border-top: 0;
+    border-left: 0;
+}
 
-    .btn-primary:after, .btn-secondary:after, .btn-icon:after {
-        top: -0.1rem;
-        right: -0.1rem;
-        border-top: 0;
-        border-right: 0;
-    }
+.btn-primary:after,
+.btn-secondary:after,
+.btn-icon:after {
+    top: -0.1rem;
+    right: -0.1rem;
+    border-top: 0;
+    border-right: 0;
+}
 
-    .btn-primary span:before, .btn-secondary span:before, .btn-icon span:before {
-        bottom: -0.1rem;
-        left: -0.1rem;
-        border-bottom: 0;
-        border-left: 0;
-    }
+.btn-primary span:before,
+.btn-secondary span:before,
+.btn-icon span:before {
+    bottom: -0.1rem;
+    left: -0.1rem;
+    border-bottom: 0;
+    border-left: 0;
+}
 
-    .btn-primary span:after, .btn-secondary span:after, .btn-icon span:after {
-        bottom: -0.1rem;
-        right: -0.1rem;
-        border-bottom: 0;
-        border-right: 0;
-    }
+.btn-primary span:after,
+.btn-secondary span:after,
+.btn-icon span:after {
+    bottom: -0.1rem;
+    right: -0.1rem;
+    border-bottom: 0;
+    border-right: 0;
+}
 
-    .btn-primary:hover:before, .btn-secondary:hover:before, .btn-icon:hover:before {
-        border-top: 0.2rem solid;
-        border-left: 0.2rem solid;
-        clip-path: unset
-    }
+.btn-primary:hover:before,
+.btn-secondary:hover:before,
+.btn-icon:hover:before {
+    border-top: 0.2rem solid;
+    border-left: 0.2rem solid;
+    clip-path: unset
+}
 
-    .btn-primary:hover:after, .btn-secondary:hover:after, .btn-icon:hover:after {
-        border-top: 0.2rem solid;
-        border-right: 0.2rem solid;
-        clip-path: unset
-    }
+.btn-primary:hover:after,
+.btn-secondary:hover:after,
+.btn-icon:hover:after {
+    border-top: 0.2rem solid;
+    border-right: 0.2rem solid;
+    clip-path: unset
+}
 
-    .btn-primary:hover span:before, .btn-secondary:hover span:before, .btn-icon:hover span:before {
-        border-bottom: 0.2rem solid;
-        border-left: 0.2rem solid;
-        clip-path: unset
-    }
+.btn-primary:hover span:before,
+.btn-secondary:hover span:before,
+.btn-icon:hover span:before {
+    border-bottom: 0.2rem solid;
+    border-left: 0.2rem solid;
+    clip-path: unset
+}
 
-    .btn-primary:hover span:after, .btn-secondary:hover span:after, .btn-icon:hover span:after {
-        border-bottom: 0.2rem solid;
-        border-right: 0.2rem solid;
-        clip-path: unset
-    }
+.btn-primary:hover span:after,
+.btn-secondary:hover span:after,
+.btn-icon:hover span:after {
+    border-bottom: 0.2rem solid;
+    border-right: 0.2rem solid;
+    clip-path: unset
+}
 
-    .btn-primary:before, .btn-primary:after, .btn-primary span:before, .btn-primary span:after,
-    .btn-icon:before, .btn-icon:after, .btn-icon span:before, .btn-icon span:after {
-        width: calc(100% / 2);
-        height: calc(100% / 2);
-        border-color: transparent;
-        transition: 0.3s ease;
-    }
+.btn-primary:before,
+.btn-primary:after,
+.btn-primary span:before,
+.btn-primary span:after,
+.btn-icon:before,
+.btn-icon:after,
+.btn-icon span:before,
+.btn-icon span:after {
+    width: calc(100% / 2);
+    height: calc(100% / 2);
+    border-color: transparent;
+    transition: 0.3s ease;
+}
 
-    .btn-secondary:before, .btn-secondary:after, .btn-secondary span:before, .btn-secondary span:after {
-        width: calc(100% / 2);
-        height: calc(100% / 2);
-        border-color: var(--color-white);
-        transition: 0.3s ease;
-    }
+.btn-secondary:before,
+.btn-secondary:after,
+.btn-secondary span:before,
+.btn-secondary span:after {
+    width: calc(100% / 2);
+    height: calc(100% / 2);
+    border-color: var(--color-white);
+    transition: 0.3s ease;
+}
 
 
-    .btn-primary:hover:before, .btn-primary:hover:after, .btn-primary:hover span:before, .btn-primary:hover span:after,
-    .btn-secondary:hover:before, .btn-secondary:hover:after, .btn-secondary:hover span:before, .btn-secondary:hover span:after,
-    .btn-icon:hover:before, .btn-icon:hover:after, .btn-icon:hover span:before, .btn-icon:hover span:after {
-        width: calc(1.5rem / 2);
-        height: calc(1.5rem / 2);
-        margin: -0.5rem;
-        opacity: 1;
-        border-color: var(--color-white);
-        clip-path: unset
-    }
+.btn-primary:hover:before,
+.btn-primary:hover:after,
+.btn-primary:hover span:before,
+.btn-primary:hover span:after,
+.btn-secondary:hover:before,
+.btn-secondary:hover:after,
+.btn-secondary:hover span:before,
+.btn-secondary:hover span:after,
+.btn-icon:hover:before,
+.btn-icon:hover:after,
+.btn-icon:hover span:before,
+.btn-icon:hover span:after {
+    width: calc(1.5rem / 2);
+    height: calc(1.5rem / 2);
+    margin: -0.5rem;
+    opacity: 1;
+    border-color: var(--color-white);
+    clip-path: unset
+}
 
-    .btn-primary:hover, .btn-secondary:hover, .btn-icon:hover, .btn-add:hover, button.pressed {
-        transition: .1s all;
-        clip-path: unset !important;
-        z-index: 3;
-    }
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-icon:hover,
+.btn-add:hover,
+button.pressed {
+    transition: .1s all;
+    clip-path: unset !important;
+    z-index: 3;
+}
 
-    .btn-primary:hover, .btn-icon.colTeal:hover, .btn-add:hover, button.pressed {
-        box-shadow: 0 0 2rem 0 var( --color-teal-glow);
-        background: var(--color-teal-glow);
-    }
+.btn-primary:hover,
+.btn-icon.colTeal:hover,
+.btn-add:hover,
+button.pressed {
+    box-shadow: 0 0 2rem 0 var(--color-teal-glow);
+    background: var(--color-teal-glow);
+}
 
-    /* Entry button: target corners always visible */
+/* Entry button: target corners always visible */
 .btn-secondary.entry-button {
     clip-path: unset !important;
     box-shadow: none;
@@ -504,63 +577,67 @@ UNUSED CANDIDATE END */
     box-shadow: 0 0 2rem 0 var(--color-white);
 }
 
-    .btn-secondary.white {
-        background: var(--color-white);
-        color: var(--color-black);
-    }
+.btn-secondary.white {
+    background: var(--color-white);
+    color: var(--color-black);
+}
 
-        .btn-secondary.white:hover {
-            box-shadow: 0 0 2rem 0 var(--color-white);
-            background: var(--color-white);
-            color: var(--color-black);
-        }
+.btn-secondary.white:hover {
+    box-shadow: 0 0 2rem 0 var(--color-white);
+    background: var(--color-white);
+    color: var(--color-black);
+}
 
-    .btn-secondary.orange {
-        background: var(--color-orange);
-        color: var(--color-white);
-    }
+.btn-secondary.orange {
+    background: var(--color-orange);
+    color: var(--color-white);
+}
 
-        .btn-secondary.orange:hover {
-            box-shadow: 0 0 2rem 0 var(--color-orange);
-            background: var(--color-orange);
-            color: var(--color-white);
-        }
+.btn-secondary.orange:hover {
+    box-shadow: 0 0 2rem 0 var(--color-orange);
+    background: var(--color-orange);
+    color: var(--color-white);
+}
 
-    .btn-secondary.purple {
-        background: var(--color-purple);
-        color: var(--color-white);
-    }
+.btn-secondary.purple {
+    background: var(--color-purple);
+    color: var(--color-white);
+}
 
-        .btn-secondary.purple:hover {
-            box-shadow: 0 0 2rem 0 var(--color-purple);
-            background: var(--color-purple);
-            color: var(--color-white);
-        }
+.btn-secondary.purple:hover {
+    box-shadow: 0 0 2rem 0 var(--color-purple);
+    background: var(--color-purple);
+    color: var(--color-white);
+}
 
-    .btn-secondary span {
-        color: var(--color-white);
-    }
-   
+.btn-secondary span {
+    color: var(--color-white);
+}
+
 
 .btn-secondary.white span {
     color: var(--color-black);
 }
 
 
-    .btn-primary span, .btn-secondary span {
-        padding: 0 !important;
-    }
+.btn-primary span,
+.btn-secondary span {
+    padding: 0 !important;
+}
 
-    .btn-primary:disabled, .btn-secondary:disabled {
-        cursor: not-allowed;
-        pointer-events: none;
-        background: var(--color-bg-header);
-        opacity: 0.5;
-    }
+.btn-primary:disabled,
+.btn-secondary:disabled {
+    cursor: not-allowed;
+    pointer-events: none;
+    background: var(--color-bg-header);
+    opacity: 0.5;
+}
 
 /* #endregion =========== */
 /* #region =========== INPUT / DROPDOWN / TEXTAREA =========== */
-.wz--textarea, .wz--dropdown, .wz--input {
+.wz--textarea,
+.wz--dropdown,
+.wz--input {
     font-family: var(--text-font) !important;
     box-sizing: border-box;
     border: 0.2rem solid var(--color-border-gray);
@@ -603,8 +680,7 @@ UNUSED CANDIDATE END */
 }
 
 .warzone-region-bar.is-region-prompt-visible,
-.wz-region-control.is-region-prompt-visible
-.wz-inline-input-btn.is-region-prompt-visible {
+.wz-region-control.is-region-prompt-visible .wz-inline-input-btn.is-region-prompt-visible {
     opacity: 0;
     pointer-events: none;
     transform: translateY(-0.6rem);
@@ -631,29 +707,29 @@ UNUSED CANDIDATE END */
     color: var(--color-teal-glow);
 }
 
-    .wz-selector:after {
-        content: "\e903";
-        font-family: var(--font-icon);
-        font-size: var(--icon-md);
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 3.4rem;
-        height: 3.4rem;
-        line-height: 3.4rem;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        cursor: pointer;
-        color: var(--text-color-heading);
-        background: var(--color-input-gray);
-        pointer-events: none;
-    }
+.wz-selector:after {
+    content: "\e903";
+    font-family: var(--font-icon);
+    font-size: var(--icon-md);
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3.4rem;
+    height: 3.4rem;
+    line-height: 3.4rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: var(--text-color-heading);
+    background: var(--color-input-gray);
+    pointer-events: none;
+}
 
-    .wz-selector select span {
-        color: var(--color-magenta);
-        font-size: 3rem;
-    }
+.wz-selector select span {
+    color: var(--color-magenta);
+    font-size: 3rem;
+}
 
 
 .wz--dropdown {
@@ -661,7 +737,7 @@ UNUSED CANDIDATE END */
     height: 3.4rem;
     line-height: 2.5rem;
     width: 100%;
-    max-width:100%;
+    max-width: 100%;
     min-width: 100%;
     padding: 0 4rem 0 1rem;
     cursor: pointer;
@@ -676,14 +752,26 @@ UNUSED CANDIDATE END */
     padding: 0 1rem;
 }
 
-    .wz--textarea:focus-visible, .wz--textarea:hover, .wz--textarea:active,
-    .wz--dropdown:focus-visible, .wz--dropdown:hover, .wz--dropdown:active,
-    .wz--input:focus-visible, .wz--input:hover, .wz--input:active {
-        border-color: var(--color-teal-glow);
-        outline: none;
-    }
+.wz--textarea:focus-visible,
+.wz--textarea:hover,
+.wz--textarea:active,
+.wz--dropdown:focus-visible,
+.wz--dropdown:hover,
+.wz--dropdown:active,
+.wz--input:focus-visible,
+.wz--input:hover,
+.wz--input:active {
+    border-color: var(--color-teal-glow);
+    outline: none;
+}
 
-input.text, input[type=button], input[type=checkbox], input[type=submit], input[type=text], select, textarea {
+input.text,
+input[type=button],
+input[type=checkbox],
+input[type=submit],
+input[type=text],
+select,
+textarea {
     -webkit-appearance: inherit;
     border-radius: 0;
 }
@@ -697,67 +785,68 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     line-height: 1.7rem;
 }
 
-    .wz-check input[type="checkbox"] {
-        appearance: none;
-        -webkit-appearance: none;
-        flex: 0 0 2rem;
-        width: 2rem;
-        height: 2rem;
-        margin: -.4rem 0 0;
-        border: 0.2rem solid var(--color-teal-glow);
-        border-radius: .1rem;
-        background: var(--color-bg-dark);
-        position: relative;
-        display: inline-grid;
-        place-content: center;
-        cursor: pointer;
-        transition: 0.3s ease;
-    }
+.wz-check input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    margin: -.4rem 0 0;
+    border: 0.2rem solid var(--color-teal-glow);
+    border-radius: .1rem;
+    background: var(--color-bg-dark);
+    position: relative;
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
 
-    .wz-check:hover input[type="checkbox"] {
-        border-color: var(--color-teal);
-    }
+.wz-check:hover input[type="checkbox"] {
+    border-color: var(--color-teal);
+}
 
-    .wz-check input[type="checkbox"]::after {
-        content: "";
-        width: .8rem;
-        height: 1.5rem;
-        border: solid var(--color-bg-dark);
-        border-width: 0 0.4rem 0.4rem 0;
-        transform: rotate(45deg) scale(0);
-        transform-origin: center;
-        transition: transform 0.3s ease;
-        margin-top: -.2rem
-    }
+.wz-check input[type="checkbox"]::after {
+    content: "";
+    width: .8rem;
+    height: 1.5rem;
+    border: solid var(--color-bg-dark);
+    border-width: 0 0.4rem 0.4rem 0;
+    transform: rotate(45deg) scale(0);
+    transform-origin: center;
+    transition: transform 0.3s ease;
+    margin-top: -.2rem
+}
 
-    .wz-check input[type="checkbox"]:checked {
-        background: var(--color-teal-glow);
-        border-color: var(--color-teal-glow);
-    }
+.wz-check input[type="checkbox"]:checked {
+    background: var(--color-teal-glow);
+    border-color: var(--color-teal-glow);
+}
 
-        .wz-check input[type="checkbox"]:checked::after {
-            transform: rotate(45deg) scale(1);
-        }
+.wz-check input[type="checkbox"]:checked::after {
+    transform: rotate(45deg) scale(1);
+}
 
-    .wz-check input[type="checkbox"]:focus-visible {
-        border: 0.2rem solid var(--color-teal-glow);
-        outline-offset: 0.2rem;
-    }
+.wz-check input[type="checkbox"]:focus-visible {
+    border: 0.2rem solid var(--color-teal-glow);
+    outline-offset: 0.2rem;
+}
 
-    .wz-check span {
-        display: block;
-        color: var(--color-text);
-        font-size: var(--text-sm);
-    }
+.wz-check span {
+    display: block;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+}
 
-    .wz-check input[type="checkbox"]:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
+.wz-check input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
-        .wz-check input[type="checkbox"]:disabled + span {
-            opacity: 0.5;
-        }
+.wz-check input[type="checkbox"]:disabled+span {
+    opacity: 0.5;
+}
+
 /* #endregion =========== */
 /* #region =========== LISTVIEW =========== */
 .wz-list-view {
@@ -766,32 +855,33 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     gap: 1rem;
 }
 
-    .wz-list-view li {
-        list-style: none;
-        position: relative;
-        padding-left: 2.2rem;
-        line-height: 2rem;
-    }
+.wz-list-view li {
+    list-style: none;
+    position: relative;
+    padding-left: 2.2rem;
+    line-height: 2rem;
+}
 
-        .wz-list-view li:before {
-            top: -.2rem;
-            font-family: "stratops-icon-font";
-            content: "\e900";
-            color: var(--color-teal-glow);
-            font-size: 1.8rem;
-            line-height: 2rem;
-            position: absolute;
-            display: block;
-            left: -.3rem;
-        }
+.wz-list-view li:before {
+    top: -.2rem;
+    font-family: "stratops-icon-font";
+    content: "\e900";
+    color: var(--color-teal-glow);
+    font-size: 1.8rem;
+    line-height: 2rem;
+    position: absolute;
+    display: block;
+    left: -.3rem;
+}
 
-    .wz-list-view h4 {
-        margin-right: 1.5rem;
-    }
+.wz-list-view h4 {
+    margin-right: 1.5rem;
+}
 
-    .wz-list-view .list-text {
-        width: 75%;
-    }
+.wz-list-view .list-text {
+    width: 75%;
+}
+
 /* #endregion =========== */
 /* #region =========== BROWSER DEFAULT SCROLLBAR REPLACEMENT =========== */
 /**::-webkit-scrollbar {
@@ -817,7 +907,7 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
 .audio-toggle {
     position: fixed;
     right: 2.5rem;
-    bottom: 2.5rem; 
+    bottom: 2.5rem;
     z-index: 10050;
     width: 2.2rem;
     height: 2.2rem;
@@ -827,12 +917,12 @@ input.text, input[type=button], input[type=checkbox], input[type=submit], input[
     color: var(--color-white);
     cursor: pointer;
     overflow: hidden;
-transition:
-    opacity 700ms ease,
-    transform 700ms ease,
-    filter 700ms ease,
-    color 250ms ease;
-        background: transparent;
+    transition:
+        opacity 700ms ease,
+        transform 700ms ease,
+        filter 700ms ease,
+        color 250ms ease;
+    background: transparent;
     border: 0;
 }
 
@@ -852,9 +942,9 @@ body.wz-pre-entry-active .audio-toggle {
     border: 0;
 }
 
-    .audio-toggle.is-on {
+.audio-toggle.is-on {
     color: var(--color-white);
-    }
+}
 
 .audio-toggle__icon {
     position: absolute;
@@ -871,20 +961,21 @@ body.wz-pre-entry-active .audio-toggle {
     font-family: var(--font-icon)
 }
 
-    .audio-toggle__icon--play:before {
-        content: "\e900";
-    }
+.audio-toggle__icon--play:before {
+    content: "\e900";
+}
 
-    .audio-toggle__icon--pause:before,
-    .audio-toggle__icon--pause:after {
-        content: "\e945";
-        background: currentColor;
-    }
+.audio-toggle__icon--pause:before,
+.audio-toggle__icon--pause:after {
+    content: "\e945";
+    background: currentColor;
+}
 
-    .audio-toggle__icon.is-active {
-        opacity: 1;
-        transform: scale(1);
-    }
+.audio-toggle__icon.is-active {
+    opacity: 1;
+    transform: scale(1);
+}
+
 /* #endregion =========== */
 /* #region =========== LAYER - LOCK-ON =========== */
 .warzone-map-shell {
@@ -931,6 +1022,7 @@ body.wz-pre-entry-active .audio-toggle {
     right: 21%;
     border-width: 0 0.5rem 0.5rem 0;
 }
+
 /* #endregion =========== */
 /* #region =========== APP SHELL =========== */
 .warzone-app {
@@ -950,15 +1042,16 @@ body.wz-pre-entry-active .audio-toggle {
     flex: 1;
 }
 
-    .warzone-view.is-active {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 100%;
-        width: 100%;
-        overflow: hidden;
+.warzone-view.is-active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 100%;
+    width: 100%;
+    overflow: hidden;
 
-    }
+}
+
 /* #endregion =========== */
 /* #region =========== STAGE GRID =========== */
 /* UNUSED CANDIDATE START
@@ -997,9 +1090,9 @@ UNUSED CANDIDATE END */
     will-change: opacity;
 }
 
-    .site-loader.is-gone {
-        display: none;
-    }
+.site-loader.is-gone {
+    display: none;
+}
 
 body.show-loader .site-loader {
     opacity: 1;
@@ -1020,6 +1113,7 @@ body.show-loader .site-loader {
     place-items: center;
     gap: 1rem;
 }
+
 /* #endregion =========== */
 /* #region =========== A11Y / ACCESSIBILITY =========== */
 .sr-only {
@@ -1044,10 +1138,11 @@ body.show-loader .site-loader {
     transition: transform var(--transition-fast);
 }
 
-    .skip-link:focus {
-        outline: none;
-        transform: translateY(5rem);
-    }
+.skip-link:focus {
+    outline: none;
+    transform: translateY(5rem);
+}
+
 /* #endregion =========== */
 /* #region =========== GATE LAYER =========== */
 #warzone-gate-layer {
@@ -1057,17 +1152,18 @@ body.show-loader .site-loader {
     pointer-events: none;
 }
 
-    #warzone-gate-layer .wz-modal {
-        pointer-events: none;
-    }
+#warzone-gate-layer .wz-modal {
+    pointer-events: none;
+}
 
-        #warzone-gate-layer .wz-modal.is-visible {
-            pointer-events: auto;
-        }
+#warzone-gate-layer .wz-modal.is-visible {
+    pointer-events: auto;
+}
 
-        #warzone-gate-layer .wz-modal.is-visible.wz-operational-reports {
+#warzone-gate-layer .wz-modal.is-visible.wz-operational-reports {
     backdrop-filter: blur(4px);
-        }
+}
+
 /* #endregion =========== */
 /* #region =========== GENERIC =========== */
 .no-margin {
@@ -1084,6 +1180,7 @@ body.show-loader .site-loader {
     padding: .5rem 1rem;
     clip-path: var(--clippath-shape-3);
 }
+
 /* #endregion =========== */
 /* #region =========== COLOR CODES =========== */
 .color-teal {
@@ -1093,6 +1190,7 @@ body.show-loader .site-loader {
 .bg-teal {
     background: var(--color-teal)
 }
+
 .color-teal-glow {
     color: var(--color-teal-glow)
 }
@@ -1124,9 +1222,46 @@ body.show-loader .site-loader {
 .bg-red-glow {
     background: var(--color-magenta-glow)
 }
+
 /* #endregion =========== */
 
+.wz-pre-entry-fullscreen {
+    position: fixed;
+    z-index: 200;
+    top: 2rem;
+    right: 2rem;
+    width: 3rem;
+    height: 3rem;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: opacity .35s ease, transform .35s ease, visibility .35s ease, border-color .2s ease;
+}
 
+.wz-pre-entry-fullscreen.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
 
+.wz-pre-entry-fullscreen.is-leaving {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-1rem);
+    pointer-events: none;
+}
 
+.wz-pre-entry-fullscreen:hover,
+.wz-pre-entry-fullscreen:focus-visible,
+.wz-pre-entry-fullscreen.is-active {
+    border-color: var(--color-teal-glow);
+}
 
+.wz-pre-entry-fullscreen .action-icon {
+    font-size: var(--icon-xl);
+    transition: 0.3s all;
+    color: var(--color-text-heading);
+}

@@ -559,7 +559,16 @@ function resolvePublicUrl(item = {}) {
     if (!allowPublicUrl) return null;
 
     const candidate = String(item.publicUrl || item.public_url || item.url || raw.publicUrl || raw.public_url || raw.url || "").trim();
-    return /^https?:\/\//i.test(candidate) ? candidate : null;
+    if (!/^https?:\/\//i.test(candidate)) return null;
+    try {
+        const url = new URL(candidate);
+        const host = url.hostname.toLowerCase();
+        // Telegram channel/message URLs expose the private channel routing strategy.
+        if (host === "t.me" || host === "telegram.me" || host.endsWith(".telegram.me")) return null;
+        return url.href;
+    } catch {
+        return null;
+    }
 }
 
 function sanitizeIntelSource(item = {}) {
@@ -710,6 +719,14 @@ function stripIntelContentNoise(value = "") {
         .replace(/\badsbygoogle\b[\s\S]{0,180}?\bpush\s*\([^)]*\)\s*;?/gi, " ")
         .replace(/\bwindow\.adsbygoogle\b/gi, " ");
 
+    // Public Intel Wire must never surface affiliate/casino/channel-promotion tails.
+    // Cut the payload at the first strong promotional marker rather than trying to
+    // preserve text after it; anything after these markers is not operational intel.
+    const promotionIndex = text.search(
+        /\b(?:rainbet(?:\.com)?|non[-\s]?kyc\s+crypto\s+casino|crypto\s+casino\s*(?:&|and)\s*sportsbook|casino\s*(?:&|and)\s*sportsbook|sportsbook\s+rainbet(?:\.com)?|betting\s+bonus|bonus\s+code|promo\s+code|sign[- ]?up\s+bonus|join\s+our\s+(?:telegram\s+)?channel|subscribe\s+to\s+our\s+(?:telegram\s+)?channel)\b/i
+    );
+    if (promotionIndex >= 0) text = text.slice(0, promotionIndex);
+
     // Remove complete CMS metadata footers before stripping their individual fields.
     text = text
         .replace(/\bWar on [A-Za-z0-9 &'’\-]{2,60} News\s+Post\s+Date\s+Override\b[\s\S]{0,600}$/i, " ")
@@ -722,6 +739,81 @@ function stripIntelContentNoise(value = "") {
         .replace(/\b(?:Post|Update|Published|Modified)\s+Date\s*[:=\-]?\s*\d{4}-\d{2}-\d{2}(?:[T\s][0-9:.+\-Z]+)?\b/gi, " ");
 
     return text;
+}
+
+function escapeIntelRegex(value = "") {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getPrivateIntelAttributionTokens(item = {}) {
+    const raw = getRawObject(item.raw);
+    const sourceName = String(item.source_name || item.sourceName || raw.source_name || raw.sourceName || "").trim();
+    const sourceTail = /^(?:tg|telegram)\s*\/\s*(.+)$/i.exec(sourceName)?.[1] || "";
+    return [...new Set([
+        raw.channel,
+        raw.telegram_channel,
+        raw.telegramChannel,
+        raw.channel_username,
+        raw.channelUsername,
+        sourceTail,
+    ]
+        .map((value) => String(value || "").replace(/^@+/, "").trim())
+        .filter((value) => value.length >= 3 && value.length <= 80))];
+}
+
+function stripPrivateIntelAttributionText(value = "", item = {}) {
+    let text = String(value || "");
+    for (const token of getPrivateIntelAttributionTokens(item)) {
+        const escaped = escapeIntelRegex(token);
+        text = text.replace(
+            new RegExp(`(^|[^A-Za-z0-9_])@?${escaped}(?=$|[^A-Za-z0-9_])`, "gi"),
+            "$1"
+        );
+    }
+    return text.replace(/\s+/g, " ").trim();
+}
+
+function trimIntelTitleAtWordBoundary(value = "", maxLength = 240) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (text.length <= maxLength) return text;
+    const clipped = text.slice(0, maxLength + 1);
+    const boundary = clipped.lastIndexOf(" ");
+    return (boundary >= Math.floor(maxLength * 0.7) ? clipped.slice(0, boundary) : text.slice(0, maxLength)).trim();
+}
+
+function firstIntelSentence(value = "") {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    const match = text.match(/^.*?[.!?](?=\s|$)/);
+    return (match?.[0] || text).trim();
+}
+
+function buildPublicTitle(item = {}, summary = "") {
+    const rawTitle = stripPrivateIntelAttributionText(
+        stripNonEnglishText(stripHtmlToText(item.title || ""), ""),
+        item
+    );
+    const cleanSummary = stripPrivateIntelAttributionText(summary, item);
+    if (!rawTitle) return "Intel update";
+
+    // Telegram preview ingestion historically hard-cut titles by character count.
+    // When the cleaned summary begins with that truncated title, reconstruct the
+    // complete first sentence so users never see fragments such as "FA"/"cility".
+    const titleKey = normalizeToken(rawTitle);
+    const summaryKey = normalizeToken(cleanSummary);
+    if (
+        rawTitle.length >= 80 &&
+        !/[.!?]$/.test(rawTitle) &&
+        titleKey &&
+        summaryKey.startsWith(titleKey)
+    ) {
+        const sentence = firstIntelSentence(cleanSummary);
+        if (sentence.length > rawTitle.length) {
+            return trimIntelTitleAtWordBoundary(sentence, 240);
+        }
+    }
+
+    return trimIntelTitleAtWordBoundary(rawTitle, 240);
 }
 
 function stripHtmlToText(value = "") {
@@ -1473,7 +1565,9 @@ function buildPublicSummary(item = {}) {
         if (looksLikeLeakedHtmlSummary(cleaned)) continue;
         const englishOnly = stripNonEnglishText(cleaned);
         if (!englishOnly) continue;
-        return trimWords(englishOnly, 300, 2200);
+        const publicText = stripPrivateIntelAttributionText(englishOnly, item);
+        if (!publicText) continue;
+        return trimWords(publicText, 300, 2200);
     }
     return "";
 }
@@ -1506,6 +1600,8 @@ function buildPublicFullContent(item = {}, summary = "") {
         .map((candidate) => stripHtmlToStructuredText(candidate))
         .filter(Boolean)
         .filter((candidate) => !looksLikeLeakedHtmlSummary(candidate))
+        .map((candidate) => stripPrivateIntelAttributionText(candidate, item))
+        .filter(Boolean)
         .map((candidate) => trimStructuredWords(candidate, 1600, 14000))
         .sort((left, right) => right.length - left.length);
 
@@ -1529,10 +1625,11 @@ function toPublicIntelWireItem(item = {}, options = {}) {
     const timestamp = item.published_at || item.fetched_at || new Date().toISOString();
     const media = buildPublicIntelWireMedia(item, options.mediaBaseUrl || "");
     const summary = buildPublicSummary(item);
+    const title = buildPublicTitle(item, summary);
     const fullContent = buildPublicFullContent(item, summary);
     return {
         id: item.id,
-        title: stripNonEnglishText(stripHtmlToText(item.title || ""), "Intel update"),
+        title,
         summary,
         ...(fullContent ? {
             full_content: fullContent,

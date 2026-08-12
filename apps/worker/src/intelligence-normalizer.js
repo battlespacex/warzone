@@ -741,7 +741,8 @@ function getCountryContextEntries() {
       lon: entry.lon,
       aliases: [...new Set([
         country.toLowerCase(),
-        String(entry.label || "").toLowerCase()
+        String(entry.label || "").toLowerCase(),
+        ...(entry.aliases || []).map((alias) => String(alias || "").toLowerCase())
       ].filter(Boolean))]
     });
   }
@@ -779,8 +780,12 @@ function findCountryInLabel(value = "") {
 }
 
 function conflictsWithExplicitCountryContext(locationCountry, explicitCountries = []) {
+  if (!explicitCountries.length) return false;
   const country = cleanDisplayText(locationCountry, 80);
-  if (!country || !explicitCountries.length) return false;
+  // If the article explicitly identifies one or more countries, an older stored
+  // point with no resolvable country must not be trusted. Falling back to
+  // regional/non-marker context is safer than plotting an event in the wrong country.
+  if (!country) return true;
   return !explicitCountries.some((entry) => entry.country.toLowerCase() === country.toLowerCase());
 }
 
