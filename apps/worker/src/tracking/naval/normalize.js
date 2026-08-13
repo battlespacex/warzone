@@ -61,6 +61,7 @@ export function normalizeNavalObservation(provider, values = {}, { now = Date.no
         course_deg: navalNumber(values.course_deg),
         heading_deg: navalNumber(values.heading_deg),
         nav_status: navalText(values.nav_status),
+        operating_status: navalText(values.operating_status),
         ship_type: values.ship_type ?? null,
         ship_type_code: navalNumber(values.ship_type_code ?? values.ship_type),
         operator: navalText(values.operator),

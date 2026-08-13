@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex" />
+  <meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex" />
+  <meta name="bingbot" content="noindex,nofollow,noarchive,nosnippet,noimageindex" />
+  <meta name="referrer" content="no-referrer" />
+  <title>BattlespaceX Poster Generator</title>
+</head>
+<body class="poster-generator-page">
+<div class="app-shell">
+    <aside class="controls">
+      <div class="brand-header">
+        <div class="brand-mark">BX</div>
+        <div>
+          <h1>Poster Generator</h1>
+          <p id="headerSizeLabel">1080 × 1350 social poster</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button id="resetBtn" class="btn secondary">Reset</button>
+        <button id="saveProjectBtn" class="btn secondary">Save JSON</button>
+        <label class="btn secondary file-button">
+          Load JSON
+          <input id="loadProjectInput" type="file" accept=".json,application/json" />
+        </label>
+      </div>
+
+      <details open>
+        <summary>Brand & Optional Text</summary>
+        <div class="panel-grid">
+
+          <label>Poster size
+            <select id="posterSizeSelect">
+              <option value="feed">Instagram Portrait — 1080 × 1350</option>
+              <option value="reel">Instagram Reel / Story — 1080 × 1920</option>
+            </select>
+          </label>
+
+          <label>Brand preset
+            <select id="brandPresetSelect">
+              <option value="">Manual selection</option>
+              <option value="battlespacex">BattlespaceX preset</option>
+              <option value="stratops">StratOps preset</option>
+            </select>
+          </label>
+
+          <label>Top logo
+            <select id="logoSelect">
+              <option value="battlespacex">BattlespaceX</option>
+              <option value="stratops">StratOps</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+
+          <label>Logo position
+            <select id="logoPositionSelect">
+              <option value="left">Top left</option>
+              <option value="center">Top center</option>
+            </select>
+          </label>
+
+          <label>Bottom-right website
+            <select id="websiteSelect">
+              <option value="www.battlespacex.com">www.battlespacex.com</option>
+              <option value="www.stratops.battlespacex.com">www.stratops.battlespacex.com</option>
+              <option value="custom">Custom website text</option>
+            </select>
+          </label>
+
+          <label id="customWebsiteWrap" class="hidden">Custom website text
+            <input id="customWebsiteInput" type="text" value="www.battlespacex.com" />
+          </label>
+
+          <label>Bottom-left QR code
+            <select id="qrSelect">
+              <option value="battlespacex">BattlespaceX QR</option>
+              <option value="stratops">StratOps QR</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+          <p class="hint full preset-hint">A preset sets the logo, QR code and website together. You can change any of them independently afterward.</p>
+
+          <label class="check-row"><input id="enableDescription" type="checkbox" /> Enable description</label>
+          <label class="check-row"><input id="enableCredit" type="checkbox" /> Enable image credit</label>
+          <label class="check-row"><input id="showGuides" type="checkbox" checked /> Show safe-area guides</label>
+        </div>
+      </details>
+
+      <details open>
+        <summary>Background Image</summary>
+        <div class="panel-grid">
+          <label class="btn primary file-button full">
+            Choose image
+            <input id="backgroundInput" type="file" accept="image/*" />
+          </label>
+
+          <div class="button-row full">
+            <button id="autoFitBackgroundBtn" class="btn primary" type="button">Auto Fit Image</button>
+            <button id="removeBackgroundBtn" class="btn secondary" type="button">Remove image</button>
+          </div>
+
+          <label>Fit mode
+            <select id="fitMode">
+              <option value="cover">Cover poster</option>
+              <option value="contain">Contain image</option>
+            </select>
+          </label>
+
+          <label>Zoom <span id="zoomValue">100%</span>
+            <input id="imageZoom" type="range" min="50" max="300" value="100" />
+          </label>
+
+          <label>Horizontal position <span id="imageXValue">0</span>
+            <input id="imageX" type="range" min="0" max="0" value="0" />
+          </label>
+
+          <label>Vertical position <span id="imageYValue">0</span>
+            <input id="imageY" type="range" min="0" max="0" value="0" />
+          </label>
+
+          <label>Brightness <span id="brightnessValue">100%</span>
+            <input id="brightness" type="range" min="0" max="200" value="100" />
+          </label>
+
+          <label>Contrast <span id="contrastValue">100%</span>
+            <input id="contrast" type="range" min="0" max="200" value="100" />
+          </label>
+
+          <label>Saturation <span id="saturationValue">100%</span>
+            <input id="saturation" type="range" min="0" max="200" value="100" />
+          </label>
+
+          <label>Dark overlay <span id="darkOverlayValue">15%</span>
+            <input id="darkOverlay" type="range" min="0" max="90" value="15" />
+          </label>
+        </div>
+        <p class="hint">Auto Fit restores the image to its original fitted position after zooming or moving it. Landscape images normally fit by height and move horizontally; portrait images normally fit by width and move vertically.</p>
+      </details>
+
+      <details open>
+        <summary>Graphic Overlay</summary>
+        <div class="panel-grid">
+          <label>Overlay
+            <select id="overlaySelect"></select>
+          </label>
+
+          <label>Opacity <span id="overlayOpacityValue">40%</span>
+            <input id="overlayOpacity" type="range" min="0" max="100" value="40" />
+          </label>
+        </div>
+      </details>
+
+      <details open>
+        <summary>Title</summary>
+        <div class="panel-grid">
+          <label class="full">Title text
+            <textarea id="titleText" rows="5">KUWAIT UNVEILS
+NEEDLEFISH NAVAL DRONES
+TO BOLSTER MARITIME
+SECURITY</textarea>
+          </label>
+
+          <label>Font
+            <select id="titleFont"></select>
+          </label>
+
+          <div id="fontLibraryStatus" class="font-library-status full">Loading configured fonts…</div>
+
+          <label>Font size <span id="titleSizeValue">92</span>
+            <input id="titleSize" type="range" min="30" max="230" value="92" />
+          </label>
+
+          <label>Line height <span id="titleLineHeightValue">0.92</span>
+            <input id="titleLineHeight" type="range" min="65" max="160" value="92" />
+          </label>
+
+          <label>Letter spacing <span id="titleSpacingValue">1</span>
+            <input id="titleSpacing" type="range" min="-8" max="30" value="1" />
+          </label>
+
+          <label>Text width <span id="titleWidthValue">900</span>
+            <input id="titleWidth" type="range" min="250" max="1020" value="900" />
+          </label>
+
+          <label>Alignment
+            <select id="titleAlign">
+              <option value="left">Left</option>
+              <option value="center" selected>Center</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+
+          <label>Text color
+            <input id="titleColor" type="color" value="#ffffff" />
+          </label>
+
+          <label class="check-row"><input id="titleUppercase" type="checkbox" checked /> Force uppercase</label>
+        </div>
+      </details>
+
+      <details id="descriptionPanel" class="hidden">
+        <summary>Description</summary>
+        <div class="panel-grid">
+          <label class="full">Description text
+            <textarea id="descriptionText" rows="4">KUWAIT UNVEILS NEEDLEFISH NAVAL DRONES TO BOLSTER MARITIME SECURITY</textarea>
+          </label>
+
+          <label>Font
+            <select id="descriptionFont"></select>
+          </label>
+
+          <label>Font size <span id="descriptionSizeValue">48</span>
+            <input id="descriptionSize" type="range" min="18" max="130" value="48" />
+          </label>
+
+          <label>Line height <span id="descriptionLineHeightValue">0.96</span>
+            <input id="descriptionLineHeight" type="range" min="65" max="180" value="96" />
+          </label>
+
+          <label>Letter spacing <span id="descriptionSpacingValue">0</span>
+            <input id="descriptionSpacing" type="range" min="-6" max="20" value="0" />
+          </label>
+
+          <label>Text width <span id="descriptionWidthValue">520</span>
+            <input id="descriptionWidth" type="range" min="180" max="1000" value="520" />
+          </label>
+
+          <label>Alignment
+            <select id="descriptionAlign">
+              <option value="left">Left</option>
+              <option value="center" selected>Center</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+
+          <label>Text color
+            <input id="descriptionColor" type="color" value="#ffffff" />
+          </label>
+
+          <label class="check-row"><input id="descriptionUppercase" type="checkbox" checked /> Force uppercase</label>
+        </div>
+      </details>
+
+
+      <details id="creditPanel" class="hidden">
+        <summary>Image Credit</summary>
+        <div class="panel-grid">
+          <label class="full">Credit text
+            <input id="creditText" type="text" value="Credit: USAF" />
+          </label>
+
+          <label>Text width <span id="creditWidthValue">420</span>
+            <input id="creditWidth" type="range" min="160" max="900" value="420" />
+          </label>
+        </div>
+        <p class="hint">Click the credit text in the preview and drag it to reposition it.</p>
+      </details>
+<div class="export-panel">
+        <label>Export format
+          <select id="exportFormat">
+            <option value="png">PNG · Best quality</option>
+            <option value="jpg">JPG · High quality</option>
+          </select>
+        </label>
+
+        <label id="jpgQualityWrap" class="hidden">JPG quality <span id="jpgQualityValue">95%</span>
+          <input id="jpgQuality" type="range" min="70" max="100" value="95" />
+        </label>
+
+        <button id="exportBtn" class="btn export">Save Poster</button>
+        <p class="hint">Supported browsers will open a “Save As” window. Other browsers will download the poster to the default Downloads folder.</p>
+      </div>
+    </aside>
+
+    <main class="preview-area">
+      <div class="preview-topbar">
+        <div>
+          <strong>Live Preview</strong>
+          <span>Choose the poster size, then drag the title, description or credit directly on the poster. Drag empty image areas to reposition the background.</span>
+        </div>
+        <div id="canvasSizeReadout" class="zoom-readout">1080 × 1350</div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="posterCanvas" width="1080" height="1350"></canvas>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

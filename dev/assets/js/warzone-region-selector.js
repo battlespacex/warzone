@@ -1,6 +1,8 @@
 ﻿// File Path: /assets/js/warzone-region-selector.js
 import * as Cesium from "cesium";
 import { getTheaterDefinitions } from "./warzone-theaters.js";
+
+const REGION_MODAL_EXIT_MS = 1000;
 const REGIONS = [
     { id: "global", label: "Global View", bounds: { minLat: -90, maxLat: 90, minLon: -180, maxLon: 180 }, camera: { lon: 40, lat: 25, alt: 12000000 } },
     { id: "middle_east", label: "Middle East & Gulf", bounds: { minLat: 12, maxLat: 42, minLon: 28, maxLon: 65 }, camera: { lon: 44, lat: 28, alt: 3800000 }, hot: true },
@@ -1551,22 +1553,23 @@ function showRegionModal(viewer, instant = false, options = {}) {
                 showLoader: false,
             });
             overlay.classList.add("is-operational-exit");
-            overlay.dataset.wzCloseDurationMs = "1000";
-            window.__warzoneBeginStartupBackgroundExit?.();
+            overlay.style.setProperty("--wz-region-modal-exit-ms", `${REGION_MODAL_EXIT_MS}ms`);
+            overlay.dataset.wzCloseDurationMs = String(REGION_MODAL_EXIT_MS);
+
+            Promise.resolve(window.__warzoneStartDeferredApp?.())
+                .catch((error) => {
+                    console.error("Operational boot failed after region selection:", error);
+                    window.__warzoneShowRegionModal?.();
+                });
 
             closeRegionModal(overlay, () => {
                 overlay.classList.remove("is-operational-exit");
+                overlay.style.removeProperty("--wz-region-modal-exit-ms");
                 delete overlay.dataset.wzCloseDurationMs;
                 window.stopStratOpsAudio?.({
                     lock: true,
                     duration: 700
                 });
-
-                Promise.resolve(window.__warzoneStartDeferredApp?.())
-                    .catch((error) => {
-                        console.error("Operational boot failed after region selection:", error);
-                        window.__warzoneShowRegionModal?.();
-                    });
             });
         });
     }

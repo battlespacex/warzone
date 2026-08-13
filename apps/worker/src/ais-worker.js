@@ -124,6 +124,7 @@ const NAVAL_NAME_PATTERNS = [
     /\bOFFSHORE PATROL VESSEL\b/i,
     /\bMISSILE BOAT\b/i,
     /\bFAST ATTACK CRAFT\b/i,
+    /\bWARSHIP\b/i,
 ];
 const CIVILIAN_VESSEL_PATTERNS = [
     /\bMV\b/i,
@@ -216,6 +217,8 @@ function isKnownNonOperationalNavalContact(vessel = {}) {
         vessel.operational_status,
         vessel.serviceStatus,
         vessel.service_status,
+        vessel.navStatus,
+        vessel.operatingStatus,
     ]
         .map(normalizeString)
         .filter(Boolean)
@@ -261,8 +264,8 @@ export function qualifyMilitaryVessel(vessel, {
     knownMilitaryImo = identifierSet(process.env.NAVAL_KNOWN_MILITARY_IMO),
 } = {}) {
     if (isKnownNonOperationalNavalContact(vessel)) return { accepted: false, reason: "non_operational" };
-    const hasCivilianIdentity = isCivilianVesselName(vessel.name, vessel.callSign);
-    const hasMilitaryIdentity = isMilitaryVesselName(vessel.name, vessel.callSign);
+    const hasCivilianIdentity = isCivilianVesselName(`${vessel.name || ""} ${vessel.shipType || ""}`, vessel.callSign);
+    const hasMilitaryIdentity = isMilitaryVesselName(`${vessel.name || ""} ${vessel.shipType || ""} ${vessel.operator || ""}`, vessel.callSign);
     if (hasCivilianIdentity && !hasMilitaryIdentity) {
         return { accepted: false, reason: "rejected_civilian" };
     }
@@ -464,6 +467,7 @@ function toLegacyVessel(observation) {
         militaryHint: Boolean(observation.military_hint),
         providerMilitaryFlag: Boolean(observation.provider_military_flag),
         navStatus: observation.nav_status || "",
+        operatingStatus: observation.operating_status || "",
         operator: observation.operator || "",
         sourceCount: observation.source_count || 1,
         corroboration: observation.corroboration || "single-source",
@@ -496,13 +500,15 @@ export async function runAisWorker(options = {}) {
         reportedDisabledProviders.add(provider.id);
     }
 
-    const providerResults = await runConfiguredProviders("ais", providers, { logger });
+    const liveProviders = providers.filter((provider) => provider.enrichmentOnly !== true);
+    const enrichmentProviders = providers.filter((provider) => provider.enrichmentOnly === true);
+    const providerResults = await runConfiguredProviders("ais", liveProviders, { logger });
     if (ownsProviders) {
         for (const provider of providers) provider.shutdown?.();
     }
     const priority = new Map(providers.map((provider) => [provider.id, provider.priority]));
     let aisStreamDiagnostics = null;
-    const observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
+    let observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
         const providerMilitary = items.map(toLegacyVessel).filter((vessel) => isMilitaryVessel(vessel)).length;
         if (provider.id === "aisstream") {
             aisStreamDiagnostics = diagnostics || {};
@@ -513,6 +519,35 @@ export async function runAisWorker(options = {}) {
         }
         return items.map((item) => ({ ...item, priority: priority.get(item.source || provider.id) ?? 999 }));
     });
+
+    for (const provider of enrichmentProviders) {
+        if (provider.enabled === false) continue;
+        const liveMmsi = [...new Set(observations.map((item) => String(item.mmsi || "").replace(/\D/g, "")).filter(Boolean))];
+        const cached = provider.getCachedObservations?.(liveMmsi) || [];
+        const cachedMmsi = new Set(cached.map((item) => item.mmsi));
+        observations.push(...cached.map((item) => ({ ...item, priority: priority.get(provider.id) ?? 999 })));
+
+        const lookupCandidate = observations
+            .filter((item) => item.source !== provider.id && item.mmsi && !cachedMmsi.has(item.mmsi))
+            .map((item) => ({ item, vessel: toLegacyVessel(item) }))
+            .find(({ vessel }) => isMilitaryVessel(vessel))?.item;
+        if (!lookupCandidate) {
+            if (cached.length) logger.log?.(`[ais:${provider.id}] cache_hits=${cached.length}`);
+            else if (options.reportProviderStates === true) logger.log?.(`[ais:${provider.id}] DEGRADED idle_no_enrichment_candidate`);
+            continue;
+        }
+
+        const enrichmentResult = await runConfiguredProviders("ais", [{
+            ...provider,
+            fetchObservations: () => provider.fetchObservations({ mmsis: [lookupCandidate.mmsi] }),
+        }], { logger });
+        for (const result of enrichmentResult) {
+            const diagnostics = result.diagnostics || {};
+            const status = diagnostics.quota_blocked || diagnostics.interval_blocked ? "DEGRADED" : "HEALTHY";
+            logger.log?.(`[ais:${provider.id}] ${status} fetched=${result.observations.length} cached=${diagnostics.cached === true ? 1 : 0} quota_remaining=${diagnostics.quota_remaining ?? "unknown"}`);
+            observations.push(...result.observations.map((item) => ({ ...item, priority: priority.get(provider.id) ?? 999 })));
+        }
+    }
 
     const canonical = mergeNavalObservations(observations, {
         freshnessMs: Number(process.env.NAVAL_CORROBORATION_WINDOW_MS) || 5 * 60_000,
@@ -571,4 +606,16 @@ export async function runAisWorker(options = {}) {
         qualification: qualificationCounts,
         aisstream: aisStreamDiagnostics,
     };
+}
+
+export async function runVesselApiDiagnostic(mmsi, { logger = console } = {}) {
+    const provider = createNavalProviders().find((item) => item.id === "vesselapi");
+    if (!provider?.enabled) {
+        logger.log?.(`[ais:vesselapi] DISABLED${provider?.disabledReason ? ` ${provider.disabledReason}` : ""}`);
+        return { observation: null, diagnostics: { disabled: true } };
+    }
+    const result = await provider.lookupVesselByMmsi(mmsi, { automatic: false });
+    const status = result.diagnostics?.quota_blocked ? "DEGRADED" : "HEALTHY";
+    logger.log?.(`[ais:vesselapi] ${status} mmsi=${String(mmsi || "").replace(/\D/g, "")} cached=${result.diagnostics?.cached === true ? 1 : 0} quota_remaining=${result.diagnostics?.quota_remaining ?? "unknown"}`);
+    return result;
 }

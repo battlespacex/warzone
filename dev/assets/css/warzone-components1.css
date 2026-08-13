@@ -2154,7 +2154,6 @@ body.is-map-layers-open {
 
     padding: 3rem 0 3rem 3rem;
     filter: var(--widget-shadow);
-    backdrop-filter: blur(.2rem);
 }
 
 body.is-map-layers-open .wz-map-layers-pane {

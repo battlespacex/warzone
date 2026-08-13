@@ -11,7 +11,8 @@ let __siteLoaderHideTimer = 0;
 let __siteLoaderHardStopTimer = 0;
 const SITE_LOADER_HARD_MAX_MS = 12000;
 const STARTUP_OPERATIONAL_AUDIO_MUTE_MS = 12000;
-const OPERATIONAL_LOADER_REVEAL_MS = 850;
+const OPERATIONAL_LOADER_FADE_IN_MS = 600;
+const OPERATIONAL_LOADER_REVEAL_MS = 800;
 const DASHBOARD_REVEAL_STAGES = Object.freeze({
     breathingRoom: 250,
     header: 450,
@@ -141,6 +142,7 @@ window.SiteLoader = {
     start() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
+        loader.style.setProperty("--wz-operational-loader-fade-in-ms", `${OPERATIONAL_LOADER_FADE_IN_MS}ms`);
         clearSiteLoaderTimers();
         const alreadyVisible = document.body.classList.contains("show-loader");
         loader.classList.remove("is-gone");

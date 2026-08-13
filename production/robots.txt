@@ -7,5 +7,6 @@ Disallow: /server.js
 Disallow: /webpack.config.js
 Disallow: /package.json
 Disallow: /node_modules/
+Disallow: /poster
 
 Sitemap: https://stratops.battlespacex.com/sitemap.xml

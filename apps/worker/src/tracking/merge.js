@@ -203,9 +203,20 @@ export function mergeNavalObservations(observations, options = {}) {
         if (candidates.length === 1) candidates[0][1].push(item);
     }
     return [...groups.entries()]
-        .map(([identity, group]) => mergeGroup(group, {
+        .map(([identity, group]) => {
+            const merged = mergeGroup(group, {
             domain: "naval", freshnessMs, maxSpeedKts, identity,
-            fields: ["mmsi", "imo", "callsign", "vessel_name", "ship_type", "ship_type_code", "nav_status", "country", "operator", "metadata"],
-        }))
+            fields: ["mmsi", "imo", "callsign", "vessel_name", "ship_type", "ship_type_code", "nav_status", "operating_status", "country", "operator"],
+            });
+            if (merged) {
+                merged.metadata = Object.assign(
+                    {},
+                    ...[...group]
+                        .sort((a, b) => b.priority - a.priority)
+                        .map((item) => item.metadata || {})
+                );
+            }
+            return merged;
+        })
         .filter(Boolean);
 }

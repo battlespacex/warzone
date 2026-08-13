@@ -1,4 +1,29 @@
-const STARTUP_BACKGROUND_FADE_MS = 1000;
+const STARTUP_BACKGROUND_EXIT_FALLBACK_MS = 1700;
+
+function parseCssTimeMs(value = "") {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized.endsWith("ms")) {
+        return Number.parseFloat(normalized) || 0;
+    }
+    if (normalized.endsWith("s")) {
+        return (Number.parseFloat(normalized) || 0) * 1000;
+    }
+    return Number.NaN;
+}
+
+function getStartupBackgroundExitMs(layer) {
+    try {
+        const style = window.getComputedStyle(layer);
+        const durationMs = parseCssTimeMs(style.transitionDuration.split(",")[0]);
+        const delayMs = parseCssTimeMs(style.transitionDelay.split(",")[0]);
+        const totalMs = durationMs + delayMs;
+        return Number.isFinite(totalMs)
+            ? Math.max(totalMs, 0)
+            : STARTUP_BACKGROUND_EXIT_FALLBACK_MS;
+    } catch {
+        return STARTUP_BACKGROUND_EXIT_FALLBACK_MS;
+    }
+}
 
 let exitState = null;
 let releasePromise = null;
@@ -56,7 +81,7 @@ export function initStartupBackground() {
         state.onTransitionEnd = (event) => {
             if (event.target === layer && event.propertyName === "opacity") finish();
         };
-        state.fallbackTimer = window.setTimeout(finish, STARTUP_BACKGROUND_FADE_MS + 120);
+        state.fallbackTimer = window.setTimeout(finish, getStartupBackgroundExitMs(layer) + 120);
         exitState = state;
         layer.addEventListener("transitionend", state.onTransitionEnd);
         layer.classList.add("is-leaving");

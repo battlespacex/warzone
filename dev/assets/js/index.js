@@ -92,6 +92,8 @@ window.__stratopsConfig = {
 const INITIAL_THEATER_WARMUP_TIMEOUT_MS = 1400;
 const INITIAL_THEATER_WARMUP_KEEP_MS = 5000;
 const OPERATIONAL_SCENE_READY_BUDGET_MS = 2800;
+const OPERATIONAL_LOADER_ENTRY_DELAY_MS = 600;
+const OPERATIONAL_LOADER_FADE_IN_MS = 600;
 const INITIAL_THEATER_CRITICAL_ASSETS = Object.freeze([
     "/assets/images/bases/airbase-1.png",
     "/assets/images/bases/naval-1.png",
@@ -303,6 +305,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         initRegionSelector(null);
 
         let operationalBootPromise = null;
+        let operationalBootCancelled = false;
         window.__warzoneStartDeferredApp = () => {
             if (operationalBootPromise) return operationalBootPromise;
             operationalBootPromise = (async () => {
@@ -310,14 +313,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                     throw new Error("The operational globe feature is disabled");
                 }
 
-                // Complete the video dissolve before showing the operational loader.
-                await window.__warzoneBeginStartupBackgroundExit?.();
                 document.body.classList.add("is-operational-booting", "is-dashboard-booting");
                 window.__wzKeepSiteLoaderVisible = true;
                 window.__wzKeepSiteLoaderVisibleUntil = Date.now() + 45000;
-                window.SiteLoader?.start?.();
-                await nextFrame();
-                await nextFrame();
+                const loaderRevealPromise = (async () => {
+                    await wait(OPERATIONAL_LOADER_ENTRY_DELAY_MS);
+                    if (operationalBootCancelled) return;
+                    window.SiteLoader?.start?.();
+                    await wait(OPERATIONAL_LOADER_FADE_IN_MS);
+                })();
 
                 const [
                     globeModule,
@@ -384,8 +388,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     initAudio();
                 }
 
-                await Promise.all([operationalSceneReadyPromise, theaterWarmupPromise]);
-                await window.__warzoneReleaseStartupBackground?.();
+                await Promise.all([
+                    operationalSceneReadyPromise,
+                    theaterWarmupPromise,
+                    loaderRevealPromise,
+                ]);
                 window.__warzonePrepareDashboardIntro?.();
                 const introFlightPromise = selectedRegion
                     ? playStartupRegionJourney(viewer, selectedRegion)
@@ -396,13 +403,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                 window.__wzKeepSiteLoaderVisibleUntil = 0;
                 await nextFrame();
                 const loaderFadePromise = window.SiteLoader?.fadeIntoApp?.() || Promise.resolve();
-                await Promise.all([introFlightPromise, loaderFadePromise]);
+                const startupBackgroundFadePromise = window.__warzoneReleaseStartupBackground?.() || Promise.resolve();
+                await Promise.all([
+                    introFlightPromise,
+                    loaderFadePromise,
+                    startupBackgroundFadePromise,
+                ]);
                 await window.__warzoneRevealDashboard?.();
 
                 // Existing operational post-entry systems continue from the READY boundary.
                 schedulePostEntryActions(viewer);
                 return viewer;
             })().catch((error) => {
+                operationalBootCancelled = true;
                 window.__wzKeepSiteLoaderVisible = false;
                 window.__wzKeepSiteLoaderVisibleUntil = 0;
                 window.SiteLoader?.forceHide?.();

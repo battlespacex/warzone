@@ -1,4 +1,6 @@
 ﻿/* --- assets/css/root.css --- */
+@import url("./poster-generator.css");
+
 /* #region =========== Backgrounds =========== */
 :root {
     --color-bg-dark: rgba(32, 38, 49, 0.85);
@@ -9,6 +11,9 @@
     --report-pdf-toolbar-bg: #18222c;
     --report-pdf-sidebar-bg: #111920;
     --report-pdf-viewer-bg: #090f14;
+    --stratops-loader-exit-duration: 800ms;
+    --stratops-startup-video-exit-duration: 1400ms;
+    --stratops-startup-video-exit-delay: 300ms;
 }
 
 /* #endregion =========== */

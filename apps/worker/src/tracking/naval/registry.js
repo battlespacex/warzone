@@ -3,6 +3,7 @@ import { createAisHubProvider } from "./providers/aishub.js";
 import { createMarineTrafficProvider } from "./providers/marinetraffic.js";
 import { createSpireProvider } from "./providers/spire.js";
 import { createVesselFinderProvider } from "./providers/vesselfinder.js";
+import { createVesselApiProvider } from "./providers/vesselapi.js";
 
 function envEnabled(value, fallback = false) {
     if (value == null || value === "") return fallback;
@@ -18,7 +19,7 @@ function priorityMap(value, defaults) {
 }
 
 export function createNavalProviders(env = process.env, dependencies = {}) {
-    const priority = priorityMap(env.NAVAL_PROVIDER_PRIORITY, ["aisstream", "aishub", "spire", "marinetraffic", "vesselfinder"]);
+    const priority = priorityMap(env.NAVAL_PROVIDER_PRIORITY, ["aisstream", "vesselapi", "aishub", "spire", "marinetraffic", "vesselfinder"]);
     const providers = [
         createAisStreamProvider({
             enabled: envEnabled(env.AISSTREAM_ENABLED, true),
@@ -29,6 +30,18 @@ export function createNavalProviders(env = process.env, dependencies = {}) {
             cacheTtlMs: (Number(env.AISSTREAM_STATIC_CACHE_TTL_MINUTES) || 30) * 60_000,
             allowInsecureTlsFallback: envEnabled(env.AISSTREAM_ALLOW_INSECURE_TLS_FALLBACK, false),
             webSocketFactory: dependencies.webSocketFactory,
+            logger: dependencies.logger,
+        }),
+        createVesselApiProvider({
+            enabled: envEnabled(env.VESSELAPI_ENABLED, false),
+            apiKey: env.VESSELAPI_API_KEY,
+            baseUrl: env.VESSELAPI_BASE_URL,
+            minimumIntervalMs: Number(env.VESSELAPI_MINIMUM_INTERVAL_MS) || 18_000_000,
+            identityCacheTtlMs: Number(env.VESSELAPI_IDENTITY_CACHE_TTL_MS) || 604_800_000,
+            monthlyRequestBudget: Number(env.VESSELAPI_MONTHLY_REQUEST_BUDGET) || 150,
+            minRemainingRequests: Number(env.VESSELAPI_MIN_REMAINING_REQUESTS) || 10,
+            stateStore: dependencies.vesselApiStateStore,
+            fetchImpl: dependencies.fetchImpl,
             logger: dependencies.logger,
         }),
         createAisHubProvider({

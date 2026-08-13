@@ -73,6 +73,7 @@ module.exports = (env, argv) => {
 
         entry: {
             main: path.resolve(DEV_DIR, "assets/js/index.js"),
+            poster: path.resolve(DEV_DIR, "assets/js/poster-generator.js"),
             reportCapture: path.resolve(DEV_DIR, "assets/js/report-capture.js"),
             reportPdfViewer: path.resolve(DEV_DIR, "assets/js/report-pdf-viewer.js"),
         },
@@ -253,6 +254,15 @@ module.exports = (env, argv) => {
                 cache: !isDev,
                 inject: "head",
                 chunks: ["reportPdfViewer"],
+                scriptLoading: "defer",
+            }),
+
+            new HtmlWebpackPlugin({
+                filename: "poster/index.html",
+                template: path.resolve(DEV_DIR, "pages/poster.html"),
+                cache: !isDev,
+                inject: "head",
+                chunks: ["poster"],
                 scriptLoading: "defer",
             }),
 
@@ -617,6 +627,13 @@ module.exports = (env, argv) => {
                         devServer.app.get("/warzone/aircraft-feed/mil", handleAircraftFeedProxy);
                         devServer.app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
                         devServer.app.get("/warzone/terrain/terrarium/:z/:x/:y.png", handleTerrariumTileProxy);
+                        devServer.app.use((req, res, next) => {
+                            if (/^\/poster(?:\/|$)/.test(req.path)) {
+                                res.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+                                res.set("Cache-Control", "no-store, max-age=0");
+                            }
+                            next();
+                        });
                         devServer.app.get(["/", "/warzone", "/warzone/"], (_req, res) => {
                             res.redirect(302, "/pages/index.html");
                         });
@@ -669,6 +686,7 @@ module.exports = (env, argv) => {
                     historyApiFallback: {
                         rewrites: [
                             { from: /^\/(?:warzone\/?)?$/, to: "/pages/index.html" },
+                            { from: /^\/poster\/?$/, to: "/poster/index.html" },
                             { from: /^\/404\/?$/, to: "/pages/404.html" },
                             { from: /^\/(?:warzone\/)?reports\/[^/]+\/?$/, to: "/pages/report.html" },
                             { from: /^\/(?:warzone\/)?report-capture\/?$/, to: "/pages/report-capture.html" },
