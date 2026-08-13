@@ -20,12 +20,13 @@ function priorityMap(value, defaults) {
 }
 
 export function createAircraftProviders(env = process.env, dependencies = {}) {
-    const priority = priorityMap(env.AIRCRAFT_PROVIDER_PRIORITY, ["adsb_lol", "airplanes_live", "adsb_one", "adsbx", "opensky"]);
+    const priority = priorityMap(env.AIRCRAFT_PROVIDER_PRIORITY, ["adsb_lol", "opensky", "airplanes_live", "adsb_one", "adsbx"]);
     const providers = [
         createAdsbLolProvider({
             enabled: envEnabled(env.ADSB_LOL_ENABLED, true),
             baseUrl: env.ADSB_LOL_BASE_URL,
             positionMaxAgeSeconds: Number(env.ADSB_LOL_POSITION_MAX_AGE_SECONDS) || 90,
+            minimumIntervalMs: Number(env.ADSB_LOL_MINIMUM_INTERVAL_MS) || 3000,
             fetchImpl: dependencies.fetchImpl,
         }),
         createAirplanesLiveProvider({
@@ -49,6 +50,7 @@ export function createAircraftProviders(env = process.env, dependencies = {}) {
             clientId: env.OPENSKY_CLIENT_ID,
             clientSecret: env.OPENSKY_CLIENT_SECRET,
             baseUrl: env.OPENSKY_BASE_URL,
+            minimumIntervalMs: Number(env.OPENSKY_MINIMUM_INTERVAL_MS) || (15 * 60 * 1000),
             fetchImpl: dependencies.fetchImpl,
         }),
     ];

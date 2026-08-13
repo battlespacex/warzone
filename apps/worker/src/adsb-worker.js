@@ -4,7 +4,7 @@
 // this file retains StratOps military qualification and Supabase contracts.
 
 import { supabase } from "./supabase.js";
-import { mergeAircraftObservations } from "./tracking/merge.js";
+import { mergeAircraftObservations, selectAircraftMilitaryCandidates } from "./tracking/merge.js";
 import { runConfiguredProviders } from "./tracking/provider-health.js";
 import { createAircraftProviders } from "./tracking/aircraft/registry.js";
 
@@ -857,7 +857,8 @@ export async function runAdsbWorker() {
         }
         return items.map((item) => ({ ...item, priority: priority.get(item.source) ?? 999 }));
     });
-    const rawAircraft = mergeAircraftObservations(observations, {
+    const militaryCandidates = selectAircraftMilitaryCandidates(observations);
+    const rawAircraft = mergeAircraftObservations(militaryCandidates, {
         freshnessMs: Number(process.env.AIRCRAFT_CORROBORATION_WINDOW_MS) || 90_000,
         maxSpeedKts: Number(process.env.AIRCRAFT_MAX_PLAUSIBLE_SPEED_KTS) || 1800,
     }).map(toLegacyAircraft);
@@ -917,7 +918,7 @@ export async function runAdsbWorker() {
     const corroborated = processed.filter((item) => item.sourceCount > 1).length;
 
     if (!processed.length) {
-        console.log(`${label} candidates=${observations.length} canonical=0 corroborated=0 upserted=0`);
+        console.log(`${label} candidates=${militaryCandidates.length} canonical=0 corroborated=0 upserted=0`);
         return;
     }
 
@@ -928,7 +929,7 @@ export async function runAdsbWorker() {
     await upsertAdsbEvents(events);
     const upserted = await upsertAdsbTracks(tracks);
     await upsertAdsbTrackHistory(historyRows);
-    console.log(`${label} candidates=${observations.length} canonical=${tracks.length} corroborated=${corroborated} upserted=${upserted}`);
+    console.log(`${label} candidates=${militaryCandidates.length} canonical=${tracks.length} corroborated=${corroborated} upserted=${upserted}`);
 
     // Log breakdown by role
     const roleCounts = {};

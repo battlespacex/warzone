@@ -15,6 +15,25 @@ function normalizeIdentity(value) {
     return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
 }
 
+export function selectAircraftMilitaryCandidates(observations = []) {
+    const safeObservations = Array.isArray(observations) ? observations : [];
+    const militaryOnlyProviderIcaos = new Set(
+        safeObservations
+            .filter((item) => String(item?.source || item?.provider || "").toLowerCase() !== "opensky")
+            .filter((item) => item?.military_hint === true || item?.provider_military_flag === true)
+            .map((item) => normalizeIdentity(item?.icao24).toLowerCase())
+            .filter(Boolean)
+    );
+    return safeObservations.filter((item) => {
+        const source = String(item?.source || item?.provider || "").trim().toLowerCase();
+        if (source !== "opensky") return true;
+        const icao24 = normalizeIdentity(item?.icao24).toLowerCase();
+        return item?.military_hint === true
+            || item?.provider_military_flag === true
+            || (icao24 && militaryOnlyProviderIcaos.has(icao24));
+    });
+}
+
 export function haversineKm(a, b) {
     const lat1 = numberOrNull(a?.latitude);
     const lon1 = numberOrNull(a?.longitude);

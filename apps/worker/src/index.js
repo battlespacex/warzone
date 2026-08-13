@@ -59,6 +59,11 @@ async function saveRawItem({
     }
 }
 import { runAdsbWorker } from "./adsb-worker.js";
+import {
+    createAircraftLivePoller,
+    readAircraftLivePollConfig,
+    shouldRunAircraftInGeneralCycle,
+} from "./aircraft-live-poller.js";
 import { runAisWorker } from "./ais-worker.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
@@ -164,6 +169,7 @@ const STATUS_FEED_INTERVAL_MS = Math.max(
     readPositiveIntegerEnv(process.env.STATUS_FEED_INTERVAL_MS, DEFAULT_STATUS_FEED_INTERVAL_MS),
     MIN_STATUS_FEED_INTERVAL_MS
 );
+const AIRCRAFT_LIVE_POLL_CONFIG = readAircraftLivePollConfig();
 const COPERNICUS_CONFIG = readCopernicusConfig();
 const COPERNICUS_INTERVAL_MS = COPERNICUS_CONFIG.workerIntervalMs;
 const REPORTING_CONFIG = readReportingConfig();
@@ -4314,7 +4320,10 @@ async function runWorker() {
     try {
         const adsbFeed = sources.feeds.find(f => f.type === "adsb-opensky");
         const aisFeed = sources.feeds.find(f => f.type === "ais-stream");
-        if (adsbFeed?.enabled !== false)
+        if (shouldRunAircraftInGeneralCycle({
+            livePollEnabled: AIRCRAFT_LIVE_POLL_CONFIG.enabled,
+            feedEnabled: adsbFeed?.enabled !== false,
+        }))
             await runAdsbWorker().catch(err => console.error("[adsb]", err.message));
         if (aisFeed?.enabled !== false)
             await runAisWorker().catch(err => console.error("[ais]", err.message));
@@ -4522,9 +4531,16 @@ function startReportingLoop() {
 cron.schedule("*/5 * * * *", () => {
     runWorker();
 });
+const aircraftFeedEnabled = sources.feeds.find((feed) => feed.type === "adsb-opensky")?.enabled !== false;
+const aircraftLivePoller = createAircraftLivePoller({
+    enabled: AIRCRAFT_LIVE_POLL_CONFIG.enabled && aircraftFeedEnabled,
+    intervalMs: AIRCRAFT_LIVE_POLL_CONFIG.intervalMs,
+    runCycle: runAdsbWorker,
+});
 // ── Pikud HaOref real-time siren poller (1.5s interval) ──────────────────────
 // Runs independently of the 5-min cron — sidetracks into warzone-siren-poller.js
 startOrefPoller();
+aircraftLivePoller.start();
 syncSourceRegistryFromConfig().catch((err) => {
     console.error("[sources] Source registry sync failed:", err?.message || err);
 });

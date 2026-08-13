@@ -50,7 +50,7 @@ test("blocked aircraft provider enters BACKOFF while another provider succeeds",
     assert.equal(getProviderHealth("adsb", "opensky").status, PROVIDER_HEALTH_STATES.HEALTHY);
 });
 
-test("credentialed providers are disabled cleanly when configuration is missing", () => {
+test("credentialed providers stay disabled without credentials while OpenSky can use anonymous access", () => {
     const aircraft = createAircraftProviders({
         ADSB_LOL_ENABLED: "false",
         AIRPLANES_LIVE_ENABLED: "false",
@@ -65,7 +65,9 @@ test("credentialed providers are disabled cleanly when configuration is missing"
         SPIRE_AIS_ENABLED: "true",
     });
 
-    assert.ok(aircraft.every((provider) => provider.enabled === false));
+    assert.equal(aircraft.find((provider) => provider.id === "adsbx")?.enabled, false);
+    assert.equal(aircraft.find((provider) => provider.id === "opensky")?.enabled, true);
+    assert.ok(aircraft.filter((provider) => !["adsbx", "opensky"].includes(provider.id)).every((provider) => provider.enabled === false));
     assert.ok(naval.every((provider) => provider.enabled === false));
 });
 
@@ -145,17 +147,18 @@ test("preferred ADSB_ONE variables enable the provider and legacy names remain c
 
 test("aircraft provider priority accepts the documented adsb_exchange name", () => {
     const providers = createAircraftProviders({
-        AIRCRAFT_PROVIDER_PRIORITY: "adsb_lol,airplanes_live,adsb_one,adsb_exchange,opensky",
+        AIRCRAFT_PROVIDER_PRIORITY: "adsb_lol,opensky,airplanes_live,adsb_one,adsb_exchange",
         ADSB_LOL_ENABLED: "true",
         AIRPLANES_LIVE_ENABLED: "true",
         ADSB_ONE_ENABLED: "true",
         ADSB_EXCHANGE_ENABLED: "true",
         ADSB_EXCHANGE_API_KEY: "test-key",
-        OPENSKY_ENABLED: "false",
+        OPENSKY_ENABLED: "true",
     });
 
-    assert.deepEqual(providers.slice(0, 4).map((provider) => provider.id), [
+    assert.deepEqual(providers.map((provider) => provider.id), [
         "adsb_lol",
+        "opensky",
         "airplanes_live",
         "adsb_one",
         "adsbx",

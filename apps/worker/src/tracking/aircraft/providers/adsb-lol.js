@@ -3,6 +3,7 @@ import { normalizeReadsbAircraft } from "./readsb.js";
 
 const DEFAULT_BASE_URL = "https://api.adsb.lol";
 const DEFAULT_POSITION_MAX_AGE_SECONDS = 90;
+const DEFAULT_MINIMUM_INTERVAL_MS = 3000;
 
 function numberOrNull(value) {
     if (value === null || value === undefined || value === "") return null;
@@ -78,11 +79,13 @@ export function createAdsbLolProvider({
     enabled,
     baseUrl,
     positionMaxAgeSeconds = DEFAULT_POSITION_MAX_AGE_SECONDS,
+    minimumIntervalMs = DEFAULT_MINIMUM_INTERVAL_MS,
     fetchImpl,
 } = {}) {
     return {
         id: "adsb_lol",
         enabled: enabled !== false,
+        minimumIntervalMs: Math.max(DEFAULT_MINIMUM_INTERVAL_MS, Number(minimumIntervalMs) || DEFAULT_MINIMUM_INTERVAL_MS),
         async fetchObservations() {
             const data = await fetchJson(endpointUrl(baseUrl), {
                 headers: { Accept: "application/json", "User-Agent": "stratops-warzone/1.0" },
@@ -103,4 +106,3 @@ export function createAdsbLolProvider({
         },
     };
 }
-
