@@ -232,6 +232,10 @@ function isMilitaryShipType(shipType) {
     return t === 35;
 }
 
+function identifierSet(value) {
+    return new Set(String(value || "").split(",").map((item) => item.replace(/\D/g, "")).filter(Boolean));
+}
+
 // ─── Vessel type classification ───────────────────────────────────────────────
 
 function classifyVessel(name, shipType, callSign = "") {
@@ -252,15 +256,26 @@ function classifyVessel(name, shipType, callSign = "") {
     return "naval";
 }
 
-function isStrictMilitaryNavalContact(vessel) {
-    if (isKnownNonOperationalNavalContact(vessel)) return false;
+export function qualifyMilitaryVessel(vessel, {
+    knownMilitaryMmsi = identifierSet(process.env.NAVAL_KNOWN_MILITARY_MMSI),
+    knownMilitaryImo = identifierSet(process.env.NAVAL_KNOWN_MILITARY_IMO),
+} = {}) {
+    if (isKnownNonOperationalNavalContact(vessel)) return { accepted: false, reason: "non_operational" };
     const hasCivilianIdentity = isCivilianVesselName(vessel.name, vessel.callSign);
     const hasMilitaryIdentity = isMilitaryVesselName(vessel.name, vessel.callSign);
     if (hasCivilianIdentity && !hasMilitaryIdentity) {
-        return false;
+        return { accepted: false, reason: "rejected_civilian" };
     }
-    if (hasMilitaryIdentity) return true;
-    return isMilitaryShipType(vessel.shipType) && !hasCivilianIdentity;
+    if (knownMilitaryMmsi.has(String(vessel.mmsi || ""))) return { accepted: true, reason: "known_military_mmsi" };
+    if (knownMilitaryImo.has(String(vessel.imoNumber || ""))) return { accepted: true, reason: "known_military_imo" };
+    if (hasMilitaryIdentity) return { accepted: true, reason: "military_name_match" };
+    if (vessel.providerMilitaryFlag === true) return { accepted: true, reason: "provider_military_flag" };
+    if (isMilitaryShipType(vessel.shipType) && !hasCivilianIdentity) return { accepted: true, reason: "military_ship_type" };
+    return { accepted: false, reason: "rejected_civilian" };
+}
+
+export function isMilitaryVessel(vessel, options) {
+    return qualifyMilitaryVessel(vessel, options).accepted;
 }
 
 // ─── Supabase upsert ──────────────────────────────────────────────────────────
@@ -321,7 +336,7 @@ function buildNavalEvent(vessel) {
     };
 }
 
-function buildNavalTrack(vessel) {
+export function buildNavalTrack(vessel) {
     const { mmsi, name, shipType, lat, lon, speed, heading, country, callSign, imoNumber } = vessel;
     const vesselClass = classifyVessel(name, shipType, callSign);
     const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;
@@ -419,20 +434,37 @@ async function upsertNavalTrackHistory(rows) {
     }
 }
 
+async function endReconciledNavalTracks(trackKeys) {
+    if (!trackKeys.length) return;
+    const { error } = await supabase
+        .from("tracks")
+        .update({ status: "ended", updated_at: new Date().toISOString() })
+        .in("track_key", trackKeys);
+    if (error) console.error("[ais] Temporary naval track reconciliation error:", error.message);
+}
+
 function toLegacyVessel(observation) {
+    const finiteOrNull = (value) => {
+        if (value === null || value === undefined || value === "") return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : null;
+    };
     return {
         mmsi: observation.mmsi,
         trackIdentity: observation.mmsi || (observation.imo ? `imo-${observation.imo}` : ""),
         imoNumber: observation.imo || null,
         callSign: observation.callsign || "",
         name: observation.vessel_name || "",
-        lat: Number(observation.latitude),
-        lon: Number(observation.longitude),
-        speed: Number.isFinite(Number(observation.speed_kts)) ? Number(observation.speed_kts) : null,
-        heading: Number.isFinite(Number(observation.heading_deg)) ? Number(observation.heading_deg) : null,
+        lat: finiteOrNull(observation.latitude),
+        lon: finiteOrNull(observation.longitude),
+        speed: finiteOrNull(observation.speed_kts),
+        heading: finiteOrNull(observation.heading_deg),
         shipType: observation.ship_type ?? null,
         country: observation.country || "",
         militaryHint: Boolean(observation.military_hint),
+        providerMilitaryFlag: Boolean(observation.provider_military_flag),
+        navStatus: observation.nav_status || "",
+        operator: observation.operator || "",
         sourceCount: observation.source_count || 1,
         corroboration: observation.corroboration || "single-source",
         sourceConfidence: observation.source_confidence || 60,
@@ -442,35 +474,101 @@ function toLegacyVessel(observation) {
     };
 }
 
-export async function runAisWorker() {
-    const providers = createNavalProviders();
-    const providerResults = await runConfiguredProviders("ais", providers);
+const temporaryTrackByImo = new Map();
+const reportedDisabledProviders = new Set();
+
+const defaultPersistence = Object.freeze({
+    upsertEvents: upsertNavalEvents,
+    upsertTracks: upsertNavalTracks,
+    upsertHistory: upsertNavalTrackHistory,
+    endAliases: endReconciledNavalTracks,
+});
+
+export async function runAisWorker(options = {}) {
+    const ownsProviders = !Array.isArray(options.providers);
+    const providers = ownsProviders ? createNavalProviders() : options.providers;
+    const persistence = options.persistence || defaultPersistence;
+    const logger = options.logger || console;
+    for (const provider of providers) {
+        if (provider.enabled !== false) continue;
+        if (reportedDisabledProviders.has(provider.id) && options.reportProviderStates !== true) continue;
+        logger.log?.(`[ais:${provider.id}] DISABLED${provider.disabledReason ? ` ${provider.disabledReason}` : ""}`);
+        reportedDisabledProviders.add(provider.id);
+    }
+
+    const providerResults = await runConfiguredProviders("ais", providers, { logger });
+    if (ownsProviders) {
+        for (const provider of providers) provider.shutdown?.();
+    }
     const priority = new Map(providers.map((provider) => [provider.id, provider.priority]));
+    let aisStreamDiagnostics = null;
     const observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
-        const providerMilitary = items.map(toLegacyVessel).filter((vessel) => isStrictMilitaryNavalContact(vessel)).length;
+        const providerMilitary = items.map(toLegacyVessel).filter((vessel) => isMilitaryVessel(vessel)).length;
         if (provider.id === "aisstream") {
-            console.log(`[ais:aisstream] received=${diagnostics?.received || 0} unique=${diagnostics?.unique || 0} positions=${diagnostics?.positions || 0} static=${diagnostics?.static || 0} candidates=${items.length} military=${providerMilitary}`);
+            aisStreamDiagnostics = diagnostics || {};
+            if (diagnostics?.connected) logger.log?.("[ais:aisstream] CONNECTED");
+            logger.log?.(`[ais:aisstream] received=${diagnostics?.received || 0} position=${diagnostics?.position || 0} static=${diagnostics?.static || 0} unique_mmsi=${diagnostics?.unique_mmsi || 0} candidates=${items.length} military=${providerMilitary}`);
         } else {
-            console.log(`[ais:${provider.id}] fetched=${items.length} military=${providerMilitary}`);
+            logger.log?.(`[ais:${provider.id}] fetched=${diagnostics?.fetched ?? items.length} normalized=${diagnostics?.normalized ?? items.length} valid=${diagnostics?.valid ?? items.length} military=${providerMilitary}`);
         }
-        return items.map((item) => ({ ...item, priority: priority.get(item.source) ?? 999 }));
+        return items.map((item) => ({ ...item, priority: priority.get(item.source || provider.id) ?? 999 }));
     });
 
     const canonical = mergeNavalObservations(observations, {
-        freshnessMs: Number(process.env.NAVAL_CORROBORATION_WINDOW_MS) || 10 * 60_000,
+        freshnessMs: Number(process.env.NAVAL_CORROBORATION_WINDOW_MS) || 5 * 60_000,
         maxSpeedKts: Number(process.env.NAVAL_MAX_PLAUSIBLE_SPEED_KTS) || 80,
     });
-    const military = canonical
-        .map(toLegacyVessel)
-        .filter((vessel) => isStrictMilitaryNavalContact(vessel));
+    const qualificationCounts = {
+        known_military_mmsi: 0,
+        known_military_imo: 0,
+        military_name_match: 0,
+        provider_military_flag: 0,
+        military_ship_type: 0,
+        non_operational: 0,
+        rejected_civilian: 0,
+    };
+    const military = [];
+    for (const observation of canonical) {
+        const vessel = toLegacyVessel(observation);
+        const qualification = qualifyMilitaryVessel(vessel);
+        qualificationCounts[qualification.reason] = (qualificationCounts[qualification.reason] || 0) + 1;
+        if (qualification.accepted) military.push(vessel);
+    }
     const corroborated = military.filter((vessel) => vessel.sourceCount > 1).length;
-    console.log(`[ais] candidates=${canonical.length} military=${military.length} canonical=${military.length} corroborated=${corroborated}`);
+    const validPosition = observations.filter((item) => item.latitude != null && item.longitude != null && Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))).length;
+    logger.log?.(`[ais] raw=${observations.length} valid_position=${validPosition} known_military_mmsi=${qualificationCounts.known_military_mmsi} known_military_imo=${qualificationCounts.known_military_imo} military_name_match=${qualificationCounts.military_name_match} military_ship_type=${qualificationCounts.military_ship_type + qualificationCounts.provider_military_flag} rejected_civilian=${qualificationCounts.rejected_civilian} non_operational=${qualificationCounts.non_operational} canonical=${military.length} corroborated=${corroborated}`);
 
     const events = military.map(buildNavalEvent);
     const tracks = military.map(buildNavalTrack);
     const historyRows = military.map(buildNavalTrackHistoryRow).filter(Boolean);
-    await upsertNavalEvents(events);
-    const upserted = await upsertNavalTracks(tracks);
-    await upsertNavalTrackHistory(historyRows);
-    console.log(`[ais] upserted=${upserted}`);
+    const aliasesToEnd = [];
+    for (const vessel of military) {
+        const imo = String(vessel.imoNumber || "");
+        if (!imo) continue;
+        if (!vessel.mmsi) {
+            temporaryTrackByImo.set(imo, `ais-${vessel.trackIdentity}`);
+            continue;
+        }
+        const temporaryKey = temporaryTrackByImo.get(imo);
+        const canonicalKey = `ais-${vessel.trackIdentity}`;
+        if (temporaryKey && temporaryKey !== canonicalKey) aliasesToEnd.push(temporaryKey);
+        temporaryTrackByImo.delete(imo);
+    }
+    await persistence.endAliases?.([...new Set(aliasesToEnd)]);
+    await persistence.upsertEvents(events);
+    const upserted = await persistence.upsertTracks(tracks);
+    await persistence.upsertHistory(historyRows);
+    logger.log?.(`[ais] candidates=${canonical.length} military=${military.length} canonical=${military.length} corroborated=${corroborated} upserted=${upserted}`);
+
+    return {
+        provider_count: providers.length,
+        raw: observations.length,
+        valid_position: validPosition,
+        military: military.length,
+        canonical: military.length,
+        corroborated,
+        upserted,
+        qualification: qualificationCounts,
+        aisstream: aisStreamDiagnostics,
+    };
 }

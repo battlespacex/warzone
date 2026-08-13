@@ -1,50 +1,51 @@
 import { fetchJson } from "../../http.js";
+import { navalValue, normalizeNavalObservation } from "../normalize.js";
 
-function numberOrNull(value) {
-    if (value === null || value === undefined || value === "") return null;
-    const number = Number(value);
-    return Number.isFinite(number) ? number : null;
+export function normalizeMarineTrafficRow(row = {}, options = {}) {
+    const shipType = navalValue(row, "SHIPTYPE", "TYPE", "ship_type");
+    return normalizeNavalObservation("marinetraffic", {
+        observed_at: navalValue(row, "TIMESTAMP", "timestamp", "LAST_POS"),
+        mmsi: navalValue(row, "MMSI", "mmsi"),
+        imo: navalValue(row, "IMO", "imo"),
+        callsign: navalValue(row, "CALLSIGN", "callsign"),
+        vessel_name: navalValue(row, "SHIPNAME", "NAME", "name"),
+        latitude: navalValue(row, "LAT", "LATITUDE", "latitude"),
+        longitude: navalValue(row, "LON", "LONGITUDE", "longitude"),
+        speed_kts: navalValue(row, "SPEED", "SOG", "speed"),
+        heading_deg: navalValue(row, "HEADING", "heading"),
+        course_deg: navalValue(row, "COURSE", "COG", "course"),
+        nav_status: navalValue(row, "NAVSTAT", "nav_status"),
+        ship_type: shipType,
+        ship_type_code: shipType,
+        operator: navalValue(row, "OPERATOR", "operator"),
+        country: navalValue(row, "FLAG", "COUNTRY", "country"),
+        provider_military_flag: Number(shipType) === 35,
+        metadata: { destination: navalValue(row, "DESTINATION", "DEST", "destination") },
+    }, options);
 }
 
-function observedAt(value) {
-    const parsed = Date.parse(value || "");
-    return new Date(Number.isFinite(parsed) ? parsed : Date.now()).toISOString();
-}
-
-export function createMarineTrafficProvider({ enabled, apiKey, baseUrl, fetchImpl } = {}) {
-    // MarineTraffic/Kpler assigns service-specific endpoints per account. Keep
-    // this adapter disabled until the official customer endpoint and API key
-    // are both supplied; no undocumented default endpoint is assumed.
-    const configured = Boolean(enabled && apiKey && baseUrl);
+export function createMarineTrafficProvider({ enabled, apiKey, baseUrl, minimumIntervalMs = 60_000, fetchImpl } = {}) {
+    const requested = enabled === true;
+    const configured = Boolean(requested && apiKey && baseUrl);
     return {
         id: "marinetraffic",
         enabled: configured,
+        disabledReason: requested && apiKey && !baseUrl ? "INCOMPLETE_CONFIGURATION" : (requested && !apiKey ? "MISSING_CREDENTIALS" : "DISABLED_BY_CONFIG"),
+        minimumIntervalMs: Math.max(10_000, Number(minimumIntervalMs) || 60_000),
         async fetchObservations() {
             const url = new URL(baseUrl);
             url.searchParams.set("api_key", apiKey);
             const data = await fetchJson(url.toString(), {}, { fetchImpl });
             const rows = Array.isArray(data) ? data : (data?.data || data?.vessels || []);
-            return rows.map((row) => ({
-                domain: "naval",
-                source: "marinetraffic",
-                observed_at: observedAt(row.TIMESTAMP || row.timestamp),
-                mmsi: String(row.MMSI || row.mmsi || "").replace(/\D/g, ""),
-                imo: String(row.IMO || row.imo || "").replace(/\D/g, ""),
-                callsign: String(row.CALLSIGN || row.callsign || "").trim(),
-                vessel_name: String(row.SHIPNAME || row.name || "").trim(),
-                latitude: numberOrNull(row.LAT ?? row.latitude),
-                longitude: numberOrNull(row.LON ?? row.longitude),
-                speed_kts: row.SPEED != null
-                    ? (numberOrNull(row.SPEED) == null ? null : numberOrNull(row.SPEED) / 10)
-                    : numberOrNull(row.speed),
-                heading_deg: numberOrNull(row.HEADING ?? row.heading),
-                course_deg: row.COURSE != null
-                    ? (numberOrNull(row.COURSE) == null ? null : numberOrNull(row.COURSE) / 10)
-                    : numberOrNull(row.course),
-                ship_type: row.SHIPTYPE ?? row.ship_type ?? null,
-                country: String(row.FLAG || row.country || "").trim(),
-                military_hint: Number(row.SHIPTYPE ?? row.ship_type) === 35,
-            }));
+            const observations = rows.map((row) => normalizeMarineTrafficRow(row));
+            return {
+                observations,
+                diagnostics: {
+                    fetched: rows.length,
+                    normalized: observations.length,
+                    valid: observations.filter((item) => item.mmsi && item.latitude != null && item.longitude != null).length,
+                },
+            };
         },
     };
 }

@@ -65,6 +65,12 @@ import {
     shouldRunAircraftInGeneralCycle,
 } from "./aircraft-live-poller.js";
 import { runAisWorker } from "./ais-worker.js";
+import {
+    createNavalLivePoller,
+    readNavalLivePollConfig,
+    shouldRunNavalInGeneralCycle,
+} from "./naval-live-poller.js";
+import { createNavalProviders } from "./tracking/naval/registry.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
@@ -170,6 +176,7 @@ const STATUS_FEED_INTERVAL_MS = Math.max(
     MIN_STATUS_FEED_INTERVAL_MS
 );
 const AIRCRAFT_LIVE_POLL_CONFIG = readAircraftLivePollConfig();
+const NAVAL_LIVE_POLL_CONFIG = readNavalLivePollConfig();
 const COPERNICUS_CONFIG = readCopernicusConfig();
 const COPERNICUS_INTERVAL_MS = COPERNICUS_CONFIG.workerIntervalMs;
 const REPORTING_CONFIG = readReportingConfig();
@@ -4325,7 +4332,10 @@ async function runWorker() {
             feedEnabled: adsbFeed?.enabled !== false,
         }))
             await runAdsbWorker().catch(err => console.error("[adsb]", err.message));
-        if (aisFeed?.enabled !== false)
+        if (shouldRunNavalInGeneralCycle({
+            livePollEnabled: NAVAL_LIVE_POLL_CONFIG.enabled,
+            feedEnabled: aisFeed?.enabled !== false,
+        }))
             await runAisWorker().catch(err => console.error("[ais]", err.message));
         const activeFeeds = toArray(sources.feeds).filter((feed) =>
             feed &&
@@ -4537,10 +4547,18 @@ const aircraftLivePoller = createAircraftLivePoller({
     intervalMs: AIRCRAFT_LIVE_POLL_CONFIG.intervalMs,
     runCycle: runAdsbWorker,
 });
+const navalFeedEnabled = sources.feeds.find((feed) => feed.type === "ais-stream")?.enabled !== false;
+const navalProviders = createNavalProviders();
+const navalLivePoller = createNavalLivePoller({
+    enabled: NAVAL_LIVE_POLL_CONFIG.enabled && navalFeedEnabled,
+    tickMs: NAVAL_LIVE_POLL_CONFIG.tickMs,
+    runCycle: () => runAisWorker({ providers: navalProviders }),
+});
 // ── Pikud HaOref real-time siren poller (1.5s interval) ──────────────────────
 // Runs independently of the 5-min cron — sidetracks into warzone-siren-poller.js
 startOrefPoller();
 aircraftLivePoller.start();
+navalLivePoller.start();
 syncSourceRegistryFromConfig().catch((err) => {
     console.error("[sources] Source registry sync failed:", err?.message || err);
 });

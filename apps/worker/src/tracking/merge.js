@@ -106,6 +106,7 @@ function mergeGroup(observations, { domain, freshnessMs, maxSpeedKts, fields, id
     merged.last_source_observations = sourceObservations;
     merged.source_disagreements = disagreements;
     merged.military_hint = usable.some((item) => item.military_hint === true);
+    merged.provider_military_flag = usable.some((item) => item.provider_military_flag === true);
     delete merged.raw;
     return merged;
 }
@@ -176,8 +177,20 @@ export function mergeNavalObservations(observations, options = {}) {
         vessel_name: String(item.vessel_name || "").trim(),
         priority: Number.isFinite(item.priority) ? item.priority : 999,
     }));
+    const mmsiCandidatesByImo = new Map();
+    for (const item of normalized) {
+        if (!item.imo || !item.mmsi) continue;
+        if (!mmsiCandidatesByImo.has(item.imo)) mmsiCandidatesByImo.set(item.imo, new Set());
+        mmsiCandidatesByImo.get(item.imo).add(item.mmsi);
+    }
+    const mmsiByImo = new Map(
+        [...mmsiCandidatesByImo.entries()]
+            .filter(([, mmsiValues]) => mmsiValues.size === 1)
+            .map(([imo, mmsiValues]) => [imo, [...mmsiValues][0]])
+    );
     const { groups, ungrouped } = groupByIdentity(normalized, (item) => {
         if (item.mmsi) return `mmsi:${item.mmsi}`;
+        if (item.imo && mmsiByImo.has(item.imo)) return `mmsi:${mmsiByImo.get(item.imo)}`;
         if (item.imo) return `imo:${item.imo}`;
         return null;
     });
@@ -192,7 +205,7 @@ export function mergeNavalObservations(observations, options = {}) {
     return [...groups.entries()]
         .map(([identity, group]) => mergeGroup(group, {
             domain: "naval", freshnessMs, maxSpeedKts, identity,
-            fields: ["mmsi", "imo", "callsign", "vessel_name", "ship_type", "country", "operator"],
+            fields: ["mmsi", "imo", "callsign", "vessel_name", "ship_type", "ship_type_code", "nav_status", "country", "operator", "metadata"],
         }))
         .filter(Boolean);
 }
