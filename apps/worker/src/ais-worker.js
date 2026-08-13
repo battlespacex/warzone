@@ -1,21 +1,15 @@
 ﻿// apps/worker/src/ais-worker.js
 //
-// Naval military vessel tracker — AISStream.io (free tier WebSocket API)
-// Requires: AISSTREAM_API_KEY in .env (free at https://aisstream.io)
+// Multi-source military AIS tracker. Provider adapters normalize observations;
+// this file retains StratOps naval qualification and Supabase contracts.
 //
 // Ship type 35 = Military vessel (IMO standard)
 // Name / hull-prefix matching is kept intentionally strict to avoid civilian traffic.
 //
-// Runs as a time-boxed WebSocket session (60 seconds) every cron cycle.
-// Collects naval contacts → deduplicates → inserts into Supabase.
-
-import WebSocket from "ws";
 import { supabase } from "./supabase.js";
-
-// AISStream expects each bounding box as [[minLat, minLon], [maxLat, maxLon]].
-const MONITORING_BOXES = [
-    [[-90, -180], [90, 180]],
-];
+import { mergeNavalObservations } from "./tracking/merge.js";
+import { runConfiguredProviders } from "./tracking/provider-health.js";
+import { createNavalProviders } from "./tracking/naval/registry.js";
 
 // ─── Naval vessel name patterns ───────────────────────────────────────────────
 
@@ -258,47 +252,6 @@ function classifyVessel(name, shipType, callSign = "") {
     return "naval";
 }
 
-function getMessageMeta(msg) {
-    return msg.MetaData || msg.Metadata || {};
-}
-
-function getMessageMmsi(msg, meta) {
-    return String(
-        meta.MMSI ||
-        msg.Message?.PositionReport?.UserID ||
-        msg.Message?.ShipStaticData?.UserID ||
-        ""
-    );
-}
-
-function readStaticFields(info, meta) {
-    const reportA = info?.ReportA || {};
-    const reportB = info?.ReportB || {};
-
-    return {
-        name: normalizeString(
-            info?.Name ||
-            reportA?.Name ||
-            meta.ShipName
-        ),
-        country: normalizeString(info?.Country || meta.Country),
-        shipType: info?.Type ?? reportB?.ShipType ?? meta.ShipType ?? null,
-        callSign: normalizeString(info?.CallSign || reportB?.CallSign || meta.CallSign),
-        imoNumber: info?.ImoNumber ?? reportB?.ImoNumber ?? null,
-    };
-}
-
-function readPositionFields(pos, meta) {
-    return {
-        lat: pos?.Latitude,
-        lon: pos?.Longitude,
-        speed: pos?.Sog,
-        heading: pos?.TrueHeading ?? pos?.Cog,
-        shipType: pos?.ShipType ?? meta.ShipType ?? null,
-        name: normalizeString(meta.ShipName),
-    };
-}
-
 function isStrictMilitaryNavalContact(vessel) {
     if (isKnownNonOperationalNavalContact(vessel)) return false;
     const hasCivilianIdentity = isCivilianVesselName(vessel.name, vessel.callSign);
@@ -308,19 +261,6 @@ function isStrictMilitaryNavalContact(vessel) {
     }
     if (hasMilitaryIdentity) return true;
     return isMilitaryShipType(vessel.shipType) && !hasCivilianIdentity;
-}
-
-function mergeVesselState(position = {}, staticInfo = {}, previous = {}) {
-    return {
-        ...previous,
-        ...position,
-        ...staticInfo,
-        name: staticInfo.name || position.name || previous.name || "",
-        shipType: staticInfo.shipType ?? position.shipType ?? previous.shipType ?? null,
-        country: staticInfo.country || previous.country || "",
-        callSign: staticInfo.callSign || previous.callSign || "",
-        imoNumber: staticInfo.imoNumber ?? previous.imoNumber ?? null,
-    };
 }
 
 // ─── Supabase upsert ──────────────────────────────────────────────────────────
@@ -349,8 +289,8 @@ function buildNavalEvent(vessel) {
 
     return {
         // dedupe_key is the unique conflict field used by the events table
-        dedupe_key: `ais-${mmsi}`,
-        source_key: `ais-${mmsi}`,
+        dedupe_key: `ais-${vessel.trackIdentity}`,
+        source_key: `ais-${vessel.trackIdentity}`,
         source_name: "AIS / AISStream.io",
         category: "military",
         subcategory: subcat,
@@ -360,7 +300,7 @@ function buildNavalEvent(vessel) {
         lon,
         severity: "medium",   // TEXT — valid value
         confidence: 75,          // INTEGER — was "high" (string) which caused the upsert error
-        occurred_at: new Date().toISOString(),
+        occurred_at: vessel.observedAt || new Date().toISOString(),
         report_type: "signal",
         metadata: {
             mmsi,
@@ -372,6 +312,11 @@ function buildNavalEvent(vessel) {
             country: country || null,
             call_sign: callSign || null,
             imo_number: imoNumber || null,
+            sources: vessel.lastSourceObservations,
+            source_count: vessel.sourceCount,
+            corroboration: vessel.corroboration,
+            source_confidence: vessel.sourceConfidence,
+            source_disagreements: vessel.sourceDisagreements,
         },
     };
 }
@@ -382,7 +327,7 @@ function buildNavalTrack(vessel) {
     const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;
 
     return {
-        track_key: `ais-${mmsi}`,
+        track_key: `ais-${vessel.trackIdentity}`,
         track_type: "naval",
         category: "military",
         subcategory: vesselClass,
@@ -396,7 +341,7 @@ function buildNavalTrack(vessel) {
         region: null,
         country: country || null,
         status: "active",
-        occurred_at: new Date().toISOString(),
+        occurred_at: vessel.observedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
         metadata: {
             mmsi,
@@ -405,12 +350,18 @@ function buildNavalTrack(vessel) {
             vessel_class: vesselClass,
             call_sign: callSign || null,
             imo_number: imoNumber ?? null,
+            sources: vessel.lastSourceObservations,
+            source_count: vessel.sourceCount,
+            corroboration: vessel.corroboration,
+            source_confidence: vessel.sourceConfidence,
+            source_disagreements: vessel.sourceDisagreements,
         },
     };
 }
 
 function buildNavalTrackHistoryRow(vessel) {
     const { mmsi, name, shipType, lat, lon, speed, heading, callSign } = vessel;
+    if (!mmsi) return null;
     return {
         mmsi,
         vessel_name: name || callSign || `Military Vessel MMSI:${mmsi}`,
@@ -443,14 +394,16 @@ async function upsertNavalEvents(events) {
 }
 
 async function upsertNavalTracks(tracks) {
-    if (!tracks.length) return;
+    if (!tracks.length) return 0;
     const { error } = await supabase
         .from("tracks")
         .upsert(tracks, { onConflict: "track_key", ignoreDuplicates: false });
     if (error) {
         console.error("[ais] Naval tracks upsert error:", error.message);
+        return 0;
     } else {
         console.log(`[ais] Upserted ${tracks.length} naval tracks`);
+        return tracks.length;
     }
 }
 
@@ -466,193 +419,58 @@ async function upsertNavalTrackHistory(rows) {
     }
 }
 
-// ─── AISStream WebSocket session ──────────────────────────────────────────────
-// Opens a WebSocket, collects for SESSION_DURATION_MS, then closes.
-
-const SESSION_DURATION_MS = 60 * 1000;   // 60 seconds per cron cycle
-const AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream";
-
-// Bounding boxes to monitor. Each box is [[minLat, minLon], [maxLat, maxLon]].
-
-function isAisCertificateExpiryError(err) {
-    const message = String(err?.message || err || "").toLowerCase();
-    return message.includes("certificate has expired");
+function toLegacyVessel(observation) {
+    return {
+        mmsi: observation.mmsi,
+        trackIdentity: observation.mmsi || (observation.imo ? `imo-${observation.imo}` : ""),
+        imoNumber: observation.imo || null,
+        callSign: observation.callsign || "",
+        name: observation.vessel_name || "",
+        lat: Number(observation.latitude),
+        lon: Number(observation.longitude),
+        speed: Number.isFinite(Number(observation.speed_kts)) ? Number(observation.speed_kts) : null,
+        heading: Number.isFinite(Number(observation.heading_deg)) ? Number(observation.heading_deg) : null,
+        shipType: observation.ship_type ?? null,
+        country: observation.country || "",
+        militaryHint: Boolean(observation.military_hint),
+        sourceCount: observation.source_count || 1,
+        corroboration: observation.corroboration || "single-source",
+        sourceConfidence: observation.source_confidence || 60,
+        lastSourceObservations: observation.last_source_observations || [],
+        sourceDisagreements: observation.source_disagreements || 0,
+        observedAt: observation.observed_at,
+    };
 }
-
-function createAisWebSocket({ allowInsecureTls = false } = {}) {
-    return allowInsecureTls
-        ? new WebSocket(AISSTREAM_URL, { rejectUnauthorized: false })
-        : new WebSocket(AISSTREAM_URL);
-}
-
 
 export async function runAisWorker() {
-    const label = "[ais]";
-    const apiKey = process.env.AISSTREAM_API_KEY;
-    const allowInsecureTlsFallback = String(process.env.AISSTREAM_ALLOW_INSECURE_TLS_FALLBACK || "1") !== "0";
-
-    if (!apiKey) {
-        console.warn(`${label} AISSTREAM_API_KEY not set — skipping AIS worker`);
-        console.warn(`${label} Get a free key at https://aisstream.io`);
-        return;
-    }
-
-    const positionsByMmsi = new Map();
-    const staticByMmsi = new Map();
-    const collected = new Map();   // mmsi → vessel object
-
-    return new Promise((resolve) => {
-        let settled = false;
-        let timeout = null;
-        let ws = null;
-        let retriedWithInsecureTls = false;
-
-        const finish = async () => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            if (ws) {
-                try {
-                    ws.close();
-                } catch {
-                    // ignore socket shutdown errors on finish
-                }
-            }
-
-            const military = [...collected.values()];
-            console.log(`${label} Collected ${military.length} military vessels`);
-
-            const toInsert = military.map(buildNavalEvent);
-            const trackRows = military.map(buildNavalTrack);
-            const historyRows = military.map(buildNavalTrackHistoryRow);
-            await upsertNavalEvents(toInsert);
-            await upsertNavalTracks(trackRows);
-            await upsertNavalTrackHistory(historyRows);
-            resolve();
-        };
-
-        const bindSocket = (socket, allowInsecureTls = false) => {
-            ws = socket;
-            clearTimeout(timeout);
-            timeout = setTimeout(finish, SESSION_DURATION_MS);
-
-            socket.on("open", () => {
-                if (socket !== ws || settled) return;
-                console.log(
-                    allowInsecureTls
-                        ? `${label} Connected to AISStream (TLS verification disabled fallback)`
-                        : `${label} Connected to AISStream`
-                );
-
-                const subscription = {
-                    APIKey: apiKey,
-                    BoundingBoxes: MONITORING_BOXES,
-                    FilterMessageTypes: ["PositionReport", "ShipStaticData"],
-                };
-
-                socket.send(JSON.stringify(subscription));
-            });
-
-            socket.on("message", (raw) => {
-                if (socket !== ws || settled) return;
-                try {
-                    const msg = JSON.parse(raw.toString());
-                    if (msg?.error) {
-                        console.error(`${label} Subscription error:`, msg.error);
-                        return;
-                    }
-
-                    const mtype = msg.MessageType;
-                    const meta = getMessageMeta(msg);
-                    const mmsi = getMessageMmsi(msg, meta);
-
-                    if (!mmsi) return;
-
-                    if (mtype === "PositionReport") {
-                        const pos = msg.Message?.PositionReport;
-                        if (!pos) return;
-
-                        const position = readPositionFields(pos, meta);
-                        if (!Number.isFinite(position.lat) || !Number.isFinite(position.lon)) return;
-
-                        positionsByMmsi.set(mmsi, {
-                            ...(positionsByMmsi.get(mmsi) || {}),
-                            ...position,
-                        });
-
-                        const merged = mergeVesselState(
-                            positionsByMmsi.get(mmsi),
-                            staticByMmsi.get(mmsi),
-                            collected.get(mmsi)
-                        );
-
-                        if (!isStrictMilitaryNavalContact(merged)) return;
-
-                        collected.set(mmsi, {
-                            ...merged,
-                            mmsi,
-                        });
-                    }
-
-                    if (mtype === "ShipStaticData") {
-                        const info = msg.Message?.ShipStaticData;
-                        if (!info) return;
-
-                        staticByMmsi.set(mmsi, {
-                            ...(staticByMmsi.get(mmsi) || {}),
-                            ...readStaticFields(info, meta),
-                        });
-
-                        const merged = mergeVesselState(
-                            positionsByMmsi.get(mmsi),
-                            staticByMmsi.get(mmsi),
-                            collected.get(mmsi)
-                        );
-
-                        if (!Number.isFinite(merged.lat) || !Number.isFinite(merged.lon)) return;
-                        if (!isStrictMilitaryNavalContact(merged)) return;
-
-                        collected.set(mmsi, {
-                            ...merged,
-                            mmsi,
-                        });
-                    }
-                } catch (err) {
-                    console.error(`${label} Message parse error:`, err.message);
-                }
-            });
-
-            socket.on("error", (err) => {
-                if (socket !== ws || settled) return;
-                if (
-                    allowInsecureTlsFallback &&
-                    !allowInsecureTls &&
-                    !retriedWithInsecureTls &&
-                    isAisCertificateExpiryError(err)
-                ) {
-                    retriedWithInsecureTls = true;
-                    console.warn(`${label} AISStream certificate expired; retrying with TLS verification disabled`);
-                    clearTimeout(timeout);
-                    try {
-                        socket.terminate?.();
-                    } catch {
-                        // ignore termination errors during retry
-                    }
-                    bindSocket(createAisWebSocket({ allowInsecureTls: true }), true);
-                    return;
-                }
-                console.error(`${label} WebSocket error:`, err.message);
-                clearTimeout(timeout);
-                finish();
-            });
-
-            socket.on("close", () => {
-                if (socket !== ws || settled) return;
-                clearTimeout(timeout);
-                finish();
-            });
-        };
-
-        bindSocket(createAisWebSocket(), false);
+    const providers = createNavalProviders();
+    const providerResults = await runConfiguredProviders("ais", providers);
+    const priority = new Map(providers.map((provider) => [provider.id, provider.priority]));
+    const observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
+        const providerMilitary = items.map(toLegacyVessel).filter((vessel) => isStrictMilitaryNavalContact(vessel)).length;
+        if (provider.id === "aisstream") {
+            console.log(`[ais:aisstream] received=${diagnostics?.received || 0} unique=${diagnostics?.unique || 0} positions=${diagnostics?.positions || 0} static=${diagnostics?.static || 0} candidates=${items.length} military=${providerMilitary}`);
+        } else {
+            console.log(`[ais:${provider.id}] fetched=${items.length} military=${providerMilitary}`);
+        }
+        return items.map((item) => ({ ...item, priority: priority.get(item.source) ?? 999 }));
     });
+
+    const canonical = mergeNavalObservations(observations, {
+        freshnessMs: Number(process.env.NAVAL_CORROBORATION_WINDOW_MS) || 10 * 60_000,
+        maxSpeedKts: Number(process.env.NAVAL_MAX_PLAUSIBLE_SPEED_KTS) || 80,
+    });
+    const military = canonical
+        .map(toLegacyVessel)
+        .filter((vessel) => isStrictMilitaryNavalContact(vessel));
+    const corroborated = military.filter((vessel) => vessel.sourceCount > 1).length;
+    console.log(`[ais] candidates=${canonical.length} military=${military.length} canonical=${military.length} corroborated=${corroborated}`);
+
+    const events = military.map(buildNavalEvent);
+    const tracks = military.map(buildNavalTrack);
+    const historyRows = military.map(buildNavalTrackHistoryRow).filter(Boolean);
+    await upsertNavalEvents(events);
+    const upserted = await upsertNavalTracks(tracks);
+    await upsertNavalTrackHistory(historyRows);
+    console.log(`[ais] upserted=${upserted}`);
 }

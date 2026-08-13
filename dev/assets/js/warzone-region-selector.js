@@ -76,6 +76,13 @@ const REGION_HINT_ENABLED = true;
 const REGION_HINT_CENTER_DRIFT_RATIO = 0.6;
 const REGION_OUTSIDE_PROMPT_ID = "wz-region-outside-prompt";
 const REGION_GLOBAL_ALT_THRESHOLD = 8000000;
+const STARTUP_OVERVIEW_CAMERA = Object.freeze({ alt: 19000000 });
+const STARTUP_INTRO_FLIGHT_DURATION_MS = 5200;
+const DASHBOARD_ENTRY_ROTATION_OFFSET_DEG = 240;
+let __startupRegionJourneyPromise = null;
+let __startupRegionJourneyStartedPromise = null;
+let __resolveStartupRegionJourneyStarted = null;
+let __startupRegionJourneyComplete = false;
 function numberVar(name, fallback) {
     if (typeof window === "undefined" || !window.getComputedStyle) return fallback;
     const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
@@ -93,6 +100,36 @@ function getLandingCameraConfig() {
 }
 function getRegionById(id) {
     return REGIONS.find((r) => r.id === id) || REGIONS.find((r) => r.id === "middle_east") || REGIONS[0];
+}
+function normalizeLongitudeDegrees(longitude = 0) {
+    const numericLongitude = Number(longitude);
+    if (!Number.isFinite(numericLongitude)) return 0;
+    return ((((numericLongitude + 180) % 360) + 360) % 360) - 180;
+}
+function getApproximateRegionTarget(region = __activeRegion) {
+    if (region?.id === "global") return { lon: 20, lat: 20 };
+    const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region?.bounds;
+    const center = getBoundsCenter(bounds) || region?.camera || {};
+    const lon = Number(center.lon ?? region?.camera?.lon ?? 0);
+    const lat = Number(center.lat ?? region?.camera?.lat ?? 0);
+    return {
+        lon: Number.isFinite(lon) ? lon : 0,
+        lat: Number.isFinite(lat) ? lat : 0,
+    };
+}
+function getStartupOverviewCamera(region = __activeRegion, target = null) {
+    const approximateTarget = getApproximateRegionTarget(region);
+    const targetLon = Number(target?.lon);
+    const targetLat = Number(target?.lat);
+    const resolvedTargetLon = Number.isFinite(targetLon) ? targetLon : approximateTarget.lon;
+    const resolvedTargetLat = Number.isFinite(targetLat) ? targetLat : approximateTarget.lat;
+    const startUnwrappedLon = resolvedTargetLon - DASHBOARD_ENTRY_ROTATION_OFFSET_DEG;
+    return {
+        lon: normalizeLongitudeDegrees(startUnwrappedLon),
+        startUnwrappedLon,
+        lat: Math.max(-30, Math.min(30, resolvedTargetLat * 0.5)),
+        alt: STARTUP_OVERVIEW_CAMERA.alt,
+    };
 }
 function getLensRegionIds(lens = "live") {
     if (lens === "all") {
@@ -265,6 +302,12 @@ function getSavedCountryBorderLayerVisibility() {
         // keep defaults
     }
     return true;
+}
+export function applySavedCountryBorderLayerVisibility(viewer, options = {}) {
+    return viewer?.__warzone?.setBorderLayersVisible?.(
+        getSavedCountryBorderLayerVisibility(),
+        options
+    );
 }
 function isCoordinateInsideBounds(lon, lat, bounds = {}) {
     return (
@@ -902,6 +945,9 @@ export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
 function notifyChange(region, options = {}) { __activeRegion = region; notifyScopeChange(options); }
 export function flyToRegion(viewer, region, options = {}) {
     if (!viewer || !region) return Promise.resolve(false);
+    if (window.__warzoneDashboardIntroActive === true && options?.source !== "startup") {
+        return Promise.resolve(false);
+    }
     const showLoader = options?.showLoader === true;
     const prime2D = options?.prime2D === true;
     const requestedDuration = Number(options?.duration);
@@ -1002,6 +1048,181 @@ export function flyToRegion(viewer, region, options = {}) {
             finalizeTransition(false);
         }
     });
+}
+export function prepareStartupRegionJourney(viewer, region = __activeRegion, target = null) {
+    if (!viewer?.camera) return false;
+    const overviewCamera = getStartupOverviewCamera(region, target);
+    window.__warzoneDashboardIntroActive = true;
+    viewer.__warzone?.stopStartupRotation?.();
+    releaseRegionCameraLock(viewer);
+    clearPendingRegionHintRefresh();
+    setRegionHintState(false, viewer);
+    viewer.camera.cancelFlight?.();
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(
+            overviewCamera.lon,
+            overviewCamera.lat,
+            overviewCamera.alt
+        ),
+        orientation: {
+            heading: 0,
+            pitch: -Cesium.Math.PI_OVER_TWO,
+            roll: 0,
+        },
+    });
+    viewer.scene?.requestRender?.();
+    return true;
+}
+export function getStartupRegionJourneyCamera(region = __activeRegion) {
+    const overviewCamera = getStartupOverviewCamera(region);
+    return {
+        lon: overviewCamera.lon,
+        lat: overviewCamera.lat,
+        height: overviewCamera.alt,
+        heading: 0,
+        pitch: -90,
+        roll: 0,
+    };
+}
+export function waitForStartupRegionJourneyStart() {
+    return __startupRegionJourneyStartedPromise || Promise.resolve(false);
+}
+export function playStartupRegionJourney(viewer, region) {
+    if (__startupRegionJourneyComplete) return Promise.resolve(true);
+    if (__startupRegionJourneyPromise) return __startupRegionJourneyPromise;
+    if (!viewer?.camera || !region) return Promise.resolve(false);
+
+    __startupRegionJourneyStartedPromise = new Promise((resolve) => {
+        __resolveStartupRegionJourneyStarted = resolve;
+    });
+    __startupRegionJourneyPromise = new Promise((resolve) => {
+        const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
+        const targetDestination = region.id === "global"
+            ? Cesium.Cartesian3.fromDegrees(20, 20, 18000000)
+            : viewer.camera.getRectangleCameraCoordinates(
+                Cesium.Rectangle.fromDegrees(bounds.minLon, bounds.minLat, bounds.maxLon, bounds.maxLat),
+                new Cesium.Cartesian3()
+            );
+        const targetCartographic = Cesium.Cartographic.fromCartesian(
+            targetDestination,
+            viewer.scene?.globe?.ellipsoid || Cesium.Ellipsoid.WGS84
+        );
+        const targetLon = Cesium.Math.toDegrees(targetCartographic.longitude);
+        const targetLat = Cesium.Math.toDegrees(targetCartographic.latitude);
+        const targetAlt = targetCartographic.height;
+        const overviewCamera = getStartupOverviewCamera(region, { lon: targetLon, lat: targetLat });
+        prepareStartupRegionJourney(viewer, region, { lon: targetLon, lat: targetLat });
+        __regionTransitionInFlight = true;
+
+        const controller = viewer.scene?.screenSpaceCameraController;
+        const inputsWereEnabled = controller?.enableInputs !== false;
+        if (controller) controller.enableInputs = false;
+
+        let fallbackTimer = 0;
+        let animationFrame = 0;
+        let finalized = false;
+
+        const smoothStep = (value) => value * value * (3 - (2 * value));
+        const smootherStep = (value) => value * value * value * (value * ((value * 6) - 15) + 10);
+        const setFinalCamera = () => {
+            viewer.camera.cancelFlight?.();
+            viewer.camera.setView({
+                destination: targetDestination,
+                orientation: {
+                    heading: 0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0,
+                },
+            });
+            viewer.scene?.requestRender?.();
+        };
+
+        const finalize = (success) => {
+            if (finalized) return;
+            finalized = true;
+            window.clearTimeout(fallbackTimer);
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            __resolveStartupRegionJourneyStarted?.(success);
+            __resolveStartupRegionJourneyStarted = null;
+            __regionTransitionInFlight = false;
+            window.__warzoneDashboardIntroActive = false;
+            if (controller) controller.enableInputs = inputsWereEnabled;
+            if (success) {
+                setFinalCamera();
+                __startupRegionJourneyComplete = true;
+                applyRegionCameraLock(viewer, region);
+                scheduleRegionButtonHintRefresh(viewer, 900);
+                try {
+                    document.dispatchEvent(new CustomEvent("wz:region-camera-settled", {
+                        detail: { region, lens: __activeLens, source: "startup", success: true },
+                    }));
+                } catch { }
+                if (viewer.__warzone?.isContourLayerVisible?.() === true) {
+                    viewer.__warzone.refreshContourFromViewport?.({
+                        force: true,
+                        reason: "region-camera-settled",
+                    });
+                }
+            }
+            resolve(success);
+        };
+
+        fallbackTimer = window.setTimeout(
+            () => finalize(true),
+            STARTUP_INTRO_FLIGHT_DURATION_MS + 1500
+        );
+        try {
+            const startedAt = performance.now();
+            const animateFrame = (now) => {
+                if (finalized) return;
+                const progress = Math.max(0, Math.min(1, (now - startedAt) / STARTUP_INTRO_FLIGHT_DURATION_MS));
+                const rotationProgress = smoothStep(progress);
+                const approachProgress = smootherStep(progress);
+                const currentUnwrappedLon = Cesium.Math.lerp(
+                    overviewCamera.startUnwrappedLon,
+                    targetLon,
+                    rotationProgress
+                );
+                const longitude = normalizeLongitudeDegrees(currentUnwrappedLon);
+                const latitude = Cesium.Math.lerp(
+                    overviewCamera.lat,
+                    targetLat,
+                    approachProgress
+                );
+                const altitude = Cesium.Math.lerp(
+                    overviewCamera.alt,
+                    targetAlt,
+                    approachProgress
+                );
+
+                // This finite intro owns the camera and cancels any competing flight tween.
+                viewer.camera.cancelFlight?.();
+                viewer.camera.setView({
+                    destination: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude),
+                    orientation: {
+                        heading: 0,
+                        pitch: -Cesium.Math.PI_OVER_TWO,
+                        roll: 0,
+                    },
+                });
+                viewer.scene?.requestRender?.();
+
+                if (__resolveStartupRegionJourneyStarted) {
+                    __resolveStartupRegionJourneyStarted(true);
+                    __resolveStartupRegionJourneyStarted = null;
+                }
+                if (progress >= 1) {
+                    finalize(true);
+                    return;
+                }
+                animationFrame = requestAnimationFrame(animateFrame);
+            };
+            animationFrame = requestAnimationFrame(animateFrame);
+        } catch {
+            finalize(false);
+        }
+    });
+    return __startupRegionJourneyPromise;
 }
 export function selectRegion(viewer, regionId, options = {}) {
     let region = null;
@@ -1176,7 +1397,7 @@ export function initRegionNav(viewer) {
         scheduleRegionButtonHintRefresh(viewer, 1200);
     }
 }
-export function initRegionSelector(viewer) {
+export function initRegionSelector(viewer, options = {}) {
     try {
         const savedLens = localStorage.getItem(LENS_KEY);
         const savedRegionId = localStorage.getItem(STORAGE_KEY);
@@ -1194,9 +1415,14 @@ export function initRegionSelector(viewer) {
 
     window.__warzoneShowRegionModal = (instant = false) => showRegionModal(viewer, instant);
 
+    // Startup selection is intentionally available before Cesium exists.
+    if (!viewer) return;
+
     primeRegionCountryBounds();
 
-    setLandingCamera(viewer);
+    if (options?.applyLandingCamera !== false) {
+        setLandingCamera(viewer);
+    }
     viewer?.__warzone?.setBorderLayersVisible?.(false, { animate: false });
     initRegionNav(viewer);
 }
@@ -1313,23 +1539,34 @@ function showRegionModal(viewer, instant = false, options = {}) {
 
             try { localStorage.setItem(VISITED_KEY, "1"); } catch { }
 
-            window.__warzoneEnterApp?.();
+            confirmBtn.disabled = true;
+            confirmBtn.classList.add("is-disabled");
+            confirmBtn.setAttribute("aria-disabled", "true");
+
+            if (!lensRegions.some((region) => region.id === chosen)) {
+                __activeLens = "all";
+            }
+            selectRegion(null, chosen, {
+                source: "manual",
+                showLoader: false,
+            });
+            overlay.classList.add("is-operational-exit");
+            overlay.dataset.wzCloseDurationMs = "1000";
+            window.__warzoneBeginStartupBackgroundExit?.();
 
             closeRegionModal(overlay, () => {
-                if (!lensRegions.some((region) => region.id === chosen)) {
-                    __activeLens = "all";
-                }
-                selectRegion(viewer, chosen, { showLoader: false });
-                viewer?.__warzone?.setBorderLayersVisible?.(
-                    getSavedCountryBorderLayerVisibility(),
-                    { animate: true, duration: 780 }
-                );
+                overlay.classList.remove("is-operational-exit");
+                delete overlay.dataset.wzCloseDurationMs;
                 window.stopStratOpsAudio?.({
                     lock: true,
                     duration: 700
                 });
 
-                window.__warzoneStartDeferredApp?.();
+                Promise.resolve(window.__warzoneStartDeferredApp?.())
+                    .catch((error) => {
+                        console.error("Operational boot failed after region selection:", error);
+                        window.__warzoneShowRegionModal?.();
+                    });
             });
         });
     }

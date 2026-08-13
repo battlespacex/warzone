@@ -5,13 +5,15 @@ import { isLayerEnabled } from "./warzone-layers.js";
 import { getActiveRegion } from "./warzone-region-selector.js";
 // Note: no direct Supabase writes from frontend — all track data is client-side only
 const AIRCRAFT_PROXY_PATHS = ["/__warzone/aircraft-feed/mil", "/warzone/aircraft-feed/mil"];
-const AIRPLANES_LIVE_URL = "https://api.airplanes.live/v2/mil";
+const PUBLIC_AIRCRAFT_FEED_URL = "https://api.adsb.lol/v2/mil";
 const POLL_INTERVAL_MS = 2000;
 const FETCH_TIMEOUT_MS = 9000;
 const TRACK_STALE_MS = 90000;
-const SOURCE_NAME = "airplanes.live";
+const FAILURE_BACKOFF_BASE_MS = 5000;
+const FAILURE_BACKOFF_MAX_MS = 60000;
+const SOURCE_NAME = "adsb.lol";
 const SOURCE_PRIORITY = {
-    airplanes_live: 100,
+    adsb_lol: 100,
 };
 const CIVILIAN_AIRLINER_CODES = new Set([
     "A220", "A318", "A319", "A320", "A20N", "A21N", "A321", "A330", "A332", "A333", "A338",
@@ -135,9 +137,15 @@ const COAST_GUARD_CASA_PATROL_PATTERNS = [
     /\b(cn ?235|c ?295|casa)\b.*\b(uscg|u s coast guard|united states coast guard|coast guard)\b/i,
 ];
 let __pollTimer = null;
+let __pollingActive = false;
 let __isFetching = false;
 let __fetchInFlightSince = 0;
 let __activeFetchController = null;
+let __inFlightPromise = null;
+let __failureCount = 0;
+let __nextRetryAt = 0;
+let __lastFailureHttpStatus = 0;
+let __feedStatus = Object.freeze({ state: "stopped", httpStatus: 0, retryAt: 0 });
 let __visibilitySyncBound = false;
 const __canonicalTrackStore = new Map();
 const __identityCanonicalIndex = new Map();
@@ -281,7 +289,7 @@ function getAirplanesLiveFeedUrl() {
         window.location.hostname === "127.0.0.1" ||
         window.location.hostname === "[::1]";
     if (isLocalDevHost) return AIRCRAFT_PROXY_PATHS[0];
-    return window.__stratopsConfig?.aircraftFeedUrl || AIRPLANES_LIVE_URL;
+    return window.__stratopsConfig?.aircraftFeedUrl || PUBLIC_AIRCRAFT_FEED_URL;
 }
 function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
     const timeoutController = new AbortController();
@@ -446,7 +454,7 @@ function normalizeAirplanesLiveRecord(record = {}) {
         callsign,
         title: titleBase,
         source_name: SOURCE_NAME,
-        source: "airplanes_live",
+        source: "adsb_lol",
         category: "military",
         subcategory: subtype,
         registration,
@@ -532,6 +540,15 @@ function clearAllPublicAirTracks() {
     __canonicalTrackStore.clear();
     __identityCanonicalIndex.clear();
 }
+function restoreCachedPublicAirTracks() {
+    if (!isLayerEnabled("aircraft")) return;
+    cleanupStaleTracks();
+    for (const track of __canonicalTrackStore.values()) {
+        if (!track?.track_key || !isTrackRenderable(track) || !isTrackInsideActiveRegion(track)) continue;
+        upsertLiveTrack(track);
+        __activeTrackKeys.add(track.track_key);
+    }
+}
 function cleanupStaleTracks() {
     const cutoff = nowMs() - TRACK_STALE_MS;
     for (const [canonicalKey, track] of __canonicalTrackStore.entries()) {
@@ -548,124 +565,163 @@ function cleanupStaleTracks() {
 async function fetchAirplanesLiveRecords(signal) {
     const response = await fetchWithTimeout(getAirplanesLiveFeedUrl(), { signal });
     if (!response.ok) {
-        throw new Error(`aircraft feed request failed (${response.status})`);
+        const error = new Error(`aircraft feed request failed (${response.status})`);
+        error.httpStatus = Number(response.headers.get("X-Warzone-Upstream-Status") || response.status || 0);
+        error.retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
+        throw error;
     }
     const payload = await response.json();
     return Array.isArray(payload?.ac) ? payload.ac : [];
 }
 async function refreshPublicAirTracks(options = {}) {
     const force = options?.force === true;
-    if (__isFetching) {
-        if (!force) return;
-        try {
-            __activeFetchController?.abort?.();
-        } catch { }
-    }
+    if (__inFlightPromise) return __inFlightPromise;
     if (document.visibilityState === "hidden" && !force) return;
     if (!isPublicAirFallbackEnabled()) {
         clearAllPublicAirTracks();
         return;
     }
-    __isFetching = true;
-    __fetchInFlightSince = Date.now();
-    const fetchController = new AbortController();
-    __activeFetchController = fetchController;
-    try {
-        if (!isLayerEnabled("aircraft")) {
-            clearAllPublicAirTracks();
-            return;
-        }
-        const records = await fetchAirplanesLiveRecords(fetchController.signal);
-        if (!isLayerEnabled("aircraft")) {
-            clearAllPublicAirTracks();
-            return;
-        }
-        const seenThisPass = new Set();
-        for (const record of records) {
-            const normalized = normalizeAirplanesLiveRecord(record);
-            if (!isTrackRenderable(normalized)) continue;
-            if (!isTrackInsideActiveRegion(normalized)) {
-                const outsideCanonicalKey = resolveCanonicalKey(normalized);
-                const outsideExisting = __canonicalTrackStore.get(outsideCanonicalKey);
-                if (outsideExisting?.track_key) {
-                    __activeTrackKeys.delete(outsideExisting.track_key);
-                    clearLiveTrack(outsideExisting.track_key);
+    if (!isLayerEnabled("aircraft")) return;
+    if (!force && __nextRetryAt > Date.now()) return;
+
+    __inFlightPromise = (async () => {
+        __isFetching = true;
+        __fetchInFlightSince = Date.now();
+        const fetchController = new AbortController();
+        __activeFetchController = fetchController;
+        try {
+            const records = await fetchAirplanesLiveRecords(fetchController.signal);
+            __failureCount = 0;
+            __nextRetryAt = 0;
+            __lastFailureHttpStatus = 0;
+            setFeedStatus("active");
+            if (!isLayerEnabled("aircraft")) return;
+            const seenThisPass = new Set();
+            for (const record of records) {
+                const normalized = normalizeAirplanesLiveRecord(record);
+                if (!isTrackRenderable(normalized)) continue;
+                if (!isTrackInsideActiveRegion(normalized)) {
+                    const outsideCanonicalKey = resolveCanonicalKey(normalized);
+                    const outsideExisting = __canonicalTrackStore.get(outsideCanonicalKey);
+                    if (outsideExisting?.track_key) {
+                        __activeTrackKeys.delete(outsideExisting.track_key);
+                        clearLiveTrack(outsideExisting.track_key);
+                    }
+                    __canonicalTrackStore.delete(outsideCanonicalKey);
+                    clearCanonicalIdentityIndex(outsideCanonicalKey);
+                    continue;
                 }
-                __canonicalTrackStore.delete(outsideCanonicalKey);
-                clearCanonicalIdentityIndex(outsideCanonicalKey);
-                continue;
-            }
-            if (normalized.subcategory === "civilian") {
-                const civilianCanonicalKey = resolveCanonicalKey(normalized);
-                const civilianExisting = __canonicalTrackStore.get(civilianCanonicalKey);
-                if (civilianExisting?.track_key) {
-                    __activeTrackKeys.delete(civilianExisting.track_key);
-                    clearLiveTrack(civilianExisting.track_key);
+                if (normalized.subcategory === "civilian") {
+                    const civilianCanonicalKey = resolveCanonicalKey(normalized);
+                    const civilianExisting = __canonicalTrackStore.get(civilianCanonicalKey);
+                    if (civilianExisting?.track_key) {
+                        __activeTrackKeys.delete(civilianExisting.track_key);
+                        clearLiveTrack(civilianExisting.track_key);
+                    }
+                    __canonicalTrackStore.delete(civilianCanonicalKey);
+                    clearCanonicalIdentityIndex(civilianCanonicalKey);
+                    continue;
                 }
-                __canonicalTrackStore.delete(civilianCanonicalKey);
-                clearCanonicalIdentityIndex(civilianCanonicalKey);
-                continue;
-            }
-            if (normalized.subcategory === "trainer") {
-                const trainerCanonicalKey = resolveCanonicalKey(normalized);
-                const trainerExisting = __canonicalTrackStore.get(trainerCanonicalKey);
-                if (trainerExisting?.track_key) {
-                    __activeTrackKeys.delete(trainerExisting.track_key);
-                    clearLiveTrack(trainerExisting.track_key);
+                if (normalized.subcategory === "trainer") {
+                    const trainerCanonicalKey = resolveCanonicalKey(normalized);
+                    const trainerExisting = __canonicalTrackStore.get(trainerCanonicalKey);
+                    if (trainerExisting?.track_key) {
+                        __activeTrackKeys.delete(trainerExisting.track_key);
+                        clearLiveTrack(trainerExisting.track_key);
+                    }
+                    __canonicalTrackStore.delete(trainerCanonicalKey);
+                    clearCanonicalIdentityIndex(trainerCanonicalKey);
+                    continue;
                 }
-                __canonicalTrackStore.delete(trainerCanonicalKey);
-                clearCanonicalIdentityIndex(trainerCanonicalKey);
-                continue;
+                const canonicalKey = resolveCanonicalKey(normalized);
+                const existingCanonical = __canonicalTrackStore.get(canonicalKey);
+                if (existingCanonical?.track_key) {
+                    normalized.track_key = String(existingCanonical.track_key);
+                }
+                const merged = mergeTrack(existingCanonical, normalized);
+                __canonicalTrackStore.set(canonicalKey, merged);
+                indexCanonicalIdentities(canonicalKey, merged);
+                seenThisPass.add(merged.track_key);
+                upsertLiveTrack(merged);
+                logAircraftTrack(merged);
+                __activeTrackKeys.add(merged.track_key);
             }
-            const canonicalKey = resolveCanonicalKey(normalized);
-            const existingCanonical = __canonicalTrackStore.get(canonicalKey);
-            if (existingCanonical?.track_key) {
-                normalized.track_key = String(existingCanonical.track_key);
+            for (const trackKey of Array.from(__activeTrackKeys)) {
+                if (seenThisPass.has(trackKey)) continue;
+                const relatedCanonical = Array.from(__canonicalTrackStore.values()).find((track) => track.track_key === trackKey);
+                if (!relatedCanonical) {
+                    __activeTrackKeys.delete(trackKey);
+                    clearLiveTrack(trackKey);
+                }
             }
-            const merged = mergeTrack(existingCanonical, normalized);
-            __canonicalTrackStore.set(canonicalKey, merged);
-            indexCanonicalIdentities(canonicalKey, merged);
-            seenThisPass.add(merged.track_key);
-            upsertLiveTrack(merged);
-            logAircraftTrack(merged);
-            __activeTrackKeys.add(merged.track_key);
-        }
-        for (const trackKey of Array.from(__activeTrackKeys)) {
-            if (seenThisPass.has(trackKey)) continue;
-            const relatedCanonical = Array.from(__canonicalTrackStore.values()).find((track) => track.track_key === trackKey);
-            if (!relatedCanonical) {
-                __activeTrackKeys.delete(trackKey);
-                clearLiveTrack(trackKey);
+            cleanupStaleTracks();
+        } catch (error) {
+            if (String(error?.name || "") !== "AbortError") {
+                __failureCount += 1;
+                const exponentialDelay = Math.min(
+                    FAILURE_BACKOFF_MAX_MS,
+                    FAILURE_BACKOFF_BASE_MS * (2 ** Math.max(0, __failureCount - 1))
+                );
+                const retryAfterMs = Number(error?.retryAfterMs || 0);
+                const backoffMs = Math.min(
+                    FAILURE_BACKOFF_MAX_MS,
+                    Math.max(exponentialDelay, Number.isFinite(retryAfterMs) ? retryAfterMs : 0)
+                );
+                __nextRetryAt = Date.now() + backoffMs;
+                __lastFailureHttpStatus = Number(error?.httpStatus || 0);
+                setFeedStatus("backoff", {
+                    httpStatus: __lastFailureHttpStatus,
+                    retryAt: __nextRetryAt,
+                });
             }
+        } finally {
+            if (__activeFetchController === fetchController) {
+                __activeFetchController = null;
+            }
+            __isFetching = false;
+            __fetchInFlightSince = 0;
         }
-        cleanupStaleTracks();
-    } catch (error) {
-        if (String(error?.name || "") !== "AbortError") {
-            console.warn("[warzone-air-ingestion] refresh failed:", error);
-        }
-    } finally {
-        if (__activeFetchController === fetchController) {
-            __activeFetchController = null;
-        }
-        __isFetching = false;
-        __fetchInFlightSince = 0;
-    }
+    })().finally(() => {
+        __inFlightPromise = null;
+    });
+    return __inFlightPromise;
 }
 async function logAircraftTrack(track) { }
 async function markAircraftEnded(trackKey) { }
 export async function refreshPublicAirTracksNow(options = {}) {
     if (!isPublicAirFallbackEnabled()) return;
-    await refreshPublicAirTracks(options);
+    await refreshPublicAirTracks({ force: options?.force === true && __nextRetryAt <= Date.now() });
+}
+function schedulePublicAirPoll(delayMs = POLL_INTERVAL_MS) {
+    if (!__pollingActive || __pollTimer) return;
+    const delay = Math.max(0, Number(delayMs || 0));
+    __pollTimer = window.setTimeout(async () => {
+        __pollTimer = null;
+        if (!__pollingActive) return;
+        await refreshPublicAirTracks();
+        if (!__pollingActive) return;
+        schedulePublicAirPoll(Math.max(POLL_INTERVAL_MS, __nextRetryAt - Date.now()));
+    }, delay);
 }
 export function startPublicAirIngestion() {
     if (!isPublicAirFallbackEnabled()) return;
-    if (__pollTimer) return;
-    refreshPublicAirTracks();
-    __pollTimer = window.setInterval(refreshPublicAirTracks, POLL_INTERVAL_MS);
+    __pollingActive = true;
+    restoreCachedPublicAirTracks();
+    if (__nextRetryAt > Date.now()) {
+        setFeedStatus("backoff", {
+            httpStatus: __lastFailureHttpStatus,
+            retryAt: __nextRetryAt,
+        });
+    }
+    schedulePublicAirPoll(Math.max(0, __nextRetryAt - Date.now()));
     if (!__visibilitySyncBound) {
         __visibilitySyncBound = true;
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "hidden") {
+                if (__pollTimer) {
+                    window.clearTimeout(__pollTimer);
+                    __pollTimer = null;
+                }
                 try {
                     __activeFetchController?.abort?.();
                 } catch { }
@@ -678,13 +734,14 @@ export function startPublicAirIngestion() {
             if (isStaleInFlight) {
                 __isFetching = false;
             }
-            refreshPublicAirTracks({ force: true }).catch(() => { });
+            schedulePublicAirPoll(Math.max(0, __nextRetryAt - Date.now()));
         }, { passive: true });
     }
 }
 export function stopPublicAirIngestion() {
+    __pollingActive = false;
     if (__pollTimer) {
-        window.clearInterval(__pollTimer);
+        window.clearTimeout(__pollTimer);
         __pollTimer = null;
     }
     try {
@@ -693,5 +750,36 @@ export function stopPublicAirIngestion() {
     __activeFetchController = null;
     __isFetching = false;
     __fetchInFlightSince = 0;
-    clearAllPublicAirTracks();
+    setFeedStatus("paused");
+}
+function parseRetryAfterMs(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return 0;
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+    const retryAt = new Date(raw).getTime();
+    return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : 0;
+}
+function setFeedStatus(state, { httpStatus = 0, retryAt = 0 } = {}) {
+    const next = Object.freeze({
+        state: String(state || "stopped"),
+        httpStatus: Number(httpStatus || 0),
+        retryAt: Number(retryAt || 0),
+    });
+    const changed =
+        next.state !== __feedStatus.state ||
+        next.httpStatus !== __feedStatus.httpStatus ||
+        next.retryAt !== __feedStatus.retryAt;
+    __feedStatus = next;
+    if (!changed) return;
+    try {
+        document.dispatchEvent(new CustomEvent("wz:aircraft-feed-state", { detail: next }));
+    } catch { }
+    if (next.state === "backoff") {
+        const retrySeconds = Math.max(1, Math.ceil((next.retryAt - Date.now()) / 1000));
+        console.warn(`[aircraft-feed] unavailable status=${next.httpStatus || "network"}; retrying in ${retrySeconds}s`);
+    }
+}
+export function getPublicAirFeedStatus() {
+    return { ...__feedStatus };
 }

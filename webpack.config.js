@@ -96,6 +96,7 @@ module.exports = (env, argv) => {
                     if (p.startsWith("assets/fonts/")) return true;
                     if (p.startsWith("assets/mp3/")) return true;
                     if (p.startsWith("assets/audio/")) return true;
+                    if (p.startsWith("assets/videos/")) return true;
                     if (p.startsWith("assets/others/")) return true;
                     if (p.startsWith("assets/data/")) return true;
                     if (p.startsWith("assets/cesium/")) return true;
@@ -214,6 +215,11 @@ module.exports = (env, argv) => {
                         from: path.resolve(DEV_DIR, "assets/audio"),
                         to: path.resolve(PROD_DIR, "assets/audio"),
                         noErrorOnMissing: true,
+                    },
+                    {
+                        from: path.resolve(DEV_DIR, "assets/videos"),
+                        to: path.resolve(PROD_DIR, "assets/videos"),
+                        noErrorOnMissing: false,
                     },
                     {
                         from: path.resolve(DEV_DIR, "assets/images"),
@@ -381,7 +387,7 @@ module.exports = (env, argv) => {
 
                     setupMiddlewares: (middlewares, devServer) => {
                         if (!devServer) return middlewares;
-                        const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
+                        const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.adsb.lol/v2/mil";
                         const apiTargets = [
                             "http://localhost:8080",
                             "http://localhost:3000",
@@ -389,14 +395,15 @@ module.exports = (env, argv) => {
                             "https://api.battlespacex.com",
                         ].filter(Boolean);
                         let cachedPayload = "";
-                        let cachedStatus = 0;
                         let cachedAt = 0;
                         let inFlightPromise = null;
                         const CACHE_TTL_MS = 2500;
+                        const CACHE_STALE_IF_ERROR_MS = 5 * 60 * 1000;
+                        let lastLoggedFailureStatus = 0;
 
                         async function handleAircraftFeedProxy(_req, res) {
                             const now = Date.now();
-                            if (cachedPayload && cachedStatus === 200 && (now - cachedAt) < CACHE_TTL_MS) {
+                            if (cachedPayload && (now - cachedAt) < CACHE_TTL_MS) {
                                 res.set("Cache-Control", "no-store, max-age=0");
                                 res.type("application/json").send(cachedPayload);
                                 return;
@@ -411,12 +418,27 @@ module.exports = (env, argv) => {
                                 })
                                     .then(async (response) => {
                                         const payload = await response.text();
-                                        cachedStatus = Number(response.status || 0);
                                         if (response.ok && payload) {
                                             cachedPayload = payload;
                                             cachedAt = Date.now();
+                                            lastLoggedFailureStatus = 0;
+                                        } else if (lastLoggedFailureStatus !== response.status) {
+                                            lastLoggedFailureStatus = response.status;
+                                            const responseSummary = String(payload || "")
+                                                .replace(/\s+/g, " ")
+                                                .trim()
+                                                .slice(0, 240);
+                                            console.warn(
+                                                `[aircraft-feed] upstream status=${response.status}` +
+                                                (responseSummary ? ` body=${responseSummary}` : "")
+                                            );
                                         }
-                                        return { ok: response.ok, status: response.status, payload };
+                                        return {
+                                            ok: response.ok,
+                                            status: response.status,
+                                            payload,
+                                            retryAfter: response.headers.get("retry-after") || "",
+                                        };
                                     })
                                     .finally(() => {
                                         inFlightPromise = null;
@@ -429,18 +451,27 @@ module.exports = (env, argv) => {
                                     res.type("application/json").send(result.payload);
                                     return;
                                 }
-                                if (cachedPayload && cachedStatus === 200) {
+                                if (cachedPayload && (Date.now() - cachedAt) < CACHE_STALE_IF_ERROR_MS) {
                                     res.set("Cache-Control", "no-store, max-age=0");
+                                    res.set("X-Warzone-Cache", "stale-if-error");
                                     res.type("application/json").send(cachedPayload);
                                     return;
                                 }
-                                res.status(result?.status || 502).json({ error: "Aircraft feed unavailable" });
+                                const upstreamStatus = Number(result?.status || 0);
+                                res.set("Cache-Control", "no-store, max-age=0");
+                                res.set("X-Warzone-Upstream-Status", String(upstreamStatus));
+                                res.set("Retry-After", result?.retryAfter || (upstreamStatus === 401 || upstreamStatus === 403 ? "30" : "5"));
+                                res.status(503).json({ error: "Aircraft feed temporarily unavailable" });
                             } catch {
-                                if (cachedPayload && cachedStatus === 200) {
+                                if (cachedPayload && (Date.now() - cachedAt) < CACHE_STALE_IF_ERROR_MS) {
                                     res.set("Cache-Control", "no-store, max-age=0");
+                                    res.set("X-Warzone-Cache", "stale-if-error");
                                     res.type("application/json").send(cachedPayload);
                                     return;
                                 }
+                                res.set("Cache-Control", "no-store, max-age=0");
+                                res.set("X-Warzone-Upstream-Status", "0");
+                                res.set("Retry-After", "5");
                                 res.status(502).json({ error: "Aircraft feed unavailable" });
                             }
                         }

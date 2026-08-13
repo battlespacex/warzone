@@ -1,19 +1,12 @@
 ﻿// apps/worker/src/adsb-worker.js
 //
-// Military ADS-B tracker — ADS-B One (api.adsb.one/v2/mil)
-// Free, no API key, no commercial restrictions, community-run.
-//
-// Improvements over OpenSky version:
-//   - ADS-B One /v2/mil returns ONLY military aircraft — no filtering needed
-//   - Response includes aircraft type code (t), registration (r), operator (ownOp)
-//   - Full ICAO type → human readable model name lookup table
-//   - ICAO hex → country/registration prefix lookup
-//   - Altitude already in feet (no conversion needed)
-//   - Speed already in knots
-//   - Much better coverage: 400-500 military aircraft vs ~50 from OpenSky
+// Multi-source military ADS-B tracker. Provider adapters normalize observations;
+// this file retains StratOps military qualification and Supabase contracts.
 
-import fetch from "node-fetch";
 import { supabase } from "./supabase.js";
+import { mergeAircraftObservations } from "./tracking/merge.js";
+import { runConfiguredProviders } from "./tracking/provider-health.js";
+import { createAircraftProviders } from "./tracking/aircraft/registry.js";
 
 // ─── ICAO Type Code → Human Readable Model Name ────────────────────────────
 // ADS-B One returns the ICAO aircraft type designator in the `t` field.
@@ -588,103 +581,53 @@ function isLikelyCivilianAirliner(a = {}, role = "") {
     return /(AIRBUS\s+A-?(220|318|319|320|321|330|340|350|380)\b|BOEING\s+7(17|27|37|47|57|67|77|87)\b|EMBRAER\s+E-?(170|175|190|195)\b|CRJ[- ]?(200|700|900|1000)\b|ATR[- ]?7(2|5)\b|DASH ?8\b)/.test(haystack);
 }
 
-// ─── ADS-B One Fetch ────────────────────────────────────────────────────────
-
-const AIRCRAFT_FEED_URLS = [
-    process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil",
-    "https://api.adsb.one/v2/mil",
-];
-let lastSuccessfulAircraftFeedUrl = "";
-
-async function fetchAdsbOneMilitary() {
-    const errors = [];
-    lastSuccessfulAircraftFeedUrl = "";
-    for (const url of AIRCRAFT_FEED_URLS) {
-        try {
-            const res = await fetch(url, {
-                headers: {
-                    "Accept": "application/json",
-                    "User-Agent": "stratops-warzone/1.0",
-                },
-                timeout: 25000,
-            });
-
-            if (!res.ok) {
-                const body = await res.text().catch(() => "");
-                throw new Error(`${url} HTTP ${res.status}: ${body.slice(0, 200)}`);
-            }
-
-            const data = await res.json();
-            if (data.msg && data.msg !== "No error") {
-                throw new Error(`${url} error: ${data.msg}`);
-            }
-
-            lastSuccessfulAircraftFeedUrl = url;
-            return Array.isArray(data.ac) ? data.ac : [];
-        } catch (err) {
-            errors.push(err.message);
-        }
-    }
-    throw new Error(errors.join(" | "));
-}
-
-// ─── Parse ADS-B One Aircraft Record ──────────────────────────────────────
-// ADS-B One fields (all already in correct units):
-// hex      - ICAO 24-bit address
-// flight   - callsign (trimmed)
-// r        - registration (tail number)
-// t        - ICAO aircraft type code
-// desc     - type description
-// ownOp    - owner/operator name
-// lat, lon - position
-// alt_baro - barometric altitude (FEET — already converted)
-// gs       - ground speed (KNOTS — already converted)
-// track    - true heading
-// squawk   - squawk code
-// mil      - true if military flag set
-// category - ADS-B emitter category
-
-function parseAdsbOneAircraft(ac) {
-    const icao = String(ac.hex || "").toLowerCase().trim();
-    const callsign = String(ac.flight || "").trim().replace(/\s+/g, "");
-    const reg = String(ac.r || "").trim();
-    const typeCode = String(ac.t || "").trim().toUpperCase();
-    const desc = String(ac.desc || "").trim();
-    const operator = String(ac.ownOp || "").trim();
-    const lat = Number(ac.lat);
-    const lon = Number(ac.lon);
-    const altFt = ac.alt_baro != null ? Math.round(Number(ac.alt_baro)) : null;
-    const speedKt = ac.gs != null ? Math.round(Number(ac.gs)) : null;
-    const heading = ac.track != null ? Math.round(Number(ac.track)) : null;
-    const squawk = String(ac.squawk || "").trim();
-    const onGround = ac.alt_baro === "ground" || altFt === 0;
-
-    // Enrich: get human-readable model name
-    const modelName = ICAO_TYPE_NAMES[typeCode] || desc || typeCode || null;
-
-    // Enrich: get country from ICAO hex
+function toLegacyAircraft(observation) {
+    const finiteOrNull = (value) => {
+        if (value === null || value === undefined || value === "") return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : null;
+    };
+    const icao = String(observation.icao24 || "").toLowerCase();
+    const typeCode = String(observation.aircraft_type || "").toUpperCase();
     const countryInfo = getCountryFromIcao(icao);
-    const country = operator
-        ? null  // use operator instead if available
-        : (countryInfo?.country || ac.origin_country || null);
-
     return {
         icao,
-        callsign,
-        reg,
+        trackIdentity: icao || (observation.registration ? `reg-${String(observation.registration).toLowerCase()}` : ""),
+        callsign: observation.callsign || "",
+        reg: observation.registration || "",
         typeCode,
-        modelName,
-        operator,
-        country: countryInfo?.country || ac.origin_country || "Unknown",
+        modelName: ICAO_TYPE_NAMES[typeCode] || observation.model || typeCode || null,
+        operator: observation.operator || "",
+        country: countryInfo?.country || observation.country || "Unknown",
         flag: countryInfo?.flag || "",
-        lat,
-        lon,
-        altFt,
-        speedKt,
-        heading,
-        squawk,
-        onGround,
+        lat: finiteOrNull(observation.latitude),
+        lon: finiteOrNull(observation.longitude),
+        altFt: finiteOrNull(observation.altitude_ft) == null ? null : Math.round(finiteOrNull(observation.altitude_ft)),
+        geomAltFt: finiteOrNull(observation.altitude_geom_ft) == null ? null : Math.round(finiteOrNull(observation.altitude_geom_ft)),
+        speedKt: finiteOrNull(observation.speed_kts) == null ? null : Math.round(finiteOrNull(observation.speed_kts)),
+        heading: finiteOrNull(observation.heading_deg) == null ? null : Math.round(finiteOrNull(observation.heading_deg)),
+        verticalRateFpm: finiteOrNull(observation.vertical_rate_fpm),
+        squawk: observation.squawk || "",
+        adsbCategory: observation.adsb_category || "",
+        adsbMessageType: observation.adsb_message_type || "",
+        dbFlags: finiteOrNull(observation.db_flags),
+        positionSource: observation.position_source || "",
+        positionAgeSeconds: finiteOrNull(observation.position_age_seconds),
+        onGround: Boolean(observation.on_ground),
+        militaryHint: Boolean(observation.military_hint),
+        sourceCount: observation.source_count || 1,
+        corroboration: observation.corroboration || "single-source",
+        sourceConfidence: observation.source_confidence || 60,
+        lastSourceObservations: observation.last_source_observations || [],
+        sourceDisagreements: observation.source_disagreements || 0,
+        observedAt: observation.observed_at,
     };
+}
+
+function isQualifiedMilitaryAircraft(a, role) {
+    if (isLikelyCivilianAirliner(a, role)) return false;
+    if (a.militaryHint) return true;
+    return hasMilitaryAircraftOverride(a, role);
 }
 
 // ─── Deduplication Cache ────────────────────────────────────────────────────
@@ -736,7 +679,7 @@ function buildAdsbEvent(a) {
     ].filter(Boolean);
 
     return {
-        source_key: `adsb-${a.icao}`,
+        source_key: `adsb-${a.trackIdentity}`,
         source_name: "ADS-B One / Military",
         category: "military",
         subcategory: role,
@@ -746,7 +689,7 @@ function buildAdsbEvent(a) {
         lon: a.lon,
         severity: ["fighter", "bomber", "awacs", "isr"].includes(role) ? "high" : "medium",
         confidence: ["fighter", "bomber", "awacs", "isr"].includes(role) ? 85 : 72,
-        occurred_at: new Date().toISOString(),
+        occurred_at: a.observedAt || new Date().toISOString(),
         report_type: "flight_tracking",
         weapon_type: role,
         actor_side: "state_actor",
@@ -765,17 +708,29 @@ function buildAdsbEvent(a) {
             country: a.country,
             role,
             altitude_ft: a.altFt,
+            altitude_geom_ft: a.geomAltFt,
             speed_kts: a.speedKt,
             heading: a.heading,
+            vertical_rate_fpm: a.verticalRateFpm,
             squawk: a.squawk || null,
             on_ground: a.onGround,
+            adsb_category: a.adsbCategory || null,
+            adsb_message_type: a.adsbMessageType || null,
+            db_flags: a.dbFlags,
+            position_source: a.positionSource || null,
+            position_age_seconds: a.positionAgeSeconds,
+            sources: a.lastSourceObservations,
+            source_count: a.sourceCount,
+            corroboration: a.corroboration,
+            source_confidence: a.sourceConfidence,
+            source_disagreements: a.sourceDisagreements,
         },
         // Required fields with defaults
         airspace_status: "unknown",
         cyber_status: "unknown",
         fir_code: "",
         location_label: `${a.lat?.toFixed(3)}, ${a.lon?.toFixed(3)}`,
-        dedupe_key: `ADSB|${a.icao}|${new Date().toISOString().slice(0, 16)}`,
+        dedupe_key: `ADSB|${a.trackIdentity}|${new Date().toISOString().slice(0, 16)}`,
     };
 }
 
@@ -786,7 +741,7 @@ function buildAdsbTrack(a) {
     const displayOrg = a.operator || a.country;
 
     return {
-        track_key: `adsb-${a.icao}`,
+        track_key: `adsb-${a.trackIdentity}`,
         track_type: "aircraft",
         category: "military",
         subcategory: role,
@@ -800,7 +755,7 @@ function buildAdsbTrack(a) {
         region: null,
         country: a.country || null,
         status: "active",
-        occurred_at: new Date().toISOString(),
+        occurred_at: a.observedAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
         metadata: {
             icao: a.icao,
@@ -812,10 +767,22 @@ function buildAdsbTrack(a) {
             country: a.country,
             role,
             altitude_ft: a.altFt,
+            altitude_geom_ft: a.geomAltFt,
             speed_kts: a.speedKt,
             heading: a.heading,
+            vertical_rate_fpm: a.verticalRateFpm,
             squawk: a.squawk || null,
             on_ground: a.onGround,
+            adsb_category: a.adsbCategory || null,
+            adsb_message_type: a.adsbMessageType || null,
+            db_flags: a.dbFlags,
+            position_source: a.positionSource || null,
+            position_age_seconds: a.positionAgeSeconds,
+            sources: a.lastSourceObservations,
+            source_count: a.sourceCount,
+            corroboration: a.corroboration,
+            source_confidence: a.sourceConfidence,
+            source_disagreements: a.sourceDisagreements,
         },
     };
 }
@@ -847,12 +814,16 @@ async function upsertAdsbEvents(events) {
 }
 
 async function upsertAdsbTracks(tracks) {
-    if (!tracks.length) return;
+    if (!tracks.length) return 0;
     const { error } = await supabase
         .from("tracks")
         .upsert(tracks, { onConflict: "track_key", ignoreDuplicates: false });
-    if (error) console.error("[adsb] Tracks upsert error:", error.message);
-    else console.log(`[adsb] Upserted ${tracks.length} military aircraft tracks`);
+    if (error) {
+        console.error("[adsb] Tracks upsert error:", error.message);
+        return 0;
+    }
+    console.log(`[adsb] Upserted ${tracks.length} military aircraft tracks`);
+    return tracks.length;
 }
 
 async function upsertAdsbTrackHistory(rows) {
@@ -868,20 +839,28 @@ async function upsertAdsbTrackHistory(rows) {
 
 export async function runAdsbWorker() {
     const label = "[adsb]";
-    console.log(`${label} Starting ADS-B One military scan...`);
+    console.log(`${label} Starting multi-source military scan...`);
 
     pruneSeen();
-
-    let rawAircraft;
-    try {
-        rawAircraft = await fetchAdsbOneMilitary();
-    } catch (err) {
-        console.error(`${label} ADS-B One fetch failed:`, err.message);
-        return;
-    }
-
-    console.log(`${label} ADS-B feed source: ${lastSuccessfulAircraftFeedUrl || "unknown"}`);
-    console.log(`${label} ADS-B feed returned ${rawAircraft.length} military aircraft`);
+    const providers = createAircraftProviders();
+    const providerResults = await runConfiguredProviders("adsb", providers);
+    const priority = new Map(providers.map((provider) => [provider.id, provider.priority]));
+    const observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
+        const qualified = items.map(toLegacyAircraft).filter((aircraft) => {
+            const role = classifyAircraft(aircraft.typeCode, aircraft.callsign, aircraft.icao, aircraft.modelName, aircraft.operator);
+            return isQualifiedMilitaryAircraft(aircraft, role);
+        }).length;
+        if (provider.id === "adsb_lol") {
+            console.log(`[adsb:adsb_lol] fetched=${diagnostics?.fetched ?? items.length} normalized=${diagnostics?.normalized ?? items.length} valid=${diagnostics?.valid ?? items.length} qualified=${qualified}`);
+        } else {
+            console.log(`[adsb:${provider.id}] fetched=${items.length} qualified=${qualified}`);
+        }
+        return items.map((item) => ({ ...item, priority: priority.get(item.source) ?? 999 }));
+    });
+    const rawAircraft = mergeAircraftObservations(observations, {
+        freshnessMs: Number(process.env.AIRCRAFT_CORROBORATION_WINDOW_MS) || 90_000,
+        maxSpeedKts: Number(process.env.AIRCRAFT_MAX_PLAUSIBLE_SPEED_KTS) || 1800,
+    }).map(toLegacyAircraft);
 
     const processed = [];
     const eventCandidates = [];
@@ -892,13 +871,12 @@ export async function runAdsbWorker() {
         trainer: 0,
         civilian: 0,
     };
-    for (const ac of rawAircraft) {
-        const a = parseAdsbOneAircraft(ac);
+    for (const a of rawAircraft) {
         const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
         rawRoleCounts[role] = (rawRoleCounts[role] || 0) + 1;
 
         // Skip invalid positions
-        if (!Number.isFinite(a.lat) || !Number.isFinite(a.lon)) {
+        if (!a.trackIdentity || !Number.isFinite(a.lat) || !Number.isFinite(a.lon)) {
             dropCounts.invalid_position += 1;
             continue;
         }
@@ -920,27 +898,26 @@ export async function runAdsbWorker() {
             continue;
         }
 
-        // ADS-B One /mil still leaks civilian airliners sometimes. Reject those here
-        // unless there is a strong military-specific marker.
-        if (isLikelyCivilianAirliner(a, role)) {
+        // Provider military flags remain evidence only. Reject civilian airliners
+        // and unqualified broad-source observations here.
+        if (!isQualifiedMilitaryAircraft(a, role)) {
             dropCounts.civilian += 1;
             continue;
         }
 
         processed.push(a);
-        if (!wasSeen(a.icao)) {
+        if (!wasSeen(a.trackIdentity)) {
             eventCandidates.push(a);
-            markSeen(a.icao);
+            markSeen(a.trackIdentity);
         }
     }
 
     console.log(`${label} Raw role breakdown:`, rawRoleCounts);
     console.log(`${label} Dropped aircraft:`, dropCounts);
-    console.log(`${label} Processing ${processed.length} airborne military aircraft`);
-    console.log(`${label} New event candidates ${eventCandidates.length}`);
+    const corroborated = processed.filter((item) => item.sourceCount > 1).length;
 
     if (!processed.length) {
-        console.log(`${label} No aircraft tracks to upsert`);
+        console.log(`${label} candidates=${observations.length} canonical=0 corroborated=0 upserted=0`);
         return;
     }
 
@@ -949,8 +926,9 @@ export async function runAdsbWorker() {
     const historyRows = tracks.map(buildAdsbTrackHistoryRow);
 
     await upsertAdsbEvents(events);
-    await upsertAdsbTracks(tracks);
+    const upserted = await upsertAdsbTracks(tracks);
     await upsertAdsbTrackHistory(historyRows);
+    console.log(`${label} candidates=${observations.length} canonical=${tracks.length} corroborated=${corroborated} upserted=${upserted}`);
 
     // Log breakdown by role
     const roleCounts = {};

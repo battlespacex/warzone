@@ -95,7 +95,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 }
 
 .warzone-region-bar {
-    left: calc(2rem + var(--wz-ui-pane-offset));
+    left: 2rem;
 }
 
 .warzone-region-bar .static-icon {
@@ -180,7 +180,7 @@ body.is-app-active .warzone-region-bar.is-region-prompt-visible {
 .wz-dock {
     position: fixed;
     bottom: 2.5rem;
-    left: calc(50% + (var(--wz-ui-pane-offset) / 2));
+    left: 50%;
     z-index: 10010;
     pointer-events: auto;
     max-width: calc(100vw - 4rem);

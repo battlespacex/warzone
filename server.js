@@ -15,17 +15,18 @@ const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
 const GENERATED_REPORT_ROOT = path.join(__dirname, ".generated", "reports");
 const BASE = "/warzone";
-const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.airplanes.live/v2/mil";
+const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.adsb.lol/v2/mil";
 const API_UPSTREAM_URL = process.env.API_UPSTREAM_URL || (
     process.env.NODE_ENV === "production"
         ? "https://api.battlespacex.com"
         : "http://localhost:8080"
 );
 let cachedAircraftFeedPayload = "";
-let cachedAircraftFeedStatus = 0;
 let cachedAircraftFeedAt = 0;
 let aircraftFeedInFlight = null;
 const AIRCRAFT_FEED_CACHE_TTL_MS = 2500;
+const AIRCRAFT_FEED_STALE_IF_ERROR_MS = 5 * 60 * 1000;
+let lastLoggedAircraftFeedFailureStatus = 0;
 
 app.disable("x-powered-by");
 mountBillingRoutes(app);
@@ -34,7 +35,6 @@ async function handleAircraftFeedProxy(_req, res) {
     const now = Date.now();
     if (
         cachedAircraftFeedPayload &&
-        cachedAircraftFeedStatus === 200 &&
         (now - cachedAircraftFeedAt) < AIRCRAFT_FEED_CACHE_TTL_MS
     ) {
         res.set("Cache-Control", "no-store, max-age=0");
@@ -52,12 +52,20 @@ async function handleAircraftFeedProxy(_req, res) {
         })
             .then(async (response) => {
                 const payload = await response.text();
-                cachedAircraftFeedStatus = Number(response.status || 0);
                 if (response.ok && payload) {
                     cachedAircraftFeedPayload = payload;
                     cachedAircraftFeedAt = Date.now();
+                    lastLoggedAircraftFeedFailureStatus = 0;
+                } else if (lastLoggedAircraftFeedFailureStatus !== response.status) {
+                    lastLoggedAircraftFeedFailureStatus = response.status;
+                    console.warn(`[aircraft-feed] upstream status=${response.status}`);
                 }
-                return { ok: response.ok, status: response.status, payload };
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    payload,
+                    retryAfter: response.headers.get("retry-after") || "",
+                };
             })
             .finally(() => {
                 aircraftFeedInFlight = null;
@@ -71,18 +79,27 @@ async function handleAircraftFeedProxy(_req, res) {
             res.type("application/json").send(result.payload);
             return;
         }
-        if (cachedAircraftFeedPayload && cachedAircraftFeedStatus === 200) {
+        if (cachedAircraftFeedPayload && (Date.now() - cachedAircraftFeedAt) < AIRCRAFT_FEED_STALE_IF_ERROR_MS) {
             res.set("Cache-Control", "no-store, max-age=0");
+            res.set("X-Warzone-Cache", "stale-if-error");
             res.type("application/json").send(cachedAircraftFeedPayload);
             return;
         }
-        res.status(result?.status || 502).json({ error: "Aircraft feed unavailable" });
+        const upstreamStatus = Number(result?.status || 0);
+        res.set("Cache-Control", "no-store, max-age=0");
+        res.set("X-Warzone-Upstream-Status", String(upstreamStatus));
+        res.set("Retry-After", result?.retryAfter || (upstreamStatus === 401 || upstreamStatus === 403 ? "30" : "5"));
+        res.status(503).json({ error: "Aircraft feed temporarily unavailable" });
     } catch {
-        if (cachedAircraftFeedPayload && cachedAircraftFeedStatus === 200) {
+        if (cachedAircraftFeedPayload && (Date.now() - cachedAircraftFeedAt) < AIRCRAFT_FEED_STALE_IF_ERROR_MS) {
             res.set("Cache-Control", "no-store, max-age=0");
+            res.set("X-Warzone-Cache", "stale-if-error");
             res.type("application/json").send(cachedAircraftFeedPayload);
             return;
         }
+        res.set("Cache-Control", "no-store, max-age=0");
+        res.set("X-Warzone-Upstream-Status", "0");
+        res.set("Retry-After", "5");
         res.status(502).json({ error: "Aircraft feed unavailable" });
     }
 }

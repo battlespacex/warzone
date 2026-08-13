@@ -48,8 +48,14 @@ import {
     clearNavalVessel,
     renderNavalTrackerWidget,
     getAllNavalSnapshots,
+    setNavalLayerVisible,
 } from "./warzone-live-naval.js";
-import { startPublicAirIngestion, refreshPublicAirTracksNow, stopPublicAirIngestion } from "./warzone-air-ingestion.js";
+import {
+    getPublicAirFeedStatus,
+    startPublicAirIngestion,
+    refreshPublicAirTracksNow,
+    stopPublicAirIngestion,
+} from "./warzone-air-ingestion.js";
 import {
     applyStratOpsFeatureVisibility,
     isStratOpsFeatureEnabled,
@@ -108,6 +114,7 @@ let __hotspotLayer = null;
 let __militaryTracks = null;
 let __eventPopupBound = false;
 let __pollTimer = null;
+let __operationalGlobalUiInitialized = false;
 let __pollInFlight = false;
 let __pollInFlightSince = 0;
 let __pollRequestSeq = 0;
@@ -160,31 +167,20 @@ function syncWidgetLayerToggleState(layerId = "*") {
         control.setAttribute("aria-pressed", enabled ? "true" : "false");
         control.dataset.layerState = enabled ? "on" : "off";
         control.title = `Turn ${enabled ? "off" : "on"} ${label.toLowerCase()} layer`;
+        control.setAttribute("aria-label", control.title);
 
-        const stateLabel = control.querySelector("[data-widget-layer-state]");
+        const widget = control.closest?.('[data-widget-id]');
+        const stateLabel = widget?.querySelector("[data-widget-layer-state]");
         if (stateLabel) {
-            stateLabel.textContent = `${label} layer is ${enabled ? "on" : "off"}`;
+            stateLabel.textContent = `${label} layer is off`;
+            stateLabel.setAttribute("aria-hidden", enabled ? "true" : "false");
         }
 
-        // The widget itself may be opened directly from the dock while its
-        // underlying layer is disabled. In that state, keep only the layer
-        // activation control visible so stale/irrelevant widget data does not
-        // appear underneath an explicit "layer is off" message.
-        const widget = control.closest?.('[data-widget-id]');
         if (widget) {
-            const dependentSelectors = {
-                aircraft: [".wz-aircraft-toolbar", "#wz-aircraft-panel"],
-                naval: [".wz-aircraft-toolbar", "#wz-naval-panel-list"],
-                cyber: ["#cyber-status-list"],
-                airspace: ["#airspace-status-list"],
-            }[id] || [];
-
-            dependentSelectors.forEach((dependentSelector) => {
-                widget.querySelectorAll(dependentSelector).forEach((element) => {
-                    element.hidden = !enabled;
-                    element.setAttribute("aria-hidden", enabled ? "false" : "true");
-                });
-            });
+            widget.classList.toggle("is-layer-disabled", !enabled);
+            widget.dataset.layerState = enabled ? "on" : "off";
+            widget.querySelector(".wz-widget-layer-content")
+                ?.setAttribute("aria-hidden", enabled ? "false" : "true");
         }
     });
 }
@@ -1196,7 +1192,8 @@ function isTrackerItemVisibleInScope(item = {}, scope = "region") {
     return isPointInsideRegion(lat, lon, getActiveRegion?.());
 }
 function isDatabaseAircraftLiveSourceEnabled() {
-    return window.__stratopsConfig?.enablePublicAirFallback !== true;
+    if (window.__stratopsConfig?.enablePublicAirFallback !== true) return true;
+    return getPublicAirFeedStatus().state !== "active";
 }
 function getAircraftLiveSyncIntervalMs() {
     return isDatabaseAircraftLiveSourceEnabled()
@@ -3190,9 +3187,10 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
 }
 function syncNavalSignals(events = []) {
     if (!isNavalTrackingFeatureEnabled() || !isLayerEnabled("naval")) {
-        clearAllNavalSignals();
+        setNavalLayerVisible(false);
         return;
     }
+    setNavalLayerVisible(true);
     const navalEvents = events
         .filter((event) => isNavalSignalEvent(event) && isEventVisible(event));
     const signature = navalEvents
@@ -7455,7 +7453,9 @@ function getAircraftWidgetItems() {
         items,
         highValueItems,
         filteredCount,
-        emptyMessage: "No aircraft logs in selected region",
+        emptyMessage: getPublicAirFeedStatus().state === "backoff" && allItems.length === 0
+            ? "Aircraft feed temporarily unavailable"
+            : "No aircraft logs in selected region",
     };
 }
 function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircraft logs in the current filter") {
@@ -7818,6 +7818,14 @@ function bindAircraftMovementsWidget() {
     document.addEventListener("wz:aircraft-log-updated", () => {
         if (!aircraftWidgetEnabled) return;
         requestAircraftMovementsWidgetRender();
+    });
+    document.addEventListener("wz:aircraft-feed-state", (event) => {
+        if (!aircraftWidgetEnabled) return;
+        if (event?.detail?.state !== "active" && isLayerEnabled("aircraft")) {
+            syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
+            refreshAircraftHistoryCache(true).catch(() => { });
+        }
+        requestAircraftMovementsWidgetRender(0);
     });
     document.addEventListener("wz:aircraft-focus-lock-changed", () => {
         syncFocusAwareBackgroundLoops();
@@ -8323,6 +8331,13 @@ function syncImmediateEventLayerVisibility(globe, id = "") {
 }
 export async function initWarzoneApp() {
     applyStratOpsFeatureVisibility();
+    if (!__operationalGlobalUiInitialized) {
+        __operationalGlobalUiInitialized = true;
+        if (isStratOpsFeatureEnabled("widgets.aircraftTracker") || isStratOpsFeatureEnabled("widgets.navalTracker")) {
+            bindAircraftMovementsWidget();
+            renderAircraftMovementsWidget();
+        }
+    }
     bindGlobeEventPopup();
     hydrateLayerStateFromStorage();
     if (isStratOpsFeatureEnabled("widgets.layers") && isStratOpsFeatureEnabled("dock.layers")) {
@@ -8662,8 +8677,9 @@ export async function initWarzoneApp() {
             }
             if (id === "naval" || id === "*") {
                 if (!isLayerEnabled("naval") || !isNavalTrackingFeatureEnabled()) {
-                    clearAllNavalSignals();
+                    setNavalLayerVisible(false);
                 } else {
+                    setNavalLayerVisible(true);
                     syncNavalSignals(applyAllFilters(__eventsCache).filter(isNavalSignalEvent));
                 }
             }
@@ -9178,10 +9194,6 @@ export function initGlobal() {
     initSmoothHomeAnchors();
     initNav();
     initFloatingPanels();
-    if (isStratOpsFeatureEnabled("widgets.aircraftTracker") || isStratOpsFeatureEnabled("widgets.navalTracker")) {
-        bindAircraftMovementsWidget();
-        renderAircraftMovementsWidget();
-    }
 }
 export function initBoot() {
     document.addEventListener("DOMContentLoaded", () => {
@@ -9196,10 +9208,6 @@ export function initBoot() {
         document.addEventListener("pointerdown", () => {
             document.body.classList.remove("using-keyboard");
         });
-
-        if (isStratOpsFeatureEnabled("system.audio")) {
-            initAudio();
-        }
 
         window.SiteLoader?.forceHide?.();
     });

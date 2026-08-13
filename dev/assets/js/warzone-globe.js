@@ -4197,8 +4197,11 @@ function getStartCameraConfig() {
         roll: numberVar("--warzone-start-roll", STARTUP_CAMERA.roll),
     };
 }
-function setInitialCamera(viewer) {
-    const camera = getStartCameraConfig();
+function setInitialCamera(viewer, initialCamera = null) {
+    const camera = {
+        ...getStartCameraConfig(),
+        ...(initialCamera || {}),
+    };
     viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(
             camera.lon,
@@ -7378,7 +7381,7 @@ function labelCesiumCredits(creditsEl) {
     const observer = new MutationObserver(applyLabels);
     observer.observe(creditsEl, { childList: true, subtree: true });
 }
-export async function initWarzoneGlobe() {
+export async function initWarzoneGlobe(options = {}) {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!globeEl) return null;
@@ -7432,8 +7435,8 @@ export async function initWarzoneGlobe() {
     viewer.__warzoneFlatTerrainProvider = viewer.terrainProvider;
     viewer.__warzoneFocusedTerrainActive = false;
     applyViewerStyle(viewer);
-    setInitialCamera(viewer);
-    if (!isReportCaptureMode) {
+    setInitialCamera(viewer, options?.initialCamera);
+    if (!isReportCaptureMode && options?.startStartupRotation !== false) {
         startStartupGlobeRotation(viewer);
     }
     attachCameraZoomLimiter(viewer);

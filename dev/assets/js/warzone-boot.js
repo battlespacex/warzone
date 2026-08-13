@@ -11,6 +11,20 @@ let __siteLoaderHideTimer = 0;
 let __siteLoaderHardStopTimer = 0;
 const SITE_LOADER_HARD_MAX_MS = 12000;
 const STARTUP_OPERATIONAL_AUDIO_MUTE_MS = 12000;
+const OPERATIONAL_LOADER_REVEAL_MS = 850;
+const DASHBOARD_REVEAL_STAGES = Object.freeze({
+    breathingRoom: 250,
+    header: 450,
+    headerPause: 250,
+    logo: 500,
+    logoPause: 300,
+    controls: 500,
+    controlsPause: 350,
+    dock: 650,
+    dockPause: 400,
+    widgets: 500,
+    widgetStagger: 150,
+});
 function clearSiteLoaderTimers() {
     clearTimeout(__siteLoaderHideTimer);
     clearTimeout(__siteLoaderHardStopTimer);
@@ -27,24 +41,113 @@ function scheduleSiteLoaderHardStop() {
         window.SiteLoader?.forceHide?.();
     }, SITE_LOADER_HARD_MAX_MS);
 }
-window.__warzoneEnterApp = function () {
+function setDashboardUiShellVisible() {
     const uiShell = document.getElementById("warzone-ui-shell");
-    if (!uiShell) return;
-    window.__warzoneOperationalAudioMutedUntil = Date.now() + STARTUP_OPERATIONAL_AUDIO_MUTE_MS;
+    if (!uiShell) return null;
     uiShell.hidden = false;
-    requestAnimationFrame(() => {
-        uiShell.classList.add("is-ui-visible");
-    });
+    requestAnimationFrame(() => uiShell.classList.add("is-ui-visible"));
+    return uiShell;
+}
+function activateDashboard() {
+    const uiShell = setDashboardUiShellVisible();
+    if (!uiShell) return false;
+    const wasActive = document.body.classList.contains("is-app-active");
+    window.__warzoneOperationalAudioMutedUntil = Date.now() + STARTUP_OPERATIONAL_AUDIO_MUTE_MS;
     document.body.classList.add("is-app-active");
-    document.dispatchEvent(new CustomEvent("wz:app-entered"));
+    if (!wasActive) {
+        document.dispatchEvent(new CustomEvent("wz:app-entered"));
+    }
+    return true;
+}
+function waitForDashboardRevealStage(durationMs) {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => window.setTimeout(resolve, durationMs));
+}
+window.__warzoneEnterApp = function () {
+    activateDashboard();
+};
+window.__warzonePrepareDashboardIntro = function () {
+    const uiShell = setDashboardUiShellVisible();
+    if (!uiShell) return false;
+    document.body.classList.remove(
+        "is-app-active",
+        "is-dashboard-revealing",
+        "is-dashboard-header-visible",
+        "is-dashboard-logo-visible",
+        "is-dashboard-controls-visible",
+        "is-dashboard-dock-visible",
+        "is-dashboard-widgets-visible"
+    );
+    document.body.classList.add("is-dashboard-booting", "is-dashboard-intro-flight");
+    return true;
+};
+window.__warzoneRevealDashboard = function () {
+    if (window.__warzoneDashboardRevealPromise) return window.__warzoneDashboardRevealPromise;
+    window.__warzoneDashboardRevealPromise = (async () => {
+        const body = document.body;
+        body.classList.remove("is-dashboard-intro-flight");
+        body.classList.add("is-dashboard-revealing");
+        await waitForDashboardRevealStage(DASHBOARD_REVEAL_STAGES.breathingRoom);
+        body.classList.add("is-dashboard-header-visible");
+        await waitForDashboardRevealStage(DASHBOARD_REVEAL_STAGES.header + DASHBOARD_REVEAL_STAGES.headerPause);
+        body.classList.add("is-dashboard-logo-visible");
+        await waitForDashboardRevealStage(DASHBOARD_REVEAL_STAGES.logo + DASHBOARD_REVEAL_STAGES.logoPause);
+        body.classList.add("is-dashboard-controls-visible");
+        await waitForDashboardRevealStage(DASHBOARD_REVEAL_STAGES.controls + DASHBOARD_REVEAL_STAGES.controlsPause);
+        body.classList.add("is-dashboard-dock-visible");
+        await waitForDashboardRevealStage(DASHBOARD_REVEAL_STAGES.dock + DASHBOARD_REVEAL_STAGES.dockPause);
+        const visibleWidgets = Array.from(document.querySelectorAll(".warzone-panel--floating:not(.wz-is-hidden)"))
+            .filter((widget) => !widget.hidden);
+        visibleWidgets.forEach((widget, index) => {
+            widget.style.setProperty("--wz-dashboard-widget-delay", `${index * DASHBOARD_REVEAL_STAGES.widgetStagger}ms`);
+        });
+        body.classList.add("is-dashboard-widgets-visible");
+        const lastWidgetDelay = Math.max(0, visibleWidgets.length - 1) * DASHBOARD_REVEAL_STAGES.widgetStagger;
+        await waitForDashboardRevealStage(DASHBOARD_REVEAL_STAGES.widgets + lastWidgetDelay);
+        visibleWidgets.forEach((widget) => {
+            widget.style.removeProperty("--wz-dashboard-widget-delay");
+        });
+        activateDashboard();
+        body.classList.remove(
+            "is-dashboard-booting",
+            "is-dashboard-revealing",
+            "is-dashboard-header-visible",
+            "is-dashboard-logo-visible",
+            "is-dashboard-controls-visible",
+            "is-dashboard-dock-visible",
+            "is-dashboard-widgets-visible"
+        );
+        return true;
+    })();
+    return window.__warzoneDashboardRevealPromise;
+};
+window.__warzoneCancelDashboardIntro = function () {
+    document.body.classList.remove(
+        "is-dashboard-booting",
+        "is-dashboard-intro-flight",
+        "is-dashboard-revealing",
+        "is-dashboard-header-visible",
+        "is-dashboard-logo-visible",
+        "is-dashboard-controls-visible",
+        "is-dashboard-dock-visible",
+        "is-dashboard-widgets-visible"
+    );
+    window.__warzoneDashboardIntroActive = false;
+    window.__warzoneDashboardRevealPromise = null;
 };
 window.SiteLoader = {
     start() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
         clearSiteLoaderTimers();
+        const alreadyVisible = document.body.classList.contains("show-loader");
         loader.classList.remove("is-gone");
-        document.body.classList.add("show-loader");
+        if (!alreadyVisible) {
+            void loader.offsetWidth;
+            document.body.classList.add("show-loader");
+        }
         // Safety fallback so loader cannot remain visible forever.
         scheduleSiteLoaderHardStop();
     },
@@ -63,11 +166,25 @@ window.SiteLoader = {
             loader.classList.add("is-gone");
         }, 300);
     },
+    fadeIntoApp() {
+        const loader = document.getElementById("site-loader");
+        if (!loader) return Promise.resolve();
+        clearSiteLoaderTimers();
+        document.body.classList.remove("show-loader");
+        return new Promise((resolve) => {
+            __siteLoaderHideTimer = window.setTimeout(() => {
+                loader.classList.add("is-gone");
+                document.body.classList.remove("is-operational-booting");
+                resolve();
+            }, OPERATIONAL_LOADER_REVEAL_MS + 80);
+        });
+    },
     forceHide() {
         const loader = document.getElementById("site-loader");
         if (!loader) return;
         clearSiteLoaderTimers();
         document.body.classList.remove("show-loader");
+        document.body.classList.remove("is-operational-booting");
         loader.classList.add("is-gone");
     },
 };
@@ -513,6 +630,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (modal?.id === "wz-about-modal") {
             document.body.classList.remove("is-about-open");
         }
+        const requestedCloseDuration = Number(modal.dataset.wzCloseDurationMs);
+        const closeDuration = Number.isFinite(requestedCloseDuration)
+            ? Math.max(0, Math.min(requestedCloseDuration, 1600))
+            : 220;
         window.setTimeout(() => {
             modal.querySelectorAll(".wz-modal-box").forEach((box) => {
                 clearModalBoxHeightTimer(box);
@@ -527,7 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             sharedModalClosing = false;
             scheduleSharedModalQueueFlush();
-        }, 220);
+        }, closeDuration);
     }
     window.__warzoneOpenSharedModal = openModal;
     window.__warzoneCloseSharedModal = closeModal;

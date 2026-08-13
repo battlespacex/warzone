@@ -73,7 +73,7 @@ const DEFAULT_STRATOPS_FEATURES = {
         naval: true,
         militaryTracks: true,
         militaryBases: true,
-        publicAircraftFallback: true,
+        publicAircraftFallback: false,
         aircraftRealtime: true,
         navalContextModels: true,
         focusedContextModels: true,

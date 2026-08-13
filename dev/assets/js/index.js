@@ -7,20 +7,21 @@ import {
 } from "./stratops-feature-config.js";
 import "./warzone-boot.js";
 import {
-    initBoot, initWarzoneApp, initAudio, stopStratOpsAudio, startEventPollingFallback,
+    initBoot, initWarzoneApp, initAudio, startEventPollingFallback,
     initStratopsIntro, initStratopsAuth, schedulePostEntryActions
 } from "./essential.js";
-import { initWarzoneGlobe } from "./warzone-globe.js";
-import { initRegionSelector } from "./warzone-region-selector.js";
 import {
-    subscribeToLiveEvents,
-    subscribeToSirenBroadcast,
-} from "./warzone-realtime.js";
-import { bindWarzoneUi } from "./warzone-ui.js";
+    applySavedCountryBorderLayerVisibility,
+    getActiveRegion,
+    getStartupRegionJourneyCamera,
+    initRegionSelector,
+    playStartupRegionJourney,
+    prepareStartupRegionJourney,
+    waitForStartupRegionJourneyStart,
+} from "./warzone-region-selector.js";
 import { initStratopsBilling } from "./warzone-billing.js";
 import { isLayerEnabled } from "./warzone-layers.js";
-import { initWarzoneAoiLens } from "./warzone-aoi-lens.js";
-import { initWarzoneCaptureShot } from "./warzone-capture-shot.js";
+import { initStartupBackground } from "./warzone-startup-background.js";
 
 const isLocalDevHost =
     window.location.hostname === "localhost" ||
@@ -90,6 +91,7 @@ window.__stratopsConfig = {
 
 const INITIAL_THEATER_WARMUP_TIMEOUT_MS = 1400;
 const INITIAL_THEATER_WARMUP_KEEP_MS = 5000;
+const OPERATIONAL_SCENE_READY_BUDGET_MS = 2800;
 const INITIAL_THEATER_CRITICAL_ASSETS = Object.freeze([
     "/assets/images/bases/airbase-1.png",
     "/assets/images/bases/naval-1.png",
@@ -235,10 +237,61 @@ function resolveStartupAdaptiveQualityProfile() {
     return "normal";
 }
 
+function waitForOperationalPostRender(viewer, timeoutMs = 1000) {
+    const scene = viewer?.scene;
+    if (!scene?.postRender) return Promise.resolve();
+    return new Promise((resolve) => {
+        let settled = false;
+        let removeListener = null;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (typeof removeListener === "function") removeListener();
+            resolve();
+        };
+        removeListener = scene.postRender.addEventListener(finish);
+        window.setTimeout(finish, timeoutMs);
+        scene.requestRender?.();
+    });
+}
+
+function waitForOperationalTiles(viewer, timeoutMs = 2200) {
+    const globe = viewer?.scene?.globe;
+    const progressEvent = globe?.tileLoadProgressEvent;
+    if (!globe || globe.tilesLoaded || !progressEvent?.addEventListener) return Promise.resolve();
+    return new Promise((resolve) => {
+        let settled = false;
+        let removeListener = null;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (typeof removeListener === "function") removeListener();
+            resolve();
+        };
+        const check = (pendingCount) => {
+            if (Number(pendingCount) === 0 || globe.tilesLoaded) finish();
+        };
+        removeListener = progressEvent.addEventListener(check);
+        window.setTimeout(finish, timeoutMs);
+        viewer.scene?.requestRender?.();
+    });
+}
+
+async function waitForOperationalScene(viewer) {
+    await Promise.race([
+        Promise.allSettled([
+            Promise.resolve(viewer?.__warzoneImageryReadyPromise),
+            waitForOperationalTiles(viewer),
+            waitForOperationalPostRender(viewer),
+        ]),
+        wait(OPERATIONAL_SCENE_READY_BUDGET_MS),
+    ]);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
+        initStartupBackground();
         applyStratOpsFeatureVisibility();
-        bindWarzoneUi();
         if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
             initStratopsAuth();
         }
@@ -246,83 +299,64 @@ document.addEventListener("DOMContentLoaded", async () => {
             initStratopsBilling();
         }
 
-        let pendingRegionModal = null;
-        window.__warzoneShowRegionModal = (instant = false) => {
-            pendingRegionModal = { instant: !!instant };
-        };
+        // Region storage and the startup selector are available without a Cesium viewer.
+        initRegionSelector(null);
 
-        await new Promise((resolve) => {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(resolve);
-            });
-        });
-
-        if (!isStratOpsFeatureEnabled("system.globe")) {
-            window.SiteLoader?.forceHide?.();
-            return;
-        }
-
-        let startupMilSatsModulePromise = null;
-        const loadStartupMilSatsModule = () => {
-            if (!startupMilSatsModulePromise) {
-                startupMilSatsModulePromise = import("./warzone-startup-mil-sats.js")
-                    .catch((error) => {
-                        console.warn("Startup mil-sat demo failed to load:", error);
-                        return null;
-                    });
-            }
-            return startupMilSatsModulePromise;
-        };
-
-        const viewer = await initWarzoneGlobe();
-        window.__warzoneViewer = viewer;
-        viewer?.__warzone?.setAdaptiveQualityProfile?.("safe");
-        viewer?.__warzone?.setPerformanceMode?.(0);
-        let started = false;
-        window.SiteLoader?.forceHide?.();
-
-        if (window.__stratopsConfig?.startupMilSatsDemo !== false) {
-            setTimeout(async () => {
-                const startupMilSatsModule = await loadStartupMilSatsModule();
-                if (started) {
-                    startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(false);
-                    return;
+        let operationalBootPromise = null;
+        window.__warzoneStartDeferredApp = () => {
+            if (operationalBootPromise) return operationalBootPromise;
+            operationalBootPromise = (async () => {
+                if (!isStratOpsFeatureEnabled("system.globe")) {
+                    throw new Error("The operational globe feature is disabled");
                 }
-                startupMilSatsModule?.initWarzoneStartupMilSats?.(viewer);
-                startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(true);
-                try { window.refreshWarzoneMilSatsScale?.(); }
-                catch { }
-            }, 0);
-        }
 
-        if (isStratOpsFeatureEnabled("system.regionSelection") && isStratOpsFeatureEnabled("header.regionSelector")) {
-            initRegionSelector(viewer);
-        }
+                // Complete the video dissolve before showing the operational loader.
+                await window.__warzoneBeginStartupBackgroundExit?.();
+                document.body.classList.add("is-operational-booting", "is-dashboard-booting");
+                window.__wzKeepSiteLoaderVisible = true;
+                window.__wzKeepSiteLoaderVisibleUntil = Date.now() + 45000;
+                window.SiteLoader?.start?.();
+                await nextFrame();
+                await nextFrame();
 
-        if (isStratOpsFeatureEnabled("system.intro")) {
-            initStratopsIntro();
-        } else if (pendingRegionModal) {
-            const { instant } = pendingRegionModal;
-            pendingRegionModal = null;
-            window.__warzoneShowRegionModal?.(instant);
-        }
+                const [
+                    globeModule,
+                    uiModule,
+                    aoiModule,
+                    captureModule,
+                    realtimeModule,
+                ] = await Promise.all([
+                    import("./warzone-globe.js"),
+                    import("./warzone-ui.js"),
+                    import("./warzone-aoi-lens.js"),
+                    import("./warzone-capture-shot.js"),
+                    import("./warzone-realtime.js"),
+                ]);
 
-        window.__warzoneStartDeferredApp = async () => {
-            if (started) return;
-            started = true;
-            try {
-                if (startupMilSatsModulePromise) {
-                    const startupMilSatsModule = await loadStartupMilSatsModule();
-                    startupMilSatsModule?.setWarzoneStartupMilSatsDemoEnabled?.(false);
-                }
-                viewer?.__warzone?.stopStartupRotation?.();
-                viewer?.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
-                viewer?.__warzone?.setPerformanceMode?.(0);
+                const selectedRegion = getActiveRegion();
+                const viewer = await globeModule.initWarzoneGlobe({
+                    startStartupRotation: false,
+                    initialCamera: getStartupRegionJourneyCamera(selectedRegion),
+                });
+                if (!viewer) throw new Error("Cesium viewer initialization failed");
+                window.__warzoneViewer = viewer;
+                viewer.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
+                viewer.__warzone?.setPerformanceMode?.(0);
+                // Begin scene readiness immediately so tile and imagery work overlaps
+                // application/data initialization instead of extending the black loader.
+                const operationalSceneReadyPromise = waitForOperationalScene(viewer);
+
+                initRegionSelector(viewer, { applyLandingCamera: false });
+                prepareStartupRegionJourney(viewer, selectedRegion);
+                uiModule.bindWarzoneUi();
+
+                applySavedCountryBorderLayerVisibility(viewer, { animate: true, duration: 780 });
+
                 if (isStratOpsFeatureEnabled("system.aoiLens") && isStratOpsFeatureEnabled("dock.aoiScan")) {
-                    initWarzoneAoiLens(viewer);
+                    aoiModule.initWarzoneAoiLens(viewer);
                 }
                 if (isStratOpsFeatureEnabled("system.captureShot") && isStratOpsFeatureEnabled("header.captureShot")) {
-                    initWarzoneCaptureShot(viewer);
+                    captureModule.initWarzoneCaptureShot(viewer);
                 }
                 await initWarzoneApp();
 
@@ -333,29 +367,66 @@ document.addEventListener("DOMContentLoaded", async () => {
                     window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
                 }
 
-                await warmupInitialTheater(viewer, { showLoader: false });
+                const theaterWarmupPromise = warmupInitialTheater(viewer, { showLoader: false });
 
                 if (isStratOpsFeatureEnabled("system.realtimeEvents")) {
-                    await subscribeToLiveEvents();
+                    void realtimeModule.subscribeToLiveEvents().catch((error) => {
+                        console.warn("Realtime events subscription failed:", error);
+                    });
                 }
                 if (isStratOpsFeatureEnabled("system.eventPolling")) {
                     startEventPollingFallback();
                 }
                 if (isStratOpsFeatureEnabled("alerts.sirenBroadcasts")) {
-                    subscribeToSirenBroadcast();
+                    realtimeModule.subscribeToSirenBroadcast();
                 }
                 if (isStratOpsFeatureEnabled("system.audio")) {
                     initAudio();
                 }
 
-                window.__warzoneEnterApp?.();
+                await Promise.all([operationalSceneReadyPromise, theaterWarmupPromise]);
+                await window.__warzoneReleaseStartupBackground?.();
+                window.__warzonePrepareDashboardIntro?.();
+                const introFlightPromise = selectedRegion
+                    ? playStartupRegionJourney(viewer, selectedRegion)
+                    : Promise.resolve(false);
+                await waitForStartupRegionJourneyStart();
+                await wait(280);
+                window.__wzKeepSiteLoaderVisible = false;
+                window.__wzKeepSiteLoaderVisibleUntil = 0;
+                await nextFrame();
+                const loaderFadePromise = window.SiteLoader?.fadeIntoApp?.() || Promise.resolve();
+                await Promise.all([introFlightPromise, loaderFadePromise]);
+                await window.__warzoneRevealDashboard?.();
 
-                // After app is fully running: globe rotation, delayed popups, nav button
+                // Existing operational post-entry systems continue from the READY boundary.
                 schedulePostEntryActions(viewer);
-            } catch (error) {
+                return viewer;
+            })().catch((error) => {
+                window.__wzKeepSiteLoaderVisible = false;
+                window.__wzKeepSiteLoaderVisibleUntil = 0;
+                window.SiteLoader?.forceHide?.();
+                window.__warzoneCancelDashboardIntro?.();
+                window.__warzoneRestoreStartupBackground?.();
                 console.error("Deferred app init failed:", error);
-            }
+                throw error;
+            });
+            return operationalBootPromise;
         };
+
+        await new Promise((resolve) => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(resolve);
+            });
+        });
+
+        window.SiteLoader?.forceHide?.();
+
+        if (isStratOpsFeatureEnabled("system.intro")) {
+            initStratopsIntro();
+        } else {
+            window.__warzoneShowRegionModal?.();
+        }
 
     } catch (error) {
         console.error("App init failed:", error);

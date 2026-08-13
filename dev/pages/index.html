@@ -52,7 +52,7 @@
     gtag('config', 'G-TVLJ0T513S');
     </script>
 </head>
-<body class="home__page show-loader">
+<body class="home__page show-loader is-pre-entry">
     <noscript>
         <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-K794QCNB"
                 height="0"
@@ -66,6 +66,12 @@
             StratOps, powered by BattlespaceX, real-time multi-domain OSINT battlespace intelligence platform
         </h1>
         <div id="warzone-app" class="warzone-app" data-api-base="/api">
+            <div id="wz-startup-background" class="wz-startup-background" aria-hidden="true">
+                <video id="wz-startup-video" class="wz-startup-background__video" autoplay muted loop playsinline
+                    preload="auto" tabindex="-1">
+                    <source src="/assets/videos/stratops-startup-v1.mp4" type="video/mp4" />
+                </video>
+            </div>
             <%= partials("pre-entry-showcase") %>
             <%= partials("popups") %>
             <%= partials("site-loader") %>

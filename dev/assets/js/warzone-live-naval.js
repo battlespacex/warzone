@@ -3105,6 +3105,19 @@ export function getAllNavalSnapshots() {
             return nameA.localeCompare(nameB);
         });
 }
+
+export function setNavalLayerVisible(visible = true) {
+    const show = visible === true;
+    __navalState.vessels.forEach((entry) => {
+        if (entry?.entity) entry.entity.show = show;
+    });
+    if (!show) {
+        hideNavalHoverGuide();
+        if (__navalState.overlayRoot) __navalState.overlayRoot.style.display = "none";
+        __navalState.overlayLastVisible = false;
+    }
+    requestNavalRenderBatched();
+}
 export function refreshNavalVisualStyles() {
     __navalState.vessels.forEach((entry) => {
         if (entry?.entity && entry?.data) {
