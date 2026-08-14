@@ -166,7 +166,16 @@ function createAssetFocusController() {
     };
     const controller = {
         FOCUS_STATES,
+        canEnterFocus(options = {}) {
+            if (state.state === FOCUS_STATES.INACTIVE) return true;
+            return (
+                state.state === FOCUS_STATES.ACTIVE &&
+                state.assetType === String(options.assetType || "asset") &&
+                state.assetId === String(options.assetId || "")
+            );
+        },
         enterFocus(options = {}) {
+            if (!controller.canEnterFocus(options)) return false;
             abortActive("enter-focus");
             runCleanups();
             state.generation += 1;
@@ -194,8 +203,8 @@ function createAssetFocusController() {
             state.state = FOCUS_STATES.UNAVAILABLE;
             abortActive(reason);
             cancelRaf();
-            resetWarzoneCameraReference();
             publish();
+            controller.exitFocus(reason);
         },
         suspend(reason = "visibility") {
             if (state.state !== FOCUS_STATES.ACTIVE) return false;
@@ -267,7 +276,7 @@ function createAssetFocusController() {
             return Number(generation) === state.generation;
         },
         isActiveAsset(assetId, assetType = "") {
-            return state.state === FOCUS_STATES.ACTIVE
+            return state.state !== FOCUS_STATES.INACTIVE
                 && String(assetId || "") === state.assetId
                 && (!assetType || String(assetType) === state.assetType);
         },
@@ -288,4 +297,3 @@ export function getAssetFocusController() {
     if (!__assetFocusController) __assetFocusController = createAssetFocusController();
     return __assetFocusController;
 }
-

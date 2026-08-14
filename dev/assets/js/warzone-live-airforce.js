@@ -7110,22 +7110,7 @@ export function clearLiveTrack(trackKey) {
         __liveTrackReplayState.selectedTrackKey === trackKey &&
         __liveTrackReplayState.mode === "focus";
     if (selectedFocus) {
-        const focusedEntity = viewer?.entities?.getById?.(entityId);
-        if (existingRegistryEntry) {
-            existingRegistryEntry.active = false;
-            existingRegistryEntry.ended_at = Date.now();
-            existingRegistryEntry.path_history = pruneHistoryPoints(existingRegistryEntry.path_history || []);
-        }
-        if (focusedEntity) {
-            if (focusedEntity.__liveTrackAnimFrame) {
-                cancelAnimationFrame(focusedEntity.__liveTrackAnimFrame);
-                focusedEntity.__liveTrackAnimFrame = null;
-            }
-            focusedEntity.__liveTrackMotionState = null;
-        }
-        dispatchLiveTrackRegistryUpdate();
-        requestWarzoneRenderBatched();
-        return;
+        clearLiveTrackSelection({ animate: false });
     }
     if (viewer) {
         const entity = viewer.entities.getById(entityId);
@@ -7359,6 +7344,8 @@ export function focusLiveTrack(trackKey, options = {}) {
     const viewer = window.__warzoneViewer;
 
     if (!viewer || !trackKey) return false;
+    const focusController = getAssetFocusController();
+    if (!focusController.canEnterFocus({ assetType: "aircraft", assetId: trackKey })) return false;
     clearReplayEntities();
     const entity = viewer.entities.getById(`track-${trackKey}`);
     const targetPosition = getPositionCartesian(entity);
@@ -7423,11 +7410,11 @@ export function focusLiveTrack(trackKey, options = {}) {
             LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG
         );
     }
-    getAssetFocusController().enterFocus({
+    if (!focusController.enterFocus({
         assetType: "aircraft",
         assetId: trackKey,
         mode: "track",
-    });
+    })) return false;
     setSelectedTrack(trackKey, "focus");
     syncFocusedRouteEntity(trackKey);
     viewer.__warzone?.setGreyedSatelliteVisible?.(false);

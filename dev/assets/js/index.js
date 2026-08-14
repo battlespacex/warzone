@@ -11,7 +11,7 @@ import {
     initStratopsIntro, initStratopsAuth, schedulePostEntryActions
 } from "./essential.js";
 import {
-    applySavedCountryBorderLayerVisibility,
+    applyCountryBorderLayerVisibility,
     getActiveRegion,
     getStartupRegionJourneyCamera,
     initRegionSelector,
@@ -290,6 +290,18 @@ async function waitForOperationalScene(viewer) {
     ]);
 }
 
+async function fadeOperationalEntryIntoApp() {
+    document.body.classList.add("is-entry-exiting");
+    try {
+        await Promise.all([
+            window.SiteLoader?.fadeIntoApp?.() || Promise.resolve(),
+            window.__warzoneReleaseStartupBackground?.() || Promise.resolve(),
+        ]);
+    } finally {
+        document.body.classList.remove("is-entry-exiting");
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         initStartupBackground();
@@ -352,9 +364,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 initRegionSelector(viewer, { applyLandingCamera: false });
                 prepareStartupRegionJourney(viewer, selectedRegion);
+                // Keep the initialized globe alive behind the entry video and loader.
+                // The finite region journey stops this existing post-render rotation
+                // before it takes ownership of the camera.
+                viewer.__warzone?.startStartupRotation?.();
                 uiModule.bindWarzoneUi();
 
-                applySavedCountryBorderLayerVisibility(viewer, { animate: true, duration: 780 });
+                applyCountryBorderLayerVisibility(viewer, { animate: true, duration: 780 });
 
                 if (isStratOpsFeatureEnabled("system.aoiLens") && isStratOpsFeatureEnabled("dock.aoiScan")) {
                     aoiModule.initWarzoneAoiLens(viewer);
@@ -402,12 +418,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 window.__wzKeepSiteLoaderVisible = false;
                 window.__wzKeepSiteLoaderVisibleUntil = 0;
                 await nextFrame();
-                const loaderFadePromise = window.SiteLoader?.fadeIntoApp?.() || Promise.resolve();
-                const startupBackgroundFadePromise = window.__warzoneReleaseStartupBackground?.() || Promise.resolve();
                 await Promise.all([
                     introFlightPromise,
-                    loaderFadePromise,
-                    startupBackgroundFadePromise,
+                    fadeOperationalEntryIntoApp(),
                 ]);
                 await window.__warzoneRevealDashboard?.();
 

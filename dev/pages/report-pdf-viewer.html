@@ -75,7 +75,16 @@
                     </div>
                 </div>
                 <div id="report-pdf-error" class="report-pdf-error" role="alert" hidden>
-                    The selected PDF report could not be loaded.
+                    <div class="report-pdf-error__panel">
+                        <p class="report-pdf-error__title">Report Unavailable</p>
+                        <p id="report-pdf-error-message" class="report-pdf-error__message">
+                            The requested report could not be loaded.
+                        </p>
+                        <div class="report-pdf-error__actions">
+                            <button id="report-pdf-retry" class="report-pdf-error__action" type="button">Retry</button>
+                            <a class="report-pdf-error__action" href="/warzone/">Return to Reports</a>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>

@@ -301,6 +301,55 @@ position: relative;
     object-fit: contain;
 }
 
+.report-pdf-error__panel {
+    width: min(100%, 36rem);
+    padding: 2.4rem;
+    border: 1px solid var(--report-pdf-thumbnail-active-border);
+    background: var(--report-pdf-toolbar-bg);
+}
+
+.report-pdf-error__title {
+    margin: 0;
+    color: var(--report-pdf-thumbnail-active-border);
+    font-size: 1.6rem;
+    letter-spacing: .14em;
+}
+
+.report-pdf-error__message {
+    margin: 1rem 0 0;
+    color: var(--color-white-slate);
+    font-weight: 400;
+    letter-spacing: .04em;
+    text-transform: none;
+}
+
+.report-pdf-error__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .8rem;
+    margin-top: 1.6rem;
+}
+
+.report-pdf-error__action {
+    min-width: 11rem;
+    padding: .75rem 1rem;
+    border: 1px solid var(--report-pdf-thumbnail-hover-border);
+    background: transparent;
+    color: var(--color-white-slate);
+    font: 600 1rem/1 var(--text-font);
+    letter-spacing: .08em;
+    text-decoration: none;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.report-pdf-error__action:hover,
+.report-pdf-error__action:focus-visible {
+    background: var(--report-pdf-thumbnail-hover-border);
+    color: var(--report-pdf-viewer-bg);
+}
+
 body.report-pdf-sidebar-closed .report-pdf-workspace {
     grid-template-columns: 0 minmax(0, 1fr);
 }

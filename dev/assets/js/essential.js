@@ -61,6 +61,7 @@ import {
     isStratOpsFeatureEnabled,
 } from "./stratops-feature-config.js";
 import { initPreEntryShowcase } from "./pre-entry-showcase.js";
+import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 let __warzoneMilSatsModulePromise = null;
 let __warzoneMilSatsInitialized = false;
 function loadWarzoneMilSatsModule() {
@@ -107,6 +108,7 @@ let __gnssInterferenceLoadingPromise = null;
 let __gnssInterferenceLastLoadedAt = 0;
 let __statusEventsLastLoadedAt = 0;
 let __alertAudio = null;
+let __assetFocusUiSignature = "";
 let __scrollClassBound = false;
 let __scrollToTargetBound = false;
 let __lastSeenOccurredAt = null;
@@ -7490,8 +7492,10 @@ function updateAircraftWidgetCard(card, track, selection) {
     const affiliationLabel = getAircraftWidgetForceLabel(track);
     const title = getAircraftDisplayTitle(track);
     const isSelected = selection.track_key === track.track_key;
-    const isAircraftFocusLocked = Boolean(selection.track_key && selection.mode === "focus");
-    const isFocusDisabled = isAircraftFocusLocked && !isSelected;
+    const isFocusDisabled = track.active && !getAssetFocusController().canEnterFocus({
+        assetType: "aircraft",
+        assetId: track.track_key,
+    });
     const statusLabel = getAircraftWidgetStatusLabel(track);
     const timeLabel = getAircraftWidgetTimeLabel(track);
     const actionLabel = getAircraftWidgetActionLabel(track, selection);
@@ -7837,6 +7841,14 @@ function bindAircraftMovementsWidget() {
         if (isAircraftFocusModeActive()) {
             window.__warzoneViewer?.__warzone?.clearAlertHighlight?.();
         }
+        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender(0);
+        if (navalWidgetEnabled) requestNavalWidgetRender(0);
+    });
+    document.addEventListener("wz:asset-focus-changed", (event) => {
+        const detail = event?.detail || {};
+        const signature = `${detail.state || ""}:${detail.assetType || ""}:${detail.assetId || ""}`;
+        if (signature === __assetFocusUiSignature) return;
+        __assetFocusUiSignature = signature;
         if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender(0);
         if (navalWidgetEnabled) requestNavalWidgetRender(0);
     });

@@ -278,6 +278,24 @@ function sendPage(res, name, status = 200) {
     return res.status(status).sendFile(path.join(ROOT, "pages", `${name}.html`));
 }
 
+function shouldRenderVisualNotFound(req) {
+    const accept = String(req.get("accept") || "");
+    const requestedPath = String(req.path || "");
+    return /\btext\/html\b/i.test(accept) &&
+        !path.posix.extname(requestedPath) &&
+        !requestedPath.startsWith("/api/") &&
+        !requestedPath.startsWith("/generated-reports/") &&
+        !requestedPath.startsWith(`${BASE}/generated-reports/`);
+}
+
+function sendTypedNotFound(req, res) {
+    const accept = String(req.get("accept") || "");
+    if (/\bapplication\/json\b/i.test(accept) || String(req.path || "").startsWith("/api")) {
+        return res.status(404).json({ error: "Not Found" });
+    }
+    return res.status(404).type("text/plain").send("Not Found");
+}
+
 app.get(`${BASE}/`, (req, res) => sendPage(res, "index"));
 app.get(["/report-capture", `${BASE}/report-capture`], (_req, res) => {
     res.set("Cache-Control", "no-store, max-age=0");
@@ -286,7 +304,9 @@ app.get(["/report-capture", `${BASE}/report-capture`], (_req, res) => {
 app.get("/reports/:slug", (req, res) => sendPage(res, "report"));
 app.get(`${BASE}/reports/:slug`, (req, res) => sendPage(res, "report"));
 app.get(`${BASE}/404`, (req, res) => sendPage(res, "404", 404));
-app.use((req, res) => sendPage(res, "404", 404));
+app.use((req, res) => shouldRenderVisualNotFound(req)
+    ? sendPage(res, "404", 404)
+    : sendTypedNotFound(req, res));
 
 app.listen(PORT, () => {
     console.log(`Warzone server running at http://localhost:${PORT}${BASE}/`);

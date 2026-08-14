@@ -8,7 +8,7 @@
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
-import { getLiveTrackSelection, showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
+import { showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
 import { startLiveAssetHoverPulse, stopLiveAssetHoverPulse } from "./warzone-live-asset-hover-pulse.js";
 import {
     registerAnimationTask,
@@ -1242,9 +1242,11 @@ function getCssText(varName, fallback = "") {
     const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return value || fallback;
 }
-function isAircraftFocusLockActive() {
-    const selection = getLiveTrackSelection?.();
-    return Boolean(selection?.track_key && selection?.mode === "focus");
+function isNavalFocusBlocked(trackKey = "") {
+    return !getAssetFocusController().canEnterFocus({
+        assetType: "naval",
+        assetId: trackKey,
+    });
 }
 function isFocusedNavalVessel(vessel = {}) {
     return Boolean(
@@ -2459,7 +2461,8 @@ function checkNavalFocusRangeWarning() {
     }
 }
 export function focusNavalVessel(trackKey, options = {}) {
-    if (isAircraftFocusLockActive()) return false;
+    const focusController = getAssetFocusController();
+    if (!focusController.canEnterFocus({ assetType: "naval", assetId: trackKey })) return false;
     const viewer = window.__warzoneViewer;
     const entry = __navalState.vessels.get(trackKey);
     if (!viewer || !entry?.entity || !trackKey) return false;
@@ -2485,11 +2488,11 @@ export function focusNavalVessel(trackKey, options = {}) {
             getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
             Number(options.cameraHeight || 0)
         ), { immediate: true });
-    getAssetFocusController().enterFocus({
+    if (!focusController.enterFocus({
         assetType: "naval",
         assetId: trackKey,
         mode: "track",
-    });
+    })) return false;
     syncNavalContourCenter(trackKey);
     applyNavalVisual(entry.entity, entry.data);
     __navalState.isCameraFlying = true;
@@ -3112,6 +3115,7 @@ export function setNavalLayerVisible(visible = true) {
         if (entry?.entity) entry.entity.show = show;
     });
     if (!show) {
+        if (__navalState.selectedKey) clearNavalSelection();
         hideNavalHoverGuide();
         if (__navalState.overlayRoot) __navalState.overlayRoot.style.display = "none";
         __navalState.overlayLastVisible = false;
@@ -3180,7 +3184,7 @@ function ensureNavalWidgetEmptyState(container, hasItems, emptyMessage) {
     empty.textContent = emptyMessage;
     container.appendChild(empty);
 }
-function updateNavalWidgetCard(card, vessel, selectedKey = "", aircraftFocusLocked = false) {
+function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     if (!card || !vessel) return;
     const name = getNavalDisplayName(vessel);
     const detailLabel = String(getNavalWidgetDetailLabel(vessel) || "Naval").toUpperCase();
@@ -3190,7 +3194,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "", aircraftFocusLock
     const coordLabel = getNavalCoordinatesLabel(vessel);
     const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
     const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
-    const isFocusDisabled = aircraftFocusLocked;
+    const isFocusDisabled = isNavalFocusBlocked(vessel.track_key);
     card.className = `wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
     card.style.cursor = isFocusDisabled ? "default" : "pointer";
@@ -3330,7 +3334,6 @@ export function renderNavalTrackerWidget(options = {}) {
     }
 
     const selectedKey = String(__navalState.selectedKey || "");
-    const aircraftFocusLocked = isAircraftFocusLockActive();
     const visibleVessels = safeVessels.slice(0, visibleCount);
     if (selectedKey) {
         const visibleSelectedIndex = visibleVessels.findIndex(
@@ -3367,8 +3370,8 @@ export function renderNavalTrackerWidget(options = {}) {
         if (!card) {
             card = document.createElement("article");
             card.addEventListener("click", () => {
-                if (isAircraftFocusLockActive()) return;
                 const trackKey = String(card.dataset.trackKey || "");
+                if (isNavalFocusBlocked(trackKey)) return;
                 if (__navalState.selectedKey && String(__navalState.selectedKey) === trackKey) {
                     clearNavalSelection();
                 } else {
@@ -3376,7 +3379,7 @@ export function renderNavalTrackerWidget(options = {}) {
                 }
             });
         }
-        updateNavalWidgetCard(card, vessel, selectedKey, aircraftFocusLocked);
+        updateNavalWidgetCard(card, vessel, selectedKey);
         cardsInOrder.push(card);
     });
     let previousCard = null;

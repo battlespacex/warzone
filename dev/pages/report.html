@@ -340,6 +340,14 @@
             return "/api/stratops/reports/" + encodeURIComponent(id) + "/download?token=" + encodeURIComponent(token);
         }
 
+        function viewerUrl(report, pdfUrl) {
+            var viewer = new URL("/pages/report-pdf-viewer.html", window.location.origin);
+            viewer.searchParams.set("file", pdfUrl);
+            viewer.searchParams.set("download", pdfUrl);
+            viewer.searchParams.set("filename", reportTitle(report) + ".pdf");
+            return viewer.href;
+        }
+
         function render(report) {
             var pdfUrl = downloadUrl(report);
             if (!pdfUrl) {
@@ -359,7 +367,7 @@
                 download.removeAttribute("aria-disabled");
             }
             if (frame) {
-                frame.src = pdfUrl;
+                frame.src = viewerUrl(report, pdfUrl);
                 frame.hidden = false;
             }
             setStatus("", "", false);

@@ -88,6 +88,42 @@ test("PDF.js report viewer uses centralized StratOps surfaces and stable thumbna
   assert.match(webpack, /pdf\.worker\.min\.mjs/);
 });
 
+test("PDF failures stay inside the local report viewer", async () => {
+  const source = await readSource("../../../dev/assets/js/report-pdf-viewer.js");
+  const viewerHtml = await readSource("../../../dev/pages/report-pdf-viewer.html");
+  const publicReport = await readSource("../../../dev/pages/report.html");
+
+  assert.match(source, /response\.ok/);
+  assert.match(source, /response\.headers\.get\("content-type"\)/);
+  assert.match(source, /application\\\/pdf/);
+  assert.match(source, /String\.fromCharCode\(\.\.\.bytes\.slice\(0, 5\)\) !== "%PDF-"/);
+  assert.match(source, /getDocument\(\{ data: bytes \}\)/);
+  assert.match(source, /catch \(error\)[\s\S]*?showLoadError\(\)/);
+  assert.match(viewerHtml, /Report Unavailable/i);
+  assert.match(viewerHtml, /id="report-pdf-retry"/);
+  assert.match(viewerHtml, /Return to Reports/i);
+  assert.match(publicReport, /new URL\("\/pages\/report-pdf-viewer\.html", window\.location\.origin\)/);
+  assert.match(publicReport, /frame\.src = viewerUrl\(report, pdfUrl\)/);
+  assert.doesNotMatch(publicReport, /frame\.src = pdfUrl/);
+});
+
+test("404 rendering is standalone and non-HTML misses do not receive the visual page", async () => {
+  const notFound = await readSource("../../../dev/pages/404.html");
+  const webpack = await readSource("../../../webpack.config.js");
+  const server = await readSource("../../../server.js");
+
+  assert.match(notFound, /404 NOT FOUND/);
+  assert.match(notFound, /The page you requested does not exist\./);
+  assert.match(notFound, /href="\/warzone\/"[^>]*>Return Home</);
+  assert.doesNotMatch(notFound, /partials\(|body-bg|hero-banner|other-pages/);
+  assert.doesNotMatch(notFound, /<script[^>]+src=/);
+  assert.match(webpack, /inject:\s*\["report", "404"\]\.includes\(name\) \? false : "head"/);
+  assert.match(webpack, /chunks:\s*\["report", "404"\]\.includes\(name\)[\s\S]*?\? \[\]/);
+  assert.match(server, /function shouldRenderVisualNotFound\(req\)/);
+  assert.match(server, /function sendTypedNotFound\(req, res\)/);
+  assert.match(server, /path\.posix\.extname\(requestedPath\)/);
+});
+
 test("report popup keeps desktop app chrome visible and uses the configured contained viewer", async () => {
   const components = await readSource("../../../dev/assets/css/warzone-components.css");
   const reportCss = await readSource("../../../dev/reports/template/reports.css");

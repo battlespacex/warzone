@@ -1,4 +1,4 @@
-const STARTUP_BACKGROUND_EXIT_FALLBACK_MS = 1700;
+const STARTUP_BACKGROUND_EXIT_FALLBACK_MS = 1200;
 
 function parseCssTimeMs(value = "") {
     const normalized = String(value || "").trim().toLowerCase();
@@ -38,6 +38,7 @@ function releaseVideoResources(layer, video) {
         try { video.load?.(); } catch { }
     }
     layer?.remove();
+    document.body.classList.remove("is-pre-entry");
     document.body.classList.add("is-startup-background-released");
 }
 
@@ -85,7 +86,6 @@ export function initStartupBackground() {
         exitState = state;
         layer.addEventListener("transitionend", state.onTransitionEnd);
         layer.classList.add("is-leaving");
-        document.body.classList.remove("is-pre-entry");
         return state.promise;
     };
 
@@ -100,6 +100,7 @@ export function initStartupBackground() {
         exitState = null;
         releasePromise = null;
         layer.classList.remove("is-leaving");
+        document.body.classList.remove("is-entry-exiting");
         document.body.classList.add("is-pre-entry");
         const retryPlay = video.play?.();
         retryPlay?.catch?.(markUnavailable);

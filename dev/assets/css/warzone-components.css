@@ -1894,7 +1894,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 1rem;
-    min-height: 6.3rem;
+    min-height: 6.5rem;
     padding: 1rem;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
@@ -1912,7 +1912,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: .75rem;
+    gap: 1rem;
 }
 
 .wz-orbital-region-row__head strong {
@@ -1932,11 +1932,11 @@
 .wz-orbital-region-row__copy p {
     margin: .5rem 0 0;
     color: var(--color-text-dim);
-    font-size: var(--text-xs);
     line-height: 1.35;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    letter-spacing: .1rem;
 }
 
 .wz-orbital-regions__empty {
@@ -1963,6 +1963,29 @@
 .wz-orbital-widget__summary[hidden],
 .wz-orbital-widget__details[hidden] {
     display: none !important;
+}
+
+.wz-orbital-widget__details {
+    position: relative;
+    z-index: 2;
+    margin: .5rem 0 1.5rem;
+}
+
+.wz-orbital-widget__details.is-focus-arriving {
+    animation: wz-orbital-focus-arrive 900ms cubic-bezier(.22, 1, .36, 1);
+}
+
+@keyframes wz-orbital-focus-arrive {
+    0% {
+        filter: brightness(1.7);
+        box-shadow: 0 0 0 .2rem var(--color-teal-glow), 0 0 2.8rem rgba(32, 214, 214, .55);
+        transform: translateY(-.5rem);
+    }
+    100% {
+        filter: brightness(1);
+        box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, .28);
+        transform: translateY(0);
+    }
 }
 
 .wz-orbital-widget__summary-head {
@@ -2043,6 +2066,12 @@
 .wz-orbital-widget__details-close {
     min-width: 6rem;
     height: 2.4rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wz-orbital-widget__details.is-focus-arriving {
+        animation: none;
+    }
 }
 
 @media (max-width: 820px) {
@@ -2454,13 +2483,15 @@ body.is-map-layers-open .wz-map-layers-pane {
     align-items: center;
     justify-content: center;
     min-height: 1.8rem;
-    padding: .5rem .5rem .2rem;
+    padding: .7rem 1rem .4rem;
     color: var(--color-teal-glow);
     font-size: var(--text-xs);
     letter-spacing: 0.08em;
     font-family: var(--text-font);
     text-transform: uppercase;
     background: var(--color-teal-hover);
+    margin-bottom: .5rem;
+    clip-path: var(--clippath-2);
 }
 
 .wz-layer-toggle {
@@ -2747,8 +2778,8 @@ body.is-map-layers-open .wz-map-layers-pane {
     background: var(--color-black);
     opacity: 1;
     pointer-events: none;
-    transition: opacity var(--stratops-startup-video-exit-duration, 1400ms) ease
-        var(--stratops-startup-video-exit-delay, 300ms);
+    transition: opacity var(--stratops-startup-video-exit-duration, 1000ms) ease
+        var(--stratops-startup-video-exit-delay, 0ms);
 }
 
 .wz-startup-background.is-leaving {
@@ -2773,8 +2804,8 @@ body.is-operational-booting .site-loader {
     z-index: 150;
     background: rgba(3, 7, 13, 0.2);
     backdrop-filter: none;
-    transition: opacity var(--stratops-loader-exit-duration, 800ms) cubic-bezier(0.4, 0, 0.2, 1),
-        visibility 0s linear var(--stratops-loader-exit-duration, 800ms);
+    transition: opacity var(--stratops-loader-exit-duration, 1000ms) cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0s linear var(--stratops-loader-exit-duration, 1000ms);
 }
 
 body.is-operational-booting.show-loader .site-loader {
@@ -3022,7 +3053,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 .wz-pre-entry-showcase__item h3 {
-    margin: 0 0 .7rem;
+    margin: 0 0 .5rem;
     color: var(--color-text-heading);
     font-family: var(--heading-font);
     font-size: var(--text-md);
@@ -3097,7 +3128,6 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 @media (prefers-reduced-motion: reduce) {
 
-    .wz-startup-background,
     .wz-pre-entry-showcase,
     .wz-pre-entry-showcase__panel,
     body.is-dashboard-booting .warzone-brand,

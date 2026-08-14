@@ -1,6 +1,7 @@
 ﻿// File Path: /assets/js/warzone-region-selector.js
 import * as Cesium from "cesium";
 import { getTheaterDefinitions } from "./warzone-theaters.js";
+import { isLayerEnabled } from "./warzone-layers.js";
 
 const REGION_MODAL_EXIT_MS = 1000;
 const REGIONS = [
@@ -34,8 +35,6 @@ const STORAGE_KEY = "wz_selected_region";
 const LENS_KEY = "wz_selected_lens";
 const VISITED_KEY = "wz_region_visited";
 const INTRO_ACCEPT_KEY = "wz_intro_accepted";
-const LAYER_STATE_KEY = "wz_layer_state";
-const BORDER_LAYER_ID = "country-borders";
 const LANDING_CAMERA = { lon: 40, lat: 22, alt: 5800000, heading: 0, pitch: -90, roll: 0 };
 const REGION_COUNTRIES_URL = "/assets/data/ne_110m_admin_0_countries.geojson";
 const REGION_EXPLICIT_ISO2 = {
@@ -294,20 +293,9 @@ function setLandingCamera(viewer) {
     });
     viewer.scene?.requestRender?.();
 }
-function getSavedCountryBorderLayerVisibility() {
-    try {
-        const saved = JSON.parse(localStorage.getItem(LAYER_STATE_KEY) || "{}");
-        if (Object.prototype.hasOwnProperty.call(saved, BORDER_LAYER_ID)) {
-            return saved[BORDER_LAYER_ID] !== false;
-        }
-    } catch {
-        // keep defaults
-    }
-    return true;
-}
-export function applySavedCountryBorderLayerVisibility(viewer, options = {}) {
+export function applyCountryBorderLayerVisibility(viewer, options = {}) {
     return viewer?.__warzone?.setBorderLayersVisible?.(
-        getSavedCountryBorderLayerVisibility(),
+        isLayerEnabled("country-borders"),
         options
     );
 }

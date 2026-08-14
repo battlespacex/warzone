@@ -13,9 +13,11 @@ import {
     resolveSatelliteModelProfile,
 } from "./warzone-satellite-models.js";
 import { REGIONS, getActiveRegion, requestRegionSwitch } from "./warzone-region-selector.js";
+import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 
 const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
 const EARTH_RADIUS_M = 6371008.8;
+const SCENE_MORPH_WAIT_TIMEOUT_MS = 6000;
 const DEFAULT_CONFIG = Object.freeze({
     enabled: true,
     apiPath: DEFAULT_API_PATH,
@@ -107,6 +109,9 @@ const state = {
     focusCard: null,
     controls: null,
     focusEntities: [],
+    focusOwnerSignature: "",
+    focusPendingId: "",
+    focusRequestToken: 0,
     filters: {
         association: "all",
         country: "all",
@@ -580,15 +585,21 @@ function renderSatelliteRegionList() {
         if (group.region && group.records.length) {
             const action = document.createElement("button");
             const isCurrent = group.region.id === activeRegionId;
+            const primaryRecord = group.records[0]?.record;
+            const focusBlocked = Boolean(state.focusPendingId) || !primaryRecord || !getAssetFocusController().canEnterFocus({
+                assetType: "satellite",
+                assetId: primaryRecord.id,
+            });
             action.type = "button";
             action.className = isCurrent ? "btn-secondary white wz-orbital-region-row__action" : "btn-primary wz-orbital-region-row__action";
             action.innerHTML = `<span aria-hidden="true"></span>${isCurrent ? "View" : "Switch Region"}`;
             action.setAttribute("aria-label", isCurrent
                 ? `View a satellite currently over ${group.label}`
                 : `Switch monitoring region to ${group.label} to view satellites`);
+            action.disabled = focusBlocked;
+            action.setAttribute("aria-disabled", focusBlocked ? "true" : "false");
             action.addEventListener("click", () => {
-                const primaryRecord = group.records[0]?.record;
-                if (!primaryRecord) return;
+                if (!primaryRecord || focusBlocked) return;
                 if (isCurrent) {
                     selectSatellite(primaryRecord.id);
                     return;
@@ -881,6 +892,7 @@ function showFocusCard(record) {
     const card = ensureFocusCard();
     if (!card) return;
     const point = propagateRecord(record, new Date());
+    const monitoringRegion = resolveSatelliteMonitoringRegion(point);
     const classification = record.classification || {};
     const title = card.querySelector(".wz-orbital-widget__details-title");
     const kicker = card.querySelector(".wz-orbital-widget__details-kicker");
@@ -890,7 +902,7 @@ function showFocusCard(record) {
         title.textContent = formatUpper(record.name || record.objectName || record.noradId);
     }
     if (kicker) {
-        kicker.textContent = "PUBLIC ORBITAL ESTIMATE";
+        kicker.textContent = "FOCUSED ASSET / PUBLIC ORBITAL ESTIMATE";
     }
     if (grid) {
         const items = [
@@ -904,6 +916,10 @@ function showFocusCard(record) {
             ["INTL DESIGNATOR", record.internationalDesignator || "Unknown"],
             ["ORBIT", record.orbitClass || "Other / unclassified orbit"],
             ["ALTITUDE", point ? `${formatNumber(point.altitudeKm, 0)} KM` : "Unknown"],
+            ["PERIOD", Number.isFinite(Number(record.orbital?.periodMinutes))
+                ? `${formatNumber(record.orbital.periodMinutes, 1)} MIN`
+                : "Unknown"],
+            ["REGION", monitoringRegion?.label || "Outside defined regions"],
             ["SPEED", point?.speedKmS ? `${formatNumber(point.speedKmS, 2)} KM/S` : "Unknown"],
             ["INCLINATION", `${formatNumber(record.orbital?.inclinationDeg, 1)} DEG`],
             ["ELEMENT EPOCH", record.orbital?.epoch || "Unknown"],
@@ -924,6 +940,21 @@ function showFocusCard(record) {
     }
     showOrbitalWidget({ expand: true });
     card.hidden = false;
+    card.classList.remove("is-focus-arriving");
+    void card.offsetWidth;
+    card.classList.add("is-focus-arriving");
+
+    const panelContent = card.closest(".panel-content");
+    window.requestAnimationFrame(() => {
+        if (typeof panelContent?.scrollTo === "function") {
+            panelContent.scrollTo({
+                top: 0,
+                behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? "auto" : "smooth",
+            });
+        } else if (panelContent) {
+            panelContent.scrollTop = 0;
+        }
+    });
 }
 
 function entityForPick(picked) {
@@ -1055,6 +1086,9 @@ function updateDefaultEntities() {
 
 function updateVisibleRecords() {
     state.visibleRecords = chooseVisibleRecords(state.records);
+    if (state.selectedId && !getSatelliteRecord(state.selectedId)) {
+        selectSatellite("", { flyOut: false });
+    }
     updateDefaultEntities();
     updateControlsOptions();
 }
@@ -1149,16 +1183,17 @@ function ensureControls() {
                 <span class="wz-orbital-widget__details-kicker">PUBLIC ORBITAL ESTIMATE</span>
                 <h3 class="wz-orbital-widget__details-title">UNSPECIFIED ASSET</h3>
             </div>
-            <button type="button" class="btn-secondary white"><span aria-hidden="true"></span>Unlock</button>
+            <button type="button" class="btn-secondary white wz-orbital-widget__details-close"
+                aria-label="Unfocus satellite"><span aria-hidden="true"></span>Unfocus</button>
         </div>
         <div class="wz-orbital-widget__details-grid"></div>
         <p class="wz-orbital-widget__details-note"></p>
     `;
-    details.querySelector(".btn-secondary.white")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
+    details.querySelector(".wz-orbital-widget__details-close")?.addEventListener("click", () => selectSatellite("", { flyOut: true }));
 
+    controlsPanel.insertBefore(details, grid);
     controls.appendChild(controlsPanel);
     controls.appendChild(regions);
-    controls.appendChild(details);
     controls.appendChild(summary);
     panel.replaceChildren(controls);
     state.controls = controls;
@@ -1249,7 +1284,7 @@ function updateControlsOptions() {
     }
     if (summaryNote) {
         summaryNote.textContent = state.selectedId
-            ? "Selected asset details are shown below. Orbital positions are propagated estimates from public orbital elements."
+            ? "Focused asset details are shown above the filters. Orbital positions are propagated estimates from public orbital elements."
             : "Orbital positions are propagated estimates from public GP elements and are not direct sensor detections.";
     }
     renderSatelliteRegionList();
@@ -1443,12 +1478,122 @@ function addOrbitContext(record, now, selectedPosition) {
     }
 }
 
+function waitForCurrentSceneMorph(viewer, timeoutMs = SCENE_MORPH_WAIT_TIMEOUT_MS) {
+    if (viewer?.scene?.mode !== Cesium.SceneMode.MORPHING) {
+        return Promise.resolve(viewer?.scene?.mode);
+    }
+    return new Promise((resolve) => {
+        let settled = false;
+        let timer = 0;
+        let removeListener = null;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (timer) window.clearTimeout(timer);
+            if (typeof removeListener === "function") removeListener();
+            resolve(viewer?.scene?.mode);
+        };
+        removeListener = viewer.scene.morphComplete?.addEventListener?.(finish) || null;
+        timer = window.setTimeout(finish, timeoutMs);
+        viewer.scene.requestRender?.();
+    });
+}
+
+function request3DSceneModeAndWait(viewer, timeoutMs = SCENE_MORPH_WAIT_TIMEOUT_MS) {
+    const setSceneMode = viewer?.__warzone?.setSceneMode;
+    if (!viewer?.scene || typeof setSceneMode !== "function") return Promise.resolve(false);
+    return new Promise((resolve) => {
+        let settled = false;
+        let timer = 0;
+        let removeListener = null;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (timer) window.clearTimeout(timer);
+            if (typeof removeListener === "function") removeListener();
+            resolve(viewer.scene.mode === Cesium.SceneMode.SCENE3D);
+        };
+        removeListener = viewer.scene.morphComplete?.addEventListener?.(finish) || null;
+        timer = window.setTimeout(finish, timeoutMs);
+        try {
+            setSceneMode("3d", { source: "satellite-focus" });
+        } catch {
+            finish();
+            return;
+        }
+        if (viewer.scene.mode === Cesium.SceneMode.SCENE3D) finish();
+        viewer.scene.requestRender?.();
+    });
+}
+
+async function ensure3DModeBeforeSatelliteFocus(viewer) {
+    if (!viewer?.scene) return false;
+    if (viewer.scene.mode === Cesium.SceneMode.MORPHING) {
+        await waitForCurrentSceneMorph(viewer);
+    }
+    if (viewer.scene.mode === Cesium.SceneMode.SCENE3D) return true;
+    if (viewer.scene.mode === Cesium.SceneMode.MORPHING) return false;
+    return request3DSceneModeAndWait(viewer);
+}
+
 function selectSatellite(id = "", options = {}) {
     const selectedId = cleanText(id);
-    const viewer = state.viewer;
+    if (!selectedId) {
+        state.focusRequestToken += 1;
+        state.focusPendingId = "";
+        return commitSatelliteSelection("", options);
+    }
 
-    const previousRecord = state.selectedId
-        ? getSatelliteRecord(state.selectedId)
+    const focusController = getAssetFocusController();
+    if (state.focusPendingId || !focusController.canEnterFocus({
+        assetType: "satellite",
+        assetId: selectedId,
+    })) return false;
+
+    const viewer = state.viewer;
+    if (!viewer || !getSatelliteRecord(selectedId)) return false;
+    if (viewer.scene?.mode === Cesium.SceneMode.SCENE3D) {
+        return commitSatelliteSelection(selectedId, options);
+    }
+
+    const requestToken = state.focusRequestToken + 1;
+    state.focusRequestToken = requestToken;
+    state.focusPendingId = selectedId;
+    updateControlsOptions();
+
+    return ensure3DModeBeforeSatelliteFocus(viewer)
+        .then((ready) => {
+            if (
+                !ready ||
+                requestToken !== state.focusRequestToken ||
+                state.focusPendingId !== selectedId ||
+                !state.enabled ||
+                state.viewer !== viewer ||
+                !focusController.canEnterFocus({ assetType: "satellite", assetId: selectedId })
+            ) return false;
+            state.focusPendingId = "";
+            return commitSatelliteSelection(selectedId, options);
+        })
+        .finally(() => {
+            if (requestToken !== state.focusRequestToken) return;
+            state.focusPendingId = "";
+            updateControlsOptions();
+        });
+}
+
+function commitSatelliteSelection(id = "", options = {}) {
+    const selectedId = cleanText(id);
+    const viewer = state.viewer;
+    const focusController = getAssetFocusController();
+    const previousSelectedId = state.selectedId;
+
+    if (selectedId && !focusController.canEnterFocus({
+        assetType: "satellite",
+        assetId: selectedId,
+    })) return false;
+
+    const previousRecord = previousSelectedId
+        ? getSatelliteRecord(previousSelectedId)
         : null;
 
     // Release the previous tracked satellite before removing its entity.
@@ -1473,6 +1618,9 @@ function selectSatellite(id = "", options = {}) {
 
     // UNLOCK / UNFOCUS
     if (!selectedId) {
+        if (focusController.isActiveAsset(previousSelectedId, "satellite")) {
+            focusController.exitFocus("satellite-clear");
+        }
         hideFocusCard();
         updateControlsOptions();
 
@@ -1481,12 +1629,15 @@ function selectSatellite(id = "", options = {}) {
         }
 
         viewer?.scene?.requestRender?.();
-        return;
+        return true;
     }
 
     const record = getSatelliteRecord(selectedId);
 
-    if (!record || !viewer) return;
+    if (!record || !viewer) {
+        state.selectedId = "";
+        return false;
+    }
 
     const now = new Date();
 
@@ -1499,7 +1650,19 @@ function selectSatellite(id = "", options = {}) {
 
     const current = propagateRecord(record, now);
 
-    if (!position || !current) return;
+    if (!position || !current) {
+        state.selectedId = "";
+        if (focusController.isActiveAsset(selectedId, "satellite")) {
+            focusController.exitFocus("satellite-position-unavailable");
+        }
+        return false;
+    }
+
+    if (!focusController.enterFocus({
+        assetType: "satellite",
+        assetId: selectedId,
+        mode: "observation",
+    })) return false;
 
     const entry = state.entities.get(record.id);
 
@@ -1586,8 +1749,11 @@ function selectSatellite(id = "", options = {}) {
     updateControlsOptions();
 
     if (!selectedEntity) {
+        if (focusController.isActiveAsset(selectedId, "satellite")) {
+            focusController.exitFocus("satellite-entity-unavailable");
+        }
         viewer.scene.requestRender?.();
-        return;
+        return false;
     }
 
     // Smoothly approach the satellite in a slightly angled 3D view.
@@ -1620,6 +1786,7 @@ function selectSatellite(id = "", options = {}) {
 
         viewer.scene.requestRender?.();
     });
+    return true;
 }
 
 function stopTimers() {
@@ -1644,6 +1811,12 @@ function startTimers() {
 }
 
 function cleanupLayer() {
+    const focusController = getAssetFocusController();
+    if (focusController.isActiveAsset(state.selectedId, "satellite")) {
+        focusController.exitFocus("satellite-layer-disabled");
+    }
+    state.focusRequestToken += 1;
+    state.focusPendingId = "";
     stopTimers();
     destroyHandler();
     hideHoverGuide();
@@ -1672,6 +1845,14 @@ function handleVisibilityChange() {
     updateDefaultEntities();
     if (!updateSelectedSatellitePosition()) updateControlsOptions();
     void fetchOrbitalData();
+}
+
+function handleAssetFocusChanged(event) {
+    const detail = event?.detail || {};
+    const signature = `${detail.state || ""}:${detail.assetType || ""}:${detail.assetId || ""}`;
+    if (signature === state.focusOwnerSignature) return;
+    state.focusOwnerSignature = signature;
+    if (state.enabled) updateControlsOptions();
 }
 
 function handleAppEntered() {
@@ -1716,4 +1897,6 @@ export function initWarzoneMilSats(viewer) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.removeEventListener("wz:app-entered", handleAppEntered);
     document.addEventListener("wz:app-entered", handleAppEntered);
+    document.removeEventListener("wz:asset-focus-changed", handleAssetFocusChanged);
+    document.addEventListener("wz:asset-focus-changed", handleAssetFocusChanged);
 }

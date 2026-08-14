@@ -271,8 +271,8 @@ module.exports = (env, argv) => {
                     filename: `pages/${name}.html`,
                     template: path.resolve(DEV_DIR, "pages", `${name}.html`),
                     cache: !isDev,
-                    inject: name === "report" ? false : "head",
-                    chunks: name === "report"
+                    inject: ["report", "404"].includes(name) ? false : "head",
+                    chunks: ["report", "404"].includes(name)
                         ? []
                         : (name === "report-capture" ? ["reportCapture"] : ["main"]),
                     scriptLoading: "defer",

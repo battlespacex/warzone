@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="poster-generator-document">
 
 <head>
   <meta charset="UTF-8" />
@@ -14,6 +14,7 @@
 <body class="poster-generator-page">
   <div class="app-shell">
     <aside class="controls">
+      <div class="poster-editor">
       <div class="brand-header">
         <div class="brand-mark">BX</div>
         <div>
@@ -65,6 +66,14 @@
             </select>
           </label>
 
+          <label>Bottom-left QR
+            <select id="qrSelect">
+              <option value="battlespacex">BattlespaceX QR</option>
+              <option value="stratops">StratOps QR</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+
           <label>Bottom-right branding
             <select id="websiteSelect">
               <option value="none">None</option>
@@ -73,19 +82,12 @@
             </select>
           </label>
 
-          <label>Bottom-left QR code
-            <select id="qrSelect">
-              <option value="battlespacex">BattlespaceX QR</option>
-              <option value="stratops">StratOps QR</option>
-              <option value="none">None</option>
-            </select>
-          </label>
           <p class="hint full preset-hint">A preset sets the logo, QR code and website together. You can change any of
             them independently afterward.</p>
 
           <label class="check-row"><input id="enableDescription" type="checkbox" /> Enable description</label>
           <label class="check-row"><input id="enableCredit" type="checkbox" /> Enable image credit</label>
-          <label class="check-row"><input id="showGuides" type="checkbox" checked /> Show safe-area guides</label>
+          <label class="check-row"><input id="showGuides" type="checkbox" /> Show safe-area guides</label>
         </div>
       </details>
 
@@ -248,6 +250,7 @@
         </div>
         <p class="hint">Click the credit text in the preview and drag it to reposition it.</p>
       </details>
+      </div>
       <div class="export-panel">
         <label>Export format
           <select id="exportFormat">

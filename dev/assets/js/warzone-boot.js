@@ -12,7 +12,7 @@ let __siteLoaderHardStopTimer = 0;
 const SITE_LOADER_HARD_MAX_MS = 12000;
 const STARTUP_OPERATIONAL_AUDIO_MUTE_MS = 12000;
 const OPERATIONAL_LOADER_FADE_IN_MS = 600;
-const OPERATIONAL_LOADER_REVEAL_MS = 800;
+const OPERATIONAL_LOADER_REVEAL_MS = 1000;
 const DASHBOARD_REVEAL_STAGES = Object.freeze({
     breathingRoom: 250,
     header: 450,
@@ -208,6 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cyber: false,
         aoi: false,
     };
+    let hasLoadedWidgetState = false;
     const MAP_LAYERS_PANE_ID = "wz-map-layers-pane";
     function getMapLayersPane() {
         return document.getElementById(MAP_LAYERS_PANE_ID);
@@ -1001,6 +1002,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const shouldMigrateLayout = savedVersion !== WZ_WIDGET_LAYOUT_VERSION;
         const effectiveState = { ...DEFAULT_WIDGET_VISIBILITY, ...(saved || {}) };
         effectiveState.aoi = false;
+        if (!hasLoadedWidgetState) {
+            effectiveState.aircraft = false;
+            effectiveState.naval = false;
+            effectiveState.orbital = false;
+            try {
+                localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(effectiveState));
+            } catch { }
+        }
         if (shouldMigrateLayout) {
             // Keep existing widget preferences, but migrate Airspace to open-by-default once.
             effectiveState.airspace = true;
@@ -1018,6 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             widget.classList.toggle("wz-is-hidden", !visible);
         });
+        hasLoadedWidgetState = true;
     }
     function syncSeparator() {
         const sep = document.querySelector(".wz-dock__sep");

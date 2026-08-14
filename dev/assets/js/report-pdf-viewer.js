@@ -17,6 +17,8 @@ const elements = {
     thumbnails: document.getElementById("report-pdf-thumbnails"),
     loading: document.getElementById("report-pdf-loading"),
     error: document.getElementById("report-pdf-error"),
+    errorMessage: document.getElementById("report-pdf-error-message"),
+    retry: document.getElementById("report-pdf-retry"),
     sidebarToggle: document.getElementById("report-pdf-sidebar-toggle"),
     previous: document.getElementById("report-pdf-prev"),
     next: document.getElementById("report-pdf-next"),
@@ -47,9 +49,9 @@ function readFilename() {
     return safe.toLowerCase().endsWith(".pdf") ? safe : `${safe || "StratOps-Report"}.pdf`;
 }
 
-function showLoadError(message = "The selected PDF report could not be loaded.") {
+function showLoadError(message = "The requested report could not be loaded. Please retry or return to reports.") {
     elements.loading.hidden = true;
-    elements.error.textContent = message;
+    elements.errorMessage.textContent = message;
     elements.error.hidden = false;
 }
 
@@ -137,6 +139,10 @@ async function loadPdfBytes(fileUrl) {
         headers: { Accept: "application/pdf" },
     });
     if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
+    const contentType = response.headers.get("content-type") || "";
+    if (!/\bapplication\/pdf\b/i.test(contentType)) {
+        throw new Error("The report response did not have a PDF content type.");
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 5)) !== "%PDF-") {
         throw new Error("The report response was not a PDF document.");
@@ -216,8 +222,9 @@ async function initReportPdfViewer() {
         });
     } catch (error) {
         console.error("[report-pdf-viewer] PDF load failed", error);
-        showLoadError(error?.message || undefined);
+        showLoadError();
     }
 }
 
+elements.retry?.addEventListener("click", () => window.location.reload());
 void initReportPdfViewer();

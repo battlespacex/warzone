@@ -15,7 +15,7 @@ const ALL_LAYER_DEFS = [
     // live flight tracks on the globe does NOT affect the airspace panel.
     { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "GLO", color: "#33d9ff", uiOnly: true, premium: true },
     { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "NAV", color: "#9b7bff", premium: true },
-    { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "BASE", color: "#3a8eff", uiOnly: true, premium: true, panelHidden: true },
+    { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "BASE", color: "#3a8eff", uiOnly: true, premium: true },
     { id: "gnss", label: "GNSS Jamming", description: "Sanitized GNSS/GPS Jamming zones and navigation anomaly cells", icon: "GNSS", color: "#ffd24d", premium: true },
     { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "RNG", color: "#33d9ff", premium: true },
     { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "SWP", color: "#18e2db", uiOnly: true, premium: true },
@@ -45,32 +45,32 @@ const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
 const WZ_LAYER_LAYOUT_VERSION = "2026-07-map-layers-pane";
-const DEFAULT_LAYER_STATE = {
+export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
     strikes: true,
     missiles: true,
     drones: true,
     airstrikes: true,
     aircraft: false,
     airspace: false,
-    gnss: false,
     naval: false,
     "military-bases": false,
-    ranges: false,
-    sweepers: false,
+    gnss: false,
+    ranges: true,
+    sweepers: true,
     alerts: true,
     cyber: false,
-    thermal: false,
+    thermal: true,
     recon: true,
-    seismic: false,
+    seismic: true,
     hotspots: true,
     aoi: false,
     "orbital-assets": false,
-    "satellite-imagery": false,
+    "satellite-imagery": true,
     terrain: true,
     "map-labels": false,
     "region-plate": false,
     "country-borders": false,
-};
+});
 const LAYER_SECTIONS = [
     {
         id: "kinetic-activity",
@@ -110,7 +110,7 @@ const LAYER_SECTIONS = [
     {
         id: "strategic-overlays",
         title: "Strategic Overlays",
-        layers: ["terrain", "map-labels", "country-borders", "region-plate"],
+        layers: ["military-bases", "terrain", "map-labels", "country-borders", "region-plate"],
     },
 ];
 const LAYER_ICON_CLASS_BY_ID = {
@@ -201,7 +201,7 @@ const AIRCRAFT_LAYER_SUBTYPES = new Set([
 ]);
 
 LAYER_DEFS.forEach((l) => {
-    __layerState[l.id] = DEFAULT_LAYER_STATE[l.id] !== false;
+    __layerState[l.id] = DASHBOARD_DEFAULT_LAYER_STATE[l.id] === true;
 });
 
 function getLayerDef(id) {
@@ -231,6 +231,9 @@ function isDevInspectionEnvironment() {
 }
 
 function canUseLayer(id) {
+    // Layers required ON for every dashboard entry must render identically for
+    // authenticated and anonymous users. Other premium layers keep their gate.
+    if (DASHBOARD_DEFAULT_LAYER_STATE[id] === true) return true;
     if (!isPremiumLayer(id)) return true;
     if (DEV_INSPECTION_LAYER_IDS.has(id) && isDevInspectionEnvironment()) return true;
     return hasPremiumAccess();
@@ -257,20 +260,10 @@ function getEffectiveLayerState(id) {
 function loadState() {
     if (__layerStateLoaded) return;
 
-    let saved = {};
-
-    try {
-        saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
-    } catch {
-        saved = {};
-    }
-
+    // Dashboard-entry defaults are authoritative. Persisted values are written
+    // for current-session consumers but are never restored on initialization.
     LAYER_DEFS.forEach((layer) => {
-        if (Object.prototype.hasOwnProperty.call(saved, layer.id)) {
-            __layerState[layer.id] = saved[layer.id] !== false;
-        } else {
-            __layerState[layer.id] = DEFAULT_LAYER_STATE[layer.id] !== false;
-        }
+        __layerState[layer.id] = DASHBOARD_DEFAULT_LAYER_STATE[layer.id] === true;
     });
 
     __layerStateLoaded = true;
@@ -720,7 +713,7 @@ function notifyChange(id, val) {
 function syncLayerItemState(item, id) {
     const def = getLayerDef(id);
     const enabled = getEffectiveLayerState(id);
-    const locked = !!def?.premium && !hasPremiumAccess();
+    const locked = !!def?.premium && !canUseLayer(id);
 
     item.classList.toggle("is-on", enabled);
     item.classList.toggle("is-locked", locked);
@@ -853,7 +846,7 @@ function renderTextStack(value = "") {
 }
 
 function renderLayerRow(layer) {
-    const locked = layer.premium && !hasPremiumAccess();
+    const locked = layer.premium && !canUseLayer(layer.id);
     return `
         <div class="wz-layer-item${getEffectiveLayerState(layer.id) ? " is-on" : ""}${layer.premium ? " is-premium" : ""}${locked ? " is-locked" : ""}"
              data-layer="${layer.id}"
@@ -958,7 +951,7 @@ function bindLayerItem(container, item) {
         syncLayerItemState(item, id);
         updateBulkToggleState(container);
 
-        if (!newVal && isPremiumLayer(id) && !hasPremiumAccess()) {
+        if (!newVal && isPremiumLayer(id) && !canUseLayer(id)) {
             openPremiumAccessFlow();
         }
     };

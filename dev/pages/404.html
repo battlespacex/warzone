@@ -9,8 +9,16 @@
     <meta name="robots" content="<%= meta.robots %>" />
     <link rel="alternate" hreflang="en-ca" href="<%= meta.hreflang %>" />
     <link rel="alternate" hreflang="x-default" href="<%= meta.hreflang %>" />
-    <%= partials("head-base") %>
-    <%= partials("head-verifications") %>
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#090f14" />
+    <meta name="author" content="StratOps | BattlespaceX" />
+    <link rel="icon" href="/assets/images/fav/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/assets/images/fav/favicon-96x96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/fav/apple-touch-icon.png" />
+    <link rel="manifest" href="/assets/images/fav/site.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="StratOps | BattlespaceX" />
+    <meta property="og:locale" content="en_CA" />
     <meta property="og:url" content="<%= meta.ogUrl %>" />
     <meta property="og:title" content="<%= meta.ogTitle %>" />
     <meta property="og:description" content="<%= meta.ogDescription %>" />
@@ -26,23 +34,66 @@
     <meta name="twitter:image" content="<%= meta.twImage %>" />
     <meta name="twitter:image:alt" content="<%= meta.twAlt %>" />
     <script type="application/ld+json"><%= JSON.stringify(meta.jsonLd) %></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { min-height: 100%; }
+        body {
+            margin: 0;
+            display: grid;
+            place-items: center;
+            padding: 2rem;
+            background: #090f14;
+            color: #e7f7f7;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+        .stratops-404 {
+            width: min(100%, 42rem);
+            text-align: center;
+        }
+        .stratops-404__logo {
+            display: block;
+            width: min(100%, 24rem);
+            height: auto;
+            margin: 0 auto 2.5rem;
+        }
+        .stratops-404__title {
+            margin: 0;
+            color: #20d6d6;
+            font-size: clamp(2.25rem, 9vw, 5rem);
+            line-height: 1;
+            letter-spacing: .08em;
+        }
+        .stratops-404__message {
+            margin: 1.4rem 0 2rem;
+            color: #cbced7;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+        .stratops-404__home {
+            display: inline-block;
+            padding: .8rem 1.35rem;
+            border: 1px solid #20d6d6;
+            color: #20d6d6;
+            font-size: .82rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-decoration: none;
+            text-transform: uppercase;
+        }
+        .stratops-404__home:hover,
+        .stratops-404__home:focus-visible {
+            background: #20d6d6;
+            color: #090f14;
+        }
+    </style>
 </head>
-<body class="other-pages">
-    <a class="skip-link sr-only" href="#main">Skip to main content</a>
-    <div class="body-bg" aria-hidden="true"></div>
-    <%= partials("header") %>
-    <main aria-label="Not found page">
-        <section class="hero-banner">
-            <div class="hero-banner__box">
-                <div class="hero-banner__eyebrow">404</div>
-                <h1 class="hero-banner__title">Page Not Found</h1>
-                <p class="hero-banner__desc">The page you requested does not exist.</p>
-                <div class="hero-banner__actions">
-                    <a class="btn btn--primary" href="/warzone/">Return Home</a>
-                </div>
-            </div>
-        </section>
+<body>
+    <main class="stratops-404" aria-labelledby="not-found-title">
+        <img class="stratops-404__logo" src="/assets/images/web/logo-stratops-battlespacex.svg"
+            alt="StratOps | BattlespaceX" />
+        <h1 class="stratops-404__title" id="not-found-title">404 NOT FOUND</h1>
+        <p class="stratops-404__message">The page you requested does not exist.</p>
+        <a class="stratops-404__home" href="/warzone/">Return Home</a>
     </main>
-    <%= partials("footer") %>
 </body>
 </html>
