@@ -2,7 +2,7 @@
 import * as Cesium from "cesium";
 import { getAllLiveTrackSnapshots } from "./warzone-live-airforce.js";
 import { getAllNavalSnapshots } from "./warzone-live-naval.js";
-import { isEventVisible } from "./warzone-layers.js";
+import { isEventVisible, isLayerEnabled, setLayer } from "./warzone-layers.js";
 import { hasTrustedMapCoordinates } from "../../../apps/shared/event-location-policy.js";
 
 const AOI_SOURCE_NAME = "warzone-aoi-lens";
@@ -65,6 +65,7 @@ export function initWarzoneAoiLens(viewer) {
         activate,
         clear: clearAoi,
         close,
+        setEnabled,
         scanCurrent: () => state.polygon.length ? renderSummary(state.polygon) : null,
     };
     return window.__warzoneAoiLens;
@@ -99,6 +100,14 @@ function bindCanvasDrawing() {
 }
 
 function activate() {
+    if (!isLayerEnabled("aoi")) {
+        setLayer("aoi", true);
+        if (state.active) return;
+    }
+    activateEnabledAoi();
+}
+
+function activateEnabledAoi() {
     if (!state.viewer) return;
     showPanel();
     state.active = true;
@@ -144,8 +153,23 @@ function clearAoi({ keepPanel = true } = {}) {
 }
 
 function close() {
+    if (isLayerEnabled("aoi")) {
+        setLayer("aoi", false);
+    }
+    closeEnabledAoi();
+}
+
+function closeEnabledAoi() {
     clearAoi({ keepPanel: false });
     hidePanel();
+}
+
+function setEnabled(enabled) {
+    if (enabled) {
+        activateEnabledAoi();
+        return;
+    }
+    closeEnabledAoi();
 }
 
 function onPointerDown(event) {

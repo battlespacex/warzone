@@ -4190,7 +4190,7 @@ UNUSED CANDIDATE END */
 .wz-aircraft-panel {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
     padding: 1.5rem;
 }
 
@@ -4205,28 +4205,17 @@ UNUSED CANDIDATE END */
     width: 100%;
     padding: 1rem;
     position: relative;
-    gap: 1rem
-}
-
-.wz-aircraft-item:before {
-    color: var(--color-text-heading);
+    gap: 1rem;
     background: var(--color-bg-row);
-    clip-path: var(--clippath-shape-3);
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    content: '';
-    z-index: -1;
+    clip-path: var(--clippath-shape-1);
 }
 
-.is-active.is-selected.wz-aircraft-item:before {
+.is-active.is-selected.wz-aircraft-item {
     background: var(--color-teal-hover);
     animation: wz-animate-pulse 1s infinite;
 }
 
-.wz-naval-item.is-selected:before {
+.wz-naval-item.is-selected {
     background: var(--color-teal-hover);
     animation: wz-animate-pulse 1s infinite;
 }
@@ -4248,7 +4237,7 @@ UNUSED CANDIDATE END */
 .wz-aircraft-item__stats {
     display: grid;
     width: 100%;
-    gap: .55rem;
+    gap: 1rem;
 }
 
 .wz-aircraft-item__meta {
@@ -4260,14 +4249,12 @@ UNUSED CANDIDATE END */
 }
 
 .wz-aircraft-item__title {
-    display: flex;
+display: flex;
     flex: 1;
     min-width: 0;
     align-items: center;
     gap: .5rem;
     color: var(--color-text-heading);
-    line-height: 1.18;
-    text-transform: uppercase;
 }
 
 .wz-aircraft-item__time,
@@ -4287,32 +4274,19 @@ UNUSED CANDIDATE END */
     flex: 0 0 auto;
     padding-top: .1rem;
     text-transform: uppercase;
+    display: none;
 }
 
 .wz-aircraft-item__meta span,
 .wz-aircraft-item__stats span {
-    display: flex;
+display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: .18rem;
-    color: rgba(223, 235, 248, .88);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    font-weight: 700;
-    line-height: 1.16;
-    text-transform: uppercase;
     overflow-wrap: anywhere;
 }
 
-.wz-aircraft-item__meta span:before,
-.wz-aircraft-item__stats span:before {
-    content: attr(data-label);
-    color: rgba(143, 163, 184, .86);
-    font-family: var(--text-font);
-    font-size: .82rem;
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: 0;
+.wz-aircraft-item__stats span {
+    gap: .5rem
 }
 
 .wz-aircraft-badge {
@@ -4536,11 +4510,11 @@ UNUSED CANDIDATE END */
     justify-content: center;
     line-height: 1;
     flex: 0 0 auto;
-    font-size: var(--icon-md)
+    font-size: var(--icon-xl);
 }
 
 .wz-aircraft-title__status.is-active {
-    color: var(--color-green-slate)
+    color: var(--color-orange);
 }
 
 .wz-aircraft-title__status.is-ended {

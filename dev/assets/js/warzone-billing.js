@@ -11,7 +11,7 @@ const PLAN_RANK = Object.freeze({
 const FEATURE_ACCESS = Object.freeze({
     liveMap: { tier: "basic", label: "Live map access" },
     trackerPreview: { tier: "free", label: "Tracker preview" },
-    fullAircraftTracker: { tier: "advanced", label: "Full aircraft tracker" },
+    fullAircraftTracker: { tier: "advanced", label: "Full air tracker" },
     fullNavalTracker: { tier: "advanced", label: "Full naval tracker" },
     focusMode: { tier: "advanced", label: "Asset focus mode" },
     regionTools: { tier: "advanced", label: "Region tools" },

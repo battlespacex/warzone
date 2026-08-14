@@ -9,13 +9,13 @@ const ALL_LAYER_DEFS = [
     { id: "missiles", label: "Missiles & Rockets", description: "Missile and rocket activity on the map", icon: "MSL", color: "#ff5500" },
     { id: "drones", label: "Drone / UAV Activity", description: "Drone sightings and drone-delivered strike reports", icon: "UAV", color: "#ffcc00" },
     { id: "airstrikes", label: "Air-Delivered Strikes", description: "Aircraft-delivered strike and bombing reports", icon: "AIR", color: "#ff7820" },
-    { id: "aircraft", label: "Aircraft Tracker", description: "Live military aircraft telemetry and movement", icon: "TRK", color: "#33d90a", premium: true },
+    { id: "aircraft", label: "Air Tracker", description: "Live military aircraft telemetry and movement", icon: "TRK", color: "#33d90a", premium: true },
     // airspace is uiOnly — it controls the Airspace Status widget visibility.
     // It is intentionally decoupled from the "aircraft" layer so toggling
     // live flight tracks on the globe does NOT affect the airspace panel.
     { id: "airspace", label: "Airspace Status", description: "Regional closure and restriction status widget", icon: "GLO", color: "#33d9ff", uiOnly: true, premium: true },
     { id: "naval", label: "Naval Activity", description: "Military naval contacts and vessel-linked signals", icon: "NAV", color: "#9b7bff", premium: true },
-    { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "BASE", color: "#3a8eff", uiOnly: true, premium: true },
+    { id: "military-bases", label: "Military Bases", description: "Known military base and installation locations", icon: "BASE", color: "#3a8eff", uiOnly: true, premium: true, panelHidden: true },
     { id: "gnss", label: "GNSS Jamming", description: "Sanitized GNSS/GPS Jamming zones and navigation anomaly cells", icon: "GNSS", color: "#ffd24d", premium: true },
     { id: "ranges", label: "Radar / Threat Ranges", description: "Estimated fighter, AWACS, naval-defense, and SAM coverage envelopes", icon: "RNG", color: "#33d9ff", premium: true },
     { id: "sweepers", label: "Radar Sweepers", description: "Animated sweep sectors for active radar and air-defense envelopes", icon: "SWP", color: "#18e2db", uiOnly: true, premium: true },
@@ -26,11 +26,12 @@ const ALL_LAYER_DEFS = [
     { id: "seismic", label: "Seismic / Explosions", description: "Seismic signals and blast-related detections", icon: "SEIS", color: "#ffdd00" },
     // { id: "news", label: "News / Reports", icon: "NEWS", color: "#888" },
     { id: "hotspots", label: "Activity Areas", description: "Passive density circles behind clickable event markers", icon: "AREA", color: "#00d8b2", uiOnly: true },
-    { id: "orbital-assets", label: "Orbital Satellite Intelligence", description: "Public orbital estimates for military-associated and dual-use satellites", icon: "ORB", color: "#9fd7ff", premium: true },
+    { id: "aoi", label: "Areas of Interest", description: "Draw and scan a selected operational area", icon: "AOI", color: "#18e2db", uiOnly: true },
+    { id: "orbital-assets", label: "Orbital Satellite Intel", description: "Public orbital estimates for military-associated and dual-use satellites", icon: "ORB", color: "#9fd7ff", premium: true },
     { id: "satellite-imagery", label: "Satellite Observations", description: "Available Sentinel image observations tied to events", icon: "IMG", color: "#18e2db", uiOnly: true, premium: true },
     { id: "terrain", label: "Satellite Basemap", description: "Satellite basemap imagery on the globe", icon: "SAT", color: "#4a9eff", uiOnly: true },
     { id: "map-labels", label: "Map Labels", description: "Country, province, city and place names on the map", icon: "LBL", color: "#9fd7ff", uiOnly: true },
-    { id: "region-plate", label: "Raised Region", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
+    { id: "region-plate", label: "Raised Regions", description: "Elevated selected-region focus plate", icon: "REG", color: "#18e2db", uiOnly: true },
     { id: "country-borders", label: "Country Borders", description: "Country boundary line overlay on the globe", icon: "BRD", color: "#33e1ff", uiOnly: true },
 ];
 
@@ -38,6 +39,7 @@ const LAYER_DEFS = ALL_LAYER_DEFS.filter((layer) => {
     const featurePath = getStratOpsLayerFeaturePath(layer.id);
     return !featurePath || isStratOpsFeatureEnabled(featurePath);
 });
+const PANEL_LAYER_DEFS = LAYER_DEFS.filter((layer) => layer.panelHidden !== true);
 
 const STORAGE_KEY = "wz_layer_state";
 const WZ_WIDGET_KEY = "wz_widget_visibility";
@@ -61,6 +63,7 @@ const DEFAULT_LAYER_STATE = {
     recon: true,
     seismic: false,
     hotspots: true,
+    aoi: false,
     "orbital-assets": false,
     "satellite-imagery": false,
     terrain: true,
@@ -70,9 +73,24 @@ const DEFAULT_LAYER_STATE = {
 };
 const LAYER_SECTIONS = [
     {
-        id: "core-intelligence",
-        title: "Core Intelligence",
-        layers: ["strikes", "missiles", "drones", "airstrikes", "recon", "alerts", "thermal", "seismic", "hotspots"],
+        id: "kinetic-activity",
+        title: "Kinetic Activity",
+        layers: ["strikes", "missiles", "drones", "airstrikes"],
+    },
+    {
+        id: "intelligence-threat-monitoring",
+        title: "Threat Intelligence",
+        layers: ["recon", "ranges", "sweepers"],
+    },
+    {
+        id: "alerts-detection",
+        title: "Alerts Detection",
+        layers: ["alerts", "thermal", "seismic"],
+    },
+    {
+        id: "operational-areas",
+        title: "Operational Areas",
+        layers: ["hotspots", "aoi"],
     },
     {
         id: "live-operations",
@@ -85,9 +103,14 @@ const LAYER_SECTIONS = [
         layers: ["cyber", "gnss"],
     },
     {
+        id: "space-intelligence",
+        title: "Space Intelligence",
+        layers: ["orbital-assets", "satellite-imagery"],
+    },
+    {
         id: "strategic-overlays",
         title: "Strategic Overlays",
-        layers: ["military-bases", "ranges", "sweepers", "orbital-assets", "satellite-imagery", "terrain", "map-labels", "region-plate", "country-borders"],
+        layers: ["terrain", "map-labels", "country-borders", "region-plate"],
     },
 ];
 const LAYER_ICON_CLASS_BY_ID = {
@@ -105,6 +128,7 @@ const LAYER_ICON_CLASS_BY_ID = {
     gnss: "stratops-ico-circle-1",
     recon: "stratops-ico-focus-1",
     hotspots: "stratops-ico-focus-1",
+    aoi: "stratops-ico-focus-1",
     "military-bases": "stratops-ico-focus-1",
     ranges: "stratops-ico-focus-1",
     sweepers: "stratops-ico-focus-1",
@@ -120,7 +144,7 @@ let __layerState = {};
 let __callbacks = [];
 let __layerStateLoaded = false;
 const PERFORMANCE_WARNING_LIMIT = 3;
-const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "map-labels", "region-plate", "satellite-imagery"]);
+const PERFORMANCE_WARNING_EXCLUDED = new Set(["terrain", "map-labels", "region-plate", "satellite-imagery", "aoi"]);
 const DEV_INSPECTION_LAYER_IDS = new Set(["sweepers", "satellite-imagery"]);
 const EVENT_CONTEXT_LAYER_IDS = [
     "strikes",
@@ -379,7 +403,7 @@ function buildSingleToggleState(id, enabled) {
 
 function buildAllEnabledState() {
     const nextState = { ...__layerState };
-    LAYER_DEFS.forEach((layer) => {
+    PANEL_LAYER_DEFS.forEach((layer) => {
         if (!canUseLayer(layer.id)) return;
         nextState[layer.id] = true;
     });
@@ -742,12 +766,12 @@ function updateBulkToggleState(container) {
 function updateLayerSummary(container) {
     const summary = container?.querySelector(".wz-layers__summary");
     if (!summary) return;
-    const enabledCount = LAYER_DEFS.reduce((count, layer) => count + (getEffectiveLayerState(layer.id) ? 1 : 0), 0);
+    const enabledCount = PANEL_LAYER_DEFS.reduce((count, layer) => count + (getEffectiveLayerState(layer.id) ? 1 : 0), 0);
     summary.textContent = `${enabledCount} active layer${enabledCount === 1 ? "" : "s"} across the current operational view.`;
 }
 
 function setAllLayers(enabled, container) {
-    LAYER_DEFS.forEach((l) => {
+    PANEL_LAYER_DEFS.forEach((l) => {
         if (!canUseLayer(l.id)) return;
         __layerState[l.id] = !!enabled;
     });
@@ -849,7 +873,7 @@ function renderLayerRow(layer) {
 }
 
 function getRenderedSections() {
-    const defsById = new Map(LAYER_DEFS.map((layer) => [layer.id, layer]));
+    const defsById = new Map(PANEL_LAYER_DEFS.map((layer) => [layer.id, layer]));
     const consumed = new Set();
     const sections = [];
 
@@ -865,7 +889,7 @@ function getRenderedSections() {
         });
     });
 
-    const uncategorized = LAYER_DEFS.filter((layer) => !consumed.has(layer.id));
+    const uncategorized = PANEL_LAYER_DEFS.filter((layer) => !consumed.has(layer.id));
     if (uncategorized.length) {
         sections.push({
             id: "additional-overlays",

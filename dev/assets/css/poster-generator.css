@@ -1,3 +1,25 @@
+@import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap");
+
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+:root {
+    --clippath-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
+    --clippath-2: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
+    --color-gray-poster: rgb(29 35 45);
+}
+
+
+html {
+    scroll-behavior: smooth;
+    font-size: 62.5%;
+    -webkit-text-size-adjust: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
 body.poster-generator-page,
 body.poster-generator-page *,
 body.poster-generator-page *::before,
@@ -6,21 +28,14 @@ body.poster-generator-page *::after {
 }
 
 body.poster-generator-page {
-    --poster-bg: #0c1015;
-    --poster-panel: #121821;
-    --poster-panel-2: #18212d;
-    --poster-line: #2a3543;
-    --poster-text: #f4f7fb;
-    --poster-muted: #93a1b2;
-    --poster-accent: #18cdd2;
-    --poster-accent-2: #0ea7ac;
     min-height: 100%;
     margin: 0;
     overflow: hidden;
     color-scheme: dark;
     color: var(--poster-text);
-    background: var(--poster-bg);
-    font-family: Inter, Arial, Helvetica, sans-serif;
+    background: var(--color-gray-poster);
+    font-family: 'Oxanium', 'Rajdhani', sans-serif;
+    font-weight: 600;
 }
 
 .poster-generator-page button,
@@ -32,84 +47,92 @@ body.poster-generator-page {
 
 .poster-generator-page .app-shell {
     display: grid;
-    grid-template-columns: 430px 1fr;
+    grid-template-columns: 30vw 1fr;
     min-height: 100vh;
 }
 
 .poster-generator-page .controls {
     height: 100vh;
     overflow-y: auto;
-    padding: 18px;
-    background: var(--poster-panel);
-    border-right: 1px solid var(--poster-line);
+    padding: 2rem;
 }
 
 .poster-generator-page .brand-header {
     display: flex;
     align-items: center;
-    gap: 13px;
-    margin-bottom: 16px;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .poster-generator-page .brand-mark {
     display: grid;
-    width: 44px;
-    height: 44px;
+    width: 4.4rem;
+    height: 4.4rem;
     place-items: center;
-    border-radius: 10px;
     color: #001315;
-    background: var(--poster-accent);
+    background: var(--color-teal-glow);
     font-weight: 900;
+    display: none;
 }
 
 .poster-generator-page h1 {
     margin: 0;
-    font-size: 20px;
+    font-size: var(--text-xl);
+    text-transform: uppercase;
+    font-family: var(--heading-font);
+    letter-spacing: .1rem;
+    color: var(--color-text-heading);
+    line-height: var(--text-xl);
 }
 
 .poster-generator-page .brand-header p {
-    margin: 4px 0 0;
-    color: var(--poster-muted);
-    font-size: 12px;
+    margin: .5rem 0 0;
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    font-weight: 700;
 }
 
 .poster-generator-page .toolbar {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 12px;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .poster-generator-page details {
     overflow: hidden;
-    margin-bottom: 10px;
-    border: 1px solid var(--poster-line);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.015);
+    margin-bottom: 1rem;
+    background: var(--color-bg-modal);
+    clip-path: var(--clippath-1);
 }
 
 .poster-generator-page summary {
-    padding: 13px 14px;
+    padding: 1rem;
     cursor: pointer;
     user-select: none;
-    background: var(--poster-panel-2);
-    font-size: 13px;
-    font-weight: 800;
+    background: var(--color-bg-header);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    font-family: var(--heading-font);
+    color: var(--color-text-heading);
+    text-transform: uppercase;
+    letter-spacing: .15rem;
 }
 
 .poster-generator-page .panel-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 11px;
-    padding: 13px;
+    gap: 1rem;
+    padding: 1.5rem;
 }
 
 .poster-generator-page label {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    color: #dbe3ed;
-    font-size: 12px;
+    gap: .5rem;
+    color: var(--color-text-dim);
+    font-size: 1.4rem;
 }
 
 .poster-generator-page label.full,
@@ -122,16 +145,17 @@ body.poster-generator-page {
 .poster-generator-page input[type="number"],
 .poster-generator-page textarea {
     width: 100%;
-    padding: 9px 10px;
-    border: 1px solid var(--poster-line);
-    border-radius: 7px;
+    padding: 1rem;
+    border: .2rem solid var(--color-border-gray);
     outline: none;
-    color: var(--poster-text);
-    background: #0d131b;
+    color: var(--color-text);
+    background: var(--color-bg-dark);
+    color-scheme: dark;
+
 }
 
 .poster-generator-page textarea {
-    min-height: 78px;
+    min-height: 7rem;
     resize: vertical;
     line-height: 1.2;
 }
@@ -139,62 +163,75 @@ body.poster-generator-page {
 .poster-generator-page select:focus,
 .poster-generator-page input:focus,
 .poster-generator-page textarea:focus {
-    border-color: var(--poster-accent);
+    border-color: var(--color-teal-glow);
 }
 
 .poster-generator-page input[type="range"] {
     width: 100%;
-    accent-color: var(--poster-accent);
+    accent-color: var(--color-teal-glow);
 }
 
-.poster-generator-page input[type="color"] {
-    width: 100%;
-    height: 38px;
-    padding: 3px;
-    border: 1px solid var(--poster-line);
-    border-radius: 7px;
-    background: #0d131b;
+input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+    display: inline-block;
+    vertical-align: middle;
+    cursor: pointer;
+    width: 2rem;
+    height: 2rem;
+    background-color: var(--color-bg-overlay);
+    border: .2rem solid var(--color-border-gray);
+    border-radius: 0;
+    box-sizing: border-box;
 }
+
+input[type="checkbox"]:checked {
+    background-color: var(--color-teal);
+    border-color: var(--color-teal-glow);
+}
+
 
 .poster-generator-page .check-row {
     flex-direction: row;
     align-items: center;
-    gap: 8px;
-    min-height: 36px;
+    gap: 1rem;
+    margin-top: .5rem;
 }
 
 .poster-generator-page .check-row input {
-    accent-color: var(--poster-accent);
+    accent-color: var(--color-teal-glow);
 }
 
 .poster-generator-page .btn {
     appearance: none;
-    padding: 10px 11px;
+    padding: 1.2rem 1rem .8rem;
     border: 0;
-    border-radius: 7px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 1.2rem;
     font-weight: 800;
     text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .04rem;
 }
 
 .poster-generator-page .btn.primary {
-    color: #001315;
-    background: var(--poster-accent);
+    color: var(--color-black);
+    background: var(--color-white);
 }
 
 .poster-generator-page .btn.secondary {
-    border: 1px solid var(--poster-line);
-    color: var(--poster-text);
-    background: #222d3a;
+    color: var(--color-white);
+    background: var(--color-teal);
+    clip-path: var(--clippath-2);
 }
 
 .poster-generator-page .btn.export {
     width: 100%;
-    min-height: 48px;
-    color: #001315;
-    background: var(--poster-accent);
-    font-size: 15px;
+    min-height: 4rem;
+    color: var(--color-white);
+    background: var(--color-teal);
+    clip-path: var(--clippath-2);
 }
 
 .poster-generator-page .btn:hover {
@@ -216,9 +253,9 @@ body.poster-generator-page {
 }
 
 .poster-generator-page .hint {
-    margin: 0 13px 13px;
-    color: var(--poster-muted);
-    font-size: 11px;
+    margin: 0 1.5rem 1.5rem;
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
     line-height: 1.45;
 }
 
@@ -228,12 +265,14 @@ body.poster-generator-page {
 
 .poster-generator-page .export-panel {
     position: sticky;
-    bottom: -18px;
     display: grid;
-    gap: 12px;
-    padding: 16px 0 20px;
-    border-top: 1px solid var(--poster-line);
-    background: var(--poster-panel);
+    gap: 1rem;
+    padding: 2rem;
+    bottom: -2rem;
+    width: calc(100% - -4rem);
+    margin: 0 -2rem;
+    border-top: .2rem solid var(--color-border-gray);
+    background: var(--color-gray-poster);
 }
 
 .poster-generator-page .export-panel .hint {
@@ -242,48 +281,49 @@ body.poster-generator-page {
 
 .poster-generator-page .preview-area {
     display: grid;
-    grid-template-rows: 58px 1fr;
+    grid-template-rows: 6rem 1fr;
     min-width: 0;
     height: 100vh;
     overflow: hidden;
-    background: radial-gradient(circle at center, #1b2531 0, #0c1117 72%);
+    background: var(--color-bg-row);
 }
 
 .poster-generator-page .preview-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
-    border-bottom: 1px solid var(--poster-line);
-    background: rgba(12, 16, 21, 0.86);
+display: flex;
+    padding: 2rem;
+    flex-direction: column;
+    text-align: left;
+    height: auto;
+    background: var(--color-gray-poster);
 }
 
-.poster-generator-page .preview-topbar strong {
-    display: block;
-    font-size: 14px;
+.poster-generator-page .preview-topbar h2 {
+    margin: 0;
+    font-size: var(--text-xl);
+    text-transform: uppercase;
+    font-family: var(--heading-font);
+    letter-spacing: .1rem;
+    color: var(--color-text-heading);
+    line-height: var(--text-xl);
+    text-align: center;
 }
 
-.poster-generator-page .preview-topbar span {
-    display: block;
-    margin-top: 3px;
-    color: var(--poster-muted);
-    font-size: 11px;
-}
-
-.poster-generator-page .preview-topbar > div:first-child {
-    max-width: 760px;
-}
-
+.poster-generator-page .preview-topbar span,
 .poster-generator-page .zoom-readout {
-    color: var(--poster-muted);
-    font-size: 12px;
+    display: block;
+    margin: .5rem 0 0;
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    font-weight: 700;
+    display: none;
 }
 
 .poster-generator-page .canvas-wrap {
     display: grid;
     min-height: 0;
     overflow: auto;
-    padding: 22px;
+    padding: 2rem;
     place-items: center;
 }
 
@@ -295,7 +335,7 @@ body.poster-generator-page {
     max-height: calc(100vh - 102px);
     cursor: grab;
     background: #000;
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45);
 }
 
 .poster-generator-page #posterCanvas.dragging {
@@ -306,8 +346,12 @@ body.poster-generator-page {
     cursor: move;
 }
 
+.poster-generator-page #posterCanvas.resizing-text {
+    cursor: ew-resize;
+}
+
 .poster-generator-page .control-disabled {
-    opacity: 0.38;
+    display: none;
 }
 
 .poster-generator-page .control-disabled input[type="range"] {
@@ -315,17 +359,15 @@ body.poster-generator-page {
 }
 
 .poster-generator-page #creditPanel input[type="text"] {
-    min-height: 38px;
+    min-height: 3rem;
 }
 
 .poster-generator-page .font-library-status {
-    padding: 8px 10px;
-    border: 1px solid var(--poster-line);
-    border-radius: 7px;
-    color: var(--poster-muted);
-    background: #0d131b;
-    font-size: 11px;
+    color: var(--color-text-dim);
+    font-size: 1.2rem;
     line-height: 1.4;
+    font-style: italic;
+    display: none;
 }
 
 .poster-generator-page .font-library-status.has-error {
@@ -335,16 +377,12 @@ body.poster-generator-page {
 
 .poster-generator-page .preset-hint {
     margin: 0;
-    padding: 9px 10px;
-    border: 1px solid var(--poster-line);
-    border-radius: 7px;
-    background: #0d131b;
 }
 
 .poster-generator-page .button-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 1rem;
 }
 
 .poster-generator-page .button-row .btn {

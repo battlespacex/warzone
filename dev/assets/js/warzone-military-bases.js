@@ -496,7 +496,7 @@ function bindClickHandler(viewer) {
     const handler = new Cesium.ScreenSpaceEventHandler(canvas);
 
     // MOUSE_MOVE — show pointer cursor when hovering a base icon.
-    // Sets window.__wzBaseHover so the aircraft tracker's MOUSE_MOVE handler
+    // Sets window.__wzBaseHover so the air tracker's MOUSE_MOVE handler
     // knows not to reset the cursor back to "" when it runs.
     handler.setInputAction(movement => {
         if (!areMilitaryBasesInteractive()) {

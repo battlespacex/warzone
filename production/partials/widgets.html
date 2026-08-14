@@ -407,6 +407,14 @@
                     <h2 id="widget-aoi-title">AOI Intelligence</h2>
                     <div class="panel-actions">
                         <button type="button"
+                                class="wz-widget-layer-control"
+                                data-widget-layer-toggle="aoi"
+                                data-widget-layer-label="Areas of Interest"
+                                aria-pressed="false"
+                                title="Toggle areas of interest layer">
+                            <span class="wz-layer-toggle" aria-hidden="true"></span>
+                        </button>
+                        <button type="button"
                                 class="static-icon"
                                 data-aoi-clear
                                 aria-label="Clear AOI"
@@ -432,7 +440,10 @@
                     </div>
                 </div>
                 <div class="panel-content">
-                    <div id="wz-aoi-panel-body" class="wz-aoi-panel__body" aria-live="polite"></div>
+                    <div class="wz-widget-layer-off-state" data-widget-layer-state aria-live="polite">Areas of Interest layer is off</div>
+                    <div class="wz-widget-layer-content">
+                        <div id="wz-aoi-panel-body" class="wz-aoi-panel__body" aria-live="polite"></div>
+                    </div>
                 </div>
             </div>
         </aside>

@@ -6,14 +6,12 @@ import "../css/root.css";
 // =====================================================
 const POSTER_FONTS = Object.freeze({
   title: Object.freeze([
-    { label: "BattlespaceX Heading", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
-    { label: "Blinker ExtraBold", family: "PosterBlinkerExtraBold", url: "/assets/fonts/Blinker/Blinker-ExtraBold.ttf" },
-    { label: "Chakra Petch Bold", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
+    { label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
+    { label: "BX Font V2", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
   ]),
   description: Object.freeze([
-    { label: "BattlespaceX Heading", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
-    { label: "Blinker ExtraBold", family: "PosterBlinkerExtraBold", url: "/assets/fonts/Blinker/Blinker-ExtraBold.ttf" },
-    { label: "Chakra Petch Bold", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
+    { label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
+    { label: "BX Font V2", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
   ])
 });
 
@@ -25,48 +23,94 @@ const POSTER_CREDIT_STYLE = Object.freeze({
   fontFamily: "PosterChakraPetchBold",
   fontUrl: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf",
   fontSize: 22,
-  color: "#ffffff",
+  color: "#ebf0f1",
   textAlign: "left",
   lineHeight: 110,
   letterSpacing: 0,
-  uppercase: false,
-  shadow: true,
+  uppercase: true,
+  shadow: false,
   stroke: false
 });
 
+/* =====================================================
+   POSTER BRANDING CONFIGURATION
+
+   Edit these values to tune brand geometry and footer styling globally.
+   Optional feed/reel objects can override shared values for a poster size.
+   ===================================================== */
+const POSTER_TOP_LOGOS = Object.freeze({
+  battlespacex: Object.freeze({
+    asset: "/assets/images/poster/Battlespacex-small-logo.png",
+    width: 200,
+    height: null,
+    preserveAspectRatio: true,
+    x: 40,
+    y: 40
+  }),
+  stratops: Object.freeze({
+    asset: "/assets/images/poster/StratOps-full-logo.svg",
+    width: 430,
+    height: null,
+    preserveAspectRatio: true,
+    x: 60,
+    y: 60
+  })
+});
+
+const POSTER_BOTTOM_BRANDING = Object.freeze({
+  battlespacex: Object.freeze({
+    type: "image",
+    asset: "/assets/images/poster/Battlespacex-full-logo.svg",
+    width: 350,
+    height: null,
+    preserveAspectRatio: true,
+    right: 45,
+    bottom: 35,
+    opacity: 0.7
+  }),
+  stratops: Object.freeze({
+    type: "text",
+    text: "stratops.battlespacex.com",
+    uppercase: true,
+    fontFamily: "PosterChakraPetchBold, Helvetica, sans-serif",
+    fontStyle: "normal",
+    fontWeight: 700,
+    fontSize: 22,
+    letterSpacing: 2,
+    color: "#ebf0f1",
+    right: 35,
+    bottom: 35,
+    opacity: 0.9,
+    shadowColor: "rgba(0,0,0,0)",
+    shadowBlur: 7,
+    shadowOffsetY: 3
+  })
+});
+
+/* =====================================================
+   POSTER TEXT STYLE CONFIGURATION
+
+   These developer-only values affect rendered text, not resize guides or JSON.
+   ===================================================== */
+const POSTER_TEXT_STYLES = Object.freeze({
+  title: Object.freeze({ opacity: 0.9}),
+  description: Object.freeze({ opacity: 0.9 })
+});
+
 // =====================================================
-// POSTER FIXED OVERLAY CONFIGURATION
-// x/y are offsets from the centered asset. width/height and scale are fixed.
-// Add future Overlay 2 / 3 / 4 entries here; the dropdown is generated from it.
+// POSTER GENERATED OVERLAY CONFIGURATION
+// These are drawn directly on the canvas; no overlay image assets are required.
 // =====================================================
 const POSTER_OVERLAYS = Object.freeze({
-  none: Object.freeze({ label: "None", asset: null, x: 0, y: 0, width: null, height: null, scale: 1 }),
-  "tactical-grid": Object.freeze({
-    label: "Tactical grid",
-    asset: "/assets/images/poster/tactical-grid.png",
-    x: 0,
-    y: 0,
-    width: 1080,
-    height: 1350,
-    scale: 1
-  }),
+  none: Object.freeze({ label: "None", type: "none" }),
   scanlines: Object.freeze({
     label: "Scanlines",
-    asset: "/assets/images/poster/scanlines.png",
-    x: 0,
-    y: 0,
-    width: 1080,
-    height: 1350,
-    scale: 1
-  }),
-  "corner-frame": Object.freeze({
-    label: "Corner frame",
-    asset: "/assets/images/poster/corner-frame.png",
-    x: 0,
-    y: 0,
-    width: 1080,
-    height: 1350,
-    scale: 1
+    type: "scanlines",
+    opacity: 0.2,
+    color: "#ffffff40",
+    tileWidth: 30,
+    tileHeight: 10,
+    fillRatio: 0.2
   })
 });
 
@@ -78,10 +122,6 @@ const POSTER_OVERLAYS = Object.freeze({
   const ctx = canvas.getContext("2d", { alpha: false });
 
   const assets = {
-    logos: {
-      battlespacex: "/assets/images/poster/battlespacex-logo.png",
-      stratops: "/assets/images/poster/stratops-logo.png"
-    },
     qr: {
       battlespacex: "/assets/images/poster/battlespacex-qr.png",
       stratops: "/assets/images/poster/stratops-qr.png"
@@ -92,20 +132,31 @@ const POSTER_OVERLAYS = Object.freeze({
     background: null,
     logo: null,
     qr: null,
-    overlay: null
+    footerBranding: null
   };
 
   let draggingBackground = false;
   let draggingText = false;
+  let resizingText = false;
+  let resizeEdge = null;
+  let hoveredResizeEdge = null;
   let selectedText = null;
   let isExporting = false;
   let fontsReadyPromise = Promise.resolve();
   let brandAssetsReadyPromise = Promise.resolve();
-  let overlayReadyPromise = Promise.resolve();
-  let dragStart = { x: 0, y: 0, imageX: 0, imageY: 0, textX: 0, textY: 0 };
+  let scanlinePattern = null;
+  let dragStart = {
+    x: 0, y: 0, imageX: 0, imageY: 0, textX: 0, textY: 0,
+    boxLeft: 0, boxRight: 0
+  };
   let renderQueued = false;
   const textBounds = { title: null, description: null, credit: null };
   const SAFE_AREA = { left: 55, right: 1025, top: 215, bottom: 1295 };
+  const TEXT_WIDTH_LIMITS = Object.freeze({
+    title: Object.freeze({ min: 250 }),
+    description: Object.freeze({ min: 180 })
+  });
+  const TEXT_RESIZE_HIT_WIDTH = 14;
 
   const POSTER_SIZES = {
     feed: { width: 1080, height: 1350, label: "1080 × 1350", name: "Instagram Portrait" },
@@ -138,10 +189,6 @@ const POSTER_OVERLAYS = Object.freeze({
 
     refreshSafeArea();
 
-    state.qrY = canvas.height - state.qrSize - 75;
-    state.websiteX = canvas.width - 65;
-    state.websiteY = canvas.height - 55;
-
     const readout = $("canvasSizeReadout");
     if (readout) readout.textContent = preset.label;
     const headerLabel = $("headerSizeLabel");
@@ -159,7 +206,7 @@ const POSTER_OVERLAYS = Object.freeze({
     brandPreset: "",
     logo: "battlespacex",
     logoPosition: "left",
-    website: "www.battlespacex.com",
+    bottomBranding: "battlespacex",
     qr: "battlespacex",
     enableDescription: false,
     enableCredit: false,
@@ -176,47 +223,39 @@ const POSTER_OVERLAYS = Object.freeze({
     darkOverlay: 15,
 
     overlay: "none",
-    overlayOpacity: 40,
 
-    titleText: "KUWAIT UNVEILS\nNEEDLEFISH NAVAL DRONES\nTO BOLSTER MARITIME\nSECURITY",
+    titleText: "REAL-TIME\nMULTI-DOMAIN\nSITUATIONAL\nINTELLIGENCE",
     titleFont: defaultFontValue("title"),
     titleSize: 92,
     titleLineHeight: 92,
     titleSpacing: 1,
-    titleWidth: 900,
-    titleX: 540,
-    titleY: 760,
-    titleAlign: "center",
+    titleWidth: 630,
+    titleX: 55,
+    titleY: 460,
+    titleAlign: "left",
     titleColor: "#ffffff",
     titleUppercase: true,
 
-    descriptionText: "KUWAIT UNVEILS NEEDLEFISH NAVAL DRONES TO BOLSTER MARITIME SECURITY",
+    descriptionText: "REAL-TIME MULTI-DOMAIN SITUATIONAL INTELLIGENCE",
     descriptionFont: defaultFontValue("description"),
-    descriptionSize: 48,
+    descriptionSize: 64,
     descriptionLineHeight: 96,
-    descriptionSpacing: 0,
-    descriptionWidth: 520,
-    descriptionX: 770,
-    descriptionY: 990,
-    descriptionAlign: "center",
+    descriptionSpacing: 1,
+    descriptionWidth: 420,
+    descriptionX: 1020,
+    descriptionY: 880,
+    descriptionAlign: "right",
     descriptionColor: "#ffffff",
     descriptionUppercase: true,
 
     creditText: "Credit: USAF",
     creditWidth: 420,
-    creditX: 75,
-    creditY: 1085,
+    creditX: 40,
+    creditY: 1110,
 
-    logoSize: 230,
-    logoX: 70,
-    logoY: 60,
-    qrSize: 130,
-    qrX: 70,
-    qrY: 1145,
-    websiteSize: 26,
-    websiteX: 1015,
-    websiteY: 1295,
-    websiteAlign: "right",
+    qrSize: 150,
+    qrX: 50,
+    qrBottom: 50,
 
     exportFormat: "png",
     jpgQuality: 95
@@ -312,29 +351,23 @@ const POSTER_OVERLAYS = Object.freeze({
   }
 
   async function loadBrandAssets() {
-    try {
-      images.logo = state.logo === "none" ? null : await loadImage(assets.logos[state.logo]);
-      images.qr = state.qr === "none" ? null : await loadImage(assets.qr[state.qr]);
-    } catch (error) {
-      console.warn("Could not load a built-in asset:", error);
-    }
-    requestRender();
-  }
+    const loadOptionalAsset = async (src) => {
+      if (!src) return null;
+      try {
+        return await loadImage(src);
+      } catch (error) {
+        console.warn(`Could not load built-in asset ${src}:`, error);
+        return null;
+      }
+    };
 
-  async function loadOverlayAsset() {
-    const overlay = POSTER_OVERLAYS[state.overlay] || POSTER_OVERLAYS.none;
-    state.overlay = POSTER_OVERLAYS[state.overlay] ? state.overlay : "none";
-    if (!overlay.asset) {
-      images.overlay = null;
-      requestRender();
-      return;
-    }
-    try {
-      images.overlay = await loadImage(overlay.asset);
-    } catch (error) {
-      console.warn("Could not load overlay:", error);
-      images.overlay = null;
-    }
+    const topLogo = resolveBrandingConfig(POSTER_TOP_LOGOS, state.logo);
+    const bottomBranding = resolveBrandingConfig(POSTER_BOTTOM_BRANDING, state.bottomBranding);
+    [images.logo, images.qr, images.footerBranding] = await Promise.all([
+      loadOptionalAsset(topLogo?.asset),
+      loadOptionalAsset(state.qr === "none" ? null : assets.qr[state.qr]),
+      loadOptionalAsset(bottomBranding?.type === "image" ? bottomBranding.asset : null)
+    ]);
     requestRender();
   }
 
@@ -478,7 +511,8 @@ const POSTER_OVERLAYS = Object.freeze({
         color: POSTER_CREDIT_STYLE.color,
         uppercase: POSTER_CREDIT_STYLE.uppercase,
         shadow: POSTER_CREDIT_STYLE.shadow,
-        stroke: POSTER_CREDIT_STYLE.stroke
+        stroke: POSTER_CREDIT_STYLE.stroke,
+        opacity: 1
       };
     }
 
@@ -491,8 +525,38 @@ const POSTER_OVERLAYS = Object.freeze({
       color: state[prefix + "Color"],
       uppercase: Boolean(state[prefix + "Uppercase"]),
       shadow: false,
-      stroke: false
+      stroke: false,
+      opacity: clampOpacity(POSTER_TEXT_STYLES[prefix]?.opacity)
     };
+  }
+
+  function clampOpacity(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(0, Math.min(1, numeric));
+  }
+
+  function isResizableText(prefix) {
+    return Object.prototype.hasOwnProperty.call(TEXT_WIDTH_LIMITS, prefix);
+  }
+
+  function clampTextWidth(prefix, value) {
+    const max = SAFE_AREA.right - SAFE_AREA.left;
+    const minimum = Math.min(TEXT_WIDTH_LIMITS[prefix].min, max);
+    const numeric = Number(value);
+    return Math.max(minimum, Math.min(max, Number.isFinite(numeric) ? numeric : minimum));
+  }
+
+  function getTextBoxLeft(x, width, align) {
+    if (align === "center") return x - width / 2;
+    if (align === "right") return x - width;
+    return x;
+  }
+
+  function getTextAnchor(left, right, align) {
+    if (align === "center") return (left + right) / 2;
+    if (align === "right") return right;
+    return left;
   }
 
   function getTextBlockMetrics(prefix) {
@@ -505,7 +569,9 @@ const POSTER_OVERLAYS = Object.freeze({
     const lineHeight = size * (style.lineHeight / 100);
     const spacing = style.spacing;
     const maxSafeWidth = SAFE_AREA.right - SAFE_AREA.left;
-    const width = Math.min(Number(state[prefix + "Width"]), maxSafeWidth);
+    const width = isResizableText(prefix)
+      ? clampTextWidth(prefix, state[prefix + "Width"])
+      : Math.min(Number(state[prefix + "Width"]), maxSafeWidth);
     const x = Number(state[prefix + "X"]);
     const y = Number(state[prefix + "Y"]);
     const align = style.align;
@@ -517,23 +583,25 @@ const POSTER_OVERLAYS = Object.freeze({
     const actualWidth = Math.max(1, ...measuredWidths);
     const height = Math.max(size, lines.length * lineHeight);
 
-    let left = x;
-    if (align === "center") left = x - actualWidth / 2;
-    if (align === "right") left = x - actualWidth;
+    const selectionWidth = isResizableText(prefix) ? width : actualWidth;
+    const left = getTextBoxLeft(x, selectionWidth, align);
 
     ctx.restore();
     return {
       text, fontValue, size, lineHeight, spacing, width, x, y, align,
-      color: style.color, shadow: style.shadow, stroke: style.stroke,
-      lines, measuredWidths, actualWidth, height,
-      left, right: left + actualWidth, top: y, bottom: y + height
+      color: style.color, shadow: style.shadow, stroke: style.stroke, opacity: style.opacity,
+      lines, measuredWidths, actualWidth, selectionWidth, height,
+      left, right: left + selectionWidth, top: y, bottom: y + height
     };
   }
 
   function clampTextBlock(prefix) {
     if (prefix === "description" && !state.enableDescription) return;
     if (prefix === "credit" && !state.enableCredit) return;
-    let metrics = getTextBlockMetrics(prefix);
+    if (isResizableText(prefix)) {
+      state[prefix + "Width"] = clampTextWidth(prefix, state[prefix + "Width"]);
+    }
+    const metrics = getTextBlockMetrics(prefix);
     let x = Number(state[prefix + "X"]);
     let y = Number(state[prefix + "Y"]);
 
@@ -552,25 +620,32 @@ const POSTER_OVERLAYS = Object.freeze({
   }
 
   function drawTextSelection(prefix, metrics) {
-    if (isExporting || selectedText !== prefix) return;
-    const pad = 12;
+    const hovered = hoveredResizeEdge?.prefix === prefix;
+    if (isExporting || (selectedText !== prefix && !hovered)) return;
+    const verticalPad = 12;
     ctx.save();
     ctx.shadowColor = "transparent";
     ctx.setLineDash([12, 8]);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#20d9df";
-    ctx.fillStyle = "rgba(32,217,223,.08)";
-    ctx.fillRect(metrics.left - pad, metrics.top - pad, metrics.actualWidth + pad * 2, metrics.height + pad * 2);
-    ctx.strokeRect(metrics.left - pad, metrics.top - pad, metrics.actualWidth + pad * 2, metrics.height + pad * 2);
+    ctx.fillStyle = "rgba(32,217,223,.04)";
+    ctx.fillRect(metrics.left, metrics.top - verticalPad, metrics.selectionWidth, metrics.height + verticalPad * 2);
+    ctx.strokeRect(metrics.left, metrics.top - verticalPad, metrics.selectionWidth, metrics.height + verticalPad * 2);
     ctx.setLineDash([]);
-    const handle = 10;
-    const points = [
-      [metrics.left - pad, metrics.top - pad],
-      [metrics.right + pad, metrics.top - pad],
-      [metrics.left - pad, metrics.bottom + pad],
-      [metrics.right + pad, metrics.bottom + pad]
-    ];
-    points.forEach(([px, py]) => ctx.fillRect(px - handle / 2, py - handle / 2, handle, handle));
+    const activeEdge = resizingText && selectedText === prefix
+      ? resizeEdge
+      : hovered ? hoveredResizeEdge.edge : null;
+    if (activeEdge) {
+      const edgeX = activeEdge === "left" ? metrics.left : metrics.right;
+      const edgeHintWidth = 6;
+      ctx.fillStyle = "#20d9df";
+      ctx.fillRect(
+        edgeX - edgeHintWidth / 2,
+        metrics.top - verticalPad,
+        edgeHintWidth,
+        metrics.height + verticalPad * 2
+      );
+    }
     ctx.restore();
   }
 
@@ -589,6 +664,7 @@ const POSTER_OVERLAYS = Object.freeze({
     ctx.lineJoin = "round";
     ctx.miterLimit = 2;
     ctx.fillStyle = metrics.color;
+    ctx.globalAlpha = metrics.opacity;
 
     if (metrics.shadow) {
       ctx.shadowColor = "rgba(0,0,0,.75)";
@@ -625,41 +701,144 @@ const POSTER_OVERLAYS = Object.freeze({
            y >= b.top - pad && y <= b.bottom + pad;
   }
 
+  function getTextResizeEdge(prefix, x, y) {
+    if (!isResizableText(prefix)) return null;
+    const bounds = textBounds[prefix];
+    if (!bounds || y < bounds.top - 12 || y > bounds.bottom + 12) return null;
+    if (Math.abs(x - bounds.left) <= TEXT_RESIZE_HIT_WIDTH) return "left";
+    if (Math.abs(x - bounds.right) <= TEXT_RESIZE_HIT_WIDTH) return "right";
+    return null;
+  }
+
+  function findResizeHit(x, y) {
+    const targets = state.enableDescription ? ["description", "title"] : ["title"];
+    for (const prefix of targets) {
+      const edge = getTextResizeEdge(prefix, x, y);
+      if (edge) return { prefix, edge };
+    }
+    return null;
+  }
+
+  function findMovableText(x, y) {
+    if (state.enableCredit && pointInsideText("credit", x, y)) return "credit";
+    if (state.enableDescription && pointInsideText("description", x, y)) return "description";
+    if (pointInsideText("title", x, y)) return "title";
+    return null;
+  }
+
+  function setHoverResizeEdge(next) {
+    const changed = hoveredResizeEdge?.prefix !== next?.prefix || hoveredResizeEdge?.edge !== next?.edge;
+    hoveredResizeEdge = next;
+    if (changed) requestRender();
+  }
+
+  function updateCanvasCursor(point) {
+    if (resizingText) {
+      canvas.style.cursor = "ew-resize";
+      return;
+    }
+    if (draggingText) {
+      canvas.style.cursor = "move";
+      return;
+    }
+    if (draggingBackground) {
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    const resizeHit = findResizeHit(point.x, point.y);
+    setHoverResizeEdge(resizeHit);
+    canvas.style.cursor = resizeHit ? "ew-resize" : findMovableText(point.x, point.y) ? "move" : "grab";
+  }
+
+  function resolveBrandingConfig(collection, key) {
+    const base = collection[key];
+    if (!base) return null;
+    const sizeOverride = base[state.posterSize];
+    return sizeOverride ? { ...base, ...sizeOverride } : base;
+  }
+
+  function resolveConfiguredImageSize(image, config) {
+    const naturalRatio = image.width / image.height;
+    let width = Number(config.width) || 0;
+    let height = Number(config.height) || 0;
+
+    if (config.preserveAspectRatio !== false) {
+      if (width > 0) height = width / naturalRatio;
+      else if (height > 0) width = height * naturalRatio;
+    } else {
+      if (width <= 0 && height > 0) width = height * naturalRatio;
+      if (height <= 0 && width > 0) height = width / naturalRatio;
+    }
+
+    return { width, height };
+  }
+
   function drawLogo() {
     if (!images.logo) return;
-    const maxW = Number(state.logoSize);
-    const ratio = images.logo.height / images.logo.width;
+    const config = resolveBrandingConfig(POSTER_TOP_LOGOS, state.logo);
+    if (!config) return;
+    const size = resolveConfiguredImageSize(images.logo, config);
     const x = state.logoPosition === "center"
-      ? (canvas.width - maxW) / 2
-      : Number(state.logoX);
-    ctx.drawImage(images.logo, x, Number(state.logoY), maxW, maxW * ratio);
+      ? (canvas.width - size.width) / 2
+      : Number(config.x);
+    ctx.drawImage(images.logo, x, Number(config.y), size.width, size.height);
   }
 
   function drawQR() {
     if (!images.qr || state.qr === "none") return;
     const s = Number(state.qrSize);
-    ctx.drawImage(images.qr, Number(state.qrX), Number(state.qrY), s, s);
+    const y = canvas.height - s - Number(state.qrBottom);
+    ctx.drawImage(images.qr, Number(state.qrX), y, s, s);
   }
 
-  function drawWebsite() {
+  function drawBottomBranding() {
+    const config = resolveBrandingConfig(POSTER_BOTTOM_BRANDING, state.bottomBranding);
+    if (!config) return;
+
+    if (config.type === "image") {
+      if (!images.footerBranding) return;
+      const size = resolveConfiguredImageSize(images.footerBranding, config);
+      ctx.save();
+      ctx.globalAlpha = clampOpacity(config.opacity);
+      ctx.drawImage(
+        images.footerBranding,
+        canvas.width - Number(config.right) - size.width,
+        canvas.height - Number(config.bottom) - size.height,
+        size.width,
+        size.height
+      );
+      ctx.restore();
+      return;
+    }
+    if (config.type !== "text") return;
 
     ctx.save();
-    ctx.font = `900 ${Number(state.websiteSize)}px Arial, Helvetica, sans-serif`;
-    ctx.textBaseline = "top";
-    ctx.textAlign = state.websiteAlign;
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "rgba(0,0,0,.65)";
-    ctx.shadowBlur = 7;
-    ctx.shadowOffsetY = 3;
-    ctx.fillText(state.website.toUpperCase(), Number(state.websiteX), Number(state.websiteY));
+    ctx.globalAlpha = clampOpacity(config.opacity);
+    ctx.font = `${config.fontStyle || "normal"} ${Number(config.fontWeight)} ${Number(config.fontSize)}px ${config.fontFamily}`;
+    ctx.textBaseline = "bottom";
+    ctx.textAlign = "right";
+    ctx.fillStyle = config.color;
+    ctx.shadowColor = config.shadowColor;
+    ctx.shadowBlur = Number(config.shadowBlur);
+    ctx.shadowOffsetY = Number(config.shadowOffsetY);
+    const text = config.uppercase ? config.text.toUpperCase() : config.text;
+    drawSpacedLine(
+      text,
+      canvas.width - Number(config.right),
+      canvas.height - Number(config.bottom),
+      Number(config.letterSpacing) || 0,
+      "right",
+      true,
+      false
+    );
     ctx.restore();
   }
 
   function drawGuides() {
     if (!state.showGuides) return;
     ctx.save();
-    ctx.strokeStyle = "rgba(0,255,255,.78)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(0,255,255,.7)";
+    ctx.lineWidth = 3;
     ctx.setLineDash([12, 10]);
     ctx.strokeRect(
       SAFE_AREA.left,
@@ -673,6 +852,31 @@ const POSTER_OVERLAYS = Object.freeze({
     ctx.moveTo(SAFE_AREA.left, (SAFE_AREA.top + SAFE_AREA.bottom) / 2);
     ctx.lineTo(SAFE_AREA.right, (SAFE_AREA.top + SAFE_AREA.bottom) / 2);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  function getScanlinePattern(overlay) {
+    if (scanlinePattern) return scanlinePattern;
+    const tile = document.createElement("canvas");
+    tile.width = Number(overlay.tileWidth);
+    tile.height = Number(overlay.tileHeight);
+    const tileContext = tile.getContext("2d");
+    const stripeHeight = tile.height * Number(overlay.fillRatio);
+    tileContext.fillStyle = overlay.color;
+    tileContext.fillRect(0, tile.height - stripeHeight, tile.width, stripeHeight);
+    scanlinePattern = ctx.createPattern(tile, "repeat");
+    return scanlinePattern;
+  }
+
+  function drawGeneratedOverlay() {
+    const overlay = POSTER_OVERLAYS[state.overlay] || POSTER_OVERLAYS.none;
+    if (overlay.type !== "scanlines") return;
+    const pattern = getScanlinePattern(overlay);
+    if (!pattern) return;
+    ctx.save();
+    ctx.globalAlpha = Number(overlay.opacity);
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
 
@@ -692,25 +896,14 @@ const POSTER_OVERLAYS = Object.freeze({
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    if (images.overlay) {
-      const overlay = POSTER_OVERLAYS[state.overlay] || POSTER_OVERLAYS.none;
-      ctx.save();
-      ctx.globalAlpha = Number(state.overlayOpacity) / 100;
-      const scale = Number(overlay.scale) || 1;
-      const w = (Number(overlay.width) || images.overlay.width) * scale;
-      const h = (Number(overlay.height) || images.overlay.height) * scale;
-      const x = (canvas.width - w) / 2 + (Number(overlay.x) || 0);
-      const y = (canvas.height - h) / 2 + (Number(overlay.y) || 0);
-      ctx.drawImage(images.overlay, x, y, w, h);
-      ctx.restore();
-    }
+    drawGeneratedOverlay();
 
     drawLogo();
     drawTextBlock("title");
     if (state.enableDescription) drawTextBlock("description");
     if (state.enableCredit) drawTextBlock("credit");
     drawQR();
-    drawWebsite();
+    drawBottomBranding();
     drawGuides();
     ctx.restore();
   }
@@ -733,13 +926,11 @@ const POSTER_OVERLAYS = Object.freeze({
     saturation: ["saturation", "number"],
     darkOverlay: ["darkOverlay", "number"],
     overlaySelect: ["overlay", "value"],
-    overlayOpacity: ["overlayOpacity", "number"],
     titleText: ["titleText", "value"],
     titleFont: ["titleFont", "value"],
     titleSize: ["titleSize", "number"],
     titleLineHeight: ["titleLineHeight", "number"],
     titleSpacing: ["titleSpacing", "number"],
-    titleWidth: ["titleWidth", "number"],
     titleX: ["titleX", "number"],
     titleY: ["titleY", "number"],
     titleAlign: ["titleAlign", "value"],
@@ -750,7 +941,6 @@ const POSTER_OVERLAYS = Object.freeze({
     descriptionSize: ["descriptionSize", "number"],
     descriptionLineHeight: ["descriptionLineHeight", "number"],
     descriptionSpacing: ["descriptionSpacing", "number"],
-    descriptionWidth: ["descriptionWidth", "number"],
     descriptionX: ["descriptionX", "number"],
     descriptionY: ["descriptionY", "number"],
     descriptionAlign: ["descriptionAlign", "value"],
@@ -772,15 +962,12 @@ const POSTER_OVERLAYS = Object.freeze({
     contrast: ["contrastValue", v => `${v}%`],
     saturation: ["saturationValue", v => `${v}%`],
     darkOverlay: ["darkOverlayValue", v => `${v}%`],
-    overlayOpacity: ["overlayOpacityValue", v => `${v}%`],
     titleSize: ["titleSizeValue", String],
     titleLineHeight: ["titleLineHeightValue", v => (v / 100).toFixed(2)],
     titleSpacing: ["titleSpacingValue", String],
-    titleWidth: ["titleWidthValue", String],
     descriptionSize: ["descriptionSizeValue", String],
     descriptionLineHeight: ["descriptionLineHeightValue", v => (v / 100).toFixed(2)],
     descriptionSpacing: ["descriptionSpacingValue", String],
-    descriptionWidth: ["descriptionWidthValue", String],
     creditWidth: ["creditWidthValue", String],
     jpgQuality: ["jpgQualityValue", v => `${v}%`]
   };
@@ -801,11 +988,11 @@ const POSTER_OVERLAYS = Object.freeze({
           if (state.brandPreset === "battlespacex") {
             state.logo = "battlespacex";
             state.qr = "battlespacex";
-            state.website = "www.battlespacex.com";
+            state.bottomBranding = "battlespacex";
           } else if (state.brandPreset === "stratops") {
             state.logo = "stratops";
             state.qr = "stratops";
-            state.website = "www.stratops.battlespacex.com";
+            state.bottomBranding = "stratops";
           }
           syncControls();
           brandAssetsReadyPromise = loadBrandAssets();
@@ -823,10 +1010,6 @@ const POSTER_OVERLAYS = Object.freeze({
           brandAssetsReadyPromise = loadBrandAssets();
           await brandAssetsReadyPromise;
         }
-        if (id === "overlaySelect") {
-          overlayReadyPromise = loadOverlayAsset();
-          await overlayReadyPromise;
-        }
         if (id === "exportFormat") updateExportVisibility();
         if (["imageZoom", "fitMode", "imageX", "imageY"].includes(id)) {
           clampBackgroundPosition();
@@ -841,23 +1024,12 @@ const POSTER_OVERLAYS = Object.freeze({
     });
   }
 
-  $("websiteSelect").addEventListener("change", () => {
+  $("websiteSelect").addEventListener("change", async () => {
     state.brandPreset = "";
     $("brandPresetSelect").value = "";
-    const value = $("websiteSelect").value;
-    $("customWebsiteWrap").classList.toggle("hidden", value !== "custom");
-    if (value !== "custom") {
-      state.website = value;
-      $("customWebsiteInput").value = value;
-      requestRender();
-    }
-  });
-
-  $("customWebsiteInput").addEventListener("input", () => {
-    state.brandPreset = "";
-    $("brandPresetSelect").value = "";
-    state.website = $("customWebsiteInput").value;
-    requestRender();
+    state.bottomBranding = $("websiteSelect").value;
+    brandAssetsReadyPromise = loadBrandAssets();
+    await brandAssetsReadyPromise;
   });
 
   function autoFitBackground() {
@@ -932,15 +1104,7 @@ const POSTER_OVERLAYS = Object.freeze({
       else el.value = state[key];
     });
 
-    const websiteOptions = [...$("websiteSelect").options].map(o => o.value);
-    if (websiteOptions.includes(state.website)) {
-      $("websiteSelect").value = state.website;
-      $("customWebsiteWrap").classList.add("hidden");
-    } else {
-      $("websiteSelect").value = "custom";
-      $("customWebsiteWrap").classList.remove("hidden");
-      $("customWebsiteInput").value = state.website;
-    }
+    $("websiteSelect").value = state.bottomBranding;
     updateOptionalPanels();
     updateExportVisibility();
     updateOutputs();
@@ -959,6 +1123,29 @@ const POSTER_OVERLAYS = Object.freeze({
     normalized.overlay = POSTER_OVERLAYS[normalized.overlay] ? normalized.overlay : "none";
     normalized.titleFont = normalizeFontValue("title", normalized.titleFont);
     normalized.descriptionFont = normalizeFontValue("description", normalized.descriptionFont);
+    normalized.titleWidth = clampTextWidth("title", normalized.titleWidth);
+    normalized.descriptionWidth = clampTextWidth("description", normalized.descriptionWidth);
+    normalized.titleColor = String(normalized.titleColor).toLowerCase() === "#000000" ? "#000000" : "#ffffff";
+    normalized.descriptionColor = String(normalized.descriptionColor).toLowerCase() === "#000000" ? "#000000" : "#ffffff";
+    if (!Object.prototype.hasOwnProperty.call(loaded, "qrBottom") && Number.isFinite(Number(loaded.qrY))) {
+      const posterHeight = POSTER_SIZES[normalized.posterSize].height;
+      normalized.qrBottom = posterHeight - Number(loaded.qrY) - Number(normalized.qrSize);
+    }
+    normalized.qrBottom = Number.isFinite(Number(normalized.qrBottom))
+      ? Math.max(0, Number(normalized.qrBottom))
+      : initialState.qrBottom;
+    const legacyBottomBranding = Object.prototype.hasOwnProperty.call(loaded, "bottomBranding")
+      ? loaded.bottomBranding
+      : loaded.website;
+    if (["www.battlespacex.com", "battlespacex.com"].includes(legacyBottomBranding)) {
+      normalized.bottomBranding = "battlespacex";
+    } else if (["www.stratops.battlespacex.com", "stratops.battlespacex.com"].includes(legacyBottomBranding)) {
+      normalized.bottomBranding = "stratops";
+    } else if (["none", "battlespacex", "stratops"].includes(legacyBottomBranding)) {
+      normalized.bottomBranding = legacyBottomBranding;
+    } else {
+      normalized.bottomBranding = "none";
+    }
     normalized.backgroundDataUrl = typeof normalized.backgroundDataUrl === "string"
       ? normalized.backgroundDataUrl
       : "";
@@ -976,14 +1163,34 @@ const POSTER_OVERLAYS = Object.freeze({
 
   canvas.addEventListener("pointerdown", (event) => {
     const point = canvasPoint(event);
-    const hitCredit = state.enableCredit && pointInsideText("credit", point.x, point.y);
-    const hitDescription = state.enableDescription && pointInsideText("description", point.x, point.y);
-    const hitTitle = pointInsideText("title", point.x, point.y);
-    const hit = hitCredit ? "credit" : hitDescription ? "description" : hitTitle ? "title" : null;
+    const resizeHit = findResizeHit(point.x, point.y);
+    if (resizeHit) {
+      selectedText = resizeHit.prefix;
+      resizeEdge = resizeHit.edge;
+      resizingText = true;
+      draggingText = false;
+      draggingBackground = false;
+      canvas.setPointerCapture(event.pointerId);
+      canvas.classList.add("resizing-text");
+      const bounds = textBounds[selectedText];
+      dragStart = {
+        x: point.x,
+        y: point.y,
+        boxLeft: bounds.left,
+        boxRight: bounds.right
+      };
+      updateCanvasCursor(point);
+      requestRender();
+      return;
+    }
+
+    const hit = findMovableText(point.x, point.y);
 
     if (hit) {
+      setHoverResizeEdge(null);
       selectedText = hit;
       draggingText = true;
+      resizingText = false;
       draggingBackground = false;
       canvas.setPointerCapture(event.pointerId);
       canvas.classList.add("dragging-text");
@@ -998,6 +1205,7 @@ const POSTER_OVERLAYS = Object.freeze({
     }
 
     selectedText = null;
+    setHoverResizeEdge(null);
     requestRender();
 
     if (!images.background) return;
@@ -1019,6 +1227,23 @@ const POSTER_OVERLAYS = Object.freeze({
   canvas.addEventListener("pointermove", (event) => {
     const point = canvasPoint(event);
 
+    if (resizingText && selectedText && resizeEdge) {
+      const limits = TEXT_WIDTH_LIMITS[selectedText];
+      let left = dragStart.boxLeft;
+      let right = dragStart.boxRight;
+      if (resizeEdge === "left") {
+        left = Math.max(SAFE_AREA.left, Math.min(point.x, right - limits.min));
+      } else {
+        right = Math.min(SAFE_AREA.right, Math.max(point.x, left + limits.min));
+      }
+      state[selectedText + "Width"] = Math.round(right - left);
+      state[selectedText + "X"] = Math.round(getTextAnchor(left, right, state[selectedText + "Align"]));
+      clampTextBlock(selectedText);
+      updateCanvasCursor(point);
+      requestRender();
+      return;
+    }
+
     if (draggingText && selectedText) {
       state[selectedText + "X"] = Math.round(dragStart.textX + point.x - dragStart.x);
       state[selectedText + "Y"] = Math.round(dragStart.textY + point.y - dragStart.y);
@@ -1027,7 +1252,10 @@ const POSTER_OVERLAYS = Object.freeze({
       return;
     }
 
-    if (!draggingBackground) return;
+    if (!draggingBackground) {
+      updateCanvasCursor(point);
+      return;
+    }
     const bounds = getBackgroundPositionBounds();
     const nextX = bounds.allowX
       ? Math.round(dragStart.imageX + point.x - dragStart.x)
@@ -1042,23 +1270,29 @@ const POSTER_OVERLAYS = Object.freeze({
   function stopDragging(event) {
     draggingBackground = false;
     draggingText = false;
-    canvas.classList.remove("dragging", "dragging-text");
+    resizingText = false;
+    resizeEdge = null;
+    canvas.classList.remove("dragging", "dragging-text", "resizing-text");
     try { canvas.releasePointerCapture(event.pointerId); } catch (_) {}
+    updateCanvasCursor(canvasPoint(event));
   }
   canvas.addEventListener("pointerup", stopDragging);
   canvas.addEventListener("pointercancel", stopDragging);
+  canvas.addEventListener("pointerleave", () => {
+    if (draggingBackground || draggingText || resizingText) return;
+    setHoverResizeEdge(null);
+    canvas.style.cursor = "grab";
+  });
 
   $("resetBtn").addEventListener("click", async () => {
     Object.keys(state).forEach(key => delete state[key]);
     Object.assign(state, JSON.parse(JSON.stringify(initialState)));
     images.background = null;
-    images.overlay = null;
     $("backgroundInput").value = "";
     syncControls();
     applyPosterSize(state.posterSize, false);
     brandAssetsReadyPromise = loadBrandAssets();
-    overlayReadyPromise = loadOverlayAsset();
-    await Promise.all([brandAssetsReadyPromise, overlayReadyPromise]);
+    await brandAssetsReadyPromise;
     requestRender();
   });
 
@@ -1084,8 +1318,7 @@ const POSTER_OVERLAYS = Object.freeze({
       images.background = state.backgroundDataUrl ? await loadImage(state.backgroundDataUrl) : null;
       clampBackgroundPosition(normalized.imageX, normalized.imageY);
       brandAssetsReadyPromise = loadBrandAssets();
-      overlayReadyPromise = loadOverlayAsset();
-      await Promise.all([brandAssetsReadyPromise, overlayReadyPromise]);
+      await brandAssetsReadyPromise;
       requestRender();
     } catch (error) {
       alert("Could not load this project file.");
@@ -1094,7 +1327,7 @@ const POSTER_OVERLAYS = Object.freeze({
   });
 
   $("exportBtn").addEventListener("click", async () => {
-    await Promise.all([fontsReadyPromise, brandAssetsReadyPromise, overlayReadyPromise]);
+    await Promise.all([fontsReadyPromise, brandAssetsReadyPromise]);
     isExporting = true;
     render();
     const isJpg = state.exportFormat === "jpg";
@@ -1158,7 +1391,6 @@ const POSTER_OVERLAYS = Object.freeze({
   applyPosterSize(state.posterSize, false);
   fontsReadyPromise = loadConfiguredFonts();
   brandAssetsReadyPromise = loadBrandAssets();
-  overlayReadyPromise = loadOverlayAsset();
   updateImageAxisControls();
   render();
 })();

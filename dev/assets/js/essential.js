@@ -3038,7 +3038,7 @@ function updateHighValueDockPulse(kind = "", count = 0) {
     const widgetId = kind === "naval" ? "naval" : "aircraft";
     const safeCount = Math.max(0, Math.floor(Number(count) || 0));
     const active = safeCount > 0;
-    const label = widgetId === "naval" ? "Naval Tracker" : "Aircraft Tracker";
+    const label = widgetId === "naval" ? "Naval Tracker" : "Air Tracker";
     document.querySelectorAll(
         `.wz-dock__btn[data-dock-widget="${widgetId}"], `
         + `.wz-dock__btn[data-dock-proxy="${widgetId}"], `
@@ -3080,7 +3080,7 @@ function notifyHighValueAssets(kind = "aircraft", items = []) {
         if (lastShownAt && now - lastShownAt < HIGH_VALUE_ASSET_ALERT_THROTTLE_MS) continue;
         __highValueAssetAlertedAt.set(alertKey, now);
         __highValueAssetLastNotifiedAt.set("global", now);
-        const trackerLabel = kind === "naval" ? "Naval Tracker" : "Aircraft Tracker";
+        const trackerLabel = kind === "naval" ? "Naval Tracker" : "Air Tracker";
         const name = buildHighValueAssetName(item, kind);
         const location = String(item.country || item.region || item.location_label || "").trim();
         const metaParts = [
@@ -7241,7 +7241,7 @@ function updateAircraftWidgetTitleCount(total = 0) {
     const count = Math.max(0, Math.floor(Number(total) || 0));
     const capped = Math.min(LIVE_AIRCRAFT_WIDGET_TITLE_MAX_COUNT, count);
     const highValueCount = Math.max(0, Math.floor(Number(titleEl.dataset.hvaCount || 0) || 0));
-    titleEl.textContent = `Aircraft Tracker (${capped})${highValueCount ? ` • ${highValueCount} HVA` : ""}`;
+    titleEl.textContent = `Air Tracker (${capped})${highValueCount ? ` • ${highValueCount} HVA` : ""}`;
 }
 function updateAircraftWidgetHighValueCount(count = 0) {
     const titleEl = document.getElementById("widget-aircraft-title");
@@ -7575,13 +7575,13 @@ function updateAircraftWidgetCard(card, track, selection) {
     timeEl = card.querySelector(".wz-aircraft-item__time");
     actionBtn = card.querySelector(".wz-aircraft-action");
     let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");
-    let statusIcon = statusWrap?.querySelector(".stratops-ico-assets-signal-thermal-1") || null;
+    let statusIcon = statusWrap?.querySelector(".stratops-ico-assets-air-1") || null;
     let titleText = titleEl.querySelector(".wz-aircraft-title__text");
     if (!statusWrap) {
         statusWrap = document.createElement("span");
         statusWrap.className = "wz-aircraft-title__status";
         statusIcon = document.createElement("span");
-        statusIcon.className = "stratops-ico-assets-signal-thermal-1";
+        statusIcon.className = "stratops-ico-assets-air-1";
         statusIcon.setAttribute("aria-hidden", "true");
         statusWrap.appendChild(statusIcon);
         titleEl.appendChild(statusWrap);
@@ -8634,6 +8634,13 @@ export async function initWarzoneApp() {
                 window.__warzoneViewer?.scene?.requestRender?.();
                 return;
             }
+            if (id === "aoi" || id === "*") {
+                window.__warzoneAoiLens?.setEnabled?.(isLayerEnabled("aoi"));
+                if (id === "aoi") {
+                    window.__warzoneViewer?.scene?.requestRender?.();
+                    return;
+                }
+            }
             if (id === "gnss") {
                 if (isLayerEnabled("gnss")) {
                     void refreshGnssInterferenceCells();
@@ -8706,6 +8713,7 @@ export async function initWarzoneApp() {
         });
         {
             const globe = window.__warzoneViewer?.__warzone;
+            window.__warzoneAoiLens?.setEnabled?.(isLayerEnabled("aoi"));
             globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
             globe?.setSatelliteImageryLayerVisible?.(isLayerEnabled("satellite-imagery"));
             globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
