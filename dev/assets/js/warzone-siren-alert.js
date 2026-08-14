@@ -15,6 +15,7 @@ let __stack = [];   // [ { id, el, timer } ]
 let __seq = 0;
 let __sirenLoopTimer = null;
 let __sirenAudioEl = null;
+let __devAlertPreviewActive = false;
 const SIREN_STYLE_MODE = false;
 const ALERT_EMOJI_RE = /(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|[\u{1F1E6}-\u{1F1FF}]|[\uFE0E\uFE0F\u200D\u20E3])/gu;
 function getStack() {
@@ -178,18 +179,43 @@ function stopSirenLoop() {
         __sirenLoopTimer = null;
     }
 }
+function clearSirenStackImmediately() {
+    __stack.forEach((item) => {
+        clearTimeout(item.timer);
+        try { item.el.remove(); } catch { }
+    });
+    __stack = [];
+    stopSirenLoop();
+    if (__sirenAudioEl) {
+        try {
+            __sirenAudioEl.pause();
+            __sirenAudioEl.currentTime = 0;
+        } catch { }
+    }
+}
+export function setSirenAlertDevPreviewActive(active = false) {
+    const nextActive = active === true;
+    if (__devAlertPreviewActive === nextActive) return __devAlertPreviewActive;
+    __devAlertPreviewActive = nextActive;
+    clearSirenStackImmediately();
+    return __devAlertPreviewActive;
+}
 // ── Main API ───────────────────────────────────────────────────────────────────
-export function showSirenAlert({ title, meta = "", category = "", level = "orange", sound = true, pulse = true } = {}) {
-    enforceCap();
+export function showSirenAlert({ title, meta = "", category = "", level = "orange", sound = true, pulse = true, devPreview = false } = {}) {
+    const isDevPreview = devPreview === true;
+    if (__devAlertPreviewActive && !isDevPreview) return null;
+    if (isDevPreview && !__devAlertPreviewActive) return null;
+    if (!isDevPreview) enforceCap();
     const id = ++__seq;
     const stack = getStack();
-    if (!stack) return;
+    if (!stack) return null;
     const tpl = document.getElementById("tpl-siren-banner");
-    if (!tpl) return;
+    if (!tpl) return null;
     const banner = tpl.content.cloneNode(true).firstElementChild;
     banner.className = `wz-siren-banner wz-siren-banner--${level}`;
     banner.classList.toggle("wz-siren-banner--steady", pulse === false);
     banner.dataset.alertId = id;
+    if (isDevPreview) banner.dataset.devAlertPreview = "1";
     const displayTitle = sanitizeAlertDisplayText(title) || "Operational activity reported";
     const displayMeta = sanitizeAlertDisplayText(meta);
     banner.querySelector(".wz-siren-category").textContent = sanitizeAlertDisplayText(category) || getAlertCategory(displayTitle, displayMeta, level);
@@ -203,16 +229,18 @@ export function showSirenAlert({ title, meta = "", category = "", level = "orang
     }
     banner.querySelector(".wz-siren-close").addEventListener("click", (e) => {
         e.stopPropagation();
+        if (isDevPreview && __devAlertPreviewActive) return;
         dismiss(id);
     });
     stack.appendChild(banner);
-    if (__stack.length === 0 && sound) {
+    if (!isDevPreview && __stack.length === 0 && sound) {
         startSirenLoop();
     }
-    const timer = SIREN_STYLE_MODE
+    const timer = isDevPreview || SIREN_STYLE_MODE
         ? null
         : setTimeout(() => dismiss(id), AUTO_DISMISS[level] || 10000);
-    __stack.push({ id, el: banner, timer });
+    __stack.push({ id, el: banner, timer, devPreview: isDevPreview });
+    return banner;
 }
 // ── From normalized event ──────────────────────────────────────────────────────
 export function sirenAlertFromEvent(event) {

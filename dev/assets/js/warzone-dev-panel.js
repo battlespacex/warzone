@@ -21,8 +21,18 @@ import {
     refreshLiveTrackVisualStyles
 } from "./warzone-live-airforce.js";
 import { clearNavalVessel, refreshNavalVisualStyles, setNavalModelHeadingOffset, upsertNavalVessel } from "./warzone-live-naval.js";
-import { showSirenAlert } from "./warzone-siren-alert.js";
-import { showStickyAlert } from "./warzone-sticky-alert.js";
+import { setSirenAlertDevPreviewActive, showSirenAlert } from "./warzone-siren-alert.js";
+import { setStickyAlertDevPreviewActive, showStickyAlert } from "./warzone-sticky-alert.js";
+const ENABLE_ALERT_UI_DEV_PREVIEW = true; // TEMPORARY: remove with the isolated alert-preview block and controls.
+const DEV_ALERT_UI_PREVIEW_ID = "dev-alert-ui-preview";
+const DEV_ALERT_UI_PREVIEW_TIME = "2026-08-14T13:20:00.000Z";
+const DEV_ALERT_UI_PREVIEW_FIXTURES = Object.freeze([
+    Object.freeze({ category: "SIREN ACTIVITY", title: "SIRENS GOING OFF IN: THE ARABIAN SEA", meta: "via OSINT Feed · 12:26", level: "red" }),
+    Object.freeze({ category: "SIREN ACTIVITY", title: "SIRENS GOING OFF IN: ITS NUCLEAR WEAPONS", meta: "via OSINT Feed · 13:16", level: "orange" }),
+    Object.freeze({ category: "CRITICAL ALERT", title: "MULTIPLE MISSILE ACTIVITY DETECTED", meta: "via OSINT Feed · 13:20", level: "red" }),
+    Object.freeze({ category: "AIRSPACE WARNING", title: "REGIONAL AIRSPACE RESTRICTION REPORTED", meta: "via Open Source Monitor · 13:22", level: "yellow" }),
+]);
+let __devAlertUiPreviewActive = false;
 /* ================= TEST EVENT TEMPLATES ================= */
 const TEST_EVENTS = {
     missile_iran_israel: {
@@ -1302,10 +1312,9 @@ function getDevEventPreviewEvent() {
     };
 }
 
-function openDevEventUiPreview(logAction = true) {
+function openDevEventPopupFixture(event) {
     const globe = window.__warzoneViewer?.__warzone;
-    const event = getDevEventPreviewEvent();
-    globe?.removeEvent?.(DEV_EVENT_UI_PREVIEW_ID);
+    globe?.removeEvent?.(event.id);
     globe?.addEvent?.(event);
     document.dispatchEvent(new CustomEvent("wz:event-marker-selected", {
         detail: {
@@ -1336,6 +1345,12 @@ function openDevEventUiPreview(logAction = true) {
             devInspectionPreview: true,
         },
     }));
+}
+
+function openDevEventUiPreview(logAction = true) {
+    if (__devAlertUiPreviewActive) return;
+    const event = getDevEventPreviewEvent();
+    openDevEventPopupFixture(event);
     __devEventUiPreviewVisible = true;
     if (logAction) devLog("Opened event marker and popup preview");
 }
@@ -1347,6 +1362,109 @@ function closeDevEventUiPreview(logAction = true) {
     }));
     __devEventUiPreviewVisible = false;
     if (logAction) devLog("Closed event marker and popup preview");
+}
+
+function getDevAlertUiPreviewEvent() {
+    const placement = getDevEventPreviewPlacement();
+    return {
+        id: DEV_ALERT_UI_PREVIEW_ID,
+        title: "MULTIPLE MISSILE ACTIVITY DETECTED",
+        display_title: "MULTIPLE MISSILE ACTIVITY DETECTED",
+        summary: "Static DEV preview of a critical alert with an intentionally unverified origin.",
+        display_summary: "Static DEV preview of a critical alert with an intentionally unverified origin.",
+        category: "alert",
+        dominant_domain: "STRIKE",
+        severity: "critical",
+        confidence: 51,
+        verification_state: "UNCONFIRMED",
+        weapon_type: "missile_activity",
+        location_label: "UNKNOWN ORIGIN",
+        display_location_label: "UNKNOWN ORIGIN",
+        location_precision: "UNKNOWN",
+        location_confidence: 0,
+        occurred_at: DEV_ALERT_UI_PREVIEW_TIME,
+        source_name: "OSINT Feed",
+        display_source_name: "OSINT Feed",
+        source_url: getDevFixtureSourceUrl("alert-ui-preview"),
+        lat: placement.lat,
+        lon: placement.lon,
+        screenPosition: placement.screenPosition,
+    };
+}
+
+function syncDevAlertUiPreviewControls() {
+    const root = document.getElementById("wz-dev-alert-preview-controls");
+    const label = document.querySelector('.wz-dev-label[data-wz-dev-section="alert-ui-preview"]');
+    if (!ENABLE_ALERT_UI_DEV_PREVIEW) {
+        root?.remove();
+        label?.remove();
+        return;
+    }
+    const status = document.getElementById("wz-dev-alert-preview-status");
+    const openButton = document.getElementById("wz-dev-alert-preview-open");
+    const closeButton = document.getElementById("wz-dev-alert-preview-close");
+    if (status) status.textContent = __devAlertUiPreviewActive ? "ACTIVE" : "INACTIVE";
+    if (openButton) {
+        openButton.disabled = __devAlertUiPreviewActive;
+        openButton.setAttribute("aria-pressed", __devAlertUiPreviewActive ? "true" : "false");
+    }
+    if (closeButton) closeButton.disabled = !__devAlertUiPreviewActive;
+}
+
+function openDevAlertUiPreview() {
+    if (!ENABLE_ALERT_UI_DEV_PREVIEW || __devAlertUiPreviewActive) return false;
+    __devAlertUiPreviewActive = true;
+    document.body.classList.add("wz-dev-alert-preview");
+    setSirenAlertDevPreviewActive(true);
+    setStickyAlertDevPreviewActive(true);
+    setDevEventPopupInspectionFrozen(true);
+
+    DEV_ALERT_UI_PREVIEW_FIXTURES.forEach((fixture) => {
+        showSirenAlert({
+            ...fixture,
+            sound: false,
+            pulse: false,
+            devPreview: true,
+        });
+    });
+    showStickyAlert({
+        alert_key: "dev-alert-ui-preview-global",
+        version: "dev-alert-ui-preview-static",
+        title: "CRITICAL WARNING: MULTIPLE MISSILE ACTIVITY DETECTED",
+        meta: "UNKNOWN ORIGIN · via OSINT Feed · 13:20",
+        severity: "critical",
+        sticky: true,
+        devPreview: true,
+    });
+    openDevEventPopupFixture(getDevAlertUiPreviewEvent());
+    syncDevAlertUiPreviewControls();
+    devLog("Alert UI preview active: static production components, audio disabled");
+    return true;
+}
+
+function closeDevAlertUiPreview() {
+    if (!__devAlertUiPreviewActive) return false;
+    __devAlertUiPreviewActive = false;
+    setSirenAlertDevPreviewActive(false);
+    setStickyAlertDevPreviewActive(false);
+    window.__warzoneViewer?.__warzone?.removeEvent?.(DEV_ALERT_UI_PREVIEW_ID);
+    setDevEventPopupInspectionFrozen(false);
+    document.dispatchEvent(new CustomEvent("wz:event-marker-cleared", {
+        detail: { source: "dev-alert-ui-preview" },
+    }));
+    document.body.classList.remove("wz-dev-alert-preview");
+    syncDevAlertUiPreviewControls();
+    devLog("Alert UI preview closed; live alert rendering resumed");
+    return true;
+}
+
+function initDevAlertUiPreviewControls() {
+    const root = document.getElementById("wz-dev-alert-preview-controls");
+    if (!root || root.dataset.bound === "true") return;
+    root.dataset.bound = "true";
+    document.getElementById("wz-dev-alert-preview-open")?.addEventListener("click", openDevAlertUiPreview);
+    document.getElementById("wz-dev-alert-preview-close")?.addEventListener("click", closeDevAlertUiPreview);
+    syncDevAlertUiPreviewControls();
 }
 
 function ensureDevEventUiTunerDynamicControls() {
@@ -2683,6 +2801,7 @@ function initDevVisualInspectionControls() {
 }
 
 const DEV_PANEL_SECTIONS = [
+    ...(ENABLE_ALERT_UI_DEV_PREVIEW ? [{ value: "alert-ui-preview", label: "Alert UI Preview" }] : []),
     { value: "visual-inspection", label: "Visual Component Inspection" },
     { value: "event-hotspots", label: "Event Markers / Hotspots" },
     { value: "live-aircraft", label: "Live Aircraft Settings" },
@@ -3405,6 +3524,7 @@ export function initDevPanel() {
         openDevEventUiPreview();
     });
     initDevSimulatorControls();
+    initDevAlertUiPreviewControls();
     initMapTunerControls();
     initDevEventUiTunerControls();
     initDevVisualInspectionControls();
