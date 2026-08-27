@@ -4559,6 +4559,17 @@ const navalLivePoller = createNavalLivePoller({
 startOrefPoller();
 aircraftLivePoller.start();
 navalLivePoller.start();
+let navalShutdownStarted = false;
+function shutdownNavalSources(signal) {
+    if (navalShutdownStarted) return;
+    navalShutdownStarted = true;
+    navalLivePoller.stop();
+    for (const provider of navalProviders) provider.shutdown?.();
+    console.log(`[ais-live] stopped (${signal})`);
+    setTimeout(() => process.exit(0), 50);
+}
+process.once("SIGINT", () => shutdownNavalSources("SIGINT"));
+process.once("SIGTERM", () => shutdownNavalSources("SIGTERM"));
 syncSourceRegistryFromConfig().catch((err) => {
     console.error("[sources] Source registry sync failed:", err?.message || err);
 });

@@ -1,6 +1,9 @@
 import { createAisStreamProvider } from "./providers/aisstream.js";
 import { createAisHubProvider } from "./providers/aishub.js";
+import { createFintrafficProvider } from "./providers/fintraffic.js";
+import { createMarinePlanProvider } from "./providers/marineplan.js";
 import { createMarineTrafficProvider } from "./providers/marinetraffic.js";
+import { createOpenAisProvider } from "./providers/openais.js";
 import { createSpireProvider } from "./providers/spire.js";
 import { createVesselFinderProvider } from "./providers/vesselfinder.js";
 import { createVesselApiProvider } from "./providers/vesselapi.js";
@@ -19,7 +22,7 @@ function priorityMap(value, defaults) {
 }
 
 export function createNavalProviders(env = process.env, dependencies = {}) {
-    const priority = priorityMap(env.NAVAL_PROVIDER_PRIORITY, ["aisstream", "vesselapi", "aishub", "spire", "marinetraffic", "vesselfinder"]);
+    const priority = priorityMap(env.NAVAL_PROVIDER_PRIORITY, ["aisstream", "fintraffic", "vesselapi", "openais", "marineplan", "aishub", "spire", "marinetraffic", "vesselfinder"]);
     const providers = [
         createAisStreamProvider({
             enabled: envEnabled(env.AISSTREAM_ENABLED, true),
@@ -30,6 +33,19 @@ export function createNavalProviders(env = process.env, dependencies = {}) {
             cacheTtlMs: (Number(env.AISSTREAM_STATIC_CACHE_TTL_MINUTES) || 30) * 60_000,
             allowInsecureTlsFallback: envEnabled(env.AISSTREAM_ALLOW_INSECURE_TLS_FALLBACK, false),
             webSocketFactory: dependencies.webSocketFactory,
+            logger: dependencies.logger,
+        }),
+        createFintrafficProvider({
+            enabled: envEnabled(env.FINTRAFFIC_ENABLED, true),
+            baseUrl: env.FINTRAFFIC_MQTT_URL,
+            topics: env.FINTRAFFIC_TOPICS,
+            applicationName: env.FINTRAFFIC_APPLICATION_NAME,
+            initialSnapshotMs: Number(env.FINTRAFFIC_INITIAL_SNAPSHOT_MS) || 15_000,
+            cacheTtlMs: (Number(env.FINTRAFFIC_CACHE_TTL_MINUTES) || 30) * 60_000,
+            connectTimeoutMs: Number(env.FINTRAFFIC_CONNECT_TIMEOUT_MS) || 15_000,
+            reconnectBaseMs: Number(env.FINTRAFFIC_RECONNECT_BASE_MS) || 2_000,
+            reconnectMaxMs: Number(env.FINTRAFFIC_RECONNECT_MAX_MS) || 60_000,
+            connectImpl: dependencies.mqttConnect,
             logger: dependencies.logger,
         }),
         createVesselApiProvider({
@@ -43,6 +59,22 @@ export function createNavalProviders(env = process.env, dependencies = {}) {
             stateStore: dependencies.vesselApiStateStore,
             fetchImpl: dependencies.fetchImpl,
             logger: dependencies.logger,
+        }),
+        createOpenAisProvider({
+            enabled: envEnabled(env.OPENAIS_ENABLED, false),
+            baseUrl: env.OPENAIS_BASE_URL,
+            collectionPath: env.OPENAIS_COLLECTION_PATH,
+            apiToken: env.OPENAIS_API_TOKEN,
+            minimumIntervalMs: Number(env.OPENAIS_MINIMUM_INTERVAL_MS) || 60_000,
+            fetchImpl: dependencies.fetchImpl,
+        }),
+        createMarinePlanProvider({
+            enabled: envEnabled(env.MARINEPLAN_ENABLED, false),
+            apiKey: env.MARINEPLAN_API_KEY,
+            area: env.MARINEPLAN_AREA,
+            baseUrl: env.MARINEPLAN_BASE_URL,
+            minimumIntervalMs: Number(env.MARINEPLAN_MINIMUM_INTERVAL_MS) || 60_000,
+            fetchImpl: dependencies.fetchImpl,
         }),
         createAisHubProvider({
             enabled: envEnabled(env.AISHUB_ENABLED, false),

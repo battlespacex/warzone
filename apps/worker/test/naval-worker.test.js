@@ -80,6 +80,23 @@ test("naval tracks round decimal AIS motion values for integer database columns"
     assert.equal(track.heading_deg, 128);
 });
 
+test("naval history persistence uses the numeric AIS ship type code", async () => {
+    resetProviderHealth();
+    let historyRows = [];
+    const provider = navalProvider("aisstream");
+    provider.fetchObservations = async () => ({ observations: [{
+        domain: "naval", source: "aisstream", observed_at: "2026-08-13T12:00:00Z",
+        mmsi: "368123456", vessel_name: "USS EXAMPLE", latitude: 36, longitude: -72,
+        ship_type: "Military ops", ship_type_code: 35, provider_military_flag: true,
+    }] });
+    await runAisWorker({
+        providers: [provider],
+        persistence: { async upsertEvents() {}, async upsertTracks(rows) { return rows.length; }, async upsertHistory(rows) { historyRows = rows; }, async endAliases() {} },
+        logger: { log() {}, warn() {} },
+    });
+    assert.equal(historyRows[0].ship_type, 35);
+});
+
 test("later MMSI reconciles and ends an earlier IMO-only temporary track", async () => {
     resetProviderHealth();
     const aliases = [];
@@ -116,4 +133,14 @@ test("military classifier rejects civilian traffic and accepts configured known 
         qualifyMilitaryVessel({ mmsi: "368123456", name: "CONTACT", shipType: 0 }, { knownMilitaryMmsi: new Set(["368123456"]), knownMilitaryImo: new Set() }),
         { accepted: true, reason: "known_military_mmsi" }
     );
+    assert.deepEqual(
+        qualifyMilitaryVessel({ mmsi: "", name: "USS EXAMPLE", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }),
+        { accepted: true, reason: "military_name_match" }
+    );
+    assert.deepEqual(
+        qualifyMilitaryVessel({ mmsi: "", name: "CONTACT", callSign: "NATO1", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set(["NATO1"]) }),
+        { accepted: true, reason: "known_military_callsign" }
+    );
+    assert.equal(qualifyMilitaryVessel({ name: "NAVY BLUE", shipType: 70 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
+    assert.equal(qualifyMilitaryVessel({ name: "IRIS", shipType: "Towing" }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
 });

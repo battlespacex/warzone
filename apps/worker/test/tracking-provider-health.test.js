@@ -50,7 +50,7 @@ test("blocked aircraft provider enters BACKOFF while another provider succeeds",
     assert.equal(getProviderHealth("adsb", "opensky").status, PROVIDER_HEALTH_STATES.HEALTHY);
 });
 
-test("credentialed providers stay disabled without credentials while OpenSky can use anonymous access", () => {
+test("credentialed providers stay disabled while OpenSky and Fintraffic can use anonymous access", () => {
     const aircraft = createAircraftProviders({
         ADSB_LOL_ENABLED: "false",
         AIRPLANES_LIVE_ENABLED: "false",
@@ -68,7 +68,8 @@ test("credentialed providers stay disabled without credentials while OpenSky can
     assert.equal(aircraft.find((provider) => provider.id === "adsbx")?.enabled, false);
     assert.equal(aircraft.find((provider) => provider.id === "opensky")?.enabled, true);
     assert.ok(aircraft.filter((provider) => !["adsbx", "opensky"].includes(provider.id)).every((provider) => provider.enabled === false));
-    assert.ok(naval.every((provider) => provider.enabled === false));
+    assert.equal(naval.find((provider) => provider.id === "fintraffic")?.enabled, true);
+    assert.ok(naval.filter((provider) => provider.id !== "fintraffic").every((provider) => provider.enabled === false));
 });
 
 test("unavailable AISStream does not stop another naval provider", async () => {

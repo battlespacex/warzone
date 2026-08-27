@@ -96,6 +96,7 @@ function mergeGroup(observations, { domain, freshnessMs, maxSpeedKts, fields, id
             provider: item.source,
             observed_at: item.observed_at,
             age_ms: Math.max(0, newestAt - timestamp(item.observed_at)),
+            ...(item.metadata?.attribution ? { attribution: item.metadata.attribution } : {}),
         }));
     merged.domain = domain;
     merged.identity = identity;

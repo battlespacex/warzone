@@ -87,6 +87,17 @@ test("same MMSI produces one vessel and combines fresh position with static iden
     assert.equal(canonical[0].speed_kts, 14);
 });
 
+test("AISStream and Fintraffic deduplicate by MMSI and retain the newer sane position", () => {
+    const canonical = mergeNavalObservations([
+        { source: "fintraffic", observed_at: "2026-08-13T12:00:00Z", mmsi: "230123456", vessel_name: "FNS TEST", latitude: 60, longitude: 24, priority: 1, metadata: { attribution: "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY" } },
+        { source: "aisstream", observed_at: "2026-08-13T12:01:00Z", mmsi: "230123456", latitude: 60.01, longitude: 24.01, priority: 0 },
+    ]);
+    assert.equal(canonical.length, 1);
+    assert.equal(canonical[0].latitude, 60.01);
+    assert.equal(canonical[0].source_count, 2);
+    assert.match(canonical[0].last_source_observations.find((item) => item.provider === "fintraffic").attribution, /CC 4\.0 BY/);
+});
+
 test("five naval providers reporting one MMSI produce one multi-source vessel", () => {
     const providers = ["aisstream", "aishub", "spire", "marinetraffic", "vesselfinder"];
     const canonical = mergeNavalObservations(providers.map((source, index) => ({

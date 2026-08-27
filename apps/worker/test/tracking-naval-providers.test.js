@@ -5,6 +5,8 @@ import { createAisHubProvider, normalizeAisHubRow } from "../src/tracking/naval/
 import { normalizeSpireRow } from "../src/tracking/naval/providers/spire.js";
 import { normalizeMarineTrafficRow } from "../src/tracking/naval/providers/marinetraffic.js";
 import { normalizeVesselFinderRow } from "../src/tracking/naval/providers/vesselfinder.js";
+import { normalizeOpenAisFeature } from "../src/tracking/naval/providers/openais.js";
+import { normalizeMarinePlanRow } from "../src/tracking/naval/providers/marineplan.js";
 import { createNavalProviders } from "../src/tracking/naval/registry.js";
 import { resetProviderHealth, runConfiguredProviders } from "../src/tracking/provider-health.js";
 
@@ -61,14 +63,33 @@ test("AISHub provider cannot run more often than its 60-second minimum", async (
 
 test("all naval providers are disabled cleanly when credentials are absent", () => {
     const providers = createNavalProviders({
+        FINTRAFFIC_ENABLED: "false",
         AISSTREAM_ENABLED: "true",
         AISHUB_ENABLED: "true",
         SPIRE_AIS_ENABLED: "true",
         MARINETRAFFIC_ENABLED: "true",
         VESSELFINDER_ENABLED: "true",
     });
-    assert.deepEqual(providers.map((provider) => provider.id), ["aisstream", "vesselapi", "aishub", "spire", "marinetraffic", "vesselfinder"]);
+    assert.deepEqual(providers.map((provider) => provider.id), ["aisstream", "fintraffic", "vesselapi", "openais", "marineplan", "aishub", "spire", "marinetraffic", "vesselfinder"]);
     assert.ok(providers.every((provider) => provider.enabled === false));
+});
+
+test("Fintraffic is credential-free while OpenAIS and MarinePlan disable incomplete configuration", () => {
+    const providers = createNavalProviders({ AISSTREAM_ENABLED: "false", OPENAIS_ENABLED: "true", MARINEPLAN_ENABLED: "true" });
+    assert.equal(providers.find((provider) => provider.id === "fintraffic").enabled, true);
+    assert.equal(providers.find((provider) => provider.id === "openais").disabledReason, "MISSING_BASE_URL");
+    assert.equal(providers.find((provider) => provider.id === "marineplan").disabledReason, "MISSING_CREDENTIALS");
+});
+
+test("OpenAIS GeoJSON and MarinePlan OpenShipData normalize to the naval schema", () => {
+    const openAis = normalizeOpenAisFeature({
+        geometry: { coordinates: [24.9, 60.1] },
+        properties: { mmsi: 230123456, name: "FNS TEST", sog: 12, timestamp: "2026-08-13T12:00:00Z" },
+    });
+    const marinePlan = normalizeMarinePlanRow({ mmsi: 230123456, name: "FNS TEST", point: "60.1,24.9", speed: 18.52, timestamp: "2026-08-13T12:00:00Z" });
+    assert.equal(openAis.latitude, 60.1);
+    assert.equal(marinePlan.longitude, 24.9);
+    assert.ok(Math.abs(marinePlan.speed_kts - 10) < 0.001);
 });
 
 test("MarineTraffic and Spire require explicit customer endpoints", () => {
