@@ -67,7 +67,8 @@ test("credentialed providers stay disabled while OpenSky and Fintraffic can use 
 
     assert.equal(aircraft.find((provider) => provider.id === "adsbx")?.enabled, false);
     assert.equal(aircraft.find((provider) => provider.id === "opensky")?.enabled, true);
-    assert.ok(aircraft.filter((provider) => !["adsbx", "opensky"].includes(provider.id)).every((provider) => provider.enabled === false));
+    assert.equal(aircraft.find((provider) => provider.id === "plane_alert_db")?.enabled, true);
+    assert.ok(aircraft.filter((provider) => !["adsbx", "opensky", "plane_alert_db"].includes(provider.id)).every((provider) => provider.enabled === false));
     assert.equal(naval.find((provider) => provider.id === "fintraffic")?.enabled, true);
     assert.ok(naval.filter((provider) => provider.id !== "fintraffic").every((provider) => provider.enabled === false));
 });
@@ -163,5 +164,7 @@ test("aircraft provider priority accepts the documented adsb_exchange name", () 
         "airplanes_live",
         "adsb_one",
         "adsbx",
+        "plane_alert_db",
+        "skylink",
     ]);
 });

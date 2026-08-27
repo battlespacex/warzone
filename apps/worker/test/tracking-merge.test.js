@@ -29,6 +29,19 @@ test("two aircraft providers produce one corroborated canonical aircraft", () =>
     assert.deepEqual(canonical[0].last_source_observations.map((item) => item.provider), ["airplanes_live", "adsbx"]);
 });
 
+test("ADSB.lol, OpenSky, and a third provider normalize ICAO case into one aircraft", () => {
+    const canonical = mergeAircraftObservations([
+        aircraft("adsb_lol", "2026-08-13T12:00:00Z", 43, -79, { icao24: "ae1234" }),
+        aircraft("opensky", "2026-08-13T12:00:02Z", 43.001, -78.999, { icao24: "AE1234" }),
+        aircraft("airplanes_live", "2026-08-13T12:00:04Z", 43.002, -78.998, { icao24: "Ae1234" }),
+    ]);
+
+    assert.equal(canonical.length, 1);
+    assert.equal(canonical[0].identity, "icao:ae1234");
+    assert.equal(canonical[0].source_count, 3);
+    assert.equal(canonical[0].corroboration, "multi-source");
+});
+
 test("freshest sane aircraft position is selected without averaging", () => {
     const canonical = mergeAircraftObservations([
         aircraft("airplanes_live", "2026-08-13T12:00:00Z", 43, -79),

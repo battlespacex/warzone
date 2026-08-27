@@ -158,7 +158,7 @@ export function mergeAircraftObservations(observations, options = {}) {
     return [...groups.entries()]
         .map(([identity, group]) => mergeGroup(group, {
             domain: "aircraft", freshnessMs, maxSpeedKts, identity,
-            fields: ["icao24", "registration", "callsign", "aircraft_type", "model", "operator", "country", "squawk", "on_ground", "altitude_geom_ft", "vertical_rate_fpm", "adsb_category", "adsb_message_type", "db_flags", "position_source", "position_age_seconds"],
+            fields: ["icao24", "registration", "callsign", "aircraft_type", "model", "operator", "country", "squawk", "on_ground", "altitude_geom_ft", "vertical_rate_fpm", "adsb_category", "adsb_message_type", "db_flags", "position_source", "position_age_seconds", "metadata_sources"],
         }))
         .filter(Boolean);
 }

@@ -620,6 +620,7 @@ function toLegacyAircraft(observation) {
         sourceConfidence: observation.source_confidence || 60,
         lastSourceObservations: observation.last_source_observations || [],
         sourceDisagreements: observation.source_disagreements || 0,
+        metadataSources: Array.isArray(observation.metadata_sources) ? observation.metadata_sources : [],
         observedAt: observation.observed_at,
     };
 }
@@ -783,6 +784,7 @@ function buildAdsbTrack(a) {
             corroboration: a.corroboration,
             source_confidence: a.sourceConfidence,
             source_disagreements: a.sourceDisagreements,
+            metadata_sources: a.metadataSources,
         },
     };
 }
@@ -837,27 +839,92 @@ async function upsertAdsbTrackHistory(rows) {
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
-export async function runAdsbWorker() {
+const defaultPersistence = Object.freeze({
+    upsertEvents: upsertAdsbEvents,
+    upsertTracks: upsertAdsbTracks,
+    upsertHistory: upsertAdsbTrackHistory,
+});
+const reportedDisabledProviders = new Set();
+let defaultProviders = null;
+
+export async function runAdsbWorker(options = {}) {
     const label = "[adsb]";
-    console.log(`${label} Starting multi-source military scan...`);
+    const providers = Array.isArray(options.providers)
+        ? options.providers
+        : (defaultProviders ||= createAircraftProviders());
+    const persistence = options.persistence || defaultPersistence;
+    const logger = options.logger || console;
+    const now = Number(options.now) || Date.now();
+    logger.log?.(`${label} Starting multi-source military scan...`);
 
     pruneSeen();
-    const providers = createAircraftProviders();
-    const providerResults = await runConfiguredProviders("adsb", providers);
+    for (const provider of providers) {
+        if (provider.enabled !== false) continue;
+        if (reportedDisabledProviders.has(provider.id) && options.reportProviderStates !== true) continue;
+        logger.log?.(`[adsb:${provider.id}] DISABLED${provider.disabledReason ? ` ${provider.disabledReason}` : ""}`);
+        reportedDisabledProviders.add(provider.id);
+    }
+    const liveProviders = providers.filter((provider) => provider.enrichmentOnly !== true);
+    const enrichmentProviders = providers.filter((provider) => provider.enrichmentOnly === true);
+    const providerResults = await runConfiguredProviders("adsb", liveProviders, { logger, now });
     const priority = new Map(providers.map((provider) => [provider.id, provider.priority]));
-    const observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
+    const providerDiagnostics = {};
+    let observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
+        providerDiagnostics[provider.id] = diagnostics || {};
         const qualified = items.map(toLegacyAircraft).filter((aircraft) => {
             const role = classifyAircraft(aircraft.typeCode, aircraft.callsign, aircraft.icao, aircraft.modelName, aircraft.operator);
             return isQualifiedMilitaryAircraft(aircraft, role);
         }).length;
         if (provider.id === "adsb_lol") {
-            console.log(`[adsb:adsb_lol] fetched=${diagnostics?.fetched ?? items.length} normalized=${diagnostics?.normalized ?? items.length} valid=${diagnostics?.valid ?? items.length} qualified=${qualified}`);
+            logger.log?.(`[adsb:adsb_lol] fetched=${diagnostics?.fetched ?? items.length} normalized=${diagnostics?.normalized ?? items.length} valid=${diagnostics?.valid ?? items.length} qualified=${qualified}`);
         } else {
-            console.log(`[adsb:${provider.id}] fetched=${items.length} qualified=${qualified}`);
+            logger.log?.(`[adsb:${provider.id}] fetched=${items.length} qualified=${qualified}`);
         }
         return items.map((item) => ({ ...item, priority: priority.get(item.source) ?? 999 }));
     });
-    const militaryCandidates = selectAircraftMilitaryCandidates(observations);
+
+    for (const provider of enrichmentProviders.filter((item) => item.staticIdentityOnly === true && item.enabled !== false)) {
+        try {
+            const result = await provider.enrichObservations(observations, { now });
+            observations = result.observations;
+            providerDiagnostics[provider.id] = result.diagnostics || {};
+            logger.log?.(`[adsb:${provider.id}] records=${result.diagnostics?.records ?? 0} matches=${result.diagnostics?.matches ?? 0}`);
+        } catch (error) {
+            logger.warn?.(`[adsb:${provider.id}] DEGRADED ${error?.message || error}`);
+        }
+    }
+
+    let militaryCandidates = selectAircraftMilitaryCandidates(observations);
+    const qualifiedCandidates = militaryCandidates
+        .filter((item) => {
+            const aircraft = toLegacyAircraft(item);
+            const role = classifyAircraft(aircraft.typeCode, aircraft.callsign, aircraft.icao, aircraft.modelName, aircraft.operator);
+            return isQualifiedMilitaryAircraft(aircraft, role);
+        })
+        .map((item) => ({ ...item, military_candidate: true }));
+
+    for (const provider of enrichmentProviders.filter((item) => item.staticIdentityOnly !== true && item.enabled !== false)) {
+        const liveIcaos = [...new Set(qualifiedCandidates.map((item) => item.icao24).filter(Boolean))];
+        const cached = provider.getCachedObservations?.(liveIcaos, { now }) || [];
+        militaryCandidates.push(...cached.map((item) => ({ ...item, priority: priority.get(provider.id) ?? 999 })));
+        const enrichmentResult = await runConfiguredProviders("adsb", [{
+            ...provider,
+            fetchObservations: () => provider.fetchObservations({ candidates: qualifiedCandidates, now }),
+        }], { logger, now });
+        if (!enrichmentResult.length) {
+            providerDiagnostics[provider.id] = provider.getDiagnostics?.({ now }) || {};
+            if (cached.length) logger.log?.(`[adsb:${provider.id}] cache_hits=${cached.length}`);
+            continue;
+        }
+        for (const result of enrichmentResult) {
+            const diagnostics = result.diagnostics || {};
+            providerDiagnostics[provider.id] = diagnostics;
+            const status = diagnostics.quota_blocked || diagnostics.interval_blocked ? "DEGRADED" : "HEALTHY";
+            logger.log?.(`[adsb:${provider.id}] ${status} fetched=${result.observations.length} cached=${diagnostics.cached === true ? 1 : 0} calls_this_month=${diagnostics.calls_this_month ?? 0} monthly_estimated_remaining=${diagnostics.monthly_estimated_remaining ?? "unknown"} upstream_remaining=${diagnostics.quota_remaining ?? "unknown"}`);
+            militaryCandidates.push(...result.observations.map((item) => ({ ...item, priority: priority.get(provider.id) ?? 999 })));
+        }
+    }
+
     const rawAircraft = mergeAircraftObservations(militaryCandidates, {
         freshnessMs: Number(process.env.AIRCRAFT_CORROBORATION_WINDOW_MS) || 90_000,
         maxSpeedKts: Number(process.env.AIRCRAFT_MAX_PLAUSIBLE_SPEED_KTS) || 1800,
@@ -913,23 +980,23 @@ export async function runAdsbWorker() {
         }
     }
 
-    console.log(`${label} Raw role breakdown:`, rawRoleCounts);
-    console.log(`${label} Dropped aircraft:`, dropCounts);
+    logger.log?.(`${label} Raw role breakdown:`, rawRoleCounts);
+    logger.log?.(`${label} Dropped aircraft:`, dropCounts);
     const corroborated = processed.filter((item) => item.sourceCount > 1).length;
 
     if (!processed.length) {
-        console.log(`${label} candidates=${militaryCandidates.length} canonical=0 corroborated=0 upserted=0`);
-        return;
+        logger.log?.(`${label} candidates=${militaryCandidates.length} canonical=0 corroborated=0 upserted=0`);
+        return { provider_count: providers.length, raw: observations.length, candidates: militaryCandidates.length, canonical: 0, corroborated: 0, upserted: 0, providers: providerDiagnostics };
     }
 
     const events = eventCandidates.map(buildAdsbEvent);
     const tracks = processed.map(buildAdsbTrack);
     const historyRows = tracks.map(buildAdsbTrackHistoryRow);
 
-    await upsertAdsbEvents(events);
-    const upserted = await upsertAdsbTracks(tracks);
-    await upsertAdsbTrackHistory(historyRows);
-    console.log(`${label} candidates=${militaryCandidates.length} canonical=${tracks.length} corroborated=${corroborated} upserted=${upserted}`);
+    await persistence.upsertEvents(events);
+    const upserted = await persistence.upsertTracks(tracks);
+    await persistence.upsertHistory(historyRows);
+    logger.log?.(`${label} candidates=${militaryCandidates.length} canonical=${tracks.length} corroborated=${corroborated} upserted=${upserted}`);
 
     // Log breakdown by role
     const roleCounts = {};
@@ -937,5 +1004,14 @@ export async function runAdsbWorker() {
         const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
         roleCounts[role] = (roleCounts[role] || 0) + 1;
     }
-    console.log(`${label} Role breakdown:`, roleCounts);
+    logger.log?.(`${label} Role breakdown:`, roleCounts);
+    return {
+        provider_count: providers.length,
+        raw: observations.length,
+        candidates: militaryCandidates.length,
+        canonical: tracks.length,
+        corroborated,
+        upserted,
+        providers: providerDiagnostics,
+    };
 }
