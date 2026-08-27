@@ -16,6 +16,13 @@ const __state = {
     authGated: true,
     baseCameraFlightActive: false,
     manualDismissArmedAt: 0,
+    initialized: false,
+    runtimeBound: false,
+    handler: null,
+    cameraChangedHandler: null,
+    morphCompleteHandler: null,
+    createdCount: 0,
+    destroyedCount: 0,
 };
 
 /* ─── Type config ────────────────────────────────────────────────────────── */
@@ -217,7 +224,43 @@ function refreshBaseIconSizing() {
     __state.viewer?.scene.requestRender();
 }
 function areMilitaryBasesInteractive() {
-    return __state.visible && !__state.authGated;
+    return __state.visible && !__state.authGated && Boolean(__state.dataSource);
+}
+
+function ensureBaseDataSource() {
+    const viewer = __state.viewer;
+    if (!viewer || __state.dataSource || !__state.visible) return __state.dataSource;
+    const ds = new Cesium.CustomDataSource("military-bases");
+    viewer.dataSources.add(ds);
+    __state.dataSource = ds;
+    const displayBases = MILITARY_BASES
+        .map((base) => normalizeMilitaryBaseDisplayData(base))
+        .filter((base) => Number.isFinite(base.lat) && Number.isFinite(base.lon));
+    __state.entities = displayBases.map((base) => createBaseEntity(ds, base));
+    __state.ctrHighlightEntities = displayBases
+        .map((base) => createCtrAirbaseHighlightEntity(ds, base))
+        .filter(Boolean);
+    __state.createdCount += __state.entities.length + __state.ctrHighlightEntities.length;
+    applyVisibility();
+    return ds;
+}
+
+function destroyBaseDataSource() {
+    const dataSource = __state.dataSource;
+    if (!dataSource) return false;
+    closeActiveBasePanel();
+    const removedCount = __state.entities.length + __state.ctrHighlightEntities.length;
+    try {
+        __state.viewer?.dataSources?.remove?.(dataSource, true);
+    } catch {
+        try { dataSource.entities?.removeAll?.(); } catch { }
+    }
+    __state.dataSource = null;
+    __state.entities = [];
+    __state.ctrHighlightEntities = [];
+    __state.destroyedCount += removedCount;
+    __state.viewer?.scene?.requestRender?.();
+    return true;
 }
 
 function findPickedMilitaryBase(viewer, screenPosition) {
@@ -541,48 +584,70 @@ function bindClickHandler(viewer) {
         }
         closeActiveBasePanel();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    return handler;
 }
 
-/* ─── Public API ─────────────────────────────────────────────────────────── */
-export function initWarzoneMilitaryBases(viewer) {
-    if (!viewer) return;
-    __state.viewer = viewer;
-
-    // Gate behind authentication — check if already logged in at init time
-    __state.authGated = !document.body.classList.contains("is-authenticated");
-
-    // Use a CustomDataSource so bases are isolated from viewer.entities.removeAll()
-    // which gets called when events reload, wiping any entities added to the main collection
-    const ds = new Cesium.CustomDataSource("military-bases");
-    viewer.dataSources.add(ds);
-    __state.dataSource = ds;
-
-    __state.entities = MILITARY_BASES
-        .map((base) => normalizeMilitaryBaseDisplayData(base))
-        .filter((base) => Number.isFinite(base.lat) && Number.isFinite(base.lon))
-        .map((base) => createBaseEntity(ds, base));
-    __state.ctrHighlightEntities = MILITARY_BASES
-        .map((base) => normalizeMilitaryBaseDisplayData(base))
-        .filter((base) => Number.isFinite(base.lat) && Number.isFinite(base.lon))
-        .map((base) => createCtrAirbaseHighlightEntity(ds, base))
-        .filter(Boolean);
-    viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);
-    viewer.scene.morphStart?.addEventListener?.(closeActiveBasePanel);
-    viewer.scene.morphComplete?.addEventListener?.(() => {
-        closeActiveBasePanel();
-        applyVisibility();
-        viewer.scene.requestRender?.();
-    });
-    document.addEventListener("wz:scene-mode-changed", closeActiveBasePanel);
-    viewer.camera.changed.addEventListener(() => {
+function bindBaseRuntime(viewer) {
+    if (!viewer || __state.runtimeBound) return;
+    __state.runtimeBound = true;
+    __state.handler = bindClickHandler(viewer);
+    __state.cameraChangedHandler = () => {
         if (!areMilitaryBasesInteractive() && !__state.activePanel) return;
         if (__state.activePanel && !__state.baseCameraFlightActive && Date.now() > __state.manualDismissArmedAt) {
             closeActiveBasePanel();
         }
         viewer.scene.requestRender();
-    });
+    };
+    __state.morphCompleteHandler = () => {
+        closeActiveBasePanel();
+        applyVisibility();
+        viewer.scene.requestRender?.();
+    };
+    viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);
+    viewer.scene.morphStart?.addEventListener?.(closeActiveBasePanel);
+    viewer.scene.morphComplete?.addEventListener?.(__state.morphCompleteHandler);
+    viewer.camera.changed.addEventListener(__state.cameraChangedHandler);
+    document.addEventListener("wz:scene-mode-changed", closeActiveBasePanel);
     window.addEventListener("resize", refreshBaseIconSizing, { passive: true });
-    bindClickHandler(viewer);
+}
+
+function unbindBaseRuntime() {
+    const viewer = __state.viewer;
+    if (!viewer || !__state.runtimeBound) return;
+    try { __state.handler?.destroy?.(); } catch { }
+    try { viewer.scene.postRender.removeEventListener(updateActiveBasePanelPosition); } catch { }
+    try { viewer.scene.morphStart?.removeEventListener?.(closeActiveBasePanel); } catch { }
+    try { viewer.scene.morphComplete?.removeEventListener?.(__state.morphCompleteHandler); } catch { }
+    try { viewer.camera.changed.removeEventListener(__state.cameraChangedHandler); } catch { }
+    document.removeEventListener("wz:scene-mode-changed", closeActiveBasePanel);
+    window.removeEventListener("resize", refreshBaseIconSizing);
+    __state.handler = null;
+    __state.cameraChangedHandler = null;
+    __state.morphCompleteHandler = null;
+    __state.runtimeBound = false;
+}
+
+/* ─── Public API ─────────────────────────────────────────────────────────── */
+export function initWarzoneMilitaryBases(viewer) {
+    if (!viewer) return;
+    if (__state.initialized && __state.viewer === viewer) {
+        if (__state.visible) {
+            ensureBaseDataSource();
+            bindBaseRuntime(viewer);
+        }
+        applyVisibility();
+        return;
+    }
+    __state.viewer = viewer;
+    __state.initialized = true;
+
+    // Gate behind authentication — check if already logged in at init time
+    __state.authGated = !document.body.classList.contains("is-authenticated");
+
+    // Use a CustomDataSource so bases are isolated from viewer.entities.removeAll().
+    // The data source itself exists only while this layer is enabled.
+    ensureBaseDataSource();
+    bindBaseRuntime(viewer);
 
     // When user logs in (either via form or silent check), unlock bases
     document.addEventListener("wz:auth-success", () => {
@@ -601,7 +666,13 @@ export function initWarzoneMilitaryBases(viewer) {
 
 export function setWarzoneMilitaryBasesVisible(visible) {
     __state.visible = Boolean(visible);
-    if (!__state.visible) closeActiveBasePanel();
+    if (!__state.visible) {
+        destroyBaseDataSource();
+        unbindBaseRuntime();
+        return;
+    }
+    ensureBaseDataSource();
+    bindBaseRuntime(__state.viewer);
     applyVisibility();
 }
 
@@ -612,4 +683,21 @@ export function toggleWarzoneMilitaryBases() {
 
 export function isWarzoneMilitaryBasesVisible() {
     return __state.visible;
+}
+
+export function getWarzoneMilitaryBaseDiagnostics() {
+    return Object.freeze({
+        initialized: __state.initialized,
+        visible: __state.visible,
+        dataSourceActive: Boolean(__state.dataSource),
+        runtimeListenersActive: __state.runtimeBound,
+        activeBaseEntities: __state.entities.length,
+        activeCtrHighlightEntities: __state.ctrHighlightEntities.length,
+        baseEntitiesCreated: __state.createdCount,
+        baseEntitiesDestroyed: __state.destroyedCount,
+    });
+}
+
+if (typeof window !== "undefined") {
+    window.__getWarzoneMilitaryBaseDiagnostics = getWarzoneMilitaryBaseDiagnostics;
 }

@@ -69,6 +69,17 @@ test("repeated MMSI observations keep the same canonical track key", () => {
     assert.equal(second.track_key, first.track_key);
 });
 
+test("naval tracks round decimal AIS motion values for integer database columns", () => {
+    const track = buildNavalTrack({
+        mmsi: "368123456", trackIdentity: "368123456", name: "USS EXAMPLE", lat: 36, lon: -72,
+        speed: 9.1, heading: 127.6, lastSourceObservations: [], sourceCount: 1,
+        corroboration: "single-source",
+    });
+
+    assert.equal(track.speed_kts, 9);
+    assert.equal(track.heading_deg, 128);
+});
+
 test("later MMSI reconciles and ends an earlier IMO-only temporary track", async () => {
     resetProviderHealth();
     const aliases = [];

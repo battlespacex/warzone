@@ -749,6 +749,26 @@ export function clearGnssInterferenceLayer(viewer) {
     closeActiveGnssPanel();
     clearHighlight();
     hideTooltip();
+    if (__gnssState.handler) {
+        try { __gnssState.handler.destroy(); } catch { }
+        __gnssState.handler = null;
+    }
+    if (__gnssState.trackingViewer?.scene?.postRender) {
+        try {
+            __gnssState.trackingViewer.scene.postRender.removeEventListener(updateActiveGnssPanelPosition);
+        } catch { }
+    }
+    __gnssState.trackingViewer = null;
     setLegendVisible(false, { demoMode: false });
     viewer?.scene?.requestRender?.();
+}
+
+export function getGnssDiagnostics() {
+    return Object.freeze({
+        visible: __gnssState.visible,
+        activeCellEntities: __gnssState.cellsById.size,
+        dataSourceActive: Boolean(__gnssState.dataSource),
+        pickingHandlerActive: Boolean(__gnssState.handler),
+        popupTrackingListenerActive: Boolean(__gnssState.trackingViewer),
+    });
 }

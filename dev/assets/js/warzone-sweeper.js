@@ -6,6 +6,8 @@ let __sweeperTicker = null;
 let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
+let __sweeperLastTimestamp = null;
+let __sweeperFrameCount = 0;
 const RADAR_FALLBACK_COLOR = "#18e2db";
 export const RADAR_SWEEP_MATERIAL_TYPE = "StratOpsRadarSweep";
 export const RADAR_RING_RATIOS = Object.freeze([0.34, 0.67, 1]);
@@ -398,6 +400,47 @@ function clearTicker() {
         cancelAnimationFrame(__sweeperTicker);
         __sweeperTicker = null;
     }
+    __sweeperLastTimestamp = null;
+    __sweeperFrameCount = 0;
+}
+function runSweeperTick(ts) {
+    __sweeperTicker = null;
+    const viewer = __radarViewer;
+    if (!viewer || !__radarItems.length || document.visibilityState === "hidden") return;
+    if (__sweeperLastTimestamp == null) __sweeperLastTimestamp = ts;
+    const dt = (ts - __sweeperLastTimestamp) / 1000;
+    __sweeperLastTimestamp = ts;
+    __sweeperFrameCount += 1;
+    if (!shouldRenderSweepers(viewer)) {
+        clearSweepers(viewer);
+        viewer.scene.requestRender?.();
+        return;
+    }
+    __radarItems.forEach((item) => {
+        item.state.heading = (
+            item.state.heading + (item.preset.speed * item.visualTokens.sweepSpeed * 60 * dt)
+        ) % 360;
+        if (item.sweepMaterial?.uniforms) {
+            item.sweepMaterial.uniforms.heading = Cesium.Math.toRadians(item.state.heading);
+        }
+    });
+    if (__sweeperFrameCount % SWEEPER_RENDER.labelFrameSkip === 0) updateRadarLabels();
+    if (__sweeperFrameCount % SWEEPER_RENDER.requestRenderFrameSkip === 0) viewer.scene.requestRender?.();
+    __sweeperTicker = requestAnimationFrame(runSweeperTick);
+}
+function startSweeperTicker() {
+    if (__sweeperTicker || !__radarViewer || !__radarItems.length || document.visibilityState === "hidden") return;
+    __sweeperTicker = requestAnimationFrame(runSweeperTick);
+}
+
+if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+            clearTicker();
+            return;
+        }
+        startSweeperTicker();
+    }, { passive: true });
 }
 function ensureRadarLabelLayer() {
     return document.getElementById("wz-radar-label-layer");
@@ -527,6 +570,15 @@ export function clearSweepers(viewer) {
     __radarLabels = [];
     __radarViewer = null;
 }
+
+export function getSweeperDiagnostics() {
+    return Object.freeze({
+        activeSweeperEntities: __sweeperEntities.length,
+        activeSweeperPrimitives: __sweeperPrimitives.length,
+        activeSweeperLabels: __radarLabels.length,
+        animationFrameActive: Boolean(__sweeperTicker),
+    });
+}
 export function renderSweepers(viewer, events = []) {
     if (!viewer) return;
     clearSweepers(viewer);
@@ -597,41 +649,7 @@ export function renderSweepers(viewer, events = []) {
         });
     });
     if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
-    let lastTs = null;
-    let frameCount = 0;
-    const tick = (ts) => {
-        if (!__radarViewer) return;
-        if (lastTs == null) lastTs = ts;
-        if (document.visibilityState === "hidden") {
-            lastTs = ts;
-            __sweeperTicker = requestAnimationFrame(tick);
-            return;
-        }
-        const dt = (ts - lastTs) / 1000;
-        lastTs = ts;
-        frameCount += 1;
-        if (!shouldRenderSweepers(viewer)) {
-            clearSweepers(viewer);
-            viewer.scene.requestRender?.();
-            return;
-        }
-        __radarItems.forEach((item) => {
-            item.state.heading = (
-                item.state.heading + (item.preset.speed * item.visualTokens.sweepSpeed * 60 * dt)
-            ) % 360;
-            if (item.sweepMaterial?.uniforms) {
-                item.sweepMaterial.uniforms.heading = Cesium.Math.toRadians(item.state.heading);
-            }
-        });
-        if (frameCount % SWEEPER_RENDER.labelFrameSkip === 0) {
-            updateRadarLabels();
-        }
-        if (frameCount % SWEEPER_RENDER.requestRenderFrameSkip === 0) {
-            viewer.scene.requestRender?.();
-        }
-        __sweeperTicker = requestAnimationFrame(tick);
-    };
-    __sweeperTicker = requestAnimationFrame(tick);
+    startSweeperTicker();
     updateRadarLabels();
     viewer.scene.requestRender?.();
 }

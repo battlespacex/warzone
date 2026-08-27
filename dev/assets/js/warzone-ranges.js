@@ -330,6 +330,13 @@ export function clearRanges(viewer) {
     __rangeEntities = [];
 }
 
+export function getRangeDiagnostics() {
+    return Object.freeze({
+        activeRangeEntities: __rangeEntities.length,
+        cachedRangeImages: __rangeImageCache.size,
+    });
+}
+
 export function renderRanges(viewer, events) {
     clearRanges(viewer);
     if (!viewer || !Array.isArray(events) || !events.length) return;

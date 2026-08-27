@@ -143,6 +143,8 @@ export function initMilitaryTracks(viewer) {
     if (!viewer) return null;
 
     const trackMap = new Map();
+    let enabled = true;
+    let cleanupInterval = 0;
 
     function removeTrack(key) {
         const existing = trackMap.get(key);
@@ -165,6 +167,7 @@ export function initMilitaryTracks(viewer) {
     }
 
     function addTrack(event = {}) {
+        if (!enabled) return;
         const sourceName = normalizeSrc(event.source_name || "");
         const rawSubcat = normalizeSubcat(event.subcategory || event.subtype || event.type || "");
         const subcat = isNaval(rawSubcat)
@@ -249,25 +252,55 @@ export function initMilitaryTracks(viewer) {
         requestRender(viewer);
     }
 
-    const cleanupInterval = setInterval(() => {
-        const cutoff = Date.now() - CFG.trailFadeMs;
-        for (const [k, t] of trackMap.entries()) {
-            if (t.addedAt < cutoff) removeTrack(k);
-        }
-    }, 5 * 60 * 1000);
+    function stopCleanupInterval() {
+        if (cleanupInterval) clearInterval(cleanupInterval);
+        cleanupInterval = 0;
+    }
+
+    function startCleanupInterval() {
+        if (!enabled || cleanupInterval) return;
+        cleanupInterval = setInterval(() => {
+            const cutoff = Date.now() - CFG.trailFadeMs;
+            for (const [k, t] of trackMap.entries()) {
+                if (t.addedAt < cutoff) removeTrack(k);
+            }
+        }, 5 * 60 * 1000);
+    }
+
+    startCleanupInterval();
 
     return {
         addTrack,
         setTracks(events = []) {
             [...trackMap.keys()].forEach(removeTrack);
+            if (!enabled) return;
             events.forEach(addTrack);
+        },
+        setEnabled(nextEnabled = true) {
+            enabled = nextEnabled === true;
+            if (!enabled) {
+                stopCleanupInterval();
+                [...trackMap.keys()].forEach(removeTrack);
+            } else {
+                startCleanupInterval();
+            }
+            requestRender(viewer);
+            return enabled;
         },
         clearAll() {
             [...trackMap.keys()].forEach(removeTrack);
         },
         destroy() {
-            clearInterval(cleanupInterval);
+            enabled = false;
+            stopCleanupInterval();
             [...trackMap.keys()].forEach(removeTrack);
+        },
+        getDiagnostics() {
+            return Object.freeze({
+                enabled,
+                activeCesiumTracks: trackMap.size,
+                cleanupTimerActive: Boolean(cleanupInterval),
+            });
         },
         get count() {
             return trackMap.size;

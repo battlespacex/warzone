@@ -677,6 +677,11 @@ function isRegionHintAllowed() {
     if (!document.body?.classList?.contains("is-app-active")) return false;
     const introModal = document.getElementById("wz-intro-modal");
     if (introModal && !introModal.hidden) return false;
+    const focusState = typeof window !== "undefined" ? window.__warzoneFocusDiagnostics : null;
+    if (
+        String(focusState?.assetType || "") === "satellite" &&
+        String(focusState?.state || "inactive") !== "inactive"
+    ) return false;
     return true;
 }
 function setRegionButtonHintActive(active) {
@@ -701,6 +706,12 @@ function setRegionPromptVisibleOnControls(active) {
 function isAnyBlockingRegionModalVisible() {
     return Boolean(document.querySelector(`.wz-modal.is-visible:not([hidden]):not(#${REGION_OUTSIDE_PROMPT_ID})`));
 }
+function setRegionOutsidePromptButtonLabel(button, label) {
+    if (!button) return;
+    const icon = document.createElement("span");
+    icon.setAttribute("aria-hidden", "true");
+    button.replaceChildren(icon, document.createTextNode(String(label)));
+}
 function resetRegionOutsidePromptCopy() {
     const title = document.getElementById("wz-region-outside-title");
     const summary = document.getElementById("wz-region-outside-summary");
@@ -710,8 +721,8 @@ function resetRegionOutsidePromptCopy() {
     if (title) title.textContent = "Please Select Region";
     if (summary) summary.textContent = "Your current camera view is outside the selected monitoring region.";
     if (detail) detail.textContent = "Use Back to Region to return to the selected theater or Select Region to choose a different monitoring region.";
-    if (returnBtn) returnBtn.innerHTML = '<span aria-hidden="true"></span>Back to Region';
-    if (selectBtn) selectBtn.innerHTML = '<span aria-hidden="true"></span>Select Region';
+    setRegionOutsidePromptButtonLabel(returnBtn, "Back to Region");
+    setRegionOutsidePromptButtonLabel(selectBtn, "Select Region");
 }
 function settleRegionSwitchPrompt(result = false) {
     const request = __regionSwitchPromptRequest;
@@ -780,7 +791,11 @@ function ensureRegionOutsidePrompt(viewer) {
 }
 export function requestRegionSwitch(viewer, regionId, options = {}) {
     const targetRegion = getRegionById(regionId);
-    if (!viewer || !targetRegion || targetRegion.id === "global") return Promise.resolve(false);
+    if (
+        !viewer ||
+        !targetRegion ||
+        (targetRegion.id === "global" && options?.allowGlobalTarget !== true)
+    ) return Promise.resolve(false);
     if (__activeRegion?.id === targetRegion.id) {
         options?.onSwitched?.(targetRegion, true);
         return Promise.resolve(true);
@@ -807,11 +822,21 @@ export function requestRegionSwitch(viewer, regionId, options = {}) {
     const detail = document.getElementById("wz-region-outside-detail");
     const returnBtn = document.getElementById("wz-region-outside-return");
     const selectBtn = document.getElementById("wz-region-outside-select");
-    if (title) title.textContent = "Switch Monitoring Region?";
-    if (summary) summary.textContent = `You are currently monitoring ${currentLabel}. To view ${contextLabel}, switch to ${targetLabel}.`;
-    if (detail) detail.textContent = `Continuing changes the active StratOps monitoring region from ${currentLabel} to ${targetLabel}.`;
-    if (returnBtn) returnBtn.innerHTML = '<span aria-hidden="true"></span>Cancel';
-    if (selectBtn) selectBtn.innerHTML = '<span aria-hidden="true"></span>Switch Region';
+    if (title) title.textContent = String(options?.promptTitle || "Switch Monitoring Region?");
+    if (summary) {
+        summary.textContent = String(
+            options?.promptSummary ||
+            `You are currently monitoring ${currentLabel}. To view ${contextLabel}, switch to ${targetLabel}.`
+        );
+    }
+    if (detail) {
+        detail.textContent = String(
+            options?.promptDetail ||
+            `Continuing changes the active StratOps monitoring region from ${currentLabel} to ${targetLabel}.`
+        );
+    }
+    setRegionOutsidePromptButtonLabel(returnBtn, options?.cancelLabel || "Cancel");
+    setRegionOutsidePromptButtonLabel(selectBtn, options?.confirmLabel || "Switch Region");
     clearPendingRegionHintRefresh();
     setRegionButtonHintActive(false);
     setRegionOutsidePromptActive(true, viewer);

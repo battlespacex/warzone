@@ -8,9 +8,9 @@ import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-sir
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage, requestLayerToggle } from "./warzone-layers.js";
-import { renderRanges, clearRanges } from "./warzone-ranges.js";
-import { renderSweepers, clearSweepers } from "./warzone-sweeper.js";
-import { renderGnssInterferenceLayer, clearGnssInterferenceLayer } from "./warzone-gnss.js";
+import { renderRanges, clearRanges, getRangeDiagnostics } from "./warzone-ranges.js";
+import { renderSweepers, clearSweepers, getSweeperDiagnostics } from "./warzone-sweeper.js";
+import { renderGnssInterferenceLayer, clearGnssInterferenceLayer, getGnssDiagnostics } from "./warzone-gnss.js";
 import { resolveEventTheater, getTheaterById } from "./warzone-theaters.js";
 import { theaterMatchesRegion } from "./warzone-theaters.js";
 import { updateTheaterPanel } from "./warzone-theater-panel.js";
@@ -42,6 +42,8 @@ import {
     getLiveTrackSelection,
     resumeLiveTrackMotionAfterVisibility,
     bindLiveTrackLifecycleRecovery,
+    syncLiveTrackRenderPopulation,
+    getLiveTrackDiagnostics,
 } from "./warzone-live-airforce.js";
 import {
     upsertNavalVessel,
@@ -49,12 +51,14 @@ import {
     renderNavalTrackerWidget,
     getAllNavalSnapshots,
     setNavalLayerVisible,
+    getNavalDiagnostics,
 } from "./warzone-live-naval.js";
 import {
     getPublicAirFeedStatus,
     startPublicAirIngestion,
     refreshPublicAirTracksNow,
     stopPublicAirIngestion,
+    getPublicAirIngestionDiagnostics,
 } from "./warzone-air-ingestion.js";
 import {
     applyStratOpsFeatureVisibility,
@@ -138,6 +142,7 @@ let __lastOverlaySourceKey = "__empty__";
 let __lastOverlayClusterRadiusBucket = "";
 let __cachedOverlayClusters = [];
 let __lastNavalSignalsSyncKey = "__empty__";
+const __layerLifecycleState = new Map();
 let __eventPopupDevInspectionFrozen = false;
 let __foregroundRenderModeRestoreTimer = 0;
 let __widgetLayerControlsBound = false;
@@ -308,7 +313,7 @@ const AIRCRAFT_RECENT_WINDOW_MS = 72 * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_REFRESH_MS = 3 * 60 * 1000;
 const AIRCRAFT_HISTORY_ACTIVE_WINDOW_MS = 8 * 60 * 1000;
 const AIRCRAFT_HISTORY_CACHE_MAX_ROWS = 1200;
-const AIRCRAFT_LIVE_SYNC_DB_MS = 6 * 1000;
+const AIRCRAFT_LIVE_SYNC_DB_MS = 12 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
 const FEED_INITIAL_VISIBLE_COUNT = 15;
@@ -1198,6 +1203,9 @@ function isDatabaseAircraftLiveSourceEnabled() {
     return getPublicAirFeedStatus().state !== "active";
 }
 function getAircraftLiveSyncIntervalMs() {
+    if (isStratOpsFeatureEnabled("tracking.aircraftRealtime")) {
+        return AIRCRAFT_HISTORY_REFRESH_MS;
+    }
     return isDatabaseAircraftLiveSourceEnabled()
         ? AIRCRAFT_LIVE_SYNC_DB_MS
         : AIRCRAFT_HISTORY_REFRESH_MS;
@@ -1838,6 +1846,13 @@ function syncOrbitalWidgetVisibilityForLayer() {
 function syncIdleSceneState() {
     syncOrbitalWidgetVisibilityForLayer();
     void setWarzoneMilSatsEnabledDeferred(shouldEnableMilSatsLayer());
+    if (isStratOpsFeatureEnabled("system.eventPolling")) {
+        if (shouldSuspendMapWork() || isDocumentHidden()) {
+            stopEventPollingFallback();
+        } else {
+            startEventPollingFallback();
+        }
+    }
 }
 function isAuthModalVisible() {
     const introModal = document.getElementById("wz-intro-modal");
@@ -1879,6 +1894,16 @@ function syncHotspotRootVisibility(enabled) {
     }
     hotspotRootEl.style.display = show ? "" : "none";
     hotspotRootEl.setAttribute("aria-hidden", show ? "false" : "true");
+}
+function destroyHotspotLayer() {
+    clearTimeout(__hotspotDeferredSyncTimer);
+    __hotspotDeferredSyncTimer = 0;
+    try {
+        __hotspotLayer?.destroy?.();
+    } catch (error) {
+        console.warn("Hotspot layer cleanup failed:", error);
+    }
+    __hotspotLayer = null;
 }
 function bindScrollClassToggles() {
     if (__scrollClassBound) return;
@@ -2942,6 +2967,53 @@ function isDevInspectionEnvironment() {
         || hostname === "127.0.0.1"
         || hostname === ""
         || hostname.includes("staging");
+}
+
+function isAircraftNavalModelTunerRequested() {
+    if (!isDevInspectionEnvironment()) return false;
+    const params = new URLSearchParams(window.location?.search || "");
+    return params.get("modelTuner") === "1";
+}
+
+function openAircraftNavalModelTuner(viewer, launcher = null) {
+    if (!__STRATOPS_DEV_TOOLS__ || !isDevInspectionEnvironment()) return;
+    if (launcher) {
+        launcher.disabled = true;
+        launcher.textContent = "LOADING…";
+    }
+    if (__STRATOPS_DEV_TOOLS__) {
+        import("./warzone-model-tuner.js")
+            .then((module) => {
+                const opened = module.initAircraftNavalModelTuner?.(viewer);
+                if (launcher) {
+                    launcher.disabled = false;
+                    launcher.textContent = "3D MODEL TUNER";
+                    launcher.hidden = opened === true;
+                }
+            })
+            .catch((error) => {
+                if (launcher) {
+                    launcher.disabled = false;
+                    launcher.textContent = "3D MODEL TUNER";
+                }
+                console.warn("Aircraft/naval model tuner failed to initialize:", error);
+            });
+    }
+}
+
+function ensureAircraftNavalModelTunerLauncher(viewer) {
+    if (!__STRATOPS_DEV_TOOLS__ || !isDevInspectionEnvironment()) return null;
+    const existing = document.getElementById("wz-model-tuner-launcher");
+    if (existing) return existing;
+    const launcher = document.createElement("button");
+    launcher.id = "wz-model-tuner-launcher";
+    launcher.type = "button";
+    launcher.textContent = "3D MODEL TUNER";
+    launcher.setAttribute("aria-controls", "wz-model-tuner");
+    launcher.style.cssText = "position:fixed;top:82px;right:18px;z-index:10039;min-height:32px;padding:6px 11px;border:1px solid rgba(31,226,232,.65);border-radius:2px;background:rgba(6,13,22,.94);color:#20dfe6;font:700 12px/1 Rajdhani,sans-serif;letter-spacing:.08em;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)";
+    launcher.addEventListener("click", () => openAircraftNavalModelTuner(viewer, launcher));
+    document.body.appendChild(launcher);
+    return launcher;
 }
 
 export function setDevEventPopupInspectionFrozen(frozen = false) {
@@ -6821,8 +6893,10 @@ function requestAircraftMovementsWidgetRender(delay = AIRCRAFT_WIDGET_RENDER_THR
 }
 function scheduleAircraftHistoryRefresh(force = false) {
     clearTimeout(__aircraftHistoryRefreshTimer);
+    if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft")) return;
     __aircraftHistoryRefreshTimer = window.setTimeout(() => {
         __aircraftHistoryRefreshTimer = 0;
+        if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft") || isDocumentHidden()) return;
         setWidgetLoading("aircraft", true);
         refreshAircraftHistoryCache(force)
             .finally(() => {
@@ -6832,13 +6906,7 @@ function scheduleAircraftHistoryRefresh(force = false) {
     }, force ? 0 : 350);
 }
 function syncLiveAircraftFromHistoryRows(rows = __aircraftHistoryCache) {
-    if (!isLayerEnabled("aircraft")) {
-        __seededAircraftTrackKeys.forEach((trackKey) => {
-            if (trackKey) clearLiveTrack(trackKey);
-        });
-        __seededAircraftTrackKeys = new Set();
-        return;
-    }
+    if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft")) return;
     const nextSeededTrackKeys = new Set();
     const historyRows = Array.isArray(rows) ? rows : [];
     if (isDatabaseAircraftLiveSourceEnabled()) {
@@ -6906,6 +6974,7 @@ function normalizeAircraftHistoryRow(row = {}) {
 }
 async function refreshAircraftHistoryCache(force = false) {
     if (isDocumentHidden()) return __aircraftHistoryCache;
+    if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft")) return __aircraftHistoryCache;
     const now = Date.now();
     if (__aircraftHistoryLoadingPromise) return __aircraftHistoryLoadingPromise;
     if (!force && __aircraftHistoryLastLoadedAt && (now - __aircraftHistoryLastLoadedAt) < AIRCRAFT_HISTORY_REFRESH_MS) {
@@ -6937,14 +7006,15 @@ async function refreshAircraftHistoryCache(force = false) {
 }
 function startAircraftLiveSync() {
     if (isDocumentHidden()) return;
+    if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft")) return;
     if (__aircraftLiveSyncTimer) return;
     const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
-    if (isLayerEnabled("aircraft") && isAircraftTrackingFeatureEnabled()) {
+    if (isAircraftTrackingFeatureEnabled() && isLayerEnabled("aircraft")) {
         refreshAircraftHistoryCache(useDatabaseAsLiveSource).catch(() => { });
     }
     __aircraftLiveSyncTimer = window.setInterval(() => {
         if (isDocumentHidden()) return;
-        if (!isLayerEnabled("aircraft") || !isAircraftTrackingFeatureEnabled()) return;
+        if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft")) return;
         refreshAircraftHistoryCache(isDatabaseAircraftLiveSourceEnabled()).catch(() => { });
     }, getAircraftLiveSyncIntervalMs());
 }
@@ -6954,13 +7024,20 @@ function stopAircraftLiveSync() {
     __aircraftLiveSyncTimer = 0;
 }
 function syncAircraftLivePipelines({ forceRefresh = false } = {}) {
-    const aircraftEnabled = isLayerEnabled("aircraft") && isAircraftTrackingFeatureEnabled();
-    if (!aircraftEnabled) {
+    const aircraftTrackingEnabled = isAircraftTrackingFeatureEnabled();
+    if (!aircraftTrackingEnabled) {
         stopPublicAirIngestion();
         stopAircraftLiveSync();
         stopTracksRealtimeChannel();
         clearAllLiveTracks();
         __seededAircraftTrackKeys = new Set();
+        return;
+    }
+    if (!isLayerEnabled("aircraft")) {
+        stopPublicAirIngestion();
+        stopAircraftLiveSync();
+        stopTracksRealtimeChannel();
+        syncLiveTrackRenderPopulation();
         return;
     }
     if (isDocumentHidden()) {
@@ -6988,7 +7065,8 @@ function requestFastForegroundAircraftRecovery({
     forcePublicRefresh = false,
 } = {}) {
     if (isDocumentHidden()) return false;
-    if (!isLayerEnabled("aircraft") || !isAircraftTrackingFeatureEnabled()) return false;
+    if (!isAircraftTrackingFeatureEnabled()) return false;
+    if (!isLayerEnabled("aircraft")) return false;
     if (__foregroundPipelineResumeTimer) {
         window.clearTimeout(__foregroundPipelineResumeTimer);
         __foregroundPipelineResumeTimer = 0;
@@ -7020,9 +7098,8 @@ function handleTracksRealtimePayload(payload) {
     const eventType = String(payload?.eventType || payload?.event || "").toUpperCase();
     const track = payload?.new || payload?.old;
     if (!track) return;
-    // If the aircraft layer is disabled, ignore high-frequency realtime packets.
-    // Clearing/updating tracks while hidden adds avoidable main-thread pressure.
-    if (!isLayerEnabled("aircraft") || !isAircraftTrackingFeatureEnabled()) return;
+    if (!isAircraftTrackingFeatureEnabled()) return;
+    if (!isLayerEnabled("aircraft")) return;
     if (isDocumentHidden()) return;
     const useDatabaseAsLiveSource = isDatabaseAircraftLiveSourceEnabled();
     if (!useDatabaseAsLiveSource) {
@@ -7061,6 +7138,7 @@ function stopTracksRealtimeChannel() {
 }
 function startTracksRealtimeChannel() {
     if (__tracksRealtimeChannel) return;
+    if (!isAircraftTrackingFeatureEnabled()) return;
     if (!isLayerEnabled("aircraft")) return;
     if (isDocumentHidden()) return;
     const channel = supabase
@@ -7076,10 +7154,176 @@ function startTracksRealtimeChannel() {
     __tracksRealtimeChannel = channel;
 }
 function syncTracksRealtimeChannel() {
-    if (isLayerEnabled("aircraft") && isAircraftTrackingFeatureEnabled() && isStratOpsFeatureEnabled("tracking.aircraftRealtime")) {
+    if (
+        isAircraftTrackingFeatureEnabled() &&
+        isLayerEnabled("aircraft") &&
+        isStratOpsFeatureEnabled("tracking.aircraftRealtime") &&
+        !isDocumentHidden()
+    ) {
         startTracksRealtimeChannel();
     } else {
         stopTracksRealtimeChannel();
+    }
+}
+function getAircraftLivePipelineDiagnostics() {
+    const publicAir = getPublicAirIngestionDiagnostics();
+    return Object.freeze({
+        historySyncTimerActive: Boolean(__aircraftLiveSyncTimer),
+        historySyncIntervalMs: __aircraftLiveSyncTimer ? getAircraftLiveSyncIntervalMs() : 0,
+        realtimeSubscriptionActive: Boolean(__tracksRealtimeChannel),
+        historyFetchInFlight: Boolean(__aircraftHistoryLoadingPromise),
+        publicAir,
+        activeTimerCount:
+            Number(Boolean(__aircraftLiveSyncTimer)) +
+            Number(Boolean(publicAir.pollTimerActive)),
+        activeSubscriptionCount: Number(Boolean(__tracksRealtimeChannel)),
+    });
+}
+const LAYER_RUNTIME_CLASS = Object.freeze({
+    aircraft: "A-continuous-data",
+    naval: "A-continuous-data",
+    gnss: "B-periodic-data",
+    "orbital-assets": "B-periodic-data",
+    strikes: "A-continuous-data",
+    missiles: "A-continuous-data",
+    drones: "A-continuous-data",
+    airstrikes: "A-continuous-data",
+    alerts: "A-continuous-data",
+    cyber: "A-continuous-data",
+    thermal: "A-continuous-data",
+    recon: "A-continuous-data",
+    seismic: "A-continuous-data",
+    "military-bases": "C-static-render",
+    terrain: "C-static-render",
+    "map-labels": "C-static-render",
+    "country-borders": "C-static-render",
+    "region-plate": "C-static-render",
+    "satellite-imagery": "C-static-render",
+    ranges: "C-static-render",
+    sweepers: "D-continuous-animation",
+    hotspots: "E-dom-overlay",
+    aoi: "E-dom-overlay",
+    airspace: "E-dom-overlay",
+});
+
+function getCollectionLength(collection) {
+    const length = Number(collection?.length);
+    return Number.isFinite(length) ? length : 0;
+}
+
+function getDataSourceEntityCount(viewer) {
+    let count = 0;
+    const dataSources = viewer?.dataSources;
+    for (let index = 0; index < getCollectionLength(dataSources); index += 1) {
+        try {
+            count += Number(dataSources.get(index)?.entities?.values?.length || 0);
+        } catch { }
+    }
+    return count;
+}
+
+function getLayerLifecycleDiagnostics() {
+    return Object.freeze(Object.fromEntries(LAYER_DEFS.map((layer) => {
+        const current = __layerLifecycleState.get(layer.id) || {};
+        return [layer.id, Object.freeze({
+            classification: LAYER_RUNTIME_CLASS[layer.id] || "C-static-render",
+            enabled: isLayerEnabled(layer.id),
+            lastChangedAt: Number(current.lastChangedAt || 0),
+            lastActivatedAt: Number(current.lastActivatedAt || 0),
+            lastDeactivatedAt: Number(current.lastDeactivatedAt || 0),
+        })];
+    })));
+}
+
+function getStratOpsPerformanceDiagnostics() {
+    const viewer = window.__warzoneViewer;
+    const aircraft = getLiveTrackDiagnostics();
+    const naval = getNavalDiagnostics();
+    const sweepers = getSweeperDiagnostics();
+    const orbital = window.__getWarzoneMilSatsDiagnostics?.() || null;
+    const militaryBases = window.__getWarzoneMilitaryBaseDiagnostics?.() || null;
+    const militaryTracks = __militaryTracks?.getDiagnostics?.() || null;
+    const viewerEntityCount = Number(viewer?.entities?.values?.length || 0);
+    const dataSourceEntityCount = getDataSourceEntityCount(viewer);
+    const activeTimers =
+        Number(Boolean(__pollTimer)) +
+        Number(Boolean(__intelWireRefreshInterval)) +
+        Number(Boolean(__intelWireRelativeTimeInterval)) +
+        Number(aircraft.activeAircraftTimers || 0) +
+        Number(Boolean(sweepers.animationFrameActive)) +
+        Number(orbital?.activeSatelliteTimers || 0) +
+        Number(Boolean(militaryTracks?.cleanupTimerActive));
+    return Object.freeze({
+        capturedAt: new Date().toISOString(),
+        documentHidden: isDocumentHidden(),
+        cesium: Object.freeze({
+            viewerEntities: viewerEntityCount,
+            dataSourceEntities: dataSourceEntityCount,
+            totalEntities: viewerEntityCount + dataSourceEntityCount,
+            dataSources: getCollectionLength(viewer?.dataSources),
+            primitives: getCollectionLength(viewer?.scene?.primitives),
+            groundPrimitives: getCollectionLength(viewer?.scene?.groundPrimitives),
+            eventRecords: Number(viewer?.__warzoneEventRenderState?.size || 0),
+            requestRenderMode: viewer?.scene?.requestRenderMode === true,
+        }),
+        activeTimers,
+        activeSubscriptions: Number(aircraft.activeAircraftSubscriptions || 0),
+        sharedAnimationTasks: Number(window.__warzoneAnimationTaskCount || 0),
+        eventPollingActive: Boolean(__pollTimer),
+        aircraft,
+        naval,
+        ranges: getRangeDiagnostics(),
+        sweepers,
+        gnss: getGnssDiagnostics(),
+        orbital,
+        militaryBases,
+        militaryTracks,
+        hotspots: Object.freeze({ active: Boolean(__hotspotLayer) }),
+        layers: getLayerLifecycleDiagnostics(),
+        frameTime: window.__stratopsLastFrameTimeSample || null,
+        heap: performance?.memory ? Object.freeze({
+            usedJSHeapSize: Number(performance.memory.usedJSHeapSize || 0),
+            totalJSHeapSize: Number(performance.memory.totalJSHeapSize || 0),
+            jsHeapSizeLimit: Number(performance.memory.jsHeapSizeLimit || 0),
+        }) : null,
+    });
+}
+
+function sampleStratOpsFrameTimes(durationMs = 2000) {
+    const duration = Math.max(500, Math.min(10000, Number(durationMs) || 2000));
+    return new Promise((resolve) => {
+        const samples = [];
+        const startedAt = performance.now();
+        let previousAt = startedAt;
+        const step = (now) => {
+            samples.push(Math.max(0, now - previousAt));
+            previousAt = now;
+            if ((now - startedAt) < duration && !isDocumentHidden()) {
+                requestAnimationFrame(step);
+                return;
+            }
+            const sorted = samples.slice(1).sort((a, b) => a - b);
+            const percentile = (ratio) => sorted.length
+                ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))]
+                : 0;
+            const result = Object.freeze({
+                durationMs: Math.round(now - startedAt),
+                frameCount: sorted.length,
+                averageMs: sorted.length ? sorted.reduce((sum, value) => sum + value, 0) / sorted.length : 0,
+                p95Ms: percentile(0.95),
+                worstMs: sorted[sorted.length - 1] || 0,
+            });
+            window.__stratopsLastFrameTimeSample = result;
+            resolve(result);
+        };
+        requestAnimationFrame(step);
+    });
+}
+if (typeof window !== "undefined") {
+    window.__getWarzoneAircraftPipelineDiagnostics = getAircraftLivePipelineDiagnostics;
+    if (isDevInspectionEnvironment() || window.__WZ_PERF_DIAGNOSTICS === true) {
+        window.__getStratOpsPerformanceDiagnostics = getStratOpsPerformanceDiagnostics;
+        window.__sampleStratOpsFrameTimes = sampleStratOpsFrameTimes;
     }
 }
 function suspendBackgroundLivePipelines() {
@@ -7119,9 +7363,9 @@ function suspendBackgroundLivePipelines() {
 function resumeForegroundLivePipelines({ backgroundIdleMs = 0 } = {}) {
     const wasSuspended = __visibilityPipelinesSuspended;
     __visibilityPipelinesSuspended = false;
-    startEventPollingFallback();
+    if (!shouldSuspendMapWork()) startEventPollingFallback();
     startIntelWireRefreshLoop({ forceInitial: false });
-    if (isLayerEnabled("aircraft")) {
+    if (isAircraftTrackingFeatureEnabled() && isLayerEnabled("aircraft")) {
         requestFastForegroundAircraftRecovery({
             forceRefresh: wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS,
             forcePublicRefresh: wasSuspended,
@@ -7134,7 +7378,7 @@ function resumeForegroundLivePipelines({ backgroundIdleMs = 0 } = {}) {
     __foregroundPipelineResumeTimer = window.setTimeout(() => {
         __foregroundPipelineResumeTimer = 0;
         if (isDocumentHidden()) return;
-        if (isLayerEnabled("aircraft")) {
+        if (isAircraftTrackingFeatureEnabled() && isLayerEnabled("aircraft")) {
             requestFastForegroundAircraftRecovery({
                 forceRefresh: wasSuspended || backgroundIdleMs > FOREGROUND_RECOVERY_WORK_THRESHOLD_MS,
                 forcePublicRefresh: wasSuspended,
@@ -7825,7 +8069,7 @@ function bindAircraftMovementsWidget() {
     });
     document.addEventListener("wz:aircraft-feed-state", (event) => {
         if (!aircraftWidgetEnabled) return;
-        if (event?.detail?.state !== "active" && isLayerEnabled("aircraft")) {
+        if (event?.detail?.state !== "active" && isAircraftTrackingFeatureEnabled()) {
             syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
             refreshAircraftHistoryCache(true).catch(() => { });
         }
@@ -8412,6 +8656,9 @@ export async function initWarzoneApp() {
         syncGnssInterferenceLayer();
         if (viewer && !__militaryTracks && isStratOpsFeatureEnabled("tracking.militaryTracks")) {
             __militaryTracks = initMilitaryTracks(viewer);
+            __militaryTracks?.setEnabled?.(
+                isNavalTrackingFeatureEnabled() && isLayerEnabled("naval")
+            );
             window.__militaryTracks = __militaryTracks;
         }
         if (viewer) {
@@ -8445,7 +8692,7 @@ export async function initWarzoneApp() {
                     clearRanges(window.__warzoneViewer);
                     clearSweepers(window.__warzoneViewer);
                 }
-                if (isLayerEnabled("aircraft")) {
+                if (isAircraftTrackingFeatureEnabled()) {
                     syncAircraftLivePipelines({ forceRefresh: true });
                     scheduleAircraftHistoryRefresh(true);
                 }
@@ -8591,14 +8838,15 @@ export async function initWarzoneApp() {
                 }
             }, { passive: true });
         }
-        if (isLayerEnabled("aircraft") && isStratOpsFeatureEnabled("tracking.aircraft") && isStratOpsFeatureEnabled("widgets.aircraftTracker")) {
-            setWidgetLoading("aircraft", true);
+        if (isAircraftTrackingFeatureEnabled() && isLayerEnabled("aircraft")) {
+            const aircraftWidgetEnabled = isStratOpsFeatureEnabled("widgets.aircraftTracker");
+            if (aircraftWidgetEnabled) setWidgetLoading("aircraft", true);
             refreshAircraftHistoryCache(true)
                 .catch((err) => {
                     console.error("Initial aircraft history load failed:", err);
                 })
                 .finally(() => {
-                    setWidgetLoading("aircraft", false);
+                    if (aircraftWidgetEnabled) setWidgetLoading("aircraft", false);
                     requestAircraftMovementsWidgetRender(0);
                 });
         } else {
@@ -8607,6 +8855,18 @@ export async function initWarzoneApp() {
             requestAircraftMovementsWidgetRender(0);
         }
         onLayerChange((id) => {
+            const changedAt = Date.now();
+            const changedIds = id === "*" ? LAYER_DEFS.map((layer) => layer.id) : [id];
+            changedIds.forEach((layerId) => {
+                const enabled = isLayerEnabled(layerId);
+                const previous = __layerLifecycleState.get(layerId) || {};
+                __layerLifecycleState.set(layerId, {
+                    ...previous,
+                    enabled,
+                    lastChangedAt: changedAt,
+                    ...(enabled ? { lastActivatedAt: changedAt } : { lastDeactivatedAt: changedAt }),
+                });
+            });
             syncWidgetLayerToggleState(id);
             syncIdleSceneState();
             syncFocusAwareBackgroundLoops();
@@ -8669,7 +8929,7 @@ export async function initWarzoneApp() {
                 }
                 syncHotspotRootVisibility(hotspotEnabled);
                 if (!hotspotEnabled) {
-                    __hotspotLayer?.setEvents([]);
+                    destroyHotspotLayer();
                 } else {
                     scheduleHotspotLayerRefresh(20);
                 }
@@ -8684,18 +8944,18 @@ export async function initWarzoneApp() {
             }
             if (id === "aircraft" || id === "*") {
                 const aircraftEnabled = isLayerEnabled("aircraft");
-                if (!aircraftEnabled) {
-                    clearAllLiveTracks();
-                    __seededAircraftTrackKeys = new Set();
-                } else {
+                if (aircraftEnabled) {
                     syncLiveAircraftFromHistoryRows(__aircraftHistoryCache);
                 }
+                syncLiveTrackRenderPopulation();
                 syncAircraftLivePipelines({ forceRefresh: aircraftEnabled });
                 syncTracksRealtimeChannel();
                 requestAircraftMovementsWidgetRender(0);
             }
             if (id === "naval" || id === "*") {
-                if (!isLayerEnabled("naval") || !isNavalTrackingFeatureEnabled()) {
+                const navalEnabled = isNavalTrackingFeatureEnabled() && isLayerEnabled("naval");
+                __militaryTracks?.setEnabled?.(navalEnabled);
+                if (!navalEnabled) {
                     setNavalLayerVisible(false);
                 } else {
                     setNavalLayerVisible(true);
@@ -8853,6 +9113,7 @@ async function pollLatestEvents(options = {}) {
 }
 export function startEventPollingFallback() {
     if (__pollTimer) return;
+    if (isDocumentHidden() || shouldSuspendMapWork()) return;
     __pollTimer = setInterval(() => {
         if (isDocumentHidden()) return;
         if (shouldSuspendMapWork()) return;
@@ -11691,7 +11952,7 @@ function scheduleAdaptivePerformanceGuard(viewer) {
 export function schedulePostEntryActions(viewer) {
     applyStratOpsFeatureVisibility();
 
-    if (isStratOpsFeatureEnabled("system.devPanel") && isDevInspectionEnvironment()) {
+    if (__STRATOPS_DEV_TOOLS__ && isStratOpsFeatureEnabled("system.devPanel") && isDevInspectionEnvironment()) {
         import("./pre-entry-dev-panel.js")
             .then((module) => {
                 module.initLocalDevPanelOnly?.();
@@ -11699,6 +11960,12 @@ export function schedulePostEntryActions(viewer) {
             .catch((error) => {
                 console.warn("Local dev panel failed to initialize:", error);
             });
+    }
+    if (__STRATOPS_DEV_TOOLS__) {
+        const modelTunerLauncher = ensureAircraftNavalModelTunerLauncher(viewer);
+        if (isAircraftNavalModelTunerRequested()) {
+            openAircraftNavalModelTuner(viewer, modelTunerLauncher);
+        }
     }
     if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
         stratopsCheckAuth().then((isAuth) => {

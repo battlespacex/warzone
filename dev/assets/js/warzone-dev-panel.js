@@ -1,4 +1,5 @@
 ﻿// File Path: /assets/js/warzone-dev-panel.js
+import "../css/warzone-dev-panel.css";
 import * as Cesium from "cesium";
 import {
     handleIncomingEvent,
@@ -1912,9 +1913,10 @@ const DEV_LIVE_AIRCRAFT_SIZE_FIELDS = [
     { key: "aircraft-ground-scale", label: "Ground/parked scale", cssVar: "--warzone-live-aircraft-model-ground-scale", min: 0.05, max: 20, step: 0.05, fallback: 0.8 },
     { key: "aircraft-zoom-in-scale", label: "Zoom-in scale", cssVar: "--warzone-live-aircraft-model-scale-zoom-in", min: 0.05, max: 20, step: 0.05, fallback: 1 },
     { key: "aircraft-zoom-out-scale", label: "Zoom-out scale", cssVar: "--warzone-live-aircraft-model-scale-zoom-out", min: 0.05, max: 20, step: 0.05, fallback: 1 },
-    { key: "aircraft-focused-scale", label: "Focused model scale", cssVar: "--warzone-live-aircraft-model-focused-scale", min: 0.05, max: 20, step: 0.05, fallback: 1.21 },
+    { key: "aircraft-focused-max-zoom-size", label: "Focused max zoom size", cssVar: "--warzone-live-aircraft-model-focused-size-max-zoom", min: 1, max: 600, step: 1, fallback: 170 },
+    { key: "aircraft-focused-size", label: "Focused size", cssVar: "--warzone-live-aircraft-model-focused-size", min: 1, max: 600, step: 1, fallback: 155 },
+    { key: "aircraft-focused-zoom-out-size", label: "Focused zoom-out size", cssVar: "--warzone-live-aircraft-model-focused-size-zoom-out", min: 1, max: 600, step: 1, fallback: 60 },
     { key: "aircraft-min-pixel", label: "Model min pixel size", cssVar: "--warzone-live-aircraft-model-min-pixel-size", min: 0, max: 600, step: 1, fallback: 110 },
-    { key: "aircraft-focused-min-pixel", label: "Focused min pixel size", cssVar: "--warzone-live-aircraft-model-focused-min-pixel-size", min: 0, max: 600, step: 1, fallback: 352 },
     { key: "aircraft-max-scale", label: "Model max scale", cssVar: "--warzone-live-aircraft-model-max-scale", min: 1, max: 5000, step: 1, fallback: 2440 },
     { key: "aircraft-alpha", label: "Model alpha", cssVar: "--warzone-live-aircraft-model-alpha", min: 0, max: 1, step: 0.01, fallback: 1 },
     { key: "aircraft-whiteness", label: "Model whiteness", cssVar: "--warzone-live-aircraft-model-whiteness", min: 0, max: 1, step: 0.01, fallback: 0.18 },
@@ -1929,9 +1931,9 @@ const DEV_LIVE_AIRCRAFT_FOCUS_FIELDS = [
     { key: "focus-zoom-range", label: "Focus zoom range", cssVar: "--warzone-live-aircraft-focus-zoom-range", min: 0, max: 300000, step: 1000, fallback: 22000, focusCamera: "bounds" },
     { key: "focus-wheel-step", label: "Wheel zoom step", cssVar: "--warzone-live-aircraft-focus-wheel-zoom-step", min: 500, max: 50000, step: 500, fallback: 2500 },
     { key: "focus-anim-min", label: "Min animation ms", cssVar: "--warzone-live-aircraft-focus-anim-min-ms", min: 0, max: 10000, step: 100, fallback: 900 },
-    { key: "focus-anim-max", label: "Max animation ms", cssVar: "--warzone-live-aircraft-focus-anim-max-ms", min: 0, max: 20000, step: 100, fallback: 9000 },
+    { key: "focus-anim-max", label: "Max animation ms", cssVar: "--warzone-live-aircraft-focus-anim-max-ms", min: 0, max: 20000, step: 100, fallback: 15000 },
     { key: "focus-anim-cadence", label: "Animation cadence factor", cssVar: "--warzone-live-aircraft-focus-anim-cadence-factor", min: 0.2, max: 1.5, step: 0.01, fallback: 1.04 },
-    { key: "focus-visible-radius", label: "Focus visible radius", cssVar: "--warzone-live-aircraft-focus-visible-radius", min: 0, max: 500000, step: 1000, fallback: 100000 },
+    { key: "focus-visible-radius", label: "Focus visible radius", cssVar: "--warzone-live-aircraft-focus-visible-radius", min: 0, max: 500000, step: 1000, fallback: 5000 },
 ];
 const DEV_LIVE_NAVAL_MODEL_FIELDS = [
     { key: "naval-render-default", label: "Default render mode", cssVar: "--warzone-live-naval-render-mode-default", fallback: "img", type: "select", options: ["img", "glb", "char"] },

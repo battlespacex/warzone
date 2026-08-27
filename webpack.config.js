@@ -14,6 +14,7 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 module.exports = (env, argv) => {
     const isDev = argv.mode === "development";
+    const devOnlyModulePattern = /^\.\/(?:pre-entry-dev-panel|warzone-dev-panel|warzone-model-tuner|warzone-startup-scene-tuner)\.js$/;
 
     // Load .env.local for dev, .env.production for prod
     const envFile = isDev ? ".env.local" : ".env.production";
@@ -149,7 +150,17 @@ module.exports = (env, argv) => {
             new webpack.DefinePlugin({
                 CESIUM_BASE_URL: JSON.stringify("/assets/cesium"),
                 CESIUM_ION_TOKEN: JSON.stringify(cesiumToken),
+                __STRATOPS_DEV_TOOLS__: JSON.stringify(isDev),
             }),
+
+            ...(!isDev
+                ? [
+                    new webpack.IgnorePlugin({
+                        resourceRegExp: devOnlyModulePattern,
+                        contextRegExp: /dev[\\/]assets[\\/]js$/,
+                    }),
+                ]
+                : []),
 
             new MiniCssExtractPlugin({
                 filename: (pathData) => {
@@ -201,6 +212,11 @@ module.exports = (env, argv) => {
                         from: path.resolve(DEV_DIR, "partials"),
                         to: path.resolve(PROD_DIR, "partials"),
                         noErrorOnMissing: true,
+                        globOptions: {
+                            ignore: isDev
+                                ? []
+                                : ["**/dev-panel.html", "**/entry-scene-tuner.html"],
+                        },
                     },
                     {
                         from: path.resolve(DEV_DIR, "assets/others"),

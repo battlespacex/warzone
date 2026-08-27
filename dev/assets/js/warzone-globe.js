@@ -3218,7 +3218,10 @@ function bindEventMarkerPicking(viewer) {
         viewer.scene.requestRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
-function isMacChromeBrowser() {
+const MAC_HORIZONTAL_NAVIGATION_MIN_DELTA = 10;
+const MAC_HORIZONTAL_NAVIGATION_DOMINANCE = 1.5;
+
+function isMacPlatform() {
     if (typeof navigator === "undefined") return false;
 
     const userAgent = String(navigator.userAgent || "");
@@ -3232,23 +3235,29 @@ function isMacChromeBrowser() {
         /mac/i.test(platform) ||
         /Macintosh|Mac OS X/i.test(userAgent);
 
-    const isChrome =
-        /Chrome\/\d+/i.test(userAgent) &&
-        !/Edg\/|OPR\//i.test(userAgent);
-
-    return isMac && isChrome;
+    return isMac;
 }
 
-function installMacChromeTrackpadGuards(viewer) {
+function isHorizontalMacTrackpadNavigationGesture(event) {
+    const deltaX = Math.abs(Number(event?.deltaX || 0));
+    const deltaY = Math.abs(Number(event?.deltaY || 0));
+    const isPixelGesture = Number(event?.deltaMode || 0) === 0;
+    return event?.ctrlKey !== true &&
+        isPixelGesture &&
+        deltaX >= MAC_HORIZONTAL_NAVIGATION_MIN_DELTA &&
+        deltaX > (deltaY * MAC_HORIZONTAL_NAVIGATION_DOMINANCE);
+}
+
+function installMacTrackpadGuards(viewer) {
     if (
         !viewer ||
-        viewer.__warzoneMacChromeTrackpadGuardsInstalled ||
-        !isMacChromeBrowser()
+        viewer.__warzoneMacTrackpadGuardsInstalled ||
+        !isMacPlatform()
     ) {
         return;
     }
 
-    viewer.__warzoneMacChromeTrackpadGuardsInstalled = true;
+    viewer.__warzoneMacTrackpadGuardsInstalled = true;
 
     const controller = viewer.scene?.screenSpaceCameraController;
     if (controller) {
@@ -3258,6 +3267,10 @@ function installMacChromeTrackpadGuards(viewer) {
             Cesium.CameraEventType.RIGHT_DRAG,
             Cesium.CameraEventType.WHEEL,
             Cesium.CameraEventType.PINCH,
+            {
+                eventType: Cesium.CameraEventType.WHEEL,
+                modifier: Cesium.KeyboardEventModifier.CTRL,
+            },
         ];
     }
 
@@ -3272,36 +3285,29 @@ function installMacChromeTrackpadGuards(viewer) {
         canvas.style.overscrollBehaviorX = "none";
     } catch { }
 
-    const preventChromeTrackpadNavigation = (event) => {
+    const preventMacTrackpadNavigation = (event) => {
         if (!event?.cancelable) return;
 
-        const deltaX = Math.abs(Number(event.deltaX || 0));
-        const deltaY = Math.abs(Number(event.deltaY || 0));
-        const isTrackpadPinch = event.ctrlKey === true;
-        const isHorizontalSwipe =
-            deltaX > 2 &&
-            deltaX > (deltaY * 0.75);
-
-        if (isTrackpadPinch || isHorizontalSwipe) {
+        if (isHorizontalMacTrackpadNavigationGesture(event)) {
             event.preventDefault();
         }
     };
 
     canvas.addEventListener(
         "wheel",
-        preventChromeTrackpadNavigation,
+        preventMacTrackpadNavigation,
         { passive: false, capture: true }
     );
 
-    viewer.__warzoneMacChromeTrackpadWheelGuard =
-        preventChromeTrackpadNavigation;
+    viewer.__warzoneMacTrackpadWheelGuard =
+        preventMacTrackpadNavigation;
 }
 
 function installGlobalCameraInteractionGuards(viewer) {
     if (!viewer || viewer.__warzoneCameraInteractionGuardsInstalled) return;
     viewer.__warzoneCameraInteractionGuardsInstalled = true;
 
-    installMacChromeTrackpadGuards(viewer);
+    installMacTrackpadGuards(viewer);
 
     const doubleClickType = Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK;
     const handlers = [

@@ -19,8 +19,14 @@ import {
 // ─── State ────────────────────────────────────────────────────────────────────
 const __navalState = {
     vessels: new Map(),    // track_key → { entity, data }
+    renderEnabled: false,
+    createdCount: 0,
+    destroyedCount: 0,
     overlayRoot: null,
     overlayBound: false,
+    overlayPreRenderHandler: null,
+    overlayPostRenderHandler: null,
+    overlayMoveEndHandler: null,
     overlayLastVisible: false,
     overlayLastX: Number.NaN,
     overlayLastY: Number.NaN,
@@ -36,6 +42,7 @@ const __navalState = {
     focusRangeMeters: 120000,
     focusTargetRangeMeters: 120000,
     lastFocusCameraSyncAt: 0,
+    previousEnableZoom: null,
     hoverGuideEl: null,
     hoverLabelEntity: null,
     hoverTrackKey: "",
@@ -50,14 +57,16 @@ const NAVAL_MAX_ANIM_MS = 9000;
 const NAVAL_DEFAULT_ANIM_MS = 2600;
 const NAVAL_FOCUS_CAMERA_RANGE_METERS = 120000;
 const NAVAL_FOCUS_CAMERA_PITCH_DEG = -89;
-const NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS = 6000;
+const NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS = 500;
 const NAVAL_FOCUS_CAMERA_RANGE_MAX_METERS = 3200000;
 const NAVAL_FOCUS_CAMERA_PITCH_MIN_DEG = -89;
 const NAVAL_FOCUS_CAMERA_PITCH_MAX_DEG = -8;
 const NAVAL_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.18;
 const NAVAL_FOCUS_CAMERA_PITCH_SENSITIVITY_DEG_PER_PX = 0.11;
-const NAVAL_FOCUS_CAMERA_SYNC_MIN_MS = 16;
+const NAVAL_FOCUS_CAMERA_SYNC_MIN_MS = 12;
 const NAVAL_FOCUS_CAMERA_ZOOM_EPSILON_METERS = 20;
+const NAVAL_FOCUS_WHEEL_DELTA_REFERENCE_PX = 100;
+const NAVAL_FOCUS_WHEEL_LINE_HEIGHT_PX = 16;
 const NAVAL_FOCUS_WARNING_RANGE_METERS = 90000;
 const NAVAL_FOCUS_FINAL_RANGE_METERS = 160000;
 const NAVAL_BILLBOARD_CANVAS_SIZE = 64;
@@ -1387,13 +1396,63 @@ export function getNavalModelDescriptor(vessel = {}) {
         heading_offset_degrees: getNavalModelHeadingOffsetDeg(vessel),
     };
 }
-function getNavalModelScale(vessel = {}) {
-    const focused = isFocusedNavalVessel(vessel);
-    return clamp(
-        getCssNumber(
-            focused ? "--warzone-live-naval-model-scale-focused" : "--warzone-live-naval-model-scale",
-            getCssNumber("--warzone-live-naval-model-scale", 35)
+export function getNavalModelTunerCategories() {
+    return Object.entries(NAVAL_SUBTYPE_META)
+        .filter(([category]) => Boolean(NAVAL_ASSET_KEY_BY_SUBTYPE[category]))
+        .sort(([, left], [, right]) => Number(left.priority) - Number(right.priority))
+        .map(([category, meta]) => {
+            const modelCode = NAVAL_ASSET_KEY_BY_SUBTYPE[category];
+            const asset = getNavalAssetFile(modelCode);
+            return Object.freeze({
+                assetType: "naval",
+                category,
+                label: meta.label,
+                modelCode,
+                modelUri: asset?.model ? `${NAVAL_MODEL_BASE_PATH}/${asset.model}` : "",
+            });
+        })
+        .filter((entry) => Boolean(entry.modelUri));
+}
+export function getNavalFocusedModelScaleForTuner(category = "naval") {
+    return getFocusedNavalModelScale(
+        { __wzModelTunerCategory: category, subcategory: category }
+    );
+}
+export function getNavalModelTunerFocusConfig() {
+    const initialRange = getNavalFocusedDistanceMeters();
+    return Object.freeze({
+        initialRange,
+        minRange: initialRange,
+        maxRange: Math.max(initialRange, getNavalFocusFinalRangeMeters()),
+        wheelStep: getNavalFocusWheelZoomStepMeters(),
+        wheelEase: getNavalFocusWheelZoomEase(),
+        pitchDegrees: clamp(
+            getCssNumber("--warzone-live-naval-focus-camera-pitch", NAVAL_FOCUS_CAMERA_PITCH_DEG),
+            NAVAL_FOCUS_CAMERA_PITCH_MIN_DEG,
+            NAVAL_FOCUS_CAMERA_PITCH_MAX_DEG
         ),
+    });
+}
+function getNavalFocusedSizingCategory(vessel = {}) {
+    const requested = String(vessel?.__wzModelTunerCategory || vessel?.subcategory || "naval").trim();
+    const category = normalizeNavalSubtypeKey(requested) || "naval";
+    return NAVAL_SUBTYPE_META[category] ? category : "naval";
+}
+function getNavalFocusedCssNumber(baseVarName, vessel = {}, fallback) {
+    const category = getNavalFocusedSizingCategory(vessel);
+    return getCssNumber(`${baseVarName}-${category}`, getCssNumber(baseVarName, fallback));
+}
+function getFocusedNavalModelScale(vessel = {}) {
+    return clamp(
+        getNavalFocusedCssNumber("--warzone-live-naval-model-focused-size", vessel, 130),
+        1,
+        4000
+    );
+}
+function getNavalModelScale(vessel = {}) {
+    if (isFocusedNavalVessel(vessel)) return getFocusedNavalModelScale(vessel);
+    return clamp(
+        getCssNumber("--warzone-live-naval-model-scale", 35),
         1,
         4000
     );
@@ -1402,7 +1461,7 @@ function getNavalModelMinPixelSize(vessel = {}) {
     const focused = isFocusedNavalVessel(vessel);
     return clamp(
         getCssNumber(
-            focused ? "--warzone-live-naval-model-min-pixel-size-focused" : "--warzone-live-naval-model-min-pixel-size",
+            focused ? "--warzone-live-naval-model-focused-min-pixel-size" : "--warzone-live-naval-model-min-pixel-size",
             getCssNumber("--warzone-live-naval-model-min-pixel-size", 64)
         ),
         0,
@@ -2207,6 +2266,7 @@ function clearNavalSelection() {
     __navalState.focusDragState = null;
     __navalState.focusRangeMeters = NAVAL_FOCUS_CAMERA_RANGE_METERS;
     __navalState.focusTargetRangeMeters = __navalState.focusRangeMeters;
+    setNavalFocusedZoomLock(false);
     const focusController = getAssetFocusController();
     if (previousKey && focusController.isActiveAsset(previousKey, "naval")) {
         focusController.exitFocus("naval-clear");
@@ -2252,21 +2312,28 @@ function getNavalFocusWarningRangeMeters() {
         3200000
     );
 }
+function getNavalFocusedDistanceMeters() {
+    return clamp(
+        getCssNumber("--warzone-live-naval-focused-distance", NAVAL_FOCUS_CAMERA_RANGE_METERS),
+        NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS,
+        NAVAL_FOCUS_CAMERA_RANGE_MAX_METERS
+    );
+}
 function getNavalFocusFinalRangeMeters() {
     return clamp(
-        getCssNumber("--warzone-live-naval-focus-final-range", NAVAL_FOCUS_FINAL_RANGE_METERS),
-        getNavalFocusWarningRangeMeters(),
-        3200000
+        getCssNumber("--warzone-live-naval-focused-max-zoom-out", NAVAL_FOCUS_FINAL_RANGE_METERS),
+        NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS,
+        NAVAL_FOCUS_CAMERA_RANGE_MAX_METERS
     );
 }
 function getNavalFocusSafeRangeMeters() {
     return clamp(
         Math.min(
-            getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
+            getNavalFocusedDistanceMeters(),
             getNavalFocusWarningRangeMeters() * 0.85
         ),
-        6000,
-        getNavalFocusFinalRangeMeters()
+        getNavalFocusedDistanceMeters(),
+        Math.max(getNavalFocusedDistanceMeters(), getNavalFocusFinalRangeMeters())
     );
 }
 function getNavalEntryPosition(entry) {
@@ -2294,11 +2361,23 @@ function getNavalFocusWheelZoomEase() {
         1
     );
 }
+function getNavalFocusWheelDeltaFactor(event) {
+    let deltaY = Number(event?.deltaY || 0);
+    if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 0.01) return 0;
+    const deltaMode = Number(event?.deltaMode || 0);
+    if (deltaMode === 1) {
+        deltaY *= NAVAL_FOCUS_WHEEL_LINE_HEIGHT_PX;
+    } else if (deltaMode === 2) {
+        deltaY *= Math.max(1, Number(window.innerHeight || 800));
+    }
+    return clamp(deltaY / NAVAL_FOCUS_WHEEL_DELTA_REFERENCE_PX, -1, 1);
+}
 function setNavalFocusRangeMeters(value, options = {}) {
+    const closestRange = getNavalFocusedDistanceMeters();
     const next = clamp(
         Number(value),
-        NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS,
-        NAVAL_FOCUS_CAMERA_RANGE_MAX_METERS
+        closestRange,
+        Math.max(closestRange, getNavalFocusFinalRangeMeters())
     );
     if (!Number.isFinite(next)) return false;
     __navalState.focusTargetRangeMeters = next;
@@ -2306,6 +2385,21 @@ function setNavalFocusRangeMeters(value, options = {}) {
         __navalState.focusRangeMeters = next;
     }
     return true;
+}
+function setNavalFocusedZoomLock(enabled = false) {
+    const controller = window.__warzoneViewer?.scene?.screenSpaceCameraController;
+    if (!controller) return;
+    if (enabled) {
+        if (__navalState.previousEnableZoom === null) {
+            __navalState.previousEnableZoom = controller.enableZoom;
+        }
+        controller.enableZoom = false;
+        return;
+    }
+    if (__navalState.previousEnableZoom !== null) {
+        controller.enableZoom = __navalState.previousEnableZoom;
+        __navalState.previousEnableZoom = null;
+    }
 }
 function resolveNavalFocusCameraRange() {
     const target = Number(__navalState.focusTargetRangeMeters || __navalState.focusRangeMeters || NAVAL_FOCUS_CAMERA_RANGE_METERS);
@@ -2406,11 +2500,12 @@ function bindNavalFocusInteraction(viewer) {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
-        const deltaY = Number(event?.deltaY || 0);
-        const zoomDelta = deltaY > 0 ? getNavalFocusWheelZoomStepMeters() : -getNavalFocusWheelZoomStepMeters();
+        const wheelDeltaFactor = getNavalFocusWheelDeltaFactor(event);
+        if (wheelDeltaFactor === 0) return;
+        const zoomDelta = getNavalFocusWheelZoomStepMeters() * wheelDeltaFactor;
         if (!setNavalFocusRangeMeters(Number(__navalState.focusTargetRangeMeters || __navalState.focusRangeMeters || NAVAL_FOCUS_CAMERA_RANGE_METERS) + zoomDelta)) return;
         __navalState.lastFocusCameraSyncAt = 0;
-        syncFocusedNavalCamera({ force: true });
+        getAssetFocusController().requestFrame();
         requestNavalRenderBatched();
     };
 
@@ -2435,7 +2530,7 @@ function showNavalFocusWarning() {
         onStay: () => {
             __navalState.focusWarningActive = false;
             focusNavalVessel(selectedKey, {
-                cameraHeight: getNavalFocusSafeRangeMeters(),
+                rangeMeters: getNavalFocusSafeRangeMeters(),
                 duration: 0.85,
             });
         },
@@ -2484,15 +2579,13 @@ export function focusNavalVessel(trackKey, options = {}) {
     const requestedRange = Number(options.rangeMeters);
     setNavalFocusRangeMeters(Number.isFinite(requestedRange) && requestedRange > 0
         ? requestedRange
-        : Math.max(
-            getCssNumber("--warzone-live-naval-focus-camera-range", NAVAL_FOCUS_CAMERA_RANGE_METERS),
-            Number(options.cameraHeight || 0)
-        ), { immediate: true });
+        : getNavalFocusedDistanceMeters(), { immediate: true });
     if (!focusController.enterFocus({
         assetType: "naval",
         assetId: trackKey,
         mode: "track",
     })) return false;
+    setNavalFocusedZoomLock(true);
     syncNavalContourCenter(trackKey);
     applyNavalVisual(entry.entity, entry.data);
     __navalState.isCameraFlying = true;
@@ -2837,7 +2930,7 @@ function bindNavalPicking(viewer) {
 
     // Hover — cursor
     handler.setInputAction(movement => {
-        if (__navalState.vessels.size === 0) {
+        if (!hasRenderedNavalVessels()) {
             if (!window.__wzBaseHover) {
                 viewer.container.style.cursor = "";
             }
@@ -2860,7 +2953,7 @@ function bindNavalPicking(viewer) {
 
     // Click
     handler.setInputAction(movement => {
-        if (__navalState.vessels.size === 0) return;
+        if (!hasRenderedNavalVessels()) return;
         const picked = viewer.scene.pick(movement.position);
         const trackKey = resolvePickedNavalTrackKey(picked);
 
@@ -2884,15 +2977,38 @@ function bindNavalOverlay(viewer) {
     __navalState.overlayBound = true;
     ensureNavalOverlayRoot(viewer);
     bindNavalFocusInteraction(viewer);
-    viewer.scene.postRender.addEventListener(syncNavalOverlay);
-    const focusController = getAssetFocusController();
-    focusController.registerTask("naval-camera-lock", () => syncFocusedNavalCamera(), { hz: 18 });
-    viewer.scene.preRender.addEventListener(() => focusController.requestFrame());
-    viewer.scene.postRender.addEventListener(() => focusController.requestFrame());
-    viewer.camera.moveEnd.addEventListener(() => {
+    __navalState.overlayPostRenderHandler = () => {
+        syncNavalOverlay();
+        getAssetFocusController().requestFrame();
+    };
+    __navalState.overlayPreRenderHandler = () => getAssetFocusController().requestFrame();
+    __navalState.overlayMoveEndHandler = () => {
         refreshNavalViewDependentVisuals();
         checkNavalFocusRangeWarning();
-    });
+    };
+    viewer.scene.postRender.addEventListener(__navalState.overlayPostRenderHandler);
+    const focusController = getAssetFocusController();
+    focusController.registerTask("naval-camera-lock", () => syncFocusedNavalCamera());
+    viewer.scene.preRender.addEventListener(__navalState.overlayPreRenderHandler);
+    viewer.camera.moveEnd.addEventListener(__navalState.overlayMoveEndHandler);
+}
+
+function unbindNavalRuntime(viewer) {
+    if (__navalState.clickHandler) {
+        try { __navalState.clickHandler.destroy(); } catch { }
+        __navalState.clickHandler = null;
+        __navalState.clickBound = false;
+    }
+    if (__navalState.overlayBound && viewer) {
+        try { viewer.scene.postRender.removeEventListener(__navalState.overlayPostRenderHandler); } catch { }
+        try { viewer.scene.preRender.removeEventListener(__navalState.overlayPreRenderHandler); } catch { }
+        try { viewer.camera.moveEnd.removeEventListener(__navalState.overlayMoveEndHandler); } catch { }
+    }
+    __navalState.overlayBound = false;
+    __navalState.overlayPreRenderHandler = null;
+    __navalState.overlayPostRenderHandler = null;
+    __navalState.overlayMoveEndHandler = null;
+    getAssetFocusController().removeTask?.("naval-camera-lock");
 }
 
 // ─── Public: upsert vessel (called from essential.js event handler) ───────────
@@ -2911,9 +3027,6 @@ export function upsertNavalVessel(event) {
         }
         return;
     }
-
-    bindNavalOverlay(viewer);
-    bindNavalPicking(viewer);
 
     // Build a unified vessel data object from event fields
     const metadata = parseEventMetadata(event.metadata);
@@ -3053,17 +3166,24 @@ export function upsertNavalVessel(event) {
     const nextVessel = existing?.data
         ? mergeNavalVesselData(existing.data, vessel)
         : vessel;
-    const entityId = `naval-${trackKey}`;
-    const sceneEntity = viewer.entities.getById(entityId);
-    if (existing?.entity && sceneEntity === existing.entity) {
-        updateVesselEntity(existing.entity, nextVessel);
-        existing.data = nextVessel;
-    } else if (sceneEntity) {
-        updateVesselEntity(sceneEntity, nextVessel);
-        __navalState.vessels.set(trackKey, { entity: sceneEntity, data: nextVessel });
+    if (!__navalState.renderEnabled) {
+        __navalState.vessels.set(trackKey, { entity: null, data: nextVessel });
     } else {
-        const entity = createVesselEntity(viewer, nextVessel);
-        __navalState.vessels.set(trackKey, { entity, data: nextVessel });
+        bindNavalOverlay(viewer);
+        bindNavalPicking(viewer);
+        const entityId = `naval-${trackKey}`;
+        const sceneEntity = viewer.entities.getById(entityId);
+        if (existing?.entity && sceneEntity === existing.entity) {
+            updateVesselEntity(existing.entity, nextVessel);
+            existing.data = nextVessel;
+        } else if (sceneEntity) {
+            updateVesselEntity(sceneEntity, nextVessel);
+            __navalState.vessels.set(trackKey, { entity: sceneEntity, data: nextVessel });
+        } else {
+            const entity = createVesselEntity(viewer, nextVessel);
+            __navalState.vessels.set(trackKey, { entity, data: nextVessel });
+            __navalState.createdCount += 1;
+        }
     }
 
     requestNavalRenderBatched();
@@ -3076,12 +3196,7 @@ export function clearNavalVessel(trackKey) {
     const viewer = window.__warzoneViewer;
     const cacheKey = String(trackKey || "").trim();
     const entry = __navalState.vessels.get(trackKey);
-    if (entry?.entity) {
-        unregisterAnimationTask(entry.entity.__navalAnimationTaskKey || `naval:${String(trackKey || "")}`);
-        entry.entity.__navalMotionState = null;
-        entry.entity.__navalAnimationTaskKey = "";
-    }
-    if (entry?.entity && viewer) viewer.entities.remove(entry.entity);
+    if (entry?.entity) removeNavalRenderEntity(viewer, trackKey, entry);
     __navalState.vessels.delete(trackKey);
     if (cacheKey) {
         __navalIconCodeCache.delete(cacheKey);
@@ -3111,16 +3226,96 @@ export function getAllNavalSnapshots() {
 
 export function setNavalLayerVisible(visible = true) {
     const show = visible === true;
-    __navalState.vessels.forEach((entry) => {
-        if (entry?.entity) entry.entity.show = show;
-    });
+    __navalState.renderEnabled = show;
     if (!show) {
         if (__navalState.selectedKey) clearNavalSelection();
         hideNavalHoverGuide();
+        destroyNavalHoverLabel();
         if (__navalState.overlayRoot) __navalState.overlayRoot.style.display = "none";
         __navalState.overlayLastVisible = false;
+        const viewer = window.__warzoneViewer;
+        __navalState.vessels.forEach((entry, trackKey) => {
+            removeNavalRenderEntity(viewer, trackKey, entry);
+        });
+        purgeOrphanedNavalRenderEntities(viewer);
+        unbindNavalRuntime(viewer);
+    } else {
+        const viewer = window.__warzoneViewer;
+        if (viewer) {
+            purgeInvalidNavalContacts();
+            bindNavalOverlay(viewer);
+            bindNavalPicking(viewer);
+            __navalState.vessels.forEach((entry, trackKey) => {
+                if (!entry?.data || entry.entity) return;
+                entry.entity = createVesselEntity(viewer, entry.data);
+                __navalState.createdCount += 1;
+            });
+        }
     }
     requestNavalRenderBatched();
+}
+
+function hasRenderedNavalVessels() {
+    if (!__navalState.renderEnabled) return false;
+    for (const entry of __navalState.vessels.values()) {
+        if (entry?.entity) return true;
+    }
+    return false;
+}
+
+function removeNavalRenderEntity(viewer, trackKey, entry) {
+    const entity = entry?.entity;
+    if (!entity) return false;
+    unregisterAnimationTask(entity.__navalAnimationTaskKey || `naval:${String(trackKey || "")}`);
+    entity.__navalMotionState = null;
+    entity.__navalAnimationTaskKey = "";
+    try {
+        viewer?.entities?.remove?.(entity);
+    } catch { }
+    entry.entity = null;
+    __navalState.destroyedCount += 1;
+    return true;
+}
+
+function getNavalRenderEntities(viewer = window.__warzoneViewer) {
+    const entities = viewer?.entities?.values;
+    if (!Array.isArray(entities)) return [];
+    return entities.filter((entity) => {
+        const entityId = String(entity?.id || "");
+        return entityId === "naval-hover-label" || entityId.startsWith("naval-");
+    });
+}
+
+function purgeOrphanedNavalRenderEntities(viewer = window.__warzoneViewer) {
+    let removed = 0;
+    getNavalRenderEntities(viewer).forEach((entity) => {
+        try {
+            if (viewer?.entities?.remove?.(entity)) removed += 1;
+        } catch { }
+    });
+    if (removed) __navalState.destroyedCount += removed;
+    __navalState.vessels.forEach((entry) => {
+        if (entry?.entity && !viewer?.entities?.contains?.(entry.entity)) {
+            entry.entity = null;
+        }
+    });
+    return removed;
+}
+
+export function getNavalDiagnostics() {
+    const renderedEntries = [...__navalState.vessels.values()].filter((entry) => Boolean(entry?.entity));
+    const cesiumEntities = getNavalRenderEntities();
+    return Object.freeze({
+        renderEnabled: __navalState.renderEnabled,
+        lightweightVesselRecords: __navalState.vessels.size,
+        activeCesiumNavalEntities: cesiumEntities.length,
+        registeredCesiumNavalEntities: renderedEntries.length,
+        orphanedCesiumNavalEntities: Math.max(0, cesiumEntities.length - renderedEntries.length),
+        activeNavalAnimations: renderedEntries.filter((entry) => Boolean(entry.entity?.__navalAnimationTaskKey)).length,
+        selectedNavalId: String(__navalState.selectedKey || ""),
+        navalCreatedCount: __navalState.createdCount,
+        navalDestroyedCount: __navalState.destroyedCount,
+    });
 }
 export function refreshNavalVisualStyles() {
     __navalState.vessels.forEach((entry) => {

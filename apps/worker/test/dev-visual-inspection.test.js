@@ -8,6 +8,9 @@ test("Dev Panel remains unmounted while disabled and retains an explicit re-enab
   const config = await readSource("../../../dev/assets/js/stratops-feature-config.js");
   const loader = await readSource("../../../dev/assets/js/pre-entry-dev-panel.js");
   const essential = await readSource("../../../dev/assets/js/essential.js");
+  const webpackConfig = await readSource("../../../webpack.config.js");
+  const sharedComponentsCss = await readSource("../../../dev/assets/css/warzone-components.css");
+  const devPanelCss = await readSource("../../../dev/assets/css/warzone-dev-panel.css");
 
   assert.match(config, /devPanel:\s*false/);
   assert.match(loader, /if \(!isStratOpsFeatureEnabled\("system\.devPanel"\)\) return null/);
@@ -15,7 +18,12 @@ test("Dev Panel remains unmounted while disabled and retains an explicit re-enab
   assert.match(loader, /hostname\.includes\("staging"\)/);
   assert.match(loader, /document\.body\.insertAdjacentHTML\("beforeend", html\)/);
   assert.match(loader, /\/warzone\/partials\/dev-panel\.html/);
-  assert.match(essential, /if \(isStratOpsFeatureEnabled\("system\.devPanel"\) && isDevInspectionEnvironment\(\)\) \{\s*import\("\.\/pre-entry-dev-panel\.js"\)/);
+  assert.match(essential, /if \(__STRATOPS_DEV_TOOLS__ && isStratOpsFeatureEnabled\("system\.devPanel"\) && isDevInspectionEnvironment\(\)\) \{\s*import\("\.\/pre-entry-dev-panel\.js"\)/);
+  assert.match(webpackConfig, /__STRATOPS_DEV_TOOLS__:\s*JSON\.stringify\(isDev\)/);
+  assert.match(webpackConfig, /new webpack\.IgnorePlugin\(\{[\s\S]*?resourceRegExp:\s*devOnlyModulePattern/);
+  assert.match(webpackConfig, /"\*\*\/dev-panel\.html",\s*"\*\*\/entry-scene-tuner\.html"/);
+  assert.doesNotMatch(sharedComponentsCss, /\.wz-dev-panel/);
+  assert.match(devPanelCss, /\.wz-dev-panel/);
   assert.doesNotMatch(loader, /devpanel=1|wz_dev/);
 });
 

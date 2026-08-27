@@ -1494,26 +1494,48 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-depth-test-disable-distance: 0;
     --warzone-live-label-depth-test-disable-distance: 0;
 
-    /* Naval: model sizing (compatibility controls) */
+    /* Naval: model sizing */
     --warzone-live-naval-render-mode-default: img;
     --warzone-live-naval-render-mode-focused: glb;
     --warzone-live-naval-model-auto-enabled: 0;
     --warzone-live-naval-model-scale: 1.2;
-    --warzone-live-naval-model-scale-focused: 1.54;
     --warzone-live-naval-model-min-pixel-size: 82;
-    --warzone-live-naval-model-min-pixel-size-focused: 118;
     --warzone-live-naval-model-max-scale: 160;
     --warzone-live-naval-model-max-scale-focused: 220;
+    /* Focused naval GLBs use authored model proportions; categories can be tuned independently. */
+    --warzone-live-naval-model-focused-size: 130;
+    --warzone-live-naval-model-focused-min-pixel-size: 0;
+
+    --warzone-live-naval-model-focused-size-carrier: 8;
+    --warzone-live-naval-model-focused-size-amphibious: 8;
+    --warzone-live-naval-model-focused-size-cruiser: 8;
+    --warzone-live-naval-model-focused-size-destroyer: 8;
+    --warzone-live-naval-model-focused-size-frigate: 8;
+    --warzone-live-naval-model-focused-size-corvette: 8;
+    --warzone-live-naval-model-focused-size-intelligence: 8;
+    --warzone-live-naval-model-focused-size-ssbn: 8;
+    --warzone-live-naval-model-focused-size-ssn: 8;
+    --warzone-live-naval-model-focused-size-ssk: 8;
+    --warzone-live-naval-model-focused-size-aip_submarine: 8;
+    --warzone-live-naval-model-focused-size-submarine: 8;
+    --warzone-live-naval-model-focused-size-missile_boat: 8;
+    --warzone-live-naval-model-focused-size-patrol: 8;
+    --warzone-live-naval-model-focused-size-logistics: 8;
+    --warzone-live-naval-model-focused-size-minesweeper: 8;
+    --warzone-live-naval-model-focused-size-naval: 8;
+
+
     --warzone-live-naval-model-heading-offset-default: 180;
     --warzone-live-naval-model-max-active: 6;
     --warzone-live-naval-model-max-zoom-height: 320000;
     --warzone-live-naval-model-auto-radius: 200000;
-    --warzone-live-naval-focus-camera-range: 45000;
+    /* Produces about 7,000 ft camera altitude at the configured -58deg pitch. */
+    --warzone-live-naval-focused-distance: 2216;
     --warzone-live-naval-focus-camera-pitch: -58;
     --warzone-live-naval-focus-wheel-zoom-step: 5000;
     --warzone-live-naval-focus-wheel-zoom-ease: 0.22;
     --warzone-live-naval-focus-warning-range: 90000;
-    --warzone-live-naval-focus-final-range: 160000;
+    --warzone-live-naval-focused-max-zoom-out: 160000;
     --warzone-live-naval-focus-visible-radius: 100000;
     --warzone-live-naval-focus-context-model-radius: 100000;
     --warzone-live-naval-focus-context-model-max-active: 12;
@@ -1557,36 +1579,28 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-render-mode-focused: glb;
     --warzone-live-aircraft-model-scale: 1;
     --warzone-live-aircraft-model-airborne-scale: 1;
-    --warzone-live-aircraft-model-ground-scale: 0.9;
-    --warzone-live-aircraft-model-scale-zoom-in: 2;
+    --warzone-live-aircraft-model-ground-scale: 0.8;
+    --warzone-live-aircraft-model-scale-zoom-in: 1;
     --warzone-live-aircraft-model-scale-zoom-out: 1;
     --warzone-live-aircraft-model-zoom-near-height: 8000;
     --warzone-live-aircraft-model-zoom-far-height: 65000;
-    --warzone-live-aircraft-model-focused-scale: 1.5;
-    --warzone-live-aircraft-model-focused-scale-far-factor: 0.42;
-    --warzone-live-aircraft-model-min-pixel-size: 320;
-    --warzone-live-aircraft-model-focused-min-pixel-size: 388;
-    --warzone-live-aircraft-model-focused-min-pixel-far-factor: 0.34;
+
+    /* Focused GLB size tuning shared by every aircraft model. */
+    --warzone-live-aircraft-model-focused-size: 300;
+
+    --warzone-live-aircraft-model-min-pixel-size: 0;
+    --warzone-live-aircraft-model-focused-min-pixel-size: 0;
     --warzone-live-aircraft-model-max-scale: 1200;
 
-    /* Aircraft subtype GLB sizing: overview scale, focused scale, minimum pixels, focused minimum pixels, max scale. */
-    --warzone-live-aircraft-model-scale-fighter: 0.72;
-    --warzone-live-aircraft-model-focused-scale-fighter: 0.9;
-    --warzone-live-aircraft-model-min-pixel-size-fighter: 220;
-    --warzone-live-aircraft-model-focused-min-pixel-size-fighter: 260;
-    --warzone-live-aircraft-model-max-scale-fighter: 900;
-
-    --warzone-live-aircraft-model-scale-transport: 1.25;
-    --warzone-live-aircraft-model-focused-scale-transport: 1.7;
-    --warzone-live-aircraft-model-min-pixel-size-transport: 360;
-    --warzone-live-aircraft-model-focused-min-pixel-size-transport: 480;
-    --warzone-live-aircraft-model-max-scale-transport: 1600;
-
-    --warzone-live-aircraft-model-scale-helicopter:  1;
-    --warzone-live-aircraft-model-focused-scale-helicopter: 1;
-    --warzone-live-aircraft-model-min-pixel-size-helicopter: 260;
-    --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 280;
-    --warzone-live-aircraft-model-max-scale-helicopter: 1100;
+    --warzone-live-aircraft-model-focused-size-fighter: 9;
+    --warzone-live-aircraft-model-focused-size-transport: 7;
+    --warzone-live-aircraft-model-focused-size-bomber: 7;
+    --warzone-live-aircraft-model-focused-size-tanker: 7;
+    --warzone-live-aircraft-model-focused-size-recon: 7;
+    --warzone-live-aircraft-model-focused-size-awacs: 7;
+    --warzone-live-aircraft-model-focused-size-helicopter: 10;
+    --warzone-live-aircraft-model-focused-size-vip: 8;
+    --warzone-live-aircraft-model-focused-size-drone: 8;
 
     --warzone-live-aircraft-model-alpha: 1;
     --warzone-live-aircraft-model-whiteness: 0.18;
@@ -1596,21 +1610,22 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-focus-context-model-radius: 100000;
     --warzone-live-aircraft-focus-context-model-max-active: 12;
     --warzone-live-track-focused-trail-anchor-down-meters: 62;
+    /* Used only when a focused aircraft has no valid positive reported altitude. */
     --warzone-live-aircraft-focus-camera-range: 24000;
+    --warzone-live-aircraft-focus-altitude-offset-ft: 3500;
     --warzone-live-aircraft-focus-camera-pitch: -58;
     --warzone-live-aircraft-unfocus-camera-range: 72000;
     --warzone-live-aircraft-unfocus-zoom-out-delta: 26000;
-    --warzone-live-aircraft-focus-zoom-range: 30000;
     --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
     --warzone-live-aircraft-focus-wheel-zoom-ease: 0.14;
     --warzone-live-aircraft-focus-warning-range: 125000;
-    --warzone-live-aircraft-focus-final-range: 220000;
+    --warzone-live-aircraft-focused-max-zoom-out: 220000;
     --warzone-live-aircraft-heading-smoothing: 0.24;
     --warzone-live-aircraft-focus-anim-min-ms: 1400;
-    --warzone-live-aircraft-focus-anim-max-ms: 9000;
-    --warzone-live-aircraft-focus-anim-default-ms: 2600;
-    --warzone-live-aircraft-focus-anim-cadence-factor: 1.18;
-    --warzone-live-aircraft-focus-visible-radius: 100000;
+    --warzone-live-aircraft-focus-anim-max-ms: 15000;
+    --warzone-live-aircraft-focus-anim-default-ms: 12000;
+    --warzone-live-aircraft-focus-anim-cadence-factor: 1;
+    --warzone-live-aircraft-focus-visible-radius: 5000;
     --warzone-contour-layer-alpha: 0.38;
     --warzone-contour-relief-alpha: 0.30;
     --warzone-contour-imagery-alpha: 0.58;
@@ -1776,7 +1791,7 @@ input[type="checkbox"]:checked {
 :root {
     --warzone-live-label-scale: 0.62;
     --warzone-live-label-offset-y: 0;
-    --warzone-live-label-font: 20px var(--heading-font);
+    --warzone-live-label-font: 20px var(--text-font);
     --warzone-live-label-fill: var(--color-teal-glow);
     --warzone-live-label-outline: rgba(0, 16, 18, 0.92);
     --warzone-live-label-outline-width: 1.8;

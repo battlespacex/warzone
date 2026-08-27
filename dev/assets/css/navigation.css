@@ -374,7 +374,6 @@ body.show-loader .wz-dock {
 }
 
 body.show-loader .warzone-panel--floating,
-body.show-loader .wz-dev-panel,
 body.show-loader .warzone-hotspot-layer,
 body.show-loader .wz-radar-label-layer {
     opacity: 0 !important;
@@ -386,17 +385,11 @@ body.is-ui-modal-open .wz-dock,
 body.is-ui-modal-open .warzone-region-bar,
 body.is-ui-modal-open .warzone-actions,
 body.is-ui-modal-open .warzone-panel--floating,
-body.is-ui-modal-open .wz-dev-panel,
 body.is-ui-modal-open .warzone-hotspot-layer,
 body.is-ui-modal-open .wz-radar-label-layer,
 body.is-ui-modal-open .wz-globe-toggle {
     opacity: 0 !important;
     pointer-events: none !important;
-}
-
-body.is-ui-modal-open.wz-dev-startup-visible .wz-dev-panel[data-startup-visible="1"] {
-    opacity: 1 !important;
-    pointer-events: auto !important;
 }
 
 /* #endregion =========== */

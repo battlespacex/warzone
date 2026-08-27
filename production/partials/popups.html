@@ -21,15 +21,19 @@
         </template>
         <div id="warzone-alert" class="warzone-alert" role="status" aria-live="assertive" aria-atomic="true" hidden
             aria-hidden="true" data-alert-key="" data-alert-version="" data-sticky="" data-dismissed="">
-            <span class="warzone-alert__icon" aria-hidden="true">!</span>
-            <span class="warzone-alert__text">
-                <strong id="warzone-alert-title">Air raid sirens active</strong>
-                <span id="warzone-alert-meta"></span>
-            </span>
-            <button type="button" class="warzone-alert__close" id="warzone-alert-dismiss"
-                aria-label="Dismiss alert banner" title="Dismiss alert banner">
-                X
-            </button>
+            <div class="warzone-alert__content">
+                <span class="warzone-alert__icon static-icon" aria-hidden="true">
+                    <span class="stratops-ico-assets-alert-1"></span>
+                </span>
+                <span class="warzone-alert__text">
+                    <strong id="warzone-alert-title">Air raid sirens active</strong>
+                    <span id="warzone-alert-meta"></span>
+                </span>
+                <button type="button" class="warzone-alert__close static-icon" id="warzone-alert-dismiss" 
+                        aria-label="Dismiss alert banner" title="Dismiss alert banner">
+                    <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                </button>
+            </div>
         </div>
         <div id="wz-event-popup" class="wz-event-popup" hidden aria-live="polite" role="dialog" aria-modal="false"
             aria-labelledby="wz-event-popup-title" aria-describedby="wz-event-popup-summary">

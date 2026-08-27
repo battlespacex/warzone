@@ -592,32 +592,15 @@ function renderSatelliteRegionList() {
             });
             action.type = "button";
             action.className = isCurrent ? "btn-secondary white wz-orbital-region-row__action" : "btn-primary wz-orbital-region-row__action";
-            action.innerHTML = `<span aria-hidden="true"></span>${isCurrent ? "View" : "Switch Region"}`;
+            action.innerHTML = `<span aria-hidden="true"></span>${isCurrent ? "View" : "Focus"}`;
             action.setAttribute("aria-label", isCurrent
                 ? `View a satellite currently over ${group.label}`
-                : `Switch monitoring region to ${group.label} to view satellites`);
+                : `Focus a satellite currently beyond the selected region over ${group.label}`);
             action.disabled = focusBlocked;
             action.setAttribute("aria-disabled", focusBlocked ? "true" : "false");
             action.addEventListener("click", () => {
                 if (!primaryRecord || focusBlocked) return;
-                if (isCurrent) {
-                    selectSatellite(primaryRecord.id);
-                    return;
-                }
-
-                // A region switch must never begin while the camera is still tracking
-                // a focused satellite. Release the tracked/selected entity immediately
-                // before opening the region confirmation prompt.
-                selectSatellite("", { flyOut: false });
-
-                void requestRegionSwitch(state.viewer, group.region.id, {
-                    source: "orbital-satellite-region",
-                    contextLabel: `${group.records.length} satellite${group.records.length === 1 ? "" : "s"} currently over ${group.label}`,
-                    onSwitched: () => {
-                        updateControlsOptions();
-                        window.setTimeout(() => selectSatellite(primaryRecord.id), 180);
-                    },
-                });
+                void selectSatellite(primaryRecord.id);
             });
             row.appendChild(action);
         }
@@ -633,6 +616,16 @@ function removeEntity(entity) {
     } catch {
         // Ignore Cesium cleanup races during scene shutdown.
     }
+}
+
+function getOrbitalRenderEntities() {
+    const entities = state.viewer?.entities?.values;
+    if (!Array.isArray(entities)) return [];
+    return entities.filter((entity) => String(entity?.id || "").startsWith("wz-orbital-"));
+}
+
+function purgeOrbitalRenderEntities() {
+    getOrbitalRenderEntities().forEach(removeEntity);
 }
 
 function clearFocusEntities() {
@@ -1551,7 +1544,57 @@ function selectSatellite(id = "", options = {}) {
     })) return false;
 
     const viewer = state.viewer;
-    if (!viewer || !getSatelliteRecord(selectedId)) return false;
+    const record = getSatelliteRecord(selectedId);
+    if (!viewer || !record) return false;
+    if (options?.skipRegionConfirmation !== true) {
+        const currentPoint = propagateRecord(record, new Date());
+        const targetRegion = resolveSatelliteMonitoringRegion(currentPoint) || REGIONS.find((region) => region?.id === "global");
+        const activeRegion = getActiveRegion?.();
+        if (
+            targetRegion?.id &&
+            activeRegion?.id &&
+            activeRegion.id !== "global" &&
+            targetRegion.id !== activeRegion.id
+        ) {
+            const requestToken = state.focusRequestToken + 1;
+            const satelliteLabel = formatUpper(record.name || record.objectName || record.noradId || "Satellite");
+            const currentRegionLabel = activeRegion.label || activeRegion.id;
+            const targetRegionLabel = targetRegion.label || targetRegion.id;
+            const outsideDefinedRegions = targetRegion.id === "global";
+            state.focusRequestToken = requestToken;
+            state.focusPendingId = selectedId;
+            updateControlsOptions();
+            return requestRegionSwitch(viewer, targetRegion.id, {
+                source: "orbital-satellite-focus",
+                allowGlobalTarget: outsideDefinedRegions,
+                promptTitle: "Satellite Outside Selected Region",
+                promptSummary: outsideDefinedRegions
+                    ? `${satelliteLabel} is beyond ${currentRegionLabel} and is currently outside the defined monitoring regions.`
+                    : `${satelliteLabel} is beyond ${currentRegionLabel} and is currently over ${targetRegionLabel}.`,
+                promptDetail: `Focus Satellite will change the active monitoring region to ${targetRegionLabel}, then focus the satellite.`,
+                cancelLabel: "Cancel",
+                confirmLabel: "Focus Satellite",
+            }).then((switched) => {
+                if (
+                    !switched ||
+                    requestToken !== state.focusRequestToken ||
+                    state.focusPendingId !== selectedId ||
+                    !state.enabled ||
+                    state.viewer !== viewer
+                ) return false;
+                state.focusPendingId = "";
+                updateControlsOptions();
+                return selectSatellite(selectedId, {
+                    ...options,
+                    skipRegionConfirmation: true,
+                });
+            }).finally(() => {
+                if (requestToken !== state.focusRequestToken) return;
+                state.focusPendingId = "";
+                updateControlsOptions();
+            });
+        }
+    }
     if (viewer.scene?.mode === Cesium.SceneMode.SCENE3D) {
         return commitSatelliteSelection(selectedId, options);
     }
@@ -1798,6 +1841,7 @@ function stopTimers() {
 
 function startTimers() {
     stopTimers();
+    if (!state.enabled || document.hidden) return;
     const refreshMs = Math.max(15000, Number(state.config.positionRefreshIntervalMs) || DEFAULT_CONFIG.positionRefreshIntervalMs);
     state.visibleTimer = setInterval(() => {
         if (!state.enabled || document.hidden) return;
@@ -1825,6 +1869,7 @@ function cleanupLayer() {
     for (const entry of state.entities.values()) {
         removeEntity(entry.point);
     }
+    purgeOrbitalRenderEntities();
     state.entities.clear();
     state.satrecs.clear();
     state.visibleRecords = [];
@@ -1841,7 +1886,12 @@ function cleanupLayer() {
 }
 
 function handleVisibilityChange() {
-    if (!state.enabled || document.hidden) return;
+    if (!state.enabled) return;
+    if (document.hidden) {
+        stopTimers();
+        return;
+    }
+    startTimers();
     updateDefaultEntities();
     if (!updateSelectedSatellitePosition()) updateControlsOptions();
     void fetchOrbitalData();
@@ -1880,8 +1930,25 @@ export function setWarzoneMilSatsEnabled(enabled) {
     showOrbitalWidget({ expand: true });
     ensureControls();
     ensureHandler();
-    startTimers();
-    void fetchOrbitalData();
+    if (!document.hidden) {
+        startTimers();
+        void fetchOrbitalData();
+    }
+}
+
+export function getWarzoneMilSatsDiagnostics() {
+    const renderedEntities = getOrbitalRenderEntities();
+    return Object.freeze({
+        initialized: Boolean(state.viewer),
+        enabled: state.enabled,
+        activeSatelliteEntities: renderedEntities.length,
+        registeredSatelliteEntities: state.entities.size + (state.focusEntities?.length || 0),
+        activeFocusEntities: state.focusEntities?.length || 0,
+        activeSatelliteTimers: Number(Boolean(state.visibleTimer)) + Number(Boolean(state.refreshTimer)),
+        loading: state.loading,
+        cachedOrbitalRecords: state.records?.length || 0,
+        cachedSatrecs: state.satrecs.size,
+    });
 }
 
 export function initWarzoneMilSats(viewer) {
@@ -1899,4 +1966,5 @@ export function initWarzoneMilSats(viewer) {
     document.addEventListener("wz:app-entered", handleAppEntered);
     document.removeEventListener("wz:asset-focus-changed", handleAssetFocusChanged);
     document.addEventListener("wz:asset-focus-changed", handleAssetFocusChanged);
+    window.__getWarzoneMilSatsDiagnostics = getWarzoneMilSatsDiagnostics;
 }

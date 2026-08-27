@@ -1,12 +1,11 @@
 ﻿// File Path: /assets/js/warzone-air-ingestion.js
 
 import { upsertLiveTrack, clearLiveTrack } from "./warzone-live-airforce.js";
-import { isLayerEnabled } from "./warzone-layers.js";
 import { getActiveRegion } from "./warzone-region-selector.js";
 // Note: no direct Supabase writes from frontend — all track data is client-side only
 const AIRCRAFT_PROXY_PATHS = ["/__warzone/aircraft-feed/mil", "/warzone/aircraft-feed/mil"];
 const PUBLIC_AIRCRAFT_FEED_URL = "https://api.adsb.lol/v2/mil";
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 12000;
 const FETCH_TIMEOUT_MS = 9000;
 const TRACK_STALE_MS = 90000;
 const FAILURE_BACKOFF_BASE_MS = 5000;
@@ -541,7 +540,6 @@ function clearAllPublicAirTracks() {
     __identityCanonicalIndex.clear();
 }
 function restoreCachedPublicAirTracks() {
-    if (!isLayerEnabled("aircraft")) return;
     cleanupStaleTracks();
     for (const track of __canonicalTrackStore.values()) {
         if (!track?.track_key || !isTrackRenderable(track) || !isTrackInsideActiveRegion(track)) continue;
@@ -581,7 +579,6 @@ async function refreshPublicAirTracks(options = {}) {
         clearAllPublicAirTracks();
         return;
     }
-    if (!isLayerEnabled("aircraft")) return;
     if (!force && __nextRetryAt > Date.now()) return;
 
     __inFlightPromise = (async () => {
@@ -595,7 +592,6 @@ async function refreshPublicAirTracks(options = {}) {
             __nextRetryAt = 0;
             __lastFailureHttpStatus = 0;
             setFeedStatus("active");
-            if (!isLayerEnabled("aircraft")) return;
             const seenThisPass = new Set();
             for (const record of records) {
                 const normalized = normalizeAirplanesLiveRecord(record);
@@ -705,6 +701,7 @@ function schedulePublicAirPoll(delayMs = POLL_INTERVAL_MS) {
 }
 export function startPublicAirIngestion() {
     if (!isPublicAirFallbackEnabled()) return;
+    if (__pollingActive) return;
     __pollingActive = true;
     restoreCachedPublicAirTracks();
     if (__nextRetryAt > Date.now()) {
@@ -782,4 +779,14 @@ function setFeedStatus(state, { httpStatus = 0, retryAt = 0 } = {}) {
 }
 export function getPublicAirFeedStatus() {
     return { ...__feedStatus };
+}
+export function getPublicAirIngestionDiagnostics() {
+    return Object.freeze({
+        pollingActive: __pollingActive,
+        pollTimerActive: Boolean(__pollTimer),
+        fetchInFlight: Boolean(__inFlightPromise || __isFetching),
+        cachedTrackRecords: __canonicalTrackStore.size,
+        renderedTrackKeys: __activeTrackKeys.size,
+        pollIntervalMs: POLL_INTERVAL_MS,
+    });
 }

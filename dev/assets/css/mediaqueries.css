@@ -306,18 +306,6 @@
         --warzone-idle-resolution-min: 1.2;
         --warzone-focus-resolution-scale: 1.2;
         --warzone-close-resolution-scale: 1.2;
-        --warzone-live-aircraft-model-scale: 0.8;
-        --warzone-live-aircraft-model-airborne-scale: 0.8;
-        --warzone-live-aircraft-model-ground-scale: 0.72;
-        --warzone-live-aircraft-model-scale-zoom-in: 1.6;
-        --warzone-live-aircraft-model-scale-zoom-out: 0.8;
-        --warzone-live-aircraft-model-focused-scale: 0.9;
-        --warzone-live-aircraft-model-min-pixel-size: 256;
-        --warzone-live-aircraft-model-focused-min-pixel-size: 256;
-        --warzone-live-aircraft-model-scale-helicopter: 0.8;
-        --warzone-live-aircraft-model-focused-scale-helicopter: 0.9;
-        --warzone-live-aircraft-model-min-pixel-size-helicopter: 256;
-        --warzone-live-aircraft-model-focused-min-pixel-size-helicopter: 256;
     }
 
     .wz-altitude-readout {

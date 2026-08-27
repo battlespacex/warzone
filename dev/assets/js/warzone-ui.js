@@ -9,6 +9,7 @@ const __sceneModeUiState = {
     listenersBound: false,
     bootstrapTimer: null,
 };
+let __altitudeReadoutBound = false;
 
 export function bindWarzoneUi() {
     bindTopViews();
@@ -121,14 +122,20 @@ function formatAltitude(heightMeters) {
 }
 
 function startAltitudeReadout() {
+    if (__altitudeReadoutBound) return;
     const el = document.getElementById("wz-altitude-readout");
     if (!el) return;
+    const camera = window.__warzoneViewer?.camera;
+    if (!camera) return;
+    __altitudeReadoutBound = true;
     const ftEl = document.getElementById("wz-altitude-readout-ft");
     const kmEl = document.getElementById("wz-altitude-readout-km");
     let rafId = 0;
+    let cameraMoving = false;
+    let lastUpdateAt = 0;
     let lastValue = "";
-    const tick = () => {
-        const height = Number(window.__warzoneViewer?.camera?.positionCartographic?.height);
+    const update = () => {
+        const height = Number(camera.positionCartographic?.height);
         const heightFt = Number.isFinite(height) && height >= 0
             ? Math.round(height * 3.280839895).toLocaleString()
             : "--";
@@ -144,11 +151,50 @@ function startAltitudeReadout() {
             }
             lastValue = next;
         }
-        rafId = requestAnimationFrame(tick);
     };
-    tick();
+    const tick = (now) => {
+        rafId = 0;
+        if (document.hidden) return;
+        if ((now - lastUpdateAt) >= 100) {
+            lastUpdateAt = now;
+            update();
+        }
+        if (cameraMoving) rafId = requestAnimationFrame(tick);
+    };
+    const scheduleUpdate = () => {
+        if (!rafId && !document.hidden) rafId = requestAnimationFrame(tick);
+    };
+    const onMoveStart = () => {
+        cameraMoving = true;
+        scheduleUpdate();
+    };
+    const onMoveEnd = () => {
+        cameraMoving = false;
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+        lastUpdateAt = performance.now();
+        update();
+    };
+    const onVisibilityChange = () => {
+        if (document.hidden) {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = 0;
+            return;
+        }
+        if (cameraMoving) scheduleUpdate();
+        else update();
+    };
+    const removeMoveStart = camera.moveStart?.addEventListener?.(onMoveStart);
+    const removeMoveEnd = camera.moveEnd?.addEventListener?.(onMoveEnd);
+    const removeChanged = camera.changed?.addEventListener?.(scheduleUpdate);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    update();
     window.addEventListener("beforeunload", () => {
         if (rafId) cancelAnimationFrame(rafId);
+        removeMoveStart?.();
+        removeMoveEnd?.();
+        removeChanged?.();
+        document.removeEventListener("visibilitychange", onVisibilityChange);
     }, { once: true });
 }
 
