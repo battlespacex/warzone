@@ -482,7 +482,7 @@ test("capture orchestration retries transient failures and continues after a fai
   assert.equal(supabase.stored.report_manifest.selected_images.length, 2);
   assert.equal(contextClosed, true);
   assert.equal(browserClosed, true);
-  assert.equal(captureRoutePattern, "**/api/stratops/reports/internal/capture/**");
+  assert.equal(captureRoutePattern, "**/stratops/reports/internal/capture/**");
   assert.equal(browserContextOptions.extraHTTPHeaders, undefined);
 });
 

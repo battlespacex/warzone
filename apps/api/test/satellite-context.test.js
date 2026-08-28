@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toPublicSatelliteContext } from "../src/satellite-context.js";
+import { attachSatelliteContextToEvents, toPublicSatelliteContext } from "../src/satellite-context.js";
 
 test("publishes only safe available satellite image URLs", () => {
     const context = toPublicSatelliteContext({
@@ -34,4 +34,41 @@ test("does not publish failed or malformed satellite image rows", () => {
         status: "available",
         image_url: "/copernicus/local-file.png"
     }), null);
+});
+
+test("attaches satellite context in bounded event-id batches", async () => {
+    const events = Array.from({ length: 205 }, (_, index) => ({ id: `event-${index}` }));
+    const requestedBatches = [];
+    const supabase = {
+        from() {
+            const query = {
+                eventIds: [],
+                select() { return query; },
+                in(column, values) {
+                    if (column === "event_id") query.eventIds = values;
+                    return query;
+                },
+                order() {
+                    requestedBatches.push(query.eventIds);
+                    return Promise.resolve({
+                        data: query.eventIds.includes("event-204") ? [{
+                            id: "observation-204",
+                            event_id: "event-204",
+                            status: "available",
+                            image_url: "https://stratops.battlespacex.com/copernicus/event-204.png",
+                            updated_at: "2026-08-27T20:00:00Z",
+                        }] : [],
+                        error: null,
+                    });
+                },
+            };
+            return query;
+        },
+    };
+
+    const attached = await attachSatelliteContextToEvents(supabase, events);
+
+    assert.deepEqual(requestedBatches.map((batch) => batch.length), [100, 100, 5]);
+    assert.equal(attached[204].satellite_context.id, "observation-204");
+    assert.equal(attached[0].satellite_context, undefined);
 });

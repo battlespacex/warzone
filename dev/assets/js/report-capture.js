@@ -10,9 +10,16 @@ import {
     buildSnapshotAssetRenderInput,
 } from "../../../apps/shared/reporting-capture.js";
 
+const isLocalCaptureHost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "::1" ||
+    window.location.hostname === "[::1]";
+const REPORT_CAPTURE_API_BASE = isLocalCaptureHost ? "/api" : "https://api.battlespacex.com";
+
 window.__stratopsReportCaptureMode = true;
 window.__stratopsConfig = {
-    apiBase: "/api",
+    apiBase: REPORT_CAPTURE_API_BASE,
     enableMilSatsLayer: true,
     startupMilSatsDemo: false,
     useAircraftBillboards: false,
@@ -301,7 +308,17 @@ async function applyAssetFocus(payload, viewer) {
         duration: 0,
     };
     const focusForCapture = async (options) => {
-        if (adapter.focus(options) !== true) throw new Error("asset_focus_failed");
+        if (preset.mode === "REGIONAL") {
+            await applyCamera(viewer, {
+                ...payload.camera,
+                scene_mode: "3d",
+                range_meters: options.rangeMeters,
+                heading_degrees: options.headingDegrees,
+                pitch_degrees: options.pitchDegrees,
+            });
+        } else if (adapter.focus(options) !== true) {
+            throw new Error("asset_focus_failed");
+        }
         await nextFrame();
         await nextFrame();
         if (preset.map_mode === "CTR") {
@@ -592,7 +609,7 @@ window.__stratopsReportCapture = {
 
 async function initialize() {
     if (!snapshotKey || !captureId) throw new Error("Missing snapshot_key or capture_id");
-    const response = await fetch(`/api/stratops/reports/internal/capture/${encodeURIComponent(snapshotKey)}/${encodeURIComponent(captureId)}`, {
+    const response = await fetch(`${REPORT_CAPTURE_API_BASE}/stratops/reports/internal/capture/${encodeURIComponent(snapshotKey)}/${encodeURIComponent(captureId)}`, {
         headers: { Accept: "application/json" },
         cache: "no-store",
     });

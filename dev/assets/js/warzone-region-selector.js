@@ -64,6 +64,7 @@ let __regionCountryBoundsPromise = null;
 const __regionCountryBoundsById = new Map();
 let __regionHintTimer = 0;
 let __regionCameraSyncBound = false;
+let __regionAssetFocusSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionDeferredNotifyTimer = 0;
 let __regionHintLiveFrame = 0;
@@ -1383,6 +1384,23 @@ export function initRegionNav(viewer) {
     document.addEventListener("wz:scene-mode-refocus-requested", () => {
         scheduleSceneModeRegionRefocus(120);
     });
+    if (!__regionAssetFocusSyncBound) {
+        __regionAssetFocusSyncBound = true;
+        document.addEventListener("wz:asset-focus-changed", (event) => {
+            const focusState = event?.detail || {};
+            const satelliteFocusActive =
+                String(focusState.assetType || "") === "satellite" &&
+                String(focusState.state || "inactive") !== "inactive";
+            if (satelliteFocusActive) {
+                clearPendingRegionHintRefresh();
+                if (!__regionSwitchPromptRequest) setRegionHintState(false, viewer);
+                return;
+            }
+            if (String(focusState.state || "inactive") === "inactive") {
+                scheduleRegionButtonHintRefresh(viewer, 300);
+            }
+        });
+    }
     if (REGION_HINT_ENABLED && !__regionCameraSyncBound && viewer?.camera?.moveEnd) {
         __regionCameraSyncBound = true;
         viewer?.camera?.moveStart?.addEventListener?.(() => {

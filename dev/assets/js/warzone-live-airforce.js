@@ -3137,7 +3137,7 @@ function applyLiveTrackFocusVisibility(trackKey = "", focusedPosition = null) {
     if (trailEntity) trailEntity.show = show && !hasFocusedRouteForTrack(trackKey);
 }
 function shouldRenderLiveTrackDataState(trackKey = "", entry = null, options = {}) {
-    if (options?.reportSnapshot === true) return true;
+    if (options?.reportSnapshot === true || entry?.__reportSnapshotAsset === true) return true;
     if (!isLayerEnabled("aircraft")) return false;
     if (!entry?.active) return false;
     return shouldShowTrackInFocusMode(trackKey, entry, options?.focusedPosition || null);
@@ -3919,6 +3919,7 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
         last_seen_at: Date.now(),
         entity_id: entity?.id || `track-${track.track_key}`,
         on_ground: isTrackOnGround(track),
+        __reportSnapshotAsset: track?.__reportSnapshotAsset === true,
         path_history: []
     };
 }

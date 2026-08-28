@@ -1,4 +1,5 @@
 const PUBLIC_SATELLITE_STATUSES = new Set(["available", "pending", "searching", "processing", "retryable_error"]);
+const SATELLITE_CONTEXT_EVENT_BATCH_SIZE = 100;
 
 function toPublicSatelliteContext(row = {}) {
   const status = String(row.status || "").toLowerCase();
@@ -34,17 +35,24 @@ function toPublicSatelliteContext(row = {}) {
 
 async function attachSatelliteContextToEvents(supabase, events = []) {
   const source = Array.isArray(events) ? events : [];
-  const eventIds = source.map((event) => event?.id).filter(Boolean);
+  const eventIds = [...new Set(source.map((event) => event?.id).filter(Boolean))];
   if (!eventIds.length) return source;
 
   try {
-    const { data, error } = await supabase
+    const batches = [];
+    for (let index = 0; index < eventIds.length; index += SATELLITE_CONTEXT_EVENT_BATCH_SIZE) {
+      batches.push(eventIds.slice(index, index + SATELLITE_CONTEXT_EVENT_BATCH_SIZE));
+    }
+    const batchResults = await Promise.all(batches.map((batch) => supabase
       .from("event_satellite_observations")
       .select("id, event_id, status, collection, observation_type, acquisition_time, event_time_relation, cloud_cover, image_url, mime_type, width, height, byte_size, updated_at")
-      .in("event_id", eventIds)
+      .in("event_id", batch)
       .in("status", [...PUBLIC_SATELLITE_STATUSES])
-      .order("updated_at", { ascending: false });
-    if (error) return source;
+      .order("updated_at", { ascending: false })));
+    const data = batchResults
+      .filter((result) => !result.error)
+      .flatMap((result) => result.data || [])
+      .sort((left, right) => String(right.updated_at || "").localeCompare(String(left.updated_at || "")));
 
     const byEvent = new Map();
     for (const row of data || []) {

@@ -215,7 +215,7 @@ async function generateSnapshotCaptures({
       colorScheme: "dark",
       reducedMotion: "reduce",
     });
-    await context.route("**/api/stratops/reports/internal/capture/**", async (route) => {
+    await context.route("**/stratops/reports/internal/capture/**", async (route) => {
       if (snapshotOverride) {
         const requestUrl = new URL(route.request().url());
         const requestedCaptureId = decodeURIComponent(requestUrl.pathname.split("/").filter(Boolean).pop() || "");
