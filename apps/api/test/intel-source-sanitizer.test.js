@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPublicIntelWireMedia, getPublicSourceLabel, toPublicIntelWireItem } from "../src/intel-source-sanitizer.js";
 
-test("public intel wire media uses same-origin proxy urls without duplicating thumbnail derivatives", () => {
+test("public intel wire images use publisher URLs without proxying or duplicating thumbnails", () => {
     const item = {
         id: "feed-item-1",
         title: "Regional conflict update",
@@ -17,8 +17,8 @@ test("public intel wire media uses same-origin proxy urls without duplicating th
 
     assert.ok(media);
     assert.equal(media.images.length, 1);
-    assert.equal(media.images[0].thumbUrl, "https://stratops.battlespacex.com/events/intel-feed/media/feed-item-1/image/0/thumb");
-    assert.equal(media.images[0].fullUrl, "https://stratops.battlespacex.com/events/intel-feed/media/feed-item-1/image/0/full");
+    assert.equal(new URL(media.images[0].thumbUrl).hostname, "cdn.example.com");
+    assert.equal(media.images[0].fullUrl, "https://cdn.example.com/story/full.jpg");
 });
 
 test("public intel wire items keep legitimate CMS-hosted rss images that live under default/files paths", () => {
@@ -38,8 +38,8 @@ test("public intel wire items keep legitimate CMS-hosted rss images that live un
 
     assert.ok(publicItem.media);
     assert.equal(publicItem.media.images.length, 1);
-    assert.equal(publicItem.media.images[0].thumbUrl, "https://localhost:8080/events/intel-feed/media/feed-item-2/image/0/thumb");
-    assert.equal(publicItem.media.images[0].fullUrl, "https://localhost:8080/events/intel-feed/media/feed-item-2/image/0/full");
+    assert.equal(publicItem.media.images[0].thumbUrl, item.raw["media:content"][0].url);
+    assert.equal(publicItem.media.images[0].fullUrl, item.raw["media:content"][0].url);
 });
 
 test("public source labeling recognizes newly added feed ids", () => {

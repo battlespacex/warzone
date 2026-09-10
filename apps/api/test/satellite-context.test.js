@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { attachSatelliteContextToEvents, toPublicSatelliteContext } from "../src/satellite-context.js";
+const sourcePreview = "https://catalogue.dataspace.copernicus.eu/odata/v1/Assets(2fb65e32-21ba-423b-ab39-959fe37e4c81)/$value";
 
 test("publishes only safe available satellite image URLs", () => {
     const context = toPublicSatelliteContext({
@@ -11,13 +12,13 @@ test("publishes only safe available satellite image URLs", () => {
         acquisition_time: "2026-07-26T18:19:01Z",
         event_time_relation: "after",
         cloud_cover: 12,
-        image_url: "https://stratops.battlespacex.com/copernicus/2026/07/26/event.png",
+        image_url: sourcePreview,
         updated_at: "2026-07-26T18:20:00Z"
     });
 
     assert.equal(context.status, "available");
     assert.equal(context.provider, "Copernicus");
-    assert.equal(context.imageUrl, "https://stratops.battlespacex.com/copernicus/2026/07/26/event.png");
+    assert.equal(context.imageUrl, sourcePreview);
     assert.equal(context.imageryType, "Natural colour");
     assert.equal(context.updatedAt, "2026-07-26T18:20:00Z");
 });
@@ -55,7 +56,7 @@ test("attaches satellite context in bounded event-id batches", async () => {
                             id: "observation-204",
                             event_id: "event-204",
                             status: "available",
-                            image_url: "https://stratops.battlespacex.com/copernicus/event-204.png",
+                            image_url: sourcePreview,
                             updated_at: "2026-08-27T20:00:00Z",
                         }] : [],
                         error: null,

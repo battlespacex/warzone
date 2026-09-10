@@ -7,6 +7,7 @@ import {
     normalizeAisStreamBoundingBoxes,
     processAisStreamMessage,
     pruneAisStreamCache,
+    resetAisStreamCache,
 } from "../src/tracking/naval/providers/aisstream.js";
 
 test("AISStream converts internal lon-lat boxes to the required nested lat-lon format", () => {
@@ -43,6 +44,52 @@ test("AISStream logs a subscription error once before attempting vessel extracti
     await assert.rejects(provider.fetchObservations(), /subscription rejected/);
     assert.deepEqual(warnings, ["[ais:aisstream] SUBSCRIPTION_ERROR subscription rejected"]);
     provider.shutdown();
+});
+
+test("AISStream reconnects a socket that stays open but stops receiving messages", async () => {
+    resetAisStreamCache();
+    const sockets = [];
+    const warnings = [];
+    let currentTime = 1_000;
+    const provider = createAisStreamProvider({
+        enabled: true,
+        apiKey: "test-key",
+        diagnosticWindowMs: 1,
+        idleTimeoutMs: 5_000,
+        now: () => currentTime,
+        delayImpl: async () => { },
+        webSocketFactory: () => {
+            const socket = new EventEmitter();
+            socket.closeCount = 0;
+            socket.send = () => socket.emit("message", Buffer.from(JSON.stringify({
+                MessageType: "PositionReport",
+                MetaData: { MMSI: 123456789, ShipName: "USS TEST", time_utc: new Date(currentTime).toISOString() },
+                Message: { PositionReport: { Latitude: 40, Longitude: -70, Sog: 12, Cog: 91 } },
+            })));
+            socket.close = () => {
+                socket.closeCount += 1;
+                socket.emit("close");
+            };
+            sockets.push(socket);
+            setImmediate(() => socket.emit("open"));
+            return socket;
+        },
+        logger: { warn(message) { warnings.push(message); } },
+    });
+
+    const first = await provider.fetchObservations();
+    assert.equal(first.observations.length, 1);
+    assert.equal(sockets.length, 1);
+
+    currentTime += 5_001;
+    const second = await provider.fetchObservations();
+    assert.equal(second.observations.length, 1);
+    assert.equal(sockets.length, 2);
+    assert.equal(sockets[0].closeCount, 1);
+    assert.deepEqual(warnings, ["[ais:aisstream] IDLE reconnecting after 5s without messages"]);
+
+    provider.shutdown();
+    resetAisStreamCache();
 });
 
 for (const messageType of [

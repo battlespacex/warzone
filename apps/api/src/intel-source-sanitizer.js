@@ -1484,13 +1484,11 @@ function buildPublicIntelWireMedia(item = {}, mediaBaseUrl = "") {
     const candidates = collectRawMediaCandidates(item);
     const images = selectIntelImageCandidates(candidates.images, item)
         .slice(0, MAX_PUBLIC_IMAGES)
-        .map((entry, index) => ({
+        .map((entry) => ({
             thumbUrl:
-                buildMediaProxyUrl(mediaBaseUrl, item.id, "image", index, "thumb")
-                || (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : (isLikelyImageUrl(entry.url) ? entry.url : null)),
+                isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : (isLikelyImageUrl(entry.url) ? entry.url : null),
             fullUrl:
-                buildMediaProxyUrl(mediaBaseUrl, item.id, "image", index, "full")
-                || (isLikelyImageUrl(entry.url) ? entry.url : (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null)),
+                isLikelyImageUrl(entry.url) ? entry.url : (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null),
             alt: entry.alt || null,
             width: inferImageDimensions(entry).width,
             height: inferImageDimensions(entry).height,
@@ -1501,8 +1499,7 @@ function buildPublicIntelWireMedia(item = {}, mediaBaseUrl = "") {
         .slice(0, MAX_PUBLIC_VIDEOS)
         .map((entry, index) => ({
             thumbUrl:
-                (entry.thumbUrl ? buildMediaProxyUrl(mediaBaseUrl, item.id, "video", index, "thumb") : null)
-                || (isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null),
+                isLikelyImageUrl(entry.thumbUrl) ? entry.thumbUrl : null,
             videoUrl:
                 (entry.videoUrl ? buildMediaProxyUrl(mediaBaseUrl, item.id, "video", index, "stream") : null)
                 || (isDirectVideoUrl(entry.videoUrl) ? entry.videoUrl : null),

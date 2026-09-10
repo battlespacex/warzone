@@ -18,6 +18,7 @@ import {
   generateSnapshotCaptures,
 } from "./reporting-capture-service.js";
 import { generateSnapshotPdf } from "./reporting-pdf-service.js";
+import { buildCaptureDescriptors } from "../../shared/reporting-capture.js";
 import {
   __reportingRenderTestUtils,
   renderSnapshotReport,
@@ -441,18 +442,32 @@ async function runDailyReportPipeline({
         && existingPdf
         && existingHtml
         && snapshot.report_manifest?.pdf?.status === "READY"
-        && snapshot.report_manifest?.html?.status === "READY";
+        && snapshot.report_manifest?.html?.status === "READY"
+        && Number(snapshot.report_manifest?.pdf?.failed_image_count || 0) === 0
+        && (skipCapture || buildCaptureDescriptors(snapshot, {
+          maxImages: config.capture.maxImages, s3Prefix: config.s3Prefix, format: config.capture.format,
+        }).every((descriptor) => (snapshot.report_manifest?.capture_results || [])
+          .some((capture) => capture.capture_id === descriptor.capture_id && capture.status === "READY")));
 
       if (!retryUploadOnly) {
         stage = PIPELINE_STAGES.CAPTURE;
+        const requiredCaptures = skipCapture ? [] : buildCaptureDescriptors(snapshot, {
+          maxImages: config.capture.maxImages, s3Prefix: config.s3Prefix, format: config.capture.format,
+        });
+        if (requiredCaptures.length && !config.capture?.enabled) {
+          throw new Error("Report has imagery targets but REPORTING_CAPTURE_ENABLED is false");
+        }
         if (!skipCapture && config.capture?.enabled) {
-          try {
-            await generateSnapshotCaptures({ supabase, snapshotKey, config, logger, force });
-          } catch (captureError) {
-            logger.warn?.(`[reports:pipeline] report=${reportKey} stage=CAPTURE degraded error=${cleanError(captureError)}`);
-          }
+          const captureConfig = localOnly || skipUpload
+            ? { ...config, aws: { ...config.aws, bucket: "" } }
+            : config;
+          await generateSnapshotCaptures({ supabase, snapshotKey, config: captureConfig, logger, force });
         }
         snapshot = await loadSnapshot(supabase, snapshotKey);
+        const readyCaptureIds = new Set((snapshot.report_manifest?.capture_results || [])
+          .filter((capture) => capture.status === "READY").map((capture) => capture.capture_id));
+        const missingCaptures = requiredCaptures.filter((capture) => !readyCaptureIds.has(capture.capture_id));
+        if (missingCaptures.length) throw new Error(`Report capture incomplete: ${missingCaptures.map((capture) => capture.capture_type).join(", ")}`);
         const captureSummary = summarizeCaptures(snapshot.report_manifest);
         logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt, details: `capture_ready=${captureSummary.ready} capture_failed=${captureSummary.failed}` });
 

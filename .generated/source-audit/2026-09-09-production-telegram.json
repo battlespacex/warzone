@@ -1,0 +1,204 @@
+{
+  "checked_at": "2026-09-09T23:50:58.357Z",
+  "environment": "production",
+  "results": [
+    {
+      "group": "telegram",
+      "id": "dsquadofficial",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T19:07:04.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "osintwarfare",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T23:41:27.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "conflictarchive",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T23:43:51.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "global_osint44",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T17:46:00.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "osintdefender",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T23:20:54.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "osint_defender",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-08T20:26:01.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "warmonitors",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T21:09:26.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "warmaps78",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-07-07T07:52:02.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "milinfolive",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T19:11:56.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "war_translated",
+      "result": "MESSAGE_DATA",
+      "newest": "2023-07-29T18:53:55.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "ourwarstoday",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T11:39:57.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "sitreports",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T13:47:49.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "wfwitness",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T23:47:48.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "sentdefender",
+      "result": "EMPTY",
+      "newest": null
+    },
+    {
+      "group": "telegram",
+      "id": "osintlive",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T23:31:41.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "worldwar124",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-08-11T14:48:51.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "global_wars",
+      "result": "MESSAGE_DATA",
+      "newest": "2024-10-27T20:20:21.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "wor_mil_news",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T17:22:42.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "cyberspecnews",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T23:19:16.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "mmirlb",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T14:26:27.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "i20028843",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "eurasianchoice",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "israelwarroom",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "u_s_centcom",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "iranintltv",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "redlioncorps",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "china3army",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "farsivoa",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "euronewspe",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "intelslava",
+      "result": "FAILED",
+      "error": "FLOOD"
+    },
+    {
+      "group": "telegram",
+      "id": "seaaero",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-06-02T15:45:22.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "irannotam",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-04-21T15:47:45.000Z"
+    },
+    {
+      "group": "telegram",
+      "id": "tzevaadom_en",
+      "result": "MESSAGE_DATA",
+      "newest": "2026-09-09T21:31:08.000Z"
+    }
+  ]
+}

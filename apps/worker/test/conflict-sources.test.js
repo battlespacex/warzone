@@ -41,8 +41,8 @@ test("existing requested conflict sources expose source policy metadata", () => 
   assert.equal(mee?.attribution, "Middle East Eye RSS");
   assert.ok(Number(france24?.minimumScore) > 0);
   assert.ok(Number(mee?.minimumScore) > 0);
-  assert.equal(france24?.enabled, false);
-  assert.match(france24?.disabled_reason || "", /HTML.*index/i);
+  assert.equal(france24?.enabled, true);
+  assert.equal(france24?.disabled_reason, undefined);
 });
 
 test("live html and telegram source registries include requested additions", () => {

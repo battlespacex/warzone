@@ -52,6 +52,30 @@ test("real satellite focus reuses scene-mode switching and waits for 3D before c
   assert.doesNotMatch(source, /\.morphTo3D\(/);
 });
 
+test("orbital satellite focus stays independent from monitoring-region boundaries", async () => {
+  const satellites = await readSource("../../../dev/assets/js/warzone-mil-sats.js");
+  const regions = await readSource("../../../dev/assets/js/warzone-region-selector.js");
+
+  assert.doesNotMatch(satellites, /requestRegionSwitch/);
+  assert.doesNotMatch(satellites, /Satellite Outside Selected Region/);
+  assert.doesNotMatch(satellites, /skipRegionConfirmation/);
+  assert.match(satellites, /returnToSelectedRegion\(\)[\s\S]*?flyToRegion\(viewer, region/);
+  assert.match(satellites, /source: "orbital-satellite-unfocus"/);
+  assert.match(regions, /focusState\?\.assetType[\s\S]*?=== "satellite"[\s\S]*?focusState\?\.state[\s\S]*?!== "inactive"/);
+  assert.match(regions, /satelliteFocusActive[\s\S]*?clearPendingRegionHintRefresh\(\)[\s\S]*?setRegionHintState\(false, viewer\)/);
+});
+
+test("aircraft hard lock uses one reticle and follows the interpolated position on the same frame", async () => {
+  const source = await readSource("../../../dev/assets/js/warzone-live-airforce.js");
+  const rootCss = await readSource("../../../dev/assets/css/root.css");
+
+  assert.doesNotMatch(source, /setLiveTrackHardLockInternal\(true\);\s*bindFocusGuideTracking\(\);/);
+  assert.match(source, /const forceMotionFrameSync = options\?\.motionFrame === true/);
+  assert.match(source, /focusedTrackAdvanced[\s\S]*?syncFocusedTrackCamera\(\{ motionFrame: true \}\)/);
+  assert.match(source, /--warzone-live-aircraft-focus-camera-follow-ease", 1/);
+  assert.match(rootCss, /--warzone-live-aircraft-focus-camera-follow-ease:\s*1;/);
+});
+
 test("every dashboard entry applies the authoritative map-layer defaults before widget initialization", async () => {
   const layers = await readSource("../../../dev/assets/js/warzone-layers.js");
   const boot = await readSource("../../../dev/assets/js/warzone-boot.js");

@@ -154,6 +154,17 @@ async function renderSelectedAsset(payload) {
         state.asset_adapter = {
             input,
             focus: (options) => naval.focusNavalVessel(input.track_key, options),
+            enableCtr: async () => {
+                const mapApi = state.viewer?.__warzone;
+                mapApi?.setContourFocusPosition?.({
+                    lon: input.position.longitude, lat: input.position.latitude, height: 0,
+                }, { profile: "naval", force: true });
+                mapApi?.enterCtrMode?.({ reason: "report-naval-capture" });
+                mapApi?.setContourGridVisible?.(true);
+                await mapApi?.disableFocusedTerrain?.();
+                await mapApi?.setContourLayerVisible?.(true);
+                return mapApi?.isCtrModeActive?.() === true;
+            },
             describe: () => naval.getNavalModelDescriptor(input.event),
             clear: () => naval.clearNavalVessel(input.track_key),
         };
@@ -217,7 +228,8 @@ function modelWasPicked(viewer, entity, screen, minimumPixels) {
         viewer.scene.requestRender();
         const boxSize = Math.max(18, Math.min(220, Math.round(Number(minimumPixels || 0) * 0.72)));
         const results = viewer.scene.drillPick(new Cesium.Cartesian2(screen.x, screen.y), 32, boxSize, boxSize) || [];
-        picked = results.some((result) => getPickedEntityId(result) === String(entity.id));
+        picked = results.some((result) => getPickedEntityId(result) === String(entity.id)
+            && result.primitive instanceof Cesium.Model);
     } catch {
         picked = false;
     } finally {
@@ -331,10 +343,14 @@ async function applyAssetFocus(payload, viewer) {
     await focusForCapture(focusOptions);
     const descriptor = adapter.describe();
     if (entity.model) {
+        entity.__reportCaptureMinimumPixels = Number(preset.minimum_visual_pixels || 180);
         entity.model.minimumPixelSize = Math.max(
             Number(descriptor.minimum_pixel_size || 0),
             Number(preset.minimum_visual_pixels || 0)
         );
+        // The interactive maximumScale can prevent minimumPixelSize from being
+        // reached at report-camera distances. Lift it only for this frozen asset.
+        entity.model.maximumScale = undefined;
     }
     setCaptureAssetLabel(payload.selected_asset, entity);
     let visibility = await waitForVisibleAsset(viewer, entity, preset);
@@ -534,13 +550,26 @@ async function prepareCapture() {
     state.selected_asset_entity = await renderSelectedAsset(payload);
     await renderOperationalSatellites(payload, viewer);
     const isAssetFocusCapture = ["HVA_FOCUS_3D", "HVA_REGIONAL_CONTEXT", "NAVAL_FOCUS"].includes(payload.target.capture_type);
-    if (isAssetFocusCapture) await applyAssetFocus(payload, viewer);
-    else await applyCamera(viewer, payload.camera);
+    const assetPreset = isAssetFocusCapture ? await applyAssetFocus(payload, viewer) : null;
+    if (!isAssetFocusCapture) await applyCamera(viewer, payload.camera);
     await Promise.resolve(viewer.__warzoneImageryReadyPromise).catch(() => null);
     await waitUntil(() => viewer.scene.globe?.tilesLoaded !== false, 10000);
     for (let index = 0; index < 12; index += 1) {
         viewer.scene.requestRender();
         await nextFrame();
+    }
+    if (assetPreset) {
+        const assetEntity = state.selected_asset_entity;
+        if (assetEntity.model) {
+            assetEntity.model.minimumPixelSize = assetPreset.minimum_visual_pixels;
+            assetEntity.model.maximumScale = undefined;
+        }
+        setCaptureAssetLabel(payload.selected_asset, assetEntity);
+        await nextFrame();
+        await nextFrame();
+        const finalVisibility = await waitForVisibleAsset(viewer, assetEntity, assetPreset);
+        state.asset_focus_debug.visibility_check = finalVisibility;
+        if (!finalVisibility.passed) throw new Error("asset_not_visible_in_final_capture_frame");
     }
     state.camera = {
         requested: payload.camera,

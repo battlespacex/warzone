@@ -11,6 +11,7 @@ const DEFAULT_URL = "wss://stream.aisstream.io/v0/stream";
 const GLOBAL_BOX = [[[-90, -180], [90, 180]]];
 const DEFAULT_CACHE_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_CACHE_MAX_ENTRIES = 50_000;
+const DEFAULT_IDLE_TIMEOUT_MS = 60 * 1000;
 const POSITION_MESSAGE_TYPES = new Set([
     "PositionReport",
     "StandardClassBPositionReport",
@@ -191,9 +192,12 @@ export function createAisStreamProvider({
     diagnosticWindowMs = 15_000,
     cacheTtlMs = DEFAULT_CACHE_TTL_MS,
     cacheMaxEntries = DEFAULT_CACHE_MAX_ENTRIES,
+    idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
     allowInsecureTlsFallback = false,
     webSocketFactory,
     logger = console,
+    now = Date.now,
+    delayImpl = delay,
 } = {}) {
     const requested = enabled === true;
     const configured = Boolean(requested && apiKey);
@@ -208,6 +212,7 @@ export function createAisStreamProvider({
     let subscriptionError = null;
     let shuttingDown = false;
     let subscriptionErrorLogged = "";
+    let lastActivityAt = null;
 
     const connectOnce = (insecure = false) => new Promise((resolve, reject) => {
         const candidate = createSocket(baseUrl || DEFAULT_URL, insecure, webSocketFactory);
@@ -219,10 +224,12 @@ export function createAisStreamProvider({
             opened = true;
             socket = candidate;
             connected = true;
+            lastActivityAt = Number(now());
             candidate.send(JSON.stringify({ APIKey: apiKey, BoundingBoxes: boxes, FilterMessageTypes: FILTER_MESSAGE_TYPES }));
             resolve();
         });
         candidate.on("message", (raw) => {
+            lastActivityAt = Number(now());
             counters.received += 1;
             let message;
             try {
@@ -252,9 +259,11 @@ export function createAisStreamProvider({
         });
         candidate.on("error", failBeforeOpen);
         candidate.on("close", () => {
-            if (socket === candidate) socket = null;
-            connected = false;
-            if (!shuttingDown) firstSnapshot = true;
+            if (socket === candidate) {
+                socket = null;
+                connected = false;
+                if (!shuttingDown) firstSnapshot = true;
+            }
             if (!shuttingDown && !opened) failBeforeOpen(new Error("AISStream socket closed before opening"));
         });
     });
@@ -276,6 +285,28 @@ export function createAisStreamProvider({
         return connecting;
     };
 
+    const reconnectIfIdle = () => {
+        const currentTime = Number(now());
+        const timeout = Math.max(1_000, Number(idleTimeoutMs) || DEFAULT_IDLE_TIMEOUT_MS);
+        if (
+            !connected ||
+            !socket ||
+            !Number.isFinite(lastActivityAt) ||
+            !Number.isFinite(currentTime) ||
+            currentTime - lastActivityAt < timeout
+        ) {
+            return false;
+        }
+        const staleSocket = socket;
+        socket = null;
+        connected = false;
+        firstSnapshot = true;
+        lastActivityAt = null;
+        logger?.warn?.(`[ais:aisstream] IDLE reconnecting after ${Math.round(timeout / 1000)}s without messages`);
+        try { staleSocket.close(); } catch { /* reconnect below */ }
+        return true;
+    };
+
     return {
         id: "aisstream",
         enabled: configured,
@@ -284,10 +315,11 @@ export function createAisStreamProvider({
         async fetchObservations() {
             const baseline = { ...counters };
             subscriptionError = null;
+            reconnectIfIdle();
             await ensureConnected();
             if (firstSnapshot) {
                 firstSnapshot = false;
-                await delay(Math.max(100, Number(diagnosticWindowMs) || 15_000));
+                await delayImpl(Math.max(100, Number(diagnosticWindowMs) || 15_000));
             }
             if (subscriptionError) throw subscriptionError;
             if (!connected) {

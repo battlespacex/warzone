@@ -289,8 +289,8 @@ const RSS_SOURCES = [
     category: "regional-defense",
     region_scope: "india",
     url: "https://idrw.org/feed/",
-    enabled: false,
-    note: "Disabled after local smoke test: feed returned HTTP 404."
+    enabled: true,
+    note: "Reverified 2026-09-09: valid RSS with 30 recent articles; restored after the earlier 404."
   },
   {
     id: "indian-defense-news",
@@ -414,9 +414,9 @@ const RSS_SOURCES = [
     retry_attempts: 1,
     retry_backoff_ms: 2500,
     minimumScore: 38,
-    enabled: false,
-    health: "disabled",
-    disabled_reason: "Verified 2026-08-08: /en/rss redirects to an HTML RSS index. Working live-news and regional France 24 feeds remain enabled."
+    enabled: true,
+    health: "healthy",
+    note: "Reverified 2026-09-09: valid RSS with 23 recent articles; existing relevance threshold retained."
   },
   {
     id: "france24-live-news",
@@ -1043,8 +1043,8 @@ const RSS_SOURCES = [
     category: "defense-policy",
     region_scope: "global",
     url: "https://www.defenseone.com/rss/all/",
-    enabled: false,
-    note: "Candidate. Test first to avoid noise."
+    enabled: true,
+    note: "Reverified 2026-09-09: valid RSS with 21 recent articles. Existing conflict relevance filtering remains required."
   },
   {
     id: "real-clear-defense",
@@ -1083,8 +1083,8 @@ const RSS_SOURCES = [
     category: "regional-conflict",
     region_scope: "middle-east",
     url: "https://www.middleeastmonitor.com/feed/",
-    enabled: false,
-    note: "Candidate. The Disqus latest.rss URL is comments-only, not article news; enable only if an official article RSS passes quality checks."
+    enabled: true,
+    note: "Reverified 2026-09-09: official article RSS with 50 recent articles, including conflict-relevant items."
   },
   {
     id: "al-monitor",
@@ -1093,8 +1093,8 @@ const RSS_SOURCES = [
     category: "regional-conflict",
     region_scope: "middle-east",
     url: "https://www.al-monitor.com/rss",
-    enabled: false,
-    note: "Candidate. Broad political source; enable only if parser works and quality is acceptable."
+    enabled: true,
+    note: "Reverified 2026-09-09: valid RSS with 20 recent articles, including conflict-relevant items."
   },
   {
     id: "janes-defense-news",

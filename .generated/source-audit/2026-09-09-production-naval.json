@@ -1,0 +1,64 @@
+{
+  "checked_at": "2026-09-09T23:54:08.975Z",
+  "environment": "production",
+  "results": [
+    {
+      "group": "naval_pipeline",
+      "id": "60_second_fetch_only",
+      "provider_count": 2,
+      "raw": 5311,
+      "valid_position": 5306,
+      "military": 16,
+      "canonical": 16,
+      "corroborated": 0,
+      "upserted": 0,
+      "qualification": {
+        "known_military_mmsi": 0,
+        "known_military_imo": 0,
+        "known_military_callsign": 0,
+        "military_name_match": 14,
+        "provider_military_flag": 1,
+        "military_ship_type": 1,
+        "non_operational": 1,
+        "rejected_civilian": 5229
+      },
+      "aisstream": {
+        "connected": true,
+        "received": 6310,
+        "position": 5079,
+        "static": 1230,
+        "unique_mmsi": 5916,
+        "candidates": 4898
+      },
+      "providers": {
+        "aisstream": {
+          "connected": true,
+          "received": 6310,
+          "position": 5079,
+          "static": 1230,
+          "unique_mmsi": 5916,
+          "candidates": 4898
+        },
+        "fintraffic": {
+          "connected": true,
+          "received": 2116,
+          "location": 1998,
+          "metadata": 106,
+          "malformed": 0,
+          "invalid": 0,
+          "unique_mmsi": 413,
+          "candidates": 413,
+          "reconnect_count": 0,
+          "last_message_at": "2026-09-09T23:55:11.619Z",
+          "last_error": null
+        }
+      },
+      "persistence_disabled": true,
+      "duplicate_track_keys": 0,
+      "source_counts": {
+        "AIS / AISStream.io": 15,
+        "Fintraffic / Digitraffic": 1
+      }
+    }
+  ]
+}

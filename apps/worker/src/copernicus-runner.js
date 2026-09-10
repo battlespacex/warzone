@@ -1,6 +1,7 @@
 import { readCopernicusConfig, getCopernicusConfigStatus } from "./copernicus-config.js";
-import { buildObservationCacheKey, CopernicusHttpError, findBestObservation, processObservationPreview } from "./copernicus-service.js";
-import { uploadSatellitePreviewToS3, deleteSatellitePreviewFromS3 } from "./copernicus-storage.js";
+import { buildObservationCacheKey, CopernicusHttpError, findBestObservation } from "./copernicus-service.js";
+import { deleteSatellitePreviewFromS3 } from "./copernicus-storage.js";
+import { isSatelliteSourcePreviewUrl, resolveSatelliteSourcePreview } from "../../shared/satellite-source-preview.js";
 import {
   canStartSatelliteJob,
   getCopernicusStatusSummary,
@@ -229,7 +230,7 @@ async function processOneEvent(supabase, event, config, logger = console) {
     logger.log?.(`[copernicus] observation selected event=${event.id} collection=${observation.collection} acquisition=${observation.acquisitionTime}`);
     const cacheKey = buildObservationCacheKey(config, observation);
     const cached = await findCachedObservation(supabase, cacheKey);
-    if (cached?.image_url && cached?.storage_key) {
+    if (isSatelliteSourcePreviewUrl(cached?.image_url)) {
       await updateObservation(supabase, claimed.id, copyCachedPayload(cached, event, observation));
       await incrementUsage(supabase, { cache_hits: 1 });
       logger.log?.(`[copernicus] image cache hit event=${event.id} cache_key=${cacheKey}`);
@@ -248,16 +249,8 @@ async function processOneEvent(supabase, event, config, logger = console) {
       cache_key: cacheKey,
     });
 
-    logger.log?.(`[copernicus] process request started event=${event.id} cache_key=${cacheKey}`);
-    await incrementUsage(supabase, { process_requests_attempted: 1 });
-    const image = await processObservationPreview(config, observation);
-    const storageKey = buildStorageKey(config, event, cacheKey, image.mimeType);
-    const uploaded = await uploadSatellitePreviewToS3(config, {
-      key: storageKey,
-      body: image.body,
-      contentType: image.mimeType,
-    });
-    logger.log?.(`[copernicus] s3 upload completed event=${event.id} key=${storageKey}`);
+    const imageUrl = await resolveSatelliteSourcePreview({ source_item_id: observation.sourceItemId });
+    if (!imageUrl) throw new Error("Source-hosted Copernicus quicklook is unavailable");
 
     await updateObservation(supabase, claimed.id, {
       status: "available",
@@ -271,22 +264,22 @@ async function processOneEvent(supabase, event, config, logger = console) {
       centre_latitude: Number(event.lat),
       centre_longitude: Number(event.lon),
       source_item_id: observation.sourceItemId,
-      image_url: uploaded.imageUrl,
-      storage_key: uploaded.storageKey,
-      mime_type: image.mimeType,
-      width: config.previewWidth,
-      height: config.previewHeight,
-      byte_size: image.byteSize,
-      checksum: image.checksum,
-      etag: uploaded.etag,
+      image_url: imageUrl,
+      storage_key: null,
+      mime_type: null,
+      width: null,
+      height: null,
+      byte_size: null,
+      checksum: null,
+      etag: null,
       cache_key: cacheKey,
       next_retry_at: null,
       error_code: null,
       error_message_sanitized: null,
       expires_at: getSatelliteExpiresAt(event),
     });
-    await incrementUsage(supabase, { successful_images_generated: 1, estimated_processing_units: 1 });
-    logger.log?.(`[copernicus] process request completed event=${event.id}`);
+    await incrementUsage(supabase, { successful_images_generated: 1 });
+    logger.log?.(`[copernicus] source quicklook available event=${event.id}`);
     return { ok: true, available: true };
   } catch (error) {
     const retryAfterMs = error instanceof CopernicusHttpError ? Number(error.retryAfterMs || 0) : 0;

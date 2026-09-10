@@ -1,4 +1,5 @@
 import { readReportingConfig } from "./reporting-config.js";
+import { resolveSatelliteSourcePreview } from "./satellite-source-preview.js";
 import { applyGeneralEventDeliveryFilters } from "./map-event-policy.js";
 import {
   SNAPSHOT_SCHEMA_VERSION,
@@ -535,7 +536,7 @@ async function fetchSatellitePreviewForEvents(supabase, eventIds = []) {
   if (!ids.length) return null;
   const { data, error } = await supabase
     .from("event_satellite_observations")
-    .select("event_id, image_url, acquisition_time, collection, provider, resolution_meters, cloud_cover, updated_at")
+    .select("event_id, source_item_id, image_url, acquisition_time, collection, provider, cloud_cover, updated_at")
     .eq("status", "available")
     .in("event_id", ids)
     .not("image_url", "is", null)
@@ -543,13 +544,15 @@ async function fetchSatellitePreviewForEvents(supabase, eventIds = []) {
     .limit(1);
   if (error || !Array.isArray(data) || !data.length) return null;
   const row = data[0] || {};
+  const sourcePreview = await resolveSatelliteSourcePreview(row);
+  if (!sourcePreview) return null;
   return {
     event_id: cleanText(row.event_id, ""),
-    image_url: cleanText(row.image_url, ""),
+    image_url: sourcePreview,
     acquisition_time: cleanText(row.acquisition_time, ""),
     collection: cleanText(row.collection, ""),
     provider: cleanText(row.provider || "Copernicus", "Copernicus"),
-    resolution_meters: Number(row.resolution_meters || 0) || null,
+    resolution_meters: null,
     cloud_cover: Number(row.cloud_cover || 0) || null,
   };
 }
@@ -878,7 +881,12 @@ async function ensureDailyReport({ supabase, dateKey = getPreviousUtcDateKey(), 
       const existing = await getAvailableReportByKey(supabase, reportKey);
       if (existing) return existing;
     }
-    throw createLegacyPublisherDisabledError(reportKey);
+    // Use the same capture/HTML/PDF publisher as the scheduled worker.
+    const { runDailyReportPipeline } = await import("../worker/src/reporting-pipeline-service.js");
+    const result = await runDailyReportPipeline({ supabase, dateKey, scope: normalizedScope, config, force });
+    const published = await getAvailableReportByKey(supabase, reportKey);
+    if (!published) throw new Error(result.reason || "Report pipeline did not publish an available report");
+    return published;
   });
 }
 

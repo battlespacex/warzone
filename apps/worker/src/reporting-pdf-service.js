@@ -187,6 +187,9 @@ async function generateSnapshotPdf({
     await page.emulateMedia({ media: "print" });
     await page.goto(localServer.url, { waitUntil: "domcontentloaded", timeout: config.pdf.readinessTimeoutMs });
     const readiness = await waitForReportReadiness(page, config.pdf.readinessTimeoutMs);
+    if (readiness.failedImages > 0) {
+      throw new Error(`Report contains ${readiness.failedImages} broken image(s); refusing incomplete PDF`);
+    }
     const buffer = await page.pdf({ path: pdfPath, ...PDF_PRINT_OPTIONS });
     const inspection = await inspectPdfBuffer(buffer);
     validatePdfInspection({

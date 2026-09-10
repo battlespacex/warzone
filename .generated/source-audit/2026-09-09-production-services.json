@@ -1,0 +1,471 @@
+{
+  "checked_at": "2026-09-09T23:50:54.411Z",
+  "environment": "production",
+  "results": [
+    {
+      "group": "api",
+      "id": "X OSINT High Signal",
+      "enabled": true,
+      "result": "MISSING_CONFIGURATION",
+      "missing": [
+        "X_BEARER_TOKEN"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "Warzone Seed",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "ECONNREFUSED",
+      "status": null
+    },
+    {
+      "group": "api",
+      "id": "Reddit CombatFootage",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "api",
+      "id": "Reddit UkraineWar",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "api",
+      "id": "Reddit WorldNews Military",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "api",
+      "id": "Reddit MiddleEastNews",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "api",
+      "id": "Reddit GeopoliticsConflict",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "api",
+      "id": "Manual Siren Alerts",
+      "enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "missing": [
+        "MANUAL_ALERTS_FEED_URL"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "Pikud HaOref Real-Time Sirens",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "api",
+      "id": "CISA Cyber Threat Feed",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 1703,
+      "response_keys": [
+        "title",
+        "catalogVersion",
+        "dateReleased",
+        "count",
+        "vulnerabilities"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "USGS Seismic Monitor",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 36,
+      "response_keys": [
+        "type",
+        "metadata",
+        "features",
+        "bbox"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "NASA FIRMS Thermal",
+      "enabled": true,
+      "result": "CSV_DATA",
+      "records": 380
+    },
+    {
+      "group": "api",
+      "id": "ACLED Conflict Feed",
+      "enabled": false,
+      "result": "FAILED",
+      "error": "ENOTFOUND",
+      "status": null
+    },
+    {
+      "group": "api",
+      "id": "Cloudflare Radar Internet Outages",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 1,
+      "response_keys": [
+        "success",
+        "errors",
+        "result"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "Manual Airspace Status",
+      "enabled": true,
+      "result": "MISSING_CONFIGURATION",
+      "missing": [
+        "MANUAL_AIRSPACE_FEED_URL"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "Aviation Edge Airspace",
+      "enabled": true,
+      "result": "MISSING_CONFIGURATION",
+      "missing": [
+        "AVIATION_EDGE_NOTAM_URL"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "Global NOTAM Alerts",
+      "enabled": true,
+      "result": "MISSING_CONFIGURATION",
+      "missing": [
+        "SKYLINK_RAPIDAPI_KEY or FAA client credentials"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "IODA Internet Outages",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "SyntaxError",
+      "status": null
+    },
+    {
+      "group": "api",
+      "id": "UCDP Conflict Events",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 100,
+      "response_keys": [
+        "TotalCount",
+        "TotalPages",
+        "PreviousPageUrl",
+        "NextPageUrl",
+        "Result"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "OONI Network Blocking",
+      "enabled": true,
+      "result": "FAILED",
+      "error": 23,
+      "status": null
+    },
+    {
+      "group": "api",
+      "id": "GDELT Conflict Signals",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 75,
+      "response_keys": [
+        "articles"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "GDELT Middle East Escalation",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 429
+    },
+    {
+      "group": "api",
+      "id": "GDELT Gulf Naval Air",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 429
+    },
+    {
+      "group": "api",
+      "id": "GDELT Ukraine Battlefield",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 429
+    },
+    {
+      "group": "api",
+      "id": "GDELT South Asia Alerts",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 50,
+      "response_keys": [
+        "articles"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "GDELT East Asia Air Naval",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 429
+    },
+    {
+      "group": "api",
+      "id": "GDELT Africa Conflict Signals",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 429
+    },
+    {
+      "group": "api",
+      "id": "GDELT Global Missile Drone",
+      "enabled": true,
+      "result": "API_DATA",
+      "records": 75,
+      "response_keys": [
+        "articles"
+      ]
+    },
+    {
+      "group": "api",
+      "id": "GDELT Cyber Infrastructure",
+      "enabled": true,
+      "result": "FAILED",
+      "error": "Error",
+      "status": 429
+    },
+    {
+      "group": "api",
+      "id": "Copernicus catalog",
+      "result": "API_DATA",
+      "records": 1
+    },
+    {
+      "group": "deployed_api",
+      "id": "/health",
+      "result": "HTTP_200_JSON"
+    },
+    {
+      "group": "deployed_api",
+      "id": "/events/aircraft",
+      "result": "HTTP_200_JSON",
+      "tracks": 1000
+    },
+    {
+      "group": "deployed_api",
+      "id": "/events?window_hours=24&limit=5",
+      "result": "HTTP_200_JSON",
+      "events": 200
+    },
+    {
+      "group": "deployed_api",
+      "id": "/events/intel-feed?limit=5",
+      "result": "HTTP_200_JSON",
+      "items": 25
+    },
+    {
+      "group": "deployed_api",
+      "id": "/events/airspace-status",
+      "result": "HTTP_200_JSON"
+    },
+    {
+      "group": "deployed_api",
+      "id": "/events/alerts",
+      "result": "HTTP_200_JSON"
+    },
+    {
+      "group": "deployed_api",
+      "id": "/satellites/military",
+      "result": "HTTP_200_JSON",
+      "satellites": 24
+    },
+    {
+      "group": "database",
+      "id": "aircraft",
+      "result": "READ_OK",
+      "count": "0-0/44368",
+      "latest": {
+        "updated_at": "2026-09-09T09:17:03.653+00:00"
+      }
+    },
+    {
+      "group": "database",
+      "id": "naval",
+      "result": "READ_OK",
+      "count": "0-0/881",
+      "latest": {
+        "updated_at": "2026-09-09T09:17:14.003+00:00"
+      }
+    },
+    {
+      "group": "database",
+      "id": "events",
+      "result": "READ_OK",
+      "count": "0-0/5568",
+      "latest": {
+        "occurred_at": "2026-09-09T09:17:10+00:00"
+      }
+    },
+    {
+      "group": "database",
+      "id": "intel",
+      "result": "READ_OK",
+      "count": "0-0/10729",
+      "latest": {
+        "fetched_at": "2026-09-09T09:09:13.506+00:00"
+      }
+    },
+    {
+      "group": "database",
+      "id": "source_registry",
+      "result": "FAILED",
+      "error": "Error",
+      "status": 400
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "middle-east-eye-live",
+      "enabled": true,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": null
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "intelslava",
+      "enabled": true,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": null
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "reliefweb-reports",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Disabled until ReliefWeb appname/API access is approved."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "gdelt-doc-api",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Use separate GDELT worker with throttling/backoff to avoid 429."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "acled-api",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Requires ACLED access credentials and a dedicated adapter."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "ucdp-api",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Requires a dedicated structured-event adapter before enabling."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "cisa-kev-json",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "JSON feed, not RSS. Enable after adding API/JSON normalization."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "gdacs-alerts",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Disaster/crisis signal source. Use separate adapter and filtering before enabling."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "newsapi-everything",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Requires API key and query adapter."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "event-registry-api",
+      "enabled": false,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": "Requires API key and query adapter."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "ooni-incidents-api",
+      "enabled": true,
+      "result": "SEPARATE_API_ADAPTER_REQUIRED",
+      "note": null
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "cloudflare-radar-candidate",
+      "enabled": false,
+      "result": "ADAPTER_NOT_IMPLEMENTED",
+      "note": "Use documented Cloudflare Radar API with token/API contract; do not scrape the public dashboard because it can return browser-challenge HTML."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "ioda-caida-candidate",
+      "enabled": false,
+      "result": "ADAPTER_NOT_IMPLEMENTED",
+      "note": "API root and datasources endpoint tested reachable. Outage alerts require parameters; enable after implementing a parameterized adapter."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "gpsjam-candidate",
+      "enabled": false,
+      "result": "ADAPTER_NOT_IMPLEMENTED",
+      "note": "Enable only if public API/download access or permission is available."
+    },
+    {
+      "group": "candidate_adapter",
+      "id": "aviation-status-candidate",
+      "enabled": false,
+      "result": "ADAPTER_NOT_IMPLEMENTED",
+      "note": "Do not scrape paid/private flight tracking or unofficial NOTAM mirrors."
+    },
+    {
+      "group": "api",
+      "id": "ooni-incidents-api",
+      "result": "HTTP_200_JSON",
+      "records": 67,
+      "response_keys": [
+        "incidents"
+      ]
+    }
+  ]
+}

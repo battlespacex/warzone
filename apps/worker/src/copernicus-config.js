@@ -84,11 +84,7 @@ function getCopernicusConfigStatus(config = readCopernicusConfig()) {
   const missing = [];
   if (!config.clientId) missing.push("COPERNICUS_CLIENT_ID");
   if (!config.clientSecret) missing.push("COPERNICUS_CLIENT_SECRET");
-  if (!config.aws.bucket) missing.push("AWS_S3_BUCKET");
-  const hasStaticAwsCredentials = Boolean(config.aws.accessKeyId && config.aws.secretAccessKey);
-  if (!hasStaticAwsCredentials && !config.aws.roleCredentialSourceAvailable) {
-    missing.push("AWS_ACCESS_KEY_ID or IAM role credentials");
-  }
+  // Previews are served by Copernicus; AWS is only retained for legacy cleanup.
   return {
     enabled: config.enabled,
     ready: config.enabled && missing.length === 0,

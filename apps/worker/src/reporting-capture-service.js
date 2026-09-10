@@ -216,7 +216,9 @@ async function generateSnapshotCaptures({
       reducedMotion: "reduce",
     });
     await context.route("**/stratops/reports/internal/capture/**", async (route) => {
-      if (snapshotOverride) {
+      // The worker already owns this exact snapshot. Serve its payload to its
+      // isolated capture page instead of depending on another API's flags/cache.
+      {
         const requestUrl = new URL(route.request().url());
         const requestedCaptureId = decodeURIComponent(requestUrl.pathname.split("/").filter(Boolean).pop() || "");
         const capture = buildCaptureScenePayload(snapshot, requestedCaptureId, {
@@ -231,12 +233,6 @@ async function generateSnapshotCaptures({
         });
         return;
       }
-      await route.continue({
-        headers: {
-          ...route.request().headers(),
-          authorization: `Bearer ${config.capture.token}`,
-        },
-      });
     });
     const page = await context.newPage();
     for (const descriptor of pendingDescriptors) {

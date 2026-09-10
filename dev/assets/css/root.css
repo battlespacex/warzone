@@ -820,7 +820,7 @@ input[type="checkbox"]:checked {
 :root {
     /* Smooth premium Cesium performance */
     --warzone-resolution-scale: 1.2;
-    --warzone-resolution-hard-max: 1.25;
+    --warzone-resolution-hard-max: 1.8;
     --warzone-msaa-samples: 4;
     --warzone-msaa-hard-max: 4;
     --warzone-fxaa-enabled: 1;
@@ -870,6 +870,12 @@ input[type="checkbox"]:checked {
     --warzone-globe-preload-ancestors: 1;
     --warzone-globe-preload-siblings: 0;
     --warzone-imagery-max-anisotropy: 2;
+
+    /* Sharper existing globe tiles only after the closest camera zoom settles. */
+    --warzone-max-zoom-quality-height: 25000;
+    --warzone-max-zoom-resolution-scale: 1.75;
+    --warzone-max-zoom-screen-space-error: 0.55;
+    --warzone-max-zoom-imagery-anisotropy: 16;
 
     /* Events / rings */
     --warzone-max-renderable-events: 120;
@@ -1673,6 +1679,7 @@ input[type="checkbox"]:checked {
     --warzone-live-naval-contour-softness: var(--warzone-live-contour-softness);
     --warzone-live-naval-contour-emission: var(--warzone-live-contour-emission);
     --warzone-live-naval-contour-radius: 90000;
+    --warzone-live-naval-contour-grid-radius: 15000;
     --warzone-live-naval-contour-blur: 40000;
     --warzone-live-naval-contour-fade: 30000;
     --warzone-live-naval-contour-min-alpha: var(--warzone-live-contour-min-alpha);
@@ -1717,7 +1724,7 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-arrow-glow: rgba(96, 99, 99, 0.2);
     --warzone-live-aircraft-arrow-heading-offset-deg: 0;
 
-    --warzone-live-aircraft-focus-camera-follow-ease: 0.12;
+    --warzone-live-aircraft-focus-camera-follow-ease: 1;
 
 
     /* Focused Asset Config */

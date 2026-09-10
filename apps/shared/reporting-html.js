@@ -4,6 +4,8 @@ import {
   stripFeedJunk,
 } from "./reporting-display.js";
 
+import { isSatelliteSourcePreviewUrl } from "./satellite-source-preview.js";
+
 const REPORT_HTML_RENDER_VERSION = "stratops-html-v1";
 
 const READY_STATUS = "READY";
@@ -319,6 +321,17 @@ function buildReportRenderModel(snapshot = {}, { localImageNames = new Set() } =
   const manifest = asObject(snapshot.report_manifest);
   const captureSource = asArray(manifest.capture_results).length ? manifest.capture_results : content.capture_results;
   const captures = asArray(captureSource).map((entry) => normalizeCaptureResult(entry, localImageNames));
+  const satellite = asObject(snapshot.satellite_summary);
+  if (isSatelliteSourcePreviewUrl(satellite.preview_image_url)) {
+    captures.push({
+      capture_id: `satellite-source-${cleanText(satellite.preview_event_id, "scene")}`,
+      capture_type: "SATELLITE_OBSERVATION",
+      status: READY_STATUS,
+      src: satellite.preview_image_url,
+      event_id: cleanText(satellite.preview_event_id),
+      caption: `Copernicus source scene quicklook (${cleanText(satellite.acquisition_time, "acquisition time unavailable")}). Reduced-resolution context, not live imagery or independent confirmation.`,
+    });
+  }
   const developments = asArray(content.major_developments || content.event_cards)
     .filter((item) => item?.report_display_eligible !== false)
     .map((item) => normalizeDevelopment(item, captures));
@@ -507,6 +520,7 @@ function renderHva(assets) {
 }
 
 function imageCaption(image) {
+  if (image.capture_type === "SATELLITE_OBSERVATION" && image.caption) return cleanText(image.caption);
   return cleanText(image.capture_type, "Operational context").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 

@@ -78,6 +78,8 @@ test("artifact upload uses the clean deterministic S3 keys including images", as
     };
     const uploads = await __reportingPipelineTestUtils.uploadReportArtifacts({
       snapshot: {
+        snapshot_date: "2026-08-07",
+        scope_type: "global",
         report_manifest: {
           object_keys: {
             report_html: "reports/daily/global/2026-08-07/report.html",

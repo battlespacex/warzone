@@ -450,7 +450,7 @@ function buildReportAssetFocusPreset(captureType = "", camera = {}) {
   return {
     capture_type: type,
     mode: regional ? "REGIONAL" : "FOCUS",
-    map_mode: type === "HVA_FOCUS_3D" || type === "HVA_REGIONAL_CONTEXT" ? "CTR" : "DEFAULT",
+    map_mode: ["HVA_FOCUS_3D", "HVA_REGIONAL_CONTEXT", "NAVAL_FOCUS"].includes(type) ? "CTR" : "DEFAULT",
     heading_degrees: finiteNumber(camera.heading_degrees) ?? 30,
     pitch_degrees: finiteNumber(camera.pitch_degrees) ?? (regional ? -50 : type === "HVA_FOCUS_3D" ? -28 : -58),
     range_meters: finiteNumber(camera.range_meters) ?? (regional ? 140000 : 24000),

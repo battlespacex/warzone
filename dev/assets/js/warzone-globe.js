@@ -3181,13 +3181,29 @@ function buildPickedSatelliteImageryDetail(entity, screenPosition = null, viewer
             : null,
     };
 }
+function canRunEventMarkerScenePick(viewer) {
+    const scene = viewer?.scene;
+    const canvas = scene?.canvas;
+    return Number(scene?.drawingBufferWidth ?? 0) > 0 &&
+        Number(scene?.drawingBufferHeight ?? 0) > 0 &&
+        Number(canvas?.clientWidth ?? 0) > 0 &&
+        Number(canvas?.clientHeight ?? 0) > 0;
+}
+function safePickEventMarkerScene(viewer, windowPosition) {
+    if (!windowPosition || !canRunEventMarkerScenePick(viewer)) return null;
+    try {
+        return viewer.scene.pick(windowPosition);
+    } catch {
+        return null;
+    }
+}
 function bindEventMarkerPicking(viewer) {
     if (!viewer || viewer.__warzoneEventMarkerPickBound) return;
     viewer.__warzoneEventMarkerPickBound = true;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     viewer.__warzoneEventMarkerPickHandler = handler;
     handler.setInputAction((movement) => {
-        const picked = movement?.endPosition ? viewer.scene.pick(movement.endPosition) : null;
+        const picked = safePickEventMarkerScene(viewer, movement?.endPosition);
         const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
         const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
         viewer.scene.canvas.style.cursor = satelliteEntity || eventEntity ? "pointer" : "";
@@ -3195,7 +3211,7 @@ function bindEventMarkerPicking(viewer) {
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     handler.setInputAction((movement) => {
         if (!movement?.position) return;
-        const picked = viewer.scene.pick(movement.position);
+        const picked = safePickEventMarkerScene(viewer, movement.position);
         const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
         if (satelliteEntity) {
             document.dispatchEvent(new CustomEvent("wz:satellite-imagery-selected", {
@@ -3624,6 +3640,16 @@ function tuneImageryLayer(layer, prefix = "--warzone-map") {
     layer.hue = baseHue + (tint * 0.35) - (warmth * 0.22);
     layer.alpha = numberVar(`${prefix}-alpha`, 1);
     layer.maximumAnisotropy = Math.max(1, numberVar("--warzone-imagery-max-anisotropy", 16));
+}
+function updateMaximumZoomImagerySampling(viewer, enabled) {
+    const baseLayer = viewer?.__imageryBase;
+    if (!baseLayer) return;
+    const normalAnisotropy = Math.max(1, numberVar("--warzone-imagery-max-anisotropy", 16));
+    const maximumZoomAnisotropy = Math.max(
+        normalAnisotropy,
+        Math.min(16, numberVar("--warzone-max-zoom-imagery-anisotropy", 16))
+    );
+    baseLayer.maximumAnisotropy = enabled ? maximumZoomAnisotropy : normalAnisotropy;
 }
 function shouldShowCityLabelsAtCurrentZoom(viewer) {
     return getCameraHeight(viewer) <= numberVar("--warzone-labels-max-height", 3000000);
@@ -4709,6 +4735,7 @@ async function addArcGisLayers(viewer) {
     viewer.__imageryLabels = labelsLayer;
     updateMapCredits();
     updateLabelsLayerVisibility(viewer);
+    updateMaximumZoomImagerySampling(viewer, viewer.__warzoneMaximumZoomQualityActive === true);
     return { baseLayer, labelsLayer };
 }
 
@@ -5706,12 +5733,15 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     const alpha = clamp01(numberVar(gridAlphaVar, 0.16));
     const majorAlpha = clamp01(numberVar(gridMajorAlphaVar, 0.24));
     const width = Math.max(0.35, Math.min(2.4, numberVar(gridWidthVar, 0.62)));
-    const ringWidth = Math.max(0.35, Math.min(5, numberVar("--warzone-contour-grid-ring-width", width * 1.4)));
+    const navalFocus = getContourFocusProfile(viewer) === "naval";
+    const ringWidth = Math.max(0.35, Math.min(5, numberVar("--warzone-contour-grid-ring-width", width * 1.4))) * (navalFocus ? 1.05 : 1);
     const ringAlpha = clamp01(numberVar("--warzone-contour-grid-ring-alpha", Math.max(majorAlpha, 0.42)));
     const innerRingAlpha = clamp01(numberVar("--warzone-contour-grid-ring-inner-alpha", Math.max(alpha, 0.28)));
     const innerRingScale = Math.max(0.15, Math.min(0.95, numberVar("--warzone-contour-grid-ring-inner-scale", 0.58)));
     const majorEvery = Math.max(2, Math.round(numberVar("--warzone-contour-grid-major-every", 4)));
-    const radius = Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000)));
+    const radius = navalFocus
+        ? Math.max(10000, Math.min(15000, numberVar("--warzone-live-naval-contour-grid-radius", 15000)))
+        : Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000)));
     const intervalMeters = chooseOperationalGridIntervalMeters(radius);
     const rows = Math.max(4, Math.min(18, Math.round((radius * 2) / intervalMeters)));
     const cols = rows;
@@ -5758,7 +5788,11 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
         addSegmentedLine(x, false, col % majorEvery === 0);
     }
     if (boolVar("--warzone-contour-grid-ring-enabled", true) === true) {
-        addContourGridRing(collection, radius * innerRingScale, {
+        if (navalFocus) addContourGridRing(collection, radius / 3, {
+            width: ringWidth * 0.86,
+            color: ringColor.withAlpha(innerRingAlpha),
+        });
+        addContourGridRing(collection, radius * (navalFocus ? 2 / 3 : innerRingScale), {
             width: ringWidth * 0.86,
             color: ringColor.withAlpha(innerRingAlpha),
         });
@@ -6225,7 +6259,9 @@ function setContourFocusPosition(viewer, position = null, options = {}) {
     state.centerLat = lat;
     state.centerHeight = Number.isFinite(height) ? height : 0;
     state.hasFocusPosition = true;
-    state.focusProfile = String(options.profile || options.assetType || "").toLowerCase();
+    const nextFocusProfile = String(options.profile || options.assetType || "").toLowerCase();
+    if (state.focusProfile !== nextFocusProfile) destroyContourGridPrimitive(viewer);
+    state.focusProfile = nextFocusProfile;
     setContourGridCenter(viewer, { lon, lat, height: state.centerHeight });
     state.buildToken += 1;
     if (viewer.__contourLayerVisible === true) {
@@ -7626,6 +7662,7 @@ export async function initWarzoneGlobe(options = {}) {
             if (viewer.__imageryLabels) {
                 tuneImageryLayer(viewer.__imageryLabels, "--warzone-labels");
             }
+            updateMaximumZoomImagerySampling(viewer, viewer.__warzoneMaximumZoomQualityActive === true);
             void buildContourOverlay(viewer, {
                 force: true,
                 reason: "refresh-map-tuning",
@@ -7755,7 +7792,7 @@ export async function initWarzoneGlobe(options = {}) {
             const adaptiveProfile = normalizeAdaptiveProfile(viewer.__warzoneAdaptiveProfile);
             const noLayerMode = count <= 0;
             const adaptiveCaps = getAdaptiveProfileCaps(noLayerMode ? "normal" : adaptiveProfile);
-            const hardMaxResolutionScale = clamp(numberVar("--warzone-resolution-hard-max", 1.22), 0.7, 1.4);
+            const hardMaxResolutionScale = clamp(numberVar("--warzone-resolution-hard-max", 1.22), 0.7, 2);
             const hardMaxMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-hard-max", 2)));
             const baseResolution = clamp(numberVar("--warzone-resolution-scale", 1), 0.5, 2);
             const baseMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-samples", 1)));
@@ -7796,6 +7833,9 @@ export async function initWarzoneGlobe(options = {}) {
             const cameraHeight = getCameraHeight(viewer);
             const is2DMode = getSceneMode(viewer) === "2d";
             const isCameraMoving = viewer.__warzoneCameraMoving === true;
+            const maximumZoomQualityHeight = Math.max(100, numberVar("--warzone-max-zoom-quality-height", 25000));
+            const maximumZoomResolutionScale = clamp(numberVar("--warzone-max-zoom-resolution-scale", 1.75), 1, 2);
+            const maximumZoomSse = clamp(numberVar("--warzone-max-zoom-screen-space-error", 0.55), 0.35, 1.25);
             const tileLoadQueueSize = Math.max(0, Number(viewer.__warzoneTileLoadQueueSize || 0));
             const tileLoadBusy = tileLoadQueueSize >= loadingQueueThreshold || viewer.__warzoneTileLoadBusy === true;
             const liveSelection = window.__warzoneLiveTrackSelection || {};
@@ -7943,9 +7983,18 @@ export async function initWarzoneGlobe(options = {}) {
                 nextSse = Math.max(nextSse, focusedAssetCaps.sseFloor);
                 nextTileCache = Math.min(nextTileCache, focusedAssetCaps.tileCacheCap);
             }
+            const maximumZoomQualityActive = !is2DMode
+                && !isCameraMoving
+                && !isFocusedAssetMode
+                && Number.isFinite(cameraHeight)
+                && cameraHeight <= maximumZoomQualityHeight;
+            if (maximumZoomQualityActive) {
+                nextResolution = Math.max(nextResolution, maximumZoomResolutionScale);
+                nextSse = Math.min(nextSse, maximumZoomSse);
+            }
             nextResolution = Math.min(nextResolution, hardMaxResolutionScale);
             nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
-            nextSse = clamp(nextSse, 0.8, 6);
+            nextSse = clamp(nextSse, 0.35, 6);
             nextTileCache = Math.max(140, Math.min(720, Math.round(nextTileCache)));
             nextLoadingDescendantLimit = Math.max(4, Math.min(72, Math.round(nextLoadingDescendantLimit)));
             if (is2DMode) {
@@ -7985,6 +8034,10 @@ export async function initWarzoneGlobe(options = {}) {
             if (prevPerfState.preloadSiblings !== nextPreloadSiblings) {
                 viewer.scene.globe.preloadSiblings = nextPreloadSiblings;
             }
+            if (viewer.__warzoneMaximumZoomQualityActive !== maximumZoomQualityActive) {
+                viewer.__warzoneMaximumZoomQualityActive = maximumZoomQualityActive;
+                updateMaximumZoomImagerySampling(viewer, maximumZoomQualityActive);
+            }
             viewer.__warzonePerformanceState = {
                 resolutionScale: nextResolution,
                 maximumRenderTimeChange: nextMaximumRenderTime,
@@ -8002,6 +8055,7 @@ export async function initWarzoneGlobe(options = {}) {
                 tileLoadQueueSize,
                 tileLoadBusy,
                 adaptiveProfile,
+                maximumZoomQualityActive,
             };
             viewer.scene.requestRenderMode = true;
         },

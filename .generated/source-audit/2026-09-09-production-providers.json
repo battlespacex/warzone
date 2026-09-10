@@ -1,0 +1,209 @@
+{
+  "checked_at": "2026-09-09T23:47:04.637Z",
+  "environment": "production",
+  "results": [
+    {
+      "group": "tracking",
+      "id": "airplanes_live",
+      "flag": "AIRPLANES_LIVE_ENABLED",
+      "configured_enabled": true,
+      "result": "FAILED",
+      "error": "ProviderRequestError",
+      "status": 403,
+      "elapsed_ms": 104
+    },
+    {
+      "group": "tracking",
+      "id": "adsbx",
+      "flag": "ADSB_EXCHANGE_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION"
+    },
+    {
+      "group": "tracking",
+      "id": "adsb_one",
+      "flag": "ADSB_ONE_ENABLED",
+      "configured_enabled": true,
+      "result": "FAILED",
+      "error": "ProviderRequestError",
+      "status": 403,
+      "elapsed_ms": 118
+    },
+    {
+      "group": "tracking",
+      "id": "adsb_lol",
+      "flag": "ADSB_LOL_ENABLED",
+      "configured_enabled": true,
+      "result": "LIVE_DATA",
+      "observations": 231,
+      "valid_positions": 166,
+      "fresh_positions": 166,
+      "military_hints": 166,
+      "elapsed_ms": 1698,
+      "diagnostics": {
+        "fetched": 231,
+        "normalized": 231,
+        "valid": 166,
+        "reported_total": 231
+      }
+    },
+    {
+      "group": "tracking",
+      "id": "openais",
+      "flag": "OPENAIS_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "reason": "MISSING_BASE_URL"
+    },
+    {
+      "group": "tracking",
+      "id": "marineplan",
+      "flag": "MARINEPLAN_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "reason": "MISSING_CREDENTIALS"
+    },
+    {
+      "group": "tracking",
+      "id": "aishub",
+      "flag": "AISHUB_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "reason": "MISSING_CREDENTIALS"
+    },
+    {
+      "group": "tracking",
+      "id": "spire",
+      "flag": "SPIRE_AIS_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "reason": "MISSING_CREDENTIALS"
+    },
+    {
+      "group": "tracking",
+      "id": "marinetraffic",
+      "flag": "MARINETRAFFIC_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "reason": "MISSING_CREDENTIALS"
+    },
+    {
+      "group": "tracking",
+      "id": "vesselfinder",
+      "flag": "VESSELFINDER_ENABLED",
+      "configured_enabled": false,
+      "result": "MISSING_CONFIGURATION",
+      "reason": "MISSING_CREDENTIALS"
+    },
+    {
+      "group": "tracking",
+      "id": "opensky",
+      "flag": "OPENSKY_ENABLED",
+      "configured_enabled": true,
+      "result": "LIVE_DATA",
+      "observations": 9324,
+      "valid_positions": 9241,
+      "fresh_positions": 9203,
+      "military_hints": 6,
+      "elapsed_ms": 3365,
+      "diagnostics": {
+        "fetched": 9324,
+        "normalized": 9324,
+        "valid": 9241,
+        "military_candidates": 6,
+        "authenticated": true
+      }
+    },
+    {
+      "group": "tracking",
+      "id": "fintraffic",
+      "flag": "FINTRAFFIC_ENABLED",
+      "configured_enabled": true,
+      "result": "LIVE_DATA",
+      "observations": 332,
+      "valid_positions": 332,
+      "fresh_positions": 332,
+      "military_hints": 1,
+      "elapsed_ms": 16329,
+      "diagnostics": {
+        "connected": true,
+        "received": 582,
+        "location": 537,
+        "metadata": 43,
+        "malformed": 0,
+        "invalid": 0,
+        "unique_mmsi": 332,
+        "candidates": 332,
+        "reconnect_count": 0,
+        "last_message_at": "2026-09-09T23:47:21.199Z"
+      }
+    },
+    {
+      "group": "tracking",
+      "id": "aisstream",
+      "flag": "AISSTREAM_ENABLED",
+      "configured_enabled": true,
+      "result": "LIVE_DATA",
+      "observations": 1845,
+      "valid_positions": 1844,
+      "fresh_positions": 1844,
+      "military_hints": 0,
+      "elapsed_ms": 16376,
+      "diagnostics": {
+        "connected": true,
+        "received": 2342,
+        "position": 1857,
+        "static": 484,
+        "unique_mmsi": 2280,
+        "candidates": 1845
+      }
+    },
+    {
+      "group": "tracking",
+      "id": "plane_alert_db",
+      "result": "IDENTITY_DATA",
+      "records": 9854
+    },
+    {
+      "group": "tracking",
+      "id": "skylink",
+      "result": "IDENTITY_DATA",
+      "diagnostics": {
+        "cached": false,
+        "not_found": false,
+        "calls_made": 91,
+        "calls_this_month": 76,
+        "cache_hits": 0,
+        "cache_misses": 93,
+        "skipped_existing_metadata": 2918,
+        "skipped_non_military": 0,
+        "enrichment_successes": 8,
+        "failures": 5,
+        "rate_limited": 0,
+        "monthly_estimated_remaining": 924,
+        "quota_remaining": 0,
+        "quota_reset_at": "86400",
+        "quota_blocked": true,
+        "last_success_at": "2026-09-09T23:47:21.727Z",
+        "last_failure_at": "2026-09-04T21:35:33.744Z",
+        "last_failure_status": null
+      }
+    },
+    {
+      "group": "tracking",
+      "id": "vesselapi",
+      "result": "IDENTITY_DATA",
+      "diagnostics": {
+        "cached": false,
+        "quota_remaining": 60,
+        "quota_blocked": false
+      }
+    },
+    {
+      "group": "merge_check",
+      "id": "aircraft",
+      "raw_positions": 9407,
+      "unique_icao24": 9278
+    }
+  ]
+}

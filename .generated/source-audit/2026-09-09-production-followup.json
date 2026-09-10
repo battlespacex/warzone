@@ -1,0 +1,71 @@
+{
+  "checked_at": "2026-09-09T23:56:19.576Z",
+  "environment": "production",
+  "results": [
+    {
+      "group": "database",
+      "id": "aircraft",
+      "rows_checked": 1000,
+      "newest_updated_at": "2026-09-09T09:17:03.653+00:00",
+      "fresh_45m": 0
+    },
+    {
+      "group": "database",
+      "id": "naval",
+      "rows_checked": 881,
+      "newest_updated_at": "2026-09-09T09:17:14.003+00:00",
+      "fresh_45m": 0
+    },
+    {
+      "group": "database",
+      "id": "source_registry",
+      "result": "READ_OK",
+      "rows": 93,
+      "enabled": 85,
+      "disabled": [
+        "Reuters",
+        "AP News",
+        "ISW",
+        "France24",
+        "ACLED Conflict Feed",
+        "Manual Siren Alerts",
+        "Iran International",
+        "Arab News"
+      ]
+    },
+    {
+      "group": "deployed_api",
+      "id": "aircraft_freshness",
+      "rows": 1000,
+      "newest_updated_at": "2026-09-09T09:17:03.653+00:00",
+      "fresh_45m": 0
+    },
+    {
+      "group": "adapter",
+      "id": "middle-east-eye-live",
+      "result": "PARSED_DATA",
+      "fetched": 15,
+      "relevant": 15
+    },
+    {
+      "group": "adapter",
+      "id": "intelslava",
+      "result": "PARSED_DATA",
+      "fetched": 18,
+      "relevant": 1
+    },
+    {
+      "group": "candidate_api",
+      "id": "reliefweb-reports",
+      "result": "FAILED",
+      "error": "Error",
+      "status": 403
+    },
+    {
+      "group": "candidate_api",
+      "id": "gdacs-alerts",
+      "result": "DATA_AVAILABLE_ADAPTER_NOT_ENABLED",
+      "records": 348
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import {
     getStartupSatelliteModelProfile,
     resolveSatelliteModelProfile,
 } from "./warzone-satellite-models.js";
-import { REGIONS, getActiveRegion, requestRegionSwitch } from "./warzone-region-selector.js";
+import { REGIONS, flyToRegion, getActiveRegion } from "./warzone-region-selector.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 
 const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
@@ -826,60 +826,18 @@ function hideFocusCard() {
     if (state.focusCard) state.focusCard.hidden = true;
 }
 
-function flyToSatelliteOverview(record = null) {
-    if (!state.viewer?.camera) return;
-
+function returnToSelectedRegion() {
     const viewer = state.viewer;
-    const point = record ? propagateRecord(record, new Date()) : null;
-
-    const lon = Number(point?.lon ?? record?.lon);
-    const lat = Number(point?.lat ?? record?.lat);
-
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
-
-    const height = Math.max(
-        1200000,
-        getCssNumber("--warzone-orbital-unfocus-camera-height", 3200000)
-    );
-
+    const region = getActiveRegion?.();
+    if (!viewer?.camera || !region) return;
     const duration = Math.max(
         0.4,
         getCssNumber("--warzone-orbital-unfocus-camera-duration", 1.15)
     );
-
-    try {
-        viewer.camera.cancelFlight?.();
-        viewer.trackedEntity = undefined;
-        viewer.selectedEntity = undefined;
-    } catch { }
-
-    try {
-        viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-                lon,
-                lat,
-                height
-            ),
-            orientation: {
-                heading: 0,
-                pitch: Cesium.Math.toRadians(-90),
-                roll: 0,
-            },
-            duration,
-            complete: () => {
-                viewer.trackedEntity = undefined;
-                viewer.selectedEntity = undefined;
-                viewer.scene?.requestRender?.();
-            },
-            cancel: () => {
-                viewer.trackedEntity = undefined;
-                viewer.selectedEntity = undefined;
-                viewer.scene?.requestRender?.();
-            },
-        });
-    } catch {
-        viewer.scene?.requestRender?.();
-    }
+    void flyToRegion(viewer, region, {
+        source: "orbital-satellite-unfocus",
+        duration,
+    });
 }
 function showFocusCard(record) {
     const card = ensureFocusCard();
@@ -1546,55 +1504,9 @@ function selectSatellite(id = "", options = {}) {
     const viewer = state.viewer;
     const record = getSatelliteRecord(selectedId);
     if (!viewer || !record) return false;
-    if (options?.skipRegionConfirmation !== true) {
-        const currentPoint = propagateRecord(record, new Date());
-        const targetRegion = resolveSatelliteMonitoringRegion(currentPoint) || REGIONS.find((region) => region?.id === "global");
-        const activeRegion = getActiveRegion?.();
-        if (
-            targetRegion?.id &&
-            activeRegion?.id &&
-            activeRegion.id !== "global" &&
-            targetRegion.id !== activeRegion.id
-        ) {
-            const requestToken = state.focusRequestToken + 1;
-            const satelliteLabel = formatUpper(record.name || record.objectName || record.noradId || "Satellite");
-            const currentRegionLabel = activeRegion.label || activeRegion.id;
-            const targetRegionLabel = targetRegion.label || targetRegion.id;
-            const outsideDefinedRegions = targetRegion.id === "global";
-            state.focusRequestToken = requestToken;
-            state.focusPendingId = selectedId;
-            updateControlsOptions();
-            return requestRegionSwitch(viewer, targetRegion.id, {
-                source: "orbital-satellite-focus",
-                allowGlobalTarget: outsideDefinedRegions,
-                promptTitle: "Satellite Outside Selected Region",
-                promptSummary: outsideDefinedRegions
-                    ? `${satelliteLabel} is beyond ${currentRegionLabel} and is currently outside the defined monitoring regions.`
-                    : `${satelliteLabel} is beyond ${currentRegionLabel} and is currently over ${targetRegionLabel}.`,
-                promptDetail: `Focus Satellite will change the active monitoring region to ${targetRegionLabel}, then focus the satellite.`,
-                cancelLabel: "Cancel",
-                confirmLabel: "Focus Satellite",
-            }).then((switched) => {
-                if (
-                    !switched ||
-                    requestToken !== state.focusRequestToken ||
-                    state.focusPendingId !== selectedId ||
-                    !state.enabled ||
-                    state.viewer !== viewer
-                ) return false;
-                state.focusPendingId = "";
-                updateControlsOptions();
-                return selectSatellite(selectedId, {
-                    ...options,
-                    skipRegionConfirmation: true,
-                });
-            }).finally(() => {
-                if (requestToken !== state.focusRequestToken) return;
-                state.focusPendingId = "";
-                updateControlsOptions();
-            });
-        }
-    }
+    // Orbital focus is global and must not mutate the user's monitoring region.
+    // The region selector separately suppresses automatic boundary prompts while
+    // satellite focus is active, so an orbit crossing a boundary stays uninterrupted.
     if (viewer.scene?.mode === Cesium.SceneMode.SCENE3D) {
         return commitSatelliteSelection(selectedId, options);
     }
@@ -1635,10 +1547,6 @@ function commitSatelliteSelection(id = "", options = {}) {
         assetId: selectedId,
     })) return false;
 
-    const previousRecord = previousSelectedId
-        ? getSatelliteRecord(previousSelectedId)
-        : null;
-
     // Release the previous tracked satellite before removing its entity.
     try {
         if (viewer) {
@@ -1668,7 +1576,7 @@ function commitSatelliteSelection(id = "", options = {}) {
         updateControlsOptions();
 
         if (options.flyOut !== false) {
-            flyToSatelliteOverview(previousRecord);
+            returnToSelectedRegion();
         }
 
         viewer?.scene?.requestRender?.();

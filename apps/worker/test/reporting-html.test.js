@@ -384,6 +384,20 @@ test("no-HVA and failed-image input renders accurate image-free fallbacks", asyn
   assert.doesNotMatch(html, /<img[^>]+failed\.jpg/);
 });
 
+test("reports include satellite quicklooks from Copernicus, never from our bucket", async () => {
+  const snapshot = buildSnapshot();
+  const url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Assets(2fb65e32-21ba-423b-ab39-959fe37e4c81)/$value";
+  snapshot.satellite_summary = { preview_image_url: url, preview_event_id: "satellite-event" };
+  const model = buildReportRenderModel(snapshot);
+  assert.equal(model.imagery.find((image) => image.capture_type === "SATELLITE_OBSERVATION").src, url);
+  const { templateHtml, templateCss } = await loadTemplate();
+  const html = renderReportHtml({ templateHtml, templateCss, model });
+  assert.ok(html.includes(`src="${url}"`));
+  assert.match(html, /Reduced-resolution context, not live imagery/);
+  snapshot.satellite_summary.preview_image_url = "https://stratops.battlespacex.com/copernicus/image.png";
+  assert.equal(buildReportRenderModel(snapshot).imagery.some((image) => image.capture_type === "SATELLITE_OBSERVATION"), false);
+});
+
 test("reporting period is based on supplied UTC boundaries", () => {
   assert.equal(formatReportingPeriod("2026-08-08T00:00:00Z", "2026-08-09T00:00:00Z"), "2026-08-08 TO 2026-08-09");
 });

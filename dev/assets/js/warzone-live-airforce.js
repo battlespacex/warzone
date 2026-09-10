@@ -2292,8 +2292,8 @@ function applyLiveTrackModel(entity, track, modelUri, subtypeScale, subtypeMinPi
     } else {
         entity.model.uri = modelUri;
         entity.model.scale = subtypeScale;
-        entity.model.minimumPixelSize = subtypeMinPixelSize;
-        entity.model.maximumScale = subtypeMaxScale;
+        entity.model.minimumPixelSize = Math.max(subtypeMinPixelSize, entity.__reportCaptureMinimumPixels || 0);
+        entity.model.maximumScale = entity.__reportCaptureMinimumPixels ? undefined : subtypeMaxScale;
     }
     entity.model.color = Cesium.Color.WHITE.withAlpha(visibility.alpha);
     entity.model.colorBlendMode = Cesium.ColorBlendMode.MIX;
@@ -2319,8 +2319,8 @@ function applyLiveTrackModelSizing(entity, track = {}) {
     if (!entity?.model) return;
     const style = getLiveTrackStyleConfig(track);
     entity.model.scale = getLiveTrackSubtypeScale(track, style.scale);
-    entity.model.minimumPixelSize = getLiveTrackSubtypeMinPixelSize(track, style.minimumPixelSize);
-    entity.model.maximumScale = getLiveTrackSubtypeMaxScale(track, style.maximumScale);
+    entity.model.minimumPixelSize = Math.max(getLiveTrackSubtypeMinPixelSize(track, style.minimumPixelSize), entity.__reportCaptureMinimumPixels || 0);
+    entity.model.maximumScale = entity.__reportCaptureMinimumPixels ? undefined : getLiveTrackSubtypeMaxScale(track, style.maximumScale);
 }
 function getLiveLabelStyleConfig() {
     return {
@@ -4705,6 +4705,7 @@ function syncFocusedTrackCameraOrientationFromViewer(position, options = {}) {
 }
 function syncFocusedTrackCamera(options = {}) {
     const forceLifecycleSync = options?.lifecycleResume === true;
+    const forceMotionFrameSync = options?.motionFrame === true;
     const forceVisualRefresh = options?.visualRefresh === true;
     const viewer = window.__warzoneViewer;
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
@@ -4730,7 +4731,11 @@ function syncFocusedTrackCamera(options = {}) {
 
     const now = performance.now();
 
-    if (!forceLifecycleSync && (now - __liveTrackLastFocusCameraSyncAt) < LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS) {
+    if (
+        !forceLifecycleSync &&
+        !forceMotionFrameSync &&
+        (now - __liveTrackLastFocusCameraSyncAt) < LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS
+    ) {
         return;
     }
 
@@ -4740,7 +4745,7 @@ function syncFocusedTrackCamera(options = {}) {
     void preserveRange;
 
     const ease = clamp(
-        getCssNumber("--warzone-live-aircraft-focus-camera-follow-ease", 0.08),
+        getCssNumber("--warzone-live-aircraft-focus-camera-follow-ease", 1),
         0.02,
         1
     );
@@ -5634,30 +5639,32 @@ function getFocusedRoutePositions(trackKey = "") {
     const viewer = window.__warzoneViewer;
     const entry = __liveTrackRegistry.get(trackKey);
     if (!viewer || !entry) return [];
-    const historyPoints = sanitizeFocusedRouteHistoryPoints(
+    let historyPoints = sanitizeFocusedRouteHistoryPoints(
         pruneHistoryPoints(entry.path_history || [], trackKey),
         entry
     );
-    const positions = buildReplayPositions(historyPoints, entry, { focusAnchored: true });
     const entity = viewer.entities?.getById?.(`track-${trackKey}`);
+    const targetTimestamp = entity?.__liveTrackMotionState?.sourceTimestamp;
+    if (Number.isFinite(targetTimestamp)) {
+        // The newest fix is still ahead of the interpolated aircraft. Do not
+        // draw to that future endpoint and then double back to the live head.
+        historyPoints = historyPoints.filter((point) => Number(point.ts) < targetTimestamp);
+    }
+    const positions = buildReplayPositions(historyPoints, entry);
     const liveHeadPosition = getPositionCartesian(entity);
-    if (!liveHeadPosition) return smoothFocusedRoutePositions(positions);
+    if (!liveHeadPosition) return positions;
     const lastPosition = positions.length ? positions[positions.length - 1] : null;
     const headDistanceMeters = getCartesianDistanceMeters(lastPosition, liveHeadPosition);
     const lastHistoryPoint = historyPoints.length ? historyPoints[historyPoints.length - 1] : null;
     const headDtMs = Math.max(0, Date.now() - Number(lastHistoryPoint?.ts || Date.now()));
     if (lastPosition && isImplausibleTrackMotion(headDistanceMeters, headDtMs, entry)) {
-        return smoothFocusedRoutePositions(positions);
+        return positions;
     }
-    const replaceDistanceMeters = clamp(getLiveTrackFocusCameraRangeMeters() * 0.18, 1500, 18000);
-    if (!lastPosition) {
-        positions.push(liveHeadPosition);
-    } else if (Number.isFinite(headDistanceMeters) && headDistanceMeters <= replaceDistanceMeters) {
-        positions[positions.length - 1] = liveHeadPosition;
-    } else if (!Number.isFinite(headDistanceMeters) || headDistanceMeters > 0.75) {
-        positions.push(liveHeadPosition);
+    if (!lastPosition || !Number.isFinite(headDistanceMeters) || headDistanceMeters > 0.75) {
+        positions.push(Cesium.Cartesian3.clone(liveHeadPosition));
     }
-    return smoothFocusedRoutePositions(positions);
+    // Historical fixes stay earth-fixed; only the final segment follows the asset.
+    return positions;
 }
 function smoothFocusedRoutePositions(positions = []) {
     const source = Array.isArray(positions) ? positions.filter(Boolean) : [];
@@ -6137,6 +6144,11 @@ function buildTrackOrientation(track, lon, lat, alt, headingDeg, pitchDeg = 0, r
     );
 }
 function getTrackResolvedHeading(track) {
+    // Prefer transmitted course; bearings between merged/jittering fixes can
+    // point sideways or backwards even while the aircraft flies straight.
+    const reportedHeading = Number(track.heading_deg);
+    if (track.heading_deg !== null && track.heading_deg !== undefined && track.heading_deg !== ""
+        && Number.isFinite(reportedHeading)) return normalizeDegrees(reportedHeading);
     const previous = __liveTrackLastPositions.get(track.track_key);
     const fallbackHeading = normalizeDegrees(Number(track.heading_deg || 0));
     if (!previous) {
@@ -6188,12 +6200,8 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
         state.initialized = true;
     }
     const headingDeltaDeg = getShortestAngleDeltaDeg(state.headingDeg, targetHeadingDeg);
-    const headingSmoothing = clamp(getCssNumber("--warzone-live-aircraft-heading-smoothing", 0.42), 0, 1);
-    if (!Number.isFinite(headingDeltaDeg) || Math.abs(headingDeltaDeg) >= 165 || headingSmoothing <= 0) {
-        state.headingDeg = targetHeadingDeg;
-    } else {
-        state.headingDeg = normalizeDegrees(state.headingDeg + (headingDeltaDeg * headingSmoothing));
-    }
+    // animateTrackTo already interpolates heading on the shared motion clock.
+    state.headingDeg = targetHeadingDeg;
     if (dynamicBankEnabled) {
         const bankFactor = getCssNumber("--warzone-live-aircraft-model-bank-factor", -1.2);
         const bankMaxDeg = Math.max(0, getCssNumber("--warzone-live-aircraft-model-bank-max-deg", 18));
@@ -6494,19 +6502,13 @@ function getTrackTrailPositions(trackKey) {
         }
         return cachedPositions;
     }
-    const replaceDistanceMeters = isFocusSelectionActive() ? 2200 : 420;
     const lastTrailEntry = trailEntries.length ? trailEntries[trailEntries.length - 1] : null;
     const headDtMs = Math.max(0, Date.now() - Number(lastTrailEntry?.ts || Date.now()));
     const track = __liveTrackRegistry.get(trackKey) || {};
     if (isImplausibleTrackMotion(headDistanceMeters, headDtMs, track)) {
         return cachedPositions;
     }
-    let renderPositions;
-    if (headDistanceMeters <= replaceDistanceMeters) {
-        renderPositions = cachedPositions.slice(0, -1).concat([liveHeadPosition]);
-    } else {
-        renderPositions = cachedPositions.concat([liveHeadPosition]);
-    }
+    const renderPositions = cachedPositions.concat([Cesium.Cartesian3.clone(liveHeadPosition)]);
     if (cache) {
         cache.renderPositions = renderPositions;
         cache.headPosition = Cesium.Cartesian3.clone(liveHeadPosition, cache.headPosition || new Cesium.Cartesian3());
@@ -6557,7 +6559,7 @@ function commitTrackTrailPosition(trackKey, track = {}, newPosition) {
         : minTrailDistanceMeters;
     if (!lastEntry || movedMeters >= effectiveMinTrailDistance) {
         trail.push({
-            position: newPosition,
+            position: Cesium.Cartesian3.clone(newPosition),
             ts: now,
         });
     }
@@ -6827,9 +6829,18 @@ function wakeLiveTrackInterpolationRender(durationMs = 0) {
     const step = (now) => {
         __liveTrackInterpolationRenderRaf = 0;
         let hasActiveMotion = false;
+        let focusedTrackAdvanced = false;
+        const focusedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
         __liveTrackEntities.forEach((entity) => {
+            const hadMotion = Boolean(entity?.__liveTrackMotionState);
             if (updateLiveTrackMotionFrame(entity, now)) hasActiveMotion = true;
+            if (hadMotion && focusedTrackKey && String(entity?.__trackKey || "") === focusedTrackKey) {
+                focusedTrackAdvanced = true;
+            }
         });
+        if (focusedTrackAdvanced && __liveTrackHardLockEnabled) {
+            syncFocusedTrackCamera({ motionFrame: true });
+        }
         window.__warzoneViewer?.scene?.requestRender?.();
         if (hasActiveMotion && __liveTrackEntities.size > 0) {
             __liveTrackInterpolationRenderRaf = requestAnimationFrame(step);
@@ -6979,6 +6990,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
 
     if (trackKey) pushTrackTrailPointFromCartesian(trackKey, track, startCartesian, startHeadingDeg);
     entity.__liveTrackMotionState = {
+        sourceTimestamp,
         startedAt: startTime,
         endsAt: startTime + duration,
         durationMs: duration,
@@ -7831,8 +7843,6 @@ export function focusLiveTrack(trackKey, options = {}) {
     refreshLiveTrackVisualMode(trackKey);
     refreshFocusedTrackIsolation();
     setLiveTrackHardLockInternal(true);
-    bindFocusGuideTracking();
-    updateFocusGuideElement();
     const offset = new Cesium.HeadingPitchRange(
         Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
         Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
