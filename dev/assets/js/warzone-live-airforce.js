@@ -173,8 +173,8 @@ const LIVE_TRACK_TRAIL_SMOOTHING_DEFAULT = 0.55;
 const LIVE_TRACK_TRAIL_SMOOTH_MIN_POINTS = 5;
 const LIVE_TRACK_TRAIL_SMOOTH_KEEP_TAIL_POINTS = 2;
 const LIVE_TRACK_TRAIL_SMOOTH_MAX_POINTS = LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS;
-const LIVE_TRACK_TRAIL_HEAD_INVALIDATION_METERS = 12;
-const LIVE_TRACK_FOCUS_ROUTE_HEAD_INVALIDATION_METERS = 24;
+const LIVE_TRACK_TRAIL_HEAD_INVALIDATION_METERS = 0.5;
+const LIVE_TRACK_FOCUS_ROUTE_HEAD_INVALIDATION_METERS = 0.5;
 const LIVE_TRACK_FOCUS_ROUTE_CAMERA_INVALIDATION_METERS = 40;
 const LIVE_TRACK_FOCUS_ROUTE_ANGLE_INVALIDATION_RADIANS = 0.35 * Math.PI / 180;
 const LIVE_TRACK_SEED_HISTORY_MAX_POINTS = LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS;
@@ -208,6 +208,7 @@ const LIVE_TRACK_INSIGNIFICANT_DISTANCE_METERS = 8;
 const LIVE_TRACK_INSIGNIFICANT_ALTITUDE_FEET = 20;
 const LIVE_TRACK_INSIGNIFICANT_HEADING_DEG = 0.75;
 const LIVE_TRACK_INSIGNIFICANT_SPEED_KTS = 1.5;
+const LIVE_TRACK_COURSE_HEADING_MIN_DISTANCE_METERS = 75;
 const LIVE_TRACK_MAJOR_CORRECTION_MIN_METERS = 50000;
 const LIVE_TRACK_MAJOR_CORRECTION_SPEED_FACTOR = 8;
 const LIVE_TRACK_MIN_ANIM_MS = 700;
@@ -5639,27 +5640,19 @@ function getFocusedRoutePositions(trackKey = "") {
     const viewer = window.__warzoneViewer;
     const entry = __liveTrackRegistry.get(trackKey);
     if (!viewer || !entry) return [];
-    let historyPoints = sanitizeFocusedRouteHistoryPoints(
-        pruneHistoryPoints(entry.path_history || [], trackKey),
-        entry
-    );
     const entity = viewer.entities?.getById?.(`track-${trackKey}`);
-    const targetTimestamp = entity?.__liveTrackMotionState?.sourceTimestamp;
-    if (Number.isFinite(targetTimestamp)) {
-        // The newest fix is still ahead of the interpolated aircraft. Do not
-        // draw to that future endpoint and then double back to the live head.
-        historyPoints = historyPoints.filter((point) => Number(point.ts) < targetTimestamp);
-    }
-    const positions = buildReplayPositions(historyPoints, entry);
+    const trailEntries = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
+    // Use only immutable positions already traversed by the rendered model.
+    // Re-smoothing the complete history after each API update visibly moves it.
+    const positions = trailEntries
+        .map((trailEntry) => trailEntry?.position
+            ? Cesium.Cartesian3.clone(trailEntry.position)
+            : null)
+        .filter(Boolean);
     const liveHeadPosition = getPositionCartesian(entity);
     if (!liveHeadPosition) return positions;
     const lastPosition = positions.length ? positions[positions.length - 1] : null;
     const headDistanceMeters = getCartesianDistanceMeters(lastPosition, liveHeadPosition);
-    const lastHistoryPoint = historyPoints.length ? historyPoints[historyPoints.length - 1] : null;
-    const headDtMs = Math.max(0, Date.now() - Number(lastHistoryPoint?.ts || Date.now()));
-    if (lastPosition && isImplausibleTrackMotion(headDistanceMeters, headDtMs, entry)) {
-        return positions;
-    }
     if (!lastPosition || !Number.isFinite(headDistanceMeters) || headDistanceMeters > 0.75) {
         positions.push(Cesium.Cartesian3.clone(liveHeadPosition));
     }
@@ -5802,14 +5795,13 @@ function buildFocusedRouteGeometry(trackKey = "") {
 }
 function getFocusedRouteGeometryInputs(trackKey = "") {
     const viewer = window.__warzoneViewer;
-    const entry = __liveTrackRegistry.get(trackKey) || {};
-    const history = Array.isArray(entry.path_history) ? entry.path_history : [];
+    const trail = __liveTrackTrails.get(trackKey) || [];
     const entity = viewer?.entities?.getById?.(`track-${trackKey}`);
     const headPosition = getPositionCartesian(entity);
     const cameraPosition = viewer?.camera?.positionWC || viewer?.camera?.position || null;
     return {
-        historyLength: history.length,
-        historyLastTs: Number(history[history.length - 1]?.ts || 0),
+        historyLength: trail.length,
+        historyLastTs: Number(trail[trail.length - 1]?.ts || 0),
         headPosition,
         cameraPosition,
         cameraHeading: Number(viewer?.camera?.heading || 0),
@@ -6144,13 +6136,14 @@ function buildTrackOrientation(track, lon, lat, alt, headingDeg, pitchDeg = 0, r
     );
 }
 function getTrackResolvedHeading(track) {
-    // Prefer transmitted course; bearings between merged/jittering fixes can
-    // point sideways or backwards even while the aircraft flies straight.
     const reportedHeading = Number(track.heading_deg);
-    if (track.heading_deg !== null && track.heading_deg !== undefined && track.heading_deg !== ""
-        && Number.isFinite(reportedHeading)) return normalizeDegrees(reportedHeading);
+    const hasReportedHeading =
+        track.heading_deg !== null &&
+        track.heading_deg !== undefined &&
+        track.heading_deg !== "" &&
+        Number.isFinite(reportedHeading);
+    const fallbackHeading = hasReportedHeading ? normalizeDegrees(reportedHeading) : 0;
     const previous = __liveTrackLastPositions.get(track.track_key);
-    const fallbackHeading = normalizeDegrees(Number(track.heading_deg || 0));
     if (!previous) {
         return fallbackHeading;
     }
@@ -6166,9 +6159,11 @@ function getTrackResolvedHeading(track) {
     ) {
         return fallbackHeading;
     }
-    const lonDelta = Math.abs(nextLon - previousLon);
-    const latDelta = Math.abs(nextLat - previousLat);
-    if (lonDelta < 0.00001 && latDelta < 0.00001) {
+    const movedMeters = getLonLatDistanceMeters(previousLon, previousLat, nextLon, nextLat);
+    // Small ADS-B coordinate changes are often receiver jitter. Once movement
+    // is meaningful, use that same route segment for the model and trail so
+    // the aircraft cannot fly sideways while a stale course value catches up.
+    if (!Number.isFinite(movedMeters) || movedMeters < LIVE_TRACK_COURSE_HEADING_MIN_DISTANCE_METERS) {
         return fallbackHeading;
     }
     return getHeadingDegreesFromPoints(previousLon, previousLat, nextLon, nextLat);
@@ -6502,12 +6497,6 @@ function getTrackTrailPositions(trackKey) {
         }
         return cachedPositions;
     }
-    const lastTrailEntry = trailEntries.length ? trailEntries[trailEntries.length - 1] : null;
-    const headDtMs = Math.max(0, Date.now() - Number(lastTrailEntry?.ts || Date.now()));
-    const track = __liveTrackRegistry.get(trackKey) || {};
-    if (isImplausibleTrackMotion(headDistanceMeters, headDtMs, track)) {
-        return cachedPositions;
-    }
     const renderPositions = cachedPositions.concat([Cesium.Cartesian3.clone(liveHeadPosition)]);
     if (cache) {
         cache.renderPositions = renderPositions;
@@ -6639,7 +6628,10 @@ function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
 function ensureTrackTrailVisible(trackKey, track = {}, lon, lat, alt, headingDeg = 0) {
     let trail = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
     if (trail.length >= 2) return;
-    const historyPoints = __liveTrackRegistry.get(trackKey)?.path_history || [];
+    const entity = window.__warzoneViewer?.entities?.getById?.(`track-${trackKey}`);
+    const committedThrough = Number(entity?.__liveTrackLastCommittedSourceTimestamp || 0);
+    const historyPoints = (__liveTrackRegistry.get(trackKey)?.path_history || [])
+        .filter((point) => !committedThrough || parseTrailPointTimestamp(point?.ts) <= committedThrough);
     if (historyPoints.length >= 2) {
         seedTrackTrailFromHistory(trackKey, track, historyPoints);
         trail = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
@@ -6816,6 +6808,7 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     entity.__currentHeadingDeg = normalizeDegrees(Number(motion.endHeadingDeg || 0));
     entity.__currentPitchDeg = Number(motion.endPitchDeg || 0);
     entity.__currentRollDeg = Number(motion.endRollDeg || 0);
+    entity.__liveTrackLastCommittedSourceTimestamp = Number(motion.sourceTimestamp || 0);
     entity.__liveTrackMotionState = null;
     return false;
 }
@@ -6901,6 +6894,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         entity.__currentHeadingDeg = endHeadingDeg;
         entity.__currentPitchDeg = endPitchDeg;
         entity.__currentRollDeg = endRollDeg;
+        entity.__liveTrackLastCommittedSourceTimestamp = Number(nextSourceTimestamp || Date.now());
         if (trackKey) {
             pushTrackTrailPointFromCartesian(trackKey, track, cartesianPosition, endHeadingDeg);
         }
@@ -7348,6 +7342,7 @@ export function upsertLiveTrack(track) {
         entity.__currentPitchDeg = attitude.pitchDeg;
         entity.__currentRollDeg = attitude.rollDeg;
         entity.__lastSourceTimestamp = sourceTimestamp;
+        entity.__liveTrackLastCommittedSourceTimestamp = sourceTimestamp;
         entity.__lastReportedHeadingDeg = Number(track.heading_deg || attitude.headingDeg || 0);
         entity.__lastReportedSpeedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? 0);
         __liveTrackEntities.set(id, entity);

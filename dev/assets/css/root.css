@@ -1679,7 +1679,7 @@ input[type="checkbox"]:checked {
     --warzone-live-naval-contour-softness: var(--warzone-live-contour-softness);
     --warzone-live-naval-contour-emission: var(--warzone-live-contour-emission);
     --warzone-live-naval-contour-radius: 90000;
-    --warzone-live-naval-contour-grid-radius: 15000;
+    --warzone-live-naval-contour-grid-radius: 11250;
     --warzone-live-naval-contour-blur: 40000;
     --warzone-live-naval-contour-fade: 30000;
     --warzone-live-naval-contour-min-alpha: var(--warzone-live-contour-min-alpha);
@@ -1748,10 +1748,10 @@ input[type="checkbox"]:checked {
 
     --warzone-contour-grid-rows: 10;
     --warzone-contour-grid-cols: 10;
-    --warzone-contour-grid-radius: 18000;
-    --warzone-contour-grid-fade-start: 14500;
+    --warzone-contour-grid-radius: 13500;
+    --warzone-contour-grid-fade-start: 10875;
     --warzone-contour-grid-fade-segments: 10;
-    --warzone-contour-grid-height-offset: 220;
+    --warzone-contour-grid-height-offset: 1;
     --warzone-contour-grid-major-every: 4;
     --warzone-contour-grid-size: 78;
 

@@ -5680,7 +5680,7 @@ function updateContourGridPrimitiveCenter(viewer, position = null) {
     if (!primitive || !Number.isFinite(lon) || !Number.isFinite(lat)) return false;
     state.gridCenterLon = lon;
     state.gridCenterLat = lat;
-    const heightOffset = Math.max(8, numberVar("--warzone-contour-grid-height-offset", 70));
+    const heightOffset = Math.max(0, numberVar("--warzone-contour-grid-height-offset", 1));
     primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
         Cesium.Cartesian3.fromDegrees(lon, lat, heightOffset)
     );
@@ -5700,10 +5700,12 @@ function addContourGridRing(collection, radiusMeters, options = {}) {
     const positions = [];
     for (let index = 0; index <= segments; index += 1) {
         const angle = (Math.PI * 2 * index) / segments;
+        const x = Math.cos(angle) * radiusMeters;
+        const y = Math.sin(angle) * radiusMeters;
         positions.push(new Cesium.Cartesian3(
-            Math.cos(angle) * radiusMeters,
-            Math.sin(angle) * radiusMeters,
-            0
+            x,
+            y,
+            typeof options.getHeight === "function" ? options.getHeight(x, y) : 0
         ));
     }
     collection.add({
@@ -5739,6 +5741,17 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     const innerRingAlpha = clamp01(numberVar("--warzone-contour-grid-ring-inner-alpha", Math.max(alpha, 0.28)));
     const innerRingScale = Math.max(0.15, Math.min(0.95, numberVar("--warzone-contour-grid-ring-inner-scale", 0.58)));
     const majorEvery = Math.max(2, Math.round(numberVar("--warzone-contour-grid-major-every", 4)));
+    const centerLatitude = Cesium.Math.toRadians(Number(center?.lat ?? state.gridCenterLat ?? state.centerLat) || 0);
+    const flattening = 1 / 298.257223563;
+    const eccentricitySquared = flattening * (2 - flattening);
+    const latitudeScale = Math.sqrt(1 - (eccentricitySquared * Math.sin(centerLatitude) ** 2));
+    const eastRadius = 6378137 / latitudeScale;
+    const northRadius = (6378137 * (1 - eccentricitySquared)) / (latitudeScale ** 3);
+    // Bend local ENU positions down to the WGS84 surface. A flat tangent plane
+    // visibly floats above the globe as distance from the focused asset grows.
+    const getGroundHeight = (x, y) => -(
+        ((x * x) / (2 * eastRadius)) + ((y * y) / (2 * northRadius))
+    );
     const radius = navalFocus
         ? Math.max(10000, Math.min(15000, numberVar("--warzone-live-naval-contour-grid-radius", 15000)))
         : Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000)));
@@ -5765,11 +5778,11 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
             const fade = Math.max(0, 1 - smoothContourFade(fadeT));
             if (fade <= 0.015) continue;
             const startPosition = horizontal
-                ? new Cesium.Cartesian3(start, fixedOffset, 0)
-                : new Cesium.Cartesian3(fixedOffset, start, 0);
+                ? new Cesium.Cartesian3(start, fixedOffset, getGroundHeight(start, fixedOffset))
+                : new Cesium.Cartesian3(fixedOffset, start, getGroundHeight(fixedOffset, start));
             const endPosition = horizontal
-                ? new Cesium.Cartesian3(end, fixedOffset, 0)
-                : new Cesium.Cartesian3(fixedOffset, end, 0);
+                ? new Cesium.Cartesian3(end, fixedOffset, getGroundHeight(end, fixedOffset))
+                : new Cesium.Cartesian3(fixedOffset, end, getGroundHeight(fixedOffset, end));
             collection.add({
                 positions: [startPosition, endPosition],
                 width: major ? width * 1.35 : width,
@@ -5791,14 +5804,17 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
         if (navalFocus) addContourGridRing(collection, radius / 3, {
             width: ringWidth * 0.86,
             color: ringColor.withAlpha(innerRingAlpha),
+            getHeight: getGroundHeight,
         });
         addContourGridRing(collection, radius * (navalFocus ? 2 / 3 : innerRingScale), {
             width: ringWidth * 0.86,
             color: ringColor.withAlpha(innerRingAlpha),
+            getHeight: getGroundHeight,
         });
         addContourGridRing(collection, radius, {
             width: ringWidth,
             color: ringColor.withAlpha(ringAlpha),
+            getHeight: getGroundHeight,
         });
     }
     state.gridIntervalMeters = intervalMeters;
