@@ -334,8 +334,17 @@ async function applyAssetFocus(payload, viewer) {
         await nextFrame();
         await nextFrame();
         if (preset.map_mode === "CTR") {
-            const ctrEnabled = await adapter.enableCtr?.({ reason: "report-hva-capture" });
-            if (ctrEnabled !== true) throw new Error("asset_ctr_mode_failed");
+            await adapter.enableCtr?.({ reason: "report-hva-capture" });
+
+            const ctrActive = await waitUntil(
+                () => viewer.__warzone?.isCtrModeActive?.() === true,
+                5000
+            );
+
+            if (!ctrActive) {
+                throw new Error("asset_ctr_mode_failed");
+            }
+
             await nextFrame();
             await nextFrame();
         }

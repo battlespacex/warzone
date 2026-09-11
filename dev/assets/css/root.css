@@ -1698,7 +1698,7 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-model-max-active: 16;
     --warzone-live-aircraft-model-max-zoom-height: 280000;
     --warzone-live-aircraft-model-auto-radius: 240000;
-    --warzone-live-aircraft-model-dynamic-bank-enabled: 1;
+    --warzone-live-aircraft-model-dynamic-bank-enabled: 0;
     --warzone-live-aircraft-model-bank-factor: -1.8;
     --warzone-live-aircraft-model-bank-max-deg: 24;
     --warzone-live-aircraft-model-bank-deadband-deg: 0.6;

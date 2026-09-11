@@ -65,23 +65,54 @@ test("aircraft orientation follows meaningful movement but ignores position jitt
   assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: null }), 270);
 });
 
+test("aircraft faces the new movement segment before translation begins and remains level", () => {
+  const context = vm.createContext({
+    normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+  });
+  vm.runInContext(section(air, "getAlignedLiveTrackMotionAttitude", "setLiveTrackPositionValue"), context);
+  const attitude = context.getAlignedLiveTrackMotionAttitude(
+    { heading_deg: 95 },
+    { headingDeg: 132, pitchDeg: 0, rollDeg: 0 },
+    { headingDeg: 18, pitchDeg: 4, rollDeg: 21 }
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(attitude)), {
+    startHeadingDeg: 132,
+    endHeadingDeg: 132,
+    headingDeltaDeg: 0,
+    startPitchDeg: 0,
+    endPitchDeg: 0,
+    startRollDeg: 0,
+    endRollDeg: 0,
+  });
+  assert.match(css, /--warzone-live-aircraft-model-dynamic-bank-enabled:\s*0/);
+});
+
 test("focused trail ignores unreached API history and follows only rendered positions", () => {
   const track = { path_history: [{ ts: 100, x: 1 }, { ts: 200, x: 20 }, { ts: 300, x: 30 }] };
-  const trail = [{ ts: 100, position: { x: 1 } }, { ts: 150, position: { x: 2 } }];
-  const entity = { __liveTrackMotionState: { sourceTimestamp: 300 }, head: { x: 2.5 } };
+  const trail = [
+    { ts: 100, position: { x: 1 } },
+    { ts: 150, position: { x: 2 } },
+    { ts: 300, position: { x: 20 } },
+  ];
+  const entity = {
+    __liveTrackMotionState: { sourceTimestamp: 300, endCartesian: { x: 20 } },
+    head: { x: 2.9 },
+  };
   const context = vm.createContext({
     window: { __warzoneViewer: { entities: { getById: () => entity } } },
     __liveTrackRegistry: new Map([["a", track]]), __liveTrackTrails: new Map([["a", trail]]),
     trimTrailEntries: (value) => value,
-    getPositionCartesian: (value) => value.head, getCartesianDistanceMeters: () => 10,
+    getPositionCartesian: (value) => value.head,
+    getCartesianDistanceMeters: (a, b) => Math.abs(Number(a?.x || 0) - Number(b?.x || 0)),
+    clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
     Cesium: { Cartesian3: { clone: (value) => ({ ...value }) } },
   });
-  vm.runInContext(section(air, "getFocusedRoutePositions", "smoothFocusedRoutePositions"), context);
+  vm.runInContext(section(air, "getTraversedTrackTrailEntries", "smoothFocusedRoutePositions"), context);
   const first = context.getFocusedRoutePositions("a");
-  entity.head.x = 2.8;
+  entity.head.x = 3.2;
   const second = context.getFocusedRoutePositions("a");
-  assert.equal(JSON.stringify(first), '[{"x":1},{"x":2},{"x":2.5}]');
-  assert.equal(JSON.stringify(second), '[{"x":1},{"x":2},{"x":2.8}]');
+  assert.equal(JSON.stringify(first), '[{"x":1},{"x":2},{"x":2.9}]');
+  assert.equal(JSON.stringify(second), '[{"x":1},{"x":2},{"x":3.2}]');
 });
 
 test("trail seeding excludes API coordinates the aircraft has not reached", () => {

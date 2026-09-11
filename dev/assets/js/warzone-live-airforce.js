@@ -5636,12 +5636,42 @@ function showRouteOriginHover(trackKey = "", screenPosition = null) {
     requestWarzoneRenderBatched();
     return true;
 }
+function getTraversedTrackTrailEntries(trackKey = "", entity = null) {
+    const trailEntries = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
+    const motion = entity?.__liveTrackMotionState;
+    const pendingTarget = motion?.endCartesian;
+    const liveHeadPosition = getPositionCartesian(entity);
+    if (!pendingTarget || !liveHeadPosition || !trailEntries.length) return trailEntries;
+
+    const headToTargetMeters = getCartesianDistanceMeters(liveHeadPosition, pendingTarget);
+    if (!Number.isFinite(headToTargetMeters) || headToTargetMeters <= 0.75) return trailEntries;
+
+    // A provider/history refresh can expose the new API fix before the rendered
+    // aircraft has completed its interpolation. Never let that pending endpoint
+    // enter the visible trail; the callback below appends only the live model head.
+    const endpointToleranceMeters = clamp(headToTargetMeters * 0.015, 2, 250);
+    const traversedEntries = trailEntries.slice();
+    while (traversedEntries.length > 0) {
+        const lastPosition = traversedEntries[traversedEntries.length - 1]?.position;
+        const targetDistanceMeters = getCartesianDistanceMeters(lastPosition, pendingTarget);
+        const headDistanceMeters = getCartesianDistanceMeters(lastPosition, liveHeadPosition);
+        if (
+            !Number.isFinite(targetDistanceMeters) ||
+            targetDistanceMeters > endpointToleranceMeters ||
+            (Number.isFinite(headDistanceMeters) && headDistanceMeters <= 0.75)
+        ) {
+            break;
+        }
+        traversedEntries.pop();
+    }
+    return traversedEntries;
+}
 function getFocusedRoutePositions(trackKey = "") {
     const viewer = window.__warzoneViewer;
     const entry = __liveTrackRegistry.get(trackKey);
     if (!viewer || !entry) return [];
     const entity = viewer.entities?.getById?.(`track-${trackKey}`);
-    const trailEntries = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
+    const trailEntries = getTraversedTrackTrailEntries(trackKey, entity);
     // Use only immutable positions already traversed by the rendered model.
     // Re-smoothing the complete history after each API update visibly moves it.
     const positions = trailEntries
@@ -6474,9 +6504,9 @@ function smoothTrackTrailPositions(rawPositions = []) {
     return cappedBody.concat(tail);
 }
 function getTrackTrailPositions(trackKey) {
-    const trailEntries = __liveTrackTrails.get(trackKey) || [];
-    const cachedPositions = updateTrackTrailPositionsCache(trackKey, trailEntries);
     const entity = window.__warzoneViewer?.entities?.getById?.(`track-${trackKey}`);
+    const trailEntries = getTraversedTrackTrailEntries(trackKey, entity);
+    const cachedPositions = updateTrackTrailPositionsCache(trackKey, trailEntries);
     const liveHeadPosition = getPositionCartesian(entity);
     if (!liveHeadPosition) return cachedPositions;
     const cache = __liveTrackTrailPositionsCache.get(trackKey);
@@ -6677,10 +6707,13 @@ function getOrCreateTrackTrailEntity(viewer, trackKey, track = {}) {
     const style = getLiveTrackStyleConfig(track);
     const trailVisible = shouldRenderLiveTrackTrail(trackKey, track);
     const trailWidth = getLiveTrackSubtypeTrailWidth(track, style.trailWidth);
-    const usesLiveHead = isFocusedTrackKey(trackKey);
-    const buildPositionsProperty = () => usesLiveHead
-        ? new Cesium.CallbackProperty(() => getTrackTrailPositions(trackKey), false)
-        : getTrackTrailPositions(trackKey);
+    // Every live trail reads the rendered entity head. This keeps the final
+    // segment synchronized with interpolation instead of advancing on API time.
+    const usesLiveHead = true;
+    const buildPositionsProperty = () => new Cesium.CallbackProperty(
+        () => getTrackTrailPositions(trackKey),
+        false
+    );
     let entity = viewer.entities.getById(trailId);
     if (!trailVisible && !entity) return null;
     if (!entity) {
@@ -6739,6 +6772,22 @@ function getLiveTrackMotionAttitude(entity, fallback = {}) {
         headingDeg: normalizeDegrees(Number(motion.startHeadingDeg || 0) + (Number(motion.headingDeltaDeg || 0) * t)),
         pitchDeg: Cesium.Math.lerp(Number(motion.startPitchDeg || 0), Number(motion.endPitchDeg || 0), t),
         rollDeg: Cesium.Math.lerp(Number(motion.startRollDeg || 0), Number(motion.endRollDeg || 0), t),
+    };
+}
+function getAlignedLiveTrackMotionAttitude(track = {}, nextAttitude = null, currentAttitude = {}) {
+    const headingDeg = normalizeDegrees(Number(
+        nextAttitude?.headingDeg ?? track.heading_deg ?? currentAttitude.headingDeg ?? 0
+    ));
+    const pitchDeg = Number(nextAttitude?.pitchDeg ?? currentAttitude.pitchDeg ?? 0);
+    const rollDeg = Number(nextAttitude?.rollDeg ?? currentAttitude.rollDeg ?? 0);
+    return {
+        startHeadingDeg: headingDeg,
+        endHeadingDeg: headingDeg,
+        headingDeltaDeg: 0,
+        startPitchDeg: pitchDeg,
+        endPitchDeg: pitchDeg,
+        startRollDeg: rollDeg,
+        endRollDeg: rollDeg,
     };
 }
 function setLiveTrackPositionValue(entity, position) {
@@ -6866,13 +6915,19 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     const trackKey = entity.__trackKey;
     if (!nextCartesian) return;
     const currentAttitude = getLiveTrackMotionAttitude(entity, nextAttitude || {});
-    const startHeadingDeg = normalizeDegrees(Number(currentAttitude.headingDeg ?? track.heading_deg ?? 0));
-    const endHeadingDeg = normalizeDegrees(Number(nextAttitude?.headingDeg ?? track.heading_deg ?? startHeadingDeg));
-    const headingDeltaDeg = getShortestAngleDeltaDeg(startHeadingDeg, endHeadingDeg);
-    const startPitchDeg = Number(currentAttitude.pitchDeg || 0);
-    const endPitchDeg = Number(nextAttitude?.pitchDeg ?? startPitchDeg);
-    const startRollDeg = Number(currentAttitude.rollDeg || 0);
-    const endRollDeg = Number(nextAttitude?.rollDeg ?? startRollDeg);
+    // Face the route segment before translation starts. Interpolating the old
+    // attitude over the full position interval makes the model fly sideways
+    // while it slowly catches up to the correct course.
+    const alignedAttitude = getAlignedLiveTrackMotionAttitude(track, nextAttitude, currentAttitude);
+    const {
+        startHeadingDeg,
+        endHeadingDeg,
+        headingDeltaDeg,
+        startPitchDeg,
+        endPitchDeg,
+        startRollDeg,
+        endRollDeg,
+    } = alignedAttitude;
     const commitPosition = (cartesianPosition) => {
         entity.__liveTrackMotionState = null;
         entity.position = cartesianPosition;
@@ -6954,16 +7009,9 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         maxAnimMs
     );
     const startTime = performance.now();
-    const evaluationTime = window.__warzoneViewer?.clock?.currentTime || Cesium.JulianDate.now();
-    const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
-    const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
-    const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
-    const startAlt = startCartographic.height || 0;
     let startOrientation = null;
     let endOrientation = null;
     if (entity.model) {
-        startOrientation = entity.orientation?.getValue?.(evaluationTime)
-            || buildTrackOrientation(track, startLon, startLat, startAlt, startHeadingDeg, startPitchDeg, startRollDeg);
         endOrientation = buildTrackOrientation(
             track,
             nextLon,
@@ -6973,6 +7021,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
             endPitchDeg,
             endRollDeg
         );
+        startOrientation = Cesium.Quaternion.clone(endOrientation);
     }
 
     let startBillboardRotation = Number.NaN;
