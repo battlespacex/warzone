@@ -239,20 +239,36 @@ function getPickedEntityId(picked) {
 
 function modelWasPicked(viewer, entity, screen, minimumPixels) {
     if (!screen || !entity?.model) return false;
+
     const labelShow = entity.label ? getGraphicValue(entity.label.show) !== false : null;
     if (entity.label) entity.label.show = false;
+
     let picked = false;
+
     try {
         viewer.scene.requestRender();
-        const boxSize = Math.max(18, Math.min(220, Math.round(Number(minimumPixels || 0) * 0.72)));
-        const results = viewer.scene.drillPick(new Cesium.Cartesian2(screen.x, screen.y), 32, boxSize, boxSize) || [];
-        picked = results.some((result) => getPickedEntityId(result) === String(entity.id)
-            && result.primitive instanceof Cesium.Model);
+
+        const boxSize = Math.max(
+            18,
+            Math.min(220, Math.round(Number(minimumPixels || 0) * 0.72))
+        );
+
+        const results = viewer.scene.drillPick(
+            new Cesium.Cartesian2(screen.x, screen.y),
+            32,
+            boxSize,
+            boxSize
+        ) || [];
+
+        picked = results.some((result) =>
+            getPickedEntityId(result) === String(entity.id)
+        );
     } catch {
         picked = false;
     } finally {
         if (entity.label) entity.label.show = labelShow !== false;
     }
+
     return picked;
 }
 
