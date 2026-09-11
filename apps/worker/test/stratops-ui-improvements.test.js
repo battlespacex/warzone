@@ -76,6 +76,19 @@ test("aircraft hard lock uses one reticle and follows the interpolated position 
   assert.match(rootCss, /--warzone-live-aircraft-focus-camera-follow-ease:\s*1;/);
 });
 
+test("CTR loads and scopes airbase highlights independently from the military-bases layer", async () => {
+  const index = await readSource("../../../dev/assets/js/index.js");
+  const bases = await readSource("../../../dev/assets/js/warzone-military-bases.js");
+
+  assert.match(index, /addEventListener\("wz:contour-layer-changed",[\s\S]*?loadBasesModule\(\)/);
+  assert.match(bases, /function shouldRetainBaseDataSource\(\)[\s\S]*?__state\.visible \|\| __state\.ctrHighlightsVisible/);
+  assert.match(bases, /const shouldShowDataSource = authenticated && \(__state\.visible \|\| __state\.ctrHighlightsVisible\)/);
+  assert.match(bases, /function isCtrAirfield\(base = \{\}\)[\s\S]*?military airport\|air station\|afb/);
+  assert.match(bases, /text: `AIRFIELD \/ \$\{String\(displayBase\.name/);
+  assert.match(bases, /scope\.radius \+ Number\(entity\.__militaryBaseCtrRadius \|\| 0\)/);
+  assert.doesNotMatch(bases, /const shouldShow = __state\.visible && !__state\.authGated && __state\.ctrHighlightsVisible/);
+});
+
 test("every dashboard entry applies the authoritative map-layer defaults before widget initialization", async () => {
   const layers = await readSource("../../../dev/assets/js/warzone-layers.js");
   const boot = await readSource("../../../dev/assets/js/warzone-boot.js");

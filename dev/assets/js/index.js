@@ -181,6 +181,14 @@ function installDeferredMilitaryBasesLayer(viewer) {
             loadBasesModule();
         }
     };
+    document.addEventListener("wz:contour-layer-changed", (event) => {
+        if (event?.detail?.visible === true) {
+            void loadBasesModule();
+        }
+    });
+    if (viewer.__contourLayerVisible === true) {
+        void loadBasesModule();
+    }
 }
 async function warmupInitialTheater(viewer, options = {}) {
     const showLoader = options?.showLoader !== false;

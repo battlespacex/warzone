@@ -12,6 +12,10 @@ const __state = {
     activePanel: null,
     visible: true,
     ctrHighlightsVisible: false,
+    ctrHighlightCenterLon: Number.NaN,
+    ctrHighlightCenterLat: Number.NaN,
+    ctrHighlightRadiusMeters: 0,
+    ctrHighlightAppliedVisible: false,
     // authGated: true until wz:auth-success fires or user is already logged in
     authGated: true,
     baseCameraFlightActive: false,
@@ -119,9 +123,47 @@ function getCtrAirbaseHighlightRadius(base = {}) {
     return Math.max(700, cssNumber("--warzone-ctr-airbase-highlight-radius", fallback));
 }
 
+function isCtrAirfield(base = {}) {
+    if (String(base.type || "").toLowerCase() === "airbase") return true;
+    const metadata = base.metadata || {};
+    const text = [
+        base.name,
+        base.typeLabel,
+        base.sourceLayer,
+        metadata.originalCategory,
+        metadata.originalType,
+    ].filter(Boolean).join(" ");
+    return /\b(air\s*base|airfield|military airport|air station|afb)\b/i.test(text);
+}
+
+function getGroundDistanceMeters(lonA, latA, lonB, latB) {
+    if (![lonA, latA, lonB, latB].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
+    const latMeters = 111320;
+    const averageLatRadians = Cesium.Math.toRadians((latA + latB) * 0.5);
+    const lonMeters = Math.max(1, Math.cos(averageLatRadians) * latMeters);
+    return Math.hypot((lonB - lonA) * lonMeters, (latB - latA) * latMeters);
+}
+
+function getCtrAirbaseHighlightScope() {
+    const contourState = __state.viewer?.__contourOverlayState;
+    const lon = Number.isFinite(Number(contourState?.gridCenterLon))
+        ? Number(contourState.gridCenterLon)
+        : Number(contourState?.centerLon);
+    const lat = Number.isFinite(Number(contourState?.gridCenterLat))
+        ? Number(contourState.gridCenterLat)
+        : Number(contourState?.centerLat);
+    const activeGridRadius = Number(contourState?.gridRadiusMeters || 0);
+    const radius = activeGridRadius > 0
+        ? activeGridRadius
+        : Math.max(1000, cssNumber("--warzone-contour-grid-radius", 13500));
+    return Number.isFinite(lon) && Number.isFinite(lat)
+        ? { lon, lat, radius }
+        : null;
+}
+
 function createCtrAirbaseHighlightEntity(dataSource, base) {
     const displayBase = normalizeMilitaryBaseDisplayData(base);
-    if (displayBase.type !== "airbase") return null;
+    if (!isCtrAirfield(displayBase)) return null;
     const lat = Number(displayBase.lat ?? displayBase.coordinates?.lat);
     const lon = Number(displayBase.lon ?? displayBase.coordinates?.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -144,6 +186,23 @@ function createCtrAirbaseHighlightEntity(dataSource, base) {
             classificationType: Cesium.ClassificationType.BOTH,
             distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1500000),
         },
+        label: {
+            text: `AIRFIELD / ${String(displayBase.name || "MILITARY AIR BASE").toUpperCase()}`,
+            font: "600 12px Rajdhani, sans-serif",
+            fillColor: magenta.withAlpha(0.96),
+            outlineColor: Cesium.Color.BLACK.withAlpha(0.92),
+            outlineWidth: 3,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            showBackground: true,
+            backgroundColor: Cesium.Color.BLACK.withAlpha(0.68),
+            backgroundPadding: new Cesium.Cartesian2(7, 4),
+            pixelOffset: new Cesium.Cartesian2(0, -22),
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 250000),
+            disableDepthTestDistance: 0,
+        },
         properties: {
             milbaseCtrHighlight: true,
             baseId: displayBase.id,
@@ -152,6 +211,8 @@ function createCtrAirbaseHighlightEntity(dataSource, base) {
         show: false,
     });
     entity.__militaryBaseCtrHighlight = true;
+    entity.__militaryBaseData = displayBase;
+    entity.__militaryBaseCtrRadius = radius;
     return entity;
 }
 
@@ -198,21 +259,57 @@ function createBaseEntity(dataSource, base) {
 
 /* ─── Visibility ─────────────────────────────────────────────────────────── */
 function applyVisibility() {
-    // Hidden if layer toggled off OR user not yet authenticated
-    const shouldShow = __state.visible && !__state.authGated;
+    const authenticated = !__state.authGated;
+    const shouldShow = __state.visible && authenticated;
+    const shouldShowDataSource = authenticated && (__state.visible || __state.ctrHighlightsVisible);
     if (__state.dataSource) {
-        __state.dataSource.show = shouldShow;
-    } else {
-        __state.entities.forEach(e => { e.show = shouldShow; });
+        __state.dataSource.show = shouldShowDataSource;
     }
-    applyCtrHighlightVisibility();
+    __state.entities.forEach(e => { e.show = shouldShow; });
+    applyCtrHighlightVisibility(true);
     __state.viewer?.scene.requestRender();
 }
-function applyCtrHighlightVisibility() {
-    const shouldShow = __state.visible && !__state.authGated && __state.ctrHighlightsVisible;
+function applyCtrHighlightVisibility(force = false) {
+    const scope = getCtrAirbaseHighlightScope();
+    const shouldShow = !__state.authGated && __state.ctrHighlightsVisible && Boolean(scope);
+    const centerMovedMeters = scope
+        ? getGroundDistanceMeters(
+            __state.ctrHighlightCenterLon,
+            __state.ctrHighlightCenterLat,
+            scope.lon,
+            scope.lat
+        )
+        : Number.POSITIVE_INFINITY;
+    if (
+        !force &&
+        __state.ctrHighlightAppliedVisible === shouldShow &&
+        (!shouldShow || (
+            centerMovedMeters < 250 &&
+            Math.abs(__state.ctrHighlightRadiusMeters - scope.radius) < 1
+        ))
+    ) {
+        return;
+    }
+    __state.ctrHighlightAppliedVisible = shouldShow;
+    __state.ctrHighlightCenterLon = Number(scope?.lon);
+    __state.ctrHighlightCenterLat = Number(scope?.lat);
+    __state.ctrHighlightRadiusMeters = Number(scope?.radius || 0);
     __state.ctrHighlightEntities.forEach((entity) => {
-        if (entity) entity.show = shouldShow;
+        if (!entity) return;
+        const base = entity.__militaryBaseData || {};
+        const baseLon = Number(base.lon ?? base.coordinates?.lon);
+        const baseLat = Number(base.lat ?? base.coordinates?.lat);
+        entity.show = shouldShow && getGroundDistanceMeters(
+            scope.lon,
+            scope.lat,
+            baseLon,
+            baseLat
+        ) <= scope.radius + Number(entity.__militaryBaseCtrRadius || 0);
     });
+}
+
+function shouldRetainBaseDataSource() {
+    return __state.visible || __state.ctrHighlightsVisible;
 }
 function refreshBaseIconSizing() {
     __state.entities.forEach((entity) => {
@@ -229,7 +326,7 @@ function areMilitaryBasesInteractive() {
 
 function ensureBaseDataSource() {
     const viewer = __state.viewer;
-    if (!viewer || __state.dataSource || !__state.visible) return __state.dataSource;
+    if (!viewer || __state.dataSource || !shouldRetainBaseDataSource()) return __state.dataSource;
     const ds = new Cesium.CustomDataSource("military-bases");
     viewer.dataSources.add(ds);
     __state.dataSource = ds;
@@ -258,6 +355,10 @@ function destroyBaseDataSource() {
     __state.dataSource = null;
     __state.entities = [];
     __state.ctrHighlightEntities = [];
+    __state.ctrHighlightCenterLon = Number.NaN;
+    __state.ctrHighlightCenterLat = Number.NaN;
+    __state.ctrHighlightRadiusMeters = 0;
+    __state.ctrHighlightAppliedVisible = false;
     __state.destroyedCount += removedCount;
     __state.viewer?.scene?.requestRender?.();
     return true;
@@ -592,6 +693,7 @@ function bindBaseRuntime(viewer) {
     __state.runtimeBound = true;
     __state.handler = bindClickHandler(viewer);
     __state.cameraChangedHandler = () => {
+        if (__state.ctrHighlightsVisible) applyCtrHighlightVisibility();
         if (!areMilitaryBasesInteractive() && !__state.activePanel) return;
         if (__state.activePanel && !__state.baseCameraFlightActive && Date.now() > __state.manualDismissArmedAt) {
             closeActiveBasePanel();
@@ -645,7 +747,7 @@ export function initWarzoneMilitaryBases(viewer) {
     __state.authGated = !document.body.classList.contains("is-authenticated");
 
     // Use a CustomDataSource so bases are isolated from viewer.entities.removeAll().
-    // The data source itself exists only while this layer is enabled.
+    // Retain it while either the base layer or CTR airbase highlighting needs it.
     ensureBaseDataSource();
     bindBaseRuntime(viewer);
 
@@ -656,7 +758,14 @@ export function initWarzoneMilitaryBases(viewer) {
     }, { once: true });
     document.addEventListener("wz:contour-layer-changed", (event) => {
         __state.ctrHighlightsVisible = event?.detail?.visible === true;
-        applyCtrHighlightVisibility();
+        if (__state.ctrHighlightsVisible) {
+            ensureBaseDataSource();
+            bindBaseRuntime(viewer);
+        } else if (!__state.visible) {
+            destroyBaseDataSource();
+            unbindBaseRuntime();
+        }
+        applyVisibility();
         viewer.scene?.requestRender?.();
     });
     __state.ctrHighlightsVisible = viewer.__contourLayerVisible === true;
@@ -666,7 +775,7 @@ export function initWarzoneMilitaryBases(viewer) {
 
 export function setWarzoneMilitaryBasesVisible(visible) {
     __state.visible = Boolean(visible);
-    if (!__state.visible) {
+    if (!shouldRetainBaseDataSource()) {
         destroyBaseDataSource();
         unbindBaseRuntime();
         return;
