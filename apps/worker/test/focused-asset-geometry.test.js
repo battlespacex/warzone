@@ -87,6 +87,27 @@ test("aircraft faces the new movement segment before translation begins and rema
   assert.match(css, /--warzone-live-aircraft-model-dynamic-bank-enabled:\s*0/);
 });
 
+test("aircraft heading follows its rendered position to the API target", () => {
+  const context = vm.createContext({
+    normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+    LIVE_TRACK_MIN_ANIM_DISTANCE_METERS: 2,
+    getLonLatDistanceMeters: () => 500,
+    getHeadingDegreesFromPoints: (lon1, lat1, lon2, lat2) => lon1 + lat1 + lon2 + lat2,
+    Cesium: {
+      Cartographic: { fromCartesian: () => ({ longitude: 10, latitude: 20 }) },
+      Math: { toDegrees: (value) => value },
+    },
+  });
+  vm.runInContext(section(air, "getRenderedTrackMotionHeading", "setLiveTrackPositionValue"), context);
+  assert.equal(context.getRenderedTrackMotionHeading({ x: 1, y: 2, z: 3 }, 30, 40, 95), 100);
+});
+
+test("aircraft orientation is rebuilt in the local frame of every rendered position", () => {
+  const motionFrame = section(air, "updateLiveTrackMotionFrame", "wakeLiveTrackInterpolationRender");
+  assert.match(motionFrame, /buildTrackOrientationAtCartesian\(\s*motion\.track \|\| \{\},\s*motion\.currentCartesian/);
+  assert.doesNotMatch(motionFrame, /Quaternion\.slerp/);
+});
+
 test("focused trail ignores unreached API history and follows only rendered positions", () => {
   const track = { path_history: [{ ts: 100, x: 1 }, { ts: 200, x: 20 }, { ts: 300, x: 30 }] };
   const trail = [

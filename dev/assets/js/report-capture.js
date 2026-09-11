@@ -333,21 +333,51 @@ async function applyAssetFocus(payload, viewer) {
         }
         await nextFrame();
         await nextFrame();
-        if (preset.map_mode === "CTR") {
-            await adapter.enableCtr?.({ reason: "report-hva-capture" });
+if (preset.map_mode === "CTR") {
+    const mapApi = viewer.__warzone;
 
-            const ctrActive = await waitUntil(
-                () => viewer.__warzone?.isCtrModeActive?.() === true,
-                5000
-            );
+    console.log("[report-ctr] before", {
+        ctr: mapApi?.isCtrModeActive?.(),
+        grid: mapApi?.isContourGridVisible?.(),
+        layer: mapApi?.isContourLayerVisible?.(),
+    });
 
-            if (!ctrActive) {
-                throw new Error("asset_ctr_mode_failed");
-            }
+    const enableResult = await adapter.enableCtr?.({
+        reason: "report-hva-capture"
+    });
 
-            await nextFrame();
-            await nextFrame();
-        }
+    console.log("[report-ctr] after enableCtr", {
+        enableResult,
+        ctr: mapApi?.isCtrModeActive?.(),
+        grid: mapApi?.isContourGridVisible?.(),
+        layer: mapApi?.isContourLayerVisible?.(),
+    });
+
+    await nextFrame();
+
+    console.log("[report-ctr] after frame 1", {
+        ctr: mapApi?.isCtrModeActive?.(),
+        grid: mapApi?.isContourGridVisible?.(),
+        layer: mapApi?.isContourLayerVisible?.(),
+    });
+
+    await nextFrame();
+
+    console.log("[report-ctr] after frame 2", {
+        ctr: mapApi?.isCtrModeActive?.(),
+        grid: mapApi?.isContourGridVisible?.(),
+        layer: mapApi?.isContourLayerVisible?.(),
+    });
+
+    const ctrActive = await waitUntil(
+        () => mapApi?.isCtrModeActive?.() === true,
+        5000
+    );
+
+    if (!ctrActive) {
+        throw new Error("asset_ctr_mode_failed");
+    }
+}
     };
     await focusForCapture(focusOptions);
     const descriptor = adapter.describe();

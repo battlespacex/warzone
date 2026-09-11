@@ -6153,16 +6153,28 @@ function buildTrackEntityCartesian(track = {}, lon, lat, alt, headingDeg = 0) {
     }
 }
 function buildTrackOrientation(track, lon, lat, alt, headingDeg, pitchDeg = 0, rollDeg = 0) {
+    return buildTrackOrientationAtCartesian(
+        track,
+        Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+        headingDeg,
+        pitchDeg,
+        rollDeg
+    );
+}
+function buildTrackOrientationAtCartesian(track, cartesian, headingDeg, pitchDeg = 0, rollDeg = 0, result = undefined) {
     const headingOffsetDeg = getLiveTrackModelHeadingOffsetDeg(track);
     const pitchOffsetDeg = getLiveTrackModelPitchOffsetDeg(track);
     const rollOffsetDeg = getLiveTrackModelRollOffsetDeg(track);
     return Cesium.Transforms.headingPitchRollQuaternion(
-        Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+        cartesian,
         new Cesium.HeadingPitchRoll(
             Cesium.Math.toRadians(normalizeDegrees(headingDeg + headingOffsetDeg)),
             Cesium.Math.toRadians(pitchDeg + pitchOffsetDeg),
             Cesium.Math.toRadians(rollDeg + rollOffsetDeg)
-        )
+        ),
+        undefined,
+        undefined,
+        result
     );
 }
 function getTrackResolvedHeading(track) {
@@ -6790,6 +6802,23 @@ function getAlignedLiveTrackMotionAttitude(track = {}, nextAttitude = null, curr
         endRollDeg: rollDeg,
     };
 }
+function getRenderedTrackMotionHeading(startCartesian, nextLon, nextLat, fallbackHeadingDeg = 0) {
+    if (!startCartesian || !Number.isFinite(nextLon) || !Number.isFinite(nextLat)) {
+        return normalizeDegrees(Number(fallbackHeadingDeg || 0));
+    }
+    try {
+        const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
+        const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
+        const startLat = Cesium.Math.toDegrees(startCartographic.latitude);
+        const distanceMeters = getLonLatDistanceMeters(startLon, startLat, nextLon, nextLat);
+        if (!Number.isFinite(distanceMeters) || distanceMeters < LIVE_TRACK_MIN_ANIM_DISTANCE_METERS) {
+            return normalizeDegrees(Number(fallbackHeadingDeg || 0));
+        }
+        return getHeadingDegreesFromPoints(startLon, startLat, nextLon, nextLat);
+    } catch {
+        return normalizeDegrees(Number(fallbackHeadingDeg || 0));
+    }
+}
 function setLiveTrackPositionValue(entity, position) {
     if (!entity || !position) return;
     if (typeof entity.position?.setValue === "function") {
@@ -6828,12 +6857,19 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     );
     setLiveTrackPositionValue(entity, motion.currentCartesian);
 
-    if (entity.model && motion.startOrientation && motion.endOrientation) {
-        motion.currentOrientation = Cesium.Quaternion.slerp(
-            motion.startOrientation,
-            motion.endOrientation,
-            t,
-            motion.currentOrientation || new Cesium.Quaternion()
+    if (entity.model) {
+        const currentHeadingDeg = normalizeDegrees(
+            Number(motion.startHeadingDeg || 0) + (Number(motion.headingDeltaDeg || 0) * t)
+        );
+        const currentPitchDeg = Cesium.Math.lerp(Number(motion.startPitchDeg || 0), Number(motion.endPitchDeg || 0), t);
+        const currentRollDeg = Cesium.Math.lerp(Number(motion.startRollDeg || 0), Number(motion.endRollDeg || 0), t);
+        motion.currentOrientation = buildTrackOrientationAtCartesian(
+            motion.track || {},
+            motion.currentCartesian,
+            currentHeadingDeg,
+            currentPitchDeg,
+            currentRollDeg,
+            motion.currentOrientation
         );
         setLiveTrackOrientationValue(entity, motion.currentOrientation);
     }
@@ -6915,10 +6951,20 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     const trackKey = entity.__trackKey;
     if (!nextCartesian) return;
     const currentAttitude = getLiveTrackMotionAttitude(entity, nextAttitude || {});
+    const motionHeadingDeg = getRenderedTrackMotionHeading(
+        startCartesian,
+        nextLon,
+        nextLat,
+        nextAttitude?.headingDeg ?? track.heading_deg ?? currentAttitude.headingDeg ?? 0
+    );
     // Face the route segment before translation starts. Interpolating the old
     // attitude over the full position interval makes the model fly sideways
     // while it slowly catches up to the correct course.
-    const alignedAttitude = getAlignedLiveTrackMotionAttitude(track, nextAttitude, currentAttitude);
+    const alignedAttitude = getAlignedLiveTrackMotionAttitude(
+        track,
+        { ...(nextAttitude || {}), headingDeg: motionHeadingDeg },
+        currentAttitude
+    );
     const {
         startHeadingDeg,
         endHeadingDeg,
@@ -7009,7 +7055,6 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         maxAnimMs
     );
     const startTime = performance.now();
-    let startOrientation = null;
     let endOrientation = null;
     if (entity.model) {
         endOrientation = buildTrackOrientation(
@@ -7021,7 +7066,6 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
             endPitchDeg,
             endRollDeg
         );
-        startOrientation = Cesium.Quaternion.clone(endOrientation);
     }
 
     let startBillboardRotation = Number.NaN;
@@ -7044,9 +7088,9 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         startRollDeg,
         endRollDeg,
         endHeadingDeg,
+        track,
         startCartesian: Cesium.Cartesian3.clone(startCartesian),
         endCartesian: nextCartesian,
-        startOrientation,
         endOrientation,
         startBillboardRotation,
         billboardRotationDelta: Cesium.Math.toRadians(headingDeltaDeg),
