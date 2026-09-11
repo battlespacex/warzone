@@ -175,10 +175,28 @@ async function renderSelectedAsset(payload) {
         state.asset_adapter = {
             input,
             focus: (options) => aircraft.focusLiveTrack(input.track_key, options),
-            enableCtr: (options) => aircraft.enableFocusedLiveTrackContourMode({
-                ...options,
-                trackKey: input.track_key,
-            }),
+enableCtr: async () => {
+    const mapApi = state.viewer?.__warzone;
+
+    mapApi?.setContourFocusPosition?.({
+        lon: input.position.longitude,
+        lat: input.position.latitude,
+        height: Number(input.position.altitude_m || 0),
+    }, {
+        profile: "aircraft",
+        force: true,
+    });
+
+    mapApi?.enterCtrMode?.({
+        reason: "report-hva-capture",
+    });
+
+    mapApi?.setContourGridVisible?.(true);
+    await mapApi?.disableFocusedTerrain?.();
+    await mapApi?.setContourLayerVisible?.(true);
+
+    return mapApi?.isCtrModeActive?.() === true;
+},
             describe: () => aircraft.getLiveTrackModelDescriptor(input.event),
             clear: () => {
                 aircraft.clearLiveTrackSelection({ resetCamera: false });
