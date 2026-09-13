@@ -132,10 +132,10 @@ function resolveCaptureTarget(snapshot = {}, rawTarget = {}) {
   const captureType = normalizeCaptureType(rawTarget.capture_type || rawTarget.type);
   if (!captureType) return { safe: false, reason: "unsupported_capture_type" };
   const eventId = cleanText(rawTarget.event_id, "") || null;
-  const clusterId = cleanText(rawTarget.cluster_id, "") || null;
   const assetId = cleanText(rawTarget.asset_id, "") || null;
-  const cluster = clusterId ? findCluster(snapshotData, clusterId) : null;
   const development = eventId ? findDevelopment(reportContent, eventId) : null;
+  const clusterId = cleanText(rawTarget.cluster_id || development?.relevant_cluster_id, "") || null;
+  const cluster = clusterId ? findCluster(snapshotData, clusterId) : null;
   const asset = assetId ? findAsset(reportContent, assetId) : null;
   const clusters = snapshotData.cluster_summaries || [];
   const strongestCluster = [...clusters].sort((left, right) => Number(right.activity_score || 0) - Number(left.activity_score || 0))[0] || null;
@@ -321,16 +321,21 @@ function calculateCaptureCamera(target = {}) {
   const presets = {
     REGIONAL_OVERVIEW_3D: { scene_mode: "3d", min: 1200000, max: 8500000, factor: 2.6, pitch: -55 },
     TACTICAL_OVERVIEW_2D: { scene_mode: "2d", min: 500000, max: 6500000, factor: 2.25, pitch: -90 },
-    MAJOR_DEVELOPMENT_CONTEXT: { scene_mode: "3d", min: 260000, max: 1300000, factor: 2.1, pitch: -58 },
+    MAJOR_DEVELOPMENT_CONTEXT: { scene_mode: "3d", min: 65000, max: 180000, factor: 1.55, pitch: -58 },
     CLUSTER_CONTEXT: { scene_mode: "3d", min: 360000, max: 1800000, factor: 2.25, pitch: -58 },
-    HVA_FOCUS_3D: { scene_mode: "3d", min: 24000, max: 70000, factor: 1, pitch: -28 },
+    HVA_FOCUS_3D: { scene_mode: "3d", min: 30000, max: 30000, factor: 1, pitch: -36 },
     HVA_REGIONAL_CONTEXT: { scene_mode: "3d", min: 140000, max: 450000, factor: 1.6, pitch: -50 },
     NAVAL_FOCUS: { scene_mode: "3d", min: 45000, max: 90000, factor: 1, pitch: -58 },
     AOI_CONTEXT: { scene_mode: "2d", min: 300000, max: 6000000, factor: 2.35, pitch: -90 },
     ORBITAL_CONTEXT: { scene_mode: "3d", min: 2200000, max: 10000000, factor: 2.8, pitch: -62 },
   };
   const preset = presets[captureType];
-  const geometryRange = Math.max(spanKm * 1000 * preset.factor, Number(contextKm || 0) * 1000 * 1.5);
+  // A focus frame describes the selected aircraft, not the full regional
+  // context around it. Broad HVA context radii belong to the separate regional
+  // capture and previously pushed this close-up as far as 56 km away.
+  const geometryRange = captureType === "HVA_FOCUS_3D"
+    ? spanKm * 1000 * preset.factor
+    : Math.max(spanKm * 1000 * preset.factor, Number(contextKm || 0) * 1000 * 1.5);
   const baseRange = clamp(geometryRange || preset.min, preset.min, preset.max);
   const range = captureType === "HVA_FOCUS_3D"
     ? baseRange * HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER
@@ -452,7 +457,7 @@ function buildReportAssetFocusPreset(captureType = "", camera = {}) {
     mode: regional ? "REGIONAL" : "FOCUS",
     map_mode: ["HVA_FOCUS_3D", "HVA_REGIONAL_CONTEXT", "NAVAL_FOCUS"].includes(type) ? "CTR" : "DEFAULT",
     heading_degrees: finiteNumber(camera.heading_degrees) ?? 30,
-    pitch_degrees: finiteNumber(camera.pitch_degrees) ?? (regional ? -50 : type === "HVA_FOCUS_3D" ? -28 : -58),
+    pitch_degrees: finiteNumber(camera.pitch_degrees) ?? (regional ? -50 : type === "HVA_FOCUS_3D" ? -36 : -58),
     range_meters: finiteNumber(camera.range_meters) ?? (regional ? 140000 : 24000),
     minimum_visual_pixels: regional ? 96 : 180,
     safe_viewport_margin_pixels: regional ? 36 : 52,

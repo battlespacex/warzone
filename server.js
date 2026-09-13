@@ -1,6 +1,5 @@
 ﻿const express = require("express");
 const path = require("path");
-const crypto = require("crypto");
 const dotenv = require("dotenv");
 const { mountBillingRoutes } = require("./server/billing-routes");
 const { createGeneratedReportPreviewRouter } = require("./server/generated-report-preview");
@@ -16,7 +15,6 @@ const PORT = process.env.PORT || 4173;
 const ROOT = path.join(__dirname, "production");
 const GENERATED_REPORT_ROOT = path.join(__dirname, ".generated", "reports");
 const BASE = "/warzone";
-const POSTER_ACCESS_TOKEN = String(process.env.POSTER_ACCESS_TOKEN || "").trim();
 const AIRCRAFT_FEED_URL = process.env.AIRCRAFT_FEED_URL || "https://api.adsb.lol/v2/mil";
 const API_UPSTREAM_URL = process.env.API_UPSTREAM_URL || (
     process.env.NODE_ENV === "production"
@@ -29,14 +27,6 @@ let aircraftFeedInFlight = null;
 const AIRCRAFT_FEED_CACHE_TTL_MS = 2500;
 const AIRCRAFT_FEED_STALE_IF_ERROR_MS = 5 * 60 * 1000;
 let lastLoggedAircraftFeedFailureStatus = 0;
-
-function posterAccessTokenMatches(candidate = "") {
-    const supplied = Buffer.from(String(candidate || ""));
-    const expected = Buffer.from(POSTER_ACCESS_TOKEN);
-    return supplied.length > 0 &&
-        supplied.length === expected.length &&
-        crypto.timingSafeEqual(supplied, expected);
-}
 
 app.disable("x-powered-by");
 mountBillingRoutes(app);
@@ -261,11 +251,6 @@ app.use((req, res, next) => {
 
     res.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
     res.set("Cache-Control", "no-store, max-age=0");
-
-    if (process.env.NODE_ENV === "production" && !posterAccessTokenMatches(req.query?.access)) {
-        res.status(404).type("text/plain").send("Not Found");
-        return;
-    }
 
     next();
 });

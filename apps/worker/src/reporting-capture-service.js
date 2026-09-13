@@ -80,11 +80,22 @@ async function launchCaptureBrowser(config) {
 
 async function captureTargetPage({ page, snapshot, descriptor, config }) {
   const url = buildCapturePageUrl(config.capture.baseUrl, snapshot.snapshot_key, descriptor.capture_id);
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: config.capture.timeoutMs });
-  await page.waitForFunction(() => {
-    const status = window.__stratopsReportCapture?.getState?.().status;
-    return status === "READY" || status === "FAILED";
-  }, null, { timeout: config.capture.timeoutMs });
+  // Low-altitude HVA frames can legitimately need longer for terrain, the GLB,
+  // and CTR overlays to settle. Keep the strict semantic validation below, but
+  // do not abort those captures before their report-only readiness checks finish.
+  const timeoutMs = descriptor.capture_type === "HVA_FOCUS_3D"
+    ? Math.max(config.capture.timeoutMs, 90000)
+    : config.capture.timeoutMs;
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+  try {
+    await page.waitForFunction(() => {
+      const status = window.__stratopsReportCapture?.getState?.().status;
+      return status === "READY" || status === "FAILED";
+    }, null, { timeout: timeoutMs });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => window.__stratopsReportCapture?.getState?.() || null).catch(() => null);
+    throw new Error(`${error?.message || error}; capture_state=${JSON.stringify(diagnostic)}`);
+  }
   const captureState = await page.evaluate(() => window.__stratopsReportCapture.getState());
   validateSemanticCaptureState(descriptor, captureState);
   let screenshot;
@@ -106,7 +117,20 @@ async function captureTargetPage({ page, snapshot, descriptor, config }) {
 
 function validateSemanticCaptureState(descriptor = {}, captureState = {}) {
   if (captureState.status !== "READY") {
-    throw new Error(captureState.semantic_quality?.failure_reason || captureState.error || "capture_scene_failed");
+    const visibility = captureState.asset_focus_debug?.visibility_check;
+    const diagnostic = visibility ? JSON.stringify({
+      screen: visibility.screen_position,
+      rendered_size: visibility.actual_visual_size_pixels,
+      rendered_pixels: visibility.model_rendered_pixel_count,
+      picked_pixels: visibility.model_picked_pixel_count,
+      anchor_distance: visibility.anchor_to_closest_model_pick_pixels,
+      safe_bounds: visibility.model_bounds_safe,
+      useful_size: visibility.visual_size_useful,
+      camera_range: visibility.camera_range_meters,
+      bounding_sphere: visibility.model_bounding_sphere,
+    }) : "";
+    const reason = captureState.semantic_quality?.failure_reason || captureState.error || "capture_scene_failed";
+    throw new Error(`${reason}${diagnostic ? `; visibility=${diagnostic}` : ""}`);
   }
   const quality = captureState.semantic_quality;
   if (!quality || quality.status !== "READY") {
@@ -156,6 +180,7 @@ function buildCaptureResult(descriptor, status, overrides = {}) {
     attempt_count: 0,
     semantic_quality: null,
     asset_focus_debug: null,
+    context_debug: null,
     asset_cleanup: null,
     ...overrides,
   };
@@ -258,6 +283,7 @@ async function generateSnapshotCaptures({
             cluster_snapshot: captureState?.cluster_snapshot || null,
             semantic_quality: captureState?.semantic_quality || null,
             asset_focus_debug: captureState?.asset_focus_debug || null,
+            context_debug: captureState?.context_debug || null,
             asset_cleanup: captureState?.asset_cleanup || null,
             attempt_count: attempt,
           });

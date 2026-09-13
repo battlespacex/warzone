@@ -232,14 +232,23 @@ test("camera framing is deterministic for bounds, exact events and HVA targets",
     bounds: { west: 30.4, south: 46.2, east: 31, north: 46.8 },
   });
   const event = calculateCaptureCamera({ capture_type: "MAJOR_DEVELOPMENT_CONTEXT", center: { latitude: 26.2, longitude: 50.1 } });
+  const eventWithClusterSpread = calculateCaptureCamera({
+    capture_type: "MAJOR_DEVELOPMENT_CONTEXT",
+    center: { latitude: 26.2, longitude: 50.1 },
+    bounds: { west: 49.8, south: 25.9, east: 50.5, north: 26.6 },
+  });
   const hva = calculateCaptureCamera({ capture_type: "HVA_FOCUS_3D", center: { latitude: 26.5, longitude: 50.4 }, asset_heading_deg: 92 });
   assert.equal(cluster.scene_mode, "3d");
   assert.ok(cluster.range_meters >= 360000);
   assert.deepEqual(event.center, { latitude: 26.2, longitude: 50.1 });
+  assert.equal(event.range_meters, 65000);
+  assert.ok(eventWithClusterSpread.range_meters > event.range_meters);
+  assert.ok(eventWithClusterSpread.range_meters < 180000);
   assert.equal(hva.heading_degrees, 232);
-  assert.equal(hva.pitch_degrees, -28);
+  assert.equal(hva.pitch_degrees, -36);
   assert.equal(HVA_FOCUS_CAPTURE_RANGE_MULTIPLIER, 0.8);
-  assert.equal(hva.range_meters, 19200);
+  assert.equal(hva.range_meters, 24000);
+
 });
 
 test("frozen E-3, E-7 and naval snapshots build deterministic live-render inputs without a realtime track", () => {
@@ -277,7 +286,7 @@ test("focus and regional HVA presets use distinct heading, pitch, range and visi
   const regional = buildReportAssetFocusPreset("HVA_REGIONAL_CONTEXT", regionalCamera);
   assert.equal(focus.mode, "FOCUS");
   assert.equal(focus.map_mode, "CTR");
-  assert.equal(focus.range_meters, 56000);
+  assert.equal(focus.range_meters, 24000);
   assert.equal(regional.mode, "REGIONAL");
   assert.equal(regional.map_mode, "CTR");
   assert.equal(regional.range_meters, 450000);
@@ -308,6 +317,8 @@ test("capture scene payload is sanitized and traceable", () => {
   const payload = buildCaptureScenePayload(snapshot, descriptor.capture_id, { maxImages: 24 });
   assert.equal(payload.target.event_id, "event-exact");
   assert.equal(payload.camera.center.latitude, 26.2);
+  assert.equal(payload.target.cluster_id, "cluster-gulf");
+  assert.ok(payload.camera.range_meters > 65000 && payload.camera.range_meters < 180000);
   assert.equal(payload.clusters[0].event_ids.includes("event-exact"), true);
   assert.deepEqual(payload.clusters[0].report_label, {
     count: 4,
