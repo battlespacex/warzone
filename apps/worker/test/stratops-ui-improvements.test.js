@@ -18,15 +18,20 @@ test("focused orbital details are promoted ahead of filters using the existing f
   assert.doesNotMatch(source, /let\s+focusedSatellite|const\s+focusedSatellite/);
 });
 
-test("entry handoff starts the existing globe rotation before synchronized overlay fades", async () => {
+test("entry handoff releases an interactive first map before operational data and dashboard staging complete", async () => {
   const index = await readSource("../../../dev/assets/js/index.js");
   const boot = await readSource("../../../dev/assets/js/warzone-boot.js");
   const background = await readSource("../../../dev/assets/js/warzone-startup-background.js");
   const rootCss = await readSource("../../../dev/assets/css/root.css");
   const componentsCss = await readSource("../../../dev/assets/css/warzone-components.css");
 
-  assert.match(index, /prepareStartupRegionJourney\(viewer, selectedRegion\);[\s\S]*?viewer\.__warzone\?\.startStartupRotation\?\.\(\)/);
-  assert.match(index, /playStartupRegionJourney\(viewer, selectedRegion\)/);
+  assert.match(index, /markStartupPerformance\("stratops-region-confirmed"\)/);
+  assert.match(index, /playStartupRegionJourney\(viewer, selectedRegion, \{ instant: true \}\)/);
+  assert.match(index, /await waitForFirstUsableMap\(viewer\);[\s\S]*?__warzoneEnterApp\?\.\(\)[\s\S]*?initializeOperationalDataAfterMap\(viewer\)/);
+  assert.doesNotMatch(index, /viewer\.__warzone\?\.startStartupRotation\?\.\(\)/);
+  assert.match(index, /screenSpaceCameraController[\s\S]*?enableInputs = true[\s\S]*?stratops-first-usable-map/);
+  assert.match(index, /window\.__warzoneOperationalDataPromise = operationalDataPromise/);
+  assert.match(index, /Promise\.allSettled\(\[[\s\S]*?dashboardRevealPromise,[\s\S]*?operationalDataPromise/);
   assert.match(index, /async function fadeOperationalEntryIntoApp\(\)[\s\S]*?SiteLoader\?\.fadeIntoApp\?\.\(\)[\s\S]*?__warzoneReleaseStartupBackground/);
   assert.match(index, /document\.body\.classList\.add\("is-entry-exiting"\)/);
   assert.match(boot, /OPERATIONAL_LOADER_REVEAL_MS = 1000/);
@@ -37,6 +42,29 @@ test("entry handoff starts the existing globe rotation before synchronized overl
   assert.match(rootCss, /--stratops-startup-video-exit-duration:\s*1000ms/);
   assert.match(rootCss, /--stratops-startup-video-exit-delay:\s*0ms/);
   assert.doesNotMatch(componentsCss, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.wz-startup-background,/);
+});
+
+test("operational data and status requests are guarded after first-map readiness", async () => {
+  const index = await readSource("../../../dev/assets/js/index.js");
+  const essential = await readSource("../../../dev/assets/js/essential.js");
+  const regions = await readSource("../../../dev/assets/js/warzone-region-selector.js");
+  const api = await readSource("../../../dev/assets/js/supabase.js");
+
+  assert.match(index, /async function waitForFirstUsableMap\(viewer\)/);
+  assert.match(index, /__warzoneImageryReadyPromise/);
+  assert.match(index, /waitForValidOperationalCanvas\(viewer\)/);
+  assert.match(index, /waitForOperationalPostRender\(viewer\)/);
+  assert.match(index, /stratops-operational-data-start/);
+  assert.match(index, /stratops-operational-ready/);
+  assert.match(essential, /let __warzoneAppInitPromise = null/);
+  assert.match(essential, /export function initWarzoneApp\(\)[\s\S]*?return __warzoneAppInitPromise/);
+  assert.match(essential, /const statusRefreshPromise = refreshStatusEvents\(\)[\s\S]*?markStartupPerformance\("stratops-events-render-start"\)/);
+  assert.match(essential, /STATUS_REQUEST_TIMEOUT_MS = 8000/);
+  assert.match(essential, /api\.getActiveAlerts\(\{ signal: controller\.signal \}\)/);
+  assert.match(essential, /api\.getAirspaceStatuses\(\{ signal: controller\.signal \}\)/);
+  assert.match(api, /async getActiveAlerts\(options = \{\}\)[\s\S]*?fetch\(`\$\{alertsApiBase\}\/events\/alerts`, options\)/);
+  assert.match(api, /async getAirspaceStatuses\(options = \{\}\)[\s\S]*?fetch\(`\$\{API_BASE\}\/events\/airspace-status`, options\)/);
+  assert.match(regions, /playStartupRegionJourney\(viewer, region, options = \{\}\)[\s\S]*?if \(instant\) \{[\s\S]*?finalize\(true\)/);
 });
 
 test("real satellite focus reuses scene-mode switching and waits for 3D before camera focus", async () => {

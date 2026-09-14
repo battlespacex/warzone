@@ -4,6 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const air = fs.readFileSync(new URL("../../../dev/assets/js/warzone-live-airforce.js", import.meta.url), "utf8");
+const naval = fs.readFileSync(new URL("../../../dev/assets/js/warzone-live-naval.js", import.meta.url), "utf8");
 const globe = fs.readFileSync(new URL("../../../dev/assets/js/warzone-globe.js", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../../../dev/assets/css/root.css", import.meta.url), "utf8");
 function section(source, name, next) {
@@ -33,6 +34,8 @@ test("naval CTR uses a 25% smaller 11.25 km outer ring and ground-curved grid", 
   assert.match(css, /--warzone-live-naval-contour-grid-radius:\s*11250/);
   assert.match(css, /--warzone-contour-grid-radius:\s*13500/);
   assert.match(css, /--warzone-contour-grid-height-offset:\s*1/);
+  assert.match(css, /--warzone-live-naval-ctr-focused-distance:\s*24000/);
+  assert.match(naval, /setNavalFocusRangeMeters\(getNavalCtrFocusedDistanceMeters\(\), \{ immediate: true \}\)/);
 });
 
 test("CTR ring vertices use the ground curvature supplied by the grid", () => {
@@ -63,6 +66,17 @@ test("aircraft orientation follows meaningful movement but ignores position jitt
   movedMeters = 500;
   assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: 45 }), 270);
   assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: null }), 270);
+});
+
+test("non-focused aircraft billboard follows aviation heading clockwise", () => {
+  const context = vm.createContext({
+    normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+    getLiveTrackArrowHeadingOffsetDeg: () => 0,
+    Cesium: { Math: { toRadians: (value) => value * Math.PI / 180 } },
+  });
+  vm.runInContext(section(air, "getLiveTrackBillboardRotationRadians", "buildLiveTrackPoint"), context);
+  assert.equal(context.getLiveTrackBillboardRotationRadians(90), -Math.PI / 2);
+  assert.equal(context.getLiveTrackBillboardRotationDeltaRadians(20), -Math.PI / 9);
 });
 
 test("aircraft faces the new movement segment before translation begins and remains level", () => {

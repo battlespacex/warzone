@@ -1537,6 +1537,8 @@ input[type="checkbox"]:checked {
     --warzone-live-naval-model-auto-radius: 200000;
     /* Produces about 7,000 ft camera altitude at the configured -58deg pitch. */
     --warzone-live-naval-focused-distance: 2216;
+    /* CTR-only framing range: keeps the existing 11.25 km ground grid in view. */
+    --warzone-live-naval-ctr-focused-distance: 24000;
     --warzone-live-naval-focus-camera-pitch: -58;
     --warzone-live-naval-focus-wheel-zoom-step: 5000;
     --warzone-live-naval-focus-wheel-zoom-ease: 0.22;

@@ -351,18 +351,18 @@ export const api = {
         }
     },
 
-    async getActiveAlerts() {
+    async getActiveAlerts(options = {}) {
         const alertsApiBase = isLocalhost
             ? LOCAL_PROXY_API_BASE
             : (window.__stratopsConfig?.apiBase || API_BASE);
         if (alertsApiBase) {
             try {
-                const res = await fetch(`${alertsApiBase}/events/alerts`);
+                const res = await fetch(`${alertsApiBase}/events/alerts`, options);
                 const json = await readJsonResponse(res, "Alerts fetch");
                 return { data: json.alerts || [], error: null };
             } catch (error) {
                 __warnedActiveAlertsUnavailable = true;
-                return { data: [], error: null };
+                return { data: null, error, unavailable: true };
             }
         }
         try {
@@ -373,13 +373,13 @@ export const api = {
             return { data: data || [], error };
         } catch (error) {
             __warnedActiveAlertsUnavailable = true;
-            return { data: [], error: null };
+            return { data: null, error, unavailable: true };
         }
     },
 
-    async getAirspaceStatuses() {
+    async getAirspaceStatuses(options = {}) {
         if (API_BASE) {
-            const res = await fetch(`${API_BASE}/events/airspace-status`);
+            const res = await fetch(`${API_BASE}/events/airspace-status`, options);
             if (!res.ok) return { data: [], error: new Error("Airspace status fetch failed") };
             const json = await res.json();
             return { data: json.statuses || [], error: null };

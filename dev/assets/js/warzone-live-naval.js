@@ -2116,6 +2116,8 @@ function ensureNavalOverlayRoot(viewer) {
             return;
         }
         const mapApi = window.__warzoneViewer?.__warzone;
+        setNavalFocusRangeMeters(getNavalCtrFocusedDistanceMeters(), { immediate: true });
+        syncFocusedNavalCamera({ force: true });
         void Promise.resolve()
             .then(() => {
                 mapApi?.enterCtrMode?.({ reason: "naval-focus-contour" });
@@ -2317,6 +2319,13 @@ function getNavalFocusedDistanceMeters() {
         getCssNumber("--warzone-live-naval-focused-distance", NAVAL_FOCUS_CAMERA_RANGE_METERS),
         NAVAL_FOCUS_CAMERA_RANGE_MIN_METERS,
         NAVAL_FOCUS_CAMERA_RANGE_MAX_METERS
+    );
+}
+function getNavalCtrFocusedDistanceMeters() {
+    return clamp(
+        getCssNumber("--warzone-live-naval-ctr-focused-distance", 24000),
+        getNavalFocusedDistanceMeters(),
+        getNavalFocusFinalRangeMeters()
     );
 }
 function getNavalFocusFinalRangeMeters() {
@@ -2577,9 +2586,12 @@ export function focusNavalVessel(trackKey, options = {}) {
         NAVAL_FOCUS_CAMERA_PITCH_MAX_DEG
     );
     const requestedRange = Number(options.rangeMeters);
+    const defaultRange = viewer.__warzone?.isContourLayerVisible?.() === true
+        ? getNavalCtrFocusedDistanceMeters()
+        : getNavalFocusedDistanceMeters();
     setNavalFocusRangeMeters(Number.isFinite(requestedRange) && requestedRange > 0
         ? requestedRange
-        : getNavalFocusedDistanceMeters(), { immediate: true });
+        : defaultRange, { immediate: true });
     if (!focusController.enterFocus({
         assetType: "naval",
         assetId: trackKey,

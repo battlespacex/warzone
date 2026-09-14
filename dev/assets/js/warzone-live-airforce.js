@@ -2197,8 +2197,11 @@ function buildLiveTrackBillboard(track = {}, headingDeg = 0, mode = LIVE_TRACK_R
 }
 function getLiveTrackBillboardRotationRadians(headingDeg = 0) {
     return Cesium.Math.toRadians(
-        normalizeDegrees(normalizeDegrees(headingDeg) + getLiveTrackArrowHeadingOffsetDeg())
+        -normalizeDegrees(normalizeDegrees(headingDeg) + getLiveTrackArrowHeadingOffsetDeg())
     );
+}
+function getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg = 0) {
+    return Cesium.Math.toRadians(-Number(headingDeltaDeg || 0));
 }
 function buildLiveTrackPoint(track = {}) {
     const subtype = resolveTrackSubtype(track);
@@ -7072,7 +7075,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     let endBillboardRotation = Number.NaN;
     if (entity.billboard) {
         startBillboardRotation = getLiveTrackBillboardRotationRadians(startHeadingDeg);
-        endBillboardRotation = startBillboardRotation + Cesium.Math.toRadians(headingDeltaDeg);
+        endBillboardRotation = startBillboardRotation + getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg);
     }
 
     if (trackKey) pushTrackTrailPointFromCartesian(trackKey, track, startCartesian, startHeadingDeg);
@@ -7093,7 +7096,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         endCartesian: nextCartesian,
         endOrientation,
         startBillboardRotation,
-        billboardRotationDelta: Cesium.Math.toRadians(headingDeltaDeg),
+        billboardRotationDelta: getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg),
         endBillboardRotation,
     };
     updateLiveTrackMotionFrame(entity, startTime);

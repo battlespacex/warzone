@@ -1103,7 +1103,7 @@ export function getStartupRegionJourneyCamera(region = __activeRegion) {
 export function waitForStartupRegionJourneyStart() {
     return __startupRegionJourneyStartedPromise || Promise.resolve(false);
 }
-export function playStartupRegionJourney(viewer, region) {
+export function playStartupRegionJourney(viewer, region, options = {}) {
     if (__startupRegionJourneyComplete) return Promise.resolve(true);
     if (__startupRegionJourneyPromise) return __startupRegionJourneyPromise;
     if (!viewer?.camera || !region) return Promise.resolve(false);
@@ -1129,6 +1129,7 @@ export function playStartupRegionJourney(viewer, region) {
         const overviewCamera = getStartupOverviewCamera(region, { lon: targetLon, lat: targetLat });
         prepareStartupRegionJourney(viewer, region, { lon: targetLon, lat: targetLat });
         __regionTransitionInFlight = true;
+        const instant = options?.instant === true;
 
         const controller = viewer.scene?.screenSpaceCameraController;
         const inputsWereEnabled = controller?.enableInputs !== false;
@@ -1182,6 +1183,11 @@ export function playStartupRegionJourney(viewer, region) {
             }
             resolve(success);
         };
+
+        if (instant) {
+            finalize(true);
+            return;
+        }
 
         fallbackTimer = window.setTimeout(
             () => finalize(true),

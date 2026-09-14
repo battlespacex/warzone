@@ -121,6 +121,7 @@ let __militaryTracks = null;
 let __eventPopupBound = false;
 let __pollTimer = null;
 let __operationalGlobalUiInitialized = false;
+let __warzoneAppInitPromise = null;
 let __pollInFlight = false;
 let __pollInFlightSince = 0;
 let __pollRequestSeq = 0;
@@ -143,6 +144,24 @@ let __lastOverlayClusterRadiusBucket = "";
 let __cachedOverlayClusters = [];
 let __lastNavalSignalsSyncKey = "__empty__";
 const __layerLifecycleState = new Map();
+const STATUS_REQUEST_TIMEOUT_MS = 8000;
+
+function markStartupPerformance(name) {
+    if (!name || typeof performance?.mark !== "function") return;
+    try {
+        if (!performance.getEntriesByName(name, "mark").length) {
+            performance.mark(name);
+        }
+    } catch { }
+}
+
+function measureStartupPerformance(name, startMark, endMark) {
+    if (!name || typeof performance?.measure !== "function") return;
+    try {
+        performance.clearMeasures(name);
+        performance.measure(name, startMark, endMark);
+    } catch { }
+}
 let __eventPopupDevInspectionFrozen = false;
 let __foregroundRenderModeRestoreTimer = 0;
 let __widgetLayerControlsBound = false;
@@ -3758,28 +3777,42 @@ async function refreshStatusEvents() {
     ) {
         return __statusEventsCache;
     }
-    const results = await Promise.allSettled([
-        api.getActiveAlerts(),
-        api.getAirspaceStatuses ? api.getAirspaceStatuses() : Promise.resolve({ data: [], error: null })
-    ]);
-    const statusEvents = [];
-    const alertsResult = results[0];
-    if (alertsResult.status === "fulfilled" && !alertsResult.value?.error) {
-        (alertsResult.value?.data || [])
-            .map(normalizeActiveAlertStatusEvent)
-            .filter(Boolean)
-            .forEach((event) => statusEvents.push(event));
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
+    try {
+        const results = await Promise.allSettled([
+            api.getActiveAlerts({ signal: controller.signal }),
+            api.getAirspaceStatuses
+                ? api.getAirspaceStatuses({ signal: controller.signal })
+                : Promise.resolve({ data: [], error: null })
+        ]);
+        const statusEvents = [];
+        const alertsResult = results[0];
+        const alertsAvailable = alertsResult.status === "fulfilled" && !alertsResult.value?.error;
+        if (alertsAvailable) {
+            (alertsResult.value?.data || [])
+                .map(normalizeActiveAlertStatusEvent)
+                .filter(Boolean)
+                .forEach((event) => statusEvents.push(event));
+        }
+        const airspaceResult = results[1];
+        const airspaceAvailable = airspaceResult.status === "fulfilled" && !airspaceResult.value?.error;
+        if (airspaceAvailable) {
+            (airspaceResult.value?.data || [])
+                .map(normalizeAirspaceStatusEvent)
+                .filter(Boolean)
+                .forEach((event) => statusEvents.push(event));
+        }
+        if ((alertsAvailable && airspaceAvailable) || (!__statusEventsCache.length && statusEvents.length)) {
+            __statusEventsCache = dedupeStatusEvents(statusEvents);
+        }
+        if (alertsAvailable && airspaceAvailable) {
+            __statusEventsLastLoadedAt = now;
+        }
+        return __statusEventsCache;
+    } finally {
+        window.clearTimeout(timeoutId);
     }
-    const airspaceResult = results[1];
-    if (airspaceResult.status === "fulfilled" && !airspaceResult.value?.error) {
-        (airspaceResult.value?.data || [])
-            .map(normalizeAirspaceStatusEvent)
-            .filter(Boolean)
-            .forEach((event) => statusEvents.push(event));
-    }
-    __statusEventsCache = dedupeStatusEvents(statusEvents);
-    __statusEventsLastLoadedAt = now;
-    return __statusEventsCache;
 }
 function normalizeGnssCell(cell = {}) {
     const lat = Number(cell.lat);
@@ -8585,7 +8618,14 @@ function syncImmediateEventLayerVisibility(globe, id = "") {
     }
     syncOne(LAYER_DEFS.find((layer) => layer.id === id));
 }
-export async function initWarzoneApp() {
+export function initWarzoneApp() {
+    if (!__warzoneAppInitPromise) {
+        __warzoneAppInitPromise = initializeWarzoneAppOnce();
+    }
+    return __warzoneAppInitPromise;
+}
+
+async function initializeWarzoneAppOnce() {
     applyStratOpsFeatureVisibility();
     if (!__operationalGlobalUiInitialized) {
         __operationalGlobalUiInitialized = true;
@@ -8622,11 +8662,24 @@ export async function initWarzoneApp() {
                 __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
             }
         }
-        await refreshStatusEvents();
-        if (isLayerEnabled("gnss")) {
-            await refreshGnssInterferenceCells({ force: true });
-        }
+        markStartupPerformance("stratops-events-loaded");
+        const statusRefreshPromise = refreshStatusEvents()
+            .then((statusEvents) => {
+                syncFilteredUi(__eventsCache);
+                return statusEvents;
+            })
+            .catch((error) => {
+                if (!isRequestAbortError(error)) console.warn("Initial status refresh failed:", error);
+                return __statusEventsCache;
+            });
+        const gnssRefreshPromise = isLayerEnabled("gnss")
+            ? refreshGnssInterferenceCells({ force: true }).catch((error) => {
+                console.warn("Initial GNSS refresh failed:", error);
+                return __gnssInterferenceCellsCache;
+            })
+            : Promise.resolve(__gnssInterferenceCellsCache);
         __viewportScoped = false;
+        markStartupPerformance("stratops-events-render-start");
         renderAll(events);
         if (isStratOpsFeatureEnabled("system.intelWireFeed") && isStratOpsFeatureEnabled("widgets.intelWire")) {
             startIntelWireRefreshLoop();
@@ -8641,6 +8694,13 @@ export async function initWarzoneApp() {
             window.__warzoneViewer?.__warzone?.clearEventEntities?.();
             window.__warzoneViewer?.scene?.requestRender?.();
         }
+        markStartupPerformance("stratops-events-render-complete");
+        measureStartupPerformance(
+            "stratops-events-render",
+            "stratops-events-render-start",
+            "stratops-events-render-complete"
+        );
+        markStartupPerformance("stratops-hotspots-start");
         const hotspotRoot = document.getElementById("warzone-hotspot-layer");
         const viewer = window.__warzoneViewer;
         if (hotspotRoot && viewer && isLayerEnabled("hotspots")) {
@@ -8652,6 +8712,12 @@ export async function initWarzoneApp() {
             hotspotEnabled
                 ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                 : []
+        );
+        markStartupPerformance("stratops-hotspots-ready");
+        measureStartupPerformance(
+            "stratops-hotspots",
+            "stratops-hotspots-start",
+            "stratops-hotspots-ready"
         );
         syncGnssInterferenceLayer();
         if (viewer && !__militaryTracks && isStratOpsFeatureEnabled("tracking.militaryTracks")) {
@@ -9009,6 +9075,8 @@ export async function initWarzoneApp() {
         __viewportScoped = false;
         scheduleViewportFetch(150);
         syncTracksRealtimeChannel();
+        await Promise.allSettled([statusRefreshPromise, gnssRefreshPromise]);
+        syncGnssInterferenceLayer();
         return events;
     } catch (err) {
         console.error("initWarzoneApp failed:", err);
