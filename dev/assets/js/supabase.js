@@ -98,6 +98,17 @@ function mergeMapEventRows(rows = [], incoming = null) {
         .slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
 }
 
+function filterLegacyMapEventsToRegion(rows = [], region = {}) {
+    const bounds = region.bounds || {};
+    return rows.filter((event) => {
+        const lat = Number(event?.lat);
+        const lon = Number(event?.lon);
+        return Number.isFinite(lat) && Number.isFinite(lon) &&
+            lat >= bounds.minLat && lat <= bounds.maxLat &&
+            lon >= bounds.minLon && lon <= bounds.maxLon;
+    }).slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
+}
+
 function toAbsoluteApiUrl(value = "", apiBase = REPORTS_API_BASE) {
     const url = String(value || "").trim();
     if (!url) return "";
@@ -464,8 +475,30 @@ export const api = {
             window_hours: String(MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS),
             limit: String(MAP_EVENTS_BOOTSTRAP_LIMIT),
         });
-        const res = await fetchLatest("events:map", `${API_BASE}/events/map?${params.toString()}`, options);
-        const json = await readJsonResponse(res, "Map events fetch");
+        let res = await fetchLatest("events:map", `${API_BASE}/events/map?${params.toString()}`, options);
+        let json;
+        if (res.status === 404) {
+            if (isLocalhost) {
+                console.warn("[map-events] /events/map is unavailable; using legacy /events compatibility path");
+            }
+            res = await fetchLatest(
+                "events:map-legacy",
+                `${API_BASE}/events?window_hours=${MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS}&limit=${EVENTS_INITIAL_LIMIT}`,
+                options
+            );
+            const legacyJson = await readJsonResponse(res, "Legacy map events fetch");
+            json = {
+                events: filterLegacyMapEventsToRegion(legacyJson.events || [], region),
+                meta: {
+                    region_id: region.id,
+                    window_hours: MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS,
+                    limit: MAP_EVENTS_BOOTSTRAP_LIMIT,
+                    compatibility_fallback: true,
+                },
+            };
+        } else {
+            json = await readJsonResponse(res, "Map events fetch");
+        }
         const rows = Array.isArray(json.events) ? json.events : [];
         const meta = { ...(json.meta || {}), cached: false };
         __mapEventsRegionCache.set(cacheKey, { rows, meta, storedAt: Date.now() });

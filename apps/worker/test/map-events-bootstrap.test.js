@@ -15,6 +15,15 @@ test("initial and region-change map loads use the region-scoped endpoint", async
     assert.match(regions, /export function getRegionRequestBounds[\s\S]*?getRegionBounds\(region\)/);
 });
 
+test("map bootstrap falls back to the legacy endpoint only when the scoped route is missing", async () => {
+    const api = await readSource("../../../dev/assets/js/supabase.js");
+
+    assert.match(api, /if \(res\.status === 404\)[\s\S]*?events:map-legacy[\s\S]*?\/events\?window_hours=/);
+    assert.match(api, /function filterLegacyMapEventsToRegion[\s\S]*?lat >= bounds\.minLat[\s\S]*?lon <= bounds\.maxLon/);
+    assert.match(api, /compatibility_fallback: true/);
+    assert.doesNotMatch(api, /res\.status >= 500[\s\S]*?events:map-legacy/);
+});
+
 test("rapid region changes cannot let stale map data overwrite the active region", async () => {
     const essential = await readSource("../../../dev/assets/js/essential.js");
     const api = await readSource("../../../dev/assets/js/supabase.js");
