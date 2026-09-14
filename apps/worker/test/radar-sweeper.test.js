@@ -75,12 +75,18 @@ test("active sweeper uses a tunable translucent shader fill rather than a polygo
   assert.match(source, /ringMiddle:\s*RADAR_RING_RATIOS\[1\]/);
   assert.match(source, /ringOuter:\s*RADAR_RING_RATIOS\[2\]/);
   assert.doesNotMatch(source, /buildRadarRingPositions|polyline:\s*\{/);
+  assert.match(source, /animationHz:\s*30/);
+  assert.match(source, /registerAnimationTask\(/);
+  assert.match(source, /unregisterAnimationTask\(SWEEPER_ANIMATION_TASK_KEY\)/);
+  assert.doesNotMatch(source, /requestAnimationFrame\(runSweeperTick\)/);
 });
 
 test("radar labels remain below the hotspot activity stack", async () => {
   const components = await readFile(new URL("../../../dev/assets/css/warzone-components.css", import.meta.url), "utf8");
   const map = await readFile(new URL("../../../dev/assets/css/warzone-map.css", import.meta.url), "utf8");
-  const radarLayer = components.match(/\.wz-radar-label-layer\s*\{([^}]*)\}/)?.[1] || "";
+  const radarLayer = Array.from(components.matchAll(/\.wz-radar-label-layer\s*\{([^}]*)\}/g))
+    .map((match) => match[1])
+    .find((rule) => /z-index:/.test(rule)) || "";
   const hotspotLayer = map.match(/\.warzone-hotspot-layer\s*\{([^}]*)\}/)?.[1] || "";
   const radarZ = Number(radarLayer.match(/z-index:\s*(\d+)/)?.[1]);
   const hotspotZ = Number(hotspotLayer.match(/z-index:\s*(\d+)/)?.[1]);

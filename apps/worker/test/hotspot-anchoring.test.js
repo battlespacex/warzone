@@ -8,7 +8,13 @@ const {
   applyHotspotNodeAnchorPosition,
   computeActivityStackLeaderGeometry,
   isHotspotReconciliationDue,
+  shouldReconcileHotspotsDuringCameraMove,
 } = await import("../../../dev/assets/js/warzone-hotspots.js");
+
+globalThis.document = globalThis.document || { documentElement: {} };
+globalThis.getComputedStyle = globalThis.getComputedStyle || (() => ({
+  getPropertyValue() { return ""; },
+}));
 
 function elementStub() {
   const values = new Map();
@@ -87,17 +93,48 @@ test("leader endpoint follows the live cluster anchor while panel geometry stays
   assert.equal(geometry.rotation, 0);
 });
 
-test("90 ms reconciliation remains throttled independently of per-frame anchor updates", () => {
+test("bounded movement work is only due after its configured interval", () => {
   assert.equal(isHotspotReconciliationDue(1089, 1000, 90), false);
   assert.equal(isHotspotReconciliationDue(1090, 1000, 90), true);
 });
 
-test("postRender updates current anchors before the throttled reconciliation path", async () => {
+test("ordinary camera movement does not require hotspot reconciliation until data or zoom semantics change", () => {
+  assert.equal(shouldReconcileHotspotsDuringCameraMove(false, "regional:r2", "regional:r2"), false);
+  assert.equal(shouldReconcileHotspotsDuringCameraMove(true, "regional:r2", "regional:r2"), true);
+  assert.equal(shouldReconcileHotspotsDuringCameraMove(false, "local:r1", "regional:r2"), true);
+});
+
+test("postRender caps position projection and avoids unconditional full reconciliation", async () => {
   const source = await readFile(new URL("../../../dev/assets/js/warzone-hotspots.js", import.meta.url), "utf8");
-  const onPostRender = source.match(/function onPostRender\(\) \{([\s\S]*?)\n    \}/)?.[1] || "";
-  assert.ok(onPostRender.indexOf("updateCurrentAnchorPositions();") >= 0);
-  assert.ok(onPostRender.indexOf("isHotspotReconciliationDue") > onPostRender.indexOf("updateCurrentAnchorPositions();"));
-  assert.ok(onPostRender.indexOf("render(true);") > onPostRender.indexOf("isHotspotReconciliationDue"));
+  const start = source.indexOf("function onPostRender()");
+  const end = source.indexOf("function onCameraMoveStart()", start);
+  const onPostRender = source.slice(start, end);
+  assert.match(onPostRender, /projectionIntervalMs = 1000 \/ Math\.max/);
+  assert.match(onPostRender, /shouldReconcileHotspotsDuringCameraMove/);
+  assert.match(onPostRender, /updateCurrentAnchorPositions\(\)/);
+  assert.ok(onPostRender.lastIndexOf("isHotspotReconciliationDue") < onPostRender.lastIndexOf("updateCurrentAnchorPositions();"));
+});
+
+test("camera stop performs an immediate exact projection followed by one settled reconciliation", async () => {
+  const source = await readFile(new URL("../../../dev/assets/js/warzone-hotspots.js", import.meta.url), "utf8");
+  const start = source.indexOf("function onCameraMoveEnd()");
+  const end = source.indexOf("function onResize()", start);
+  const onMoveEnd = source.slice(start, end);
+  assert.ok(onMoveEnd.indexOf("updateCurrentAnchorPositions();") >= 0);
+  assert.ok(onMoveEnd.indexOf("updateCurrentAnchorPositions();") < onMoveEnd.indexOf("setTimeout"));
+  assert.match(onMoveEnd, /render\(true\)/);
+});
+
+test("hotspot data and layout invalidations still schedule full reconciliation", async () => {
+  const source = await readFile(new URL("../../../dev/assets/js/warzone-hotspots.js", import.meta.url), "utf8");
+  const setEventsStart = source.indexOf("setEvents(next = [])");
+  const setEventsEnd = source.indexOf("setDevInspectionPreview", setEventsStart);
+  const setEvents = source.slice(setEventsStart, setEventsEnd);
+  assert.match(setEvents, /clustersDirty = true/);
+  assert.match(setEvents, /scheduleRender\(0\)/);
+  assert.match(source, /window\.addEventListener\("orientationchange", onResize/);
+  assert.match(source, /document\.addEventListener\("fullscreenchange", onResize/);
+  assert.match(source, /resizeObserver\.observe\(rootEl\)/);
 });
 
 test("hotspot and locality-label CSS contain no positional transitions", async () => {

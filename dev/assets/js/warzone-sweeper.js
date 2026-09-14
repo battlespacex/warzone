@@ -1,18 +1,27 @@
 ﻿// File Path: /assets/js/warzone-sweeper.js
 import * as Cesium from "cesium";
+import {
+    registerAnimationTask,
+    requestSharedSceneRender,
+    unregisterAnimationTask,
+} from "./warzone-animation-scheduler.js";
 let __sweeperEntities = [];
 let __sweeperPrimitives = [];
-let __sweeperTicker = null;
+let __sweeperTicker = false;
 let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
 let __sweeperLastTimestamp = null;
 let __sweeperFrameCount = 0;
+const __sweeperStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+let __sweeperUpdateCount = 0;
 const RADAR_FALLBACK_COLOR = "#18e2db";
+const SWEEPER_ANIMATION_TASK_KEY = "overlay:radar-sweepers";
 export const RADAR_SWEEP_MATERIAL_TYPE = "StratOpsRadarSweep";
 export const RADAR_RING_RATIOS = Object.freeze([0.34, 0.67, 1]);
 const SWEEPER_RENDER = {
-    labelFrameSkip: 3,
+    animationHz: 30,
+    labelFrameSkip: 2,
     requestRenderFrameSkip: 1,
     maxHeight: 10000000,
     maxCount: 7,
@@ -396,25 +405,25 @@ function createRadarSweepPrimitive(viewer, {
     return { primitive, material };
 }
 function clearTicker() {
-    if (__sweeperTicker) {
-        cancelAnimationFrame(__sweeperTicker);
-        __sweeperTicker = null;
-    }
+    unregisterAnimationTask(SWEEPER_ANIMATION_TASK_KEY);
+    __sweeperTicker = false;
     __sweeperLastTimestamp = null;
     __sweeperFrameCount = 0;
 }
 function runSweeperTick(ts) {
-    __sweeperTicker = null;
     const viewer = __radarViewer;
-    if (!viewer || !__radarItems.length || document.visibilityState === "hidden") return;
+    if (!viewer || !__radarItems.length) {
+        __sweeperTicker = false;
+        return false;
+    }
     if (__sweeperLastTimestamp == null) __sweeperLastTimestamp = ts;
-    const dt = (ts - __sweeperLastTimestamp) / 1000;
+    const dt = Math.min(0.1, Math.max(0, (ts - __sweeperLastTimestamp) / 1000));
     __sweeperLastTimestamp = ts;
     __sweeperFrameCount += 1;
+    __sweeperUpdateCount += 1;
     if (!shouldRenderSweepers(viewer)) {
         clearSweepers(viewer);
-        viewer.scene.requestRender?.();
-        return;
+        return false;
     }
     __radarItems.forEach((item) => {
         item.state.heading = (
@@ -425,22 +434,15 @@ function runSweeperTick(ts) {
         }
     });
     if (__sweeperFrameCount % SWEEPER_RENDER.labelFrameSkip === 0) updateRadarLabels();
-    if (__sweeperFrameCount % SWEEPER_RENDER.requestRenderFrameSkip === 0) viewer.scene.requestRender?.();
-    __sweeperTicker = requestAnimationFrame(runSweeperTick);
+    return true;
 }
 function startSweeperTicker() {
-    if (__sweeperTicker || !__radarViewer || !__radarItems.length || document.visibilityState === "hidden") return;
-    __sweeperTicker = requestAnimationFrame(runSweeperTick);
-}
-
-if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden") {
-            clearTicker();
-            return;
-        }
-        startSweeperTicker();
-    }, { passive: true });
+    if (__sweeperTicker || !__radarViewer || !__radarItems.length) return;
+    __sweeperTicker = registerAnimationTask(
+        SWEEPER_ANIMATION_TASK_KEY,
+        runSweeperTick,
+        { hz: SWEEPER_RENDER.animationHz }
+    );
 }
 function ensureRadarLabelLayer() {
     return document.getElementById("wz-radar-label-layer");
@@ -471,16 +473,31 @@ function getRadarScreenPosition(viewer, lon, lat) {
 }
 function updateRadarLabels() {
     if (!__radarViewer || !__radarItems.length) return;
+    const canvas = __radarViewer.scene?.canvas;
+    const canvasWidth = Number(canvas?.clientWidth || canvas?.width || 0);
+    const canvasHeight = Number(canvas?.clientHeight || canvas?.height || 0);
     __radarItems.forEach((item) => {
         if (!item?.labelEl) return;
         const p = getRadarScreenPosition(__radarViewer, item.lon, item.lat);
-        if (!p) {
-            item.labelEl.style.opacity = "0";
+        const visible = p && p.x >= 0 && p.y >= 0 && p.x <= canvasWidth && p.y <= canvasHeight;
+        const opacity = visible ? "1" : "0";
+        if (item.labelOpacity !== opacity) {
+            item.labelEl.style.opacity = opacity;
+            item.labelOpacity = opacity;
+        }
+        if (!visible) {
             return;
         }
-        item.labelEl.style.opacity = "1";
-        item.labelEl.style.left = `${p.x}px`;
-        item.labelEl.style.top = `${p.y}px`;
+        const left = `${p.x}px`;
+        const top = `${p.y}px`;
+        if (item.labelLeft !== left) {
+            item.labelEl.style.left = left;
+            item.labelLeft = left;
+        }
+        if (item.labelTop !== top) {
+            item.labelEl.style.top = top;
+            item.labelTop = top;
+        }
     });
 }
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -554,6 +571,7 @@ function selectRadarCandidates(events = [], maxCount = 3, maxOverlap = 0.50) {
     return selected;
 }
 export function clearSweepers(viewer) {
+    const hadVisuals = __sweeperEntities.length > 0 || __sweeperPrimitives.length > 0 || __radarLabels.length > 0;
     clearTicker();
     __sweeperEntities.forEach((entity) => {
         try { viewer?.entities?.remove(entity); } catch { }
@@ -569,21 +587,28 @@ export function clearSweepers(viewer) {
     });
     __radarLabels = [];
     __radarViewer = null;
+    if (hadVisuals) requestSharedSceneRender();
 }
 
 export function getSweeperDiagnostics() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const elapsedSeconds = Math.max(0.001, (now - __sweeperStartedAt) / 1000);
     return Object.freeze({
         activeSweeperEntities: __sweeperEntities.length,
         activeSweeperPrimitives: __sweeperPrimitives.length,
         activeSweeperLabels: __radarLabels.length,
         animationFrameActive: Boolean(__sweeperTicker),
+        schedulerTaskActive: Boolean(__sweeperTicker),
+        targetUpdatesPerSecond: SWEEPER_RENDER.animationHz,
+        updates: __sweeperUpdateCount,
+        updatesPerSecond: Number((__sweeperUpdateCount / elapsedSeconds).toFixed(2)),
     });
 }
 export function renderSweepers(viewer, events = []) {
     if (!viewer) return;
     clearSweepers(viewer);
     if (!shouldRenderSweepers(viewer)) {
-        viewer.scene.requestRender?.();
+        requestSharedSceneRender();
         return;
     }
     const candidates = selectRadarCandidates(
@@ -592,7 +617,7 @@ export function renderSweepers(viewer, events = []) {
         SWEEPER_RENDER.maxOverlap
     );
     if (!candidates.length) {
-        viewer.scene.requestRender?.();
+        requestSharedSceneRender();
         return;
     }
     __radarViewer = viewer;
@@ -651,5 +676,5 @@ export function renderSweepers(viewer, events = []) {
     if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
     startSweeperTicker();
     updateRadarLabels();
-    viewer.scene.requestRender?.();
+    requestSharedSceneRender();
 }

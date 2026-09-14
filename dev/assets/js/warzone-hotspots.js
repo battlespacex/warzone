@@ -1,5 +1,6 @@
 // File Path: /assets/js/warzone-hotspots.js
 import * as Cesium from "cesium";
+import { requestSharedSceneRender } from "./warzone-animation-scheduler.js";
 import { isEventVisible } from "./warzone-layers.js";
 import {
     getPlatformCategoryClass,
@@ -837,18 +838,23 @@ function applyHotspotRadiusModel(el, cluster) {
     if (!el) return;
     const domain = String(cluster?.cat || cluster?.dominant_domain || "mixed").toLowerCase();
     const severity = getPlatformSeverityClass(cluster?.sev || cluster?.severity || "medium");
-    el.className = [
+    const className = [
         "wzhs-radius",
         `wzhs-radius--${domain}`,
         `wzhs-radius--sev-${severity}`,
         cluster?.pulse_eligible ? `wzhs-radius--pulse-${cluster.pulse_mode || "subtle"}` : "",
     ].filter(Boolean).join(" ");
-    el.dataset.category = domain;
-    el.dataset.severity = severity;
+    if (el.className !== className) el.className = className;
+    if (el.dataset.category !== domain) el.dataset.category = domain;
+    if (el.dataset.severity !== severity) el.dataset.severity = severity;
     const colorKey = domain === "air_defence" ? "airdefence" : domain;
-    el.style.setProperty("--wzhs-radius-color", `var(--activity-${colorKey})`);
-    el.style.setProperty("--wzhs-radius-severity-color", `var(--hotspot-severity-${severity}-color)`);
-    el.style.setProperty("--wzhs-radius-severity-width", `var(--hotspot-severity-${severity}-width)`);
+    const styleSignature = `${colorKey}:${severity}`;
+    if (el.__wzRadiusStyleSignature !== styleSignature) {
+        el.style.setProperty("--wzhs-radius-color", `var(--activity-${colorKey})`);
+        el.style.setProperty("--wzhs-radius-severity-color", `var(--hotspot-severity-${severity}-color)`);
+        el.style.setProperty("--wzhs-radius-severity-width", `var(--hotspot-severity-${severity}-width)`);
+        el.__wzRadiusStyleSignature = styleSignature;
+    }
 }
 function removeHotspotNode(node) {
     if (!node) return;
@@ -1043,12 +1049,28 @@ function updateActivityStackLeader(stackNode, anchor) {
         stackNode.panel,
         cssLengthToPx("--hotspot-stack-line-min-length", 24)
     );
-    stackNode.lineEl.hidden = geometry.hidden;
+    setElementHidden(stackNode.lineEl, geometry.hidden);
     if (geometry.hidden) return;
-    stackNode.lineEl.style.left = `${geometry.left}px`;
-    stackNode.lineEl.style.top = `${geometry.top}px`;
-    stackNode.lineEl.style.width = `${geometry.width}px`;
-    stackNode.lineEl.style.transform = `rotate(${geometry.rotation}rad)`;
+    const left = `${geometry.left}px`;
+    const top = `${geometry.top}px`;
+    const width = `${geometry.width}px`;
+    const transform = `rotate(${geometry.rotation}rad)`;
+    if (stackNode.leaderLeft !== left) {
+        stackNode.lineEl.style.left = left;
+        stackNode.leaderLeft = left;
+    }
+    if (stackNode.leaderTop !== top) {
+        stackNode.lineEl.style.top = top;
+        stackNode.leaderTop = top;
+    }
+    if (stackNode.leaderWidth !== width) {
+        stackNode.lineEl.style.width = width;
+        stackNode.leaderWidth = width;
+    }
+    if (stackNode.leaderTransform !== transform) {
+        stackNode.lineEl.style.transform = transform;
+        stackNode.leaderTransform = transform;
+    }
 }
 function renderActivityStack(stackNode, model, group, viewport) {
     if (!stackNode || !model || !group?.bounds || !model.entries?.length) {
@@ -1181,6 +1203,26 @@ function createCardEl(cluster, onToggle) {
     let activeCluster = cluster;
     root.dataset.clusterId = cluster.id;
     root.__clusterItems = dedupeDisplayItems(cluster?.items || []);
+    function getRenderSignature(value, isExpanded) {
+        const items = dedupeDisplayItems(value?.items || []);
+        return JSON.stringify([
+            value?.id,
+            value?.count,
+            value?.label,
+            value?.cat,
+            value?.sev,
+            value?.icon,
+            value?.stackIdx,
+            Boolean(isExpanded),
+            Math.floor(Date.now() / 60000),
+            items.map((item) => [
+                item?.id,
+                item?.occurred_at,
+                item?.updated_at,
+                item?.__displayTitle || item?.title,
+            ]),
+        ]);
+    }
     function refreshContent(isExpanded) {
         const cluster = activeCluster;
         const loc = compactPlaceLabel(
@@ -1229,12 +1271,15 @@ function createCardEl(cluster, onToggle) {
                     <div class="wzhs__items">${buildExpandedHTML(cluster)}</div>
                 </div>` : ""}
             </div>`;
+        root.__wzCardRenderSignature = getRenderSignature(cluster, isExpanded);
     }
     refreshContent(false);
     root._refreshContent = refreshContent;
     root.render = (nextCluster, isExpanded) => {
         activeCluster = nextCluster || activeCluster;
         root.dataset.clusterId = activeCluster.id;
+        root.__clusterItems = dedupeDisplayItems(activeCluster?.items || []);
+        if (root.__wzCardRenderSignature === getRenderSignature(activeCluster, isExpanded)) return;
         refreshContent(isExpanded);
     };
     root.addEventListener("click", (e) => {
@@ -1322,6 +1367,9 @@ export function isHotspotReconciliationDue(now, lastReconcile, throttleMs) {
     const throttle = Math.max(0, Number(throttleMs || 0));
     return Number.isFinite(current) && Number.isFinite(previous) && (current - previous) >= throttle;
 }
+export function shouldReconcileHotspotsDuringCameraMove(clustersDirty, currentCacheKey, previousCacheKey) {
+    return clustersDirty === true || String(currentCacheKey || "") !== String(previousCacheKey || "");
+}
 // ─── main export ──────────────────────────────────────────────────────────────
 export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     if (!viewer || !rootEl) return null;
@@ -1335,11 +1383,27 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     let lastEventsSignature = "";
     const nodeMap = new Map();
     let rafPending = false;
+    let renderRafId = 0;
+    let renderTimerId = 0;
     let lastRenderMs = 0;
-    let lastMoveRenderMs = 0;
+    let lastMoveProjectionMs = 0;
+    let lastMoveSemanticCheckMs = 0;
     let cameraMoving = false;
     let moveEndTimer = 0;
     let anchorViewport = null;
+    let resizeObserver = null;
+    const diagnosticsStartedAt = performance.now();
+    const diagnostics = {
+        projectionPasses: 0,
+        projectedNodes: 0,
+        reconciliations: 0,
+        clusteringRuns: 0,
+        clusterDurationTotalMs: 0,
+        lastClusterDurationMs: 0,
+        maxClusterDurationMs: 0,
+        cameraMoveStarts: 0,
+        finalMoveSyncs: 0,
+    };
     const activityStack = createActivityStackElements(rootEl);
     const hotspotPickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     const cfg = {
@@ -1352,6 +1416,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         minItemsForCluster: options.minItemsForCluster ?? 2,
         throttleIdle: options.throttleIdle ?? 100,
         throttleMove: options.throttleMove ?? 90,
+        projectionFps: options.projectionFps ?? 30,
     };
     function handleToggle(id, el) {
         if (!areHotspotCardsEnabled()) return;
@@ -1402,13 +1467,16 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         });
     }
     function updateCurrentAnchorPositions() {
-        if (destroyed || !anchorViewport || !viewer.scene) return;
+        if (destroyed || !anchorViewport || !viewer.scene || document.hidden) return false;
+        diagnostics.projectionPasses += 1;
+        diagnostics.projectedNodes += nodeMap.size;
         for (const [, node] of nodeMap) {
             node.satelliteLayerVisible = viewer.__warzoneSatelliteImageryLayerVisible !== false;
             const projected = projectHotspotWorldAnchor(viewer.scene, node.worldAnchor);
             applyHotspotNodeAnchorPosition(node, projected, anchorViewport);
         }
         updateActivityStackLeaderAnchor();
+        return true;
     }
     function getHotspotNodeAtCanvasPosition(position) {
         if (!position || !anchorViewport) return null;
@@ -1438,11 +1506,15 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             y: canvasRect.top + Number(movement.position.y),
             space: "viewport",
         });
-        viewer.scene.requestRender?.();
+        requestSharedSceneRender();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     function render(fromPostRender) {
-        if (!fromPostRender) rafPending = false;
+        if (!fromPostRender) {
+            rafPending = false;
+            renderRafId = 0;
+        }
         if (destroyed || !viewer.scene || !rootEl) return;
+        if (document.hidden) return;
         if (!fromPostRender) {
             const now = performance.now();
             if (now - lastRenderMs < cfg.throttleIdle) {
@@ -1473,10 +1545,17 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         rootEl.dataset.zoomBucket = zoomCfg.key || "default";
         rootEl.dataset.zoomState = zoomState;
         const clusterCacheKey = `${zoomState}:${clusterBucket}`;
+        diagnostics.reconciliations += 1;
         if (clustersDirty || lastZoomConfigKey !== clusterCacheKey) {
+            const clusterStartedAt = performance.now();
             cachedClusters = zoomState === ZOOM_UX_STATES.EVENT
                 ? []
                 : geoCluster(renderedEvents, clusterBucket, cfg.minItemsForCluster, zoomCfg.maxCards);
+            const clusterDurationMs = Math.max(0, performance.now() - clusterStartedAt);
+            diagnostics.clusteringRuns += 1;
+            diagnostics.clusterDurationTotalMs += clusterDurationMs;
+            diagnostics.lastClusterDurationMs = clusterDurationMs;
+            diagnostics.maxClusterDurationMs = Math.max(diagnostics.maxClusterDurationMs, clusterDurationMs);
             clustersDirty = false;
             lastZoomConfigKey = clusterCacheKey;
         }
@@ -1656,52 +1735,117 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         if (destroyed || rafPending) return;
         rafPending = true;
         if (delay <= 0) {
-            requestAnimationFrame(() => render());
+            renderRafId = requestAnimationFrame(() => render());
         } else {
-            setTimeout(() => {
+            renderTimerId = setTimeout(() => {
+                renderTimerId = 0;
                 rafPending = false;
                 scheduleRender(0);
             }, delay);
         }
     }
+    function getCurrentClusterCacheKey() {
+        const zoomCfg = getZoomAwareHotspotConfig(viewer, cfg);
+        const zoomState = devInspectionPreview?.zoomState || getHotspotZoomState(viewer);
+        return `${zoomState}:${getClusterBucketForZoomState(zoomState, zoomCfg.key)}`;
+    }
     function onPostRender() {
-        updateCurrentAnchorPositions();
-        if (!cameraMoving) return;
+        if (!cameraMoving || document.hidden) return;
         const now = performance.now();
-        const moveThrottle = allEvents.length > 2000
-            ? Math.max(cfg.throttleMove, 96)
-            : allEvents.length > 1000
-                ? Math.max(cfg.throttleMove, 72)
-                : cfg.throttleMove;
-        if (!isHotspotReconciliationDue(now, lastMoveRenderMs, moveThrottle)) return;
-        lastMoveRenderMs = now;
-        render(true);
+        if (isHotspotReconciliationDue(now, lastMoveSemanticCheckMs, cfg.throttleMove)) {
+            lastMoveSemanticCheckMs = now;
+            if (shouldReconcileHotspotsDuringCameraMove(
+                clustersDirty,
+                getCurrentClusterCacheKey(),
+                lastZoomConfigKey
+            )) {
+                render(true);
+                lastMoveProjectionMs = now;
+                return;
+            }
+        }
+        const projectionIntervalMs = 1000 / Math.max(1, Number(cfg.projectionFps || 30));
+        if (!isHotspotReconciliationDue(now, lastMoveProjectionMs, projectionIntervalMs)) return;
+        lastMoveProjectionMs = now;
+        updateCurrentAnchorPositions();
     }
     function onCameraMoveStart() {
         cameraMoving = true;
+        diagnostics.cameraMoveStarts += 1;
         clearTimeout(moveEndTimer);
-        scheduleRender(0);
     }
     function onCameraMoveEnd() {
         clearTimeout(moveEndTimer);
+        if (!destroyed && !document.hidden) {
+            diagnostics.finalMoveSyncs += 1;
+            updateCurrentAnchorPositions();
+        }
         moveEndTimer = setTimeout(() => {
             cameraMoving = false;
-            scheduleRender(0);
+            if (destroyed || document.hidden) return;
+            render(true);
         }, 60);
     }
     function onResize() {
+        anchorViewport = null;
         scheduleRender(0);
     }
     function onSceneModeChanged() {
         clustersDirty = true;
         scheduleRender(0);
     }
+    function onVisibilityChanged() {
+        if (document.hidden) {
+            clearTimeout(moveEndTimer);
+            moveEndTimer = 0;
+            return;
+        }
+        lastMoveProjectionMs = 0;
+        lastMoveSemanticCheckMs = 0;
+        scheduleRender(0);
+        requestSharedSceneRender();
+    }
+    const getDiagnostics = () => {
+        const elapsedSeconds = Math.max(0.001, (performance.now() - diagnosticsStartedAt) / 1000);
+        return Object.freeze({
+            active: !destroyed,
+            documentHidden: document.hidden === true,
+            eventCount: allEvents.length,
+            cachedClusterCount: cachedClusters.length,
+            domNodeCount: nodeMap.size,
+            cameraMoving,
+            projectionTargetFps: Number(cfg.projectionFps),
+            projectionPasses: diagnostics.projectionPasses,
+            projectionsPerSecond: Number((diagnostics.projectionPasses / elapsedSeconds).toFixed(2)),
+            projectedNodes: diagnostics.projectedNodes,
+            reconciliations: diagnostics.reconciliations,
+            reconciliationsPerSecond: Number((diagnostics.reconciliations / elapsedSeconds).toFixed(2)),
+            clusteringRuns: diagnostics.clusteringRuns,
+            lastClusterDurationMs: Number(diagnostics.lastClusterDurationMs.toFixed(3)),
+            averageClusterDurationMs: diagnostics.clusteringRuns
+                ? Number((diagnostics.clusterDurationTotalMs / diagnostics.clusteringRuns).toFixed(3))
+                : 0,
+            maxClusterDurationMs: Number(diagnostics.maxClusterDurationMs.toFixed(3)),
+            cameraMoveStarts: diagnostics.cameraMoveStarts,
+            finalMoveSyncs: diagnostics.finalMoveSyncs,
+        });
+    };
     viewer.scene.postRender.addEventListener(onPostRender);
     viewer.camera.moveStart.addEventListener(onCameraMoveStart);
     viewer.camera.moveEnd.addEventListener(onCameraMoveEnd);
     window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("orientationchange", onResize, { passive: true });
+    document.addEventListener("fullscreenchange", onResize);
+    document.addEventListener("visibilitychange", onVisibilityChanged, { passive: true });
     document.addEventListener("wz:scene-mode-changed", onSceneModeChanged);
+    if (typeof ResizeObserver === "function") {
+        resizeObserver = new ResizeObserver(onResize);
+        resizeObserver.observe(rootEl);
+        if (viewer.scene.canvas !== rootEl) resizeObserver.observe(viewer.scene.canvas);
+    }
+    if (typeof window !== "undefined") window.__warzoneHotspotDiagnostics = getDiagnostics;
     return {
+        getDiagnostics,
         setEvents(next = []) {
             const arr = Array.isArray(next) ? next : [];
             const nextSignature = makeHotspotEventSignature(arr);
@@ -1715,7 +1859,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             allEvents = normalized;
             lastEventsSignature = nextSignature;
             clustersDirty = true;
-            viewer.scene.requestRender();
+            requestSharedSceneRender();
             scheduleRender(0);
         },
         setDevInspectionPreview({ events = [], zoomState = ZOOM_UX_STATES.REGIONAL } = {}) {
@@ -1729,7 +1873,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             rootEl.dataset.devInspectionPreview = "1";
             clustersDirty = true;
             lastZoomConfigKey = "";
-            viewer.scene.requestRender();
+            requestSharedSceneRender();
             scheduleRender(0);
         },
         clearDevInspectionPreview() {
@@ -1737,7 +1881,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             delete rootEl.dataset.devInspectionPreview;
             clustersDirty = true;
             lastZoomConfigKey = "";
-            viewer.scene.requestRender();
+            requestSharedSceneRender();
             scheduleRender(0);
         },
         addEvent(evt) {
@@ -1751,7 +1895,7 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
                 allEvents.length = maxEvents;
             }
             clustersDirty = true;
-            viewer.scene.requestRender();
+            requestSharedSceneRender();
             scheduleRender(0);
         },
         clear() {
@@ -1767,6 +1911,12 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         destroy() {
             destroyed = true;
             clearTimeout(moveEndTimer);
+            if (renderTimerId) clearTimeout(renderTimerId);
+            if (renderRafId) cancelAnimationFrame(renderRafId);
+            renderTimerId = 0;
+            renderRafId = 0;
+            rafPending = false;
+            resizeObserver?.disconnect?.();
             for (const [, node] of nodeMap) {
                 node.el?.remove?.();
                 node.radiusEl?.remove?.();
@@ -1781,7 +1931,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             viewer.camera.moveStart.removeEventListener(onCameraMoveStart);
             viewer.camera.moveEnd.removeEventListener(onCameraMoveEnd);
             window.removeEventListener("resize", onResize);
+            window.removeEventListener("orientationchange", onResize);
+            document.removeEventListener("fullscreenchange", onResize);
+            document.removeEventListener("visibilitychange", onVisibilityChanged);
             document.removeEventListener("wz:scene-mode-changed", onSceneModeChanged);
+            if (window.__warzoneHotspotDiagnostics === getDiagnostics) {
+                delete window.__warzoneHotspotDiagnostics;
+            }
         },
     };
 }

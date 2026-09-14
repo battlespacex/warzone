@@ -7391,7 +7391,7 @@ function getStratOpsPerformanceDiagnostics() {
         orbital,
         militaryBases,
         militaryTracks,
-        hotspots: Object.freeze({ active: Boolean(__hotspotLayer) }),
+        hotspots: __hotspotLayer?.getDiagnostics?.() || Object.freeze({ active: false }),
         layers: getLayerLifecycleDiagnostics(),
         frameTime: window.__stratopsLastFrameTimeSample || null,
         heap: performance?.memory ? Object.freeze({

@@ -1,5 +1,10 @@
 ﻿// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
+import {
+    getAnimationSchedulerDiagnostics,
+    registerAnimationTask,
+    unregisterAnimationTask,
+} from "./warzone-animation-scheduler.js";
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
 import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
 import { resetWarzoneCameraReference } from "./warzone-asset-focus-controller.js";
@@ -102,6 +107,9 @@ const SATELLITE_BADGE_CACHE_KEY = "event-satellite-badge";
 const SATELLITE_IMAGERY_MARKER_CACHE_KEY = "satellite-imagery-marker";
 const __eventEntityIds = new Set();
 const __eventPulseEntities = new Set();
+const EVENT_PULSE_ANIMATION_TASK_KEY = "overlay:event-pulses";
+const __eventPulseDiagnosticsStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+let __eventPulseUpdateCount = 0;
 const __EVENT_LOD_STATE = {
     mode: "map",
     cameraHeight: 2350000,
@@ -431,15 +439,62 @@ function installCesiumPerformanceDiagnostics(viewer) {
         lastCameraStableMs: stats.lastFocusCameraStableMs,
         lastImageryStableMs: stats.lastFocusImagerySettleMs,
     });
+    const getRenderStats = () => ({
+        renderedFrames: stats.renderedFrames,
+        renderedFramesPerSecond: Number((stats.renderedFrames / elapsedSeconds()).toFixed(2)),
+        requestRenderMode: viewer.scene?.requestRenderMode === true,
+        documentHidden: document.hidden === true,
+    });
+    const getHotspotStats = () => window.__warzoneHotspotDiagnostics?.() || Object.freeze({
+        active: false,
+        eventCount: 0,
+        domNodeCount: 0,
+        projectionPasses: 0,
+        reconciliations: 0,
+        clusteringRuns: 0,
+    });
+    const getRequestRenderStats = () => {
+        const scheduler = getAnimationSchedulerDiagnostics();
+        return {
+            calls: stats.requestRenderCalls,
+            callsPerSecond: Number((stats.requestRenderCalls / elapsedSeconds()).toFixed(2)),
+            schedulerSceneRenderRequests: scheduler.sceneRenderRequests,
+            schedulerSceneRenderRequestsPerSecond: scheduler.sceneRenderRequestsPerSecond,
+            coalescedSchedulerRequests: scheduler.coalescedRenderRequests,
+            schedulerRenderPending: scheduler.renderFramePending,
+        };
+    };
+    const getAnimationStats = () => {
+        const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const pulseElapsedSeconds = Math.max(0.001, (now - __eventPulseDiagnosticsStartedAt) / 1000);
+        const runtime = window.__getStratOpsPerformanceDiagnostics?.();
+        return {
+            scheduler: getAnimationSchedulerDiagnostics(),
+            sweepers: runtime?.sweepers || null,
+            hoverPulse: window.__warzoneHoverPulseDiagnostics?.() || null,
+            activeEventPulses: __eventPulseEntities.size,
+            eventPulseSchedulerActive: Boolean(viewer.__warzoneEventPulseRaf),
+            eventPulseUpdates: __eventPulseUpdateCount,
+            eventPulseUpdatesPerSecond: Number((__eventPulseUpdateCount / pulseElapsedSeconds).toFixed(2)),
+        };
+    };
     window.__stratopsPerf = Object.freeze({
         getCameraStats,
         getImageryStats,
         getFocusStats,
+        getRenderStats,
+        getHotspotStats,
+        getAnimationStats,
+        getRequestRenderStats,
         printSummary() {
             const summary = {
                 camera: getCameraStats(),
                 imagery: getImageryStats(),
                 focus: getFocusStats(),
+                render: getRenderStats(),
+                hotspots: getHotspotStats(),
+                animation: getAnimationStats(),
+                requestRender: getRequestRenderStats(),
             };
             console.table(summary);
             return summary;
@@ -2093,23 +2148,24 @@ function shouldRunEventPulseRenderLoop(viewer) {
 }
 function startEventPulseRenderLoop(viewer) {
     if (!viewer || viewer.__warzoneEventPulseRaf) return;
-    let lastRenderAt = 0;
-    const tick = (now) => {
-        viewer.__warzoneEventPulseRaf = 0;
-        if (!shouldRunEventPulseRenderLoop(viewer)) return;
-        const fps = Math.max(1, numberVar("--warzone-event-ring-pulse-fps", 36));
-        if (now - lastRenderAt >= 1000 / fps) {
-            lastRenderAt = now;
-            updateEventPulseFrame(viewer);
-            viewer.scene?.requestRender?.();
+    const fps = Math.max(1, numberVar("--warzone-event-ring-pulse-fps", 36));
+    viewer.__warzoneEventPulseRaf = registerAnimationTask(EVENT_PULSE_ANIMATION_TASK_KEY, () => {
+        if (!shouldRunEventPulseRenderLoop(viewer)) {
+            viewer.__warzoneEventPulseRaf = 0;
+            return false;
         }
-        viewer.__warzoneEventPulseRaf = requestAnimationFrame(tick);
-    };
-    viewer.__warzoneEventPulseRaf = requestAnimationFrame(tick);
+        updateEventPulseFrame(viewer);
+        __eventPulseUpdateCount += 1;
+        if (!shouldRunEventPulseRenderLoop(viewer)) {
+            viewer.__warzoneEventPulseRaf = 0;
+            return false;
+        }
+        return true;
+    }, { hz: fps });
 }
 function stopEventPulseRenderLoop(viewer) {
     if (!viewer?.__warzoneEventPulseRaf) return;
-    cancelAnimationFrame(viewer.__warzoneEventPulseRaf);
+    unregisterAnimationTask(EVENT_PULSE_ANIMATION_TASK_KEY);
     viewer.__warzoneEventPulseRaf = 0;
 }
 function normalizeEvents(events) {
