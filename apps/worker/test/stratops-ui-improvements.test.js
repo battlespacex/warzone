@@ -117,6 +117,26 @@ test("orbital satellite focus stays independent from monitoring-region boundarie
   assert.match(regions, /satelliteFocusActive[\s\S]*?clearPendingRegionHintRefresh\(\)[\s\S]*?setRegionHintState\(false, viewer\)/);
 });
 
+test("satellite focus uses one bounded controller and clears native tracking on unlock", async () => {
+  const satellites = await readSource("../../../dev/assets/js/warzone-mil-sats.js");
+  const globe = await readSource("../../../dev/assets/js/warzone-globe.js");
+
+  assert.match(satellites, /SATELLITE_FOCUS_VISUAL_HZ = 30/);
+  assert.match(satellites, /SATELLITE_FOCUS_CAMERA_HZ = 12/);
+  assert.match(satellites, /SATELLITE_FOCUS_POSITION_EPSILON_METERS = 350/);
+  assert.match(satellites, /registerTask\([\s\S]*SATELLITE_FOCUS_TASK_KEYS\.visual[\s\S]*\{ hz: SATELLITE_FOCUS_VISUAL_HZ \}/);
+  assert.match(satellites, /registerTask\([\s\S]*SATELLITE_FOCUS_TASK_KEYS\.camera[\s\S]*\{ hz: SATELLITE_FOCUS_CAMERA_HZ \}/);
+  assert.match(satellites, /positionDelta >= SATELLITE_FOCUS_POSITION_EPSILON_METERS/);
+  assert.match(satellites, /viewer\.camera\.lookAt\(/);
+  assert.match(satellites, /viewer\.trackedEntity = undefined/);
+  assert.doesNotMatch(satellites, /viewer\.trackedEntity = selectedEntity/);
+  assert.match(satellites, /resetSatelliteFocusRuntime\(\);[\s\S]*focusController\.exitFocus\("satellite-clear"\)/);
+  assert.match(satellites, /controller: "controlled-follow"/);
+  assert.match(globe, /getSatelliteFocusStats/);
+  assert.match(globe, /stratops-satellite-focus-imagery-stable/);
+  assert.match(globe, /stratops-satellite-unlock-stable/);
+});
+
 test("aircraft hard lock uses one reticle and rate-limits interpolated camera following", async () => {
   const source = await readSource("../../../dev/assets/js/warzone-live-airforce.js");
   const rootCss = await readSource("../../../dev/assets/css/root.css");

@@ -231,6 +231,7 @@ function installCesiumPerformanceDiagnostics(viewer) {
         focusImageryStableGeneration: 0,
         focusCameraStableGeneration: 0,
         unlockPending: false,
+        unlockType: "",
         cameraLookAts: 0,
         cameraSetViews: 0,
         cameraFlyTos: 0,
@@ -253,10 +254,17 @@ function installCesiumPerformanceDiagnostics(viewer) {
             stats.lastFocusImagerySettleMs = Math.max(0, now - stats.focusStartedAt);
             stats.focusImageryStableGeneration = stats.focusGeneration;
             markCesiumPerformance("stratops-focus-imagery-stable");
+            if (stats.focusType === "satellite") {
+                markCesiumPerformance("stratops-satellite-focus-imagery-stable");
+            }
         }
         if (stats.unlockPending) {
             stats.unlockPending = false;
             markCesiumPerformance("stratops-focus-unlock-stable");
+            if (stats.unlockType === "satellite") {
+                markCesiumPerformance("stratops-satellite-unlock-stable");
+            }
+            stats.unlockType = "";
         }
     };
     const queueCameraStableMark = () => {
@@ -346,6 +354,9 @@ function installCesiumPerformanceDiagnostics(viewer) {
             stats.focusImageryStableGeneration = 0;
             stats.focusCameraStableGeneration = 0;
             markCesiumPerformance("stratops-focus-start");
+            if (stats.focusType === "satellite") {
+                markCesiumPerformance("stratops-satellite-focus-start");
+            }
             if (!imagerySettleStartedAt) {
                 imagerySettleStartedAt = stats.focusStartedAt;
                 markCesiumPerformance("stratops-imagery-settle-start");
@@ -353,11 +364,15 @@ function installCesiumPerformanceDiagnostics(viewer) {
             return;
         }
         if (state === "inactive" && stats.focusStartedAt > 0) {
+            stats.unlockType = stats.focusType;
             stats.focusStartedAt = 0;
             stats.focusType = "";
             stats.focusAssetId = "";
             stats.unlockPending = true;
             markCesiumPerformance("stratops-focus-unlock-start");
+            if (stats.unlockType === "satellite") {
+                markCesiumPerformance("stratops-satellite-unlock-start");
+            }
             if (stats.currentTileQueue === 0) {
                 if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
                 imagerySettleTimer = window.setTimeout(markImagerySettled, 520);
@@ -478,6 +493,14 @@ function installCesiumPerformanceDiagnostics(viewer) {
             eventPulseUpdatesPerSecond: Number((__eventPulseUpdateCount / pulseElapsedSeconds).toFixed(2)),
         };
     };
+    const getSatelliteFocusStats = () => window.__getWarzoneMilSatsFocusDiagnostics?.() || Object.freeze({
+        active: false,
+        controller: "unavailable",
+        trackedEntityActive: Boolean(viewer.trackedEntity),
+        cameraHzLimit: null,
+        cameraUpdates: 0,
+        cameraUpdatesPerSecond: 0,
+    });
     window.__stratopsPerf = Object.freeze({
         getCameraStats,
         getImageryStats,
@@ -486,6 +509,7 @@ function installCesiumPerformanceDiagnostics(viewer) {
         getHotspotStats,
         getAnimationStats,
         getRequestRenderStats,
+        getSatelliteFocusStats,
         printSummary() {
             const summary = {
                 camera: getCameraStats(),
@@ -495,6 +519,7 @@ function installCesiumPerformanceDiagnostics(viewer) {
                 hotspots: getHotspotStats(),
                 animation: getAnimationStats(),
                 requestRender: getRequestRenderStats(),
+                satelliteFocus: getSatelliteFocusStats(),
             };
             console.table(summary);
             return summary;

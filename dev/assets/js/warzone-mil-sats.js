@@ -14,10 +14,21 @@ import {
 } from "./warzone-satellite-models.js";
 import { REGIONS, flyToRegion, getActiveRegion } from "./warzone-region-selector.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
+import { requestSharedSceneRender } from "./warzone-animation-scheduler.js";
 
 const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
 const EARTH_RADIUS_M = 6371008.8;
 const SCENE_MORPH_WAIT_TIMEOUT_MS = 6000;
+const SATELLITE_FOCUS_VISUAL_HZ = 30;
+const SATELLITE_FOCUS_CAMERA_HZ = 12;
+const SATELLITE_FOCUS_POSITION_EPSILON_METERS = 350;
+const SATELLITE_FOCUS_HEADING_EPSILON_DEG = 0.04;
+const SATELLITE_FOCUS_PITCH_EPSILON_DEG = 0.04;
+const SATELLITE_FOCUS_RANGE_EPSILON_METERS = 15;
+const SATELLITE_FOCUS_TASK_KEYS = Object.freeze({
+    visual: "satellite-visual-motion",
+    camera: "satellite-camera-follow",
+});
 const DEFAULT_CONFIG = Object.freeze({
     enabled: true,
     apiPath: DEFAULT_API_PATH,
@@ -112,6 +123,28 @@ const state = {
     focusOwnerSignature: "",
     focusPendingId: "",
     focusRequestToken: 0,
+    focusRuntime: {
+        active: false,
+        cameraReady: false,
+        startedAt: 0,
+        endedAt: 0,
+        selectedEntity: null,
+        currentPosition: null,
+        cameraTarget: null,
+        headingDeg: 25,
+        pitchDeg: -28,
+        rangeMeters: 950000,
+        positionUpdates: 0,
+        cameraTaskRuns: 0,
+        cameraUpdates: 0,
+        cameraUpdatesSkipped: 0,
+        renderRequests: 0,
+        lastPositionDeltaMeters: null,
+        lastHeadingDeltaDeg: null,
+        lastPitchDeltaDeg: null,
+        lastRangeDeltaMeters: null,
+        cameraStableMarked: false,
+    },
     filters: {
         association: "all",
         country: "all",
@@ -616,6 +649,214 @@ function removeEntity(entity) {
     } catch {
         // Ignore Cesium cleanup races during scene shutdown.
     }
+}
+
+function nowPerformanceMs() {
+    return typeof performance !== "undefined" && typeof performance.now === "function"
+        ? performance.now()
+        : Date.now();
+}
+
+function markSatellitePerformance(name) {
+    try {
+        performance.mark(name);
+    } catch { }
+}
+
+function resetSatelliteFocusRuntime(options = {}) {
+    const runtime = state.focusRuntime;
+    const activate = options.active === true;
+    if (!activate) {
+        if (runtime.active && runtime.startedAt > 0) runtime.endedAt = nowPerformanceMs();
+        runtime.active = false;
+        runtime.cameraReady = false;
+        runtime.selectedEntity = null;
+        runtime.currentPosition = null;
+        runtime.cameraTarget = null;
+        return;
+    }
+    runtime.active = true;
+    runtime.cameraReady = false;
+    runtime.startedAt = nowPerformanceMs();
+    runtime.endedAt = 0;
+    runtime.selectedEntity = null;
+    runtime.currentPosition = null;
+    runtime.cameraTarget = null;
+    runtime.headingDeg = 25;
+    runtime.pitchDeg = -28;
+    runtime.rangeMeters = 950000;
+    runtime.positionUpdates = 0;
+    runtime.cameraTaskRuns = 0;
+    runtime.cameraUpdates = 0;
+    runtime.cameraUpdatesSkipped = 0;
+    runtime.renderRequests = 0;
+    runtime.lastPositionDeltaMeters = null;
+    runtime.lastHeadingDeltaDeg = null;
+    runtime.lastPitchDeltaDeg = null;
+    runtime.lastRangeDeltaMeters = null;
+    runtime.cameraStableMarked = false;
+}
+
+function normalizeAngleDeltaDegrees(a, b) {
+    return Math.abs((((Number(a) - Number(b)) + 540) % 360) - 180);
+}
+
+function getSatelliteCameraViewFromTarget(position) {
+    const camera = state.viewer?.camera;
+    if (!camera?.positionWC || !position) return null;
+    try {
+        const targetFrame = Cesium.Transforms.eastNorthUpToFixedFrame(position);
+        const inverseFrame = Cesium.Matrix4.inverseTransformation(targetFrame, new Cesium.Matrix4());
+        const localOffset = Cesium.Matrix4.multiplyByPoint(
+            inverseFrame,
+            camera.positionWC,
+            new Cesium.Cartesian3()
+        );
+        const range = Cesium.Cartesian3.magnitude(localOffset);
+        if (!Number.isFinite(range) || range <= 0) return null;
+        return {
+            headingDeg: Cesium.Math.toDegrees(Math.atan2(-localOffset.x, -localOffset.y)),
+            pitchDeg: Cesium.Math.toDegrees(Math.asin(clamp(-localOffset.z / range, -1, 1))),
+            range,
+        };
+    } catch {
+        return null;
+    }
+}
+
+function preserveSatelliteCameraView(position) {
+    const view = getSatelliteCameraViewFromTarget(position);
+    if (!view) return;
+    if (Number.isFinite(view.headingDeg)) state.focusRuntime.headingDeg = view.headingDeg;
+    if (Number.isFinite(view.pitchDeg)) state.focusRuntime.pitchDeg = view.pitchDeg;
+    if (Number.isFinite(view.range) && view.range > 0) {
+        state.focusRuntime.rangeMeters = view.range;
+    }
+}
+
+function updateFocusedSatelliteVisual() {
+    const runtime = state.focusRuntime;
+    const focusController = getAssetFocusController();
+    if (!runtime.active || !state.selectedId || !focusController.isActiveAsset(state.selectedId, "satellite")) {
+        return false;
+    }
+    const record = getSatelliteRecord(state.selectedId);
+    const selected = runtime.selectedEntity;
+    if (!record || !selected || !state.viewer?.entities?.contains?.(selected)) return false;
+    const point = propagateRecord(record, new Date());
+    if (!point?.position) return false;
+    const orientation = createSatelliteModelOrientation(point.position);
+    if (typeof selected.position?.setValue === "function") selected.position.setValue(point.position);
+    else selected.position = point.position;
+    if (typeof selected.orientation?.setValue === "function") selected.orientation.setValue(orientation);
+    else selected.orientation = orientation;
+    runtime.currentPosition = Cesium.Cartesian3.clone(
+        point.position,
+        runtime.currentPosition || new Cesium.Cartesian3()
+    );
+    runtime.positionUpdates += 1;
+    runtime.renderRequests += 1;
+    requestSharedSceneRender();
+    return true;
+}
+
+function updateSatelliteFocusCamera(options = {}) {
+    const runtime = state.focusRuntime;
+    const viewer = state.viewer;
+    const focusController = getAssetFocusController();
+    if (
+        !runtime.active ||
+        !runtime.cameraReady ||
+        !viewer?.camera ||
+        viewer.scene?.mode !== Cesium.SceneMode.SCENE3D ||
+        !state.selectedId ||
+        !focusController.isActiveAsset(state.selectedId, "satellite")
+    ) return false;
+
+    const target = runtime.currentPosition;
+    if (!target) return false;
+    runtime.cameraTaskRuns += 1;
+    if (runtime.cameraTarget) preserveSatelliteCameraView(runtime.cameraTarget);
+
+    const positionDelta = runtime.cameraTarget
+        ? Cesium.Cartesian3.distance(runtime.cameraTarget, target)
+        : Number.POSITIVE_INFINITY;
+    const currentView = getSatelliteCameraViewFromTarget(runtime.cameraTarget || target);
+    const headingDelta = currentView
+        ? normalizeAngleDeltaDegrees(runtime.headingDeg, currentView.headingDeg)
+        : Number.POSITIVE_INFINITY;
+    const pitchDelta = currentView
+        ? Math.abs(runtime.pitchDeg - currentView.pitchDeg)
+        : Number.POSITIVE_INFINITY;
+    const rangeDelta = currentView
+        ? Math.abs(runtime.rangeMeters - currentView.range)
+        : Number.POSITIVE_INFINITY;
+    runtime.lastPositionDeltaMeters = Number.isFinite(positionDelta) ? positionDelta : null;
+    runtime.lastHeadingDeltaDeg = Number.isFinite(headingDelta) ? headingDelta : null;
+    runtime.lastPitchDeltaDeg = Number.isFinite(pitchDelta) ? pitchDelta : null;
+    runtime.lastRangeDeltaMeters = Number.isFinite(rangeDelta) ? rangeDelta : null;
+
+    const force = options.force === true;
+    const meaningful =
+        positionDelta >= SATELLITE_FOCUS_POSITION_EPSILON_METERS ||
+        headingDelta >= SATELLITE_FOCUS_HEADING_EPSILON_DEG ||
+        pitchDelta >= SATELLITE_FOCUS_PITCH_EPSILON_DEG ||
+        rangeDelta >= SATELLITE_FOCUS_RANGE_EPSILON_METERS;
+    if (!force && !meaningful) {
+        runtime.cameraUpdatesSkipped += 1;
+        return false;
+    }
+
+    try {
+        viewer.camera.lookAt(
+            target,
+            new Cesium.HeadingPitchRange(
+                Cesium.Math.toRadians(runtime.headingDeg),
+                Cesium.Math.toRadians(runtime.pitchDeg),
+                runtime.rangeMeters
+            )
+        );
+        runtime.cameraTarget = Cesium.Cartesian3.clone(
+            target,
+            runtime.cameraTarget || new Cesium.Cartesian3()
+        );
+        runtime.cameraUpdates += 1;
+        viewer.__warzoneRecordFocusCameraUpdate?.("satellite");
+        if (!runtime.cameraStableMarked) {
+            runtime.cameraStableMarked = true;
+            markSatellitePerformance("stratops-satellite-focus-camera-stable");
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function activateSatelliteFocusCamera(selectedEntity) {
+    const runtime = state.focusRuntime;
+    if (!runtime.active || !selectedEntity || state.selectedId === "") return false;
+    runtime.selectedEntity = selectedEntity;
+    updateFocusedSatelliteVisual();
+    const target = runtime.currentPosition;
+    if (!target) return false;
+    preserveSatelliteCameraView(target);
+    runtime.cameraTarget = Cesium.Cartesian3.clone(target);
+    runtime.cameraReady = true;
+    return updateSatelliteFocusCamera({ force: true });
+}
+
+function installSatelliteFocusTasks() {
+    const focusController = getAssetFocusController();
+    focusController.registerTask(
+        SATELLITE_FOCUS_TASK_KEYS.visual,
+        updateFocusedSatelliteVisual,
+        { hz: SATELLITE_FOCUS_VISUAL_HZ }
+    );
+    focusController.registerTask(
+        SATELLITE_FOCUS_TASK_KEYS.camera,
+        updateSatelliteFocusCamera,
+        { hz: SATELLITE_FOCUS_CAMERA_HZ }
+    );
 }
 
 function getOrbitalRenderEntities() {
@@ -1282,13 +1523,20 @@ function updateSelectedSatellitePosition() {
     const now = new Date();
     const selected = state.viewer.entities?.getById?.(`wz-orbital-selected-${record.noradId}`);
     if (!selected) return false;
-    const position = createSampledPosition(record, now, 4, 18);
-    if (!position) return false;
-    selected.position = position;
-    selected.orientation = createSatelliteModelOrientationProperty(position);
+    const point = propagateRecord(record, now);
+    if (!point?.position) return false;
+    if (typeof selected.position?.setValue === "function") selected.position.setValue(point.position);
+    else selected.position = point.position;
+    const orientation = createSatelliteModelOrientation(point.position);
+    if (typeof selected.orientation?.setValue === "function") selected.orientation.setValue(orientation);
+    else selected.orientation = orientation;
+    state.focusRuntime.currentPosition = Cesium.Cartesian3.clone(
+        point.position,
+        state.focusRuntime.currentPosition || new Cesium.Cartesian3()
+    );
     showFocusCard(record);
     updateControlsOptions();
-    state.viewer.scene?.requestRender?.();
+    requestSharedSceneRender();
     return true;
 }
 
@@ -1554,6 +1802,7 @@ function commitSatelliteSelection(id = "", options = {}) {
             viewer.selectedEntity = undefined;
         }
     } catch { }
+    resetSatelliteFocusRuntime();
 
     clearFocusEntities();
 
@@ -1592,16 +1841,9 @@ function commitSatelliteSelection(id = "", options = {}) {
 
     const now = new Date();
 
-    const position = createSampledPosition(
-        record,
-        now,
-        Number(state.config.pastOrbitMinutes) || 45,
-        Number(state.config.futureOrbitMinutes) || 60
-    );
-
     const current = propagateRecord(record, now);
 
-    if (!position || !current) {
+    if (!current) {
         state.selectedId = "";
         if (focusController.isActiveAsset(selectedId, "satellite")) {
             focusController.exitFocus("satellite-position-unavailable");
@@ -1614,6 +1856,7 @@ function commitSatelliteSelection(id = "", options = {}) {
         assetId: selectedId,
         mode: "observation",
     })) return false;
+    resetSatelliteFocusRuntime({ active: true });
 
     const entry = state.entities.get(record.id);
 
@@ -1627,10 +1870,10 @@ function commitSatelliteSelection(id = "", options = {}) {
     const selectedEntity = addFocusEntity(
         viewer.entities.add({
             id: `wz-orbital-selected-${record.noradId}`,
-            position,
-            orientation: createSatelliteModelOrientationProperty(position),
+            position: current.position,
+            orientation: createSatelliteModelOrientation(current.position),
 
-            // Camera position used while tracking the satellite.
+            // Initial camera framing used before controlled follow begins.
             viewFrom: new Cesium.Cartesian3(
                 -650000,
                 -650000,
@@ -1721,9 +1964,8 @@ function commitSatelliteSelection(id = "", options = {}) {
             state.selectedId === selectedId &&
             viewer.entities.contains(selectedEntity)
         ) {
-            // Anchor the camera so it continues following the moving satellite.
-            viewer.trackedEntity = selectedEntity;
             viewer.selectedEntity = selectedEntity;
+            activateSatelliteFocusCamera(selectedEntity);
         }
 
         viewer.scene.requestRender?.();
@@ -1732,7 +1974,8 @@ function commitSatelliteSelection(id = "", options = {}) {
             state.selectedId === selectedId &&
             viewer.entities.contains(selectedEntity)
         ) {
-            viewer.trackedEntity = selectedEntity;
+            viewer.selectedEntity = selectedEntity;
+            activateSatelliteFocusCamera(selectedEntity);
         }
 
         viewer.scene.requestRender?.();
@@ -1769,6 +2012,7 @@ function cleanupLayer() {
     }
     state.focusRequestToken += 1;
     state.focusPendingId = "";
+    resetSatelliteFocusRuntime();
     stopTimers();
     destroyHandler();
     hideHoverGuide();
@@ -1856,6 +2100,38 @@ export function getWarzoneMilSatsDiagnostics() {
         loading: state.loading,
         cachedOrbitalRecords: state.records?.length || 0,
         cachedSatrecs: state.satrecs.size,
+        satelliteFocus: getWarzoneMilSatsFocusDiagnostics(),
+    });
+}
+
+export function getWarzoneMilSatsFocusDiagnostics() {
+    const runtime = state.focusRuntime;
+    const elapsedSeconds = runtime.startedAt > 0
+        ? Math.max(0.001, ((runtime.endedAt || nowPerformanceMs()) - runtime.startedAt) / 1000)
+        : 0;
+    return Object.freeze({
+        active: runtime.active,
+        controller: "controlled-follow",
+        trackedEntityActive: Boolean(state.viewer?.trackedEntity),
+        cameraReady: runtime.cameraReady,
+        visualHzLimit: SATELLITE_FOCUS_VISUAL_HZ,
+        cameraHzLimit: SATELLITE_FOCUS_CAMERA_HZ,
+        positionEpsilonMeters: SATELLITE_FOCUS_POSITION_EPSILON_METERS,
+        headingEpsilonDeg: SATELLITE_FOCUS_HEADING_EPSILON_DEG,
+        pitchEpsilonDeg: SATELLITE_FOCUS_PITCH_EPSILON_DEG,
+        rangeEpsilonMeters: SATELLITE_FOCUS_RANGE_EPSILON_METERS,
+        positionUpdates: runtime.positionUpdates,
+        positionUpdatesPerSecond: elapsedSeconds ? Number((runtime.positionUpdates / elapsedSeconds).toFixed(2)) : 0,
+        cameraTaskRuns: runtime.cameraTaskRuns,
+        cameraUpdates: runtime.cameraUpdates,
+        cameraUpdatesPerSecond: elapsedSeconds ? Number((runtime.cameraUpdates / elapsedSeconds).toFixed(2)) : 0,
+        cameraUpdatesSkipped: runtime.cameraUpdatesSkipped,
+        renderRequests: runtime.renderRequests,
+        lastPositionDeltaMeters: runtime.lastPositionDeltaMeters,
+        lastHeadingDeltaDeg: runtime.lastHeadingDeltaDeg,
+        lastPitchDeltaDeg: runtime.lastPitchDeltaDeg,
+        lastRangeDeltaMeters: runtime.lastRangeDeltaMeters,
+        taskKeys: Object.freeze(Object.values(SATELLITE_FOCUS_TASK_KEYS)),
     });
 }
 
@@ -1864,6 +2140,7 @@ export function initWarzoneMilSats(viewer) {
     mergeConfig();
     state.viewer = viewer;
     state.enabled = false;
+    installSatelliteFocusTasks();
     window.refreshWarzoneMilSatsScale = () => {
         if (startupDemoState.enabled) refreshStartupDemoScale();
         if (state.enabled) updateDefaultEntities();
@@ -1875,4 +2152,5 @@ export function initWarzoneMilSats(viewer) {
     document.removeEventListener("wz:asset-focus-changed", handleAssetFocusChanged);
     document.addEventListener("wz:asset-focus-changed", handleAssetFocusChanged);
     window.__getWarzoneMilSatsDiagnostics = getWarzoneMilSatsDiagnostics;
+    window.__getWarzoneMilSatsFocusDiagnostics = getWarzoneMilSatsFocusDiagnostics;
 }
