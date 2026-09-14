@@ -17,6 +17,10 @@ const __liveTrackIconCodeCache = new Map();
 const LIVE_TRACK_BILLBOARD_CACHE_MAX_ITEMS = 160;
 let __liveTrackFocusSmoothedTarget = null;
 const __liveTrackFocusSmoothedTargetScratch = new Cesium.Cartesian3();
+let __liveTrackLastFocusCameraTarget = null;
+let __liveTrackLastFocusCameraHeadingDeg = Number.NaN;
+let __liveTrackLastFocusCameraPitchDeg = Number.NaN;
+let __liveTrackLastFocusCameraRangeMeters = Number.NaN;
 function setLimitedMapCache(map, key, value, maxItems = LIVE_TRACK_BILLBOARD_CACHE_MAX_ITEMS) {
     if (!(map instanceof Map)) return value;
     if (map.has(key)) map.delete(key);
@@ -124,7 +128,8 @@ const LIVE_TRACK_FOCUS_CAMERA_RANGE_MIN_METERS = 500;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_MAX_METERS = 3200000;
 const LIVE_TRACK_FOCUS_WARNING_RANGE_METERS = 70000;
 const LIVE_TRACK_FOCUS_FINAL_RANGE_METERS = 120000;
-const LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS = 12;
+const LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ = 20;
+const LIVE_TRACK_FOCUS_CAMERA_POSITION_EPSILON_METERS = 4;
 const LIVE_TRACK_FOCUS_CAMERA_ZOOM_EPSILON_METERS = 20;
 const LIVE_TRACK_FOCUS_WHEEL_DELTA_REFERENCE_PX = 100;
 const LIVE_TRACK_FOCUS_WHEEL_LINE_HEIGHT_PX = 16;
@@ -3713,6 +3718,10 @@ function hideLiveTrackFocusVisuals() {
         __liveTrackOverlayRoot.style.display = "none";
     }
     __liveTrackFocusSmoothedTarget = null;
+    __liveTrackLastFocusCameraTarget = null;
+    __liveTrackLastFocusCameraHeadingDeg = Number.NaN;
+    __liveTrackLastFocusCameraPitchDeg = Number.NaN;
+    __liveTrackLastFocusCameraRangeMeters = Number.NaN;
     __liveTrackOverlayLastVisible = false;
     __liveTrackOverlayLastX = Number.NaN;
     __liveTrackOverlayLastY = Number.NaN;
@@ -4709,8 +4718,8 @@ function syncFocusedTrackCameraOrientationFromViewer(position, options = {}) {
 }
 function syncFocusedTrackCamera(options = {}) {
     const forceLifecycleSync = options?.lifecycleResume === true;
-    const forceMotionFrameSync = options?.motionFrame === true;
     const forceVisualRefresh = options?.visualRefresh === true;
+    const forceCameraSync = forceLifecycleSync || forceVisualRefresh;
     const viewer = window.__warzoneViewer;
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";
@@ -4735,15 +4744,15 @@ function syncFocusedTrackCamera(options = {}) {
 
     const now = performance.now();
 
-    if (
-        !forceLifecycleSync &&
-        !forceMotionFrameSync &&
-        (now - __liveTrackLastFocusCameraSyncAt) < LIVE_TRACK_FOCUS_CAMERA_SYNC_MIN_MS
-    ) {
+    const cameraSyncHz = clamp(
+        getCssNumber("--warzone-live-aircraft-focus-camera-sync-hz", LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ),
+        10,
+        30
+    );
+    const cameraSyncIntervalMs = 1000 / cameraSyncHz;
+    if (!forceCameraSync && (now - __liveTrackLastFocusCameraSyncAt) < cameraSyncIntervalMs) {
         return;
     }
-
-    __liveTrackLastFocusCameraSyncAt = now;
 
     const preserveRange = options?.preserveRange === true;
     void preserveRange;
@@ -4770,15 +4779,51 @@ function syncFocusedTrackCamera(options = {}) {
         );
     }
 
+    const cameraRange = resolveLiveTrackFocusCameraRange();
+    const positionEpsilonMeters = Math.max(
+        0.25,
+        getCssNumber(
+            "--warzone-live-aircraft-focus-camera-position-epsilon",
+            LIVE_TRACK_FOCUS_CAMERA_POSITION_EPSILON_METERS
+        )
+    );
+    const targetDelta = __liveTrackLastFocusCameraTarget
+        ? Cesium.Cartesian3.distance(__liveTrackLastFocusCameraTarget, __liveTrackFocusSmoothedTarget)
+        : Number.POSITIVE_INFINITY;
+    const headingDelta = Number.isFinite(__liveTrackLastFocusCameraHeadingDeg)
+        ? Math.abs((((__liveTrackFocusHeadingDeg - __liveTrackLastFocusCameraHeadingDeg) + 540) % 360) - 180)
+        : Number.POSITIVE_INFINITY;
+    const pitchDelta = Number.isFinite(__liveTrackLastFocusCameraPitchDeg)
+        ? Math.abs(__liveTrackFocusPitchDeg - __liveTrackLastFocusCameraPitchDeg)
+        : Number.POSITIVE_INFINITY;
+    const rangeDelta = Number.isFinite(__liveTrackLastFocusCameraRangeMeters)
+        ? Math.abs(cameraRange - __liveTrackLastFocusCameraRangeMeters)
+        : Number.POSITIVE_INFINITY;
+    const hasMeaningfulCameraChange =
+        targetDelta >= positionEpsilonMeters ||
+        headingDelta >= 0.02 ||
+        pitchDelta >= 0.02 ||
+        rangeDelta >= 1;
+    if (!forceCameraSync && !hasMeaningfulCameraChange) return;
+
     try {
         viewer.camera.lookAt(
             __liveTrackFocusSmoothedTarget,
             new Cesium.HeadingPitchRange(
                 Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
                 Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
-                resolveLiveTrackFocusCameraRange()
+                cameraRange
             )
         );
+        __liveTrackLastFocusCameraSyncAt = now;
+        __liveTrackLastFocusCameraTarget = Cesium.Cartesian3.clone(
+            __liveTrackFocusSmoothedTarget,
+            __liveTrackLastFocusCameraTarget || new Cesium.Cartesian3()
+        );
+        __liveTrackLastFocusCameraHeadingDeg = __liveTrackFocusHeadingDeg;
+        __liveTrackLastFocusCameraPitchDeg = __liveTrackFocusPitchDeg;
+        __liveTrackLastFocusCameraRangeMeters = cameraRange;
+        viewer.__warzoneRecordFocusCameraUpdate?.("aircraft");
         if (
             forceVisualRefresh ||
             (now - __liveTrackLastFocusVisualRefreshAt) >= LIVE_TRACK_FOCUS_VISUAL_REFRESH_MIN_MS
@@ -4795,7 +4840,7 @@ function bindLiveTrackOverlay(viewer) {
     document.addEventListener("wz:contour-layer-changed", syncFocusedTrackOverlayModeButtons);
     bindFocusInteractionTracking(viewer);
     const focusController = getAssetFocusController();
-    focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera());
+    focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera(), { hz: LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ });
     focusController.registerTask("aircraft-focus-overlay", () => syncLiveTrackFocusOverlay(), { hz: 30 });
     viewer.scene.preRender.addEventListener(() => {
         focusController.requestFrame();

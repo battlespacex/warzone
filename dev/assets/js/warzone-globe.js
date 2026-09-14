@@ -186,6 +186,266 @@ function getCameraHeight(viewer) {
         return 0;
     }
 }
+function markCesiumPerformance(name) {
+    try {
+        performance.mark(name);
+    } catch { }
+}
+function installCesiumPerformanceDiagnostics(viewer) {
+    if (!viewer || viewer.__warzoneCesiumPerfDiagnosticsInstalled) return;
+    const hostname = String(window.location?.hostname || "").toLowerCase();
+    const enabled = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" ||
+        window.__stratopsConfig?.enableCesiumPerformanceDiagnostics === true;
+    if (!enabled) return;
+    viewer.__warzoneCesiumPerfDiagnosticsInstalled = true;
+
+    const startedAt = performance.now();
+    const stats = {
+        cameraMoveStarts: 0,
+        cameraMoveEnds: 0,
+        cameraChanges: 0,
+        focusCameraUpdates: 0,
+        requestRenderCalls: 0,
+        renderedFrames: 0,
+        tileQueueEvents: 0,
+        approximateTileRequests: 0,
+        maximumTileQueue: 0,
+        currentTileQueue: 0,
+        lastCameraChangeAt: 0,
+        lastCameraMoveEndAt: 0,
+        lastImagerySettleMs: null,
+        lastFocusImagerySettleMs: null,
+        lastFocusCameraStableMs: null,
+        focusStartedAt: 0,
+        focusType: "",
+        focusAssetId: "",
+        focusGeneration: 0,
+        focusImageryStableGeneration: 0,
+        focusCameraStableGeneration: 0,
+        unlockPending: false,
+        cameraLookAts: 0,
+        cameraSetViews: 0,
+        cameraFlyTos: 0,
+        cameraFlyToBoundingSpheres: 0,
+    };
+    let imagerySettleStartedAt = 0;
+    let imagerySettleTimer = 0;
+    let focusCameraStableTimer = 0;
+
+    const markImagerySettled = () => {
+        imagerySettleTimer = 0;
+        if (stats.currentTileQueue > 0) return;
+        const now = performance.now();
+        if (imagerySettleStartedAt > 0) {
+            stats.lastImagerySettleMs = Math.max(0, now - imagerySettleStartedAt);
+            imagerySettleStartedAt = 0;
+            markCesiumPerformance("stratops-imagery-settle-end");
+        }
+        if (stats.focusStartedAt > 0 && stats.focusImageryStableGeneration !== stats.focusGeneration) {
+            stats.lastFocusImagerySettleMs = Math.max(0, now - stats.focusStartedAt);
+            stats.focusImageryStableGeneration = stats.focusGeneration;
+            markCesiumPerformance("stratops-focus-imagery-stable");
+        }
+        if (stats.unlockPending) {
+            stats.unlockPending = false;
+            markCesiumPerformance("stratops-focus-unlock-stable");
+        }
+    };
+    const queueCameraStableMark = () => {
+        if (focusCameraStableTimer) window.clearTimeout(focusCameraStableTimer);
+        focusCameraStableTimer = window.setTimeout(() => {
+            focusCameraStableTimer = 0;
+            if (!stats.focusStartedAt || stats.focusCameraStableGeneration === stats.focusGeneration) return;
+            stats.lastFocusCameraStableMs = Math.max(0, performance.now() - stats.focusStartedAt);
+            stats.focusCameraStableGeneration = stats.focusGeneration;
+            markCesiumPerformance("stratops-focus-camera-stable");
+        }, 280);
+    };
+    const readTilesRendered = () => {
+        try {
+            const quadtree = viewer.scene?.globe?._surface?._tileProvider?._quadtree;
+            return Array.isArray(quadtree?._tilesToRender) ? quadtree._tilesToRender.length : null;
+        } catch {
+            return null;
+        }
+    };
+    const readRequestStats = () => {
+        const requestStats = Cesium.RequestScheduler?.statistics || {};
+        return {
+            active: Number(requestStats.numberOfActiveRequests || 0),
+            started: Number(requestStats.numberOfActiveRequestsEver || 0),
+            attempted: Number(requestStats.numberOfAttemptedRequests || 0),
+            cancelled: Number(requestStats.numberOfCancelledRequests || 0),
+            failed: Number(requestStats.numberOfFailedRequests || 0),
+        };
+    };
+    const elapsedSeconds = () => Math.max(0.001, (performance.now() - startedAt) / 1000);
+
+    viewer.camera.moveStart.addEventListener(() => {
+        stats.cameraMoveStarts += 1;
+        if (!imagerySettleStartedAt) {
+            imagerySettleStartedAt = performance.now();
+            markCesiumPerformance("stratops-imagery-settle-start");
+        }
+        markCesiumPerformance("stratops-camera-move-start");
+    });
+    viewer.camera.moveEnd.addEventListener(() => {
+        stats.cameraMoveEnds += 1;
+        stats.lastCameraMoveEndAt = performance.now();
+        markCesiumPerformance("stratops-camera-move-end");
+        if (stats.currentTileQueue === 0) {
+            if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
+            imagerySettleTimer = window.setTimeout(markImagerySettled, 520);
+        }
+    });
+    viewer.camera.changed.addEventListener(() => {
+        stats.cameraChanges += 1;
+        stats.lastCameraChangeAt = performance.now();
+        if (stats.focusStartedAt) queueCameraStableMark();
+    });
+    viewer.scene.postRender.addEventListener(() => {
+        stats.renderedFrames += 1;
+    });
+    viewer.scene.globe.tileLoadProgressEvent.addEventListener((queueLength = 0) => {
+        const next = Math.max(0, Number(queueLength || 0));
+        stats.tileQueueEvents += 1;
+        stats.approximateTileRequests += Math.max(0, next - stats.currentTileQueue);
+        stats.currentTileQueue = next;
+        stats.maximumTileQueue = Math.max(stats.maximumTileQueue, next);
+        if (next > 0) {
+            if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
+            imagerySettleTimer = 0;
+            if (!imagerySettleStartedAt) {
+                imagerySettleStartedAt = performance.now();
+                markCesiumPerformance("stratops-imagery-settle-start");
+            }
+        } else {
+            if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
+            imagerySettleTimer = window.setTimeout(markImagerySettled, 520);
+        }
+    });
+    document.addEventListener("wz:asset-focus-changed", (event) => {
+        const detail = event?.detail || {};
+        const generation = Number(detail.generation || 0);
+        const state = String(detail.state || "");
+        if ((state === "entering" || state === "active") && generation !== stats.focusGeneration) {
+            stats.focusGeneration = generation;
+            stats.focusStartedAt = performance.now();
+            stats.focusType = String(detail.assetType || "");
+            stats.focusAssetId = String(detail.assetId || "");
+            stats.lastFocusImagerySettleMs = null;
+            stats.lastFocusCameraStableMs = null;
+            stats.focusImageryStableGeneration = 0;
+            stats.focusCameraStableGeneration = 0;
+            markCesiumPerformance("stratops-focus-start");
+            if (!imagerySettleStartedAt) {
+                imagerySettleStartedAt = stats.focusStartedAt;
+                markCesiumPerformance("stratops-imagery-settle-start");
+            }
+            return;
+        }
+        if (state === "inactive" && stats.focusStartedAt > 0) {
+            stats.focusStartedAt = 0;
+            stats.focusType = "";
+            stats.focusAssetId = "";
+            stats.unlockPending = true;
+            markCesiumPerformance("stratops-focus-unlock-start");
+            if (stats.currentTileQueue === 0) {
+                if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
+                imagerySettleTimer = window.setTimeout(markImagerySettled, 520);
+            }
+        }
+    });
+
+    const wrapCameraMethod = (methodName, counterName) => {
+        const original = viewer.camera?.[methodName];
+        if (typeof original !== "function") return;
+        try {
+            viewer.camera[methodName] = (...args) => {
+                stats[counterName] += 1;
+                return original.apply(viewer.camera, args);
+            };
+        } catch { }
+    };
+    wrapCameraMethod("lookAt", "cameraLookAts");
+    wrapCameraMethod("setView", "cameraSetViews");
+    wrapCameraMethod("flyTo", "cameraFlyTos");
+    wrapCameraMethod("flyToBoundingSphere", "cameraFlyToBoundingSpheres");
+
+    const originalRequestRender = viewer.scene.requestRender.bind(viewer.scene);
+    try {
+        viewer.scene.requestRender = (...args) => {
+            stats.requestRenderCalls += 1;
+            return originalRequestRender(...args);
+        };
+    } catch { }
+    viewer.__warzoneRecordFocusCameraUpdate = (assetType = "") => {
+        stats.focusCameraUpdates += 1;
+        if (assetType && !stats.focusType) stats.focusType = String(assetType);
+    };
+
+    const getCameraStats = () => ({
+        moveStarts: stats.cameraMoveStarts,
+        moveEnds: stats.cameraMoveEnds,
+        changes: stats.cameraChanges,
+        changesPerSecond: Number((stats.cameraChanges / elapsedSeconds()).toFixed(2)),
+        focusCameraUpdates: stats.focusCameraUpdates,
+        focusCameraUpdatesPerSecond: Number((stats.focusCameraUpdates / elapsedSeconds()).toFixed(2)),
+        requestRenderCalls: stats.requestRenderCalls,
+        requestRenderCallsPerSecond: Number((stats.requestRenderCalls / elapsedSeconds()).toFixed(2)),
+        lookAtCalls: stats.cameraLookAts,
+        setViewCalls: stats.cameraSetViews,
+        flyToCalls: stats.cameraFlyTos,
+        flyToBoundingSphereCalls: stats.cameraFlyToBoundingSpheres,
+        renderedFrames: stats.renderedFrames,
+        cameraHeight: getCameraHeight(viewer),
+        moving: viewer.__warzoneCameraMoving === true,
+    });
+    const getImageryStats = () => {
+        const provider = viewer.__imageryBase?.imageryProvider;
+        const requestStats = readRequestStats();
+        return {
+            pendingTileRequests: stats.currentTileQueue,
+            activeCesiumRequests: requestStats.active,
+            totalCesiumRequestsStarted: requestStats.started,
+            approximateTileRequests: stats.approximateTileRequests,
+            approximateTileRequestsPerSecond: Number((stats.approximateTileRequests / elapsedSeconds()).toFixed(2)),
+            maximumTileQueue: stats.maximumTileQueue,
+            tilesRendered: readTilesRendered(),
+            lastImagerySettleMs: stats.lastImagerySettleMs,
+            providerTileWidth: Number(provider?.tileWidth || 0) || null,
+            providerTileHeight: Number(provider?.tileHeight || 0) || null,
+            providerMaximumLevel: Number.isFinite(Number(provider?.maximumLevel)) ? Number(provider.maximumLevel) : null,
+            maximumScreenSpaceError: Number(viewer.scene.globe.maximumScreenSpaceError),
+            loadingDescendantLimit: Number(viewer.scene.globe.loadingDescendantLimit),
+            tileCacheSize: Number(viewer.scene.globe.tileCacheSize),
+            preloadAncestors: viewer.scene.globe.preloadAncestors === true,
+            preloadSiblings: viewer.scene.globe.preloadSiblings === true,
+        };
+    };
+    const getFocusStats = () => ({
+        state: String(window.__warzoneFocusDiagnostics?.state || "inactive"),
+        assetType: stats.focusType,
+        assetId: stats.focusAssetId,
+        cameraUpdates: stats.focusCameraUpdates,
+        lastCameraStableMs: stats.lastFocusCameraStableMs,
+        lastImageryStableMs: stats.lastFocusImagerySettleMs,
+    });
+    window.__stratopsPerf = Object.freeze({
+        getCameraStats,
+        getImageryStats,
+        getFocusStats,
+        printSummary() {
+            const summary = {
+                camera: getCameraStats(),
+                imagery: getImageryStats(),
+                focus: getFocusStats(),
+            };
+            console.table(summary);
+            return summary;
+        },
+    });
+}
 function shouldClusterEvents(viewer) {
     return getCameraHeight(viewer) > numberVar("--warzone-event-cluster-height", 1800000);
 }
@@ -1142,10 +1402,10 @@ function getFocusedAssetPerformanceCaps(profile = "normal") {
             };
         default:
             return {
-                resolutionCap: 0.96,
-                msaaCap: 1,
-                sseFloor: 1.9,
-                tileCacheCap: 140,
+                resolutionCap: 1.05,
+                msaaCap: 2,
+                sseFloor: 1.75,
+                tileCacheCap: 320,
                 maxRenderTime: 0.24,
             };
     }
@@ -7967,21 +8227,24 @@ export async function initWarzoneGlobe(options = {}) {
             const focusSceneSettled = isFocusedAssetMode && !isCameraMoving && !tileLoadBusy;
             if (isFocusedAssetMode) {
                 if (focusSceneSettled) {
-                    nextResolution = Math.max(nextResolution, focusPerformanceResolutionScale);
-                    nextMsaaSamples = Math.max(nextMsaaSamples, focusPerformanceMsaaSamples);
-                    nextSse = Math.min(nextSse, focusPerformanceSse);
+                    // Once focus movement and tile loading stop, keep the same final
+                    // imagery quality and cache retention as a settled non-focus view.
+                    nextResolution = Math.max(nextResolution, baseResolution);
+                    nextMsaaSamples = Math.max(nextMsaaSamples, baseMsaaSamples);
+                    nextSse = Math.min(nextSse, baseSse);
                 } else {
                     // Keep the focused GLB readable while camera motion or tile loading is active.
                     nextResolution = Math.max(nextResolution, Math.min(baseResolution, 1));
                     nextMsaaSamples = Math.max(nextMsaaSamples, Math.min(2, focusMsaaSamples));
+                    nextSse = Math.max(nextSse, focusPerformanceSse);
+                    nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache, focusedAssetCaps.tileCacheCap);
+                    if (tileLoadBusy) {
+                        nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, Math.max(4, busyLoadingDescendantLimit - 2));
+                    }
+                    nextPreloadSiblings = false;
                 }
                 nextFxaaEnabled = true;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, focusPerformanceRenderTime, focusedAssetCaps.maxRenderTime);
-                nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache, focusedAssetCaps.tileCacheCap);
-                if (tileLoadBusy) {
-                    nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, Math.max(4, busyLoadingDescendantLimit - 2));
-                }
-                nextPreloadSiblings = false;
             }
             if (adaptiveCaps.forceFxaaEnabled) {
                 nextFxaaEnabled = true;
@@ -7993,7 +8256,7 @@ export async function initWarzoneGlobe(options = {}) {
             if (adaptiveCaps.forcePreloadSiblingsFalse) {
                 nextPreloadSiblings = false;
             }
-            if (isFocusedAssetMode) {
+            if (isFocusedAssetMode && !focusSceneSettled) {
                 nextResolution = Math.min(nextResolution, focusedAssetCaps.resolutionCap);
                 nextMsaaSamples = Math.min(nextMsaaSamples, focusedAssetCaps.msaaCap);
                 nextSse = Math.max(nextSse, focusedAssetCaps.sseFloor);
@@ -8107,6 +8370,7 @@ export async function initWarzoneGlobe(options = {}) {
     if (typeof window !== "undefined") {
         window.__warzone = viewer.__warzone;
     }
+    installCesiumPerformanceDiagnostics(viewer);
     if (!viewer.__warzonePerfZoomBound) {
         viewer.__warzonePerfZoomBound = true;
         let perfRaf = 0;

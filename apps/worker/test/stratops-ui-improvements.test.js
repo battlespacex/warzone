@@ -117,15 +117,18 @@ test("orbital satellite focus stays independent from monitoring-region boundarie
   assert.match(regions, /satelliteFocusActive[\s\S]*?clearPendingRegionHintRefresh\(\)[\s\S]*?setRegionHintState\(false, viewer\)/);
 });
 
-test("aircraft hard lock uses one reticle and follows the interpolated position on the same frame", async () => {
+test("aircraft hard lock uses one reticle and rate-limits interpolated camera following", async () => {
   const source = await readSource("../../../dev/assets/js/warzone-live-airforce.js");
   const rootCss = await readSource("../../../dev/assets/css/root.css");
 
   assert.doesNotMatch(source, /setLiveTrackHardLockInternal\(true\);\s*bindFocusGuideTracking\(\);/);
-  assert.match(source, /const forceMotionFrameSync = options\?\.motionFrame === true/);
   assert.match(source, /focusedTrackAdvanced[\s\S]*?syncFocusedTrackCamera\(\{ motionFrame: true \}\)/);
+  assert.match(source, /--warzone-live-aircraft-focus-camera-sync-hz/);
+  assert.match(source, /targetDelta >= positionEpsilonMeters/);
+  assert.match(source, /registerTask\("aircraft-camera-lock"[\s\S]*?\{ hz: LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ \}/);
   assert.match(source, /--warzone-live-aircraft-focus-camera-follow-ease", 1/);
   assert.match(rootCss, /--warzone-live-aircraft-focus-camera-follow-ease:\s*1;/);
+  assert.match(rootCss, /--warzone-live-aircraft-focus-camera-sync-hz:\s*20;/);
 });
 
 test("CTR loads and scopes airbase highlights independently from the military-bases layer", async () => {

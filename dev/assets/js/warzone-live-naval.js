@@ -42,6 +42,10 @@ const __navalState = {
     focusRangeMeters: 120000,
     focusTargetRangeMeters: 120000,
     lastFocusCameraSyncAt: 0,
+    lastFocusCameraTarget: null,
+    lastFocusCameraHeadingDeg: Number.NaN,
+    lastFocusCameraPitchDeg: Number.NaN,
+    lastFocusCameraRangeMeters: Number.NaN,
     previousEnableZoom: null,
     hoverGuideEl: null,
     hoverLabelEntity: null,
@@ -63,7 +67,8 @@ const NAVAL_FOCUS_CAMERA_PITCH_MIN_DEG = -89;
 const NAVAL_FOCUS_CAMERA_PITCH_MAX_DEG = -8;
 const NAVAL_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.18;
 const NAVAL_FOCUS_CAMERA_PITCH_SENSITIVITY_DEG_PER_PX = 0.11;
-const NAVAL_FOCUS_CAMERA_SYNC_MIN_MS = 12;
+const NAVAL_FOCUS_CAMERA_SYNC_HZ = 20;
+const NAVAL_FOCUS_CAMERA_POSITION_EPSILON_METERS = 2;
 const NAVAL_FOCUS_CAMERA_ZOOM_EPSILON_METERS = 20;
 const NAVAL_FOCUS_WHEEL_DELTA_REFERENCE_PX = 100;
 const NAVAL_FOCUS_WHEEL_LINE_HEIGHT_PX = 16;
@@ -2268,6 +2273,11 @@ function clearNavalSelection() {
     __navalState.focusDragState = null;
     __navalState.focusRangeMeters = NAVAL_FOCUS_CAMERA_RANGE_METERS;
     __navalState.focusTargetRangeMeters = __navalState.focusRangeMeters;
+    __navalState.lastFocusCameraSyncAt = 0;
+    __navalState.lastFocusCameraTarget = null;
+    __navalState.lastFocusCameraHeadingDeg = Number.NaN;
+    __navalState.lastFocusCameraPitchDeg = Number.NaN;
+    __navalState.lastFocusCameraRangeMeters = Number.NaN;
     setNavalFocusedZoomLock(false);
     const focusController = getAssetFocusController();
     if (previousKey && focusController.isActiveAsset(previousKey, "naval")) {
@@ -2428,11 +2438,41 @@ function syncFocusedNavalCamera(options = {}) {
     if (!viewer || viewer.scene?.mode !== Cesium.SceneMode.SCENE3D || !__navalState.selectedKey) return;
     if (__navalState.isCameraFlying && options?.force !== true) return;
     const now = performance.now();
-    if (options?.force !== true && (now - __navalState.lastFocusCameraSyncAt) < NAVAL_FOCUS_CAMERA_SYNC_MIN_MS) return;
-    __navalState.lastFocusCameraSyncAt = now;
+    const cameraSyncHz = clamp(
+        getCssNumber("--warzone-live-naval-focus-camera-sync-hz", NAVAL_FOCUS_CAMERA_SYNC_HZ),
+        10,
+        30
+    );
+    if (options?.force !== true && (now - __navalState.lastFocusCameraSyncAt) < (1000 / cameraSyncHz)) return;
     const position = getNavalEntryPosition(getFocusedNavalEntry());
     if (!position) return;
     const cameraRange = resolveNavalFocusCameraRange();
+    const positionEpsilonMeters = Math.max(
+        0.25,
+        getCssNumber(
+            "--warzone-live-naval-focus-camera-position-epsilon",
+            NAVAL_FOCUS_CAMERA_POSITION_EPSILON_METERS
+        )
+    );
+    const targetDelta = __navalState.lastFocusCameraTarget
+        ? Cesium.Cartesian3.distance(__navalState.lastFocusCameraTarget, position)
+        : Number.POSITIVE_INFINITY;
+    const headingDelta = Number.isFinite(__navalState.lastFocusCameraHeadingDeg)
+        ? Math.abs((((__navalState.focusHeadingDeg - __navalState.lastFocusCameraHeadingDeg) + 540) % 360) - 180)
+        : Number.POSITIVE_INFINITY;
+    const pitchDelta = Number.isFinite(__navalState.lastFocusCameraPitchDeg)
+        ? Math.abs(__navalState.focusPitchDeg - __navalState.lastFocusCameraPitchDeg)
+        : Number.POSITIVE_INFINITY;
+    const rangeDelta = Number.isFinite(__navalState.lastFocusCameraRangeMeters)
+        ? Math.abs(cameraRange - __navalState.lastFocusCameraRangeMeters)
+        : Number.POSITIVE_INFINITY;
+    if (
+        options?.force !== true &&
+        targetDelta < positionEpsilonMeters &&
+        headingDelta < 0.02 &&
+        pitchDelta < 0.02 &&
+        rangeDelta < 1
+    ) return;
     try {
         viewer.camera.lookAt(
             position,
@@ -2442,6 +2482,15 @@ function syncFocusedNavalCamera(options = {}) {
                 cameraRange
             )
         );
+        __navalState.lastFocusCameraSyncAt = now;
+        __navalState.lastFocusCameraTarget = Cesium.Cartesian3.clone(
+            position,
+            __navalState.lastFocusCameraTarget || new Cesium.Cartesian3()
+        );
+        __navalState.lastFocusCameraHeadingDeg = __navalState.focusHeadingDeg;
+        __navalState.lastFocusCameraPitchDeg = __navalState.focusPitchDeg;
+        __navalState.lastFocusCameraRangeMeters = cameraRange;
+        viewer.__warzoneRecordFocusCameraUpdate?.("naval");
     } catch { }
 }
 function stopNavalPointerEvent(event) {
@@ -2574,6 +2623,11 @@ export function focusNavalVessel(trackKey, options = {}) {
     if (!targetPosition) return false;
 
     __navalState.selectedKey = trackKey;
+    __navalState.lastFocusCameraSyncAt = 0;
+    __navalState.lastFocusCameraTarget = null;
+    __navalState.lastFocusCameraHeadingDeg = Number.NaN;
+    __navalState.lastFocusCameraPitchDeg = Number.NaN;
+    __navalState.lastFocusCameraRangeMeters = Number.NaN;
     hideNavalHoverLabel();
     __navalState.focusHeadingDeg = Number.isFinite(Number(options.headingDegrees))
         ? ((Number(options.headingDegrees) % 360) + 360) % 360
@@ -3000,7 +3054,7 @@ function bindNavalOverlay(viewer) {
     };
     viewer.scene.postRender.addEventListener(__navalState.overlayPostRenderHandler);
     const focusController = getAssetFocusController();
-    focusController.registerTask("naval-camera-lock", () => syncFocusedNavalCamera());
+    focusController.registerTask("naval-camera-lock", () => syncFocusedNavalCamera(), { hz: NAVAL_FOCUS_CAMERA_SYNC_HZ });
     viewer.scene.preRender.addEventListener(__navalState.overlayPreRenderHandler);
     viewer.camera.moveEnd.addEventListener(__navalState.overlayMoveEndHandler);
 }

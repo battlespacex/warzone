@@ -835,7 +835,7 @@ input[type="checkbox"]:checked {
     --warzone-focus-performance-resolution-scale: 0.86;
     --warzone-focus-performance-msaa-samples: 1;
     --warzone-focus-performance-screen-space-error: 2.35;
-    --warzone-focus-performance-tile-cache: 110;
+    --warzone-focus-performance-tile-cache: 320;
     --warzone-focus-performance-render-time: 0.22;
 
     --warzone-close-resolution-scale: 1.2;
@@ -1540,6 +1540,8 @@ input[type="checkbox"]:checked {
     /* CTR-only framing range: keeps the existing 11.25 km ground grid in view. */
     --warzone-live-naval-ctr-focused-distance: 24000;
     --warzone-live-naval-focus-camera-pitch: -58;
+    --warzone-live-naval-focus-camera-sync-hz: 20;
+    --warzone-live-naval-focus-camera-position-epsilon: 2;
     --warzone-live-naval-focus-wheel-zoom-step: 5000;
     --warzone-live-naval-focus-wheel-zoom-ease: 0.22;
     --warzone-live-naval-focus-warning-range: 90000;
@@ -1622,6 +1624,8 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-focus-camera-range: 24000;
     --warzone-live-aircraft-focus-altitude-offset-ft: 3500;
     --warzone-live-aircraft-focus-camera-pitch: -58;
+    --warzone-live-aircraft-focus-camera-sync-hz: 20;
+    --warzone-live-aircraft-focus-camera-position-epsilon: 4;
     --warzone-live-aircraft-unfocus-camera-range: 72000;
     --warzone-live-aircraft-unfocus-zoom-out-delta: 26000;
     --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
