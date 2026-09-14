@@ -353,6 +353,105 @@ function toPublicEvent(event = {}) {
     };
 }
 
+function pickMapMetadata(event = {}, publicEvent = {}) {
+    const metadata = event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+        ? event.metadata
+        : {};
+    const allowedKeys = [
+        "track_type",
+        "mmsi",
+        "ship_type",
+        "shipType",
+        "vessel_name",
+        "vessel_class",
+        "ship_class",
+        "call_sign",
+        "callSign",
+        "operational_status",
+        "operationalStatus",
+        "service_status",
+        "serviceStatus",
+        "status",
+        "icao",
+        "callsign",
+        "registration",
+        "type_code",
+        "model_name",
+        "on_ground",
+        "operator",
+        "display_surface",
+        "displaySurface",
+    ];
+    const selected = {};
+    allowedKeys.forEach((key) => {
+        if (metadata[key] !== undefined && metadata[key] !== null) selected[key] = metadata[key];
+    });
+    selected.event_quality = {
+        corroboration_state: publicEvent.corroboration_state,
+        raw_report_count: publicEvent.raw_report_count,
+        independent_source_family_count: publicEvent.independent_source_family_count,
+        official_confirmation: publicEvent.official_confirmation,
+        direct_evidence: publicEvent.direct_evidence,
+        disputed: publicEvent.disputed,
+        source_class: publicEvent.source_class,
+        source_tier: publicEvent.source_tier,
+        source_reliability: publicEvent.source_reliability,
+    };
+    return selected;
+}
+
+function toPublicMapEvent(event = {}) {
+    const publicEvent = toPublicEvent(event);
+    return {
+        id: publicEvent.id,
+        created_at: publicEvent.created_at || null,
+        occurred_at: publicEvent.occurred_at || null,
+        category: publicEvent.category,
+        subcategory: publicEvent.subcategory || null,
+        report_type: publicEvent.report_type || null,
+        title: publicEvent.title,
+        summary: publicEvent.summary,
+        display_title: publicEvent.display_title,
+        display_summary: publicEvent.display_summary,
+        source_name: publicEvent.source_name,
+        display_source_name: publicEvent.display_source_name,
+        location_label: publicEvent.location_label,
+        display_location_label: publicEvent.display_location_label,
+        country_code: publicEvent.country_code || null,
+        event_country: publicEvent.event_country,
+        event_region: publicEvent.event_region,
+        event_city: publicEvent.event_city,
+        event_place: publicEvent.event_place,
+        source_country: publicEvent.source_country,
+        source_region: publicEvent.source_region,
+        location_precision: publicEvent.location_precision,
+        location_confidence: publicEvent.location_confidence,
+        location_method: publicEvent.location_method,
+        lat: publicEvent.lat,
+        lon: publicEvent.lon,
+        map_eligible: publicEvent.map_eligible,
+        severity: publicEvent.severity,
+        confidence: publicEvent.confidence ?? null,
+        weapon_type: publicEvent.weapon_type || null,
+        tags: Array.isArray(publicEvent.tags) ? publicEvent.tags : [],
+        priority_score: Number.isFinite(Number(publicEvent.priority_score))
+            ? Number(publicEvent.priority_score)
+            : null,
+        source_count: Number.isFinite(Number(publicEvent.source_count))
+            ? Number(publicEvent.source_count)
+            : null,
+        is_breaking: publicEvent.is_breaking === true,
+        corroboration_state: publicEvent.corroboration_state,
+        verification_state: publicEvent.verification_state,
+        raw_report_count: publicEvent.raw_report_count,
+        independent_source_family_count: publicEvent.independent_source_family_count,
+        official_confirmation: publicEvent.official_confirmation,
+        direct_evidence: publicEvent.direct_evidence,
+        disputed: publicEvent.disputed,
+        metadata: pickMapMetadata(event, publicEvent),
+    };
+}
+
 export {
     cleanLocationLabel,
     cleanPublicText,
@@ -360,5 +459,6 @@ export {
     isCoarseCountryCentroid,
     isUnknownText,
     isValidCoordinate,
-    toPublicEvent
+    toPublicEvent,
+    toPublicMapEvent
 };

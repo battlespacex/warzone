@@ -6,7 +6,7 @@ import { updateNewsTicker, updateDefcon } from "./warzone-ui.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
-import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens } from "./warzone-region-selector.js";
+import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens, getRegionRequestBounds } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage, requestLayerToggle } from "./warzone-layers.js";
 import { renderRanges, clearRanges, getRangeDiagnostics } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers, getSweeperDiagnostics } from "./warzone-sweeper.js";
@@ -119,6 +119,7 @@ let __lastSeenOccurredAt = null;
 let __hotspotLayer = null;
 let __militaryTracks = null;
 let __eventPopupBound = false;
+const __eventDetailCache = new Map();
 let __pollTimer = null;
 let __operationalGlobalUiInitialized = false;
 let __warzoneAppInitPromise = null;
@@ -354,6 +355,8 @@ const EVENT_POLL_INTERVAL_MS = 12 * 1000;
 const EVENT_CACHE_MAX_ITEMS = 2600;
 const EVENT_VISIBLE_CACHE_MAX_ITEMS = 1800;
 const EVENT_CACHE_RETENTION_MS = MAP_EVENT_HISTORY_WINDOW_MS;
+const EVENT_DETAIL_CACHE_TTL_MS = 5 * 60 * 1000;
+const EVENT_DETAIL_CACHE_MAX_ITEMS = 64;
 const POLL_SINCE_MAX_FUTURE_SKEW_MS = 60 * 1000;
 const POLL_FULL_REFRESH_EMPTY_STREAK = 15;
 const EVENTS_API_ERROR_LOG_THROTTLE_MS = 45 * 1000;
@@ -1152,6 +1155,19 @@ function filterEventsToActiveRegion(events = [], region = getActiveRegion?.()) {
     const source = Array.isArray(events) ? events : [];
     if (!filterEventsByRegion || !region || region.id === "global") return source;
     return filterEventsByRegion(source, region);
+}
+function getMapEventsRegionRequest(region = getActiveRegion?.()) {
+    const bounds = getRegionRequestBounds?.(region) || region?.bounds || null;
+    return region && bounds ? { id: region.id, bounds } : null;
+}
+function mergeMapBootstrapWithRealtime(events = [], region = getActiveRegion?.()) {
+    const byId = new Map();
+    [...(Array.isArray(events) ? events : []), ...filterEventsToActiveRegion(__liveRecentEvents, region)]
+        .forEach((event) => {
+            const id = String(event?.id || "").trim();
+            if (id) byId.set(id, event);
+        });
+    return [...byId.values()];
 }
 function isEventInsideActiveRegion(event = {}, region = getActiveRegion?.()) {
     if (!event) return false;
@@ -2647,6 +2663,55 @@ function renderEventPopupRelatedEvents(host, detail = {}) {
         </div>
     `;
 }
+function mergeEnrichedEventPopupDetail(detail = {}, event = {}) {
+    return {
+        ...detail,
+        id: String(event.id || detail.id || ""),
+        title: event.display_title || event.title || detail.title || "",
+        summary: event.display_summary || event.summary || detail.summary || "",
+        displayTitle: event.display_title || event.title || detail.displayTitle || "",
+        displaySummary: event.display_summary || event.summary || detail.displaySummary || "",
+        sourceName: event.display_source_name || event.source_name || detail.sourceName || "",
+        sourceUrl: event.source_url || detail.sourceUrl || "",
+        category: event.category || detail.category || "",
+        severity: event.severity || detail.severity || "",
+        locationLabel: event.display_location_label || event.location_label || detail.locationLabel || "",
+        occurredAt: event.occurred_at || detail.occurredAt || "",
+        confidence: event.confidence ?? detail.confidence,
+        weaponType: event.weapon_type || detail.weaponType || "",
+        satelliteContext: event.satellite_context || detail.satelliteContext || null,
+        satelliteAvailable: event.satellite_available === true || detail.satelliteAvailable === true,
+        media: event.media || detail.media || null,
+        primaryImage: event.primary_image || detail.primaryImage || null,
+        additionalImages: Array.isArray(event.additional_images) ? event.additional_images : (detail.additionalImages || []),
+        imageSource: event.image_source || detail.imageSource || "",
+        imageCaption: event.image_caption || detail.imageCaption || "",
+        imageCredit: event.image_credit || detail.imageCredit || "",
+        imageType: event.image_type || detail.imageType || "",
+    };
+}
+function getCachedEventDetail(eventId) {
+    const id = String(eventId || "").trim();
+    if (!id) return Promise.resolve(null);
+    const cached = __eventDetailCache.get(id);
+    if (cached && (Date.now() - cached.storedAt) < EVENT_DETAIL_CACHE_TTL_MS) {
+        return cached.promise;
+    }
+    const promise = api.getEventById(id)
+        .then(({ data, error }) => {
+            if (error) throw error;
+            return data || null;
+        })
+        .catch((error) => {
+            if (__eventDetailCache.get(id)?.promise === promise) __eventDetailCache.delete(id);
+            throw error;
+        });
+    __eventDetailCache.set(id, { promise, storedAt: Date.now() });
+    while (__eventDetailCache.size > EVENT_DETAIL_CACHE_MAX_ITEMS) {
+        __eventDetailCache.delete(__eventDetailCache.keys().next().value);
+    }
+    return promise;
+}
 function bindGlobeEventPopup() {
     if (__eventPopupBound) return;
     __eventPopupBound = true;
@@ -2672,11 +2737,13 @@ function bindGlobeEventPopup() {
     let popupMediaIndex = 0;
     let popupSatelliteOpen = false;
     let popupTrackingViewer = null;
+    let popupDetailRequestSeq = 0;
     const popupScreenScratch = new Cesium.Cartesian2();
     const hidePopup = (options = {}) => {
         if (__eventPopupDevInspectionFrozen && options?.force !== true) return;
         activePopupAnchor = null;
         activePopupDetail = null;
+        popupDetailRequestSeq += 1;
         popupMediaIndex = 0;
         popupSatelliteOpen = false;
         if (mediaEl) {
@@ -2845,7 +2912,7 @@ function bindGlobeEventPopup() {
             positionPopupNearMarker(getPopupAnchorScreenPosition());
         });
     };
-    const showPopup = (detail = {}) => {
+    const showPopup = (detail = {}, options = {}) => {
         if (__eventPopupDevInspectionFrozen && detail?.devInspectionPreview !== true) return;
         const clusterCount = Math.max(1, Number(detail.clusterCount || detail.cluster_count || 1));
         const categoryLabel = sanitizeEventPopupText(
@@ -2933,6 +3000,19 @@ function bindGlobeEventPopup() {
         };
         positionPopupNearMarker(detail.screenPosition || getPopupAnchorScreenPosition());
         window.__warzoneViewer?.scene?.requestRender?.();
+        const detailId = String(detail.id || "").trim();
+        if (options.hydrate !== false && detailId && detail?.devInspectionPreview !== true) {
+            const requestSeq = ++popupDetailRequestSeq;
+            getCachedEventDetail(detailId)
+                .then((event) => {
+                    if (!event || requestSeq !== popupDetailRequestSeq) return;
+                    if (String(activePopupDetail?.id || "") !== detailId || popup.hidden) return;
+                    showPopup(mergeEnrichedEventPopupDetail(activePopupDetail, event), { hydrate: false });
+                })
+                .catch(() => {
+                    // The lightweight popup remains usable when enrichment is unavailable.
+                });
+        }
     };
     popup.addEventListener("click", (event) => {
         const mediaNav = event.target?.closest?.("[data-popup-media-nav]");
@@ -8645,8 +8725,12 @@ async function initializeWarzoneAppOnce() {
 
     try {
         let events = [];
+        markStartupPerformance("stratops-map-events-request-start");
         try {
-            const { data, error } = await api.getEvents({ signal: controller.signal });
+            const { data, error } = await api.getMapEvents(
+                getMapEventsRegionRequest(),
+                { signal: controller.signal }
+            );
             if (error) {
                 logEventsApiError("Supabase events error:", error);
                 if (isEventsApiRestrictedError(error)) {
@@ -8662,6 +8746,8 @@ async function initializeWarzoneAppOnce() {
                 __eventsApiRestrictedUntil = Date.now() + EVENTS_API_RESTRICTED_BACKOFF_MS;
             }
         }
+        markStartupPerformance("stratops-map-events-request-end");
+        markStartupPerformance("stratops-map-events-parse-complete");
         markStartupPerformance("stratops-events-loaded");
         const statusRefreshPromise = refreshStatusEvents()
             .then((statusEvents) => {
@@ -8679,6 +8765,7 @@ async function initializeWarzoneAppOnce() {
             })
             : Promise.resolve(__gnssInterferenceCellsCache);
         __viewportScoped = false;
+        markStartupPerformance("stratops-map-events-render-start");
         markStartupPerformance("stratops-events-render-start");
         renderAll(events);
         if (isStratOpsFeatureEnabled("system.intelWireFeed") && isStratOpsFeatureEnabled("widgets.intelWire")) {
@@ -8695,6 +8782,7 @@ async function initializeWarzoneAppOnce() {
             window.__warzoneViewer?.scene?.requestRender?.();
         }
         markStartupPerformance("stratops-events-render-complete");
+        markStartupPerformance("stratops-map-events-render-complete");
         measureStartupPerformance(
             "stratops-events-render",
             "stratops-events-render-start",
@@ -8776,9 +8864,12 @@ async function initializeWarzoneAppOnce() {
                 requestAircraftMovementsWidgetRender(0);
                 requestNavalWidgetRender(0);
                 const reloadSeq = ++__regionReloadSeq;
-                api.getEvents()
+                const requestedRegion = getActiveRegion?.();
+                const requestedRegionId = String(requestedRegion?.id || "");
+                api.getMapEvents(getMapEventsRegionRequest(requestedRegion))
                     .then(async ({ data, error }) => {
                         if (reloadSeq !== __regionReloadSeq) return;
+                        if (String(getActiveRegion?.()?.id || "") !== requestedRegionId) return;
                         if (error) {
                             logEventsApiError("Region refresh events error:", error);
                             return;
@@ -8790,7 +8881,7 @@ async function initializeWarzoneAppOnce() {
                         if (isLayerEnabled("gnss")) {
                             await refreshGnssInterferenceCells({ force: true });
                         }
-                        renderAll(freshEvents);
+                        renderAll(mergeMapBootstrapWithRealtime(freshEvents, requestedRegion));
                         syncNewsTickerForCurrentMode();
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
                         syncHotspotLayerEvents(
@@ -9068,8 +9159,9 @@ async function initializeWarzoneAppOnce() {
         if (__militaryTracks) {
             __militaryTracks.setTracks(applyAllFilters(__eventsCache).filter(isMilitaryTrackEvent));
         }
-        if (events[0]?.occurred_at) {
-            __lastSeenOccurredAt = events[0].occurred_at;
+        const newestInitialEvent = sortEvents(events)[0];
+        if (newestInitialEvent?.occurred_at) {
+            __lastSeenOccurredAt = newestInitialEvent.occurred_at;
         }
         __lastViewportKey = "";
         __viewportScoped = false;
@@ -9124,19 +9216,25 @@ async function pollLatestEvents(options = {}) {
             __pollEmptyStreak += 1;
             if (__pollEmptyStreak >= POLL_FULL_REFRESH_EMPTY_STREAK) {
                 __pollEmptyStreak = 0;
-                const { data: fullData, error: fullError } = await api.getEvents();
+                const refreshRegion = getActiveRegion?.();
+                const refreshRegionId = String(refreshRegion?.id || "");
+                const { data: fullData, error: fullError } = await api.getMapEvents(
+                    getMapEventsRegionRequest(refreshRegion),
+                    { force: true }
+                );
                 if (requestSeq !== __pollRequestSeq || isDocumentHidden()) return;
+                if (String(getActiveRegion?.()?.id || "") !== refreshRegionId) return;
                 if (!fullError) {
                     const fullEvents = Array.isArray(fullData)
                         ? fullData.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     if (fullEvents.length) {
                         await refreshStatusEvents();
-                        renderAll(fullEvents);
+                        renderAll(mergeMapBootstrapWithRealtime(fullEvents, refreshRegion));
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
                         const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
                         syncHotspotLayerEvents(applyHotspotFilters(hotspotSource, { respectRegion: true }));
-                        const newestTs = Date.parse(fullEvents[0]?.occurred_at || "");
+                        const newestTs = Date.parse(sortEvents(fullEvents)[0]?.occurred_at || "");
                         if (Number.isFinite(newestTs)) {
                             __lastSeenOccurredAt = new Date(
                                 Math.min(newestTs, Date.now())
@@ -9365,6 +9463,7 @@ export function handleIncomingEvent(event) {
     if (isAircraftTelemetryEvent(normalized)) return;
     if (isTrainerAircraftSignalEvent(normalized)) return;
     if (!isMilitaryRelevant(normalized)) return;
+    api.mergeRealtimeMapEvent?.(normalized);
     const allEventsMatch = __allEventsCache.findIndex((e) => String(e.id) === String(normalized.id));
     if (allEventsMatch >= 0) {
         __allEventsCache.splice(allEventsMatch, 1);

@@ -5,7 +5,7 @@ import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sa
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachSatelliteContextToEvents } from "./satellite-context.js";
-import { toPublicEvent } from "./public-event-normalizer.js";
+import { toPublicEvent, toPublicMapEvent } from "./public-event-normalizer.js";
 import {
     MAP_EVENT_HISTORY_WINDOW_HOURS,
     applyGeneralEventDeliveryFilters,
@@ -17,6 +17,33 @@ const MAX_EVENTS_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const DEFAULT_EVENTS_LIMIT = 2000;
 const MIN_EVENTS_LIMIT = 200;
 const MAX_EVENTS_LIMIT = 4000;
+export const MAP_EVENTS_WINDOW_HOURS = 48;
+export const MAP_EVENTS_MAX_WINDOW_HOURS = 72;
+export const MAP_EVENTS_LIMIT = 800;
+export const MAP_EVENTS_SELECT_COLUMNS = [
+    "id",
+    "created_at",
+    "occurred_at",
+    "category",
+    "subcategory",
+    "report_type",
+    "title",
+    "summary",
+    "source_name",
+    "location_label",
+    "country_code",
+    "severity",
+    "confidence",
+    "lat",
+    "lon",
+    "weapon_type",
+    "source_count",
+    "priority_score",
+    "is_breaking",
+    "dedupe_key",
+    "tags",
+    "metadata",
+].join(", ");
 const DEFAULT_EVENTS_SINCE_LIMIT = 200;
 const MAX_EVENTS_SINCE_LIMIT = 500;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
@@ -129,8 +156,140 @@ export function buildGeneralEventsQuery(supabase, options = {}) {
         .limit(options.limit);
 }
 
+function readMapBounds(queryParams = {}) {
+    const bounds = {
+        minLat: Number(queryParams.min_lat),
+        maxLat: Number(queryParams.max_lat),
+        minLon: Number(queryParams.min_lon),
+        maxLon: Number(queryParams.max_lon),
+    };
+    if (!Object.values(bounds).every(Number.isFinite)) return null;
+    if (bounds.minLat < -90 || bounds.maxLat > 90 || bounds.minLon < -180 || bounds.maxLon > 180) return null;
+    if (bounds.minLat > bounds.maxLat || bounds.minLon > bounds.maxLon) return null;
+    return bounds;
+}
+
+export function parseMapEventsRequest(queryParams = {}, now = Date.now()) {
+    const regionId = String(queryParams.region_id || "").trim().slice(0, 64);
+    const bounds = readMapBounds(queryParams);
+    if (!regionId || !bounds) return null;
+    const requestedWindowHours = Number(queryParams.window_hours);
+    const windowHours = Number.isFinite(requestedWindowHours)
+        ? clamp(requestedWindowHours, MIN_EVENTS_WINDOW_HOURS, MAP_EVENTS_MAX_WINDOW_HOURS)
+        : MAP_EVENTS_WINDOW_HOURS;
+    const requestedLimit = Number(queryParams.limit);
+    const limit = Number.isFinite(requestedLimit)
+        ? clamp(Math.floor(requestedLimit), 50, MAP_EVENTS_LIMIT)
+        : MAP_EVENTS_LIMIT;
+    return {
+        regionId,
+        bounds,
+        windowHours,
+        limit,
+        cutoffIso: new Date(now - (windowHours * 60 * 60 * 1000)).toISOString(),
+    };
+}
+
+export function buildMapEventsQuery(supabase, options = {}) {
+    const bounds = options.bounds || {};
+    let eventsQuery = supabase
+        .from("events")
+        .select(MAP_EVENTS_SELECT_COLUMNS)
+        .gte("occurred_at", options.cutoffIso)
+        .gte("lat", bounds.minLat)
+        .lte("lat", bounds.maxLat)
+        .gte("lon", bounds.minLon)
+        .lte("lon", bounds.maxLon);
+    eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+    return eventsQuery
+        .order("is_breaking", { ascending: false })
+        .order("priority_score", { ascending: false, nullsFirst: false })
+        .order("occurred_at", { ascending: false })
+        .limit(options.limit);
+}
+
+export function createMapEventsHandler({
+    getSupabaseClient = getSupabase,
+    clock = () => Date.now(),
+    logger = console,
+} = {}) {
+    return async (req, res) => {
+        const requestStartedAt = clock();
+        try {
+            const options = parseMapEventsRequest(req.query, requestStartedAt);
+            if (!options) return res.status(400).json({ error: "Valid region bounds are required" });
+            const supabase = getSupabaseClient();
+            const databaseStartedAt = clock();
+            const { data, error } = await buildMapEventsQuery(supabase, options);
+            const databaseDurationMs = Math.max(0, clock() - databaseStartedAt);
+            if (error) return res.status(500).json({ error: "Failed" });
+
+            const serializationStartedAt = clock();
+            const events = (data || []).map(toPublicMapEvent);
+            const payload = JSON.stringify({
+                events,
+                meta: {
+                    region_id: options.regionId,
+                    window_hours: options.windowHours,
+                    limit: options.limit,
+                    rows: events.length,
+                },
+            });
+            const serializationDurationMs = Math.max(0, clock() - serializationStartedAt);
+            const totalDurationMs = Math.max(0, clock() - requestStartedAt);
+            res.setHeader("Content-Type", "application/json; charset=utf-8");
+            res.setHeader(
+                "Server-Timing",
+                `db;dur=${databaseDurationMs}, serialize;dur=${serializationDurationMs}, total;dur=${totalDurationMs}`
+            );
+            if (process.env.NODE_ENV !== "production") {
+                logger.info?.("[events/map]", {
+                    regionId: options.regionId,
+                    rows: events.length,
+                    databaseDurationMs,
+                    serializationDurationMs,
+                    totalDurationMs,
+                });
+            }
+            return res.send(payload);
+        } catch {
+            return res.status(500).json({ error: "Failed" });
+        }
+    };
+}
+
+export function createEventDetailHandler({
+    getSupabaseClient = getSupabase,
+    attachSatellite = attachSatelliteContextToEvents,
+    attachMedia = attachEventMediaToEvents,
+} = {}) {
+    return async (req, res) => {
+        try {
+            const eventId = String(req.params.id || "").trim();
+            if (!eventId || eventId.length > 200) return res.status(400).json({ error: "Invalid event id" });
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+                .from("events")
+                .select("*")
+                .eq("id", eventId)
+                .maybeSingle();
+            if (error) return res.status(500).json({ error: "Failed" });
+            if (!data) return res.status(404).json({ error: "Not found" });
+            const mediaBaseUrl = getPublicMediaBaseUrl(req);
+            const [eventWithSatellite] = await attachSatellite(supabase, [data]);
+            const [eventWithMedia] = await attachMedia(supabase, [eventWithSatellite], { mediaBaseUrl });
+            return res.json({ event: toPublicEvent(eventWithMedia) });
+        } catch {
+            return res.status(500).json({ error: "Failed" });
+        }
+    };
+}
+
 export function eventsRouter({ broadcast }) {
     const router = express.Router();
+
+    // Region-scoped, non-enriched payload used only for operational map bootstrap.
+    router.get("/map", createMapEventsHandler());
 
     // ── Events — initial load ──────────────────────────────────────
     router.get("/", async (req, res) => {
@@ -350,6 +509,9 @@ export function eventsRouter({ broadcast }) {
             res.status(500).json({ error: "Failed" });
         }
     });
+
+    // Full event enrichment is loaded only when a user opens a marker detail.
+    router.get("/:id", createEventDetailHandler());
 
     // ── Admin event insert (existing, keep as-is) ──────────────────
     router.post("/", express.json(), async (req, res) => {

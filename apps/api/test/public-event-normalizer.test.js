@@ -5,7 +5,8 @@ import {
     cleanSourceName,
     isCoarseCountryCentroid,
     isValidCoordinate,
-    toPublicEvent
+    toPublicEvent,
+    toPublicMapEvent
 } from "../src/public-event-normalizer.js";
 
 test("removes unsafe public fallback strings", () => {
@@ -251,4 +252,33 @@ test("publishes event corroboration state and counts without raw provenance", ()
     assert.equal(event.direct_evidence, true);
     assert.equal("source_provenance" in event, false);
     assert.equal("source_provenance" in event.metadata.event_quality, false);
+});
+
+test("map normalization excludes detail-only media, source URLs, and raw provenance", () => {
+    const event = toPublicMapEvent({
+        id: "evt-map-dto",
+        category: "strike",
+        title: "Missile strike reported",
+        summary: "Operational summary",
+        source_name: "Reuters",
+        source_url: "https://example.com/article",
+        lat: 32.65,
+        lon: 51.67,
+        media: { images: [{ full_url: "https://example.com/image.jpg" }] },
+        satellite_context: { status: "available", imageUrl: "https://example.com/satellite.jpg" },
+        raw: { private: true },
+        metadata: {
+            normalization: { location_precision: "EXACT", location_method: "incident_coordinates" },
+            mmsi: "123456789",
+            source_provenance: [{ url: "https://internal.example" }],
+        },
+    });
+
+    assert.equal(event.id, "evt-map-dto");
+    assert.equal(event.metadata.mmsi, "123456789");
+    assert.equal("source_url" in event, false);
+    assert.equal("media" in event, false);
+    assert.equal("satellite_context" in event, false);
+    assert.equal("raw" in event, false);
+    assert.equal("source_provenance" in event.metadata, false);
 });

@@ -918,6 +918,16 @@ export function filterEventsByRegion(events, region) {
 }
 export function getActiveRegion() { return __activeRegion; }
 export function getActiveLens() { return __activeLens; }
+export function getRegionRequestBounds(region = __activeRegion) {
+    const bounds = getRegionBounds(region) || region?.bounds || null;
+    if (!bounds) return null;
+    return {
+        minLat: Number(bounds.minLat),
+        maxLat: Number(bounds.maxLat),
+        minLon: Number(bounds.minLon),
+        maxLon: Number(bounds.maxLon),
+    };
+}
 function notifyScopeChange(options = {}) {
     try { localStorage.setItem(STORAGE_KEY, __activeRegion.id); } catch { }
     try { localStorage.setItem(LENS_KEY, __activeLens); } catch { }

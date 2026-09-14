@@ -44,6 +44,15 @@ const REPORTS_API_BASE =
 const EVENTS_HISTORY_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
+export const MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS = 48;
+export const MAP_EVENTS_BOOTSTRAP_LIMIT = 800;
+const MAP_EVENTS_CACHE_TTL_MS = 2 * 60 * 1000;
+const MAP_EVENTS_SELECT_COLUMNS = [
+    "id", "created_at", "occurred_at", "category", "subcategory", "report_type",
+    "title", "summary", "source_name", "location_label", "country_code", "severity",
+    "confidence", "lat", "lon", "weapon_type", "source_count", "priority_score",
+    "is_breaking", "dedupe_key", "tags", "metadata",
+].join(", ");
 const EVENTS_SINCE_LIMIT = 200;
 const INTEL_FEED_LIMIT = 120;
 const GNSS_CELL_LIMIT = 240;
@@ -53,6 +62,41 @@ const AIRCRAFT_HISTORY_LIMIT = 1000;
 let __warnedActiveAlertsUnavailable = false;
 let __warnedGnssUnavailable = false;
 const __activeApiRequests = new Map();
+const __mapEventsRegionCache = new Map();
+
+function normalizeMapRegion(region = {}) {
+    const bounds = region?.bounds || {};
+    const normalized = {
+        id: String(region?.id || "").trim(),
+        bounds: {
+            minLat: Number(bounds.minLat),
+            maxLat: Number(bounds.maxLat),
+            minLon: Number(bounds.minLon),
+            maxLon: Number(bounds.maxLon),
+        },
+    };
+    if (!normalized.id || !Object.values(normalized.bounds).every(Number.isFinite)) return null;
+    return normalized;
+}
+
+function getMapEventsCacheKey(region = {}) {
+    const bounds = region.bounds || {};
+    return [
+        region.id,
+        bounds.minLat,
+        bounds.maxLat,
+        bounds.minLon,
+        bounds.maxLon,
+        MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS,
+    ].join(":");
+}
+
+function mergeMapEventRows(rows = [], incoming = null) {
+    const incomingId = String(incoming?.id || "").trim();
+    if (!incomingId) return rows.slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
+    return [incoming, ...rows.filter((row) => String(row?.id || "").trim() !== incomingId)]
+        .slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
+}
 
 function toAbsoluteApiUrl(value = "", apiBase = REPORTS_API_BASE) {
     const url = String(value || "").trim();
@@ -375,6 +419,91 @@ export const api = {
             __warnedActiveAlertsUnavailable = true;
             return { data: null, error, unavailable: true };
         }
+    },
+
+    async getMapEvents(regionInput = {}, options = {}) {
+        const region = normalizeMapRegion(regionInput);
+        if (!region) throw new Error("Map events require valid region bounds");
+        const cacheKey = getMapEventsCacheKey(region);
+        const cached = __mapEventsRegionCache.get(cacheKey);
+        if (options.force !== true && cached && (Date.now() - cached.storedAt) < MAP_EVENTS_CACHE_TTL_MS) {
+            return { data: cached.rows, error: null, meta: { ...cached.meta, cached: true } };
+        }
+        const cutoffIso = new Date(Date.now() - (MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS * 60 * 60 * 1000)).toISOString();
+        if (!API_BASE) {
+            let eventsQuery = supabase
+                .from("events")
+                .select(MAP_EVENTS_SELECT_COLUMNS)
+                .gte("occurred_at", cutoffIso)
+                .gte("lat", region.bounds.minLat)
+                .lte("lat", region.bounds.maxLat)
+                .gte("lon", region.bounds.minLon)
+                .lte("lon", region.bounds.maxLon);
+            eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+            const { data, error } = await eventsQuery
+                .order("is_breaking", { ascending: false })
+                .order("priority_score", { ascending: false, nullsFirst: false })
+                .order("occurred_at", { ascending: false })
+                .limit(MAP_EVENTS_BOOTSTRAP_LIMIT);
+            const rows = data || [];
+            if (!error) {
+                __mapEventsRegionCache.set(cacheKey, {
+                    rows,
+                    storedAt: Date.now(),
+                    meta: { region_id: region.id, window_hours: MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS, limit: MAP_EVENTS_BOOTSTRAP_LIMIT },
+                });
+            }
+            return { data: rows, error, meta: { region_id: region.id } };
+        }
+        const params = new URLSearchParams({
+            region_id: region.id,
+            min_lat: String(region.bounds.minLat),
+            max_lat: String(region.bounds.maxLat),
+            min_lon: String(region.bounds.minLon),
+            max_lon: String(region.bounds.maxLon),
+            window_hours: String(MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS),
+            limit: String(MAP_EVENTS_BOOTSTRAP_LIMIT),
+        });
+        const res = await fetchLatest("events:map", `${API_BASE}/events/map?${params.toString()}`, options);
+        const json = await readJsonResponse(res, "Map events fetch");
+        const rows = Array.isArray(json.events) ? json.events : [];
+        const meta = { ...(json.meta || {}), cached: false };
+        __mapEventsRegionCache.set(cacheKey, { rows, meta, storedAt: Date.now() });
+        return { data: rows, error: null, meta };
+    },
+
+    mergeRealtimeMapEvent(event = {}) {
+        const lat = Number(event.lat);
+        const lon = Number(event.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        for (const [key, cached] of __mapEventsRegionCache.entries()) {
+            const parts = key.split(":");
+            const minLat = Number(parts[1]);
+            const maxLat = Number(parts[2]);
+            const minLon = Number(parts[3]);
+            const maxLon = Number(parts[4]);
+            if (lat < minLat || lat > maxLat || lon < minLon || lon > maxLon) continue;
+            __mapEventsRegionCache.set(key, {
+                ...cached,
+                rows: mergeMapEventRows(cached.rows, event),
+            });
+        }
+    },
+
+    async getEventById(eventId, options = {}) {
+        const id = String(eventId || "").trim();
+        if (!id) throw new Error("Event detail requires an id");
+        if (!API_BASE) {
+            const { data, error } = await supabase
+                .from("events")
+                .select("*")
+                .eq("id", id)
+                .maybeSingle();
+            return { data: data || null, error };
+        }
+        const res = await fetchLatest(`events:detail:${id}`, `${API_BASE}/events/${encodeURIComponent(id)}`, options);
+        const json = await readJsonResponse(res, "Event detail fetch");
+        return { data: json.event || null, error: null };
     },
 
     async getAirspaceStatuses(options = {}) {
