@@ -67,6 +67,30 @@ test("operational data and status requests are guarded after first-map readiness
   assert.match(regions, /playStartupRegionJourney\(viewer, region, options = \{\}\)[\s\S]*?if \(instant\) \{[\s\S]*?finalize\(true\)/);
 });
 
+test("decorative startup video fades in from black after deferred first-frame readiness", async () => {
+  const page = await readSource("../../../dev/pages/index.html");
+  const background = await readSource("../../../dev/assets/js/warzone-startup-background.js");
+  const css = await readSource("../../../dev/assets/css/warzone-components.css");
+
+  assert.match(page, /id="wz-startup-video"[\s\S]*?preload="none"/);
+  assert.doesNotMatch(page, /poster="\/assets\/images\/web\/stratops-og-preview\.jpg"/);
+  assert.match(page, /<source data-src="\/assets\/videos\/stratops-startup-v1\.mp4"/);
+  assert.doesNotMatch(page, /<source src="\/assets\/videos\/stratops-startup-v1\.mp4"/);
+  assert.match(page, /autoplay muted loop playsinline/);
+  assert.match(background, /window\.addEventListener\("load", scheduleWhenIdle, \{ once: true \}\)/);
+  assert.match(background, /requestIdleCallback\(start, \{ timeout: STARTUP_VIDEO_IDLE_TIMEOUT_MS \}\)/);
+  assert.match(background, /video\.dataset\.sourceAttached === "true"/);
+  assert.match(background, /stratops-intro-video-request-start/);
+  assert.match(background, /stratops-intro-video-metadata/);
+  assert.match(background, /stratops-intro-video-first-frame/);
+  assert.match(background, /stratops-intro-video-first-frame[\s\S]*?classList\.add\("is-video-ready"\)/);
+  assert.match(background, /stratops-intro-video-paused-after-entry/);
+  assert.match(background, /function releaseVideoResources[\s\S]*?video\?\.pause[\s\S]*?source\.removeAttribute\("src"\)/);
+  assert.match(css, /\.wz-startup-background \{[\s\S]*?background: var\(--color-black\)/);
+  assert.match(css, /\.wz-startup-background__video \{[\s\S]*?opacity: 0[\s\S]*?transition: opacity 700ms ease/);
+  assert.match(css, /\.wz-startup-background__video\.is-video-ready \{\s*opacity: 1/);
+});
+
 test("real satellite focus reuses scene-mode switching and waits for 3D before camera focus", async () => {
   const source = await readSource("../../../dev/assets/js/warzone-mil-sats.js");
 

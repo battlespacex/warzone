@@ -2820,8 +2820,14 @@ body.is-map-layers-open .wz-map-layers-pane {
     height: 100%;
     object-fit: cover;
     object-position: center center;
+    opacity: 0;
     pointer-events: none;
     user-select: none;
+    transition: opacity 700ms ease;
+}
+
+.wz-startup-background__video.is-video-ready {
+    opacity: 1;
 }
 
 .wz-startup-background.is-video-unavailable .wz-startup-background__video {
@@ -2969,6 +2975,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 .wz-pre-entry-showcase__panel {
     width: 82%;
+    max-width: 2400px;
     max-height: calc(100dvh - 4rem);
     display: flex;
     flex-direction: column;

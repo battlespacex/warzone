@@ -1,4 +1,14 @@
 const STARTUP_BACKGROUND_EXIT_FALLBACK_MS = 1200;
+const STARTUP_VIDEO_IDLE_TIMEOUT_MS = 1800;
+
+function markIntroVideoPerformance(name) {
+    if (!name || typeof performance?.mark !== "function") return;
+    try {
+        if (!performance.getEntriesByName(name, "mark").length) {
+            performance.mark(name);
+        }
+    } catch { }
+}
 
 function parseCssTimeMs(value = "") {
     const normalized = String(value || "").trim().toLowerCase();
@@ -32,6 +42,7 @@ let resourcesReleased = false;
 function releaseVideoResources(layer, video) {
     resourcesReleased = true;
     try { video?.pause?.(); } catch { }
+    markIntroVideoPerformance("stratops-intro-video-paused-after-entry");
     if (video) {
         video.removeAttribute("src");
         video.querySelectorAll("source").forEach((source) => source.removeAttribute("src"));
@@ -40,6 +51,55 @@ function releaseVideoResources(layer, video) {
     layer?.remove();
     document.body.classList.remove("is-pre-entry");
     document.body.classList.add("is-startup-background-released");
+}
+
+function startDeferredVideo(layer, video, markUnavailable) {
+    if (
+        resourcesReleased
+        || !layer?.isConnected
+        || layer.classList.contains("is-leaving")
+        || video.dataset.sourceAttached === "true"
+    ) {
+        return false;
+    }
+
+    const source = video.querySelector("source[data-src]");
+    const sourceUrl = String(source?.dataset?.src || "").trim();
+    if (!source || !sourceUrl) {
+        markUnavailable();
+        return false;
+    }
+
+    video.dataset.sourceAttached = "true";
+    markIntroVideoPerformance("stratops-intro-video-request-start");
+    source.setAttribute("src", sourceUrl);
+    try { video.load?.(); } catch { }
+
+    const playPromise = video.play?.();
+    playPromise?.catch?.(() => {
+        // The solid background remains visible if browser autoplay policy blocks playback.
+    });
+    return true;
+}
+
+function scheduleDeferredVideoStart(layer, video, markUnavailable) {
+    let scheduled = false;
+    const scheduleWhenIdle = () => {
+        if (scheduled) return;
+        scheduled = true;
+        const start = () => startDeferredVideo(layer, video, markUnavailable);
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(start, { timeout: STARTUP_VIDEO_IDLE_TIMEOUT_MS });
+        } else {
+            window.setTimeout(start, 0);
+        }
+    };
+
+    if (document.readyState === "complete") {
+        scheduleWhenIdle();
+    } else {
+        window.addEventListener("load", scheduleWhenIdle, { once: true });
+    }
 }
 
 export function initStartupBackground() {
@@ -52,14 +112,26 @@ export function initStartupBackground() {
     video.controls = false;
 
     const markUnavailable = () => {
+        video.classList.remove("is-video-ready");
         layer.classList.add("is-video-unavailable");
     };
+    video.addEventListener("loadedmetadata", () => {
+        markIntroVideoPerformance("stratops-intro-video-metadata");
+    }, { once: true });
+    video.addEventListener("loadeddata", () => {
+        const markFirstFrame = () => {
+            markIntroVideoPerformance("stratops-intro-video-first-frame");
+            video.classList.add("is-video-ready");
+        };
+        if (typeof video.requestVideoFrameCallback === "function") {
+            video.requestVideoFrameCallback(markFirstFrame);
+        } else {
+            markFirstFrame();
+        }
+    }, { once: true });
     video.addEventListener("error", markUnavailable, { once: true });
     video.querySelector("source")?.addEventListener("error", markUnavailable, { once: true });
-    const playPromise = video.play?.();
-    if (playPromise?.catch) {
-        playPromise.catch(markUnavailable);
-    }
+    scheduleDeferredVideoStart(layer, video, markUnavailable);
 
     const beginExit = () => {
         if (exitState?.promise) return exitState.promise;
