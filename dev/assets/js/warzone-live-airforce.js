@@ -4556,11 +4556,6 @@ function getViewerCenterScreenPosition(viewer = window.__warzoneViewer) {
     return { x: width / 2, y: height / 2 };
 }
 function getFocusVisualAnchorScreenPosition(viewer = window.__warzoneViewer, trackKey = "") {
-    const trackScreenPosition = getScreenPositionForTrack(trackKey);
-    const correctedTrackScreenPosition = getCorrectedFocusScreenPosition(trackScreenPosition);
-    if (correctedTrackScreenPosition) {
-        return correctedTrackScreenPosition;
-    }
     if (
         String(__liveTrackReplayState.mode || "") === "focus" &&
         __liveTrackHardLockEnabled
@@ -4569,7 +4564,12 @@ function getFocusVisualAnchorScreenPosition(viewer = window.__warzoneViewer, tra
         const correctedCenter = getCorrectedFocusScreenPosition(center);
         if (correctedCenter) return correctedCenter;
     }
-    return getCorrectedFocusScreenPosition(getScreenPositionForTrack(trackKey));
+    const trackScreenPosition = getScreenPositionForTrack(trackKey);
+    const correctedTrackScreenPosition = getCorrectedFocusScreenPosition(trackScreenPosition);
+    if (correctedTrackScreenPosition) {
+        return correctedTrackScreenPosition;
+    }
+    return null;
 }
 function syncLiveTrackFocusOverlay() {
     const viewer = window.__warzoneViewer;
@@ -4719,7 +4719,11 @@ function syncFocusedTrackCameraOrientationFromViewer(position, options = {}) {
 function syncFocusedTrackCamera(options = {}) {
     const forceLifecycleSync = options?.lifecycleResume === true;
     const forceVisualRefresh = options?.visualRefresh === true;
-    const forceCameraSync = forceLifecycleSync || forceVisualRefresh;
+    // The focused entity is advanced by the shared interpolation RAF. Apply the
+    // matching camera target in that same frame so the entity cannot move ahead
+    // of a throttled camera and visibly drift/jump away from screen center.
+    const forceMotionFrameSync = options?.motionFrame === true;
+    const forceCameraSync = forceLifecycleSync || forceVisualRefresh || forceMotionFrameSync;
     const viewer = window.__warzoneViewer;
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";

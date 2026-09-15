@@ -221,6 +221,7 @@ function installCesiumPerformanceDiagnostics(viewer) {
         currentTileQueue: 0,
         lastCameraChangeAt: 0,
         lastCameraMoveEndAt: 0,
+        lastImageryStableAt: 0,
         lastImagerySettleMs: null,
         lastFocusImagerySettleMs: null,
         lastFocusCameraStableMs: null,
@@ -236,19 +237,126 @@ function installCesiumPerformanceDiagnostics(viewer) {
         cameraSetViews: 0,
         cameraFlyTos: 0,
         cameraFlyToBoundingSpheres: 0,
+        imageryProviderErrors: 0,
+        imageryProviderRetries: 0,
     };
     let imagerySettleStartedAt = 0;
     let imagerySettleTimer = 0;
     let focusCameraStableTimer = 0;
+    let activeCameraMoveStartedAt = 0;
+    let imageryBurstActive = false;
+    let imagerySample = null;
+    let lastImagerySample = null;
+    let cacheRevisitMarked = false;
+    const cameraMoveWindows = [];
+    const imageryResourceEntries = [];
+    const imageryResourceUrlCounts = new Map();
+    const imageryResourceUrlVariants = new Map();
+    const observedImageryProviders = new WeakSet();
+    const MAX_IMAGERY_RESOURCE_ENTRIES = 1200;
+    const MAX_IMAGERY_URLS = 2000;
+
+    const normalizeImageryTileUrl = (rawUrl = "") => {
+        try {
+            const url = new URL(String(rawUrl), window.location.href);
+            return `${url.origin}${url.pathname}`;
+        } catch {
+            return String(rawUrl).split("?")[0];
+        }
+    };
+    const isArcGisWorldImageryTile = (rawUrl = "") =>
+        /\/ArcGIS\/rest\/services\/World_Imagery\/MapServer\/tile\//i.test(String(rawUrl));
+    const wasCameraMovingAt = (time) => {
+        if (activeCameraMoveStartedAt > 0 && time >= activeCameraMoveStartedAt) return true;
+        return cameraMoveWindows.some(([start, end]) => time >= start && time <= end);
+    };
+    const percentile = (values, fraction) => {
+        if (!values.length) return null;
+        const sorted = [...values].sort((a, b) => a - b);
+        const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1));
+        return Number(sorted[index].toFixed(2));
+    };
+    const aggregateTileResources = (entries = imageryResourceEntries) => {
+        const durations = entries.map((entry) => entry.duration).filter(Number.isFinite);
+        const scheduler = readRequestStats();
+        const transferBytes = entries.reduce((total, entry) => total + entry.transferSize, 0);
+        return {
+            requestsStarted: entries.length,
+            requestsCompleted: entries.length,
+            requestsFailed: stats.imageryProviderErrors,
+            requestsCancelled: scheduler.cancelled,
+            pending: stats.currentTileQueue,
+            averageLatency: durations.length
+                ? Number((durations.reduce((total, duration) => total + duration, 0) / durations.length).toFixed(2))
+                : null,
+            p50Latency: percentile(durations, 0.5),
+            p95Latency: percentile(durations, 0.95),
+            transferBytes,
+            requestsDuringCameraMovement: entries.filter((entry) => entry.duringCameraMovement).length,
+            requestsAfterCameraStop: entries.filter((entry) => !entry.duringCameraMovement).length,
+            uniqueTileUrls: new Set(entries.map((entry) => entry.url)).size,
+            repeatedTileRequests: entries.filter((entry) => entry.repeated).length,
+            cacheReuseCount: entries.filter((entry) => entry.cacheReuse).length,
+            cacheReuseObservable: entries.some((entry) => !entry.transferUnobservable),
+            unobservableTransferCount: entries.filter((entry) => entry.transferUnobservable).length,
+            providerErrors: stats.imageryProviderErrors,
+            providerRetries: stats.imageryProviderRetries,
+        };
+    };
+    const recordImageryResource = (entry) => {
+        if (!entry || !isArcGisWorldImageryTile(entry.name)) return;
+        const url = normalizeImageryTileUrl(entry.name);
+        const previousCount = imageryResourceUrlCounts.get(url) || 0;
+        if (imageryResourceUrlCounts.size < MAX_IMAGERY_URLS || previousCount > 0) {
+            imageryResourceUrlCounts.set(url, previousCount + 1);
+        }
+        if (imageryResourceUrlVariants.size < MAX_IMAGERY_URLS || imageryResourceUrlVariants.has(url)) {
+            const variants = imageryResourceUrlVariants.get(url) || new Set();
+            if (variants.size < 8) variants.add(String(entry.name));
+            imageryResourceUrlVariants.set(url, variants);
+        }
+        const transferSize = Math.max(0, Number(entry.transferSize || 0));
+        const decodedBodySize = Math.max(0, Number(entry.decodedBodySize || 0));
+        const cacheReuse = previousCount > 0 && transferSize === 0 && decodedBodySize > 0;
+        imageryResourceEntries.push({
+            url,
+            startTime: Number(entry.startTime || 0),
+            duration: Math.max(0, Number(entry.duration || 0)),
+            transferSize,
+            repeated: previousCount > 0,
+            cacheReuse,
+            transferUnobservable: transferSize === 0 && decodedBodySize === 0,
+            duringCameraMovement: wasCameraMovingAt(Number(entry.startTime || 0)),
+        });
+        if (imageryResourceEntries.length > MAX_IMAGERY_RESOURCE_ENTRIES) imageryResourceEntries.shift();
+        if (cacheReuse && !cacheRevisitMarked) {
+            cacheRevisitMarked = true;
+            markCesiumPerformance("stratops-imagery-cache-hit-revisit");
+        }
+    };
+    if (typeof PerformanceObserver === "function") {
+        try {
+            const observer = new PerformanceObserver((list) => {
+                list.getEntries().forEach(recordImageryResource);
+            });
+            try {
+                observer.observe({ type: "resource", buffered: true });
+            } catch {
+                observer.observe({ entryTypes: ["resource"] });
+            }
+        } catch { }
+    }
 
     const markImagerySettled = () => {
         imagerySettleTimer = 0;
         if (stats.currentTileQueue > 0) return;
         const now = performance.now();
+        stats.lastImageryStableAt = now;
         if (imagerySettleStartedAt > 0) {
             stats.lastImagerySettleMs = Math.max(0, now - imagerySettleStartedAt);
             imagerySettleStartedAt = 0;
             markCesiumPerformance("stratops-imagery-settle-end");
+            markCesiumPerformance("stratops-imagery-settled");
         }
         if (stats.focusStartedAt > 0 && stats.focusImageryStableGeneration !== stats.focusGeneration) {
             stats.lastFocusImagerySettleMs = Math.max(0, now - stats.focusStartedAt);
@@ -299,6 +407,8 @@ function installCesiumPerformanceDiagnostics(viewer) {
 
     viewer.camera.moveStart.addEventListener(() => {
         stats.cameraMoveStarts += 1;
+        activeCameraMoveStartedAt = performance.now();
+        cacheRevisitMarked = false;
         if (!imagerySettleStartedAt) {
             imagerySettleStartedAt = performance.now();
             markCesiumPerformance("stratops-imagery-settle-start");
@@ -308,6 +418,11 @@ function installCesiumPerformanceDiagnostics(viewer) {
     viewer.camera.moveEnd.addEventListener(() => {
         stats.cameraMoveEnds += 1;
         stats.lastCameraMoveEndAt = performance.now();
+        if (activeCameraMoveStartedAt > 0) {
+            cameraMoveWindows.push([activeCameraMoveStartedAt, stats.lastCameraMoveEndAt]);
+            if (cameraMoveWindows.length > 80) cameraMoveWindows.shift();
+            activeCameraMoveStartedAt = 0;
+        }
         markCesiumPerformance("stratops-camera-move-end");
         if (stats.currentTileQueue === 0) {
             if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
@@ -329,6 +444,10 @@ function installCesiumPerformanceDiagnostics(viewer) {
         stats.currentTileQueue = next;
         stats.maximumTileQueue = Math.max(stats.maximumTileQueue, next);
         if (next > 0) {
+            if (!imageryBurstActive) {
+                imageryBurstActive = true;
+                markCesiumPerformance("stratops-imagery-request-burst-start");
+            }
             if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
             imagerySettleTimer = 0;
             if (!imagerySettleStartedAt) {
@@ -336,6 +455,10 @@ function installCesiumPerformanceDiagnostics(viewer) {
                 markCesiumPerformance("stratops-imagery-settle-start");
             }
         } else {
+            if (imageryBurstActive) {
+                imageryBurstActive = false;
+                markCesiumPerformance("stratops-imagery-request-burst-end");
+            }
             if (imagerySettleTimer) window.clearTimeout(imagerySettleTimer);
             imagerySettleTimer = window.setTimeout(markImagerySettled, 520);
         }
@@ -406,6 +529,15 @@ function installCesiumPerformanceDiagnostics(viewer) {
         stats.focusCameraUpdates += 1;
         if (assetType && !stats.focusType) stats.focusType = String(assetType);
     };
+    viewer.__warzoneAttachImageryProviderDiagnostics = (provider) => {
+        if (!provider || observedImageryProviders.has(provider)) return;
+        observedImageryProviders.add(provider);
+        provider.errorEvent?.addEventListener?.((error) => {
+            stats.imageryProviderErrors += 1;
+            stats.imageryProviderRetries += Math.max(0, Number(error?.timesRetried || 0));
+        });
+    };
+    viewer.__warzoneAttachImageryProviderDiagnostics(viewer.__imageryBase?.imageryProvider);
 
     const getCameraStats = () => ({
         moveStarts: stats.cameraMoveStarts,
@@ -445,6 +577,78 @@ function installCesiumPerformanceDiagnostics(viewer) {
             preloadAncestors: viewer.scene.globe.preloadAncestors === true,
             preloadSiblings: viewer.scene.globe.preloadSiblings === true,
         };
+    };
+    const getTileNetworkStats = () => ({
+        ...aggregateTileResources(),
+        endpoint: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
+        timingSource: "PerformanceResourceTiming",
+        requestFailureSource: "ArcGIS provider errorEvent",
+        cancellationSource: "Cesium RequestScheduler (global)",
+    });
+    const getTileCacheStats = () => {
+        let retainedTerrainTiles = null;
+        try {
+            retainedTerrainTiles = Number(
+                viewer.scene?.globe?._surface?._tileProvider?._quadtree?._tileReplacementQueue?.count
+            );
+            if (!Number.isFinite(retainedTerrainTiles)) retainedTerrainTiles = null;
+        } catch { }
+        const urlVariantCount = Array.from(imageryResourceUrlVariants.values())
+            .filter((variants) => variants.size > 1).length;
+        return {
+            configuredTileCacheSize: Number(viewer.scene?.globe?.tileCacheSize || 0),
+            retainedTerrainTiles,
+            observedUniqueImageryTiles: imageryResourceUrlCounts.size,
+            repeatedTileRequests: imageryResourceEntries.filter((entry) => entry.repeated).length,
+            inferredBrowserCacheReuses: imageryResourceEntries.filter((entry) => entry.cacheReuse).length,
+            urlsWithQueryVariations: urlVariantCount,
+            transferSizesUnavailable: imageryResourceEntries.filter((entry) => entry.transferUnobservable).length,
+            adaptiveProfile: String(viewer.__warzonePerformanceState?.adaptiveProfile || "normal"),
+            cameraMoving: viewer.__warzoneCameraMoving === true,
+            tileLoadBusy: viewer.__warzoneTileLoadBusy === true,
+        };
+    };
+    const getImageryLatencyStats = () => {
+        const network = aggregateTileResources();
+        return {
+            averageLatency: network.averageLatency,
+            p50Latency: network.p50Latency,
+            p95Latency: network.p95Latency,
+            cameraSettledAt: stats.lastCameraMoveEndAt || null,
+            imageryStableAt: stats.lastImageryStableAt || null,
+            settleDuration: stats.lastImagerySettleMs,
+        };
+    };
+    const beginImagerySample = (label = "manual") => {
+        imagerySample = {
+            label: String(label || "manual"),
+            startedAt: performance.now(),
+            entryIndex: imageryResourceEntries.length,
+            providerErrors: stats.imageryProviderErrors,
+            providerRetries: stats.imageryProviderRetries,
+            requestStats: readRequestStats(),
+        };
+        markCesiumPerformance("stratops-imagery-sample-start");
+        return { label: imagerySample.label, startedAt: imagerySample.startedAt };
+    };
+    const endImagerySample = () => {
+        if (!imagerySample) return lastImagerySample;
+        const endedAt = performance.now();
+        const entries = imageryResourceEntries.slice(imagerySample.entryIndex);
+        const aggregate = aggregateTileResources(entries);
+        const requestStats = readRequestStats();
+        lastImagerySample = {
+            label: imagerySample.label,
+            durationMs: Number((endedAt - imagerySample.startedAt).toFixed(2)),
+            ...aggregate,
+            requestsFailed: stats.imageryProviderErrors - imagerySample.providerErrors,
+            providerRetries: stats.imageryProviderRetries - imagerySample.providerRetries,
+            requestsCancelled: Math.max(0, requestStats.cancelled - imagerySample.requestStats.cancelled),
+            settleDuration: stats.lastImagerySettleMs,
+        };
+        imagerySample = null;
+        markCesiumPerformance("stratops-imagery-sample-end");
+        return lastImagerySample;
     };
     const getFocusStats = () => ({
         state: String(window.__warzoneFocusDiagnostics?.state || "inactive"),
@@ -510,6 +714,21 @@ function installCesiumPerformanceDiagnostics(viewer) {
         getAnimationStats,
         getRequestRenderStats,
         getSatelliteFocusStats,
+        getTileNetworkStats,
+        getTileCacheStats,
+        getImageryLatencyStats,
+        beginImagerySample,
+        endImagerySample,
+        printImagerySummary() {
+            const summary = {
+                network: getTileNetworkStats(),
+                cache: getTileCacheStats(),
+                latency: getImageryLatencyStats(),
+                lastSample: lastImagerySample,
+            };
+            console.table(summary);
+            return summary;
+        },
         printSummary() {
             const summary = {
                 camera: getCameraStats(),
@@ -520,6 +739,9 @@ function installCesiumPerformanceDiagnostics(viewer) {
                 animation: getAnimationStats(),
                 requestRender: getRequestRenderStats(),
                 satelliteFocus: getSatelliteFocusStats(),
+                tileNetwork: getTileNetworkStats(),
+                tileCache: getTileCacheStats(),
+                imageryLatency: getImageryLatencyStats(),
             };
             console.table(summary);
             return summary;
@@ -1485,7 +1707,7 @@ function getFocusedAssetPerformanceCaps(profile = "normal") {
                 resolutionCap: 1.05,
                 msaaCap: 2,
                 sseFloor: 1.75,
-                tileCacheCap: 320,
+                tileCacheCap: 420,
                 maxRenderTime: 0.24,
             };
     }
@@ -5049,6 +5271,7 @@ async function addArcGisLayers(viewer) {
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
         { enablePickFeatures: false }
     );
+    viewer.__warzoneAttachImageryProviderDiagnostics?.(baseProvider);
     if (viewer.__warzoneEntryMapImageryVisible === false || generation !== Number(viewer.__warzoneImageryGeneration || 0)) {
         viewer.imageryLayers.removeAll();
         viewer.__imageryBase = null;

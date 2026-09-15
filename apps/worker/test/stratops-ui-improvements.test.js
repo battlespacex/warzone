@@ -137,12 +137,15 @@ test("satellite focus uses one bounded controller and clears native tracking on 
   assert.match(globe, /stratops-satellite-unlock-stable/);
 });
 
-test("aircraft hard lock uses one reticle and rate-limits interpolated camera following", async () => {
+test("aircraft hard lock keeps its reticle centered and couples camera motion to interpolation frames", async () => {
   const source = await readSource("../../../dev/assets/js/warzone-live-airforce.js");
   const rootCss = await readSource("../../../dev/assets/css/root.css");
 
   assert.doesNotMatch(source, /setLiveTrackHardLockInternal\(true\);\s*bindFocusGuideTracking\(\);/);
   assert.match(source, /focusedTrackAdvanced[\s\S]*?syncFocusedTrackCamera\(\{ motionFrame: true \}\)/);
+  assert.match(source, /const forceMotionFrameSync = options\?\.motionFrame === true/);
+  assert.match(source, /const forceCameraSync = forceLifecycleSync \|\| forceVisualRefresh \|\| forceMotionFrameSync/);
+  assert.match(source, /function getFocusVisualAnchorScreenPosition[\s\S]*?__liveTrackHardLockEnabled[\s\S]*?getViewerCenterScreenPosition\(viewer\)[\s\S]*?const trackScreenPosition/);
   assert.match(source, /--warzone-live-aircraft-focus-camera-sync-hz/);
   assert.match(source, /targetDelta >= positionEpsilonMeters/);
   assert.match(source, /registerTask\("aircraft-camera-lock"[\s\S]*?\{ hz: LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ \}/);

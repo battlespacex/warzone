@@ -835,7 +835,7 @@ input[type="checkbox"]:checked {
     --warzone-focus-performance-resolution-scale: 0.86;
     --warzone-focus-performance-msaa-samples: 1;
     --warzone-focus-performance-screen-space-error: 2.35;
-    --warzone-focus-performance-tile-cache: 320;
+    --warzone-focus-performance-tile-cache: 420;
     --warzone-focus-performance-render-time: 0.22;
 
     --warzone-close-resolution-scale: 1.2;
@@ -856,9 +856,9 @@ input[type="checkbox"]:checked {
     --warzone-globe-moving-screen-space-error: 2.65;
 
     --warzone-globe-tile-cache-size: 420;
-    --warzone-globe-tile-cache-moving: 260;
+    --warzone-globe-tile-cache-moving: 420;
     --warzone-globe-tile-cache-heavy: 220;
-    --warzone-globe-tile-cache-loading: 280;
+    --warzone-globe-tile-cache-loading: 420;
 
     --warzone-globe-loading-descendant-limit: 24;
     --warzone-globe-loading-descendant-limit-busy: 10;

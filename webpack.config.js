@@ -83,9 +83,19 @@ module.exports = (env, argv) => {
             path: PROD_DIR,
             filename: (pathData) => {
                 const name = pathData.chunk?.name || "main";
+
+                // Keep poster assets under /poster so the existing
+                // CloudFront /poster* behavior sends them to the EC2 origin.
+                if (name === "poster") {
+                    return isDev
+                        ? "poster/assets/js/poster.js"
+                        : "poster/assets/js/poster.[contenthash:8].js";
+                }
+
                 if (name === "main") {
                     return isDev ? "assets/js/bundle.js" : "assets/js/bundle.[contenthash:8].js";
                 }
+
                 return isDev ? `assets/js/${name}.js` : `assets/js/${name}.[contenthash:8].js`;
             },
             chunkFilename: isDev ? "assets/js/[id].bundle.js" : "assets/js/[id].bundle.[contenthash:8].js",
@@ -164,10 +174,21 @@ module.exports = (env, argv) => {
 
             new MiniCssExtractPlugin({
                 filename: (pathData) => {
+                    const name = pathData.chunk?.name || "entry";
+
+                    // Keep poster CSS under /poster for the same CloudFront
+                    // behavior as poster/index.html and poster JavaScript.
+                    if (name === "poster") {
+                        return isDev
+                            ? "poster/assets/css/poster.css"
+                            : "poster/assets/css/poster.[contenthash:8].css";
+                    }
+
                     if (!isDev) return "assets/css/style.[contenthash:8].css";
-                    return pathData.chunk?.name === "main"
+
+                    return name === "main"
                         ? "assets/css/style.css"
-                        : `assets/css/${pathData.chunk?.name || "entry"}.css`;
+                        : `assets/css/${name}.css`;
                 },
             }),
 
