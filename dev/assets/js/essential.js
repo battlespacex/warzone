@@ -1,5 +1,6 @@
 // File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
+import { createTrackUpdateQueue, instrumentRealtimeCallback, installRealtimeSocketDiagnostics, recordRealtimeChannelError, recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
 import { updateNewsTicker, updateDefcon } from "./warzone-ui.js";
@@ -334,7 +335,7 @@ const AIRCRAFT_HISTORY_REFRESH_MS = 3 * 60 * 1000;
 const AIRCRAFT_HISTORY_ACTIVE_WINDOW_MS = 8 * 60 * 1000;
 const AIRCRAFT_HISTORY_CACHE_MAX_ROWS = 1200;
 const AIRCRAFT_LIVE_SYNC_DB_MS = 12 * 1000;
-const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 120;
+const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 500;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
 const FEED_INITIAL_VISIBLE_COUNT = 15;
 const FEED_LOAD_MORE_COUNT = 12;
@@ -6992,7 +6993,7 @@ function requestAircraftMovementsWidgetRender(delay = AIRCRAFT_WIDGET_RENDER_THR
             __aircraftWidgetRenderTimer = 0;
         }
         __aircraftWidgetLastRenderedAt = performance.now();
-        renderAircraftMovementsWidget();
+        measureRealtimeStage("widget.aircraft", renderAircraftMovementsWidget);
         return;
     }
     if (__aircraftWidgetRenderTimer) return;
@@ -7001,7 +7002,7 @@ function requestAircraftMovementsWidgetRender(delay = AIRCRAFT_WIDGET_RENDER_THR
     __aircraftWidgetRenderTimer = window.setTimeout(() => {
         __aircraftWidgetRenderTimer = 0;
         __aircraftWidgetLastRenderedAt = performance.now();
-        renderAircraftMovementsWidget();
+        measureRealtimeStage("widget.aircraft", renderAircraftMovementsWidget);
     }, wait);
 }
 function scheduleAircraftHistoryRefresh(force = false) {
@@ -7207,7 +7208,17 @@ function requestFastForegroundAircraftRecovery({
     window.__warzoneViewer?.scene?.requestRender?.();
     return true;
 }
-function handleTracksRealtimePayload(payload) {
+const __tracksRealtimeQueue = createTrackUpdateQueue({
+    process: (payload, options) => handleTracksRealtimePayload(payload, options),
+    schedule: (callback) => requestAnimationFrame(callback),
+    cancel: (id) => cancelAnimationFrame(id),
+    onError: (error) => console.error("TRACK UPDATE ERROR:", error),
+});
+function enqueueTracksRealtimePayload(payload) {
+    if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft") || isDocumentHidden()) return;
+    __tracksRealtimeQueue.enqueue(payload);
+}
+function handleTracksRealtimePayload(payload, { dataOnly = false } = {}) {
     const eventType = String(payload?.eventType || payload?.event || "").toUpperCase();
     const track = payload?.new || payload?.old;
     if (!track) return;
@@ -7232,9 +7243,10 @@ function handleTracksRealtimePayload(payload) {
         if (track.track_key) clearLiveTrack(track.track_key);
         return;
     }
-    upsertLiveTrack(track);
+    upsertLiveTrack(dataOnly ? { ...track, __realtimeDataOnly: true } : track);
 }
 function stopTracksRealtimeChannel() {
+    __tracksRealtimeQueue.clear();
     const channel = __tracksRealtimeChannel;
     if (!channel) return;
     __tracksRealtimeChannel = null;
@@ -7254,15 +7266,19 @@ function startTracksRealtimeChannel() {
     if (!isAircraftTrackingFeatureEnabled()) return;
     if (!isLayerEnabled("aircraft")) return;
     if (isDocumentHidden()) return;
+    installRealtimeSocketDiagnostics(supabase.realtime);
     const channel = supabase
         .channel("tracks-live")
         .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "tracks" },
-            handleTracksRealtimePayload
+            instrumentRealtimeCallback("tracks-live", enqueueTracksRealtimePayload)
         )
         .subscribe((status, err) => {
-            if (status === "CHANNEL_ERROR" && err) console.error("TRACK ERROR:", err);
+            if (status === "CHANNEL_ERROR" && err) {
+                recordRealtimeChannelError("tracks-live", err);
+                console.error("TRACK ERROR:", err);
+            }
         });
     __tracksRealtimeChannel = channel;
 }
@@ -7886,6 +7902,7 @@ function updateAircraftWidgetCard(card, track, selection) {
     ) {
         return;
     }
+    recordRealtimeWork("domUpdates");
     card.className = `wz-aircraft-item ${track.active ? "is-active" : "is-ended"} ${isSelected ? "is-selected" : ""} ${isFocusDisabled ? "is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(track.track_key || "");
     let top = card.querySelector(".wz-aircraft-item__top");
@@ -8001,6 +8018,7 @@ function renderAircraftMovementsWidget() {
     const container = document.getElementById("wz-aircraft-panel");
     const subtypeSelect = document.getElementById("wz-aircraft-filter-subtype");
     if (!container) return;
+    recordRealtimeWork("widgetFullRefreshes");
     __aircraftWidgetScopeFilter = "region";
     syncAircraftWidgetFilterControls();
     const { items, baseItems, activeCountryItems, highValueItems, filteredCount, emptyMessage } = getAircraftWidgetItems();

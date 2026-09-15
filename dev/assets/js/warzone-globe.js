@@ -8,6 +8,8 @@ import {
 import { resolveDisplayCoordinates } from "./warzone-location-resolver.js";
 import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
 import { resetWarzoneCameraReference } from "./warzone-asset-focus-controller.js";
+import { installFocusImageryRefinementPolicy, readTileRefinementSnapshot } from "./warzone-imagery-refinement.js";
+import { getRealtimeStats } from "./warzone-realtime-performance.js";
 import {
     buildSpatialEventClusters,
     classifyEventDomain,
@@ -239,6 +241,9 @@ function installCesiumPerformanceDiagnostics(viewer) {
         cameraFlyToBoundingSpheres: 0,
         imageryProviderErrors: 0,
         imageryProviderRetries: 0,
+        lastFocusCameraUpdateAt: 0,
+        lastImageryImprovedAt: 0,
+        focusHighestRequestedLevel: null,
     };
     let imagerySettleStartedAt = 0;
     let imagerySettleTimer = 0;
@@ -253,6 +258,11 @@ function installCesiumPerformanceDiagnostics(viewer) {
     const imageryResourceUrlCounts = new Map();
     const imageryResourceUrlVariants = new Map();
     const observedImageryProviders = new WeakSet();
+    const providerTileRequests = { accepted: 0, completed: 0, rejected: 0, deferred: 0, deferredAtGlobalLimit: 0, deferredAtServerLimit: 0, highestRequestedLevel: null, byLevel: {} };
+    let providerOutstanding = 0;
+    let lastTileLevel = null;
+    let lastParentFallbacks = null;
+    let lastRefinementSampleAt = 0;
     const MAX_IMAGERY_RESOURCE_ENTRIES = 1200;
     const MAX_IMAGERY_URLS = 2000;
 
@@ -320,6 +330,10 @@ function installCesiumPerformanceDiagnostics(viewer) {
         const cacheReuse = previousCount > 0 && transferSize === 0 && decodedBodySize > 0;
         imageryResourceEntries.push({
             url,
+            level: Number(url.match(/\/tile\/(\d+)\//i)?.[1]),
+            httpStatus: Number(entry.responseStatus || 0) || null,
+            decodedBodySize,
+            deliveryType: String(entry.deliveryType || "") || null,
             startTime: Number(entry.startTime || 0),
             duration: Math.max(0, Number(entry.duration || 0)),
             transferSize,
@@ -376,10 +390,17 @@ function installCesiumPerformanceDiagnostics(viewer) {
         }
     };
     const queueCameraStableMark = () => {
-        if (focusCameraStableTimer) window.clearTimeout(focusCameraStableTimer);
+        if (!stats.focusStartedAt || stats.focusCameraStableGeneration === stats.focusGeneration) return;
+        if (viewer.__warzoneFocusRefinementState?.focusSettled !== true) {
+            if (focusCameraStableTimer) window.clearTimeout(focusCameraStableTimer);
+            focusCameraStableTimer = 0;
+            return;
+        }
+        if (focusCameraStableTimer) return;
         focusCameraStableTimer = window.setTimeout(() => {
             focusCameraStableTimer = 0;
             if (!stats.focusStartedAt || stats.focusCameraStableGeneration === stats.focusGeneration) return;
+            if (viewer.__warzoneFocusRefinementState?.focusSettled !== true) return;
             stats.lastFocusCameraStableMs = Math.max(0, performance.now() - stats.focusStartedAt);
             stats.focusCameraStableGeneration = stats.focusGeneration;
             markCesiumPerformance("stratops-focus-camera-stable");
@@ -436,6 +457,15 @@ function installCesiumPerformanceDiagnostics(viewer) {
     });
     viewer.scene.postRender.addEventListener(() => {
         stats.renderedFrames += 1;
+        if (!stats.focusStartedAt) return;
+        queueCameraStableMark();
+        const now = performance.now();
+        if (now - lastRefinementSampleAt < 1000) return;
+        lastRefinementSampleAt = now;
+        const tiles = readTileRefinementSnapshot(viewer.scene.globe, viewer.__imageryBase);
+        if (tiles.highestRenderedLevel != null && (lastTileLevel == null || tiles.highestRenderedLevel > lastTileLevel || tiles.parentImageryFallbacks < lastParentFallbacks)) stats.lastImageryImprovedAt = now;
+        lastTileLevel = tiles.highestRenderedLevel;
+        lastParentFallbacks = tiles.parentImageryFallbacks;
     });
     viewer.scene.globe.tileLoadProgressEvent.addEventListener((queueLength = 0) => {
         const next = Math.max(0, Number(queueLength || 0));
@@ -476,6 +506,10 @@ function installCesiumPerformanceDiagnostics(viewer) {
             stats.lastFocusCameraStableMs = null;
             stats.focusImageryStableGeneration = 0;
             stats.focusCameraStableGeneration = 0;
+            lastTileLevel = null;
+            lastParentFallbacks = null;
+            stats.lastImageryImprovedAt = 0;
+            stats.focusHighestRequestedLevel = null;
             markCesiumPerformance("stratops-focus-start");
             if (stats.focusType === "satellite") {
                 markCesiumPerformance("stratops-satellite-focus-start");
@@ -527,6 +561,7 @@ function installCesiumPerformanceDiagnostics(viewer) {
     } catch { }
     viewer.__warzoneRecordFocusCameraUpdate = (assetType = "") => {
         stats.focusCameraUpdates += 1;
+        stats.lastFocusCameraUpdateAt = performance.now();
         if (assetType && !stats.focusType) stats.focusType = String(assetType);
     };
     viewer.__warzoneAttachImageryProviderDiagnostics = (provider) => {
@@ -536,6 +571,34 @@ function installCesiumPerformanceDiagnostics(viewer) {
             stats.imageryProviderErrors += 1;
             stats.imageryProviderRetries += Math.max(0, Number(error?.timesRetried || 0));
         });
+        // Local/explicitly-enabled diagnostics only. Observe the existing result;
+        // preserve the original promise/undefined and never issue another request.
+        const requestImage = provider.requestImage;
+        if (typeof requestImage === "function") provider.requestImage = function (...args) {
+            const result = requestImage.apply(this, args);
+            const level = Number(args[2]);
+            const perLevel = providerTileRequests.byLevel[level] ||= { accepted: 0, completed: 0, rejected: 0, deferred: 0 };
+            if (result === undefined) {
+                providerTileRequests.deferred += 1;
+                perLevel.deferred += 1;
+                if (readRequestStats().active >= Cesium.RequestScheduler.maximumRequests) providerTileRequests.deferredAtGlobalLimit += 1;
+                const serverKey = "services.arcgisonline.com:443";
+                const serverLimit = Cesium.RequestScheduler.requestsByServer?.[serverKey] ?? Cesium.RequestScheduler.maximumRequestsPerServer;
+                if ((Cesium.RequestScheduler.numberOfActiveRequestsByServer?.(serverKey) || 0) >= serverLimit) providerTileRequests.deferredAtServerLimit += 1;
+                return result;
+            }
+            providerTileRequests.accepted += 1;
+            perLevel.accepted += 1;
+            providerTileRequests.highestRequestedLevel = Math.max(providerTileRequests.highestRequestedLevel ?? 0, level);
+            if (stats.focusStartedAt > 0) stats.focusHighestRequestedLevel = Math.max(stats.focusHighestRequestedLevel ?? 0, level);
+            providerOutstanding += 1;
+            Promise.resolve(result).then(() => {
+                providerOutstanding -= 1; providerTileRequests.completed += 1; perLevel.completed += 1;
+            }, () => {
+                providerOutstanding -= 1; providerTileRequests.rejected += 1; perLevel.rejected += 1;
+            });
+            return result;
+        };
     };
     viewer.__warzoneAttachImageryProviderDiagnostics(viewer.__imageryBase?.imageryProvider);
 
@@ -584,7 +647,78 @@ function installCesiumPerformanceDiagnostics(viewer) {
         timingSource: "PerformanceResourceTiming",
         requestFailureSource: "ArcGIS provider errorEvent",
         cancellationSource: "Cesium RequestScheduler (global)",
+        providerRequests: { ...providerTileRequests, outstandingPromises: providerOutstanding },
+        perLevel: [...new Set(imageryResourceEntries.map((entry) => entry.level).filter(Number.isFinite))].sort((a, b) => a - b).map((level) => {
+            const entries = imageryResourceEntries.filter((entry) => entry.level === level);
+            return {
+                level, completedResources: entries.length, p50LatencyMs: percentile(entries.map((entry) => entry.duration), 0.5), p95LatencyMs: percentile(entries.map((entry) => entry.duration), 0.95),
+                transferBytes: entries.reduce((sum, entry) => sum + entry.transferSize, 0),
+                observedHttpStatuses: [...new Set(entries.map((entry) => entry.httpStatus).filter(Boolean))],
+                statusUnavailable: entries.filter((entry) => entry.httpStatus == null).length,
+                observedCacheReuses: entries.filter((entry) => entry.cacheReuse).length,
+                transferUnobservable: entries.filter((entry) => entry.transferUnobservable).length,
+            };
+        }),
     });
+    const getTileRefinementStats = () => {
+        const now = performance.now();
+        const refinement = viewer.__warzoneFocusRefinementState || {};
+        const scene = viewer.scene;
+        const scheduler = Cesium.RequestScheduler;
+        const requestStats = readRequestStats();
+        const serverKey = "services.arcgisonline.com:443";
+        const activeArcGisServerRequests = scheduler.numberOfActiveRequestsByServer?.(serverKey) || 0;
+        const heap = scheduler.requestHeap;
+        const queued = heap?.internalArray?.slice(0, heap.length) || [];
+        const transform = viewer.camera.transform;
+        const target = new Cesium.Cartesian3(transform?.[12] || 0, transform?.[13] || 0, transform?.[14] || 0);
+        const focusCoordinates = refinement.focusTracking && Cesium.Cartesian3.magnitude(target) > 1 ? Cesium.Cartographic.fromCartesian(target) : null;
+        const tiles = readTileRefinementSnapshot(scene.globe, viewer.__imageryBase, focusCoordinates);
+        const cameraCartographic = viewer.camera.positionCartographic;
+        const terrainHeight = cameraCartographic ? scene.globe.getHeight?.(cameraCartographic) : undefined;
+        const since = (time) => time > 0 ? Math.max(0, now - time) : null;
+        return {
+            ...tiles,
+            focusMode: String(window.__warzoneFocusDiagnostics?.mode || ""),
+            focusType: String(window.__warzoneFocusDiagnostics?.assetType || ""),
+            refinementPhase: refinement.phase || "UNFOCUSED",
+            userMoving: refinement.focusTracking ? refinement.userMoving === true : viewer.__warzoneCameraMoving === true,
+            focusTracking: refinement.focusTracking === true, focusSettled: refinement.focusSettled === true,
+            cesiumCameraMoving: viewer.__warzoneCameraMoving === true,
+            cesiumCameraSettled: typeof scene._view?._cameraStartFired === "boolean" ? !scene._view._cameraStartFired : null,
+            cameraHeightAboveEllipsoid: getCameraHeight(viewer),
+            cameraHeightAboveCachedTerrain: Number.isFinite(terrainHeight) ? getCameraHeight(viewer) - terrainHeight : null,
+            focusRange: refinement.range ?? null,
+            currentSSE: Number(scene.globe.maximumScreenSpaceError),
+            effectiveSSE: Number(scene.globe._surface?.maximumScreenSpaceError ?? scene.globe.maximumScreenSpaceError),
+            resolutionScale: viewer.resolutionScale, msaaSamples: scene.msaaSamples,
+            tileCacheSize: scene.globe.tileCacheSize, loadingDescendantLimit: scene.globe.loadingDescendantLimit,
+            preloadAncestors: scene.globe.preloadAncestors, preloadSiblings: scene.globe.preloadSiblings,
+            requestRenderMode: scene.requestRenderMode,
+            tileLoadQueueSize: viewer.__warzoneTileLoadQueueSize || 0, tileLoadBusy: viewer.__warzoneTileLoadBusy === true,
+            highestRequestedLevel: refinement.focusTracking ? stats.focusHighestRequestedLevel : providerTileRequests.highestRequestedLevel,
+            highestRequestedLevelLifetime: providerTileRequests.highestRequestedLevel,
+            activeRequests: requestStats.active, activeArcGisServerRequests,
+            otherActiveRequests: Math.max(0, requestStats.active - activeArcGisServerRequests),
+            queuedRequests: heap ? heap.length : null,
+            queuedArcGisRequests: heap ? queued.filter((request) => isArcGisWorldImageryTile(request.url)).length : null,
+            providerOutstandingPromises: providerOutstanding,
+            maximumRequests: scheduler.maximumRequests,
+            maximumArcGisServerRequests: scheduler.requestsByServer?.[serverKey] ?? scheduler.maximumRequestsPerServer,
+            globalSlotsFull: requestStats.active >= scheduler.maximumRequests,
+            arcGisSlotsFull: activeArcGisServerRequests >= (scheduler.requestsByServer?.[serverKey] ?? scheduler.maximumRequestsPerServer),
+            deferredProviderAttempts: providerTileRequests.deferred,
+            deferredAtGlobalLimit: providerTileRequests.deferredAtGlobalLimit,
+            deferredAtServerLimit: providerTileRequests.deferredAtServerLimit,
+            schedulerMeasurementNote: "server active count includes all ArcGIS-host resources; outstanding promises include queued requests; deferral counters are attempts, not unique tiles",
+            timeSinceLastCameraUpdateMs: since(stats.lastFocusCameraUpdateAt || stats.lastCameraChangeAt),
+            timeSinceLastMeaningfulDisplacementMs: since(refinement.lastMeaningfulDisplacementAt),
+            timeSinceImageryLastImprovedMs: since(stats.lastImageryImprovedAt),
+            imageryImprovementMeasurement: "one-second focused rendered-level / parent-fallback samples, not visual sharpness scoring",
+            adaptiveProfile: viewer.__warzonePerformanceState?.adaptiveProfile || "normal",
+            renderedFrames: stats.renderedFrames, cameraMoveStarts: stats.cameraMoveStarts, cameraMoveEnds: stats.cameraMoveEnds,
+        };
+    };
     const getTileCacheStats = () => {
         let retainedTerrainTiles = null;
         try {
@@ -627,6 +761,7 @@ function installCesiumPerformanceDiagnostics(viewer) {
             providerErrors: stats.imageryProviderErrors,
             providerRetries: stats.imageryProviderRetries,
             requestStats: readRequestStats(),
+            providerRequests: { accepted: providerTileRequests.accepted, completed: providerTileRequests.completed, rejected: providerTileRequests.rejected, deferred: providerTileRequests.deferred },
         };
         markCesiumPerformance("stratops-imagery-sample-start");
         return { label: imagerySample.label, startedAt: imagerySample.startedAt };
@@ -644,6 +779,8 @@ function installCesiumPerformanceDiagnostics(viewer) {
             requestsFailed: stats.imageryProviderErrors - imagerySample.providerErrors,
             providerRetries: stats.imageryProviderRetries - imagerySample.providerRetries,
             requestsCancelled: Math.max(0, requestStats.cancelled - imagerySample.requestStats.cancelled),
+            providerRequests: Object.fromEntries(Object.entries(imagerySample.providerRequests).map(([key, value]) => [key, providerTileRequests[key] - value])),
+            tileRefinement: getTileRefinementStats(),
             settleDuration: stats.lastImagerySettleMs,
         };
         imagerySample = null;
@@ -706,6 +843,13 @@ function installCesiumPerformanceDiagnostics(viewer) {
         cameraUpdatesPerSecond: 0,
     });
     window.__stratopsPerf = Object.freeze({
+        getRealtimeStats,
+        printRealtimeSummary() {
+            const summary = getRealtimeStats();
+            console.table(summary.channels);
+            console.log(summary);
+            return summary;
+        },
         getCameraStats,
         getImageryStats,
         getFocusStats,
@@ -719,6 +863,13 @@ function installCesiumPerformanceDiagnostics(viewer) {
         getImageryLatencyStats,
         beginImagerySample,
         endImagerySample,
+        getTileRefinementStats,
+        printTileRefinement() {
+            const state = getTileRefinementStats();
+            console.table(state);
+            console.table(getTileNetworkStats().perLevel);
+            return state;
+        },
         printImagerySummary() {
             const summary = {
                 network: getTileNetworkStats(),
@@ -5747,7 +5898,10 @@ function getContourTerrariumZoom() {
     return Math.max(6, Math.min(12, Math.round(numberVar("--warzone-contour-dem-zoom", 10))));
 }
 function getContourTerrariumTileTemplate() {
-    return stringVar("--warzone-contour-dem-url", "/__warzone/terrain/terrarium/{z}/{x}/{y}.png");
+    return stringVar("--warzone-contour-dem-url", "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png")
+        .replace(/^["']|["']$/g, "")
+        .replace(/\{\s*([zxy])\s*\}/g, "{$1}")
+        .replace(/\s+/g, "");
 }
 function getContourTerrariumTileUrl(z, x, y) {
     return getContourTerrariumTileTemplate()
@@ -8412,7 +8566,7 @@ export async function initWarzoneGlobe(options = {}) {
             const basePreloadSiblings = boolVar("--warzone-globe-preload-siblings", false);
             const cameraHeight = getCameraHeight(viewer);
             const is2DMode = getSceneMode(viewer) === "2d";
-            const isCameraMoving = viewer.__warzoneCameraMoving === true;
+            const cesiumCameraMoving = viewer.__warzoneCameraMoving === true;
             const maximumZoomQualityHeight = Math.max(100, numberVar("--warzone-max-zoom-quality-height", 25000));
             const maximumZoomResolutionScale = clamp(numberVar("--warzone-max-zoom-resolution-scale", 1.75), 1, 2);
             const maximumZoomSse = clamp(numberVar("--warzone-max-zoom-screen-space-error", 0.55), 0.35, 1.25);
@@ -8424,6 +8578,11 @@ export async function initWarzoneGlobe(options = {}) {
             const isFocusedAssetMode =
                 (focusDiagnostics.state === "active" || focusDiagnostics.state === "temporarily_suspended")
                 && Boolean(String(focusDiagnostics.assetId || "").trim());
+            const focusRefinement = viewer.__warzoneFocusRefinementState;
+            const focusSceneSettled = isFocusedAssetMode && focusRefinement?.focusSettled === true;
+            // Continuous lookAt reference-frame translation is tracking, not
+            // manual navigation. Child downloads must not gate final focus quality.
+            const isCameraMoving = isFocusedAssetMode ? !focusSceneSettled : cesiumCameraMoving;
             const focusedAssetCaps = getFocusedAssetPerformanceCaps(adaptiveProfile);
             const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
             const closeSharpHeight = Math.max(focusSharpHeight, numberVar("--warzone-close-sharp-height", 450000));
@@ -8513,7 +8672,7 @@ export async function initWarzoneGlobe(options = {}) {
                 nextTileCache = Math.min(nextTileCache, movingTileCache);
                 nextPreloadSiblings = false;
             }
-            if (tileLoadBusy && !is2DMode) {
+            if (tileLoadBusy && !is2DMode && !focusSceneSettled) {
                 nextResolution = Math.min(
                     nextResolution,
                     clamp(numberVar("--warzone-globe-loading-resolution-scale", 1.05), 0.5, 1.25)
@@ -8528,14 +8687,12 @@ export async function initWarzoneGlobe(options = {}) {
                 nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, busyLoadingDescendantLimit);
                 nextPreloadSiblings = false;
             }
-            const focusSceneSettled = isFocusedAssetMode && !isCameraMoving && !tileLoadBusy;
             if (isFocusedAssetMode) {
                 if (focusSceneSettled) {
-                    // Once focus movement and tile loading stop, keep the same final
-                    // imagery quality and cache retention as a settled non-focus view.
+                    // Stable tracking refines at final quality while children load.
                     nextResolution = Math.max(nextResolution, baseResolution);
                     nextMsaaSamples = Math.max(nextMsaaSamples, baseMsaaSamples);
-                    nextSse = Math.min(nextSse, baseSse);
+                    nextSse = Math.min(nextSse, cameraHeight <= closeSharpHeight ? Math.min(baseSse, closeSse) : baseSse);
                 } else {
                     // Keep the focused GLB readable while camera motion or tile loading is active.
                     nextResolution = Math.max(nextResolution, Math.min(baseResolution, 1));
@@ -8633,6 +8790,9 @@ export async function initWarzoneGlobe(options = {}) {
                 visibleCount: count,
                 cameraHeight,
                 isCameraMoving,
+                cesiumCameraMoving,
+                focusSceneSettled,
+                focusRefinementPhase: focusRefinement?.phase || "UNFOCUSED",
                 isAircraftFocusMode,
                 isFocusedAssetMode,
                 tileLoadQueueSize,
@@ -8688,6 +8848,7 @@ export async function initWarzoneGlobe(options = {}) {
                 viewer.scene.requestRender?.();
             });
         };
+        installFocusImageryRefinementPolicy(viewer, queuePerfSync);
         viewer.camera.moveStart.addEventListener(() => {
             clearTimeout(moveSettleTimer);
             viewer.__warzoneCameraMoving = true;

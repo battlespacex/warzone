@@ -1784,19 +1784,7 @@ input[type="checkbox"]:checked {
     --warzone-contour-dem-max-tiles: 24;
     --warzone-contour-dem-tile-cache: 72;
 
-    --warzone-contour-dem-url: /__warzone/terrain/terrarium/ {
-        z
-    }
-
-    / {
-        x
-    }
-
-    / {
-        y
-    }
-
-    .png;
+    --warzone-contour-dem-url: "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 }
 
 /* #endregion =========== */

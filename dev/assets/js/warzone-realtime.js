@@ -3,7 +3,9 @@ import { supabase } from "./supabase.js";
 import { handleIncomingEvent } from "./essential.js";
 import { showStickyAlert, hideStickyAlert } from "./warzone-sticky-alert.js";
 import { api } from "./supabase.js";
+import { instrumentRealtimeCallback, installRealtimeSocketDiagnostics } from "./warzone-realtime-performance.js";
 export async function subscribeToLiveEvents() {
+    installRealtimeSocketDiagnostics(supabase.realtime);
     return supabase
         .channel("events-live")
         .on(
@@ -13,13 +15,13 @@ export async function subscribeToLiveEvents() {
                 schema: "public",
                 table: "events",
             },
-            (payload) => {
+            instrumentRealtimeCallback("events-live", (payload) => {
                 const eventType = String(payload.eventType || payload.event || "").toUpperCase();
                 if (eventType === "DELETE") return;
                 const row = payload.new || payload.old;
                 if (!row) return;
                 handleIncomingEvent(row);
-            }
+            })
         )
         .subscribe();
 }
@@ -39,7 +41,7 @@ export async function subscribeToActiveAlerts() {
                 schema: "public",
                 table: "active_alerts",
             },
-            (payload) => {
+            instrumentRealtimeCallback("active-alerts-live", (payload) => {
                 const row = payload.new || payload.old;
                 if (!row) return;
                 if (row.status === "active") {
@@ -47,7 +49,7 @@ export async function subscribeToActiveAlerts() {
                 } else {
                     hideStickyAlert(row.alert_key);
                 }
-            }
+            })
         )
         .subscribe();
 }
@@ -72,7 +74,7 @@ export function startActiveAlertsPollingFallback() {
 export function subscribeToSirenBroadcast() {
     return supabase
         .channel("warzone:sirens")
-        .on("broadcast", { event: "siren" }, (payload) => {
+        .on("broadcast", { event: "siren" }, instrumentRealtimeCallback("warzone:sirens", (payload) => {
             try {
                 const data = payload?.payload;
                 if (!data) return;
@@ -90,6 +92,6 @@ export function subscribeToSirenBroadcast() {
             } catch (err) {
                 console.warn("[warzone-realtime] siren broadcast error:", err);
             }
-        })
+        }))
         .subscribe();
 }

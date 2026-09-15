@@ -1,11 +1,13 @@
 ﻿// File Path: /assets/js/warzone-live-airforce.js
 import * as Cesium from "cesium";
+import { recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 import { startLiveAssetHoverPulse, stopLiveAssetHoverPulse } from "./warzone-live-asset-hover-pulse.js";
 import { flyToRegion, getActiveRegion } from "./warzone-region-selector.js";
 /* ================= STATE ================= */
 let __liveTrackEntities = new Map();
+let __liveTrackUpdateComputedStyle = null;
 const __devTrackTimers = new Map();
 const __liveTrackTrails = new Map();
 const __liveTrackTrailPositionsCache = new Map();
@@ -1327,17 +1329,17 @@ function getLiveAircraftIconPath(iconCode = LIVE_AIRCRAFT_ICON_DEFAULT_CODE) {
 }
 /* ================= CSS CONFIG ================= */
 function getCssNumber(varName, fallback, computedStyle = null) {
-    const style = computedStyle || getComputedStyle(document.documentElement);
+    const style = computedStyle || __liveTrackUpdateComputedStyle || getComputedStyle(document.documentElement);
     const value = style.getPropertyValue(varName);
     const parsed = parseFloat(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 function getCssColor(varName, fallback = "rgba(255,255,255,1)") {
-    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    const value = (__liveTrackUpdateComputedStyle || getComputedStyle(document.documentElement)).getPropertyValue(varName).trim();
     return value || fallback;
 }
 function getCssText(varName, fallback = "") {
-    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    const value = (__liveTrackUpdateComputedStyle || getComputedStyle(document.documentElement)).getPropertyValue(varName).trim();
     return value || fallback;
 }
 let __liveTrackGlbMaterialShader = null;
@@ -2488,7 +2490,9 @@ function classifyLiveTrackTelemetryUpdate(entity, track = {}, sourceTimestamp = 
     const trackKey = String(track.track_key || "");
     const registryEntry = __liveTrackRegistry.get(trackKey);
     const lastSourceTimestamp = Number(
-        entity?.__lastSourceTimestamp || registryEntry?.source_timestamp || 0
+        registryEntry?.__realtimeRenderPending
+            ? Math.max(entity?.__lastSourceTimestamp || 0, registryEntry?.source_timestamp || 0)
+            : (entity?.__lastSourceTimestamp || registryEntry?.source_timestamp || 0)
     );
     const nextSourceTimestamp = Number(sourceTimestamp || 0);
     if (
@@ -2498,6 +2502,7 @@ function classifyLiveTrackTelemetryUpdate(entity, track = {}, sourceTimestamp = 
     ) {
         return "stale";
     }
+    if (registryEntry?.__realtimeRenderPending && track.__realtimeDataOnly !== true) return "accept";
     const previous = __liveTrackLastPositions.get(trackKey) || registryEntry;
     if (!previous) return "accept";
     const lon = Number(track.lon);
@@ -3267,8 +3272,7 @@ function shouldShowTrackLabel(trackKey = "") {
     return cameraHeight > 0 && cameraHeight <= LIVE_TRACK_LABEL_ZOOM_HEIGHT_MAX;
 }
 
-function buildTrackLabel(track = {}, trackKey = "") {
-    const labelStyle = getLiveLabelStyleConfig();
+function buildTrackLabel(track = {}, trackKey = "", labelStyle = getLiveLabelStyleConfig()) {
     const isFocused = isTrackCurrentlyFocused(trackKey);
     return {
         text: transformLiveLabelText(getTrackDisplayTitle(track), labelStyle),
@@ -3297,9 +3301,13 @@ function buildTrackLabel(track = {}, trackKey = "") {
         disableDepthTestDistance: isFocused ? Number.POSITIVE_INFINITY : labelStyle.depthTestDisableDistance,
     };
 }
+const __liveTrackLabelSignatures = new WeakMap();
 function applyTrackLabel(label, track = {}, trackKey = "") {
     if (!label) return;
-    const nextConfig = buildTrackLabel(track, trackKey);
+    const style = getLiveLabelStyleConfig();
+    const signature = JSON.stringify([trackKey, isTrackCurrentlyFocused(trackKey), getTrackDisplayTitle(track), style]);
+    if (__liveTrackLabelSignatures.get(label) === signature) return;
+    const nextConfig = buildTrackLabel(track, trackKey, style);
     label.text = nextConfig.text;
     label.show = nextConfig.show;
     label.distanceDisplayCondition = nextConfig.distanceDisplayCondition;
@@ -3317,6 +3325,7 @@ function applyTrackLabel(label, track = {}, trackKey = "") {
     label.horizontalOrigin = nextConfig.horizontalOrigin;
     label.verticalOrigin = nextConfig.verticalOrigin;
     label.disableDepthTestDistance = nextConfig.disableDepthTestDistance;
+    __liveTrackLabelSignatures.set(label, signature);
 }
 
 function getViewerContainerElement() {
@@ -4085,8 +4094,7 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
         (oldestHistoryTs > 0 && oldestHistoryTs < Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS);
     entry.path_history = historyNeedsPruning ? pruneHistoryPoints(history, trackKey) : history;
     entry.last_seen_at = point.ts;
-    if (isFocusedTrackKey(trackKey)) {
-        __liveTrackFocusedRouteGeometryCache = null;
+    if (isFocusedTrackKey(trackKey) && track.__realtimeDataOnly !== true) {
         syncFocusedRouteEntity(trackKey);
     }
 }
@@ -4101,6 +4109,7 @@ function recordLiveTrackDataState(track = {}, entity = null, sourceTimestamp = D
         ended_at: null,
         entity_id: entity?.id || existingRegistryEntry?.entity_id || "",
         source_timestamp: Number(sourceTimestamp || Date.now()),
+        __realtimeRenderPending: track.__realtimeDataOnly === true,
         path_history: existingRegistryEntry?.path_history || [],
     };
     __liveTrackRegistry.set(trackKey, nextRegistryEntry);
@@ -4114,7 +4123,11 @@ function recordLiveTrackDataState(track = {}, entity = null, sourceTimestamp = D
     dispatchLiveTrackRegistryUpdate();
     return nextRegistryEntry;
 }
+let __liveTrackRegistryLastPrunedAt = -Infinity;
 function pruneTrackRegistry() {
+    const now = performance.now();
+    if (now - __liveTrackRegistryLastPrunedAt < 1000) return;
+    __liveTrackRegistryLastPrunedAt = now;
     const cutoff = Date.now() - LIVE_TRACK_HISTORY_RETENTION_MS;
     for (const [trackKey, entry] of __liveTrackRegistry.entries()) {
         const lastSeenAt = Number(entry?.last_seen_at || 0);
@@ -5974,9 +5987,9 @@ function syncFocusedRouteEntity(trackKey = "") {
     ) {
         return false;
     }
+    if (__liveTrackReplayState.routeEntity) return true;
     const positions = getFocusedRoutePositions(trackKey);
     if (positions.length < 2) return false;
-    if (__liveTrackReplayState.routeEntity) return true;
     const routeWidth = getFocusedRouteWidth(track);
     __liveTrackReplayState.routeEntity = viewer.entities.add({
         id: `track-focus-route-${trackKey}`,
@@ -6621,7 +6634,8 @@ function getTrackTrailMinDistanceMeters(track = {}) {
 function commitTrackTrailPosition(trackKey, track = {}, newPosition) {
     if (!trackKey || !newPosition) return;
     const now = Date.now();
-    let trail = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
+    const previousTrail = __liveTrackTrails.get(trackKey) || [];
+    let trail = trimTrailEntries(previousTrail, trackKey);
     const lastEntry = trail[trail.length - 1];
     const lastPosition = lastEntry?.position || null;
     const movedMeters = getCartesianDistanceMeters(lastPosition, newPosition);
@@ -6640,6 +6654,9 @@ function commitTrackTrailPosition(trackKey, track = {}, newPosition) {
     const effectiveMinTrailDistance = isFocusedTrailTrack
         ? minTrailDistanceMeters
         : minTrailDistanceMeters;
+    // The CallbackProperty already appends the interpolated live head. No
+    // committed point changed: retain the existing curved geometry/cache.
+    if (lastEntry && movedMeters < effectiveMinTrailDistance && trail.length === previousTrail.length) return;
     if (!lastEntry || movedMeters >= effectiveMinTrailDistance) {
         trail.push({
             position: Cesium.Cartesian3.clone(newPosition),
@@ -7371,6 +7388,13 @@ export function getAircraftModelTunerFocusConfig(aircraftAltitudeFt = Number.NaN
     });
 }
 export function upsertLiveTrack(track) {
+    if (!window.__warzoneViewer?.__warzone) return;
+    const previousStyle = __liveTrackUpdateComputedStyle;
+    __liveTrackUpdateComputedStyle = previousStyle || getComputedStyle(document.documentElement);
+    try { return measureRealtimeStage("track.update", () => applyLiveTrackUpdate(track)); }
+    finally { __liveTrackUpdateComputedStyle = previousStyle; }
+}
+function applyLiveTrackUpdate(track) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const viewer = window.__warzoneViewer;
@@ -7380,7 +7404,7 @@ export function upsertLiveTrack(track) {
         clearLiveTrack(originalTrackKey);
         return;
     }
-    const duplicateTrackKey = findDuplicateLiveTrackKey(track);
+    const duplicateTrackKey = measureRealtimeStage("track.duplicateLookup", () => findDuplicateLiveTrackKey(track));
     if (duplicateTrackKey && duplicateTrackKey !== originalTrackKey) {
         track = {
             ...track,
@@ -7416,20 +7440,20 @@ export function upsertLiveTrack(track) {
     const resolvedHeadingDeg = getTrackResolvedHeading(track);
     const registryEntry = forceVisualRefresh
         ? (__liveTrackRegistry.get(String(track.track_key || "")) || buildLiveTrackRegistryEntry(track, entity))
-        : recordLiveTrackDataState(track, entity, sourceTimestamp);
+        : measureRealtimeStage("track.historyAndRegistry", () => recordLiveTrackDataState(track, entity, sourceTimestamp));
+    if (track?.__realtimeDataOnly === true) return entity;
     const reportSnapshot = track?.__reportSnapshotAsset === true;
     if (!shouldRenderLiveTrackDataState(track.track_key, registryEntry, { reportSnapshot })) {
         if (entity || viewer?.entities?.getById?.(`track-trail-${track.track_key}`)) {
             removeLiveTrackRenderState(track.track_key);
         }
-        if (!forceVisualRefresh && isFocusedTrackKey(track.track_key)) {
-            refreshFocusedTrackIsolation();
-        }
+        if (!forceVisualRefresh && isFocusedTrackKey(track.track_key)) requestFocusedTrackIsolationRefresh();
         return null;
     }
 
     bindLiveTrackOverlay(viewer);
     bindLiveTrackPicking(viewer);
+    recordRealtimeWork("cesiumTrackUpdates");
 
     const style = getLiveTrackStyleConfig(track);
     const modelUri = resolveLiveTrackModelUri(track);
@@ -7521,7 +7545,7 @@ export function upsertLiveTrack(track) {
             );
         }
         if (entity.label) {
-            applyTrackLabel(entity.label, track, track.track_key);
+            measureRealtimeStage("track.label", () => applyTrackLabel(entity.label, track, track.track_key));
         }
     }
 
@@ -7552,15 +7576,25 @@ export function upsertLiveTrack(track) {
         return entity;
     }
 
-    ensureTrackTrailVisible(track.track_key, track, lon, lat, alt, attitude.headingDeg);
-    getOrCreateTrackTrailEntity(viewer, track.track_key, track);
-    if (isFocusSelectionActive()) {
-        refreshFocusedTrackIsolation();
-    } else {
-        applyLiveTrackFocusVisibility(track.track_key);
-    }
+    measureRealtimeStage("track.trail", () => {
+        ensureTrackTrailVisible(track.track_key, track, lon, lat, alt, attitude.headingDeg);
+        getOrCreateTrackTrailEntity(viewer, track.track_key, track);
+    });
+    applyLiveTrackFocusVisibility(track.track_key);
+    if (isFocusedTrackKey(track.track_key)) requestFocusedTrackIsolationRefresh();
     wakeLiveTrackRenderAfterAssetUpdate();
     return entity;
+}
+
+let __liveTrackIsolationRefreshTimer = null;
+function requestFocusedTrackIsolationRefresh() {
+    if (__liveTrackIsolationRefreshTimer !== null) return;
+    __liveTrackIsolationRefreshTimer = window.setTimeout(() => {
+        __liveTrackIsolationRefreshTimer = null;
+        if (!document.hidden && isLayerEnabled("aircraft") && isFocusSelectionActive()) {
+            measureRealtimeStage("track.focusPopulation", refreshFocusedTrackIsolation);
+        }
+    }, 260);
 }
 
 function removeLiveTrackRenderState(trackKey = "") {
