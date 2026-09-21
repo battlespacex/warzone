@@ -379,6 +379,58 @@ export function eventsRouter({ broadcast }) {
     });
 
     // ── Aircraft tracks ────────────────────────────────────────────
+    router.get("/aircraft/lookup", async (req, res) => {
+        const identifier = String(req.query.identifier || "").trim().toUpperCase().replace(/\s+/g, "");
+        if (!/^[A-Z0-9-]{2,24}$/.test(identifier)) {
+            return res.status(400).json({ error: "Invalid aircraft identifier" });
+        }
+        const baseUrl = "https://api.adsb.lol/v2";
+        const paths = /^[0-9A-F]{6}$/.test(identifier)
+            ? [`hex/${identifier}`, `callsign/${identifier}`, `registration/${identifier}`]
+            : [`callsign/${identifier}`, `registration/${identifier}`];
+        try {
+            const responses = await Promise.allSettled(paths.map(async (path) => {
+                const response = await fetch(`${baseUrl}/${path}`, {
+                    headers: { Accept: "application/json", "User-Agent": "stratops-warzone/1.0" },
+                    signal: AbortSignal.timeout(6000),
+                });
+                if (!response.ok) return [];
+                const data = await response.json();
+                return Array.isArray(data?.ac) ? data.ac : [];
+            }));
+            const matches = responses.flatMap((result) => result.status === "fulfilled" ? result.value : [])
+                .filter((aircraft) => [String(aircraft.hex || "").replace(/^~/, ""), aircraft.flight, aircraft.r]
+                .some((value) => String(value || "").trim().toUpperCase().replace(/\s+/g, "") === identifier));
+            const aircraft = matches.find((item) => {
+                const lat = Number(item.lat);
+                const lon = Number(item.lon);
+                const age = Number(item.seen_pos ?? item.seen ?? Infinity);
+                return Number.isFinite(lat) && Number.isFinite(lon) &&
+                    Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && (lat !== 0 || lon !== 0) &&
+                    Number.isFinite(age) && age <= 90;
+            });
+            if (!aircraft) return res.status(404).json({ error: "No live aircraft position found" });
+            const seenSeconds = Number(aircraft.seen_pos ?? aircraft.seen ?? 0);
+            res.json({ track: {
+                icao24: String(aircraft.hex || "").replace(/^~/, "").toLowerCase(),
+                callsign: String(aircraft.flight || "").trim(),
+                flight: String(aircraft.flight || "").trim(),
+                registration: String(aircraft.r || "").trim(),
+                lat: Number(aircraft.lat),
+                lon: Number(aircraft.lon),
+                altitude_ft: aircraft.alt_baro === "ground" ? 0 : Number(aircraft.alt_baro ?? aircraft.alt_geom ?? 0),
+                speed_kts: Number(aircraft.gs || 0),
+                heading_deg: Number(aircraft.track ?? aircraft.true_heading ?? aircraft.mag_heading ?? 0),
+                on_ground: aircraft.alt_baro === "ground",
+                type_code: String(aircraft.t || "").trim(),
+                model_name: String(aircraft.desc || "").trim(),
+                operator: String(aircraft.ownOp || "").trim(),
+                updated_at: new Date(Date.now() - seenSeconds * 1000).toISOString(),
+            } });
+        } catch {
+            res.status(502).json({ error: "Aircraft lookup unavailable" });
+        }
+    });
     router.get("/aircraft", async (req, res) => {
         try {
             const supabase = getSupabase();

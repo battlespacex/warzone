@@ -575,4 +575,19 @@ export const api = {
             return { data: [], error };
         }
     },
+    async lookupAircraft(identifier, options = {}) {
+        const response = await fetch(
+            `${API_BASE}/events/aircraft/lookup?identifier=${encodeURIComponent(identifier)}`,
+            { signal: options.signal, headers: { Accept: "application/json" } }
+        );
+        if (!/\bapplication\/json\b/i.test(response.headers.get("content-type") || "")) {
+            throw new Error("Aircraft lookup service unavailable.");
+        }
+        const result = await response.json().catch(() => {
+            throw new Error("Aircraft lookup service unavailable.");
+        });
+        if (response.status === 404) throw new Error(`No live aircraft found for ${identifier}.`);
+        if (!response.ok) throw new Error(result.error || "Aircraft lookup failed");
+        return result.track || null;
+    },
 };

@@ -12,7 +12,7 @@ const payload = (key, value, type = "UPDATE") => ({ eventType: type, new: { trac
 function harness(process, extra = {}) {
     let nextId = 0;
     const frames = new Map();
-    const queue = createTrackUpdateQueue({ process, schedule: (fn) => { frames.set(++nextId, fn); return nextId; }, cancel: (id) => frames.delete(id), ...extra });
+    const queue = createTrackUpdateQueue({ process, now: () => 0, schedule: (fn) => { frames.set(++nextId, fn); return nextId; }, cancel: (id) => frames.delete(id), ...extra });
     return { queue, frames, frame() { const [id, callback] = frames.entries().next().value; frames.delete(id); callback(); } };
 }
 function fn(source, name) {
@@ -78,6 +78,33 @@ test("round-robin prevents one busy aircraft starving other aircraft", () => {
     h.queue.enqueue(payload("B", 1));
     h.frame();
     assert.equal(calls[1], "B");
+});
+test("long per-aircraft backlogs retain the newest positions", () => {
+    const calls = [];
+    const h = harness((p) => calls.push(p.new.value));
+    for (let i = 0; i < 100; i++) h.queue.enqueue(payload("A", i));
+    assert.equal(h.queue.getStats().queueDepth, 4);
+    while (h.frames.size) h.frame();
+    assert.deepEqual(calls, [96, 97, 98, 99]);
+});
+test("bounded backlog reaches the newest position without replaying 1000 old updates", () => {
+    const countFrames = (maxQueuedPerTrack) => {
+        const h = harness(() => {}, { maxQueuedPerTrack });
+        for (let i = 0; i < 1000; i++) h.queue.enqueue(payload("A", i));
+        let frames = 0;
+        while (h.frames.size) { h.frame(); frames += 1; }
+        return frames;
+    };
+    assert.equal(countFrames(Number.POSITIVE_INFINITY), 250);
+    assert.equal(countFrames(4), 1);
+});
+test("focused aircraft drains ahead of a large unrelated backlog", () => {
+    const calls = [];
+    const h = harness((p) => calls.push(p.new.track_key), { priorityKey: () => "FOCUS" });
+    for (let i = 0; i < 20; i++) h.queue.enqueue(payload(`other-${i}`, i));
+    h.queue.enqueue(payload("FOCUS", 1));
+    h.frame();
+    assert.equal(calls[0], "FOCUS");
 });
 test("stop/hidden/layer-off cancellation discards pending stale work", () => {
     let calls = 0;
@@ -189,6 +216,124 @@ test("pruning scans registry once per second rather than every telemetry update"
     for (let i = 0; i < 99; i++) prune();
     assert.equal(historyVisits, 99);
     at = 1000; prune(); assert.equal(historyVisits, 198);
+});
+test("a focused aircraft survives temporary gaps, resumes on the same entity, and ends once after final grace", async () => {
+    const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");
+    let now = 1_000_000, removals = 0, unlocks = 0;
+    const logs = [];
+    const entity = { id: "track-A" };
+    const entry = { active: true, liveness_state: "live", last_seen_at: now - 180_000, last_received_at: now };
+    const registry = new Map([["A", entry]]);
+    const context = {
+        Date: { now: () => now }, window: { location: { hostname: "localhost" } }, console: { info: (...args) => logs.push(args) },
+        __liveTrackRegistry: registry, LIVE_TRACK_STALE_TIMEOUT_MS: 90_000,
+        LIVE_TRACK_FOCUSED_STALE_GRACE_START_MS: 120_000, LIVE_TRACK_FOCUSED_STALE_TIMEOUT_MS: 180_000,
+        removeLiveTrackRenderState: () => { removals++; }, isFocusedTrackKey: () => true,
+        clearLiveTrackSelection: () => { unlocks++; },
+    };
+    const logLiveness = vm.runInNewContext(`${fn(aircraft, "logAirFocusLiveness")}; logAirFocusLiveness`, context);
+    const markStale = vm.runInNewContext(`${fn(aircraft, "markStaleTracksAsEnded")}; markStaleTracksAsEnded`, {
+        ...context, logAirFocusLiveness: logLiveness,
+    });
+    const refreshLiveness = vm.runInNewContext(
+        `${fn(aircraft, "logAirFocusLiveness")}; ${fn(aircraft, "restoreLiveTrackLiveness")}; ${fn(aircraft, "refreshLiveTrackLiveness")}; refreshLiveTrackLiveness`,
+        context
+    );
+
+    now += 30_000;
+    markStale();
+    assert.equal(entry.active, true); assert.equal(entry.liveness_state, "live"); assert.equal(removals, 0); assert.equal(unlocks, 0);
+
+    now += 60_001;
+    markStale();
+    assert.equal(entry.active, true); assert.equal(entry.liveness_state, "temporarily_stale"); assert.equal(removals, 0); assert.equal(unlocks, 0);
+
+    now += 30_000;
+    markStale();
+    assert.equal(entry.active, true); assert.equal(entry.liveness_state, "stale_grace");
+
+    refreshLiveness(entity, { track_key: "A", heading_deg: 90, speed_kts: 400 }, now);
+    assert.equal(entry.active, true); assert.equal(entry.liveness_state, "live"); assert.equal(entry.last_received_at, now);
+    assert.equal(registry.get("A"), entry); assert.equal(entity.id, "track-A");
+
+    now += 180_001;
+    markStale(); markStale();
+    assert.equal(entry.active, false); assert.equal(entry.liveness_state, "ended");
+    assert.equal(removals, 1); assert.equal(unlocks, 1);
+    assert.deepEqual(logs.map(([message]) => message), [
+        "[AIR FOCUS] stale started",
+        "[AIR FOCUS] stale grace active",
+        "[AIR FOCUS] track resumed",
+        "[AIR FOCUS] stale started",
+        "[AIR FOCUS] stale grace active",
+        "[AIR FOCUS] ended after timeout",
+    ]);
+});
+test("a non-focused aircraft keeps the existing 90 second stale timeout", async () => {
+    const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");
+    let now = 1_000_000, removals = 0;
+    const entry = { active: true, liveness_state: "live", last_received_at: now };
+    const markStale = vm.runInNewContext(`${fn(aircraft, "markStaleTracksAsEnded")}; markStaleTracksAsEnded`, {
+        Date: { now: () => now }, __liveTrackRegistry: new Map([["B", entry]]),
+        LIVE_TRACK_STALE_TIMEOUT_MS: 90_000, LIVE_TRACK_FOCUSED_STALE_TIMEOUT_MS: 180_000,
+        isFocusedTrackKey: () => false, removeLiveTrackRenderState: () => { removals++; },
+    });
+    now += 90_001;
+    markStale();
+    assert.equal(entry.active, false); assert.equal(entry.liveness_state, "ended"); assert.equal(removals, 1);
+});
+test("a missing naval snapshot gets a grace period before removal", async () => {
+    const essential = await read("../../../dev/assets/js/essential.js");
+    let now = 1_000_000, removals = 0;
+    const vessels = [{ track_key: "NAVAL-A", received_at: now }];
+    const sync = vm.runInNewContext(`let __lastNavalSignalsSyncKey = "__empty__"; ${fn(essential, "syncNavalSignals")}; syncNavalSignals`, {
+        Date: { now: () => now }, isNavalTrackingFeatureEnabled: () => true,
+        isLayerEnabled: () => true, setNavalLayerVisible: () => {},
+        isNavalSignalEvent: () => true, isEventVisible: () => true,
+        getNavalTrackKey: (event) => event.track_key,
+        getAllNavalSnapshots: () => vessels, clearNavalVessel: () => { removals++; vessels.length = 0; },
+        requestNavalWidgetRender: () => {}, markTrackerPerf: () => {}, upsertNavalVessel: () => {},
+    });
+    sync([]); assert.equal(removals, 0);
+    now += 90_001;
+    sync([]); assert.equal(removals, 1);
+});
+test("aircraft history seeds first entities before yielding the remaining rows", async () => {
+    const essential = await read("../../../dev/assets/js/essential.js");
+    const processed = [], frames = [], renders = [];
+    let now = 0;
+    const context = vm.createContext({
+        isAircraftTrackingFeatureEnabled: () => true, isLayerEnabled: () => true,
+        isDatabaseAircraftLiveSourceEnabled: () => true,
+        isPointInsideRegion: () => true, getActiveRegion: () => ({}),
+        cancelAnimationFrame: () => {}, requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; },
+        performance: { now: () => ++now }, markTrackerPerf: () => {},
+        upsertLiveTrack: (row) => { processed.push(row.track_key); return {}; },
+        requestAircraftMovementsWidgetRender: (delay) => { renders.push(delay); },
+        AIRCRAFT_WIDGET_RENDER_THROTTLE_MS: 500,
+    });
+    vm.runInContext(`let __aircraftHistorySeedRaf = 0, __aircraftHistorySeedGeneration = 0;
+        let __aircraftHistorySeeding = false, __seededAircraftTrackKeys = new Set();
+        ${fn(essential, "syncLiveAircraftFromHistoryRows")}`, context);
+    context.syncLiveAircraftFromHistoryRows(Array.from({ length: 20 }, (_, i) => ({ track_key: String(i), active: true, lat: 1, lon: 1 })));
+    assert.ok(processed.length > 0 && processed.length < 20);
+    assert.equal(renders[0], 0);
+    while (frames.length) frames.shift()();
+    assert.equal(processed.length, 20);
+});
+test("aircraft motion frames do not bypass the 20 Hz camera cap", async () => {
+    const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");
+    const viewer = { scene: { mode: 3 }, entities: { getById: () => ({}) }, camera: {} };
+    const syncCamera = vm.runInNewContext(`${fn(aircraft, "syncFocusedTrackCamera")}; syncFocusedTrackCamera`, {
+        window: { __warzoneViewer: viewer }, Cesium: { SceneMode: { SCENE3D: 3 } },
+        __liveTrackReplayState: { selectedTrackKey: "A", mode: "focus" },
+        __liveTrackIsCameraFlying: false, __liveTrackHardLockEnabled: true,
+        __liveTrackUserCameraInteracting: false, __liveTrackLastFocusCameraSyncAt: 100,
+        LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ: 20,
+        getPositionCartesian: () => ({}), performance: { now: () => 120 },
+        getCssNumber: () => 20, clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
+    });
+    assert.doesNotThrow(() => syncCamera({ motionFrame: true }));
 });
 test("existing focused route does not rebuild geometry on network history receipt", async () => {
     const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");

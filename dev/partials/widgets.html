@@ -285,6 +285,12 @@
                     <div class="wz-widget-layer-off-state" data-widget-layer-state aria-live="polite">Aircraft layer is off</div>
                     <div class="wz-widget-layer-content">
                         <div class="wz-aircraft-toolbar">
+                            <form id="wz-aircraft-debug-search-form" class="wz-aircraft-debug-search" hidden>
+                                <label for="wz-aircraft-debug-search" class="sr-only">Find a live aircraft by callsign, ICAO, or registration</label>
+                                <input id="wz-aircraft-debug-search" class="wz-aircraft-country__search" type="search"
+                                       placeholder="Callsign, ICAO, or registration" autocomplete="off" maxlength="24">
+                                <span id="wz-aircraft-debug-search-status" class="wz-aircraft-empty" role="status" aria-live="polite"></span>
+                            </form>
                             <label class="wz-aircraft-type-filter">
                                 <span class="sr-only">Filter aircraft by type</span>
                                 <span class="wz-selector">

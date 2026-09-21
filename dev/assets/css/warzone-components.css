@@ -4196,6 +4196,25 @@ UNUSED CANDIDATE END */
     font-size: var(--text-sm);
 }
 
+#wz-aircraft-debug-search-form.is-local-visible {
+    position: fixed;
+    top: 9rem;
+    left: 50%;
+    z-index: 9001;
+    width: min(32rem, calc(100vw - 2rem));
+    padding: .6rem;
+    background: var(--color-bg-row);
+    transform: translateX(-50%);
+    pointer-events: auto;
+}
+
+#wz-aircraft-debug-search-status.is-error {
+    display: block;
+    margin-top: .4rem;
+    color: var(--color-red-slate);
+    text-align: left;
+}
+
 .wz-aircraft-country__actions {
     display: grid;
     grid-template-columns: 1fr 1fr;

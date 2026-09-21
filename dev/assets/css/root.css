@@ -842,6 +842,7 @@ input[type="checkbox"]:checked {
     --warzone-focus-msaa-samples: 4;
     --warzone-close-msaa-samples: 4;
 
+    --warzone-camera-inertia-zoom: 0;
     --warzone-camera-zoom-factor: 7.5;
     --warzone-focus-sharp-height: 120000;
     --warzone-close-sharp-height: 450000;
@@ -1543,7 +1544,7 @@ input[type="checkbox"]:checked {
     --warzone-live-naval-focus-camera-sync-hz: 20;
     --warzone-live-naval-focus-camera-position-epsilon: 2;
     --warzone-live-naval-focus-wheel-zoom-step: 5000;
-    --warzone-live-naval-focus-wheel-zoom-ease: 0.22;
+    --warzone-live-naval-focus-wheel-zoom-ease: 0.65;
     --warzone-live-naval-focus-warning-range: 90000;
     --warzone-live-naval-focused-max-zoom-out: 160000;
     --warzone-live-naval-focus-visible-radius: 100000;
@@ -1629,7 +1630,7 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-unfocus-camera-range: 72000;
     --warzone-live-aircraft-unfocus-zoom-out-delta: 26000;
     --warzone-live-aircraft-focus-wheel-zoom-step: 2500;
-    --warzone-live-aircraft-focus-wheel-zoom-ease: 0.14;
+    --warzone-live-aircraft-focus-wheel-zoom-ease: 0.65;
     --warzone-live-aircraft-focus-warning-range: 125000;
     --warzone-live-aircraft-focused-max-zoom-out: 220000;
     --warzone-live-aircraft-heading-smoothing: 0.24;

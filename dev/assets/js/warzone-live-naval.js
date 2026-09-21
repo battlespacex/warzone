@@ -3220,6 +3220,7 @@ export function upsertNavalVessel(event) {
         occurred_at: normalizeText(event.occurred_at || metadata.occurred_at || ""),
         updated_at: normalizeText(event.updated_at || metadata.updated_at || ""),
         last_seen_at: lastSeenAt,
+        received_at: Date.now(),
         metadata,
     };
 

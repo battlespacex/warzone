@@ -609,7 +609,7 @@ module.exports = (env, argv) => {
                                     if (isWorkerHealthText) {
                                         continue;
                                     }
-                                    if (response.status === 404) {
+                                    if (response.status === 404 && !(isJsonResponse && upstream.pathname === "/events/aircraft/lookup")) {
                                         continue;
                                     }
                                     const shouldReturnResponse = response.ok || response.status !== 404 || isJsonResponse;

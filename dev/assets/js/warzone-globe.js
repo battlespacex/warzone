@@ -4101,7 +4101,7 @@ function applyViewerStyle(viewer) {
         ctrl.enableCollisionDetection = false;
         ctrl.inertiaSpin = numberVar("--warzone-camera-inertia-spin", 0.86);
         ctrl.inertiaTranslate = numberVar("--warzone-camera-inertia-translate", 0.82);
-        ctrl.inertiaZoom = numberVar("--warzone-camera-inertia-zoom", 0.72);
+        ctrl.inertiaZoom = numberVar("--warzone-camera-inertia-zoom", 0);
         ctrl.zoomFactor = numberVar("--warzone-camera-zoom-factor", 7.5);
         ctrl.maximumZoomDistance = numberVar("--warzone-camera-max-zoom", 20000000);
         ctrl.minimumZoomDistance = numberVar("--warzone-camera-min-zoom", 100);

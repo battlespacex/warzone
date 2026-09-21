@@ -371,6 +371,8 @@ const LIVE_AIRCRAFT_MODEL_CODE_BY_SUBTYPE = Object.freeze({
     aircraft: "Fighter-F16",
 });
 const LIVE_TRACK_STALE_TIMEOUT_MS = 90 * 1000;
+const LIVE_TRACK_FOCUSED_STALE_GRACE_START_MS = 120 * 1000;
+const LIVE_TRACK_FOCUSED_STALE_TIMEOUT_MS = 180 * 1000;
 const LIVE_TRACK_RENDER_MODE = Object.freeze({
     PNG: "png",
     CHAR: "char",
@@ -2129,6 +2131,7 @@ function scheduleAircraftFocusTerrainDisable(viewer, delayMs = 0) {
     }, Math.max(0, Number(delayMs) || 0));
 }
 function resolveAircraftRenderMode(track = {}, modelUri = "") {
+    if (track.__manualAircraftOverride === true) return LIVE_TRACK_RENDER_MODE.MODEL;
     const policy = getAircraftVisualPolicy();
     const forceProductionPng = shouldForceProductionAircraftPngMode();
     const metadata = getTrackMetadata(track);
@@ -2542,9 +2545,11 @@ function refreshLiveTrackLiveness(entity, track = {}, sourceTimestamp = 0) {
     }
     const entry = __liveTrackRegistry.get(String(track.track_key || ""));
     if (entry) {
+        restoreLiveTrackLiveness(entry, String(track.track_key || ""));
         entry.active = true;
         entry.ended_at = null;
         entry.last_seen_at = Date.now();
+        entry.last_received_at = Date.now();
         entry.source_timestamp = Number(sourceTimestamp || Date.now());
     }
 }
@@ -2727,7 +2732,7 @@ function isExcludedTrainerAircraftText(text = "") {
     }
     return hasTrainingActivity || LIVE_TRACK_TRAINER_PLATFORM_PATTERNS.some((pattern) => pattern.test(haystack));
 }
-function getTrackSourceTimestamp(track = {}) {
+export function getTrackSourceTimestamp(track = {}) {
     const ts = Number(track.timestamp || 0);
     if (Number.isFinite(ts) && ts > 0) return ts;
     const sourceDateTs = new Date(
@@ -3042,7 +3047,7 @@ function areAircraftTracksLikelyDuplicates(a = {}, b = {}) {
 }
 function findDuplicateLiveTrackKey(track = {}) {
     for (const entry of __liveTrackRegistry.values()) {
-        if (!entry?.active || !entry?.track_key) continue;
+        if (!entry?.active || !entry?.track_key || entry.__manualAircraftOverride) continue;
         if (areAircraftTracksLikelyDuplicates(track, entry)) {
             return String(entry.track_key || "");
         }
@@ -3938,12 +3943,34 @@ function buildLiveTrackRegistryEntry(track = {}, entity = null) {
         speed_kts: Number.isFinite(speedKts) ? speedKts : 0,
         active: true,
         ended_at: null,
+        liveness_state: "live",
+        stale_started_at: null,
         last_seen_at: Date.now(),
+        last_received_at: Date.now(),
         entity_id: entity?.id || `track-${track.track_key}`,
         on_ground: isTrackOnGround(track),
+        ...(track.__manualAircraftOverride === true ? {
+            __manualAircraftOverride: true,
+            asset_key: "Transport-C17",
+            callsign: String(track.callsign || ""),
+        } : {}),
         __reportSnapshotAsset: track?.__reportSnapshotAsset === true,
         path_history: []
     };
+}
+function logAirFocusLiveness(message, trackKey = "", details = {}) {
+    const hostname = String(window.location?.hostname || "").toLowerCase();
+    if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) return;
+    console.info(`[AIR FOCUS] ${message}`, { trackKey, ...details });
+}
+function restoreLiveTrackLiveness(entry, trackKey = "") {
+    if (!entry) return;
+    const previousState = String(entry.liveness_state || "live");
+    if (previousState === "temporarily_stale" || previousState === "stale_grace") {
+        logAirFocusLiveness("track resumed", trackKey, { previousState });
+    }
+    entry.liveness_state = "live";
+    entry.stale_started_at = null;
 }
 function dispatchLiveTrackRegistryUpdate() {
     window.__liveTrackRegistrySize = __liveTrackRegistry.size;
@@ -4102,11 +4129,13 @@ function recordLiveTrackDataState(track = {}, entity = null, sourceTimestamp = D
     const trackKey = String(track.track_key || "");
     if (!trackKey) return null;
     const existingRegistryEntry = __liveTrackRegistry.get(trackKey);
+    restoreLiveTrackLiveness(existingRegistryEntry, trackKey);
     const nextRegistryEntry = {
         ...(existingRegistryEntry || {}),
         ...buildLiveTrackRegistryEntry(track, entity),
         active: true,
         ended_at: null,
+        last_received_at: Date.now(),
         entity_id: entity?.id || existingRegistryEntry?.entity_id || "",
         source_timestamp: Number(sourceTimestamp || Date.now()),
         __realtimeRenderPending: track.__realtimeDataOnly === true,
@@ -4157,11 +4186,35 @@ function markStaleTracksAsEnded() {
     const now = Date.now();
     for (const [trackKey, entry] of __liveTrackRegistry.entries()) {
         if (!entry?.active) continue;
-        const lastSeen = Number(entry.last_seen_at || 0);
+        const lastSeen = Number(entry.last_received_at || entry.last_seen_at || 0);
         if (!lastSeen) continue;
-        if (now - lastSeen > LIVE_TRACK_STALE_TIMEOUT_MS) {
+        const staleAgeMs = now - lastSeen;
+        const focused = isFocusedTrackKey(trackKey);
+        if (focused && staleAgeMs > LIVE_TRACK_STALE_TIMEOUT_MS) {
+            if (entry.liveness_state === "live" || !entry.liveness_state) {
+                entry.liveness_state = "temporarily_stale";
+                entry.stale_started_at = lastSeen + LIVE_TRACK_STALE_TIMEOUT_MS;
+                logAirFocusLiveness("stale started", trackKey, { staleAgeMs });
+            }
+            if (
+                staleAgeMs > LIVE_TRACK_FOCUSED_STALE_GRACE_START_MS &&
+                entry.liveness_state !== "stale_grace"
+            ) {
+                entry.liveness_state = "stale_grace";
+                logAirFocusLiveness("stale grace active", trackKey, { staleAgeMs });
+            }
+        }
+        const staleTimeoutMs = focused
+            ? LIVE_TRACK_FOCUSED_STALE_TIMEOUT_MS
+            : LIVE_TRACK_STALE_TIMEOUT_MS;
+        if (staleAgeMs > staleTimeoutMs) {
             entry.active = false;
             entry.ended_at = now;
+            entry.liveness_state = "ended";
+            if (focused) {
+                logAirFocusLiveness("ended after timeout", trackKey, { staleAgeMs, staleTimeoutMs });
+                clearLiveTrackSelection({ animate: false, __skipRenderSync: true });
+            }
             removeLiveTrackRenderState(trackKey);
         }
     }
@@ -4732,11 +4785,9 @@ function syncFocusedTrackCameraOrientationFromViewer(position, options = {}) {
 function syncFocusedTrackCamera(options = {}) {
     const forceLifecycleSync = options?.lifecycleResume === true;
     const forceVisualRefresh = options?.visualRefresh === true;
-    // The focused entity is advanced by the shared interpolation RAF. Apply the
-    // matching camera target in that same frame so the entity cannot move ahead
-    // of a throttled camera and visibly drift/jump away from screen center.
-    const forceMotionFrameSync = options?.motionFrame === true;
-    const forceCameraSync = forceLifecycleSync || forceVisualRefresh || forceMotionFrameSync;
+    // Position interpolation runs every frame; only camera follow is capped.
+    // Bypassing this cap on motion frames causes lookAt/tile churn at RAF speed.
+    const forceCameraSync = forceLifecycleSync || forceVisualRefresh;
     const viewer = window.__warzoneViewer;
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";
@@ -7387,14 +7438,21 @@ export function getAircraftModelTunerFocusConfig(aircraftAltitudeFt = Number.NaN
         usesReportedAltitude: focusCamera.usesReportedAltitude,
     });
 }
-export function upsertLiveTrack(track) {
+export function upsertLiveTrack(track, options = {}) {
     if (!window.__warzoneViewer?.__warzone) return;
     const previousStyle = __liveTrackUpdateComputedStyle;
     __liveTrackUpdateComputedStyle = previousStyle || getComputedStyle(document.documentElement);
-    try { return measureRealtimeStage("track.update", () => applyLiveTrackUpdate(track)); }
+    try {
+        const entity = measureRealtimeStage("track.update", () => applyLiveTrackUpdate(track, options));
+        if (options.validatedVisualState === true && entity !== undefined) {
+            const entry = __liveTrackRegistry.get(String(entity?.__trackKey || track?.track_key || ""));
+            if (entry) entry.__realtimeRenderPending = false;
+        }
+        return entity;
+    }
     finally { __liveTrackUpdateComputedStyle = previousStyle; }
 }
-function applyLiveTrackUpdate(track) {
+function applyLiveTrackUpdate(track, options = {}) {
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const viewer = window.__warzoneViewer;
@@ -7404,7 +7462,9 @@ function applyLiveTrackUpdate(track) {
         clearLiveTrack(originalTrackKey);
         return;
     }
-    const duplicateTrackKey = measureRealtimeStage("track.duplicateLookup", () => findDuplicateLiveTrackKey(track));
+    const duplicateTrackKey = track?.__manualAircraftOverride === true
+        ? ""
+        : measureRealtimeStage("track.duplicateLookup", () => findDuplicateLiveTrackKey(track));
     if (duplicateTrackKey && duplicateTrackKey !== originalTrackKey) {
         track = {
             ...track,
@@ -7426,21 +7486,24 @@ function applyLiveTrackUpdate(track) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
     let entity = viewer.entities.getById(id);
-    const telemetryUpdate = forceVisualRefresh
+    const telemetryUpdate = forceVisualRefresh || options.validatedVisualState === true
         ? "accept"
         : classifyLiveTrackTelemetryUpdate(entity, track, sourceTimestamp);
     if (telemetryUpdate === "stale") {
+        options.onTelemetryResult?.({ status: "stale" });
         return;
     }
     if (telemetryUpdate === "insignificant") {
         refreshLiveTrackLiveness(entity, track, sourceTimestamp);
+        options.onTelemetryResult?.({ status: "insignificant", candidate: track, sourceTimestamp });
         return;
     }
 
     const resolvedHeadingDeg = getTrackResolvedHeading(track);
-    const registryEntry = forceVisualRefresh
+    const registryEntry = forceVisualRefresh || options.validatedVisualState === true
         ? (__liveTrackRegistry.get(String(track.track_key || "")) || buildLiveTrackRegistryEntry(track, entity))
         : measureRealtimeStage("track.historyAndRegistry", () => recordLiveTrackDataState(track, entity, sourceTimestamp));
+    options.onTelemetryResult?.({ status: "accepted", candidate: track, sourceTimestamp });
     if (track?.__realtimeDataOnly === true) return entity;
     const reportSnapshot = track?.__reportSnapshotAsset === true;
     if (!shouldRenderLiveTrackDataState(track.track_key, registryEntry, { reportSnapshot })) {
@@ -7505,6 +7568,7 @@ function applyLiveTrackUpdate(track) {
         }
         entity = viewer.entities.add(entitySpec);
         entity.__trackKey = track.track_key;
+        if (track.__manualAircraftOverride === true) entity._isManualAircraftOverride = true;
         entity.__trackPickable = true;
         entity.__renderMode = renderMode;
         entity.__currentHeadingDeg = attitude.headingDeg;
@@ -7753,6 +7817,19 @@ export function getAllLiveTrackSnapshots(options = {}) {
             if (Boolean(b.active) !== Boolean(a.active)) return Number(b.active) - Number(a.active);
             return Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0);
         });
+}
+export function removeManualLiveTrack(trackKey) {
+    const key = String(trackKey || "");
+    const entry = __liveTrackRegistry.get(key);
+    if (!entry?.__manualAircraftOverride) return false;
+    const entity = window.__warzoneViewer?.entities?.getById?.(`track-${key}`);
+    if (entity && entity._isManualAircraftOverride !== true) return false;
+    removeLiveTrackRenderState(key);
+    __liveTrackRegistry.delete(key);
+    __liveTrackLastPositions.delete(key);
+    dispatchLiveTrackRegistryUpdate();
+    requestWarzoneRenderBatched();
+    return true;
 }
 function isLiveTrackDiagnosticsEnabled() {
     const hostname = String(window.location?.hostname || "").toLowerCase();
