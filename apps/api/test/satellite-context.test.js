@@ -9,7 +9,9 @@ test("publishes only safe available satellite image URLs", () => {
         status: "available",
         collection: "sentinel-2-l2a",
         observation_type: "true_color",
+        source_item_id: "S2A_public_product",
         acquisition_time: "2026-07-26T18:19:01Z",
+        expires_at: "2026-07-29T18:19:01Z",
         event_time_relation: "after",
         cloud_cover: 12,
         image_url: sourcePreview,
@@ -18,6 +20,8 @@ test("publishes only safe available satellite image URLs", () => {
 
     assert.equal(context.status, "available");
     assert.equal(context.provider, "Copernicus");
+    assert.equal(context.productId, "S2A_public_product");
+    assert.equal(context.expiresAt, "2026-07-29T18:19:01Z");
     assert.equal(context.imageUrl, sourcePreview);
     assert.equal(context.imageryType, "Natural colour");
     assert.equal(context.updatedAt, "2026-07-26T18:20:00Z");
@@ -88,6 +92,7 @@ test("map satellite attachment uses stored available previews without source req
                 order() { return Promise.resolve({ data: [{
                     id: "obs-map", event_id: "evt-map", status: "available",
                     source_item_id: "unused-source-item", image_url: sourcePreview,
+                    expires_at: "2026-09-25T00:00:00Z",
                 }], error: null }); },
             };
             return query;
@@ -96,6 +101,8 @@ test("map satellite attachment uses stored available previews without source req
     try {
         const attached = await attachAvailableSatelliteContextToEvents(supabase, [{ id: "evt-map" }]);
         assert.equal(attached[0].satellite_context.imageUrl, sourcePreview);
+        assert.equal(attached[0].satellite_context.productId, "unused-source-item");
+        assert.equal(attached[0].satellite_context.expiresAt, "2026-09-25T00:00:00Z");
         assert.deepEqual(statuses, [["status", "available"]]);
         assert.equal(fetchCalls, 0);
     } finally {

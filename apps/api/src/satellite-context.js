@@ -16,8 +16,10 @@ function toPublicSatelliteContext(row = {}) {
     status,
     provider: "Copernicus",
     collection: row.collection || "",
+    productId: row.source_item_id || null,
     observationType: row.observation_type || "",
     acquisitionTime: row.acquisition_time || null,
+    expiresAt: row.expires_at || null,
     eventTimeRelation: row.event_time_relation || "unknown",
     cloudCover: Number.isFinite(Number(row.cloud_cover)) ? Number(row.cloud_cover) : null,
     imageUrl: status === "available" ? row.image_url : null,
@@ -48,7 +50,7 @@ async function attachSatelliteContextToEvents(supabase, events = [], { available
     const batchResults = await Promise.all(batches.map((batch) => {
       let query = supabase
         .from("event_satellite_observations")
-        .select("id, event_id, status, collection, observation_type, acquisition_time, event_time_relation, cloud_cover, source_item_id, image_url, mime_type, width, height, byte_size, updated_at")
+        .select("id, event_id, status, collection, observation_type, acquisition_time, event_time_relation, cloud_cover, source_item_id, image_url, expires_at, mime_type, width, height, byte_size, updated_at")
         .in("event_id", batch);
       query = availableOnly
         ? query.eq("status", "available")
