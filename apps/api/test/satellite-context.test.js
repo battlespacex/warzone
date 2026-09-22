@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attachSatelliteContextToEvents, toPublicSatelliteContext } from "../src/satellite-context.js";
+import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents, toPublicSatelliteContext } from "../src/satellite-context.js";
 const sourcePreview = "https://catalogue.dataspace.copernicus.eu/odata/v1/Assets(2fb65e32-21ba-423b-ab39-959fe37e4c81)/$value";
 
 test("publishes only safe available satellite image URLs", () => {
@@ -72,4 +72,33 @@ test("attaches satellite context in bounded event-id batches", async () => {
     assert.deepEqual(requestedBatches.map((batch) => batch.length), [100, 100, 5]);
     assert.equal(attached[204].satellite_context.id, "observation-204");
     assert.equal(attached[0].satellite_context, undefined);
+});
+
+test("map satellite attachment uses stored available previews without source requests", async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = async () => { fetchCalls += 1; throw new Error("unexpected source request"); };
+    const statuses = [];
+    const supabase = {
+        from() {
+            const query = {
+                select() { return this; },
+                in() { return this; },
+                eq(column, value) { statuses.push([column, value]); return this; },
+                order() { return Promise.resolve({ data: [{
+                    id: "obs-map", event_id: "evt-map", status: "available",
+                    source_item_id: "unused-source-item", image_url: sourcePreview,
+                }], error: null }); },
+            };
+            return query;
+        },
+    };
+    try {
+        const attached = await attachAvailableSatelliteContextToEvents(supabase, [{ id: "evt-map" }]);
+        assert.equal(attached[0].satellite_context.imageUrl, sourcePreview);
+        assert.deepEqual(statuses, [["status", "available"]]);
+        assert.equal(fetchCalls, 0);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
 });

@@ -86,7 +86,7 @@ test("map request uses a 48-hour, 800-row region-scoped query and no select star
     assert.ok(recorder.calls.some((call) => call[0] === "lte" && call[1] === "lon" && call[2] === 65));
 });
 
-test("map endpoint returns only the lightweight DTO and bypasses enrichment", async () => {
+test("map endpoint returns lightweight fields plus available satellite context", async () => {
     const recorder = createSupabaseResult([{
         id: "evt-map",
         created_at: "2026-09-14T10:00:00.000Z",
@@ -106,11 +106,21 @@ test("map endpoint returns only the lightweight DTO and bypasses enrichment", as
             source_provenance: [{ raw: true }],
         },
         media: { images: [{ full_url: "https://example.com/image.jpg" }] },
-        satellite_context: { status: "available" },
         raw: { secret: true },
     }]);
+    let satelliteCalls = 0;
     const handler = createMapEventsHandler({
         getSupabaseClient: () => recorder.supabase,
+        attachSatellite: async (_supabase, events) => {
+            satelliteCalls += 1;
+            return events.map((event) => ({
+                ...event,
+                satellite_context: {
+                    status: "available",
+                    imageUrl: "https://catalogue.dataspace.copernicus.eu/odata/v1/Assets(6caa0f27-d33c-4c1d-a23d-c0b31b5a336a)/$value",
+                },
+            }));
+        },
         clock: (() => { let value = 100; return () => value += 5; })(),
         logger: { info() {} },
     });
@@ -124,11 +134,13 @@ test("map endpoint returns only the lightweight DTO and bypasses enrichment", as
     assert.equal(event.map_eligible, true);
     assert.equal("source_url" in event, false);
     assert.equal("media" in event, false);
-    assert.equal("satellite_context" in event, false);
+    assert.equal(satelliteCalls, 1);
+    assert.equal(event.satellite_context.status, "available");
+    assert.equal(event.satellite_available, true);
     assert.equal("raw" in event, false);
     assert.equal("source_provenance" in event.metadata, false);
     assert.match(res.headers["Server-Timing"], /db;dur=/);
-    assert.doesNotMatch(createMapEventsHandler.toString(), /attachSatellite|attachMedia/);
+    assert.doesNotMatch(createMapEventsHandler.toString(), /attachMedia/);
 });
 
 test("map endpoint handles empty regions and database failure without throwing", async () => {

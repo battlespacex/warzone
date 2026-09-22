@@ -91,6 +91,10 @@ create index if not exists event_satellite_observations_cache_idx
   on public.event_satellite_observations (cache_key)
   where cache_key is not null;
 
+create index if not exists event_satellite_observations_source_item_idx
+  on public.event_satellite_observations (source_item_id)
+  where status = 'available' and source_item_id is not null;
+
 create index if not exists event_satellite_observations_acquisition_idx
   on public.event_satellite_observations (acquisition_time desc);
 

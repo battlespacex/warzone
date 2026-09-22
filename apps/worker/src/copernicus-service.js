@@ -76,8 +76,9 @@ function getRateLimiter(config) {
 function parseRetryAfterMs(response) {
   const value = response.headers.get("retry-after");
   if (!value) return 0;
-  const seconds = Number(value);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  // Sentinel Hub documents numeric Retry-After values in milliseconds.
+  const milliseconds = Number(value);
+  if (Number.isFinite(milliseconds)) return Math.max(0, milliseconds);
   const dateMs = Date.parse(value);
   return Number.isFinite(dateMs) ? Math.max(0, dateMs - Date.now()) : 0;
 }
@@ -98,6 +99,7 @@ async function copernicusFetch(config, url, options = {}, { retry401 = true } = 
   if (response.status === 401 && retry401) {
     clearCopernicusToken();
     const retryToken = await fetchCopernicusAccessToken(config, { force: true });
+    await limiter.waitTurn();
     return getFetch()(url, {
       ...options,
       headers: {
@@ -153,13 +155,14 @@ async function searchCatalogCollection(config, params, collection) {
     .filter(Boolean);
 }
 
-async function findBestObservation(config, event) {
+async function findBestObservation(config, event, { onCatalogRequest } = {}) {
   const eventTime = new Date(event.occurred_at || event.created_at || Date.now());
   const bbox = buildEventBbox(event.lat, event.lon, config.searchRadiusKm);
   const fromIso = new Date(eventTime.getTime() - config.searchLookbackHours * 60 * 60 * 1000).toISOString();
   const toIso = new Date(Math.min(Date.now(), eventTime.getTime() + config.searchLookbackHours * 60 * 60 * 1000)).toISOString();
   const searchParams = { bbox, fromIso, toIso, maxCloudCover: config.maxCloudCover };
 
+  await onCatalogRequest?.();
   const sentinel2 = await searchCatalogCollection(config, searchParams, "sentinel-2-l2a");
   const rankedS2 = rankCatalogFeatures(sentinel2, eventTime);
   if (rankedS2.length) {
@@ -176,6 +179,7 @@ async function findBestObservation(config, event) {
 
   if (!config.sentinel1Fallback) return null;
 
+  await onCatalogRequest?.();
   const sentinel1 = await searchCatalogCollection(config, searchParams, "sentinel-1-grd");
   const rankedS1 = rankCatalogFeatures(sentinel1, eventTime, { preferPostEvent: true });
   if (!rankedS1.length) return null;

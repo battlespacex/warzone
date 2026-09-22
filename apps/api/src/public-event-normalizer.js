@@ -4,6 +4,7 @@ import {
     readEventLocation,
 } from "../../shared/event-location-policy.js";
 import { getPublicEventQuality } from "./public-event-quality.js";
+import { isSatelliteSourcePreviewUrl } from "../../shared/satellite-source-preview.js";
 
 const UNKNOWN_TEXT_RE =
     /^(unknown|unknown source|unknown location|unknown origin|reported location|untitled|untitled event|n\/a|null|undefined|-)+$/i;
@@ -449,6 +450,10 @@ function toPublicMapEvent(event = {}) {
         direct_evidence: publicEvent.direct_evidence,
         disputed: publicEvent.disputed,
         metadata: pickMapMetadata(event, publicEvent),
+        ...(publicEvent.satellite_available && isSatelliteSourcePreviewUrl(publicEvent.satellite_context?.imageUrl) ? {
+            satellite_context: publicEvent.satellite_context,
+            satellite_available: true,
+        } : {}),
     };
 }
 

@@ -171,15 +171,16 @@ const LIVE_TRACK_TAIL_OFFSET_BY_SUBTYPE = {
     vip: 240,
 };
 const LIVE_TRACK_NORMAL_MAX_TRAIL_POINTS = 30;
-const LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS = 50;
-const LIVE_TRACK_TRAIL_MAX_AGE_MS = 120 * 60 * 1000;
+const LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS = 600;
+const LIVE_TRACK_TRAIL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const LIVE_TRACK_CURRENT_FLIGHT_GAP_MS = 45 * 60 * 1000;
 const LIVE_TRACK_TRAIL_RENDER_HEIGHT_MAX = 420000;
 const LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS = 80;
 const LIVE_TRACK_TRAIL_ALTITUDE_OFFSET_METERS = 0;
 const LIVE_TRACK_TRAIL_SMOOTHING_DEFAULT = 0.55;
 const LIVE_TRACK_TRAIL_SMOOTH_MIN_POINTS = 5;
 const LIVE_TRACK_TRAIL_SMOOTH_KEEP_TAIL_POINTS = 2;
-const LIVE_TRACK_TRAIL_SMOOTH_MAX_POINTS = LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS;
+const LIVE_TRACK_TRAIL_SMOOTH_MAX_POINTS = 320;
 const LIVE_TRACK_TRAIL_HEAD_INVALIDATION_METERS = 0.5;
 const LIVE_TRACK_FOCUS_ROUTE_HEAD_INVALIDATION_METERS = 0.5;
 const LIVE_TRACK_FOCUS_ROUTE_CAMERA_INVALIDATION_METERS = 40;
@@ -224,9 +225,9 @@ const LIVE_TRACK_DEFAULT_ANIM_MS = 12000;
 const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 1100;
 const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 15000;
 const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 12000;
-const LIVE_TRACK_HISTORY_RETENTION_MS = 12 * 60 * 60 * 1000;
+const LIVE_TRACK_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 const LIVE_TRACK_NORMAL_HISTORY_MAX_POINTS = 30;
-const LIVE_TRACK_FOCUSED_HISTORY_MAX_POINTS = 50;
+const LIVE_TRACK_FOCUSED_HISTORY_MAX_POINTS = LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS;
 const LIVE_TRACK_FOCUS_ROUTE_SPIKE_MIN_METERS = 4500;
 const LIVE_TRACK_FOCUS_ROUTE_SPIKE_RATIO = 2.15;
 const LIVE_TRACK_REGISTRY_MAX_ITEMS = 900;
@@ -4122,6 +4123,9 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
     entry.path_history = historyNeedsPruning ? pruneHistoryPoints(history, trackKey) : history;
     entry.last_seen_at = point.ts;
     if (isFocusedTrackKey(trackKey) && track.__realtimeDataOnly !== true) {
+        if (isLiveTrackDiagnosticsEnabled()) {
+            console.info("[AIR TRAIL] current live append", { trackKey, ts: point.ts, lat: point.lat, lon: point.lon });
+        }
         syncFocusedRouteEntity(trackKey);
     }
 }
@@ -6739,6 +6743,46 @@ function parseTrailPointTimestamp(rawTs) {
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return Date.now();
 }
+function normalizeLiveTrackHistoryPoint(point = {}) {
+    const lon = Number(point.lon);
+    const lat = Number(point.lat);
+    const rawTs = point.ts ?? point.last_seen_at ?? point.updated_at ?? point.occurred_at;
+    const numericTs = Number(rawTs);
+    const ts = Number.isFinite(numericTs) && numericTs > 0
+        ? (numericTs < 1e11 ? numericTs * 1000 : numericTs)
+        : new Date(rawTs || 0).getTime();
+    if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    if (!Number.isFinite(ts) || ts <= 0) return null;
+    return {
+        lon,
+        lat,
+        altitude_ft: Number(point.altitude_ft || 0),
+        heading_deg: normalizeDegrees(Number(point.heading_deg || 0)),
+        speed_kts: Number(point.speed_kts || 0),
+        on_ground: point.on_ground === true || String(point.status || "").toLowerCase() === "ground",
+        ts,
+    };
+}
+function selectCurrentFlightHistoryPoints(points = []) {
+    const deduped = new Map();
+    (Array.isArray(points) ? points : []).forEach((point) => {
+        const normalized = normalizeLiveTrackHistoryPoint(point);
+        if (!normalized) return;
+        const key = `${normalized.ts}:${normalized.lat.toFixed(6)}:${normalized.lon.toFixed(6)}`;
+        deduped.set(key, normalized);
+    });
+    const ordered = [...deduped.values()].sort((a, b) => a.ts - b.ts);
+    if (ordered.length <= 1) return ordered;
+    let startIndex = ordered.length - 1;
+    for (let index = ordered.length - 2; index >= 0; index -= 1) {
+        const point = ordered[index];
+        const next = ordered[index + 1];
+        if (next.ts - point.ts > LIVE_TRACK_CURRENT_FLIGHT_GAP_MS) break;
+        startIndex = index;
+        if (point.on_ground && !next.on_ground) break;
+    }
+    return ordered.slice(startIndex);
+}
 function sanitizeSeedTrailEntries(entries = [], track = {}) {
     const safeEntries = Array.isArray(entries) ? entries : [];
     if (safeEntries.length <= 1) return safeEntries;
@@ -6786,6 +6830,40 @@ function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
         __liveTrackTrails.set(trackKey, entries);
         updateTrackTrailPositionsCache(trackKey, entries);
     }
+}
+export function mergeLiveTrackHistory(trackKey = "", historyPoints = []) {
+    const safeTrackKey = String(trackKey || "");
+    const entry = __liveTrackRegistry.get(safeTrackKey);
+    const viewer = window.__warzoneViewer;
+    if (!safeTrackKey || !entry || !viewer || !isFocusedTrackKey(safeTrackKey)) {
+        return { applied: false, received: Array.isArray(historyPoints) ? historyPoints.length : 0, points: 0 };
+    }
+    const localPoints = Array.isArray(entry.path_history) ? entry.path_history : [];
+    const currentFlightPoints = selectCurrentFlightHistoryPoints([...historyPoints, ...localPoints])
+        .slice(-LIVE_TRACK_FOCUSED_HISTORY_MAX_POINTS);
+    entry.path_history = currentFlightPoints;
+    const entity = viewer.entities?.getById?.(`track-${safeTrackKey}`);
+    const committedThrough = Number(entity?.__liveTrackLastCommittedSourceTimestamp || 0);
+    const traversedPoints = committedThrough > 0
+        ? currentFlightPoints.filter((point) => Number(point.ts || 0) <= committedThrough)
+        : currentFlightPoints;
+    if (traversedPoints.length >= 2) {
+        seedTrackTrailFromHistory(safeTrackKey, entry, traversedPoints);
+        getOrCreateTrackTrailEntity(viewer, safeTrackKey, entry);
+        syncFocusedRouteEntity(safeTrackKey);
+        requestWarzoneRenderBatched();
+    }
+    const result = {
+        applied: traversedPoints.length >= 2,
+        received: Array.isArray(historyPoints) ? historyPoints.length : 0,
+        local: localPoints.length,
+        points: currentFlightPoints.length,
+        renderedPoints: traversedPoints.length,
+        earliestTimestamp: currentFlightPoints[0]?.ts || null,
+        latestTimestamp: currentFlightPoints[currentFlightPoints.length - 1]?.ts || null,
+    };
+    if (isLiveTrackDiagnosticsEnabled()) console.info("[AIR TRAIL] history merged", { trackKey: safeTrackKey, ...result });
+    return result;
 }
 function ensureTrackTrailVisible(trackKey, track = {}, lon, lat, alt, headingDeg = 0) {
     let trail = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);

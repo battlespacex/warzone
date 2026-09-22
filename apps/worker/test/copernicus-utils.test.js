@@ -12,12 +12,12 @@ import {
   makeSatelliteCacheKey,
   rankCatalogFeatures,
 } from "../src/copernicus-utils.js";
-import { canStartSatelliteJob } from "../src/copernicus-usage.js";
+import { canCreateSatellitePreview, canStartSatelliteJob } from "../src/copernicus-usage.js";
 
 const enabledConfig = {
   enabled: true,
   searchRadiusKm: 7.5,
-  dailyEventLimit: 75,
+  dailyEventLimit: 30,
 };
 
 test("normalizes Copernicus service base URLs from env", () => {
@@ -118,13 +118,24 @@ test("cache key is stable and changes by visualization dimensions", () => {
   assert.notEqual(makeSatelliteCacheKey(base), makeSatelliteCacheKey({ ...base, width: 256 }));
 });
 
-test("quota guard blocks daily limit and persisted rate limit", () => {
-  assert.equal(canStartSatelliteJob({ successful_images_generated: 75 }, { dailyEventLimit: 75 }).reason, "daily_limit");
+test("catalog and new-preview quotas are separate, and the persisted rate limit still stops searches", () => {
+  const config = { dailyEventLimit: 30, dailyCatalogRequestLimit: 120, sentinel1Fallback: true };
+  assert.equal(canStartSatelliteJob({ successful_images_generated: 30, catalog_requests_attempted: 118 }, config).ok, true);
+  assert.equal(canCreateSatellitePreview({ successful_images_generated: 30 }, config).reason, "daily_limit");
+  assert.equal(canStartSatelliteJob({ catalog_requests_attempted: 119 }, config).reason, "catalog_daily_limit");
+  assert.equal(canStartSatelliteJob({ catalog_requests_attempted: 119 }, { ...config, sentinel1Fallback: false }).ok, true);
   assert.equal(
     canStartSatelliteJob(
-      { successful_images_generated: 1, rate_limited_until: new Date(Date.now() + 60_000).toISOString() },
-      { dailyEventLimit: 75 }
+      { catalog_requests_attempted: 1, rate_limited_until: new Date(Date.now() + 60_000).toISOString() },
+      config
     ).reason,
     "rate_limited"
   );
+});
+
+test("Copernicus defaults leave a bounded daily catalog and preview budget", () => {
+  const config = readCopernicusConfig({});
+  assert.equal(config.dailyEventLimit, 30);
+  assert.equal(config.dailyCatalogRequestLimit, 120);
+  assert.equal(config.maxRequestsPerMinute, 20);
 });

@@ -48,11 +48,17 @@ function canStartSatelliteJob(row = {}, config = {}, now = new Date()) {
   if (isRateLimited(row, now)) {
     return { ok: false, reason: "rate_limited" };
   }
-  const generated = Number(row.successful_images_generated || 0);
-  if (generated >= config.dailyEventLimit) {
-    return { ok: false, reason: "daily_limit" };
+  const requiredCatalogRequests = config.sentinel1Fallback === false ? 1 : 2;
+  if (Number(row.catalog_requests_attempted || 0) + requiredCatalogRequests > config.dailyCatalogRequestLimit) {
+    return { ok: false, reason: "catalog_daily_limit" };
   }
   return { ok: true, reason: "ok" };
+}
+
+function canCreateSatellitePreview(row = {}, config = {}) {
+  return Number(row.successful_images_generated || 0) < config.dailyEventLimit
+    ? { ok: true, reason: "ok" }
+    : { ok: false, reason: "daily_limit" };
 }
 
 async function incrementUsage(supabase, fields = {}, date = getUtcDateKey()) {
@@ -107,6 +113,7 @@ async function getCopernicusStatusSummary(supabase, config = {}) {
   return {
     copernicusEnabled: config.enabled === true,
     dailyLimit: config.dailyEventLimit,
+    dailyCatalogRequestLimit: config.dailyCatalogRequestLimit,
     eventsProcessedToday: Number(row.successful_images_generated || 0),
     catalogRequestsToday: Number(row.catalog_requests_attempted || 0),
     processRequestsToday: Number(row.process_requests_attempted || 0),
@@ -119,6 +126,7 @@ async function getCopernicusStatusSummary(supabase, config = {}) {
 }
 
 export {
+  canCreateSatellitePreview,
   canStartSatelliteJob,
   getCopernicusStatusSummary,
   getUsageRow,

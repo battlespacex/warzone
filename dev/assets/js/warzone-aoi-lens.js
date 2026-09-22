@@ -326,7 +326,7 @@ function bindModalVisibility() {
     document.body.__wzAoiModalVisibilityBound = true;
     document.addEventListener("wz:ui-modal-visibility", (event) => {
         const modalId = String(event?.detail?.modalId || "");
-        if (modalId !== "wz-about-modal" && modalId !== "wz-donate-modal") return;
+        if (modalId !== "wz-about-modal") return;
         state.hiddenForModal = Boolean(event?.detail?.isOpen);
         applyDataSourceVisibility();
         if (!state.hiddenForModal) {

@@ -42,7 +42,8 @@ function hasAwsRoleCredentialSource(env = process.env) {
 }
 
 function readCopernicusConfig(env = process.env) {
-  const dailyEventLimit = Math.floor(readNumberEnv(env.COPERNICUS_DAILY_EVENT_LIMIT, 75, { min: 1, max: 500 }));
+  const dailyEventLimit = Math.floor(readNumberEnv(env.COPERNICUS_DAILY_EVENT_LIMIT, 30, { min: 1, max: 500 }));
+  const dailyCatalogRequestLimit = Math.floor(readNumberEnv(env.COPERNICUS_DAILY_CATALOG_REQUEST_LIMIT, 120, { min: 2, max: 1000 }));
   const maxRequestsPerMinute = Math.floor(readNumberEnv(env.COPERNICUS_MAX_REQUESTS_PER_MINUTE, 20, { min: 1, max: 60 }));
   const previewWidth = Math.floor(readNumberEnv(env.COPERNICUS_PREVIEW_WIDTH, 512, { min: 128, max: 1024 }));
   const previewHeight = Math.floor(readNumberEnv(env.COPERNICUS_PREVIEW_HEIGHT, 512, { min: 128, max: 1024 }));
@@ -55,6 +56,7 @@ function readCopernicusConfig(env = process.env) {
     catalogUrl: normalizeCopernicusCatalogUrl(env.COPERNICUS_CATALOG_URL),
     processUrl: normalizeCopernicusProcessUrl(env.COPERNICUS_PROCESS_URL),
     dailyEventLimit,
+    dailyCatalogRequestLimit,
     maxRequestsPerMinute,
     eventRefreshHours: readNumberEnv(env.COPERNICUS_EVENT_REFRESH_HOURS, 12, { min: 1, max: 72 }),
     searchLookbackHours: readNumberEnv(env.COPERNICUS_SEARCH_LOOKBACK_HOURS, 72, { min: 1, max: 72 }),

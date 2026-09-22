@@ -3,6 +3,7 @@ import { buildObservationCacheKey, CopernicusHttpError, findBestObservation } fr
 import { deleteSatellitePreviewFromS3 } from "./copernicus-storage.js";
 import { isSatelliteSourcePreviewUrl, resolveSatelliteSourcePreview } from "../../shared/satellite-source-preview.js";
 import {
+  canCreateSatellitePreview,
   canStartSatelliteJob,
   getCopernicusStatusSummary,
   getUsageRow,
@@ -28,6 +29,18 @@ function getBackoffIso(attemptCount = 0, baseMs = 15 * 60 * 1000) {
   const exponential = Math.min(8 * 60 * 60 * 1000, baseMs * (2 ** attempt));
   const jitter = Math.floor(Math.random() * Math.min(10 * 60 * 1000, exponential * 0.25));
   return new Date(Date.now() + exponential + jitter).toISOString();
+}
+
+function nextUtcDayIso() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
+}
+
+function prioritizeCandidateEvents(candidates) {
+  return [...candidates].sort((a, b) => {
+    const priority = (event) => (event.category === "strike" ? 0 : 2) + (event.severity === "critical" ? 0 : 1);
+    return priority(a) - priority(b) || Date.parse(b.occurred_at) - Date.parse(a.occurred_at);
+  });
 }
 
 function buildStorageKey(config, event, cacheKey, mimeType = "image/png") {
@@ -63,7 +76,7 @@ async function listCandidateEvents(supabase, config) {
     .not("lat", "is", null)
     .not("lon", "is", null)
     .order("occurred_at", { ascending: false })
-    .limit(Math.max(config.batchSize * 6, 30));
+    .limit(Math.max(config.batchSize * 6, 500));
   if (error) throw error;
   return data || [];
 }
@@ -145,28 +158,40 @@ async function updateObservation(supabase, id, payload) {
   return data;
 }
 
-async function findCachedObservation(supabase, cacheKey) {
+async function findCachedObservation(supabase, cacheKey, sourceItemId) {
   const { data, error } = await supabase
     .from("event_satellite_observations")
     .select("*")
     .eq("cache_key", cacheKey)
     .eq("status", "available")
     .gt("expires_at", new Date().toISOString())
-    .limit(1);
+    .limit(20);
   if (error) throw error;
-  return Array.isArray(data) && data.length ? data[0] : null;
+  const exact = data?.find((row) => isSatelliteSourcePreviewUrl(row.image_url));
+  if (exact) return exact;
+  if (!sourceItemId) return null;
+  // Copernicus QUICKLOOK is a product asset, independent of event bbox or preview dimensions.
+  const byProduct = await supabase
+    .from("event_satellite_observations")
+    .select("*")
+    .eq("source_item_id", sourceItemId)
+    .eq("status", "available")
+    .gt("expires_at", new Date().toISOString())
+    .limit(20);
+  if (byProduct.error) throw byProduct.error;
+  return byProduct.data?.find((row) => isSatelliteSourcePreviewUrl(row.image_url)) || null;
 }
 
-function copyCachedPayload(cached, event, observation) {
+function copyCachedPayload(cached, event, observation, cacheKey) {
   return {
     status: "available",
     provider: cached.provider || "copernicus",
     collection: cached.collection || observation.collection,
     observation_type: cached.observation_type || observation.observationType,
     acquisition_time: cached.acquisition_time || observation.acquisitionTime,
-    event_time_relation: cached.event_time_relation || observation.eventTimeRelation,
+    event_time_relation: observation.eventTimeRelation,
     cloud_cover: cached.cloud_cover ?? observation.cloudCover,
-    bbox: cached.bbox || observation.bbox,
+    bbox: observation.bbox,
     centre_latitude: Number(event.lat),
     centre_longitude: Number(event.lon),
     source_item_id: cached.source_item_id || observation.sourceItemId,
@@ -178,7 +203,7 @@ function copyCachedPayload(cached, event, observation) {
     byte_size: cached.byte_size,
     checksum: cached.checksum || null,
     etag: cached.etag || null,
-    cache_key: cached.cache_key,
+    cache_key: cacheKey,
     next_retry_at: null,
     error_code: null,
     error_message_sanitized: null,
@@ -215,8 +240,9 @@ async function processOneEvent(supabase, event, config, logger = console) {
 
   try {
     logger.log?.(`[copernicus] catalog search started event=${event.id}`);
-    await incrementUsage(supabase, { catalog_requests_attempted: 1 });
-    const observation = await findBestObservation(config, event);
+    const observation = await findBestObservation(config, event, {
+      onCatalogRequest: () => incrementUsage(supabase, { catalog_requests_attempted: 1 }),
+    });
     if (!observation) {
       await updateObservation(supabase, claimed.id, {
         status: "unavailable",
@@ -229,12 +255,23 @@ async function processOneEvent(supabase, event, config, logger = console) {
 
     logger.log?.(`[copernicus] observation selected event=${event.id} collection=${observation.collection} acquisition=${observation.acquisitionTime}`);
     const cacheKey = buildObservationCacheKey(config, observation);
-    const cached = await findCachedObservation(supabase, cacheKey);
+    const cached = await findCachedObservation(supabase, cacheKey, observation.sourceItemId);
     if (isSatelliteSourcePreviewUrl(cached?.image_url)) {
-      await updateObservation(supabase, claimed.id, copyCachedPayload(cached, event, observation));
+      await updateObservation(supabase, claimed.id, copyCachedPayload(cached, event, observation, cacheKey));
       await incrementUsage(supabase, { cache_hits: 1 });
       logger.log?.(`[copernicus] image cache hit event=${event.id} cache_key=${cacheKey}`);
       return { ok: true, cacheHit: true };
+    }
+
+    const previewGuard = canCreateSatellitePreview(await getUsageRow(supabase), config);
+    if (!previewGuard.ok) {
+      await updateObservation(supabase, claimed.id, {
+        status: "pending",
+        attempt_count: Math.max(0, Number(claimed.attempt_count || 1) - 1),
+        next_retry_at: nextUtcDayIso(),
+        error_code: previewGuard.reason,
+      });
+      return { ok: true, skipped: true, reason: previewGuard.reason };
     }
 
     await updateObservation(supabase, claimed.id, {
@@ -322,10 +359,14 @@ async function runCopernicusSatelliteSync({ supabase, logger = console, config =
     return { ok: true, skipped: true, reason: guard.reason, status: await getCopernicusStatusSummary(supabase, config) };
   }
 
-  const candidates = await listCandidateEvents(supabase, config);
+  const candidates = prioritizeCandidateEvents(await listCandidateEvents(supabase, config));
   const results = {
     ok: true,
     considered_count: candidates.length,
+    examined_count: 0,
+    eligible_count: 0,
+    ineligible_count: 0,
+    skip_reasons: {},
     processed_count: 0,
     skipped_count: 0,
     available_count: 0,
@@ -335,12 +376,23 @@ async function runCopernicusSatelliteSync({ supabase, logger = console, config =
 
   for (const event of candidates) {
     if (results.processed_count >= config.batchSize) break;
+    results.examined_count += 1;
+    const eligibility = isEventEligibleForCopernicus(event, config);
+    if (!eligibility.eligible) {
+      results.ineligible_count += 1;
+      results.skipped_count += 1;
+      results.skip_reasons[eligibility.reason] = (results.skip_reasons[eligibility.reason] || 0) + 1;
+      continue;
+    }
+    results.eligible_count += 1;
     const row = await getUsageRow(supabase);
     const rowGuard = canStartSatelliteJob(row, config);
     if (!rowGuard.ok) break;
     const result = await processOneEvent(supabase, event, config, logger);
     if (result.skipped) {
+      if (result.reason === "daily_limit") results.processed_count += 1;
       results.skipped_count += 1;
+      results.skip_reasons[result.reason] = (results.skip_reasons[result.reason] || 0) + 1;
       continue;
     }
     results.processed_count += 1;
@@ -349,8 +401,19 @@ async function runCopernicusSatelliteSync({ supabase, logger = console, config =
     if (!result.ok) results.error_count += 1;
   }
 
+  if (results.ineligible_count) await incrementUsage(supabase, { skipped_events: results.ineligible_count });
   results.status = await getCopernicusStatusSummary(supabase, config);
   if (results.error_count > 0) results.ok = false;
+  logger.log?.(`[copernicus] cycle summary ${JSON.stringify({
+    candidates: results.considered_count,
+    examined: results.examined_count,
+    eligible: results.eligible_count,
+    requests: results.processed_count,
+    available: results.available_count,
+    cache_hits: results.cache_hit_count,
+    skipped: results.skip_reasons,
+    errors: results.error_count,
+  })}`);
   return results;
 }
 
@@ -398,6 +461,8 @@ async function cleanupExpiredSatelliteObservations({ supabase, logger = console,
 
 export {
   cleanupExpiredSatelliteObservations,
+  listCandidateEvents,
+  prioritizeCandidateEvents,
   processOneEvent,
   runCopernicusSatelliteSync,
 };

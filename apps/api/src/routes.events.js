@@ -4,13 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
-import { attachSatelliteContextToEvents } from "./satellite-context.js";
+import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents } from "./satellite-context.js";
 import { toPublicEvent, toPublicMapEvent } from "./public-event-normalizer.js";
 import {
     MAP_EVENT_HISTORY_WINDOW_HOURS,
     applyGeneralEventDeliveryFilters,
     applyMapEventHistoricalQueryFilter,
 } from "../../shared/map-event-policy.js";
+import {
+    getAircraftIdentifierAliases,
+    getAircraftIdentifierCandidates,
+    normalizeAircraftIdentifier,
+} from "../../shared/aircraft-identifiers.js";
 const DEFAULT_EVENTS_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const MIN_EVENTS_WINDOW_HOURS = 6;
 const MAX_EVENTS_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
@@ -48,6 +53,8 @@ const DEFAULT_EVENTS_SINCE_LIMIT = 200;
 const MAX_EVENTS_SINCE_LIMIT = 500;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
+const AIRCRAFT_FOCUSED_HISTORY_WINDOW_HOURS = 24;
+const AIRCRAFT_FOCUSED_HISTORY_LIMIT = 1200;
 const DEFAULT_INTEL_FEED_LIMIT = 120;
 const MAX_INTEL_FEED_LIMIT = 300;
 const DEFAULT_GNSS_CELL_LIMIT = 240;
@@ -210,6 +217,7 @@ export function buildMapEventsQuery(supabase, options = {}) {
 
 export function createMapEventsHandler({
     getSupabaseClient = getSupabase,
+    attachSatellite = attachAvailableSatelliteContextToEvents,
     clock = () => Date.now(),
     logger = console,
 } = {}) {
@@ -225,7 +233,8 @@ export function createMapEventsHandler({
             if (error) return res.status(500).json({ error: "Failed" });
 
             const serializationStartedAt = clock();
-            const events = (data || []).map(toPublicMapEvent);
+            const eventsWithSatellite = await attachSatellite(supabase, data || []);
+            const events = eventsWithSatellite.map(toPublicMapEvent);
             const payload = JSON.stringify({
                 events,
                 meta: {
@@ -281,6 +290,69 @@ export function createEventDetailHandler({
             return res.json({ event: toPublicEvent(eventWithMedia) });
         } catch {
             return res.status(500).json({ error: "Failed" });
+        }
+    };
+}
+
+function getAircraftHistoryTrackKeys(identifier = "") {
+    const normalized = normalizeAircraftIdentifier(identifier).toLowerCase();
+    if (!normalized) return [];
+    const keys = new Set([normalized]);
+    const hex = normalized.replace(/^manual-aircraft-/, "").replace(/^adsb-/, "");
+    if (/^[0-9a-f]{6}$/.test(hex)) {
+        keys.add(hex);
+        keys.add(`adsb-${hex}`);
+        keys.add(`manual-aircraft-${hex}`);
+    }
+    return [...keys];
+}
+
+export function createAircraftHistoryHandler({
+    getSupabaseClient = getSupabase,
+    clock = () => Date.now(),
+} = {}) {
+    return async (req, res) => {
+        const identifier = normalizeAircraftIdentifier(req.params.identifier);
+        if (!/^[A-Z0-9-]{2,64}$/.test(identifier)) {
+            return res.status(400).json({ error: "Invalid aircraft identifier" });
+        }
+        try {
+            const cutoffIso = new Date(clock() - AIRCRAFT_FOCUSED_HISTORY_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+            const { data, error } = await getSupabaseClient()
+                .from("aircraft_tracks_log")
+                .select("track_key, subtype, lat, lon, altitude_ft, speed_kts, heading_deg, status, last_seen_at, ended_at")
+                .in("track_key", getAircraftHistoryTrackKeys(identifier))
+                .gte("last_seen_at", cutoffIso)
+                .order("last_seen_at", { ascending: true })
+                .limit(AIRCRAFT_FOCUSED_HISTORY_LIMIT);
+            if (error) return res.status(500).json({ error: "Aircraft history lookup failed" });
+            const points = (data || []).map((row) => ({
+                track_key: row.track_key,
+                lat: row.lat == null ? Number.NaN : Number(row.lat),
+                lon: row.lon == null ? Number.NaN : Number(row.lon),
+                altitude_ft: Number(row.altitude_ft || 0),
+                speed_kts: Number(row.speed_kts || 0),
+                heading_deg: Number(row.heading_deg || 0),
+                status: String(row.status || ""),
+                on_ground: String(row.status || "").toLowerCase() === "ground",
+                ts: new Date(row.last_seen_at || 0).getTime(),
+            })).filter((point) =>
+                Number.isFinite(point.lat) && Math.abs(point.lat) <= 90 &&
+                Number.isFinite(point.lon) && Math.abs(point.lon) <= 180 &&
+                Number.isFinite(point.ts) && point.ts > 0
+            );
+            return res.json({
+                points,
+                meta: {
+                    identifier,
+                    source: "aircraft_tracks_log",
+                    count: points.length,
+                    earliest_timestamp: points[0]?.ts || null,
+                    latest_timestamp: points[points.length - 1]?.ts || null,
+                },
+            });
+        } catch {
+            return res.status(500).json({ error: "Aircraft history lookup failed" });
         }
     };
 }
@@ -380,14 +452,18 @@ export function eventsRouter({ broadcast }) {
 
     // ── Aircraft tracks ────────────────────────────────────────────
     router.get("/aircraft/lookup", async (req, res) => {
-        const identifier = String(req.query.identifier || "").trim().toUpperCase().replace(/\s+/g, "");
+        const identifier = normalizeAircraftIdentifier(req.query.identifier);
         if (!/^[A-Z0-9-]{2,24}$/.test(identifier)) {
             return res.status(400).json({ error: "Invalid aircraft identifier" });
         }
         const baseUrl = "https://api.adsb.lol/v2";
-        const paths = /^[0-9A-F]{6}$/.test(identifier)
-            ? [`hex/${identifier}`, `callsign/${identifier}`, `registration/${identifier}`]
-            : [`callsign/${identifier}`, `registration/${identifier}`];
+        const candidates = getAircraftIdentifierCandidates(identifier);
+        const candidateSet = new Set(candidates);
+        const paths = [...new Set(candidates.flatMap((candidate) => {
+            const candidatePaths = [`callsign/${candidate}`, `registration/${candidate}`];
+            if (candidate === identifier && /^[0-9A-F]{6}$/.test(candidate)) candidatePaths.unshift(`hex/${candidate}`);
+            return candidatePaths;
+        }))];
         try {
             const responses = await Promise.allSettled(paths.map(async (path) => {
                 const response = await fetch(`${baseUrl}/${path}`, {
@@ -400,7 +476,7 @@ export function eventsRouter({ broadcast }) {
             }));
             const matches = responses.flatMap((result) => result.status === "fulfilled" ? result.value : [])
                 .filter((aircraft) => [String(aircraft.hex || "").replace(/^~/, ""), aircraft.flight, aircraft.r]
-                .some((value) => String(value || "").trim().toUpperCase().replace(/\s+/g, "") === identifier));
+                .some((value) => candidateSet.has(normalizeAircraftIdentifier(value))));
             const aircraft = matches.find((item) => {
                 const lat = Number(item.lat);
                 const lon = Number(item.lon);
@@ -409,9 +485,14 @@ export function eventsRouter({ broadcast }) {
                     Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && (lat !== 0 || lon !== 0) &&
                     Number.isFinite(age) && age <= 90;
             });
-            if (!aircraft) return res.status(404).json({ error: "No live aircraft position found" });
+            if (!aircraft) {
+                if (process.env.NODE_ENV !== "production") {
+                    console.info("[AIR SEARCH] result", { identifier, aliases: getAircraftIdentifierAliases(identifier), result: "not_found" });
+                }
+                return res.status(404).json({ error: "No live aircraft position found" });
+            }
             const seenSeconds = Number(aircraft.seen_pos ?? aircraft.seen ?? 0);
-            res.json({ track: {
+            const track = {
                 icao24: String(aircraft.hex || "").replace(/^~/, "").toLowerCase(),
                 callsign: String(aircraft.flight || "").trim(),
                 flight: String(aircraft.flight || "").trim(),
@@ -426,11 +507,29 @@ export function eventsRouter({ broadcast }) {
                 model_name: String(aircraft.desc || "").trim(),
                 operator: String(aircraft.ownOp || "").trim(),
                 updated_at: new Date(Date.now() - seenSeconds * 1000).toISOString(),
-            } });
+            };
+            if (process.env.NODE_ENV !== "production") {
+                console.info("[AIR SEARCH] result", {
+                    identifier, aliases: getAircraftIdentifierAliases(identifier),
+                    sourceResponseCount: matches.length, callsign: track.callsign,
+                    icao24: track.icao24, registration: track.registration,
+                    lat: track.lat, lon: track.lon, result: "matched",
+                });
+            }
+            res.json({
+                track,
+                meta: {
+                    original_query: identifier,
+                    aliases: getAircraftIdentifierAliases(identifier),
+                    source: "adsb.lol",
+                    source_response_count: matches.length,
+                },
+            });
         } catch {
             res.status(502).json({ error: "Aircraft lookup unavailable" });
         }
     });
+    router.get("/aircraft/:identifier/history", createAircraftHistoryHandler());
     router.get("/aircraft", async (req, res) => {
         try {
             const supabase = getSupabase();

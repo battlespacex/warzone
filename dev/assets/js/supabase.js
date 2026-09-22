@@ -588,6 +588,20 @@ export const api = {
         });
         if (response.status === 404) throw new Error(`No live aircraft found for ${identifier}.`);
         if (!response.ok) throw new Error(result.error || "Aircraft lookup failed");
+        if (result.track && result.meta) result.track.__lookupMeta = result.meta;
         return result.track || null;
+    },
+    async getAircraftTrackHistory(identifier, options = {}) {
+        if (!API_BASE) return { points: [], meta: { source: "unavailable", count: 0 } };
+        const response = await fetch(
+            `${API_BASE}/events/aircraft/${encodeURIComponent(identifier)}/history`,
+            { signal: options.signal, headers: { Accept: "application/json" } }
+        );
+        if (!response.ok) return { points: [], meta: { source: "aircraft_tracks_log", count: 0 } };
+        const result = await response.json();
+        return {
+            points: Array.isArray(result.points) ? result.points : [],
+            meta: result.meta || { source: "aircraft_tracks_log", count: 0 },
+        };
     },
 };

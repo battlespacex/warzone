@@ -169,3 +169,24 @@ test("trail seeding excludes API coordinates the aircraft has not reached", () =
   assert.equal(seededHistory, null);
   assert.equal(trails.get("a").length, 1);
 });
+
+test("full aircraft trail keeps only the deduplicated current flight session", () => {
+  const context = vm.createContext({
+    LIVE_TRACK_CURRENT_FLIGHT_GAP_MS: 45 * 60 * 1000,
+    normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+    Map,
+  });
+  vm.runInContext(section(air, "normalizeLiveTrackHistoryPoint", "sanitizeSeedTrailEntries"), context);
+  const hour = 60 * 60 * 1000;
+  const base = Date.parse("2026-09-21T00:00:00.000Z");
+  const points = context.selectCurrentFlightHistoryPoints([
+    { lat: 1, lon: 1, ts: base + hour, on_ground: true },
+    { lat: 2, lon: 2, ts: base + 2 * hour },
+    { lat: 10, lon: 10, ts: base + 4 * hour, on_ground: true },
+    { lat: 11, lon: 11, ts: base + 4 * hour + 60_000 },
+    { lat: 11, lon: 11, ts: base + 4 * hour + 60_000 },
+    { lat: 12, lon: 12, ts: base + 4 * hour + 120_000 },
+    { lat: 100, lon: 12, ts: base + 4 * hour + 180_000 },
+  ]);
+  assert.equal(JSON.stringify(points.map((point) => [point.lat, point.lon])), "[[10,10],[11,11],[12,12]]");
+});

@@ -9,19 +9,14 @@ This integration attaches cached Copernicus previews to eligible high-value Stra
    - `COPERNICUS_ENABLED=true`
    - `COPERNICUS_CLIENT_ID`
    - `COPERNICUS_CLIENT_SECRET`
-   - `AWS_REGION`
-   - `AWS_S3_BUCKET`
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
-   - `CLOUDFRONT_URL` or `AWS_CLOUDFRONT_URL` recommended
 
-Optional quota controls use the defaults from the prompt: daily event limit `75`, request ceiling `20` per minute, 72 hour lookback, 512 by 512 previews, 7.5 km radius, and 30 percent max cloud cover.
+Optional quota controls default to `COPERNICUS_DAILY_EVENT_LIMIT=30` for first-time source quicklooks, `COPERNICUS_DAILY_CATALOG_REQUEST_LIMIT=120` for catalog search attempts, and `COPERNICUS_MAX_REQUESTS_PER_MINUTE=20`. A reused quicklook increments `cache_hits` but does not consume the first-time quicklook quota. The catalog limit still applies because each event needs a product search. The worker runs one Copernicus cycle at a time; the local configuration uses one event per 60-second cycle. Observation expiry remains 72 hours, and no-result events wait 12 hours before a new search.
 
 ## Behavior
 
-The worker only evaluates High or Critical events with valid coordinates, recent event times, and visible satellite-relevant categories/text. It searches Sentinel-2 L2A first, then Sentinel-1 GRD if enabled. Images are uploaded to S3 under `satellite-events/YYYY/MM/DD/<event-id>/<cache-key>.png`.
+The worker only evaluates High or Critical events with valid coordinates, recent event times, and visible satellite-relevant categories/text. Critical and High strike events are searched first. It searches Sentinel-2 L2A first, then Sentinel-1 GRD if enabled. The current worker attaches validated, Copernicus-hosted QUICKLOOK assets and reuses an available quicklook for the same product across events. It does not call the Sentinel Hub Process API or upload new preview images to S3.
 
-The frontend receives only sanitized metadata and a CloudFront/S3 image URL through the API. Copernicus credentials, OAuth tokens, AWS credentials, cache keys, storage keys, and raw provider payloads are never returned to the browser.
+The frontend receives only sanitized metadata and a validated Copernicus QUICKLOOK URL through the API. Copernicus credentials, OAuth tokens, cache keys, storage keys, and raw provider payloads are never returned to the browser.
 
 ## Troubleshooting
 

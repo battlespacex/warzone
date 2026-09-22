@@ -35,7 +35,7 @@ function toPublicSatelliteContext(row = {}) {
   };
 }
 
-async function attachSatelliteContextToEvents(supabase, events = []) {
+async function attachSatelliteContextToEvents(supabase, events = [], { availableOnly = false } = {}) {
   const source = Array.isArray(events) ? events : [];
   const eventIds = [...new Set(source.map((event) => event?.id).filter(Boolean))];
   if (!eventIds.length) return source;
@@ -45,12 +45,16 @@ async function attachSatelliteContextToEvents(supabase, events = []) {
     for (let index = 0; index < eventIds.length; index += SATELLITE_CONTEXT_EVENT_BATCH_SIZE) {
       batches.push(eventIds.slice(index, index + SATELLITE_CONTEXT_EVENT_BATCH_SIZE));
     }
-    const batchResults = await Promise.all(batches.map((batch) => supabase
-      .from("event_satellite_observations")
-      .select("id, event_id, status, collection, observation_type, acquisition_time, event_time_relation, cloud_cover, source_item_id, image_url, mime_type, width, height, byte_size, updated_at")
-      .in("event_id", batch)
-      .in("status", [...PUBLIC_SATELLITE_STATUSES])
-      .order("updated_at", { ascending: false })));
+    const batchResults = await Promise.all(batches.map((batch) => {
+      let query = supabase
+        .from("event_satellite_observations")
+        .select("id, event_id, status, collection, observation_type, acquisition_time, event_time_relation, cloud_cover, source_item_id, image_url, mime_type, width, height, byte_size, updated_at")
+        .in("event_id", batch);
+      query = availableOnly
+        ? query.eq("status", "available")
+        : query.in("status", [...PUBLIC_SATELLITE_STATUSES]);
+      return query.order("updated_at", { ascending: false });
+    }));
     const data = batchResults
       .filter((result) => !result.error)
       .flatMap((result) => result.data || [])
@@ -59,7 +63,9 @@ async function attachSatelliteContextToEvents(supabase, events = []) {
     const byEvent = new Map();
     for (const row of data || []) {
       if (byEvent.has(row.event_id)) continue;
-      const sourceImageUrl = row.status === "available" ? await resolveSatelliteSourcePreview(row) : null;
+      const sourceImageUrl = row.status === "available"
+        ? availableOnly ? row.image_url : await resolveSatelliteSourcePreview(row)
+        : null;
       const publicContext = toPublicSatelliteContext(row.status === "available"
         ? { ...row, image_url: sourceImageUrl, width: null, height: null, byte_size: null, mime_type: null }
         : row);
@@ -75,7 +81,12 @@ async function attachSatelliteContextToEvents(supabase, events = []) {
   }
 }
 
+function attachAvailableSatelliteContextToEvents(supabase, events = []) {
+  return attachSatelliteContextToEvents(supabase, events, { availableOnly: true });
+}
+
 export {
+  attachAvailableSatelliteContextToEvents,
   attachSatelliteContextToEvents,
   toPublicSatelliteContext,
 };
