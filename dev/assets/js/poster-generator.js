@@ -1,4 +1,4 @@
-import "../css/root.css";
+import "../css/poster.css";
 
 // =====================================================
 // POSTER CURATED FONT CONFIGURATION
@@ -6,12 +6,14 @@ import "../css/root.css";
 // =====================================================
 const POSTER_FONTS = Object.freeze({
   title: Object.freeze([
-    { label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
-    { label: "BX Font V2", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
+    { label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/EUB.woff2" },
+    //{ label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
+    //{ label: "BX Font V2", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
   ]),
   description: Object.freeze([
-    { label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
-    { label: "BX Font V2", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
+    { label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/EUB.woff2" },
+    //{ label: "BX Font V1", family: "PosterBattlespaceXHeading", url: "/assets/fonts/custom/bx-heading.woff2" },
+    //{ label: "BX Font V2", family: "PosterChakraPetchBold", url: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf" }
   ])
 });
 
@@ -20,16 +22,23 @@ const POSTER_FONTS = Object.freeze({
 // Credit typography is developer-controlled; users edit only text and width.
 // =====================================================
 const POSTER_CREDIT_STYLE = Object.freeze({
-  fontFamily: "PosterChakraPetchBold",
-  fontUrl: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf",
-  fontSize: 22,
+  //fontFamily: "PosterChakraPetchBold",
+  //fontUrl: "/assets/fonts/Chakra_Petch/ChakraPetch-Bold.ttf",
+  fontFamily: "PosterCredit",
+  fontUrl: "/assets/fonts/custom/EUB.woff2",
+  fontSize: 14,
   color: "#ebf0f1",
   textAlign: "left",
-  lineHeight: 110,
+  lineHeight: 100,
   letterSpacing: 0,
   uppercase: true,
   shadow: false,
   stroke: false
+});
+
+const POSTER_CREDIT_POSITION = Object.freeze({
+  withQrBottom: 215,
+  withoutQrBottom: 48
 });
 
 /* =====================================================
@@ -44,16 +53,16 @@ const POSTER_TOP_LOGOS = Object.freeze({
     width: 200,
     height: null,
     preserveAspectRatio: true,
-    x: 40,
-    y: 40
+    x: 50,
+    y: 50
   }),
   stratops: Object.freeze({
     asset: "/assets/images/poster/StratOps-full-logo.svg",
     width: 430,
     height: null,
     preserveAspectRatio: true,
-    x: 60,
-    y: 60
+    x: 50,
+    y: 50
   })
 });
 
@@ -69,21 +78,14 @@ const POSTER_BOTTOM_BRANDING = Object.freeze({
     opacity: 0.7
   }),
   stratops: Object.freeze({
-    type: "text",
-    text: "stratops.battlespacex.com",
-    uppercase: true,
-    fontFamily: "PosterChakraPetchBold, Helvetica, sans-serif",
-    fontStyle: "normal",
-    fontWeight: 700,
-    fontSize: 22,
-    letterSpacing: 2,
-    color: "#ebf0f1",
-    right: 35,
-    bottom: 35,
-    opacity: 0.9,
-    shadowColor: "rgba(0,0,0,0)",
-    shadowBlur: 7,
-    shadowOffsetY: 3
+    type: "image",
+    asset: "/assets/images/poster/StratOps-web-logo.png",
+    width: 500,
+    height: null,
+    preserveAspectRatio: true,
+    right: 50,
+    bottom: 50,
+    opacity: 0.8
   })
 });
 
@@ -106,7 +108,7 @@ const POSTER_OVERLAYS = Object.freeze({
   scanlines: Object.freeze({
     label: "Scanlines",
     type: "scanlines",
-    opacity: 0.2,
+    opacity: 0.15,
     color: "#ffffff40",
     tileWidth: 30,
     tileHeight: 10,
@@ -151,7 +153,7 @@ const POSTER_OVERLAYS = Object.freeze({
   };
   let renderQueued = false;
   const textBounds = { title: null, description: null, credit: null };
-  const SAFE_AREA = { left: 55, right: 1025, top: 215, bottom: 1295 };
+  const SAFE_AREA = { left: 50, right: 1030, top: 215, bottom: 1300 };
   const TEXT_WIDTH_LIMITS = Object.freeze({
     title: Object.freeze({ min: 250 }),
     description: Object.freeze({ min: 180 })
@@ -167,10 +169,10 @@ const POSTER_OVERLAYS = Object.freeze({
   const defaultFontValue = (target) => fontStack(POSTER_FONTS[target][0].family);
 
   function refreshSafeArea() {
-    SAFE_AREA.left = 55;
-    SAFE_AREA.right = canvas.width - 55;
+    SAFE_AREA.left = 50;
+    SAFE_AREA.right = canvas.width - 50;
     SAFE_AREA.top = 215;
-    SAFE_AREA.bottom = canvas.height - 55;
+    SAFE_AREA.bottom = canvas.height - 50;
   }
 
   function applyPosterSize(sizeKey, scaleExistingPositions = true) {
@@ -210,7 +212,7 @@ const POSTER_OVERLAYS = Object.freeze({
     qr: "battlespacex",
     enableDescription: false,
     enableCredit: false,
-    showGuides: true,
+    showGuides: false,
 
     backgroundDataUrl: "",
     fitMode: "cover",
@@ -226,23 +228,23 @@ const POSTER_OVERLAYS = Object.freeze({
 
     titleText: "REAL-TIME\nMULTI-DOMAIN\nSITUATIONAL\nINTELLIGENCE",
     titleFont: defaultFontValue("title"),
-    titleSize: 92,
+    titleSize: 64,
     titleLineHeight: 92,
     titleSpacing: 1,
     titleWidth: 630,
     titleX: 55,
-    titleY: 460,
+    titleY: 400,
     titleAlign: "left",
     titleColor: "#ffffff",
     titleUppercase: true,
 
     descriptionText: "REAL-TIME MULTI-DOMAIN SITUATIONAL INTELLIGENCE",
     descriptionFont: defaultFontValue("description"),
-    descriptionSize: 64,
-    descriptionLineHeight: 96,
+    descriptionSize: 44,
+    descriptionLineHeight: 94,
     descriptionSpacing: 1,
     descriptionWidth: 420,
-    descriptionX: 1020,
+    descriptionX: 1030,
     descriptionY: 880,
     descriptionAlign: "right",
     descriptionColor: "#ffffff",
@@ -250,15 +252,15 @@ const POSTER_OVERLAYS = Object.freeze({
 
     creditText: "Credit: USAF",
     creditWidth: 420,
-    creditX: 40,
-    creditY: 1110,
+    creditX: 50,
+    creditY: 1120,
 
     qrSize: 150,
     qrX: 50,
     qrBottom: 50,
 
     exportFormat: "png",
-    jpgQuality: 95
+    jpgQuality: 100
   };
 
   const initialState = JSON.parse(JSON.stringify(state));
@@ -272,18 +274,24 @@ const POSTER_OVERLAYS = Object.freeze({
     });
   }
 
-  function initializeFontOptions() {
-    ["title", "description"].forEach((target) => {
-      const select = $(`${target}Font`);
-      select.replaceChildren();
-      POSTER_FONTS[target].forEach((font) => {
-        const option = document.createElement("option");
-        option.value = fontStack(font.family);
-        option.textContent = font.label;
-        select.appendChild(option);
-      });
+function initializeFontOptions() {
+  ["title", "description"].forEach((target) => {
+    const select = $(`${target}Font`);
+
+    // Font selectors are optional.
+    // If they are not present in the HTML, use the configured default font.
+    if (!select) return;
+
+    select.replaceChildren();
+
+    POSTER_FONTS[target].forEach((font) => {
+      const option = document.createElement("option");
+      option.value = fontStack(font.family);
+      option.textContent = font.label;
+      select.appendChild(option);
     });
-  }
+  });
+}
 
   function initializeOverlayOptions() {
     const select = $("overlaySelect");
@@ -594,6 +602,24 @@ const POSTER_OVERLAYS = Object.freeze({
       left, right: left + selectionWidth, top: y, bottom: y + height
     };
   }
+
+  function positionCreditForQr() {
+  if (!state.enableCredit) return;
+
+  const metrics = getTextBlockMetrics("credit");
+
+  const bottomPadding =
+    state.qr === "none"
+      ? POSTER_CREDIT_POSITION.withoutQrBottom
+      : POSTER_CREDIT_POSITION.withQrBottom;
+
+  state.creditY = Math.round(
+    canvas.height - bottomPadding - metrics.height
+  );
+
+  clampTextBlock("credit");
+  requestRender();
+}
 
   function clampTextBlock(prefix) {
     if (prefix === "description" && !state.enableDescription) return;
@@ -1007,8 +1033,11 @@ const POSTER_OVERLAYS = Object.freeze({
         if (id === "qrSelect") {
           state.brandPreset = "";
           $("brandPresetSelect").value = "";
+
           brandAssetsReadyPromise = loadBrandAssets();
           await brandAssetsReadyPromise;
+
+          positionCreditForQr();
         }
         if (id === "exportFormat") updateExportVisibility();
         if (["imageZoom", "fitMode", "imageX", "imageY"].includes(id)) {
@@ -1016,7 +1045,9 @@ const POSTER_OVERLAYS = Object.freeze({
         }
         if (id.startsWith("title")) clampTextBlock("title");
         if (id.startsWith("description")) clampTextBlock("description");
-        if (id.startsWith("credit")) clampTextBlock("credit");
+        if (id.startsWith("credit")) {
+          positionCreditForQr();
+        }
 
         updateOutputs();
         requestRender();

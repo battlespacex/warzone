@@ -5,14 +5,26 @@ import vm from "node:vm";
 
 const readSource = (relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8");
 
-test("focus transitions reduce tile pressure without degrading settled imagery quality", async () => {
+test("focus transitions adapt refinement pressure without resizing the framebuffer", async () => {
   const globe = await readSource("../../../dev/assets/js/warzone-globe.js");
   const css = await readSource("../../../dev/assets/css/root.css");
+  const performanceMode = globe.slice(
+    globe.indexOf("setPerformanceMode(visibleCount = 0) {"),
+    globe.indexOf("highlightAlertRegion(event) {", globe.indexOf("setPerformanceMode(visibleCount = 0) {")),
+  );
 
   assert.match(globe, /const focusSceneSettled = isFocusedAssetMode && focusRefinement\?\.focusSettled === true/);
   assert.match(globe, /if \(tileLoadBusy && !is2DMode && !focusSceneSettled\)/);
-  assert.match(globe, /if \(focusSceneSettled\) \{[\s\S]*?nextResolution = Math\.max\(nextResolution, baseResolution\)[\s\S]*?nextMsaaSamples = Math\.max\(nextMsaaSamples, baseMsaaSamples\)[\s\S]*?nextSse = Math\.min\(nextSse, cameraHeight <= closeSharpHeight/);
+  assert.match(globe, /if \(focusSceneSettled\) \{[\s\S]*?nextSse = Math\.min\(nextSse, cameraHeight <= closeSharpHeight/);
   assert.match(globe, /if \(isFocusedAssetMode && !focusSceneSettled\)/);
+  assert.doesNotMatch(performanceMode, /viewer\.resolutionScale\s*=/);
+  assert.doesNotMatch(performanceMode, /viewer\.scene\.msaaSamples\s*=/);
+  assert.equal((globe.match(/viewer\.resolutionScale\s*=/g) || []).length, 1);
+  assert.equal((globe.match(/viewer\.scene\.msaaSamples\s*=/g) || []).length, 1);
+  assert.match(globe, /viewer\.resolutionScale = 1;/);
+  assert.match(globe, /viewer\.scene\.msaaSamples = 1;/);
+  assert.match(css, /--warzone-resolution-scale:\s*1;/);
+  assert.match(css, /--warzone-msaa-samples:\s*1;/);
   assert.match(globe, /tileCacheCap:\s*420/);
   assert.match(css, /--warzone-focus-performance-tile-cache:\s*420;/);
   assert.match(css, /--warzone-globe-tile-cache-size:\s*420;/);
@@ -106,7 +118,7 @@ async function qualityHarness(source = null) {
   const globe = source || await readSource("../../../dev/assets/js/warzone-globe.js");
   const css = await readSource("../../../dev/assets/css/root.css");
   const values = Object.fromEntries([...css.matchAll(/(--[\w-]+)\s*:\s*([\d.]+)\s*;/g)].map((match) => [match[1], Number(match[2])]));
-  const viewer = { scene: { globe: {}, postProcessStages: { fxaa: {} } }, __warzoneCameraMoving: true, __warzoneTileLoadBusy: true, __warzoneTileLoadQueueSize: 50, __warzoneFocusRefinementState: { focusSettled: true, phase: "FOCUS_SETTLED" } };
+  const viewer = { resolutionScale: 1, scene: { globe: {}, msaaSamples: 1, postProcessStages: { fxaa: {} } }, __warzoneCameraMoving: true, __warzoneTileLoadBusy: true, __warzoneTileLoadQueueSize: 50, __warzoneFocusRefinementState: { focusSettled: true, phase: "FOCUS_SETTLED" } };
   const context = vm.createContext({
     viewer, window: { __warzoneFocusDiagnostics: { state: "active", assetId: "aircraft" } },
     numberVar: (name, fallback) => values[name] ?? fallback, boolVar: () => true,
@@ -119,15 +131,37 @@ async function qualityHarness(source = null) {
   const start = globe.indexOf("setPerformanceMode(visibleCount = 0) {");
   const end = globe.indexOf("highlightAlertRegion(event) {", start);
   const mode = vm.runInContext(`({${globe.slice(start, end)}})`, context);
-  return { viewer, context, apply: () => mode.setPerformanceMode(10) };
+  return { viewer, context, apply: (visibleCount = 10) => mode.setPerformanceMode(visibleCount) };
 }
+
+test("all runtime quality modes keep framebuffer quality fixed across entity, camera, tile and focus state", async () => {
+  const { viewer, apply } = await qualityHarness();
+  viewer.__warzoneCameraMoving = false;
+  viewer.__warzoneTileLoadBusy = false;
+  viewer.__warzoneTileLoadQueueSize = 0;
+  apply(0);
+  assert.equal(viewer.resolutionScale, 1);
+  assert.equal(viewer.scene.msaaSamples, 1);
+
+  viewer.__warzoneCameraMoving = true;
+  viewer.__warzoneTileLoadBusy = true;
+  viewer.__warzoneTileLoadQueueSize = 50;
+  apply(1000);
+  assert.equal(viewer.resolutionScale, 1);
+  assert.equal(viewer.scene.msaaSamples, 1);
+
+  viewer.__warzoneFocusRefinementState.focusSettled = false;
+  apply(30);
+  assert.equal(viewer.resolutionScale, 1);
+  assert.equal(viewer.scene.msaaSamples, 1);
+});
 
 test("actual settled-focus quality restores close SSE, full resolution/MSAA while follow and downloads continue", async () => {
   const { viewer, apply } = await qualityHarness();
   apply();
   assert.equal(viewer.scene.globe.maximumScreenSpaceError, 1.25);
-  assert.equal(viewer.resolutionScale, 1.2);
-  assert.equal(viewer.scene.msaaSamples, 4);
+  assert.equal(viewer.resolutionScale, 1);
+  assert.equal(viewer.scene.msaaSamples, 1);
   assert.equal(viewer.scene.globe.loadingDescendantLimit, 24);
   assert.equal(viewer.scene.globe.tileCacheSize, 420);
   assert.equal(viewer.scene.requestRenderMode, true);
@@ -140,8 +174,8 @@ test("actual transition and unlock retain existing moving/loading policies and a
   viewer.__warzoneFocusRefinementState.focusSettled = false;
   apply();
   assert.equal(viewer.scene.globe.maximumScreenSpaceError, 2.65);
-  assert.equal(viewer.resolutionScale, 1.05);
-  assert.equal(viewer.scene.msaaSamples, 2);
+  assert.equal(viewer.resolutionScale, 1);
+  assert.equal(viewer.scene.msaaSamples, 1);
   context.window.__warzoneFocusDiagnostics.state = "inactive";
   apply();
   assert.equal(viewer.__warzonePerformanceState.isFocusedAssetMode, false);
@@ -158,6 +192,16 @@ test("actual transition and unlock retain existing moving/loading policies and a
   assert.equal(viewer.resolutionScale, 1);
   assert.equal(viewer.scene.globe.maximumScreenSpaceError, 1.85);
   assert.equal(viewer.scene.msaaSamples, 1);
+});
+
+test("authentication modal render budgeting never changes framebuffer resolution or MSAA", async () => {
+  const essential = await readSource("../../../dev/assets/js/essential.js");
+  const start = essential.indexOf("function setAuthModalRenderBudget(paused) {");
+  const end = essential.indexOf("function shouldSuspendMapWork()", start);
+  const budget = essential.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.doesNotMatch(budget, /resolutionScale\s*=/);
+  assert.doesNotMatch(budget, /msaaSamples\s*=/);
 });
 
 test("read-only tile snapshots distinguish desired children, rendered parent imagery and failed children", async () => {

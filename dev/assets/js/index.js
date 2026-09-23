@@ -31,6 +31,19 @@ const STRATOPS_API_BASE = isLocalDevHost ? "/api" : "https://api.battlespacex.co
 window.__stratopsConfig = {
     apiBase: STRATOPS_API_BASE,
     supportApiBase: STRATOPS_API_BASE,
+    basemap: {
+        provider: STRATOPS_BASEMAP_PROVIDER,
+        selfhosted: {
+            baseUrl: STRATOPS_MAP_BASE_URL,
+        },
+    },
+    terrain: {
+        provider: STRATOPS_TERRAIN_PROVIDER,
+        selfhosted: { baseUrl: STRATOPS_TERRAIN_BASE_URL },
+    },
+    performance: {
+        emptyGlobe: STRATOPS_PERF_EMPTY_GLOBE === true,
+    },
     enableIntelWireMedia: isStratOpsFeatureEnabled("system.intelWireMedia"),
     // Localhost uses a same-origin cached proxy for live aircraft polling so
     // we keep the old smooth movement path without direct third-party CORS calls.
@@ -347,7 +360,8 @@ async function waitForFirstUsableMap(viewer) {
 
     const imageryReady = await Promise.resolve(viewer?.__warzoneImageryReadyPromise);
     const imageryRequired = viewer?.__warzoneEntryMapImageryVisible !== false;
-    if (imageryRequired && (imageryReady !== true || !viewer?.__imageryBase || viewer.imageryLayers?.length < 1)) {
+    if (imageryRequired && viewer?.__warzoneBasemapDeferred !== true &&
+        (imageryReady !== true || !viewer?.__imageryBase || viewer.imageryLayers?.length < 1)) {
         throw new Error("Base imagery provider did not initialize");
     }
 
@@ -441,8 +455,23 @@ async function initializeOperationalDataAfterMap(viewer) {
     }
 }
 
+function getEmptyGlobeDiagnosticOptions() {
+    const enabled = window.__stratopsConfig?.performance?.emptyGlobe === true;
+    if (!enabled) return { enabled: false };
+    const params = new URLSearchParams(window.location.search);
+    return {
+        enabled: true,
+        adaptiveQuality: params.get("perfAdaptive") !== "off",
+        requestRenderMode: params.get("perfRender") !== "continuous",
+    };
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
+        if (window.__stratopsConfig.basemap.provider === "selfhosted") {
+            const basemapCredit = document.getElementById("wz-basemap-provider-credit");
+            if (basemapCredit) basemapCredit.textContent = "Built with CesiumJS, using self-hosted Natural Earth relief.";
+        }
         initStartupBackground();
         applyStratOpsFeatureVisibility();
         if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
@@ -486,17 +515,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                 );
 
                 const selectedRegion = getActiveRegion();
+                const emptyGlobeDiagnostics = getEmptyGlobeDiagnosticOptions();
                 const viewer = await globeModule.initWarzoneGlobe({
                     startStartupRotation: false,
                     initialCamera: getStartupRegionJourneyCamera(selectedRegion),
+                    performanceEmptyGlobe: emptyGlobeDiagnostics,
                 });
                 if (!viewer) throw new Error("Cesium viewer initialization failed");
                 window.__warzoneViewer = viewer;
                 markStartupPerformance("stratops-viewer-created");
-                viewer.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
-                viewer.__warzone?.setPerformanceMode?.(0);
+                if (emptyGlobeDiagnostics.adaptiveQuality !== false) {
+                    viewer.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
+                    viewer.__warzone?.setPerformanceMode?.(0);
+                }
+                if (emptyGlobeDiagnostics.requestRenderMode === false) {
+                    viewer.scene.requestRenderMode = false;
+                }
 
-                initRegionSelector(viewer, { applyLandingCamera: false });
+                if (!emptyGlobeDiagnostics.enabled) {
+                    initRegionSelector(viewer, { applyLandingCamera: false });
+                }
                 window.__warzonePrepareDashboardIntro?.();
                 if (selectedRegion) {
                     await playStartupRegionJourney(viewer, selectedRegion, { instant: true });
@@ -512,18 +550,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const entryFadePromise = fadeOperationalEntryIntoApp();
                 const dashboardRevealPromise = Promise.resolve(window.__warzoneRevealDashboard?.())
                     .catch((error) => console.warn("Dashboard reveal failed:", error));
-                const operationalDataPromise = initializeOperationalDataAfterMap(viewer)
-                    .catch((error) => {
-                        console.error("Operational data initialization failed after first usable map:", error);
-                        return [];
-                    });
+                const operationalDataPromise = emptyGlobeDiagnostics.enabled
+                    ? Promise.resolve([])
+                    : initializeOperationalDataAfterMap(viewer)
+                        .catch((error) => {
+                            console.error("Operational data initialization failed after first usable map:", error);
+                            return [];
+                        });
                 window.__warzoneOperationalDataPromise = operationalDataPromise;
+                window.__stratopsPerfEmptyGlobeReady = emptyGlobeDiagnostics.enabled;
 
                 void Promise.allSettled([
                     entryFadePromise,
                     dashboardRevealPromise,
                     operationalDataPromise,
-                ]).then(() => schedulePostEntryActions(viewer));
+                ]).then(() => {
+                    if (!emptyGlobeDiagnostics.enabled) schedulePostEntryActions(viewer);
+                });
                 return viewer;
             })().catch((error) => {
                 operationalBootCancelled = true;

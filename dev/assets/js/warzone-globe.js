@@ -4108,11 +4108,13 @@ function applyViewerStyle(viewer) {
     }
     viewer.scene.requestRenderMode = true;
     viewer.scene.maximumRenderTimeChange = Infinity;
-    viewer.resolutionScale = Math.max(0.7, Math.min(numberVar("--warzone-resolution-scale", 1), 1.22));
+    // Keep the drawing buffer fixed for the full viewer lifetime. Runtime
+    // quality adaptation may change refinement work, but never framebuffer size.
+    viewer.resolutionScale = 1;
     if (viewer.scene.postProcessStages?.fxaa) {
         viewer.scene.postProcessStages.fxaa.enabled = boolVar("--warzone-fxaa-enabled", true);
     }
-    viewer.scene.msaaSamples = Math.max(1, Math.min(Math.round(numberVar("--warzone-msaa-samples", 1)), 4));
+    viewer.scene.msaaSamples = 1;
     applyMapColorMixer(viewer, "--warzone-map");
 }
 function clampCameraZoomDistance(viewer) {
@@ -4552,6 +4554,7 @@ function applyRenderedTerrainVisibility(viewer) {
     const greyedSatellite = viewer.__warzoneGreyedSatelliteVisible === true;
     const show = viewer.__satelliteVisible !== false
         && viewer.__terrainVisible !== false;
+    if (viewer.__imageryPilot) viewer.__imageryPilot.show = show;
     if (viewer.__imageryBase) {
         viewer.__imageryBase.show = show;
         if (greyedSatellite) {
@@ -4924,6 +4927,11 @@ function ensureMapColorMixerStage(viewer) {
 function applyMapColorMixer(viewer, prefix = "--warzone-map") {
     const stage = ensureMapColorMixerStage(viewer);
     if (!stage) return;
+    if (getConfiguredBasemapProvider() === "selfhosted" &&
+        viewer.__warzoneBasemapFallbackEsri !== true) {
+        stage.enabled = false;
+        return;
+    }
     const settings = getMapColorMixerSettings(prefix);
     stage.uniforms.u_red = settings.red;
     stage.uniforms.u_green = settings.green;
@@ -5454,19 +5462,263 @@ async function addArcGisLayers(viewer) {
     return { baseLayer, labelsLayer };
 }
 
+function getConfiguredBasemapProvider() {
+    return window.__stratopsConfig?.basemap?.provider === "selfhosted" ? "selfhosted" : "esri";
+}
+
+function logSelfHosted(message) {
+    if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname)) {
+        console.info(`[BASEMAP SELFHOST] ${message}`);
+    }
+}
+
+function setSelfHostedCreditsVisible(visible) {
+    document.body.classList.toggle("wz-basemap-selfhosted", visible === true);
+}
+
+function removeSelfHostedBasemap(viewer) {
+    viewer.__warzoneResolveFirstImagery?.();
+    viewer.__warzoneResolveFirstImagery = null;
+    if (viewer.__warzoneSelfHostedLogTimer) {
+        clearTimeout(viewer.__warzoneSelfHostedLogTimer);
+        viewer.__warzoneSelfHostedLogTimer = 0;
+    }
+    viewer.__warzoneSelfHostedRemoveGlobalError?.();
+    viewer.__warzoneSelfHostedRemovePilotError?.();
+    viewer.__warzoneSelfHostedRemoveGlobalError = null;
+    viewer.__warzoneSelfHostedRemovePilotError = null;
+    if (viewer.__imageryPilot) viewer.imageryLayers.remove(viewer.__imageryPilot);
+    if (viewer.__warzoneSelfHostedGlobalLayer) viewer.imageryLayers.remove(viewer.__warzoneSelfHostedGlobalLayer);
+    viewer.__imageryPilot = null;
+    viewer.__warzoneSelfHostedGlobalLayer = null;
+    viewer.__warzoneSelfHostedInitPending = false;
+    setSelfHostedCreditsVisible(false);
+    viewer.scene.requestRender?.();
+}
+
+function updateSelfHostedImageryVisibility(viewer) {
+    const show = viewer.__warzoneEntryMapImageryVisible !== false
+        && viewer.__terrainVisible !== false && viewer.__satelliteVisible !== false;
+    if (viewer.__warzoneSelfHostedGlobalLayer) viewer.__warzoneSelfHostedGlobalLayer.show = show;
+    if (viewer.__imageryPilot) viewer.__imageryPilot.show = show;
+}
+
+async function fallbackSelfHostedBasemap(viewer, generation, reason) {
+    if (generation !== Number(viewer.__warzoneImageryGeneration || 0) ||
+        viewer.__warzoneEntryMapImageryVisible === false || viewer.__warzoneBasemapFallbackEsri === true) return;
+    viewer.__warzoneBasemapFallbackEsri = true;
+    removeSelfHostedBasemap(viewer);
+    viewer.__imageryBase = null;
+    console.warn(`[BASEMAP SELFHOST] fallback=esri reason=${reason}`);
+    applyMapColorMixer(viewer, "--warzone-map");
+    try {
+        await addArcGisLayers(viewer);
+    } catch {
+        console.warn("[BASEMAP SELFHOST] Esri fallback imagery failed");
+    }
+    viewer.scene.requestRender?.();
+}
+
+async function initSelfHostedBasemap(viewer, generation) {
+    const baseUrl = String(window.__stratopsConfig?.basemap?.selfhosted?.baseUrl || "").trim();
+    logSelfHosted(`provider=selfhosted manifest=${baseUrl ? `${baseUrl.replace(/\/$/, "")}/manifest.json` : "missing"}`);
+    if (!baseUrl) {
+        await fallbackSelfHostedBasemap(viewer, generation, "missing_map_base_url");
+        return;
+    }
+    viewer.__warzoneSelfHostedInitPending = true;
+    try {
+        const selfhosted = await import("./warzone-selfhosted-basemap.js");
+        const { global, pilot } = await selfhosted.createSelfHostedImageryProviders(baseUrl);
+        if (generation !== Number(viewer.__warzoneImageryGeneration || 0) ||
+            viewer.__warzoneEntryMapImageryVisible === false || viewer.__warzoneBasemapFallbackEsri === true) return;
+        let errors = 0;
+        const onError = () => {
+            errors += 1;
+            if (errors >= 3) void fallbackSelfHostedBasemap(viewer, generation, "tile_failed");
+        };
+        viewer.__warzoneSelfHostedRemoveGlobalError = global.errorEvent.addEventListener(onError);
+        viewer.__warzoneSelfHostedRemovePilotError = pilot.errorEvent.addEventListener(onError);
+        let firstRequestAt = 0;
+        let firstImagePending = false;
+        const isLocalBasemapDiagnostic = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
+        for (const provider of [global, pilot]) {
+            const requestImage = provider.requestImage.bind(provider);
+            provider.requestImage = (...args) => {
+                const result = requestImage(...args);
+                if (result && !firstRequestAt) {
+                    firstRequestAt = performance.now();
+                    if (isLocalBasemapDiagnostic) logSelfHosted(`first_request=${Math.round(firstRequestAt)}ms`);
+                }
+                if (provider === global && result?.then && !firstImagePending) {
+                    firstImagePending = true;
+                    result.then(() => {
+                        if (viewer.__warzoneBasemapFallbackEsri === true ||
+                            generation !== Number(viewer.__warzoneImageryGeneration || 0)) return;
+                        viewer.__warzoneResolveFirstImagery?.();
+                        viewer.__warzoneResolveFirstImagery = null;
+                        const remove = viewer.scene.postRender.addEventListener(() => {
+                            remove();
+                            logSelfHosted(`first_visible=${Math.round(performance.now())}ms`);
+                        });
+                        viewer.scene.requestRender?.();
+                    }, () => { firstImagePending = false; });
+                }
+                return result;
+            };
+        }
+        viewer.__warzoneSelfHostedGlobalLayer = viewer.imageryLayers.addImageryProvider(global);
+        viewer.__imageryBase = viewer.__warzoneSelfHostedGlobalLayer;
+        viewer.__imageryPilot = viewer.imageryLayers.addImageryProvider(pilot);
+        viewer.__warzoneSelfHostedInitPending = false;
+        updateSelfHostedImageryVisibility(viewer);
+        viewer.__warzoneSelfHostedLogTimer = window.setTimeout(() => {
+            const entries = performance.getEntriesByType("resource").filter((entry) => entry.name.startsWith(baseUrl));
+            const bytes = entries.reduce((total, entry) => total + Number(entry.transferSize || 0), 0);
+            logSelfHosted(`requests=${entries.length} bytes=${bytes || "unavailable"} errors=${errors}`);
+            viewer.__warzoneSelfHostedLogTimer = 0;
+        }, 10000);
+        viewer.scene.requestRender?.();
+    } catch (error) {
+        viewer.__warzoneSelfHostedInitPending = false;
+        await fallbackSelfHostedBasemap(viewer, generation, error?.message || "init_failed");
+    }
+}
+
+function logSelfHostedTerrain(message) {
+    if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname)) {
+        console.info(`[TERRAIN SELFHOST] ${message}`);
+    }
+}
+
+function setSelfHostedTerrainCredit(visible) {
+    const credits = document.getElementById("warzone-map-credits");
+    if (!credits) return;
+    let credit = document.getElementById("wz-selfhosted-terrain-credit");
+    if (visible && !credit) {
+        credit = document.createElement("a");
+        credit.id = "wz-selfhosted-terrain-credit";
+        credit.href = "https://github.com/tilezen/joerd/blob/master/docs/attribution.md";
+        credit.target = "_blank";
+        credit.rel = "noopener noreferrer";
+        credit.textContent = "Terrain: Mapzen and source contributors";
+        credits.appendChild(credit);
+    } else if (!visible) {
+        credit?.remove();
+    }
+}
+
+async function initConfiguredTerrain(viewer) {
+    if (viewer.__warzoneTerrainInitStarted) return;
+    viewer.__warzoneTerrainInitStarted = true;
+    const config = window.__stratopsConfig?.terrain || {};
+    if (config.provider !== "selfhosted") return;
+    const baseUrl = String(config.selfhosted?.baseUrl || "").trim();
+    logSelfHostedTerrain(`provider=selfhosted manifest=${baseUrl ? `${baseUrl.replace(/\/$/, "")}/layer.json` : "missing"}`);
+    if (!baseUrl) {
+        logSelfHostedTerrain("errors=1 reason=missing_terrain_base_url; using ellipsoid");
+        return;
+    }
+    if (getConfiguredBasemapProvider() === "selfhosted" && viewer.__warzoneFirstImageryPromise) {
+        let releaseDelay;
+        const delay = new Promise((resolve) => {
+            releaseDelay = window.setTimeout(resolve, 5000);
+        });
+        await Promise.race([viewer.__warzoneFirstImageryPromise, delay]);
+        clearTimeout(releaseDelay);
+    }
+    try {
+        const selfhosted = await import("./warzone-selfhosted-basemap.js");
+        const provider = await selfhosted.createSelfHostedTerrainProvider(baseUrl);
+        const flatProvider = viewer.__warzoneFlatTerrainProvider;
+        const originalSse = viewer.scene.globe.maximumScreenSpaceError;
+        const originalLoadingLimit = viewer.scene.globe.loadingDescendantLimit;
+        if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname)) {
+            let tilesLoaded = 0;
+            let tileErrors = 0;
+            let firstRequestLogged = false;
+            const requestTile = provider.requestTileGeometry.bind(provider);
+            provider.requestTileGeometry = (...args) => {
+                const result = requestTile(...args);
+                if (!result?.then) return result;
+                if (!firstRequestLogged) {
+                    firstRequestLogged = true;
+                    logSelfHostedTerrain(`first_request=${Math.round(performance.now())}ms`);
+                }
+                return result.then((tile) => {
+                    tilesLoaded += 1;
+                    if (tilesLoaded === 1) logSelfHostedTerrain(`first_tile=${Math.round(performance.now())}ms`);
+                    return tile;
+                }, (error) => {
+                    tileErrors += 1;
+                    throw error;
+                });
+            };
+            window.setTimeout(() => {
+                logSelfHostedTerrain(`tiles_loaded=${tilesLoaded} errors=${tileErrors}`);
+            }, 10000);
+        }
+        let failed = false;
+        provider.errorEvent.addEventListener(() => {
+            if (failed) return;
+            failed = true;
+            if (viewer.terrainProvider === provider) viewer.terrainProvider = flatProvider;
+            viewer.__warzoneFlatTerrainProvider = flatProvider;
+            viewer.scene.globe.maximumScreenSpaceError = originalSse;
+            viewer.scene.globe.loadingDescendantLimit = originalLoadingLimit;
+            setSelfHostedTerrainCredit(false);
+            logSelfHostedTerrain("errors=1 reason=tile_failed; using ellipsoid");
+            viewer.scene.requestRender?.();
+        });
+        viewer.__warzoneFlatTerrainProvider = provider;
+        const contourState = getContourOverlayState(viewer);
+        if (contourState?.terrainProvider?.__warzoneProviderKind === "flat") {
+            contourState.terrainProvider = null;
+        }
+        if (viewer.__warzoneFocusedTerrainActive !== true) viewer.terrainProvider = provider;
+        viewer.scene.globe.maximumScreenSpaceError = Math.max(8, originalSse);
+        viewer.scene.globe.loadingDescendantLimit = Math.min(16, originalLoadingLimit);
+        setSelfHostedTerrainCredit(true);
+        logSelfHostedTerrain("provider_ready=true");
+        viewer.scene.requestRender?.();
+    } catch (error) {
+        logSelfHostedTerrain(`errors=1 reason=${error?.message || "init_failed"}; using ellipsoid`);
+    }
+}
+
 function setEntryMapImageryVisible(viewer, visible) {
     if (!viewer?.imageryLayers) return Promise.resolve(false);
     const show = visible !== false;
+    if (show && getConfiguredBasemapProvider() === "selfhosted" &&
+        viewer.__warzoneBasemapFallbackEsri !== true &&
+        viewer.__warzoneEntryMapImageryVisible !== false &&
+        (viewer.__warzoneSelfHostedGlobalLayer || viewer.__warzoneSelfHostedInitPending)) {
+        return viewer.__warzoneImageryReadyPromise || Promise.resolve(true);
+    }
     viewer.__warzoneEntryMapImageryVisible = show;
     viewer.__warzoneImageryGeneration = Number(viewer.__warzoneImageryGeneration || 0) + 1;
 
     if (!show) {
+        removeSelfHostedBasemap(viewer);
         viewer.imageryLayers.removeAll();
         viewer.__imageryBase = null;
         viewer.__imageryLabels = null;
         updateMapCredits();
         viewer.scene?.requestRender?.();
         return Promise.resolve(false);
+    }
+
+    if (getConfiguredBasemapProvider() === "selfhosted" && viewer.__warzoneBasemapFallbackEsri !== true) {
+        viewer.imageryLayers.removeAll();
+        viewer.__imageryBase = null;
+        viewer.__imageryLabels = null;
+        setSelfHostedCreditsVisible(true);
+        viewer.__warzoneFirstImageryPromise = new Promise((resolve) => {
+            viewer.__warzoneResolveFirstImagery = resolve;
+        });
+        viewer.__warzoneImageryReadyPromise = Promise.resolve(true);
+        void initSelfHostedBasemap(viewer, viewer.__warzoneImageryGeneration);
+        return viewer.__warzoneImageryReadyPromise;
     }
 
     viewer.__warzoneImageryReadyPromise = addArcGisLayers(viewer)
@@ -5663,7 +5915,7 @@ async function ensureContourTerrainProvider(viewer) {
     if (state.terrainProvider) return state.terrainProvider;
     if (state.terrainProviderPromise) return state.terrainProviderPromise;
     state.terrainProviderPromise = Promise.resolve()
-        .then(() => createFocusedTerrainProvider())
+        .then(() => createFocusedTerrainProvider(viewer))
         .then((provider) => {
             state.terrainProvider = provider || null;
             return state.terrainProvider;
@@ -5679,6 +5931,9 @@ async function ensureContourTerrainProvider(viewer) {
     return state.terrainProviderPromise;
 }
 function getFocusedTerrainProviderMode() {
+    const terrainMode = window.__stratopsConfig?.terrain?.provider;
+    if (terrainMode === "none") return "flat";
+    if (terrainMode === "selfhosted") return "selfhosted";
     return String(window.__stratopsConfig?.focusedTerrainProvider || "arcgis").trim().toLowerCase();
 }
 function getFocusedTerrainArcGisUrl() {
@@ -5700,9 +5955,12 @@ async function createArcGisFocusedTerrainProvider() {
     provider.__warzoneArcGisUrl = url;
     return provider;
 }
-async function createFocusedTerrainProvider() {
+async function createFocusedTerrainProvider(viewer) {
     const mode = getFocusedTerrainProviderMode();
-    if (mode !== "flat") {
+    if (mode === "selfhosted" && viewer?.__warzoneFlatTerrainProvider?.__warzoneProviderKind === "selfhosted") {
+        return viewer.__warzoneFlatTerrainProvider;
+    }
+    if (mode !== "flat" && mode !== "selfhosted") {
         try {
             const arcGisTerrain = await createArcGisFocusedTerrainProvider();
             if (arcGisTerrain) {
@@ -5727,7 +5985,7 @@ async function createFocusedTerrainProvider() {
             console.warn("Cesium world terrain provider failed; using flat globe fallback:", error);
         }
     }
-    if (mode === "flat") {
+    if (mode === "flat" || mode === "selfhosted") {
         const flatTerrain = new Cesium.EllipsoidTerrainProvider();
         flatTerrain.__warzoneProviderKind = "flat";
         return flatTerrain;
@@ -5755,7 +6013,9 @@ async function enableFocusedTerrain(viewer) {
         }
         if (globe) {
             const focusedDetail = Math.max(1.5, numberVar("--warzone-focus-terrain-detail", 6));
-            globe.maximumScreenSpaceError = Math.min(Number(globe.maximumScreenSpaceError) || focusedDetail, focusedDetail);
+            globe.maximumScreenSpaceError = terrainProvider.__warzoneProviderKind === "selfhosted"
+                ? Math.max(8, Number(globe.maximumScreenSpaceError) || 8)
+                : Math.min(Number(globe.maximumScreenSpaceError) || focusedDetail, focusedDetail);
             globe.depthTestAgainstTerrain = false;
         }
         const defaultExaggeration = numberVar("--warzone-topography-exaggeration", 1);
@@ -8162,7 +8422,12 @@ export async function initWarzoneGlobe(options = {}) {
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!globeEl) return null;
     const cesiumCreditsEl = getCesiumCreditContainer(globeEl);
+    const selfHostedRequested = getConfiguredBasemapProvider() === "selfhosted";
+    setSelfHostedCreditsVisible(selfHostedRequested);
     const isReportCaptureMode = window.__stratopsReportCaptureMode === true;
+    const emptyGlobeDiagnostics = options?.performanceEmptyGlobe?.enabled === true
+        ? options.performanceEmptyGlobe
+        : null;
     const viewer = new Cesium.Viewer(globeEl, {
         animation: false,
         timeline: false,
@@ -8188,7 +8453,7 @@ export async function initWarzoneGlobe(options = {}) {
         },
         skyAtmosphere: false,
         terrain: undefined,
-        creditContainer: cesiumCreditsEl || creditsEl || undefined,
+        creditContainer: selfHostedRequested ? (creditsEl || cesiumCreditsEl) : (cesiumCreditsEl || creditsEl),
         imageryProvider: false,
     });
     installGlobalCameraInteractionGuards(viewer);
@@ -8200,6 +8465,7 @@ export async function initWarzoneGlobe(options = {}) {
     viewer.__raisedRegionLoadPromise = null;
     viewer.__raisedRegionDataSource = null;
     viewer.__warzoneSceneMode = getSceneMode(viewer);
+    viewer.__warzoneRequestRenderMode = emptyGlobeDiagnostics?.requestRenderMode !== false;
     viewer.__warzoneAdaptiveProfile = "normal";
     viewer.__warzoneSuppressEventMarkers = false;
     viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
@@ -8210,6 +8476,7 @@ export async function initWarzoneGlobe(options = {}) {
     viewer.__borderEntities = [];
     viewer.__warzoneFlatTerrainProvider = viewer.terrainProvider;
     viewer.__warzoneFocusedTerrainActive = false;
+    viewer.__warzoneBasemapDeferred = selfHostedRequested;
     applyViewerStyle(viewer);
     setInitialCamera(viewer, options?.initialCamera);
     if (!isReportCaptureMode && options?.startStartupRotation !== false) {
@@ -8218,19 +8485,22 @@ export async function initWarzoneGlobe(options = {}) {
     attachCameraZoomLimiter(viewer);
     attach2DCameraBoundsGuard(viewer);
     syncSceneModeBounds(viewer);
-    ensureMissileStore(viewer);
-    ensureAudioStore(viewer);
-    attachEventLodController(viewer);
-    attachLabelsZoomController(viewer);
-    bindEventMarkerPicking(viewer);
+    if (!emptyGlobeDiagnostics) {
+        ensureMissileStore(viewer);
+        ensureAudioStore(viewer);
+        attachEventLodController(viewer);
+        attachLabelsZoomController(viewer);
+        bindEventMarkerPicking(viewer);
+    }
     viewer.scene.requestRender();
     viewer.__warzoneImageryReadyPromise = setEntryMapImageryVisible(
         viewer,
         viewer.__warzoneEntryMapImageryVisible !== false
     );
+    void initConfiguredTerrain(viewer);
     viewer.__warzoneMapLabelsVisible = boolVar("--warzone-country-labels-enabled", false)
         || boolVar("--warzone-places-layer-enabled", false);
-    if (viewer.__warzoneMapLabelsVisible) {
+    if (!emptyGlobeDiagnostics && viewer.__warzoneMapLabelsVisible) {
         addCountryNameLabels(viewer)
             .then(() => {
                 viewer.scene.requestRender();
@@ -8421,10 +8691,7 @@ export async function initWarzoneGlobe(options = {}) {
             viewer.scene.requestRender();
         },
         isTerrainVisible() {
-            return !!(
-                viewer.__imageryBase &&
-                viewer.__imageryBase.show
-            );
+            return !!(viewer.__imageryBase && viewer.__imageryBase.show);
         },
         setSatelliteVisible(visible) {
             viewer.__satelliteVisible = !!visible;
@@ -8526,15 +8793,7 @@ export async function initWarzoneGlobe(options = {}) {
             const adaptiveProfile = normalizeAdaptiveProfile(viewer.__warzoneAdaptiveProfile);
             const noLayerMode = count <= 0;
             const adaptiveCaps = getAdaptiveProfileCaps(noLayerMode ? "normal" : adaptiveProfile);
-            const hardMaxResolutionScale = clamp(numberVar("--warzone-resolution-hard-max", 1.22), 0.7, 2);
-            const hardMaxMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-hard-max", 2)));
-            const baseResolution = clamp(numberVar("--warzone-resolution-scale", 1), 0.5, 2);
-            const baseMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-msaa-samples", 1)));
             const baseFxaaEnabled = boolVar("--warzone-fxaa-enabled", true);
-            const idleResolutionMin = clamp(numberVar("--warzone-idle-resolution-min", 1), 0.8, 2);
-            const idleMsaaMin = Math.max(1, Math.round(numberVar("--warzone-idle-msaa-min", 2)));
-            const movingResolutionFloor = clamp(numberVar("--warzone-moving-resolution-scale", 0.9), 0.68, 2);
-            const movingMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-moving-msaa-samples", 1)));
             const baseTileCache = Math.max(
                 220,
                 Math.min(1200, Math.round(numberVar("--warzone-globe-tile-cache-size", 900)))
@@ -8568,7 +8827,6 @@ export async function initWarzoneGlobe(options = {}) {
             const is2DMode = getSceneMode(viewer) === "2d";
             const cesiumCameraMoving = viewer.__warzoneCameraMoving === true;
             const maximumZoomQualityHeight = Math.max(100, numberVar("--warzone-max-zoom-quality-height", 25000));
-            const maximumZoomResolutionScale = clamp(numberVar("--warzone-max-zoom-resolution-scale", 1.75), 1, 2);
             const maximumZoomSse = clamp(numberVar("--warzone-max-zoom-screen-space-error", 0.55), 0.35, 1.25);
             const tileLoadQueueSize = Math.max(0, Number(viewer.__warzoneTileLoadQueueSize || 0));
             const tileLoadBusy = tileLoadQueueSize >= loadingQueueThreshold || viewer.__warzoneTileLoadBusy === true;
@@ -8587,21 +8845,13 @@ export async function initWarzoneGlobe(options = {}) {
             const focusSharpHeight = Math.max(30000, numberVar("--warzone-focus-sharp-height", 120000));
             const closeSharpHeight = Math.max(focusSharpHeight, numberVar("--warzone-close-sharp-height", 450000));
             const nearSharpHeight = Math.max(250000, numberVar("--warzone-near-sharp-height", 1800000));
-            const focusResolutionScale = clamp(numberVar("--warzone-focus-resolution-scale", 1.16), 0.8, 2);
-            const closeResolutionScale = clamp(numberVar("--warzone-close-resolution-scale", 1.08), 0.8, 2);
-            const focusMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-msaa-samples", 2)));
-            const closeMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-close-msaa-samples", 2)));
-            const focusPerformanceResolutionScale = clamp(numberVar("--warzone-focus-performance-resolution-scale", 0.72), 0.5, hardMaxResolutionScale);
-            const focusPerformanceMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-focus-performance-msaa-samples", 1)));
             const focusPerformanceSse = clamp(numberVar("--warzone-focus-performance-screen-space-error", 3.4), 1.8, 6);
             const focusPerformanceTileCache = Math.max(96, Math.round(numberVar("--warzone-focus-performance-tile-cache", 160)));
             const focusPerformanceRenderTime = clamp(numberVar("--warzone-focus-performance-render-time", 0.18), 0.12, 0.8);
             const baseSse = clamp(numberVar("--warzone-globe-max-screen-space-error", 1.4), 0.9, 4.5);
             const closeSse = clamp(numberVar("--warzone-globe-close-screen-space-error", 1.15), 0.8, 2.5);
             const movingSse = clamp(numberVar("--warzone-globe-moving-screen-space-error", Math.max(baseSse * 1.45, 1.9)), 1.2, 6);
-            let nextResolution = baseResolution;
             let nextMaximumRenderTime = Infinity;
-            let nextMsaaSamples = baseMsaaSamples;
             let nextFxaaEnabled = baseFxaaEnabled;
             let nextSse = baseSse;
             let nextTileCache = baseTileCache;
@@ -8612,16 +8862,10 @@ export async function initWarzoneGlobe(options = {}) {
                     nextMaximumRenderTime = 1.25;
                 } else if (count <= 140) {
                     nextMaximumRenderTime = 0.95;
-                    nextResolution = Math.max(0.88, baseResolution * 0.9);
-                    nextMsaaSamples = 1;
                 } else if (count <= 260) {
                     nextMaximumRenderTime = 0.78;
-                    nextResolution = Math.max(0.8, baseResolution * 0.84);
-                    nextMsaaSamples = 1;
                 } else {
                     nextMaximumRenderTime = 0.58;
-                    nextResolution = Math.max(0.74, baseResolution * 0.76);
-                    nextMsaaSamples = 1;
                     nextFxaaEnabled = baseFxaaEnabled;
                     nextSse = Math.max(nextSse, Math.max(1.7, baseSse));
                 }
@@ -8633,39 +8877,23 @@ export async function initWarzoneGlobe(options = {}) {
                 nextTileCache = Math.min(nextTileCache, movingTileCache);
                 nextPreloadSiblings = false;
             }
-            // Keep icon edges readable when camera is settled.
-            if (!isCameraMoving) {
-                nextResolution = Math.max(nextResolution, Math.max(baseResolution, idleResolutionMin));
-                nextMsaaSamples = Math.max(nextMsaaSamples, baseMsaaSamples, idleMsaaMin);
-            }
             // Focus zoom: prioritize clarity around very-close tracking views.
             if (cameraHeight <= focusSharpHeight) {
-                nextResolution = Math.max(nextResolution, Math.max(baseResolution, focusResolutionScale));
-                nextMsaaSamples = Math.max(nextMsaaSamples, focusMsaaSamples);
                 nextFxaaEnabled = baseFxaaEnabled;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.24);
                 nextSse = Math.min(nextSse, Math.min(baseSse, closeSse));
             } else if (cameraHeight <= closeSharpHeight) {
                 // Close zoom (~30k-40k and nearby): keep map very clear without heavy overdraw.
-                nextResolution = Math.max(nextResolution, Math.max(baseResolution, closeResolutionScale));
-                nextMsaaSamples = Math.max(nextMsaaSamples, closeMsaaSamples);
                 nextFxaaEnabled = baseFxaaEnabled;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.36);
                 nextSse = Math.min(nextSse, Math.min(baseSse, closeSse));
             } else if (cameraHeight <= nearSharpHeight) {
                 // General near-zoom floor for readability.
-                nextResolution = Math.max(1, baseResolution);
-                nextMsaaSamples = Math.max(1, Math.min(2, baseMsaaSamples));
                 nextFxaaEnabled = baseFxaaEnabled;
                 nextSse = Math.min(nextSse, Math.max(1.25, baseSse));
             }
             if (isCameraMoving) {
-                // While camera is moving, keep interaction responsive by easing quality cost.
-                nextResolution = Math.max(
-                    movingResolutionFloor,
-                    Math.min(nextResolution, Math.max(movingResolutionFloor, baseResolution * 0.88))
-                );
-                nextMsaaSamples = Math.max(1, Math.min(nextMsaaSamples, movingMsaaSamples));
+                // While camera is moving, reduce refinement pressure without resizing the framebuffer.
                 nextFxaaEnabled = baseFxaaEnabled;
                 nextMaximumRenderTime = Math.min(nextMaximumRenderTime, 0.5);
                 nextSse = Math.max(nextSse, movingSse);
@@ -8673,11 +8901,6 @@ export async function initWarzoneGlobe(options = {}) {
                 nextPreloadSiblings = false;
             }
             if (tileLoadBusy && !is2DMode && !focusSceneSettled) {
-                nextResolution = Math.min(
-                    nextResolution,
-                    clamp(numberVar("--warzone-globe-loading-resolution-scale", 1.05), 0.5, 1.25)
-                );
-                nextMsaaSamples = Math.max(1, Math.round(numberVar("--warzone-globe-loading-msaa-samples", 2)));
                 nextFxaaEnabled = true;
                 nextSse = Math.max(
                     nextSse,
@@ -8690,13 +8913,9 @@ export async function initWarzoneGlobe(options = {}) {
             if (isFocusedAssetMode) {
                 if (focusSceneSettled) {
                     // Stable tracking refines at final quality while children load.
-                    nextResolution = Math.max(nextResolution, baseResolution);
-                    nextMsaaSamples = Math.max(nextMsaaSamples, baseMsaaSamples);
                     nextSse = Math.min(nextSse, cameraHeight <= closeSharpHeight ? Math.min(baseSse, closeSse) : baseSse);
                 } else {
-                    // Keep the focused GLB readable while camera motion or tile loading is active.
-                    nextResolution = Math.max(nextResolution, Math.min(baseResolution, 1));
-                    nextMsaaSamples = Math.max(nextMsaaSamples, Math.min(2, focusMsaaSamples));
+                    // Reduce refinement pressure while camera motion or tile loading is active.
                     nextSse = Math.max(nextSse, focusPerformanceSse);
                     nextTileCache = Math.min(nextTileCache, focusPerformanceTileCache, focusedAssetCaps.tileCacheCap);
                     if (tileLoadBusy) {
@@ -8710,16 +8929,12 @@ export async function initWarzoneGlobe(options = {}) {
             if (adaptiveCaps.forceFxaaEnabled) {
                 nextFxaaEnabled = true;
             }
-            nextResolution = Math.min(nextResolution, adaptiveCaps.maxResolutionScale);
-            nextMsaaSamples = Math.min(nextMsaaSamples, adaptiveCaps.maxMsaaSamples);
             nextSse = Math.max(nextSse, adaptiveCaps.minSse);
             nextTileCache = Math.min(nextTileCache, adaptiveCaps.maxTileCache);
             if (adaptiveCaps.forcePreloadSiblingsFalse) {
                 nextPreloadSiblings = false;
             }
             if (isFocusedAssetMode && !focusSceneSettled) {
-                nextResolution = Math.min(nextResolution, focusedAssetCaps.resolutionCap);
-                nextMsaaSamples = Math.min(nextMsaaSamples, focusedAssetCaps.msaaCap);
                 nextSse = Math.max(nextSse, focusedAssetCaps.sseFloor);
                 nextTileCache = Math.min(nextTileCache, focusedAssetCaps.tileCacheCap);
             }
@@ -8729,38 +8944,31 @@ export async function initWarzoneGlobe(options = {}) {
                 && Number.isFinite(cameraHeight)
                 && cameraHeight <= maximumZoomQualityHeight;
             if (maximumZoomQualityActive) {
-                nextResolution = Math.max(nextResolution, maximumZoomResolutionScale);
                 nextSse = Math.min(nextSse, maximumZoomSse);
             }
-            nextResolution = Math.min(nextResolution, hardMaxResolutionScale);
-            nextMsaaSamples = Math.min(nextMsaaSamples, hardMaxMsaaSamples);
             nextSse = clamp(nextSse, 0.35, 6);
             nextTileCache = Math.max(140, Math.min(720, Math.round(nextTileCache)));
             nextLoadingDescendantLimit = Math.max(4, Math.min(72, Math.round(nextLoadingDescendantLimit)));
             if (is2DMode) {
                 // Keep 2D map luminance stable: avoid adaptive quality oscillation that can look like
                 // dark/light pumping while tiles stream and counters update.
-                nextResolution = baseResolution;
                 nextMaximumRenderTime = Infinity;
-                nextMsaaSamples = baseMsaaSamples;
                 nextFxaaEnabled = baseFxaaEnabled;
                 nextSse = baseSse;
                 nextTileCache = baseTileCache;
                 nextLoadingDescendantLimit = baseLoadingDescendantLimit;
                 nextPreloadSiblings = basePreloadSiblings;
             }
-            const prevPerfState = viewer.__warzonePerformanceState || {};
-            if (prevPerfState.resolutionScale !== nextResolution) {
-                viewer.resolutionScale = nextResolution;
+            if (viewer.__warzoneFlatTerrainProvider?.__warzoneProviderKind === "selfhosted") {
+                nextSse = Math.max(nextSse, 8);
+                nextLoadingDescendantLimit = Math.min(nextLoadingDescendantLimit, 16);
             }
+            const prevPerfState = viewer.__warzonePerformanceState || {};
             if (prevPerfState.maximumRenderTimeChange !== nextMaximumRenderTime) {
                 viewer.scene.maximumRenderTimeChange = nextMaximumRenderTime;
             }
             if (prevPerfState.maximumScreenSpaceError !== nextSse) {
                 viewer.scene.globe.maximumScreenSpaceError = nextSse;
-            }
-            if (Number.isFinite(nextMsaaSamples) && prevPerfState.msaaSamples !== nextMsaaSamples) {
-                viewer.scene.msaaSamples = nextMsaaSamples;
             }
             if (viewer.scene.postProcessStages?.fxaa && prevPerfState.fxaaEnabled !== nextFxaaEnabled) {
                 viewer.scene.postProcessStages.fxaa.enabled = nextFxaaEnabled;
@@ -8779,10 +8987,10 @@ export async function initWarzoneGlobe(options = {}) {
                 updateMaximumZoomImagerySampling(viewer, maximumZoomQualityActive);
             }
             viewer.__warzonePerformanceState = {
-                resolutionScale: nextResolution,
+                resolutionScale: viewer.resolutionScale,
                 maximumRenderTimeChange: nextMaximumRenderTime,
                 maximumScreenSpaceError: nextSse,
-                msaaSamples: nextMsaaSamples,
+                msaaSamples: viewer.scene.msaaSamples,
                 fxaaEnabled: nextFxaaEnabled,
                 tileCacheSize: nextTileCache,
                 loadingDescendantLimit: nextLoadingDescendantLimit,
@@ -8800,7 +9008,7 @@ export async function initWarzoneGlobe(options = {}) {
                 adaptiveProfile,
                 maximumZoomQualityActive,
             };
-            viewer.scene.requestRenderMode = true;
+            viewer.scene.requestRenderMode = viewer.__warzoneRequestRenderMode !== false;
         },
         highlightAlertRegion(event) {
             highlightAlertRegion(viewer, event);
@@ -8835,7 +9043,7 @@ export async function initWarzoneGlobe(options = {}) {
         window.__warzone = viewer.__warzone;
     }
     installCesiumPerformanceDiagnostics(viewer);
-    if (!viewer.__warzonePerfZoomBound) {
+    if (emptyGlobeDiagnostics?.adaptiveQuality !== false && !viewer.__warzonePerfZoomBound) {
         viewer.__warzonePerfZoomBound = true;
         let perfRaf = 0;
         let moveSettleTimer = 0;
@@ -8893,7 +9101,7 @@ export async function initWarzoneGlobe(options = {}) {
             });
         }
     }
-    if (document?.fonts?.ready && !viewer.__warzoneEventMarkerFontsRefreshBound) {
+    if (!emptyGlobeDiagnostics && document?.fonts?.ready && !viewer.__warzoneEventMarkerFontsRefreshBound) {
         viewer.__warzoneEventMarkerFontsRefreshBound = true;
         document.fonts.ready
             .then(() => {
@@ -8901,7 +9109,12 @@ export async function initWarzoneGlobe(options = {}) {
             })
             .catch(() => { });
     }
-    applyEntrySceneLayerSwitches(viewer);
-    bindContourViewportRefresh(viewer);
+    if (!emptyGlobeDiagnostics) {
+        applyEntrySceneLayerSwitches(viewer);
+        bindContourViewportRefresh(viewer);
+    }
+    if (emptyGlobeDiagnostics?.requestRenderMode === false) {
+        viewer.scene.requestRenderMode = false;
+    }
     return viewer;
 }

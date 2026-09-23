@@ -1,0 +1,588 @@
+{
+  "label": "old-smooth-june17-empty2",
+  "url": "http://127.0.0.1:4176/pages/index.html",
+  "durationMs": 30000,
+  "emptyMode": false,
+  "frames": {
+    "fps": 48.07,
+    "count": 1494,
+    "averageMs": 20.82,
+    "p95Ms": 19.9,
+    "p99Ms": 116.7,
+    "maximumMs": 883.7,
+    "over50Ms": 48,
+    "over100Ms": 25,
+    "over200Ms": 4
+  },
+  "longTasks": {
+    "count": 16,
+    "totalMs": 3344,
+    "worstMs": 851,
+    "top": [
+      {
+        "start": 34539.90000000596,
+        "duration": 851
+      },
+      {
+        "start": 33932.29999998212,
+        "duration": 512
+      },
+      {
+        "start": 33657.90000000596,
+        "duration": 274
+      },
+      {
+        "start": 35736.59999999404,
+        "duration": 268
+      },
+      {
+        "start": 36585.90000000596,
+        "duration": 170
+      },
+      {
+        "start": 55377,
+        "duration": 162
+      },
+      {
+        "start": 62879.69999998808,
+        "duration": 152
+      },
+      {
+        "start": 41358.29999998212,
+        "duration": 148
+      },
+      {
+        "start": 52580.09999999404,
+        "duration": 133
+      },
+      {
+        "start": 32449.79999998212,
+        "duration": 113
+      },
+      {
+        "start": 33017,
+        "duration": 109
+      },
+      {
+        "start": 60649.09999999404,
+        "duration": 108
+      },
+      {
+        "start": 50787.09999999404,
+        "duration": 106
+      },
+      {
+        "start": 45655.90000000596,
+        "duration": 104
+      },
+      {
+        "start": 41094.19999998808,
+        "duration": 82
+      }
+    ]
+  },
+  "requestRender": {
+    "calls": 164,
+    "callsPerSecond": 5.28,
+    "callers": [
+      [
+        "at Array.<anonymous> (/assets/js/bundle.bc5484c8.js:41:2594222)",
+        124
+      ],
+      [
+        "at /assets/js/bundle.bc5484c8.js:41:2636992",
+        25
+      ],
+      [
+        "at /assets/js/bundle.bc5484c8.js:41:3033663",
+        7
+      ],
+      [
+        "at F9e (/assets/js/bundle.bc5484c8.js:41:2951868)",
+        3
+      ],
+      [
+        "at /assets/js/bundle.bc5484c8.js:41:3016007",
+        3
+      ],
+      [
+        "at Object.setAdaptiveQualityProfile (/assets/js/bundle.bc5484c8.js:41:3027240)",
+        1
+      ],
+      [
+        "at oY (/assets/js/bundle.bc5484c8.js:39:1713628)",
+        1
+      ]
+    ]
+  },
+  "handlerTimings": [
+    {
+      "event": "camera.moveStart",
+      "index": 0,
+      "source": "()=>{clearTimeout(t),i.__warzoneCameraMoving=!0,n()}",
+      "count": 3,
+      "totalMs": 0.10000002384185791,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.0333333412806193
+    },
+    {
+      "event": "camera.moveStart",
+      "index": 1,
+      "source": "()=>{dp()}",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveStart",
+      "index": 2,
+      "source": "function _(){p=!0,clearTimeout(A),y(0)}",
+      "count": 3,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.03333333134651184
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 0,
+      "source": "()=>{t||(t=!0,requestAnimationFrame(()=>{t=!1,function(e){if(!e?.camera?.positionCartographic)return;const t=V9e(\"--warzone-camera-max-zoom\",2e7),i=V9e(\"--warzone-camera-min-zoom\",100),n=e.camera.positionCartographic,a=N",
+      "count": 3,
+      "totalMs": 0.29999998211860657,
+      "worstMs": 0.19999998807907104,
+      "averageMs": 0.09999999403953552
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 1,
+      "source": "()=>{t||(t=!0,requestAnimationFrame(()=>{t=!1,I6e(e),v6e(e)}))}",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 2,
+      "source": "()=>{t||(t=!0,requestAnimationFrame(i))}",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 3,
+      "source": "()=>{t||(t=requestAnimationFrame(()=>{t=0,x6e(e),e.scene.requestRender?.()}))}",
+      "count": 3,
+      "totalMs": 3.100000023841858,
+      "worstMs": 3.100000023841858,
+      "averageMs": 1.0333333412806194
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 4,
+      "source": "()=>{e||(e=requestAnimationFrame(()=>{e=0;const t=Math.max(0,Number(i.__warzonePerformanceState?.visibleCount||0));i.__warzone?.setPerformanceMode?.(t),i.scene.requestRender?.()}))}",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 5,
+      "source": "()=>{clearTimeout(t),t=window.setTimeout(()=>{i.__warzoneCameraMoving=!1,n()},120)}",
+      "count": 3,
+      "totalMs": 0.19999998807907104,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.06666666269302368
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 6,
+      "source": "()=>{mp(e)}",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 7,
+      "source": "function C(){clearTimeout(A),A=setTimeout(()=>{p=!1,y(0)},60)}",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 8,
+      "source": "()=>{XW(500)}",
+      "count": 3,
+      "totalMs": 0.30000001192092896,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.10000000397364299
+    },
+    {
+      "event": "camera.changed",
+      "index": 0,
+      "source": "function(t){if(e(t)&&t<.05||!n.enabled)return;const i=n._scene,a=n._labelCollection,r=n._billboardCollection,o=n._pointCollection;if(!e(a)&&!e(r)&&!e(o)||!n._clusterBillboards&&!n._clusterLabels&&!n._clusterPoints)return",
+      "count": 18,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.changed",
+      "index": 1,
+      "source": "()=>{Hj.enabled&&(t||(t=requestAnimationFrame(()=>{t=0,Zj(e)})))}",
+      "count": 18,
+      "totalMs": 0.20000001788139343,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.011111112104521858
+    },
+    {
+      "event": "camera.changed",
+      "index": 2,
+      "source": "()=>{!function(e){Qh||(Qh=requestAnimationFrame(()=>{Qh=0,gp(e)}))}(e)}",
+      "count": 18,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.00555555522441864
+    },
+    {
+      "event": "camera.changed",
+      "index": 3,
+      "source": "function(t){if(e(t)&&t<.05||!n.enabled)return;const i=n._scene,a=n._labelCollection,r=n._billboardCollection,o=n._pointCollection;if(!e(a)&&!e(r)&&!e(o)||!n._clusterBillboards&&!n._clusterLabels&&!n._clusterPoints)return",
+      "count": 18,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.changed",
+      "index": 4,
+      "source": "function(t){if(e(t)&&t<.05||!n.enabled)return;const i=n._scene,a=n._labelCollection,r=n._billboardCollection,o=n._pointCollection;if(!e(a)&&!e(r)&&!e(o)||!n._clusterBillboards&&!n._clusterLabels&&!n._clusterPoints)return",
+      "count": 18,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.00555555522441864
+    },
+    {
+      "event": "camera.changed",
+      "index": 5,
+      "source": "()=>{(LX()||wX.activePanel)&&t.scene.requestRender()}",
+      "count": 18,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.00555555522441864
+    },
+    {
+      "event": "camera.changed",
+      "index": 6,
+      "source": "function(t){if(e(t)&&t<.05||!n.enabled)return;const i=n._scene,a=n._labelCollection,r=n._billboardCollection,o=n._pointCollection;if(!e(a)&&!e(r)&&!e(o)||!n._clusterBillboards&&!n._clusterLabels&&!n._clusterPoints)return",
+      "count": 18,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "scene.postRender",
+      "index": 0,
+      "source": "function(){const t=this._scene.frameState,i=this._dataSourceCollection,n=i.length;for(let a=0;a<n;a++){const n=i.get(a),r=n.credit;e(r)&&t.creditDisplay.addCreditToNextFrame(r);const o=n._resourceCredits;if(e(o)){const e",
+      "count": 489,
+      "totalMs": 3.700000047683716,
+      "worstMs": 1.2999999821186066,
+      "averageMs": 0.007566462265201873
+    },
+    {
+      "event": "scene.postRender",
+      "index": 1,
+      "source": "function(){!function(t){const i=t._zoomTarget;if(!e(i)||t.scene.mode===Fl.MORPHING)return;const n=t.scene,a=n.camera,r=t._zoomOptions??{};let o;function s(n){e(r.offset)||(r.offset=new uO(0,-.5,n.radius)),o={offset:r.off",
+      "count": 489,
+      "totalMs": 2.0000000298023224,
+      "worstMs": 0.29999998211860657,
+      "averageMs": 0.004089979611047694
+    },
+    {
+      "event": "scene.postRender",
+      "index": 2,
+      "source": "()=>{const t=P9e(e),n=e.scene?.screenSpaceCameraController,a=Number(n?.maximumZoomDistance||V9e(\"--warzone-camera-max-zoom\",2e7)),r=Number(n?.minimumZoomDistance||V9e(\"--warzone-camera-min-zoom\",100));(t>a+1e3||t<r-1e3)&",
+      "count": 489,
+      "totalMs": 4.89999994635582,
+      "worstMs": 0.5999999940395355,
+      "averageMs": 0.01002044978804871
+    },
+    {
+      "event": "scene.postRender",
+      "index": 3,
+      "source": "()=>{if(\"2d\"!==l7e(e))return;const t=e.camera?.positionCartographic;if(!t)return;const n=Math.max(70,Math.min(85.04,V9e(\"--warzone-2d-max-latitude\",84.9))),a=d.toRadians(n);Math.abs(Number(t.latitude||0))>a+1e-6&&i(),v6e",
+      "count": 489,
+      "totalMs": 1.6000000536441803,
+      "worstMs": 0.30000001192092896,
+      "averageMs": 0.0032719837497836
+    },
+    {
+      "event": "scene.postRender",
+      "index": 4,
+      "source": "()=>{const t=P9e(e);Math.abs(t-(v9e.cameraHeight||0))>25e4&&n()}",
+      "count": 489,
+      "totalMs": 4.400000125169754,
+      "worstMs": 1.7000000178813934,
+      "averageMs": 0.008997955266195816
+    },
+    {
+      "event": "scene.postRender",
+      "index": 5,
+      "source": "()=>{const t=P9e(e);if(!Number.isFinite(t))return;const n=Number(e.__labelsLastCameraHeight||0);Math.abs(t-n)>=12e4&&(e.__labelsLastCameraHeight=t,i())}",
+      "count": 489,
+      "totalMs": 1.9999999701976776,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.004089979489156805
+    },
+    {
+      "event": "scene.postRender",
+      "index": 6,
+      "source": "function b(){if(!p)return;const e=performance.now(),t=n.length>2e3?Math.max(g.throttleMove,96):n.length>1e3?Math.max(g.throttleMove,72):g.throttleMove;e-h<t||(h=e,f(!0))}",
+      "count": 489,
+      "totalMs": 94.39999955892563,
+      "worstMs": 3.899999976158142,
+      "averageMs": 0.1930470338628336
+    },
+    {
+      "event": "scene.postRender",
+      "index": 7,
+      "source": "function OX(){const e=wX.activePanel;if(!e?.panel?.isConnected)return void(wX.activePanel=null);const t=function(e){const t=wX.viewer?.scene;if(!t||!e?.position)return null;const i=q.now(),n=e.position.getValue?.(i)||e.p",
+      "count": 489,
+      "totalMs": 1,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.002044989775051125
+    },
+    {
+      "event": "scene.postRender",
+      "index": 8,
+      "source": "()=>{const n=window.__globeRotation;if(!n?.enabled||n.paused||i)return void(t=null);const a=Date.now();if(null===t)return void(t=a);const r=Math.min((a-t)/1e3,.1);t=a;const o=n.speed*Math.PI/180*r;e.scene.camera.rotate({",
+      "count": 489,
+      "totalMs": 1.4999999701976776,
+      "worstMs": 0.5,
+      "averageMs": 0.0030674846016312428
+    },
+    {
+      "event": "scene.postUpdate",
+      "index": 0,
+      "source": "function(){const t=this._cesiumWidget,i=this._container,n=i.clientWidth,a=i.clientHeight,r=e(this._animation),o=e(this._timeline);if(t.resize(),n===this._lastWidth&&a===this._lastHeight)return;const s=a-125,c=this._baseL",
+      "count": 1496,
+      "totalMs": 53.70000031590462,
+      "worstMs": 1.7000000178813934,
+      "averageMs": 0.03589572213629988
+    }
+  ],
+  "canvas": {
+    "clientWidth": 1712,
+    "clientHeight": 1000,
+    "width": 1712,
+    "height": 1000,
+    "drawingBufferWidth": 1712,
+    "drawingBufferHeight": 1000,
+    "devicePixelRatio": 1,
+    "resolutionScale": 1
+  },
+  "resize": {
+    "viewerResizeCalls": 0,
+    "resizeObserverCallbacks": 1,
+    "canvasAttributeChanges": 0,
+    "canvasSizeChanges": []
+  },
+  "settings": {
+    "requestRenderMode": true,
+    "maximumRenderTimeChange": null,
+    "msaaSamples": 1,
+    "fxaa": true,
+    "hdr": false,
+    "fog": false,
+    "globeLighting": false,
+    "dynamicAtmosphereLighting": true,
+    "groundAtmosphere": false,
+    "shadows": false,
+    "terrainShadows": 3,
+    "oit": true,
+    "maximumScreenSpaceError": 1.85,
+    "tileCacheSize": 520,
+    "loadingDescendantLimit": 48,
+    "preloadAncestors": true,
+    "preloadSiblings": false,
+    "cameraPercentageChanged": 0.5,
+    "terrainProvider": "y1"
+  },
+  "runtime": {
+    "imageryLayers": 1,
+    "primitives": 29,
+    "groundPrimitives": 1,
+    "dataSources": 3,
+    "entities": 18,
+    "tilesets": 0,
+    "models": 0,
+    "billboards": 0,
+    "labels": 0,
+    "overlayEffects": [],
+    "bodyClasses": "home__page is-billing-enabled is-free-tier is-app-active",
+    "entryVisible": false,
+    "startupSatelliteState": null,
+    "devToolsPresent": true
+  },
+  "network": {
+    "imageryRequests": 14,
+    "terrainRequests": 0,
+    "totalRequests": 15
+  },
+  "cesiumPerf": {},
+  "cpu": [
+    {
+      "frame": "(idle) | :0",
+      "milliseconds": 11107.1
+    },
+    {
+      "frame": "(program) | :0",
+      "milliseconds": 5564.8
+    },
+    {
+      "frame": "(anonymous) | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 2991
+    },
+    {
+      "frame": "readPixels | :0",
+      "milliseconds": 1755.2
+    },
+    {
+      "frame": "getProgramParameter | :0",
+      "milliseconds": 1535.1
+    },
+    {
+      "frame": "BY | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 990.5
+    },
+    {
+      "frame": "H3e.resize | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 763.6
+    },
+    {
+      "frame": "(anonymous) | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 491.5
+    },
+    {
+      "frame": "r | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 274.3
+    },
+    {
+      "frame": "qo.clone | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 208.6
+    },
+    {
+      "frame": "qo.multiplyTransformation | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 204.7
+    },
+    {
+      "frame": "yW | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 181.1
+    },
+    {
+      "frame": "(garbage collector) | :0",
+      "milliseconds": 166.4
+    },
+    {
+      "frame": "get | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 166.1
+    },
+    {
+      "frame": "Oy._setUniforms | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 147
+    },
+    {
+      "frame": "set | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 146.7
+    },
+    {
+      "frame": "TCe.update | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 142.7
+    },
+    {
+      "frame": "s2.update | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 137.3
+    },
+    {
+      "frame": "DP | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 129.8
+    },
+    {
+      "frame": "createTypedArray | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 116.1
+    },
+    {
+      "frame": "bufferData | :0",
+      "milliseconds": 103.6
+    },
+    {
+      "frame": "bindVertexArray | :0",
+      "milliseconds": 103.1
+    },
+    {
+      "frame": "decode | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 101.1
+    },
+    {
+      "frame": "_Me.update | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 98.6
+    },
+    {
+      "frame": "DEe.update | /assets/js/bundle.bc5484c8.js:41",
+      "milliseconds": 93.8
+    },
+    {
+      "frame": "kK | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 81.3
+    },
+    {
+      "frame": "qo.multiply | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 73.3
+    },
+    {
+      "frame": "requestAnimationFrame | :0",
+      "milliseconds": 72.7
+    },
+    {
+      "frame": "bindTexture | :0",
+      "milliseconds": 71.9
+    },
+    {
+      "frame": "kP | /assets/js/bundle.bc5484c8.js:39",
+      "milliseconds": 71.5
+    }
+  ],
+  "trace": [],
+  "consoleErrors": [
+    "Access to fetch at 'https://www.battlespacex.com/api/auth/validate' from origin 'http://127.0.0.1:4176' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: the server responded with a status of 404 (File not found)",
+    "Failed to load resource: the server responded with a status of 404 (File not found)",
+    "Failed to load resource: the server responded with a status of 404 (File not found)",
+    "Access to fetch at 'https://www.battlespacex.com/api/auth/validate' from origin 'http://127.0.0.1:4176' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to fetch at 'https://www.battlespacex.com/api/auth/validate' from origin 'http://127.0.0.1:4176' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+    {
+      "url": "https://www.battlespacex.com/api/auth/validate",
+      "error": "net::ERR_FAILED"
+    },
+    {
+      "url": "https://www.battlespacex.com/api/auth/validate",
+      "error": "net::ERR_FAILED"
+    },
+    {
+      "url": "https://www.battlespacex.com/api/auth/validate",
+      "error": "net::ERR_FAILED"
+    }
+  ]
+}

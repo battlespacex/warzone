@@ -1,0 +1,862 @@
+{
+  "label": "before",
+  "url": "http://127.0.0.1:4173/pages/index.html",
+  "durationMs": 30000,
+  "emptyMode": true,
+  "frames": {
+    "fps": 53.31,
+    "count": 4406,
+    "averageMs": 18.76,
+    "p95Ms": 16.8,
+    "p99Ms": 83.4,
+    "maximumMs": 216.8,
+    "over50Ms": 88,
+    "over100Ms": 37,
+    "over200Ms": 4
+  },
+  "longTasks": {
+    "count": 92,
+    "totalMs": 9813,
+    "worstMs": 656,
+    "top": [
+      {
+        "start": 12829.90000000596,
+        "duration": 656
+      },
+      {
+        "start": 68823.5,
+        "duration": 228
+      },
+      {
+        "start": 70608.5,
+        "duration": 204
+      },
+      {
+        "start": 67058.40000000596,
+        "duration": 201
+      },
+      {
+        "start": 48323.29999998212,
+        "duration": 191
+      },
+      {
+        "start": 44816.29999998212,
+        "duration": 189
+      },
+      {
+        "start": 75897.29999998212,
+        "duration": 183
+      },
+      {
+        "start": 82182.09999999404,
+        "duration": 182
+      },
+      {
+        "start": 72415.69999998808,
+        "duration": 177
+      },
+      {
+        "start": 93008.5,
+        "duration": 173
+      },
+      {
+        "start": 86565.59999999404,
+        "duration": 168
+      },
+      {
+        "start": 46604.79999998212,
+        "duration": 159
+      },
+      {
+        "start": 83297.59999999404,
+        "duration": 151
+      },
+      {
+        "start": 44664.29999998212,
+        "duration": 150
+      },
+      {
+        "start": 74193.29999998212,
+        "duration": 145
+      }
+    ]
+  },
+  "requestRender": {
+    "calls": 572,
+    "callsPerSecond": 6.92,
+    "callers": [
+      [
+        "at Array.<anonymous> (/assets/js/bundle.js:414754:13)",
+        204
+      ],
+      [
+        "at /assets/js/dev_assets_js_warzone-globe_js.bundle.js:8829:37",
+        181
+      ],
+      [
+        "at __webpack_modules__../node_modules/@cesium/engine/Source/Widget/CesiumWidget.js.CesiumWidget.resize (/assets/js/bundle.js:486812:15)",
+        102
+      ],
+      [
+        "at callAfterRenderFunctions (/assets/js/bundle.js:418646:13)",
+        85
+      ]
+    ]
+  },
+  "handlerTimings": [
+    {
+      "event": "camera.moveStart",
+      "index": 0,
+      "source": "() => { stats.cameraMoveStarts += 1; activeCameraMoveStartedAt = performance.now(); cacheRevisitMarked = false; if (!imagerySettleStartedAt) { imagerySettleStartedAt = performance.now(); markCesiumPerformance(\"stratops-i",
+      "count": 58,
+      "totalMs": 6.300000011920929,
+      "worstMs": 1.0999999940395355,
+      "averageMs": 0.10862068986070567
+    },
+    {
+      "event": "camera.moveStart",
+      "index": 1,
+      "source": "() => { clearTimeout(moveSettleTimer); viewer.__warzoneCameraMoving = true; queuePerfSync(); }",
+      "count": 58,
+      "totalMs": 3.099999964237213,
+      "worstMs": 0.20000001788139343,
+      "averageMs": 0.05344827524546919
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 0,
+      "source": "() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; clampCameraZoomDistance(viewer); }); }",
+      "count": 58,
+      "totalMs": 6.5,
+      "worstMs": 1.4000000059604645,
+      "averageMs": 0.11206896551724138
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 1,
+      "source": "() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; clamp2DCameraCenter(viewer); clamp2DProjectedViewport(viewer); }); }",
+      "count": 58,
+      "totalMs": 0.4999999701976776,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.00862068914133927
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 2,
+      "source": "() => { stats.cameraMoveEnds += 1; stats.lastCameraMoveEndAt = performance.now(); if (activeCameraMoveStartedAt > 0) { cameraMoveWindows.push([activeCameraMoveStartedAt, stats.lastCameraMoveEndAt]); if (cameraMoveWindows",
+      "count": 58,
+      "totalMs": 7.799999982118607,
+      "worstMs": 0.5,
+      "averageMs": 0.13448275831238976
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 3,
+      "source": "() => { if (perfRaf) return; perfRaf = requestAnimationFrame(() => { perfRaf = 0; const count = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0)); viewer.__warzone?.setPerformanceMode?.(count); vie",
+      "count": 58,
+      "totalMs": 0.3999999761581421,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.006896551313071415
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 4,
+      "source": "() => { clearTimeout(moveSettleTimer); moveSettleTimer = window.setTimeout(() => { viewer.__warzoneCameraMoving = false; queuePerfSync(); }, 360); }",
+      "count": 58,
+      "totalMs": 0.699999988079071,
+      "worstMs": 0.19999998807907104,
+      "averageMs": 0.012068965311708122
+    },
+    {
+      "event": "camera.changed",
+      "index": 0,
+      "source": "function (amount) { if (((0,_Core_defined_js__WEBPACK_IMPORTED_MODULE_4__[\"default\"])(amount) && amount < 0.05) || !entityCluster.enabled) { return; } const scene = entityCluster._scene; const labelCollection = entityClu",
+      "count": 15,
+      "totalMs": 1,
+      "worstMs": 0.8999999761581421,
+      "averageMs": 0.06666666666666667
+    },
+    {
+      "event": "camera.changed",
+      "index": 1,
+      "source": "() => { stats.cameraChanges += 1; stats.lastCameraChangeAt = performance.now(); if (stats.focusStartedAt) queueCameraStableMark(); }",
+      "count": 15,
+      "totalMs": 0.20000001788139343,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.013333334525426229
+    },
+    {
+      "event": "scene.postRender",
+      "index": 0,
+      "source": "function () { // Adds credits for all datasources const frameState = this._scene.frameState; const dataSources = this._dataSourceCollection; const length = dataSources.length; for (let i = 0; i < length; i++) { const dat",
+      "count": 884,
+      "totalMs": 2.800000011920929,
+      "worstMs": 0.20000001788139343,
+      "averageMs": 0.003167420827964852
+    },
+    {
+      "event": "scene.postRender",
+      "index": 1,
+      "source": "function () { updateZoomTarget(this); updateTrackedEntity(this); }",
+      "count": 884,
+      "totalMs": 2.9000000059604645,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.0032805429931679463
+    },
+    {
+      "event": "scene.postRender",
+      "index": 2,
+      "source": "() => { const height = getCameraHeight(viewer); const cameraCtrl = viewer.scene?.screenSpaceCameraController; const maxZoomDistance = Number(cameraCtrl?.maximumZoomDistance || numberVar(\"--warzone-camera-max-zoom\", 20000",
+      "count": 884,
+      "totalMs": 6.900000125169754,
+      "worstMs": 0.4000000059604645,
+      "averageMs": 0.007805430005848138
+    },
+    {
+      "event": "scene.postRender",
+      "index": 3,
+      "source": "() => { if (getSceneMode(viewer) !== \"2d\") return; const cartographic = viewer.camera?.positionCartographic; if (!cartographic) return; const maxLatDeg = Math.max(70, Math.min(85.04, numberVar(\"--warzone-2d-max-latitude\"",
+      "count": 884,
+      "totalMs": 2.9999999701976776,
+      "worstMs": 0.20000001788139343,
+      "averageMs": 0.0033936651246580063
+    },
+    {
+      "event": "scene.postRender",
+      "index": 4,
+      "source": "() => { stats.renderedFrames += 1; if (!stats.focusStartedAt) return; queueCameraStableMark(); const now = performance.now(); if (now - lastRefinementSampleAt < 1000) return; lastRefinementSampleAt = now; const tiles = (",
+      "count": 884,
+      "totalMs": 1.7999999821186066,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.002036199074794804
+    },
+    {
+      "event": "scene.preUpdate",
+      "index": 0,
+      "source": "() => sample()",
+      "count": 4429,
+      "totalMs": 31.499999791383743,
+      "worstMs": 2.7999999821186066,
+      "averageMs": 0.007112214899838281
+    },
+    {
+      "event": "scene.postUpdate",
+      "index": 0,
+      "source": "function () { const cesiumWidget = this._cesiumWidget; const container = this._container; const width = container.clientWidth; const height = container.clientHeight; const animationExists = (0,_cesium_engine__WEBPACK_IMP",
+      "count": 4429,
+      "totalMs": 799.9000007808208,
+      "worstMs": 11,
+      "averageMs": 0.18060510290829102
+    }
+  ],
+  "canvas": {
+    "clientWidth": 1712,
+    "clientHeight": 1000,
+    "width": 1807,
+    "height": 1056,
+    "drawingBufferWidth": 1807,
+    "drawingBufferHeight": 1056,
+    "devicePixelRatio": 1,
+    "resolutionScale": 1.056
+  },
+  "resize": {
+    "viewerResizeCalls": 0,
+    "resizeObserverCallbacks": 1,
+    "canvasAttributeChanges": 204
+  },
+  "settings": {
+    "requestRenderMode": true,
+    "maximumRenderTimeChange": 0.5,
+    "msaaSamples": 2,
+    "fxaa": true,
+    "hdr": false,
+    "fog": false,
+    "globeLighting": false,
+    "dynamicAtmosphereLighting": true,
+    "groundAtmosphere": false,
+    "shadows": false,
+    "terrainShadows": 3,
+    "oit": true,
+    "maximumScreenSpaceError": 2.65,
+    "tileCacheSize": 420,
+    "loadingDescendantLimit": 24,
+    "preloadAncestors": true,
+    "preloadSiblings": false,
+    "cameraPercentageChanged": 0.5,
+    "terrainProvider": "EllipsoidTerrainProvider"
+  },
+  "runtime": {
+    "imageryLayers": 1,
+    "primitives": 0,
+    "groundPrimitives": 0,
+    "dataSources": 0,
+    "entities": 0,
+    "tilesets": 0,
+    "models": 0,
+    "billboards": 0,
+    "labels": 0,
+    "overlayEffects": [],
+    "bodyClasses": "home__page is-free-tier is-authenticated wz-pre-entry-complete is-app-active is-startup-background-released",
+    "entryVisible": false,
+    "startupSatelliteState": null,
+    "devToolsPresent": false
+  },
+  "network": {
+    "imageryRequests": 97,
+    "terrainRequests": 0,
+    "totalRequests": 97
+  },
+  "cesiumPerf": {
+    "camera": {
+      "moveStarts": 63,
+      "moveEnds": 63,
+      "changes": 15,
+      "changesPerSecond": 0.17,
+      "focusCameraUpdates": 0,
+      "focusCameraUpdatesPerSecond": 0,
+      "requestRenderCalls": 727,
+      "requestRenderCallsPerSecond": 8.02,
+      "lookAtCalls": 0,
+      "setViewCalls": 2,
+      "flyToCalls": 0,
+      "flyToBoundingSphereCalls": 0,
+      "renderedFrames": 949,
+      "cameraHeight": 3542899.062261503,
+      "moving": true
+    },
+    "requestRender": {
+      "calls": 727,
+      "callsPerSecond": 8.02,
+      "schedulerSceneRenderRequests": 0,
+      "schedulerSceneRenderRequestsPerSecond": 0,
+      "coalescedSchedulerRequests": 0,
+      "schedulerRenderPending": false
+    },
+    "imagery": {
+      "label": "continuous-drag",
+      "durationMs": 82690.7,
+      "requestsStarted": 97,
+      "requestsCompleted": 97,
+      "requestsFailed": 0,
+      "requestsCancelled": 0,
+      "pending": 0,
+      "averageLatency": 86.17,
+      "p50Latency": 80,
+      "p95Latency": 170.8,
+      "transferBytes": 0,
+      "requestsDuringCameraMovement": 97,
+      "requestsAfterCameraStop": 0,
+      "uniqueTileUrls": 97,
+      "repeatedTileRequests": 0,
+      "cacheReuseCount": 0,
+      "cacheReuseObservable": false,
+      "unobservableTransferCount": 97,
+      "providerErrors": 0,
+      "providerRetries": 0,
+      "providerRequests": {
+        "accepted": 97,
+        "completed": 97,
+        "rejected": 0,
+        "deferred": 0
+      },
+      "tileRefinement": {
+        "available": true,
+        "tilesSelected": 42,
+        "tilesVisited": 86,
+        "tilesRendered": 21,
+        "descendantsKicked": 0,
+        "tilesWaitingForChildren": 0,
+        "waitingForChildrenMeaning": "parents of current-frame descendants kicked by Cesium readiness checks",
+        "loadQueueHigh": 0,
+        "loadQueueMedium": 0,
+        "loadQueueLow": 0,
+        "retainedTerrainTiles": 150,
+        "imageryStates": {
+          "unloaded": 2,
+          "loading": 0,
+          "received": 0,
+          "textureLoaded": 0,
+          "ready": 90,
+          "failed": 0,
+          "invalid": 0,
+          "placeholder": 0
+        },
+        "parentImageryFallbacks": 0,
+        "highestDesiredLevel": 5,
+        "highestRenderedLevel": 5,
+        "renderedLevels": {
+          "5": 42
+        },
+        "focusGroundImageryLevels": [],
+        "focusGroundTerrainLevels": [],
+        "focusGroundParentFallbacks": 0,
+        "source": "read-only installed Cesium quadtree/TileImagery internals; unique imagery on current-frame selected or queued tiles",
+        "focusMode": "",
+        "focusType": "",
+        "refinementPhase": "UNFOCUSED",
+        "userMoving": true,
+        "focusTracking": false,
+        "focusSettled": false,
+        "cesiumCameraMoving": true,
+        "cesiumCameraSettled": true,
+        "cameraHeightAboveEllipsoid": 3542899.062261503,
+        "cameraHeightAboveCachedTerrain": 3542932.511586004,
+        "focusRange": null,
+        "currentSSE": 2.65,
+        "effectiveSSE": 2.65,
+        "resolutionScale": 1.056,
+        "msaaSamples": 2,
+        "tileCacheSize": 420,
+        "loadingDescendantLimit": 24,
+        "preloadAncestors": true,
+        "preloadSiblings": false,
+        "requestRenderMode": true,
+        "tileLoadQueueSize": 0,
+        "tileLoadBusy": false,
+        "highestRequestedLevel": 6,
+        "highestRequestedLevelLifetime": 6,
+        "activeRequests": 0,
+        "activeArcGisServerRequests": 0,
+        "otherActiveRequests": 0,
+        "queuedRequests": 0,
+        "queuedArcGisRequests": 0,
+        "providerOutstandingPromises": 0,
+        "maximumRequests": 50,
+        "maximumArcGisServerRequests": 18,
+        "globalSlotsFull": false,
+        "arcGisSlotsFull": false,
+        "deferredProviderAttempts": 67,
+        "deferredAtGlobalLimit": 0,
+        "deferredAtServerLimit": 67,
+        "schedulerMeasurementNote": "server active count includes all ArcGIS-host resources; outstanding promises include queued requests; deferral counters are attempts, not unique tiles",
+        "timeSinceLastCameraUpdateMs": 54052.30000001192,
+        "timeSinceLastMeaningfulDisplacementMs": null,
+        "timeSinceImageryLastImprovedMs": null,
+        "imageryImprovementMeasurement": "one-second focused rendered-level / parent-fallback samples, not visual sharpness scoring",
+        "adaptiveProfile": "balanced",
+        "renderedFrames": 949,
+        "cameraMoveStarts": 63,
+        "cameraMoveEnds": 63
+      },
+      "settleDuration": 147.40000000596046
+    },
+    "animation": {
+      "scheduler": {
+        "activeTasks": 0,
+        "taskKeys": [],
+        "animationFrameActive": false,
+        "renderFramePending": false,
+        "taskUpdates": 0,
+        "taskUpdatesPerSecond": 0,
+        "sceneRenderRequests": 0,
+        "sceneRenderRequestsPerSecond": 0,
+        "coalescedRenderRequests": 0
+      },
+      "sweepers": {
+        "activeSweeperEntities": 0,
+        "activeSweeperPrimitives": 0,
+        "activeSweeperLabels": 0,
+        "animationFrameActive": false,
+        "schedulerTaskActive": false,
+        "targetUpdatesPerSecond": 30,
+        "updates": 0,
+        "updatesPerSecond": 0
+      },
+      "hoverPulse": {
+        "active": false,
+        "targetUpdatesPerSecond": 30,
+        "updates": 0,
+        "updatesPerSecond": 0
+      },
+      "activeEventPulses": 0,
+      "eventPulseSchedulerActive": false,
+      "eventPulseUpdates": 0,
+      "eventPulseUpdatesPerSecond": 0
+    },
+    "render": {
+      "renderedFrames": 949,
+      "renderedFramesPerSecond": 10.46,
+      "requestRenderMode": true,
+      "documentHidden": false
+    }
+  },
+  "cpu": [
+    {
+      "frame": "(idle) | :0",
+      "milliseconds": 18700.9
+    },
+    {
+      "frame": "(program) | :0",
+      "milliseconds": 7430.9
+    },
+    {
+      "frame": "get clientWidth | :0",
+      "milliseconds": 911.4
+    },
+    {
+      "frame": "render | /assets/js/bundle.js:485795",
+      "milliseconds": 697.9
+    },
+    {
+      "frame": "configureCanvasSize | /assets/js/bundle.js:485847",
+      "milliseconds": 641.6
+    },
+    {
+      "frame": "requestAnimationFrame | :0",
+      "milliseconds": 346.4
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Widget/CesiumWidget.js.CesiumWidget.resize | /assets/js/bundle.js:486797",
+      "milliseconds": 263.1
+    },
+    {
+      "frame": "(garbage collector) | :0",
+      "milliseconds": 159.6
+    },
+    {
+      "frame": "(anonymous) | :0",
+      "milliseconds": 158.2
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/widgets/Source/Viewer/Viewer.js.Viewer.resize | /assets/js/bundle.js:502130",
+      "milliseconds": 136.8
+    },
+    {
+      "frame": "addDrawCommandsForTile | /assets/js/bundle.js:304546",
+      "milliseconds": 101.9
+    },
+    {
+      "frame": "endUpdate | /assets/js/bundle.js:302743",
+      "milliseconds": 98.8
+    },
+    {
+      "frame": "getPickRayPerspective | /assets/js/bundle.js:259737",
+      "milliseconds": 81.2
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Scene/Camera.js.Camera.pickEllipsoid | /assets/js/bundle.js:259698",
+      "milliseconds": 77.2
+    },
+    {
+      "frame": "uniform1fv | :0",
+      "milliseconds": 72.9
+    },
+    {
+      "frame": "continueDraw | /assets/js/bundle.js:226554",
+      "milliseconds": 71
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Scene/Camera.js.Camera.getPickRay | /assets/js/bundle.js:259825",
+      "milliseconds": 69.2
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Core/Check.js.Check.typeOf.object | /assets/js/bundle.js:86840",
+      "milliseconds": 65.2
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Core/Event.js.Event.raiseEvent | /assets/js/bundle.js:105427",
+      "milliseconds": 63.1
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Renderer/ShaderProgram.js.ShaderProgram._setUniforms | /assets/js/bundle.js:233613",
+      "milliseconds": 58.1
+    },
+    {
+      "frame": "bindTexture | :0",
+      "milliseconds": 54.9
+    },
+    {
+      "frame": "clear | :0",
+      "milliseconds": 52.9
+    },
+    {
+      "frame": "clone | /assets/js/bundle.js:129566",
+      "milliseconds": 51.8
+    },
+    {
+      "frame": "bindVertexArray | :0",
+      "milliseconds": 51.7
+    },
+    {
+      "frame": "send | :0",
+      "milliseconds": 50.3
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Scene/PostProcessStage.js.PostProcessStage._isSupported | /assets/js/bundle.js:400892",
+      "milliseconds": 48.8
+    },
+    {
+      "frame": "getTimestamp | /assets/js/bundle.js:175035",
+      "milliseconds": 45.6
+    },
+    {
+      "frame": "multiply | /assets/js/bundle.js:131010",
+      "milliseconds": 44.9
+    },
+    {
+      "frame": "(anonymous) | :1",
+      "milliseconds": 43.5
+    },
+    {
+      "frame": "getBoundingClientRect | :0",
+      "milliseconds": 43
+    }
+  ],
+  "trace": [
+    {
+      "task": "CrRendererMain | ProxyMain::BeginMainFrame",
+      "count": 1815,
+      "totalMs": 11743,
+      "worstMs": 656.4
+    },
+    {
+      "task": "CrRendererMain | WebFrameWidgetImpl::BeginMainFrame",
+      "count": 1815,
+      "totalMs": 8497,
+      "worstMs": 654.6
+    },
+    {
+      "task": "CrRendererMain | Blink.Animate.UpdateTime",
+      "count": 1815,
+      "totalMs": 8427,
+      "worstMs": 654.5
+    },
+    {
+      "task": "CrRendererMain | PageAnimator::serviceScriptedAnimations",
+      "count": 1815,
+      "totalMs": 8363,
+      "worstMs": 654.5
+    },
+    {
+      "task": "CrRendererMain | FrameRequestCallbackCollection::ExecuteFrameCallbacks",
+      "count": 1815,
+      "totalMs": 8056,
+      "worstMs": 652.9
+    },
+    {
+      "task": "CrRendererMain | FireAnimationFrame",
+      "count": 1820,
+      "totalMs": 7570,
+      "worstMs": 652.6
+    },
+    {
+      "task": "CrRendererMain | AsyncTask Run",
+      "count": 1793,
+      "totalMs": 7491,
+      "worstMs": 652.6
+    },
+    {
+      "task": "CrRendererMain | v8.callFunction",
+      "count": 1792,
+      "totalMs": 7422,
+      "worstMs": 652.5
+    },
+    {
+      "task": "CrRendererMain | FunctionCall",
+      "count": 1745,
+      "totalMs": 7268,
+      "worstMs": 652.4
+    },
+    {
+      "task": "CrGpuMain | Scheduler::RunTask",
+      "count": 2319,
+      "totalMs": 5281,
+      "worstMs": 41.9
+    },
+    {
+      "task": "Compositor | ProxyImpl::ScheduledActionDraw",
+      "count": 1818,
+      "totalMs": 2880,
+      "worstMs": 24.5
+    },
+    {
+      "task": "Compositor | MainFrame.Draw",
+      "count": 1805,
+      "totalMs": 2811,
+      "worstMs": 24.5
+    },
+    {
+      "task": "CrGpuMain | GpuChannel::ExecuteDeferredRequest",
+      "count": 270,
+      "totalMs": 1044,
+      "worstMs": 41.8
+    },
+    {
+      "task": "Compositor | ProxyImpl::ReadyToCommit",
+      "count": 644,
+      "totalMs": 899,
+      "worstMs": 13.4
+    },
+    {
+      "task": "CrGpuMain | SharedImageStub::OnCreateSharedImage",
+      "count": 74,
+      "totalMs": 683,
+      "worstMs": 41.8
+    },
+    {
+      "task": "CrRendererMain | CpuProfiler::StartProfiling",
+      "count": 1,
+      "totalMs": 648,
+      "worstMs": 647.8
+    },
+    {
+      "task": "CrRendererMain | ImplementationBase::WaitForCmd",
+      "count": 80,
+      "totalMs": 569,
+      "worstMs": 43.9
+    },
+    {
+      "task": "CrRendererMain | CommandBufferHelper::Finish",
+      "count": 79,
+      "totalMs": 565,
+      "worstMs": 43.9
+    },
+    {
+      "task": "CrRendererMain | CommandBufferProxyImpl::WaitForGetOffset",
+      "count": 77,
+      "totalMs": 546,
+      "worstMs": 43.7
+    },
+    {
+      "task": "Compositor | LayerTreeHostImpl::PrepareToDraw",
+      "count": 217,
+      "totalMs": 401,
+      "worstMs": 13.7
+    },
+    {
+      "task": "CrRendererMain | GLES2::GetGLError",
+      "count": 36,
+      "totalMs": 391,
+      "worstMs": 44
+    },
+    {
+      "task": "CrRendererMain | WebFrameWidgetImpl::UpdateLifecycle",
+      "count": 181,
+      "totalMs": 359,
+      "worstMs": 16
+    },
+    {
+      "task": "CrRendererMain | Document::UpdateStyleAndLayout",
+      "count": 164,
+      "totalMs": 350,
+      "worstMs": 21.9
+    },
+    {
+      "task": "CrGpuMain | WebGL",
+      "count": 174,
+      "totalMs": 326,
+      "worstMs": 5.4
+    },
+    {
+      "task": "CrGpuMain | CommandBuffer::Flush",
+      "count": 165,
+      "totalMs": 312,
+      "worstMs": 5.4
+    },
+    {
+      "task": "CrGpuMain | CommandBufferStub::OnAsyncFlush",
+      "count": 158,
+      "totalMs": 302,
+      "worstMs": 5.4
+    },
+    {
+      "task": "CrGpuMain | CommandBufferService:PutChanged",
+      "count": 148,
+      "totalMs": 285,
+      "worstMs": 5.3
+    },
+    {
+      "task": "CrRendererMain | Blink.ForcedStyleAndLayout.UpdateTime",
+      "count": 124,
+      "totalMs": 261,
+      "worstMs": 21.8
+    },
+    {
+      "task": "CrRendererMain | EventHandler::handleMouseMoveEvent",
+      "count": 95,
+      "totalMs": 199,
+      "worstMs": 7
+    },
+    {
+      "task": "CrRendererMain | LocalFrameView::UpdateStyleAndLayout",
+      "count": 92,
+      "totalMs": 198,
+      "worstMs": 21.8
+    },
+    {
+      "task": "Compositor | auto cc::LayerTreeHostImpl::PrepareTiles()::(lambda)::operator()()::(lambda)::operator()(uint32_t) const",
+      "count": 71,
+      "totalMs": 189,
+      "worstMs": 10.2
+    },
+    {
+      "task": "Compositor | LayerTreeHostImpl::CommitComplete",
+      "count": 111,
+      "totalMs": 186,
+      "worstMs": 9
+    },
+    {
+      "task": "CrRendererMain | GLES2Implementation::CheckFramebufferStatus",
+      "count": 44,
+      "totalMs": 180,
+      "worstMs": 11.4
+    },
+    {
+      "task": "Compositor | auto cc::TileManager::PrepareTiles(const GlobalStateThatImpactsTilePriority &)::(lambda)::operator()()::(lambda)::operator()(uint32_t) const",
+      "count": 66,
+      "totalMs": 170,
+      "worstMs": 9.5
+    },
+    {
+      "task": "Compositor | ProxyImpl::ScheduledActionPrepareTiles",
+      "count": 56,
+      "totalMs": 170,
+      "worstMs": 10.2
+    },
+    {
+      "task": "Compositor | TileManager::PrepareTiles",
+      "count": 65,
+      "totalMs": 166,
+      "worstMs": 9.5
+    },
+    {
+      "task": "CrRendererMain | EventDispatch",
+      "count": 70,
+      "totalMs": 144,
+      "worstMs": 6.7
+    },
+    {
+      "task": "Compositor | LayerTreeImpl::UpdateDrawProperties",
+      "count": 59,
+      "totalMs": 126,
+      "worstMs": 12.9
+    },
+    {
+      "task": "Compositor | Scheduler::BeginFrame",
+      "count": 65,
+      "totalMs": 125,
+      "worstMs": 5.5
+    },
+    {
+      "task": "CrRendererMain | Blink.Style.UpdateTime",
+      "count": 60,
+      "totalMs": 122,
+      "worstMs": 6.5
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": [
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-TVLJ0T513S&gtm=45je69l1v9247835443za200zd9247835443xf1&_p=1790155787746&gcd=13l3l3l3l1l1&npa=0&dma=0&are=1&cid=1339342346.1790155788&frm=0&ngs=1&pscdl=noapi&rcb=10&sr=1712x1000&uaa=x86&uab=64&uafvl=Chromium%3B151.0.7922.34%7CNot%253DA%253FBrand%3B99.0.0.0&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=en-us&_s=1&tag_exp=115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153&sid=1790155788&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fpages%2Findex.html&dt=StratOps%20%7C%20Real-Time%20Multi-Domain%20Battlespace%20Intelligence&en=page_view&_fv=1&_nsi=1&_ss=1&_ee=1&tfd=494",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:4173/assets/videos/stratops-startup-v1.mp4",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-TVLJ0T513S&gtm=45je69l1v9247835443za200zd9247835443xf1&_p=1790155787746&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AEAAAAQ&ae=a&are=1&cid=1339342346.1790155788&frm=0&ngs=1&pscdl=noapi&rcb=10&sr=1712x1000&uaa=x86&uab=64&uafvl=Chromium%3B151.0.7922.34%7CNot%253DA%253FBrand%3B99.0.0.0&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=en-us&_s=2&tag_exp=115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153&sid=1790155788&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fpages%2Findex.html&dt=StratOps%20%7C%20Real-Time%20Multi-Domain%20Battlespace%20Intelligence&en=scroll&epn.percent_scrolled=90&_et=78&tfd=6187",
+      "error": "net::ERR_ABORTED"
+    }
+  ]
+}

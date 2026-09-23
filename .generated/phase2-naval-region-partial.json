@@ -1,0 +1,102 @@
+{
+  "naval": {
+    "activation": {
+      "warning": {
+        "hidden": false,
+        "className": "wz-modal wz-layer-warning is-visible"
+      },
+      "enabled": true
+    },
+    "rows": 2,
+    "diagnostics": null,
+    "drag": {
+      "name": "naval-active-drag",
+      "durationMs": 30974.3,
+      "fps": 50.17,
+      "averageFrameMs": 19.81,
+      "p95FrameMs": 33.2,
+      "p99FrameMs": 116.7,
+      "longestFrameGapMs": 316.5,
+      "gapsOver50Ms": 38,
+      "gapsOver100Ms": 20,
+      "longTasks": 14,
+      "worstLongTaskMs": 308,
+      "canvasWidthMutations": 0,
+      "canvasHeightMutations": 0,
+      "resolutionScaleChanges": 0,
+      "msaaSamplesChanges": 0,
+      "requestRenderPerSecond": 18.31,
+      "start": {
+        "clientWidth": 1712,
+        "clientHeight": 1000,
+        "width": 1712,
+        "height": 1000,
+        "drawingBufferWidth": 1712,
+        "drawingBufferHeight": 1000,
+        "devicePixelRatio": 1,
+        "resolutionScale": 1,
+        "msaaSamples": 1,
+        "entities": 31
+      },
+      "end": {
+        "clientWidth": 1712,
+        "clientHeight": 1000,
+        "width": 1712,
+        "height": 1000,
+        "drawingBufferWidth": 1712,
+        "drawingBufferHeight": 1000,
+        "devicePixelRatio": 1,
+        "resolutionScale": 1,
+        "msaaSamples": 1,
+        "entities": 31
+      }
+    },
+    "focus": {
+      "trackKey": "ais-538011838",
+      "metrics": {
+        "name": "naval-focus",
+        "durationMs": 30535.9,
+        "fps": 41.89,
+        "averageFrameMs": 23.88,
+        "p95FrameMs": 33.4,
+        "p99FrameMs": 133.5,
+        "longestFrameGapMs": 2451.1,
+        "gapsOver50Ms": 54,
+        "gapsOver100Ms": 38,
+        "longTasks": 16,
+        "worstLongTaskMs": 2329,
+        "canvasWidthMutations": 0,
+        "canvasHeightMutations": 0,
+        "resolutionScaleChanges": 0,
+        "msaaSamplesChanges": 0,
+        "requestRenderPerSecond": 14.87,
+        "start": {
+          "clientWidth": 1712,
+          "clientHeight": 1000,
+          "width": 1712,
+          "height": 1000,
+          "drawingBufferWidth": 1712,
+          "drawingBufferHeight": 1000,
+          "devicePixelRatio": 1,
+          "resolutionScale": 1,
+          "msaaSamples": 1,
+          "entities": 31
+        },
+        "end": {
+          "clientWidth": 1712,
+          "clientHeight": 1000,
+          "width": 1712,
+          "height": 1000,
+          "drawingBufferWidth": 1712,
+          "drawingBufferHeight": 1000,
+          "devicePixelRatio": 1,
+          "resolutionScale": 1,
+          "msaaSamples": 1,
+          "entities": 2
+        }
+      }
+    }
+  },
+  "regions": {},
+  "errors": []
+}

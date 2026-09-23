@@ -302,10 +302,10 @@
     :root {
         --wz-mobile-widget-content-maxh: min(56dvh, calc(100dvh - 18rem));
         --warzone-base-icon-viewport-scale: 1.1;
-        --warzone-resolution-scale: 1.2;
-        --warzone-idle-resolution-min: 1.2;
-        --warzone-focus-resolution-scale: 1.2;
-        --warzone-close-resolution-scale: 1.2;
+        --warzone-resolution-scale: 1;
+        --warzone-idle-resolution-min: 1;
+        --warzone-focus-resolution-scale: 1;
+        --warzone-close-resolution-scale: 1;
     }
 
     .wz-altitude-readout {

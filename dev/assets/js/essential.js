@@ -1823,31 +1823,21 @@ function setAuthModalRenderBudget(paused) {
     if (paused) {
         if (!__authModalRenderBudgetBackup) {
             __authModalRenderBudgetBackup = {
-                resolutionScale: Number(viewer.resolutionScale || 1),
                 maximumRenderTimeChange: scene.maximumRenderTimeChange,
                 maximumScreenSpaceError: Number(globe.maximumScreenSpaceError || 1.6),
-                msaaSamples: Number(scene.msaaSamples || 1),
                 fxaaEnabled: !!scene.postProcessStages?.fxaa?.enabled,
             };
         }
-        viewer.resolutionScale = Math.min(0.72, Math.max(0.5, Number(viewer.resolutionScale || 1)));
         scene.maximumRenderTimeChange = 1.6;
         globe.maximumScreenSpaceError = Math.max(3.2, Number(globe.maximumScreenSpaceError || 1.6));
-        if (Number.isFinite(Number(scene.msaaSamples))) {
-            scene.msaaSamples = 1;
-        }
         if (scene.postProcessStages?.fxaa) {
             scene.postProcessStages.fxaa.enabled = false;
         }
         return;
     }
     if (__authModalRenderBudgetBackup) {
-        viewer.resolutionScale = __authModalRenderBudgetBackup.resolutionScale;
         scene.maximumRenderTimeChange = __authModalRenderBudgetBackup.maximumRenderTimeChange;
         globe.maximumScreenSpaceError = __authModalRenderBudgetBackup.maximumScreenSpaceError;
-        if (Number.isFinite(__authModalRenderBudgetBackup.msaaSamples)) {
-            scene.msaaSamples = __authModalRenderBudgetBackup.msaaSamples;
-        }
         if (scene.postProcessStages?.fxaa) {
             scene.postProcessStages.fxaa.enabled = __authModalRenderBudgetBackup.fxaaEnabled;
         }

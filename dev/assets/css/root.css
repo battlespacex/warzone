@@ -819,28 +819,28 @@ input[type="checkbox"]:checked {
 /* #region =========== Globe Render Quality =========== */
 :root {
     /* Smooth premium Cesium performance */
-    --warzone-resolution-scale: 1.2;
-    --warzone-resolution-hard-max: 1.8;
-    --warzone-msaa-samples: 4;
-    --warzone-msaa-hard-max: 4;
+    --warzone-resolution-scale: 1;
+    --warzone-resolution-hard-max: 1;
+    --warzone-msaa-samples: 1;
+    --warzone-msaa-hard-max: 1;
     --warzone-fxaa-enabled: 1;
 
-    --warzone-idle-resolution-min: 1.2;
-    --warzone-idle-msaa-min: 4;
+    --warzone-idle-resolution-min: 1;
+    --warzone-idle-msaa-min: 1;
 
     --warzone-moving-resolution-scale: 1;
-    --warzone-moving-msaa-samples: 2;
+    --warzone-moving-msaa-samples: 1;
 
-    --warzone-focus-resolution-scale: 1.2;
-    --warzone-focus-performance-resolution-scale: 0.86;
+    --warzone-focus-resolution-scale: 1;
+    --warzone-focus-performance-resolution-scale: 1;
     --warzone-focus-performance-msaa-samples: 1;
     --warzone-focus-performance-screen-space-error: 2.35;
     --warzone-focus-performance-tile-cache: 420;
     --warzone-focus-performance-render-time: 0.22;
 
-    --warzone-close-resolution-scale: 1.2;
-    --warzone-focus-msaa-samples: 4;
-    --warzone-close-msaa-samples: 4;
+    --warzone-close-resolution-scale: 1;
+    --warzone-focus-msaa-samples: 1;
+    --warzone-close-msaa-samples: 1;
 
     --warzone-camera-inertia-zoom: 0;
     --warzone-camera-zoom-factor: 7.5;
@@ -864,8 +864,8 @@ input[type="checkbox"]:checked {
     --warzone-globe-loading-descendant-limit: 24;
     --warzone-globe-loading-descendant-limit-busy: 10;
     --warzone-globe-loading-queue-threshold: 10;
-    --warzone-globe-loading-resolution-scale: 1.05;
-    --warzone-globe-loading-msaa-samples: 2;
+    --warzone-globe-loading-resolution-scale: 1;
+    --warzone-globe-loading-msaa-samples: 1;
     --warzone-globe-loading-screen-space-error: 2.4;
 
     --warzone-globe-preload-ancestors: 1;
@@ -874,7 +874,7 @@ input[type="checkbox"]:checked {
 
     /* Sharper existing globe tiles only after the closest camera zoom settles. */
     --warzone-max-zoom-quality-height: 25000;
-    --warzone-max-zoom-resolution-scale: 1.75;
+    --warzone-max-zoom-resolution-scale: 1;
     --warzone-max-zoom-screen-space-error: 0.55;
     --warzone-max-zoom-imagery-anisotropy: 16;
 

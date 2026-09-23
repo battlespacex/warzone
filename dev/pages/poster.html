@@ -94,12 +94,10 @@
       <details open>
         <summary>Background Image</summary>
         <div class="panel-grid">
-          <label class="btn primary file-button full">
-            Choose image
-            <input id="backgroundInput" type="file" accept="image/*" />
-          </label>
-
           <div class="button-row full">
+            <label class="btn primary file-button">Choose image
+              <input id="backgroundInput" type="file" accept="image/*" />
+            </label>
             <button id="autoFitBackgroundBtn" class="btn primary" type="button">Auto Fit Image</button>
             <button id="removeBackgroundBtn" class="btn secondary" type="button">Remove image</button>
           </div>
@@ -156,19 +154,13 @@
             </textarea>
           </label>
 
-          <label>Font
-            <select id="titleFont"></select>
+          <label>Font size <span id="titleSizeValue">64</span>
+            <input id="titleSize" type="range" min="30" max="230" value="64" />
           </label>
 
-          <div id="fontLibraryStatus" class="font-library-status full">Loading configured fonts…</div>
-
-          <label>Font size <span id="titleSizeValue">92</span>
-            <input id="titleSize" type="range" min="30" max="230" value="92" />
-          </label>
-
-          <label>Line height <span id="titleLineHeightValue">0.92</span>
+          <!-- <label>Line height <span id="titleLineHeightValue">0.92</span>
             <input id="titleLineHeight" type="range" min="65" max="160" value="92" />
-          </label>
+          </label> -->
 
           <label>Letter spacing <span id="titleSpacingValue">1</span>
             <input id="titleSpacing" type="range" min="-8" max="30" value="1" />
@@ -201,17 +193,13 @@
             </textarea>
           </label>
 
-          <label>Font
-            <select id="descriptionFont"></select>
+          <label>Font size <span id="descriptionSizeValue">44</span>
+            <input id="descriptionSize" type="range" min="18" max="130" value="44" />
           </label>
 
-          <label>Font size <span id="descriptionSizeValue">48</span>
-            <input id="descriptionSize" type="range" min="18" max="130" value="48" />
-          </label>
-
-          <label>Line height <span id="descriptionLineHeightValue">0.96</span>
-            <input id="descriptionLineHeight" type="range" min="65" max="180" value="96" />
-          </label>
+          <!-- <label>Line height <span id="descriptionLineHeightValue">0.94</span>
+            <input id="descriptionLineHeight" type="range" min="65" max="180" value="94" />
+          </label> -->
 
           <label>Letter spacing <span id="descriptionSpacingValue">0</span>
             <input id="descriptionSpacing" type="range" min="-6" max="20" value="0" />
@@ -264,8 +252,6 @@
         </label>
 
         <button id="exportBtn" class="btn export">Save Poster</button>
-        <p class="hint">Supported browsers will open a “Save As” window. Other browsers will download the poster to the
-          default Downloads folder.</p>
       </div>
     </aside>
 

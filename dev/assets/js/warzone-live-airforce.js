@@ -225,6 +225,14 @@ const LIVE_TRACK_DEFAULT_ANIM_MS = 12000;
 const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 1100;
 const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 15000;
 const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 12000;
+const LIVE_TRACK_MAX_PREDICTION_MS = 20000;
+const LIVE_TRACK_MIN_PREDICTION_SPEED_KTS = 15;
+const LIVE_TRACK_MAX_PREDICTION_VERTICAL_RATE_FPM = 6000;
+const LIVE_TRACK_PREDICTION_SMALL_CORRECTION_METERS = 500;
+const LIVE_TRACK_PREDICTION_LARGE_CORRECTION_METERS = 5000;
+const LIVE_TRACK_PREDICTION_LARGE_ERROR_FACTOR = 2.5;
+const LIVE_TRACK_PREDICTION_COOLDOWN_MS = 60000;
+const LIVE_TRACK_PREDICTION_RECONCILE_MAX_MS = 5000;
 const LIVE_TRACK_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 const LIVE_TRACK_NORMAL_HISTORY_MAX_POINTS = 30;
 const LIVE_TRACK_FOCUSED_HISTORY_MAX_POINTS = LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS;
@@ -7042,9 +7050,233 @@ function setLiveTrackBillboardRotationValue(entity, rotation) {
     }
     entity.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
 }
+const __liveTrackPredictionDiagnostics = {
+    beginCount: 0,
+    correctionCount: 0,
+    maxPredictionDurationMs: 0,
+    largestCorrectionErrorMeters: 0,
+    tracedTrackKey: "",
+};
+function isLiveTrackPredictionEnabled() {
+    if (window.__stratopsConfig?.aircraftPredictionEnabled === false) return false;
+    if (window.__STRATOPS_AIRCRAFT_PREDICTION__ === false) return false;
+    try {
+        return window.localStorage?.getItem?.("wz_aircraft_prediction") !== "false";
+    } catch {
+        return true;
+    }
+}
+function getFinitePredictionValue(...values) {
+    for (const value of values) {
+        if (value === null || value === undefined || value === "") continue;
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+}
+function getLiveTrackPredictionTelemetry(track = {}, entity = null, receivedAt = performance.now()) {
+    const trackKey = String(track.track_key || entity?.__trackKey || "");
+    const entry = __liveTrackRegistry.get(trackKey);
+    const metadata = getTrackMetadata(track);
+    const lon = Number(track.lon);
+    const lat = Number(track.lat);
+    const altitudeMeters = getTrackRenderAltitudeMeters(track);
+    const speedKts = getFinitePredictionValue(
+        track.speed_kts,
+        track.ground_speed_kts,
+        metadata.speed_kts,
+        metadata.ground_speed_kts
+    );
+    const trackHeadingDeg = getFinitePredictionValue(
+        track.ground_track_deg,
+        track.track_deg,
+        track.course_deg,
+        track.track,
+        track.heading_deg,
+        metadata.ground_track_deg,
+        metadata.track_deg,
+        metadata.course_deg,
+        metadata.track,
+        metadata.heading_deg,
+        metadata.heading
+    );
+    const rawVerticalRateFpm = getFinitePredictionValue(
+        track.vertical_rate_fpm,
+        track.verticalRateFpm,
+        metadata.vertical_rate_fpm,
+        metadata.verticalRateFpm,
+        metadata.baro_rate,
+        metadata.geom_rate
+    );
+    let reason = "";
+    if (!isLiveTrackPredictionEnabled()) reason = "disabled";
+    else if (!trackKey || !Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lon) > 180) reason = "invalid_coordinates";
+    else if (isTrackOnGround(track) && (!Number.isFinite(speedKts) || speedKts < LIVE_TRACK_MIN_PREDICTION_SPEED_KTS)) reason = "stationary_on_ground";
+    else if (!Number.isFinite(speedKts) || speedKts < LIVE_TRACK_MIN_PREDICTION_SPEED_KTS) reason = "invalid_speed";
+    else if (!Number.isFinite(trackHeadingDeg)) reason = "invalid_track";
+    else if (entry?.active === false || entry?.ended_at || entry?.liveness_state === "ended") reason = "ended";
+    else if (Number(entity?.__liveTrackPredictionDisabledUntil || 0) > receivedAt) reason = "cooldown";
+    const verticalRateFpm = Number.isFinite(rawVerticalRateFpm) &&
+        Math.abs(rawVerticalRateFpm) <= LIVE_TRACK_MAX_PREDICTION_VERTICAL_RATE_FPM
+        ? rawVerticalRateFpm
+        : 0;
+    return {
+        eligible: !reason,
+        reason,
+        lon,
+        lat,
+        altitudeMeters,
+        speedKts,
+        speedMps: Number(speedKts || 0) * 0.514444,
+        trackHeadingDeg: normalizeDegrees(Number(trackHeadingDeg || 0)),
+        verticalRateFpm,
+        verticalRateMps: verticalRateFpm * 0.00508,
+        receivedAt,
+    };
+}
+function armLiveTrackPrediction(entity, track = {}, sourceTimestamp = Date.now(), receivedAt = performance.now(), attitude = {}) {
+    const authoritativeCartesian = getPositionCartesian(entity);
+    if (!entity || !authoritativeCartesian) return false;
+    const prediction = getLiveTrackPredictionTelemetry(track, entity, receivedAt);
+    if (!prediction.eligible) return false;
+    prediction.endsAt = receivedAt + LIVE_TRACK_MAX_PREDICTION_MS;
+    const headingDeg = normalizeDegrees(Number(attitude.headingDeg ?? track.heading_deg ?? entity.__currentHeadingDeg ?? 0));
+    const pitchDeg = Number(attitude.pitchDeg ?? entity.__currentPitchDeg ?? 0);
+    const rollDeg = Number(attitude.rollDeg ?? entity.__currentRollDeg ?? 0);
+    entity.__liveTrackMotionState = {
+        phase: "interpolation",
+        sourceTimestamp: Number(sourceTimestamp || Date.now()),
+        startedAt: receivedAt - 1,
+        endsAt: receivedAt,
+        durationMs: 1,
+        startHeadingDeg: headingDeg,
+        headingDeltaDeg: 0,
+        startPitchDeg: pitchDeg,
+        endPitchDeg: pitchDeg,
+        startRollDeg: rollDeg,
+        endRollDeg: rollDeg,
+        endHeadingDeg: headingDeg,
+        track,
+        startCartesian: Cesium.Cartesian3.clone(authoritativeCartesian),
+        endCartesian: Cesium.Cartesian3.clone(authoritativeCartesian),
+        endOrientation: entity.orientation?.getValue?.(window.__warzoneViewer?.clock?.currentTime || Cesium.JulianDate.now()) || null,
+        startBillboardRotation: getLiveTrackBillboardRotationRadians(headingDeg),
+        billboardRotationDelta: 0,
+        endBillboardRotation: getLiveTrackBillboardRotationRadians(headingDeg),
+        prediction,
+    };
+    wakeLiveTrackInterpolationRender(LIVE_TRACK_MAX_PREDICTION_MS);
+    return true;
+}
+function shouldLogLiveTrackPrediction(trackKey = "") {
+    if (!isLiveTrackDiagnosticsEnabled()) return false;
+    const focusedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
+    if (focusedTrackKey) return focusedTrackKey === String(trackKey || "");
+    if (!__liveTrackPredictionDiagnostics.tracedTrackKey) {
+        __liveTrackPredictionDiagnostics.tracedTrackKey = String(trackKey || "");
+    }
+    return __liveTrackPredictionDiagnostics.tracedTrackKey === String(trackKey || "");
+}
+function logLiveTrackPrediction(message, trackKey = "", details = {}) {
+    if (!shouldLogLiveTrackPrediction(trackKey)) return;
+    console.info(`[AIR PREDICT] ${message}`, { track: String(trackKey || ""), ...details });
+}
+function buildPredictedLiveTrackCartesian(motion, elapsedMs) {
+    const prediction = motion?.prediction;
+    if (!prediction?.eligible || elapsedMs < 0) return null;
+    const distanceMeters = prediction.speedMps * (elapsedMs / 1000);
+    if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) return motion.endCartesian || null;
+    try {
+        const start = Cesium.Cartographic.fromDegrees(prediction.lon, prediction.lat, prediction.altitudeMeters);
+        const line = Cesium.EllipsoidRhumbLine.fromStartHeadingDistance(
+            start,
+            Cesium.Math.toRadians(prediction.trackHeadingDeg),
+            distanceMeters,
+            Cesium.Ellipsoid.WGS84
+        );
+        const destination = line.end;
+        const altitudeMeters = Math.max(0, prediction.altitudeMeters + (prediction.verticalRateMps * (elapsedMs / 1000)));
+        return buildTrackEntityCartesian(
+            motion.track || {},
+            Cesium.Math.toDegrees(destination.longitude),
+            Cesium.Math.toDegrees(destination.latitude),
+            altitudeMeters,
+            prediction.trackHeadingDeg
+        );
+    } catch {
+        return null;
+    }
+}
+function updateLiveTrackPredictionFrame(entity, motion, now) {
+    const prediction = motion?.prediction;
+    const trackKey = String(entity?.__trackKey || "");
+    const entry = __liveTrackRegistry.get(trackKey);
+    if (!prediction?.eligible || !isLiveTrackPredictionEnabled()) {
+        logLiveTrackPrediction("end", trackKey, { reason: prediction?.reason || "invalid_telemetry" });
+        entity.__liveTrackMotionState = null;
+        return false;
+    }
+    if (entry?.active === false || entry?.ended_at || entry?.liveness_state === "ended") {
+        logLiveTrackPrediction("end", trackKey, { reason: "ended" });
+        entity.__liveTrackMotionState = null;
+        return false;
+    }
+    if (motion.phase !== "prediction" && motion.phase !== "prediction_hold") {
+        motion.phase = "prediction";
+        prediction.startedAt = Number(motion.endsAt || now);
+        __liveTrackPredictionDiagnostics.beginCount += 1;
+        logLiveTrackPrediction("begin", trackKey, {
+            speed: prediction.speedKts,
+            trackHeading: prediction.trackHeadingDeg,
+            lastAuthoritative: { lon: prediction.lon, lat: prediction.lat, altitudeMeters: prediction.altitudeMeters },
+            predictionStart: prediction.startedAt,
+        });
+    }
+    const cappedNow = Math.min(now, Number(prediction.endsAt || now));
+    const elapsedMs = Math.max(0, cappedNow - Number(prediction.startedAt || cappedNow));
+    const predictedCartesian = buildPredictedLiveTrackCartesian(motion, elapsedMs);
+    if (!predictedCartesian) {
+        logLiveTrackPrediction("end", trackKey, { reason: "invalid_telemetry", predictionDuration: elapsedMs });
+        entity.__liveTrackMotionState = null;
+        return false;
+    }
+    motion.currentCartesian = Cesium.Cartesian3.clone(
+        predictedCartesian,
+        motion.currentCartesian || new Cesium.Cartesian3()
+    );
+    setLiveTrackPositionValue(entity, motion.currentCartesian);
+    if (entity.model) {
+        motion.currentOrientation = buildTrackOrientationAtCartesian(
+            motion.track || {},
+            motion.currentCartesian,
+            prediction.trackHeadingDeg,
+            Number(motion.endPitchDeg || 0),
+            Number(motion.endRollDeg || 0),
+            motion.currentOrientation
+        );
+        setLiveTrackOrientationValue(entity, motion.currentOrientation);
+    }
+    if (entity.billboard) {
+        setLiveTrackBillboardRotationValue(entity, getLiveTrackBillboardRotationRadians(prediction.trackHeadingDeg));
+    }
+    entity.__currentHeadingDeg = prediction.trackHeadingDeg;
+    __liveTrackPredictionDiagnostics.maxPredictionDurationMs = Math.max(
+        __liveTrackPredictionDiagnostics.maxPredictionDurationMs,
+        elapsedMs
+    );
+    if (now < Number(prediction.endsAt || 0)) return true;
+    if (motion.phase !== "prediction_hold") {
+        motion.phase = "prediction_hold";
+        logLiveTrackPrediction("end", trackKey, { reason: "max_duration", predictionDuration: elapsedMs });
+    }
+    return false;
+}
 function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     const motion = entity?.__liveTrackMotionState;
     if (!motion?.startCartesian || !motion?.endCartesian) return false;
+    if (motion.phase === "prediction" || motion.phase === "prediction_hold") {
+        return updateLiveTrackPredictionFrame(entity, motion, now);
+    }
     const durationMs = Math.max(1, Number(motion.durationMs || 1));
     const t = clamp((now - Number(motion.startedAt || 0)) / durationMs, 0, 1);
     motion.currentCartesian = Cesium.Cartesian3.lerp(
@@ -7092,6 +7324,9 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     entity.__currentPitchDeg = Number(motion.endPitchDeg || 0);
     entity.__currentRollDeg = Number(motion.endRollDeg || 0);
     entity.__liveTrackLastCommittedSourceTimestamp = Number(motion.sourceTimestamp || 0);
+    if (motion.prediction?.eligible && now < Number(motion.prediction.endsAt || 0)) {
+        return updateLiveTrackPredictionFrame(entity, motion, now);
+    }
     entity.__liveTrackMotionState = null;
     return false;
 }
@@ -7135,8 +7370,11 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         cancelAnimationFrame(entity.__liveTrackAnimFrame);
         entity.__liveTrackAnimFrame = null;
     }
-    if (entity.__liveTrackMotionState) {
-        updateLiveTrackMotionFrame(entity, performance.now());
+    const receivedAt = performance.now();
+    const previousMotion = entity.__liveTrackMotionState;
+    const wasPredicting = previousMotion?.phase === "prediction" || previousMotion?.phase === "prediction_hold";
+    if (previousMotion) {
+        updateLiveTrackMotionFrame(entity, receivedAt);
     }
     const startCartesian = getPositionCartesian(entity);
     const nextCartesian = buildTrackEntityCartesian(
@@ -7148,6 +7386,38 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     );
     const trackKey = entity.__trackKey;
     if (!nextCartesian) return;
+    const predictionErrorMeters = wasPredicting
+        ? getCartesianDistanceMeters(startCartesian, nextCartesian)
+        : 0;
+    if (wasPredicting) {
+        const previousPredictionDuration = clamp(
+            receivedAt - Number(previousMotion?.prediction?.startedAt || receivedAt),
+            0,
+            LIVE_TRACK_MAX_PREDICTION_MS
+        );
+        __liveTrackPredictionDiagnostics.correctionCount += 1;
+        __liveTrackPredictionDiagnostics.largestCorrectionErrorMeters = Math.max(
+            __liveTrackPredictionDiagnostics.largestCorrectionErrorMeters,
+            predictionErrorMeters
+        );
+        const expectedPredictionDistance = Number(previousMotion?.prediction?.speedMps || 0) *
+            (previousPredictionDuration / 1000);
+        const excessiveThreshold = Math.max(
+            LIVE_TRACK_PREDICTION_LARGE_CORRECTION_METERS,
+            expectedPredictionDistance * LIVE_TRACK_PREDICTION_LARGE_ERROR_FACTOR
+        );
+        if (predictionErrorMeters > excessiveThreshold) {
+            entity.__liveTrackPredictionDisabledUntil = receivedAt + LIVE_TRACK_PREDICTION_COOLDOWN_MS;
+        }
+        logLiveTrackPrediction("authoritative update", trackKey, {
+            predictionDuration: previousPredictionDuration,
+            predictedPosition: startCartesian ? { x: startCartesian.x, y: startCartesian.y, z: startCartesian.z } : null,
+            sourcePosition: { lon: nextLon, lat: nextLat, altitudeMeters: nextAlt },
+            errorMeters: predictionErrorMeters,
+            predictionCooldown: predictionErrorMeters > excessiveThreshold,
+        });
+        logLiveTrackPrediction("end", trackKey, { reason: "new_source", predictionDuration: previousPredictionDuration });
+    }
     const currentAttitude = getLiveTrackMotionAttitude(entity, nextAttitude || {});
     const motionHeadingDeg = getRenderedTrackMotionHeading(
         startCartesian,
@@ -7197,6 +7467,13 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         if (trackKey) {
             pushTrackTrailPointFromCartesian(trackKey, track, cartesianPosition, endHeadingDeg);
         }
+        armLiveTrackPrediction(
+            entity,
+            track,
+            nextSourceTimestamp,
+            receivedAt,
+            { headingDeg: endHeadingDeg, pitchDeg: endPitchDeg, rollDeg: endRollDeg }
+        );
         requestWarzoneRenderBatched();
     };
     if (!startCartesian) {
@@ -7227,7 +7504,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
             sourceTimestamp > prevSourceTimestamp
             ? sourceTimestamp - prevSourceTimestamp
             : fallbackAnimMs;
-    if (isMajorLiveTrackCorrection(distanceMeters, sourceGapMs, track)) {
+    if (!wasPredicting && isMajorLiveTrackCorrection(distanceMeters, sourceGapMs, track)) {
         if (trackKey) {
             __liveTrackTrails.delete(trackKey);
             __liveTrackTrailPositionsCache.delete(trackKey);
@@ -7245,14 +7522,20 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         minAnimMs,
         maxAnimMs
     );
-    const duration = clamp(
+    let duration = clamp(
         isFocusedTrack
             ? Math.max(cadenceDuration, distanceDuration)
             : Math.max(cadenceDuration, distanceDuration),
         minAnimMs,
         maxAnimMs
     );
-    const startTime = performance.now();
+    if (wasPredicting && predictionErrorMeters > LIVE_TRACK_PREDICTION_SMALL_CORRECTION_METERS) {
+        duration = Math.min(
+            duration,
+            clamp(predictionErrorMeters * 0.5, minAnimMs, LIVE_TRACK_PREDICTION_RECONCILE_MAX_MS)
+        );
+    }
+    const startTime = receivedAt;
     let endOrientation = null;
     if (entity.model) {
         endOrientation = buildTrackOrientation(
@@ -7273,8 +7556,11 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         endBillboardRotation = startBillboardRotation + getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg);
     }
 
-    if (trackKey) pushTrackTrailPointFromCartesian(trackKey, track, startCartesian, startHeadingDeg);
+    if (trackKey && !wasPredicting) pushTrackTrailPointFromCartesian(trackKey, track, startCartesian, startHeadingDeg);
+    const prediction = getLiveTrackPredictionTelemetry(track, entity, receivedAt);
+    prediction.endsAt = receivedAt + LIVE_TRACK_MAX_PREDICTION_MS;
     entity.__liveTrackMotionState = {
+        phase: "interpolation",
         sourceTimestamp,
         startedAt: startTime,
         endsAt: startTime + duration,
@@ -7293,9 +7579,10 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         startBillboardRotation,
         billboardRotationDelta: getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg),
         endBillboardRotation,
+        prediction,
     };
     updateLiveTrackMotionFrame(entity, startTime);
-    wakeLiveTrackInterpolationRender(duration);
+    wakeLiveTrackInterpolationRender(Math.max(duration, prediction.eligible ? LIVE_TRACK_MAX_PREDICTION_MS : 0));
 }
 
 function resetLiveTrackRuntimeForLifecycle(entity) {
@@ -7564,18 +7851,21 @@ function applyLiveTrackUpdate(track, options = {}) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
     let entity = viewer.entities.getById(id);
-    const telemetryUpdate = forceVisualRefresh || options.validatedVisualState === true
+    let telemetryUpdate = forceVisualRefresh || options.validatedVisualState === true
         ? "accept"
         : classifyLiveTrackTelemetryUpdate(entity, track, sourceTimestamp);
     if (telemetryUpdate === "stale") {
         options.onTelemetryResult?.({ status: "stale" });
         return;
     }
-    if (telemetryUpdate === "insignificant") {
+    const hasPredictedVisualPosition = entity?.__liveTrackMotionState?.phase === "prediction" ||
+        entity?.__liveTrackMotionState?.phase === "prediction_hold";
+    if (telemetryUpdate === "insignificant" && !hasPredictedVisualPosition) {
         refreshLiveTrackLiveness(entity, track, sourceTimestamp);
         options.onTelemetryResult?.({ status: "insignificant", candidate: track, sourceTimestamp });
         return;
     }
+    if (telemetryUpdate === "insignificant") telemetryUpdate = "accept";
 
     const resolvedHeadingDeg = getTrackResolvedHeading(track);
     const registryEntry = forceVisualRefresh || options.validatedVisualState === true
@@ -7658,6 +7948,7 @@ function applyLiveTrackUpdate(track, options = {}) {
         entity.__lastReportedSpeedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? 0);
         __liveTrackEntities.set(id, entity);
         __liveTrackCreatedCount += 1;
+        armLiveTrackPrediction(entity, track, sourceTimestamp, performance.now(), attitude);
     } else {
         entity.__trackKey = track.track_key;
         entity.__trackPickable = true;
@@ -7933,6 +8224,9 @@ export function getLiveTrackDiagnostics() {
     __liveTrackEntities.forEach((entity) => {
         if (hasActiveLiveTrackMotion(entity)) activeInterpolationCount += 1;
     });
+    const activePredictionCount = [...__liveTrackEntities.values()]
+        .filter((entity) => entity?.__liveTrackMotionState?.phase === "prediction")
+        .length;
     const focusedTrailPointCount = focusedTrackKey
         ? (__liveTrackTrails.get(focusedTrackKey) || []).length
         : 0;
@@ -7946,6 +8240,15 @@ export function getLiveTrackDiagnostics() {
     const pipelineDiagnostics = window.__getWarzoneAircraftPipelineDiagnostics?.() || null;
     return Object.freeze({
         activeCesiumAircraftEntities: __liveTrackEntities.size,
+        aircraftPrediction: Object.freeze({
+            enabled: isLiveTrackPredictionEnabled(),
+            maxWindowMs: LIVE_TRACK_MAX_PREDICTION_MS,
+            activePredictionCount,
+            beginCount: __liveTrackPredictionDiagnostics.beginCount,
+            correctionCount: __liveTrackPredictionDiagnostics.correctionCount,
+            maxPredictionDurationMs: Math.round(__liveTrackPredictionDiagnostics.maxPredictionDurationMs),
+            largestCorrectionErrorMeters: Math.round(__liveTrackPredictionDiagnostics.largestCorrectionErrorMeters),
+        }),
         activeCesiumTrailEntities: [...__liveTrackEntities.values()]
             .filter((entity) => window.__warzoneViewer?.entities?.getById?.(`track-trail-${entity.__trackKey}`))
             .length,

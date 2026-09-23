@@ -122,6 +122,62 @@ test("aircraft orientation is rebuilt in the local frame of every rendered posit
   assert.doesNotMatch(motionFrame, /Quaternion\.slerp/);
 });
 
+test("aircraft prediction requires recent trustworthy motion telemetry and prefers ground track", () => {
+  const registry = new Map([["A", { active: true, liveness_state: "live" }]]);
+  const context = vm.createContext({
+    performance: { now: () => 1000 },
+    window: { __stratopsConfig: {}, localStorage: { getItem: () => null } },
+    __liveTrackRegistry: registry,
+    LIVE_TRACK_MIN_PREDICTION_SPEED_KTS: 15,
+    LIVE_TRACK_MAX_PREDICTION_VERTICAL_RATE_FPM: 6000,
+    normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+    getTrackMetadata: (track) => track.metadata || {},
+    getTrackRenderAltitudeMeters: () => 10000,
+    isTrackOnGround: (track) => track.on_ground === true,
+  });
+  vm.runInContext(section(air, "isLiveTrackPredictionEnabled", "armLiveTrackPrediction"), context);
+  const valid = context.getLiveTrackPredictionTelemetry({
+    track_key: "A", lon: 10, lat: 20, speed_kts: 300,
+    ground_track_deg: 87, heading_deg: 240, vertical_rate_fpm: 1200,
+  }, {}, 1000);
+  assert.equal(valid.eligible, true);
+  assert.equal(valid.trackHeadingDeg, 87);
+  assert.equal(valid.verticalRateMps, 1200 * 0.00508);
+  assert.equal(context.getLiveTrackPredictionTelemetry({ track_key: "A", lon: 10, lat: 20, speed_kts: 0, heading_deg: 90 }, {}, 1000).reason, "invalid_speed");
+  assert.equal(context.getLiveTrackPredictionTelemetry({ track_key: "A", lon: 10, lat: 20, speed_kts: 5, heading_deg: 90, on_ground: true }, {}, 1000).reason, "stationary_on_ground");
+  registry.get("A").liveness_state = "ended";
+  assert.equal(context.getLiveTrackPredictionTelemetry({ track_key: "A", lon: 10, lat: 20, speed_kts: 300, heading_deg: 90 }, {}, 1000).reason, "ended");
+});
+
+test("aircraft prediction uses geodetic ground-track distance without committing synthetic trail points", () => {
+  let rhumbInput = null;
+  const context = vm.createContext({
+    Cesium: {
+      Cartographic: { fromDegrees: (lon, lat, height) => ({ longitude: lon, latitude: lat, height }) },
+      EllipsoidRhumbLine: { fromStartHeadingDistance: (start, heading, distance) => {
+        rhumbInput = { start, heading, distance };
+        return { end: { longitude: 11, latitude: 21 } };
+      } },
+      Ellipsoid: { WGS84: {} },
+      Math: { toRadians: (value) => value * Math.PI / 180, toDegrees: (value) => value },
+    },
+    buildTrackEntityCartesian: (_track, lon, lat, altitudeMeters, headingDeg) => ({ lon, lat, altitudeMeters, headingDeg }),
+  });
+  vm.runInContext(section(air, "buildPredictedLiveTrackCartesian", "updateLiveTrackPredictionFrame"), context);
+  const result = context.buildPredictedLiveTrackCartesian({
+    track: {}, endCartesian: {}, prediction: {
+      eligible: true, lon: 10, lat: 20, altitudeMeters: 1000,
+      speedMps: 200, trackHeadingDeg: 90, verticalRateMps: 5,
+    },
+  }, 5000);
+  assert.equal(Math.round(rhumbInput.distance), 1000);
+  assert.equal(rhumbInput.heading, Math.PI / 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { lon: 11, lat: 21, altitudeMeters: 1025, headingDeg: 90 });
+  const animate = section(air, "animateTrackTo", "resetLiveTrackRuntimeForLifecycle");
+  assert.match(animate, /if \(trackKey && !wasPredicting\) pushTrackTrailPointFromCartesian/);
+  assert.match(animate, /startCartesian[\s\S]*nextCartesian[\s\S]*predictionErrorMeters/);
+});
+
 test("focused trail ignores unreached API history and follows only rendered positions", () => {
   const track = { path_history: [{ ts: 100, x: 1 }, { ts: 200, x: 20 }, { ts: 300, x: 30 }] };
   const trail = [

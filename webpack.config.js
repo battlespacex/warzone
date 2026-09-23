@@ -21,6 +21,38 @@ module.exports = (env, argv) => {
     const envPath = path.resolve(__dirname, envFile);
     const envVars = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {};
     const cesiumToken = envVars.CESIUM_ION_TOKEN || "";
+    const perfEmptyGlobe = isDev && /^(?:1|true|yes|on)$/i.test(String(
+        envVars.STRATOPS_PERF_EMPTY_GLOBE || process.env.STRATOPS_PERF_EMPTY_GLOBE || ""
+    ).trim());
+    const requestedBasemapProvider = String(envVars.STRATOPS_BASEMAP_PROVIDER || process.env.STRATOPS_BASEMAP_PROVIDER || "esri").trim().toLowerCase();
+    const requestedTerrainProvider = String(envVars.STRATOPS_TERRAIN_PROVIDER || process.env.STRATOPS_TERRAIN_PROVIDER || "legacy").trim().toLowerCase();
+    const requestedMapBaseUrl = String(envVars.STRATOPS_MAP_BASE_URL || process.env.STRATOPS_MAP_BASE_URL || "").trim();
+    const requestedTerrainBaseUrl = String(envVars.STRATOPS_TERRAIN_BASE_URL || process.env.STRATOPS_TERRAIN_BASE_URL || "").trim();
+    const isPublicHttpsUrl = (value) => {
+        try {
+            const url = new URL(value);
+            const host = url.hostname.toLowerCase();
+            const privateIpv4 = /^(?:10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(host);
+            return url.protocol === "https:" && host !== "localhost" && host !== "::1" &&
+                !host.endsWith(".local") && !privateIpv4;
+        } catch {
+            return false;
+        }
+    };
+    const mapUrlAllowed = isDev || isPublicHttpsUrl(requestedMapBaseUrl);
+    const terrainUrlAllowed = isDev || isPublicHttpsUrl(requestedTerrainBaseUrl);
+    const basemapProvider = requestedBasemapProvider === "selfhosted" && mapUrlAllowed ? "selfhosted" : "esri";
+    const terrainProvider = requestedTerrainProvider === "selfhosted"
+        ? (terrainUrlAllowed ? "selfhosted" : "none")
+        : requestedTerrainProvider;
+    const mapBaseUrl = mapUrlAllowed ? requestedMapBaseUrl : "";
+    const terrainBaseUrl = terrainUrlAllowed ? requestedTerrainBaseUrl : "";
+    if (!isDev && requestedBasemapProvider === "selfhosted" && !mapUrlAllowed) {
+        console.warn("[basemap] Production self-hosted map URL must be a public HTTPS URL; compiling the Esri fallback.");
+    }
+    if (!isDev && requestedTerrainProvider === "selfhosted" && !terrainUrlAllowed) {
+        console.warn("[terrain] Production self-hosted terrain URL must be a public HTTPS URL; compiling terrain=none.");
+    }
 
     const ROOT_DIR = __dirname;
     const PROD_DIR = path.resolve(ROOT_DIR, "production");
@@ -160,6 +192,11 @@ module.exports = (env, argv) => {
             new webpack.DefinePlugin({
                 CESIUM_BASE_URL: JSON.stringify("/assets/cesium"),
                 CESIUM_ION_TOKEN: JSON.stringify(cesiumToken),
+                STRATOPS_BASEMAP_PROVIDER: JSON.stringify(basemapProvider),
+                STRATOPS_TERRAIN_PROVIDER: JSON.stringify(["selfhosted", "none"].includes(terrainProvider) ? terrainProvider : "legacy"),
+                STRATOPS_MAP_BASE_URL: JSON.stringify(mapBaseUrl),
+                STRATOPS_TERRAIN_BASE_URL: JSON.stringify(terrainBaseUrl),
+                STRATOPS_PERF_EMPTY_GLOBE: JSON.stringify(perfEmptyGlobe),
                 __STRATOPS_DEV_TOOLS__: JSON.stringify(isDev),
             }),
 

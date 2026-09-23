@@ -1,0 +1,612 @@
+{
+  "label": "old-smooth-fbd0147-empty",
+  "url": "http://127.0.0.1:4175/pages/index.html",
+  "durationMs": 30000,
+  "emptyMode": false,
+  "frames": {
+    "fps": 53.83,
+    "count": 1666,
+    "averageMs": 18.59,
+    "p95Ms": 18.4,
+    "p99Ms": 35.3,
+    "maximumMs": 783.7,
+    "over50Ms": 17,
+    "over100Ms": 8,
+    "over200Ms": 7
+  },
+  "longTasks": {
+    "count": 14,
+    "totalMs": 2772,
+    "worstMs": 763,
+    "top": [
+      {
+        "start": 25998.09999999404,
+        "duration": 763
+      },
+      {
+        "start": 26837.09999999404,
+        "duration": 315
+      },
+      {
+        "start": 25688.5,
+        "duration": 307
+      },
+      {
+        "start": 37487.19999998808,
+        "duration": 267
+      },
+      {
+        "start": 37754.59999999404,
+        "duration": 255
+      },
+      {
+        "start": 31023.09999999404,
+        "duration": 251
+      },
+      {
+        "start": 37309.29999998212,
+        "duration": 177
+      },
+      {
+        "start": 32540.899999976158,
+        "duration": 69
+      },
+      {
+        "start": 25479.79999998212,
+        "duration": 65
+      },
+      {
+        "start": 38926.5,
+        "duration": 64
+      },
+      {
+        "start": 36441.79999998212,
+        "duration": 63
+      },
+      {
+        "start": 29658.29999998212,
+        "duration": 62
+      },
+      {
+        "start": 28204.399999976158,
+        "duration": 61
+      },
+      {
+        "start": 43299.39999997616,
+        "duration": 53
+      }
+    ]
+  },
+  "requestRender": {
+    "calls": 120,
+    "callsPerSecond": 3.88,
+    "callers": [
+      [
+        "at Array.<anonymous> (/assets/js/bundle.js:421591:13)",
+        64
+      ],
+      [
+        "at callAfterRenderFunctions (/assets/js/bundle.js:425483:13)",
+        29
+      ],
+      [
+        "at /assets/js/bundle.js:37384:37",
+        12
+      ],
+      [
+        "at __webpack_modules__../node_modules/@cesium/engine/Source/Widget/CesiumWidget.js.CesiumWidget.resize (/assets/js/bundle.js:493649:15)",
+        9
+      ],
+      [
+        "at applyEventLod (/assets/js/bundle.js:31853:16)",
+        3
+      ],
+      [
+        "at /assets/js/bundle.js:33595:35",
+        3
+      ]
+    ]
+  },
+  "handlerTimings": [
+    {
+      "event": "camera.moveStart",
+      "index": 0,
+      "source": "() => { clearTimeout(moveSettleTimer); viewer.__warzoneCameraMoving = true; queuePerfSync(); }",
+      "count": 2,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.04999999701976776
+    },
+    {
+      "event": "camera.moveStart",
+      "index": 1,
+      "source": "() => { moving = true; }",
+      "count": 2,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveStart",
+      "index": 2,
+      "source": "() => { clearPendingRegionHintRefresh(); }",
+      "count": 2,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveStart",
+      "index": 3,
+      "source": "function onCameraMoveStart() { cameraMoving = true; clearTimeout(moveEndTimer); scheduleRender(0); }",
+      "count": 2,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 0,
+      "source": "() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; clampCameraZoomDistance(viewer); }); }",
+      "count": 3,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.03333333134651184
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 1,
+      "source": "() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; clamp2DCameraCenter(viewer); clamp2DProjectedViewport(viewer); }); }",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 2,
+      "source": "() => { if (pending) return; pending = true; requestAnimationFrame(run); }",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 3,
+      "source": "() => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; updateLabelsLayerVisibility(viewer); viewer.scene.requestRender?.(); }); }",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 4,
+      "source": "() => { if (perfRaf) return; perfRaf = requestAnimationFrame(() => { perfRaf = 0; const count = Math.max(0, Number(viewer.__warzonePerformanceState?.visibleCount || 0)); viewer.__warzone?.setPerformanceMode?.(count); vie",
+      "count": 3,
+      "totalMs": 0.6000000238418579,
+      "worstMs": 0.6000000238418579,
+      "averageMs": 0.20000000794728598
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 5,
+      "source": "() => { clearTimeout(moveSettleTimer); moveSettleTimer = window.setTimeout(() => { viewer.__warzoneCameraMoving = false; queuePerfSync(); }, 360); }",
+      "count": 3,
+      "totalMs": 0.20000001788139343,
+      "worstMs": 0.10000002384185791,
+      "averageMs": 0.06666667262713115
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 6,
+      "source": "() => queueRefresh(260)",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 7,
+      "source": "() => { moving = false; }",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 8,
+      "source": "() => { scheduleRegionButtonHintRefresh(viewer); }",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 9,
+      "source": "function onCameraMoveEnd() { clearTimeout(moveEndTimer); moveEndTimer = setTimeout(() => { cameraMoving = false; scheduleRender(0); }, 60); }",
+      "count": 3,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.moveEnd",
+      "index": 10,
+      "source": "() => { scheduleViewportFetch(500); }",
+      "count": 3,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.03333333134651184
+    },
+    {
+      "event": "camera.changed",
+      "index": 0,
+      "source": "function (amount) { if (((0,_Core_defined_js__WEBPACK_IMPORTED_MODULE_4__[\"default\"])(amount) && amount < 0.05) || !entityCluster.enabled) { return; } const scene = entityCluster._scene; const labelCollection = entityClu",
+      "count": 16,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.changed",
+      "index": 1,
+      "source": "() => { refreshRegionButtonHintOnNextFrame(viewer); }",
+      "count": 16,
+      "totalMs": 0,
+      "worstMs": 0,
+      "averageMs": 0
+    },
+    {
+      "event": "camera.changed",
+      "index": 2,
+      "source": "function (amount) { if (((0,_Core_defined_js__WEBPACK_IMPORTED_MODULE_4__[\"default\"])(amount) && amount < 0.05) || !entityCluster.enabled) { return; } const scene = entityCluster._scene; const labelCollection = entityClu",
+      "count": 16,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.00624999962747097
+    },
+    {
+      "event": "camera.changed",
+      "index": 3,
+      "source": "function (amount) { if (((0,_Core_defined_js__WEBPACK_IMPORTED_MODULE_4__[\"default\"])(amount) && amount < 0.05) || !entityCluster.enabled) { return; } const scene = entityCluster._scene; const labelCollection = entityClu",
+      "count": 16,
+      "totalMs": 0.09999999403953552,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.00624999962747097
+    },
+    {
+      "event": "scene.postRender",
+      "index": 0,
+      "source": "function () { // Adds credits for all datasources const frameState = this._scene.frameState; const dataSources = this._dataSourceCollection; const length = dataSources.length; for (let i = 0; i < length; i++) { const dat",
+      "count": 459,
+      "totalMs": 3.6000000834465027,
+      "worstMs": 0.5999999940395355,
+      "averageMs": 0.00784313743670262
+    },
+    {
+      "event": "scene.postRender",
+      "index": 1,
+      "source": "function () { updateZoomTarget(this); updateTrackedEntity(this); }",
+      "count": 459,
+      "totalMs": 1.3000001013278961,
+      "worstMs": 0.20000001788139343,
+      "averageMs": 0.0028322442294725406
+    },
+    {
+      "event": "scene.postRender",
+      "index": 2,
+      "source": "() => { const height = getCameraHeight(viewer); const cameraCtrl = viewer.scene?.screenSpaceCameraController; const maxZoomDistance = Number(cameraCtrl?.maximumZoomDistance || numberVar(\"--warzone-camera-max-zoom\", 20000",
+      "count": 459,
+      "totalMs": 6.5999999940395355,
+      "worstMs": 1.2000000178813934,
+      "averageMs": 0.0143790849543345
+    },
+    {
+      "event": "scene.postRender",
+      "index": 3,
+      "source": "() => { if (getSceneMode(viewer) !== \"2d\") return; const cartographic = viewer.camera?.positionCartographic; if (!cartographic) return; const maxLatDeg = Math.max(70, Math.min(85.04, numberVar(\"--warzone-2d-max-latitude\"",
+      "count": 459,
+      "totalMs": 2.299999922513962,
+      "worstMs": 0.699999988079071,
+      "averageMs": 0.005010893077372466
+    },
+    {
+      "event": "scene.postRender",
+      "index": 4,
+      "source": "() => { const currentHeight = getCameraHeight(viewer); if (Math.abs(currentHeight - (__EVENT_LOD_STATE.cameraHeight || 0)) > 250000) { queue(); } }",
+      "count": 459,
+      "totalMs": 1.8000000417232513,
+      "worstMs": 0.29999998211860657,
+      "averageMs": 0.00392156871835131
+    },
+    {
+      "event": "scene.postRender",
+      "index": 5,
+      "source": "() => { const h = getCameraHeight(viewer); if (!Number.isFinite(h)) return; const prev = Number(viewer.__labelsLastCameraHeight || 0); if (Math.abs(h - prev) >= 120000) { viewer.__labelsLastCameraHeight = h; queue(); } }",
+      "count": 459,
+      "totalMs": 2.8999999463558197,
+      "worstMs": 0.30000001192092896,
+      "averageMs": 0.006318082671799172
+    },
+    {
+      "event": "scene.postRender",
+      "index": 6,
+      "source": "() => { if (moving !== true || viewer.__contourLayerVisible !== true) return; const contourState = getContourOverlayState(viewer); if (contourState?.hasFocusPosition === true) return; const now = Date.now(); if (now - la",
+      "count": 459,
+      "totalMs": 0.4999999701976776,
+      "worstMs": 0.09999999403953552,
+      "averageMs": 0.0010893245538075764
+    },
+    {
+      "event": "scene.postRender",
+      "index": 7,
+      "source": "function onPostRender() { if (!cameraMoving) return; const now = performance.now(); const moveThrottle = allEvents.length > 2000 ? Math.max(cfg.throttleMove, 96) : allEvents.length > 1000 ? Math.max(cfg.throttleMove, 72)",
+      "count": 459,
+      "totalMs": 89.19999998807907,
+      "worstMs": 7.699999988079071,
+      "averageMs": 0.1943355119565993
+    },
+    {
+      "event": "scene.postUpdate",
+      "index": 0,
+      "source": "function () { const cesiumWidget = this._cesiumWidget; const container = this._container; const width = container.clientWidth; const height = container.clientHeight; const animationExists = (0,_cesium_engine__WEBPACK_IMP",
+      "count": 1671,
+      "totalMs": 48.300000071525574,
+      "worstMs": 3.5999999940395355,
+      "averageMs": 0.028904847439572456
+    }
+  ],
+  "canvas": {
+    "clientWidth": 1712,
+    "clientHeight": 1000,
+    "width": 1472,
+    "height": 860,
+    "drawingBufferWidth": 1472,
+    "drawingBufferHeight": 860,
+    "devicePixelRatio": 1,
+    "resolutionScale": 0.86
+  },
+  "resize": {
+    "viewerResizeCalls": 0,
+    "resizeObserverCallbacks": 1,
+    "canvasAttributeChanges": 18,
+    "canvasSizeChanges": [
+      {
+        "at": 25543.59999999404,
+        "width": 1712,
+        "height": 1000,
+        "resolutionScale": 1
+      },
+      {
+        "at": 27192.5,
+        "width": 1472,
+        "height": 860,
+        "resolutionScale": 0.86
+      },
+      {
+        "at": 28264.79999998212,
+        "width": 1712,
+        "height": 1000,
+        "resolutionScale": 1
+      },
+      {
+        "at": 29716.899999976158,
+        "width": 1472,
+        "height": 860,
+        "resolutionScale": 0.86
+      },
+      {
+        "at": 32608.59999999404,
+        "width": 1712,
+        "height": 1000,
+        "resolutionScale": 1
+      },
+      {
+        "at": 35788.09999999404,
+        "width": 1472,
+        "height": 860,
+        "resolutionScale": 0.86
+      },
+      {
+        "at": 36504.09999999404,
+        "width": 1712,
+        "height": 1000,
+        "resolutionScale": 1
+      },
+      {
+        "at": 38253.59999999404,
+        "width": 1472,
+        "height": 860,
+        "resolutionScale": 0.86
+      },
+      {
+        "at": 38989.59999999404,
+        "width": 1712,
+        "height": 1000,
+        "resolutionScale": 1
+      }
+    ]
+  },
+  "settings": {
+    "requestRenderMode": true,
+    "maximumRenderTimeChange": null,
+    "msaaSamples": 1,
+    "fxaa": true,
+    "hdr": false,
+    "fog": false,
+    "globeLighting": false,
+    "dynamicAtmosphereLighting": true,
+    "groundAtmosphere": false,
+    "shadows": false,
+    "terrainShadows": 3,
+    "oit": true,
+    "maximumScreenSpaceError": 3.1,
+    "tileCacheSize": 220,
+    "loadingDescendantLimit": 10,
+    "preloadAncestors": true,
+    "preloadSiblings": false,
+    "cameraPercentageChanged": 0.5,
+    "terrainProvider": "EllipsoidTerrainProvider"
+  },
+  "runtime": {
+    "imageryLayers": 1,
+    "primitives": 9,
+    "groundPrimitives": 1,
+    "dataSources": 2,
+    "entities": 0,
+    "tilesets": 0,
+    "models": 0,
+    "billboards": 0,
+    "labels": 0,
+    "overlayEffects": [],
+    "bodyClasses": "home__page is-free-tier is-authenticated is-app-active",
+    "entryVisible": false,
+    "startupSatelliteState": null,
+    "devToolsPresent": true
+  },
+  "network": {
+    "imageryRequests": 18,
+    "terrainRequests": 0,
+    "totalRequests": 35
+  },
+  "cesiumPerf": {},
+  "cpu": [
+    {
+      "frame": "(idle) | :0",
+      "milliseconds": 21391.4
+    },
+    {
+      "frame": "(program) | :0",
+      "milliseconds": 3128
+    },
+    {
+      "frame": "readPixels | :0",
+      "milliseconds": 2510.3
+    },
+    {
+      "frame": "getProgramParameter | :0",
+      "milliseconds": 1809.4
+    },
+    {
+      "frame": "configureCanvasSize | /assets/js/bundle.js:492684",
+      "milliseconds": 470.7
+    },
+    {
+      "frame": "(garbage collector) | :0",
+      "milliseconds": 403.2
+    },
+    {
+      "frame": "get clientWidth | :0",
+      "milliseconds": 257.7
+    },
+    {
+      "frame": "bufferData | :0",
+      "milliseconds": 255.6
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Core/ComponentDatatype.js.ComponentDatatype.createTypedArray | /assets/js/bundle.js:97310",
+      "milliseconds": 132.1
+    },
+    {
+      "frame": "continueDraw | /assets/js/bundle.js:233391",
+      "milliseconds": 79.4
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Renderer/ShaderProgram.js.ShaderProgram._setUniforms | /assets/js/bundle.js:240450",
+      "milliseconds": 70.7
+    },
+    {
+      "frame": "checkFramebufferStatus | :0",
+      "milliseconds": 60.7
+    },
+    {
+      "frame": "requestAnimationFrame | :0",
+      "milliseconds": 59.7
+    },
+    {
+      "frame": "bindTexture | :0",
+      "milliseconds": 54.5
+    },
+    {
+      "frame": "addDrawCommandsForTile | /assets/js/bundle.js:311383",
+      "milliseconds": 42.8
+    },
+    {
+      "frame": "update | /assets/js/bundle.js:143604",
+      "milliseconds": 42.1
+    },
+    {
+      "frame": "bindVertexArray | :0",
+      "milliseconds": 40
+    },
+    {
+      "frame": "spin3D | /assets/js/bundle.js:430588",
+      "milliseconds": 39.2
+    },
+    {
+      "frame": "uniformMatrix4fv | :0",
+      "milliseconds": 34.2
+    },
+    {
+      "frame": "clone | /assets/js/bundle.js:136403",
+      "milliseconds": 32.1
+    },
+    {
+      "frame": "__webpack_modules__../node_modules/@cesium/engine/Source/Renderer/UniformState.js.UniformState.update | /assets/js/bundle.js:245990",
+      "milliseconds": 29.9
+    },
+    {
+      "frame": "set | /assets/js/bundle.js:244819",
+      "milliseconds": 29.3
+    },
+    {
+      "frame": "normalize | /assets/js/bundle.js:85532",
+      "milliseconds": 28.9
+    },
+    {
+      "frame": "uniform1fv | :0",
+      "milliseconds": 27.5
+    },
+    {
+      "frame": "updateMembers | /assets/js/bundle.js:264288",
+      "milliseconds": 27
+    },
+    {
+      "frame": "geodeticSurfaceNormalCartographic | /assets/js/bundle.js:107690",
+      "milliseconds": 25.9
+    },
+    {
+      "frame": "scene.requestRender | :50",
+      "milliseconds": 22.5
+    },
+    {
+      "frame": "getBoundingClientRect | :0",
+      "milliseconds": 20.6
+    },
+    {
+      "frame": "set | /assets/js/bundle.js:248551",
+      "milliseconds": 20.5
+    },
+    {
+      "frame": "wrapped | :23",
+      "milliseconds": 19.9
+    }
+  ],
+  "trace": [],
+  "consoleErrors": [],
+  "failedRequests": [
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-TVLJ0T513S&gtm=45je69l1v9247835443za200zd9247835443xf1&_p=1790157189145&gcd=13l3l3l3l1l1&npa=0&dma=0&are=1&cid=1841698521.1790157190&frm=0&ngs=1&pscdl=noapi&rcb=6&sr=1712x1000&uaa=x86&uab=64&uafvl=Chromium%3B151.0.7922.34%7CNot%253DA%253FBrand%3B99.0.0.0&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=en-us&_s=1&tag_exp=115616986~115938465~115938468~118897920~118897930~120213116~120385423~120469145~120469153&sid=1790157189&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fpages%2Findex.html&dt=StratOps%20%7C%20Real-Time%20Multi-Domain%20Battlespace%20Intelligence&en=page_view&_fv=1&_nsi=1&_ss=1&_ee=1&tfd=701",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-TVLJ0T513S&gtm=45je69l1v9247835443za200zd9247835443xf1&_p=1790157189145&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AEAAAAQ&ae=a&are=1&cid=1841698521.1790157190&frm=0&ngs=1&pscdl=noapi&rcb=6&sr=1712x1000&uaa=x86&uab=64&uafvl=Chromium%3B151.0.7922.34%7CNot%253DA%253FBrand%3B99.0.0.0&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=en-us&_s=2&tag_exp=115616986~115938465~115938468~118897920~118897930~120213116~120385423~120469145~120469153&sid=1790157189&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fpages%2Findex.html&dt=StratOps%20%7C%20Real-Time%20Multi-Domain%20Battlespace%20Intelligence&en=scroll&epn.percent_scrolled=90&_et=31&tfd=6598",
+      "error": "net::ERR_ABORTED"
+    }
+  ]
+}

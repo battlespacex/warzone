@@ -9,6 +9,7 @@ services/translation/
 # build outputs (keep only if you want these tracked)
 dist/
 build/
+.generated/selfhosted/
 
 # environment / secrets
 .env
