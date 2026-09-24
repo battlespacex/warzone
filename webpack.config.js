@@ -25,8 +25,17 @@ module.exports = (env, argv) => {
         envVars.STRATOPS_PERF_EMPTY_GLOBE || process.env.STRATOPS_PERF_EMPTY_GLOBE || ""
     ).trim());
     const requestedBasemapProvider = String(envVars.STRATOPS_BASEMAP_PROVIDER || process.env.STRATOPS_BASEMAP_PROVIDER || "esri").trim().toLowerCase();
+    const readBooleanEnv = (name, fallback = false) => /^(?:1|true|yes|on)$/i.test(String(
+        envVars[name] ?? process.env[name] ?? (fallback ? "true" : "false")
+    ).trim());
+    const enableGoogleMap = readBooleanEnv("STRATOPS_ENABLE_GOOGLE_MAP");
+    const enableTacticalMap = readBooleanEnv("STRATOPS_ENABLE_TACTICAL_MAP");
+    const googleMapsApiKey = String(
+        envVars.STRATOPS_GOOGLE_MAPS_API_KEY || process.env.STRATOPS_GOOGLE_MAPS_API_KEY || ""
+    ).trim();
     const requestedTerrainProvider = String(envVars.STRATOPS_TERRAIN_PROVIDER || process.env.STRATOPS_TERRAIN_PROVIDER || "legacy").trim().toLowerCase();
     const requestedMapBaseUrl = String(envVars.STRATOPS_MAP_BASE_URL || process.env.STRATOPS_MAP_BASE_URL || "").trim();
+    const requestedTacticalMapBaseUrl = String(envVars.STRATOPS_TACTICAL_MAP_BASE_URL || process.env.STRATOPS_TACTICAL_MAP_BASE_URL || "").trim();
     const requestedTerrainBaseUrl = String(envVars.STRATOPS_TERRAIN_BASE_URL || process.env.STRATOPS_TERRAIN_BASE_URL || "").trim();
     const isPublicHttpsUrl = (value) => {
         try {
@@ -40,18 +49,25 @@ module.exports = (env, argv) => {
         }
     };
     const mapUrlAllowed = isDev || isPublicHttpsUrl(requestedMapBaseUrl);
+    const tacticalMapUrlAllowed = isDev || isPublicHttpsUrl(requestedTacticalMapBaseUrl);
     const terrainUrlAllowed = isDev || isPublicHttpsUrl(requestedTerrainBaseUrl);
-    const basemapProvider = requestedBasemapProvider === "selfhosted" && mapUrlAllowed ? "selfhosted" : "esri";
+    const basemapProvider = ["esri", "google", "tactical"].includes(requestedBasemapProvider)
+        ? requestedBasemapProvider
+        : "esri";
     const terrainProvider = requestedTerrainProvider === "selfhosted"
         ? (terrainUrlAllowed ? "selfhosted" : "none")
         : requestedTerrainProvider;
     const mapBaseUrl = mapUrlAllowed ? requestedMapBaseUrl : "";
+    const localTacticalMapBaseUrl = "/assets/map/tactical/v1";
+    const tacticalMapBaseUrl = tacticalMapUrlAllowed
+        ? (requestedTacticalMapBaseUrl || (isDev ? localTacticalMapBaseUrl : ""))
+        : "";
     const terrainBaseUrl = terrainUrlAllowed ? requestedTerrainBaseUrl : "";
-    if (!isDev && requestedBasemapProvider === "selfhosted" && !mapUrlAllowed) {
-        console.warn("[basemap] Production self-hosted map URL must be a public HTTPS URL; compiling the Esri fallback.");
-    }
     if (!isDev && requestedTerrainProvider === "selfhosted" && !terrainUrlAllowed) {
         console.warn("[terrain] Production self-hosted terrain URL must be a public HTTPS URL; compiling terrain=none.");
+    }
+    if (!isDev && requestedTacticalMapBaseUrl && !tacticalMapUrlAllowed) {
+        console.warn("[map-style] Production tactical map URL must be a public HTTPS URL; tactical mode will fall back to Satellite/Esri.");
     }
 
     const ROOT_DIR = __dirname;
@@ -106,7 +122,6 @@ module.exports = (env, argv) => {
 
         entry: {
             main: path.resolve(DEV_DIR, "assets/js/index.js"),
-            poster: path.resolve(DEV_DIR, "assets/js/poster-generator.js"),
             reportCapture: path.resolve(DEV_DIR, "assets/js/report-capture.js"),
             reportPdfViewer: path.resolve(DEV_DIR, "assets/js/report-pdf-viewer.js"),
         },
@@ -115,14 +130,6 @@ module.exports = (env, argv) => {
             path: PROD_DIR,
             filename: (pathData) => {
                 const name = pathData.chunk?.name || "main";
-
-                // Keep poster assets under /poster so the existing
-                // CloudFront /poster* behavior sends them to the EC2 origin.
-                if (name === "poster") {
-                    return isDev
-                        ? "poster/assets/js/poster.js"
-                        : "poster/assets/js/poster.[contenthash:8].js";
-                }
 
                 if (name === "main") {
                     return isDev ? "assets/js/bundle.js" : "assets/js/bundle.[contenthash:8].js";
@@ -193,8 +200,12 @@ module.exports = (env, argv) => {
                 CESIUM_BASE_URL: JSON.stringify("/assets/cesium"),
                 CESIUM_ION_TOKEN: JSON.stringify(cesiumToken),
                 STRATOPS_BASEMAP_PROVIDER: JSON.stringify(basemapProvider),
+                STRATOPS_ENABLE_GOOGLE_MAP: JSON.stringify(enableGoogleMap),
+                STRATOPS_ENABLE_TACTICAL_MAP: JSON.stringify(enableTacticalMap),
+                STRATOPS_GOOGLE_MAPS_API_KEY: JSON.stringify(googleMapsApiKey),
                 STRATOPS_TERRAIN_PROVIDER: JSON.stringify(["selfhosted", "none"].includes(terrainProvider) ? terrainProvider : "legacy"),
                 STRATOPS_MAP_BASE_URL: JSON.stringify(mapBaseUrl),
+                STRATOPS_TACTICAL_MAP_BASE_URL: JSON.stringify(tacticalMapBaseUrl),
                 STRATOPS_TERRAIN_BASE_URL: JSON.stringify(terrainBaseUrl),
                 STRATOPS_PERF_EMPTY_GLOBE: JSON.stringify(perfEmptyGlobe),
                 __STRATOPS_DEV_TOOLS__: JSON.stringify(isDev),
@@ -212,14 +223,6 @@ module.exports = (env, argv) => {
             new MiniCssExtractPlugin({
                 filename: (pathData) => {
                     const name = pathData.chunk?.name || "entry";
-
-                    // Keep poster CSS under /poster for the same CloudFront
-                    // behavior as poster/index.html and poster JavaScript.
-                    if (name === "poster") {
-                        return isDev
-                            ? "poster/assets/css/poster.css"
-                            : "poster/assets/css/poster.[contenthash:8].css";
-                    }
 
                     if (!isDev) return "assets/css/style.[contenthash:8].css";
 
@@ -332,11 +335,11 @@ module.exports = (env, argv) => {
             }),
 
             new HtmlWebpackPlugin({
-                filename: "poster/index.html",
+                filename: "pages/poster.html",
                 template: path.resolve(DEV_DIR, "pages/poster.html"),
                 cache: !isDev,
                 inject: "head",
-                chunks: ["poster"],
+                chunks: ["main"],
                 scriptLoading: "defer",
             }),
 
@@ -446,6 +449,12 @@ module.exports = (env, argv) => {
                     },
 
                     static: [
+                        {
+                            directory: path.resolve(ROOT_DIR, ".generated", "selfhosted", "output", "map", "tactical", "v1"),
+                            publicPath: localTacticalMapBaseUrl,
+                            watch: false,
+                            serveIndex: false,
+                        },
                         {
                             directory: path.resolve(DEV_DIR, "public"),
                             publicPath: "/",
@@ -760,7 +769,7 @@ module.exports = (env, argv) => {
                     historyApiFallback: {
                         rewrites: [
                             { from: /^\/(?:warzone\/?)?$/, to: "/pages/index.html" },
-                            { from: /^\/poster\/?$/, to: "/poster/index.html" },
+                            { from: /^\/poster\/?$/, to: "/pages/poster.html" },
                             { from: /^\/404\/?$/, to: "/pages/404.html" },
                             { from: /^\/(?:warzone\/)?reports\/[^/]+\/?$/, to: "/pages/report.html" },
                             { from: /^\/(?:warzone\/)?report-capture\/?$/, to: "/pages/report-capture.html" },

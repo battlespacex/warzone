@@ -255,7 +255,7 @@ app.use((req, res, next) => {
     next();
 });
 app.get(["/poster", "/poster/"], (_req, res) => {
-    return res.sendFile(path.join(ROOT, "poster", "index.html"));
+    return sendPage(res, "poster");
 });
 app.use(express.static(ROOT));
 

@@ -3,7 +3,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap");
 
 
-:root {
+.poster-generator-page {
     --clippath-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-2: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
     --color-white: #eef0f5;
@@ -27,14 +27,7 @@
     --text-lg: 1.6rem;
 }
 
-*::before,
-*::after {
-    box-sizing: border-box;
-}
-
-
-
-html {
+html.poster-generator-document {
     scroll-behavior: smooth;
     font-size: 62.5%;
     -webkit-text-size-adjust: 100%;
@@ -192,7 +185,7 @@ body.poster-generator-page {
     accent-color: var(--color-teal-glow);
 }
 
-input[type="checkbox"] {
+.poster-generator-page input[type="checkbox"] {
     -webkit-appearance: none;
     appearance: none;
     margin: 0;
@@ -207,7 +200,7 @@ input[type="checkbox"] {
     box-sizing: border-box;
 }
 
-input[type="checkbox"]:checked {
+.poster-generator-page input[type="checkbox"]:checked {
     background-color: var(--color-teal);
     border-color: var(--color-teal-glow);
 }

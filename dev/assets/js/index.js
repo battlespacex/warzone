@@ -20,6 +20,9 @@ import {
 import { initStratopsBilling } from "./warzone-billing.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 import { initStartupBackground } from "./warzone-startup-background.js";
+import { initPosterGenerator } from "./poster-generator.js";
+
+const isPosterGeneratorPage = document.documentElement.classList.contains("poster-generator-document");
 
 const isLocalDevHost =
     window.location.hostname === "localhost" ||
@@ -27,14 +30,25 @@ const isLocalDevHost =
     window.location.hostname === "::1" ||
     window.location.hostname === "[::1]";
 const STRATOPS_API_BASE = isLocalDevHost ? "/api" : "https://api.battlespacex.com";
+const compiledTacticalMapBaseUrl = typeof STRATOPS_TACTICAL_MAP_BASE_URL === "undefined" ? "" : STRATOPS_TACTICAL_MAP_BASE_URL;
+const localTacticalMapBaseUrl = "/assets/map/tactical/v1";
 
 window.__stratopsConfig = {
     apiBase: STRATOPS_API_BASE,
     supportApiBase: STRATOPS_API_BASE,
     basemap: {
         provider: STRATOPS_BASEMAP_PROVIDER,
+        enableGoogle: STRATOPS_ENABLE_GOOGLE_MAP === true,
+        enableTactical: STRATOPS_ENABLE_TACTICAL_MAP === true,
+        google: {
+            apiKey: STRATOPS_GOOGLE_MAPS_API_KEY,
+        },
         selfhosted: {
             baseUrl: STRATOPS_MAP_BASE_URL,
+        },
+        tactical: {
+            baseUrl: compiledTacticalMapBaseUrl ||
+                (isLocalDevHost ? localTacticalMapBaseUrl : ""),
         },
     },
     terrain: {
@@ -166,7 +180,7 @@ function reportStartupPerformance() {
     if (rows.length) console.table(rows);
 }
 
-markStartupPerformance("stratops-navigation-start");
+if (!isPosterGeneratorPage) markStartupPerformance("stratops-navigation-start");
 
 function wait(ms = 0) {
     return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
@@ -275,7 +289,7 @@ async function warmupInitialTheater(viewer, options = {}) {
     }, 15000);
 }
 
-initBoot();
+if (!isPosterGeneratorPage) initBoot();
 
 function resolveStartupAdaptiveQualityProfile() {
     const memoryGb = Number(navigator?.deviceMemory);
@@ -466,7 +480,11 @@ function getEmptyGlobeDiagnosticOptions() {
     };
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+if (isPosterGeneratorPage) {
+    document.addEventListener("DOMContentLoaded", () => {
+        initPosterGenerator();
+    }, { once: true });
+} else document.addEventListener("DOMContentLoaded", async () => {
     try {
         if (window.__stratopsConfig.basemap.provider === "selfhosted") {
             const basemapCredit = document.getElementById("wz-basemap-provider-credit");

@@ -1,6 +1,17 @@
 # StratOps static basemap and terrain pilot
 
-The default remains Esri. `STRATOPS_BASEMAP_PROVIDER=selfhosted` uses static raster XYZ tiles; `STRATOPS_TERRAIN_PROVIDER=selfhosted` independently uses static Cesium heightmap terrain. Neither mode requests Google, Mapbox, or Cesium ion tiles. The browser makes direct requests to the configured static asset host. The local pilot server is only a development stand-in for CloudFront; it must not be used for production.
+`STRATOPS_BASEMAP_PROVIDER=esri|google|tactical` is the only basemap selection mechanism. Esri is the default. There is no browser control or persisted browser preference.
+
+Google and Tactical are opt-in:
+
+```dotenv
+STRATOPS_ENABLE_GOOGLE_MAP=false
+STRATOPS_ENABLE_TACTICAL_MAP=false
+```
+
+Google requires both `STRATOPS_ENABLE_GOOGLE_MAP=true` and `STRATOPS_GOOGLE_MAPS_API_KEY`. Tactical requires both `STRATOPS_ENABLE_TACTICAL_MAP=true` and `STRATOPS_TACTICAL_MAP_BASE_URL` in production. A disabled provider, missing required configuration, or initialization failure falls back to Esri. Terrain configuration remains independent.
+
+The default remains Esri. `STRATOPS_TERRAIN_PROVIDER=selfhosted` independently uses static Cesium heightmap terrain. The browser makes direct requests to the configured provider. The local Tactical pilot server is only a development stand-in for a static asset host; it must not be used for production.
 
 ## Data and format decision
 
@@ -30,13 +41,14 @@ All downloaded inputs and generated tiles stay under `.generated/selfhosted`, wh
 For a local build, set the following in the root `.env.local` (`npm run dev`) or `.env.production` (`npm run build`), then restart/rebuild:
 
 ```dotenv
-STRATOPS_BASEMAP_PROVIDER=selfhosted
+STRATOPS_BASEMAP_PROVIDER=tactical
+STRATOPS_ENABLE_TACTICAL_MAP=true
 STRATOPS_MAP_BASE_URL=http://127.0.0.1:4181/map/v1
 STRATOPS_TERRAIN_PROVIDER=selfhosted
 STRATOPS_TERRAIN_BASE_URL=http://127.0.0.1:4181/terrain/v1
 ```
 
-For no terrain, set `STRATOPS_TERRAIN_PROVIDER=none`; this also prevents the legacy focused ArcGIS terrain path. For complete rollback, set `STRATOPS_BASEMAP_PROVIDER=esri` and `STRATOPS_TERRAIN_PROVIDER=legacy` (the defaults), then restart/rebuild. The existing Esri imagery and optional focused terrain remain intact. Missing or invalid self-hosted imagery falls back to Esri; self-hosted terrain failure leaves the ellipsoid. Neither fallback recreates Cesium.
+For no terrain, set `STRATOPS_TERRAIN_PROVIDER=none`; this also prevents the legacy focused ArcGIS terrain path. For complete rollback, set `STRATOPS_BASEMAP_PROVIDER=esri` and `STRATOPS_TERRAIN_PROVIDER=legacy` (the defaults), then restart/rebuild. Google and Tactical failures fall back to Esri; self-hosted terrain failure leaves the ellipsoid. Neither fallback recreates Cesium.
 
 Production builds accept self-hosted tile URLs only when they are public `https://` URLs. A production build requested with a missing, HTTP, localhost, `.local`, link-local, or private-network map URL compiles the Esri provider instead and removes the rejected URL from the bundle. The corresponding invalid self-hosted terrain configuration compiles as `terrain=none`. Local HTTP tile URLs remain available in development builds.
 

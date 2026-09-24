@@ -7,8 +7,9 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $output = Join-Path $root '.generated\selfhosted\output'
 $map = Join-Path $output 'map\v1'
+$tactical = Join-Path $output 'map\tactical\v1'
 $terrain = Join-Path $output 'terrain\v1'
-foreach ($required in @((Join-Path $map 'manifest.json'), (Join-Path $terrain 'layer.json'))) {
+foreach ($required in @((Join-Path $map 'manifest.json'), (Join-Path $tactical 'manifest.json'), (Join-Path $terrain 'layer.json'))) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing pilot output: $required. Run pilot.py build-map and build-terrain first."
     }
@@ -23,10 +24,14 @@ $metadata = 'public, max-age=300'
 
 aws s3 sync $map "s3://$Bucket/map/v1/" --exclude manifest.json --content-type image/jpeg --cache-control $immutable @dryRun
 if ($LASTEXITCODE -ne 0) { throw 'Map tile upload failed.' }
+aws s3 sync $tactical "s3://$Bucket/map/tactical/v1/" --exclude manifest.json --content-type image/webp --cache-control $immutable @dryRun
+if ($LASTEXITCODE -ne 0) { throw 'Tactical map tile upload failed.' }
 aws s3 sync $terrain "s3://$Bucket/terrain/v1/" --exclude layer.json --content-type application/octet-stream --cache-control $immutable @dryRun
 if ($LASTEXITCODE -ne 0) { throw 'Terrain tile upload failed.' }
 aws s3 cp (Join-Path $map 'manifest.json') "s3://$Bucket/map/v1/manifest.json" --content-type application/json --cache-control $metadata @dryRun
 if ($LASTEXITCODE -ne 0) { throw 'Map manifest upload failed.' }
+aws s3 cp (Join-Path $tactical 'manifest.json') "s3://$Bucket/map/tactical/v1/manifest.json" --content-type application/json --cache-control $metadata @dryRun
+if ($LASTEXITCODE -ne 0) { throw 'Tactical map manifest upload failed.' }
 aws s3 cp (Join-Path $terrain 'layer.json') "s3://$Bucket/terrain/v1/layer.json" --content-type application/json --cache-control $metadata @dryRun
 if ($LASTEXITCODE -ne 0) { throw 'Terrain manifest upload failed.' }
 

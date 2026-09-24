@@ -8,7 +8,7 @@ Create a CloudFront Function from the following template. Replace `__POSTER_ACCE
 function handler(event) {
     var request = event.request;
     var uri = request.uri;
-    var isPosterPage = uri === "/poster" || uri === "/poster/" || uri === "/poster/index.html";
+    var isPosterPage = uri === "/poster" || uri === "/poster/" || uri === "/pages/poster.html";
 
     if (!isPosterPage) {
         return request;
@@ -29,7 +29,7 @@ function handler(event) {
     }
 
     delete request.querystring.access;
-    request.uri = "/poster/index.html";
+    request.uri = "/pages/poster.html";
     return request;
 }
 ```
@@ -38,9 +38,9 @@ Deployment configuration:
 
 1. Generate a high-entropy token outside Git and substitute it only in the deployed function code.
 2. Publish the function and associate it with the StratOps distribution's viewer-request event for the behavior that includes `/poster*`.
-3. Keep the function association ahead of the cache lookup. The function validates every request, then removes the token from the origin/cache key and rewrites the clean route to `/poster/index.html`.
+3. Keep the function association ahead of the cache lookup. The function validates every request, then removes the token from the origin/cache key and rewrites the clean route to `/pages/poster.html`.
 4. Attach a response headers policy for `/poster*` that adds `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` to successful origin responses.
-5. Invalidate `/poster` and `/poster/index.html` after deploying the function and build.
+5. Invalidate `/poster` and `/pages/poster.html` after deploying the function and build.
 6. Verify `/poster` returns 404 without the token and `/poster?access=<deployment-token>` returns the tool.
 
 The shared `/assets/images/poster/` and `/assets/fonts/` files remain regular static assets. They do not expose the tool or the access token.

@@ -418,6 +418,7 @@ const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS
     .map((layer) => layer.id)
     .filter((id) => !IDLE_SUSPEND_EXCLUDED_LAYER_IDS.has(id));
 const GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS = new Set([
+    "aircraft",
     "naval",
     "airspace",
     "gnss",
@@ -7134,6 +7135,63 @@ function normalizeAircraftHistoryRow(row = {}) {
         __source: "tracks-db",
     };
 }
+function normalizeAircraftHistoryRowsProgressively(rows = []) {
+    const sourceRows = Array.isArray(rows) ? rows : [];
+    if (!sourceRows.length) return Promise.resolve([]);
+    const activeRegion = getActiveRegion?.();
+    const likelyLive = [];
+    const remaining = [];
+    sourceRows.forEach((row) => {
+        const lastSeenAt = new Date(
+            row?.last_seen_at || row?.updated_at || row?.created_at || row?.occurred_at || 0
+        ).getTime();
+        const active = String(row?.status || "active").toLowerCase() !== "ended" &&
+            Number.isFinite(lastSeenAt) && (Date.now() - lastSeenAt) <= AIRCRAFT_HISTORY_ACTIVE_WINDOW_MS;
+        const inRegion = isPointInsideRegion(Number(row?.lat), Number(row?.lon), activeRegion);
+        (active && inRegion ? likelyLive : remaining).push(row);
+    });
+    const orderedRows = likelyLive.concat(remaining);
+    const normalized = [];
+    let index = 0;
+    let previewSeeded = false;
+    return new Promise((resolve) => {
+        const processBatch = () => {
+            const startedAt = performance.now();
+            let processed = 0;
+            while (
+                index < orderedRows.length &&
+                processed < 12 &&
+                (processed === 0 || performance.now() - startedAt < 4)
+            ) {
+                const row = normalizeAircraftHistoryRow(orderedRows[index++]);
+                processed += 1;
+                if (!row.track_key || !isAircraftTrackSubtype(row.subcategory) || shouldExcludeFromMilitaryAircraftTracker(row)) {
+                    continue;
+                }
+                normalized.push(row);
+                if (
+                    !previewSeeded &&
+                    row.active &&
+                    isPointInsideRegion(Number(row.lat), Number(row.lon), activeRegion) &&
+                    isAircraftTrackingFeatureEnabled() &&
+                    isLayerEnabled("aircraft")
+                ) {
+                    previewSeeded = true;
+                    markTrackerPerf("aircraft", "first valid military track");
+                    const entity = upsertLiveTrack(row);
+                    if (entity) markTrackerPerf("aircraft", "first Cesium entity ready");
+                    requestAircraftMovementsWidgetRender(0);
+                }
+            }
+            if (index < orderedRows.length) {
+                requestAnimationFrame(processBatch);
+                return;
+            }
+            resolve(normalized);
+        };
+        processBatch();
+    });
+}
 async function refreshAircraftHistoryCache(force = false) {
     if (isDocumentHidden()) return __aircraftHistoryCache;
     if (!isAircraftTrackingFeatureEnabled() || !isLayerEnabled("aircraft")) return __aircraftHistoryCache;
@@ -7145,7 +7203,7 @@ async function refreshAircraftHistoryCache(force = false) {
     markTrackerPerf("aircraft", "request started");
     const requestStartedAt = performance.now();
     __aircraftHistoryLoadingPromise = api.getAircraftTracks()
-        .then(({ data, error }) => {
+        .then(async ({ data, error }) => {
             markTrackerPerf("aircraft", "response received", {
                 requestAndParseMs: Math.round(performance.now() - requestStartedAt),
                 rows: Array.isArray(data) ? data.length : 0,
@@ -7157,14 +7215,12 @@ async function refreshAircraftHistoryCache(force = false) {
                 return __aircraftHistoryCache;
             }
             const normalizeStartedAt = performance.now();
-            const normalized = Array.isArray(data) ? data.map(normalizeAircraftHistoryRow) : [];
+            const normalized = await normalizeAircraftHistoryRowsProgressively(data);
             markTrackerPerf("aircraft", "normalization finished", {
                 elapsedMs: Math.round(performance.now() - normalizeStartedAt), rows: normalized.length,
             });
             const filterStartedAt = performance.now();
             __aircraftHistoryCache = normalized
-                .filter((row) => row.track_key && isAircraftTrackSubtype(row.subcategory))
-                .filter((row) => !shouldExcludeFromMilitaryAircraftTracker(row))
                 .sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0))
                 .slice(0, AIRCRAFT_HISTORY_CACHE_MAX_ROWS);
             markTrackerPerf("aircraft", "military filter finished", {
@@ -7862,7 +7918,15 @@ function getAircraftWidgetItems() {
         .filter((track) => (track.__manualAircraftOverride && track.track_key === __manualAircraftSearch.trackKey) || !shouldExcludeFromMilitaryAircraftTracker(track))
         .filter((track) => String(track.subcategory || "").toLowerCase() !== "trainer")
         .filter((track) => (track.__manualAircraftOverride && track.track_key === __manualAircraftSearch.trackKey) || isTrackerItemVisibleInScope(track, __aircraftWidgetScopeFilter));
-    const historyItems = (__aircraftHistoryCache || [])
+    const recentCutoff = Date.now() - AIRCRAFT_RECENT_WINDOW_MS;
+    const historySourceItems = (__aircraftHistoryCache || []).filter((track) => {
+        if (__aircraftWidgetFilter === "active") return track.active;
+        if (__aircraftWidgetFilter === "recent") {
+            return track.active || Number(track.last_seen_at || 0) >= recentCutoff;
+        }
+        return true;
+    });
+    const historyItems = historySourceItems
         .map((track) => ({ ...track, subcategory: resolveAircraftSubtype(track) }))
         .filter((track) => !__aircraftHistorySeeding || !track.active || __seededAircraftTrackKeys.has(String(track.track_key)))
         .filter((track) => isAircraftTrackSubtype(track.subcategory))
@@ -7873,7 +7937,6 @@ function getAircraftWidgetItems() {
     const liveKeys = new Set(liveItems.map((track) => getAircraftMergeKey(track)));
     let baseItems = [];
     if (__aircraftWidgetFilter === "recent") {
-        const recentCutoff = Date.now() - AIRCRAFT_RECENT_WINDOW_MS;
         baseItems = allItems.filter((track) =>
             Number(track.last_seen_at || 0) >= recentCutoff
         );
@@ -8488,7 +8551,7 @@ function bindAircraftMovementsWidget() {
             } else {
                 toggleLiveTrackSelection(trackKey);
             }
-            requestAircraftMovementsWidgetRender(0);
+            requestAircraftMovementsWidgetRender();
             return;
         }
         const filterBtn = event.target.closest("[data-aircraft-filter]");
@@ -8556,24 +8619,24 @@ function bindAircraftMovementsWidget() {
     });
     document.addEventListener("wz:aircraft-focus-lock-changed", () => {
         syncFocusAwareBackgroundLoops();
-        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender(0);
-        if (navalWidgetEnabled) requestNavalWidgetRender(0);
+        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender();
+        if (navalWidgetEnabled) requestNavalWidgetRender();
     });
     document.addEventListener("wz:aircraft-track-selected", () => {
         syncFocusAwareBackgroundLoops();
         if (isAircraftFocusModeActive()) {
             window.__warzoneViewer?.__warzone?.clearAlertHighlight?.();
         }
-        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender(0);
-        if (navalWidgetEnabled) requestNavalWidgetRender(0);
+        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender();
+        if (navalWidgetEnabled) requestNavalWidgetRender();
     });
     document.addEventListener("wz:asset-focus-changed", (event) => {
         const detail = event?.detail || {};
         const signature = `${detail.state || ""}:${detail.assetType || ""}:${detail.assetId || ""}`;
         if (signature === __assetFocusUiSignature) return;
         __assetFocusUiSignature = signature;
-        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender(0);
-        if (navalWidgetEnabled) requestNavalWidgetRender(0);
+        if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender();
+        if (navalWidgetEnabled) requestNavalWidgetRender();
     });
 }
 function ensureAlertAudio() {

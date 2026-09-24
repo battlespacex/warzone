@@ -116,11 +116,16 @@ const POSTER_OVERLAYS = Object.freeze({
   })
 });
 
-(() => {
+let posterGeneratorInitialized = false;
+
+export function initPosterGenerator() {
   "use strict";
 
+  if (posterGeneratorInitialized || !document.body?.classList.contains("poster-generator-page")) return false;
   const $ = (id) => document.getElementById(id);
   const canvas = $("posterCanvas");
+  if (!canvas) return false;
+  posterGeneratorInitialized = true;
   const ctx = canvas.getContext("2d", { alpha: false });
 
   const assets = {
@@ -1424,4 +1429,5 @@ function initializeFontOptions() {
   brandAssetsReadyPromise = loadBrandAssets();
   updateImageAxisControls();
   render();
-})();
+  return true;
+}

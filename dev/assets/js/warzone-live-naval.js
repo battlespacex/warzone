@@ -2652,8 +2652,6 @@ export function focusNavalVessel(trackKey, options = {}) {
         mode: "track",
     })) return false;
     setNavalFocusedZoomLock(true);
-    syncNavalContourCenter(trackKey);
-    applyNavalVisual(entry.entity, entry.data);
     __navalState.isCameraFlying = true;
     viewer.camera.cancelFlight?.();
     const offset = new Cesium.HeadingPitchRange(
@@ -2672,6 +2670,15 @@ export function focusNavalVessel(trackKey, options = {}) {
         offset,
         complete: finishFocusFlight,
         cancel: finishFocusFlight,
+    });
+    requestAnimationFrame(() => {
+        if (String(__navalState.selectedKey || "") !== String(trackKey)) return;
+        syncNavalContourCenter(trackKey);
+        requestAnimationFrame(() => {
+            if (String(__navalState.selectedKey || "") !== String(trackKey)) return;
+            applyNavalVisual(entry.entity, entry.data);
+            requestNavalRenderBatched();
+        });
     });
 
     __navalState.overlayLastVisible = false;

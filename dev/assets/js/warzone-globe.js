@@ -4555,6 +4555,8 @@ function applyRenderedTerrainVisibility(viewer) {
     const show = viewer.__satelliteVisible !== false
         && viewer.__terrainVisible !== false;
     if (viewer.__imageryPilot) viewer.__imageryPilot.show = show;
+    if (viewer.__imageryClose) viewer.__imageryClose.show = show;
+    for (const layer of viewer.__imageryDetailLayers || []) layer.show = show;
     if (viewer.__imageryBase) {
         viewer.__imageryBase.show = show;
         if (greyedSatellite) {
@@ -4927,8 +4929,7 @@ function ensureMapColorMixerStage(viewer) {
 function applyMapColorMixer(viewer, prefix = "--warzone-map") {
     const stage = ensureMapColorMixerStage(viewer);
     if (!stage) return;
-    if (getConfiguredBasemapProvider() === "selfhosted" &&
-        viewer.__warzoneBasemapFallbackEsri !== true) {
+    if (isActiveSelfHostedMap(viewer)) {
         stage.enabled = false;
         return;
     }
@@ -5456,6 +5457,10 @@ async function addArcGisLayers(viewer) {
     if (labelsLayer) labelsLayer.show = show;
     viewer.__imageryBase = baseLayer;
     viewer.__imageryLabels = labelsLayer;
+    viewer.__warzoneBasemapLayers = [baseLayer, labelsLayer].filter(Boolean);
+    setSelfHostedCreditsVisible(false);
+    applyMapStyleState(viewer, "satellite", { source: "imagery-ready" });
+    setActiveBasemapProvider(viewer, "esri");
     updateMapCredits();
     updateLabelsLayerVisibility(viewer);
     updateMaximumZoomImagerySampling(viewer, viewer.__warzoneMaximumZoomQualityActive === true);
@@ -5463,7 +5468,42 @@ async function addArcGisLayers(viewer) {
 }
 
 function getConfiguredBasemapProvider() {
-    return window.__stratopsConfig?.basemap?.provider === "selfhosted" ? "selfhosted" : "esri";
+    const requested = String(window.__stratopsConfig?.basemap?.provider || "esri").trim().toLowerCase();
+    return ["esri", "google", "tactical"].includes(requested) ? requested : "esri";
+}
+
+function normalizeMapStyle(value) {
+    return String(value || "").trim().toLowerCase() === "tactical" ? "tactical" : "satellite";
+}
+
+function getInitialMapStyle() {
+    return getConfiguredBasemapProvider() === "tactical" ? "tactical" : "satellite";
+}
+
+function getSelfHostedMapBaseUrl() {
+    const basemap = window.__stratopsConfig?.basemap || {};
+    return String(basemap.tactical?.baseUrl || "").trim();
+}
+
+function isSelfHostedMapStyle() {
+    return getConfiguredBasemapProvider() === "tactical";
+}
+
+function isActiveSelfHostedMap(viewer) {
+    const activeOrPending = viewer?.__warzoneActiveBasemapProvider === "tactical" || (
+        !viewer?.__warzoneActiveBasemapProvider &&
+        getConfiguredBasemapProvider() === "tactical" &&
+        window.__stratopsConfig?.basemap?.enableTactical === true
+    );
+    return activeOrPending && viewer?.__warzoneBasemapFallbackEsri !== true;
+}
+
+function setActiveBasemapProvider(viewer, provider = "esri") {
+    const active = ["esri", "google", "tactical"].includes(provider) ? provider : "esri";
+    viewer.__warzoneActiveBasemapProvider = active;
+    if (window.__stratopsConfig?.basemap) window.__stratopsConfig.basemap.activeProvider = active;
+    document.dispatchEvent(new CustomEvent("wz:basemap-provider-changed", { detail: { provider: active } }));
+    return active;
 }
 
 function logSelfHosted(message) {
@@ -5476,6 +5516,27 @@ function setSelfHostedCreditsVisible(visible) {
     document.body.classList.toggle("wz-basemap-selfhosted", visible === true);
 }
 
+function logTacticalMapFailure(baseUrl, reason) {
+    const message = `[TACTICAL MAP] FAILED\nurl=${baseUrl || "missing"}\nreason=${reason || "init_failed"}\nfallback=satellite`;
+    if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname)) {
+        console.error(message);
+        return;
+    }
+    console.warn(message);
+}
+
+function applyMapStyleState(viewer, style, { persist = false, source = "runtime", fallback = false } = {}) {
+    void persist;
+    const nextStyle = normalizeMapStyle(style);
+    viewer.__warzoneMapStyle = nextStyle;
+    document.body.classList.toggle("wz-map-style-tactical", nextStyle === "tactical");
+    document.body.classList.toggle("wz-map-style-satellite", nextStyle === "satellite");
+    document.dispatchEvent(new CustomEvent("wz:map-style-changed", {
+        detail: { style: nextStyle, source, fallback: fallback === true },
+    }));
+    return nextStyle;
+}
+
 function removeSelfHostedBasemap(viewer) {
     viewer.__warzoneResolveFirstImagery?.();
     viewer.__warzoneResolveFirstImagery = null;
@@ -5485,12 +5546,21 @@ function removeSelfHostedBasemap(viewer) {
     }
     viewer.__warzoneSelfHostedRemoveGlobalError?.();
     viewer.__warzoneSelfHostedRemovePilotError?.();
+    viewer.__warzoneSelfHostedRemoveCloseError?.();
+    for (const remove of viewer.__warzoneSelfHostedRemoveDetailErrors || []) remove?.();
     viewer.__warzoneSelfHostedRemoveGlobalError = null;
     viewer.__warzoneSelfHostedRemovePilotError = null;
+    viewer.__warzoneSelfHostedRemoveCloseError = null;
+    viewer.__warzoneSelfHostedRemoveDetailErrors = [];
+    for (const layer of viewer.__imageryDetailLayers || []) viewer.imageryLayers.remove(layer);
+    if (viewer.__imageryClose) viewer.imageryLayers.remove(viewer.__imageryClose);
     if (viewer.__imageryPilot) viewer.imageryLayers.remove(viewer.__imageryPilot);
     if (viewer.__warzoneSelfHostedGlobalLayer) viewer.imageryLayers.remove(viewer.__warzoneSelfHostedGlobalLayer);
     viewer.__imageryPilot = null;
+    viewer.__imageryClose = null;
+    viewer.__imageryDetailLayers = [];
     viewer.__warzoneSelfHostedGlobalLayer = null;
+    viewer.__warzoneBasemapLayers = [];
     viewer.__warzoneSelfHostedInitPending = false;
     setSelfHostedCreditsVisible(false);
     viewer.scene.requestRender?.();
@@ -5501,6 +5571,18 @@ function updateSelfHostedImageryVisibility(viewer) {
         && viewer.__terrainVisible !== false && viewer.__satelliteVisible !== false;
     if (viewer.__warzoneSelfHostedGlobalLayer) viewer.__warzoneSelfHostedGlobalLayer.show = show;
     if (viewer.__imageryPilot) viewer.__imageryPilot.show = show;
+    if (viewer.__imageryClose) viewer.__imageryClose.show = show;
+    for (const layer of viewer.__imageryDetailLayers || []) layer.show = show;
+}
+
+function addSelfHostedDetailLayers(viewer, details = [], manifest = {}) {
+    return details.map((provider, index) => {
+        const layer = new Cesium.ImageryLayer(provider, {
+            minimumTerrainLevel: Math.max(0, Number(manifest.detail?.[index]?.minimumTerrainLevel) || 14),
+        });
+        viewer.imageryLayers.add(layer);
+        return layer;
+    });
 }
 
 async function fallbackSelfHostedBasemap(viewer, generation, reason) {
@@ -5509,7 +5591,8 @@ async function fallbackSelfHostedBasemap(viewer, generation, reason) {
     viewer.__warzoneBasemapFallbackEsri = true;
     removeSelfHostedBasemap(viewer);
     viewer.__imageryBase = null;
-    console.warn(`[BASEMAP SELFHOST] fallback=esri reason=${reason}`);
+    console.warn(`[BASEMAP] requested=tactical\n[BASEMAP] fallback=esri\nreason=${reason}`);
+    applyMapStyleState(viewer, "satellite", { source: "fallback", fallback: true });
     applyMapColorMixer(viewer, "--warzone-map");
     try {
         await addArcGisLayers(viewer);
@@ -5519,9 +5602,67 @@ async function fallbackSelfHostedBasemap(viewer, generation, reason) {
     viewer.scene.requestRender?.();
 }
 
+async function fallbackConfiguredBasemap(viewer, generation, requested, reason) {
+    if (generation !== Number(viewer.__warzoneImageryGeneration || 0) ||
+        viewer.__warzoneEntryMapImageryVisible === false) return false;
+    console.warn(`[BASEMAP] requested=${requested}\n[BASEMAP] fallback=esri\nreason=${reason || "init_failed"}`);
+    viewer.__warzoneResolveFirstImagery?.();
+    viewer.__warzoneResolveFirstImagery = null;
+    viewer.__warzoneSelfHostedInitPending = false;
+    viewer.__warzoneBasemapFallbackEsri = true;
+    setSelfHostedCreditsVisible(false);
+    const result = await addArcGisLayers(viewer);
+    viewer.scene?.requestRender?.();
+    return Boolean(result?.baseLayer);
+}
+
+async function initGoogleBasemap(viewer, generation) {
+    const basemap = window.__stratopsConfig?.basemap || {};
+    if (basemap.enableGoogle !== true) {
+        return fallbackConfiguredBasemap(viewer, generation, "google", "feature_disabled");
+    }
+    const apiKey = String(basemap.google?.apiKey || "").trim();
+    if (!apiKey) {
+        return fallbackConfiguredBasemap(viewer, generation, "google", "missing_google_api_key");
+    }
+    try {
+        const google = await import("./warzone-google-basemap.js");
+        const provider = await google.createGoogleImageryProvider(apiKey);
+        if (generation !== Number(viewer.__warzoneImageryGeneration || 0) ||
+            viewer.__warzoneEntryMapImageryVisible === false) return false;
+        viewer.imageryLayers.removeAll();
+        viewer.__warzoneGoogleRemoveError?.();
+        let failed = false;
+        let errors = 0;
+        viewer.__warzoneGoogleRemoveError = provider.errorEvent.addEventListener(() => {
+            errors += 1;
+            if (failed || errors < 3) return;
+            failed = true;
+            void fallbackConfiguredBasemap(viewer, generation, "google", "tile_failed");
+        });
+        const layer = viewer.imageryLayers.addImageryProvider(provider);
+        layer.show = viewer.__terrainVisible !== false && viewer.__satelliteVisible !== false;
+        viewer.__imageryBase = layer;
+        viewer.__imageryLabels = null;
+        viewer.__warzoneBasemapLayers = [layer];
+        viewer.__warzoneBasemapFallbackEsri = false;
+        setActiveBasemapProvider(viewer, "google");
+        updateMapCredits();
+        viewer.scene?.requestRender?.();
+        return true;
+    } catch (error) {
+        return fallbackConfiguredBasemap(viewer, generation, "google", error?.message || "init_failed");
+    }
+}
+
 async function initSelfHostedBasemap(viewer, generation) {
-    const baseUrl = String(window.__stratopsConfig?.basemap?.selfhosted?.baseUrl || "").trim();
-    logSelfHosted(`provider=selfhosted manifest=${baseUrl ? `${baseUrl.replace(/\/$/, "")}/manifest.json` : "missing"}`);
+    const style = normalizeMapStyle(viewer.__warzoneMapStyle || getInitialMapStyle());
+    if (window.__stratopsConfig?.basemap?.enableTactical !== true) {
+        await fallbackConfiguredBasemap(viewer, generation, "tactical", "feature_disabled");
+        return;
+    }
+    const baseUrl = getSelfHostedMapBaseUrl();
+    logSelfHosted(`style=${style} provider=tactical manifest=${baseUrl ? `${baseUrl.replace(/\/$/, "")}/manifest.json` : "missing"}`);
     if (!baseUrl) {
         await fallbackSelfHostedBasemap(viewer, generation, "missing_map_base_url");
         return;
@@ -5529,7 +5670,7 @@ async function initSelfHostedBasemap(viewer, generation) {
     viewer.__warzoneSelfHostedInitPending = true;
     try {
         const selfhosted = await import("./warzone-selfhosted-basemap.js");
-        const { global, pilot } = await selfhosted.createSelfHostedImageryProviders(baseUrl);
+        const { global, pilot, close, details, providers, manifest } = await selfhosted.createSelfHostedImageryProviders(baseUrl);
         if (generation !== Number(viewer.__warzoneImageryGeneration || 0) ||
             viewer.__warzoneEntryMapImageryVisible === false || viewer.__warzoneBasemapFallbackEsri === true) return;
         let errors = 0;
@@ -5539,10 +5680,12 @@ async function initSelfHostedBasemap(viewer, generation) {
         };
         viewer.__warzoneSelfHostedRemoveGlobalError = global.errorEvent.addEventListener(onError);
         viewer.__warzoneSelfHostedRemovePilotError = pilot.errorEvent.addEventListener(onError);
+        viewer.__warzoneSelfHostedRemoveCloseError = close?.errorEvent.addEventListener(onError) || null;
+        viewer.__warzoneSelfHostedRemoveDetailErrors = details.map((provider) => provider.errorEvent.addEventListener(onError));
         let firstRequestAt = 0;
         let firstImagePending = false;
         const isLocalBasemapDiagnostic = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
-        for (const provider of [global, pilot]) {
+        for (const provider of providers) {
             const requestImage = provider.requestImage.bind(provider);
             provider.requestImage = (...args) => {
                 const result = requestImage(...args);
@@ -5570,7 +5713,15 @@ async function initSelfHostedBasemap(viewer, generation) {
         viewer.__warzoneSelfHostedGlobalLayer = viewer.imageryLayers.addImageryProvider(global);
         viewer.__imageryBase = viewer.__warzoneSelfHostedGlobalLayer;
         viewer.__imageryPilot = viewer.imageryLayers.addImageryProvider(pilot);
+        viewer.__imageryClose = close ? viewer.imageryLayers.addImageryProvider(close) : null;
+        viewer.__imageryDetailLayers = addSelfHostedDetailLayers(viewer, details, manifest);
+        viewer.__warzoneBasemapLayers = [viewer.__warzoneSelfHostedGlobalLayer, viewer.__imageryPilot,
+            viewer.__imageryClose, ...viewer.__imageryDetailLayers].filter(Boolean);
+        viewer.__warzoneBasemapFallbackEsri = false;
+        setActiveBasemapProvider(viewer, "tactical");
         viewer.__warzoneSelfHostedInitPending = false;
+        setSelfHostedCreditsVisible(true);
+        applyMapStyleState(viewer, style, { source: "imagery-ready" });
         updateSelfHostedImageryVisibility(viewer);
         viewer.__warzoneSelfHostedLogTimer = window.setTimeout(() => {
             const entries = performance.getEntriesByType("resource").filter((entry) => entry.name.startsWith(baseUrl));
@@ -5583,6 +5734,191 @@ async function initSelfHostedBasemap(viewer, generation) {
         viewer.__warzoneSelfHostedInitPending = false;
         await fallbackSelfHostedBasemap(viewer, generation, error?.message || "init_failed");
     }
+}
+
+function watchFirstProviderImage(providers = []) {
+    let settled = false;
+    let resolveReady;
+    const ready = new Promise((resolve) => { resolveReady = resolve; });
+    for (const provider of providers.filter(Boolean)) {
+        const requestImage = provider.requestImage.bind(provider);
+        provider.requestImage = (...args) => {
+            const result = requestImage(...args);
+            if (!settled && result?.then) {
+                result.then(() => {
+                    if (settled) return;
+                    settled = true;
+                    resolveReady(true);
+                }, () => {});
+            }
+            return result;
+        };
+    }
+    return ready;
+}
+
+async function createMapStyleLayerSet(viewer, style) {
+    const nextStyle = normalizeMapStyle(style);
+    if (isSelfHostedMapStyle(nextStyle)) {
+        const baseUrl = getSelfHostedMapBaseUrl(nextStyle);
+        if (!baseUrl) throw new Error("missing_map_base_url");
+        const selfhosted = await import("./warzone-selfhosted-basemap.js");
+        const { global, pilot, close, details, providers, manifest } = await selfhosted.createSelfHostedImageryProviders(baseUrl);
+        const ready = watchFirstProviderImage(providers);
+        const globalLayer = viewer.imageryLayers.addImageryProvider(global);
+        const pilotLayer = viewer.imageryLayers.addImageryProvider(pilot);
+        const closeLayer = close ? viewer.imageryLayers.addImageryProvider(close) : null;
+        const detailLayers = addSelfHostedDetailLayers(viewer, details, manifest);
+        for (const layer of [globalLayer, pilotLayer, closeLayer, ...detailLayers].filter(Boolean)) {
+            layer.alpha = 0.001;
+            layer.show = viewer.__terrainVisible !== false && viewer.__satelliteVisible !== false;
+        }
+        return {
+            style: nextStyle,
+            kind: "selfhosted",
+            layers: [globalLayer, pilotLayer, closeLayer, ...detailLayers].filter(Boolean),
+            baseLayer: globalLayer,
+            pilotLayer,
+            closeLayer,
+            detailLayers,
+            labelsLayer: null,
+            ready,
+            manifest,
+        };
+    }
+
+    const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+        "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
+        { enablePickFeatures: false }
+    );
+    viewer.__warzoneAttachImageryProviderDiagnostics?.(baseProvider);
+    const providers = [baseProvider];
+    let labelsProvider = null;
+    if (boolVar("--warzone-places-layer-enabled", false)) {
+        labelsProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+            "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+            { enablePickFeatures: false }
+        );
+        providers.push(labelsProvider);
+    }
+    const ready = watchFirstProviderImage(providers);
+    const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
+    tuneImageryLayer(baseLayer, "--warzone-map");
+    baseLayer.alpha = 0.001;
+    const labelsLayer = labelsProvider ? viewer.imageryLayers.addImageryProvider(labelsProvider) : null;
+    if (labelsLayer) {
+        tuneImageryLayer(labelsLayer, "--warzone-labels");
+        labelsLayer.alpha = 0.001;
+    }
+    for (const layer of [baseLayer, labelsLayer].filter(Boolean)) {
+        layer.show = viewer.__terrainVisible !== false && viewer.__satelliteVisible !== false;
+    }
+    return {
+        style: "satellite",
+        kind: "esri",
+        layers: [baseLayer, labelsLayer].filter(Boolean),
+        baseLayer,
+        pilotLayer: null,
+        closeLayer: null,
+        detailLayers: [],
+        labelsLayer,
+        ready,
+        manifest: null,
+    };
+}
+
+function removeBasemapLayerSet(viewer, layers = []) {
+    for (const layer of layers.filter(Boolean)) {
+        try {
+            viewer.imageryLayers.remove(layer, true);
+        } catch {
+            // A stale generation may already have removed this layer.
+        }
+    }
+}
+
+async function setMapStyle(viewer, requestedStyle, options = {}) {
+    if (!viewer?.imageryLayers) return { style: "satellite", fallback: true };
+    const requested = normalizeMapStyle(requestedStyle);
+    if (!options.force && viewer.__warzoneMapStyleSwitchPromise) return viewer.__warzoneMapStyleSwitchPromise;
+    if (!options.force && requested === viewer.__warzoneMapStyle && viewer.__warzoneBasemapLayers?.length) {
+        return { style: requested, fallback: false, latencyMs: 0 };
+    }
+    const startedAt = performance.now();
+    const generation = Number(viewer.__warzoneMapStyleGeneration || 0) + 1;
+    viewer.__warzoneMapStyleGeneration = generation;
+    const oldLayers = [...(viewer.__warzoneBasemapLayers || [viewer.__imageryBase, viewer.__imageryLabels,
+        viewer.__imageryPilot, viewer.__imageryClose, ...(viewer.__imageryDetailLayers || [])])]
+        .filter(Boolean);
+    const switchPromise = (async () => {
+        let nextStyle = requested;
+        let fallback = false;
+        let next;
+        let nextImageReady = false;
+        try {
+            next = await createMapStyleLayerSet(viewer, nextStyle);
+            nextImageReady = await Promise.race([
+                next.ready,
+                new Promise((resolve) => window.setTimeout(() => resolve(false), 3500)),
+            ]);
+            if (requested === "tactical" && nextImageReady !== true) {
+                removeBasemapLayerSet(viewer, next.layers);
+                throw new Error("first_tile_timeout");
+            }
+        } catch (error) {
+            if (requested !== "tactical") throw error;
+            fallback = true;
+            nextStyle = "satellite";
+            logTacticalMapFailure(getSelfHostedMapBaseUrl("tactical"), error?.message || "init_failed");
+            const previousProvider = window.__stratopsConfig?.basemap?.provider;
+            window.__stratopsConfig.basemap.provider = "esri";
+            try {
+                next = await createMapStyleLayerSet(viewer, "satellite");
+            } finally {
+                window.__stratopsConfig.basemap.provider = previousProvider;
+            }
+        }
+        if (generation !== viewer.__warzoneMapStyleGeneration) {
+            removeBasemapLayerSet(viewer, next.layers);
+            return { style: viewer.__warzoneMapStyle, fallback, stale: true };
+        }
+        if (!nextImageReady) {
+            await Promise.race([
+                next.ready,
+                new Promise((resolve) => window.setTimeout(() => resolve(false), 3500)),
+            ]);
+        }
+        for (const layer of next.layers) layer.alpha = 1;
+        viewer.__imageryBase = next.baseLayer;
+        viewer.__imageryLabels = next.labelsLayer;
+        viewer.__imageryPilot = next.pilotLayer;
+        viewer.__imageryClose = next.closeLayer || null;
+        viewer.__imageryDetailLayers = next.detailLayers || [];
+        viewer.__warzoneSelfHostedGlobalLayer = next.kind === "selfhosted" ? next.baseLayer : null;
+        viewer.__warzoneBasemapLayers = next.layers;
+        viewer.__warzoneBasemapFallbackEsri = fallback;
+        setSelfHostedCreditsVisible(next.kind === "selfhosted");
+        applyMapStyleState(viewer, nextStyle, {
+            persist: options.persist !== false,
+            source: String(options.source || "runtime"),
+            fallback,
+        });
+        applyMapColorMixer(viewer, "--warzone-map");
+        updateLabelsLayerVisibility(viewer);
+        updateMaximumZoomImagerySampling(viewer, viewer.__warzoneMaximumZoomQualityActive === true);
+        viewer.scene.requestRender?.();
+        window.setTimeout(() => {
+            removeBasemapLayerSet(viewer, oldLayers.filter((layer) => !next.layers.includes(layer)));
+            viewer.scene.requestRender?.();
+        }, 180);
+        return { style: nextStyle, fallback, latencyMs: performance.now() - startedAt };
+    })().finally(() => {
+        if (viewer.__warzoneMapStyleSwitchPromise === switchPromise) {
+            viewer.__warzoneMapStyleSwitchPromise = null;
+        }
+    });
+    viewer.__warzoneMapStyleSwitchPromise = switchPromise;
+    return switchPromise;
 }
 
 function logSelfHostedTerrain(message) {
@@ -5619,7 +5955,7 @@ async function initConfiguredTerrain(viewer) {
         logSelfHostedTerrain("errors=1 reason=missing_terrain_base_url; using ellipsoid");
         return;
     }
-    if (getConfiguredBasemapProvider() === "selfhosted" && viewer.__warzoneFirstImageryPromise) {
+    if (isActiveSelfHostedMap(viewer) && viewer.__warzoneFirstImageryPromise) {
         let releaseDelay;
         const delay = new Promise((resolve) => {
             releaseDelay = window.setTimeout(resolve, 5000);
@@ -5689,26 +6025,30 @@ async function initConfiguredTerrain(viewer) {
 function setEntryMapImageryVisible(viewer, visible) {
     if (!viewer?.imageryLayers) return Promise.resolve(false);
     const show = visible !== false;
-    if (show && getConfiguredBasemapProvider() === "selfhosted" &&
-        viewer.__warzoneBasemapFallbackEsri !== true &&
-        viewer.__warzoneEntryMapImageryVisible !== false &&
-        (viewer.__warzoneSelfHostedGlobalLayer || viewer.__warzoneSelfHostedInitPending)) {
+    const requestedProvider = getConfiguredBasemapProvider();
+    if (show && viewer.__warzoneActiveBasemapProvider === requestedProvider &&
+        viewer.__warzoneEntryMapImageryVisible !== false && viewer.__warzoneBasemapLayers?.length) {
         return viewer.__warzoneImageryReadyPromise || Promise.resolve(true);
     }
     viewer.__warzoneEntryMapImageryVisible = show;
     viewer.__warzoneImageryGeneration = Number(viewer.__warzoneImageryGeneration || 0) + 1;
 
     if (!show) {
+        viewer.__warzoneGoogleRemoveError?.();
+        viewer.__warzoneGoogleRemoveError = null;
         removeSelfHostedBasemap(viewer);
         viewer.imageryLayers.removeAll();
         viewer.__imageryBase = null;
         viewer.__imageryLabels = null;
+        viewer.__warzoneBasemapLayers = [];
         updateMapCredits();
         viewer.scene?.requestRender?.();
         return Promise.resolve(false);
     }
 
-    if (getConfiguredBasemapProvider() === "selfhosted" && viewer.__warzoneBasemapFallbackEsri !== true) {
+    console.info(`[BASEMAP] requested=${requestedProvider}`);
+    if (requestedProvider === "tactical") {
+        viewer.__warzoneBasemapFallbackEsri = false;
         viewer.imageryLayers.removeAll();
         viewer.__imageryBase = null;
         viewer.__imageryLabels = null;
@@ -5718,6 +6058,12 @@ function setEntryMapImageryVisible(viewer, visible) {
         });
         viewer.__warzoneImageryReadyPromise = Promise.resolve(true);
         void initSelfHostedBasemap(viewer, viewer.__warzoneImageryGeneration);
+        return viewer.__warzoneImageryReadyPromise;
+    }
+
+    if (requestedProvider === "google") {
+        viewer.__warzoneBasemapFallbackEsri = false;
+        viewer.__warzoneImageryReadyPromise = initGoogleBasemap(viewer, viewer.__warzoneImageryGeneration);
         return viewer.__warzoneImageryReadyPromise;
     }
 
@@ -8422,7 +8768,9 @@ export async function initWarzoneGlobe(options = {}) {
     const creditsEl = document.getElementById("warzone-map-credits");
     if (!globeEl) return null;
     const cesiumCreditsEl = getCesiumCreditContainer(globeEl);
-    const selfHostedRequested = getConfiguredBasemapProvider() === "selfhosted";
+    const initialMapStyle = getInitialMapStyle();
+    const selfHostedRequested = isSelfHostedMapStyle(initialMapStyle) &&
+        window.__stratopsConfig?.basemap?.enableTactical === true;
     setSelfHostedCreditsVisible(selfHostedRequested);
     const isReportCaptureMode = window.__stratopsReportCaptureMode === true;
     const emptyGlobeDiagnostics = options?.performanceEmptyGlobe?.enabled === true
@@ -8467,6 +8815,9 @@ export async function initWarzoneGlobe(options = {}) {
     viewer.__warzoneSceneMode = getSceneMode(viewer);
     viewer.__warzoneRequestRenderMode = emptyGlobeDiagnostics?.requestRenderMode !== false;
     viewer.__warzoneAdaptiveProfile = "normal";
+    viewer.__warzoneMapStyle = initialMapStyle;
+    viewer.__warzoneActiveBasemapProvider = "";
+    applyMapStyleState(viewer, initialMapStyle, { source: "initial" });
     viewer.__warzoneSuppressEventMarkers = false;
     viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
     viewer.__borderLayersVisible = false;
@@ -8681,6 +9032,9 @@ export async function initWarzoneGlobe(options = {}) {
         },
         isEntryMapImageryVisible() {
             return viewer.__warzoneEntryMapImageryVisible !== false && !!viewer.__imageryBase;
+        },
+        getActiveBasemapProvider() {
+            return viewer.__warzoneActiveBasemapProvider || "esri";
         },
         setTerrainVisible(visible) {
             const show = !!visible;

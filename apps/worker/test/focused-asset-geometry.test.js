@@ -126,7 +126,7 @@ test("aircraft prediction requires recent trustworthy motion telemetry and prefe
   const registry = new Map([["A", { active: true, liveness_state: "live" }]]);
   const context = vm.createContext({
     performance: { now: () => 1000 },
-    window: { __stratopsConfig: {}, localStorage: { getItem: () => null } },
+    window: { __stratopsConfig: { aircraftPredictionEnabled: true } },
     __liveTrackRegistry: registry,
     LIVE_TRACK_MIN_PREDICTION_SPEED_KTS: 15,
     LIVE_TRACK_MAX_PREDICTION_VERTICAL_RATE_FPM: 6000,
@@ -147,6 +147,14 @@ test("aircraft prediction requires recent trustworthy motion telemetry and prefe
   assert.equal(context.getLiveTrackPredictionTelemetry({ track_key: "A", lon: 10, lat: 20, speed_kts: 5, heading_deg: 90, on_ground: true }, {}, 1000).reason, "stationary_on_ground");
   registry.get("A").liveness_state = "ended";
   assert.equal(context.getLiveTrackPredictionTelemetry({ track_key: "A", lon: 10, lat: 20, speed_kts: 300, heading_deg: 90 }, {}, 1000).reason, "ended");
+});
+
+test("aircraft prediction is opt-in so authoritative interpolation does not reconcile prediction drift", () => {
+  const context = vm.createContext({ window: { __stratopsConfig: {} } });
+  vm.runInContext(section(air, "isLiveTrackPredictionEnabled", "getFinitePredictionValue"), context);
+  assert.equal(context.isLiveTrackPredictionEnabled(), false);
+  context.window.__stratopsConfig.aircraftPredictionEnabled = true;
+  assert.equal(context.isLiveTrackPredictionEnabled(), true);
 });
 
 test("aircraft prediction uses geodetic ground-track distance without committing synthetic trail points", () => {

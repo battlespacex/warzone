@@ -8,7 +8,7 @@ const port = Number(process.env.STRATOPS_PILOT_PORT || 4181);
 const allowedOrigins = new Set((process.env.STRATOPS_PILOT_ALLOWED_ORIGINS ||
     "http://127.0.0.1:4180,http://localhost:4180,http://127.0.0.1:4173,http://localhost:4173")
     .split(",").map((value) => value.trim()).filter(Boolean));
-const mime = { ".jpg": "image/jpeg", ".terrain": "application/octet-stream", ".json": "application/json" };
+const mime = { ".jpg": "image/jpeg", ".webp": "image/webp", ".png": "image/png", ".terrain": "application/octet-stream", ".json": "application/json" };
 
 http.createServer((request, response) => {
     const origin = request.headers.origin;
@@ -53,5 +53,5 @@ http.createServer((request, response) => {
     if (request.method === "HEAD") response.end();
     else fs.createReadStream(file).pipe(response);
 }).listen(port, "127.0.0.1", () => {
-    console.log(`Local pilot tiles: http://127.0.0.1:${port}/map/v1/`);
+    console.log(`Local pilot tiles: http://127.0.0.1:${port}/map/tactical/v1/`);
 });

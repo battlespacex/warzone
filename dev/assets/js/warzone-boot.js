@@ -66,6 +66,8 @@ function waitForDashboardRevealStage(durationMs) {
     }
     return new Promise((resolve) => window.setTimeout(resolve, durationMs));
 }
+const isPosterGeneratorPage = document.documentElement.classList.contains("poster-generator-document");
+if (!isPosterGeneratorPage) {
 window.__warzoneEnterApp = function () {
     activateDashboard();
 };
@@ -1261,3 +1263,4 @@ document.addEventListener("DOMContentLoaded", () => {
         syncWidgetChrome();
     }, { passive: true });
 });
+}

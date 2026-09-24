@@ -1,0 +1,176 @@
+{
+  "version": 8,
+  "name": "StratOps Tactical v1",
+  "metadata": {
+    "stratops:tokenSource": "../tactical-style.json",
+    "stratops:purpose": "Maputnik preview and future OpenMapTiles rendering"
+  },
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "http://localhost:8080/data/v3.json",
+      "attribution": "\u00a9 OpenStreetMap contributors"
+    }
+  },
+  "glyphs": "http://localhost:8080/fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#07131A"
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#0C1C27",
+        "fill-opacity": 1.0
+      }
+    },
+    {
+      "id": "landcover",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "landcover",
+      "paint": {
+        "fill-color": "#25343A",
+        "fill-opacity": 1.0
+      }
+    },
+    {
+      "id": "country-boundary",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "filter": [
+        "==",
+        "admin_level",
+        2
+      ],
+      "paint": {
+        "line-color": "#76A6AA",
+        "line-opacity": 0.72,
+        "line-width": 1.1
+      }
+    },
+    {
+      "id": "state-boundary",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "filter": [
+        "==",
+        "admin_level",
+        4
+      ],
+      "paint": {
+        "line-color": "#58777B",
+        "line-opacity": 0.48,
+        "line-width": 0.65
+      }
+    },
+    {
+      "id": "primary-road",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary"
+      ],
+      "minzoom": 4,
+      "paint": {
+        "line-color": "#B48C5B",
+        "line-opacity": 0.72,
+        "line-width": 1.25
+      }
+    },
+    {
+      "id": "secondary-road",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "secondary",
+        "tertiary"
+      ],
+      "minzoom": 7,
+      "paint": {
+        "line-color": "#756F62",
+        "line-opacity": 0.48,
+        "line-width": 0.7
+      }
+    },
+    {
+      "id": "airport",
+      "type": "circle",
+      "source": "openmaptiles",
+      "source-layer": "aerodrome_label",
+      "minzoom": 5,
+      "paint": {
+        "circle-color": "#74D6CE",
+        "circle-opacity": 0.76,
+        "circle-radius": 2.5
+      }
+    },
+    {
+      "id": "country-label",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "filter": [
+        "==",
+        "class",
+        "country"
+      ],
+      "layout": {
+        "text-field": "{name:latin}",
+        "text-font": [
+          "Noto Sans Regular"
+        ],
+        "text-size": 12
+      },
+      "paint": {
+        "text-color": "#91AFAC",
+        "text-opacity": 0.82,
+        "text-halo-color": "#07131A",
+        "text-halo-width": 2
+      }
+    },
+    {
+      "id": "city-label",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "filter": [
+        "in",
+        "class",
+        "city",
+        "town"
+      ],
+      "minzoom": 3,
+      "layout": {
+        "text-field": "{name:latin}",
+        "text-font": [
+          "Noto Sans Regular"
+        ],
+        "text-size": 11
+      },
+      "paint": {
+        "text-color": "#D3E0DD",
+        "text-opacity": 0.92,
+        "text-halo-color": "#07131A",
+        "text-halo-width": 2
+      }
+    }
+  ]
+}

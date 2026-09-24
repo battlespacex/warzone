@@ -222,6 +222,7 @@ const LIVE_TRACK_MAJOR_CORRECTION_SPEED_FACTOR = 8;
 const LIVE_TRACK_MIN_ANIM_MS = 700;
 const LIVE_TRACK_MAX_ANIM_MS = 15000;
 const LIVE_TRACK_DEFAULT_ANIM_MS = 12000;
+const LIVE_TRACK_MAX_ANIM_FRAME_DELTA_MS = 100;
 const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 1100;
 const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 15000;
 const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 12000;
@@ -2510,7 +2511,7 @@ function classifyLiveTrackTelemetryUpdate(entity, track = {}, sourceTimestamp = 
     if (
         lastSourceTimestamp > 0 &&
         nextSourceTimestamp > 0 &&
-        nextSourceTimestamp < (lastSourceTimestamp - LIVE_TRACK_STALE_UPDATE_TOLERANCE_MS)
+        nextSourceTimestamp < lastSourceTimestamp
     ) {
         return "stale";
     }
@@ -7057,14 +7058,99 @@ const __liveTrackPredictionDiagnostics = {
     largestCorrectionErrorMeters: 0,
     tracedTrackKey: "",
 };
-function isLiveTrackPredictionEnabled() {
-    if (window.__stratopsConfig?.aircraftPredictionEnabled === false) return false;
-    if (window.__STRATOPS_AIRCRAFT_PREDICTION__ === false) return false;
-    try {
-        return window.localStorage?.getItem?.("wz_aircraft_prediction") !== "false";
-    } catch {
-        return true;
+const __liveTrackMotionStateIds = new WeakMap();
+const __liveTrackMotionDiagnostics = {
+    nextMotionStateId: 0,
+    lastSampleAt: 0,
+    lastVisualCartesian: null,
+    lastTargetCartesian: null,
+    largestVisualStepMeters: 0,
+    largestTargetReplacementMeters: 0,
+    events: [],
+};
+function getLiveTrackMotionStateId(motion) {
+    if (!motion) return 0;
+    if (!__liveTrackMotionStateIds.has(motion)) {
+        __liveTrackMotionStateIds.set(motion, ++__liveTrackMotionDiagnostics.nextMotionStateId);
     }
+    return __liveTrackMotionStateIds.get(motion);
+}
+function getLiveTrackDiagnosticLonLat(cartesian) {
+    if (!cartesian) return { lon: null, lat: null };
+    try {
+        const point = Cesium.Cartographic.fromCartesian(cartesian);
+        return {
+            lon: Cesium.Math.toDegrees(point.longitude),
+            lat: Cesium.Math.toDegrees(point.latitude),
+        };
+    } catch {
+        return { lon: null, lat: null };
+    }
+}
+function recordLiveTrackMotionDiagnostic(kind, entity, track, targetCartesian, now, sourceTimestamp) {
+    if (!isLiveTrackDiagnosticsEnabled()) return;
+    const trackKey = String(entity?.__trackKey || track?.track_key || "");
+    const focusedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
+    if (focusedTrackKey) __liveTrackPredictionDiagnostics.tracedTrackKey = focusedTrackKey;
+    if (!__liveTrackPredictionDiagnostics.tracedTrackKey) {
+        __liveTrackPredictionDiagnostics.tracedTrackKey = trackKey;
+    }
+    if (!trackKey || trackKey !== __liveTrackPredictionDiagnostics.tracedTrackKey) return;
+    if (kind === "frame" && now - __liveTrackMotionDiagnostics.lastSampleAt < 250) return;
+    __liveTrackMotionDiagnostics.lastSampleAt = now;
+    const motion = entity?.__liveTrackMotionState || null;
+    const visualCartesian = getPositionCartesian(entity);
+    const visual = getLiveTrackDiagnosticLonLat(visualCartesian);
+    const target = getLiveTrackDiagnosticLonLat(targetCartesian || motion?.endCartesian);
+    const visualStepMeters = getCartesianDistanceMeters(
+        __liveTrackMotionDiagnostics.lastVisualCartesian,
+        visualCartesian
+    );
+    const previousTargetToNewTargetMeters = kind === "target"
+        ? getCartesianDistanceMeters(__liveTrackMotionDiagnostics.lastTargetCartesian, targetCartesian)
+        : 0;
+    __liveTrackMotionDiagnostics.largestVisualStepMeters = Math.max(
+        __liveTrackMotionDiagnostics.largestVisualStepMeters,
+        visualStepMeters
+    );
+    __liveTrackMotionDiagnostics.largestTargetReplacementMeters = Math.max(
+        __liveTrackMotionDiagnostics.largestTargetReplacementMeters,
+        previousTargetToNewTargetMeters
+    );
+    if (visualCartesian) {
+        __liveTrackMotionDiagnostics.lastVisualCartesian = Cesium.Cartesian3.clone(visualCartesian);
+    }
+    if (kind === "target" && targetCartesian) {
+        __liveTrackMotionDiagnostics.lastTargetCartesian = Cesium.Cartesian3.clone(targetCartesian);
+    }
+    const event = {
+        kind,
+        trackKey,
+        sourceLat: Number(track?.lat),
+        sourceLon: Number(track?.lon),
+        sourceTimestamp: Number(sourceTimestamp || motion?.sourceTimestamp || 0),
+        receiptTimestamp: Date.now(),
+        receiptMonotonicMs: now,
+        targetLat: target.lat,
+        targetLon: target.lon,
+        visualLat: visual.lat,
+        visualLon: visual.lon,
+        currentToTargetMeters: getCartesianDistanceMeters(visualCartesian, targetCartesian || motion?.endCartesian),
+        previousTargetToNewTargetMeters,
+        interpolationStartedAt: Number(motion?.startedAt || now),
+        interpolationDurationMs: Number(motion?.durationMs || 0),
+        visualStepMeters,
+        motionStateId: getLiveTrackMotionStateId(motion),
+    };
+    __liveTrackMotionDiagnostics.events.push(event);
+    if (__liveTrackMotionDiagnostics.events.length > 240) __liveTrackMotionDiagnostics.events.shift();
+    if (kind === "target") console.info("[AIR MOTION] target", event);
+}
+function isLiveTrackPredictionEnabled() {
+    if (typeof window.__STRATOPS_AIRCRAFT_PREDICTION__ === "boolean") {
+        return window.__STRATOPS_AIRCRAFT_PREDICTION__ === true;
+    }
+    return window.__stratopsConfig?.aircraftPredictionEnabled === true;
 }
 function getFinitePredictionValue(...values) {
     for (const value of values) {
@@ -7278,7 +7364,11 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
         return updateLiveTrackPredictionFrame(entity, motion, now);
     }
     const durationMs = Math.max(1, Number(motion.durationMs || 1));
-    const t = clamp((now - Number(motion.startedAt || 0)) / durationMs, 0, 1);
+    const previousFrameAt = Number(motion.lastFrameAt ?? motion.startedAt ?? now);
+    const frameDeltaMs = clamp(now - previousFrameAt, 0, LIVE_TRACK_MAX_ANIM_FRAME_DELTA_MS);
+    motion.lastFrameAt = now;
+    motion.elapsedMs = clamp(Number(motion.elapsedMs || 0) + frameDeltaMs, 0, durationMs);
+    const t = motion.elapsedMs / durationMs;
     motion.currentCartesian = Cesium.Cartesian3.lerp(
         motion.startCartesian,
         motion.endCartesian,
@@ -7286,6 +7376,7 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
         motion.currentCartesian || new Cesium.Cartesian3()
     );
     setLiveTrackPositionValue(entity, motion.currentCartesian);
+    recordLiveTrackMotionDiagnostic("frame", entity, motion.track, motion.endCartesian, now, motion.sourceTimestamp);
 
     if (entity.model) {
         const currentHeadingDeg = normalizeDegrees(
@@ -7513,7 +7604,10 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         return;
     }
     const cadenceDuration = clamp(
-        sourceGapMs * (isFocusedTrack ? focusAnimConfig.cadenceFactor : 0.94),
+        Math.max(
+            sourceGapMs * (isFocusedTrack ? focusAnimConfig.cadenceFactor : 0.94),
+            fallbackAnimMs
+        ),
         minAnimMs,
         maxAnimMs
     );
@@ -7565,6 +7659,8 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         startedAt: startTime,
         endsAt: startTime + duration,
         durationMs: duration,
+        lastFrameAt: startTime,
+        elapsedMs: 0,
         startHeadingDeg,
         headingDeltaDeg,
         startPitchDeg,
@@ -7581,6 +7677,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         endBillboardRotation,
         prediction,
     };
+    recordLiveTrackMotionDiagnostic("target", entity, track, nextCartesian, startTime, sourceTimestamp);
     updateLiveTrackMotionFrame(entity, startTime);
     wakeLiveTrackInterpolationRender(Math.max(duration, prediction.eligible ? LIVE_TRACK_MAX_PREDICTION_MS : 0));
 }
@@ -8249,6 +8346,12 @@ export function getLiveTrackDiagnostics() {
             maxPredictionDurationMs: Math.round(__liveTrackPredictionDiagnostics.maxPredictionDurationMs),
             largestCorrectionErrorMeters: Math.round(__liveTrackPredictionDiagnostics.largestCorrectionErrorMeters),
         }),
+        motionTrace: Object.freeze({
+            trackKey: __liveTrackPredictionDiagnostics.tracedTrackKey,
+            largestVisualStepMeters: Math.round(__liveTrackMotionDiagnostics.largestVisualStepMeters * 10) / 10,
+            largestTargetReplacementMeters: Math.round(__liveTrackMotionDiagnostics.largestTargetReplacementMeters),
+            events: __liveTrackMotionDiagnostics.events.map((event) => ({ ...event })),
+        }),
         activeCesiumTrailEntities: [...__liveTrackEntities.values()]
             .filter((entity) => window.__warzoneViewer?.entities?.getById?.(`track-trail-${entity.__trackKey}`))
             .length,
@@ -8464,17 +8567,6 @@ export function focusLiveTrack(trackKey, options = {}) {
         assetId: trackKey,
         mode: "track",
     })) return false;
-    setSelectedTrack(trackKey, "focus");
-    syncFocusedRouteEntity(trackKey);
-    viewer.__warzone?.setGreyedSatelliteVisible?.(false);
-    viewer.__warzone?.setContourGridVisible?.(false);
-    void Promise.resolve(viewer.__warzone?.setContourLayerVisible?.(false))
-        .finally(() => syncFocusedTrackOverlayModeButtons());
-    disableAircraftFocusTerrain(viewer);
-    syncFocusedTrackContourMode(true);
-    refreshLiveTrackVisualMode(trackKey);
-    refreshFocusedTrackIsolation();
-    setLiveTrackHardLockInternal(true);
     const offset = new Cesium.HeadingPitchRange(
         Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
         Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
@@ -8495,6 +8587,23 @@ export function focusLiveTrack(trackKey, options = {}) {
         });
     };
     startFocusFlight();
+    setSelectedTrack(trackKey, "focus");
+    setLiveTrackHardLockInternal(true);
+    requestAnimationFrame(() => {
+        if (!isFocusedTrackKey(trackKey)) return;
+        syncFocusedRouteEntity(trackKey);
+        viewer.__warzone?.setGreyedSatelliteVisible?.(false);
+        viewer.__warzone?.setContourGridVisible?.(false);
+        void Promise.resolve(viewer.__warzone?.setContourLayerVisible?.(false))
+            .finally(() => syncFocusedTrackOverlayModeButtons());
+        disableAircraftFocusTerrain(viewer);
+        syncFocusedTrackContourMode(true);
+        requestAnimationFrame(() => {
+            if (!isFocusedTrackKey(trackKey)) return;
+            refreshLiveTrackVisualMode(trackKey);
+            refreshFocusedTrackIsolation();
+        });
+    });
     return true;
 }
 export function clearLiveTrackSelection(options = {}) {

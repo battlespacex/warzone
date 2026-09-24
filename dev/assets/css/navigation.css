@@ -688,3 +688,47 @@ body.is-scene-2d .wz-globe-rotate-btn {
     background: rgba(255, 122, 69, 0.12);
     color: var(--warzone-default-color);
 }
+
+.wz-map-style-toggle {
+    display: flex;
+    flex-direction: column;
+    margin-top: 0.6rem;
+    border-top: 1px solid rgba(116, 240, 225, 0.24);
+}
+
+.wz-map-style-toggle__label {
+    padding: 0.45rem 0 0.25rem;
+    color: var(--color-white-slate);
+    background: rgba(5, 12, 19, 0.9);
+    font-family: var(--text-font);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12rem;
+    text-align: center;
+}
+
+.wz-map-style-toggle__btn {
+    appearance: none;
+    border: 0;
+    min-width: 4rem;
+    height: 3rem;
+    padding: 0.3rem 0 0;
+    color: var(--color-white-slate);
+    background: var(--color-bg-row);
+    font-family: var(--text-font);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.08rem;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.wz-map-style-toggle__btn.is-active {
+    color: var(--color-teal-glow);
+    background: var(--color-teal);
+}
+
+.wz-map-style-toggle__btn:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
