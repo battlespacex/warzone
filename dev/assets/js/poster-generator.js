@@ -1,5 +1,3 @@
-import "../css/poster.css";
-
 // =====================================================
 // POSTER CURATED FONT CONFIGURATION
 // Edit only these lists to control the Title and Description font dropdowns.

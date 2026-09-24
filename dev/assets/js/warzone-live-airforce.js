@@ -82,6 +82,7 @@ let __liveTrackFocusTargetRangeMeters = 95000;
 let __liveTrackFocusBaseRangeMeters = 95000;
 let __liveTrackFocusHeadingDeg = 0;
 let __liveTrackFocusPitchDeg = -89;
+let __liveTrackFollowAircraftHeading = true;
 let __liveTrackCtrlTiltDragState = null;
 let __liveTrackUserCameraInteracting = false;
 let __liveTrackFocusResumeTimer = null;
@@ -120,9 +121,11 @@ const LIVE_TRACK_FOCUS_GUIDE_LENGTH_PX = 92;
 const LIVE_TRACK_FOCUS_GUIDE_GAP_PX = 42;
 const LIVE_TRACK_FOCUS_GUIDE_THICKNESS_PX = 4;
 const LIVE_TRACK_FOCUS_CAMERA_RANGE_METERS = 36000;
-const LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG = -89;
+const LIVE_TRACK_FOCUS_CAMERA_PITCH_DEG = -58;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG = -89;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG = -8;
+const LIVE_TRACK_FOCUS_CAMERA_HEADING_OFFSET_DEG = 180;
+const LIVE_TRACK_FOCUS_CAMERA_MAX_HEADING_RATE_DEG_PER_SEC = 32;
 const LIVE_TRACK_FOCUS_WHEEL_ZOOM_STEP_FEET = 8200;
 const LIVE_TRACK_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX = 0.28;
 const LIVE_TRACK_FOCUS_CAMERA_PITCH_SENSITIVITY_DEG_PER_PX = 0.18;
@@ -221,12 +224,23 @@ const LIVE_TRACK_MAJOR_CORRECTION_MIN_METERS = 50000;
 const LIVE_TRACK_MAJOR_CORRECTION_SPEED_FACTOR = 8;
 const LIVE_TRACK_MIN_ANIM_MS = 700;
 const LIVE_TRACK_MAX_ANIM_MS = 15000;
-const LIVE_TRACK_DEFAULT_ANIM_MS = 12000;
+const LIVE_TRACK_DEFAULT_ANIM_MS = 4000;
 const LIVE_TRACK_MAX_ANIM_FRAME_DELTA_MS = 100;
 const LIVE_TRACK_FOCUS_MIN_ANIM_MS = 1100;
 const LIVE_TRACK_FOCUS_MAX_ANIM_MS = 15000;
-const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 12000;
+const LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS = 4000;
+const LIVE_TRACK_CADENCE_SAMPLE_MAX = 7;
+const LIVE_TRACK_CADENCE_MIN_MS = 700;
+const LIVE_TRACK_CADENCE_MAX_MS = 15000;
+const LIVE_TRACK_CADENCE_DURATION_FACTOR = 0.9;
+const LIVE_TRACK_MAX_HEADING_RATE_DEG_PER_SEC = 28;
+const LIVE_TRACK_HEADING_SPIKE_MIN_DEG = 120;
+const LIVE_TRACK_HEADING_CONFIRMATION_DEG = 35;
+const LIVE_TRACK_CURVE_TANGENT_FACTOR = 0.32;
+const LIVE_TRACK_CURVE_MAX_TURN_DEG = 120;
 const LIVE_TRACK_MAX_PREDICTION_MS = 20000;
+const LIVE_TRACK_MIN_PREDICTION_MS = 10000;
+const LIVE_TRACK_PREDICTION_CADENCE_FACTOR = 1.6;
 const LIVE_TRACK_MIN_PREDICTION_SPEED_KTS = 15;
 const LIVE_TRACK_MAX_PREDICTION_VERTICAL_RATE_FPM = 6000;
 const LIVE_TRACK_PREDICTION_SMALL_CORRECTION_METERS = 500;
@@ -2813,6 +2827,7 @@ function getTrackMetadata(track = {}) {
     return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
 }
 function parseNonNegativeNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
@@ -2827,7 +2842,25 @@ function isGroundState(value) {
 }
 function getTrackReportedAltitudeFt(track = {}) {
     const metadata = getTrackMetadata(track);
-    return parseNonNegativeNumber(track.altitude_ft ?? metadata.altitude_ft ?? null);
+    const barometricAltitudeFt = parseNonNegativeNumber(
+        track.altitude_ft ??
+        track.baro_altitude_ft ??
+        track.baro_altitude ??
+        metadata.altitude_ft ??
+        metadata.baro_altitude_ft ??
+        metadata.baro_altitude ??
+        null
+    );
+    if (barometricAltitudeFt != null) return barometricAltitudeFt;
+    return parseNonNegativeNumber(
+        track.geometric_altitude_ft ??
+        track.geo_altitude_ft ??
+        track.altitude_geom_ft ??
+        metadata.geometric_altitude_ft ??
+        metadata.geo_altitude_ft ??
+        metadata.altitude_geom_ft ??
+        null
+    );
 }
 function getTrackPointReportedAltitudeFt(point = {}) {
     return parseNonNegativeNumber(point?.altitude_ft ?? null);
@@ -2847,13 +2880,25 @@ function getTrackFallbackAltitudeFt(track = {}) {
 function getTrackResolvedAltitudeFt(track = {}) {
     const reportedAltitudeFt = getTrackReportedAltitudeFt(track);
 
-    // A valid positive altitude must override stale/incorrect on_ground data.
+    // Explicit source ground state is authoritative. Missing updates alone never
+    // enter this branch and therefore cannot silently turn a stale track into a
+    // parked aircraft.
+    if (isTrackOnGround(track)) {
+        return 0;
+    }
+
     if (reportedAltitudeFt != null && reportedAltitudeFt > 0) {
         return reportedAltitudeFt;
     }
 
-    if (isTrackOnGround(track)) {
-        return 0;
+    const trackKey = String(track.track_key || "");
+    const previousAltitudeFt = parseNonNegativeNumber(
+        (typeof __liveTrackRegistry !== "undefined" ? __liveTrackRegistry.get(trackKey)?.altitude_ft : null) ??
+        (typeof __liveTrackLastPositions !== "undefined" ? __liveTrackLastPositions.get(trackKey)?.altitude_ft : null) ??
+        null
+    );
+    if (previousAltitudeFt != null && previousAltitudeFt > 0) {
+        return previousAltitudeFt;
     }
 
     return getTrackFallbackAltitudeFt(track);
@@ -2861,12 +2906,12 @@ function getTrackResolvedAltitudeFt(track = {}) {
 function getTrackPointResolvedAltitudeFt(point = {}, track = {}) {
     const reportedAltitudeFt = getTrackPointReportedAltitudeFt(point);
 
-    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) {
-        return reportedAltitudeFt;
-    }
-
     if (isTrackPointOnGround(point)) {
         return 0;
+    }
+
+    if (reportedAltitudeFt != null && reportedAltitudeFt > 0) {
+        return reportedAltitudeFt;
     }
 
     return getTrackResolvedAltitudeFt(track);
@@ -3376,6 +3421,22 @@ function getLiveTrackFocusAltitudeOffsetFt(computedStyle = null) {
         50000
     );
 }
+function getLiveTrackFocusCameraHeadingOffsetDeg() {
+    return normalizeDegrees(getCssNumber(
+        "--warzone-live-aircraft-focus-camera-heading-offset",
+        LIVE_TRACK_FOCUS_CAMERA_HEADING_OFFSET_DEG
+    ));
+}
+function getLiveTrackFocusCameraMaxHeadingRateDegPerSec() {
+    return clamp(
+        getCssNumber(
+            "--warzone-live-aircraft-focus-camera-max-heading-rate",
+            LIVE_TRACK_FOCUS_CAMERA_MAX_HEADING_RATE_DEG_PER_SEC
+        ),
+        1,
+        90
+    );
+}
 function getLiveTrackFocusWheelZoomStepMeters() {
     return clamp(
         getCssNumber("--warzone-live-aircraft-focus-wheel-zoom-step", feetToMeters(LIVE_TRACK_FOCUS_WHEEL_ZOOM_STEP_FEET)),
@@ -3858,6 +3919,7 @@ function bindFocusInteractionTracking(viewer) {
         __liveTrackCtrlTiltDragState.lastX = nextX;
         __liveTrackCtrlTiltDragState.lastY = nextY;
         if (Number.isFinite(dx) && Number.isFinite(dy) && (Math.abs(dx) > 0 || Math.abs(dy) > 0)) {
+            __liveTrackFollowAircraftHeading = false;
             __liveTrackFocusHeadingDeg = normalizeDegrees(
                 __liveTrackFocusHeadingDeg - dx * LIVE_TRACK_FOCUS_CAMERA_HEADING_SENSITIVITY_DEG_PER_PX
             );
@@ -4833,6 +4895,25 @@ function syncFocusedTrackCamera(options = {}) {
     const cameraSyncIntervalMs = 1000 / cameraSyncHz;
     if (!forceCameraSync && (now - __liveTrackLastFocusCameraSyncAt) < cameraSyncIntervalMs) {
         return;
+    }
+
+    if (
+        typeof __liveTrackFollowAircraftHeading !== "undefined" &&
+        __liveTrackFollowAircraftHeading &&
+        !__liveTrackUserCameraInteracting &&
+        !__liveTrackCtrlTiltDragState?.active
+    ) {
+        const desiredHeadingDeg = normalizeDegrees(
+            Number(entity.__currentHeadingDeg || 0) + getLiveTrackFocusCameraHeadingOffsetDeg()
+        );
+        const headingElapsedSeconds = __liveTrackLastFocusCameraSyncAt > 0
+            ? clamp((now - __liveTrackLastFocusCameraSyncAt) / 1000, 0, 0.25)
+            : 0;
+        const maxHeadingStepDeg = getLiveTrackFocusCameraMaxHeadingRateDegPerSec() * headingElapsedSeconds;
+        const desiredDeltaDeg = getShortestAngleDeltaDeg(__liveTrackFocusHeadingDeg, desiredHeadingDeg);
+        __liveTrackFocusHeadingDeg = headingElapsedSeconds > 0
+            ? normalizeDegrees(__liveTrackFocusHeadingDeg + clamp(desiredDeltaDeg, -maxHeadingStepDeg, maxHeadingStepDeg))
+            : desiredHeadingDeg;
     }
 
     const preserveRange = options?.preserveRange === true;
@@ -6306,18 +6387,19 @@ function buildTrackOrientationAtCartesian(track, cartesian, headingDeg, pitchDeg
         result
     );
 }
-function getTrackResolvedHeading(track) {
-    const reportedHeading = Number(track.heading_deg);
-    const hasReportedHeading =
-        track.heading_deg !== null &&
-        track.heading_deg !== undefined &&
-        track.heading_deg !== "" &&
-        Number.isFinite(reportedHeading);
-    const fallbackHeading = hasReportedHeading ? normalizeDegrees(reportedHeading) : 0;
-    const previous = __liveTrackLastPositions.get(track.track_key);
-    if (!previous) {
-        return fallbackHeading;
+function getTrackHeadingField(track = {}, ...keys) {
+    const metadata = getTrackMetadata(track);
+    for (const key of keys) {
+        const raw = track[key] ?? metadata[key];
+        if (raw === null || raw === undefined || raw === "") continue;
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) return normalizeDegrees(parsed);
     }
+    return null;
+}
+function getTrackDerivedBearing(track = {}) {
+    const previous = __liveTrackLastPositions.get(track.track_key);
+    if (!previous) return null;
     const previousLon = Number(previous.lon);
     const previousLat = Number(previous.lat);
     const nextLon = Number(track.lon);
@@ -6328,16 +6410,33 @@ function getTrackResolvedHeading(track) {
         !Number.isFinite(nextLon) ||
         !Number.isFinite(nextLat)
     ) {
-        return fallbackHeading;
+        return null;
     }
     const movedMeters = getLonLatDistanceMeters(previousLon, previousLat, nextLon, nextLat);
-    // Small ADS-B coordinate changes are often receiver jitter. Once movement
-    // is meaningful, use that same route segment for the model and trail so
-    // the aircraft cannot fly sideways while a stale course value catches up.
     if (!Number.isFinite(movedMeters) || movedMeters < LIVE_TRACK_COURSE_HEADING_MIN_DISTANCE_METERS) {
-        return fallbackHeading;
+        return null;
     }
     return getHeadingDegreesFromPoints(previousLon, previousLat, nextLon, nextLat);
+}
+function getTrackResolvedHeading(track) {
+    const speedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? getTrackMetadata(track).speed_kts ?? 0);
+    const groundTrack = getTrackHeadingField(track, "ground_track_deg", "track_deg", "course_deg", "track");
+    const reportedHeading = getTrackHeadingField(track, "true_heading_deg", "true_heading", "heading_deg", "magnetic_heading_deg", "magnetic_heading", "heading");
+    const derivedBearing = getTrackDerivedBearing(track);
+    let candidate = Number.isFinite(groundTrack) && speedKts >= LIVE_TRACK_MIN_PREDICTION_SPEED_KTS
+        ? groundTrack
+        : reportedHeading;
+    if (!Number.isFinite(candidate)) candidate = derivedBearing;
+    if (
+        Number.isFinite(derivedBearing) &&
+        Number.isFinite(candidate) &&
+        speedKts >= LIVE_TRACK_MIN_PREDICTION_SPEED_KTS &&
+        Math.abs(getShortestAngleDeltaDeg(derivedBearing, candidate)) > 95
+    ) {
+        candidate = derivedBearing;
+    }
+    const previousVisualHeading = __liveTrackVisualState.get(track.track_key)?.headingDeg;
+    return normalizeDegrees(Number.isFinite(candidate) ? candidate : (previousVisualHeading ?? 0));
 }
 /* ================= ATTITUDE ================= */
 function getTrackVisualState(trackKey) {
@@ -6347,6 +6446,8 @@ function getTrackVisualState(trackKey) {
             headingDeg: 0,
             pitchDeg: 0,
             rollDeg: 0,
+            pendingHeadingDeg: null,
+            pendingHeadingCount: 0,
             initialized: false,
         };
         __liveTrackVisualState.set(trackKey, state);
@@ -6355,7 +6456,7 @@ function getTrackVisualState(trackKey) {
 }
 function getTrackAttitude(track, resolvedHeadingDeg) {
     const state = getTrackVisualState(track.track_key);
-    const targetHeadingDeg = normalizeDegrees(resolvedHeadingDeg);
+    let targetHeadingDeg = normalizeDegrees(resolvedHeadingDeg);
     // Keep live models level by default; enable via root.css only when desired.
     const dynamicBankEnabled = getCssNumber("--warzone-live-aircraft-model-dynamic-bank-enabled", 0) >= 0.5;
     const dynamicPitchEnabled = getCssNumber("--warzone-live-aircraft-model-dynamic-pitch-enabled", 0) >= 0.5;
@@ -6364,6 +6465,28 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
         state.pitchDeg = 0;
         state.rollDeg = 0;
         state.initialized = true;
+    }
+    const candidateDeltaDeg = getShortestAngleDeltaDeg(state.headingDeg, targetHeadingDeg);
+    if (Math.abs(candidateDeltaDeg) >= LIVE_TRACK_HEADING_SPIKE_MIN_DEG) {
+        const derivedBearing = getTrackDerivedBearing(track);
+        const positionConfirmsReversal = Number.isFinite(derivedBearing) &&
+            Math.abs(getShortestAngleDeltaDeg(derivedBearing, targetHeadingDeg)) <= LIVE_TRACK_HEADING_CONFIRMATION_DEG;
+        const repeatsPendingHeading = Number.isFinite(state.pendingHeadingDeg) &&
+            Math.abs(getShortestAngleDeltaDeg(state.pendingHeadingDeg, targetHeadingDeg)) <= LIVE_TRACK_HEADING_CONFIRMATION_DEG;
+        if (!positionConfirmsReversal && !repeatsPendingHeading) {
+            state.pendingHeadingDeg = targetHeadingDeg;
+            state.pendingHeadingCount = 1;
+            targetHeadingDeg = state.headingDeg;
+        } else if (!positionConfirmsReversal && state.pendingHeadingCount < 2) {
+            state.pendingHeadingCount += 1;
+            targetHeadingDeg = state.headingDeg;
+        } else {
+            state.pendingHeadingDeg = null;
+            state.pendingHeadingCount = 0;
+        }
+    } else {
+        state.pendingHeadingDeg = null;
+        state.pendingHeadingCount = 0;
     }
     const headingDeltaDeg = getShortestAngleDeltaDeg(state.headingDeg, targetHeadingDeg);
     // animateTrackTo already interpolates heading on the shared motion clock.
@@ -6977,36 +7100,36 @@ function hasActiveLiveTrackMotion(entity) {
     );
 }
 function getLiveTrackMotionAttitude(entity, fallback = {}) {
-    const motion = entity?.__liveTrackMotionState;
-    if (!motion) {
-        return {
-            headingDeg: Number(entity?.__currentHeadingDeg ?? fallback.headingDeg ?? 0),
-            pitchDeg: Number(entity?.__currentPitchDeg ?? fallback.pitchDeg ?? 0),
-            rollDeg: Number(entity?.__currentRollDeg ?? fallback.rollDeg ?? 0),
-        };
-    }
-    const durationMs = Math.max(1, Number(motion.durationMs || 1));
-    const t = clamp((performance.now() - Number(motion.startedAt || 0)) / durationMs, 0, 1);
     return {
-        headingDeg: normalizeDegrees(Number(motion.startHeadingDeg || 0) + (Number(motion.headingDeltaDeg || 0) * t)),
-        pitchDeg: Cesium.Math.lerp(Number(motion.startPitchDeg || 0), Number(motion.endPitchDeg || 0), t),
-        rollDeg: Cesium.Math.lerp(Number(motion.startRollDeg || 0), Number(motion.endRollDeg || 0), t),
+        headingDeg: Number(entity?.__currentHeadingDeg ?? fallback.headingDeg ?? 0),
+        pitchDeg: Number(entity?.__currentPitchDeg ?? fallback.pitchDeg ?? 0),
+        rollDeg: Number(entity?.__currentRollDeg ?? fallback.rollDeg ?? 0),
     };
 }
-function getAlignedLiveTrackMotionAttitude(track = {}, nextAttitude = null, currentAttitude = {}) {
-    const headingDeg = normalizeDegrees(Number(
+function getAlignedLiveTrackMotionAttitude(track = {}, nextAttitude = null, currentAttitude = {}, durationMs = 1000) {
+    const startHeadingDeg = normalizeDegrees(Number(currentAttitude.headingDeg ?? 0));
+    const targetHeadingDeg = normalizeDegrees(Number(
         nextAttitude?.headingDeg ?? track.heading_deg ?? currentAttitude.headingDeg ?? 0
     ));
-    const pitchDeg = Number(nextAttitude?.pitchDeg ?? currentAttitude.pitchDeg ?? 0);
-    const rollDeg = Number(nextAttitude?.rollDeg ?? currentAttitude.rollDeg ?? 0);
+    const rawHeadingDeltaDeg = getShortestAngleDeltaDeg(startHeadingDeg, targetHeadingDeg);
+    const maxHeadingDeltaDeg = Math.max(
+        4,
+        LIVE_TRACK_MAX_HEADING_RATE_DEG_PER_SEC * (Math.max(1, Number(durationMs || 0)) / 1000)
+    );
+    const headingDeltaDeg = clamp(rawHeadingDeltaDeg, -maxHeadingDeltaDeg, maxHeadingDeltaDeg);
+    const endHeadingDeg = normalizeDegrees(startHeadingDeg + headingDeltaDeg);
+    const startPitchDeg = Number(currentAttitude.pitchDeg ?? 0);
+    const endPitchDeg = Number(nextAttitude?.pitchDeg ?? startPitchDeg);
+    const startRollDeg = Number(currentAttitude.rollDeg ?? 0);
+    const endRollDeg = Number(nextAttitude?.rollDeg ?? startRollDeg);
     return {
-        startHeadingDeg: headingDeg,
-        endHeadingDeg: headingDeg,
-        headingDeltaDeg: 0,
-        startPitchDeg: pitchDeg,
-        endPitchDeg: pitchDeg,
-        startRollDeg: rollDeg,
-        endRollDeg: rollDeg,
+        startHeadingDeg,
+        endHeadingDeg,
+        headingDeltaDeg,
+        startPitchDeg,
+        endPitchDeg,
+        startRollDeg,
+        endRollDeg,
     };
 }
 function getRenderedTrackMotionHeading(startCartesian, nextLon, nextLat, fallbackHeadingDeg = 0) {
@@ -7025,6 +7148,120 @@ function getRenderedTrackMotionHeading(startCartesian, nextLon, nextLat, fallbac
     } catch {
         return normalizeDegrees(Number(fallbackHeadingDeg || 0));
     }
+}
+function updateLiveTrackCadenceEstimate(entity, sourceTimestamp, receivedAt = performance.now()) {
+    if (!entity) return LIVE_TRACK_DEFAULT_ANIM_MS;
+    const previousSourceTimestamp = Number(entity.__lastSourceTimestamp || 0);
+    const previousReceiptAt = Number(entity.__liveTrackLastReceiptMonotonicAt || 0);
+    const sourceIntervalMs = Number(sourceTimestamp) > previousSourceTimestamp && previousSourceTimestamp > 0
+        ? Number(sourceTimestamp) - previousSourceTimestamp
+        : Number.NaN;
+    const receiptIntervalMs = previousReceiptAt > 0 ? receivedAt - previousReceiptAt : Number.NaN;
+    const intervalMs = [sourceIntervalMs, receiptIntervalMs]
+        .find((value) => Number.isFinite(value) && value >= LIVE_TRACK_CADENCE_MIN_MS && value <= LIVE_TRACK_CADENCE_MAX_MS);
+    entity.__liveTrackLastReceiptMonotonicAt = receivedAt;
+    const samples = Array.isArray(entity.__liveTrackCadenceSamplesMs)
+        ? entity.__liveTrackCadenceSamplesMs
+        : [];
+    if (Number.isFinite(intervalMs)) {
+        samples.push(intervalMs);
+        if (samples.length > LIVE_TRACK_CADENCE_SAMPLE_MAX) samples.shift();
+        entity.__liveTrackCadenceSamplesMs = samples;
+    }
+    if (!samples.length) {
+        entity.__liveTrackCadenceEstimateMs = LIVE_TRACK_DEFAULT_ANIM_MS;
+        return LIVE_TRACK_DEFAULT_ANIM_MS;
+    }
+    const sorted = [...samples].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2
+        ? sorted[middle]
+        : (sorted[middle - 1] + sorted[middle]) * 0.5;
+    entity.__liveTrackCadenceEstimateMs = clamp(median, LIVE_TRACK_CADENCE_MIN_MS, LIVE_TRACK_CADENCE_MAX_MS);
+    return entity.__liveTrackCadenceEstimateMs;
+}
+function getLiveTrackPredictionWindowMs(cadenceMs = LIVE_TRACK_DEFAULT_ANIM_MS) {
+    return clamp(
+        Number(cadenceMs || LIVE_TRACK_DEFAULT_ANIM_MS) * LIVE_TRACK_PREDICTION_CADENCE_FACTOR,
+        LIVE_TRACK_MIN_PREDICTION_MS,
+        LIVE_TRACK_MAX_PREDICTION_MS
+    );
+}
+function getLiveTrackInterpolationDurationMs(distanceMeters, cadenceMs, track = {}, options = {}) {
+    const minAnimMs = LIVE_TRACK_MIN_ANIM_MS;
+    const maxAnimMs = LIVE_TRACK_MAX_ANIM_MS;
+    const cadenceDurationMs = clamp(
+        Number(cadenceMs || LIVE_TRACK_DEFAULT_ANIM_MS) * LIVE_TRACK_CADENCE_DURATION_FACTOR,
+        minAnimMs,
+        maxAnimMs
+    );
+    const speedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? 0);
+    const speedMps = Number.isFinite(speedKts) && speedKts >= LIVE_TRACK_MIN_PREDICTION_SPEED_KTS
+        ? speedKts * 0.514444
+        : 0;
+    const travelDurationMs = speedMps > 0
+        ? clamp((Math.max(0, Number(distanceMeters || 0)) / speedMps) * 1000, minAnimMs, maxAnimMs)
+        : cadenceDurationMs;
+    let durationMs = clamp(Math.min(cadenceDurationMs, travelDurationMs), minAnimMs, maxAnimMs);
+    const correctionMeters = Number(options.correctionMeters || 0);
+    if (options.reconciling === true && correctionMeters > LIVE_TRACK_PREDICTION_SMALL_CORRECTION_METERS) {
+        durationMs = Math.min(
+            durationMs,
+            clamp(correctionMeters * 0.5, minAnimMs, LIVE_TRACK_PREDICTION_RECONCILE_MAX_MS)
+        );
+    }
+    return durationMs;
+}
+function getLiveTrackHeadingUnitCartesian(cartesian, headingDeg) {
+    if (!cartesian || !Number.isFinite(Number(headingDeg))) return null;
+    try {
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude);
+        const headingRad = Cesium.Math.toRadians(normalizeDegrees(headingDeg));
+        const offset = offsetLonLatByMeters(lon, lat, Math.sin(headingRad), Math.cos(headingRad));
+        const ahead = Cesium.Cartesian3.fromDegrees(offset.lon, offset.lat, Number(cartographic.height || 0));
+        const dx = ahead.x - cartesian.x;
+        const dy = ahead.y - cartesian.y;
+        const dz = ahead.z - cartesian.z;
+        const magnitude = Math.hypot(dx, dy, dz);
+        if (!Number.isFinite(magnitude) || magnitude <= 0) return null;
+        return { x: dx / magnitude, y: dy / magnitude, z: dz / magnitude };
+    } catch {
+        return null;
+    }
+}
+function buildLiveTrackCurveTangents(startCartesian, endCartesian, startHeadingDeg, endHeadingDeg) {
+    const distanceMeters = getCartesianDistanceMeters(startCartesian, endCartesian);
+    const turnDeg = Math.abs(getShortestAngleDeltaDeg(startHeadingDeg, endHeadingDeg));
+    if (!Number.isFinite(distanceMeters) || distanceMeters < 50 || turnDeg > LIVE_TRACK_CURVE_MAX_TURN_DEG) {
+        return null;
+    }
+    const startUnit = getLiveTrackHeadingUnitCartesian(startCartesian, startHeadingDeg);
+    const endUnit = getLiveTrackHeadingUnitCartesian(endCartesian, endHeadingDeg);
+    if (!startUnit || !endUnit) return null;
+    const tangentLength = distanceMeters * LIVE_TRACK_CURVE_TANGENT_FACTOR;
+    return {
+        start: { x: startUnit.x * tangentLength, y: startUnit.y * tangentLength, z: startUnit.z * tangentLength },
+        end: { x: endUnit.x * tangentLength, y: endUnit.y * tangentLength, z: endUnit.z * tangentLength },
+    };
+}
+function interpolateLiveTrackCartesian(motion, t, result) {
+    const start = motion.startCartesian;
+    const end = motion.endCartesian;
+    const tangents = motion.curveTangents;
+    if (!tangents) return Cesium.Cartesian3.lerp(start, end, t, result);
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const h00 = (2 * t3) - (3 * t2) + 1;
+    const h10 = t3 - (2 * t2) + t;
+    const h01 = (-2 * t3) + (3 * t2);
+    const h11 = t3 - t2;
+    const output = result || new Cesium.Cartesian3();
+    output.x = (h00 * start.x) + (h10 * tangents.start.x) + (h01 * end.x) + (h11 * tangents.end.x);
+    output.y = (h00 * start.y) + (h10 * tangents.start.y) + (h01 * end.y) + (h11 * tangents.end.y);
+    output.z = (h00 * start.z) + (h10 * tangents.start.z) + (h01 * end.z) + (h11 * tangents.end.z);
+    return output;
 }
 function setLiveTrackPositionValue(entity, position) {
     if (!entity || !position) return;
@@ -7087,6 +7324,17 @@ function getLiveTrackDiagnosticLonLat(cartesian) {
         return { lon: null, lat: null };
     }
 }
+function getLiveTrackHeadingDiagnostic(track = {}) {
+    const groundTrack = getTrackHeadingField(track, "ground_track_deg", "track_deg", "course_deg", "track");
+    const reportedHeading = getTrackHeadingField(track, "true_heading_deg", "true_heading", "heading_deg", "magnetic_heading_deg", "magnetic_heading", "heading");
+    const bearing = getTrackDerivedBearing(track);
+    const speedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? 0);
+    let source = "retained";
+    if (Number.isFinite(groundTrack) && speedKts >= LIVE_TRACK_MIN_PREDICTION_SPEED_KTS) source = "ground_track";
+    else if (Number.isFinite(reportedHeading)) source = "heading";
+    else if (Number.isFinite(bearing)) source = "position_bearing";
+    return { source, rawHeading: groundTrack ?? reportedHeading, bearing };
+}
 function recordLiveTrackMotionDiagnostic(kind, entity, track, targetCartesian, now, sourceTimestamp) {
     if (!isLiveTrackDiagnosticsEnabled()) return;
     const trackKey = String(entity?.__trackKey || track?.track_key || "");
@@ -7099,6 +7347,8 @@ function recordLiveTrackMotionDiagnostic(kind, entity, track, targetCartesian, n
     if (kind === "frame" && now - __liveTrackMotionDiagnostics.lastSampleAt < 250) return;
     __liveTrackMotionDiagnostics.lastSampleAt = now;
     const motion = entity?.__liveTrackMotionState || null;
+    const headingDiagnostic = getLiveTrackHeadingDiagnostic(track);
+    const registryEntry = __liveTrackRegistry.get(trackKey);
     const visualCartesian = getPositionCartesian(entity);
     const visual = getLiveTrackDiagnosticLonLat(visualCartesian);
     const target = getLiveTrackDiagnosticLonLat(targetCartesian || motion?.endCartesian);
@@ -7139,6 +7389,19 @@ function recordLiveTrackMotionDiagnostic(kind, entity, track, targetCartesian, n
         previousTargetToNewTargetMeters,
         interpolationStartedAt: Number(motion?.startedAt || now),
         interpolationDurationMs: Number(motion?.durationMs || 0),
+        sourceAgeMs: Math.max(0, Date.now() - Number(sourceTimestamp || Date.now())),
+        sourceIntervalMs: Number(entity?.__liveTrackCadenceEstimateMs || 0),
+        visualSpeedMps: Number(motion?.durationMs || 0) > 0
+            ? getCartesianDistanceMeters(motion?.startCartesian, motion?.endCartesian) / (Number(motion.durationMs) / 1000)
+            : 0,
+        prediction: String(motion?.phase || "") === "prediction",
+        correctionMeters: Number(motion?.correctionMeters || 0),
+        headingSource: headingDiagnostic.source,
+        rawHeading: headingDiagnostic.rawHeading,
+        smoothedHeading: Number(entity?.__currentHeadingDeg ?? 0),
+        bearing: headingDiagnostic.bearing,
+        groundState: isTrackOnGround(track) ? "confirmed_ground" : "air_or_unknown",
+        staleState: String(registryEntry?.liveness_state || "live"),
         visualStepMeters,
         motionStateId: getLiveTrackMotionStateId(motion),
     };
@@ -7150,7 +7413,7 @@ function isLiveTrackPredictionEnabled() {
     if (typeof window.__STRATOPS_AIRCRAFT_PREDICTION__ === "boolean") {
         return window.__STRATOPS_AIRCRAFT_PREDICTION__ === true;
     }
-    return window.__stratopsConfig?.aircraftPredictionEnabled === true;
+    return window.__stratopsConfig?.aircraftPredictionEnabled !== false;
 }
 function getFinitePredictionValue(...values) {
     for (const value of values) {
@@ -7197,7 +7460,7 @@ function getLiveTrackPredictionTelemetry(track = {}, entity = null, receivedAt =
     let reason = "";
     if (!isLiveTrackPredictionEnabled()) reason = "disabled";
     else if (!trackKey || !Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lon) > 180) reason = "invalid_coordinates";
-    else if (isTrackOnGround(track) && (!Number.isFinite(speedKts) || speedKts < LIVE_TRACK_MIN_PREDICTION_SPEED_KTS)) reason = "stationary_on_ground";
+    else if (isTrackOnGround(track)) reason = "stationary_on_ground";
     else if (!Number.isFinite(speedKts) || speedKts < LIVE_TRACK_MIN_PREDICTION_SPEED_KTS) reason = "invalid_speed";
     else if (!Number.isFinite(trackHeadingDeg)) reason = "invalid_track";
     else if (entry?.active === false || entry?.ended_at || entry?.liveness_state === "ended") reason = "ended";
@@ -7225,7 +7488,8 @@ function armLiveTrackPrediction(entity, track = {}, sourceTimestamp = Date.now()
     if (!entity || !authoritativeCartesian) return false;
     const prediction = getLiveTrackPredictionTelemetry(track, entity, receivedAt);
     if (!prediction.eligible) return false;
-    prediction.endsAt = receivedAt + LIVE_TRACK_MAX_PREDICTION_MS;
+    prediction.maxDurationMs = getLiveTrackPredictionWindowMs(entity.__liveTrackCadenceEstimateMs);
+    prediction.endsAt = receivedAt + prediction.maxDurationMs;
     const headingDeg = normalizeDegrees(Number(attitude.headingDeg ?? track.heading_deg ?? entity.__currentHeadingDeg ?? 0));
     const pitchDeg = Number(attitude.pitchDeg ?? entity.__currentPitchDeg ?? 0);
     const rollDeg = Number(attitude.rollDeg ?? entity.__currentRollDeg ?? 0);
@@ -7251,7 +7515,7 @@ function armLiveTrackPrediction(entity, track = {}, sourceTimestamp = Date.now()
         endBillboardRotation: getLiveTrackBillboardRotationRadians(headingDeg),
         prediction,
     };
-    wakeLiveTrackInterpolationRender(LIVE_TRACK_MAX_PREDICTION_MS);
+    wakeLiveTrackInterpolationRender(prediction.maxDurationMs);
     return true;
 }
 function shouldLogLiveTrackPrediction(trackKey = "") {
@@ -7369,9 +7633,8 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     motion.lastFrameAt = now;
     motion.elapsedMs = clamp(Number(motion.elapsedMs || 0) + frameDeltaMs, 0, durationMs);
     const t = motion.elapsedMs / durationMs;
-    motion.currentCartesian = Cesium.Cartesian3.lerp(
-        motion.startCartesian,
-        motion.endCartesian,
+    motion.currentCartesian = interpolateLiveTrackCartesian(
+        motion,
         t,
         motion.currentCartesian || new Cesium.Cartesian3()
     );
@@ -7468,6 +7731,9 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         updateLiveTrackMotionFrame(entity, receivedAt);
     }
     const startCartesian = getPositionCartesian(entity);
+    const trackKey = entity.__trackKey;
+    const sourceTimestamp = Number(nextSourceTimestamp || 0);
+    const cadenceMs = updateLiveTrackCadenceEstimate(entity, sourceTimestamp, receivedAt);
     const nextCartesian = buildTrackEntityCartesian(
         track,
         nextLon,
@@ -7475,8 +7741,15 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         nextAlt,
         Number(nextAttitude?.headingDeg ?? track.heading_deg ?? 0)
     );
-    const trackKey = entity.__trackKey;
     if (!nextCartesian) return;
+    const distanceMeters = startCartesian
+        ? getCartesianDistanceMeters(startCartesian, nextCartesian)
+        : 0;
+    const previousSourceTimestamp = Number(entity.__lastSourceTimestamp || 0);
+    const sourceGapMs =
+        previousSourceTimestamp > 0 && sourceTimestamp > previousSourceTimestamp
+            ? sourceTimestamp - previousSourceTimestamp
+            : cadenceMs;
     const predictionErrorMeters = wasPredicting
         ? getCartesianDistanceMeters(startCartesian, nextCartesian)
         : 0;
@@ -7510,19 +7783,21 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         logLiveTrackPrediction("end", trackKey, { reason: "new_source", predictionDuration: previousPredictionDuration });
     }
     const currentAttitude = getLiveTrackMotionAttitude(entity, nextAttitude || {});
-    const motionHeadingDeg = getRenderedTrackMotionHeading(
-        startCartesian,
-        nextLon,
-        nextLat,
+    const stableTargetHeadingDeg = normalizeDegrees(Number(
         nextAttitude?.headingDeg ?? track.heading_deg ?? currentAttitude.headingDeg ?? 0
-    );
-    // Face the route segment before translation starts. Interpolating the old
-    // attitude over the full position interval makes the model fly sideways
-    // while it slowly catches up to the correct course.
+    ));
+    const motionHeadingDeg = wasPredicting
+        ? stableTargetHeadingDeg
+        : getRenderedTrackMotionHeading(startCartesian, nextLon, nextLat, stableTargetHeadingDeg);
+    const duration = getLiveTrackInterpolationDurationMs(distanceMeters, cadenceMs, track, {
+        reconciling: wasPredicting,
+        correctionMeters: predictionErrorMeters,
+    });
     const alignedAttitude = getAlignedLiveTrackMotionAttitude(
         track,
         { ...(nextAttitude || {}), headingDeg: motionHeadingDeg },
-        currentAttitude
+        currentAttitude,
+        duration
     );
     const {
         startHeadingDeg,
@@ -7571,30 +7846,14 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         commitPosition(nextCartesian);
         return;
     }
-    const distanceMeters = getCartesianDistanceMeters(startCartesian, nextCartesian);
-    if (distanceMeters <= LIVE_TRACK_MIN_ANIM_DISTANCE_METERS) {
+    if (
+        distanceMeters <= LIVE_TRACK_MIN_ANIM_DISTANCE_METERS &&
+        Math.abs(headingDeltaDeg) < LIVE_TRACK_INSIGNIFICANT_HEADING_DEG &&
+        Math.abs(endPitchDeg - startPitchDeg) < 0.1
+    ) {
         commitPosition(nextCartesian);
         return;
     }
-    const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
-    const isFocusedTrack =
-        trackKey &&
-        selectedTrackKey &&
-        selectedTrackKey === String(trackKey) &&
-        String(__liveTrackReplayState.mode || "") === "focus";
-    const focusAnimConfig = isFocusedTrack ? getLiveTrackFocusAnimConfig() : null;
-    const minAnimMs = isFocusedTrack ? focusAnimConfig.minMs : LIVE_TRACK_MIN_ANIM_MS;
-    const maxAnimMs = isFocusedTrack ? focusAnimConfig.maxMs : LIVE_TRACK_MAX_ANIM_MS;
-    const fallbackAnimMs = isFocusedTrack ? LIVE_TRACK_FOCUS_DEFAULT_ANIM_MS : LIVE_TRACK_DEFAULT_ANIM_MS;
-    const prevSourceTimestamp = Number(entity.__lastSourceTimestamp || 0);
-    const sourceTimestamp = Number(nextSourceTimestamp || 0);
-    const sourceGapMs =
-        Number.isFinite(prevSourceTimestamp) &&
-            prevSourceTimestamp > 0 &&
-            Number.isFinite(sourceTimestamp) &&
-            sourceTimestamp > prevSourceTimestamp
-            ? sourceTimestamp - prevSourceTimestamp
-            : fallbackAnimMs;
     if (!wasPredicting && isMajorLiveTrackCorrection(distanceMeters, sourceGapMs, track)) {
         if (trackKey) {
             __liveTrackTrails.delete(trackKey);
@@ -7602,32 +7861,6 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         }
         commitPosition(nextCartesian);
         return;
-    }
-    const cadenceDuration = clamp(
-        Math.max(
-            sourceGapMs * (isFocusedTrack ? focusAnimConfig.cadenceFactor : 0.94),
-            fallbackAnimMs
-        ),
-        minAnimMs,
-        maxAnimMs
-    );
-    const distanceDuration = clamp(
-        distanceMeters * (isFocusedTrack ? 0.028 : 0.07),
-        minAnimMs,
-        maxAnimMs
-    );
-    let duration = clamp(
-        isFocusedTrack
-            ? Math.max(cadenceDuration, distanceDuration)
-            : Math.max(cadenceDuration, distanceDuration),
-        minAnimMs,
-        maxAnimMs
-    );
-    if (wasPredicting && predictionErrorMeters > LIVE_TRACK_PREDICTION_SMALL_CORRECTION_METERS) {
-        duration = Math.min(
-            duration,
-            clamp(predictionErrorMeters * 0.5, minAnimMs, LIVE_TRACK_PREDICTION_RECONCILE_MAX_MS)
-        );
     }
     const startTime = receivedAt;
     let endOrientation = null;
@@ -7652,7 +7885,14 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
 
     if (trackKey && !wasPredicting) pushTrackTrailPointFromCartesian(trackKey, track, startCartesian, startHeadingDeg);
     const prediction = getLiveTrackPredictionTelemetry(track, entity, receivedAt);
-    prediction.endsAt = receivedAt + LIVE_TRACK_MAX_PREDICTION_MS;
+    prediction.maxDurationMs = getLiveTrackPredictionWindowMs(cadenceMs);
+    prediction.endsAt = startTime + duration + prediction.maxDurationMs;
+    const curveTangents = buildLiveTrackCurveTangents(
+        startCartesian,
+        nextCartesian,
+        startHeadingDeg,
+        endHeadingDeg
+    );
     entity.__liveTrackMotionState = {
         phase: "interpolation",
         sourceTimestamp,
@@ -7671,6 +7911,8 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         track,
         startCartesian: Cesium.Cartesian3.clone(startCartesian),
         endCartesian: nextCartesian,
+        curveTangents,
+        correctionMeters: predictionErrorMeters,
         endOrientation,
         startBillboardRotation,
         billboardRotationDelta: getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg),
@@ -7679,7 +7921,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
     };
     recordLiveTrackMotionDiagnostic("target", entity, track, nextCartesian, startTime, sourceTimestamp);
     updateLiveTrackMotionFrame(entity, startTime);
-    wakeLiveTrackInterpolationRender(Math.max(duration, prediction.eligible ? LIVE_TRACK_MAX_PREDICTION_MS : 0));
+    wakeLiveTrackInterpolationRender(duration + (prediction.eligible ? prediction.maxDurationMs : 0));
 }
 
 function resetLiveTrackRuntimeForLifecycle(entity) {
@@ -7952,6 +8194,17 @@ function applyLiveTrackUpdate(track, options = {}) {
         ? "accept"
         : classifyLiveTrackTelemetryUpdate(entity, track, sourceTimestamp);
     if (telemetryUpdate === "stale") {
+        if (isLiveTrackDiagnosticsEnabled()) {
+            console.info("[AIR MOTION] rejected stale update", {
+                trackKey: String(track.track_key || ""),
+                sourceTimestamp,
+                acceptedSourceTimestamp: Number(
+                    entity?.__lastSourceTimestamp ||
+                    __liveTrackRegistry.get(String(track.track_key || ""))?.source_timestamp ||
+                    0
+                ),
+            });
+        }
         options.onTelemetryResult?.({ status: "stale" });
         return;
     }
@@ -8545,6 +8798,7 @@ export function focusLiveTrack(trackKey, options = {}) {
     __liveTrackFocusBaseRangeMeters = __liveTrackFocusRangeMeters;
     __liveTrackManualCameraIntent = false;
     __liveTrackUserCameraInteracting = false;
+    __liveTrackFollowAircraftHeading = true;
     __liveTrackLastFocusCameraSyncAt = 0;
     __liveTrackLastFocusVisualRefreshAt = 0;
     if (__liveTrackFocusResumeTimer) {
@@ -8554,6 +8808,11 @@ export function focusLiveTrack(trackKey, options = {}) {
     resetFocusedTrackCameraOrientation();
     if (Number.isFinite(Number(options.headingDegrees))) {
         __liveTrackFocusHeadingDeg = normalizeDegrees(Number(options.headingDegrees));
+        __liveTrackFollowAircraftHeading = false;
+    } else {
+        __liveTrackFocusHeadingDeg = normalizeDegrees(
+            Number(entity.__currentHeadingDeg || focusTrack.heading_deg || 0) + getLiveTrackFocusCameraHeadingOffsetDeg()
+        );
     }
     if (Number.isFinite(Number(options.pitchDegrees))) {
         __liveTrackFocusPitchDeg = clamp(
@@ -8635,6 +8894,7 @@ export function clearLiveTrackSelection(options = {}) {
     closeFocusDriftWarningModal();
     __liveTrackFocusWarningActive = false;
     __liveTrackManualCameraIntent = false;
+    __liveTrackFollowAircraftHeading = true;
     __liveTrackFocusRangeMeters = getLiveTrackFocusCameraRangeMeters();
     __liveTrackFocusTargetRangeMeters = __liveTrackFocusRangeMeters;
     __liveTrackFocusBaseRangeMeters = __liveTrackFocusRangeMeters;

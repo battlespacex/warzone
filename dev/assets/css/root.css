@@ -1625,6 +1625,8 @@ input[type="checkbox"]:checked {
     --warzone-live-aircraft-focus-camera-range: 24000;
     --warzone-live-aircraft-focus-altitude-offset-ft: 3500;
     --warzone-live-aircraft-focus-camera-pitch: -58;
+    --warzone-live-aircraft-focus-camera-heading-offset: 180;
+    --warzone-live-aircraft-focus-camera-max-heading-rate: 32;
     --warzone-live-aircraft-focus-camera-sync-hz: 20;
     --warzone-live-aircraft-focus-camera-position-epsilon: 4;
     --warzone-live-aircraft-unfocus-camera-range: 72000;

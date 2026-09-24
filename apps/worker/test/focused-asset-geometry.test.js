@@ -56,16 +56,25 @@ test("aircraft orientation follows meaningful movement but ignores position jitt
   const context = vm.createContext({
     __liveTrackLastPositions: new Map([["a", { lon: 1, lat: 1 }]]),
     LIVE_TRACK_COURSE_HEADING_MIN_DISTANCE_METERS: 75,
+    LIVE_TRACK_MIN_PREDICTION_SPEED_KTS: 15,
+    __liveTrackVisualState: new Map(),
     normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+    getTrackMetadata: () => ({}),
+    getShortestAngleDeltaDeg: (from, to) => {
+      let delta = to - from;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      return delta;
+    },
     getLonLatDistanceMeters: () => movedMeters,
     getHeadingDegreesFromPoints: () => 270,
   });
-  vm.runInContext(section(air, "getTrackResolvedHeading", "getTrackVisualState"), context);
+  vm.runInContext(section(air, "getTrackHeadingField", "getTrackVisualState"), context);
   assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: 0 }), 0);
-  assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: 45 }), 45);
+  assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, speed_kts: 300, heading_deg: 45 }), 45);
   movedMeters = 500;
-  assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: 45 }), 270);
-  assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, heading_deg: null }), 270);
+  assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, speed_kts: 300, heading_deg: 45 }), 270);
+  assert.equal(context.getTrackResolvedHeading({ track_key: "a", lon: 2, lat: 1, speed_kts: 300, heading_deg: null }), 270);
 });
 
 test("non-focused aircraft billboard follows aviation heading clockwise", () => {
@@ -79,23 +88,32 @@ test("non-focused aircraft billboard follows aviation heading clockwise", () => 
   assert.equal(context.getLiveTrackBillboardRotationDeltaRadians(20), -Math.PI / 9);
 });
 
-test("aircraft faces the new movement segment before translation begins and remains level", () => {
+test("aircraft turns toward the newest movement segment by the shortest bounded angle", () => {
   const context = vm.createContext({
     normalizeDegrees: (value) => ((value % 360) + 360) % 360,
+    getShortestAngleDeltaDeg: (from, to) => {
+      let delta = ((to % 360) + 360) % 360 - (((from % 360) + 360) % 360);
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      return delta;
+    },
+    clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
+    LIVE_TRACK_MAX_HEADING_RATE_DEG_PER_SEC: 28,
   });
   vm.runInContext(section(air, "getAlignedLiveTrackMotionAttitude", "setLiveTrackPositionValue"), context);
   const attitude = context.getAlignedLiveTrackMotionAttitude(
-    { heading_deg: 95 },
-    { headingDeg: 132, pitchDeg: 0, rollDeg: 0 },
-    { headingDeg: 18, pitchDeg: 4, rollDeg: 21 }
+    { heading_deg: 1 },
+    { headingDeg: 1, pitchDeg: 0, rollDeg: 0 },
+    { headingDeg: 359, pitchDeg: 4, rollDeg: 21 },
+    1000
   );
   assert.deepEqual(JSON.parse(JSON.stringify(attitude)), {
-    startHeadingDeg: 132,
-    endHeadingDeg: 132,
-    headingDeltaDeg: 0,
-    startPitchDeg: 0,
+    startHeadingDeg: 359,
+    endHeadingDeg: 1,
+    headingDeltaDeg: 2,
+    startPitchDeg: 4,
     endPitchDeg: 0,
-    startRollDeg: 0,
+    startRollDeg: 21,
     endRollDeg: 0,
   });
   assert.match(css, /--warzone-live-aircraft-model-dynamic-bank-enabled:\s*0/);
@@ -149,12 +167,12 @@ test("aircraft prediction requires recent trustworthy motion telemetry and prefe
   assert.equal(context.getLiveTrackPredictionTelemetry({ track_key: "A", lon: 10, lat: 20, speed_kts: 300, heading_deg: 90 }, {}, 1000).reason, "ended");
 });
 
-test("aircraft prediction is opt-in so authoritative interpolation does not reconcile prediction drift", () => {
+test("aircraft prediction is enabled by default but remains explicitly disableable", () => {
   const context = vm.createContext({ window: { __stratopsConfig: {} } });
   vm.runInContext(section(air, "isLiveTrackPredictionEnabled", "getFinitePredictionValue"), context);
-  assert.equal(context.isLiveTrackPredictionEnabled(), false);
-  context.window.__stratopsConfig.aircraftPredictionEnabled = true;
   assert.equal(context.isLiveTrackPredictionEnabled(), true);
+  context.window.__stratopsConfig.aircraftPredictionEnabled = false;
+  assert.equal(context.isLiveTrackPredictionEnabled(), false);
 });
 
 test("aircraft prediction uses geodetic ground-track distance without committing synthetic trail points", () => {
