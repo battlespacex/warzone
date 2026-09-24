@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkwarzone_frontend=self.webpackChunkwarzone_frontend||[]).push([[161],{50161:function(e,n,r){r.d(n,{createGoogleImageryProvider:function(){return t}});var o=r(56690);async function t(e=""){const n=String(e||"").trim();if(!n)throw new Error("missing_google_api_key");return o.A.fromUrl({key:n,mapType:"satellite",language:"en",region:"US"})}}}]);
