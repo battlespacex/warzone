@@ -343,6 +343,15 @@ module.exports = (env, argv) => {
                 scriptLoading: "defer",
             }),
 
+            new HtmlWebpackPlugin({
+                filename: "poster/index.html",
+                template: path.resolve(DEV_DIR, "pages/poster.html"),
+                cache: !isDev,
+                inject: "head",
+                chunks: ["main"],
+                scriptLoading: "defer",
+            }),
+
             ...pages.map((name) => {
                 return new HtmlWebpackPlugin({
                     filename: `pages/${name}.html`,
