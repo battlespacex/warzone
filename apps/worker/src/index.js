@@ -74,6 +74,13 @@ import { createNavalProviders } from "./tracking/naval/registry.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
+import {
+    formatSourceFailure,
+    recordSourceFailure,
+    recordSourceSuccess,
+    shouldAttemptSource,
+    shouldLogSourceFailure,
+} from "./source-health.js";
 import { readCopernicusConfig } from "./copernicus-config.js";
 import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from "./copernicus-runner.js";
 import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
@@ -146,11 +153,20 @@ function interpolateEnvPlaceholders(str) {
 }
 const sources = JSON.parse(interpolateEnvPlaceholders(rawSources));
 sources.feeds = (Array.isArray(sources.feeds) ? sources.feeds : []).map(normalizeSourceDefinition);
-let isWorkerRunning = false;
 let isConflictFeedRunning = false;
 let isStatusFeedRunning = false;
 let isCopernicusRunning = false;
 let isReportingRunning = false;
+const activeWorkerJobs = new Set();
+const activeWorkerFeeds = new Map();
+const workerLogCooldowns = new Map();
+const WORKER_LOG_COOLDOWN_MS = 15 * 60 * 1000;
+const WORKER_FEED_TIMEOUT_MS = 60 * 1000;
+const GDELT_HEALTH_SOURCE = Object.freeze({
+    id: "gdelt-doc-api-shared",
+    name: "GDELT Doc API",
+    url: "https://api.gdeltproject.org/api/v2/doc/doc",
+});
 const DEFAULT_CONFLICT_FEED_INTERVAL_MS = 15 * 60 * 1000;
 const MIN_CONFLICT_FEED_INTERVAL_MS = 60 * 1000;
 const DEFAULT_STATUS_FEED_INTERVAL_MS = 15 * 60 * 1000;
@@ -162,6 +178,114 @@ function readBooleanEnv(value, defaultValue = false) {
 function readPositiveIntegerEnv(value, fallback) {
     const parsed = Number.parseInt(String(value || ""), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+const TELEGRAM_OPERATION_TIMEOUT_MS = readPositiveIntegerEnv(
+    process.env.TELEGRAM_OPERATION_TIMEOUT_MS,
+    20_000
+);
+
+function workerFeedKey(feed = {}) {
+    return String(feed.id || feed.name || feed.url || feed.parser || "unknown-feed")
+        .trim()
+        .toLowerCase();
+}
+
+function logWorkerOnce(key, message, { level = "warn", intervalMs = WORKER_LOG_COOLDOWN_MS } = {}) {
+    const now = Date.now();
+    const previous = workerLogCooldowns.get(key) || 0;
+    if (now - previous < intervalMs) return false;
+    workerLogCooldowns.set(key, now);
+    const logger = typeof console[level] === "function" ? console[level] : console.warn;
+    logger(message);
+    return true;
+}
+
+function withWorkerTimeout(promise, timeoutMs, label) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            const error = new Error(`${label} timed out after ${timeoutMs}ms`);
+            error.code = "ETIMEDOUT";
+            reject(error);
+        }, timeoutMs);
+        if (typeof timer.unref === "function") timer.unref();
+    });
+    return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
+async function runLockedWorkerJob(name, task) {
+    if (activeWorkerJobs.has(name)) {
+        logWorkerOnce(`job-overlap:${name}`, `[worker:${name}] previous run still active; skipping this tick`);
+        return { skipped: true };
+    }
+    activeWorkerJobs.add(name);
+    try {
+        return await task();
+    } finally {
+        activeWorkerJobs.delete(name);
+    }
+}
+
+function feedHealthSource(feed = {}) {
+    return feed.parser === "gdelt" ? GDELT_HEALTH_SOURCE : feed;
+}
+
+async function processFeedSafely(feed, timeoutMs = WORKER_FEED_TIMEOUT_MS) {
+    const key = workerFeedKey(feed);
+    const healthSource = feedHealthSource(feed);
+    if (!feed.url && !["telegram", "x-search", "notam-api"].includes(feed.parser)) {
+        logWorkerOnce(
+            `feed-config:${key}`,
+            `[source:${feed.name || key}] skipped: configured endpoint is empty`,
+            { intervalMs: 24 * 60 * 60 * 1000 }
+        );
+        return { skipped: true };
+    }
+    if (!shouldAttemptSource(healthSource)) return { skipped: true };
+    if (activeWorkerFeeds.has(key)) {
+        logWorkerOnce(`feed-overlap:${key}`, `[source:${feed.name || key}] previous request still active; skipping`);
+        return { skipped: true };
+    }
+
+    const task = Promise.resolve().then(() => processFeed(feed));
+    activeWorkerFeeds.set(key, task);
+    task.then(
+        () => {
+            if (activeWorkerFeeds.get(key) === task) activeWorkerFeeds.delete(key);
+        },
+        () => {
+            if (activeWorkerFeeds.get(key) === task) activeWorkerFeeds.delete(key);
+        }
+    );
+
+    try {
+        await withWorkerTimeout(task, timeoutMs, feed.name || key);
+        recordSourceSuccess(healthSource, 1);
+        return { ok: true };
+    } catch (error) {
+        const health = recordSourceFailure(healthSource, error);
+        if (shouldLogSourceFailure(healthSource, health)) {
+            console.warn(formatSourceFailure(healthSource, health));
+        }
+        return { ok: false, timedOut: error?.code === "ETIMEDOUT" };
+    }
+}
+
+async function runFeedGroup(name, feeds, { concurrency = 1, timeoutMs = WORKER_FEED_TIMEOUT_MS } = {}) {
+    return runLockedWorkerJob(`feeds:${name}`, async () => {
+        let nextIndex = 0;
+        const workers = Array.from(
+            { length: Math.min(Math.max(1, concurrency), Math.max(1, feeds.length)) },
+            async () => {
+                while (nextIndex < feeds.length) {
+                    const feed = feeds[nextIndex++];
+                    const result = await processFeedSafely(feed, timeoutMs);
+                    if (name === "telegram" && result?.timedOut) break;
+                }
+            }
+        );
+        await Promise.allSettled(workers);
+    });
 }
 const CONFLICT_FEED_ENABLED = readBooleanEnv(process.env.CONFLICT_FEED_ENABLED, true);
 const CONFLICT_FEED_INTERVAL_MS = Math.max(
@@ -1964,48 +2088,50 @@ async function normalizeRssItem(item, feed) {
     };
 }
 async function processRssFeed(feed) {
-    try {
-        const response = await axios.get(feed.url, {
-            timeout: 18000,
-            headers: {
-                "User-Agent": "Mozilla/5.0 (compatible; StratOpsWorker/1.0; +https://stratops.battlespacex.com)",
-                "Accept": "application/rss+xml, application/xml, application/atom+xml, text/xml, */*",
-                "Cache-Control": "no-cache"
-            },
-            responseType: "text"
-        });
-        const xml = typeof response.data === "string" ? response.data : String(response.data);
-        const items = rssItems(xml);
-        console.log(`[RSS] ${feed.name}: ${items.length} items fetched`);
-        let saved = 0;
-        for (const item of items.slice(0, 30)) {
-            const event = await normalizeRssItem(item, feed);
-            if (!event) continue;
-            if (!Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) {
-                await saveRawItem({
-                    source_name: event.source_name,
-                    source_type: "rss",
-                    parser: "rss",
-                    external_id: event.dedupe_key,
-                    url: event.source_url,
-                    title: event.title,
-                    text: event.summary,
-                    payload: attachLocationToRawPayload(item, event.metadata || {}, {
-                        country: feed.source_country || feed.publisher_country || null,
-                        region: feed.source_region || feed.region || null
-                    }),
-                    published_at: event.occurred_at,
-                    location_hint: event.location_label
-                });
-                continue;
-            }
-            await insertEventIfValid(event);
-            saved++;
-        }
-        console.log(`[RSS] ${feed.name}: ${saved} military items saved`);
-    } catch (err) {
-        console.warn(`[RSS] ${feed.name} failed:`, err.response?.status || err.message);
+    const response = await axios.get(feed.url, {
+        timeout: 18000,
+        headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; StratOpsWorker/1.0; +https://stratops.battlespacex.com)",
+            "Accept": "application/rss+xml, application/xml, application/atom+xml, text/xml, */*",
+            "Cache-Control": "no-cache"
+        },
+        responseType: "text"
+    });
+    const contentType = String(response.headers?.["content-type"] || "").toLowerCase();
+    if (contentType.includes("text/html")) {
+        const error = new Error(`RSS endpoint returned ${contentType || "text/html"}`);
+        error.status = response.status;
+        throw error;
     }
+    const xml = typeof response.data === "string" ? response.data : String(response.data);
+    const items = rssItems(xml);
+    console.log(`[RSS] ${feed.name}: ${items.length} items fetched`);
+    let saved = 0;
+    for (const item of items.slice(0, 30)) {
+        const event = await normalizeRssItem(item, feed);
+        if (!event) continue;
+        if (!Number.isFinite(Number(event.lat)) || !Number.isFinite(Number(event.lon))) {
+            await saveRawItem({
+                source_name: event.source_name,
+                source_type: "rss",
+                parser: "rss",
+                external_id: event.dedupe_key,
+                url: event.source_url,
+                title: event.title,
+                text: event.summary,
+                payload: attachLocationToRawPayload(item, event.metadata || {}, {
+                    country: feed.source_country || feed.publisher_country || null,
+                    region: feed.source_region || feed.region || null
+                }),
+                published_at: event.occurred_at,
+                location_hint: event.location_label
+            });
+            continue;
+        }
+        await insertEventIfValid(event);
+        saved++;
+    }
+    console.log(`[RSS] ${feed.name}: ${saved} military items saved`);
 }
 async function processNotamFeed(feed) {
     // Fetches active NOTAMs relevant to military/conflict zones.
@@ -2135,7 +2261,11 @@ async function processNotamFeed(feed) {
     }
     const hasFaaCredentials = Boolean(process.env.FAA_CLIENT_ID && process.env.FAA_CLIENT_SECRET);
     if (!hasFaaCredentials) {
-        console.warn("[NOTAM] Skipped: no SkyLink key and FAA client credentials are missing");
+        logWorkerOnce(
+            "notam-credentials-missing",
+            "[NOTAM] Optional feed disabled: no SkyLink key and FAA client credentials are configured",
+            { level: "log", intervalMs: 24 * 60 * 60 * 1000 }
+        );
         return;
     }
     // Use FAA Digital NOTAM Service — credentialed REST API
@@ -2467,16 +2597,32 @@ async function ensureTelegramClient() {
             { connectionRetries: 5 }
         );
         try {
-            await telegramClient.connect();
+            await withWorkerTimeout(
+                telegramClient.connect(),
+                TELEGRAM_OPERATION_TIMEOUT_MS,
+                "Telegram connect"
+            );
         } catch (err) {
-            console.error("Telegram connection failed, retrying...", err.message);
+            if (isTelegramDuplicateAuthError(err)) throw err;
+            logWorkerOnce(
+                `telegram-connect:${getTelegramErrorMessage(err)}`,
+                `[Telegram] connection failed; retrying after backoff: ${getTelegramErrorMessage(err)}`
+            );
             try {
-                await telegramClient.disconnect();
+                await withWorkerTimeout(telegramClient.disconnect(), 5_000, "Telegram disconnect");
             } catch { }
             await new Promise((r) => setTimeout(r, 3000));
-            await telegramClient.connect();
+            await withWorkerTimeout(
+                telegramClient.connect(),
+                TELEGRAM_OPERATION_TIMEOUT_MS,
+                "Telegram reconnect"
+            );
         }
-        const authorized = await telegramClient.isUserAuthorized();
+        const authorized = await withWorkerTimeout(
+            telegramClient.isUserAuthorized(),
+            TELEGRAM_OPERATION_TIMEOUT_MS,
+            "Telegram authorization check"
+        );
         if (!authorized) {
             throw new Error("Telegram client is not authorized. Recreate TELEGRAM_SESSION.");
         }
@@ -2847,25 +2993,38 @@ async function processTelegramFeed(feed) {
         console.log("Telegram parser skipped, no channels configured");
         return;
     }
+    let successfulChannels = 0;
+    let lastChannelError = null;
     for (const rawChannel of channels) {
         const channelKey = toTelegramChannelKey(rawChannel);
         const stateKey = makeTelegramStateKey(channelKey);
         console.log("Fetching Telegram channel:", channelKey);
         let entity;
         try {
-            entity = await client.getEntity(
-                rawChannel.startsWith("@") ? rawChannel : channelKey
+            entity = await withWorkerTimeout(
+                client.getEntity(rawChannel.startsWith("@") ? rawChannel : channelKey),
+                TELEGRAM_OPERATION_TIMEOUT_MS,
+                `Telegram entity ${channelKey}`
             );
         } catch (error) {
             if (await disableTelegramClientIfNeeded(error)) return;
-            console.error("Telegram entity resolve failed:", channelKey, error.message);
+            lastChannelError = error;
+            logWorkerOnce(
+                `telegram-entity:${channelKey}:${getTelegramErrorMessage(error)}`,
+                `[Telegram] entity resolve failed source=${channelKey}: ${getTelegramErrorMessage(error)}`
+            );
             continue;
         }
         const state = await getWorkerState(stateKey);
         const lastSeenId = Number(state?.last_message_id || 0);
         let newestSeenId = lastSeenId;
         try {
-            for await (const msg of client.iterMessages(entity, { limit })) {
+            const messages = await withWorkerTimeout(
+                client.getMessages(entity, { limit }),
+                TELEGRAM_OPERATION_TIMEOUT_MS,
+                `Telegram messages ${channelKey}`
+            );
+            for (const msg of messages) {
                 if (!msg?.id) continue;
                 if (msg.id <= lastSeenId) break;
                 if (msg.id > newestSeenId) {
@@ -2932,17 +3091,26 @@ async function processTelegramFeed(feed) {
                         });
                     }
                 } catch (error) {
-                    console.error("Telegram message parse error:", channelKey, msg.id, error.message);
+                    logWorkerOnce(
+                        `telegram-parse:${channelKey}:${getTelegramErrorMessage(error)}`,
+                        `[Telegram] message parse failed source=${channelKey}: ${getTelegramErrorMessage(error)}`
+                    );
                 }
             }
             if (newestSeenId > lastSeenId) {
                 await setWorkerState(stateKey, newestSeenId);
             }
+            successfulChannels++;
         } catch (error) {
             if (await disableTelegramClientIfNeeded(error)) return;
-            console.error("Telegram channel read failed:", channelKey, error.message);
+            lastChannelError = error;
+            logWorkerOnce(
+                `telegram-read:${channelKey}:${getTelegramErrorMessage(error)}`,
+                `[Telegram] channel read failed source=${channelKey}: ${getTelegramErrorMessage(error)}`
+            );
         }
     }
+    if (!successfulChannels && lastChannelError) throw lastChannelError;
 }
 /* ----------------------------------------
  * X / Twitter
@@ -3256,9 +3424,22 @@ async function normalizeRedditPost(post, feed) {
     };
 }
 async function processRedditFeed(feed) {
-    const response = await axios.get(feed.url, {
+    const bearerToken = String(process.env.REDDIT_BEARER_TOKEN || "").trim();
+    if (!bearerToken) {
+        logWorkerOnce(
+            "reddit-auth-missing",
+            "[Reddit] Optional feeds disabled: REDDIT_BEARER_TOKEN is not configured",
+            { level: "log", intervalMs: 24 * 60 * 60 * 1000 }
+        );
+        return;
+    }
+    const requestUrl = new URL(feed.url);
+    requestUrl.hostname = "oauth.reddit.com";
+    const response = await axios.get(requestUrl.toString(), {
         headers: {
-            "User-Agent": process.env.REDDIT_USER_AGENT || "web:warzone-osint-bot:1.0 (by /u/warzonebot)"
+            "Authorization": `Bearer ${bearerToken}`,
+            "User-Agent": process.env.REDDIT_USER_AGENT || "web:warzone-osint-bot:1.0 (by /u/warzonebot)",
+            "Accept": "application/json"
         },
         timeout: 15000
     });
@@ -4240,37 +4421,32 @@ async function processFeed(feed) {
         return;
     }
     if (feed.parser === "gdelt") {
-        try {
-            const response = await axios.get(feed.url, {
-                params: {
-                    query: feed.query,
-                    mode: feed.mode || "ArtList",
-                    format: feed.format || "json",
-                    maxrecords: Number(feed.maxrecords || 50),
-                    sort: feed.sort || "DateDesc",
-                    timespan: feed.timespan || "12h"
-                },
-                timeout: 45000,
-                headers: {
-                    Accept: "application/json"
-                }
-            });
-
-            const items = Array.isArray(response.data?.articles) ? response.data.articles : [];
-
-            console.log(`[GDELT] fetched ${items.length} article candidates`);
-
-            for (const item of items) {
-                const event = normalizeGdeltEvent(item, feed);
-                if (!event) continue;
-                await insertEventIfValid(event);
+        const response = await axios.get(feed.url, {
+            params: {
+                query: feed.query,
+                mode: feed.mode || "ArtList",
+                format: feed.format || "json",
+                maxrecords: Number(feed.maxrecords || 50),
+                sort: feed.sort || "DateDesc",
+                timespan: feed.timespan || "12h"
+            },
+            timeout: 20000,
+            headers: {
+                Accept: "application/json"
             }
+        });
 
-            return;
-        } catch (error) {
-            console.warn("[GDELT] Fetch failed:", error.response?.status || error.message);
-            return;
+        const items = Array.isArray(response.data?.articles) ? response.data.articles : [];
+
+        console.log(`[GDELT] fetched ${items.length} article candidates`);
+
+        for (const item of items) {
+            const event = normalizeGdeltEvent(item, feed);
+            if (!event) continue;
+            await insertEventIfValid(event);
         }
+
+        return;
     }
     if (feed.parser === "eonet") {
         try {
@@ -4293,11 +4469,44 @@ async function processFeed(feed) {
         return;
     }
     if (feed.parser === "events-array") {
-        const response = await axios.get(feed.url, {
+        let seedEndpoint;
+        try {
+            seedEndpoint = new URL(feed.url);
+            if (!/^https?:$/.test(seedEndpoint.protocol)) throw new Error("unsupported protocol");
+        } catch {
+            throw new Error(`Seed endpoint ${feed.url || "[empty]"} is not an absolute HTTP(S) JSON/API URL`);
+        }
+        const response = await axios.get(seedEndpoint.toString(), {
             timeout: 15000,
-            headers: { "Cache-Control": "no-cache" }
+            headers: {
+                "Accept": "application/json",
+                "Cache-Control": "no-cache"
+            },
+            responseType: "text",
+            transformResponse: [(data) => data],
+            validateStatus: () => true
         });
-        const payload = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+        const contentType = String(response.headers?.["content-type"] || "").toLowerCase();
+        if (response.status < 200 || response.status >= 300) {
+            const error = new Error(`Seed endpoint ${seedEndpoint} returned HTTP ${response.status} (${contentType || "unknown content-type"})`);
+            error.status = response.status;
+            error.headers = response.headers;
+            throw error;
+        }
+        const rawPayload = typeof response.data === "string" ? response.data.trim() : "";
+        if (contentType.includes("text/html") || (!contentType.includes("json") && !/^[\[{]/.test(rawPayload))) {
+            const error = new Error(`Seed endpoint ${seedEndpoint} returned ${contentType || "unknown content-type"}, expected JSON`);
+            error.status = response.status;
+            throw error;
+        }
+        let payload;
+        try {
+            payload = JSON.parse(rawPayload);
+        } catch (cause) {
+            const error = new Error(`Seed endpoint ${seedEndpoint} returned invalid JSON (${contentType || "unknown content-type"})`);
+            error.cause = cause;
+            throw error;
+        }
         const items = Array.isArray(payload?.events) ? payload.events : [];
         for (const item of items) {
             const event = buildSeedEvent(item, feed);
@@ -4319,57 +4528,69 @@ async function processFeed(feed) {
  * Worker loop
  * -------------------------------------- */
 async function runWorker() {
-    if (isWorkerRunning) {
-        console.log("Previous worker cycle still running, skipping this tick");
-        return;
-    }
-    isWorkerRunning = true;
-    try {
-        const adsbFeed = sources.feeds.find(f => f.type === "adsb-opensky");
-        const aisFeed = sources.feeds.find(f => f.type === "ais-stream");
-        if (shouldRunAircraftInGeneralCycle({
+    const adsbFeed = sources.feeds.find(f => f.type === "adsb-opensky");
+    const aisFeed = sources.feeds.find(f => f.type === "ais-stream");
+    const activeFeeds = toArray(sources.feeds).filter((feed) =>
+        feed &&
+        typeof feed === "object" &&
+        feed.enabled !== false &&
+        (feed.parser || feed.type) &&
+        feed.type !== "adsb-opensky" &&
+        feed.type !== "ais-stream"
+    );
+    const statusFeedPriority = new Map([
+        ["notam-api", 1],
+        ["airspace-manual", 2],
+        ["airspace-api", 3],
+        ["network-cloudflare", 4],
+        ["network-ioda", 5],
+        ["network-ooni", 6],
+        ["cyber", 7],
+    ]);
+    const prioritizedFeeds = activeFeeds
+        .map((feed, index) => ({ feed, index }))
+        .sort((a, b) => {
+            const aPriority = statusFeedPriority.get(String(a.feed.parser || "").toLowerCase()) || 999;
+            const bPriority = statusFeedPriority.get(String(b.feed.parser || "").toLowerCase()) || 999;
+            if (aPriority !== bPriority) return aPriority - bPriority;
+            return a.index - b.index;
+        })
+        .map((entry) => entry.feed);
+    const statusFeeds = prioritizedFeeds.filter((feed) => statusFeedPriority.has(String(feed.parser || "").toLowerCase()));
+    const gdeltFeeds = prioritizedFeeds.filter((feed) => feed.parser === "gdelt");
+    const telegramFeeds = prioritizedFeeds.filter((feed) => feed.parser === "telegram");
+    const redditFeeds = prioritizedFeeds.filter((feed) => feed.parser === "reddit");
+    const rssFeeds = prioritizedFeeds.filter((feed) => feed.parser === "rss");
+    const groupedFeeds = new Set([...statusFeeds, ...gdeltFeeds, ...telegramFeeds, ...redditFeeds, ...rssFeeds]);
+    const otherFeeds = prioritizedFeeds.filter((feed) => !groupedFeeds.has(feed));
+
+    const cycleResults = await Promise.allSettled([
+        shouldRunAircraftInGeneralCycle({
             livePollEnabled: AIRCRAFT_LIVE_POLL_CONFIG.enabled,
             feedEnabled: adsbFeed?.enabled !== false,
-        }))
-            await runAdsbWorker().catch(err => console.error("[adsb]", err.message));
-        if (shouldRunNavalInGeneralCycle({
+        })
+            ? runLockedWorkerJob("aircraft-fallback", () => runAdsbWorker())
+            : Promise.resolve(),
+        shouldRunNavalInGeneralCycle({
             livePollEnabled: NAVAL_LIVE_POLL_CONFIG.enabled,
             feedEnabled: aisFeed?.enabled !== false,
-        }))
-            await runAisWorker().catch(err => console.error("[ais]", err.message));
-        const activeFeeds = toArray(sources.feeds).filter((feed) =>
-            feed &&
-            typeof feed === "object" &&
-            feed.enabled !== false &&
-            (feed.parser || feed.type) &&
-            feed.type !== "adsb-opensky" &&
-            feed.type !== "ais-stream"
-        );
-        const statusFeedPriority = new Map([
-            ["notam-api", 1],
-            ["airspace-manual", 2],
-            ["airspace-api", 3],
-            ["network-cloudflare", 4],
-            ["network-ioda", 5],
-            ["network-ooni", 6],
-            ["cyber", 7],
-        ]);
-        const prioritizedFeeds = activeFeeds
-            .map((feed, index) => ({ feed, index }))
-            .sort((a, b) => {
-                const aPriority = statusFeedPriority.get(String(a.feed.parser || "").toLowerCase()) || 999;
-                const bPriority = statusFeedPriority.get(String(b.feed.parser || "").toLowerCase()) || 999;
-                if (aPriority !== bPriority) return aPriority - bPriority;
-                return a.index - b.index;
-            })
-            .map((entry) => entry.feed);
-        for (const feed of prioritizedFeeds) {
-            try {
-                await processFeed(feed);
-            } catch (err) {
-                console.error("Feed error:", feed.name, err.message);
-            }
+        })
+            ? runLockedWorkerJob("naval-fallback", () => runAisWorker())
+            : Promise.resolve(),
+        runFeedGroup("status", statusFeeds, { concurrency: 2 }),
+        runFeedGroup("gdelt", gdeltFeeds, { concurrency: 1, timeoutMs: 30_000 }),
+        runFeedGroup("telegram", telegramFeeds, { concurrency: 1 }),
+        runFeedGroup("reddit", redditFeeds, { concurrency: 2 }),
+        runFeedGroup("rss", rssFeeds, { concurrency: 3 }),
+        runFeedGroup("other", otherFeeds, { concurrency: 2 }),
+    ]);
+    cycleResults.forEach((result, index) => {
+        if (result.status === "rejected") {
+            logWorkerOnce(`worker-group:${index}:${result.reason?.message}`, `[worker] ingestion group failed: ${result.reason?.message || result.reason}`);
         }
+    });
+
+    await runLockedWorkerJob("maintenance", async () => {
         try {
             await clearExpiredAlerts();
         } catch (err) {
@@ -4387,9 +4608,7 @@ async function runWorker() {
                 console.error("[copernicus] Satellite cleanup error:", err?.message || err);
             }
         }
-    } finally {
-        isWorkerRunning = false;
-    }
+    });
 }
 async function runConflictFeedCycle() {
     if (!CONFLICT_FEED_ENABLED) return;

@@ -7,8 +7,10 @@ export const PROVIDER_HEALTH_STATES = Object.freeze({
 });
 
 const healthByProvider = new Map();
+const inFlightProviders = new Set();
 const DEFAULT_LONG_BACKOFF_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_BACKOFF_MS = 60 * 1000;
+const RATE_LIMIT_BACKOFF_STEPS_MS = Object.freeze([30_000, 60_000, 120_000, 300_000]);
 
 function key(domain, id) {
     return `${domain}:${id}`;
@@ -88,22 +90,35 @@ export function recordProviderSuccess(domain, id, itemCount, { now = Date.now(),
     return next;
 }
 
-function retryDelay(error, failures) {
+function addJitter(delayMs, random = Math.random) {
+    const sample = Math.max(0, Math.min(1, Number(random?.()) || 0));
+    return Math.max(1000, Math.round(delayMs * (0.9 + (sample * 0.2))));
+}
+
+function retryDelay(error, failures, random = Math.random) {
     const status = Number(error?.status || error?.statusCode || 0);
     if (status === 401 || status === 403) {
         return Number(error?.longBackoffMs) || DEFAULT_LONG_BACKOFF_MS;
     }
-    if (status === 429 && Number.isFinite(error?.retryAfterMs)) {
-        return Math.max(1000, error.retryAfterMs);
+    if (status === 429) {
+        const step = RATE_LIMIT_BACKOFF_STEPS_MS[Math.min(
+            RATE_LIMIT_BACKOFF_STEPS_MS.length - 1,
+            Math.max(0, failures - 1)
+        )];
+        const retryAfterMs = Number(error?.retryAfterMs);
+        return Math.max(
+            addJitter(step, random),
+            Number.isFinite(retryAfterMs) ? Math.max(1000, retryAfterMs) : 0
+        );
     }
     return Math.min(DEFAULT_MAX_BACKOFF_MS, 5000 * (2 ** Math.max(0, failures - 1)));
 }
 
-export function recordProviderFailure(domain, id, error, { now = Date.now(), logger = console } = {}) {
+export function recordProviderFailure(domain, id, error, { now = Date.now(), logger = console, random = Math.random } = {}) {
     const previous = getProviderHealth(domain, id, true, now);
     const failures = Number(previous.consecutive_failures || 0) + 1;
     const statusCode = Number(error?.status || error?.statusCode || 0) || null;
-    const delayMs = retryDelay(error, failures);
+    const delayMs = retryDelay(error, failures, random);
     const unavailable = ![401, 403, 429].includes(statusCode) && failures >= 5;
     const next = {
         ...previous,
@@ -115,7 +130,7 @@ export function recordProviderFailure(domain, id, error, { now = Date.now(), log
     };
     healthByProvider.set(key(domain, id), next);
     const failure = statusCode ? `HTTP ${statusCode}` : String(error?.code || "request failed");
-    const detail = `${failure} retry in ${Math.max(1, Math.ceil(delayMs / 1000))}s`;
+    const detail = `${failure} retry in ${Math.max(1, Math.ceil(delayMs / 1000))}s next=${next.next_retry_at}`;
     emitTransition(domain, id, previous, next, detail, logger);
     return next;
 }
@@ -127,6 +142,8 @@ export async function runConfiguredProviders(domain, providers, { logger = conso
         const health = getProviderHealth(domain, provider.id, enabled, now);
         if (!enabled) continue;
         if (!shouldAttemptProvider(domain, provider.id, enabled, now)) continue;
+        const providerKey = key(domain, provider.id);
+        if (inFlightProviders.has(providerKey)) continue;
         const lastAttemptAt = Date.parse(health.last_attempt_at || "");
         if (
             Number(provider.minimumIntervalMs) > 0
@@ -134,23 +151,28 @@ export async function runConfiguredProviders(domain, providers, { logger = conso
             && now - lastAttemptAt < Number(provider.minimumIntervalMs)
         ) continue;
         recordProviderAttempt(domain, provider.id, enabled, now);
+        inFlightProviders.add(providerKey);
         runnable.push(provider);
     }
 
     const settled = await Promise.allSettled(runnable.map(async (provider) => {
-        const result = await provider.fetchObservations();
-        const observations = Array.isArray(result) ? result : (result?.observations || []);
-        recordProviderSuccess(domain, provider.id, observations.length, { logger, now });
-        return { provider, observations, diagnostics: result?.diagnostics || null };
+        try {
+            const result = await provider.fetchObservations();
+            const observations = Array.isArray(result) ? result : (result?.observations || []);
+            recordProviderSuccess(domain, provider.id, observations.length, { logger, now });
+            return { provider, observations, diagnostics: result?.diagnostics || null };
+        } catch (error) {
+            recordProviderFailure(domain, provider.id, error, { logger, now });
+            throw error;
+        } finally {
+            inFlightProviders.delete(key(domain, provider.id));
+        }
     }));
 
     const results = [];
-    settled.forEach((entry, index) => {
-        const provider = runnable[index];
+    settled.forEach((entry) => {
         if (entry.status === "fulfilled") {
             results.push(entry.value);
-        } else {
-            recordProviderFailure(domain, provider.id, entry.reason, { logger, now });
         }
     });
     return results;
@@ -158,4 +180,5 @@ export async function runConfiguredProviders(domain, providers, { logger = conso
 
 export function resetProviderHealth() {
     healthByProvider.clear();
+    inFlightProviders.clear();
 }

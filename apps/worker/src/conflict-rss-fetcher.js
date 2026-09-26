@@ -5,9 +5,11 @@ import { getRssSources } from "./conflict-sources.js";
 import { enrichConflictItem } from "./conflict-filter.js";
 import { enrichConflictItemsWithArticleMetadata } from "./conflict-media-enricher.js";
 import {
+  formatSourceFailure,
   getSourceHealth,
   recordSourceFailure,
   recordSourceSuccess,
+  shouldLogSourceFailure,
   shouldAttemptSource,
 } from "./source-health.js";
 
@@ -55,7 +57,10 @@ async function fetchRssXml(url) {
   });
 
   if (!response.ok) {
-    throw new Error(`Status code ${response.status}`);
+    const error = new Error(`HTTP ${response.status}`);
+    error.status = response.status;
+    error.headers = response.headers;
+    throw error;
   }
 
   return response.text();
@@ -254,7 +259,10 @@ async function fetchSingleRssSource(source) {
       };
     } catch (error) {
       lastError = error;
-      if (attempt < retryAttempts) {
+      const status = Number(error?.status || 0);
+      const permanentlyBlocked = [403, 404, 429].includes(status)
+        || /certificate|unable to verify/i.test(String(error?.message || ""));
+      if (attempt < retryAttempts && !permanentlyBlocked) {
         await sleep(retryBackoffMs * (attempt + 1));
         continue;
       }
@@ -262,10 +270,10 @@ async function fetchSingleRssSource(source) {
   }
 
   try {
-    console.warn(`RSS failed: ${source.name}`);
-    console.warn(lastError?.message || "Unknown RSS error");
-
     const health = recordSourceFailure(source, lastError);
+    if (shouldLogSourceFailure(source, health)) {
+      console.warn(formatSourceFailure(source, health));
+    }
     return {
       source,
       ok: false,

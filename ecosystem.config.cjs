@@ -25,14 +25,6 @@
     },
 
     {
-      name: "copernicus",
-      cwd: "C:\\websites\\warzone-worker\\warzone\\apps\\worker",
-      script: "cmd.exe",
-      args: "/c npm run copernicus",
-      autorestart: true
-    },
-
-    {
       name: "reports",
       cwd: "C:\\websites\\warzone-worker\\warzone\\apps\\worker",
       script: "cmd.exe",

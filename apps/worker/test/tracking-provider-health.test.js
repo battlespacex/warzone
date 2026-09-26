@@ -106,6 +106,50 @@ test("rate limit honors provider Retry-After", () => {
     assert.equal(Date.parse(health.next_retry_at), now + 42_000);
 });
 
+test("rate limit backoff progresses from 30 seconds to a five minute cap", () => {
+    resetProviderHealth();
+    const now = Date.parse("2026-08-13T12:00:00Z");
+    const error = Object.assign(new Error("rate limited"), { status: 429 });
+    const delays = [];
+
+    for (let failure = 0; failure < 5; failure += 1) {
+        const at = now + (failure * 1_000_000);
+        const health = recordProviderFailure("adsb", "adsb_lol", error, {
+            now: at,
+            logger: quietLogger,
+            random: () => 0.5,
+        });
+        delays.push(Date.parse(health.next_retry_at) - at);
+    }
+
+    assert.deepEqual(delays, [30_000, 60_000, 120_000, 300_000, 300_000]);
+});
+
+test("the same provider cannot execute concurrently", async () => {
+    resetProviderHealth();
+    let release;
+    let calls = 0;
+    const pending = new Promise((resolve) => { release = resolve; });
+    const provider = {
+        id: "adsb_lol",
+        enabled: true,
+        async fetchObservations() {
+            calls += 1;
+            await pending;
+            return [];
+        },
+    };
+
+    const first = runConfiguredProviders("adsb", [provider], { logger: quietLogger });
+    await Promise.resolve();
+    const second = await runConfiguredProviders("adsb", [provider], { logger: quietLogger });
+    release();
+    await first;
+
+    assert.equal(calls, 1);
+    assert.deepEqual(second, []);
+});
+
 test("backoff skips repeated provider calls and identical failure logs", async () => {
     resetProviderHealth();
     const warnings = [];

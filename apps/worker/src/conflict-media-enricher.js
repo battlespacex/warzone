@@ -1,8 +1,16 @@
 import { supabase } from "./supabase.js";
+import {
+  formatSourceFailure,
+  recordSourceFailure,
+  recordSourceSuccess,
+  shouldAttemptSource,
+  shouldLogSourceFailure,
+} from "./source-health.js";
 
 const ARTICLE_FETCH_TIMEOUT_MS = Number.parseInt(process.env.CONFLICT_ARTICLE_FETCH_TIMEOUT_MS || "", 10) || 12000;
 const ARTICLE_FETCH_CONCURRENCY = Math.max(1, Number.parseInt(process.env.CONFLICT_ARTICLE_FETCH_CONCURRENCY || "", 10) || 4);
 const ARTICLE_FETCH_USER_AGENT = "StratOps Conflict Feed Worker/1.0";
+const articleHostQueues = new Map();
 
 function toArray(value) {
   return Array.isArray(value) ? value : value ? [value] : [];
@@ -133,10 +141,34 @@ async function fetchArticleHtml(url = "") {
   });
 
   if (!response.ok) {
-    throw new Error(`Status code ${response.status}`);
+    const error = new Error(`HTTP ${response.status}`);
+    error.status = response.status;
+    error.headers = response.headers;
+    throw error;
   }
 
   return response.text();
+}
+
+function getArticleHostSource(url = "") {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return { id: `article:${hostname}`, name: `article ${hostname}`, url };
+  } catch {
+    return { id: `article:${url}`, name: "article enrichment", url };
+  }
+}
+
+async function runArticleHostTask(source, task) {
+  const key = source.id;
+  const previous = articleHostQueues.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
+  articleHostQueues.set(key, current);
+  try {
+    return await current;
+  } finally {
+    if (articleHostQueues.get(key) === current) articleHostQueues.delete(key);
+  }
 }
 
 function extractMetaMap(html = "", baseUrl = "") {
@@ -323,13 +355,21 @@ async function enrichConflictItemsWithArticleMetadata(items = []) {
   if (!toFetch.length) return hydrated;
 
   const fetched = await runWithConcurrency(toFetch, ARTICLE_FETCH_CONCURRENCY, async ({ item, index }) => {
-    try {
-      const html = await fetchArticleHtml(item.url);
-      return { index, item: buildEnrichedItem(item, html) };
-    } catch (error) {
-      console.warn("[conflict] article enrich failed:", item.url, error.message || error);
-      return { index, item };
-    }
+    const source = getArticleHostSource(item.url);
+    return runArticleHostTask(source, async () => {
+      if (!shouldAttemptSource(source)) return { index, item };
+      try {
+        const html = await fetchArticleHtml(item.url);
+        recordSourceSuccess(source, 1);
+        return { index, item: buildEnrichedItem(item, html) };
+      } catch (error) {
+        const health = recordSourceFailure(source, error);
+        if (shouldLogSourceFailure(source, health)) {
+          console.warn(`[conflict] ${formatSourceFailure(source, health)} RSS metadata fallback`);
+        }
+        return { index, item };
+      }
+    });
   });
 
   fetched.forEach((result) => {

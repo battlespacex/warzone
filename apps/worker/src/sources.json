@@ -805,7 +805,8 @@
     {
       "name": "Janes Defense",
       "parser": "rss",
-      "enabled": true,
+      "enabled": false,
+      "disabled_reason": "Feed endpoint returns HTTP 404; re-enable after the publisher provides a valid RSS URL",
       "url": "https://www.janes.com/feeds/news",
       "source_name": "Janes",
       "category": "military",
@@ -1117,7 +1118,7 @@
       "name": "Homeland Security News Wire",
       "parser": "rss",
       "enabled": true,
-      "url": "https://www.homelandsecuritynewswire.com/rss.xml",
+      "url": "https://feeds.feedburner.com/homelandsecuritynewswire/rss",
       "source_name": "Homeland Security News Wire",
       "category": "cyber",
       "region": "North America",
