@@ -116,6 +116,64 @@ test("scheduled production pipeline remains inert when scheduling is disabled", 
   assert.equal(result.reason, "schedule_disabled");
 });
 
+test("capture readiness remains strict unless incomplete captures are explicitly allowed", () => {
+  const requiredCaptures = [
+    { capture_id: "overview", capture_type: "REGIONAL_OVERVIEW_3D" },
+    { capture_id: "asset", capture_type: "HVA_FOCUS_3D" },
+  ];
+  const captureResults = [
+    { capture_id: "overview", status: "READY" },
+    { capture_id: "asset", status: "FAILED" },
+  ];
+
+  assert.throws(() => __reportingPipelineTestUtils.validateCaptureReadiness({
+    requiredCaptures,
+    captureResults,
+    captureEnabled: true,
+  }), /Report capture incomplete: HVA_FOCUS_3D/);
+
+  assert.throws(() => __reportingPipelineTestUtils.validateCaptureReadiness({
+    requiredCaptures,
+    captureResults: [],
+    captureEnabled: false,
+  }), /REPORTING_CAPTURE_ENABLED is false/);
+
+  const fallback = __reportingPipelineTestUtils.validateCaptureReadiness({
+    requiredCaptures,
+    captureResults,
+    captureEnabled: true,
+    allowIncompleteCaptures: true,
+  });
+  assert.equal(fallback.incomplete, true);
+  assert.deepEqual(fallback.missingCaptures.map((capture) => capture.capture_type), ["HVA_FOCUS_3D"]);
+});
+
+test("scheduled daily pipelines allow existing image-free report fallbacks", async () => {
+  const calls = [];
+  const result = await generateScheduledDailyPipelines({
+    supabase: {},
+    config: {
+      scheduleEnabled: true,
+      snapshotEnabled: true,
+      dailyEnabled: true,
+      scheduledRegions: [],
+      scheduledCountries: [],
+      scheduledAois: [],
+      capture: { retentionHours: Number.MAX_SAFE_INTEGER },
+    },
+    referenceDate: new Date("2026-09-26T01:00:00.000Z"),
+    runPipeline: async (options) => {
+      calls.push(options);
+      return { ok: true, report_key: `daily:${options.dateKey}:global` };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].dateKey, "2026-09-25");
+  assert.equal(calls[0].allowIncompleteCaptures, true);
+});
+
 test("published report cleanup is restricted to deterministic daily report folders", () => {
   const config = { s3Prefix: "reports" };
   const safe = {

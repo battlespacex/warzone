@@ -161,6 +161,32 @@ function summarizeCaptures(manifest = {}) {
   };
 }
 
+function validateCaptureReadiness({
+  requiredCaptures = [],
+  captureResults = [],
+  captureEnabled = false,
+  allowIncompleteCaptures = false,
+} = {}) {
+  const required = Array.isArray(requiredCaptures) ? requiredCaptures : [];
+  const readyCaptureIds = new Set((Array.isArray(captureResults) ? captureResults : [])
+    .filter((capture) => String(capture?.status || "").toUpperCase() === "READY")
+    .map((capture) => capture.capture_id));
+  const missingCaptures = required
+    .filter((capture) => !readyCaptureIds.has(capture.capture_id));
+
+  if (required.length && !captureEnabled && !allowIncompleteCaptures) {
+    throw new Error("Report has imagery targets but REPORTING_CAPTURE_ENABLED is false");
+  }
+  if (missingCaptures.length && !allowIncompleteCaptures) {
+    throw new Error(`Report capture incomplete: ${missingCaptures.map((capture) => capture.capture_type).join(", ")}`);
+  }
+
+  return {
+    incomplete: missingCaptures.length > 0,
+    missingCaptures,
+  };
+}
+
 function buildPipelineManifest(manifest = {}, overrides = {}) {
   return {
     ...manifest,
@@ -405,6 +431,7 @@ async function runDailyReportPipeline({
   skipCapture = false,
   skipUpload = false,
   localOnly = false,
+  allowIncompleteCaptures = false,
   uploadObject = s3PutObject,
 } = {}) {
   if (!supabase) throw new Error("Supabase client is required for reporting");
@@ -454,9 +481,6 @@ async function runDailyReportPipeline({
         const requiredCaptures = skipCapture ? [] : buildCaptureDescriptors(snapshot, {
           maxImages: config.capture.maxImages, s3Prefix: config.s3Prefix, format: config.capture.format,
         });
-        if (requiredCaptures.length && !config.capture?.enabled) {
-          throw new Error("Report has imagery targets but REPORTING_CAPTURE_ENABLED is false");
-        }
         if (!skipCapture && config.capture?.enabled) {
           const captureConfig = localOnly || skipUpload
             ? { ...config, aws: { ...config.aws, bucket: "" } }
@@ -464,10 +488,18 @@ async function runDailyReportPipeline({
           await generateSnapshotCaptures({ supabase, snapshotKey, config: captureConfig, logger, force });
         }
         snapshot = await loadSnapshot(supabase, snapshotKey);
-        const readyCaptureIds = new Set((snapshot.report_manifest?.capture_results || [])
-          .filter((capture) => capture.status === "READY").map((capture) => capture.capture_id));
-        const missingCaptures = requiredCaptures.filter((capture) => !readyCaptureIds.has(capture.capture_id));
-        if (missingCaptures.length) throw new Error(`Report capture incomplete: ${missingCaptures.map((capture) => capture.capture_type).join(", ")}`);
+        const captureReadiness = validateCaptureReadiness({
+          requiredCaptures,
+          captureResults: snapshot.report_manifest?.capture_results,
+          captureEnabled: config.capture?.enabled,
+          allowIncompleteCaptures,
+        });
+        if (captureReadiness.incomplete) {
+          logger.warn?.(
+            `[reports:pipeline] report=${reportKey} date=${dateKey} scope=${scopeKey} stage=${stage} `
+            + `capture_fallback=true missing=${captureReadiness.missingCaptures.map((capture) => capture.capture_type).join(",")}`
+          );
+        }
         const captureSummary = summarizeCaptures(snapshot.report_manifest);
         logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt, details: `capture_ready=${captureSummary.ready} capture_failed=${captureSummary.failed}` });
 
@@ -601,7 +633,13 @@ async function runDailyReportPipeline({
   });
 }
 
-async function generateScheduledDailyPipelines({ supabase, config = readReportingConfig(), logger = console, referenceDate = new Date() } = {}) {
+async function generateScheduledDailyPipelines({
+  supabase,
+  config = readReportingConfig(),
+  logger = console,
+  referenceDate = new Date(),
+  runPipeline = runDailyReportPipeline,
+} = {}) {
   if (!config.scheduleEnabled) return { ok: true, skipped: true, reason: "schedule_disabled" };
   if (!config.snapshotEnabled) return { ok: true, skipped: true, reason: "snapshot_disabled" };
   if (config.dailyEnabled === false) return { ok: true, skipped: true, reason: "daily_disabled" };
@@ -609,7 +647,14 @@ async function generateScheduledDailyPipelines({ supabase, config = readReportin
   const results = [];
   for (const scope of getScheduledScopes(config)) {
     try {
-      results.push(await runDailyReportPipeline({ supabase, dateKey, scope, config, logger }));
+      results.push(await runPipeline({
+        supabase,
+        dateKey,
+        scope,
+        config,
+        logger,
+        allowIncompleteCaptures: true,
+      }));
     } catch (error) {
       results.push({ ok: false, scope: getScopeKey(scope), error: cleanError(error) });
     }
@@ -636,6 +681,7 @@ const __reportingPipelineTestUtils = {
   resetPipelineLocksForTests,
   summarizeCaptures,
   uploadReportArtifacts,
+  validateCaptureReadiness,
   withPipelineLock,
 };
 
