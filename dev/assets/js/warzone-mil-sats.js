@@ -1,5 +1,6 @@
 // File Path: /assets/js/warzone-mil-sats.js
 import * as Cesium from "cesium";
+import { isTacticalMapActive, routeMapSelection, registerMapSource } from "./warzone-map-bridge.js";
 import { json2satrec } from "../../../node_modules/satellite.js/dist/io.js";
 import { propagate } from "../../../node_modules/satellite.js/dist/propagation/propagate.js";
 import { gstime } from "../../../node_modules/satellite.js/dist/propagation/gstime.js";
@@ -123,6 +124,7 @@ const state = {
     focusOwnerSignature: "",
     focusPendingId: "",
     focusRequestToken: 0,
+    expandedRegionKey: "",
     focusRuntime: {
         active: false,
         cameraReady: false,
@@ -554,6 +556,10 @@ function getSatelliteRegionGroups(records = state.visibleRecords) {
         }
         groups.get(key).records.push({ record, point });
     });
+    groups.forEach((group) => {
+        group.records.sort((a, b) => String(a.record?.name || a.record?.noradId || "")
+            .localeCompare(String(b.record?.name || b.record?.noradId || "")));
+    });
     const activeRegionId = getActiveRegion?.()?.id || "";
     return [...groups.values()].sort((a, b) => {
         const aCurrent = a.region?.id === activeRegionId ? 1 : 0;
@@ -590,54 +596,66 @@ function renderSatelliteRegionList() {
     }
     const activeRegionId = getActiveRegion?.()?.id || "";
     groups.forEach((group) => {
-        const row = document.createElement("article");
-        row.className = "wz-orbital-region-row";
-        if (group.region?.id === activeRegionId) row.classList.add("is-current");
+        const accordion = document.createElement("details");
+        accordion.className = "wz-orbital-region-accordion";
+        accordion.dataset.regionKey = group.key;
+        accordion.open = state.expandedRegionKey === group.key;
+        if (group.region?.id === activeRegionId) accordion.classList.add("is-current");
 
-        const copy = document.createElement("div");
-        copy.className = "wz-orbital-region-row__copy";
-        const head = document.createElement("div");
-        head.className = "wz-orbital-region-row__head";
+        const head = document.createElement("summary");
+        head.className = "wz-orbital-region-accordion__head";
         const title = document.createElement("strong");
         title.textContent = formatUpper(group.label);
         const count = document.createElement("span");
         count.textContent = `${group.records.length} SAT${group.records.length === 1 ? "" : "S"}`;
         head.appendChild(title);
         head.appendChild(count);
+        accordion.appendChild(head);
 
-        const names = document.createElement("p");
-        const visibleNames = group.records
-            .slice(0, 3)
-            .map(({ record }) => formatUpper(record.name || record.objectName || record.noradId));
-        const remaining = Math.max(0, group.records.length - visibleNames.length);
-        names.textContent = `${visibleNames.join(" • ")}${remaining ? ` • +${remaining} MORE` : ""}`;
-        copy.appendChild(head);
-        copy.appendChild(names);
-        row.appendChild(copy);
-
-        if (group.region && group.records.length) {
+        const satellites = document.createElement("div");
+        satellites.className = "wz-orbital-region-accordion__satellites";
+        group.records.forEach(({ record }) => {
+            const row = document.createElement("div");
+            row.className = "wz-orbital-satellite-row";
+            const name = document.createElement("span");
+            name.className = "wz-orbital-satellite-row__name";
+            name.textContent = formatUpper(record.name || record.objectName || record.noradId);
             const action = document.createElement("button");
-            const isCurrent = group.region.id === activeRegionId;
-            const primaryRecord = group.records[0]?.record;
-            const focusBlocked = Boolean(state.focusPendingId) || !primaryRecord || !getAssetFocusController().canEnterFocus({
+            const isSelected = state.selectedId === record.id;
+            const focusBlocked = Boolean(state.focusPendingId) || isSelected || !getAssetFocusController().canEnterFocus({
                 assetType: "satellite",
-                assetId: primaryRecord.id,
+                assetId: record.id,
             });
             action.type = "button";
-            action.className = isCurrent ? "btn-secondary white wz-orbital-region-row__action" : "btn-primary wz-orbital-region-row__action";
-            action.innerHTML = `<span aria-hidden="true"></span>${isCurrent ? "View" : "Focus"}`;
-            action.setAttribute("aria-label", isCurrent
-                ? `View a satellite currently over ${group.label}`
-                : `Focus a satellite currently beyond the selected region over ${group.label}`);
+            action.className = isSelected
+                ? "btn-secondary white wz-orbital-satellite-row__action is-selected"
+                : "btn-primary wz-orbital-satellite-row__action";
+            action.innerHTML = `<span aria-hidden="true"></span>${isSelected ? "Focused" : "Focus"}`;
+            action.setAttribute("aria-label", isSelected
+                ? `${record.name || record.noradId} is focused`
+                : `Focus ${record.name || record.noradId}`);
             action.disabled = focusBlocked;
             action.setAttribute("aria-disabled", focusBlocked ? "true" : "false");
             action.addEventListener("click", () => {
-                if (!primaryRecord || focusBlocked) return;
-                void selectSatellite(primaryRecord.id);
+                if (focusBlocked) return;
+                void selectSatellite(record.id);
             });
+            row.appendChild(name);
             row.appendChild(action);
-        }
-        list.appendChild(row);
+            satellites.appendChild(row);
+        });
+        accordion.appendChild(satellites);
+        accordion.addEventListener("toggle", () => {
+            if (!accordion.open) {
+                if (state.expandedRegionKey === group.key) state.expandedRegionKey = "";
+                return;
+            }
+            state.expandedRegionKey = group.key;
+            list.querySelectorAll(".wz-orbital-region-accordion[open]").forEach((item) => {
+                if (item !== accordion) item.open = false;
+            });
+        });
+        list.appendChild(accordion);
     });
 }
 
@@ -1242,6 +1260,7 @@ function removeMissingEntities(nextIds) {
 }
 
 function updateDefaultEntities() {
+    if (isTacticalMapActive()) return;
     if (!state.enabled || !state.viewer) return;
     const now = new Date();
     const nextIds = new Set();
@@ -1517,6 +1536,7 @@ function addFocusEntity(entity) {
 }
 
 function updateSelectedSatellitePosition() {
+    if (isTacticalMapActive()) return false;
     if (!state.viewer || !state.selectedId) return false;
     const record = getSatelliteRecord(state.selectedId);
     if (!record) return false;
@@ -1736,6 +1756,8 @@ async function ensure3DModeBeforeSatelliteFocus(viewer) {
 }
 
 function selectSatellite(id = "", options = {}) {
+    const routed = routeMapSelection("satellite", id, options);
+    if (routed !== null) return routed;
     const selectedId = cleanText(id);
     if (!selectedId) {
         state.focusRequestToken += 1;
@@ -2064,7 +2086,7 @@ function handleAppEntered() {
 export function setWarzoneMilSatsEnabled(enabled) {
     mergeConfig();
     const shouldEnable = enabled !== false && state.config.enabled !== false;
-    if (!state.viewer) {
+    if (!state.viewer && !isTacticalMapActive()) {
         state.enabled = shouldEnable;
         return;
     }
@@ -2074,6 +2096,8 @@ export function setWarzoneMilSatsEnabled(enabled) {
         return;
     }
     if (state.enabled) {
+        ensureHandler();
+        updateDefaultEntities();
         updateControlsOptions();
         return;
     }
@@ -2103,6 +2127,28 @@ export function getWarzoneMilSatsDiagnostics() {
         satelliteFocus: getWarzoneMilSatsFocusDiagnostics(),
     });
 }
+
+// Reuse the exact filtered GP records and existing propagation; no extra feed.
+let tacticalOrbitSnapshot = [], tacticalOrbitRecords = null, tacticalOrbitSecond = -1;
+registerMapSource("satellite", {
+    layer: "orbital-assets",
+    snapshot: () => {
+        if (!state.enabled) return [];
+        const now = new Date();
+        const second = Math.floor(now.getTime() / 1000);
+        if (tacticalOrbitRecords === state.visibleRecords && tacticalOrbitSecond === second) return tacticalOrbitSnapshot;
+        tacticalOrbitRecords = state.visibleRecords; tacticalOrbitSecond = second;
+        tacticalOrbitSnapshot = state.visibleRecords.map((record) => {
+            const point = propagateRecord(record, now);
+            return point ? { ...record, ...point, track_key: record.id, title: record.name || record.noradId } : null;
+        }).filter(Boolean);
+        return tacticalOrbitSnapshot;
+    },
+    focus: selectSatellite,
+    clear: () => selectSatellite("", { flyOut: false }),
+    select: (id) => { state.selectedId = id; updateControlsOptions(); },
+    resume: updateDefaultEntities,
+});
 
 export function getWarzoneMilSatsFocusDiagnostics() {
     const runtime = state.focusRuntime;
@@ -2136,11 +2182,10 @@ export function getWarzoneMilSatsFocusDiagnostics() {
 }
 
 export function initWarzoneMilSats(viewer) {
-    if (!viewer) return;
+    if (viewer && state.viewer === viewer) return;
     mergeConfig();
-    state.viewer = viewer;
-    state.enabled = false;
-    installSatelliteFocusTasks();
+    if (viewer) state.viewer = viewer;
+    if (state.viewer) installSatelliteFocusTasks();
     window.refreshWarzoneMilSatsScale = () => {
         if (startupDemoState.enabled) refreshStartupDemoScale();
         if (state.enabled) updateDefaultEntities();

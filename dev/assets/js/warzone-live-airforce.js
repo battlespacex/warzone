@@ -1,5 +1,6 @@
-﻿// File Path: /assets/js/warzone-live-airforce.js
+// File Path: /assets/js/warzone-live-airforce.js
 import * as Cesium from "cesium";
+import { isTacticalMapActive, routeMapSelection, registerMapSource, getMapSelection, getMapOverlayContainer, mountMapAssetOverlay, presentMapAssetOverlay, requestSatelliteMap, routeTacticalView, getOperationalMapApi, projectTacticalPoint } from "./warzone-map-bridge.js";
 import { recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { isLayerEnabled } from "./warzone-layers.js";
@@ -259,6 +260,8 @@ const LIVE_TRACK_REPLAY_STEP_MS = 180;
 const LIVE_TRACK_BILLBOARD_CANVAS_SIZE = 96;
 const LIVE_AIRCRAFT_MODEL_BASE_PATH = "/assets/images/models/air";
 const LIVE_AIRCRAFT_MODEL_DEFAULT_CODE = "Fighter-F16";
+const __liveAircraftFailedModelUris = new Set();
+const __liveAircraftModelResourceCache = new Map();
 // Workbook R3 canonical asset registry. Runtime resolution uses Asset Key, then
 // reads exact model/icon filenames from here so future Blender exports only need
 // a new row and rule/default mapping.
@@ -275,6 +278,7 @@ const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "Transport-IL76": Object.freeze({ category: "transport", model: "Transport-IL76.glb", icon: "Transport-IL76.png" }),
     "Tanker-A330-MRTT": Object.freeze({ category: "tanker", model: "Tanker-A330-MRTT.glb", icon: "Tanker-A330-MRTT.png" }),
     "Tanker-KC135": Object.freeze({ category: "tanker", model: "Tanker-KC135.glb", icon: "Tanker-KC135.png" }),
+    "Tanker-KC46": Object.freeze({ category: "tanker", model: "Tanker-KC46.glb", icon: "Tanker-KC46.png" }),
     "Tanker-IL78": Object.freeze({ category: "tanker", model: "Tanker-IL78.glb", icon: "Tanker-IL78.png" }),
     "Bomber-B1": Object.freeze({ category: "bomber", model: "Bomber-B1.glb", icon: "Bomber-B1.png" }),
     "Bomber-B2": Object.freeze({ category: "bomber", model: "Bomber-B2.glb", icon: "Bomber-B2.png" }),
@@ -293,6 +297,7 @@ const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "Fighter-F16": Object.freeze({ category: "fighter", model: "Fighter-F16.glb", icon: "Fighter-F16.png" }),
     "Fighter-F18": Object.freeze({ category: "fighter", model: "Fighter-F18.glb", icon: "Fighter-F18.png" }),
     "Fighter-F22": Object.freeze({ category: "fighter", model: "Fighter-F22.glb", icon: "Fighter-F22.png" }),
+    "Fighter-J1": Object.freeze({ category: "fighter", model: "Fighter-J1.glb", icon: "Fighter-J1.png" }),
     "Fighter-F35": Object.freeze({ category: "fighter", model: "Fighter-F35.glb", icon: "Fighter-F35.png" }),
     "Fighter-Eurofighter": Object.freeze({ category: "fighter", model: "Fighter-Eurofighter.glb", icon: "Fighter-Eurofighter.png" }),
     "Fighter-J10": Object.freeze({ category: "fighter", model: "Fighter-J10.glb", icon: "Fighter-J10.png" }),
@@ -353,6 +358,7 @@ const LIVE_AIRCRAFT_ICON_FALLBACK_CODE_BY_ASSET_KEY = Object.freeze({
     "Transport-C5": "tp-2",
     "Transport-IL76": "tp-2",
     "Tanker-A330-MRTT": "tn-1",
+    "Tanker-KC46": "tn-1",
     "Bomber-B52": "bb-2",
     "Bomber-SU34": "bb-1",
     "Heli-Blackhawk": "hh-2",
@@ -367,6 +373,7 @@ const LIVE_AIRCRAFT_ICON_FALLBACK_CODE_BY_ASSET_KEY = Object.freeze({
     "Fighter-F35": "ff-5",
     "Fighter-Eurofighter": "ff-2",
     "Fighter-J10": "ff-4",
+    "Fighter-J1": "ff-4",
     "Fighter-J11": "ff-3",
     "ISR-P8": "rr-1",
     "VIP-VC25": "tp-2",
@@ -816,6 +823,56 @@ const LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES = Object.freeze([
     { assetKey: "ISR-RC135", patterns: [/\brc[\s-]?135[a-z0-9-]*\b/i, /\brivet\s+joint\b/i, /\bcobra\s+ball\b/i, /\bcombat\s+sent\b/i] },
     { assetKey: "ISR-Gulfstream", patterns: [/\bgulfstream\b/i, /\bg(?:280|550|650)\b/i, /\bbombardier\b/i, /\bchallenger\b/i, /\bglobal (?:6000|6500)\b/i, /\blearjet\b/i, /\blj[\s-]?(?:3[15]|4[05]|5[05]|6[05]|7[05])\b/i, /\bbeechcraft\b/i, /\bking air\b/i, ...LIVE_AIRCRAFT_FALCON_EXECUTIVE_PATTERNS, /\brc[\s-]?12\b/i, /\bmc[\s-]?12\b/i, /\bisr\b/i, /\belint\b/i, /\bsigint\b/i, /\bsurveillance\b/i] },
 ]);
+// 3D models must only be selected for the aircraft family represented by the
+// asset. Broader role/country mappings remain valid for 2D symbology, but must
+// not silently display a different aircraft in the focused 3D view.
+const LIVE_AIRCRAFT_EXACT_MODEL_RULES = Object.freeze([
+    { assetKey: "Bomber-SU34", patterns: [/\bsu[\s-]?34[a-z0-9-]*\b/i, /\bfullback\b/i] },
+    { assetKey: "Bomber-B2", patterns: [/\bb[\s-]?2[a-z0-9-]*\b/i, /\bspirit\b/i] },
+    { assetKey: "Bomber-B52", patterns: [/\bb[\s-]?52[a-z0-9-]*\b/i, /\bstratofortress\b/i] },
+    { assetKey: "Bomber-B1", patterns: [/\bb[\s-]?1[ab]?(?:\s+lancer)?\b/i, /\blancer\b/i] },
+    { assetKey: "AWACS-E4", patterns: [/\be[\s-]?4[a-z0-9-]*\b/i, /\bnightwatch\b/i, /\bnational airborne operations center\b/i, /\bnaoc\b/i] },
+    { assetKey: "AWACS-E6", patterns: [/\be[\s-]?6[a-z0-9-]*\b/i, /\bmercury\b/i, /\btacamo\b/i] },
+    { assetKey: "VIP-VC25", patterns: [/\bvc[\s-]?25[a-z0-9-]*\b/i, /\bair force one\b/i] },
+    { assetKey: "AWACS-E3", patterns: [/\be[\s-]?3[a-z0-9-]*\b/i, /\bsentry\b/i] },
+    { assetKey: "AWACS-E7", patterns: [/\be[\s-]?7[a-z0-9-]*\b/i, /\bwedgetail\b/i] },
+    { assetKey: "AWACS-Globaleye", patterns: [/\bglobal\s*eye\b/i, /\bglobaleye\b/i] },
+    { assetKey: "AWACS-Phalcon", patterns: [/\bphalcon\b/i] },
+    { assetKey: "Transport-C5", patterns: [/\bc[\s-]?5[a-z0-9-]*\b/i, /\bgalaxy\b/i] },
+    { assetKey: "Transport-C17", patterns: [/\bc[\s-]?17[a-z0-9-]*\b/i, /\bglobemaster\b/i] },
+    { assetKey: "Transport-IL76", patterns: [/\bil[\s-]?76[a-z0-9-]*\b/i] },
+    { assetKey: "Transport-C130", patterns: [/\bc[\s-]?130[a-z0-9-]*\b/i, /\bhercules\b/i] },
+    { assetKey: "Tanker-A330-MRTT", patterns: [/\ba330[\s-]?mrtt\b/i, /\bvoyager\b/i] },
+    { assetKey: "Tanker-KC46", patterns: [/\bkc[\s-]?46[a-z0-9-]*\b/i, /\bpegasus\b/i] },
+    { assetKey: "Tanker-KC135", patterns: [/\bkc[\s-]?135[a-z0-9-]*\b/i, /\bstratotanker\b/i] },
+    { assetKey: "Tanker-IL78", patterns: [/\bil[\s-]?78[a-z0-9-]*\b/i, /\bmidas\b/i] },
+    { assetKey: "Fighter-F22", patterns: [/\bf[\s-]?22[a-z0-9-]*\b/i, /\braptor\b/i] },
+    { assetKey: "Fighter-F35", patterns: [/\bf[\s-]?35[a-z0-9-]*\b/i, /\blightning (?:ii|2)\b/i] },
+    { assetKey: "Fighter-J20", patterns: [/\bj[\s-]?20[a-z0-9-]*\b/i] },
+    { assetKey: "Fighter-J11", patterns: [/\bj[\s-]?11[a-z0-9-]*\b/i] },
+    { assetKey: "Fighter-J10", patterns: [/\bj[\s-]?10[a-z0-9-]*\b/i] },
+    { assetKey: "Fighter-J1", patterns: [/\bj[\s-]?1[a-z]?\b/i] },
+    { assetKey: "Fighter-F15", patterns: [/\bf[\s-]?15[a-z0-9-]*\b/i, /\bstrike eagle\b/i] },
+    { assetKey: "Fighter-F18", patterns: [/\bf\s+a\s+18[a-z0-9-]*\b/i, /\bfa[\s-]?18[a-z0-9-]*\b/i, /\bf[\s-]?18[a-z0-9-]*\b/i, /\bsuper hornet\b/i, /\bhornet\b/i, /\bgrowler\b/i, /\bea[\s-]?18g\b/i] },
+    { assetKey: "Fighter-Eurofighter", patterns: [/\beurofighter\b/i, /\btyphoon\b/i] },
+    { assetKey: "Fighter-Rafale", patterns: [/\brafale[a-z0-9-]*\b/i] },
+    { assetKey: "Fighter-SU30", patterns: [/\bsu[\s-]?30[a-z0-9-]*\b/i] },
+    { assetKey: "Fighter-F16", patterns: [/\bf[\s-]?16[a-z0-9-]*\b/i, /\bfighting falcon\b/i] },
+    { assetKey: "Heli-Apache", patterns: [/\bah[\s-]?64[a-z0-9-]*\b/i, /\bapache\b/i] },
+    { assetKey: "Heli-Cobra-Zulu", patterns: [/\bah[\s-]?1z\b/i, /\bcobra zulu\b/i] },
+    { assetKey: "Heli-Chinook", patterns: [/\bch[\s-]?47[a-z0-9-]*\b/i, /\bchinook\b/i] },
+    { assetKey: "Heli-CH53", patterns: [/\b[cm]h[\s-]?53[a-z0-9-]*\b/i, /\b(?:super|king) stallion\b/i] },
+    { assetKey: "Heli-Blackhawk", patterns: [/\b[um]h[\s-]?60[a-z0-9-]*\b/i, /\bblack\s*hawk\b/i] },
+    { assetKey: "Heli-KA50", patterns: [/\bka[\s-]?50[a-z0-9-]*\b/i, /\bhokum(?:[\s-]?a)?\b/i] },
+    { assetKey: "Heli-MI17V", patterns: [/\bmi[\s-]?17v[a-z0-9-]*\b/i] },
+    { assetKey: "Heli-MI17", patterns: [/\bmi[\s-]?17[a-z0-9-]*\b/i] },
+    { assetKey: "Heli-412", patterns: [/\bbell[\s-]?412[a-z0-9-]*\b/i] },
+    { assetKey: "Drone-Globalhawk", patterns: [/\brq[\s-]?4[a-z0-9-]*\b/i, /\bglobal\s*hawk\b/i] },
+    { assetKey: "Drone-MQ9", patterns: [/\bmq[\s-]?9[a-z0-9-]*\b/i, /\breaper\b/i] },
+    { assetKey: "ISR-P8", patterns: [/\bp[\s-]?8[a-z0-9-]*\b/i, /\bposeidon\b/i] },
+    { assetKey: "ISR-RC135", patterns: [/\brc[\s-]?135[a-z0-9-]*\b/i, /\brivet joint\b/i, /\bcobra ball\b/i, /\bcombat sent\b/i] },
+    { assetKey: "ISR-Gulfstream", patterns: [/\bgulfstream\b/i, /\bg(?:280|550|650)\b/i] },
+]);
 const LIVE_AIRCRAFT_HELO_ATTACK_PATTERNS = [
     /\b(ah ?1[a-z]?|ah ?64[a-z]?|apache|mi ?24|mi ?25|mi ?28|mi ?35|ka ?52|z ?10|t ?129|tiger|rooivalk|gunship|attack helicopter)\b/i,
 ];
@@ -890,8 +947,8 @@ function normalizeAircraftAssetKey(value = "") {
     )) || "";
 }
 function getAircraftAssetFile(assetKey = "") {
-    const canonical = normalizeAircraftAssetKey(assetKey) || LIVE_AIRCRAFT_MODEL_DEFAULT_CODE;
-    return LIVE_AIRCRAFT_ASSET_FILES[canonical] || LIVE_AIRCRAFT_ASSET_FILES[LIVE_AIRCRAFT_MODEL_DEFAULT_CODE];
+    const canonical = normalizeAircraftAssetKey(assetKey);
+    return canonical ? LIVE_AIRCRAFT_ASSET_FILES[canonical] : null;
 }
 function hasAnyToken(paddedHaystack = " ", tokens = []) {
     return tokens.some((token) => token && paddedHaystack.includes(` ${token} `));
@@ -941,11 +998,49 @@ function buildAircraftAssetOverrideHaystack(track = {}) {
         .trim();
     return haystack ? ` ${haystack} ` : " ";
 }
+function buildExactAircraftModelHaystack(track = {}) {
+    const metadata = getTrackMetadata(track);
+    const values = [
+        track.aircraft_name,
+        track.aircraftName,
+        track.type,
+        track.type_code,
+        track.icao_type,
+        track.model_name,
+        track.model,
+        track.variant,
+        track.aircraft_type,
+        track.description,
+        metadata.aircraft_name,
+        metadata.aircraftName,
+        metadata.type,
+        metadata.type_code,
+        metadata.icao_type,
+        metadata.model_name,
+        metadata.model,
+        metadata.variant,
+        metadata.aircraft_type,
+        metadata.description,
+    ];
+    const haystack = values
+        .map(normalizeAircraftIconText)
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    return haystack ? ` ${haystack} ` : " ";
+}
 function resolveAircraftAssetSuffixOverride(track = {}) {
     const haystack = buildAircraftAssetOverrideHaystack(track);
     const match = LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES.find((rule) => (
         LIVE_AIRCRAFT_ASSET_FILES[rule.assetKey] &&
         hasAnyPattern(haystack, rule.patterns)
+    ));
+    return match?.assetKey || "";
+}
+function resolveExactAircraftModelAssetKey(track = {}) {
+    const haystack = buildExactAircraftModelHaystack(track);
+    const match = LIVE_AIRCRAFT_EXACT_MODEL_RULES.find((rule) => (
+        LIVE_AIRCRAFT_ASSET_FILES[rule.assetKey] && hasAnyPattern(haystack, rule.patterns)
     ));
     return match?.assetKey || "";
 }
@@ -1652,6 +1747,11 @@ function getFocusedAircraftModelScale(track = {}, computedStyle = null) {
         1,
         3000
     );
+}
+function getFormationDevGroupKey(track = {}) {
+    const metadata = getTrackMetadata(track);
+    if (String(metadata.simulation || track.simulation || "") !== "formation-dev-tuner") return "";
+    return String(track.formation_key || metadata.formation_key || "").trim();
 }
 function getLiveTrackSubtypeScale(track = {}, fallbackScale = 16, computedStyle = null) {
     if (isTrackInFocusVisualContext(track)) {
@@ -2447,6 +2547,7 @@ function requestWarzoneRender() {
 // this turns 20 requestRender() calls into 1, reducing render pressure.
 let __renderDebounceTimer = null;
 function requestWarzoneRenderBatched() {
+    if (isTacticalMapActive()) return;
     if (__renderDebounceTimer) return; // already queued
     __renderDebounceTimer = requestAnimationFrame(() => {
         __renderDebounceTimer = null;
@@ -3167,6 +3268,8 @@ function shouldShowTrackInFocusMode(trackKey = "", entry = null, focusedPosition
     if (!selectedTrackKey) return true;
     if (String(trackKey || "") === selectedTrackKey) return true;
     const focusEntry = __liveTrackRegistry.get(selectedTrackKey);
+    const focusedFormationKey = getFormationDevGroupKey(focusEntry);
+    if (focusedFormationKey && focusedFormationKey === getFormationDevGroupKey(entry)) return true;
     const focusCartesian = focusedPosition || getTrackDataCartesian(focusEntry);
     const trackCartesian = getTrackDataCartesian(entry);
     if (!focusCartesian || !trackCartesian) return false;
@@ -3240,6 +3343,7 @@ function purgeLiveTrackRenderEntities(viewer = window.__warzoneViewer) {
     return renderEntities.length;
 }
 export function syncLiveTrackRenderPopulation() {
+    if (isTacticalMapActive()) return false;
     const viewer = window.__warzoneViewer;
     if (!viewer || __liveTrackRenderReconcileActive) return false;
     const aircraftLayerEnabled = isLayerEnabled("aircraft");
@@ -4346,9 +4450,9 @@ function resetCameraToActiveRegion(options = {}) {
 
 function ensureLiveTrackOverlayRoot(viewer) {
     if (__liveTrackOverlayRoot?.isConnected) {
-        return __liveTrackOverlayRoot;
+        return mountMapAssetOverlay(__liveTrackOverlayRoot, viewer);
     }
-    const host = viewer?.container || viewer?.cesiumWidget?.container || document.body;
+    const host = getMapOverlayContainer(viewer);
     if (!host) return null;
     if (getComputedStyle(host).position === "static") {
         host.style.position = "relative";
@@ -4409,6 +4513,7 @@ function ensureLiveTrackOverlayRoot(viewer) {
     btnMap3d.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (isTacticalMapActive()) { routeTacticalView("3d"); return; }
         const mapApi = window.__warzoneViewer?.__warzone;
         void Promise.resolve()
             .then(() => {
@@ -4434,6 +4539,10 @@ function ensureLiveTrackOverlayRoot(viewer) {
     btnTerrain.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (isTacticalMapActive()) {
+            void requestSatelliteMap("Focused terrain").then((ok) => { if (ok) btnTerrain.click(); });
+            return;
+        }
         const mapApi = window.__warzoneViewer?.__warzone;
         void Promise.resolve()
             .then(() => {
@@ -4459,6 +4568,10 @@ function ensureLiveTrackOverlayRoot(viewer) {
     btnContour.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (isTacticalMapActive()) {
+            void requestSatelliteMap("Focused contour").then((ok) => { if (ok) btnContour.click(); });
+            return;
+        }
         void enableFocusedLiveTrackContourMode({ reason: "aircraft-focus-contour" });
     });
 
@@ -4482,7 +4595,7 @@ function ensureLiveTrackOverlayRoot(viewer) {
 
     host.appendChild(root);
     __liveTrackOverlayRoot = root;
-    return root;
+    return mountMapAssetOverlay(root, viewer);
 }
 
 function getScreenPositionForTrack(trackKey = "") {
@@ -4515,7 +4628,7 @@ function getCorrectedFocusScreenPosition(screenPosition = null) {
 function syncFocusedTrackOverlayModeButtons() {
     const root = __liveTrackOverlayRoot;
     if (!root) return;
-    const mapApi = window.__warzoneViewer?.__warzone;
+    const mapApi = getOperationalMapApi();
     const contourVisible = mapApi?.isContourLayerVisible?.() === true;
     const terrainVisible = mapApi?.isFocusedTerrainActive?.() === true;
     const mode = contourVisible ? "contour" : terrainVisible ? "terrain" : "plain";
@@ -5879,6 +5992,15 @@ function getTraversedTrackTrailEntries(trackKey = "", entity = null) {
 function getFocusedRoutePositions(trackKey = "") {
     const viewer = window.__warzoneViewer;
     const entry = __liveTrackRegistry.get(trackKey);
+    if (isTacticalMapActive() && entry) {
+        // The same authoritative history; never mutate/re-smooth traversed fixes.
+        const positions = (entry.path_history || []).map((point) => Cesium.Cartesian3.fromDegrees(
+            Number(point.lon), Number(point.lat), getTrackPointRenderAltitudeMeters(point, entry)));
+        const head = Cesium.Cartesian3.fromDegrees(Number(entry.lon), Number(entry.lat),
+            getTrackPointRenderAltitudeMeters(entry, entry));
+        if (!positions.length || Cesium.Cartesian3.distance(positions[positions.length - 1], head) > .75) positions.push(head);
+        return positions;
+    }
     if (!viewer || !entry) return [];
     const entity = viewer.entities?.getById?.(`track-${trackKey}`);
     const trailEntries = getTraversedTrackTrailEntries(trackKey, entity);
@@ -5966,12 +6088,17 @@ function getRouteSegmentBetweenDistances(positions = [], startDistanceMeters = 0
 function getRouteScreenFadeDistanceMeters(positions = [], targetPixels = 56) {
     const viewer = window.__warzoneViewer;
     const sceneToWindow = Cesium.SceneTransforms?.worldToWindowCoordinates ?? Cesium.SceneTransforms?.wgs84ToWindowCoordinates;
-    if (!viewer?.scene || typeof sceneToWindow !== "function" || positions.length < 2) return Number.NaN;
+    const tactical = isTacticalMapActive();
+    if ((!tactical && (!viewer?.scene || typeof sceneToWindow !== "function")) || positions.length < 2) return Number.NaN;
+    const project = tactical ? (position) => {
+        const c = Cesium.Cartographic.fromCartesian(position);
+        return projectTacticalPoint({ lon: Cesium.Math.toDegrees(c.longitude), lat: Cesium.Math.toDegrees(c.latitude), height: c.height });
+    } : (position) => sceneToWindow(viewer.scene, position);
     let walkedPixels = 0;
     let walkedMeters = 0;
     let previousScreen = null;
     try {
-        previousScreen = sceneToWindow(viewer.scene, positions[0]);
+        previousScreen = project(positions[0]);
     } catch {
         return Number.NaN;
     }
@@ -5979,7 +6106,7 @@ function getRouteScreenFadeDistanceMeters(positions = [], targetPixels = 56) {
     for (let index = 1; index < positions.length; index += 1) {
         let screen = null;
         try {
-            screen = sceneToWindow(viewer.scene, positions[index]);
+            screen = project(positions[index]);
         } catch {
             return Number.NaN;
         }
@@ -7685,6 +7812,7 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     return false;
 }
 function wakeLiveTrackInterpolationRender(durationMs = 0) {
+    if (isTacticalMapActive()) return;
     const safeDurationMs = Math.max(0, Number(durationMs || 0));
     __liveTrackInterpolationActiveUntil = Math.max(
         __liveTrackInterpolationActiveUntil,
@@ -7693,6 +7821,7 @@ function wakeLiveTrackInterpolationRender(durationMs = 0) {
     if (__liveTrackInterpolationRenderRaf) return;
     const step = (now) => {
         __liveTrackInterpolationRenderRaf = 0;
+        if (isTacticalMapActive()) return;
         let hasActiveMotion = false;
         let focusedTrackAdvanced = false;
         const focusedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
@@ -8045,6 +8174,25 @@ function buildWaypointRoutePoint(waypoints, t) {
     return point;
 }
 /* ================= PUBLIC API ================= */
+function getLiveAircraftModelUriForCode(modelCode = "") {
+    const asset = getAircraftAssetFile(modelCode);
+    return asset?.model ? `${LIVE_AIRCRAFT_MODEL_BASE_PATH}/${asset.model}` : "";
+}
+function isLiveAircraftModelCodeAvailable(modelCode = "") {
+    const modelUri = getLiveAircraftModelUriForCode(modelCode);
+    return Boolean(modelUri && !__liveAircraftFailedModelUris.has(modelUri));
+}
+function resolveFocusedAircraftFallbackModelCode(track = {}, excludedCodes = []) {
+    if (!isTrackInFocusVisualContext(track)) return "";
+    const excluded = new Set(excludedCodes.map((value) => normalizeAircraftAssetKey(value)).filter(Boolean));
+    const subtype = normalizeAircraftCategoryRole(resolveTrackSubtype(track));
+    const candidates = subtype === "helicopter"
+        ? [LIVE_AIRCRAFT_GLOBAL_DEFAULTS.helicopter]
+        : [LIVE_AIRCRAFT_GLOBAL_DEFAULTS[subtype], LIVE_AIRCRAFT_MODEL_DEFAULT_CODE];
+    return candidates
+        .map((value) => normalizeAircraftAssetKey(value))
+        .find((value) => value && !excluded.has(value) && isLiveAircraftModelCodeAvailable(value)) || "";
+}
 function resolveLiveTrackModelCode(track = {}) {
     const metadata = getTrackMetadata(track);
     const explicitCode = String(
@@ -8057,36 +8205,49 @@ function resolveLiveTrackModelCode(track = {}) {
         ""
     ).trim();
     const explicitAssetKey = normalizeAircraftAssetKey(explicitCode);
-    if (explicitAssetKey) {
+    if (explicitAssetKey && isLiveAircraftModelCodeAvailable(explicitAssetKey)) {
         return explicitAssetKey;
     }
 
-    const overrideCode = resolveAircraftAssetSuffixOverride(track);
-    const overrideAssetKey = normalizeAircraftAssetKey(overrideCode);
-    if (overrideAssetKey) {
-        return overrideAssetKey;
-    }
+    const exactAssetKey = resolveExactAircraftModelAssetKey(track);
+    if (exactAssetKey && isLiveAircraftModelCodeAvailable(exactAssetKey)) return exactAssetKey;
 
-    const forcedModelCode = resolveForcedAircraftModelCode(track);
-    const forcedAssetKey = normalizeAircraftAssetKey(forcedModelCode);
-    if (forcedAssetKey) {
-        return forcedAssetKey;
-    }
-    const iconCode = resolveLiveAircraftIconCode(track);
-    const iconAssetKey = normalizeAircraftAssetKey(iconCode);
-    if (iconAssetKey) {
-        return iconAssetKey;
-    }
-    const subtype = resolveTrackSubtype(track)
-        .trim()
-        .toLowerCase();
-    const subtypeCode = LIVE_AIRCRAFT_MODEL_CODE_BY_SUBTYPE[subtype] || LIVE_AIRCRAFT_MODEL_DEFAULT_CODE;
-    return normalizeAircraftAssetKey(subtypeCode) || LIVE_AIRCRAFT_MODEL_DEFAULT_CODE;
+    return resolveFocusedAircraftFallbackModelCode(track, [explicitAssetKey, exactAssetKey]);
 }
 function resolveLiveTrackModelUri(track = {}) {
     const modelCode = resolveLiveTrackModelCode(track);
-    const asset = getAircraftAssetFile(modelCode);
-    return asset?.model ? `${LIVE_AIRCRAFT_MODEL_BASE_PATH}/${asset.model}` : "";
+    if (!modelCode) return "";
+    return getLiveAircraftModelUriForCode(modelCode);
+}
+function resolveLiveTrackModelResource(track = {}, modelCode = "") {
+    const primaryUri = getLiveAircraftModelUriForCode(modelCode);
+    if (!primaryUri) return "";
+    const fallbackCode = resolveFocusedAircraftFallbackModelCode(track, [modelCode]);
+    const fallbackUri = getLiveAircraftModelUriForCode(fallbackCode);
+    const cacheKey = `${primaryUri}|${fallbackUri}`;
+    const cached = __liveAircraftModelResourceCache.get(cacheKey);
+    if (cached) return cached;
+    try {
+        let activeUri = primaryUri;
+        const resource = new Cesium.Resource({
+            url: primaryUri,
+            retryAttempts: fallbackUri ? 2 : 1,
+            retryCallback: (failedResource) => {
+                __liveAircraftFailedModelUris.add(activeUri);
+                if (failedResource && fallbackUri && activeUri !== fallbackUri && !__liveAircraftFailedModelUris.has(fallbackUri)) {
+                    activeUri = fallbackUri;
+                    failedResource.url = fallbackUri;
+                    return true;
+                }
+                scheduleRefreshAllLiveTrackVisualModes(0);
+                return false;
+            },
+        });
+        __liveAircraftModelResourceCache.set(cacheKey, resource);
+        return resource;
+    } catch {
+        return primaryUri;
+    }
 }
 export function getLiveTrackModelDescriptor(track = {}) {
     const style = getLiveTrackStyleConfig(track);
@@ -8143,7 +8304,7 @@ export function getAircraftModelTunerFocusConfig(aircraftAltitudeFt = Number.NaN
     });
 }
 export function upsertLiveTrack(track, options = {}) {
-    if (!window.__warzoneViewer?.__warzone) return;
+    if (!window.__warzoneViewer?.__warzone && !isTacticalMapActive()) return;
     const previousStyle = __liveTrackUpdateComputedStyle;
     __liveTrackUpdateComputedStyle = previousStyle || getComputedStyle(document.documentElement);
     try {
@@ -8158,7 +8319,7 @@ export function upsertLiveTrack(track, options = {}) {
 }
 function applyLiveTrackUpdate(track, options = {}) {
     const globe = window.__warzoneViewer?.__warzone;
-    if (!globe) return;
+    if (!globe && !isTacticalMapActive()) return;
     const viewer = window.__warzoneViewer;
     const forceVisualRefresh = track?.__forceVisualRefresh === true;
     const originalTrackKey = String(track?.track_key || "").trim();
@@ -8166,7 +8327,7 @@ function applyLiveTrackUpdate(track, options = {}) {
         clearLiveTrack(originalTrackKey);
         return;
     }
-    const duplicateTrackKey = track?.__manualAircraftOverride === true
+    const duplicateTrackKey = getFormationDevGroupKey(track) || track?.__manualAircraftOverride === true
         ? ""
         : measureRealtimeStage("track.duplicateLookup", () => findDuplicateLiveTrackKey(track));
     if (duplicateTrackKey && duplicateTrackKey !== originalTrackKey) {
@@ -8189,7 +8350,7 @@ function applyLiveTrackUpdate(track, options = {}) {
     const sourceTimestamp = getTrackSourceTimestamp(track);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
-    let entity = viewer.entities.getById(id);
+    let entity = viewer?.entities?.getById?.(id);
     let telemetryUpdate = forceVisualRefresh || options.validatedVisualState === true
         ? "accept"
         : classifyLiveTrackTelemetryUpdate(entity, track, sourceTimestamp);
@@ -8222,6 +8383,10 @@ function applyLiveTrackUpdate(track, options = {}) {
         ? (__liveTrackRegistry.get(String(track.track_key || "")) || buildLiveTrackRegistryEntry(track, entity))
         : measureRealtimeStage("track.historyAndRegistry", () => recordLiveTrackDataState(track, entity, sourceTimestamp));
     options.onTelemetryResult?.({ status: "accepted", candidate: track, sourceTimestamp });
+    if (isTacticalMapActive()) {
+        if (registryEntry) registryEntry.__realtimeRenderPending = false;
+        return entity;
+    }
     if (track?.__realtimeDataOnly === true) return entity;
     const reportSnapshot = track?.__reportSnapshotAsset === true;
     if (!shouldRenderLiveTrackDataState(track.track_key, registryEntry, { reportSnapshot })) {
@@ -8237,7 +8402,9 @@ function applyLiveTrackUpdate(track, options = {}) {
     recordRealtimeWork("cesiumTrackUpdates");
 
     const style = getLiveTrackStyleConfig(track);
-    const modelUri = resolveLiveTrackModelUri(track);
+    const modelCode = resolveLiveTrackModelCode(track);
+    const modelUri = getLiveAircraftModelUriForCode(modelCode);
+    const modelResource = modelUri ? resolveLiveTrackModelResource(track, modelCode) : "";
     const subtypeScale = getLiveTrackSubtypeScale(track, style.scale);
     const subtypeMinPixelSize = getLiveTrackSubtypeMinPixelSize(track, style.minimumPixelSize);
     const subtypeMaxScale = getLiveTrackSubtypeMaxScale(track, style.maximumScale);
@@ -8268,7 +8435,7 @@ function applyLiveTrackUpdate(track, options = {}) {
             entitySpec.billboard = billboard;
         } else {
             entitySpec.model = buildLiveTrackModelGraphics(
-                modelUri,
+                modelResource || modelUri,
                 subtypeScale,
                 subtypeMinPixelSize,
                 subtypeMaxScale,
@@ -8317,7 +8484,7 @@ function applyLiveTrackUpdate(track, options = {}) {
             applyLiveTrackModel(
                 entity,
                 track,
-                modelUri,
+                modelResource || modelUri,
                 subtypeScale,
                 subtypeMinPixelSize,
                 subtypeMaxScale,
@@ -8336,7 +8503,7 @@ function applyLiveTrackUpdate(track, options = {}) {
         applyLiveTrackModel(
             entity,
             track,
-            modelUri,
+            modelResource || modelUri,
             subtypeScale,
             subtypeMinPixelSize,
             subtypeMaxScale,
@@ -8701,12 +8868,14 @@ function refreshLiveTrackViewDependentEntity(entity) {
     refreshLiveTrackTrailRenderVisibility(entity.__trackKey, track);
 }
 function refreshAllLiveTrackVisualModes() {
+    if (isTacticalMapActive()) return;
     __liveTrackRegistry.forEach((entry, trackKey) => {
         if (!entry?.active) return;
         refreshLiveTrackVisualMode(trackKey);
     });
 }
 function scheduleRefreshAllLiveTrackVisualModes(delayMs = 0) {
+    if (isTacticalMapActive()) return;
     if (__liveTrackVisualModeRefreshTimer) {
         clearTimeout(__liveTrackVisualModeRefreshTimer);
         __liveTrackVisualModeRefreshTimer = 0;
@@ -8724,6 +8893,7 @@ function scheduleRefreshAllLiveTrackVisualModes(delayMs = 0) {
         let index = 0;
         const step = () => {
             __liveTrackVisualModeRefreshRaf = 0;
+            if (isTacticalMapActive()) return;
             const end = Math.min(keys.length, index + 10);
             for (; index < end; index += 1) {
                 refreshLiveTrackVisualMode(keys[index]);
@@ -8736,6 +8906,8 @@ function scheduleRefreshAllLiveTrackVisualModes(delayMs = 0) {
     }, Math.max(0, Number(delayMs) || 0));
 }
 export function focusLiveTrack(trackKey, options = {}) {
+    const routed = routeMapSelection("aircraft", trackKey, options);
+    if (routed !== null) return routed;
     const viewer = window.__warzoneViewer;
 
     if (!viewer || !trackKey) return false;
@@ -8866,6 +9038,7 @@ export function focusLiveTrack(trackKey, options = {}) {
     return true;
 }
 export function clearLiveTrackSelection(options = {}) {
+    if (isTacticalMapActive()) return routeMapSelection("aircraft", "");
     const viewer = window.__warzoneViewer;
     const previousTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const previousSelectionMode = String(__liveTrackReplayState.mode || "");
@@ -8944,12 +9117,17 @@ export function clearLiveTrackSelection(options = {}) {
     return true;
 }
 export function getLiveTrackSelection() {
+    if (isTacticalMapActive()) {
+        const selected = getMapSelection();
+        return { track_key: selected?.type === "aircraft" ? selected.id : "", mode: selected?.type === "aircraft" ? "focus" : "" };
+    }
     return {
         track_key: __liveTrackReplayState.selectedTrackKey || "",
         mode: __liveTrackReplayState.mode || "",
     };
 }
 export function isLiveTrackHardLockEnabled() {
+    if (isTacticalMapActive()) return getMapSelection()?.type === "aircraft" && getMapSelection()?.follow === true;
     return __liveTrackHardLockEnabled === true;
 }
 function refreshLiveTrackEntityVisualStyle(entity) {
@@ -9043,6 +9221,9 @@ export function toggleLiveTrackHardLock() {
     return setLiveTrackHardLockInternal(!__liveTrackHardLockEnabled);
 }
 export function toggleLiveTrackSelection(trackKey, options = {}) {
+    if (isTacticalMapActive()) {
+        return routeMapSelection("aircraft", getMapSelection()?.id === String(trackKey) && getMapSelection()?.type === "aircraft" ? "" : trackKey, options);
+    }
     if (!trackKey) return false;
     if (__liveTrackReplayState.selectedTrackKey === trackKey) {
         return clearLiveTrackSelection(options);
@@ -9180,6 +9361,80 @@ export function startDevTrackSimulation({
     __devTrackTimers.set(track_key, timer);
 }
 window.__setAircraftModelCalibrationEnabled = setAircraftModelCalibrationEnabled;
+const tacticalAircraftPoseCache = new WeakMap();
+registerMapSource("aircraft", {
+    layer: "aircraft",
+    model: (track) => {
+        const descriptor = getLiveTrackModelDescriptor(track);
+        const fallback = resolveFocusedAircraftFallbackModelCode(track, [descriptor.model_code]);
+        const fallbackTrack = { ...track, asset_key: fallback };
+        return {
+            ...descriptor,
+            fallback_uri: getLiveAircraftModelUriForCode(fallback),
+            fallback_code: fallback,
+            fallback_heading_offset_degrees: getLiveTrackModelHeadingOffsetDeg(fallbackTrack),
+            fallback_pitch_offset_degrees: getLiveTrackModelPitchOffsetDeg(fallbackTrack),
+            fallback_roll_offset_degrees: getLiveTrackModelRollOffsetDeg(fallbackTrack),
+            heading_offset_degrees: getLiveTrackModelHeadingOffsetDeg(track),
+            pitch_offset_degrees: getLiveTrackModelPitchOffsetDeg(track),
+            roll_offset_degrees: getLiveTrackModelRollOffsetDeg(track),
+        };
+    },
+    camera: () => ({ rangeMeters: getLiveTrackFocusCameraRangeMeters(), pitchDegrees: getLiveTrackFocusCameraPitchDeg() }),
+    pose: (track) => {
+        let pose = tacticalAircraftPoseCache.get(track);
+        if (!pose) {
+            const attitude = getTrackAttitude(track, getTrackResolvedHeading(track));
+            pose = { lon: Number(track.lon), lat: Number(track.lat), altitude: getTrackRenderAltitudeMeters(track),
+                heading: attitude.headingDeg, pitch: attitude.pitchDeg, roll: attitude.rollDeg };
+            tacticalAircraftPoseCache.set(track, pose);
+        }
+        return pose;
+    },
+    label: (track) => transformLiveLabelText(getTrackDisplayTitle(track), getLiveLabelStyleConfig()),
+    trail: (track) => {
+        if (!getLiveTrackSubtypeTrailEnabled(track)) return { key: track.track_key, segments: [] };
+        const geometry = buildFocusedRouteGeometry(track.track_key);
+        const coordinates = (positions) => positions.map((position) => {
+            const c = Cesium.Cartographic.fromCartesian(position);
+            return [Cesium.Math.toDegrees(c.longitude), Cesium.Math.toDegrees(c.latitude), c.height];
+        });
+        return { key: track.track_key, width: getFocusedRouteWidth(track),
+            color: getCssColor("--warzone-live-track-color", "rgba(24,226,219,1)"),
+            segments: [{ coordinates: coordinates(geometry.solidPositions), opacity: .92 },
+                ...geometry.fadeSegments.map((positions, index) => ({ coordinates: coordinates(positions),
+                    opacity: LIVE_TRACK_FOCUS_ROUTE_FADE_ALPHA * Math.pow(index / Math.max(1, LIVE_TRACK_FOCUS_ROUTE_FADE_SEGMENTS - 1), 1.35) }))] };
+    },
+    present: (track, screen) => {
+        if (!track && !__liveTrackOverlayRoot) return;
+        const root = ensureLiveTrackOverlayRoot(window.__warzoneViewer);
+        if (root.__mapRecord !== track) {
+            root.__mapRecord = track;
+            root.__mapLabelStyle = getLiveLabelStyleConfig();
+            root.__mapLabelText = track ? transformLiveLabelText(getTrackDisplayTitle(track), root.__mapLabelStyle) : "";
+            syncFocusedTrackOverlayModeButtons();
+        }
+        presentMapAssetOverlay(root, track, screen, root.__mapLabelStyle, root.__mapLabelText);
+    },
+    snapshot: () => Array.from(__liveTrackRegistry.values()).filter((track) => track.active !== false),
+    focus: focusLiveTrack,
+    clear: () => clearLiveTrackSelection({ resetCamera: false, __skipRenderSync: true }),
+    select: (id) => {
+        __liveTrackReplayState.selectedTrackKey = id;
+        __liveTrackReplayState.mode = id ? "focus" : "";
+        if (!id && __liveTrackOverlayRoot) __liveTrackOverlayRoot.style.display = "none";
+        publishLiveTrackSelectionState();
+        syncWidgetRowHighlight(id);
+        document.dispatchEvent(new CustomEvent("wz:aircraft-track-selected", { detail: { trackKey: id, mode: id ? "focus" : "" } }));
+    },
+    resume: () => {
+        if (__liveTrackOverlayRoot) mountMapAssetOverlay(__liveTrackOverlayRoot, window.__warzoneViewer);
+        syncLiveTrackRenderPopulation();
+        __liveTrackRegistry.forEach((entry) => {
+            if (entry.active) upsertLiveTrack(entry, { validatedVisualState: true });
+        });
+    },
+});
 if (isLiveTrackDiagnosticsEnabled()) {
     window.__getWarzoneAircraftDiagnostics = getLiveTrackDiagnostics;
 }

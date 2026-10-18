@@ -2,6 +2,34 @@
 
 /* #region =========== Backgrounds =========== */
 :root {
+    /* Independent MapLibre cartography; synchronized without reloading. */
+    --tactical-land-color: #101317;
+    --tactical-ocean-color: #222b35;
+    --tactical-background-color: #080b10;
+    --tactical-country-border: #3b4654;
+    --tactical-state-border: #252f39;
+    --tactical-coastline-color: #465361;
+    --tactical-terrain-shadow: #080b0e;
+    --tactical-terrain-highlight: #252c34;
+    --tactical-terrain-opacity: 0.45;
+    --tactical-terrain-intensity: 0.4;
+    --tactical-country-label: #8894a3;
+    --tactical-city-label: #657282;
+    --tactical-water-label: #566f84;
+    --tactical-road-color: #26303a;
+    --tactical-river-color: #34495a;
+    --tactical-grid-color: #263644;
+    --tactical-aircraft-color: #64d98c;
+    --tactical-naval-color: #5bbce5;
+    --tactical-satellite-color: #8e87e8;
+    --tactical-selected-color: #7ae6eb;
+    --tactical-event-color: #d1976c;
+    --tactical-border-width: 0.7;
+    --tactical-label-size: 12;
+    --tactical-symbol-size: 0.75;
+    --tactical-layer-opacity: 0.9;
+    --tactical-grid-opacity: 0;
+    --tactical-state-opacity: 0.45;
     --color-bg-dark: rgba(32, 38, 49, 0.85);
     --color-bg-header: rgb(69, 80, 94, 0.6);
     --color-bg-row: rgb(46 53 63 / 86%);

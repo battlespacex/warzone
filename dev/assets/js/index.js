@@ -8,21 +8,20 @@ import {
 import "./warzone-boot.js";
 import {
     initBoot, initWarzoneApp, initAudio, startEventPollingFallback,
-    initStratopsIntro, initStratopsAuth, schedulePostEntryActions
+    initStratopsIntro, initStratopsAuth, schedulePostEntryActions, attachWarzoneAppViewer
 } from "./essential.js";
 import {
     applyCountryBorderLayerVisibility,
     getActiveRegion,
     getStartupRegionJourneyCamera,
     initRegionSelector,
-    playStartupRegionJourney,
 } from "./warzone-region-selector.js";
 import { initStratopsBilling } from "./warzone-billing.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 import { initStartupBackground } from "./warzone-startup-background.js";
-import { initPosterGenerator } from "./poster-generator.js";
 
 const isPosterGeneratorPage = document.documentElement.classList.contains("poster-generator-document");
+if (!isPosterGeneratorPage) markStartupPerformance("stratops-main-module-start");
 
 const isLocalDevHost =
     window.location.hostname === "localhost" ||
@@ -146,11 +145,11 @@ const INITIAL_THEATER_BACKGROUND_ASSETS = Object.freeze([
     "/assets/images/models/air/Heli-CH53.glb",
 ]);
 
-function markStartupPerformance(name) {
+function markStartupPerformance(name, startTime) {
     if (!name || typeof performance?.mark !== "function") return;
     try {
         if (!performance.getEntriesByName(name, "mark").length) {
-            performance.mark(name);
+            performance.mark(name, Number.isFinite(startTime) ? { startTime } : undefined);
         }
     } catch { }
 }
@@ -180,7 +179,7 @@ function reportStartupPerformance() {
     if (rows.length) console.table(rows);
 }
 
-if (!isPosterGeneratorPage) markStartupPerformance("stratops-navigation-start");
+if (!isPosterGeneratorPage) markStartupPerformance("stratops-navigation-start", 0);
 
 function wait(ms = 0) {
     return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
@@ -372,12 +371,13 @@ async function waitForFirstUsableMap(viewer) {
     const canvasReady = await waitForValidOperationalCanvas(viewer);
     if (!canvasReady) throw new Error("Cesium canvas did not reach a valid drawable size");
 
-    const imageryReady = await Promise.resolve(viewer?.__warzoneImageryReadyPromise);
-    const imageryRequired = viewer?.__warzoneEntryMapImageryVisible !== false;
-    if (imageryRequired && viewer?.__warzoneBasemapDeferred !== true &&
-        (imageryReady !== true || !viewer?.__imageryBase || viewer.imageryLayers?.length < 1)) {
-        throw new Error("Base imagery provider did not initialize");
-    }
+    // Remote imagery is optional. Its metadata request can remain pending even
+    // while the viewer renders correctly; it must not gate entry or Tactical.
+    void Promise.resolve(viewer?.__warzoneImageryReadyPromise).then((ready) => {
+        if (ready !== true && viewer?.__warzoneEntryMapImageryVisible !== false) {
+            console.warn("Satellite imagery unavailable; the operational viewer remains usable.");
+        }
+    }).catch((error) => console.warn("Optional Satellite imagery failed:", error));
 
     const rendered = await waitForOperationalPostRender(viewer);
     if (!rendered) throw new Error("Cesium did not render a valid first frame");
@@ -412,37 +412,106 @@ async function fadeOperationalEntryIntoApp() {
     }
 }
 
-async function initializeOperationalDataAfterMap(viewer) {
-    markStartupPerformance("stratops-operational-data-start");
-    try {
-        const [uiModule, aoiModule, captureModule, realtimeModule] = await Promise.all([
-            import("./warzone-ui.js"),
-            import("./warzone-aoi-lens.js"),
-            import("./warzone-capture-shot.js"),
-            import("./warzone-realtime.js"),
-        ]);
+const satelliteToolsByViewer = new WeakMap();
+let satelliteViewerPromise = null;
+async function ensureSatelliteViewer(diagnostics = { enabled: false }) {
+    if (satelliteViewerPromise) return satelliteViewerPromise;
+    satelliteViewerPromise = (async () => {
+        markStartupPerformance("stratops-cesium-import-start");
+        const globeModule = await import(/* webpackChunkName: "satellite-globe" */ "./warzone-globe.js");
+        markStartupPerformance("stratops-cesium-import-end");
+        measureStartupPerformance("stratops-cesium-import", "stratops-cesium-import-start", "stratops-cesium-import-end");
+        const viewer = await globeModule.initWarzoneGlobe({
+            startStartupRotation: false,
+            initialCamera: getStartupRegionJourneyCamera(getActiveRegion()),
+            performanceEmptyGlobe: diagnostics,
+        });
+        if (!viewer) throw new Error("Cesium viewer initialization failed");
+        window.__warzoneViewer = viewer;
+        markStartupPerformance("stratops-viewer-created");
+        if (diagnostics.adaptiveQuality !== false) {
+            viewer.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
+            viewer.__warzone?.setPerformanceMode?.(0);
+        }
+        if (diagnostics.requestRenderMode === false) viewer.scene.requestRenderMode = false;
+        if (!diagnostics.enabled) {
+            initRegionSelector(viewer, { applyLandingCamera: false });
+            attachWarzoneAppViewer(viewer);
+        }
+        await waitForFirstUsableMap(viewer);
+        if (!diagnostics.enabled && window.__warzoneOperationalDataPromise) {
+            void window.__warzoneOperationalDataPromise.then(() => initializeSatelliteTools(viewer)).catch((error) => {
+                console.warn("Optional Satellite tools unavailable:", error);
+            });
+        }
+        return viewer;
+    })().catch((error) => {
+        // A rejected chunk load must not poison every subsequent mode switch.
+        // Never retry viewer construction once the singleton has been created.
+        if (!window.__warzoneViewer) satelliteViewerPromise = null;
+        throw error;
+    });
+    return satelliteViewerPromise;
+}
 
-        uiModule.bindWarzoneUi();
+function initializeSatelliteTools(viewer) {
+    if (satelliteToolsByViewer.has(viewer)) return satelliteToolsByViewer.get(viewer);
+    const pending = Promise.allSettled([
+        import("./warzone-ui.js").then((module) => module.attachWarzoneUiViewer()),
+        isStratOpsFeatureEnabled("system.aoiLens") && isStratOpsFeatureEnabled("dock.aoiScan")
+            ? import("./warzone-aoi-lens.js").then((module) => module.initWarzoneAoiLens(viewer)) : Promise.resolve(),
+        isStratOpsFeatureEnabled("system.captureShot") && isStratOpsFeatureEnabled("header.captureShot")
+            ? import("./warzone-capture-shot.js").then((module) => module.initWarzoneCaptureShot(viewer)) : Promise.resolve(),
+    ]).then((results) => {
+        results.forEach((result) => { if (result.status === "rejected") console.warn("Optional map tool failed:", result.reason); });
         applyCountryBorderLayerVisibility(viewer, { animate: true, duration: 780 });
-
-        if (isStratOpsFeatureEnabled("system.aoiLens") && isStratOpsFeatureEnabled("dock.aoiScan")) {
-            aoiModule.initWarzoneAoiLens(viewer);
-        }
-        if (isStratOpsFeatureEnabled("system.captureShot") && isStratOpsFeatureEnabled("header.captureShot")) {
-            captureModule.initWarzoneCaptureShot(viewer);
-        }
-
-        await initWarzoneApp();
-
-        // Install the lazy hook after event initialization so entity clears cannot wipe bases.
         if (isStratOpsFeatureEnabled("tracking.militaryBases") && isStratOpsFeatureEnabled("mapLayers.militaryBases")) {
             installDeferredMilitaryBasesLayer(viewer);
             window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
         }
+    });
+    satelliteToolsByViewer.set(viewer, pending);
+    return pending;
+}
 
-        void warmupInitialTheater(viewer, { showLoader: false }).catch((error) => {
-            console.warn("Initial theater background warm-up failed:", error);
-        });
+let deferredToolLaunch = null;
+function bindDeferredSatelliteTools() {
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest?.("#dock-capture-shot, #wz-mobile-capture-shot, #dock-aoi-lens, #wz-mobile-aoi-lens, #wz-aoi-quick-open");
+        if (!button || button.__wzCaptureBound || button.__wzAoiBound) return;
+        const capture = /capture-shot/.test(button.id);
+        if (capture ? !isStratOpsFeatureEnabled("system.captureShot") : !isStratOpsFeatureEnabled("system.aoiLens")) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (deferredToolLaunch) return;
+        deferredToolLaunch = import("./warzone-map-bridge.js")
+            .then((module) => module.requestSatelliteMap(capture ? "Capture view" : "AOI view"))
+            .then(async (ready) => {
+                if (!ready || !window.__warzoneViewer) throw new Error("Satellite view unavailable");
+                await initializeSatelliteTools(window.__warzoneViewer);
+                // The existing tool handler now owns the original action.
+                button.click();
+            }).catch((error) => console.warn("Map tool could not open:", error))
+            .finally(() => { deferredToolLaunch = null; });
+    }, true);
+}
+
+async function initializeOperationalDataAfterMap(viewer) {
+    markStartupPerformance("stratops-operational-data-start");
+    try {
+        const [uiModule, realtimeModule] = await Promise.all([
+            import("./warzone-ui.js"),
+            import("./warzone-realtime.js"),
+        ]);
+        uiModule.bindWarzoneUi();
+        bindDeferredSatelliteTools();
+        await initWarzoneApp();
+        if (window.__warzoneViewer) {
+            attachWarzoneAppViewer(window.__warzoneViewer);
+            void initializeSatelliteTools(window.__warzoneViewer)
+                .catch((error) => console.warn("Optional Satellite tools unavailable:", error));
+        }
+        // GLBs are requested by focus/formation loaders, never an entry warm-up.
 
         if (isStratOpsFeatureEnabled("system.realtimeEvents")) {
             void realtimeModule.subscribeToLiveEvents().catch((error) => {
@@ -482,7 +551,8 @@ function getEmptyGlobeDiagnosticOptions() {
 
 if (isPosterGeneratorPage) {
     document.addEventListener("DOMContentLoaded", () => {
-        initPosterGenerator();
+        void import("./poster-generator.js").then((module) => module.initPosterGenerator())
+            .catch((error) => console.error("Poster generator initialization failed:", error));
     }, { once: true });
 } else document.addEventListener("DOMContentLoaded", async () => {
     try {
@@ -507,6 +577,7 @@ if (isPosterGeneratorPage) {
         let firstUsableMapReached = false;
         window.__warzoneStartDeferredApp = () => {
             if (operationalBootPromise) return operationalBootPromise;
+            operationalBootCancelled = false;
             operationalBootPromise = (async () => {
                 if (!isStratOpsFeatureEnabled("system.globe")) {
                     throw new Error("The operational globe feature is disabled");
@@ -523,43 +594,38 @@ if (isPosterGeneratorPage) {
                     await wait(OPERATIONAL_LOADER_FADE_IN_MS);
                 })();
 
-                markStartupPerformance("stratops-cesium-import-start");
-                const globeModule = await import("./warzone-globe.js");
-                markStartupPerformance("stratops-cesium-import-end");
-                measureStartupPerformance(
-                    "stratops-cesium-import",
-                    "stratops-cesium-import-start",
-                    "stratops-cesium-import-end"
-                );
-
                 const selectedRegion = getActiveRegion();
                 const emptyGlobeDiagnostics = getEmptyGlobeDiagnosticOptions();
-                const viewer = await globeModule.initWarzoneGlobe({
-                    startStartupRotation: false,
-                    initialCamera: getStartupRegionJourneyCamera(selectedRegion),
-                    performanceEmptyGlobe: emptyGlobeDiagnostics,
-                });
-                if (!viewer) throw new Error("Cesium viewer initialization failed");
-                window.__warzoneViewer = viewer;
-                markStartupPerformance("stratops-viewer-created");
-                if (emptyGlobeDiagnostics.adaptiveQuality !== false) {
-                    viewer.__warzone?.setAdaptiveQualityProfile?.(resolveStartupAdaptiveQualityProfile());
-                    viewer.__warzone?.setPerformanceMode?.(0);
-                }
-                if (emptyGlobeDiagnostics.requestRenderMode === false) {
-                    viewer.scene.requestRenderMode = false;
-                }
-
-                if (!emptyGlobeDiagnostics.enabled) {
-                    initRegionSelector(viewer, { applyLandingCamera: false });
-                }
+                let viewer = null;
                 window.__warzonePrepareDashboardIntro?.();
-                if (selectedRegion) {
-                    await playStartupRegionJourney(viewer, selectedRegion, { instant: true });
+                if (emptyGlobeDiagnostics.enabled) {
+                    // Preserve the explicitly requested Cesium diagnostic flow.
+                    viewer = await ensureSatelliteViewer(emptyGlobeDiagnostics);
+                    await waitForFirstUsableMap(viewer);
                 } else {
-                    viewer.__warzone?.stopStartupRotation?.();
+                    markStartupPerformance("stratops-tactical-import-start");
+                    const { initWarzoneMapManager } = await import("./warzone-map-manager.js");
+                    markStartupPerformance("stratops-tactical-import-end");
+                    const mapManager = initWarzoneMapManager(null, {
+                        autoStart: false,
+                        ensureSatellite: () => ensureSatelliteViewer(),
+                        camera: { center: [selectedRegion?.camera?.lon ?? 44, selectedRegion?.camera?.lat ?? 28],
+                            zoom: 2.5, bearing: 0, pitch: 0 },
+                    });
+                    if (!mapManager || !await mapManager.start()) throw new Error("Selected map renderer failed to initialize");
+                    if (!window.__warzoneViewer) {
+                        initRegionSelector(null, { operational: true });
+                        mapManager.region(selectedRegion);
+                    }
+                    viewer = window.__warzoneViewer || null;
+                    markStartupPerformance("stratops-first-frame");
+                    markStartupPerformance("stratops-camera-enabled");
+                    markStartupPerformance("stratops-first-usable-map");
+                    measureStartupPerformance("stratops-region-to-first-usable-map",
+                        "stratops-region-confirmed", "stratops-first-usable-map");
+                    measureStartupPerformance("stratops-navigation-to-first-usable-map",
+                        "stratops-navigation-start", "stratops-first-usable-map");
                 }
-                await waitForFirstUsableMap(viewer);
                 firstUsableMapReached = true;
                 window.__wzKeepSiteLoaderVisible = false;
                 window.__wzKeepSiteLoaderVisibleUntil = 0;
@@ -581,8 +647,9 @@ if (isPosterGeneratorPage) {
                 void Promise.allSettled([
                     entryFadePromise,
                     dashboardRevealPromise,
-                    operationalDataPromise,
                 ]).then(() => {
+                    // Feed requests have their own lifecycle; map switching and
+                    // controls must not wait for status/GNSS/API availability.
                     if (!emptyGlobeDiagnostics.enabled) schedulePostEntryActions(viewer);
                 });
                 return viewer;
@@ -594,6 +661,7 @@ if (isPosterGeneratorPage) {
                 window.__warzoneCancelDashboardIntro?.();
                 window.__warzoneRestoreStartupBackground?.();
                 console.error("Deferred app init failed:", error);
+                if (!window.__warzoneViewer) operationalBootPromise = null;
                 throw error;
             });
             return operationalBootPromise;

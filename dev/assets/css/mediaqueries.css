@@ -793,9 +793,15 @@
 }
 
 
+/* 2560px and wider */
+@media screen and (min-width: 2560px) {
+    html { font-size: 70.5% ;}
+}
 
-
-
+/* 3440px and wider */
+@media screen and (min-width: 3440px) {
+     html { font-size: 80.5% ;}
+}
 
 
 

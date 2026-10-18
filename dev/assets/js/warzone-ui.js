@@ -1,5 +1,6 @@
 ﻿// File Path: /assets/js/warzone-ui.js
 import { initTheaterPanel } from "./warzone-theater-panel.js";
+import { isTacticalMapActive, getOperationalMapApi } from "./warzone-map-bridge.js";
 
 const __sceneModeUiState = {
     currentMode: "3d",
@@ -10,16 +11,23 @@ const __sceneModeUiState = {
     bootstrapTimer: null,
 };
 let __altitudeReadoutBound = false;
+let __warzoneUiBound = false;
+let __tacticalAltitudeBound = false;
 
 export function bindWarzoneUi() {
+    if (__warzoneUiBound) return;
+    __warzoneUiBound = true;
     bindTopViews();
     bindAlertDismiss();
     bindMapModeButtons();
     initTheaterPanel();
     startUtcClock();
+    bindTacticalAltitudeReadout();
     startAltitudeReadout();
     bindGlobeToggle();
 }
+
+export function attachWarzoneUiViewer() { startAltitudeReadout(); }
 
 function bindTopViews() {
     const tabs = document.querySelectorAll(".top-tab");
@@ -86,7 +94,7 @@ function bindMapModeButtons() {
         btn.addEventListener("click", () => {
             const mode = btn.dataset.mapMode;
             applyMapModeState(btn);
-            window.__warzoneViewer?.__warzone?.setMapMode?.(mode);
+            getOperationalMapApi()?.setMapMode?.(mode);
         });
     });
 }
@@ -121,6 +129,21 @@ function formatAltitude(heightMeters) {
     return `${Math.round(h).toLocaleString()} m`;
 }
 
+function bindTacticalAltitudeReadout() {
+    if (__tacticalAltitudeBound) return;
+    __tacticalAltitudeBound = true;
+    const update = () => {
+        if (!isTacticalMapActive()) return;
+        const height = Number(getOperationalMapApi()?.getCameraHeight?.());
+        const ft = document.getElementById("wz-altitude-readout-ft");
+        const km = document.getElementById("wz-altitude-readout-km");
+        if (ft) ft.textContent = "ALT " + (Number.isFinite(height) ? Math.round(height * 3.280839895).toLocaleString() : "--") + " FT";
+        if (km) km.textContent = "ALT " + formatAltitude(height);
+    };
+    document.addEventListener("wz:tactical-camera-settled", update);
+    document.addEventListener("wz:map-engine-changed", update);
+    update();
+}
 function startAltitudeReadout() {
     if (__altitudeReadoutBound) return;
     const el = document.getElementById("wz-altitude-readout");
@@ -135,6 +158,7 @@ function startAltitudeReadout() {
     let lastUpdateAt = 0;
     let lastValue = "";
     const update = () => {
+        if (isTacticalMapActive()) return;
         const height = Number(camera.positionCartographic?.height);
         const heightFt = Number.isFinite(height) && height >= 0
             ? Math.round(height * 3.280839895).toLocaleString()
@@ -243,7 +267,7 @@ function bindGlobeToggle() {
     // Auto scene-mode switching on focus can produce repeated morphs when
     // focus signals flap under live updates. Keep it opt-in only.
     const autoFocusSceneModeEnabled = window.__stratopsConfig?.autoSceneModeOnFocus === true;
-    const getWarzoneMapApi = () => window.__warzoneViewer?.__warzone || null;
+    const getWarzoneMapApi = getOperationalMapApi;
     const updateButtons = (mode = "3d") => {
         const nextMode = normalizeSceneMode(mode) || "3d";
         const is3d = nextMode === "3d";
@@ -299,6 +323,7 @@ function bindGlobeToggle() {
     };
     const isAnyFocusActive = () => __sceneModeUiState.aircraftFocused || __sceneModeUiState.navalFocused;
     const syncAutoFocusSceneMode = () => {
+        if (isTacticalMapActive()) return;
         if (!autoFocusSceneModeEnabled) return;
         const focusActive = isAnyFocusActive();
         if (focusActive) {

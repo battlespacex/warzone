@@ -1,3 +1,5 @@
+import { isTacticalMapActive, deferSatelliteFrame } from "./warzone-map-bridge.js";
+
 const __animationTasks = new Map();
 let __animationFrame = 0;
 let __renderFrame = 0;
@@ -19,6 +21,7 @@ function elapsedSeconds() {
 }
 
 function requestSceneRender(frameTime = -1) {
+    if (isTacticalMapActive()) return false;
     if (frameTime >= 0 && __lastSceneRenderFrameTime === frameTime) {
         __coalescedRenderRequests += 1;
         return false;
@@ -33,6 +36,7 @@ function requestSceneRender(frameTime = -1) {
 }
 
 function scheduleAnimationFrame() {
+    if (deferSatelliteFrame(scheduleAnimationFrame)) return;
     if (__animationFrame || !__animationTasks.size ||
         (typeof document !== "undefined" && document.visibilityState === "hidden")) return;
     __animationFrame = requestAnimationFrame(runAnimationFrame);
@@ -40,6 +44,7 @@ function scheduleAnimationFrame() {
 
 function runAnimationFrame(now) {
     __animationFrame = 0;
+    if (deferSatelliteFrame(scheduleAnimationFrame)) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     let renderNeeded = false;
     for (const [key, task] of __animationTasks) {
@@ -92,6 +97,7 @@ export function unregisterAnimationTask(key) {
 }
 
 export function requestSharedSceneRender() {
+    if (isTacticalMapActive()) return;
     if (__renderFrame) {
         __coalescedRenderRequests += 1;
         return;

@@ -1,5 +1,6 @@
 ﻿// File Path: /assets/js/warzone-region-selector.js
 import * as Cesium from "cesium";
+import { routeMapRegion } from "./warzone-map-bridge.js";
 import { getTheaterDefinitions } from "./warzone-theaters.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 
@@ -970,6 +971,7 @@ export function setActiveLens(lensId) {
 export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
 function notifyChange(region, options = {}) { __activeRegion = region; notifyScopeChange(options); }
 export function flyToRegion(viewer, region, options = {}) {
+    if (routeMapRegion(region)) return Promise.resolve(true);
     if (!viewer || !region) return Promise.resolve(false);
     if (window.__warzoneDashboardIntroActive === true && options?.source !== "startup") {
         return Promise.resolve(false);
@@ -1310,6 +1312,7 @@ function updateLensDropdown(lens) {
         dropdown.value = lens;
     });
 }
+let __regionNavUiBound = false;
 export function initRegionNav(viewer) {
     const dropdown = document.getElementById("wz-region-nav");
     const mobileDropdown = document.getElementById("wz-region-nav-mobile");
@@ -1326,6 +1329,7 @@ export function initRegionNav(viewer) {
             __regionSceneModeRefocusTimer = 0;
             requestAnimationFrame(() => {
                 if (seq !== __regionSceneModeRefocusSeq) return;
+                viewer = window.__warzoneViewer || viewer;
                 if (viewer?.scene?.mode === Cesium.SceneMode.MORPHING) {
                     scheduleSceneModeRegionRefocus(180);
                     return;
@@ -1335,6 +1339,7 @@ export function initRegionNav(viewer) {
         }, Math.max(0, Math.min(Number(delayMs) || 0, 1000)));
     };
     const refocusActiveRegionForSceneMode = () => {
+        viewer = window.__warzoneViewer || viewer;
         if (viewer?.scene?.mode === Cesium.SceneMode.MORPHING) {
             scheduleSceneModeRegionRefocus(180);
             return;
@@ -1353,6 +1358,7 @@ export function initRegionNav(viewer) {
         });
     };
     const openRegionSelector = () => {
+        viewer = window.__warzoneViewer || viewer;
         showRegionModal(viewer, false, {
             mode: "manual",
             suggestedRegion: __activeRegion,
@@ -1361,26 +1367,30 @@ export function initRegionNav(viewer) {
             },
         });
     };
-    if (dropdown) {
+    if (dropdown && !dropdown.dataset.wzRegionBound) {
+        dropdown.dataset.wzRegionBound = "true";
         dropdown.addEventListener("click", openRegionSelector);
     }
-    if (mobileDropdown) {
+    if (mobileDropdown && !mobileDropdown.dataset.wzRegionBound) {
+        mobileDropdown.dataset.wzRegionBound = "true";
         mobileDropdown.addEventListener("click", openRegionSelector);
     }
     const lensDropdown = document.getElementById("wz-lens-nav");
     const lensDropdownMobile = document.getElementById("wz-lens-nav-mobile");
-    if (lensDropdown) {
+    if (lensDropdown && !lensDropdown.dataset.wzRegionBound) {
+        lensDropdown.dataset.wzRegionBound = "true";
         lensDropdown.value = __activeLens;
         lensDropdown.addEventListener("change", () => {
             setActiveLens(lensDropdown.value);
-            flyToRegion(viewer, __activeRegion);
+            flyToRegion(window.__warzoneViewer || viewer, __activeRegion);
         });
     }
-    if (lensDropdownMobile) {
+    if (lensDropdownMobile && !lensDropdownMobile.dataset.wzRegionBound) {
+        lensDropdownMobile.dataset.wzRegionBound = "true";
         lensDropdownMobile.value = __activeLens;
         lensDropdownMobile.addEventListener("change", () => {
             setActiveLens(lensDropdownMobile.value);
-            flyToRegion(viewer, __activeRegion);
+            flyToRegion(window.__warzoneViewer || viewer, __activeRegion);
         });
     }
     viewer?.scene?.morphComplete?.addEventListener?.(() => {
@@ -1397,9 +1407,12 @@ export function initRegionNav(viewer) {
         setRegionHintState(false, viewer);
         flyToRegion(viewer, __activeRegion);
     });
-    document.addEventListener("wz:scene-mode-refocus-requested", () => {
-        scheduleSceneModeRegionRefocus(120);
-    });
+    if (!__regionNavUiBound) {
+        __regionNavUiBound = true;
+        document.addEventListener("wz:scene-mode-refocus-requested", () => {
+            scheduleSceneModeRegionRefocus(120);
+        });
+    }
     if (!__regionAssetFocusSyncBound) {
         __regionAssetFocusSyncBound = true;
         document.addEventListener("wz:asset-focus-changed", (event) => {
@@ -1465,7 +1478,10 @@ export function initRegionSelector(viewer, options = {}) {
     window.__warzoneShowRegionModal = (instant = false) => showRegionModal(viewer, instant);
 
     // Startup selection is intentionally available before Cesium exists.
-    if (!viewer) return;
+    if (!viewer) {
+        if (options.operational) initRegionNav(null);
+        return;
+    }
 
     primeRegionCountryBounds();
 

@@ -1,0 +1,45 @@
+#wz-tactical-map {
+    position: fixed;
+    inset: 0;
+    background: var(--tactical-background-color);
+}
+#wz-tactical-map[hidden] { display: none; }
+body.wz-map-tactical #warzone-globe,
+body.wz-map-tactical #warzone-hotspot-layer {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.wz-map-switch {
+    position: fixed;
+    left: 50%;
+    bottom: 5.5rem;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .3rem;
+    max-width: calc(100vw - 2rem);
+    padding: .4rem;
+    background: var(--color-bg-dark);
+    border: 1px solid var(--tactical-country-border);
+    color: var(--color-white);
+}
+.wz-map-switch button {
+    padding: .5rem .8rem;
+    min-height: 36px;
+    border: 1px solid var(--tactical-country-border);
+    background: var(--color-bg-row);
+    color: var(--color-white);
+    font: inherit;
+    cursor: pointer;
+}
+.wz-map-switch button[aria-pressed="true"] { border-color: var(--tactical-selected-color); color: var(--tactical-selected-color); }
+.wz-map-switch button:focus-visible { outline: 2px solid var(--tactical-selected-color); outline-offset: 2px; }
+.wz-map-switch button:disabled { opacity: .5; cursor: wait; }
+.wz-map-switch__status { flex-basis: 100%; font-size: .8rem; max-width: 32rem; text-align: center; }
+.wz-map-switch__status:empty { display: none; }
+#wz-tactical-map .maplibregl-ctrl-attrib { background: var(--color-bg-dark); color: var(--tactical-country-label); }
+#wz-tactical-map .maplibregl-ctrl-attrib a { color: inherit; }
+#wz-tactical-map .maplibregl-ctrl-bottom-left { bottom: .3rem; left: .3rem; }
+body.is-ui-modal-open .wz-map-switch { visibility: hidden; }

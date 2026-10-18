@@ -1,5 +1,6 @@
 ﻿// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
+import { isTacticalMapActive, getTacticalViewportBounds, requestSatelliteMap, deferSatelliteFrame, routeTacticalView, getTacticalView } from "./warzone-map-bridge.js";
 import {
     getAnimationSchedulerDiagnostics,
     registerAnimationTask,
@@ -1982,6 +1983,10 @@ function reconcileEventEntities(viewer, events = [], options = {}) {
     const disableOutline = options?.disableOutline === true || disableEllipse;
     const suppressMarkers = options?.suppressMarkers === true;
     const step = (removeIndex, upsertIndex) => {
+        if (isTacticalMapActive()) {
+            viewer.__warzoneEventSyncRaf = 0;
+            return;
+        }
         if (Number(viewer.__warzoneEventSyncToken || 0) !== token) return;
         let ops = 0;
         if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
@@ -5035,12 +5040,17 @@ function stopStartupGlobeRotation(viewer) {
 /* ---------- Borders ---------- */
 function flattenRingToDegrees(ring) {
     const out = [];
+    let previousLon;
+    let previousLat;
     for (const coord of ring) {
         if (!Array.isArray(coord) || coord.length < 2) continue;
         const lon = Number(coord[0]);
         const lat = Number(coord[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        if (lon === previousLon && lat === previousLat) continue;
         out.push(lon, lat);
+        previousLon = lon;
+        previousLat = lat;
     }
     return out;
 }
@@ -8164,6 +8174,7 @@ function hideIncomingWarning(track) {
 }
 function animateIncomingWarning(viewer, missileId) {
     const tick = () => {
+        if (deferSatelliteFrame(tick)) return;
         const track = viewer.__warzoneMissiles.get(missileId);
         if (!track || track.isFading || track.hasImpacted) return;
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
@@ -8233,6 +8244,7 @@ function animateImpactPulse(viewer, missileId, rings) {
     const alphaMax = clamp01(numberVar("--warzone-missile-impact-ring-alpha-max", 0.60));
     const totalDuration = cycles * cycleDuration;
     const tick = () => {
+        if (deferSatelliteFrame(tick)) return;
         const track = viewer.__warzoneMissiles.get(missileId);
         if (!track) return;
         const elapsed = performance.now() - startedAt;
@@ -8312,6 +8324,7 @@ function makeLaunchFlashEntity(viewer, missileId, lon, lat, color = Cesium.Color
     const tick = () => {
         const activeTrack = viewer.__warzoneMissiles.get(missileId);
         if (!activeTrack) return;
+        if (deferSatelliteFrame(tick)) return;
         const elapsed = performance.now() - createdAt;
         const duration = Math.max(300, numberVar("--warzone-missile-launch-flash-duration", 900));
         const t = clamp01(elapsed / duration);
@@ -8397,6 +8410,7 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
     const step = () => {
         const activeTrack = viewer.__warzoneMissiles.get(missileId);
         if (!activeTrack) return;
+        if (deferSatelliteFrame(step)) return;
         const elapsed = performance.now() - startedAt;
         const t = clamp01(elapsed / durationMs);
         const fade = 1 - easeInOutCubic(t);
@@ -8591,6 +8605,7 @@ function animateMissileTrack(viewer, event) {
     const step = () => {
         const activeTrack = viewer.__warzoneMissiles.get(missileId);
         if (!activeTrack || activeTrack.isFading) return;
+        if (deferSatelliteFrame(step)) return;
         const elapsed = performance.now() - startedAt;
         const t = clamp01(elapsed / durationMs);
         const eased = easeInOutCubic(t);
@@ -8713,6 +8728,7 @@ function highlightAlertRegion(viewer, event) {
     const alertColor = Cesium.Color.fromCssColorString("#fd3741");
     const tick = () => {
         if (!viewer.__warzoneAlertEntities?.length) return;
+        if (deferSatelliteFrame(tick)) return;
         const pulse = 0.5 + 0.5 * Math.sin((performance.now() / pulseDurationMs) * Math.PI * 2);
         if (fill?.ellipse) {
             const r = baseRadius * (0.92 + pulse * 0.16);
@@ -8870,6 +8886,7 @@ export async function initWarzoneGlobe(options = {}) {
         },
         addEvents(events = []) {
             viewer.__warzoneLastSourceEvents = Array.isArray(events) ? events.slice() : [];
+            if (isTacticalMapActive()) return;
             viewer.__warzoneLastClusterBucket = getEventClusterZoomBucket(viewer);
             const prepared = applyEventClusterTransitions(viewer, prepareEventsForCurrentZoom(viewer, events));
             const ringEntityCap = Math.max(40, Math.round(numberVar("--warzone-event-ring-entity-cap", 160)));
@@ -8949,6 +8966,8 @@ export async function initWarzoneGlobe(options = {}) {
         },
         focusRegion,
         getViewportBounds() {
+            const tacticalBounds = getTacticalViewportBounds();
+            if (tacticalBounds) return tacticalBounds;
             const rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
             if (!rect) return null;
             const west = Cesium.Math.toDegrees(rect.west);
@@ -8967,9 +8986,13 @@ export async function initWarzoneGlobe(options = {}) {
             focusRegion(viewer, cam.lon, cam.lat, numberVar("--warzone-focus-height", 2350000));
         },
         setMapMode(mode) {
+            if (isTacticalMapActive() && normalizeSceneMode(mode)) return this.setSceneMode(mode, { source: "map-mode" });
             setMapMode(viewer, mode);
         },
         setSceneMode(mode, options = {}) {
+            if (isTacticalMapActive()) {
+                return routeTacticalView(mode);
+            }
             return setSceneMode(viewer, mode, options);
         },
         stopStartupRotation() {
@@ -8979,6 +9002,7 @@ export async function initWarzoneGlobe(options = {}) {
             startStartupGlobeRotation(viewer);
         },
         getSceneMode() {
+            if (isTacticalMapActive()) return getTacticalView();
             return getSceneMode(viewer);
         },
         getEventClusterBucket() {
@@ -9069,6 +9093,7 @@ export async function initWarzoneGlobe(options = {}) {
             return resetWarzoneCameraReference(viewer, options);
         },
         enterCtrMode(options = {}) {
+            if (isTacticalMapActive()) return requestSatelliteMap("Contour view").then((ready) => ready && enterCtrMode(viewer, options));
             return enterCtrMode(viewer, options);
         },
         exitCtrMode(options = {}) {
@@ -9087,6 +9112,7 @@ export async function initWarzoneGlobe(options = {}) {
             return setContourGridCenter(viewer, position);
         },
         enableFocusedTerrain() {
+            if (isTacticalMapActive()) return requestSatelliteMap("3D terrain").then((ready) => ready && enableFocusedTerrain(viewer));
             return enableFocusedTerrain(viewer);
         },
         disableFocusedTerrain() {
@@ -9096,13 +9122,14 @@ export async function initWarzoneGlobe(options = {}) {
             return viewer.__warzoneFocusedTerrainActive === true;
         },
         setContourLayerVisible(visible) {
+            if (visible && isTacticalMapActive()) return requestSatelliteMap("Contour view").then((ready) => ready && setContourLayerVisible(viewer, visible));
             return setContourLayerVisible(viewer, visible);
         },
         restoreDefaultMapRender() {
             return restoreDefaultRenderedMap(viewer);
         },
         toggleContourLayer() {
-            return setContourLayerVisible(viewer, viewer.__contourLayerVisible !== true);
+            return this.setContourLayerVisible(viewer.__contourLayerVisible !== true);
         },
         isContourLayerVisible() {
             return viewer.__contourLayerVisible === true;

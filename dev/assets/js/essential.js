@@ -1,5 +1,6 @@
 // File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
+import { isTacticalMapActive, registerMapSource, setMapFilter, projectTacticalPoint, getTacticalViewportBounds, notifyMapDataChange, getOperationalMapApi } from "./warzone-map-bridge.js";
 import { createTrackUpdateQueue, instrumentRealtimeCallback, installRealtimeSocketDiagnostics, recordRealtimeChannelError, recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
@@ -95,8 +96,8 @@ function setWarzoneMilSatsEnabledDeferred(enabled) {
     return loadWarzoneMilSatsModule()
         .then((module) => {
             if (!module) return;
-            if (!__warzoneMilSatsInitialized && window.__warzoneViewer) {
-                module.initWarzoneMilSats?.(window.__warzoneViewer);
+            if (!__warzoneMilSatsInitialized) {
+                module.initWarzoneMilSats?.(window.__warzoneViewer || null);
                 __warzoneMilSatsInitialized = true;
             }
             module.setWarzoneMilSatsEnabled?.(shouldEnable);
@@ -297,10 +298,17 @@ function markTrackerPerf(kind, stage, details = null) {
     if (stage === "toggle clicked" || !__trackerPerfState[kind] ||
         (stage === "tracker enabled" && !__trackerPerfState[kind].seen.has("toggle clicked"))) {
         __trackerPerfState[kind] = { startedAt: now, seen: new Set() };
+        if (__STRATOPS_DEV_TOOLS__) {
+            window.__stratopsTrackerTimings ??= {};
+            window.__stratopsTrackerTimings[kind] = { startedMs: Math.round(now), stages: {} };
+        }
     }
     const state = __trackerPerfState[kind];
     if (state.seen.has(stage)) return;
     state.seen.add(stage);
+    if (__STRATOPS_DEV_TOOLS__) {
+        window.__stratopsTrackerTimings[kind].stages[stage] = Math.round(now - state.startedAt);
+    }
     console.info(`[${kind === "naval" ? "NAVAL PERF" : "AIR STARTUP"}] ${stage}: ${Math.round(now - state.startedAt)}ms`, details || "");
 }
 let __navalWidgetScopeFilter = "region";
@@ -2797,6 +2805,7 @@ function bindGlobeEventPopup() {
         return { x, y };
     };
     const getPopupAnchorScreenPosition = () => {
+        if (isTacticalMapActive()) return projectTacticalPoint(activePopupAnchor);
         const viewer = window.__warzoneViewer;
         const scene = viewer?.scene;
         const canvas = scene?.canvas;
@@ -3076,6 +3085,7 @@ function bindGlobeEventPopup() {
         showPopup(event?.detail || {});
     });
     document.addEventListener("wz:event-marker-cleared", hidePopup);
+    document.addEventListener("wz:tactical-camera-settled", syncAnchoredPopupPosition);
     document.addEventListener("wz:satellite-imagery-selected", (event) => {
         hidePopup();
         openSatelliteImageryViewer(event?.detail || {});
@@ -3089,53 +3099,6 @@ function isDevInspectionEnvironment() {
         || hostname === "127.0.0.1"
         || hostname === ""
         || hostname.includes("staging");
-}
-
-function isAircraftNavalModelTunerRequested() {
-    if (!isDevInspectionEnvironment()) return false;
-    const params = new URLSearchParams(window.location?.search || "");
-    return params.get("modelTuner") === "1";
-}
-
-function openAircraftNavalModelTuner(viewer, launcher = null) {
-    if (!__STRATOPS_DEV_TOOLS__ || !isDevInspectionEnvironment()) return;
-    if (launcher) {
-        launcher.disabled = true;
-        launcher.textContent = "LOADING…";
-    }
-    if (__STRATOPS_DEV_TOOLS__) {
-        import("./warzone-model-tuner.js")
-            .then((module) => {
-                const opened = module.initAircraftNavalModelTuner?.(viewer);
-                if (launcher) {
-                    launcher.disabled = false;
-                    launcher.textContent = "3D MODEL TUNER";
-                    launcher.hidden = opened === true;
-                }
-            })
-            .catch((error) => {
-                if (launcher) {
-                    launcher.disabled = false;
-                    launcher.textContent = "3D MODEL TUNER";
-                }
-                console.warn("Aircraft/naval model tuner failed to initialize:", error);
-            });
-    }
-}
-
-function ensureAircraftNavalModelTunerLauncher(viewer) {
-    if (!__STRATOPS_DEV_TOOLS__ || !isDevInspectionEnvironment()) return null;
-    const existing = document.getElementById("wz-model-tuner-launcher");
-    if (existing) return existing;
-    const launcher = document.createElement("button");
-    launcher.id = "wz-model-tuner-launcher";
-    launcher.type = "button";
-    launcher.textContent = "3D MODEL TUNER";
-    launcher.setAttribute("aria-controls", "wz-model-tuner");
-    launcher.style.cssText = "position:fixed;top:82px;right:18px;z-index:10039;min-height:32px;padding:6px 11px;border:1px solid rgba(31,226,232,.65);border-radius:2px;background:rgba(6,13,22,.94);color:#20dfe6;font:700 12px/1 Rajdhani,sans-serif;letter-spacing:.08em;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)";
-    launcher.addEventListener("click", () => openAircraftNavalModelTuner(viewer, launcher));
-    document.body.appendChild(launcher);
-    return launcher;
 }
 
 export function setDevEventPopupInspectionFrozen(frozen = false) {
@@ -3519,7 +3482,7 @@ async function fetchViewportEvents() {
     const region = getActiveRegion?.();
     const regionId = region?.id || "global";
     const globe = window.__warzoneViewer?.__warzone;
-    const bounds = globe?.getViewportBounds?.();
+    const bounds = getTacticalViewportBounds() || globe?.getViewportBounds?.();
     const viewportKey = makeViewportKey(bounds, regionId);
     if (viewportKey === __lastViewportKey) {
         __viewportFetchInFlight = false;
@@ -3951,6 +3914,7 @@ function getScopedGnssInterferenceCells(cells = __gnssInterferenceCellsCache) {
     return Array.isArray(cells) ? cells.slice() : [];
 }
 function syncGnssInterferenceLayer() {
+    if (isTacticalMapActive()) return;
     const viewer = window.__warzoneViewer;
     if (!viewer) return;
     if (!isLayerEnabled("gnss")) {
@@ -8911,6 +8875,13 @@ function syncInitialEventsToGlobe(events, {
     syncHotspots = true,
     syncNaval = true,
 } = {}) {
+    if (isTacticalMapActive()) {
+        if (syncNaval && isNavalTrackingFeatureEnabled() && isLayerEnabled("naval")) {
+            syncNavalSignals(applyAllFilters(__eventsCache).filter(isNavalSignalEvent));
+        }
+        notifyMapDataChange();
+        return;
+    }
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const hotspotsEnabled = isLayerEnabled("hotspots");
@@ -8949,6 +8920,9 @@ function syncInitialEventsToGlobe(events, {
     const globeVisible = visible.filter(
         (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
     );
+    // Data ingestion/widget updates above remain active. Cesium-only geometry
+    // and effects below resume from the same caches when Satellite is selected.
+    if (isTacticalMapActive()) return;
     const hotspotGlobeVisible = hotspotsEnabled
         && syncHotspots
         ? hotspotStableSource.filter(
@@ -9127,6 +9101,33 @@ function syncImmediateEventLayerVisibility(globe, id = "") {
     }
     syncOne(LAYER_DEFS.find((layer) => layer.id === id));
 }
+const __attachedOperationalViewers = new WeakSet();
+export function attachWarzoneAppViewer(viewer) {
+    if (!viewer || __attachedOperationalViewers.has(viewer)) return;
+    __attachedOperationalViewers.add(viewer);
+    if (!__militaryTracks && isStratOpsFeatureEnabled("tracking.militaryTracks")) {
+        __militaryTracks = initMilitaryTracks(viewer);
+        __militaryTracks?.setEnabled?.(isNavalTrackingFeatureEnabled() && isLayerEnabled("naval"));
+        window.__militaryTracks = __militaryTracks;
+    }
+    viewer.camera?.moveEnd?.addEventListener(() => {
+        if (isTacticalMapActive()) return;
+        scheduleViewportFetch(500);
+        scheduleGlobeEventRecluster(80);
+    });
+    observeWarzoneLifecycleViewer(viewer);
+    if (isStratOpsFeatureEnabled("header.sceneModeToggle")) initGlobeRotation(viewer);
+    if (isStratOpsFeatureEnabled("system.adaptivePerformanceGuard") && isStratOpsFeatureEnabled("alerts.performanceWarning")) {
+        scheduleAdaptivePerformanceGuard(viewer);
+    }
+    if (__warzoneMilSatsModulePromise) {
+        void __warzoneMilSatsModulePromise.then((module) => {
+            module?.initWarzoneMilSats?.(viewer);
+            module?.setWarzoneMilSatsEnabled?.(shouldEnableMilSatsLayer());
+        }).catch((error) => console.warn("Satellite data attachment failed:", error));
+    }
+}
+
 export function initWarzoneApp() {
     if (!__warzoneAppInitPromise) {
         __warzoneAppInitPromise = initializeWarzoneAppOnce();
@@ -9230,6 +9231,7 @@ async function initializeWarzoneAppOnce() {
         markStartupPerformance("stratops-hotspots-start");
         const hotspotRoot = document.getElementById("warzone-hotspot-layer");
         const viewer = window.__warzoneViewer;
+        if (viewer) attachWarzoneAppViewer(viewer);
         if (hotspotRoot && viewer && isLayerEnabled("hotspots")) {
             ensureHotspotLayer(viewer, hotspotRoot);
         }
@@ -9254,7 +9256,7 @@ async function initializeWarzoneAppOnce() {
             );
             window.__militaryTracks = __militaryTracks;
         }
-        if (viewer) {
+        {
             onRegionChange(() => {
                 window.__warzoneViewer?.__warzone?.setRaisedRegionVisible?.(
                     isLayerEnabled("region-plate"),
@@ -9343,12 +9345,9 @@ async function initializeWarzoneAppOnce() {
                         console.error("Region refresh events failed:", err);
                     });
             });
-            if (viewer.camera?.moveEnd) {
-                viewer.camera.moveEnd.addEventListener(() => {
-                    scheduleViewportFetch(500);
-                    scheduleGlobeEventRecluster(80);
-                });
-            }
+            document.addEventListener("wz:tactical-camera-settled", () => {
+                if (isTacticalMapActive()) scheduleViewportFetch(500);
+            });
             document.addEventListener("wz:scene-mode-changed", () => {
                 scheduleGlobeEventRecluster(80);
             });
@@ -9616,8 +9615,9 @@ async function initializeWarzoneAppOnce() {
         __viewportScoped = false;
         scheduleViewportFetch(150);
         syncTracksRealtimeChannel();
-        await Promise.allSettled([statusRefreshPromise, gnssRefreshPromise]);
-        syncGnssInterferenceLayer();
+        void Promise.allSettled([statusRefreshPromise, gnssRefreshPromise])
+            .then(() => syncGnssInterferenceLayer())
+            .catch((error) => console.warn("Optional interference layer refresh failed:", error));
         return events;
     } catch (err) {
         console.error("initWarzoneApp failed:", err);
@@ -11349,9 +11349,9 @@ function injectNavLoginButton() {
 }
 
 export function initGlobeRotation(viewer) {
-    if (!viewer) return;
+    if (!viewer && !isTacticalMapActive()) return;
     const SPEED_DEG = 0.2;
-    window.__globeRotation = { enabled: true, paused: true, speed: SPEED_DEG };
+    window.__globeRotation ||= { enabled: true, paused: true, speed: SPEED_DEG };
     let lastTime = null, interacting = false;
     const onStart = () => { interacting = true; lastTime = null; };
     const onEnd = () => { interacting = false; };
@@ -11367,21 +11367,24 @@ export function initGlobeRotation(viewer) {
         button.setAttribute("aria-label", label);
         button.setAttribute("aria-pressed", String(!isPaused));
     };
-    viewer.scene.canvas.addEventListener("mousedown", onStart);
-    viewer.scene.canvas.addEventListener("mouseup", onEnd);
-    viewer.scene.canvas.addEventListener("touchstart", onStart, { passive: true });
-    viewer.scene.canvas.addEventListener("touchend", onEnd, { passive: true });
-    viewer.scene.postRender.addEventListener(() => {
-        const cfg = window.__globeRotation;
-        if (!cfg?.enabled || cfg.paused || interacting) { lastTime = null; return; }
-        const now = Date.now();
-        if (lastTime === null) { lastTime = now; return; }
-        const dt = Math.min((now - lastTime) / 1000, 0.1);
-        lastTime = now;
-        const rad = (cfg.speed * Math.PI / 180) * dt;
-        viewer.scene.camera.rotate({ x: 0, y: 0, z: 1 }, -rad);
-        viewer.scene.requestRender();
-    });
+    if (viewer && !viewer.__wzRotationBound) {
+        viewer.__wzRotationBound = true;
+        viewer.scene.canvas.addEventListener("mousedown", onStart);
+        viewer.scene.canvas.addEventListener("mouseup", onEnd);
+        viewer.scene.canvas.addEventListener("touchstart", onStart, { passive: true });
+        viewer.scene.canvas.addEventListener("touchend", onEnd, { passive: true });
+        viewer.scene.postRender.addEventListener(() => {
+            const cfg = window.__globeRotation;
+            if (isTacticalMapActive() || !cfg?.enabled || cfg.paused || interacting) { lastTime = null; return; }
+            const now = Date.now();
+            if (lastTime === null) { lastTime = now; return; }
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+            const rad = (cfg.speed * Math.PI / 180) * dt;
+            viewer.scene.camera.rotate({ x: 0, y: 0, z: 1 }, -rad);
+            viewer.scene.requestRender();
+        });
+    }
     // Inject pause/play button
     setTimeout(() => {
         if (document.getElementById("wz-globe-rotate-btn")) return;
@@ -11397,7 +11400,8 @@ export function initGlobeRotation(viewer) {
             if (!cfg) return;
             cfg.paused = !cfg.paused;
             syncRotationButtonUi();
-            viewer.scene.requestRender?.();
+            window.__warzoneViewer?.scene?.requestRender?.();
+            getOperationalMapApi()?.requestRender?.();
         });
         t.appendChild(b);
         syncRotationButtonUi();
@@ -12550,22 +12554,53 @@ function scheduleAdaptivePerformanceGuard(viewer) {
     }, 6200);
 }
 
+let __postEntryActionsScheduled = false;
 export function schedulePostEntryActions(viewer) {
+    if (__postEntryActionsScheduled) return;
+    __postEntryActionsScheduled = true;
     applyStratOpsFeatureVisibility();
+    setMapFilter("aircraft", (track) => {
+        if (track.metadata?.simulation === "formation-dev-tuner") return track.active === true;
+        const subtype = track.__manualAircraftOverride ? "transport" : resolveAircraftSubtype(track);
+        if (!isAircraftTrackSubtype(subtype) || subtype === "trainer") return false;
+        if (track.__manualAircraftOverride && track.track_key === __manualAircraftSearch.trackKey) return true;
+        if (shouldExcludeFromMilitaryAircraftTracker(track) || !isTrackerItemVisibleInScope(track, "region")) return false;
+        if (__aircraftWidgetFilter === "ended" ? track.active : __aircraftWidgetFilter === "recent"
+            ? Number(track.last_seen_at || 0) < Date.now() - AIRCRAFT_RECENT_WINDOW_MS : !track.active) return false;
+        if (__aircraftWidgetSubtypeFilter !== "all" && subtype !== __aircraftWidgetSubtypeFilter) return false;
+        const country = normalizeAircraftCountryFilterValue(__aircraftWidgetCountryFilter || "all");
+        return country === "all" || normalizeAircraftCountryFilterValue(getAircraftCountryLabel(track)) === country;
+    });
+    setMapFilter("naval", (vessel) => {
+        if (vessel.metadata?.simulation === "formation-dev-tuner") return true;
+        if (!isTrackerItemVisibleInScope(vessel, "region")) return false;
+        if (__navalWidgetSubtypeFilter !== "all" && normalizeNavalSubtype(vessel.subcategory) !== __navalWidgetSubtypeFilter) return false;
+        const country = normalizeAircraftCountryFilterValue(__navalWidgetCountryFilter || "all");
+        return country === "all" || normalizeAircraftCountryFilterValue(getNavalCountryFilterLabel(vessel)) === country;
+    });
+    registerMapSource("events", {
+        snapshot: () => applyAllFilters(__eventsCache).filter((event) =>
+            isEventVisible(event) && !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)),
+        resume: () => {
+            __lastGlobeSyncKey = "";
+            __lastRangesSyncKey = "";
+            __lastSweepersSyncKey = "";
+            debouncedRenderHeavy(applyAllFilters(__eventsCache));
+            syncGnssInterferenceLayer();
+        },
+    });
+    registerMapSource("gnss", { layer: "gnss", snapshot: getScopedGnssInterferenceCells });
+    import("./warzone-map-manager.js")
+        .then((module) => module.initWarzoneMapManager(viewer))
+        .catch((error) => console.warn("Tactical map unavailable; Satellite retained.", error));
 
-    if (__STRATOPS_DEV_TOOLS__ && isStratOpsFeatureEnabled("system.devPanel") && isDevInspectionEnvironment()) {
-        import("./pre-entry-dev-panel.js")
-            .then((module) => {
-                module.initLocalDevPanelOnly?.();
-            })
-            .catch((error) => {
-                console.warn("Local dev panel failed to initialize:", error);
-            });
-    }
     if (__STRATOPS_DEV_TOOLS__) {
-        const modelTunerLauncher = ensureAircraftNavalModelTunerLauncher(viewer);
-        if (isAircraftNavalModelTunerRequested()) {
-            openAircraftNavalModelTuner(viewer, modelTunerLauncher);
+        if (isDevInspectionEnvironment()) {
+            import("./warzone-formation-tuner.js")
+                .then((module) => module.initFormationDevTuner?.(viewer))
+                .catch((error) => {
+                    console.warn("Formation dev tuner failed to initialize:", error);
+                });
         }
     }
     if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
@@ -12581,9 +12616,8 @@ export function schedulePostEntryActions(viewer) {
         });
         injectNavLoginButton();
     }
-    if (isStratOpsFeatureEnabled("header.sceneModeToggle")) {
-        initGlobeRotation(viewer);
-    }
+    if (viewer) attachWarzoneAppViewer(viewer);
+    else if (isStratOpsFeatureEnabled("header.sceneModeToggle")) initGlobeRotation(null);
     if (isStratOpsFeatureEnabled("header.support")) {
         initDonatePopup();
     }

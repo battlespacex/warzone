@@ -1,5 +1,6 @@
 ﻿// File Path: /assets/js/warzone-military-bases.js
 import * as Cesium from "cesium";
+import { isTacticalMapActive } from "./warzone-map-bridge.js";
 import { MILITARY_BASES } from "./warzone-military-bases-data.js";
 import { normalizeMilitaryBaseDisplayData } from "./warzone-military-base-quality.js";
 
@@ -792,6 +793,13 @@ export function toggleWarzoneMilitaryBases() {
 
 export function isWarzoneMilitaryBasesVisible() {
     return __state.visible;
+}
+
+export function getWarzoneMilitaryBaseMapRecords() {
+    if (isTacticalMapActive()) {
+        return document.body.classList.contains("is-authenticated") ? MILITARY_BASES : [];
+    }
+    return __state.initialized && __state.visible && !__state.authGated ? MILITARY_BASES : [];
 }
 
 export function getWarzoneMilitaryBaseDiagnostics() {

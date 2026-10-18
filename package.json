@@ -4,7 +4,7 @@
   "description": "BattleSpaceX Warzone frontend",
   "main": "server.js",
   "scripts": {
-    "dev": "webpack serve --mode development",
+    "dev": "node scripts/dev.cjs",
     "build": "webpack --mode production",
     "test:api": "npm test --prefix apps/api",
     "test:worker": "npm test --prefix apps/worker",
@@ -34,10 +34,12 @@
     "cesium": "^1.139.1",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
+    "maplibre-gl": "5.24.0",
     "pdfjs-dist": "^4.8.69",
     "rss-parser": "^3.13.0",
     "satellite.js": "^7.1.0",
-    "stripe": "^22.2.0"
+    "stripe": "^22.2.0",
+    "three": "0.169.0"
   },
   "browserslist": [
     ">0.5%",

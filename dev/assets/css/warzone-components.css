@@ -1890,39 +1890,52 @@
     gap: 1rem;
 }
 
-.wz-orbital-region-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 1rem;
-    min-height: 6.5rem;
-    padding: 1rem;
+.wz-orbital-region-accordion {
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
 }
 
-.wz-orbital-region-row.is-current {
+.wz-orbital-region-accordion.is-current {
     border-left: .7rem solid var(--color-teal-glow);
 }
 
-.wz-orbital-region-row__copy {
-    min-width: 0;
-}
-
-.wz-orbital-region-row__head {
+.wz-orbital-region-accordion__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    min-height: 5rem;
+    padding: 1rem 3.5rem 1rem 1rem;
+    cursor: pointer;
+    list-style: none;
+    position: relative;
 }
 
-.wz-orbital-region-row__head strong {
+.wz-orbital-region-accordion__head::-webkit-details-marker {
+    display: none;
+}
+
+.wz-orbital-region-accordion__head::after {
+    content: "+";
+    position: absolute;
+    right: 1.25rem;
+    color: var(--color-teal-glow);
+    font-family: var(--heading-font);
+    font-size: var(--text-lg);
+    font-weight: 700;
+}
+
+.wz-orbital-region-accordion[open] > .wz-orbital-region-accordion__head::after {
+    content: "-";
+}
+
+.wz-orbital-region-accordion__head strong {
     min-width: 0;
     color: var(--color-text-heading);
     font-weight: 600;
 }
 
-.wz-orbital-region-row__head span {
+.wz-orbital-region-accordion__head span {
     flex: 0 0 auto;
     color: var(--color-teal-glow);
     font-size: var(--text-sm);
@@ -1930,14 +1943,34 @@
     letter-spacing: .1rem;
 }
 
-.wz-orbital-region-row__copy p {
-    margin: .5rem 0 0;
-    color: var(--color-text-dim);
-    line-height: 1.35;
+.wz-orbital-region-accordion__satellites {
+    display: grid;
+    padding: 0 1rem 1rem;
+}
+
+.wz-orbital-satellite-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    min-height: 4.5rem;
+    padding: .6rem 0;
+    border-top: .1rem solid var(--color-border-gray);
+}
+
+.wz-orbital-satellite-row__name {
+    min-width: 0;
     overflow: hidden;
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: .08rem;
     text-overflow: ellipsis;
     white-space: nowrap;
-    letter-spacing: .1rem;
+}
+
+.wz-orbital-satellite-row__action {
+    min-width: 8rem !important;
 }
 
 .wz-orbital-regions__empty {
@@ -2975,7 +3008,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 .wz-pre-entry-showcase__panel {
     width: 82%;
-    max-width: 2400px;
+    max-width: 2200px;
     max-height: calc(100dvh - 4rem);
     display: flex;
     flex-direction: column;

@@ -71,6 +71,12 @@ export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
     "region-plate": false,
     "country-borders": false,
 });
+const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
+    "terrain",
+    "map-labels",
+    "region-plate",
+    "country-borders",
+]);
 const LAYER_SECTIONS = [
     {
         id: "kinetic-activity",
@@ -254,7 +260,33 @@ function openPremiumAccessFlow() {
 function getEffectiveLayerState(id) {
     if (!getLayerDef(id)) return false;
     if (!canUseLayer(id)) return false;
+    if (isTrackerIsolationActive() && id === "terrain") return true;
+    if (!isLayerAllowedByTrackerIsolation(id)) return false;
     return __layerState[id] !== false;
+}
+
+function isTrackerIsolationActive() {
+    const aircraftActive = __layerState.aircraft === true && canUseLayer("aircraft");
+    const navalActive = __layerState.naval === true && canUseLayer("naval");
+    return aircraftActive || navalActive;
+}
+
+function isLayerAllowedByTrackerIsolation(id) {
+    if (!isTrackerIsolationActive()) return true;
+    if (TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)) {
+        return true;
+    }
+    if (id === "aircraft" || id === "airspace") return __layerState.aircraft === true && canUseLayer("aircraft");
+    if (id === "naval") return __layerState.naval === true && canUseLayer("naval");
+    return false;
+}
+
+function notifyLayerOrTrackerIsolationChange(id, value) {
+    if (id === "aircraft" || id === "naval") {
+        notifyChange("*", value);
+        return;
+    }
+    notifyChange(id, value);
 }
 
 function loadState() {
@@ -490,7 +522,7 @@ export function setLayer(id, enabled) {
 
     __layerState[id] = !!enabled;
     saveState();
-    notifyChange(id, __layerState[id]);
+    notifyLayerOrTrackerIsolationChange(id, __layerState[id]);
     return __layerState[id];
 }
 
@@ -505,7 +537,7 @@ export function toggleLayer(id) {
 
     __layerState[id] = !__layerState[id];
     saveState();
-    notifyChange(id, __layerState[id]);
+    notifyLayerOrTrackerIsolationChange(id, __layerState[id]);
     return __layerState[id];
 }
 
