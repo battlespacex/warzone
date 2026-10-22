@@ -338,7 +338,7 @@
 }
 /* #endregion =========== */
 /* #region =========== Clip Paths =========== */
-:root {
+/* :root {
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
     --clippath-shape-3: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
@@ -346,7 +346,7 @@
     --clippath-shape-5: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
     --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
     --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
-}
+}  clip-path committed */
 /* #endregion =========== */
 /* #region =========== Event Type Colors =========== */
 :root {
@@ -733,7 +733,7 @@
 :root {
     --warzone-cluster-hover-scale: 1.03;
     --warzone-cluster-active-scale: 1.05;
-    --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
+    /* --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%); clip-path committed  */
 }
 /* #endregion =========== */
 /* #region =========== Cluster Stack Offsets =========== */
@@ -1742,7 +1742,7 @@
 :root {
     --warzone-cluster-hover-scale: 1.03;
     --warzone-cluster-active-scale: 1.05;
-    --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
+    /* --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%); clip-path committed  */
 }
 /* #endregion =========== */
 /* #region =========== Cluster Stack Offsets =========== */
@@ -2315,7 +2315,7 @@ button {
 }
 
 [data-tooltip][data-tooltip]:not([data-tooltip=""]):hover:after {
-    clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);
+    /* clip-path: polygon(100% 0%,0% 0%,100% 0,100% calc(100% - 1rem),calc(100% - 1rem) 100%,0 100%,0 0);  clip-path committed */
 }
 /* #endregion =========== */
 /* #region =========== FONT-FILE =========== */
@@ -4932,7 +4932,7 @@ UNUSED CANDIDATE END */
 :root {
     --warzone-cluster-hover-scale: 1.03;
     --warzone-cluster-active-scale: 1.05;
-    --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
+    /* --warzone-cluster-clip-path: polygon(0 0, 92% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);  clip-path committed */
 }
 /* #endregion =========== */
 /* #region =========== Cluster Stack Offsets =========== */
@@ -10181,7 +10181,7 @@ display: inline-flex;
     padding: 3rem;
     background: rgba(5, 14, 24, 0.86);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    clip-path: polygon(0 0, calc(100% - 1.6rem) 0, 100% 1.6rem, 100% 100%, 1.6rem 100%, 0 calc(100% - 1.6rem));
+    /* clip-path: polygon(0 0, calc(100% - 1.6rem) 0, 100% 1.6rem, 100% 100%, 1.6rem 100%, 0 calc(100% - 1.6rem));  clip-path committed */
 }
 
 .legal-document__header {

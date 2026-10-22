@@ -48,6 +48,7 @@
               <option value="">Manual selection</option>
               <option value="battlespacex">BattlespaceX preset</option>
               <option value="stratops">StratOps preset</option>
+              <option value="pressrelease">Press Release</option>
             </select>
           </label>
 
@@ -95,7 +96,7 @@
         <summary>Background Image</summary>
         <div class="panel-grid">
           <div class="button-row full">
-            <label class="btn primary file-button">Choose image
+            <label id="backgroundInputLabel" class="btn primary file-button">Choose image
               <input id="backgroundInput" type="file" accept="image/*" />
             </label>
             <button id="autoFitBackgroundBtn" class="btn primary" type="button">Auto Fit Image</button>
@@ -166,13 +167,31 @@
             <input id="titleSpacing" type="range" min="-8" max="30" value="1" />
           </label>
 
-          <label>Alignment
+          <label>Text alignment
             <select id="titleAlign">
               <option value="left" selected>Left</option>
               <option value="center">Center</option>
               <option value="right">Right</option>
             </select>
           </label>
+
+          <div class="text-box-alignment full">
+            <span class="text-box-alignment-label">Text box alignment</span>
+            <div class="text-box-alignment-buttons" role="group" aria-label="Main title box alignment">
+              <button class="btn secondary text-box-align-button" type="button" data-text-box-target="title"
+                data-text-box-align="left" aria-label="Align title box left" title="Align title box left">
+                <span class="text-box-align-icon is-left" aria-hidden="true"></span>
+              </button>
+              <button class="btn secondary text-box-align-button" type="button" data-text-box-target="title"
+                data-text-box-align="center" aria-label="Align title box center" title="Align title box center">
+                <span class="text-box-align-icon is-center" aria-hidden="true"></span>
+              </button>
+              <button class="btn secondary text-box-align-button" type="button" data-text-box-target="title"
+                data-text-box-align="right" aria-label="Align title box right" title="Align title box right">
+                <span class="text-box-align-icon is-right" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
 
           <label>Text color
             <select id="titleColor">
@@ -205,13 +224,31 @@
             <input id="descriptionSpacing" type="range" min="-6" max="20" value="0" />
           </label>
 
-          <label>Alignment
+          <label>Text alignment
             <select id="descriptionAlign">
               <option value="left">Left</option>
               <option value="center" selected>Center</option>
               <option value="right">Right</option>
             </select>
           </label>
+
+          <div class="text-box-alignment full">
+            <span class="text-box-alignment-label">Text box alignment</span>
+            <div class="text-box-alignment-buttons" role="group" aria-label="Description box alignment">
+              <button class="btn secondary text-box-align-button" type="button" data-text-box-target="description"
+                data-text-box-align="left" aria-label="Align description box left" title="Align description box left">
+                <span class="text-box-align-icon is-left" aria-hidden="true"></span>
+              </button>
+              <button class="btn secondary text-box-align-button" type="button" data-text-box-target="description"
+                data-text-box-align="center" aria-label="Align description box center" title="Align description box center">
+                <span class="text-box-align-icon is-center" aria-hidden="true"></span>
+              </button>
+              <button class="btn secondary text-box-align-button" type="button" data-text-box-target="description"
+                data-text-box-align="right" aria-label="Align description box right" title="Align description box right">
+                <span class="text-box-align-icon is-right" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
 
           <label>Text color
             <select id="descriptionColor">

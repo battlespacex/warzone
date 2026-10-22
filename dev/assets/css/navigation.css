@@ -386,8 +386,7 @@ body.is-ui-modal-open .warzone-region-bar,
 body.is-ui-modal-open .warzone-actions,
 body.is-ui-modal-open .warzone-panel--floating,
 body.is-ui-modal-open .warzone-hotspot-layer,
-body.is-ui-modal-open .wz-radar-label-layer,
-body.is-ui-modal-open .wz-globe-toggle {
+body.is-ui-modal-open .wz-radar-label-layer {
     opacity: 0 !important;
     pointer-events: none !important;
 }
@@ -418,63 +417,10 @@ body.is-ui-modal-open .wz-globe-toggle {
     letter-spacing: 0.2rem;
 }
 
-body.is-scene-2d .wz-utc-clock,
-body.is-scene-2d .wz-globe-rotate-btn {
-    opacity: 0;
-    transform: translateY(-0.35rem);
-    pointer-events: none;
-    visibility: hidden;
-    transition:
-        opacity 260ms ease,
-        transform 260ms ease,
-        visibility 0s linear 260ms;
-}
-
 .wz-globe-rotate-btn {
     display: none !important
 }
 
-/* ── 2D/3D Toggle ── */
-.wz-globe-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    clip-path: var(--clippath-shape-3);
-    position: fixed;
-    left: calc(2rem + var(--wz-ui-pane-offset));
-    flex-direction: column;
-    top: 50%;
-    transition: left var(--map-layers-pane-transition);
-}
-
-.wz-globe-toggle__btn {
-    appearance: none;
-    border: 0;
-    min-width: 4rem;
-    height: 3rem;
-    padding: 0;
-    font-family: var(--text-font);
-    font-weight: 700;
-    font-size: var(--text-sm);
-    letter-spacing: 0.1rem;
-    color: var(--color-white-slate);
-    cursor: pointer;
-    transition: background-color var(--transition-fast), color var(--transition-fast);
-    padding-top: 0.3rem;
-    background: var(--color-bg-row);
-}
-
-.wz-globe-toggle__btn.is-active {
-    color: var(--color-teal-glow);
-    background: var(--color-teal);
-}
-
-.wz-globe-toggle__btn:disabled,
-.wz-globe-toggle__btn.is-disabled {
-    cursor: not-allowed;
-    opacity: 0;
-    display: none;
-}
 
 /* ── DEFCON Badge ── */
 .wz-defcon {

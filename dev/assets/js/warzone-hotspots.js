@@ -99,7 +99,6 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
 function getHotspotPerspectiveTilt(viewer) {
-    if (viewer?.scene?.mode === Cesium.SceneMode.SCENE2D) return "0deg";
     const pitch = Math.abs(Number(viewer?.camera?.pitch ?? (-Math.PI / 2)));
     const topDownPitch = Math.PI / 2;
     const horizonRatio = clamp01(1 - (pitch / topDownPitch));
@@ -656,17 +655,15 @@ function makeHotspotEventSignature(events = []) {
 function projectWorldPosition(scene, cart) {
     try {
         if (!scene || !cart) return null;
-        if (scene.mode !== Cesium.SceneMode.SCENE2D) {
-            const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, HOTSPOT_CAMERA_NORMAL);
-            const ptNorm = Cesium.Cartesian3.normalize(cart, HOTSPOT_POINT_NORMAL);
-            const cameraMagnitude = Cesium.Cartesian3.magnitude(scene.camera.position);
-            const ellipsoidRadius = Number(scene.globe?.ellipsoid?.minimumRadius || Cesium.Ellipsoid.WGS84.minimumRadius || 6378137);
-            const horizonDot = Number.isFinite(cameraMagnitude) && cameraMagnitude > ellipsoidRadius
-                ? ellipsoidRadius / cameraMagnitude
-                : 0.92;
-            const frontSideThreshold = clamp01(horizonDot - 0.04);
-            if (Cesium.Cartesian3.dot(camNorm, ptNorm) < frontSideThreshold) return null;
-        }
+        const camNorm = Cesium.Cartesian3.normalize(scene.camera.position, HOTSPOT_CAMERA_NORMAL);
+        const ptNorm = Cesium.Cartesian3.normalize(cart, HOTSPOT_POINT_NORMAL);
+        const cameraMagnitude = Cesium.Cartesian3.magnitude(scene.camera.position);
+        const ellipsoidRadius = Number(scene.globe?.ellipsoid?.minimumRadius || Cesium.Ellipsoid.WGS84.minimumRadius || 6378137);
+        const horizonDot = Number.isFinite(cameraMagnitude) && cameraMagnitude > ellipsoidRadius
+            ? ellipsoidRadius / cameraMagnitude
+            : 0.92;
+        const frontSideThreshold = clamp01(horizonDot - 0.04);
+        if (Cesium.Cartesian3.dot(camNorm, ptNorm) < frontSideThreshold) return null;
         const fn = Cesium.SceneTransforms.worldToWindowCoordinates
             || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
         if (!fn) return null;
@@ -702,7 +699,6 @@ function createHotspotWorldAnchor(lon, lat) {
 function projectHotspotWorldAnchor(scene, anchor) {
     const center = projectWorldPosition(scene, anchor?.center);
     if (!center) return null;
-    if (scene?.mode === Cesium.SceneMode.SCENE2D) return { ...center, matrix: "" };
     const east = projectWorldPosition(scene, anchor?.east);
     const north = projectWorldPosition(scene, anchor?.north);
     if (!east || !north) return { ...center, matrix: "" };
@@ -1790,10 +1786,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
         anchorViewport = null;
         scheduleRender(0);
     }
-    function onSceneModeChanged() {
-        clustersDirty = true;
-        scheduleRender(0);
-    }
     function onVisibilityChanged() {
         if (document.hidden) {
             clearTimeout(moveEndTimer);
@@ -1837,7 +1829,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
     window.addEventListener("orientationchange", onResize, { passive: true });
     document.addEventListener("fullscreenchange", onResize);
     document.addEventListener("visibilitychange", onVisibilityChanged, { passive: true });
-    document.addEventListener("wz:scene-mode-changed", onSceneModeChanged);
     if (typeof ResizeObserver === "function") {
         resizeObserver = new ResizeObserver(onResize);
         resizeObserver.observe(rootEl);
@@ -1934,7 +1925,6 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             window.removeEventListener("orientationchange", onResize);
             document.removeEventListener("fullscreenchange", onResize);
             document.removeEventListener("visibilitychange", onVisibilityChanged);
-            document.removeEventListener("wz:scene-mode-changed", onSceneModeChanged);
             if (window.__warzoneHotspotDiagnostics === getDiagnostics) {
                 delete window.__warzoneHotspotDiagnostics;
             }

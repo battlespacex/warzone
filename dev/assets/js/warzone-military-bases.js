@@ -1,6 +1,5 @@
 ﻿// File Path: /assets/js/warzone-military-bases.js
 import * as Cesium from "cesium";
-import { isTacticalMapActive } from "./warzone-map-bridge.js";
 import { MILITARY_BASES } from "./warzone-military-bases-data.js";
 import { normalizeMilitaryBaseDisplayData } from "./warzone-military-base-quality.js";
 
@@ -25,7 +24,6 @@ const __state = {
     runtimeBound: false,
     handler: null,
     cameraChangedHandler: null,
-    morphCompleteHandler: null,
     createdCount: 0,
     destroyedCount: 0,
 };
@@ -701,16 +699,8 @@ function bindBaseRuntime(viewer) {
         }
         viewer.scene.requestRender();
     };
-    __state.morphCompleteHandler = () => {
-        closeActiveBasePanel();
-        applyVisibility();
-        viewer.scene.requestRender?.();
-    };
     viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);
-    viewer.scene.morphStart?.addEventListener?.(closeActiveBasePanel);
-    viewer.scene.morphComplete?.addEventListener?.(__state.morphCompleteHandler);
     viewer.camera.changed.addEventListener(__state.cameraChangedHandler);
-    document.addEventListener("wz:scene-mode-changed", closeActiveBasePanel);
     window.addEventListener("resize", refreshBaseIconSizing, { passive: true });
 }
 
@@ -719,14 +709,10 @@ function unbindBaseRuntime() {
     if (!viewer || !__state.runtimeBound) return;
     try { __state.handler?.destroy?.(); } catch { }
     try { viewer.scene.postRender.removeEventListener(updateActiveBasePanelPosition); } catch { }
-    try { viewer.scene.morphStart?.removeEventListener?.(closeActiveBasePanel); } catch { }
-    try { viewer.scene.morphComplete?.removeEventListener?.(__state.morphCompleteHandler); } catch { }
     try { viewer.camera.changed.removeEventListener(__state.cameraChangedHandler); } catch { }
-    document.removeEventListener("wz:scene-mode-changed", closeActiveBasePanel);
     window.removeEventListener("resize", refreshBaseIconSizing);
     __state.handler = null;
     __state.cameraChangedHandler = null;
-    __state.morphCompleteHandler = null;
     __state.runtimeBound = false;
 }
 
@@ -793,13 +779,6 @@ export function toggleWarzoneMilitaryBases() {
 
 export function isWarzoneMilitaryBasesVisible() {
     return __state.visible;
-}
-
-export function getWarzoneMilitaryBaseMapRecords() {
-    if (isTacticalMapActive()) {
-        return document.body.classList.contains("is-authenticated") ? MILITARY_BASES : [];
-    }
-    return __state.initialized && __state.visible && !__state.authGated ? MILITARY_BASES : [];
 }
 
 export function getWarzoneMilitaryBaseDiagnostics() {

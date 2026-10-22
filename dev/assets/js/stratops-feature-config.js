@@ -3,7 +3,6 @@
 // stop its matching startup path from running.
 const DEFAULT_STRATOPS_FEATURES = {
     header: {
-        sceneModeToggle: true,
         regionSelector: true,
         utcClock: true,
         defconBadge: true,
@@ -123,7 +122,6 @@ const DEFAULT_STRATOPS_FEATURES = {
 
 const FEATURE_SELECTOR_MAP = {
     "system.audio": "#bg-audio, #audio-toggle",
-    "header.sceneModeToggle": ".wz-globe-toggle",
     "header.regionSelector": "#wz-region-control, #wz-region-control-mobile, #wz-mobile-region-menu",
     "header.utcClock": "#wz-utc-clock",
     "header.defconBadge": "#wz-defcon-badge",

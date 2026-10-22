@@ -7,7 +7,6 @@
 //  - Click → short-lived X-lines targeting reticle
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
-import { isTacticalMapActive, routeMapSelection, registerMapSource, getMapOverlayContainer, mountMapAssetOverlay, presentMapAssetOverlay, requestSatelliteMap, routeTacticalView, getOperationalMapApi } from "./warzone-map-bridge.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
 import { startLiveAssetHoverPulse, stopLiveAssetHoverPulse } from "./warzone-live-asset-hover-pulse.js";
@@ -1787,7 +1786,6 @@ function applyNavalVisual(entity, vessel = {}) {
     applyNavalModelVisual(entity, vessel);
 }
 function requestNavalRenderBatched() {
-    if (isTacticalMapActive()) return;
     requestSharedSceneRender();
 }
 function getNavalLabelStyleConfig() {
@@ -2006,12 +2004,9 @@ function animateVesselTo(entity, vessel) {
         const motion = entity.__navalMotionState;
         if (!motion) return false;
         const t = Math.min(1, (now - motion.startTime) / motion.duration);
-        const eased = t < 0.5
-            ? 4 * t * t * t
-            : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        const lon = motion.startLon + ((motion.nextLon - motion.startLon) * eased);
-        const lat = motion.startLat + ((motion.nextLat - motion.startLat) * eased);
-        const heading = normalizeHeadingDegrees(motion.startHeading + (motion.headingDelta * eased));
+        const lon = motion.startLon + ((motion.nextLon - motion.startLon) * t);
+        const lat = motion.startLat + ((motion.nextLat - motion.startLat) * t);
+        const heading = normalizeHeadingDegrees(motion.startHeading + (motion.headingDelta * t));
         entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
         entity.__navalHeadingDeg = heading;
         if (entity.billboard) {
@@ -2065,8 +2060,8 @@ function updateVesselEntity(entity, vessel) {
 
 // ─── X-lines overlay (targeting reticle) ─────────────────────────────────────
 function ensureNavalOverlayRoot(viewer) {
-    if (__navalState.overlayRoot?.isConnected) return mountMapAssetOverlay(__navalState.overlayRoot, viewer);
-    const host = getMapOverlayContainer(viewer);
+    if (__navalState.overlayRoot?.isConnected) return __navalState.overlayRoot;
+    const host = viewer?.container || document.body;
     if (getComputedStyle(host).position === "static") host.style.position = "relative";
 
     const root = document.createElement("div");
@@ -2105,7 +2100,6 @@ function ensureNavalOverlayRoot(viewer) {
     btnMap3d.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (isTacticalMapActive()) { routeTacticalView("3d"); return; }
         const mapApi = window.__warzoneViewer?.__warzone;
         void Promise.resolve()
             .then(() => {
@@ -2128,10 +2122,6 @@ function ensureNavalOverlayRoot(viewer) {
     btnContour.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (isTacticalMapActive()) {
-            void requestSatelliteMap("Focused contour").then((ok) => { if (ok) btnContour.click(); });
-            return;
-        }
         if (!syncNavalContourCenter(__navalState.selectedKey)) {
             syncNavalOverlayModeButtons();
             return;
@@ -2168,13 +2158,13 @@ function ensureNavalOverlayRoot(viewer) {
 
     host.appendChild(root);
     __navalState.overlayRoot = root;
-    return mountMapAssetOverlay(root, viewer);
+    return root;
 }
 
 function syncNavalOverlayModeButtons() {
     const root = __navalState.overlayRoot;
     if (!root) return;
-    const mapApi = getOperationalMapApi();
+    const mapApi = window.__warzoneViewer?.__warzone;
     const contourVisible = mapApi?.isContourLayerVisible?.() === true;
     const mode = contourVisible ? "contour" : "plain";
     root.querySelectorAll("[data-naval-focus-map-mode]").forEach((button) => {
@@ -2283,7 +2273,6 @@ function emitNavalFocusChanged() {
 }
 
 function clearNavalSelection() {
-    if (isTacticalMapActive()) return routeMapSelection("naval", "");
     const previousKey = __navalState.selectedKey;
     __navalState.selectedKey = null;
     hideNavalHoverLabel();
@@ -2631,8 +2620,6 @@ function checkNavalFocusRangeWarning() {
     }
 }
 export function focusNavalVessel(trackKey, options = {}) {
-    const routed = routeMapSelection("naval", trackKey, options);
-    if (routed !== null) return routed;
     const focusController = getAssetFocusController();
     if (!focusController.canEnterFocus({ assetType: "naval", assetId: trackKey })) return false;
     const viewer = window.__warzoneViewer;
@@ -3106,7 +3093,7 @@ function unbindNavalRuntime(viewer) {
 // ─── Public: upsert vessel (called from essential.js event handler) ───────────
 export function upsertNavalVessel(event) {
     const viewer = window.__warzoneViewer;
-    if (!viewer && !isTacticalMapActive()) return;
+    if (!viewer) return;
     if (
         isProbablyAircraftContact(event) ||
         isKnownNonOperationalNavalContact(event) ||
@@ -3259,9 +3246,7 @@ export function upsertNavalVessel(event) {
     const nextVessel = existing?.data
         ? mergeNavalVesselData(existing.data, vessel)
         : vessel;
-    if (isTacticalMapActive()) {
-        __navalState.vessels.set(trackKey, { entity: existing?.entity || null, data: nextVessel });
-    } else if (!__navalState.renderEnabled) {
+    if (!__navalState.renderEnabled) {
         __navalState.vessels.set(trackKey, { entity: null, data: nextVessel });
     } else {
         bindNavalOverlay(viewer);
@@ -3301,7 +3286,6 @@ export function clearNavalVessel(trackKey) {
     }
     if (__navalState.selectedKey === trackKey) clearNavalSelection();
     requestNavalRenderBatched();
-    if (isTacticalMapActive()) dispatchNavalRegistryUpdate();
 }
 
 // ─── Public: get all vessel snapshots (for widget) ────────────────────────────
@@ -3323,14 +3307,10 @@ export function getAllNavalSnapshots() {
 export function setNavalLayerVisible(visible = true) {
     const show = visible === true;
     __navalState.renderEnabled = show;
-    if (isTacticalMapActive()) {
-        if (!show && __navalState.selectedKey) clearNavalSelection();
-        return;
-    }
     if (!show) {
         if (__navalState.selectedKey) clearNavalSelection();
         hideNavalHoverGuide();
-        destroyNavalHoverLabel();
+        clearNavalHoverLabel();
         if (__navalState.overlayRoot) __navalState.overlayRoot.style.display = "none";
         __navalState.overlayLastVisible = false;
         const viewer = window.__warzoneViewer;
@@ -3719,41 +3699,3 @@ window.__navalFocusVessel = (trackKey) => {
         screenY: window.innerHeight / 2,
     });
 };
-registerMapSource("naval", {
-    layer: "naval",
-    model: (vessel) => ({
-        ...getNavalModelDescriptor(vessel),
-        fallback_uri: NAVAL_MODEL_BASE_PATH + "/" + getNavalAssetFile(NAVAL_MODEL_DEFAULT_ASSET_KEY).model,
-        fallback_code: NAVAL_MODEL_DEFAULT_ASSET_KEY,
-    }),
-    camera: () => ({ rangeMeters: getNavalFocusedDistanceMeters(),
-        pitchDegrees: getCssNumber("--warzone-live-naval-focus-camera-pitch", NAVAL_FOCUS_CAMERA_PITCH_DEG) }),
-    label: (vessel) => getFocusedNavalLabelText(vessel, getNavalLabelStyleConfig()),
-    present: (vessel, screen) => {
-        if (!vessel && !__navalState.overlayRoot) return;
-        const root = ensureNavalOverlayRoot(window.__warzoneViewer);
-        if (root.__mapRecord !== vessel) {
-            root.__mapRecord = vessel;
-            root.__mapLabelStyle = getNavalLabelStyleConfig();
-            root.__mapLabelText = vessel ? getFocusedNavalLabelText(vessel, root.__mapLabelStyle) : "";
-            syncNavalOverlayModeButtons();
-        }
-        presentMapAssetOverlay(root, vessel, screen, root.__mapLabelStyle, root.__mapLabelText);
-    },
-    snapshot: () => Array.from(__navalState.vessels.values(), (entry) => entry.data),
-    focus: focusNavalVessel,
-    clear: clearNavalSelection,
-    select: (id) => {
-        __navalState.selectedKey = id || null;
-        if (!id && __navalState.overlayRoot) __navalState.overlayRoot.style.display = "none";
-        syncNavalWidgetHighlight(id || null);
-        emitNavalFocusChanged();
-    },
-    resume: () => {
-        if (__navalState.overlayRoot) mountMapAssetOverlay(__navalState.overlayRoot, window.__warzoneViewer);
-        setNavalLayerVisible(__navalState.renderEnabled);
-        if (__navalState.renderEnabled) __navalState.vessels.forEach((entry) => {
-            if (entry.entity) updateVesselEntity(entry.entity, entry.data);
-        });
-    },
-});

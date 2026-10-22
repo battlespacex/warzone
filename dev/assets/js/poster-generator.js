@@ -114,6 +114,18 @@ const POSTER_OVERLAYS = Object.freeze({
   })
 });
 
+const PRESS_RELEASE_PRESET = Object.freeze({
+  backgroundAsset: "/assets/images/poster/pr-bg-1.jpg",
+  state: Object.freeze({
+    logo: "battlespacex",
+    qr: "battlespacex",
+    bottomBranding: "battlespacex",
+    enableDescription: true,
+    titleAlign: "center",
+    descriptionAlign: "center"
+  })
+});
+
 let posterGeneratorInitialized = false;
 
 export function initPosterGenerator() {
@@ -570,6 +582,24 @@ function initializeFontOptions() {
     return left;
   }
 
+  function alignTextBox(prefix, alignment) {
+    const width = clampTextWidth(prefix, state[prefix + "Width"]);
+    const availableWidth = SAFE_AREA.right - SAFE_AREA.left;
+    const left = alignment === "right"
+      ? SAFE_AREA.right - width
+      : alignment === "center"
+        ? SAFE_AREA.left + (availableWidth - width) / 2
+        : SAFE_AREA.left;
+    state[prefix + "X"] = Math.round(getTextAnchor(left, left + width, state[prefix + "Align"]));
+    clampTextBlock(prefix);
+  }
+
+  function preserveTextBoxPosition(prefix, previousAlign) {
+    const width = clampTextWidth(prefix, state[prefix + "Width"]);
+    const left = getTextBoxLeft(Number(state[prefix + "X"]), width, previousAlign);
+    state[prefix + "X"] = Math.round(getTextAnchor(left, left + width, state[prefix + "Align"]));
+  }
+
   function getTextBlockMetrics(prefix) {
     const style = getTextStyle(prefix);
     let text = state[prefix + "Text"] || "";
@@ -1007,7 +1037,11 @@ function initializeFontOptions() {
       if (!el) return;
       const eventName = (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "color") ? "change" : "input";
       el.addEventListener(eventName, async () => {
+        const textAlignmentPrefix = id === "titleAlign" ? "title" : id === "descriptionAlign" ? "description" : null;
+        const previousTextAlignment = textAlignmentPrefix ? state[textAlignmentPrefix + "Align"] : null;
         state[key] = mode === "checked" ? el.checked : mode === "number" ? Number(el.value) : el.value;
+
+        if (textAlignmentPrefix) preserveTextBoxPosition(textAlignmentPrefix, previousTextAlignment);
 
         if (id === "posterSizeSelect") {
           applyPosterSize(state.posterSize, true);
@@ -1022,20 +1056,36 @@ function initializeFontOptions() {
             state.logo = "stratops";
             state.qr = "stratops";
             state.bottomBranding = "stratops";
+          } else if (state.brandPreset === "pressrelease") {
+            Object.assign(state, PRESS_RELEASE_PRESET.state);
+            alignTextBox("title", "center");
+            alignTextBox("description", "center");
+            state.backgroundDataUrl = PRESS_RELEASE_PRESET.backgroundAsset;
+            $("backgroundInput").value = "";
+            syncControls();
+            requestRender();
+            try {
+              const background = await loadImage(PRESS_RELEASE_PRESET.backgroundAsset);
+              if (state.backgroundDataUrl === PRESS_RELEASE_PRESET.backgroundAsset) {
+                images.background = background;
+                autoFitBackground();
+              }
+            } catch (error) {
+              images.background = null;
+              console.error("Could not load the Press Release background image.", error);
+            }
           }
           syncControls();
           brandAssetsReadyPromise = loadBrandAssets();
           await brandAssetsReadyPromise;
         }
         if (id === "logoSelect") {
-          state.brandPreset = "";
-          $("brandPresetSelect").value = "";
+          clearManualBrandPreset();
           brandAssetsReadyPromise = loadBrandAssets();
           await brandAssetsReadyPromise;
         }
         if (id === "qrSelect") {
-          state.brandPreset = "";
-          $("brandPresetSelect").value = "";
+          clearManualBrandPreset();
 
           brandAssetsReadyPromise = loadBrandAssets();
           await brandAssetsReadyPromise;
@@ -1058,9 +1108,15 @@ function initializeFontOptions() {
     });
   }
 
-  $("websiteSelect").addEventListener("change", async () => {
+  function clearManualBrandPreset() {
+    if (state.brandPreset === "pressrelease") return;
     state.brandPreset = "";
     $("brandPresetSelect").value = "";
+    syncBackgroundInputAvailability();
+  }
+
+  $("websiteSelect").addEventListener("change", async () => {
+    clearManualBrandPreset();
     state.bottomBranding = $("websiteSelect").value;
     brandAssetsReadyPromise = loadBrandAssets();
     await brandAssetsReadyPromise;
@@ -1089,6 +1145,10 @@ function initializeFontOptions() {
   $("autoFitBackgroundBtn").addEventListener("click", autoFitBackground);
 
   $("backgroundInput").addEventListener("change", async (event) => {
+    if (state.brandPreset === "pressrelease") {
+      event.target.value = "";
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) return;
     const dataUrl = await fileToDataUrl(file);
@@ -1128,6 +1188,32 @@ function initializeFontOptions() {
       const el = $(id);
       if (el) el.textContent = formatter(state[key]);
     });
+    syncTextBoxAlignmentButtons();
+  }
+
+  function syncBackgroundInputAvailability() {
+    const input = $("backgroundInput");
+    const label = $("backgroundInputLabel");
+    const disabled = state.brandPreset === "pressrelease";
+    input.disabled = disabled;
+    label.classList.toggle("is-disabled", disabled);
+    label.setAttribute("aria-disabled", String(disabled));
+  }
+
+  function syncTextBoxAlignmentButtons() {
+    document.querySelectorAll("[data-text-box-target][data-text-box-align]").forEach((button) => {
+      const prefix = button.dataset.textBoxTarget;
+      const alignment = button.dataset.textBoxAlign;
+      const width = clampTextWidth(prefix, state[prefix + "Width"]);
+      const left = getTextBoxLeft(Number(state[prefix + "X"]), width, state[prefix + "Align"]);
+      const availableWidth = SAFE_AREA.right - SAFE_AREA.left;
+      const expectedLeft = alignment === "right"
+        ? SAFE_AREA.right - width
+        : alignment === "center"
+          ? SAFE_AREA.left + (availableWidth - width) / 2
+          : SAFE_AREA.left;
+      button.setAttribute("aria-pressed", String(Math.abs(left - expectedLeft) <= 1));
+    });
   }
 
   function syncControls() {
@@ -1139,10 +1225,21 @@ function initializeFontOptions() {
     });
 
     $("websiteSelect").value = state.bottomBranding;
+    syncBackgroundInputAvailability();
     updateOptionalPanels();
     updateExportVisibility();
     updateOutputs();
   }
+
+  document.querySelectorAll("[data-text-box-target][data-text-box-align]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const prefix = button.dataset.textBoxTarget;
+      alignTextBox(prefix, button.dataset.textBoxAlign);
+      selectedText = prefix;
+      updateOutputs();
+      requestRender();
+    });
+  });
 
   function normalizeProjectState(loaded) {
     const normalized = JSON.parse(JSON.stringify(initialState));

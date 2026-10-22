@@ -2894,7 +2894,6 @@ body.is-dashboard-booting .warzone-brand,
 body.is-dashboard-booting .warzone-logo,
 body.is-dashboard-booting .warzone-region-bar,
 body.is-dashboard-booting .warzone-actions,
-body.is-dashboard-booting .wz-globe-toggle,
 body.is-dashboard-booting .wz-altitude-readout,
 body.is-dashboard-booting .wz-dock,
 body.is-dashboard-booting .warzone-panel--floating,
@@ -2926,14 +2925,12 @@ body.is-dashboard-logo-visible .warzone-logo {
 
 body.is-dashboard-booting .warzone-region-bar,
 body.is-dashboard-booting .warzone-actions,
-body.is-dashboard-booting .wz-globe-toggle,
 body.is-dashboard-booting .wz-altitude-readout {
     transition: opacity 500ms ease, transform 500ms ease !important;
 }
 
 body.is-dashboard-controls-visible .warzone-region-bar,
 body.is-dashboard-controls-visible .warzone-actions,
-body.is-dashboard-controls-visible .wz-globe-toggle,
 body.is-dashboard-controls-visible .wz-altitude-readout {
     opacity: 1 !important;
     pointer-events: auto !important;
@@ -3202,68 +3199,12 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     body.is-dashboard-booting .warzone-logo,
     body.is-dashboard-booting .warzone-region-bar,
     body.is-dashboard-booting .warzone-actions,
-    body.is-dashboard-booting .wz-globe-toggle,
     body.is-dashboard-booting .wz-altitude-readout,
     body.is-dashboard-booting .wz-dock,
     body.is-dashboard-booting .warzone-panel--floating {
         transition: none;
     }
 }
-
-@media (max-width: 768px) {
-    .wz-pre-entry-showcase {
-        align-items: flex-start;
-        padding: 1.2rem;
-        overflow-y: auto;
-    }
-
-    .wz-pre-entry-showcase__panel {
-        width: 100%;
-        max-height: none;
-        min-height: 0;
-        overflow: visible;
-    }
-
-    .wz-pre-entry-showcase__header {
-        padding: 0 0 1.2rem;
-    }
-
-    .wz-pre-entry-showcase__logo {
-        width: min(24rem, 76vw);
-        margin-bottom: 1.2rem;
-    }
-
-    .wz-pre-entry-showcase__header h2 {
-        font-size: 2.5rem;
-    }
-
-    .wz-pre-entry-showcase__grid {
-        grid-template-columns: 1fr;
-        gap: 0.7rem;
-        padding: 0;
-        overflow: visible;
-    }
-
-    .wz-pre-entry-showcase__item {
-        min-height: 0;
-        padding: 0.9rem;
-    }
-
-    .wz-pre-entry-showcase__item .static-icon {
-        width: 2.4rem;
-        height: 2.4rem;
-        min-width: 2.4rem;
-    }
-
-    .wz-pre-entry-showcase__footer {
-        padding: 0 0 1.5rem;
-    }
-
-    .wz-pre-entry-showcase__footer .btn-primary {
-        width: 100%;
-    }
-}
-
 
 
 .wz-modal__head {
@@ -4682,6 +4623,8 @@ UNUSED CANDIDATE END */
 .wz-feed-list .timeline-item {
     align-items: start;
     display: grid;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 24rem;
     gap: 2rem;
     grid-template-columns: 12rem minmax(0, 1fr);
     border-bottom: .2rem solid var(--color-bg-header);
@@ -6305,7 +6248,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     padding: 3rem;
     background: rgba(5, 14, 24, 0.86);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    clip-path: polygon(0 0, calc(100% - 1.6rem) 0, 100% 1.6rem, 100% 100%, 1.6rem 100%, 0 calc(100% - 1.6rem));
+    /* clip-path: polygon(0 0, calc(100% - 1.6rem) 0, 100% 1.6rem, 100% 100%, 1.6rem 100%, 0 calc(100% - 1.6rem));  clip-path committed */
 }
 
 .legal-document__header {
@@ -6743,8 +6686,7 @@ body:not(.is-operational-report-open) .warzone-view {
     body.is-operational-report-open .warzone-actions,
     body.is-operational-report-open .warzone-panel--floating,
     body.is-operational-report-open .warzone-hotspot-layer,
-    body.is-operational-report-open .wz-radar-label-layer,
-    body.is-operational-report-open .wz-globe-toggle {
+    body.is-operational-report-open .wz-radar-label-layer {
         opacity: 0 !important;
         pointer-events: none !important;
     }

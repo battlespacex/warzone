@@ -1,30 +1,17 @@
 ﻿// File Path: /assets/js/warzone-ui.js
 import { initTheaterPanel } from "./warzone-theater-panel.js";
-import { isTacticalMapActive, getOperationalMapApi } from "./warzone-map-bridge.js";
-
-const __sceneModeUiState = {
-    currentMode: "3d",
-    snapshotModeBeforeFocus: null,
-    aircraftFocused: false,
-    navalFocused: false,
-    listenersBound: false,
-    bootstrapTimer: null,
-};
 let __altitudeReadoutBound = false;
 let __warzoneUiBound = false;
-let __tacticalAltitudeBound = false;
 
 export function bindWarzoneUi() {
     if (__warzoneUiBound) return;
     __warzoneUiBound = true;
     bindTopViews();
     bindAlertDismiss();
-    bindMapModeButtons();
     initTheaterPanel();
     startUtcClock();
-    bindTacticalAltitudeReadout();
     startAltitudeReadout();
-    bindGlobeToggle();
+    bindGlobeSurfaceControls();
 }
 
 export function attachWarzoneUiViewer() { startAltitudeReadout(); }
@@ -77,28 +64,6 @@ function bindAlertDismiss() {
     });
 }
 
-function bindMapModeButtons() {
-    const buttons = Array.from(document.querySelectorAll("[data-map-mode]"))
-        .filter((btn) => btn.id !== "wz-toggle-3d" && btn.id !== "wz-toggle-2d");
-    if (!buttons.length) return;
-    const applyMapModeState = (activeBtn) => {
-        buttons.forEach((btn) => {
-            const active = btn === activeBtn;
-            btn.classList.toggle("is-active", active);
-            btn.setAttribute("aria-pressed", String(active));
-        });
-    };
-    const initialBtn = Array.from(buttons).find((btn) => btn.classList.contains("is-active")) || buttons[0] || null;
-    if (initialBtn) applyMapModeState(initialBtn);
-    buttons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const mode = btn.dataset.mapMode;
-            applyMapModeState(btn);
-            getOperationalMapApi()?.setMapMode?.(mode);
-        });
-    });
-}
-
 // ── UTC Clock ──────────────────────────────────────────────────────────────────
 function startUtcClock() {
     const el = document.getElementById("wz-utc-time");
@@ -129,21 +94,6 @@ function formatAltitude(heightMeters) {
     return `${Math.round(h).toLocaleString()} m`;
 }
 
-function bindTacticalAltitudeReadout() {
-    if (__tacticalAltitudeBound) return;
-    __tacticalAltitudeBound = true;
-    const update = () => {
-        if (!isTacticalMapActive()) return;
-        const height = Number(getOperationalMapApi()?.getCameraHeight?.());
-        const ft = document.getElementById("wz-altitude-readout-ft");
-        const km = document.getElementById("wz-altitude-readout-km");
-        if (ft) ft.textContent = "ALT " + (Number.isFinite(height) ? Math.round(height * 3.280839895).toLocaleString() : "--") + " FT";
-        if (km) km.textContent = "ALT " + formatAltitude(height);
-    };
-    document.addEventListener("wz:tactical-camera-settled", update);
-    document.addEventListener("wz:map-engine-changed", update);
-    update();
-}
 function startAltitudeReadout() {
     if (__altitudeReadoutBound) return;
     const el = document.getElementById("wz-altitude-readout");
@@ -158,7 +108,6 @@ function startAltitudeReadout() {
     let lastUpdateAt = 0;
     let lastValue = "";
     const update = () => {
-        if (isTacticalMapActive()) return;
         const height = Number(camera.positionCartographic?.height);
         const heightFt = Number.isFinite(height) && height >= 0
             ? Math.round(height * 3.280839895).toLocaleString()
@@ -251,116 +200,34 @@ window.setDefcon = function (level) {
     badge.dataset.level = String(n);
 };
 
-// ── 2D/3D Globe Toggle ─────────────────────────────────────────────────────────
-function bindGlobeToggle() {
-    const btn3d = document.getElementById("wz-toggle-3d");
-    const btn2d = document.getElementById("wz-toggle-2d");
+// ── Cesium globe surface controls ────────────────────────────────────────────
+function bindGlobeSurfaceControls() {
     const btnContour = document.getElementById("wz-toggle-contour");
     const btnTerrain = document.getElementById("wz-toggle-terrain");
-    if (!btn3d || !btn2d) return;
-    const normalizeSceneMode = (value = "") => {
-        const mode = String(value || "").trim().toLowerCase();
-        if (mode === "2d" || mode === "flat") return "2d";
-        if (mode === "3d" || mode === "globe") return "3d";
-        return "";
-    };
-    // Auto scene-mode switching on focus can produce repeated morphs when
-    // focus signals flap under live updates. Keep it opt-in only.
-    const autoFocusSceneModeEnabled = window.__stratopsConfig?.autoSceneModeOnFocus === true;
-    const getWarzoneMapApi = getOperationalMapApi;
-    const updateButtons = (mode = "3d") => {
-        const nextMode = normalizeSceneMode(mode) || "3d";
-        const is3d = nextMode === "3d";
-        const focusLocked = isAnyFocusActive();
-        btn3d.classList.toggle("is-active", is3d);
-        btn2d.classList.toggle("is-active", !is3d);
-        btn3d.classList.toggle("is-disabled", focusLocked);
-        btn2d.classList.toggle("is-disabled", focusLocked);
-        btn3d.setAttribute("aria-pressed", String(is3d));
-        btn2d.setAttribute("aria-pressed", String(!is3d));
-        btn3d.disabled = focusLocked;
-        btn2d.disabled = focusLocked;
-        btn3d.setAttribute("aria-disabled", String(focusLocked));
-        btn2d.setAttribute("aria-disabled", String(focusLocked));
-        document.body?.classList.toggle("is-scene-3d", is3d);
-        document.body?.classList.toggle("is-scene-2d", !is3d);
-        __sceneModeUiState.currentMode = nextMode;
-    };
+    const mapApi = () => window.__warzoneViewer?.__warzone;
     const updateContourButton = (visible = false) => {
         if (!btnContour) return;
-        const active = visible === true;
-        btnContour.classList.toggle("is-active", active);
-        btnContour.setAttribute("aria-pressed", String(active));
+        btnContour.classList.toggle("is-active", visible === true);
+        btnContour.setAttribute("aria-pressed", String(visible === true));
     };
     const updateTerrainButton = (visible = false) => {
         if (!btnTerrain) return;
-        const active = visible === true;
-        btnTerrain.classList.toggle("is-active", active);
-        btnTerrain.setAttribute("aria-pressed", String(active));
+        btnTerrain.classList.toggle("is-active", visible === true);
+        btnTerrain.setAttribute("aria-pressed", String(visible === true));
     };
-    const readSceneMode = () => {
-        const mode = normalizeSceneMode(getWarzoneMapApi()?.getSceneMode?.());
-        if (mode) return mode;
-        return __sceneModeUiState.currentMode || "3d";
-    };
-    const applySceneMode = (mode, options = {}) => {
-        const nextMode = normalizeSceneMode(mode);
-        if (!nextMode) return readSceneMode();
-        const api = getWarzoneMapApi();
-        let appliedMode = nextMode;
-        if (api?.setSceneMode) {
-            const result = api.setSceneMode(nextMode, {
-                source: String(options.source || "ui"),
-                duration: Number.isFinite(Number(options.duration)) ? Number(options.duration) : undefined,
-            });
-            appliedMode = normalizeSceneMode(result) || nextMode;
-        } else if (api?.setMapMode) {
-            const result = api.setMapMode(nextMode);
-            appliedMode = normalizeSceneMode(result) || nextMode;
-        }
-        updateButtons(appliedMode);
-        return appliedMode;
-    };
-    const isAnyFocusActive = () => __sceneModeUiState.aircraftFocused || __sceneModeUiState.navalFocused;
-    const syncAutoFocusSceneMode = () => {
-        if (isTacticalMapActive()) return;
-        if (!autoFocusSceneModeEnabled) return;
-        const focusActive = isAnyFocusActive();
-        if (focusActive) {
-            if (!__sceneModeUiState.snapshotModeBeforeFocus) {
-                __sceneModeUiState.snapshotModeBeforeFocus = readSceneMode();
-            }
-            applySceneMode("2d", { source: "auto-focus", duration: 0.55 });
-            return;
-        }
-        if (__sceneModeUiState.snapshotModeBeforeFocus) {
-            const restoreMode = __sceneModeUiState.snapshotModeBeforeFocus;
-            __sceneModeUiState.snapshotModeBeforeFocus = null;
-            applySceneMode(restoreMode, { source: "auto-restore", duration: 0.72 });
-        }
-    };
-    const handleManualToggle = (nextMode) => {
-        if (isAnyFocusActive()) {
-            updateButtons(readSceneMode());
-            return;
-        }
-        applySceneMode(nextMode, { source: "manual", duration: 1.15 });
-    };
-    btn3d.addEventListener("click", () => handleManualToggle("3d"));
-    btn2d.addEventListener("click", () => handleManualToggle("2d"));
     btnTerrain?.addEventListener("click", () => {
-        const api = getWarzoneMapApi();
+        const api = mapApi();
         if (!api?.enableFocusedTerrain || !api?.disableFocusedTerrain) return;
-        const active = api?.isFocusedTerrainActive?.() === true;
+        const active = api.isFocusedTerrainActive?.() === true;
         const action = active
             ? Promise.resolve(api.disableFocusedTerrain())
             : Promise.resolve(api.setContourLayerVisible?.(false)).then(() => api.enableFocusedTerrain());
         action
             .then((visible) => updateTerrainButton(active ? false : visible === true))
-            .catch(() => updateTerrainButton(api?.isFocusedTerrainActive?.() === true));
+            .catch(() => updateTerrainButton(api.isFocusedTerrainActive?.() === true));
     });
     btnContour?.addEventListener("click", () => {
-        const api = getWarzoneMapApi();
+        const api = mapApi();
         if (!api?.setContourLayerVisible || !api?.isContourLayerVisible) return;
         const active = api.isContourLayerVisible() === true;
         const action = active
@@ -369,54 +236,16 @@ function bindGlobeToggle() {
                 .then(() => api.setContourLayerVisible(true));
         action
             .then((visible) => updateContourButton(visible === true))
-            .catch(() => updateContourButton(api?.isContourLayerVisible?.() === true));
+            .catch(() => updateContourButton(api.isContourLayerVisible?.() === true));
     });
-    if (!__sceneModeUiState.listenersBound) {
-        __sceneModeUiState.listenersBound = true;
-        document.addEventListener("wz:scene-mode-changed", (event) => {
-            const mode = normalizeSceneMode(event?.detail?.mode);
-            if (!mode) return;
-            updateButtons(mode);
-        });
-        document.addEventListener("wz:aircraft-track-selected", (event) => {
-            const trackKey = String(event?.detail?.trackKey || "").trim();
-            const mode = String(event?.detail?.mode || "").trim().toLowerCase();
-            __sceneModeUiState.aircraftFocused = Boolean(trackKey) && mode === "focus";
-            updateButtons(readSceneMode());
-            syncAutoFocusSceneMode();
-        });
-        document.addEventListener("wz:naval-track-selected", (event) => {
-            const focused = Boolean(event?.detail?.focused) || Boolean(String(event?.detail?.trackKey || "").trim());
-            __sceneModeUiState.navalFocused = focused;
-            updateButtons(readSceneMode());
-            syncAutoFocusSceneMode();
-        });
-        document.addEventListener("wz:contour-layer-changed", (event) => {
-            updateContourButton(event?.detail?.visible === true);
-        });
-        document.addEventListener("wz:focused-terrain-changed", (event) => {
-            updateTerrainButton(event?.detail?.visible === true);
-        });
-    }
-    updateButtons(readSceneMode());
-    updateContourButton(getWarzoneMapApi()?.isContourLayerVisible?.() === true);
-    updateTerrainButton(getWarzoneMapApi()?.isFocusedTerrainActive?.() === true);
-    if (__sceneModeUiState.bootstrapTimer) {
-        clearTimeout(__sceneModeUiState.bootstrapTimer);
-        __sceneModeUiState.bootstrapTimer = null;
-    }
-    const bootstrapFromViewer = (attempt = 0) => {
-        const mode = normalizeSceneMode(getWarzoneMapApi()?.getSceneMode?.());
-        if (mode) {
-            updateButtons(mode);
-            return;
-        }
-        if (attempt >= 50) return;
-        __sceneModeUiState.bootstrapTimer = setTimeout(() => {
-            bootstrapFromViewer(attempt + 1);
-        }, 120);
-    };
-    bootstrapFromViewer(0);
+    document.addEventListener("wz:contour-layer-changed", (event) => {
+        updateContourButton(event?.detail?.visible === true);
+    });
+    document.addEventListener("wz:focused-terrain-changed", (event) => {
+        updateTerrainButton(event?.detail?.visible === true);
+    });
+    updateContourButton(mapApi()?.isContourLayerVisible?.() === true);
+    updateTerrainButton(mapApi()?.isFocusedTerrainActive?.() === true);
 }
 
 // ── News Ticker ────────────────────────────────────────────────────────────────

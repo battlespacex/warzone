@@ -1,6 +1,5 @@
 // File Path: /assets/js/warzone-mil-sats.js
 import * as Cesium from "cesium";
-import { isTacticalMapActive, routeMapSelection, registerMapSource } from "./warzone-map-bridge.js";
 import { json2satrec } from "../../../node_modules/satellite.js/dist/io.js";
 import { propagate } from "../../../node_modules/satellite.js/dist/propagation/propagate.js";
 import { gstime } from "../../../node_modules/satellite.js/dist/propagation/gstime.js";
@@ -19,7 +18,6 @@ import { requestSharedSceneRender } from "./warzone-animation-scheduler.js";
 
 const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
 const EARTH_RADIUS_M = 6371008.8;
-const SCENE_MORPH_WAIT_TIMEOUT_MS = 6000;
 const SATELLITE_FOCUS_VISUAL_HZ = 30;
 const SATELLITE_FOCUS_CAMERA_HZ = 12;
 const SATELLITE_FOCUS_POSITION_EPSILON_METERS = 350;
@@ -106,6 +104,7 @@ const state = {
     config: { ...DEFAULT_CONFIG },
     enabled: false,
     loading: false,
+    fetchController: null,
     data: null,
     records: [],
     visibleRecords: [],
@@ -1260,7 +1259,6 @@ function removeMissingEntities(nextIds) {
 }
 
 function updateDefaultEntities() {
-    if (isTacticalMapActive()) return;
     if (!state.enabled || !state.viewer) return;
     const now = new Date();
     const nextIds = new Set();
@@ -1503,15 +1501,20 @@ function updateControlsOptions() {
 
 async function fetchOrbitalData() {
     if (!state.enabled || state.loading) return;
+    const controller = new AbortController();
+    state.fetchController = controller;
     state.loading = true;
     updateControlsOptions();
     try {
         const response = await fetch(state.config.apiPath || DEFAULT_API_PATH, {
             headers: { accept: "application/json" },
             cache: "no-store",
+            signal: controller.signal,
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (controller.signal.aborted || state.fetchController !== controller || !state.enabled) return;
         const payload = await response.json();
+        if (controller.signal.aborted || state.fetchController !== controller || !state.enabled) return;
         const records = Array.isArray(payload?.satellites) ? payload.satellites : [];
         state.data = payload;
         state.records = records;
@@ -1521,13 +1524,24 @@ async function fetchOrbitalData() {
             ? `Cached public orbital data / ${formatAge(payload.cacheAgeSeconds)} old`
             : `${state.visibleRecords.length}/${state.records.length} public orbital estimates`);
     } catch {
+        if (controller.signal.aborted || state.fetchController !== controller || !state.enabled) return;
         setStatusText(state.records.length
             ? "Using cached public orbital data"
             : "Orbital data temporarily unavailable");
     } finally {
-        state.loading = false;
-        updateControlsOptions();
+        if (state.fetchController === controller) {
+            state.fetchController = null;
+            state.loading = false;
+            if (state.enabled) updateControlsOptions();
+        }
     }
+}
+
+function stopOrbitalFetch() {
+    const controller = state.fetchController;
+    state.fetchController = null;
+    state.loading = false;
+    controller?.abort();
 }
 
 function addFocusEntity(entity) {
@@ -1536,7 +1550,6 @@ function addFocusEntity(entity) {
 }
 
 function updateSelectedSatellitePosition() {
-    if (isTacticalMapActive()) return false;
     if (!state.viewer || !state.selectedId) return false;
     const record = getSatelliteRecord(state.selectedId);
     if (!record) return false;
@@ -1697,67 +1710,8 @@ function addOrbitContext(record, now, selectedPosition) {
     }
 }
 
-function waitForCurrentSceneMorph(viewer, timeoutMs = SCENE_MORPH_WAIT_TIMEOUT_MS) {
-    if (viewer?.scene?.mode !== Cesium.SceneMode.MORPHING) {
-        return Promise.resolve(viewer?.scene?.mode);
-    }
-    return new Promise((resolve) => {
-        let settled = false;
-        let timer = 0;
-        let removeListener = null;
-        const finish = () => {
-            if (settled) return;
-            settled = true;
-            if (timer) window.clearTimeout(timer);
-            if (typeof removeListener === "function") removeListener();
-            resolve(viewer?.scene?.mode);
-        };
-        removeListener = viewer.scene.morphComplete?.addEventListener?.(finish) || null;
-        timer = window.setTimeout(finish, timeoutMs);
-        viewer.scene.requestRender?.();
-    });
-}
-
-function request3DSceneModeAndWait(viewer, timeoutMs = SCENE_MORPH_WAIT_TIMEOUT_MS) {
-    const setSceneMode = viewer?.__warzone?.setSceneMode;
-    if (!viewer?.scene || typeof setSceneMode !== "function") return Promise.resolve(false);
-    return new Promise((resolve) => {
-        let settled = false;
-        let timer = 0;
-        let removeListener = null;
-        const finish = () => {
-            if (settled) return;
-            settled = true;
-            if (timer) window.clearTimeout(timer);
-            if (typeof removeListener === "function") removeListener();
-            resolve(viewer.scene.mode === Cesium.SceneMode.SCENE3D);
-        };
-        removeListener = viewer.scene.morphComplete?.addEventListener?.(finish) || null;
-        timer = window.setTimeout(finish, timeoutMs);
-        try {
-            setSceneMode("3d", { source: "satellite-focus" });
-        } catch {
-            finish();
-            return;
-        }
-        if (viewer.scene.mode === Cesium.SceneMode.SCENE3D) finish();
-        viewer.scene.requestRender?.();
-    });
-}
-
-async function ensure3DModeBeforeSatelliteFocus(viewer) {
-    if (!viewer?.scene) return false;
-    if (viewer.scene.mode === Cesium.SceneMode.MORPHING) {
-        await waitForCurrentSceneMorph(viewer);
-    }
-    if (viewer.scene.mode === Cesium.SceneMode.SCENE3D) return true;
-    if (viewer.scene.mode === Cesium.SceneMode.MORPHING) return false;
-    return request3DSceneModeAndWait(viewer);
-}
 
 function selectSatellite(id = "", options = {}) {
-    const routed = routeMapSelection("satellite", id, options);
-    if (routed !== null) return routed;
     const selectedId = cleanText(id);
     if (!selectedId) {
         state.focusRequestToken += 1;
@@ -1777,33 +1731,8 @@ function selectSatellite(id = "", options = {}) {
     // Orbital focus is global and must not mutate the user's monitoring region.
     // The region selector separately suppresses automatic boundary prompts while
     // satellite focus is active, so an orbit crossing a boundary stays uninterrupted.
-    if (viewer.scene?.mode === Cesium.SceneMode.SCENE3D) {
-        return commitSatelliteSelection(selectedId, options);
-    }
-
-    const requestToken = state.focusRequestToken + 1;
-    state.focusRequestToken = requestToken;
-    state.focusPendingId = selectedId;
-    updateControlsOptions();
-
-    return ensure3DModeBeforeSatelliteFocus(viewer)
-        .then((ready) => {
-            if (
-                !ready ||
-                requestToken !== state.focusRequestToken ||
-                state.focusPendingId !== selectedId ||
-                !state.enabled ||
-                state.viewer !== viewer ||
-                !focusController.canEnterFocus({ assetType: "satellite", assetId: selectedId })
-            ) return false;
-            state.focusPendingId = "";
-            return commitSatelliteSelection(selectedId, options);
-        })
-        .finally(() => {
-            if (requestToken !== state.focusRequestToken) return;
-            state.focusPendingId = "";
-            updateControlsOptions();
-        });
+    if (viewer.scene?.mode !== Cesium.SceneMode.SCENE3D) return false;
+    return commitSatelliteSelection(selectedId, options);
 }
 
 function commitSatelliteSelection(id = "", options = {}) {
@@ -2035,6 +1964,8 @@ function cleanupLayer() {
     state.focusRequestToken += 1;
     state.focusPendingId = "";
     resetSatelliteFocusRuntime();
+    stopOrbitalFetch();
+    Object.values(SATELLITE_FOCUS_TASK_KEYS).forEach((key) => focusController.removeTask(key));
     stopTimers();
     destroyHandler();
     hideHoverGuide();
@@ -2063,6 +1994,7 @@ function handleVisibilityChange() {
     if (!state.enabled) return;
     if (document.hidden) {
         stopTimers();
+        stopOrbitalFetch();
         return;
     }
     startTimers();
@@ -2086,7 +2018,7 @@ function handleAppEntered() {
 export function setWarzoneMilSatsEnabled(enabled) {
     mergeConfig();
     const shouldEnable = enabled !== false && state.config.enabled !== false;
-    if (!state.viewer && !isTacticalMapActive()) {
+    if (!state.viewer) {
         state.enabled = shouldEnable;
         return;
     }
@@ -2103,9 +2035,11 @@ export function setWarzoneMilSatsEnabled(enabled) {
     }
     stopStartupDemo();
     state.enabled = true;
+    installSatelliteFocusTasks();
     showOrbitalWidget({ expand: true });
     ensureControls();
     ensureHandler();
+    if (state.records.length) updateVisibleRecords();
     if (!document.hidden) {
         startTimers();
         void fetchOrbitalData();
@@ -2122,33 +2056,12 @@ export function getWarzoneMilSatsDiagnostics() {
         activeFocusEntities: state.focusEntities?.length || 0,
         activeSatelliteTimers: Number(Boolean(state.visibleTimer)) + Number(Boolean(state.refreshTimer)),
         loading: state.loading,
+        orbitalRequestActive: Boolean(state.fetchController),
         cachedOrbitalRecords: state.records?.length || 0,
         cachedSatrecs: state.satrecs.size,
         satelliteFocus: getWarzoneMilSatsFocusDiagnostics(),
     });
 }
-
-// Reuse the exact filtered GP records and existing propagation; no extra feed.
-let tacticalOrbitSnapshot = [], tacticalOrbitRecords = null, tacticalOrbitSecond = -1;
-registerMapSource("satellite", {
-    layer: "orbital-assets",
-    snapshot: () => {
-        if (!state.enabled) return [];
-        const now = new Date();
-        const second = Math.floor(now.getTime() / 1000);
-        if (tacticalOrbitRecords === state.visibleRecords && tacticalOrbitSecond === second) return tacticalOrbitSnapshot;
-        tacticalOrbitRecords = state.visibleRecords; tacticalOrbitSecond = second;
-        tacticalOrbitSnapshot = state.visibleRecords.map((record) => {
-            const point = propagateRecord(record, now);
-            return point ? { ...record, ...point, track_key: record.id, title: record.name || record.noradId } : null;
-        }).filter(Boolean);
-        return tacticalOrbitSnapshot;
-    },
-    focus: selectSatellite,
-    clear: () => selectSatellite("", { flyOut: false }),
-    select: (id) => { state.selectedId = id; updateControlsOptions(); },
-    resume: updateDefaultEntities,
-});
 
 export function getWarzoneMilSatsFocusDiagnostics() {
     const runtime = state.focusRuntime;
@@ -2185,7 +2098,7 @@ export function initWarzoneMilSats(viewer) {
     if (viewer && state.viewer === viewer) return;
     mergeConfig();
     if (viewer) state.viewer = viewer;
-    if (state.viewer) installSatelliteFocusTasks();
+    if (state.viewer && state.enabled) installSatelliteFocusTasks();
     window.refreshWarzoneMilSatsScale = () => {
         if (startupDemoState.enabled) refreshStartupDemoScale();
         if (state.enabled) updateDefaultEntities();

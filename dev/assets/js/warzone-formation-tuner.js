@@ -1,5 +1,4 @@
 import "../css/warzone-formation-tuner.css";
-import { isTacticalMapActive, requestSatelliteMap, routeTacticalView, notifyMapDataChange } from "./warzone-map-bridge.js";
 import * as Cesium from "cesium";
 import {
     clearLiveTrack,
@@ -262,8 +261,7 @@ function renderFormation(formationKey, timestamp = Date.now()) {
             timestamp
         ));
     });
-    if (isTacticalMapActive()) notifyMapDataChange();
-    else window.__warzoneViewer?.scene?.requestRender?.();
+    window.__warzoneViewer?.scene?.requestRender?.();
 }
 
 function hasActiveFormation(domain = "") {
@@ -364,22 +362,12 @@ function clearFormation(formationKey = __selectedFormationKey) {
 }
 
 async function applyViewMode(mode) {
-    if (isTacticalMapActive()) {
-        if (mode === "2d" || mode === "3d") return routeTacticalView(mode);
-        if (!await requestSatelliteMap("Formation " + mode.toUpperCase() + " view")) return;
-    }
     const viewer = window.__warzoneViewer;
     const globe = viewer?.__warzone;
     if (!globe) return;
     const refocus = () => {
         if (getRuntimeState(__selectedFormationKey).active) focusFormation(__selectedFormationKey);
     };
-    if (mode === "2d") {
-        globe.setSceneMode?.("2d", { source: "ui" });
-        window.setTimeout(refocus, 1500);
-        return;
-    }
-    globe.setSceneMode?.("3d", { source: "ui" });
     if (mode === "ter") {
         Promise.resolve(globe.setContourLayerVisible?.(false))
             .finally(() => {
@@ -451,7 +439,6 @@ function buildPanelMarkup() {
                 <span>MODE</span>
                 <div>
                     <button type="button" data-formation-mode="3d">3D</button>
-                    <button type="button" data-formation-mode="2d">2D</button>
                     <button type="button" data-formation-mode="ter">TER</button>
                     <button type="button" data-formation-mode="ctr">CTR</button>
                 </div>
@@ -541,7 +528,7 @@ function bindPanel() {
 }
 
 export function initFormationDevTuner(viewer = window.__warzoneViewer) {
-    if ((!viewer && !isTacticalMapActive()) || document.getElementById("wz-formation-tuner")) return Boolean(viewer) || isTacticalMapActive();
+    if (!viewer || document.getElementById("wz-formation-tuner")) return Boolean(viewer);
     document.body.insertAdjacentHTML("beforeend", buildPanelMarkup());
     FORMATION_KEYS.forEach(getRuntimeState);
     bindPanel();

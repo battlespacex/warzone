@@ -1,6 +1,5 @@
 // File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
-import { isTacticalMapActive, registerMapSource, setMapFilter, projectTacticalPoint, getTacticalViewportBounds, notifyMapDataChange, getOperationalMapApi } from "./warzone-map-bridge.js";
 import { createTrackUpdateQueue, instrumentRealtimeCallback, installRealtimeSocketDiagnostics, recordRealtimeChannelError, recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
@@ -119,6 +118,7 @@ let __gnssInterferenceMeta = {
     message: "",
 };
 let __gnssInterferenceLoadingPromise = null;
+let __gnssInterferenceController = null;
 let __gnssInterferenceLastLoadedAt = 0;
 let __statusEventsLastLoadedAt = 0;
 let __alertAudio = null;
@@ -282,6 +282,7 @@ if (typeof window !== "undefined") {
 }
 let __aircraftHistoryLastLoadedAt = 0;
 let __aircraftHistoryLoadingPromise = null;
+let __aircraftHistoryController = null;
 let __aircraftWidgetRenderTimer = 0;
 let __aircraftWidgetLastRenderedAt = 0;
 let __aircraftHistoryRefreshTimer = 0;
@@ -338,6 +339,12 @@ let __intelWireEndpointBackoffUntil = 0;
 let __intelWireRelativeTimeInterval = null;
 let __intelWireDetailModalBound = false;
 let __intelWireDetailModalLastFocusedElement = null;
+let __intelWireLastViewModel = null;
+let __intelWirePanelObserver = null;
+let __intelWirePanelActive = false;
+let __intelWireRenderPending = false;
+const __intelWireCountryLabelCache = new WeakMap();
+const __intelWireMediaCache = new WeakMap();
 let __layerDeferredRefreshTimer = 0;
 let __hotspotDeferredSyncTimer = 0;
 let __seededAircraftTrackKeys = new Set();
@@ -1461,6 +1468,7 @@ async function refreshIntelWireItems({ force = false } = {}) {
 }
 function startIntelWireRefreshLoop(options = {}) {
     if (!isStratOpsFeatureEnabled("system.intelWireFeed") || !isStratOpsFeatureEnabled("widgets.intelWire")) return;
+    bindIntelWirePanelLifecycle();
     if (__intelWireRefreshInterval) return;
     if (options?.forceInitial !== false) {
         refreshIntelWireItems({ force: true });
@@ -1511,8 +1519,27 @@ function normalizeIntelWireCountryFilterValue(country = "") {
     return normalized;
 }
 function getIntelWireCountryLabel(event = {}) {
+    const cacheVersion = [
+        event.updated_at,
+        event.country,
+        event.countryName,
+        event.country_code,
+        event.inferred_country_name,
+        event.inferred_place_name,
+        event.location_label,
+        event.region,
+        event.title,
+        event.summary,
+    ].map((value) => String(value || "")).join("\u001f");
+    if (event && typeof event === "object") {
+        const cached = __intelWireCountryLabelCache.get(event);
+        if (cached?.version === cacheVersion) return cached.label;
+    }
     const explicit = normalizeCountryName(getEventResolvedCountry(event));
-    if (explicit) return explicit;
+    if (explicit) {
+        if (event && typeof event === "object") __intelWireCountryLabelCache.set(event, { version: cacheVersion, label: explicit });
+        return explicit;
+    }
     const locationBits = String(event.location_label || "")
         .split(",")
         .map((bit) => normalizeCountryName(bit))
@@ -1520,6 +1547,7 @@ function getIntelWireCountryLabel(event = {}) {
     if (locationBits.length > 1) {
         const trailingCountry = locationBits[locationBits.length - 1];
         if (trailingCountry && trailingCountry.toLowerCase() !== "unknown location") {
+            if (event && typeof event === "object") __intelWireCountryLabelCache.set(event, { version: cacheVersion, label: trailingCountry });
             return trailingCountry;
         }
     }
@@ -1533,7 +1561,9 @@ function getIntelWireCountryLabel(event = {}) {
             event.country,
         )
     );
-    return inferred || "Unresolved location";
+    const label = inferred || "Unresolved location";
+    if (event && typeof event === "object") __intelWireCountryLabelCache.set(event, { version: cacheVersion, label });
+    return label;
 }
 function getIntelWireCountryFilterOptions(items = []) {
     const options = new Map();
@@ -1586,13 +1616,16 @@ function hasActiveIntelWireFilters() {
         String(__intelWireTimeFilter || "all").toLowerCase() !== "all"
     );
 }
-function buildIntelWireViewModel() {
-    const baseEvents = getIntelWireBaseEvents();
+function buildIntelWireViewModel(baseEventsOverride = null) {
+    const baseEvents = Array.isArray(baseEventsOverride) ? baseEventsOverride : getIntelWireBaseEvents();
     const filteredEvents = applyIntelWireFilters(baseEvents);
+    const countryOptions = baseEvents === __intelWireLastViewModel?.baseEvents
+        ? __intelWireLastViewModel.countryOptions
+        : getIntelWireCountryFilterOptions(baseEvents);
     return {
         baseEvents,
         filteredEvents,
-        countryOptions: getIntelWireCountryFilterOptions(baseEvents),
+        countryOptions,
         total: baseEvents.length,
         filteredTotal: filteredEvents.length,
         hasActiveFilters: hasActiveIntelWireFilters(),
@@ -1751,12 +1784,30 @@ const debouncedRenderRaw = debounce(() => {
     renderStrikeCounters(scopedEvents);
     renderEscalation(scopedEvents);
 }, 800);
-const debouncedRenderFeed = debounce(() => {
+function isIntelWirePanelActive() {
+    const panel = document.querySelector('[data-widget-id="feed"]');
+    return Boolean(
+        panel &&
+        !panel.classList.contains("wz-is-hidden") &&
+        !panel.classList.contains("is-collapsed") &&
+        !isDocumentHidden()
+    );
+}
+function renderCurrentIntelWireView() {
+    bindIntelWirePanelLifecycle();
+    if (!isIntelWirePanelActive()) {
+        __intelWireRenderPending = true;
+        return;
+    }
     const feedView = buildIntelWireViewModel();
     const signature = `${makeWidgetRenderSignature(feedView.baseEvents)}|country:${__intelWireCountryFilter}|time:${__intelWireTimeFilter}`;
     if (signature === __lastFeedSignature) return;
     __lastFeedSignature = signature;
+    __intelWireRenderPending = false;
     renderFeed(feedView);
+}
+const debouncedRenderFeed = debounce(() => {
+    renderCurrentIntelWireView();
 }, 400);
 const debouncedRenderHeavy = debounce((events) => {
     const signature = makeWidgetRenderSignature(events);
@@ -2805,7 +2856,6 @@ function bindGlobeEventPopup() {
         return { x, y };
     };
     const getPopupAnchorScreenPosition = () => {
-        if (isTacticalMapActive()) return projectTacticalPoint(activePopupAnchor);
         const viewer = window.__warzoneViewer;
         const scene = viewer?.scene;
         const canvas = scene?.canvas;
@@ -3085,7 +3135,6 @@ function bindGlobeEventPopup() {
         showPopup(event?.detail || {});
     });
     document.addEventListener("wz:event-marker-cleared", hidePopup);
-    document.addEventListener("wz:tactical-camera-settled", syncAnchoredPopupPosition);
     document.addEventListener("wz:satellite-imagery-selected", (event) => {
         hidePopup();
         openSatelliteImageryViewer(event?.detail || {});
@@ -3482,7 +3531,7 @@ async function fetchViewportEvents() {
     const region = getActiveRegion?.();
     const regionId = region?.id || "global";
     const globe = window.__warzoneViewer?.__warzone;
-    const bounds = getTacticalViewportBounds() || globe?.getViewportBounds?.();
+    const bounds = globe?.getViewportBounds?.();
     const viewportKey = makeViewportKey(bounds, regionId);
     if (viewportKey === __lastViewportKey) {
         __viewportFetchInFlight = false;
@@ -3914,10 +3963,10 @@ function getScopedGnssInterferenceCells(cells = __gnssInterferenceCellsCache) {
     return Array.isArray(cells) ? cells.slice() : [];
 }
 function syncGnssInterferenceLayer() {
-    if (isTacticalMapActive()) return;
     const viewer = window.__warzoneViewer;
     if (!viewer) return;
     if (!isLayerEnabled("gnss")) {
+        stopGnssInterferenceRefresh();
         clearGnssInterferenceLayer(viewer);
         return;
     }
@@ -3933,17 +3982,12 @@ function syncGnssInterferenceLayer() {
     });
 }
 async function refreshGnssInterferenceCells({ force = false } = {}) {
+    if (!isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
+    if (__gnssInterferenceLoadingPromise) return __gnssInterferenceLoadingPromise;
     const now = Date.now();
     const refreshWindowMs = shouldDeferBackgroundMapWork()
         ? Math.max(GNSS_LAYER_REFRESH_MS, FOCUS_MODE_GNSS_REFRESH_MS)
         : GNSS_LAYER_REFRESH_MS;
-    if (
-        !force &&
-        __gnssInterferenceLoadingPromise &&
-        (now - __gnssInterferenceLastLoadedAt) < refreshWindowMs
-    ) {
-        return __gnssInterferenceLoadingPromise;
-    }
     if (
         !force &&
         __gnssInterferenceCellsCache.length &&
@@ -3952,8 +3996,11 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
         syncGnssInterferenceLayer();
         return __gnssInterferenceCellsCache;
     }
-    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells()
+    const controller = new AbortController();
+    __gnssInterferenceController = controller;
+    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells({ signal: controller.signal })
         .then(({ data, error, meta }) => {
+            if (controller.signal.aborted || __gnssInterferenceController !== controller || !isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
             if (error) return __gnssInterferenceCellsCache;
             __gnssInterferenceCellsCache = Array.isArray(data)
                 ? data.map((row) => normalizeGnssCell(row)).filter(Boolean)
@@ -3971,6 +4018,7 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
             return __gnssInterferenceCellsCache;
         })
         .catch((err) => {
+            if (controller.signal.aborted || __gnssInterferenceController !== controller || !isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
             __gnssInterferenceMeta = {
                 demoMode: false,
                 updatedAt: null,
@@ -3984,9 +4032,18 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
             return __gnssInterferenceCellsCache;
         })
         .finally(() => {
-            __gnssInterferenceLoadingPromise = null;
+            if (__gnssInterferenceController === controller) {
+                __gnssInterferenceLoadingPromise = null;
+                __gnssInterferenceController = null;
+            }
         });
     return __gnssInterferenceLoadingPromise;
+}
+function stopGnssInterferenceRefresh() {
+    const controller = __gnssInterferenceController;
+    __gnssInterferenceController = null;
+    __gnssInterferenceLoadingPromise = null;
+    controller?.abort();
 }
 function getWidgetStatusEvents(events = []) {
     const base = Array.isArray(events) ? events : [];
@@ -4732,6 +4789,17 @@ function getIntelWireItemMedia(event = {}) {
         event.raw?.media,
         event.metadata?.raw?.stratops_media,
     ].filter((value) => value && typeof value === "object" && !Array.isArray(value));
+    const mediaVersion = String(event.updated_at || event.occurred_at || "");
+    if (event && typeof event === "object") {
+        const cached = __intelWireMediaCache.get(event);
+        if (
+            cached?.version === mediaVersion &&
+            cached.sources.length === mediaCandidates.length &&
+            cached.sources.every((source, index) => source === mediaCandidates[index])
+        ) {
+            return cached.media;
+        }
+    }
     const fallbackTitle = event.display_title || event.title || "";
     const rawImages = mediaCandidates.flatMap((media) => Array.isArray(media.images) ? media.images : []);
     const rawVideos = mediaCandidates.flatMap((media) => Array.isArray(media.videos) ? media.videos : []);
@@ -4743,7 +4811,11 @@ function getIntelWireItemMedia(event = {}) {
         rawVideos.map((entry) => normalizeIntelWireVideoEntry(entry, fallbackTitle)).filter(Boolean),
         (entry) => entry.embedUrl || entry.videoUrl
     );
-    return { images, videos };
+    const media = { images, videos };
+    if (event && typeof event === "object") {
+        __intelWireMediaCache.set(event, { version: mediaVersion, sources: mediaCandidates, media });
+    }
+    return media;
 }
 function getIntelWireMediaState(itemId = "") {
     const key = String(itemId || "").trim();
@@ -4996,11 +5068,13 @@ function refreshIntelWireRelativeTimes(root = document) {
     });
 }
 function startIntelWireRelativeTimeLoop() {
-    refreshIntelWireRelativeTimes(document);
+    if (isIntelWirePanelActive()) {
+        refreshIntelWireRelativeTimes(document.getElementById("live-feed-list"));
+    }
     if (__intelWireRelativeTimeInterval) return;
     __intelWireRelativeTimeInterval = window.setInterval(() => {
-        if (isDocumentHidden()) return;
-        refreshIntelWireRelativeTimes(document);
+        if (!isIntelWirePanelActive()) return;
+        refreshIntelWireRelativeTimes(document.getElementById("live-feed-list"));
     }, INTEL_WIRE_RELATIVE_TIME_REFRESH_MS);
 }
 function getIntelWireCardRenderSignature(event = {}) {
@@ -5351,11 +5425,11 @@ function syncVisibleIntelWireReadFullControls() {
         if (event) syncIntelWireReadFullControl(card, event);
     });
 }
-function createIntelWireFeedCard(event = {}, eventId = "") {
+function createIntelWireFeedCard(event = {}, eventId = "", renderSignature = "") {
     const card = document.createElement("article");
     card.className = "timeline-item wz-feed-item";
     card.dataset.eventId = eventId;
-    card.dataset.renderSignature = getIntelWireCardRenderSignature(event);
+    card.dataset.renderSignature = renderSignature || getIntelWireCardRenderSignature(event);
     const categoryLabel = getPlatformCategoryLabel(event, {
         surface: "intel-wire",
         uppercase: true,
@@ -5547,18 +5621,30 @@ function positionExpandedFeedPanel(feedPanel) {
     feedPanel.style.right = "auto";
     feedPanel.style.width = `${preferredWidth}px`;
 }
-function runFeedPanelAction(action, minDelayMs = 180) {
-    setWidgetLoading("feed", true);
-    const startedAt = performance.now();
+function runFeedPanelAction(action) {
     requestAnimationFrame(() => {
-        try {
-            action?.();
-        } finally {
-            const elapsed = performance.now() - startedAt;
-            const remaining = Math.max(0, minDelayMs - elapsed);
-            window.setTimeout(() => setWidgetLoading("feed", false), remaining);
+        action?.();
+    });
+}
+function bindIntelWirePanelLifecycle() {
+    const feedPanel = document.querySelector('[data-widget-id="feed"]');
+    if (!feedPanel || __intelWirePanelObserver) return;
+    __intelWirePanelActive = isIntelWirePanelActive();
+    __intelWirePanelObserver = new MutationObserver(() => {
+        const isActive = isIntelWirePanelActive();
+        if (isActive === __intelWirePanelActive) return;
+        __intelWirePanelActive = isActive;
+        if (!isActive) {
+            feedPanel.querySelectorAll(".wz-feed-item").forEach((card) => stopIntelWireCardMedia(card));
+            return;
+        }
+        refreshIntelWireRelativeTimes(document.getElementById("live-feed-list"));
+        if (__intelWireRenderPending || !feedPanel.querySelector(".wz-feed-item")) {
+            __lastFeedSignature = null;
+            requestAnimationFrame(renderCurrentIntelWireView);
         }
     });
+    __intelWirePanelObserver.observe(feedPanel, { attributes: true, attributeFilter: ["class"] });
 }
 function syncIntelWireFilterControls(viewModel = buildIntelWireViewModel()) {
     const countrySelect = document.getElementById("wz-feed-filter-country");
@@ -5593,6 +5679,7 @@ function syncIntelWireFilterControls(viewModel = buildIntelWireViewModel()) {
 function bindFeedControls() {
     if (__feedControlsBound) return;
     __feedControlsBound = true;
+    bindIntelWirePanelLifecycle();
     startIntelWireRelativeTimeLoop();
     const loadMoreBtn = document.getElementById("live-feed-load-more");
     const expandBtn = document.getElementById("wz-feed-expand");
@@ -5601,8 +5688,8 @@ function bindFeedControls() {
     loadMoreBtn?.addEventListener("click", () => {
         runFeedPanelAction(() => {
             __feedVisibleCount += FEED_LOAD_MORE_COUNT;
-            renderFeed(buildIntelWireViewModel());
-        }, 120);
+            renderFeed(__intelWireLastViewModel || buildIntelWireViewModel());
+        });
     });
     expandBtn?.addEventListener("click", () => {
         const expanded = !feedPanel?.classList.contains("is-feed-expanded");
@@ -5633,7 +5720,7 @@ function bindFeedControls() {
                 __intelWireCountryFilter = nextValue;
                 __lastFeedSignature = null;
                 __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
-                renderFeed(buildIntelWireViewModel());
+                renderFeed(buildIntelWireViewModel(__intelWireLastViewModel?.baseEvents));
             });
         });
         timeSelect?.addEventListener("change", (event) => {
@@ -5643,7 +5730,7 @@ function bindFeedControls() {
                 __intelWireTimeFilter = nextValue;
                 __lastFeedSignature = null;
                 __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
-                renderFeed(buildIntelWireViewModel());
+                renderFeed(buildIntelWireViewModel(__intelWireLastViewModel?.baseEvents));
             });
         });
     }
@@ -5729,6 +5816,7 @@ function renderFeed(viewModelOrEvents) {
             hasActiveFilters: hasActiveIntelWireFilters(),
         }
         : (viewModelOrEvents || buildIntelWireViewModel());
+    __intelWireLastViewModel = viewModel;
     syncIntelWireFilterControls(viewModel);
     const allRows = Array.isArray(viewModel.filteredEvents) ? viewModel.filteredEvents : [];
     const totalRows = Math.max(0, Number(viewModel.total) || 0);
@@ -5769,6 +5857,7 @@ function renderFeed(viewModelOrEvents) {
     const existingCardMap = new Map(existingCards.map((card) => [String(card.dataset.eventId || ""), card]));
     const visibleIds = new Set();
     const cardsInOrder = [];
+    const cardsNeedingLayoutSync = [];
     rows.forEach((event, index) => {
         const eventId = getIntelWireEventDomKey(event, index);
         const nextSignature = getIntelWireCardRenderSignature(event);
@@ -5776,12 +5865,13 @@ function renderFeed(viewModelOrEvents) {
         __intelWireRenderedItems.set(eventId, event);
         let card = existingCardMap.get(eventId) || null;
         if (!card || card.dataset.renderSignature !== nextSignature) {
-            const replacement = createIntelWireFeedCard(event, eventId);
+            const replacement = createIntelWireFeedCard(event, eventId, nextSignature);
             if (card) {
                 stopIntelWireCardMedia(card);
                 card.replaceWith(replacement);
             }
             card = replacement;
+            cardsNeedingLayoutSync.push(card);
         }
         cardsInOrder.push(card);
     });
@@ -5827,7 +5917,7 @@ function renderFeed(viewModelOrEvents) {
     }
     requestAnimationFrame(() => {
         refreshIntelWireRelativeTimes(feed);
-        cardsInOrder.forEach((card) => {
+        cardsNeedingLayoutSync.forEach((card) => {
             const itemId = String(card.dataset.eventId || "");
             const event = __intelWireRenderedItems.get(itemId);
             if (event) syncIntelWireReadFullControl(card, event);
@@ -7099,7 +7189,8 @@ function normalizeAircraftHistoryRow(row = {}) {
         __source: "tracks-db",
     };
 }
-function normalizeAircraftHistoryRowsProgressively(rows = []) {
+function normalizeAircraftHistoryRowsProgressively(rows = [], { signal } = {}) {
+    if (signal?.aborted) return Promise.resolve([]);
     const sourceRows = Array.isArray(rows) ? rows : [];
     if (!sourceRows.length) return Promise.resolve([]);
     const activeRegion = getActiveRegion?.();
@@ -7119,7 +7210,20 @@ function normalizeAircraftHistoryRowsProgressively(rows = []) {
     let index = 0;
     let previewSeeded = false;
     return new Promise((resolve) => {
+        let frame = 0;
+        let finished = false;
+        const finish = (result) => {
+            if (finished) return;
+            finished = true;
+            if (frame) cancelAnimationFrame(frame);
+            signal?.removeEventListener("abort", onAbort);
+            resolve(result);
+        };
+        const onAbort = () => finish([]);
+        signal?.addEventListener("abort", onAbort, { once: true });
         const processBatch = () => {
+            frame = 0;
+            if (signal?.aborted) return finish([]);
             const startedAt = performance.now();
             let processed = 0;
             while (
@@ -7148,10 +7252,10 @@ function normalizeAircraftHistoryRowsProgressively(rows = []) {
                 }
             }
             if (index < orderedRows.length) {
-                requestAnimationFrame(processBatch);
+                frame = requestAnimationFrame(processBatch);
                 return;
             }
-            resolve(normalized);
+            finish(normalized);
         };
         processBatch();
     });
@@ -7166,8 +7270,11 @@ async function refreshAircraftHistoryCache(force = false) {
     }
     markTrackerPerf("aircraft", "request started");
     const requestStartedAt = performance.now();
-    __aircraftHistoryLoadingPromise = api.getAircraftTracks()
+    const controller = new AbortController();
+    __aircraftHistoryController = controller;
+    __aircraftHistoryLoadingPromise = api.getAircraftTracks({ signal: controller.signal })
         .then(async ({ data, error }) => {
+            if (controller.signal.aborted || __aircraftHistoryController !== controller || !isLayerEnabled("aircraft")) return __aircraftHistoryCache;
             markTrackerPerf("aircraft", "response received", {
                 requestAndParseMs: Math.round(performance.now() - requestStartedAt),
                 rows: Array.isArray(data) ? data.length : 0,
@@ -7179,7 +7286,8 @@ async function refreshAircraftHistoryCache(force = false) {
                 return __aircraftHistoryCache;
             }
             const normalizeStartedAt = performance.now();
-            const normalized = await normalizeAircraftHistoryRowsProgressively(data);
+            const normalized = await normalizeAircraftHistoryRowsProgressively(data, { signal: controller.signal });
+            if (controller.signal.aborted || __aircraftHistoryController !== controller || !isLayerEnabled("aircraft")) return __aircraftHistoryCache;
             markTrackerPerf("aircraft", "normalization finished", {
                 elapsedMs: Math.round(performance.now() - normalizeStartedAt), rows: normalized.length,
             });
@@ -7195,7 +7303,10 @@ async function refreshAircraftHistoryCache(force = false) {
             return __aircraftHistoryCache;
         })
         .finally(() => {
-            __aircraftHistoryLoadingPromise = null;
+            if (__aircraftHistoryController === controller) {
+                __aircraftHistoryController = null;
+                __aircraftHistoryLoadingPromise = null;
+            }
         });
     return __aircraftHistoryLoadingPromise;
 }
@@ -7214,9 +7325,16 @@ function startAircraftLiveSync() {
     }, getAircraftLiveSyncIntervalMs());
 }
 function stopAircraftLiveSync() {
+    stopAircraftHistoryRefresh();
     if (!__aircraftLiveSyncTimer) return;
     window.clearInterval(__aircraftLiveSyncTimer);
     __aircraftLiveSyncTimer = 0;
+}
+function stopAircraftHistoryRefresh() {
+    const controller = __aircraftHistoryController;
+    __aircraftHistoryController = null;
+    __aircraftHistoryLoadingPromise = null;
+    controller?.abort();
 }
 function syncAircraftLivePipelines({ forceRefresh = false } = {}) {
     const aircraftTrackingEnabled = isAircraftTrackingFeatureEnabled();
@@ -7520,6 +7638,7 @@ function getStratOpsPerformanceDiagnostics() {
         ranges: getRangeDiagnostics(),
         sweepers,
         gnss: getGnssDiagnostics(),
+        gnssRequestActive: Boolean(__gnssInterferenceController),
         orbital,
         militaryBases,
         militaryTracks,
@@ -8875,13 +8994,6 @@ function syncInitialEventsToGlobe(events, {
     syncHotspots = true,
     syncNaval = true,
 } = {}) {
-    if (isTacticalMapActive()) {
-        if (syncNaval && isNavalTrackingFeatureEnabled() && isLayerEnabled("naval")) {
-            syncNavalSignals(applyAllFilters(__eventsCache).filter(isNavalSignalEvent));
-        }
-        notifyMapDataChange();
-        return;
-    }
     const globe = window.__warzoneViewer?.__warzone;
     if (!globe) return;
     const hotspotsEnabled = isLayerEnabled("hotspots");
@@ -8920,9 +9032,6 @@ function syncInitialEventsToGlobe(events, {
     const globeVisible = visible.filter(
         (event) => !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)
     );
-    // Data ingestion/widget updates above remain active. Cesium-only geometry
-    // and effects below resume from the same caches when Satellite is selected.
-    if (isTacticalMapActive()) return;
     const hotspotGlobeVisible = hotspotsEnabled
         && syncHotspots
         ? hotspotStableSource.filter(
@@ -9111,12 +9220,11 @@ export function attachWarzoneAppViewer(viewer) {
         window.__militaryTracks = __militaryTracks;
     }
     viewer.camera?.moveEnd?.addEventListener(() => {
-        if (isTacticalMapActive()) return;
         scheduleViewportFetch(500);
         scheduleGlobeEventRecluster(80);
     });
     observeWarzoneLifecycleViewer(viewer);
-    if (isStratOpsFeatureEnabled("header.sceneModeToggle")) initGlobeRotation(viewer);
+    initGlobeRotation(viewer);
     if (isStratOpsFeatureEnabled("system.adaptivePerformanceGuard") && isStratOpsFeatureEnabled("alerts.performanceWarning")) {
         scheduleAdaptivePerformanceGuard(viewer);
     }
@@ -9345,12 +9453,6 @@ async function initializeWarzoneAppOnce() {
                         console.error("Region refresh events failed:", err);
                     });
             });
-            document.addEventListener("wz:tactical-camera-settled", () => {
-                if (isTacticalMapActive()) scheduleViewportFetch(500);
-            });
-            document.addEventListener("wz:scene-mode-changed", () => {
-                scheduleGlobeEventRecluster(80);
-            });
         }
         syncIdleSceneState();
         syncAircraftLivePipelines();
@@ -9452,9 +9554,10 @@ async function initializeWarzoneAppOnce() {
             setWidgetLoading("aircraft", false);
             requestAircraftMovementsWidgetRender(0);
         }
-        onLayerChange((id) => {
+        onLayerChange((id, enabled, state, changedLayerIds) => {
             const changedAt = Date.now();
-            const changedIds = id === "*" ? LAYER_DEFS.map((layer) => layer.id) : [id];
+            const changedIds = id === "*" ? changedLayerIds || LAYER_DEFS.map((layer) => layer.id) : [id];
+            const layerChanged = (layerId) => changedIds.includes(layerId);
             changedIds.forEach((layerId) => {
                 const enabled = isLayerEnabled(layerId);
                 const previous = __layerLifecycleState.get(layerId) || {};
@@ -9504,7 +9607,7 @@ async function initializeWarzoneAppOnce() {
                 window.__warzoneViewer?.scene?.requestRender?.();
                 return;
             }
-            if (id === "aoi" || id === "*") {
+            if (layerChanged("aoi")) {
                 window.__warzoneAoiLens?.setEnabled?.(isLayerEnabled("aoi"));
                 if (id === "aoi") {
                     window.__warzoneViewer?.scene?.requestRender?.();
@@ -9520,7 +9623,7 @@ async function initializeWarzoneAppOnce() {
                 window.__warzoneViewer?.scene?.requestRender?.();
                 return;
             }
-            if (id === "hotspots" || id === "*") {
+            if (layerChanged("hotspots")) {
                 const hotspotEnabled = isLayerEnabled("hotspots");
                 if (hotspotEnabled) {
                     ensureHotspotLayer(window.__warzoneViewer, document.getElementById("warzone-hotspot-layer"));
@@ -9537,10 +9640,10 @@ async function initializeWarzoneAppOnce() {
                     return;
                 }
             }
-            if (id === "military-bases" || id === "*") {
+            if (layerChanged("military-bases")) {
                 window.__setWarzoneMilitaryBasesVisible?.(isLayerEnabled("military-bases"));
             }
-            if (id === "aircraft" || id === "*") {
+            if (layerChanged("aircraft")) {
                 const aircraftEnabled = isLayerEnabled("aircraft");
                 if (aircraftEnabled) {
                     if (id === "aircraft") markTrackerPerf("aircraft", "tracker enabled");
@@ -9555,7 +9658,7 @@ async function initializeWarzoneAppOnce() {
                 syncTracksRealtimeChannel();
                 requestAircraftMovementsWidgetRender(0);
             }
-            if (id === "naval" || id === "*") {
+            if (layerChanged("naval")) {
                 const navalEnabled = isNavalTrackingFeatureEnabled() && isLayerEnabled("naval");
                 if (navalEnabled && id === "naval") markTrackerPerf("naval", "tracker enabled");
                 __militaryTracks?.setEnabled?.(navalEnabled);
@@ -9567,16 +9670,26 @@ async function initializeWarzoneAppOnce() {
                 }
             }
             if (id === "*") {
-                globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
-                globe?.setSatelliteImageryLayerVisible?.(isLayerEnabled("satellite-imagery"));
-                globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
-                globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
-                globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
-                syncGnssInterferenceLayer();
+                if (layerChanged("terrain")) globe?.setTerrainVisible?.(isLayerEnabled("terrain"));
+                if (layerChanged("satellite-imagery")) {
+                    const satelliteImageryEnabled = isLayerEnabled("satellite-imagery");
+                    globe?.setSatelliteImageryLayerVisible?.(satelliteImageryEnabled);
+                    if (!satelliteImageryEnabled) closeSatelliteImageryViewer();
+                }
+                if (layerChanged("map-labels")) globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
+                if (layerChanged("region-plate")) globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
+                if (layerChanged("country-borders")) globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
+                if (layerChanged("gnss")) syncGnssInterferenceLayer();
             }
-            syncImmediateEventLayerVisibility(globe, id);
+            if (id === "*" && changedLayerIds) {
+                changedIds.forEach((layerId) => syncImmediateEventLayerVisibility(globe, layerId));
+            } else {
+                syncImmediateEventLayerVisibility(globe, id);
+            }
             const shouldResyncGlobeEvents =
-                id === "*" || !GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS.has(id);
+                id === "*"
+                    ? !changedLayerIds || changedIds.some((layerId) => !GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS.has(layerId))
+                    : !GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS.has(id);
             if (shouldResyncGlobeEvents) {
                 syncInitialEventsToGlobe(mapSourceEvents, {
                     animateTracks: false,
@@ -11349,7 +11462,7 @@ function injectNavLoginButton() {
 }
 
 export function initGlobeRotation(viewer) {
-    if (!viewer && !isTacticalMapActive()) return;
+    if (!viewer) return;
     const SPEED_DEG = 0.2;
     window.__globeRotation ||= { enabled: true, paused: true, speed: SPEED_DEG };
     let lastTime = null, interacting = false;
@@ -11375,7 +11488,7 @@ export function initGlobeRotation(viewer) {
         viewer.scene.canvas.addEventListener("touchend", onEnd, { passive: true });
         viewer.scene.postRender.addEventListener(() => {
             const cfg = window.__globeRotation;
-            if (isTacticalMapActive() || !cfg?.enabled || cfg.paused || interacting) { lastTime = null; return; }
+            if (!cfg?.enabled || cfg.paused || interacting) { lastTime = null; return; }
             const now = Date.now();
             if (lastTime === null) { lastTime = now; return; }
             const dt = Math.min((now - lastTime) / 1000, 0.1);
@@ -11401,7 +11514,6 @@ export function initGlobeRotation(viewer) {
             cfg.paused = !cfg.paused;
             syncRotationButtonUi();
             window.__warzoneViewer?.scene?.requestRender?.();
-            getOperationalMapApi()?.requestRender?.();
         });
         t.appendChild(b);
         syncRotationButtonUi();
@@ -12559,41 +12671,6 @@ export function schedulePostEntryActions(viewer) {
     if (__postEntryActionsScheduled) return;
     __postEntryActionsScheduled = true;
     applyStratOpsFeatureVisibility();
-    setMapFilter("aircraft", (track) => {
-        if (track.metadata?.simulation === "formation-dev-tuner") return track.active === true;
-        const subtype = track.__manualAircraftOverride ? "transport" : resolveAircraftSubtype(track);
-        if (!isAircraftTrackSubtype(subtype) || subtype === "trainer") return false;
-        if (track.__manualAircraftOverride && track.track_key === __manualAircraftSearch.trackKey) return true;
-        if (shouldExcludeFromMilitaryAircraftTracker(track) || !isTrackerItemVisibleInScope(track, "region")) return false;
-        if (__aircraftWidgetFilter === "ended" ? track.active : __aircraftWidgetFilter === "recent"
-            ? Number(track.last_seen_at || 0) < Date.now() - AIRCRAFT_RECENT_WINDOW_MS : !track.active) return false;
-        if (__aircraftWidgetSubtypeFilter !== "all" && subtype !== __aircraftWidgetSubtypeFilter) return false;
-        const country = normalizeAircraftCountryFilterValue(__aircraftWidgetCountryFilter || "all");
-        return country === "all" || normalizeAircraftCountryFilterValue(getAircraftCountryLabel(track)) === country;
-    });
-    setMapFilter("naval", (vessel) => {
-        if (vessel.metadata?.simulation === "formation-dev-tuner") return true;
-        if (!isTrackerItemVisibleInScope(vessel, "region")) return false;
-        if (__navalWidgetSubtypeFilter !== "all" && normalizeNavalSubtype(vessel.subcategory) !== __navalWidgetSubtypeFilter) return false;
-        const country = normalizeAircraftCountryFilterValue(__navalWidgetCountryFilter || "all");
-        return country === "all" || normalizeAircraftCountryFilterValue(getNavalCountryFilterLabel(vessel)) === country;
-    });
-    registerMapSource("events", {
-        snapshot: () => applyAllFilters(__eventsCache).filter((event) =>
-            isEventVisible(event) && !isNavalSignalEvent(event) && !isAircraftTelemetryEvent(event)),
-        resume: () => {
-            __lastGlobeSyncKey = "";
-            __lastRangesSyncKey = "";
-            __lastSweepersSyncKey = "";
-            debouncedRenderHeavy(applyAllFilters(__eventsCache));
-            syncGnssInterferenceLayer();
-        },
-    });
-    registerMapSource("gnss", { layer: "gnss", snapshot: getScopedGnssInterferenceCells });
-    import("./warzone-map-manager.js")
-        .then((module) => module.initWarzoneMapManager(viewer))
-        .catch((error) => console.warn("Tactical map unavailable; Satellite retained.", error));
-
     if (__STRATOPS_DEV_TOOLS__) {
         if (isDevInspectionEnvironment()) {
             import("./warzone-formation-tuner.js")
@@ -12617,7 +12694,6 @@ export function schedulePostEntryActions(viewer) {
         injectNavLoginButton();
     }
     if (viewer) attachWarzoneAppViewer(viewer);
-    else if (isStratOpsFeatureEnabled("header.sceneModeToggle")) initGlobeRotation(null);
     if (isStratOpsFeatureEnabled("header.support")) {
         initDonatePopup();
     }

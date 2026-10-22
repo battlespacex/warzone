@@ -1,6 +1,7 @@
 ﻿// File Path: /assets/js/warzone-siren-alert.js
 // ── Config ─────────────────────────────────────────────────────────────────────
 import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
+import { isLayerEnabled, onLayerChange } from "./warzone-layers.js";
 
 const MAX_VISIBLE = 8; 
 const AUTO_DISMISS = {
@@ -193,6 +194,11 @@ function clearSirenStackImmediately() {
         } catch { }
     }
 }
+onLayerChange((id) => {
+    if ((id === "alerts" || id === "*") && !isLayerEnabled("alerts")) {
+        clearSirenStackImmediately();
+    }
+});
 export function setSirenAlertDevPreviewActive(active = false) {
     const nextActive = active === true;
     if (__devAlertPreviewActive === nextActive) return __devAlertPreviewActive;
@@ -203,6 +209,7 @@ export function setSirenAlertDevPreviewActive(active = false) {
 // ── Main API ───────────────────────────────────────────────────────────────────
 export function showSirenAlert({ title, meta = "", category = "", level = "orange", sound = true, pulse = true, devPreview = false } = {}) {
     const isDevPreview = devPreview === true;
+    if (!isDevPreview && !isLayerEnabled("alerts")) return null;
     if (__devAlertPreviewActive && !isDevPreview) return null;
     if (isDevPreview && !__devAlertPreviewActive) return null;
     if (!isDevPreview) enforceCap();

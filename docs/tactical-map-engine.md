@@ -1,5 +1,9 @@
 # Tactical / Satellite map engines
 
+Historical implementation note: Phase 2 removed the alternative MapLibre
+renderer and restored Cesium as the sole operational globe. The details below
+describe the former implementation, not the current application.
+
 ## Implementation and verification status
 
 This is a source implementation, not a measured performance result. Builds,

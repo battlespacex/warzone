@@ -94,6 +94,27 @@ const GROUP_KEYWORDS = {
     "allied": { groupId: "allied", name: "Allied" },
     "allies": { groupId: "allied", name: "Allied" }
 };
+const SORTED_DEMONYM_KEYS = Object.keys(DEMONYM_TO_COUNTRY).sort((a, b) => b.length - a.length);
+const SORTED_REGION_KEYWORD_KEYS = Object.keys(REGION_KEYWORDS).sort((a, b) => b.length - a.length);
+const SORTED_GROUP_KEYWORD_KEYS = Object.keys(GROUP_KEYWORDS).sort((a, b) => b.length - a.length);
+const SORTED_CAPITAL_KEYS = Object.keys(CAPITAL_INDEX).sort((a, b) => b.length - a.length);
+const SORTED_COUNTRY_ALIAS_KEYS = Object.keys(COUNTRY_ALIAS_INDEX).sort((a, b) => b.length - a.length);
+function createRankedPhraseLookup(keys = []) {
+    const rankByPhrase = new Map();
+    let maxWords = 1;
+    keys.forEach((key, index) => {
+        if (!key) return;
+        rankByPhrase.set(key, index);
+        maxWords = Math.max(maxWords, key.split(" ").length);
+    });
+    return { rankByPhrase, maxWords };
+}
+const DEMONYM_PHRASE_LOOKUP = createRankedPhraseLookup(SORTED_DEMONYM_KEYS);
+const REGION_PHRASE_LOOKUP = createRankedPhraseLookup(SORTED_REGION_KEYWORD_KEYS);
+const GROUP_PHRASE_LOOKUP = createRankedPhraseLookup(SORTED_GROUP_KEYWORD_KEYS);
+const CAPITAL_PHRASE_LOOKUP = createRankedPhraseLookup(SORTED_CAPITAL_KEYS);
+const COUNTRY_ALIAS_PHRASE_LOOKUP = createRankedPhraseLookup(SORTED_COUNTRY_ALIAS_KEYS);
+const EXTRACT_PLACE_MATCH_CACHE = new WeakMap();
 function slugify(value) {
     return String(value || "")
         .normalize("NFKD")
@@ -103,6 +124,24 @@ function slugify(value) {
         .replace(/[^a-z0-9]+/g, " ")
         .trim()
         .replace(/\s+/g, " ");
+}
+function findRankedPhrase(slug, lookup) {
+    const tokens = String(slug || "").split(" ").filter(Boolean);
+    let bestPhrase = "";
+    let bestRank = Number.POSITIVE_INFINITY;
+    for (let start = 0; start < tokens.length; start += 1) {
+        let phrase = "";
+        const maxEnd = Math.min(tokens.length, start + lookup.maxWords);
+        for (let end = start; end < maxEnd; end += 1) {
+            phrase = phrase ? `${phrase} ${tokens[end]}` : tokens[end];
+            const rank = lookup.rankByPhrase.get(phrase);
+            if (rank !== undefined && rank < bestRank) {
+                bestPhrase = phrase;
+                bestRank = rank;
+            }
+        }
+    }
+    return bestPhrase;
 }
 function isFiniteCoord(value) {
     if (value === null || value === undefined || value === "") return false;
@@ -153,73 +192,52 @@ function tryExactLookup(rawValue) {
     return null;
 }
 function tryDemonymLookup(text = "") {
-    const haystack = ` ${slugify(text)} `;
-    if (!haystack.trim()) return null;
-    const demonyms = Object.keys(DEMONYM_TO_COUNTRY).sort((a, b) => b.length - a.length);
-    for (const demonym of demonyms) {
-        if (!demonym) continue;
-        if (haystack.includes(` ${demonym} `)) {
-            const code = DEMONYM_TO_COUNTRY[demonym];
-            return {
-                type: "country",
-                country: code,
-                name: GLOBAL_COUNTRIES[code]?.name || demonym
-            };
-        }
+    const demonym = findRankedPhrase(slugify(text), DEMONYM_PHRASE_LOOKUP);
+    if (demonym) {
+        const code = DEMONYM_TO_COUNTRY[demonym];
+        return {
+            type: "country",
+            country: code,
+            name: GLOBAL_COUNTRIES[code]?.name || demonym
+        };
     }
     return null;
 }
 function tryRegionKeywordLookup(text = "") {
-    const haystack = ` ${slugify(text)} `;
-    if (!haystack.trim()) return null;
-    const keys = Object.keys(REGION_KEYWORDS).sort((a, b) => b.length - a.length);
-    for (const key of keys) {
-        if (!key) continue;
-        if (haystack.includes(` ${key} `)) {
-            const hit = REGION_KEYWORDS[key];
-            return {
-                type: "region",
-                regionId: hit.regionId,
-                name: hit.name
-            };
-        }
+    const key = findRankedPhrase(slugify(text), REGION_PHRASE_LOOKUP);
+    if (key) {
+        const hit = REGION_KEYWORDS[key];
+        return {
+            type: "region",
+            regionId: hit.regionId,
+            name: hit.name
+        };
     }
     return null;
 }
 function tryGroupKeywordLookup(text = "") {
-    const haystack = ` ${slugify(text)} `;
-    if (!haystack.trim()) return null;
-    const keys = Object.keys(GROUP_KEYWORDS).sort((a, b) => b.length - a.length);
-    for (const key of keys) {
-        if (!key) continue;
-        if (haystack.includes(` ${key} `)) {
-            const hit = GROUP_KEYWORDS[key];
-            return {
-                type: "group",
-                groupId: hit.groupId,
-                name: hit.name
-            };
-        }
+    const key = findRankedPhrase(slugify(text), GROUP_PHRASE_LOOKUP);
+    if (key) {
+        const hit = GROUP_KEYWORDS[key];
+        return {
+            type: "group",
+            groupId: hit.groupId,
+            name: hit.name
+        };
     }
     return null;
 }
 function scanTextForCountry(text) {
-    const haystack = ` ${slugify(text)} `;
-    if (!haystack.trim()) return null;
-    const capitals = Object.keys(CAPITAL_INDEX).sort((a, b) => b.length - a.length);
-    for (const cap of capitals) {
-        if (!cap) continue;
-        if (haystack.includes(` ${cap} `)) {
-            return { type: "capital", ...CAPITAL_INDEX[cap] };
-        }
+    const slug = slugify(text);
+    if (!slug) return null;
+    const capital = findRankedPhrase(slug, CAPITAL_PHRASE_LOOKUP);
+    if (capital) {
+        return { type: "capital", ...CAPITAL_INDEX[capital] };
     }
-    const aliases = Object.keys(COUNTRY_ALIAS_INDEX).sort((a, b) => b.length - a.length);
-    for (const alias of aliases) {
-        if (!alias) continue;
-        if (haystack.includes(` ${alias} `)) {
-            const code = COUNTRY_ALIAS_INDEX[alias];
-            return { type: "country", country: code, name: GLOBAL_COUNTRIES[code]?.name || alias };
-        }
+    const alias = findRankedPhrase(slug, COUNTRY_ALIAS_PHRASE_LOOKUP);
+    if (alias) {
+        const code = COUNTRY_ALIAS_INDEX[alias];
+        return { type: "country", country: code, name: GLOBAL_COUNTRIES[code]?.name || alias };
     }
     const demonymHit = tryDemonymLookup(text);
     if (demonymHit) return demonymHit;
@@ -246,10 +264,6 @@ export function extractPlaceMatch(event = {}) {
         event.location_label,
         event.impact_label
     ];
-    for (const value of priorityFields) {
-        const hit = tryExactLookup(value) || tryDemonymLookup(value) || tryRegionKeywordLookup(value) || tryGroupKeywordLookup(value);
-        if (hit) return hit;
-    }
     const textFields = [
         event.title,
         event.summary,
@@ -260,8 +274,22 @@ export function extractPlaceMatch(event = {}) {
         eventLocation.event_city,
         eventLocation.event_region,
         eventLocation.event_country
-    ].filter(Boolean).join(" | ");
-    return scanTextForCountry(textFields);
+    ];
+    const cacheKey = [...priorityFields, ...textFields].map((value) => String(value || "")).join("\u001f");
+    if (event && typeof event === "object") {
+        const cached = EXTRACT_PLACE_MATCH_CACHE.get(event);
+        if (cached?.key === cacheKey) return cached.match;
+    }
+    for (const value of priorityFields) {
+        const hit = tryExactLookup(value) || tryDemonymLookup(value) || tryRegionKeywordLookup(value) || tryGroupKeywordLookup(value);
+        if (hit) {
+            if (event && typeof event === "object") EXTRACT_PLACE_MATCH_CACHE.set(event, { key: cacheKey, match: hit });
+            return hit;
+        }
+    }
+    const match = scanTextForCountry(textFields.filter(Boolean).join(" | "));
+    if (event && typeof event === "object") EXTRACT_PLACE_MATCH_CACHE.set(event, { key: cacheKey, match });
+    return match;
 }
 export function isMovingTrackEvent(event = {}) {
     const src = slugify(event.source_name || "");

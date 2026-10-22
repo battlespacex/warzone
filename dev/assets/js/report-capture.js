@@ -663,8 +663,6 @@ async function applyAssetFocus(payload, viewer) {
     if (!entity || !adapter) throw new Error("asset_entity_not_created");
     const preset = buildReportAssetFocusPreset(payload.target.capture_type, payload.camera);
     preset.target_visual_pixels = payload.target.capture_type === "HVA_FOCUS_3D" ? 180 : preset.minimum_visual_pixels;
-    viewer.__warzone?.setSceneMode?.("3d", { duration: 0, source: "report-asset-focus" });
-    await waitUntil(() => viewer.scene.mode !== Cesium.SceneMode.MORPHING, 5000);
     const descriptor = adapter.describe();
     if (entity.model) {
         entity.__reportCaptureMinimumPixels = Number(preset.minimum_visual_pixels || 180);
@@ -969,8 +967,6 @@ async function renderOperationalSatellites(payload, viewer) {
 }
 
 async function applyCamera(viewer, camera) {
-    viewer.__warzone?.setSceneMode?.(camera.scene_mode, { duration: 0, source: "report-capture" });
-    await waitUntil(() => viewer.scene.mode !== Cesium.SceneMode.MORPHING, 5000);
     const heading = Cesium.Math.toRadians(Number(camera.heading_degrees || 0));
     const pitch = Cesium.Math.toRadians(Number(camera.pitch_degrees || -55));
     const roll = Cesium.Math.toRadians(Number(camera.roll_degrees || 0));
@@ -978,6 +974,7 @@ async function applyCamera(viewer, camera) {
         Number(camera.center.longitude),
         Number(camera.center.latitude)
     );
+    // Legacy report presets can request overhead framing; the viewer stays 3D.
     if (String(camera.scene_mode).toLowerCase() === "3d") {
         viewer.camera.lookAt(target, new Cesium.HeadingPitchRange(
             heading,

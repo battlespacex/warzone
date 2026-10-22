@@ -306,9 +306,6 @@ document.addEventListener("DOMContentLoaded", () => {
             event.preventDefault();
             setMapLayersPaneOpen(false);
         });
-        document.addEventListener("wz:scene-mode-changed", () => {
-            requestMapLayersResizeBurst(620);
-        });
         const globeEl = document.getElementById("warzone-globe");
         if (globeEl && typeof ResizeObserver === "function") {
             const observer = new ResizeObserver(() => {
@@ -373,21 +370,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     bindTabs(".top-tab[data-view]", ".warzone-view", "view", "viewPanel");
     bindTabs("[data-military-view]", "[data-military-panel]", "militaryView", "militaryPanel");
-    const genericMapModeButtons = Array.from(document.querySelectorAll("[data-map-mode]"))
-        .filter((btn) => btn.id !== "wz-toggle-3d" && btn.id !== "wz-toggle-2d");
-    genericMapModeButtons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-            genericMapModeButtons.forEach((node) => {
-                const active = node === btn;
-                node.classList.toggle("is-active", active);
-                node.setAttribute("aria-pressed", String(active));
-            });
-            window.__warzoneViewer?.__warzone?.setMapMode?.(btn.dataset.mapMode);
-        });
-    });
-    genericMapModeButtons.forEach((node) => {
-        node.setAttribute("aria-pressed", String(node.classList.contains("is-active")));
-    });
     document.querySelectorAll(".period-tab").forEach((btn) => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".period-tab").forEach((node) => {

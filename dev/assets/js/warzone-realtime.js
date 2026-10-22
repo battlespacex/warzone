@@ -4,6 +4,11 @@ import { handleIncomingEvent } from "./essential.js";
 import { showStickyAlert, hideStickyAlert } from "./warzone-sticky-alert.js";
 import { api } from "./supabase.js";
 import { instrumentRealtimeCallback, installRealtimeSocketDiagnostics } from "./warzone-realtime-performance.js";
+import { isLayerEnabled, onLayerChange } from "./warzone-layers.js";
+
+let __sirenBroadcastChannel = null;
+let __sirenBroadcastStopPromise = null;
+let __sirenLayerListenerBound = false;
 export async function subscribeToLiveEvents() {
     installRealtimeSocketDiagnostics(supabase.realtime);
     return supabase
@@ -72,10 +77,37 @@ export function startActiveAlertsPollingFallback() {
     }, 20000);
 }
 export function subscribeToSirenBroadcast() {
-    return supabase
+    if (!__sirenLayerListenerBound) {
+        __sirenLayerListenerBound = true;
+        onLayerChange((id) => {
+            if (id === "alerts" || id === "*") syncSirenBroadcastSubscription();
+        });
+    }
+    return syncSirenBroadcastSubscription();
+}
+
+function syncSirenBroadcastSubscription() {
+    if (!isLayerEnabled("alerts")) {
+        const channel = __sirenBroadcastChannel;
+        __sirenBroadcastChannel = null;
+        if (channel) {
+            const pending = Promise.resolve(supabase.removeChannel(channel));
+            __sirenBroadcastStopPromise = pending;
+            void pending.catch((error) => console.warn("Siren channel cleanup failed:", error)).finally(() => {
+                if (__sirenBroadcastStopPromise !== pending) return;
+                __sirenBroadcastStopPromise = null;
+                syncSirenBroadcastSubscription();
+            });
+        }
+        return null;
+    }
+    // Supabase may reuse a channel with the same topic until removal completes.
+    if (__sirenBroadcastStopPromise || __sirenBroadcastChannel) return __sirenBroadcastChannel;
+    __sirenBroadcastChannel = supabase
         .channel("warzone:sirens")
         .on("broadcast", { event: "siren" }, instrumentRealtimeCallback("warzone:sirens", (payload) => {
             try {
+                if (!isLayerEnabled("alerts")) return;
                 const data = payload?.payload;
                 if (!data) return;
 
@@ -87,6 +119,7 @@ export function subscribeToSirenBroadcast() {
                 if (!title) return;
 
                 import("./warzone-siren-alert.js").then(({ showSirenAlert }) => {
+                    if (!isLayerEnabled("alerts")) return;
                     showSirenAlert({ title, meta, level, sound });
                 });
             } catch (err) {
@@ -94,4 +127,5 @@ export function subscribeToSirenBroadcast() {
             }
         }))
         .subscribe();
+    return __sirenBroadcastChannel;
 }

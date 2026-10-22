@@ -1,6 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveDisplayCoordinates } from "../../../dev/assets/js/warzone-location-resolver.js";
+import { extractPlaceMatch, resolveDisplayCoordinates } from "../../../dev/assets/js/warzone-location-resolver.js";
+
+test("frontend location matching preserves longest capital and country alias priority", () => {
+  const capital = extractPlaceMatch({
+    title: "Doha update follows a separate Abu Dhabi security briefing"
+  });
+  assert.equal(capital.type, "capital");
+  assert.equal(capital.country, "AE");
+  assert.equal(capital.name, "Abu Dhabi");
+
+  const country = extractPlaceMatch({
+    title: "US briefing covers the Democratic Republic of the Congo"
+  });
+  assert.equal(country.type, "country");
+  assert.equal(country.country, "CD");
+});
 
 test("frontend replaces legacy publisher coordinates with incident capital from report text", () => {
   const placement = resolveDisplayCoordinates({

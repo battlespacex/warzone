@@ -1,6 +1,5 @@
 ﻿// File Path: /assets/js/warzone-region-selector.js
 import * as Cesium from "cesium";
-import { routeMapRegion } from "./warzone-map-bridge.js";
 import { getTheaterDefinitions } from "./warzone-theaters.js";
 import { isLayerEnabled } from "./warzone-layers.js";
 
@@ -69,8 +68,6 @@ let __regionAssetFocusSyncBound = false;
 let __regionCameraSyncPauseUntil = 0;
 let __regionDeferredNotifyTimer = 0;
 let __regionHintLiveFrame = 0;
-let __regionSceneModeRefocusTimer = 0;
-let __regionSceneModeRefocusSeq = 0;
 let __currentViewportRegion = __activeRegion;
 let __hasUserSelectedRegion = false;
 let __regionSwitchPromptRequest = null;
@@ -319,24 +316,22 @@ function applyRegionCameraLock(viewer, region = __activeRegion) {
     if (!controller) return;
     void region;
     // Region selection should only filter data; keep camera fully interactive.
-    const is2D = viewer?.scene?.mode === Cesium.SceneMode.SCENE2D;
     controller.enableInputs = true;
     controller.enableZoom = true;
-    controller.enableRotate = !is2D;
+    controller.enableRotate = true;
     controller.enableTranslate = true;
-    controller.enableTilt = !is2D;
+    controller.enableTilt = true;
     controller.enableLook = true;
 }
 function releaseRegionCameraLock(viewer) {
     const controller = viewer?.scene?.screenSpaceCameraController;
     if (!controller) return;
     // Keep controls open during transitions too.
-    const is2D = viewer?.scene?.mode === Cesium.SceneMode.SCENE2D;
     controller.enableInputs = true;
     controller.enableZoom = true;
-    controller.enableRotate = !is2D;
+    controller.enableRotate = true;
     controller.enableTranslate = true;
-    controller.enableTilt = !is2D;
+    controller.enableTilt = true;
     controller.enableLook = true;
 }
 function clampCameraToRegion(viewer, region, { animate = false } = {}) {
@@ -460,30 +455,6 @@ function getBoundsCenter(bounds = null) {
     const lat = (Number(bounds.minLat) + Number(bounds.maxLat)) / 2;
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
     return { lon, lat };
-}
-function prime2DRegionCamera(viewer, region) {
-    if (!viewer?.camera || !region || viewer.scene?.mode !== Cesium.SceneMode.SCENE2D) return false;
-    const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
-    const center = getBoundsCenter(bounds) || region.camera || {};
-    const lon = Number(center.lon ?? region.camera?.lon);
-    const lat = Number(center.lat ?? region.camera?.lat);
-    const altitude = Number(region.camera?.alt || 7000000);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(altitude)) return false;
-    try {
-        viewer.camera.cancelFlight?.();
-        viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
-            orientation: {
-                heading: 0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0,
-            },
-        });
-        viewer.scene?.requestRender?.();
-        return true;
-    } catch {
-        return false;
-    }
 }
 function getBoundsArea(bounds = null) {
     if (!bounds) return 0;
@@ -862,8 +833,7 @@ function setRegionHintState(active, viewer) {
 }
 function refreshRegionButtonHint(viewer) {
     if (__regionSwitchPromptRequest) return;
-    const isSceneMorphing = viewer?.scene?.mode === Cesium.SceneMode.MORPHING;
-    if (!viewer || __regionTransitionInFlight || isSceneMorphing || !isRegionHintAllowed()) {
+    if (!viewer || __regionTransitionInFlight || !isRegionHintAllowed()) {
         setRegionHintState(false, viewer);
         return;
     }
@@ -971,13 +941,11 @@ export function setActiveLens(lensId) {
 export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
 function notifyChange(region, options = {}) { __activeRegion = region; notifyScopeChange(options); }
 export function flyToRegion(viewer, region, options = {}) {
-    if (routeMapRegion(region)) return Promise.resolve(true);
     if (!viewer || !region) return Promise.resolve(false);
     if (window.__warzoneDashboardIntroActive === true && options?.source !== "startup") {
         return Promise.resolve(false);
     }
     const showLoader = options?.showLoader === true;
-    const prime2D = options?.prime2D === true;
     const requestedDuration = Number(options?.duration);
     const duration = Number.isFinite(requestedDuration)
         ? Math.max(0, Math.min(requestedDuration, 3))
@@ -1042,30 +1010,6 @@ export function flyToRegion(viewer, region, options = {}) {
             }
             const bounds = getRegionFocusBounds(region) || getRegionBounds(region) || region.bounds;
             const { minLon, minLat, maxLon, maxLat } = bounds;
-            const is2D = viewer.scene?.mode === Cesium.SceneMode.SCENE2D;
-            if (is2D) {
-                if (prime2D) {
-                    prime2DRegionCamera(viewer, region);
-                }
-                const center = getBoundsCenter(bounds) || region.camera || {};
-                const lon = Number(center.lon ?? region.camera?.lon);
-                const lat = Number(center.lat ?? region.camera?.lat);
-                const altitude = Number(region.camera?.alt || 7000000);
-                if (Number.isFinite(lon) && Number.isFinite(lat)) {
-                    viewer.camera.flyTo({
-                        destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
-                        orientation: {
-                            heading: 0,
-                            pitch: -Cesium.Math.PI_OVER_TWO,
-                            roll: 0,
-                        },
-                        duration,
-                        complete: () => finalizeTransition(true),
-                        cancel: () => finalizeTransition(false),
-                    });
-                    return;
-                }
-            }
             viewer.camera.flyTo({
                 destination: Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat),
                 duration,
@@ -1312,51 +1256,12 @@ function updateLensDropdown(lens) {
         dropdown.value = lens;
     });
 }
-let __regionNavUiBound = false;
 export function initRegionNav(viewer) {
     const dropdown = document.getElementById("wz-region-nav");
     const mobileDropdown = document.getElementById("wz-region-nav-mobile");
     if (!dropdown && !mobileDropdown) return;
     updateNavDropdown(__activeRegion);
     applyRegionCameraLock(viewer, __activeRegion);
-    const scheduleSceneModeRegionRefocus = (delayMs = 180) => {
-        if (__regionSceneModeRefocusTimer) {
-            clearTimeout(__regionSceneModeRefocusTimer);
-            __regionSceneModeRefocusTimer = 0;
-        }
-        const seq = ++__regionSceneModeRefocusSeq;
-        __regionSceneModeRefocusTimer = window.setTimeout(() => {
-            __regionSceneModeRefocusTimer = 0;
-            requestAnimationFrame(() => {
-                if (seq !== __regionSceneModeRefocusSeq) return;
-                viewer = window.__warzoneViewer || viewer;
-                if (viewer?.scene?.mode === Cesium.SceneMode.MORPHING) {
-                    scheduleSceneModeRegionRefocus(180);
-                    return;
-                }
-                refocusActiveRegionForSceneMode();
-            });
-        }, Math.max(0, Math.min(Number(delayMs) || 0, 1000)));
-    };
-    const refocusActiveRegionForSceneMode = () => {
-        viewer = window.__warzoneViewer || viewer;
-        if (viewer?.scene?.mode === Cesium.SceneMode.MORPHING) {
-            scheduleSceneModeRegionRefocus(180);
-            return;
-        }
-        if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
-            scheduleRegionButtonHintRefresh(viewer, 900);
-            return;
-        }
-        clearPendingRegionHintRefresh();
-        setRegionHintState(false, viewer);
-        flyToRegion(viewer, __activeRegion, {
-            duration: Math.max(0.7, Math.min(numberVar("--warzone-scene-refocus-duration", 1.05), 2.4)),
-            showLoader: false,
-            prime2D: true,
-            source: "scene-mode",
-        });
-    };
     const openRegionSelector = () => {
         viewer = window.__warzoneViewer || viewer;
         showRegionModal(viewer, false, {
@@ -1391,26 +1296,6 @@ export function initRegionNav(viewer) {
         lensDropdownMobile.addEventListener("change", () => {
             setActiveLens(lensDropdownMobile.value);
             flyToRegion(window.__warzoneViewer || viewer, __activeRegion);
-        });
-    }
-    viewer?.scene?.morphComplete?.addEventListener?.(() => {
-        applyRegionCameraLock(viewer, __activeRegion);
-        if (Number(viewer.__warzoneSceneModeRefocusManagedUntil || 0) > Date.now()) {
-            scheduleSceneModeRegionRefocus(220);
-            return;
-        }
-        if (!__hasUserSelectedRegion || !__activeRegion || __activeRegion.id === "global") {
-            scheduleRegionButtonHintRefresh(viewer, 900);
-            return;
-        }
-        clearPendingRegionHintRefresh();
-        setRegionHintState(false, viewer);
-        flyToRegion(viewer, __activeRegion);
-    });
-    if (!__regionNavUiBound) {
-        __regionNavUiBound = true;
-        document.addEventListener("wz:scene-mode-refocus-requested", () => {
-            scheduleSceneModeRegionRefocus(120);
         });
     }
     if (!__regionAssetFocusSyncBound) {

@@ -282,9 +282,9 @@ export const api = {
         return { data: json.items || [], error: null };
     },
 
-    async getGnssInterferenceCells() {
+    async getGnssInterferenceCells({ signal } = {}) {
         try {
-            const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`);
+            const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`, { signal });
             const json = await readJsonResponse(res, "GNSS Jamming fetch");
             return {
                 data: json.cells || [],
@@ -299,6 +299,7 @@ export const api = {
                 },
             };
         } catch (error) {
+            if (signal?.aborted) return { data: [], error, meta: null };
             __warnedGnssUnavailable = true;
             return {
                 data: [],
@@ -552,20 +553,22 @@ export const api = {
         return getAirspaceStatusesFromSupabase();
     },
 
-    async getAircraftTracks() {
+    async getAircraftTracks({ signal } = {}) {
         if (!API_BASE) {
             const cutoff = new Date(Date.now() - AIRCRAFT_HISTORY_WINDOW_MS).toISOString();
-            const { data, error } = await supabase
+            let query = supabase
                 .from("tracks")
                 .select("*")
                 .eq("track_type", "aircraft")
                 .eq("category", "military")
                 .gte("updated_at", cutoff)
                 .order("updated_at", { ascending: false }).limit(AIRCRAFT_HISTORY_LIMIT);
+            if (signal) query = query.abortSignal(signal);
+            const { data, error } = await query;
             return { data: data || [], error };
         }
         try {
-            const res = await fetch(`${API_BASE}/events/aircraft`);
+            const res = await fetch(`${API_BASE}/events/aircraft`, { signal });
             if (!res.ok) {
                 return { data: [], error: new Error("Aircraft fetch failed") };
             }

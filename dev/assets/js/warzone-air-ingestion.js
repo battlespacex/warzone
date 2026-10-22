@@ -137,6 +137,7 @@ const COAST_GUARD_CASA_PATROL_PATTERNS = [
 ];
 let __pollTimer = null;
 let __pollingActive = false;
+let __pollGeneration = 0;
 let __isFetching = false;
 let __fetchInFlightSince = 0;
 let __activeFetchController = null;
@@ -562,6 +563,7 @@ function cleanupStaleTracks() {
 }
 async function fetchAirplanesLiveRecords(signal) {
     const response = await fetchWithTimeout(getAirplanesLiveFeedUrl(), { signal });
+    if (signal?.aborted) return [];
     if (!response.ok) {
         const error = new Error(`aircraft feed request failed (${response.status})`);
         error.httpStatus = Number(response.headers.get("X-Warzone-Upstream-Status") || response.status || 0);
@@ -588,6 +590,7 @@ async function refreshPublicAirTracks(options = {}) {
         __activeFetchController = fetchController;
         try {
             const records = await fetchAirplanesLiveRecords(fetchController.signal);
+            if (fetchController.signal.aborted || __activeFetchController !== fetchController) return;
             __failureCount = 0;
             __nextRetryAt = 0;
             __lastFailureHttpStatus = 0;
@@ -652,7 +655,7 @@ async function refreshPublicAirTracks(options = {}) {
             }
             cleanupStaleTracks();
         } catch (error) {
-            if (String(error?.name || "") !== "AbortError") {
+            if (!fetchController.signal.aborted && __activeFetchController === fetchController && String(error?.name || "") !== "AbortError") {
                 __failureCount += 1;
                 const exponentialDelay = Math.min(
                     FAILURE_BACKOFF_MAX_MS,
@@ -673,13 +676,12 @@ async function refreshPublicAirTracks(options = {}) {
         } finally {
             if (__activeFetchController === fetchController) {
                 __activeFetchController = null;
+                __isFetching = false;
+                __fetchInFlightSince = 0;
+                __inFlightPromise = null;
             }
-            __isFetching = false;
-            __fetchInFlightSince = 0;
         }
-    })().finally(() => {
-        __inFlightPromise = null;
-    });
+    })();
     return __inFlightPromise;
 }
 async function logAircraftTrack(track) { }
@@ -690,18 +692,20 @@ export async function refreshPublicAirTracksNow(options = {}) {
 }
 function schedulePublicAirPoll(delayMs = POLL_INTERVAL_MS) {
     if (!__pollingActive || __pollTimer) return;
+    const generation = __pollGeneration;
     const delay = Math.max(0, Number(delayMs || 0));
     __pollTimer = window.setTimeout(async () => {
         __pollTimer = null;
-        if (!__pollingActive) return;
+        if (!__pollingActive || generation !== __pollGeneration) return;
         await refreshPublicAirTracks();
-        if (!__pollingActive) return;
+        if (!__pollingActive || generation !== __pollGeneration) return;
         schedulePublicAirPoll(Math.max(POLL_INTERVAL_MS, __nextRetryAt - Date.now()));
     }, delay);
 }
 export function startPublicAirIngestion() {
     if (!isPublicAirFallbackEnabled()) return;
     if (__pollingActive) return;
+    ++__pollGeneration;
     __pollingActive = true;
     restoreCachedPublicAirTracks();
     if (__nextRetryAt > Date.now()) {
@@ -736,6 +740,7 @@ export function startPublicAirIngestion() {
     }
 }
 export function stopPublicAirIngestion() {
+    ++__pollGeneration;
     __pollingActive = false;
     if (__pollTimer) {
         window.clearTimeout(__pollTimer);
@@ -745,6 +750,7 @@ export function stopPublicAirIngestion() {
         __activeFetchController?.abort?.();
     } catch { }
     __activeFetchController = null;
+    __inFlightPromise = null;
     __isFetching = false;
     __fetchInFlightSince = 0;
     setFeedStatus("paused");

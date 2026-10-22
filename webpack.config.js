@@ -86,7 +86,7 @@ module.exports = (env, argv) => {
     const watchRootPattern = ROOT_DIR.replace(/\\/g, "/").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const watchIgnored = new RegExp(
         `^(?!${watchRootPattern}/)|` +
-        String.raw`(?:[\\/]assets[\\/](?:images[\\/]models|cesium|three|pdfjs)(?:[\\/]|$))|` +
+        String.raw`(?:[\\/]assets[\\/](?:images[\\/]models|cesium|pdfjs)(?:[\\/]|$))|` +
         String.raw`(?:[\\/](?:node_modules|production|dist|build|\.git|\.generated|\.cache|\.dropbox(?:\.cache)?|\.dropbox\.attr|__pycache__)(?:[\\/]|$))|(?:\.(?:glb|gltf|bin|wasm|mp4|webm|mp3|wav|ogg|pdf|zip|log|tmp)$)`,
         "i"
     );
@@ -286,7 +286,7 @@ module.exports = (env, argv) => {
 
             new MiniCssExtractPlugin({
                 filename: (pathData) => {
-                    const name = pathData.chunk?.name || "entry";
+                    const name = pathData.chunk?.name || "[id]";
 
                     if (!isDev) return "assets/css/style.[contenthash:8].css";
 
@@ -298,11 +298,6 @@ module.exports = (env, argv) => {
 
             ...(!isDev ? [new CopyWebpackPlugin({
                 patterns: [
-                    {
-                        from: path.resolve(ROOT_DIR, "node_modules/three/examples/jsm/libs/draco/gltf"),
-                        to: path.resolve(PROD_DIR, "assets/three/draco"),
-                        noErrorOnMissing: false,
-                    },
                     {
                         from: path.resolve(ROOT_DIR, "node_modules/cesium/Build/Cesium"),
                         to: path.resolve(PROD_DIR, "assets/cesium"),
@@ -541,7 +536,6 @@ module.exports = (env, argv) => {
 
                     static: [
                         { directory: path.join(ROOT_DIR, "node_modules/cesium/Build/Cesium"), publicPath: "/assets/cesium", watch: false },
-                        { directory: path.join(ROOT_DIR, "node_modules/three/examples/jsm/libs/draco/gltf"), publicPath: "/assets/three/draco", watch: false },
                         { directory: path.join(ROOT_DIR, "node_modules/pdfjs-dist/build"), publicPath: "/assets/pdfjs", watch: false },
                         { directory: path.join(ROOT_DIR, "node_modules/pdfjs-dist/web/images"), publicPath: "/assets/pdfjs/images", watch: false },
                         {

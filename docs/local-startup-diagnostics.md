@@ -66,7 +66,7 @@ binary extensions are excluded as appropriate. Replacing a GLB/video now require
 a deliberate refresh; ordinary source/HMR watching remains active.
 
 PDF worker .js URL compatibility is retained by an explicit route to the installed
-.mjs file. Cesium and Draco static URLs no longer depend on an old production copy.
+.mjs file. Cesium static URLs no longer depend on an old production copy.
 
 These choices follow Webpack's cache, watch and build-performance guidance:
 https://webpack.js.org/configuration/cache/
@@ -75,29 +75,16 @@ https://webpack.js.org/guides/build-performance/
 
 ## Browser initialization changes
 
-The normal region-confirmation path starts the selected map manager directly.
-With the default Tactical preference it creates MapLibre and waits for an actual
-render with operational layers installed. It does not construct a Cesium Viewer
-or wait for optional API, imagery, terrain or GLB data before entry completes.
-The explicit empty-Cesium diagnostic path and saved Satellite preference remain.
+The normal region-confirmation path initializes one persistent Cesium Satellite
+viewer, applies the selected region camera, and waits for its first usable frame.
+The alternative MapLibre renderer and its saved engine preference were removed
+in Phase 2. Optional feeds and tools do not gate that first usable frame.
 
-A memoized ensureSatelliteViewer factory creates one persistent Cesium viewer on
-Satellite selection. The same viewer is reused on subsequent switches. Tactical
-updates, model rendering and rotation pause while Satellite is initializing;
-failed switches resume Tactical and stop a partial viewer's render loop.
-
-Aircraft/naval ingestion, snapshots, widget updates and orbital data can operate
-before the viewer exists. Viewer-specific listeners and tools attach once when
-it arrives. No new feed polling pipeline or subscription was added. Existing
-singleton polling and queue guards remain. UI/region bindings and post-entry
-actions gained guards to avoid duplication during delayed attachment.
-
-The existing Tactical GLB renderer, exact/fallback model mappings, live movement,
-formation controls, 2D/3D view controls and camera focus/unlock remain. Tactical
-altitude and rotation use the active map API/render lifecycle. Optional base data
-loads when requested, retaining authentication gating. Capture and AOI clicks
-load their existing Satellite tools on demand. GLBs are requested only for focus
-or enabled formations, never by entry prewarming.
+Aircraft, naval, orbital, overlay, camera, and scheduler paths use the same
+Cesium viewer. Their existing singleton polling and queue guards remain.
+The dedicated 2D control and alternative renderer GLB layer were removed;
+Cesium's aircraft and naval GLB paths remain. Capture and AOI tools still
+attach to the Cesium viewer after operational data initialization.
 
 Important limit: Cesium math/types remain statically imported by shared tracker,
 region and focus utilities. The Cesium library can still be downloaded/evaluated

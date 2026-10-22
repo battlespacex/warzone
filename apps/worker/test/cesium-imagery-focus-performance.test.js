@@ -14,7 +14,7 @@ test("focus transitions adapt refinement pressure without resizing the framebuff
   );
 
   assert.match(globe, /const focusSceneSettled = isFocusedAssetMode && focusRefinement\?\.focusSettled === true/);
-  assert.match(globe, /if \(tileLoadBusy && !is2DMode && !focusSceneSettled\)/);
+  assert.match(globe, /if \(tileLoadBusy && !focusSceneSettled\)/);
   assert.match(globe, /if \(focusSceneSettled\) \{[\s\S]*?nextSse = Math\.min\(nextSse, cameraHeight <= closeSharpHeight/);
   assert.match(globe, /if \(isFocusedAssetMode && !focusSceneSettled\)/);
   assert.doesNotMatch(performanceMode, /viewer\.resolutionScale\s*=/);
@@ -31,7 +31,7 @@ test("focus transitions adapt refinement pressure without resizing the framebuff
   assert.match(css, /--warzone-globe-tile-cache-moving:\s*420;/);
   assert.match(css, /--warzone-globe-tile-cache-loading:\s*420;/);
   assert.match(css, /--warzone-globe-max-screen-space-error:\s*1\.65;/);
-  assert.match(css, /--warzone-globe-moving-screen-space-error:\s*2\.65;/);
+  assert.match(css, /--warzone-globe-moving-screen-space-error:\s*2\.15;/);
   assert.match(css, /--warzone-max-zoom-screen-space-error:\s*0\.55;/);
   assert.match(css, /--warzone-globe-loading-descendant-limit:\s*24;/);
   assert.match(css, /--warzone-globe-loading-descendant-limit-busy:\s*10;/);
@@ -75,6 +75,43 @@ test("development-safe Cesium diagnostics expose throttled camera and imagery ev
   assert.match(globe, /highestRequestedLevel/);
   assert.match(globe, /provider\.requestImage = function[\s\S]*?return result/);
   assert.doesNotMatch(globe.match(/function installCesiumPerformanceDiagnostics[\s\S]*?\n\}/)?.[0] || "", /requestAnimationFrame/);
+});
+
+test("duplicate startup visibility sync reuses the pending basemap provider", async () => {
+  const globe = await readSource("../../../dev/assets/js/warzone-globe.js");
+  const start = globe.indexOf("function setEntryMapImageryVisible");
+  const end = globe.indexOf("function applyEntrySceneLayerSwitches", start);
+  let providerCreates = 0;
+  let resolveProvider;
+  const providerResult = new Promise((resolve) => { resolveProvider = resolve; });
+  const viewer = {
+    imageryLayers: { removeAll() {} },
+    scene: { requestRender() {} },
+    __warzoneEntryMapImageryVisible: true,
+    __warzoneImageryGeneration: 0,
+    __warzoneActiveBasemapProvider: "",
+    __warzoneBasemapLayers: [],
+  };
+  const context = vm.createContext({
+    Promise,
+    console: { info() {}, warn() {} },
+    getConfiguredBasemapProvider: () => "esri",
+    addArcGisLayers: async () => { providerCreates += 1; return providerResult; },
+    removeSelfHostedBasemap() {},
+    setSelfHostedCreditsVisible() {},
+    initSelfHostedBasemap() {},
+    initGoogleBasemap: async () => true,
+    updateMapCredits() {},
+  });
+  const setVisible = vm.runInContext(`${globe.slice(start, end)}; setEntryMapImageryVisible`, context);
+  const first = setVisible(viewer, true);
+  const second = setVisible(viewer, true);
+  assert.equal(first, second);
+  assert.equal(providerCreates, 1);
+  assert.equal(viewer.__warzoneImageryGeneration, 1);
+  resolveProvider({ baseLayer: {} });
+  assert.equal(await first, true);
+  assert.equal(viewer.__warzoneImageryPendingProvider, "");
 });
 
 const loadPolicy = async () => import(`data:text/javascript,${encodeURIComponent(await readSource("../../../dev/assets/js/warzone-imagery-refinement.js"))}`);
@@ -173,13 +210,13 @@ test("actual transition and unlock retain existing moving/loading policies and a
   const { viewer, context, apply } = await qualityHarness();
   viewer.__warzoneFocusRefinementState.focusSettled = false;
   apply();
-  assert.equal(viewer.scene.globe.maximumScreenSpaceError, 2.65);
+  assert.equal(viewer.scene.globe.maximumScreenSpaceError, 2.4);
   assert.equal(viewer.resolutionScale, 1);
   assert.equal(viewer.scene.msaaSamples, 1);
   context.window.__warzoneFocusDiagnostics.state = "inactive";
   apply();
   assert.equal(viewer.__warzonePerformanceState.isFocusedAssetMode, false);
-  assert.equal(viewer.scene.globe.maximumScreenSpaceError, 2.65);
+  assert.equal(viewer.scene.globe.maximumScreenSpaceError, 2.4);
   viewer.__warzoneCameraMoving = false;
   viewer.__warzoneTileLoadBusy = false;
   viewer.__warzoneTileLoadQueueSize = 0;

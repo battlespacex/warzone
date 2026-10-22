@@ -96,6 +96,6 @@ test("region, lens and layer refresh paths still feed the hotspot layer", async 
   const essential = await readFile(new URL("../../../dev/assets/js/essential.js", import.meta.url), "utf8");
   assert.match(essential, /onRegionChange\(\(\) => \{[\s\S]*syncHotspotLayerEvents/);
   assert.match(essential, /applyHotspotFilters\(events, \{ respectRegion: true \}\)/);
-  assert.match(essential, /if \(id === "hotspots" \|\| id === "\*"\)/);
+  assert.match(essential, /if \(layerChanged\("hotspots"\)\)/);
   assert.match(essential, /scheduleHotspotLayerRefresh\(20\)/);
 });

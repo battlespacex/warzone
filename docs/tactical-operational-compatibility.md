@@ -1,5 +1,8 @@
 # StratOps Tactical operational compatibility correction
 
+Historical implementation note: the alternative MapLibre renderer discussed
+below was removed in Phase 2. Cesium remains the sole operational globe.
+
 Source inspection and implementation: 2026-10-17. No build, tests, application launch, deployment, browser measurement, or visual acceptance test was performed. Syntax-only parsing does not validate WebGL or application behavior. The five screenshots referenced in the request were not present in its text attachment.
 
 Static checks completed: `node --check` passed for all 12 modified JavaScript/configuration files. Targeted `git diff --check` passed. Build result: not run, as requested. These checks do not prove runtime compatibility or performance.

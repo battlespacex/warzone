@@ -1,5 +1,6 @@
 // File Path: /assets/js/warzone-aoi-lens.js
 import * as Cesium from "cesium";
+import { setDataSourceActive } from "./warzone-data-source-lifecycle.js";
 import { getAllLiveTrackSnapshots } from "./warzone-live-airforce.js";
 import { getAllNavalSnapshots } from "./warzone-live-naval.js";
 import { isEventVisible, isLayerEnabled, setLayer } from "./warzone-layers.js";
@@ -26,6 +27,9 @@ const vertexHandleImageCache = new Map();
 
 const state = {
     viewer: null,
+    enabled: false,
+    scanGeneration: 0,
+    restoreTimer: 0,
     dataSource: null,
     active: false,
     drawing: false,
@@ -52,15 +56,12 @@ export function initWarzoneAoiLens(viewer) {
     if (!viewer?.scene?.canvas || state.viewer === viewer) return window.__warzoneAoiLens;
     state.viewer = viewer;
     state.dataSource = new Cesium.CustomDataSource(AOI_SOURCE_NAME);
-    viewer.dataSources.add(state.dataSource);
+    state.dataSource.show = false;
     ensurePanel();
     hidePanel();
     bindToolbarButtons();
     setButtonState(false);
     syncToolbarAvailability();
-    bindCanvasDrawing();
-    bindFocusDismiss();
-    bindModalVisibility();
     window.__warzoneAoiLens = {
         activate,
         clear: clearAoi,
@@ -68,6 +69,7 @@ export function initWarzoneAoiLens(viewer) {
         setEnabled,
         scanCurrent: () => state.polygon.length ? renderSummary(state.polygon) : null,
     };
+    setEnabled(isLayerEnabled("aoi"));
     return window.__warzoneAoiLens;
 }
 
@@ -99,6 +101,21 @@ function bindCanvasDrawing() {
     window.addEventListener("keydown", onKeyDown, true);
 }
 
+function unbindCanvasDrawing() {
+    const canvas = state.viewer?.scene?.canvas;
+    if (!canvas?.__wzAoiBound) return;
+    try {
+        if (state.pointerId !== null) canvas.releasePointerCapture?.(state.pointerId);
+    } catch { }
+    canvas.removeEventListener("pointerdown", onPointerDown, true);
+    canvas.removeEventListener("pointermove", onPointerMove, true);
+    canvas.removeEventListener("pointerup", onPointerUp, true);
+    canvas.removeEventListener("pointercancel", onPointerCancel, true);
+    canvas.removeEventListener("click", onCanvasClick, true);
+    window.removeEventListener("keydown", onKeyDown, true);
+    canvas.__wzAoiBound = false;
+}
+
 function activate() {
     if (!isLayerEnabled("aoi")) {
         setLayer("aoi", true);
@@ -109,7 +126,15 @@ function activate() {
 
 function activateEnabledAoi() {
     if (!state.viewer) return;
+    state.enabled = true;
+    state.scanGeneration += 1;
+    const aboutModal = document.getElementById?.("wz-about-modal");
+    state.hiddenForModal = Boolean(aboutModal && !aboutModal.hidden);
+    bindCanvasDrawing();
+    bindFocusDismiss();
+    bindModalVisibility();
     showPanel();
+    applyDataSourceVisibility();
     state.active = true;
     state.drawing = false;
     state.editing = false;
@@ -127,6 +152,7 @@ function activateEnabledAoi() {
 }
 
 function clearAoi({ keepPanel = true } = {}) {
+    state.scanGeneration += 1;
     state.active = false;
     state.drawing = false;
     state.editing = false;
@@ -160,13 +186,17 @@ function close() {
 }
 
 function closeEnabledAoi() {
+    state.enabled = false;
+    unbindCanvasDrawing();
+    unbindAoiVisibility();
+    state.panelObserver?.disconnect();
     clearAoi({ keepPanel: false });
     hidePanel();
 }
 
 function setEnabled(enabled) {
     if (enabled) {
-        activateEnabledAoi();
+        if (!state.enabled) activateEnabledAoi();
         return;
     }
     closeEnabledAoi();
@@ -311,36 +341,51 @@ function onKeyDown(event) {
 }
 
 function bindFocusDismiss() {
-    if (document.body?.__wzAoiFocusDismissBound) return;
-    document.body.__wzAoiFocusDismissBound = true;
-    document.addEventListener("wz:aircraft-track-selected", (event) => {
-        const mode = String(event?.detail?.mode || "");
-        if (mode === "focus") {
-            close();
-        }
-    });
+    if (state.focusDismissBound) return;
+    state.focusDismissBound = true;
+    document.addEventListener("wz:aircraft-track-selected", handleAoiFocusDismiss);
 }
 
 function bindModalVisibility() {
-    if (document.body?.__wzAoiModalVisibilityBound) return;
-    document.body.__wzAoiModalVisibilityBound = true;
-    document.addEventListener("wz:ui-modal-visibility", (event) => {
-        const modalId = String(event?.detail?.modalId || "");
-        if (modalId !== "wz-about-modal") return;
-        state.hiddenForModal = Boolean(event?.detail?.isOpen);
-        applyDataSourceVisibility();
-        if (!state.hiddenForModal) {
-            window.setTimeout(restorePanelVisibilityIfNeeded, 120);
-        }
-    });
-    document.addEventListener("fullscreenchange", () => {
-        window.setTimeout(restorePanelVisibilityIfNeeded, 120);
-    }, true);
+    if (state.visibilityBound) return;
+    state.visibilityBound = true;
+    document.addEventListener("wz:ui-modal-visibility", handleAoiModalVisibility);
+    document.addEventListener("fullscreenchange", scheduleAoiPanelRestore, true);
+}
+
+function handleAoiFocusDismiss(event) {
+    if (String(event?.detail?.mode || "") === "focus") close();
+}
+
+function handleAoiModalVisibility(event) {
+    if (String(event?.detail?.modalId || "") !== "wz-about-modal") return;
+    state.hiddenForModal = Boolean(event?.detail?.isOpen);
+    applyDataSourceVisibility();
+    if (!state.hiddenForModal) scheduleAoiPanelRestore();
+}
+
+function scheduleAoiPanelRestore() {
+    window.clearTimeout(state.restoreTimer);
+    state.restoreTimer = window.setTimeout(() => {
+        state.restoreTimer = 0;
+        if (state.enabled) restorePanelVisibilityIfNeeded();
+    }, 120);
+}
+
+function unbindAoiVisibility() {
+    document.removeEventListener("wz:aircraft-track-selected", handleAoiFocusDismiss);
+    document.removeEventListener("wz:ui-modal-visibility", handleAoiModalVisibility);
+    document.removeEventListener("fullscreenchange", scheduleAoiPanelRestore, true);
+    state.focusDismissBound = false;
+    state.visibilityBound = false;
+    window.clearTimeout(state.restoreTimer);
+    state.restoreTimer = 0;
 }
 
 function applyDataSourceVisibility() {
     if (!state.dataSource) return;
-    state.dataSource.show = !state.hiddenForModal;
+    setDataSourceActive(state.viewer, state.dataSource, state.enabled);
+    state.dataSource.show = state.enabled && !state.hiddenForModal;
     state.viewer?.scene?.requestRender?.();
 }
 
@@ -530,20 +575,23 @@ function polygonToCartesian(polygon = []) {
 }
 
 async function renderSummary(polygon) {
+    const generation = ++state.scanGeneration;
     showPanel();
     setPanelBody(`<div class="wz-aoi-status wz-aoi-status--scan">Scanning current StratOps layers...</div>`);
-    const summary = await buildSummary(polygon);
+    const summary = await buildSummary(polygon, generation);
+    if (generation !== state.scanGeneration) return null;
     setPanelBody(renderSummaryHtml(summary));
     return summary;
 }
 
-async function buildSummary(polygon) {
+async function buildSummary(polygon, generation = state.scanGeneration) {
     const center = getPolygonCenter(polygon);
     const areaKm2 = getApproxPolygonAreaKm2(polygon);
     const events = getCurrentEvents().filter((event) => pointInsidePolygon(getEventPoint(event), polygon));
     const aircraft = getAircraftMatches(polygon);
     const naval = getNavalMatches(polygon);
-    const bases = await getBaseMatches(polygon);
+    const bases = await getBaseMatches(polygon, generation);
+    if (generation !== state.scanGeneration) return null;
     const routes = countCrossingRoutes([...aircraft.all, ...naval.all], polygon);
     const severity = getHighestSeverity(events);
     return {
@@ -592,10 +640,11 @@ function getNavalMatches(polygon) {
     return { all, matches, inside: matches.filter((vessel) => pointInsidePolygon(getTrackPoint(vessel), polygon)) };
 }
 
-async function getBaseMatches(polygon) {
+async function getBaseMatches(polygon, generation = state.scanGeneration) {
     try {
         if (!basesModulePromise) basesModulePromise = import("./warzone-military-bases-data.js");
         const module = await basesModulePromise;
+        if (generation !== state.scanGeneration) return [];
         return safeArray(module.MILITARY_BASES)
             .filter((base) => pointInsidePolygon(getBasePoint(base), polygon))
             .slice(0, 24);
@@ -910,8 +959,8 @@ function ensurePanel() {
         state.panelObserver = new MutationObserver(() => {
             restorePanelVisibilityIfNeeded();
         });
-        state.panelObserver.observe(panel, { attributes: true, attributeFilter: ["class"] });
     }
+    if (state.enabled) state.panelObserver?.observe(panel, { attributes: true, attributeFilter: ["class"] });
     return panel;
 }
 

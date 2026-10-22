@@ -41,7 +41,15 @@ test("tracker toggles do not synchronously resync unrelated globe events", () =>
 test("aircraft and naval focus start the camera before route, model, and contour work", () => {
     const airFocus = functionSource(aircraft, "focusLiveTrack", "export function clearLiveTrackSelection");
     assert.ok(airFocus.indexOf("startFocusFlight();") < airFocus.indexOf("syncFocusedRouteEntity(trackKey);"));
-    assert.ok(airFocus.indexOf("startFocusFlight();") < airFocus.indexOf("refreshLiveTrackVisualMode(trackKey);"));
+    assert.match(airFocus, /complete: \(\) => finishFocusFlight\(true\)/);
+    assert.match(airFocus, /cancel: \(\) => finishFocusFlight\(false\)/);
+    const finishFocusFlight = airFocus.slice(
+        airFocus.indexOf("const finishFocusFlight ="),
+        airFocus.indexOf("viewer.camera.flyToBoundingSphere")
+    );
+    assert.match(finishFocusFlight, /if \(!prepareFocusedModel/);
+    assert.match(finishFocusFlight, /refreshLiveTrackVisualMode\(trackKey\)/);
+    assert.doesNotMatch(airFocus.slice(airFocus.indexOf("setLiveTrackHardLockInternal(true);")), /refreshLiveTrackVisualMode\(trackKey\)/);
     const navalFocus = functionSource(naval, "focusNavalVessel", "function escapeNavalHtml");
     assert.ok(navalFocus.indexOf("viewer.camera.flyToBoundingSphere") < navalFocus.indexOf("applyNavalVisual(entry.entity, entry.data);"));
     assert.ok(navalFocus.indexOf("viewer.camera.flyToBoundingSphere") < navalFocus.indexOf("syncNavalContourCenter(trackKey);"));

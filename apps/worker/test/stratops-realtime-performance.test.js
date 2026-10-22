@@ -164,6 +164,7 @@ test("unchanged trail point preserves cached curved geometry and live head path"
         __liveTrackTrails: new Map([["A", entries]]), trimTrailEntries: (value) => value.slice(),
         getCartesianDistanceMeters: () => 1, isImplausibleTrackMotion: () => false,
         getTrackTrailMinDistanceMeters: () => 6, __liveTrackReplayState: {},
+        isTrackCurrentlyFocused: () => true,
         updateTrackTrailPositionsCache: () => { throw new Error("unnecessary geometry rebuild"); },
     });
     commit("A", {}, { x: 2 });
@@ -227,6 +228,7 @@ test("a focused aircraft survives temporary gaps, resumes on the same entity, an
     const context = {
         Date: { now: () => now }, window: { location: { hostname: "localhost" } }, console: { info: (...args) => logs.push(args) },
         __liveTrackRegistry: registry, LIVE_TRACK_STALE_TIMEOUT_MS: 90_000,
+        __liveTrackIdentityIndex: { deactivate: () => {} },
         LIVE_TRACK_FOCUSED_STALE_GRACE_START_MS: 120_000, LIVE_TRACK_FOCUSED_STALE_TIMEOUT_MS: 180_000,
         removeLiveTrackRenderState: () => { removals++; }, isFocusedTrackKey: () => true,
         clearLiveTrackSelection: () => { unlocks++; },
@@ -275,6 +277,7 @@ test("a non-focused aircraft keeps the existing 90 second stale timeout", async 
     const entry = { active: true, liveness_state: "live", last_received_at: now };
     const markStale = vm.runInNewContext(`${fn(aircraft, "markStaleTracksAsEnded")}; markStaleTracksAsEnded`, {
         Date: { now: () => now }, __liveTrackRegistry: new Map([["B", entry]]),
+        __liveTrackIdentityIndex: { deactivate: () => {} },
         LIVE_TRACK_STALE_TIMEOUT_MS: 90_000, LIVE_TRACK_FOCUSED_STALE_TIMEOUT_MS: 180_000,
         isFocusedTrackKey: () => false, removeLiveTrackRenderState: () => { removals++; },
     });

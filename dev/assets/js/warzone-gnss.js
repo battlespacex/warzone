@@ -1,4 +1,5 @@
 import * as Cesium from "cesium";
+import { setDataSourceActive } from "./warzone-data-source-lifecycle.js";
 
 const GNSS_LAYER_NAME = "warzone-gnss-interference";
 const GNSS_TOOLTIP_ID = "wz-gnss-tooltip";
@@ -118,11 +119,6 @@ function ensureDataSource(viewer) {
     if (__gnssState.dataSource) return __gnssState.dataSource;
     const dataSource = new Cesium.CustomDataSource(GNSS_LAYER_NAME);
     __gnssState.dataSource = dataSource;
-    try {
-        viewer.dataSources.add(dataSource);
-    } catch {
-        // noop
-    }
     return dataSource;
 }
 
@@ -626,6 +622,7 @@ function bindPicking(viewer) {
 
 function upsertEntities(viewer, cells = [], tokens) {
     const dataSource = ensureDataSource(viewer);
+    setDataSourceActive(viewer, dataSource, layerEnabled);
     const entities = dataSource.entities;
     entities.removeAll();
     __gnssState.cellsById.clear();
@@ -742,6 +739,7 @@ export function clearGnssInterferenceLayer(viewer) {
     if (__gnssState.dataSource) {
         __gnssState.dataSource.entities.removeAll();
         __gnssState.dataSource.show = false;
+        setDataSourceActive(viewer, __gnssState.dataSource, false);
     }
     __gnssState.signature = "";
     __gnssState.visible = false;

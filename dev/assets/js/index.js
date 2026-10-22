@@ -15,6 +15,7 @@ import {
     getActiveRegion,
     getStartupRegionJourneyCamera,
     initRegionSelector,
+    playStartupRegionJourney,
 } from "./warzone-region-selector.js";
 import { initStratopsBilling } from "./warzone-billing.js";
 import { isLayerEnabled } from "./warzone-layers.js";
@@ -437,6 +438,8 @@ async function ensureSatelliteViewer(diagnostics = { enabled: false }) {
         if (!diagnostics.enabled) {
             initRegionSelector(viewer, { applyLandingCamera: false });
             attachWarzoneAppViewer(viewer);
+            const selectedRegion = getActiveRegion();
+            if (selectedRegion) await playStartupRegionJourney(viewer, selectedRegion, { instant: true });
         }
         await waitForFirstUsableMap(viewer);
         if (!diagnostics.enabled && window.__warzoneOperationalDataPromise) {
@@ -474,28 +477,6 @@ function initializeSatelliteTools(viewer) {
     return pending;
 }
 
-let deferredToolLaunch = null;
-function bindDeferredSatelliteTools() {
-    document.addEventListener("click", (event) => {
-        const button = event.target.closest?.("#dock-capture-shot, #wz-mobile-capture-shot, #dock-aoi-lens, #wz-mobile-aoi-lens, #wz-aoi-quick-open");
-        if (!button || button.__wzCaptureBound || button.__wzAoiBound) return;
-        const capture = /capture-shot/.test(button.id);
-        if (capture ? !isStratOpsFeatureEnabled("system.captureShot") : !isStratOpsFeatureEnabled("system.aoiLens")) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (deferredToolLaunch) return;
-        deferredToolLaunch = import("./warzone-map-bridge.js")
-            .then((module) => module.requestSatelliteMap(capture ? "Capture view" : "AOI view"))
-            .then(async (ready) => {
-                if (!ready || !window.__warzoneViewer) throw new Error("Satellite view unavailable");
-                await initializeSatelliteTools(window.__warzoneViewer);
-                // The existing tool handler now owns the original action.
-                button.click();
-            }).catch((error) => console.warn("Map tool could not open:", error))
-            .finally(() => { deferredToolLaunch = null; });
-    }, true);
-}
-
 async function initializeOperationalDataAfterMap(viewer) {
     markStartupPerformance("stratops-operational-data-start");
     try {
@@ -504,7 +485,6 @@ async function initializeOperationalDataAfterMap(viewer) {
             import("./warzone-realtime.js"),
         ]);
         uiModule.bindWarzoneUi();
-        bindDeferredSatelliteTools();
         await initWarzoneApp();
         if (window.__warzoneViewer) {
             attachWarzoneAppViewer(window.__warzoneViewer);
@@ -594,38 +574,9 @@ if (isPosterGeneratorPage) {
                     await wait(OPERATIONAL_LOADER_FADE_IN_MS);
                 })();
 
-                const selectedRegion = getActiveRegion();
                 const emptyGlobeDiagnostics = getEmptyGlobeDiagnosticOptions();
-                let viewer = null;
                 window.__warzonePrepareDashboardIntro?.();
-                if (emptyGlobeDiagnostics.enabled) {
-                    // Preserve the explicitly requested Cesium diagnostic flow.
-                    viewer = await ensureSatelliteViewer(emptyGlobeDiagnostics);
-                    await waitForFirstUsableMap(viewer);
-                } else {
-                    markStartupPerformance("stratops-tactical-import-start");
-                    const { initWarzoneMapManager } = await import("./warzone-map-manager.js");
-                    markStartupPerformance("stratops-tactical-import-end");
-                    const mapManager = initWarzoneMapManager(null, {
-                        autoStart: false,
-                        ensureSatellite: () => ensureSatelliteViewer(),
-                        camera: { center: [selectedRegion?.camera?.lon ?? 44, selectedRegion?.camera?.lat ?? 28],
-                            zoom: 2.5, bearing: 0, pitch: 0 },
-                    });
-                    if (!mapManager || !await mapManager.start()) throw new Error("Selected map renderer failed to initialize");
-                    if (!window.__warzoneViewer) {
-                        initRegionSelector(null, { operational: true });
-                        mapManager.region(selectedRegion);
-                    }
-                    viewer = window.__warzoneViewer || null;
-                    markStartupPerformance("stratops-first-frame");
-                    markStartupPerformance("stratops-camera-enabled");
-                    markStartupPerformance("stratops-first-usable-map");
-                    measureStartupPerformance("stratops-region-to-first-usable-map",
-                        "stratops-region-confirmed", "stratops-first-usable-map");
-                    measureStartupPerformance("stratops-navigation-to-first-usable-map",
-                        "stratops-navigation-start", "stratops-first-usable-map");
-                }
+                const viewer = await ensureSatelliteViewer(emptyGlobeDiagnostics);
                 firstUsableMapReached = true;
                 window.__wzKeepSiteLoaderVisible = false;
                 window.__wzKeepSiteLoaderVisibleUntil = 0;

@@ -1,11 +1,8 @@
 import * as Cesium from "cesium";
-import { isTacticalMapActive } from "./warzone-map-bridge.js";
 
 // Shared focus lifecycle and lightweight frame scheduler for focusable map assets.
 
 export function resetWarzoneCameraReference(viewer = null, options = {}) {
-    // Tactical uses this lifecycle too, but never mutates the dormant Cesium camera.
-    if (isTacticalMapActive()) return false;
     const targetViewer = viewer || (typeof window !== "undefined" ? window.__warzoneViewer : null);
     const camera = targetViewer?.camera;
     if (!targetViewer || !camera) return false;
@@ -136,7 +133,6 @@ function createAssetFocusController() {
     };
     const tick = () => {
         state.raf = 0;
-        if (isTacticalMapActive()) return;
         if (state.state !== FOCUS_STATES.ACTIVE || document.hidden === true) return;
         const timestamp = nowMs();
         state.frameCount += 1;
@@ -165,14 +161,12 @@ function createAssetFocusController() {
         }
     };
     const requestFrame = () => {
-        if (isTacticalMapActive()) return;
         if (state.raf || state.state !== FOCUS_STATES.ACTIVE || document.hidden === true) return;
         state.raf = requestAnimationFrame(tick);
     };
     const controller = {
         FOCUS_STATES,
         canEnterFocus(options = {}) {
-            if (isTacticalMapActive()) return true;
             if (state.state === FOCUS_STATES.INACTIVE) return true;
             return (
                 state.state === FOCUS_STATES.ACTIVE &&

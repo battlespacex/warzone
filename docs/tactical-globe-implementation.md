@@ -1,6 +1,9 @@
 # Tactical globe implementation and startup investigation
 
-Startup sequencing below records the earlier implementation. Current Tactical-first
+Historical implementation note: Phase 2 removed the MapLibre globe. Cesium is
+the sole operational renderer; the details below are archival.
+
+Startup sequencing below records the earlier implementation. Current Cesium-only
 boot and development settings are documented in [local-startup-diagnostics.md](local-startup-diagnostics.md).
 
 Source-only change record, 2026-10-16. No build, test, dependency installation,

@@ -260,33 +260,28 @@ function openPremiumAccessFlow() {
 function getEffectiveLayerState(id) {
     if (!getLayerDef(id)) return false;
     if (!canUseLayer(id)) return false;
-    if (isTrackerIsolationActive() && id === "terrain") return true;
-    if (!isLayerAllowedByTrackerIsolation(id)) return false;
     return __layerState[id] !== false;
 }
 
-function isTrackerIsolationActive() {
-    const aircraftActive = __layerState.aircraft === true && canUseLayer("aircraft");
-    const navalActive = __layerState.naval === true && canUseLayer("naval");
-    return aircraftActive || navalActive;
+function applyTrackerPriority(state) {
+    if (!state.aircraft && !state.naval) return state;
+    LAYER_DEFS.forEach(({ id }) => {
+        if (id === "aircraft" || id === "naval" || TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)) return;
+        if (id === "airspace" && state.aircraft) return;
+        state[id] = false;
+    });
+    state.terrain = true;
+    return state;
 }
 
-function isLayerAllowedByTrackerIsolation(id) {
-    if (!isTrackerIsolationActive()) return true;
-    if (TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)) {
-        return true;
+function notifyStateTransition(previousState, id) {
+    const changedIds = LAYER_DEFS.map(({ id: layerId }) => layerId)
+        .filter((layerId) => previousState[layerId] !== __layerState[layerId]);
+    if (changedIds.length > 1) {
+        notifyChange("*", __layerState[id], changedIds);
+    } else {
+        notifyChange(id, __layerState[id]);
     }
-    if (id === "aircraft" || id === "airspace") return __layerState.aircraft === true && canUseLayer("aircraft");
-    if (id === "naval") return __layerState.naval === true && canUseLayer("naval");
-    return false;
-}
-
-function notifyLayerOrTrackerIsolationChange(id, value) {
-    if (id === "aircraft" || id === "naval") {
-        notifyChange("*", value);
-        return;
-    }
-    notifyChange(id, value);
 }
 
 function loadState() {
@@ -420,10 +415,13 @@ function countWarnableEnabledLayers(state = __layerState) {
 }
 
 function buildSingleToggleState(id, enabled) {
-    return {
+    const state = {
         ...__layerState,
         [id]: !!enabled,
     };
+    return enabled && (id === "aircraft" || id === "naval")
+        ? applyTrackerPriority(state)
+        : state;
 }
 
 function buildAllEnabledState() {
@@ -432,7 +430,9 @@ function buildAllEnabledState() {
         if (!canUseLayer(layer.id)) return;
         nextState[layer.id] = true;
     });
-    return nextState;
+    return (!__layerState.aircraft && nextState.aircraft || !__layerState.naval && nextState.naval)
+        ? applyTrackerPriority(nextState)
+        : nextState;
 }
 
 function shouldWarnForLayerTransition(nextState) {
@@ -520,9 +520,14 @@ export function setLayer(id, enabled) {
         return false;
     }
 
+    const previousState = { ...__layerState };
+    if (previousState[id] === !!enabled) return previousState[id];
     __layerState[id] = !!enabled;
+    if (enabled && (id === "aircraft" || id === "naval") && !previousState[id]) {
+        applyTrackerPriority(__layerState);
+    }
     saveState();
-    notifyLayerOrTrackerIsolationChange(id, __layerState[id]);
+    notifyStateTransition(previousState, id);
     return __layerState[id];
 }
 
@@ -535,9 +540,13 @@ export function toggleLayer(id) {
         return false;
     }
 
+    const previousState = { ...__layerState };
     __layerState[id] = !__layerState[id];
+    if (__layerState[id] && (id === "aircraft" || id === "naval")) {
+        applyTrackerPriority(__layerState);
+    }
     saveState();
-    notifyLayerOrTrackerIsolationChange(id, __layerState[id]);
+    notifyStateTransition(previousState, id);
     return __layerState[id];
 }
 
@@ -710,7 +719,7 @@ export function onLayerChange(cb) {
     __callbacks.push(cb);
 }
 
-function notifyChange(id, val) {
+function notifyChange(id, val, changedIds = null) {
     if (id === "*") {
         LAYER_DEFS.filter((l) => l.uiOnly).forEach((l) => {
             syncUiOnlyLayerToWidget(l.id, getEffectiveLayerState(l.id));
@@ -735,7 +744,7 @@ function notifyChange(id, val) {
 
     __callbacks.forEach((cb) => {
         try {
-            cb(id, id === "*" ? val : getEffectiveLayerState(id), { ...__layerState });
+            cb(id, id === "*" ? val : getEffectiveLayerState(id), { ...__layerState }, changedIds);
         } catch {
             // ignore callback errors
         }
@@ -796,10 +805,14 @@ function updateLayerSummary(container) {
 }
 
 function setAllLayers(enabled, container) {
+    const previousState = { ...__layerState };
     PANEL_LAYER_DEFS.forEach((l) => {
         if (!canUseLayer(l.id)) return;
         __layerState[l.id] = !!enabled;
     });
+    if (enabled && ((!previousState.aircraft && __layerState.aircraft) || (!previousState.naval && __layerState.naval))) {
+        applyTrackerPriority(__layerState);
+    }
 
     saveState();
     syncAllLayerItemStates(container);
@@ -831,10 +844,14 @@ function syncAllSectionToggleStates(container) {
 }
 
 function setSectionLayers(sectionId, enabled, container) {
+    const previousState = { ...__layerState };
     getSectionLayerIds(sectionId).forEach((id) => {
         if (!canUseLayer(id)) return;
         __layerState[id] = !!enabled;
     });
+    if (enabled && ((!previousState.aircraft && __layerState.aircraft) || (!previousState.naval && __layerState.naval))) {
+        applyTrackerPriority(__layerState);
+    }
     saveState();
     syncAllLayerItemStates(container);
     notifyChange("*", !!enabled);

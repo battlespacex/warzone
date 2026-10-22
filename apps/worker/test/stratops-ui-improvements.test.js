@@ -31,7 +31,10 @@ test("entry handoff releases an interactive first map before operational data an
   assert.doesNotMatch(index, /viewer\.__warzone\?\.startStartupRotation\?\.\(\)/);
   assert.match(index, /screenSpaceCameraController[\s\S]*?enableInputs = true[\s\S]*?stratops-first-usable-map/);
   assert.match(index, /window\.__warzoneOperationalDataPromise = operationalDataPromise/);
-  assert.match(index, /Promise\.allSettled\(\[[\s\S]*?dashboardRevealPromise,[\s\S]*?operationalDataPromise/);
+  const handoffSettled = index.match(/void Promise\.allSettled\(\[[\s\S]*?\]\)\.then/);
+  assert.ok(handoffSettled, "entry handoff settlement must be present");
+  assert.match(handoffSettled[0], /entryFadePromise,[\s\S]*?dashboardRevealPromise/);
+  assert.doesNotMatch(handoffSettled[0], /operationalDataPromise/);
   assert.match(index, /async function fadeOperationalEntryIntoApp\(\)[\s\S]*?SiteLoader\?\.fadeIntoApp\?\.\(\)[\s\S]*?__warzoneReleaseStartupBackground/);
   assert.match(index, /document\.body\.classList\.add\("is-entry-exiting"\)/);
   assert.match(boot, /OPERATIONAL_LOADER_REVEAL_MS = 1000/);
@@ -91,17 +94,37 @@ test("decorative startup video fades in from black after deferred first-frame re
   assert.match(css, /\.wz-startup-background__video\.is-video-ready \{\s*opacity: 1/);
 });
 
-test("real satellite focus reuses scene-mode switching and waits for 3D before camera focus", async () => {
+test("real satellite focus uses the permanent 3D viewer and the selected record", async () => {
   const source = await readSource("../../../dev/assets/js/warzone-mil-sats.js");
 
-  assert.match(source, /async function ensure3DModeBeforeSatelliteFocus\(viewer\)/);
-  assert.match(source, /setSceneMode\("3d", \{ source: "satellite-focus" \}\)/);
-  assert.match(source, /morphComplete\?\.addEventListener\?\.\(finish\)/);
-  assert.match(source, /state\.focusPendingId = selectedId;[\s\S]*?ensure3DModeBeforeSatelliteFocus\(viewer\)[\s\S]*?commitSatelliteSelection\(selectedId, options\)/);
-  assert.match(source, /focusController\.canEnterFocus\([\s\S]*?ensure3DModeBeforeSatelliteFocus\(viewer\)/);
-  assert.match(source, /selectSatellite\(primaryRecord\.id\)/);
+  assert.match(source, /viewer\.scene\?\.mode !== Cesium\.SceneMode\.SCENE3D\) return false;[\s\S]*?commitSatelliteSelection\(selectedId, options\)/);
+  assert.match(source, /focusController\.canEnterFocus\([\s\S]*?commitSatelliteSelection\(selectedId, options\)/);
+  assert.match(source, /selectSatellite\(record\.id\)/);
   assert.match(source, /selectSatellite\(entity\.__wzOrbitalId\)/);
-  assert.doesNotMatch(source, /\.morphTo3D\(/);
+  assert.doesNotMatch(source, /morphComplete\?\.addEventListener|\.morphTo3D\(|\.morphTo2D\(/);
+});
+
+test("operational startup uses Cesium without an alternative globe or 2D toggle", async () => {
+  const index = await readSource("../../../dev/assets/js/index.js");
+  const globe = await readSource("../../../dev/assets/js/warzone-globe.js");
+  const header = await readSource("../../../dev/partials/header.html");
+  const dependencies = await readSource("../../../package.json");
+
+  assert.match(index, /const viewer = await ensureSatelliteViewer\(emptyGlobeDiagnostics\)/);
+  assert.doesNotMatch(index, /warzone-map-manager|warzone-map-bridge/);
+  assert.match(globe, /sceneMode:\s*Cesium\.SceneMode\.SCENE3D/);
+  assert.match(globe, /scene3DOnly:\s*true/);
+  assert.match(globe, /sceneModePicker:\s*false/);
+  const modeConsumers = await Promise.all([
+    "warzone-globe.js", "warzone-region-selector.js", "warzone-hotspots.js",
+    "warzone-boot.js", "warzone-military-bases.js", "warzone-formation-tuner.js",
+    "essential.js", "report-capture.js",
+  ].map((file) => readSource(`../../../dev/assets/js/${file}`)));
+  for (const source of modeConsumers) {
+    assert.doesNotMatch(source, /SCENE2D|MORPHING|morphTo[23]D|morphStart|morphComplete|setSceneMode|wz:scene-mode-|warzone-map-bridge/);
+  }
+  assert.doesNotMatch(header, /wz-toggle-2d|wz-toggle-3d/);
+  assert.doesNotMatch(dependencies, /"maplibre-gl"/);
 });
 
 test("orbital satellite focus stays independent from monitoring-region boundaries", async () => {
@@ -143,8 +166,9 @@ test("aircraft hard lock keeps its reticle centered and couples camera motion to
 
   assert.doesNotMatch(source, /setLiveTrackHardLockInternal\(true\);\s*bindFocusGuideTracking\(\);/);
   assert.match(source, /focusedTrackAdvanced[\s\S]*?syncFocusedTrackCamera\(\{ motionFrame: true \}\)/);
-  assert.match(source, /const forceMotionFrameSync = options\?\.motionFrame === true/);
-  assert.match(source, /const forceCameraSync = forceLifecycleSync \|\| forceVisualRefresh \|\| forceMotionFrameSync/);
+  assert.match(source, /Position interpolation runs every frame; only camera follow is capped/);
+  assert.match(source, /const forceCameraSync = forceLifecycleSync \|\| forceVisualRefresh/);
+  assert.doesNotMatch(source, /forceCameraSync\s*=\s*[^;]*motionFrame/);
   assert.match(source, /function getFocusVisualAnchorScreenPosition[\s\S]*?__liveTrackHardLockEnabled[\s\S]*?getViewerCenterScreenPosition\(viewer\)[\s\S]*?const trackScreenPosition/);
   assert.match(source, /--warzone-live-aircraft-focus-camera-sync-hz/);
   assert.match(source, /targetDelta >= positionEpsilonMeters/);
@@ -218,11 +242,11 @@ test("every dashboard entry applies the authoritative map-layer defaults before 
 
 test("poster generator stacks editor, preview, and export with normal mobile document scrolling", async () => {
   const html = await readSource("../../../dev/pages/poster.html");
-  const css = await readSource("../../../dev/assets/css/root.css");
+  const css = await readSource("../../../dev/assets/css/poster.css");
 
   assert.match(html, /class="poster-generator-document"/);
   assert.match(html, /class="controls"[\s\S]*?class="poster-editor"[\s\S]*?class="export-panel"[\s\S]*?class="preview-area"/);
-  assert.match(css, /\.poster-generator-page \.app-shell\s*\{[\s\S]*?grid-template-columns:\s*30vw 1fr/);
+  assert.match(css, /\.poster-generator-page \.app-shell\s*\{[\s\S]*?grid-template-columns:\s*25vw 1fr/);
   assert.match(css, /\.poster-generator-page \.controls\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow-y:\s*auto/);
   assert.match(css, /\.poster-generator-page \.export-panel\s*\{[\s\S]*?position:\s*sticky/);
   assert.match(css, /\.poster-generator-page \.preview-area\s*\{[\s\S]*?height:\s*100vh/);
