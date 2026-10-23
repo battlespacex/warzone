@@ -102,6 +102,8 @@ const DEFAULT_STRATOPS_FEATURES = {
     system: {
         intro: true,
         preEntryShowcase: true,
+        // true: show the mobile entry warning; false: allow the normal mobile site flow.
+        mobileWarning: false,
         authentication: true,
         billing: true,
         realtimeEvents: true,

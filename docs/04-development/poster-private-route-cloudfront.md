@@ -46,3 +46,14 @@ Deployment configuration:
 The shared `/assets/images/poster/` and `/assets/fonts/` files remain regular static assets. They do not expose the tool or the access token.
 
 The included Express static server also fails closed in production unless `POSTER_ACCESS_TOKEN` is configured and supplied as `?access=...`. Local development bypasses that check. This protects Express-hosted deployments only; it does not replace the CloudFront function for the stated S3/CloudFront production architecture.
+
+## Frontend deployment
+
+Use the repository deployment command so content-addressed CSS and JavaScript are uploaded before the HTML that references them:
+
+```powershell
+npm run deploy:frontend -- -Bucket <bucket-name> -DistributionId <distribution-id>
+npm run deploy:frontend -- -Bucket <bucket-name> -DistributionId <distribution-id> -Execute
+```
+
+The first command is an AWS dry run. Review it before adding `-Execute`. The script builds by default, validates both generated poster documents and their referenced assets, uploads HTML last with no-cache metadata, invalidates only the poster routes and their current CSS/JavaScript, waits for completion, and verifies the live responses. It deliberately does not use `aws s3 sync --delete`; deleting an older hashed asset while cached HTML still references it recreates the unstyled-page failure.

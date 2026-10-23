@@ -122,9 +122,29 @@ const PRESS_RELEASE_PRESET = Object.freeze({
     bottomBranding: "battlespacex",
     enableDescription: true,
     titleAlign: "center",
-    descriptionAlign: "center"
+    descriptionAlign: "center",
+    fitMode: "cover",
+    imageZoom: 100,
+    imageX: 0,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    darkOverlay: 15,
+    overlay: "none"
   })
 });
+
+const PRESS_RELEASE_BACKGROUND_CONTROL_IDS = Object.freeze([
+  "fitMode",
+  "imageZoom",
+  "imageX",
+  "imageY",
+  "brightness",
+  "contrast",
+  "saturation",
+  "darkOverlay",
+  "overlaySelect"
+]);
 
 let posterGeneratorInitialized = false;
 
@@ -214,7 +234,8 @@ export function initPosterGenerator() {
     clampTextBlock("title");
     clampTextBlock("description");
     clampTextBlock("credit");
-    updateImageAxisControls();
+    if (state.brandPreset === "pressrelease") fitPressReleaseBackgroundToTop();
+    else updateImageAxisControls();
     requestRender();
   }
 
@@ -441,6 +462,7 @@ function initializeFontOptions() {
     const bounds = getBackgroundPositionBounds();
     const xControl = $("imageX");
     const yControl = $("imageY");
+    const presetLocked = state.brandPreset === "pressrelease";
 
     state.imageX = Math.max(bounds.minX, Math.min(bounds.maxX, Number(nextX) || 0));
     state.imageY = Math.max(bounds.minY, Math.min(bounds.maxY, Number(nextY) || 0));
@@ -451,10 +473,12 @@ function initializeFontOptions() {
     yControl.max = String(bounds.maxY);
     xControl.value = String(state.imageX);
     yControl.value = String(state.imageY);
-    xControl.disabled = !bounds.allowX;
-    yControl.disabled = !bounds.allowY;
+    xControl.disabled = presetLocked || !bounds.allowX;
+    yControl.disabled = presetLocked || !bounds.allowY;
     xControl.closest("label")?.classList.toggle("control-disabled", !bounds.allowX);
     yControl.closest("label")?.classList.toggle("control-disabled", !bounds.allowY);
+    xControl.closest("label")?.classList.toggle("preset-control-disabled", presetLocked);
+    yControl.closest("label")?.classList.toggle("preset-control-disabled", presetLocked);
     updateOutputs();
     return bounds;
   }
@@ -1125,6 +1149,12 @@ function initializeFontOptions() {
   function autoFitBackground() {
     if (!images.background) return;
 
+    if (state.brandPreset === "pressrelease") {
+      fitPressReleaseBackgroundToTop();
+      requestRender();
+      return;
+    }
+
     // Cover the full poster using the image's natural aspect ratio.
     // One dimension fits exactly while the other overflows and remains movable.
     state.fitMode = "cover";
@@ -1140,6 +1170,18 @@ function initializeFontOptions() {
     updateImageAxisControls();
     updateOutputs();
     requestRender();
+  }
+
+  function fitPressReleaseBackgroundToTop() {
+    if (!images.background) return;
+    state.fitMode = "cover";
+    state.imageZoom = 100;
+    state.imageX = 0;
+    const bounds = getBackgroundPositionBounds();
+    state.imageY = bounds.maxY;
+    $("fitMode").value = "cover";
+    $("imageZoom").value = "100";
+    clampBackgroundPosition(0, bounds.maxY);
   }
 
   $("autoFitBackgroundBtn").addEventListener("click", autoFitBackground);
@@ -1198,6 +1240,12 @@ function initializeFontOptions() {
     input.disabled = disabled;
     label.classList.toggle("is-disabled", disabled);
     label.setAttribute("aria-disabled", String(disabled));
+    PRESS_RELEASE_BACKGROUND_CONTROL_IDS.forEach((id) => {
+      const control = $(id);
+      control.disabled = disabled;
+      control.closest("label")?.classList.toggle("preset-control-disabled", disabled);
+    });
+    updateImageAxisControls();
   }
 
   function syncTextBoxAlignmentButtons() {
@@ -1339,7 +1387,7 @@ function initializeFontOptions() {
     setHoverResizeEdge(null);
     requestRender();
 
-    if (!images.background) return;
+    if (!images.background || state.brandPreset === "pressrelease") return;
     const mode = updateImageAxisControls();
     if (!mode.allowX && !mode.allowY) return;
 
@@ -1447,7 +1495,8 @@ function initializeFontOptions() {
       syncControls();
       applyPosterSize(state.posterSize, false);
       images.background = state.backgroundDataUrl ? await loadImage(state.backgroundDataUrl) : null;
-      clampBackgroundPosition(normalized.imageX, normalized.imageY);
+      if (state.brandPreset === "pressrelease") fitPressReleaseBackgroundToTop();
+      else clampBackgroundPosition(normalized.imageX, normalized.imageY);
       brandAssetsReadyPromise = loadBrandAssets();
       await brandAssetsReadyPromise;
       requestRender();

@@ -384,6 +384,16 @@ body.poster-generator-page {
     cursor: not-allowed;
 }
 
+.poster-generator-page .preset-control-disabled {
+    cursor: not-allowed;
+    opacity: .45;
+}
+
+.poster-generator-page .preset-control-disabled input,
+.poster-generator-page .preset-control-disabled select {
+    cursor: not-allowed;
+}
+
 .poster-generator-page #creditPanel input[type="text"] {
     min-height: 3rem;
 }

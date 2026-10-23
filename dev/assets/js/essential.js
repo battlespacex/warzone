@@ -10858,7 +10858,7 @@ export function initStratopsIntro(options = {}) {
     }
 
     function openEntryIntroModal() {
-        if (isMobileStratopsViewport()) {
+        if (isStratOpsFeatureEnabled("system.mobileWarning", false) && isMobileStratopsViewport()) {
             mobileWarningShown = true;
             openMobileWarningModal();
             return;

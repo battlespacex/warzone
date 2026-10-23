@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "build": "webpack --mode production",
+    "deploy:frontend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-production.ps1",
     "test:api": "npm test --prefix apps/api",
     "test:worker": "npm test --prefix apps/worker",
     "serve": "node server.js"

@@ -19,16 +19,20 @@ test("Press Release preset uses the bundled background and required branding def
   assert.match(source, /state\.brandPreset === "pressrelease"[\s\S]*?alignTextBox\("title", "center"\)[\s\S]*?alignTextBox\("description", "center"\)/);
 });
 
-test("Press Release disables only background file selection while preserving saved customization", async () => {
+test("Press Release locks background controls and uses a top-aligned cover fit", async () => {
   const source = await readSource("dev/assets/js/poster-generator.js");
   const html = await readSource("dev/pages/poster.html");
   const css = await readSource("dev/assets/css/poster.css");
 
   assert.match(html, /id="backgroundInputLabel"[\s\S]*?id="backgroundInput"/);
   assert.match(source, /const disabled = state\.brandPreset === "pressrelease";[\s\S]*?input\.disabled = disabled/);
+  for (const id of ["fitMode", "imageZoom", "imageX", "imageY", "brightness", "contrast", "saturation", "darkOverlay", "overlaySelect"]) {
+    assert.match(source, new RegExp(`PRESS_RELEASE_BACKGROUND_CONTROL_IDS[\\s\\S]*?"${id}"`));
+  }
+  assert.match(source, /function fitPressReleaseBackgroundToTop\(\)[\s\S]*?state\.fitMode = "cover"[\s\S]*?state\.imageZoom = 100[\s\S]*?state\.imageX = 0[\s\S]*?state\.imageY = bounds\.maxY/);
+  assert.match(source, /if \(!images\.background \|\| state\.brandPreset === "pressrelease"\) return;/);
   assert.match(css, /\.file-button\.is-disabled\s*\{[\s\S]*?cursor:\s*not-allowed;[\s\S]*?opacity:/);
-  assert.match(source, /Object\.assign\(state, normalized\);[\s\S]*?images\.background = state\.backgroundDataUrl \? await loadImage\(state\.backgroundDataUrl\) : null/);
-  assert.doesNotMatch(source, /Object\.assign\(state, normalized\);[\s\S]{0,500}?Object\.assign\(state, PRESS_RELEASE_PRESET\.state\)/);
+  assert.match(css, /\.preset-control-disabled\s*\{[\s\S]*?cursor:\s*not-allowed;[\s\S]*?opacity:/);
 });
 
 test("title and description have independent safe-area text-box alignment controls", async () => {
