@@ -58,9 +58,8 @@ const __navalState = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NAVAL_LABEL_HEIGHT_MAX = 3500000;  // Show labels below this camera altitude
 const NAVAL_FOCUS_GUIDE_COLOR = "rgba(51, 217, 255, 0.75)";
-const NAVAL_MIN_ANIM_DISTANCE_METERS = 40;
+const NAVAL_MIN_ANIM_DISTANCE_METERS = 1;
 const NAVAL_MIN_ANIM_MS = 900;
-const NAVAL_MAX_ANIM_MS = 9000;
 const NAVAL_DEFAULT_ANIM_MS = 2600;
 const NAVAL_FOCUS_CAMERA_RANGE_METERS = 120000;
 const NAVAL_FOCUS_CAMERA_PITCH_DEG = -89;
@@ -684,17 +683,23 @@ function normalizeCountryName(value = "") {
 }
 function resolveNavalLastSeenAt(event = {}, metadata = {}) {
     const candidates = [
+        event.observed_at,
+        metadata.observed_at,
         event.last_seen_at,
-        event.updated_at,
         event.occurred_at,
         metadata.last_seen_at,
-        metadata.updated_at,
         metadata.occurred_at,
         metadata.timestamp,
         metadata.time,
+        event.updated_at,
+        metadata.updated_at,
     ];
     for (const candidate of candidates) {
-        const ms = Date.parse(candidate);
+        if (candidate === null || candidate === undefined || candidate === "") continue;
+        const numeric = Number(candidate);
+        const ms = Number.isFinite(numeric)
+            ? (numeric < 1e11 ? numeric * 1000 : numeric)
+            : Date.parse(candidate);
         if (Number.isFinite(ms) && ms > 0) {
             return ms;
         }
@@ -1932,6 +1937,11 @@ function getEntityPosition(entity) {
 }
 function animateVesselTo(entity, vessel) {
     if (!entity) return;
+    const previous = entity.__navalData;
+    // Visual/filter refreshes are not new telemetry and must not restart motion.
+    const sameTarget = previous && vessel.lon === previous.lon && vessel.lat === previous.lat &&
+        vessel.heading_deg === previous.heading_deg;
+    if (sameTarget && entity.__navalMotionState) return;
     const nextCartesian = Cesium.Cartesian3.fromDegrees(vessel.lon, vessel.lat, 0);
     const startCartesian = getEntityPosition(entity);
     const animationTaskKey = `naval:${String(entity.__navalKey || vessel.track_key || entity.id || "")}`;
@@ -1959,6 +1969,7 @@ function animateVesselTo(entity, vessel) {
         return;
     }
     const distanceMeters = Cesium.Cartesian3.distance(startCartesian, nextCartesian);
+    if (sameTarget && distanceMeters <= NAVAL_MIN_ANIM_DISTANCE_METERS) return;
     const cameraHeight = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
     const animHeightMax = getNavalLabelStyleConfig().animHeightMax;
     if (
@@ -1978,9 +1989,9 @@ function animateVesselTo(entity, vessel) {
             nextSeenAt > prevSeenAt
             ? nextSeenAt - prevSeenAt
             : NAVAL_DEFAULT_ANIM_MS;
-    const cadenceDuration = clamp(sourceGapMs * 0.9, NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
-    const distanceDuration = clamp(distanceMeters * 0.12, NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
-    const duration = clamp(Math.max(cadenceDuration, distanceDuration), NAVAL_MIN_ANIM_MS, NAVAL_MAX_ANIM_MS);
+    // AIS intervals can be much longer than ADS-B intervals. Compressing every
+    // accepted movement into nine seconds makes sparse vessel updates race.
+    const duration = Math.max(NAVAL_MIN_ANIM_MS, sourceGapMs * 0.9);
     const startTime = performance.now();
     const startCartographic = Cesium.Cartographic.fromCartesian(startCartesian);
     const startLon = Cesium.Math.toDegrees(startCartographic.longitude);
@@ -2007,7 +2018,8 @@ function animateVesselTo(entity, vessel) {
         const motion = entity.__navalMotionState;
         if (!motion) return false;
         const t = Math.min(1, (now - motion.startTime) / motion.duration);
-        const lon = motion.startLon + ((motion.nextLon - motion.startLon) * t);
+        const lonDelta = ((motion.nextLon - motion.startLon + 540) % 360) - 180;
+        const lon = ((motion.startLon + lonDelta * t + 540) % 360) - 180;
         const lat = motion.startLat + ((motion.nextLat - motion.startLat) * t);
         const heading = normalizeHeadingDegrees(motion.startHeading + (motion.headingDelta * t));
         entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
@@ -2034,6 +2046,12 @@ function animateVesselTo(entity, vessel) {
 // ─── Create vessel entity ─────────────────────────────────────────────────────
 function createVesselEntity(viewer, vessel) {
     const { track_key, lat, lon, heading_deg = 0, subcategory = "naval" } = vessel;
+    const existing = viewer.entities.getById(`naval-${track_key}`);
+    if (existing) {
+        existing.show = true;
+        updateVesselEntity(existing, vessel);
+        return existing;
+    }
     const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
 
     const entity = viewer.entities.add({
@@ -2041,6 +2059,7 @@ function createVesselEntity(viewer, vessel) {
         position: pos,
         label: buildNavalLabel(vessel, track_key),
     });
+    __navalState.createdCount += 1;
     applyNavalVisual(entity, vessel);
 
     entity.__navalKey = track_key;
@@ -2062,6 +2081,16 @@ function updateVesselEntity(entity, vessel) {
 }
 
 // ─── X-lines overlay (targeting reticle) ─────────────────────────────────────
+let __navalMapModeGeneration = 0;
+function beginNavalMapModeChange() {
+    const generation = ++__navalMapModeGeneration;
+    const key = __navalState.selectedKey;
+    const controller = getAssetFocusController();
+    const focusGeneration = controller.getGeneration();
+    return () => generation === __navalMapModeGeneration && __navalState.renderEnabled !== false
+        && key === __navalState.selectedKey && controller.isCurrent(focusGeneration)
+        && controller.isActiveAsset(key, "naval");
+}
 function ensureNavalOverlayRoot(viewer) {
     if (__navalState.overlayRoot?.isConnected) return __navalState.overlayRoot;
     const host = viewer?.container || document.body;
@@ -2104,16 +2133,18 @@ function ensureNavalOverlayRoot(viewer) {
         event.preventDefault();
         event.stopPropagation();
         const mapApi = window.__warzoneViewer?.__warzone;
+        const isCurrent = beginNavalMapModeChange();
         void Promise.resolve()
             .then(() => {
+                if (!isCurrent()) return;
                 mapApi?.exitCtrMode?.({ reason: "naval-focus-plain" });
                 mapApi?.setSatelliteVisible?.(true);
                 mapApi?.setGreyedSatelliteVisible?.(false);
                 mapApi?.setContourGridVisible?.(false);
                 return mapApi?.setContourLayerVisible?.(false);
             })
-            .then(() => mapApi?.disableFocusedTerrain?.())
-            .finally(() => syncNavalOverlayModeButtons());
+            .then(() => { if (isCurrent()) mapApi?.disableFocusedTerrain?.(); })
+            .finally(() => { if (isCurrent()) syncNavalOverlayModeButtons(); });
     });
 
     const btnContour = document.createElement("button");
@@ -2130,16 +2161,18 @@ function ensureNavalOverlayRoot(viewer) {
             return;
         }
         const mapApi = window.__warzoneViewer?.__warzone;
+        const isCurrent = beginNavalMapModeChange();
         setNavalFocusRangeMeters(getNavalCtrFocusedDistanceMeters(), { immediate: true });
         syncFocusedNavalCamera({ force: true });
         void Promise.resolve()
             .then(() => {
+                if (!isCurrent()) return;
                 mapApi?.enterCtrMode?.({ reason: "naval-focus-contour" });
                 mapApi?.setContourGridVisible?.(true);
                 mapApi?.disableFocusedTerrain?.();
                 return mapApi?.setContourLayerVisible?.(true);
             })
-            .finally(() => syncNavalOverlayModeButtons());
+            .finally(() => { if (isCurrent()) syncNavalOverlayModeButtons(); });
     });
 
     const unfocusButton = document.createElement("button");
@@ -2277,6 +2310,10 @@ function emitNavalFocusChanged() {
 
 function clearNavalSelection() {
     const previousKey = __navalState.selectedKey;
+    ++__navalMapModeGeneration;
+    const activeFocus = getAssetFocusController().getState();
+    const ownsMapModes = Boolean(previousKey) && (!activeFocus.assetType ||
+        (activeFocus.assetType === "naval" && activeFocus.assetId === previousKey));
     __navalState.selectedKey = null;
     hideNavalHoverLabel();
     __navalState.focusDragState = null;
@@ -2300,21 +2337,16 @@ function clearNavalSelection() {
     __navalState.overlayLastVisible = false;
     __navalState.overlayLastX = Number.NaN;
     __navalState.overlayLastY = Number.NaN;
-const mapApi = window.__warzoneViewer?.__warzone;
-
-mapApi?.clearContourFocusPosition?.();
-
-const contourActive =
-    mapApi?.isContourLayerVisible?.() === true ||
-    mapApi?.isContourGridVisible?.() === true;
-
-if (contourActive) {
-    void Promise.resolve(mapApi?.setContourLayerVisible?.(false));
-}
-
-if (mapApi?.isFocusedTerrainActive?.() === true) {
-    mapApi?.disableFocusedTerrain?.();
-}
+    const mapApi = window.__warzoneViewer?.__warzone;
+    if (ownsMapModes) {
+        // Grid visibility is independent of the contour terrain layer. Disable
+        // both before clearing the anchor, which can otherwise create a fallback grid.
+        void mapApi?.setContourLayerVisible?.(false);
+        mapApi?.setContourGridVisible?.(false);
+        mapApi?.clearContourFocusPosition?.();
+        mapApi?.exitCtrMode?.({ reason: "naval-clear" });
+        if (mapApi?.isFocusedTerrainActive?.() === true) mapApi.disableFocusedTerrain?.();
+    }
     syncNavalWidgetHighlight(null);
     const previousEntry = previousKey ? __navalState.vessels.get(previousKey) : null;
     if (previousEntry?.entity && previousEntry?.data) {
@@ -2661,6 +2693,9 @@ export function focusNavalVessel(trackKey, options = {}) {
         assetId: trackKey,
         mode: "track",
     })) return false;
+    const focusGeneration = focusController.getGeneration();
+    const isCurrentFocus = () => __navalState.renderEnabled !== false
+        && focusController.isCurrent(focusGeneration) && focusController.isActiveAsset(trackKey, "naval");
     setNavalFocusedZoomLock(true);
     __navalState.isCameraFlying = true;
     viewer.camera.cancelFlight?.();
@@ -2670,6 +2705,7 @@ export function focusNavalVessel(trackKey, options = {}) {
         __navalState.focusRangeMeters
     );
     const finishFocusFlight = () => {
+        if (!isCurrentFocus()) return;
         __navalState.isCameraFlying = false;
         __navalState.overlayLastVisible = false;
         syncFocusedNavalCamera({ force: true });
@@ -2682,9 +2718,11 @@ export function focusNavalVessel(trackKey, options = {}) {
         cancel: finishFocusFlight,
     });
     requestAnimationFrame(() => {
+        if (!isCurrentFocus()) return;
         if (String(__navalState.selectedKey || "") !== String(trackKey)) return;
         syncNavalContourCenter(trackKey);
         requestAnimationFrame(() => {
+            if (!isCurrentFocus()) return;
             if (String(__navalState.selectedKey || "") !== String(trackKey)) return;
             applyNavalVisual(entry.entity, entry.data);
             requestNavalRenderBatched();
@@ -2839,12 +2877,28 @@ function mergeNavalVesselData(existing = {}, incoming = {}) {
     merged.flag_country = normalizeCountryName(keepFirstText(incoming.flag_country, existing.flag_country));
     merged.country = normalizeCountryName(keepFirstText(incoming.country, existing.country));
     merged.operator = keepFirstText(incoming.operator, existing.operator);
-    merged.last_seen_at = Math.max(
-        Number(existing.last_seen_at || 0),
-        Number(incoming.last_seen_at || 0),
-        Date.now()
-    );
+    merged.last_seen_at = Number(incoming.last_seen_at || existing.last_seen_at || 0);
     return merged;
+}
+
+function isNavalPositionUpdateAccepted(existing, incoming) {
+    if (!isValidCoordinatePair(incoming.lat, incoming.lon)) return false;
+    if (!existing) return true;
+    if (existing.mmsi && incoming.mmsi && existing.mmsi !== incoming.mmsi) return false;
+    const elapsedMs = Number(incoming.last_seen_at) - Number(existing.last_seen_at);
+    if (!(elapsedMs > 0)) return false;
+    // Great-circle distance handles the date line and polar positions correctly.
+    const radians = Math.PI / 180;
+    const a = Math.sin((incoming.lat - existing.lat) * radians / 2) ** 2 +
+        Math.cos(existing.lat * radians) * Math.cos(incoming.lat * radians) *
+        Math.sin((incoming.lon - existing.lon) * radians / 2) ** 2;
+    const distance = 6371008.8 * 2 * Math.asin(Math.sqrt(Math.min(1, a)));
+    const speeds = [existing.speed_kts, incoming.speed_kts]
+        .filter(speed => Number.isFinite(speed) && speed >= 0 && speed < 200);
+    // A generous speed-dependent envelope permits fast vessels and GPS error;
+    // rejected samples leave the last accepted record and motion untouched.
+    const limitKts = Math.max(80, ...speeds.map(speed => speed * 2 + 20));
+    return distance <= 1000 + limitKts * 0.514444 * elapsedMs / 1000;
 }
 
 // ─── Widget row highlight ─────────────────────────────────────────────────────
@@ -3242,11 +3296,11 @@ export function upsertNavalVessel(event) {
     };
 
     if (!isValidCoordinatePair(vessel.lat, vessel.lon)) {
-        clearNavalVessel(trackKey);
         return;
     }
 
     const existing = __navalState.vessels.get(trackKey);
+    if (!isNavalPositionUpdateAccepted(existing?.data, vessel)) return existing?.entity || null;
     const nextVessel = existing?.data
         ? mergeNavalVesselData(existing.data, vessel)
         : vessel;
@@ -3275,7 +3329,6 @@ export function upsertNavalVessel(event) {
         } else {
             const entity = createVesselEntity(viewer, nextVessel);
             __navalState.vessels.set(trackKey, { entity, data: nextVessel });
-            __navalState.createdCount += 1;
         }
     }
 
@@ -3366,15 +3419,18 @@ function scheduleNavalRenderReconcile() {
     const viewer = window.__warzoneViewer;
     if (!viewer || !__navalState.renderEnabled) return false;
     const generation = __navalState.reconcileGeneration;
-    const entries = Array.from(__navalState.vessels.entries());
+    const keys = Array.from(__navalState.vessels.keys());
     let index = 0;
     const processChunk = () => {
+        if (generation !== __navalState.reconcileGeneration || !__navalState.renderEnabled ||
+            window.__warzoneViewer !== viewer) return;
         __navalState.reconcileFrame = 0;
-        if (generation !== __navalState.reconcileGeneration || !__navalState.renderEnabled) return;
         const startedAt = performance.now();
-        while (index < entries.length) {
-            const [trackKey, entry] = entries[index++];
+        while (index < keys.length) {
+            const trackKey = keys[index++];
+            const entry = __navalState.vessels.get(trackKey);
             if (!entry?.data) continue;
+            entry.entity = viewer.entities.getById(`naval-${trackKey}`) || null;
             const shouldShow = matchesNavalVisibilityFilter(trackKey, entry.data);
             if (!shouldShow) {
                 if (entry.entity) {
@@ -3388,12 +3444,11 @@ function scheduleNavalRenderReconcile() {
                 updateVesselEntity(entry.entity, entry.data);
             } else {
                 entry.entity = createVesselEntity(viewer, entry.data);
-                __navalState.createdCount += 1;
             }
             if (index % 32 === 0 && performance.now() - startedAt >= 6) break;
         }
         requestNavalRenderBatched();
-        if (index < entries.length) {
+        if (index < keys.length) {
             __navalState.reconcileFrame = requestAnimationFrame(processChunk);
         }
     };

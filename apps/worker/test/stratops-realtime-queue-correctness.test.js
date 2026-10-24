@@ -231,3 +231,15 @@ test("actual frontend DELETE plus stale update cannot recreate an aircraft or st
     assert.equal(h.entities.has("track-A"), false); assert.equal(h.animations.length, 0);
     assert.equal(h.queue.getStats().pendingVisualCandidates, 0);
 });
+
+test("duplicate source time during prediction preserves the existing aircraft motion and entity", () => {
+    const h = frontendHarness();
+    h.queue.enqueue(update("A", 2000)); h.drain();
+    const motion = { phase: "prediction", sourceTimestamp: 2000 };
+    h.entity.__liveTrackMotionState = motion;
+    const animationCount = h.animations.length;
+    h.queue.enqueue(update("A", 2000)); h.drain();
+    assert.equal(h.entity.__liveTrackMotionState, motion);
+    assert.equal(h.animations.length, animationCount);
+    assert.equal(h.entities.get("track-A"), h.entity);
+});

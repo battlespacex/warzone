@@ -11,26 +11,28 @@ function section(source, name, next) {
   return source.slice(source.indexOf(`function ${name}(`), source.indexOf(`function ${next}(`));
 }
 
-test("naval CTR uses a 25% smaller 11.25 km outer ring and ground-curved grid", () => {
-  const state = {};
+test("focused naval CTR uses configurable 1.5/3 km rings and a ground-curved grid", () => {
+  const state = { hasFocusPosition: true };
   class Cartesian3 { constructor(x, y, z) { Object.assign(this, { x, y, z }); } }
   class PolylineCollection { constructor() { this.lines = []; } add(line) { this.lines.push(line); } }
   const context = vm.createContext({
     Cesium: { Cartesian3, PolylineCollection, Material: { fromType: (_, options) => options }, Math: { toRadians: (value) => value * Math.PI / 180 } },
     getContourOverlayState: () => state, getContourFocusProfile: () => "naval",
-    boolVar: () => true, numberVar: (key, fallback) => ({ "--warzone-live-naval-contour-grid-radius": 11250, "--warzone-contour-grid-ring-width": 1.5 }[key] ?? fallback),
+    boolVar: () => true, numberVar: (key, fallback) => ({ "--warzone-naval-ctr-radar-inner-radius": 1500, "--warzone-naval-ctr-radar-outer-radius": 3000, "--warzone-naval-ctr-radar-grid-spacing": 500, "--warzone-contour-grid-ring-width": 1.5 }[key] ?? fallback),
     colorFromCssVar: () => ({ withAlpha: (alpha) => alpha }), cssVar: (_, fallback) => fallback,
     clamp01: (value) => value, lerp: (a, b, t) => a + (b - a) * t, smoothContourFade: (t) => t,
     chooseOperationalGridIntervalMeters: () => 5000, updateContourGridPrimitiveCenter() {}, raiseContourGridPrimitive() {},
     addContourGridRing(collection, radius, options) { collection.lines.push({ radius, ...options }); },
   });
+  vm.runInContext(section(globe, "getFocusedCtrRadarConfig", "addContourGridRing"), context);
   vm.runInContext(section(globe, "ensureContourGridPrimitive", "splitContourPolylineByRadius"), context);
   context.ensureContourGridPrimitive({ scene: { primitives: { add: (value) => value } } });
   const rings = state.gridPrimitive.lines.filter((line) => line.radius);
-  assert.deepEqual(rings.map((line) => line.radius), [3750, 7500, 11250]);
-  assert.ok(Math.abs(rings[2].width - 1.575) < 1e-10);
-  assert.ok(Math.abs(rings[0].width - 1.5 * 0.86 * 1.05) < 1e-10);
-  assert.ok(rings[2].getHeight(11250, 0) < -9);
+  assert.deepEqual(rings.map((line) => line.radius), [1500, 3000]);
+  assert.equal(rings[1].width, 1.5);
+  assert.equal(rings[0].width, 1.5);
+  assert.ok(rings[1].getHeight(3000, 0) < 0);
+  assert.match(css, /--warzone-naval-ctr-radar-outer-radius:\s*3000/);
   assert.match(css, /--warzone-live-naval-contour-grid-radius:\s*11250/);
   assert.match(css, /--warzone-contour-grid-radius:\s*13500/);
   assert.match(css, /--warzone-contour-grid-height-offset:\s*1/);

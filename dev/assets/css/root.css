@@ -1239,6 +1239,22 @@
     --warzone-contour-halo-width: 4.6;
     --warzone-contour-halo-alpha: 0.18;
 
+    /* Focus CTR radar only: radii/spacing in metres; line widths in pixels.
+       Shared style and Air defaults. Naval radius/spacing overrides below.
+       Optional per-tracker overrides use
+       --warzone-aircraft-ctr-radar-* or --warzone-naval-ctr-radar-*.
+       Scale multiplies radii and grid spacing, not line widths. */
+    --warzone-ctr-radar-inner-radius: 150;
+    --warzone-ctr-radar-outer-radius: 300;
+    --warzone-ctr-radar-ring-width: 1.5;
+    --warzone-ctr-radar-grid-width: 1;
+    --warzone-ctr-radar-grid-spacing: 50;
+    --warzone-ctr-radar-ring-count: 2;
+    --warzone-ctr-radar-scale: 1;
+    --warzone-naval-ctr-radar-inner-radius: 1500;
+    --warzone-naval-ctr-radar-outer-radius: 3000;
+    --warzone-naval-ctr-radar-grid-spacing: 500;
+
     --warzone-contour-grid-enabled: 1;
     --warzone-contour-grid-color: var(--color-magenta-glow);
     --warzone-contour-grid-alpha: 0.20;

@@ -2626,6 +2626,7 @@ function classifyLiveTrackTelemetryUpdate(entity, track = {}, sourceTimestamp = 
         return "stale";
     }
     if (registryEntry?.__realtimeRenderPending && track.__realtimeDataOnly !== true) return "accept";
+    if (lastSourceTimestamp > 0 && nextSourceTimestamp === lastSourceTimestamp) return "insignificant";
     const previous = __liveTrackLastPositions.get(trackKey) || registryEntry;
     if (!previous) return "accept";
     const lon = Number(track.lon);
@@ -3392,6 +3393,8 @@ export function syncLiveTrackRenderPopulation() {
         requestWarzoneRenderBatched();
     };
     const processEntry = ([trackKey, entry]) => {
+        entry = __liveTrackRegistry.get(trackKey);
+        if (!entry) return;
         const safeTrackKey = String(trackKey || "");
         if (!safeTrackKey) return;
         const shouldRender = shouldRenderLiveTrackDataState(safeTrackKey, entry, { focusedPosition });
@@ -3438,7 +3441,7 @@ export function syncLiveTrackRenderPopulation() {
         let index = 0;
         const processChunk = () => {
             frame = 0;
-            if (!__liveTrackRenderReconcileActive) return;
+            if (finished || !__liveTrackRenderReconcileActive || window.__warzoneViewer !== viewer) return;
             try {
                 if (!eventsSuspended) {
                     viewer.entities.suspendEvents();
@@ -4621,8 +4624,10 @@ function ensureLiveTrackOverlayRoot(viewer) {
         event.preventDefault();
         event.stopPropagation();
         const mapApi = window.__warzoneViewer?.__warzone;
+        const isCurrent = beginAircraftMapModeChange();
         void Promise.resolve()
             .then(() => {
+                if (!isCurrent()) return;
                 mapApi?.exitCtrMode?.({ reason: "aircraft-focus-plain" });
                 mapApi?.setSatelliteVisible?.(true);
                 mapApi?.setGreyedSatelliteVisible?.(false);
@@ -4630,6 +4635,7 @@ function ensureLiveTrackOverlayRoot(viewer) {
                 return mapApi?.setContourLayerVisible?.(false);
             })
             .finally(() => {
+                if (!isCurrent()) return;
                 disableAircraftFocusTerrain(window.__warzoneViewer);
                 syncFocusedTrackOverlayModeButtons();
                 refreshFocusedTrackModelAfterMapModeChange();
@@ -4646,16 +4652,19 @@ function ensureLiveTrackOverlayRoot(viewer) {
         event.preventDefault();
         event.stopPropagation();
         const mapApi = window.__warzoneViewer?.__warzone;
+        const isCurrent = beginAircraftMapModeChange();
         void Promise.resolve()
             .then(() => {
+                if (!isCurrent()) return;
                 mapApi?.exitCtrMode?.({ reason: "aircraft-focus-terrain" });
                 mapApi?.setSatelliteVisible?.(true);
                 mapApi?.setGreyedSatelliteVisible?.(false);
                 mapApi?.setContourGridVisible?.(false);
                 return mapApi?.setContourLayerVisible?.(false);
             })
-            .then(() => mapApi?.enableFocusedTerrain?.())
+            .then(() => { if (isCurrent()) return mapApi?.enableFocusedTerrain?.(); })
             .finally(() => {
+                if (!isCurrent()) return;
                 syncFocusedTrackOverlayModeButtons();
                 refreshFocusedTrackModelAfterMapModeChange();
             });
@@ -4800,12 +4809,22 @@ function syncFocusedTrackContourCenter(trackKey = "", options = {}) {
     });
     return true;
 }
+let __aircraftMapModeGeneration = 0;
+function beginAircraftMapModeChange() {
+    const generation = ++__aircraftMapModeGeneration;
+    const key = getFocusedTrackKey();
+    const controller = getAssetFocusController();
+    const focusGeneration = controller.getGeneration();
+    return () => generation === __aircraftMapModeGeneration && key === getFocusedTrackKey()
+        && controller.isCurrent(focusGeneration) && controller.isActiveAsset(key, "aircraft");
+}
 export async function enableFocusedLiveTrackContourMode(options = {}) {
     const trackKey = String(options.trackKey || getFocusedTrackKey() || "");
     const viewer = window.__warzoneViewer;
     const mapApi = viewer?.__warzone;
+    const isCurrent = beginAircraftMapModeChange();
     __liveTrackContourAnchorKey = "";
-    if (!mapApi || !syncFocusedTrackContourCenter(trackKey, { force: true })) {
+    if (!isCurrent() || trackKey !== getFocusedTrackKey() || !mapApi || !syncFocusedTrackContourCenter(trackKey, { force: true })) {
         syncFocusedTrackOverlayModeButtons();
         return false;
     }
@@ -4814,12 +4833,14 @@ export async function enableFocusedLiveTrackContourMode(options = {}) {
         mapApi.setContourGridVisible?.(true);
         disableAircraftFocusTerrain(viewer);
         await Promise.resolve(mapApi.setContourLayerVisible?.(true));
-        return mapApi.isCtrModeActive?.() === true
+        return isCurrent() && mapApi.isCtrModeActive?.() === true
             && mapApi.isContourGridVisible?.() === true
             && mapApi.isContourLayerVisible?.() === true;
     } finally {
-        syncFocusedTrackOverlayModeButtons();
-        refreshFocusedTrackModelAfterMapModeChange();
+        if (isCurrent()) {
+            syncFocusedTrackOverlayModeButtons();
+            refreshFocusedTrackModelAfterMapModeChange();
+        }
     }
 }
 function syncFocusedTrackContourMode(focused = false) {
@@ -4879,22 +4900,22 @@ function exitFocusedTrackMapModes() {
     const mapApi = viewer?.__warzone;
 
     if (!mapApi) return;
+    ++__aircraftMapModeGeneration;
+    const activeFocus = getAssetFocusController().getState();
+    if (activeFocus.assetType && activeFocus.assetType !== "aircraft") return;
 
     __liveTrackContourStateBeforeFocus = null;
     __liveTrackContourAnchorKey = "";
     __liveTrackContourAnchorLon = Number.NaN;
     __liveTrackContourAnchorLat = Number.NaN;
 
+    void mapApi.setContourLayerVisible?.(false);
+    mapApi.setContourGridVisible?.(false);
     mapApi.clearContourFocusPosition?.();
     mapApi.exitCtrMode?.({ reason: "aircraft-unfocus" });
-    mapApi.setContourGridVisible?.(false);
-
-    void Promise.resolve(mapApi.setContourLayerVisible?.(false))
-        .finally(() => {
-            mapApi.setSatelliteVisible?.(true);
-            mapApi.setGreyedSatelliteVisible?.(false);
-            syncFocusedTrackOverlayModeButtons();
-        });
+    mapApi.setSatelliteVisible?.(true);
+    mapApi.setGreyedSatelliteVisible?.(false);
+    syncFocusedTrackOverlayModeButtons();
 }
 
 function getViewerCenterScreenPosition(viewer = window.__warzoneViewer) {
@@ -7831,10 +7852,8 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
         return updateLiveTrackPredictionFrame(entity, motion, now);
     }
     const durationMs = Math.max(1, Number(motion.durationMs || 1));
-    const previousFrameAt = Number(motion.lastFrameAt ?? motion.startedAt ?? now);
-    const frameDeltaMs = clamp(now - previousFrameAt, 0, LIVE_TRACK_MAX_ANIM_FRAME_DELTA_MS);
     motion.lastFrameAt = now;
-    motion.elapsedMs = clamp(Number(motion.elapsedMs || 0) + frameDeltaMs, 0, durationMs);
+    motion.elapsedMs = clamp(now - Number(motion.startedAt ?? now), 0, durationMs);
     const t = motion.elapsedMs / durationMs;
     motion.currentCartesian = interpolateLiveTrackCartesian(
         motion,
@@ -8479,7 +8498,8 @@ function applyLiveTrackUpdate(track, options = {}) {
     }
     const hasPredictedVisualPosition = entity?.__liveTrackMotionState?.phase === "prediction" ||
         entity?.__liveTrackMotionState?.phase === "prediction_hold";
-    if (telemetryUpdate === "insignificant" && !hasPredictedVisualPosition) {
+    if (telemetryUpdate === "insignificant" && (!hasPredictedVisualPosition ||
+        sourceTimestamp === Number(entity?.__lastSourceTimestamp || 0))) {
         refreshLiveTrackLiveness(entity, track, sourceTimestamp);
         options.onTelemetryResult?.({ status: "insignificant", candidate: track, sourceTimestamp });
         return;
@@ -9120,6 +9140,9 @@ export function focusLiveTrack(trackKey, options = {}) {
         assetId: trackKey,
         mode: "track",
     })) return false;
+    const focusGeneration = focusController.getGeneration();
+    const isCurrentFocus = () => focusController.isCurrent(focusGeneration)
+        && focusController.isActiveAsset(trackKey, "aircraft") && isFocusedTrackKey(trackKey);
     const offset = new Cesium.HeadingPitchRange(
         Cesium.Math.toRadians(__liveTrackFocusHeadingDeg),
         Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
@@ -9129,11 +9152,12 @@ export function focusLiveTrack(trackKey, options = {}) {
         viewer.camera.cancelFlight?.();
         __liveTrackIsCameraFlying = true;
         const finishFocusFlight = (prepareFocusedModel = false) => {
+            if (!isCurrentFocus()) return;
             __liveTrackIsCameraFlying = false;
             syncFocusedTrackCamera({ visualRefresh: true });
             if (!prepareFocusedModel || !isFocusedTrackKey(trackKey)) return;
             requestAnimationFrame(() => {
-                if (!isFocusedTrackKey(trackKey) || __liveTrackUserCameraInteracting) return;
+                if (!isCurrentFocus() || __liveTrackUserCameraInteracting) return;
                 refreshLiveTrackVisualMode(trackKey);
             });
         };
@@ -9156,7 +9180,7 @@ export function focusLiveTrack(trackKey, options = {}) {
     );
     setLiveTrackHardLockInternal(true);
     requestAnimationFrame(() => {
-        if (!isFocusedTrackKey(trackKey)) return;
+        if (!isCurrentFocus()) return;
         syncFocusedRouteEntity(trackKey);
         viewer.__warzone?.setGreyedSatelliteVisible?.(false);
         viewer.__warzone?.setContourGridVisible?.(false);
@@ -9165,7 +9189,7 @@ export function focusLiveTrack(trackKey, options = {}) {
         disableAircraftFocusTerrain(viewer);
         syncFocusedTrackContourMode(true);
         requestAnimationFrame(() => {
-            if (!isFocusedTrackKey(trackKey)) return;
+            if (!isCurrentFocus()) return;
             refreshFocusedTrackIsolation();
         });
     });

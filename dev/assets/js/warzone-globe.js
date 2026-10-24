@@ -6925,9 +6925,13 @@ function updateContourGridPrimitiveCenter(viewer, position = null) {
     if (!primitive || !Number.isFinite(lon) || !Number.isFinite(lat)) return false;
     state.gridCenterLon = lon;
     state.gridCenterLat = lat;
+    const targetHeight = Number(position?.height ?? state.gridCenterHeight ?? state.centerHeight ?? 0);
+    state.gridCenterHeight = Number.isFinite(targetHeight) ? targetHeight : 0;
     const heightOffset = Math.max(0, numberVar("--warzone-contour-grid-height-offset", 1));
+    const radarHeight = state.hasFocusPosition && getContourFocusProfile(viewer) === "aircraft"
+        ? Math.max(0, state.gridCenterHeight) : 0;
     primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-        Cesium.Cartesian3.fromDegrees(lon, lat, heightOffset)
+        Cesium.Cartesian3.fromDegrees(lon, lat, radarHeight + heightOffset)
     );
     primitive.show = viewer.__contourGridLayerVisible === true;
     raiseContourGridPrimitive(viewer);
@@ -6938,6 +6942,24 @@ function chooseOperationalGridIntervalMeters(radius) {
     const target = Math.max(1000, Number(radius || 0) / 4);
     const candidates = [1000, 2000, 5000, 10000, 25000, 50000, 100000];
     return candidates.find((value) => value >= target) || candidates[candidates.length - 1];
+}
+function getFocusedCtrRadarConfig(viewer) {
+    const state = getContourOverlayState(viewer);
+    if (!state?.hasFocusPosition) return null;
+    const profile = getContourFocusProfile(viewer);
+    const value = (name, fallback) => numberVar(`--warzone-${profile}-ctr-radar-${name}`,
+        numberVar(`--warzone-ctr-radar-${name}`, fallback));
+    const scale = Math.max(0.05, Math.min(10, value("scale", 1)));
+    const outerRadius = Math.max(10, Math.min(80000, value("outer-radius", 300) * scale));
+    const innerRadius = Math.max(1, Math.min(outerRadius * 0.95, value("inner-radius", 150) * scale));
+    return {
+        profile, outerRadius, innerRadius,
+        ringWidth: Math.max(0.4, Math.min(5, value("ring-width", 1.5))),
+        gridWidth: Math.max(0.35, Math.min(2.4, value("grid-width", 1))),
+        // Bound geometry cost while keeping the requested spacing exact.
+        spacing: Math.max(outerRadius / 32, value("grid-spacing", 50) * scale),
+        ringCount: Math.max(2, Math.min(8, Math.round(value("ring-count", 2)))),
+    };
 }
 function addContourGridRing(collection, radiusMeters, options = {}) {
     if (!collection || !Number.isFinite(radiusMeters) || radiusMeters <= 0) return 0;
@@ -6966,6 +6988,10 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     if (!viewer?.scene?.primitives || boolVar("--warzone-contour-grid-enabled", true) !== true) return 0;
     const state = getContourOverlayState(viewer);
     if (!state) return 0;
+    const radar = getFocusedCtrRadarConfig(viewer);
+    const styleKey = JSON.stringify(radar);
+    if (state.gridPrimitive && state.gridStyleKey !== styleKey) destroyContourGridPrimitive(viewer);
+    state.gridStyleKey = styleKey;
     if (options.force === true) destroyContourGridPrimitive(viewer);
     if (state.gridPrimitive) {
         updateContourGridPrimitiveCenter(viewer, center);
@@ -6979,9 +7005,9 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     const ringColor = colorFromCssVar("--warzone-contour-grid-ring-color", cssVar(gridColorVar, "#18f4ff"), 1);
     const alpha = clamp01(numberVar(gridAlphaVar, 0.16));
     const majorAlpha = clamp01(numberVar(gridMajorAlphaVar, 0.24));
-    const width = Math.max(0.35, Math.min(2.4, numberVar(gridWidthVar, 0.62)));
+    const width = radar?.gridWidth ?? Math.max(0.35, Math.min(2.4, numberVar(gridWidthVar, 0.62)));
     const navalFocus = getContourFocusProfile(viewer) === "naval";
-    const ringWidth = Math.max(0.35, Math.min(5, numberVar("--warzone-contour-grid-ring-width", width * 1.4))) * (navalFocus ? 1.05 : 1);
+    const ringWidth = radar?.ringWidth ?? Math.max(0.35, Math.min(5, numberVar("--warzone-contour-grid-ring-width", width * 1.4))) * (navalFocus ? 1.05 : 1);
     const ringAlpha = clamp01(numberVar("--warzone-contour-grid-ring-alpha", Math.max(majorAlpha, 0.42)));
     const innerRingAlpha = clamp01(numberVar("--warzone-contour-grid-ring-inner-alpha", Math.max(alpha, 0.28)));
     const innerRingScale = Math.max(0.15, Math.min(0.95, numberVar("--warzone-contour-grid-ring-inner-scale", 0.58)));
@@ -6997,13 +7023,15 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     const getGroundHeight = (x, y) => -(
         ((x * x) / (2 * eastRadius)) + ((y * y) / (2 * northRadius))
     );
-    const radius = navalFocus
+    const radius = radar?.outerRadius ?? (navalFocus
         ? Math.max(10000, Math.min(15000, numberVar("--warzone-live-naval-contour-grid-radius", 15000)))
-        : Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000)));
-    const intervalMeters = chooseOperationalGridIntervalMeters(radius);
-    const rows = Math.max(4, Math.min(18, Math.round((radius * 2) / intervalMeters)));
+        : Math.max(5000, Math.min(80000, numberVar("--warzone-contour-grid-radius", 30000))));
+    const intervalMeters = radar?.spacing ?? chooseOperationalGridIntervalMeters(radius);
+    const rows = radar ? 2 * Math.floor(radius / intervalMeters)
+        : Math.max(4, Math.min(18, Math.round((radius * 2) / intervalMeters)));
     const cols = rows;
-    const fadeStart = Math.max(0, Math.min(radius - 500, numberVar("--warzone-contour-grid-fade-start", 24000)));
+    const fadeStart = radar ? radius * 0.8
+        : Math.max(0, Math.min(radius - 500, numberVar("--warzone-contour-grid-fade-start", 24000)));
     const segments = Math.max(6, Math.min(18, Math.round(numberVar("--warzone-contour-grid-fade-segments", 10))));
     const centerClearRadius = Math.max(0, Math.min(radius * 0.72, numberVar("--warzone-contour-grid-center-clear-radius", 0)));
     const collection = new Cesium.PolylineCollection();
@@ -7038,29 +7066,39 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
         }
     };
     for (let row = 0; row <= rows; row += 1) {
-        const y = lerp(-radius, radius, row / rows);
+        const y = radar ? (row - rows / 2) * intervalMeters : lerp(-radius, radius, row / rows);
         addSegmentedLine(y, true, row % majorEvery === 0);
     }
     for (let col = 0; col <= cols; col += 1) {
-        const x = lerp(-radius, radius, col / cols);
+        const x = radar ? (col - cols / 2) * intervalMeters : lerp(-radius, radius, col / cols);
         addSegmentedLine(x, false, col % majorEvery === 0);
     }
     if (boolVar("--warzone-contour-grid-ring-enabled", true) === true) {
-        if (navalFocus) addContourGridRing(collection, radius / 3, {
-            width: ringWidth * 0.86,
-            color: ringColor.withAlpha(innerRingAlpha),
-            getHeight: getGroundHeight,
-        });
-        addContourGridRing(collection, radius * (navalFocus ? 2 / 3 : innerRingScale), {
-            width: ringWidth * 0.86,
-            color: ringColor.withAlpha(innerRingAlpha),
-            getHeight: getGroundHeight,
-        });
-        addContourGridRing(collection, radius, {
-            width: ringWidth,
-            color: ringColor.withAlpha(ringAlpha),
-            getHeight: getGroundHeight,
-        });
+        if (radar) {
+            for (let ring = 0; ring < radar.ringCount; ring += 1) {
+                addContourGridRing(collection, lerp(radar.innerRadius, radius, ring / (radar.ringCount - 1)), {
+                    width: ringWidth,
+                    color: ringColor.withAlpha(ring === radar.ringCount - 1 ? ringAlpha : innerRingAlpha),
+                    getHeight: getGroundHeight,
+                });
+            }
+        } else {
+            if (navalFocus) addContourGridRing(collection, radius / 3, {
+                width: ringWidth * 0.86,
+                color: ringColor.withAlpha(innerRingAlpha),
+                getHeight: getGroundHeight,
+            });
+            addContourGridRing(collection, radius * (navalFocus ? 2 / 3 : innerRingScale), {
+                width: ringWidth * 0.86,
+                color: ringColor.withAlpha(innerRingAlpha),
+                getHeight: getGroundHeight,
+            });
+            addContourGridRing(collection, radius, {
+                width: ringWidth,
+                color: ringColor.withAlpha(ringAlpha),
+                getHeight: getGroundHeight,
+            });
+        }
     }
     state.gridIntervalMeters = intervalMeters;
     state.gridRadiusMeters = radius;
@@ -7562,11 +7600,12 @@ function setContourGridCenter(viewer, position = null) {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return false;
     state.gridCenterLon = lon;
     state.gridCenterLat = lat;
+    state.gridCenterHeight = Number(position?.height ?? state.centerHeight ?? 0);
     if (!state.gridPrimitive && viewer.__contourGridLayerVisible === true) {
-        ensureContourGridPrimitive(viewer, { lon, lat });
+        ensureContourGridPrimitive(viewer, { lon, lat, height: state.gridCenterHeight });
         return !!state.gridPrimitive;
     }
-    return updateContourGridPrimitiveCenter(viewer, { lon, lat });
+    return updateContourGridPrimitiveCenter(viewer, { lon, lat, height: state.gridCenterHeight });
 }
 function refreshContourFromViewport(viewer, options = {}) {
     const state = getContourOverlayState(viewer);

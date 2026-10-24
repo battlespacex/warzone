@@ -124,6 +124,7 @@ test("bulk restoration yields, cancels cleanly on OFF, and restores every track 
     next();
     assert.ok(entities.size > 0 && entities.size < records.size);
     const canceledCount = entities.size;
+    const staleCallback = frames.values().next().value;
     assert.equal(batchDepth, 1);
 
     enabled = false;
@@ -134,6 +135,8 @@ test("bulk restoration yields, cancels cleanly on OFF, and restores every track 
 
     enabled = true;
     context.syncLiveTrackRenderPopulation();
+    staleCallback();
+    assert.equal(entities.size, 0, "a cancelled batch stays cancelled after a newer ON");
     while (frames.size) next();
     assert.equal(entities.size, records.size);
     assert.equal(batchDepth, 0);
