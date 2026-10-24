@@ -16,6 +16,7 @@ const __liveTrackTrailPositionsCache = new Map();
 const __liveTrackLastPositions = new Map();
 const __liveTrackVisualState = new Map();
 const __liveTrackRegistry = new Map();
+let __liveTrackVisibilityFilter = null;
 const __liveTrackIdentityIndex = createAircraftIdentityIndex();
 const __liveTrackBillboardCache = new Map();
 const __liveTrackIconCodeCache = new Map();
@@ -3308,17 +3309,31 @@ function applyLiveTrackFocusVisibility(trackKey = "", focusedPosition = null) {
     const viewer = window.__warzoneViewer;
     if (!viewer || !trackKey) return;
     const entry = __liveTrackRegistry.get(trackKey);
-    const show = shouldShowTrackInFocusMode(trackKey, entry, focusedPosition);
+    const show = shouldRenderLiveTrackDataState(trackKey, entry, { focusedPosition });
     const entity = viewer.entities.getById(`track-${trackKey}`);
     if (entity) entity.show = show;
     const trailEntity = viewer.entities.getById(`track-trail-${trackKey}`);
     if (trailEntity) trailEntity.show = show && !hasFocusedRouteForTrack(trackKey);
 }
+function matchesLiveTrackVisibilityFilter(trackKey = "", entry = null) {
+    if (isFocusedTrackKey(trackKey)) return true;
+    if (typeof __liveTrackVisibilityFilter !== "function") return true;
+    try {
+        return __liveTrackVisibilityFilter(entry || {}) !== false;
+    } catch {
+        return true;
+    }
+}
 function shouldRenderLiveTrackDataState(trackKey = "", entry = null, options = {}) {
     if (options?.reportSnapshot === true || entry?.__reportSnapshotAsset === true) return true;
     if (!isLayerEnabled("aircraft")) return false;
     if (!entry?.active) return false;
+    if (!matchesLiveTrackVisibilityFilter(trackKey, entry)) return false;
     return shouldShowTrackInFocusMode(trackKey, entry, options?.focusedPosition || null);
+}
+export function setLiveTrackVisibilityFilter(predicate = null) {
+    __liveTrackVisibilityFilter = typeof predicate === "function" ? predicate : null;
+    return syncLiveTrackRenderPopulation();
 }
 function purgeLiveTrackRenderEntities(viewer = window.__warzoneViewer) {
     const entities = viewer?.entities?.values;
@@ -8384,6 +8399,38 @@ function applyLiveTrackUpdate(track, options = {}) {
     const viewer = window.__warzoneViewer;
     const forceVisualRefresh = track?.__forceVisualRefresh === true;
     const originalTrackKey = String(track?.track_key || "").trim();
+    const metadata = track?.metadata && typeof track.metadata === "object" ? track.metadata : {};
+    const sourceName = String(track?.source_name || metadata.source_name || "").toLowerCase();
+    const trackType = String(track?.track_type || metadata.track_type || "").toLowerCase();
+    const explicitAircraft = trackType === "aircraft" || sourceName.includes("ads-b") ||
+        sourceName.includes("airplanes.live");
+    const navalIdentity = [
+        track?.category,
+        track?.subcategory,
+        track?.title,
+        track?.summary,
+        track?.description,
+        metadata.vessel_name,
+        metadata.vessel_class,
+        metadata.ship_class,
+    ].filter(Boolean).join(" ");
+    const clearlyNaval = !explicitAircraft && Boolean(
+        trackType === "naval" ||
+        trackType === "vessel" ||
+        sourceName.includes("ais") ||
+        track?.mmsi ||
+        metadata.mmsi ||
+        metadata.ship_type != null ||
+        metadata.shipType != null ||
+        metadata.vessel_name ||
+        metadata.vessel_class ||
+        metadata.ship_class ||
+        /\bwarship\b|\bfrigate\b|\bdestroyer\b|\baircraft carrier\b|\bsubmarine\b|\bcruiser\b|\bcorvette\b|\bmissile boat\b|\bnaval activity\b/i.test(navalIdentity)
+    );
+    if (clearlyNaval) {
+        if (originalTrackKey) clearLiveTrack(originalTrackKey);
+        return null;
+    }
     if (String(resolveTrackSubtype(track) || "").trim().toLowerCase() === "trainer") {
         clearLiveTrack(originalTrackKey);
         return;
@@ -8448,7 +8495,15 @@ function applyLiveTrackUpdate(track, options = {}) {
     const reportSnapshot = track?.__reportSnapshotAsset === true;
     if (!shouldRenderLiveTrackDataState(track.track_key, registryEntry, { reportSnapshot })) {
         const retainFocusedOutOfRangeEntity = entity && isLayerEnabled("aircraft") &&
-            registryEntry?.active && isFocusSelectionActive();
+            registryEntry?.active && matchesLiveTrackVisibilityFilter(track.track_key, registryEntry) &&
+            isFocusSelectionActive();
+        if (entity && isLayerEnabled("aircraft") && registryEntry?.active &&
+            !matchesLiveTrackVisibilityFilter(track.track_key, registryEntry)) {
+            entity.show = false;
+            const trailEntity = viewer?.entities?.getById?.(`track-trail-${track.track_key}`);
+            if (trailEntity) trailEntity.show = false;
+            return null;
+        }
         if (!retainFocusedOutOfRangeEntity) {
             if (entity || viewer?.entities?.getById?.(`track-trail-${track.track_key}`)) {
                 removeLiveTrackRenderState(track.track_key);

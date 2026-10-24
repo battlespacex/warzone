@@ -254,17 +254,3 @@ body.is-ui-modal-open .wz-formation-tuner__launcher {
     opacity: 0;
     pointer-events: none;
 }
-
-@media (max-width: 680px) {
-    .wz-formation-tuner__launcher {
-        top: 108px;
-        right: 10px;
-    }
-
-    .wz-formation-tuner {
-        top: 72px;
-        right: 10px;
-        width: calc(100vw - 20px);
-        max-height: calc(100vh - 92px);
-    }
-}

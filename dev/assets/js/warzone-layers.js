@@ -77,6 +77,7 @@ const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
     "region-plate",
     "country-borders",
 ]);
+let __layerWarningPending = false;
 const LAYER_SECTIONS = [
     {
         id: "kinetic-activity",
@@ -424,6 +425,14 @@ function buildSingleToggleState(id, enabled) {
         : state;
 }
 
+function getTrackerIncompatibleActiveLayerIds(id) {
+    if (id !== "aircraft" && id !== "naval") return [];
+    const nextState = buildSingleToggleState(id, true);
+    return LAYER_DEFS
+        .map((layer) => layer.id)
+        .filter((layerId) => getEffectiveLayerState(layerId) && nextState[layerId] === false);
+}
+
 function buildAllEnabledState() {
     const nextState = { ...__layerState };
     PANEL_LAYER_DEFS.forEach((layer) => {
@@ -470,6 +479,8 @@ function closeSharedModal(modal, callback) {
 function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount = 0 } = {}) {
     const modal = document.getElementById("wz-layer-warning-modal");
     if (!modal) return Promise.resolve(true);
+    if (__layerWarningPending) return Promise.resolve(false);
+    __layerWarningPending = true;
 
     const titleEl = document.getElementById("wz-layer-warning-title");
     const summaryEl = document.getElementById("wz-layer-warning-summary");
@@ -481,17 +492,23 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
     const nextLabel = pendingDef?.label || "additional layer";
 
     if (titleEl) {
-        titleEl.textContent = mode === "all"
-            ? "Maximum Sensor Loadout"
-            : "High-Load Layer Activation";
+        titleEl.textContent = mode === "tracker"
+            ? "Enable Live Tracking?"
+            : mode === "all"
+                ? "Maximum Sensor Loadout"
+                : "High-Load Layer Activation";
     }
     if (summaryEl) {
-        summaryEl.textContent = mode === "all"
-            ? "Activating the full multi-domain stack will increase render load and can slow battlespace responsiveness across the globe."
-            : `Enabling ${nextLabel} will raise the live stack to ${nextCount} active layers and can slow tactical map performance.`;
+        summaryEl.textContent = mode === "tracker"
+            ? `Enabling ${nextLabel} will turn off other active map layers. Air Tracker and Naval Tracker can remain active together. Do you want to continue?`
+            : mode === "all"
+                ? "Activating the full multi-domain stack will increase render load and can slow battlespace responsiveness across the globe."
+                : `Enabling ${nextLabel} will raise the live stack to ${nextCount} active layers and can slow tactical map performance.`;
     }
     if (detailEl) {
-        detailEl.textContent = "Heavy radar envelopes, sweeper sectors, hotspot labels, and dense event overlays increase processing load. Proceed only if you want the expanded operational picture despite the slower response time.";
+        detailEl.textContent = mode === "tracker"
+            ? "Continue to enable live tracking and disable only incompatible layers. Cancel preserves the current layer state."
+            : "Heavy radar envelopes, sweeper sectors, hotspot labels, and dense event overlays increase processing load. Proceed only if you want the expanded operational picture despite the slower response time.";
     }
 
     return new Promise((resolve) => {
@@ -502,7 +519,10 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
             closeBtn?.removeEventListener("click", handleCancel);
             backBtn?.removeEventListener("click", handleCancel);
             confirmBtn?.removeEventListener("click", handleApprove);
-            closeSharedModal(modal, () => resolve(approved));
+            closeSharedModal(modal, () => {
+                __layerWarningPending = false;
+                resolve(approved);
+            });
         };
         const handleCancel = () => finish(false);
         const handleApprove = () => finish(true);
@@ -564,6 +584,14 @@ export async function requestLayerToggle(id) {
         return false;
     }
 
+    const incompatibleLayerIds = getTrackerIncompatibleActiveLayerIds(id);
+    if (incompatibleLayerIds.length) {
+        const approved = await requestPerformanceApproval({ mode: "tracker", pendingId: id });
+        if (!approved) {
+            notifyChange(id, false);
+            return false;
+        }
+    }
     const nextState = buildSingleToggleState(id, true);
     if (shouldWarnForLayerTransition(nextState)) {
         const approved = await requestPerformanceApproval({
@@ -982,6 +1010,15 @@ function bindLayerItem(container, item) {
             }
 
             const nextState = buildSingleToggleState(id, true);
+            const incompatibleLayerIds = getTrackerIncompatibleActiveLayerIds(id);
+            if (incompatibleLayerIds.length) {
+                const approved = await requestPerformanceApproval({ mode: "tracker", pendingId: id });
+                if (!approved) {
+                    syncLayerItemState(item, id);
+                    updateBulkToggleState(container);
+                    return;
+                }
+            }
             if (shouldWarnForLayerTransition(nextState)) {
                 const approved = await requestPerformanceApproval({
                     mode: "toggle",
@@ -1023,10 +1060,6 @@ export function initLayerPanel() {
     const sections = getRenderedSections();
 
     container.innerHTML = `
-        <div class="wz-layers__toolbar">
-            <button class="btn-secondary white" id="wz-layers-all-on">All On<span aria-hidden="true"></span></button>
-            <button class="btn-secondary white" id="wz-layers-all-off">All Off<span aria-hidden="true"></span></button>
-        </div>
         <div class="wz-layers__list">
             ${sections.map((section) => `
                 <section class="wz-layer-section" aria-labelledby="wz-layer-section-${section.id}">
@@ -1060,28 +1093,6 @@ export function initLayerPanel() {
             const allOn = layerIds.length > 0 && layerIds.every(getEffectiveLayerState);
             setSectionLayers(sectionId, !allOn, container);
         });
-    });
-
-    document.getElementById("wz-layers-all-on")?.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const nextState = buildAllEnabledState();
-        if (shouldWarnForLayerTransition(nextState)) {
-            const approved = await requestPerformanceApproval({
-                mode: "all",
-                nextCount: countWarnableEnabledLayers(nextState),
-            });
-            if (!approved) {
-                syncAllLayerItemStates(container);
-                updateBulkToggleState(container);
-                return;
-            }
-        }
-        setAllLayers(true, container);
-    });
-
-    document.getElementById("wz-layers-all-off")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        setAllLayers(false, container);
     });
 
     setTimeout(() => {

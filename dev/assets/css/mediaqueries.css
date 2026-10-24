@@ -62,7 +62,7 @@
         display: block;
     }
     .warzone-panel--floating {
-        position: fixed !important;
+        position: absolute !important;
         left: 50% !important;
         right: auto !important;
         top: 50% !important;
@@ -106,6 +106,42 @@
         --icon-md: 1.6rem;
         --icon-sm: 1rem;
     }
+
+
+        .hidden-on-mob {
+        display: none !important;
+    }
+
+    
+    .secondary-content {
+        position: relative !important;
+        width: 100%;
+        height: 100%;
+        padding: 9rem 3.5rem;
+        box-sizing: border-box;
+        margin: 0 !important;
+     }
+
+        .wz-map-layers-pane {
+        position: relative !important;
+        inset: auto !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0;
+        transform: none !important;
+        box-sizing: border-box;
+    }
+
+
+    .primary-content {
+        position: relative !important;
+        width: 100%;
+        height: 100%;
+        padding: 9rem 3.5rem;
+        box-sizing: border-box;
+        margin: 0 !important;
+    }
+
 
     .wz-pre-entry-showcase {
         align-items: flex-start;
@@ -178,20 +214,44 @@
 
 
 
+    .warzone-logo {
+        pointer-events: auto;
+        padding: 0;
+        margin: 0 !important
+    }
+
+        .warzone-logo img {
+        height: 4rem;
+        }
 
 
+    .warzone-actions {
+        top: 1.8rem;
+        right: 2rem;
+    }
+    .warzone-mobile-settings-panel {
+        inset: 7rem 0.8rem auto 0.8rem;
+    }
 
+#wz-aircraft-debug-search-form.is-local-visible, .wz-formation-tuner__launcher , .wz-formation-tuner {
+    display: none !important
+}
 
-
-
-
-
-
-
-
+.secondary-content > .wz-map-layers-pane {
+        width: 100%;
+        min-width: 100%;
+        left: 0;
+        right: 0;
+        padding: 0 !important;
+        position: absolute;
+        top: auto;
+        bottom: auto;
+        height: 100%;
+        min-height: 100%;
+}
 
     .site-header {
-        top: 0.8rem;
+        top: 1rem;
     }
     .nav {
         min-height: 6.4rem;
@@ -214,28 +274,95 @@
     .wz-widget-backdrop {
         display: block; 
     }
-    .warzone-panel--floating {
-        position: fixed !important;
-        left: 1rem !important;
-        right: 1rem !important;
-        top: calc(var(--wz-bar-h, 6rem) + 1.5rem) !important;
+
+
+
+
+
+        .warzone-panel--floating {
+            position: absolute !important;
+        top: auto !important;
+        left: 0 !important;
+        right:0 !important;
         bottom: auto !important;
-        width: auto !important;
+        width: 100% !important;
+        min-width:100% !important;
         max-width: none !important;
-        max-height: 75dvh;
+        max-height: 80dvh;
         overflow-y: auto;
         z-index: 500 !important;
-        /* override desktop transform — mobile uses opacity-only transition */
+                transform: none !important;
         transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1), transform 280ms cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
         .warzone-panel--floating.wz-is-hidden {
             opacity: 0 !important;
-            transform: scale(0.95) translateY(1rem) !important;
+           /* transform: scale(0.95) translateY(1rem) !important; */
+            transform: translateY(-50%) scale(0.96) !important;
             pointer-events: none !important;
         }
         .warzone-panel--floating:not(.wz-is-hidden) {
-            transform: none !important;
+            transform: translateY(-50%) !important;
         }
+        .warzone-panel--floating .panel-head {
+            /* transform: none !important; */
+            cursor: default !important;
+        }
+    .warzone-widget .panel-content {
+        max-height: var(--wz-mobile-widget-content-maxh) !important;
+        overflow-y: auto;
+    }
+    .warzone-panel--floating:not(.wz-is-hidden) .panel-content {
+        height: auto !important;
+        opacity: 1 !important;
+        visibility: visible;
+    }
+
+    .warzone-panel--floating [data-panel-collapse] {
+        display: none !important;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     .warzone-widget .panel-content {
         max-height: 55dvh;
         overflow-y: auto;
@@ -258,7 +385,7 @@
         grid-template-columns: 1fr;
     }
     .wz-modal {
-        padding: 10rem 2.5rem;
+        padding: 10rem 3.5rem;
     }
     .wz-modal__tabs {
         overflow-x: auto;
@@ -268,8 +395,8 @@
         min-width: 11.5rem;
     }
     .wz-layer-panel-wrap {
-        left: 0.8rem !important;
-        right: 0.8rem !important;
+        left: 1rem !important;
+        right: 1rem !important;
         width: auto;
     }
 
@@ -277,11 +404,12 @@
         height: 3rem;
     }
 
-    .wz-modal-box, .wz-modal-box.wz-min-modal {
+    .wz-modal-box {
         width: 100%;
         min-width: 100%;
         max-width: 100%;
-        height: auto;
+        height:  100% !important;
+        max-height: 80vh !important;
     }
 
     .wz-region-grid,
@@ -302,8 +430,13 @@
     .wz-action {
         flex-direction: column;
         align-items: stretch;
-        padding: 2rem;
+        padding: 1.5rem 2rem 2rem;
     }
+
+.wz-intro .wz-modal__tab, .wz-about .wz-modal__tab {
+    padding: 1rem 1rem .8rem;
+}
+
 
     /* .wz-modal-body h2, .wz-intro.wz-modal h2,
     .wz-content h3 {
@@ -350,10 +483,6 @@
         font-size: 1.1rem;
         padding: 0 0.8rem;
         min-height: 3.2rem;
-    }
-    .warzone-panel--floating {
-        left: 0.4rem !important;
-        right: 0.4rem !important;
     }
 }
 /* #endregion */
@@ -420,18 +549,18 @@
     }
 
     .wz-mobile-region-trigger .wz-region-select-btn {
-        display: inline-flex;
+         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 4.4rem;
-        min-width: 4.4rem !important;
-        max-width: 4.4rem;
-        height: 4.4rem;
+        width: 3.2rem;
+        min-width: 3.2rem !important;
+        max-width: 3.2rem;
         padding: 0;
+        gap: 0;
     }
 
     .wz-mobile-region-trigger .wz-region-select-btn__icon {
-        font-size: var(--icon-xl);
+        margin: 0
     }
 
     .warzone-brand {
@@ -439,15 +568,7 @@
         pointer-events: none;
     }
 
-    .warzone-logo {
-        pointer-events: auto;
-        padding: .5rem 0;
-        margin: 0 !important
-    }
 
-        .warzone-logo img {
-        height: 4rem;
-        }
 
     .warzone-actions {
         top: 2rem;
@@ -505,7 +626,6 @@
         visibility: hidden;
         opacity: 0;
         pointer-events: none;
-        background: rgba(2, 7, 14, .58);
         transition: opacity .28s ease, visibility 0s linear .28s;
     }
 
@@ -671,36 +791,7 @@
             width: 100%;
             min-height: 4.4rem;
         }
-    .warzone-panel--floating {
-        position: fixed !important;
-        top: 50% !important;
-        bottom: auto !important;
-        width: auto !important;
-        max-width: none !important;
-        overflow: hidden;
-        z-index: 500 !important;
-        transform: translateY(-50%) !important;
-    }
-        .warzone-panel--floating.wz-is-hidden {
-            opacity: 0 !important;
-            transform: translateY(-50%) scale(0.96) !important;
-            pointer-events: none !important;
-        }
-        .warzone-panel--floating:not(.wz-is-hidden) {
-            transform: translateY(-50%) !important;
-        }
-        .warzone-panel--floating .panel-head {
-            cursor: default !important;
-        }
-    .warzone-widget .panel-content {
-        max-height: var(--wz-mobile-widget-content-maxh) !important;
-        overflow-y: auto;
-    }
-    .warzone-panel--floating:not(.wz-is-hidden) .panel-content {
-        height: auto !important;
-        opacity: 1 !important;
-        visibility: visible;
-    }
+
     .warzone-widget--counter,
     .warzone-widget--airspace,
     .warzone-widget--layers,
@@ -713,18 +804,7 @@
         bottom: auto !important;
     }
 
-    .warzone-panel--floating {
 
-        left: 0 !important;
-        right: 0!important;
-                padding: 0 4rem;
-        width: auto !important;
-        max-width: none !important;
-    }
-
-    .warzone-panel--floating [data-panel-collapse] {
-        display: none !important;
-    }
 
     .wz-modal__head {
         padding-right: 5rem;
@@ -776,7 +856,6 @@
         right: auto;
         bottom: 2rem;
         transform: translateX(-50%) !important;
-        background: var(--color-bg-overlay);
     }
 
     .wz-btn-container {
@@ -823,25 +902,7 @@
     }
 
 }
-@media (max-width: 480px) {
 
-    .warzone-brand .warzone-logo {
-        display: none;
-    }
-
-    .warzone-view:after {
-        display: none;
-    }
-
-    .warzone-actions {
-        top: 1.8rem;
-        right: 2rem;
-    }
-    .warzone-mobile-settings-panel {
-        inset: 7rem 0.8rem auto 0.8rem;
-    }
-}
-/* #endregion */
 
 @media (max-width: 767px) {
     .wz-aoi-panel {
@@ -890,4 +951,10 @@
 @media only screen and (min-width: 415px) and (max-width: 440px) {
     html { font-size: 62.5%;}
     .wz-pre-entry-fullscreen { display: none !important }
+}
+
+@media (min-width: 768px) {
+    .hidden-on-web {
+        display: none !important;
+    }
 }

@@ -20,6 +20,9 @@ import {
 const __navalState = {
     vessels: new Map(),    // track_key → { entity, data }
     renderEnabled: false,
+    visibilityFilter: null,
+    reconcileFrame: 0,
+    reconcileGeneration: 0,
     createdCount: 0,
     destroyedCount: 0,
     overlayRoot: null,
@@ -2317,6 +2320,7 @@ if (mapApi?.isFocusedTerrainActive?.() === true) {
     if (previousEntry?.entity && previousEntry?.data) {
         applyNavalVisual(previousEntry.entity, previousEntry.data);
     }
+    scheduleNavalRenderReconcile();
     try {
         window.__warzoneViewer?.camera?.lookAtTransform?.(Cesium.Matrix4.IDENTITY);
     } catch { }
@@ -3246,17 +3250,26 @@ export function upsertNavalVessel(event) {
     const nextVessel = existing?.data
         ? mergeNavalVesselData(existing.data, vessel)
         : vessel;
-    if (!__navalState.renderEnabled) {
-        __navalState.vessels.set(trackKey, { entity: null, data: nextVessel });
+    if (!__navalState.renderEnabled || !matchesNavalVisibilityFilter(trackKey, nextVessel)) {
+        const retainedEntity = existing?.entity || null;
+        if (retainedEntity) {
+            unregisterAnimationTask(retainedEntity.__navalAnimationTaskKey || `naval:${trackKey}`);
+            retainedEntity.__navalMotionState = null;
+            retainedEntity.__navalAnimationTaskKey = "";
+            retainedEntity.show = false;
+        }
+        __navalState.vessels.set(trackKey, { entity: retainedEntity, data: nextVessel });
     } else {
         bindNavalOverlay(viewer);
         bindNavalPicking(viewer);
         const entityId = `naval-${trackKey}`;
         const sceneEntity = viewer.entities.getById(entityId);
         if (existing?.entity && sceneEntity === existing.entity) {
+            existing.entity.show = true;
             updateVesselEntity(existing.entity, nextVessel);
             existing.data = nextVessel;
         } else if (sceneEntity) {
+            sceneEntity.show = true;
             updateVesselEntity(sceneEntity, nextVessel);
             __navalState.vessels.set(trackKey, { entity: sceneEntity, data: nextVessel });
         } else {
@@ -3308,6 +3321,7 @@ export function setNavalLayerVisible(visible = true) {
     const show = visible === true;
     __navalState.renderEnabled = show;
     if (!show) {
+        cancelNavalRenderReconcile();
         if (__navalState.selectedKey) clearNavalSelection();
         hideNavalHoverGuide();
         clearNavalHoverLabel();
@@ -3325,14 +3339,71 @@ export function setNavalLayerVisible(visible = true) {
             purgeInvalidNavalContacts();
             bindNavalOverlay(viewer);
             bindNavalPicking(viewer);
-            __navalState.vessels.forEach((entry, trackKey) => {
-                if (!entry?.data || entry.entity) return;
-                entry.entity = createVesselEntity(viewer, entry.data);
-                __navalState.createdCount += 1;
-            });
+            scheduleNavalRenderReconcile();
         }
     }
     requestNavalRenderBatched();
+}
+
+function matchesNavalVisibilityFilter(trackKey = "", vessel = {}) {
+    if (String(__navalState.selectedKey || "") === String(trackKey || "")) return true;
+    if (typeof __navalState.visibilityFilter !== "function") return true;
+    try {
+        return __navalState.visibilityFilter(vessel || {}) !== false;
+    } catch {
+        return true;
+    }
+}
+
+function cancelNavalRenderReconcile() {
+    __navalState.reconcileGeneration += 1;
+    if (__navalState.reconcileFrame) cancelAnimationFrame(__navalState.reconcileFrame);
+    __navalState.reconcileFrame = 0;
+}
+
+function scheduleNavalRenderReconcile() {
+    cancelNavalRenderReconcile();
+    const viewer = window.__warzoneViewer;
+    if (!viewer || !__navalState.renderEnabled) return false;
+    const generation = __navalState.reconcileGeneration;
+    const entries = Array.from(__navalState.vessels.entries());
+    let index = 0;
+    const processChunk = () => {
+        __navalState.reconcileFrame = 0;
+        if (generation !== __navalState.reconcileGeneration || !__navalState.renderEnabled) return;
+        const startedAt = performance.now();
+        while (index < entries.length) {
+            const [trackKey, entry] = entries[index++];
+            if (!entry?.data) continue;
+            const shouldShow = matchesNavalVisibilityFilter(trackKey, entry.data);
+            if (!shouldShow) {
+                if (entry.entity) {
+                    unregisterAnimationTask(entry.entity.__navalAnimationTaskKey || `naval:${trackKey}`);
+                    entry.entity.__navalMotionState = null;
+                    entry.entity.__navalAnimationTaskKey = "";
+                    entry.entity.show = false;
+                }
+            } else if (entry.entity) {
+                entry.entity.show = true;
+                updateVesselEntity(entry.entity, entry.data);
+            } else {
+                entry.entity = createVesselEntity(viewer, entry.data);
+                __navalState.createdCount += 1;
+            }
+            if (index % 32 === 0 && performance.now() - startedAt >= 6) break;
+        }
+        requestNavalRenderBatched();
+        if (index < entries.length) {
+            __navalState.reconcileFrame = requestAnimationFrame(processChunk);
+        }
+    };
+    __navalState.reconcileFrame = requestAnimationFrame(processChunk);
+    return true;
+}
+
+export function setNavalVisibilityFilter(predicate = null) {
+    __navalState.visibilityFilter = typeof predicate === "function" ? predicate : null;
+    return scheduleNavalRenderReconcile();
 }
 
 function hasRenderedNavalVessels() {

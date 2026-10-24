@@ -1035,7 +1035,7 @@
     --warzone-live-naval-model-max-scale: 160;
     --warzone-live-naval-model-max-scale-focused: 220;
     /* Focused naval GLBs use authored model proportions; categories can be tuned independently. */
-    --warzone-live-naval-model-focused-size: 110;
+    --warzone-live-naval-model-focused-size: 6.5;
     --warzone-live-naval-model-focused-min-pixel-size: 0;
 
     --warzone-live-naval-model-heading-offset-default: 180;
@@ -1103,7 +1103,7 @@
     --warzone-live-aircraft-model-zoom-far-height: 65000;
 
     /* Focused GLB size tuning shared by every aircraft model. */
-    --warzone-live-aircraft-model-focused-size: 200;
+    --warzone-live-aircraft-model-focused-size: 3;
 
     --warzone-live-aircraft-model-min-pixel-size: 0;
     --warzone-live-aircraft-model-focused-min-pixel-size: 0;
@@ -1289,45 +1289,44 @@
 
 
         /*
- * STANDARD FOCUSED AIRCRAFT SIZES
- * Edit this group independently for browser viewports 2560px wide and above.
+ * STANDARD FOCUSED AIRCRAFT & NAVAL SIZES
+ * Edit this group independently for browser viewports 1920px wide and below.
  */
 @media (max-width: 1920px) {
     :root {
-    --warzone-live-aircraft-model-focused-size-fighter: 3;
-    --warzone-live-aircraft-model-focused-size-transport: 3;
-    --warzone-live-aircraft-model-focused-size-bomber: 3;
-    --warzone-live-aircraft-model-focused-size-tanker: 3;
-    --warzone-live-aircraft-model-focused-size-recon: 3;
-    --warzone-live-aircraft-model-focused-size-awacs: 3;
-    --warzone-live-aircraft-model-focused-size-helicopter: 3;
-    --warzone-live-aircraft-model-focused-size-vip: 3;
-    --warzone-live-aircraft-model-focused-size-drone: 3;
+    --warzone-live-aircraft-model-focused-size-fighter: 9;
+    --warzone-live-aircraft-model-focused-size-transport: 7;
+    --warzone-live-aircraft-model-focused-size-bomber: 7;
+    --warzone-live-aircraft-model-focused-size-tanker: 7;
+    --warzone-live-aircraft-model-focused-size-recon: 7;
+    --warzone-live-aircraft-model-focused-size-awacs: 7;
+    --warzone-live-aircraft-model-focused-size-helicopter: 10;
+    --warzone-live-aircraft-model-focused-size-vip: 8;
+    --warzone-live-aircraft-model-focused-size-drone: 8;
 
-
-    --warzone-live-naval-model-focused-size-carrier: 6.5;
-    --warzone-live-naval-model-focused-size-amphibious: 6.5;
-    --warzone-live-naval-model-focused-size-cruiser: 6.5;
-    --warzone-live-naval-model-focused-size-destroyer: 6.5;
-    --warzone-live-naval-model-focused-size-frigate: 6.5;
-    --warzone-live-naval-model-focused-size-corvette: 6.5;
-    --warzone-live-naval-model-focused-size-intelligence: 6.5;
-    --warzone-live-naval-model-focused-size-ssbn: 6.5;
-    --warzone-live-naval-model-focused-size-ssn: 6.5;
-    --warzone-live-naval-model-focused-size-ssk: 6.5;
-    --warzone-live-naval-model-focused-size-aip_submarine: 6.5;
-    --warzone-live-naval-model-focused-size-submarine: 6.5;
-    --warzone-live-naval-model-focused-size-missile_boat: 6.5;
-    --warzone-live-naval-model-focused-size-patrol: 6.5;
-    --warzone-live-naval-model-focused-size-logistics: 6.5;
-    --warzone-live-naval-model-focused-size-minesweeper: 6.5;
-    --warzone-live-naval-model-focused-size-naval: 6.5;
+    --warzone-live-naval-model-focused-size-carrier: 8;
+    --warzone-live-naval-model-focused-size-amphibious: 8;
+    --warzone-live-naval-model-focused-size-cruiser: 8;
+    --warzone-live-naval-model-focused-size-destroyer: 8;
+    --warzone-live-naval-model-focused-size-frigate: 8;
+    --warzone-live-naval-model-focused-size-corvette: 8;
+    --warzone-live-naval-model-focused-size-intelligence: 8;
+    --warzone-live-naval-model-focused-size-ssbn: 8;
+    --warzone-live-naval-model-focused-size-ssn: 8;
+    --warzone-live-naval-model-focused-size-ssk: 8;
+    --warzone-live-naval-model-focused-size-aip_submarine: 8;
+    --warzone-live-naval-model-focused-size-submarine: 8;
+    --warzone-live-naval-model-focused-size-missile_boat: 8;
+    --warzone-live-naval-model-focused-size-patrol: 8;
+    --warzone-live-naval-model-focused-size-logistics: 8;
+    --warzone-live-naval-model-focused-size-minesweeper: 8;
+    --warzone-live-naval-model-focused-size-naval: 8;
     }
 }
 
 
     /*
- * ULTRAWIDE FOCUSED AIRCRAFT SIZES
+ * ULTRAWIDE FOCUSED AIRCRAFT & NAVAL SIZES
  * Edit this group independently for browser viewports 2560px wide and above.
  */
 @media (min-width: 2560px) {

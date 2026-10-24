@@ -1566,15 +1566,13 @@ export function createWarzoneHotspotLayer(viewer, rootEl, options = {}) {
             projected.push({ ...c, screen: { x, y } });
         }
         const visible = stackVisible(projected, zoomCfg.stackDistancePx, zoomCfg.maxVisiblePerHotspot);
-        const activeGroup = zoomState === ZOOM_UX_STATES.LOCAL_STACK
-            ? selectActiveClusterGroup(visible, {
+        const activeGroup = selectActiveClusterGroup(visible, {
                 viewportWidth: overlayRect.width,
                 viewportHeight: overlayRect.height,
                 maxGapPx: cssLengthToPx("--hotspot-stack-group-gap", 340),
                 preferredClusterIds: activityStack.groupIds,
                 switchMargin: cssNumber("--hotspot-stack-selection-hysteresis", 0.55),
-            })
-            : null;
+            });
         activityStack.groupIds = activeGroup
             ? activeGroup.clusters.map((cluster) => String(cluster.cluster_id || cluster.id))
             : [];

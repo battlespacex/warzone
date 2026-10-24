@@ -1114,6 +1114,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
     window.__syncWarzoneDock = syncWidgetChrome;
+    window.__showWarzoneWidget = (widgetId = "") => {
+        const widget = document.querySelector(`.warzone-widget[data-widget-id="${String(widgetId)}"]`);
+        if (!widget || !isUiOnlyWidgetLayerEnabled(String(widgetId))) return false;
+        showWidget(widget);
+        saveWidgetState();
+        syncWidgetChrome();
+        return true;
+    };
     getBackdrop()?.addEventListener("click", () => {
         document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => hideWidget(widget));
         saveWidgetState();

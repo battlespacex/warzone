@@ -50,6 +50,7 @@ import {
     resumeLiveTrackMotionAfterVisibility,
     bindLiveTrackLifecycleRecovery,
     syncLiveTrackRenderPopulation,
+    setLiveTrackVisibilityFilter,
     getLiveTrackDiagnostics,
     getTrackSourceTimestamp,
     mergeLiveTrackHistory,
@@ -60,6 +61,7 @@ import {
     renderNavalTrackerWidget,
     getAllNavalSnapshots,
     setNavalLayerVisible,
+    setNavalVisibilityFilter,
     getNavalDiagnostics,
 } from "./warzone-live-naval.js";
 import {
@@ -183,6 +185,7 @@ let __aircraftWidgetSubtypeFilter = "all";
 let __aircraftWidgetScopeFilter = "region";
 let __aircraftWidgetPage = 1;
 let __aircraftWidgetCountryFilter = "all";
+let __aircraftGlobeFilterSignature = "";
 const __manualAircraftSearch = { identifier: "", trackKey: "", reused: false, timer: 0, controller: null, generation: 0 };
 const __focusedAircraftTrailHistory = { trackKey: "", controller: null, generation: 0, bound: false };
 let __aircraftHistoryCache = [];
@@ -314,10 +317,9 @@ function markTrackerPerf(kind, stage, details = null) {
 }
 let __navalWidgetScopeFilter = "region";
 let __navalWidgetSubtypeFilter = "all";
-let __navalWidgetCountryFilter = "all";
 let __navalWidgetPage = 1;
 let __navalSubtypeOptionsKey = "";
-let __navalCountryOptionsKey = "";
+let __navalGlobeFilterSignature = "";
 let __lastStatusWidgetSignature = null;
 let __lastRawWidgetSignature = null;
 let __lastFeedSignature = null;
@@ -660,6 +662,26 @@ const AIS_NON_OPERATIONAL_NAVAL_PATTERNS = [
 function isDocumentHidden() {
     return document.visibilityState === "hidden";
 }
+
+
+function removeDeviceElements() {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const selector = isMobile ? ".hidden-on-mob" : ".hidden-on-web";
+
+    document.querySelectorAll(selector).forEach(element => {
+        element.remove();
+    });
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", removeDeviceElements, {
+        once: true
+    });
+} else {
+    removeDeviceElements();
+}
+
+
 function clearForegroundRecoveryLoaderTimer() {
     if (__foregroundRecoveryLoaderTimer) {
         clearTimeout(__foregroundRecoveryLoaderTimer);
@@ -928,6 +950,39 @@ function isClearlyAircraftContact(event = {}) {
         .join(" ")
         .toLowerCase();
     return /\bcessna\b|\bcitation\b|\blearjet\b|\bgulfstream\b|\bembraer\b|\bbombardier\b|\bboeing\b|\bairbus\b|\bhelicopter\b|\bfighter\b|\bawacs\b|\brecon\b|\btanker\b|\btransport\b|\buav\b|\bdrone\b/.test(haystack);
+}
+function isClearlyNavalContact(event = {}) {
+    const metadata = getEventMetadata(event);
+    const trackType = String(event.track_type || metadata.track_type || "").toLowerCase();
+    const sourceName = String(event.source_name || metadata.source_name || "").toLowerCase();
+    const dedupeKey = String(event.dedupe_key || event.source_key || event.track_key || "").toLowerCase();
+    if (trackType === "aircraft" || sourceName.includes("ads-b") || sourceName.includes("airplanes.live")) {
+        return false;
+    }
+    const navalIdentity = [
+        event.category,
+        event.subcategory,
+        event.title,
+        event.summary,
+        event.description,
+        metadata.vessel_name,
+        metadata.vessel_class,
+        metadata.ship_class,
+    ].filter(Boolean).join(" ");
+    return Boolean(
+        trackType === "naval" ||
+        trackType === "vessel" ||
+        sourceName.includes("ais") ||
+        dedupeKey.startsWith("ais-") ||
+        event.mmsi ||
+        metadata.mmsi ||
+        metadata.ship_type != null ||
+        metadata.shipType != null ||
+        metadata.vessel_name ||
+        metadata.vessel_class ||
+        metadata.ship_class ||
+        /\bwarship\b|\bfrigate\b|\bdestroyer\b|\baircraft carrier\b|\bsubmarine\b|\bcruiser\b|\bcorvette\b|\bmissile boat\b|\bnaval activity\b/i.test(navalIdentity)
+    );
 }
 function isEventInLens(event, lens) {
     if (!event) return false;
@@ -1687,6 +1742,7 @@ function isBreakingNewsEvent(event = {}) {
     );
 }
 function isAircraftTelemetryEvent(event = {}) {
+    if (isClearlyNavalContact(event)) return false;
     const sourceName = String(event.source_name || "").toLowerCase();
     const reportType = String(event.report_type || "").toLowerCase();
     const tags = getEventTags(event);
@@ -3373,16 +3429,10 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
                 : "all";
             __navalWidgetSubtypeFilter = navalSubtypeSelect.value || "all";
         }
-        let vessels = __navalWidgetSubtypeFilter && __navalWidgetSubtypeFilter !== "all"
+        const vessels = __navalWidgetSubtypeFilter && __navalWidgetSubtypeFilter !== "all"
             ? scopedVessels.filter((vessel) => normalizeNavalSubtype(vessel.subcategory) === __navalWidgetSubtypeFilter)
             : scopedVessels;
-        syncNavalCountryFilterControls(vessels);
-        const selectedCountryValue = normalizeAircraftCountryFilterValue(__navalWidgetCountryFilter || "all");
-        if (selectedCountryValue !== "all") {
-            vessels = vessels.filter(
-                (vessel) => normalizeAircraftCountryFilterValue(getNavalCountryFilterLabel(vessel)) === selectedCountryValue
-            );
-        }
+        syncNavalGlobeVisibilityFilter();
         updateNavalWidgetTitleCount(vessels.length, highValueVessels.length);
         notifyHighValueAssets("naval", highValueVessels);
         renderNavalTrackerWidget({
@@ -6614,6 +6664,7 @@ function isLikelyCivilianUtilityAircraftTrack(track = {}) {
 }
 function shouldExcludeFromMilitaryAircraftTracker(track = {}) {
     return (
+        isClearlyNavalContact(track) ||
         isCoastGuardCasaPatrolAircraftTrack(track) ||
         isLikelyCivilianPassengerAircraftTrack(track) ||
         isLikelyCivilianUtilityAircraftTrack(track) ||
@@ -7893,77 +7944,30 @@ function syncAircraftCountryFilterControls(countrySourceItems = []) {
     }
     countrySelect.value = __aircraftWidgetCountryFilter || "all";
 }
-function getNavalCountryFilterLabel(vessel = {}) {
-    const metadata = getAircraftMetadata(vessel);
-    const explicit = normalizeCountryName(
-        sanitizeAircraftText(
-            vessel.country ||
-            vessel.flag_country ||
-            vessel.operator_country ||
-            metadata.country ||
-            metadata.flag_country ||
-            metadata.operator_country ||
-            ""
-        )
-    );
-    if (explicit && !isUnknownAircraftCountryLabel(explicit)) {
-        return explicit;
-    }
-    const inferred = [
-        vessel.operator,
-        vessel.vessel_name,
-        vessel.platform_name,
-        vessel.title,
-        vessel.designation,
-        metadata.operator,
-        metadata.vessel_name,
-        metadata.title,
-    ]
-        .map((value) => inferAircraftCountryFromText(value))
-        .find((value) => value && !isUnknownAircraftCountryLabel(value));
-    return inferred || "Unknown";
-}
-function getNavalCountryFilterOptions(items = []) {
-    const map = new Map();
-    (Array.isArray(items) ? items : []).forEach((vessel) => {
-        const label = getNavalCountryFilterLabel(vessel);
-        const value = normalizeAircraftCountryFilterValue(label);
-        if (value === "unknown") return;
-        if (!map.has(value)) {
-            map.set(value, label || "Unknown");
-        }
+function syncAircraftGlobeVisibilityFilter() {
+    const subtype = String(__aircraftWidgetSubtypeFilter || "all").toLowerCase();
+    const country = normalizeAircraftCountryFilterValue(__aircraftWidgetCountryFilter || "all");
+    const signature = `${subtype}|${country}|${getActiveRegion?.()?.id || "global"}`;
+    if (__aircraftGlobeFilterSignature === signature) return;
+    __aircraftGlobeFilterSignature = signature;
+    setLiveTrackVisibilityFilter((track) => {
+        if (isClearlyNavalContact(track)) return false;
+        if (!isTrackerItemVisibleInScope(track, "region")) return false;
+        const trackSubtype = String(resolveAircraftSubtype(track) || "").toLowerCase();
+        if (subtype !== "all" && trackSubtype !== subtype) return false;
+        return country === "all" ||
+            normalizeAircraftCountryFilterValue(getAircraftCountryLabel(track)) === country;
     });
-    return [...map.entries()]
-        .map(([value, label]) => ({ value, label }))
-        .sort((a, b) => a.label.localeCompare(b.label));
 }
-function syncNavalCountryFilterControls(countrySourceItems = []) {
-    const countrySelect = document.getElementById("wz-naval-filter-country");
-    if (!countrySelect) return;
-    const options = getNavalCountryFilterOptions(countrySourceItems);
-    const optionKey = options
-        .map((option) => `${option.value}:${option.label}`)
-        .join("|");
-    if (__navalCountryOptionsKey !== optionKey) {
-        countrySelect.innerHTML = "";
-        const allOption = document.createElement("option");
-        allOption.value = "all";
-        allOption.textContent = "All Countries";
-        countrySelect.appendChild(allOption);
-        options.forEach((option) => {
-            const nextOption = document.createElement("option");
-            nextOption.value = option.value;
-            nextOption.textContent = option.label;
-            countrySelect.appendChild(nextOption);
-        });
-        __navalCountryOptionsKey = optionKey;
-    }
-    const allowedValues = new Set(["all", ...options.map((option) => option.value)]);
-    const selectedValue = normalizeAircraftCountryFilterValue(__navalWidgetCountryFilter || "all");
-    if (!allowedValues.has(selectedValue)) {
-        __navalWidgetCountryFilter = "all";
-    }
-    countrySelect.value = __navalWidgetCountryFilter || "all";
+function syncNavalGlobeVisibilityFilter() {
+    const subtype = normalizeNavalSubtype(String(__navalWidgetSubtypeFilter || "all")) || "all";
+    const signature = `${subtype}|${getActiveRegion?.()?.id || "global"}`;
+    if (__navalGlobeFilterSignature === signature) return;
+    __navalGlobeFilterSignature = signature;
+    setNavalVisibilityFilter((vessel) => (
+        isTrackerItemVisibleInScope(vessel, "region") &&
+        (subtype === "all" || normalizeNavalSubtype(vessel.subcategory) === subtype)
+    ));
 }
 function prioritizeSelectedAircraftWidgetItem(items = [], trackKey = "") {
     const selectedTrackKey = String(trackKey || "").trim();
@@ -8064,8 +8068,16 @@ function getAircraftWidgetItems() {
             .filter((track) => track.active && !track.__manualAircraftOverride)
             .filter((track) => getHighValueAircraftMeta(track))
         : [];
-    const filteredCount = items.length;
     const selection = getLiveTrackSelection();
+    const selectedTrack = baseItems.find(
+        (track) => String(track?.track_key || "") === String(selection.track_key || "")
+    );
+    if (selectedTrack && !items.some(
+        (track) => String(track?.track_key || "") === String(selection.track_key || "")
+    )) {
+        items = [selectedTrack, ...items];
+    }
+    const filteredCount = items.length;
     items = prioritizeSelectedAircraftWidgetItem(
         [...items].sort((a, b) => Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0)),
         selection.track_key
@@ -8291,6 +8303,7 @@ function renderAircraftMovementsWidget() {
         __aircraftWidgetSubtypeFilter = subtypeSelect.value || "all";
     }
     syncAircraftCountryFilterControls(activeCountryItems);
+    syncAircraftGlobeVisibilityFilter();
     const existingCards = [...container.querySelectorAll(".wz-aircraft-item")];
     const existingCardMap = new Map(
         existingCards.map((card) => [String(card.dataset.trackKey || ""), card])
@@ -8657,6 +8670,7 @@ function bindAircraftMovementsWidget() {
         if (subtypeSelect && aircraftWidgetEnabled) {
             __aircraftWidgetSubtypeFilter = String(subtypeSelect.value || "all");
             __aircraftWidgetPage = 1;
+            syncAircraftGlobeVisibilityFilter();
             if (__aircraftWidgetFilter !== "active") {
                 scheduleAircraftHistoryRefresh(true);
                 return;
@@ -8668,6 +8682,7 @@ function bindAircraftMovementsWidget() {
         if (countrySelect && aircraftWidgetEnabled) {
             __aircraftWidgetCountryFilter = String(countrySelect.value || "all").trim().toLowerCase() || "all";
             __aircraftWidgetPage = 1;
+            syncAircraftGlobeVisibilityFilter();
             if (__aircraftWidgetFilter !== "active") {
                 scheduleAircraftHistoryRefresh(true);
                 return;
@@ -8679,14 +8694,10 @@ function bindAircraftMovementsWidget() {
         if (navalSubtypeSelect && navalWidgetEnabled) {
             __navalWidgetSubtypeFilter = normalizeNavalSubtype(String(navalSubtypeSelect.value || "all")) || "all";
             __navalWidgetPage = 1;
+            syncNavalGlobeVisibilityFilter();
             requestNavalWidgetRender(0);
             return;
         }
-        const navalCountrySelect = event.target.closest("#wz-naval-filter-country");
-        if (!navalCountrySelect || !navalWidgetEnabled) return;
-        __navalWidgetCountryFilter = String(navalCountrySelect.value || "all").trim().toLowerCase() || "all";
-        __navalWidgetPage = 1;
-        requestNavalWidgetRender(0);
     });
     document.addEventListener("wz:aircraft-log-updated", () => {
         if (!aircraftWidgetEnabled) return;
@@ -8705,12 +8716,17 @@ function bindAircraftMovementsWidget() {
         if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender();
         if (navalWidgetEnabled) requestNavalWidgetRender();
     });
-    document.addEventListener("wz:aircraft-track-selected", () => {
+    document.addEventListener("wz:aircraft-track-selected", (event) => {
         syncFocusAwareBackgroundLoops();
         if (isAircraftFocusModeActive()) {
             window.__warzoneViewer?.__warzone?.clearAlertHighlight?.();
         }
+        if (event.detail?.trackKey) window.__showWarzoneWidget?.("aircraft");
         if (aircraftWidgetEnabled) requestAircraftMovementsWidgetRender();
+        if (navalWidgetEnabled) requestNavalWidgetRender();
+    });
+    document.addEventListener("wz:naval-track-selected", (event) => {
+        if (event.detail?.trackKey) window.__showWarzoneWidget?.("naval");
         if (navalWidgetEnabled) requestNavalWidgetRender();
     });
     document.addEventListener("wz:asset-focus-changed", (event) => {

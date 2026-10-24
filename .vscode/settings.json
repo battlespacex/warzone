@@ -1,0 +1,26 @@
+{
+  "files.exclude": {
+    "**/.vs": true,
+    "**/node_modules": true,
+    "**/apps/*/node_modules": true,
+    "**/apps/*/.cache": true,
+    "**/.generated/old-smooth-*": true,
+    "**/.generated/source-audit": true,
+    "**/.generated/selfhosted/output": true,
+    "**/.generated/selfhosted/source": true,
+    "**/*.log": true
+  },
+  "search.exclude": {
+    "**/.vs/**": true,
+    "**/node_modules/**": true,
+    "**/apps/*/node_modules/**": true,
+    "**/apps/*/.cache/**": true,
+    "**/.generated/**": true,
+    "production/assets/js/**": true,
+    "production/assets/css/**": true,
+    "production/assets/cesium/**": true,
+    "production/assets/pdfjs/**": true,
+    "**/*.map": true,
+    "**/*.log": true
+  }
+}

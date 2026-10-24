@@ -30,12 +30,24 @@ apps/worker/.cache/
 # OS / editor
 .DS_Store
 Thumbs.db
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .vs/
 .idea/
 
 # misc
 *.map
+
+# reproducible local diagnostics
+.generated/*.log
+.generated/empty-globe-*.json
+.generated/*empty-globe*.cjs
+.generated/profile-*.cjs
+.generated/check-*.cjs
+.generated/inspect-*.cjs
+.generated/read-old-features.cjs
+.generated/old-entry.png
+.generated/phase2-*.json
 
 # Claude Code
 .claude/
