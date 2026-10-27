@@ -57,6 +57,7 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
       <section><select id="wz-aircraft-filter-subtype"><option value="all">All Types</option></select><div class="list" id="wz-aircraft-panel"></div></section>
       <section><select id="wz-naval-filter-subtype"><option value="all">All Types</option></select><div class="list" id="wz-naval-panel-list"></div></section>`);
     const helpers = ["getAircraftSubtypeOptions", "getNavalSubtypeOptions", "normalizeNavalSubtype", "formatNavalSubtypeLabel",
+        "isPointInsideRegion", "isTrackerItemVisibleInScope",
         "formatAircraftSubtypeLabel", "isAircraftTrackSubtype", "prioritizeSelectedAircraftWidgetItem", "getAircraftWidgetItems",
         "ensureAircraftWidgetEmptyState", "getAircraftWidgetActionLabel", "getAircraftWidgetTimeLabel", "updateAircraftWidgetCard",
         "renderAircraftMovementsWidget", "requestNavalWidgetRender", "syncAircraftGlobeVisibilityFilter", "syncNavalGlobeVisibilityFilter"];
@@ -73,16 +74,23 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
       const __manualAircraftSearch = {}, __seededAircraftTrackKeys = new Set(), AIRCRAFT_RECENT_WINDOW_MS = 300000;
       ${essential.match(/const AIRCRAFT_WIDGET_SUBTYPES = Object\.freeze\(\[[\s\S]*?\]\);/)?.[0] || `const AIRCRAFT_WIDGET_SUBTYPES = ${JSON.stringify(airTypes)};`}
       const NAVAL_EVENT_SUBTYPES = new Set(${JSON.stringify(seaTypes)}), NAVAL_SUBTYPE_ALIAS_MAP = new Map();
-      const LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 500, LIVE_NAVAL_WIDGET_MAX_ITEMS = 500, NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
+      let LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = 500, LIVE_NAVAL_WIDGET_MAX_ITEMS = 500;
+      const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
+      ${naval.match(/const NAVAL_CONTACT_STALE_MS = [^;]+;/)[0]}
       const __navalState = { selectedKey: '', vessels: new Map() };
       const __navalInitialRequestPending = false;
       let airPredicate = () => true, navalPredicate = () => true, filterCalls = { air: 0, naval: 0 };
-      let stage = {}, mutations = { options: 0, rows: 0, added: 0, removed: 0 }, countryScans = 0;
+      let stage = {}, mutations = { options: 0, aircraftOptions: 0, navalOptions: 0, rows: 0, added: 0, removed: 0 }, countryScans = 0;
+      let activeRegion = { id: 'test', bounds: { minLat: 0, maxLat: 60, minLon: 0, maxLon: 60 } };
+      const counts = { air: 0, naval: 0 };
       const getAllLiveTrackSnapshots = () => records.air;
-      const getAllNavalSnapshots = () => records.naval;
+      // Model the existing registry API contract: invalid/expired AIS contacts
+      // have already been purged before the widget obtains its snapshots.
+      const getAllNavalSnapshots = () => records.naval.filter(v => !v.invalid && NAVAL_EVENT_SUBTYPES.has(v.subcategory)
+        && Number.isFinite(v.lat) && Number.isFinite(v.lon) && v.last_seen_at >= Date.now() - NAVAL_CONTACT_STALE_MS);
       const getLiveTrackSelection = () => selection;
       const isLayerEnabled = () => true, isHighValueAssetDetectionEnabled = () => false;
-      const isTrackerItemVisibleInScope = () => true, isAircraftTrackingFeatureEnabled = () => true;
+      const isAircraftTrackingFeatureEnabled = () => true;
       const isDatabaseAircraftLiveSourceEnabled = () => true, getPublicAirFeedStatus = () => ({ state: 'active' });
       const isClearlyNavalContact = () => false;
       ${essential.slice(essential.indexOf("const FRONTEND_CIVILIAN_AIRLINER_CODES"), essential.indexOf("function formatAircraftAltitude("))}
@@ -90,12 +98,12 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
       const normalizeAircraftCountryFilterValue = value => value;
       const getAircraftCountryFilterOptions = items => { countryScans += items.length; return []; };
       const getAircraftCountryLabel = () => 'US';
-      const getActiveRegion = () => ({ id: 'test' });
+      const getActiveRegion = () => activeRegion;
       const setLiveTrackVisibilityFilter = predicate => { airPredicate = predicate; filterCalls.air++; };
       const setNavalVisibilityFilter = predicate => { navalPredicate = predicate; filterCalls.naval++; };
       const syncAircraftWidgetFilterControls = () => {}, syncAircraftCountryFilterControls = () => {};
-      const updateAircraftWidgetHighValueCount = () => {}, updateAircraftWidgetTitleCount = () => {};
-      const notifyHighValueAssets = () => {}, updateNavalWidgetTitleCount = () => {};
+      const updateAircraftWidgetHighValueCount = () => {}, updateAircraftWidgetTitleCount = n => { counts.air = n; };
+      const notifyHighValueAssets = () => {}, updateNavalWidgetTitleCount = n => { counts.naval = n; };
       const recordRealtimeWork = () => {}, markTrackerPerf = () => {}, getLiveWidgetRenderDelay = n => n;
       const getHighValueNavalMeta = () => false, getHighValueAircraftMeta = () => false;
       const getAssetFocusController = () => ({ canEnterFocus: () => true });
@@ -114,7 +122,11 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
       const originalNavalRender = renderNavalTrackerWidget;
       renderNavalTrackerWidget = options => { const start = performance.now(); originalNavalRender(options); stage.naval = performance.now() - start; };
       const observer = new MutationObserver(entries => { for (const entry of entries) {
-        if (entry.target.closest?.('select') || entry.target.nodeName === 'OPTION') mutations.options++;
+        if (entry.target.closest?.('select') || entry.target.nodeName === 'OPTION') {
+          mutations.options++;
+          const id = entry.target.closest?.('select')?.id || '';
+          if (id.includes('aircraft')) mutations.aircraftOptions++; else if (id.includes('naval')) mutations.navalOptions++;
+        }
         else { mutations.rows++; mutations.added += entry.addedNodes.length; mutations.removed += entry.removedNodes.length; }
       } });
       document.querySelectorAll('section').forEach(node => observer.observe(node, { childList: true, subtree: true, attributes: true, characterData: true }));
@@ -122,9 +134,10 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
       new PerformanceObserver(list => longTasks.push(...list.getEntries().map(e => e.duration))).observe({ type: 'longtask', buffered: true });
       window.data = (count, categories = true) => {
         records.air = Array.from({ length: count }, (_, i) => ({ track_key: 'air-' + i, callsign: 'AIR' + i, icao24: i.toString(16).padStart(6, '0'), active: true,
-          subcategory: categories && i % 2 === 0 ? 'isr' : 'fighter', altitude_ft: 20000, speed_kts: 300, heading_deg: 90, last_seen_at: 100000 - i }));
+          subcategory: categories && i % 2 === 0 ? 'isr' : 'fighter', lat: 26, lon: 50,
+          altitude_ft: 20000, speed_kts: 300, heading_deg: 90, last_seen_at: Date.now() - i }));
         records.naval = Array.from({ length: count }, (_, i) => ({ track_key: 'naval-' + i, vessel_name: 'SHIP' + i,
-          subcategory: categories && i % 2 === 0 ? 'destroyer' : 'frigate', speed_kts: 20, heading_deg: 90, lon: 50, lat: 26, last_seen_at: 100000 - i }));
+          subcategory: categories && i % 2 === 0 ? 'destroyer' : 'frigate', speed_kts: 20, heading_deg: 90, lon: 50, lat: 26, last_seen_at: Date.now() - i }));
       };
       window.refresh = async () => {
         const start = performance.now(); renderAircraftMovementsWidget(); stage.air = performance.now() - start;
@@ -134,7 +147,7 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
         return { ...stage, ...mutations, countryScans, heap: performance.memory?.usedJSHeapSize,
           longTasks: [...longTasks], filterCalls: { ...filterCalls } };
       };
-      window.resetMetrics = () => { mutations = { options: 0, rows: 0, added: 0, removed: 0 }; countryScans = 0; };
+      window.resetMetrics = () => { mutations = { options: 0, aircraftOptions: 0, navalOptions: 0, rows: 0, added: 0, removed: 0 }; countryScans = 0; };
       window.choose = (air, naval) => {
         __aircraftWidgetSubtypeFilter = air; __navalWidgetSubtypeFilter = naval;
         document.getElementById('wz-aircraft-filter-subtype').value = air;
@@ -146,6 +159,11 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
         if (event.target.id === 'wz-naval-filter-subtype') { __navalWidgetSubtypeFilter = event.target.value; syncNavalGlobeVisibilityFilter(); }
       });
       window.snapshot = () => ({ air: __aircraftWidgetSubtypeFilter, naval: __navalWidgetSubtypeFilter,
+        airOptions: [...document.getElementById('wz-aircraft-filter-subtype').options].map(o => o.value),
+        navalOptions: [...document.getElementById('wz-naval-filter-subtype').options].map(o => o.value),
+        counts: { ...counts },
+        airMore: document.querySelector('#wz-aircraft-panel .wz-aircraft-load-more')?.textContent || null,
+        navalMore: document.querySelector('#wz-naval-panel-list .wz-naval-load-more')?.textContent || null,
         airRows: document.querySelectorAll('#wz-aircraft-panel article').length,
         navalRows: document.querySelectorAll('#wz-naval-panel-list article').length,
         airEligible: records.air.filter(airPredicate).length, navalEligible: records.naval.filter(navalPredicate).length,
@@ -170,6 +188,77 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
             records.naval[0].speed_kts++; return window.refresh(); });
         profiles.push({ count, cold, stable, medianAirMs: median('air'), medianNavalMs: median('naval'), churn });
     }
+    let availability;
+    if (!baseline) {
+        await page.evaluate(() => { window.data(0); window.choose('all', 'all'); });
+        await page.evaluate(() => window.refresh());
+        const none = await page.evaluate(() => window.snapshot());
+        assert.deepEqual(none.airOptions, ['all']); assert.deepEqual(none.navalOptions, ['all']);
+        await page.evaluate(() => window.data(20));
+        await page.evaluate(() => window.refresh());
+        const live = await page.evaluate(() => window.snapshot());
+        assert.deepEqual(live.airOptions, ['all', 'fighter', 'isr']);
+        assert.deepEqual(live.navalOptions, ['all', 'destroyer', 'frigate']);
+        const oneSide = await page.evaluate(async () => {
+            const navalOptions = [...document.getElementById('wz-naval-filter-subtype').options];
+            records.air.push({ ...records.air[0], track_key: 'air-only-addition', icao24: 'dd0000', subcategory: 'awacs' });
+            window.resetMetrics(); const result = await window.refresh();
+            return { navalOptionMutations: result.navalOptions, sameNavalOptions: navalOptions.every((node, i) =>
+                node === document.getElementById('wz-naval-filter-subtype').options[i]), snapshot: window.snapshot() };
+        });
+        assert.equal(oneSide.navalOptionMutations, 0); assert.equal(oneSide.sameNavalOptions, true);
+        assert.ok(oneSide.snapshot.airOptions.includes('awacs'));
+        const paged = await page.evaluate(async () => {
+            LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = LIVE_NAVAL_WIDGET_MAX_ITEMS = 8;
+            records.air[19].subcategory = 'transport'; records.naval[19].subcategory = 'carrier';
+            window.choose('isr', 'destroyer'); await window.refresh(); return window.snapshot();
+        });
+        assert.ok(paged.airOptions.includes('transport'), 'categories include nonmatching records beyond the visible page');
+        assert.ok(paged.navalOptions.includes('carrier'));
+        assert.equal(paged.airRows, 8); assert.equal(paged.navalRows, 8);
+        assert.equal(paged.counts.air, 10); assert.equal(paged.counts.naval, 10);
+        assert.match(paged.airMore, /2 more/); assert.match(paged.navalMore, /2 more/);
+        await page.evaluate(() => window.data(20, false));
+        await page.evaluate(() => window.refresh());
+        const pinned = await page.evaluate(() => window.snapshot());
+        assert.equal(pinned.air, 'isr'); assert.equal(pinned.naval, 'destroyer');
+        assert.ok(pinned.airOptions.includes('isr')); assert.ok(pinned.navalOptions.includes('destroyer'));
+        assert.equal(pinned.airMore, null); assert.equal(pinned.navalMore, null);
+        assert.equal(pinned.counts.air, 0); assert.equal(pinned.counts.naval, 0);
+        await page.evaluate(() => window.choose('all', 'all'));
+        await page.evaluate(() => window.refresh());
+        const unpinned = await page.evaluate(() => window.snapshot());
+        assert.deepEqual(unpinned.airOptions, ['all', 'fighter']);
+        assert.deepEqual(unpinned.navalOptions, ['all', 'frigate']);
+        const regions = await page.evaluate(async () => {
+            window.data(2);
+            const air = records.air[0], sea = records.naval[0];
+            records.air.push({ ...air, track_key: 'other-region', icao24: 'bb0000', subcategory: 'bomber', lon: 110 });
+            records.air.push({ ...air, track_key: 'ended', icao24: 'bb0001', subcategory: 'tanker', active: false });
+            records.air.push({ ...air, track_key: 'invalid', icao24: 'bb0002', subcategory: 'helicopter', lat: NaN });
+            records.air.push({ ...air, track_key: 'naval-in-air', icao24: 'bb0003', subcategory: 'destroyer' });
+            records.air.push({ ...air, track_key: 'pending', icao24: 'bb0004', subcategory: 'drone', __realtimeRenderPending: true });
+            __aircraftHistoryCache = [{ ...air, track_key: 'history-only', icao24: 'bb0005', subcategory: 'awacs' }];
+            records.naval.push({ ...sea, track_key: 'other-region-ship', subcategory: 'carrier', lon: 110 });
+            records.naval.push({ ...sea, track_key: 'stale-ship', subcategory: 'intelligence', last_seen_at: Date.now() - 86400000 });
+            records.naval.push({ ...sea, track_key: 'invalid-ship', subcategory: 'patrol', lat: NaN });
+            records.naval.push({ ...sea, track_key: 'air-in-naval', subcategory: 'fighter' });
+            records.naval.push({ ...sea, track_key: 'nonoperational', subcategory: 'submarine', invalid: true });
+            await window.refresh(); const first = window.snapshot();
+            activeRegion = { id: 'other', bounds: { minLat: 0, maxLat: 60, minLon: 100, maxLon: 140 } };
+            await window.refresh(); const second = window.snapshot();
+            activeRegion = { id: 'test', bounds: { minLat: 0, maxLat: 60, minLon: 0, maxLon: 60 } };
+            __aircraftHistoryCache = [];
+            LIVE_AIRCRAFT_WIDGET_MAX_ITEMS = LIVE_NAVAL_WIDGET_MAX_ITEMS = 500;
+            window.data(500); await window.refresh();
+            return { first, second };
+        });
+        assert.deepEqual(regions.first.airOptions, ['all', 'drone', 'fighter', 'isr']);
+        assert.deepEqual(regions.first.navalOptions, ['all', 'destroyer', 'frigate']);
+        assert.deepEqual(regions.second.airOptions, ['all', 'bomber']);
+        assert.deepEqual(regions.second.navalOptions, ['all', 'carrier']);
+        availability = { none, live, oneSide, paged, pinned, unpinned, regions };
+    }
     const dropdowns = [];
     for (const domain of ['aircraft', 'naval']) {
         const id = 'wz-' + domain + '-filter-subtype';
@@ -186,9 +275,14 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
         const refreshed = await page.evaluate(() => window.refresh());
         const after = await page.evaluate(id => ({ open: document.getElementById(id).matches(':open'), latencyMs: window.openLatencyMs,
             sameOptions: [...document.getElementById(id).options].every((node, i) => node === window.optionNodes[i]) }), id);
-        dropdowns.push({ domain, before, ...after, optionMutations: refreshed.options });
-        if (!baseline) { assert.equal(after.sameOptions, true); assert.equal(refreshed.options, 0); if (before) assert.equal(after.open, true); }
+        const optionMutations = refreshed[domain === 'aircraft' ? 'aircraftOptions' : 'navalOptions'];
+        dropdowns.push({ domain, before, ...after, optionMutations });
+        if (!baseline) { assert.equal(after.sameOptions, true); assert.equal(optionMutations, 0); if (before) assert.equal(after.open, true); }
         if (!baseline) {
+            await page.keyboard.press('Escape');
+            await page.waitForFunction(([id, absent]) => ![...document.getElementById(id).options].some(o => o.value === absent),
+                [id, domain === 'aircraft' ? 'isr' : 'destroyer']);
+            await page.locator('#' + id).click();
             await page.keyboard.press('Home'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
             const committed = await page.evaluate(id => ({ value: document.getElementById(id).value,
                 state: id.includes('aircraft') ? __aircraftWidgetSubtypeFilter : __navalWidgetSubtypeFilter }), id);
@@ -266,12 +360,20 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
     });
     await cdp.send('HeapProfiler.collectGarbage');
     const heapAfter = await page.evaluate(() => performance.memory?.usedJSHeapSize);
+    const listenerCounts = {};
+    for (const domain of ['aircraft', 'naval']) {
+        const remote = await cdp.send('Runtime.evaluate', { expression: `document.getElementById('wz-${domain}-filter-subtype')` });
+        const result = await cdp.send('DOMDebugger.getEventListeners', { objectId: remote.result.objectId });
+        listenerCounts[domain] = result.listeners.map(listener => listener.type).sort();
+        if (!baseline) assert.deepEqual(listenerCounts[domain], ['blur', 'change', 'keyup', 'pointerup']);
+        await cdp.send('Runtime.releaseObject', { objectId: remote.result.objectId });
+    }
     if (!baseline) {
         assert.deepEqual(continuous.callsBefore, continuous.callsAfter, "telemetry must not resynchronize unchanged globe filters");
         assert.equal(continuous.rows.airRows, 500); assert.equal(continuous.rows.navalRows, 500);
         if (heapBefore && heapAfter) assert.ok(heapAfter - heapBefore < 8e6, "bounded heap after continuous updates and collection");
     }
     assert.deepEqual(errors, []);
-    t.diagnostic(JSON.stringify({ baseline, profiles, dropdowns, empty, returned, controls, remounted,
-        continuous, heapBefore, heapAfter }));
+    t.diagnostic(JSON.stringify({ baseline, profiles, availability, dropdowns, empty, returned, controls, remounted,
+        continuous, heapBefore, heapAfter, listenerCounts }));
 });

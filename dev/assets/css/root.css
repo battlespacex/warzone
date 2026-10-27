@@ -1251,6 +1251,9 @@
     --warzone-ctr-radar-grid-spacing: 50;
     --warzone-ctr-radar-ring-count: 2;
     --warzone-ctr-radar-scale: 1;
+    /* Extent only: scale circles/grid boundary, not spacing or line widths. */
+    --warzone-aircraft-ctr-radar-extent-scale: 1.5;
+    --warzone-naval-ctr-radar-extent-scale: 0.5;
     --warzone-naval-ctr-radar-inner-radius: 1500;
     --warzone-naval-ctr-radar-outer-radius: 3000;
     --warzone-naval-ctr-radar-grid-spacing: 500;

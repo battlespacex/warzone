@@ -14,6 +14,8 @@ existing CTR camera range is wider.
 | `--warzone-ctr-radar-grid-spacing` | 50 | metres per square |
 | `--warzone-ctr-radar-ring-count` | 2 | rings, including inner and outer |
 | `--warzone-ctr-radar-scale` | 1 | multiplier for radii and spacing |
+| `--warzone-aircraft-ctr-radar-extent-scale` | 1.5 | aircraft radii/grid-boundary multiplier only |
+| `--warzone-naval-ctr-radar-extent-scale` | 0.5 | naval radii/grid-boundary multiplier only |
 | `--warzone-naval-ctr-radar-inner-radius` | 1500 | metres |
 | `--warzone-naval-ctr-radar-outer-radius` | 3000 | metres |
 | `--warzone-naval-ctr-radar-grid-spacing` | 500 | metres per square |
@@ -23,6 +25,11 @@ To override one tracker, replace `--warzone-ctr-radar-` with
 For example, `--warzone-naval-ctr-radar-grid-spacing: 400;` changes only naval squares.
 Line widths are not multiplied by scale. Existing grid colors, alpha, major-line
 styling and edge fade remain in the neighboring `--warzone-contour-grid-*` controls.
+
+Extent multipliers are applied once to the configured base radii on each resolution,
+not to previously generated geometry. Defaults resolve to Air 225/450 metre rings
+with 50 metre grid spacing, and Naval 750/1500 metre rings with 500 metre spacing.
+The original `scale` setting still scales both radii and spacing as before.
 
 At least two rings are retained; additional rings are evenly spaced between
 the inner and outer radii. Ring count is capped at eight and grid density at

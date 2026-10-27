@@ -7040,8 +7040,9 @@ function getFocusedCtrRadarConfig(viewer) {
     const value = (name, fallback) => numberVar(`--warzone-${profile}-ctr-radar-${name}`,
         numberVar(`--warzone-ctr-radar-${name}`, fallback));
     const scale = Math.max(0.05, Math.min(10, value("scale", 1)));
-    const outerRadius = Math.max(10, Math.min(80000, value("outer-radius", 300) * scale));
-    const innerRadius = Math.max(1, Math.min(outerRadius * 0.95, value("inner-radius", 150) * scale));
+    const extentScale = Math.max(0.05, Math.min(10, value("extent-scale", 1)));
+    const outerRadius = Math.max(10, Math.min(80000, value("outer-radius", 300) * scale * extentScale));
+    const innerRadius = Math.max(1, Math.min(outerRadius * 0.95, value("inner-radius", 150) * scale * extentScale));
     return {
         profile, outerRadius, innerRadius,
         ringWidth: Math.max(0.4, Math.min(5, value("ring-width", 1.5))),
