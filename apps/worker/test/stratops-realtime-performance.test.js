@@ -194,7 +194,8 @@ test("realtime entry point queues and preserves existing filters and interpolati
     assert.match(fn(essential, "handleTracksRealtimePayload"), /shouldExcludeFromMilitaryAircraftTracker[\s\S]*isPointInsideRegion[\s\S]*upsertLiveTrack/);
     assert.match(aircraft, /animateTrackTo\(entity, track, lon, lat, alt, sourceTimestamp, attitude\)/);
     assert.match(essential, /AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 500/);
-    assert.match(essential, /if \(__aircraftWidgetRenderTimer\) return/);
+    assert.match(fn(essential, "requestAircraftMovementsWidgetRender"),
+        /if \(__aircraftWidgetRenderTimer\) \{\s*if \(requestedDelay !== 0\) return;/);
 });
 test("coalesced telemetry forces final render and still rejects older source time", async () => {
     const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");

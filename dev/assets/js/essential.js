@@ -182,6 +182,10 @@ let __aircraftLayerChangeReady = false;
 let __aircraftWidgetBound = false;
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
+const AIRCRAFT_WIDGET_SUBTYPES = Object.freeze([
+    "awacs", "bomber", "drone", "fighter", "helicopter", "isr", "logistic",
+    "logistics", "recon", "refueler", "tanker", "transport", "uav", "vip",
+]);
 let __aircraftWidgetScopeFilter = "region";
 let __aircraftWidgetPage = 1;
 let __aircraftWidgetCountryFilter = "all";
@@ -3379,12 +3383,20 @@ document.addEventListener("wz:dev-high-value-aircraft-demo", (event) => {
     notifyHighValueAssets("aircraft", items);
 });
 function getNavalSubtypeOptions(items = []) {
-    return [...new Set(
-        items
-            .map((item) => normalizeNavalSubtype(item?.subcategory))
-            .filter((value) => value && value !== "naval")
-            .filter((value) => NAVAL_EVENT_SUBTYPES.has(value))
-    )].sort((a, b) => formatNavalSubtypeLabel(a).localeCompare(formatNavalSubtypeLabel(b)));
+    return [...NAVAL_EVENT_SUBTYPES].filter(value => value !== "naval")
+        .sort((a, b) => formatNavalSubtypeLabel(a).localeCompare(formatNavalSubtypeLabel(b)));
+}
+function syncTrackerSubtypeOptions(select, options, selectedValue, formatLabel) {
+    if (!select) return;
+    const key = options.join("|");
+    if (select.dataset.subtypeOptionsKey !== key) {
+        select.innerHTML = ['<option value="all">All Types</option>']
+            .concat(options.map(value => `<option value="${value}">${formatLabel(value)}</option>`)).join("");
+        select.dataset.subtypeOptionsKey = key;
+        select.value = selectedValue;
+    }
+    // Ordinary telemetry must not write to an open native picker, including
+    // its uncommitted keyboard selection. Restore session state only on mount.
 }
 function isNavalSignalEvent(event = {}) {
     const metadata = getEventMetadata(event);
@@ -3401,6 +3413,7 @@ function isNavalSignalEvent(event = {}) {
 }
 function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
     if (__navalWidgetRenderTimer) {
+        if (delay !== 0) return;
         clearTimeout(__navalWidgetRenderTimer);
         __navalWidgetRenderTimer = 0;
     }
@@ -3414,21 +3427,7 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const highValueVessels = isHighValueAssetDetectionEnabled()
             ? scopedVessels.filter((vessel) => getHighValueNavalMeta(vessel))
             : [];
-        if (navalSubtypeSelect) {
-            const currentValue = navalSubtypeSelect.value || __navalWidgetSubtypeFilter;
-            const subtypeOptions = getNavalSubtypeOptions(scopedVessels);
-            const optionsKey = subtypeOptions.join("|");
-            if (__navalSubtypeOptionsKey !== optionsKey) {
-                navalSubtypeSelect.innerHTML = ['<option value="all">All Types</option>']
-                    .concat(subtypeOptions.map((value) => `<option value="${value}">${formatNavalSubtypeLabel(value)}</option>`))
-                    .join("");
-                __navalSubtypeOptionsKey = optionsKey;
-            }
-            navalSubtypeSelect.value = subtypeOptions.includes(currentValue) || currentValue === "all"
-                ? currentValue
-                : "all";
-            __navalWidgetSubtypeFilter = navalSubtypeSelect.value || "all";
-        }
+        syncTrackerSubtypeOptions(navalSubtypeSelect, getNavalSubtypeOptions(), __navalWidgetSubtypeFilter, formatNavalSubtypeLabel);
         const vessels = __navalWidgetSubtypeFilter && __navalWidgetSubtypeFilter !== "all"
             ? scopedVessels.filter((vessel) => normalizeNavalSubtype(vessel.subcategory) === __navalWidgetSubtypeFilter)
             : scopedVessels;
@@ -3441,7 +3440,9 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
             pageSize: LIVE_NAVAL_WIDGET_MAX_ITEMS,
             emptyMessage: __navalInitialRequestPending
                 ? "Loading naval tracks…"
-                : "No naval contacts in selected region",
+                : __navalWidgetSubtypeFilter !== "all"
+                    ? `No ${formatNavalSubtypeLabel(__navalWidgetSubtypeFilter)} contacts in selected region`
+                    : "No naval contacts in selected region",
         });
         if (vessels.length) markTrackerPerf("naval", "first tracker row rendered");
     }, getLiveWidgetRenderDelay(delay));
@@ -6760,13 +6761,7 @@ function formatAircraftEndedAt(endedAt = 0) {
     return `Ended ${Math.max(1, Math.round(deltaMs / 86400000))}d ago`;
 }
 function getAircraftSubtypeOptions(items = []) {
-    const options = [...new Set(
-        items
-            .map((track) => resolveAircraftSubtype(track))
-            .map((value) => String(value || "").toLowerCase())
-            .filter((value) => value && !["military", "aircraft", "unknown", "trainer"].includes(value))
-    )];
-    return options.sort();
+    return AIRCRAFT_WIDGET_SUBTYPES;
 }
 function getAircraftWidgetStatusLabel(track = {}) {
     return track.active ? "Active" : "Ended";
@@ -7122,16 +7117,10 @@ function getLiveWidgetRenderDelay(delay = 0) {
 }
 function requestAircraftMovementsWidgetRender(delay = AIRCRAFT_WIDGET_RENDER_THROTTLE_MS) {
     const requestedDelay = getLiveWidgetRenderDelay(delay);
-    if (requestedDelay === 0) {
-        if (__aircraftWidgetRenderTimer) {
-            clearTimeout(__aircraftWidgetRenderTimer);
-            __aircraftWidgetRenderTimer = 0;
-        }
-        __aircraftWidgetLastRenderedAt = performance.now();
-        measureRealtimeStage("widget.aircraft", renderAircraftMovementsWidget);
-        return;
+    if (__aircraftWidgetRenderTimer) {
+        if (requestedDelay !== 0) return;
+        clearTimeout(__aircraftWidgetRenderTimer);
     }
-    if (__aircraftWidgetRenderTimer) return;
     const elapsed = Math.max(0, performance.now() - __aircraftWidgetLastRenderedAt);
     const wait = Math.max(0, requestedDelay - elapsed);
     __aircraftWidgetRenderTimer = window.setTimeout(() => {
@@ -8040,24 +8029,27 @@ function getAircraftWidgetItems() {
             (track) => String(track.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter
         );
     }
-    let activeCountryItems = isDatabaseAircraftLiveSourceEnabled()
-        ? allItems.filter((track) => track.active)
-        : allItems.filter((track) => track.active && liveKeys.has(getAircraftMergeKey(track)));
-    if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
-        activeCountryItems = activeCountryItems.filter(
-            (track) => String(track.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter
-        );
-    }
-    const countryOptions = getAircraftCountryFilterOptions(activeCountryItems);
-    const allowedCountryValues = new Set(countryOptions.map((option) => option.value));
-    const selectedCountryValue = normalizeAircraftCountryFilterValue(__aircraftWidgetCountryFilter || "all");
-    if (selectedCountryValue !== "all" && !allowedCountryValues.has(selectedCountryValue)) {
-        __aircraftWidgetCountryFilter = "all";
-    }
-    if (selectedCountryValue !== "all" && allowedCountryValues.has(selectedCountryValue)) {
-        items = items.filter(
-            (track) => normalizeAircraftCountryFilterValue(getAircraftCountryLabel(track)) === selectedCountryValue
-        );
+    let activeCountryItems = [];
+    if (document.getElementById("wz-aircraft-filter-country") || __aircraftWidgetCountryFilter !== "all") {
+        activeCountryItems = isDatabaseAircraftLiveSourceEnabled()
+            ? allItems.filter((track) => track.active)
+            : allItems.filter((track) => track.active && liveKeys.has(getAircraftMergeKey(track)));
+        if (__aircraftWidgetSubtypeFilter && __aircraftWidgetSubtypeFilter !== "all") {
+            activeCountryItems = activeCountryItems.filter(
+                (track) => String(track.subcategory || "").toLowerCase() === __aircraftWidgetSubtypeFilter
+            );
+        }
+        const countryOptions = getAircraftCountryFilterOptions(activeCountryItems);
+        const allowedCountryValues = new Set(countryOptions.map((option) => option.value));
+        const selectedCountryValue = normalizeAircraftCountryFilterValue(__aircraftWidgetCountryFilter || "all");
+        if (selectedCountryValue !== "all" && !allowedCountryValues.has(selectedCountryValue)) {
+            __aircraftWidgetCountryFilter = "all";
+        }
+        if (selectedCountryValue !== "all" && allowedCountryValues.has(selectedCountryValue)) {
+            items = items.filter(
+                (track) => normalizeAircraftCountryFilterValue(getAircraftCountryLabel(track)) === selectedCountryValue
+            );
+        }
     }
     const manualItem = liveItems.find((track) => track.__manualAircraftOverride && track.track_key === __manualAircraftSearch.trackKey);
     if (manualItem && !items.some((track) => track.track_key === manualItem.track_key)) {
@@ -8093,7 +8085,9 @@ function getAircraftWidgetItems() {
             ? "Loading live aircraft…"
             : getPublicAirFeedStatus().state === "backoff" && allItems.length === 0
                 ? "Aircraft feed temporarily unavailable"
-                : "No active military aircraft detected.",
+                : __aircraftWidgetSubtypeFilter !== "all"
+                    ? `No ${formatAircraftSubtypeLabel(__aircraftWidgetSubtypeFilter)} aircraft in selected region.`
+                    : "No active military aircraft detected.",
     };
 }
 function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircraft logs in the current filter") {
@@ -8104,7 +8098,7 @@ function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircr
             emptyEl.className = "wz-aircraft-empty";
             container.appendChild(emptyEl);
         }
-        emptyEl.textContent = message;
+        if (emptyEl.textContent !== message) emptyEl.textContent = message;
         return;
     }
     if (emptyEl) {
@@ -8289,19 +8283,7 @@ function renderAircraftMovementsWidget() {
     updateAircraftWidgetTitleCount(filteredCount);
     notifyHighValueAssets("aircraft", highValueItems);
     const selection = getLiveTrackSelection();
-    if (subtypeSelect) {
-        const currentValue = subtypeSelect.value || __aircraftWidgetSubtypeFilter;
-        const options = getAircraftSubtypeOptions(baseItems);
-        const optionsKey = options.join("|");
-        if (__aircraftSubtypeOptionsKey !== optionsKey) {
-            subtypeSelect.innerHTML = ['<option value="all">All Types</option>']
-                .concat(options.map((value) => `<option value="${value}">${formatAircraftSubtypeLabel(value)}</option>`))
-                .join("");
-            __aircraftSubtypeOptionsKey = optionsKey;
-        }
-        subtypeSelect.value = options.includes(currentValue) || currentValue === "all" ? currentValue : "all";
-        __aircraftWidgetSubtypeFilter = subtypeSelect.value || "all";
-    }
+    syncTrackerSubtypeOptions(subtypeSelect, getAircraftSubtypeOptions(), __aircraftWidgetSubtypeFilter, formatAircraftSubtypeLabel);
     syncAircraftCountryFilterControls(activeCountryItems);
     syncAircraftGlobeVisibilityFilter();
     const existingCards = [...container.querySelectorAll(".wz-aircraft-item")];
@@ -8615,6 +8597,8 @@ function bindAircraftMovementsWidget() {
     if (!aircraftWidgetEnabled && !navalWidgetEnabled) return;
     if (__aircraftWidgetBound) return;
     __aircraftWidgetBound = true;
+    syncTrackerSubtypeOptions(document.getElementById("wz-aircraft-filter-subtype"), getAircraftSubtypeOptions(), __aircraftWidgetSubtypeFilter, formatAircraftSubtypeLabel);
+    syncTrackerSubtypeOptions(document.getElementById("wz-naval-filter-subtype"), getNavalSubtypeOptions(), __navalWidgetSubtypeFilter, formatNavalSubtypeLabel);
     bindManualAircraftSearch();
     bindFocusedAircraftTrailHistory();
     document.addEventListener("click", (event) => {

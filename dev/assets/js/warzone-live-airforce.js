@@ -1755,6 +1755,15 @@ function getFocusedAircraftModelScale(track = {}, computedStyle = null) {
         3000
     );
 }
+function refreshFocusedAircraftModelScale() {
+    const key = getFocusedTrackKey();
+    if (!isFocusedTrackKey(key)) return;
+    const entity = window.__warzoneViewer?.entities?.getById(`track-${key}`);
+    const track = __liveTrackRegistry.get(key);
+    if (!key || !track || !entity?.model) return;
+    entity.model.scale = getFocusedAircraftModelScale(track);
+    requestWarzoneRenderBatched();
+}
 function getFormationDevGroupKey(track = {}) {
     const metadata = getTrackMetadata(track);
     if (String(metadata.simulation || track.simulation || "") !== "formation-dev-tuner") return "";
@@ -5267,6 +5276,7 @@ function bindLiveTrackOverlay(viewer) {
     __liveTrackLabelsNearCamera = isCameraWithinTrackLabelZoom();
     ensureLiveTrackOverlayRoot(viewer);
     bindLiveTrackRuntimeEvent(document, "wz:contour-layer-changed", syncFocusedTrackOverlayModeButtons);
+    bindLiveTrackRuntimeEvent(window, "resize", refreshFocusedAircraftModelScale);
     bindFocusInteractionTracking(viewer);
     const focusController = getAssetFocusController();
     focusController.registerTask("aircraft-camera-lock", () => syncFocusedTrackCamera(), { hz: LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ });

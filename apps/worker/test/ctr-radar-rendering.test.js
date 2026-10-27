@@ -18,11 +18,11 @@ function extract(name) {
 }
 const implementation = ["cssVar", "numberVar", "boolVar", "colorFromCssVar", "lerp", "clamp01",
   "getContourOverlayState", "getContourFocusProfile", "smoothContourFade", "raiseContourGridPrimitive",
-  "destroyContourGridPrimitive", "updateContourGridPrimitiveCenter", "chooseOperationalGridIntervalMeters",
+  "destroyContourGridPrimitive", "fitContourGridToSurface", "updateContourGridPrimitiveCenter", "chooseOperationalGridIntervalMeters",
   "getFocusedCtrRadarConfig", "addContourGridRing", "ensureContourGridPrimitive", "setContourGridCenter",
 ].map(extract).join("\n");
 
-test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respond to configuration", { timeout: 120000 }, async t => {
+test("real Cesium surface CTR renders at low-altitude Focus and follows elevated terrain", { timeout: 240000 }, async t => {
   const executablePath = process.env.STRATOPS_TEST_CHROME || "C:/Program Files/Google/Chrome/Application/chrome.exe";
   if (!fs.existsSync(executablePath)) return t.skip("Set STRATOPS_TEST_CHROME to an installed Chrome executable");
   const browser = await chromium.launch({ executablePath, headless: true });
@@ -39,7 +39,8 @@ test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respo
     const contentType = local.endsWith(".js") ? "application/javascript" : local.endsWith(".json") ? "application/json" : "application/octet-stream";
     return route.fulfill({ body: fs.readFileSync(local), contentType });
   });
-  await page.goto("http://ctr.test/", { waitUntil: "load" });
+  await page.goto("http://ctr.test/", { waitUntil: "commit" });
+  await page.waitForFunction(() => Boolean(window.Cesium));
   await page.addStyleTag({ content: css });
   await page.addScriptTag({ content: implementation });
   const initialRangeStart = aircraftSource.indexOf("function getAircraftInitialFocusCameraConfig(");
@@ -64,8 +65,10 @@ test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respo
     window.testViewer = { scene, __contourGridLayerVisible: true };
   });
   const results = [];
-  for (const viewport of [{ width: 1920, height: 1080 }, { width: 2560, height: 1440 },
-    { width: 3440, height: 1440 }, { width: 3840, height: 2160 }]) {
+  const viewports = process.env.STRATOPS_CTR_SURFACE_ONLY === "1" ? [] : [
+    { width: 1920, height: 1080 }, { width: 2560, height: 1440 },
+    { width: 3440, height: 1440 }, { width: 3840, height: 2160 }];
+  for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     for (const profile of ["aircraft", "naval"]) {
       const result = await page.evaluate(async ({ profile, viewport }) => {
@@ -75,7 +78,7 @@ test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respo
         scene.camera.frustum.aspectRatio = viewport.width / viewport.height;
         const state = getContourOverlayState(viewer);
         state.hasFocusPosition = true; state.focusProfile = profile;
-        const center = { lon: 50, lat: 26, height: profile === "aircraft" ? 18000 : 0 };
+        const center = { lon: 50, lat: 26, height: profile === "aircraft" ? 20 : 0 };
         state.centerHeight = center.height;
         const pitch = numberVar(`--warzone-live-${profile}-focus-camera-pitch`, -58);
         const range = profile === "aircraft"
@@ -94,19 +97,22 @@ test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respo
           const world = Cesium.Matrix4.multiplyByPoint(primitive.modelMatrix, local, new Cesium.Cartesian3());
           return Cesium.SceneTransforms.worldToWindowCoordinates(scene, world);
         }));
+        const vertexHeights = rings.flatMap(ring => ring.positions.map(local => Cesium.Cartographic.fromCartesian(
+          Cesium.Matrix4.multiplyByPoint(primitive.modelMatrix, local, new Cesium.Cartesian3())).height));
         const complete = points.every(point => point && point.x > 10 && point.x < viewport.width - 10 && point.y > 10 && point.y < viewport.height - 10);
         const context = scene.context._gl;
         const pixels = new Uint8Array(viewport.width * viewport.height * 4);
         context.readPixels(0, 0, viewport.width, viewport.height, context.RGBA, context.UNSIGNED_BYTE, pixels);
         let redPixels = 0;
         for (let i = 0; i < pixels.length; i += 4) if (pixels[i] > 25 && pixels[i] > pixels[i + 1] * 1.5 && pixels[i] > pixels[i + 2] * 1.2) redPixels++;
-        center.lon += 0.01; center.lat += 0.005; center.height += profile === "aircraft" ? 50 : 0;
+        center.lon += 0.01; center.lat += 0.005; center.height += profile === "aircraft" ? 5 : 0;
         setContourGridCenter(viewer, center); aim(); await draw();
         const geographic = Cesium.Cartographic.fromCartesian(Cesium.Matrix4.getTranslation(primitive.modelMatrix, new Cesium.Cartesian3()));
         return { profile, width: viewport.width, ringCount: rings.length, complete, redPixels,
+          minHeight: Math.min(...vertexHeights), maxHeight: Math.max(...vertexHeights), firstPoint: points[0],
           gridLines: primitive.length - rings.length, reused: primitive === state.gridPrimitive,
           lonError: Math.abs(Cesium.Math.toDegrees(geographic.longitude) - center.lon),
-          altitudeError: Math.abs(geographic.height - center.height - 1),
+          altitudeError: Math.abs(geographic.height - 1),
           range, config: getFocusedCtrRadarConfig(viewer), ringWidths: rings.map(line => line.width) };
       }, { profile, viewport });
       assert.equal(result.ringCount, 2, JSON.stringify(result));
@@ -123,6 +129,112 @@ test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respo
       }
     }
   }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const surfaceResults = await page.evaluate(async () => {
+    const viewer = window.testViewer, scene = viewer.scene;
+    scene.canvas.width = 1280; scene.canvas.height = 720;
+    scene.canvas.style.width = '1280px'; scene.canvas.style.height = '720px';
+    scene.camera.frustum.aspectRatio = 1280 / 720;
+    const state = getContourOverlayState(viewer);
+    const draw = async (frames = 12) => { for (let i = 0; i < frames; i++) {
+      await new Promise(requestAnimationFrame); scene.initializeFrame(); scene.render(Cesium.JulianDate.now());
+    } };
+    const settle = async center => {
+      for (let frames = 0; frames < 500; frames++) {
+        // Mirror the live tracking updates while terrain fitting yields.
+        updateContourGridPrimitiveCenter(viewer, center);
+        await draw(1);
+        const primitive = state.gridPrimitive;
+        if (scene.globe.tilesLoaded && primitive.__surfaceTilesLoaded === true &&
+          !primitive.__surfaceNeedsRefresh && !primitive.__surfaceFitFrame && primitive.__surfaceFitCenter && Cesium.Cartesian3.equals(
+          primitive.__surfaceFitCenter, Cesium.Matrix4.getTranslation(primitive.modelMatrix, new Cesium.Cartesian3()))) return;
+      }
+      throw new Error('surface fitting did not settle at the current target position');
+    };
+    const tilingScheme = new Cesium.GeographicTilingScheme();
+    const terrain = new Cesium.CustomHeightmapTerrainProvider({ width: 32, height: 32, tilingScheme,
+      callback: (x, y, level) => {
+        const rectangle = tilingScheme.tileXYToRectangle(x, y, level);
+        const values = new Float32Array(32 * 32);
+        for (let row = 0; row < 32; row++) for (let col = 0; col < 32; col++) {
+          const lon = Cesium.Math.toDegrees(Cesium.Math.lerp(rectangle.west, rectangle.east, col / 31));
+          const lat = Cesium.Math.toDegrees(Cesium.Math.lerp(rectangle.north, rectangle.south, row / 31));
+          values[row * 32 + col] = Math.max(0, 1800 + 900 * Math.sin((lon - 50) * 20) + 600 * Math.sin((lat - 26) * 20));
+        }
+        return values;
+      } });
+    scene.globe.terrainProvider = terrain;
+    viewer.terrainProvider = terrain;
+    scene.globe.depthTestAgainstTerrain = true;
+    const measurements = [];
+    for (const profile of ['aircraft', 'naval']) {
+      state.hasFocusPosition = true; state.focusProfile = profile;
+      const center = { lon: 50, lat: 26, height: profile === 'aircraft' ? 18000 : 500 };
+      // Diagnostic ground overview, not a change to the application's Focus camera.
+      scene.camera.lookAt(Cesium.Cartesian3.fromDegrees(50, 26, 1800),
+        new Cesium.HeadingPitchRange(0, -Math.PI / 2, profile === 'aircraft' ? 1800 : 18000));
+      ensureContourGridPrimitive(viewer, center);
+      await draw(45);
+      const primitive = state.gridPrimitive;
+      primitive.__surfaceFitAt = -Infinity;
+      const started = performance.now();
+      updateContourGridPrimitiveCenter(viewer, center);
+      const fitMs = performance.now() - started;
+      await settle(center);
+      await draw();
+      let maxError = 0, samples = 0;
+      for (let i = 0; i < primitive.length; i++) for (const point of primitive.get(i).positions) {
+        const geographic = Cesium.Cartographic.fromCartesian(Cesium.Matrix4.multiplyByPoint(primitive.modelMatrix, point, new Cesium.Cartesian3()));
+        const ground = scene.globe.getHeight(geographic);
+        if (Number.isFinite(ground)) { samples++; maxError = Math.max(maxError, Math.abs(geographic.height - ground - 1)); }
+      }
+      const originalMatrix = Cesium.Matrix4.clone(primitive.modelMatrix);
+      center.height += 12000;
+      updateContourGridPrimitiveCenter(viewer, center);
+      const ignoresAltitude = Cesium.Matrix4.equals(originalMatrix, primitive.modelMatrix);
+      center.lon += 0.0001;
+      primitive.__surfaceFitAt = -Infinity;
+      updateContourGridPrimitiveCenter(viewer, center);
+      await settle(center);
+      await draw();
+      const gl = scene.context._gl;
+      const pixels = new Uint8Array(scene.canvas.width * scene.canvas.height * 4);
+      gl.readPixels(0, 0, scene.canvas.width, scene.canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      let redPixels = 0;
+      for (let i = 0; i < pixels.length; i += 4) if (pixels[i] > 25 && pixels[i] > pixels[i + 1] * 1.5 && pixels[i] > pixels[i + 2] * 1.2) redPixels++;
+      let highFocusVisibleVertices = null;
+      if (profile === 'aircraft') {
+        const position = Cesium.Cartesian3.fromDegrees(center.lon, center.lat, 18000);
+        const pitch = numberVar('--warzone-live-aircraft-focus-camera-pitch', -58);
+        const range = getAircraftInitialFocusCameraConfig({ altitude_ft: 18000 / 0.3048 }, position, null, pitch).rangeMeters;
+        scene.camera.lookAt(position, new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(pitch), range));
+        highFocusVisibleVertices = 0;
+        for (let i = 0; i < primitive.length; i++) for (const local of primitive.get(i).positions) {
+          const point = Cesium.SceneTransforms.worldToWindowCoordinates(scene,
+            Cesium.Matrix4.multiplyByPoint(primitive.modelMatrix, local, new Cesium.Cartesian3()));
+          if (point && point.x >= 0 && point.x <= scene.canvas.width && point.y >= 0 && point.y <= scene.canvas.height) highFocusVisibleVertices++;
+        }
+        scene.camera.lookAt(Cesium.Cartesian3.fromDegrees(50, 26, 1800),
+          new Cesium.HeadingPitchRange(0, -Math.PI / 2, 1800));
+        await draw();
+      }
+      measurements.push({ profile, samples, maxError, ignoresAltitude, fitMs, maxSliceMs: primitive.__surfaceMaxSliceMs,
+        redPixels, highFocusVisibleVertices, reused: primitive === state.gridPrimitive });
+      window.surfaceScreenshotProfile = profile;
+      // Save each view from Node below without loading application/authentication code.
+      if (profile === 'aircraft') window.airSurfaceImage = scene.canvas.toDataURL();
+    }
+    return measurements;
+  });
+  for (const result of surfaceResults) {
+    assert.ok(result.samples > 500, JSON.stringify(result));
+    assert.ok(result.maxError < 0.2, JSON.stringify(result));
+    assert.ok(result.redPixels > 100, JSON.stringify(result));
+    assert.equal(result.ignoresAltitude && result.reused, true);
+  }
+  const airSurfaceImage = await page.evaluate(() => window.airSurfaceImage);
+  fs.writeFileSync(path.join(os.tmpdir(), 'stratops-ctr-surface-aircraft.png'), Buffer.from(airSurfaceImage.split(',')[1], 'base64'));
+  await page.screenshot({ path: path.join(os.tmpdir(), 'stratops-ctr-surface-naval.png') });
   const tuning = await page.evaluate(() => {
     const viewer = window.testViewer, state = getContourOverlayState(viewer);
     const original = state.gridPrimitive;
@@ -172,6 +284,6 @@ test("real Cesium CTR rings/grid fit unchanged air/naval Focus cameras and respo
     assert.deepEqual(profile.ringWidths, [2.25, 2.25]);
     assert.equal(profile.gridWidth, 1.25);
   }
-  t.diagnostic(JSON.stringify({ results, tuning, sharedTuning }));
+  t.diagnostic(JSON.stringify({ results, surfaceResults, tuning, sharedTuning }));
   await page.evaluate(() => window.testViewer.scene.destroy());
 });

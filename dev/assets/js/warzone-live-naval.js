@@ -1462,6 +1462,12 @@ function getFocusedNavalModelScale(vessel = {}) {
         4000
     );
 }
+function refreshFocusedNavalModelScale() {
+    const entry = __navalState.vessels.get(__navalState.selectedKey);
+    if (!entry?.entity?.model || !entry?.data) return;
+    entry.entity.model.scale = getFocusedNavalModelScale(entry.data);
+    requestNavalRenderBatched();
+}
 function getNavalModelScale(vessel = {}) {
     if (isFocusedNavalVessel(vessel)) return getFocusedNavalModelScale(vessel);
     return clamp(
@@ -3128,6 +3134,7 @@ function bindNavalOverlay(viewer) {
     focusController.registerTask("naval-camera-lock", () => syncFocusedNavalCamera(), { hz: NAVAL_FOCUS_CAMERA_SYNC_HZ });
     viewer.scene.preRender.addEventListener(__navalState.overlayPreRenderHandler);
     viewer.camera.moveEnd.addEventListener(__navalState.overlayMoveEndHandler);
+    window.addEventListener("resize", refreshFocusedNavalModelScale);
 }
 
 function unbindNavalRuntime(viewer) {
@@ -3141,6 +3148,7 @@ function unbindNavalRuntime(viewer) {
         try { viewer.scene.preRender.removeEventListener(__navalState.overlayPreRenderHandler); } catch { }
         try { viewer.camera.moveEnd.removeEventListener(__navalState.overlayMoveEndHandler); } catch { }
     }
+    window.removeEventListener("resize", refreshFocusedNavalModelScale);
     __navalState.overlayBound = false;
     __navalState.overlayPreRenderHandler = null;
     __navalState.overlayPostRenderHandler = null;
@@ -3577,7 +3585,7 @@ function ensureNavalWidgetEmptyState(container, hasItems, emptyMessage) {
         return;
     }
     if (existing) {
-        existing.textContent = emptyMessage;
+        if (existing.textContent !== emptyMessage) existing.textContent = emptyMessage;
         return;
     }
     const empty = document.createElement("div");
@@ -3596,6 +3604,9 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
     const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
     const isFocusDisabled = isNavalFocusBlocked(vessel.track_key);
+    const renderSignature = [name, detailLabel, affiliationLabel, speedLabel, headingLabel,
+        coordLabel, timeLabel, Boolean(isSelected), isFocusDisabled].join("\u001f");
+    if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4) return;
     card.className = `wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
     card.style.cursor = isFocusDisabled ? "default" : "pointer";
@@ -3711,6 +3722,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     } else {
         actionIcon.nextSibling.textContent = actionLabel;
     }
+    card.dataset.renderSignature = renderSignature;
 }
 
 // Called from essential.js or warzone-ui.js to populate the naval widget list

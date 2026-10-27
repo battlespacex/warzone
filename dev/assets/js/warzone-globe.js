@@ -6028,6 +6028,12 @@ function setContourGridLayerVisible(viewer, visible) {
         ensureContourGridPrimitive(viewer, center, { force: true });
     } else if (state?.gridPrimitive) {
         state.gridPrimitive.show = false;
+        if (state.gridPrimitive.__surfaceFitFrame) cancelAnimationFrame(state.gridPrimitive.__surfaceFitFrame);
+        state.gridPrimitive.__surfaceFitFrame = 0;
+        state.gridPrimitive.__surfaceFitAt = -Infinity;
+        state.gridPrimitive.__surfaceFitCenter = null;
+        state.gridPrimitive.__surfaceTileListener?.();
+        state.gridPrimitive.__surfaceTileListener = null;
     }
     if (viewer.__contourLayerVisible === true) {
         if (state) state.buildToken += 1;
@@ -6911,6 +6917,8 @@ function destroyContourGridPrimitive(viewer) {
     const state = getContourOverlayState(viewer);
     const primitive = state?.gridPrimitive;
     if (primitive) {
+        if (primitive.__surfaceFitFrame) cancelAnimationFrame(primitive.__surfaceFitFrame);
+        primitive.__surfaceTileListener?.();
         try {
             viewer?.scene?.primitives?.remove?.(primitive);
         } catch { }
@@ -6925,18 +6933,100 @@ function updateContourGridPrimitiveCenter(viewer, position = null) {
     if (!primitive || !Number.isFinite(lon) || !Number.isFinite(lat)) return false;
     state.gridCenterLon = lon;
     state.gridCenterLat = lat;
-    const targetHeight = Number(position?.height ?? state.gridCenterHeight ?? state.centerHeight ?? 0);
-    state.gridCenterHeight = Number.isFinite(targetHeight) ? targetHeight : 0;
     const heightOffset = Math.max(0, numberVar("--warzone-contour-grid-height-offset", 1));
-    const radarHeight = state.hasFocusPosition && getContourFocusProfile(viewer) === "aircraft"
-        ? Math.max(0, state.gridCenterHeight) : 0;
+    // Radar is surface geometry: target altitude must never enter its transform.
+    state.gridCenterHeight = 0;
     primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-        Cesium.Cartesian3.fromDegrees(lon, lat, radarHeight + heightOffset)
+        Cesium.Cartesian3.fromDegrees(lon, lat, heightOffset)
     );
+    if (state.hasFocusPosition === true) fitContourGridToSurface(viewer, primitive);
     primitive.show = viewer.__contourGridLayerVisible === true;
     raiseContourGridPrimitive(viewer);
     viewer.scene?.requestRender?.();
     return true;
+}
+function fitContourGridToSurface(viewer, primitive) {
+    const globe = viewer?.scene?.globe;
+    if (!globe?.getHeight || viewer.__contourGridLayerVisible !== true) return;
+    const now = performance.now();
+    const provider = viewer.terrainProvider || globe.terrainProvider;
+    const flatSurface = provider instanceof Cesium.EllipsoidTerrainProvider;
+    if (!flatSurface && !primitive.__surfaceTileListener && globe.tileLoadProgressEvent) {
+        primitive.__surfaceTileListener = globe.tileLoadProgressEvent.addEventListener(() => {
+            primitive.__surfaceNeedsRefresh = true;
+        });
+    }
+    // Ellipsoid loading meshes can lie kilometres inside the analytic surface;
+    // use exact sea level there, and loaded terrain heights for elevated terrain.
+    // Query loaded terrain, never issue network sampling requests from tracking.
+    // Retain the same collection and line objects; limit terrain/geometry work.
+    if (globe.tilesLoaded === false) primitive.__surfaceNeedsRefresh = true;
+    if (primitive.__surfaceFitFrame) return;
+    const center = Cesium.Matrix4.getTranslation(primitive.modelMatrix, new Cesium.Cartesian3());
+    const sameSurface = primitive.__surfaceProvider === provider;
+    const sameCenter = primitive.__surfaceFitCenter && Cesium.Cartesian3.equals(center, primitive.__surfaceFitCenter);
+    if (sameSurface && (now - (primitive.__surfaceFitAt ?? -Infinity) < 500 ||
+        (sameCenter && !primitive.__surfaceNeedsRefresh && primitive.__surfaceTilesLoaded === true && globe.tilesLoaded === true))) return;
+    primitive.__surfaceProvider = provider;
+    primitive.__surfaceFitAt = now;
+    primitive.__surfaceFitCenter = center;
+    primitive.__surfaceTilesLoaded = globe.tilesLoaded;
+    primitive.__surfaceNeedsRefresh = false;
+    // The existing curved geometry already follows the analytic ellipsoid.
+    if (flatSurface && !primitive.__surfaceFitted) return;
+    const ellipsoid = globe.ellipsoid || Cesium.Ellipsoid.WGS84;
+    const matrix = Cesium.Matrix4.clone(primitive.modelMatrix);
+    const inverse = Cesium.Matrix4.inverseTransformation(matrix, new Cesium.Matrix4());
+    const world = new Cesium.Cartesian3();
+    const local = new Cesium.Cartesian3();
+    const cartographic = new Cesium.Cartographic();
+    const heightOffset = Math.max(0, numberVar("--warzone-contour-grid-height-offset", 1));
+    function* vertices() {
+      for (let i = 0; i < primitive.length; i += 1) {
+        const line = primitive.get(i);
+        const positions = line.positions;
+        let changed = false;
+        for (const point of positions) {
+            Cesium.Matrix4.multiplyByPoint(matrix, point, world);
+            ellipsoid.cartesianToCartographic(world, cartographic);
+            const sampled = flatSurface ? 0 : globe.getHeight(cartographic);
+            if (!Number.isFinite(sampled)) { yield; continue; }
+            cartographic.height = sampled + heightOffset;
+            ellipsoid.cartographicToCartesian(cartographic, world);
+            Cesium.Matrix4.multiplyByPoint(inverse, world, local);
+            // Only update local Z, preserving the configured horizontal radii.
+            if (Math.abs(point.z - local.z) > 0.05) {
+                point.z = local.z;
+                changed = true;
+            }
+            yield;
+        }
+        if (changed) line.positions = positions;
+      }
+    }
+    const iterator = vertices();
+    const process = () => {
+        primitive.__surfaceFitFrame = 0;
+        const activeState = getContourOverlayState(viewer);
+        if (activeState?.gridPrimitive !== primitive || activeState?.hasFocusPosition !== true ||
+            viewer.__contourGridLayerVisible !== true || primitive.isDestroyed?.() ||
+            (viewer.terrainProvider || globe.terrainProvider) !== provider) return;
+        const started = performance.now();
+        let result;
+        do { result = iterator.next(); } while (!result.done && performance.now() - started < 2);
+        primitive.__surfaceMaxSliceMs = Math.max(primitive.__surfaceMaxSliceMs || 0, performance.now() - started);
+        viewer.scene?.requestRender?.();
+        if (!result.done) primitive.__surfaceFitFrame = requestAnimationFrame(process);
+        else if (!Cesium.Cartesian3.equals(center,
+            Cesium.Matrix4.getTranslation(primitive.modelMatrix, new Cesium.Cartesian3()))) {
+            // Movement during a yielded fit must not leave heights from the old
+            // geographic footprint as the final state once the target stops.
+            primitive.__surfaceFitCenter = null;
+            fitContourGridToSurface(viewer, primitive);
+        }
+    };
+    primitive.__surfaceFitted = true;
+    primitive.__surfaceFitFrame = requestAnimationFrame(process);
 }
 function chooseOperationalGridIntervalMeters(radius) {
     const target = Math.max(1000, Number(radius || 0) / 4);

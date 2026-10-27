@@ -30,10 +30,14 @@ the inner and outer radii. Ring count is capped at eight and grid density at
 to 95% of the outer radius. The older contour-grid radius controls still apply
 to non-focused overlays.
 
-The aircraft radar follows the focused aircraft's longitude, latitude **and
-altitude**; the naval radar remains on the sea-level curved WGS84 surface.
-This prevents an airborne target's radar from slipping below the screen when
-the unchanged Focus camera looks toward the aircraft rather than sea level.
+Both radars follow only the target's longitude and latitude, never its altitude.
+Geometry follows the curved WGS84 surface and uses loaded globe terrain heights
+when available, with the existing one-metre anti-z-fighting offset. Terrain fitting
+is frame-sliced with a two-millisecond budget, refreshes no faster than twice per
+second, and never requests additional terrain tiles. Stable loaded terrain is
+reused; pending fitting stops when the radar is disabled or destroyed.
+At high aircraft altitudes a ground radar can be outside the unchanged close-up
+Focus camera's field of view; it is not raised to the aircraft to conceal this.
 Movement updates the existing primitive's local geographic frame. A style or
 profile change rebuilds the radar once on the next grid ensure/activation;
 ordinary movement does not rebuild it. Reload after editing CSS defaults.
