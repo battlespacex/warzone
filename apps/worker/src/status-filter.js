@@ -482,6 +482,13 @@ function hasOperationalStatusSignal(text = "", category = "general") {
 }
 
 function enrichStatusItem(item = {}, options = {}) {
+  // Only the dedicated official adapters produce this structured contract.
+  const signal = item.raw?.status_signal;
+  if ((item.source_id === "cisa-kev" && signal?.kind === "vulnerability") ||
+      (item.source_id === "faa-nas-status" && signal?.domain === "airspace")) {
+    return { ...item, category: signal.domain === "cyber" ? "cyber_advisory" : "aviation_disruption",
+      severity: "unknown", confidence_score: 95, is_status_relevant: true };
+  }
   const minimumScore = Number.isFinite(Number(options.minimumScore))
     ? Number(options.minimumScore)
     : 24;

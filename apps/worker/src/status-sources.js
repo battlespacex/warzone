@@ -13,6 +13,24 @@ import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js
 
 const STATUS_SOURCES = [
   {
+    id: "faa-nas-status", name: "FAA NAS Status", type: "api", adapter: "faa_xml",
+    category: "aviation_disruption", region_scope: "United States", enabled: true,
+    url: "https://nasstatus.faa.gov/api/airport-status-information",
+    fallback_urls: ["https://www.fly.faa.gov/flyfaa/xmlAirportStatus.jsp"],
+    cache_ttl_ms: 15 * 60 * 1000,
+    docs_url: "https://nasstatus.faa.gov/static/media/NASStatusUserGuide.cccc6d48.pdf",
+    note: "Public FAA government data, no key; US airport restrictions/delays, not a global NOTAM service."
+  },
+  {
+    id: "cisa-kev", name: "CISA Known Exploited Vulnerabilities", type: "api", adapter: "cisa_kev",
+    category: "cyber_advisory", region_scope: "global", enabled: true,
+    url: "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+    fallback_urls: ["https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json"],
+    cache_ttl_ms: 6 * 60 * 60 * 1000,
+    docs_url: "https://github.com/cisagov/kev-data", license: "CC0-1.0",
+    note: "Free, key-free official mirror fallback. Catalog additions are vulnerability advisories, not regional live attacks."
+  },
+  {
     id: "ooni-incidents-api",
     name: "OONI Incidents API",
     type: "api",

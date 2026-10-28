@@ -276,6 +276,12 @@ export const api = {
         return { data: json.events || [], error: null };
     },
 
+    async getStatusFeedItems(options = {}) {
+        const res = await fetch(`${API_BASE}/events/status-feed`, options);
+        const json = await readJsonResponse(res, "Status feed fetch");
+        return { data: json.items || [], error: null };
+    },
+
     async getIntelFeedItems() {
         const res = await fetch(`${INTEL_FEED_API_BASE}/events/intel-feed?limit=${INTEL_FEED_LIMIT}`);
         const json = await readJsonResponse(res, "Intel feed fetch");

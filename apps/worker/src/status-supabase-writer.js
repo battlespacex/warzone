@@ -12,7 +12,7 @@ function normalizeStatusSeverity(value = "") {
   const severity = String(value || "").trim().toLowerCase();
   return ["critical", "high", "medium", "low", "normal", "elevated"].includes(severity)
     ? severity
-    : "normal";
+    : "unknown";
 }
 
 function prepareStatusItemForDb(item = {}) {

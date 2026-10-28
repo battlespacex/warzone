@@ -622,7 +622,6 @@ function bindPicking(viewer) {
 
 function upsertEntities(viewer, cells = [], tokens) {
     const dataSource = ensureDataSource(viewer);
-    setDataSourceActive(viewer, dataSource, layerEnabled);
     const entities = dataSource.entities;
     entities.removeAll();
     __gnssState.cellsById.clear();
@@ -715,6 +714,7 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
         __gnssState.styleSignature = tokens.signature;
     }
 
+    setDataSourceActive(viewer, dataSource, layerEnabled);
     dataSource.show = showCells;
     __gnssState.visible = showCells;
     if (!showCells) {

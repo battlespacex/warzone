@@ -4,7 +4,7 @@ import { fetchAllStatusItems } from "./status-fetcher.js";
 import { enrichStatusItem } from "./status-filter.js";
 
 const DEFAULT_STATUS_MINIMUM_SCORE = 24;
-const DEFAULT_STATUS_MAX_AGE_DAYS = 180;
+const DEFAULT_STATUS_MAX_AGE_DAYS = 7;
 
 function safeTimestamp(value) {
   const parsed = new Date(value || "");
@@ -15,8 +15,8 @@ function safeTimestamp(value) {
 function filterRecentItems(items = [], maxAgeDays = 60) {
   const threshold = Date.now() - (Math.max(1, Number(maxAgeDays || 60)) * 24 * 60 * 60 * 1000);
   return (Array.isArray(items) ? items : []).filter((item) => {
-    const publishedAt = safeTimestamp(item.published_at || item.fetched_at);
-    return publishedAt >= threshold;
+    const publishedAt = safeTimestamp(item.published_at);
+    return publishedAt >= threshold && publishedAt <= Date.now() + 300000;
   });
 }
 

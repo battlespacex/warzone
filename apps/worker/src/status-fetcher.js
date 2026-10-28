@@ -2,6 +2,10 @@
 
 import Parser from "rss-parser";
 import { getEnabledStatusSources } from "./status-sources.js";
+import { parseFaaStatus, parseKevStatus } from "./official-status-adapters.js";
+import { getSourceHealth, recordSourceFailure, recordSourceSuccess, shouldAttemptSource } from "./source-health.js";
+
+const lastValidBySource = new Map();
 
 const STATUS_USER_AGENT = "StratOps Status Worker/1.0";
 const DEFAULT_STATUS_FETCH_TIMEOUT_MS = 15000;
@@ -65,7 +69,7 @@ async function fetchText(url) {
   });
 
   if (!response.ok) {
-    throw new Error(`Status code ${response.status}`);
+    throw Object.assign(new Error(`Status code ${response.status}`), { status: response.status, headers: response.headers });
   }
 
   return response.text();
@@ -82,7 +86,7 @@ async function fetchJson(url, options = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`Status code ${response.status}`);
+    throw Object.assign(new Error(`Status code ${response.status}`), { status: response.status, headers: response.headers });
   }
 
   return response.json();
@@ -169,11 +173,42 @@ async function fetchStubSource(source) {
 }
 
 async function fetchSingleStatusSource(source) {
+  const cached = lastValidBySource.get(source.id);
+  const cachedResult = (reason) => ({ source, ok: true, cached: true, note: reason,
+    health: getSourceHealth(source), fetched_count: cached.items.length, count: cached.items.length,
+    items: cached.items.map(item => ({ ...item, raw: { ...item.raw, cached: true, cache_reason: reason } })) });
+  if (cached && Date.now() - cached.at < (source.cache_ttl_ms || 900000)) return cachedResult("cache_ttl");
+  if (!shouldAttemptSource(source)) {
+    if (cached && Date.now() - cached.at < 86400000) return cachedResult("source_backoff");
+    return { source, ok: false, items: [], fetched_count: 0, health: getSourceHealth(source), error: "Source in backoff" };
+  }
   try {
     console.log(`[status] fetching source: ${source.name}`);
 
     let result = null;
     switch (String(source.adapter || source.type || "").toLowerCase()) {
+      case "faa_xml":
+      case "cisa_kev": {
+        let lastError;
+        // Each approved endpoint is tried once; source-health cooldown bounds subsequent cycles.
+        for (const url of [source.url, ...(source.fallback_urls || [])]) {
+          const endpoint = { ...source, id: `${source.id}:${url}` };
+          if (!shouldAttemptSource(endpoint)) continue;
+          try {
+            const items = source.adapter === "faa_xml"
+              ? parseFaaStatus(await fetchText(url), source)
+              : parseKevStatus(await fetchJson(url), source);
+            result = { fetched_count: items.length, items };
+            recordSourceSuccess(endpoint, items.length);
+            break;
+          } catch (error) {
+            recordSourceFailure(endpoint, error);
+            lastError = error;
+          }
+        }
+        if (!result) throw lastError || new Error("All status endpoints in backoff");
+        break;
+      }
       case "rss":
         result = await fetchRssSource(source);
         break;
@@ -190,8 +225,11 @@ async function fetchSingleStatusSource(source) {
         throw new Error(`Unsupported source adapter: ${source.adapter || source.type}`);
     }
 
+    recordSourceSuccess(source, result?.items?.length || 0);
+    lastValidBySource.set(source.id, { at: Date.now(), items: result?.items || [] });
     return {
       source,
+      health: getSourceHealth(source),
       ok: true,
       skipped: result?.skipped || false,
       fetched_count: result?.fetched_count || 0,
@@ -200,11 +238,14 @@ async function fetchSingleStatusSource(source) {
       note: result?.note || null
     };
   } catch (error) {
+    recordSourceFailure(source, error);
     console.warn(`[status] source failed: ${source.name}`);
-    console.warn(error.message);
+    console.warn(`status=${error.status || "unavailable"}`);
+    if (cached && Date.now() - cached.at < 86400000) return cachedResult("last_known_valid");
 
     return {
       source,
+      health: getSourceHealth(source),
       ok: false,
       fetched_count: 0,
       count: 0,

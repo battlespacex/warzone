@@ -110,6 +110,10 @@ let __visibleEventsCache = [];
 let __viewportScoped = false;
 let __liveRecentEvents = [];
 let __statusEventsCache = [];
+let __statusFeedItemsCache = [];
+let __statusFeedUnavailable = false;
+let __statusRefreshPromise = null;
+let __statusFeedNextRefreshAt = 0;
 let __gnssInterferenceCellsCache = [];
 let __gnssInterferenceMeta = {
     demoMode: false,
@@ -329,7 +333,7 @@ let __lastRawWidgetSignature = null;
 let __lastFeedSignature = null;
 let __lastHeavyWidgetSignature = null;
 let __lastFeedDataSignature = null;
-let __feedVisibleCount = 15;
+let __feedVisibleCount = 12;
 let __feedControlsBound = false;
 let __intelWireFilterControlsBound = false;
 let __intelWireItemsCache = [];
@@ -395,7 +399,7 @@ const AIRCRAFT_HISTORY_CACHE_MAX_ROWS = 1200;
 const AIRCRAFT_LIVE_SYNC_DB_MS = 12 * 1000;
 const AIRCRAFT_WIDGET_RENDER_THROTTLE_MS = 500;
 const NAVAL_WIDGET_RENDER_THROTTLE_MS = 120;
-const FEED_INITIAL_VISIBLE_COUNT = 15;
+const FEED_INITIAL_VISIBLE_COUNT = 12;
 const FEED_LOAD_MORE_COUNT = 12;
 const FEED_EXPAND_VIEWPORT_PAD = 16;
 const FEED_EXPAND_MAX_WIDTH = 1120;
@@ -3963,7 +3967,13 @@ function dedupeStatusEvents(events = []) {
     }
     return out;
 }
-async function refreshStatusEvents() {
+function refreshStatusEvents() {
+    if (!__statusRefreshPromise) {
+        __statusRefreshPromise = refreshStatusEventsOnce().finally(() => { __statusRefreshPromise = null; });
+    }
+    return __statusRefreshPromise;
+}
+async function refreshStatusEventsOnce() {
     const needsStatusEvents =
         isStratOpsFeatureEnabled("alerts.stickyAlerts") ||
         isStratOpsFeatureEnabled("alerts.airspaceStatus") ||
@@ -3990,8 +4000,21 @@ async function refreshStatusEvents() {
             api.getActiveAlerts({ signal: controller.signal }),
             api.getAirspaceStatuses
                 ? api.getAirspaceStatuses({ signal: controller.signal })
-                : Promise.resolve({ data: [], error: null })
+                : Promise.resolve({ data: [], error: null }),
+            (isLayerEnabled("airspace") || isLayerEnabled("cyber")) && now >= __statusFeedNextRefreshAt && api.getStatusFeedItems
+                ? api.getStatusFeedItems({ signal: controller.signal })
+                : Promise.resolve(null)
         ]);
+        const feedResult = results[2];
+        if (feedResult.status === "fulfilled" && feedResult.value && !feedResult.value.error) {
+            __statusFeedItemsCache = feedResult.value.data || [];
+            __statusFeedUnavailable = false;
+            __statusFeedNextRefreshAt = now + 15 * 60 * 1000;
+        } else if (feedResult.status === "rejected" || feedResult.value?.error) {
+            __statusFeedUnavailable = true;
+            __statusFeedNextRefreshAt = now + 60 * 1000;
+        }
+        __lastStatusWidgetSignature = null;
         const statusEvents = [];
         const alertsResult = results[0];
         const alertsAvailable = alertsResult.status === "fulfilled" && !alertsResult.value?.error;
@@ -4446,6 +4469,8 @@ function isStatusRelevantEvent(event = {}, type = "airspace") {
 function isEventInsideRegionBounds(event = {}, region = getActiveRegion?.()) {
     if (!region || region.id === "global") return true;
     const bounds = region.bounds || {};
+    if ((event.display_lat ?? event.lat ?? event.impact_lat) == null ||
+        (event.display_lon ?? event.lon ?? event.impact_lon) == null) return false;
     const lat = Number(event.display_lat ?? event.lat ?? event.impact_lat);
     const lon = Number(event.display_lon ?? event.lon ?? event.impact_lon);
     return Number.isFinite(lat) && Number.isFinite(lon) &&
@@ -4456,6 +4481,11 @@ function isEventInsideRegionBounds(event = {}, region = getActiveRegion?.()) {
 }
 function getStatusScopedEvents(events = [], type = "airspace") {
     const base = (Array.isArray(events) ? events : [])
+        .filter((event) => {
+            const published = Date.parse(event.occurred_at || event.updated_at || "");
+            return Number.isFinite(published) && published <= Date.now() + 300000 &&
+                Date.now() - published <= (type === "airspace" ? 1 : 7) * 86400000;
+        })
         .filter((event) => isMilitaryRelevant(event))
         .filter((event) => isStatusRelevantEvent(event, type));
     const region = getActiveRegion?.();
@@ -4539,7 +4569,7 @@ function deriveAggregateStatus(events, type = "airspace") {
             return "critical";
         }
         if (relevant.some((e) => String(e.severity || "").toLowerCase() === "medium")) return "elevated";
-        return "normal";
+        return "unknown";
     }
     const airspaceExplicit = relevant
         .map((e) => String(e.airspace_status || "").toLowerCase())
@@ -5733,7 +5763,11 @@ function syncIntelWireFilterControls(viewModel = buildIntelWireViewModel()) {
     const countrySelect = document.getElementById("wz-feed-filter-country");
     const timeSelect = document.getElementById("wz-feed-filter-time");
     if (countrySelect) {
-        const options = Array.isArray(viewModel.countryOptions) ? viewModel.countryOptions : [];
+        const options = Array.isArray(viewModel.countryOptions) ? [...viewModel.countryOptions] : [];
+        if (__intelWireCountryFilter !== "all" && !options.some(option => option.value === __intelWireCountryFilter)) {
+            const current = [...countrySelect.options].find(option => option.value === __intelWireCountryFilter);
+            options.push({ value: __intelWireCountryFilter, label: current?.textContent || __intelWireCountryFilter });
+        }
         const optionKey = options.map((option) => `${option.value}:${option.label}`).join("|");
         if (countrySelect.dataset.optionKey !== optionKey) {
             countrySelect.innerHTML = "";
@@ -5901,14 +5935,28 @@ function renderFeed(viewModelOrEvents) {
         : (viewModelOrEvents || buildIntelWireViewModel());
     __intelWireLastViewModel = viewModel;
     syncIntelWireFilterControls(viewModel);
-    const allRows = Array.isArray(viewModel.filteredEvents) ? viewModel.filteredEvents : [];
+    const seenIds = new Set();
+    const allRows = (Array.isArray(viewModel.filteredEvents) ? viewModel.filteredEvents : []).filter((event, index) => {
+        const id = getIntelWireEventDomKey(event, index);
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+    });
     const totalRows = Math.max(0, Number(viewModel.total) || 0);
-    const filteredTotal = Math.max(0, Number(viewModel.filteredTotal) || allRows.length);
+    const filteredTotal = allRows.length;
     const dataSignature = `${makeEventSignature(allRows)}|country:${__intelWireCountryFilter}|time:${__intelWireTimeFilter}`;
     if (dataSignature !== __lastFeedDataSignature) {
         __lastFeedDataSignature = dataSignature;
-        __feedVisibleCount = FEED_INITIAL_VISIBLE_COUNT;
     }
+    const filterKey = `${__intelWireCountryFilter}|${__intelWireTimeFilter}`;
+    if (feed.dataset.filterKey === filterKey) {
+        // Keep already loaded articles beneath new arrivals, not just a fixed slice.
+        const loaded = new Set(__intelWireRenderedItems.keys());
+        allRows.forEach((event, index) => {
+            if (loaded.has(getIntelWireEventDomKey(event, index))) __feedVisibleCount = Math.max(__feedVisibleCount, index + 1);
+        });
+    }
+    feed.dataset.filterKey = filterKey;
     __intelWireRenderedItems = new Map();
     const rows = allRows.slice(0, __feedVisibleCount);
     const countEl = document.getElementById("live-feed-count");
@@ -5937,6 +5985,10 @@ function renderFeed(viewModelOrEvents) {
     }
     feed.querySelector(".feed-empty")?.remove();
     const existingCards = [...feed.querySelectorAll(":scope > .wz-feed-item")];
+    const feedTop = feed.getBoundingClientRect().top;
+    const anchor = feed.scrollTop > 0
+        ? existingCards.find(card => card.getBoundingClientRect().bottom > feedTop) : null;
+    const anchorTop = anchor?.getBoundingClientRect().top;
     const existingCardMap = new Map(existingCards.map((card) => [String(card.dataset.eventId || ""), card]));
     const visibleIds = new Set();
     const cardsInOrder = [];
@@ -5974,6 +6026,11 @@ function renderFeed(viewModelOrEvents) {
         }
         previousCard = card;
     });
+    const restoredAnchor = anchor && cardsInOrder.find(card => card.dataset.eventId === anchor.dataset.eventId);
+    if (restoredAnchor) {
+        const offset = restoredAnchor.getBoundingClientRect().top - anchorTop;
+        feed.scrollTop += offset;
+    }
     const shown = rows.length;
     const remaining = Math.max(0, filteredTotal - shown);
     if (countEl) {
@@ -6069,6 +6126,29 @@ function rankCountryRows(events, type, max = 10) {
         });
     return rows.slice(0, max);
 }
+function renderStatusFeedRows(container, domain) {
+    const region = getActiveRegion?.();
+    const whitelist = getRegionCountryWhitelist(region?.id);
+    const items = __statusFeedItemsCache.filter(item => {
+        if (item.domain !== domain) return false;
+        const age = Date.now() - Date.parse(item.published_at || "");
+        if (!Number.isFinite(age) || age > (item.kind === "vulnerability" ? 30 : domain === "airspace" ? 1 : 7) * 86400000) return false;
+        // Global vulnerability guidance has no incident country; label it as such.
+        if (!item.country) return domain === "cyber";
+        return !region || region.id === "global" || whitelist.has(normalizeCountryName(countryNameFromCode(item.country) || item.country));
+    }).slice(0, 6);
+    if (!items.length) return false;
+    const markup = items.map(item => {
+        const stale = __statusFeedUnavailable || item.stale || Date.now() - Date.parse(item.fetched_at || "") > (domain === "airspace" ? 3600000 : 86400000);
+        const label = stale ? "Stale" : item.kind === "vulnerability" ? "Vulnerability advisory" : item.status === "restricted" ? "Airport restriction" : item.status === "advisory" ? "Advisory" : "Reported";
+        let link = "";
+        try { const url = new URL(item.source_url); if (["https:", "http:"].includes(url.protocol)) link = url.href; } catch { /* Invalid public URL is not linked. */ }
+        const attribution = `${item.source_name} | ${item.published_at} | ${item.coverage}${stale ? ` | Last retrieved ${item.fetched_at}` : ""}`;
+        return `<div class="status-row" title="${escapeHtml(attribution)}"><span><a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a><br><small>${escapeHtml(attribution)}</small></span><strong class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${label}</strong></div>`;
+    }).join("");
+    container.insertAdjacentHTML("beforeend", markup);
+    return true;
+}
 function renderCyberStatus(events) {
     const container = document.getElementById("cyber-status-list");
     if (!container) return;
@@ -6081,6 +6161,8 @@ function renderCyberStatus(events) {
     }
     const rows = rankCountryRows(events, "cyber", 8);
     if (!rows.length) {
+        container.replaceChildren();
+        if (renderStatusFeedRows(container, "cyber")) return;
         const aggregate = deriveAggregateStatus(events, "cyber");
         if (aggregate !== "unknown") {
             const label = aggregate.charAt(0).toUpperCase() + aggregate.slice(1);
@@ -6088,7 +6170,7 @@ function renderCyberStatus(events) {
             container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
             return;
         }
-        container.innerHTML = '<div class="status-row"><span>No cyber signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
+        container.innerHTML = '<div class="status-row"><span>No current regional cyber reports</span><strong class="status-pill status-pill--unknown">Unavailable</strong></div>';
         return;
     }
     const markup = rows.map((row) => {
@@ -6102,6 +6184,7 @@ function renderCyberStatus(events) {
         `;
     }).join("");
     container.innerHTML = markup;
+    renderStatusFeedRows(container, "cyber");
 }
 function renderAirspaceStatus(events) {
     const container = document.getElementById("airspace-status-list");
@@ -6115,6 +6198,8 @@ function renderAirspaceStatus(events) {
     }
     const rows = rankCountryRows(events, "airspace", 10);
     if (!rows.length) {
+        container.replaceChildren();
+        if (renderStatusFeedRows(container, "airspace")) return;
         const aggregate = deriveAggregateStatus(events, "airspace");
         if (aggregate !== "unknown") {
             const label = aggregate.charAt(0).toUpperCase() + aggregate.slice(1);
@@ -6122,7 +6207,7 @@ function renderAirspaceStatus(events) {
             container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
             return;
         }
-        container.innerHTML = '<div class="status-row"><span>No airspace signals</span><strong class="status-pill status-pill--unknown">Unknown</strong></div>';
+        container.innerHTML = '<div class="status-row"><span>No current restrictions confirmed for this region</span><strong class="status-pill status-pill--unknown">Unavailable</strong></div>';
         return;
     }
     const markup = rows.map((row) => {
@@ -6136,6 +6221,7 @@ function renderAirspaceStatus(events) {
         `;
     }).join("");
     container.innerHTML = markup;
+    renderStatusFeedRows(container, "airspace");
 }
 function renderEscalation(events) {
     const critical = events.filter((e) => e.severity === "critical").length;
@@ -9601,6 +9687,11 @@ async function initializeWarzoneAppOnce() {
             const changedAt = Date.now();
             const changedIds = id === "*" ? changedLayerIds || LAYER_DEFS.map((layer) => layer.id) : [id];
             const layerChanged = (layerId) => changedIds.includes(layerId);
+            if ((layerChanged("airspace") || layerChanged("cyber")) &&
+                (isLayerEnabled("airspace") || isLayerEnabled("cyber"))) {
+                void refreshStatusEvents().then(() => debouncedRenderUI(__eventsCache))
+                    .catch(error => console.warn("Status refresh unavailable:", error?.name || "Error"));
+            }
             changedIds.forEach((layerId) => {
                 const enabled = isLayerEnabled(layerId);
                 const previous = __layerLifecycleState.get(layerId) || {};
@@ -9888,6 +9979,10 @@ export function startEventPollingFallback() {
     __pollTimer = setInterval(() => {
         if (isDocumentHidden()) return;
         if (shouldSuspendMapWork()) return;
+        if ((isLayerEnabled("airspace") || isLayerEnabled("cyber")) && Date.now() >= __statusFeedNextRefreshAt) {
+            void refreshStatusEvents().then(() => debouncedRenderUI(__eventsCache))
+                .catch(error => console.warn("Status refresh unavailable:", error?.name || "Error"));
+        }
         pollLatestEvents();
     }, EVENT_POLL_INTERVAL_MS);
 }

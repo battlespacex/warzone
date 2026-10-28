@@ -3,6 +3,7 @@ import { query } from "./db.js";
 import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
+import { toPublicStatusSignal } from "../../shared/status-signal-policy.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents } from "./satellite-context.js";
 import { toPublicEvent, toPublicMapEvent } from "./public-event-normalizer.js";
@@ -546,6 +547,26 @@ export function eventsRouter({ broadcast }) {
             res.json({ tracks: data || [] });
         } catch {
             res.status(500).json({ error: "Failed" });
+        }
+    });
+
+    router.get("/status-feed", async (_req, res) => {
+        try {
+            const { data, error } = await getSupabase().from("status_feed_items")
+                .select("id, guid, title, summary, category, source_name, url, published_at, fetched_at, country, region, raw")
+                .eq("is_status_relevant", true)
+                .gte("published_at", new Date(Date.now() - 30 * 86400000).toISOString())
+                .order("published_at", { ascending: false }).limit(300);
+            if (error) return res.status(503).json({ error: "Status sources unavailable" });
+            const seen = new Set();
+            const items = (data || []).map(item => toPublicStatusSignal(item)).filter(item => {
+                if (!item || seen.has(item.id)) return false;
+                seen.add(item.id); return true;
+            });
+            res.setHeader("Cache-Control", "public, max-age=60");
+            res.json({ items });
+        } catch {
+            res.status(503).json({ error: "Status sources unavailable" });
         }
     });
 

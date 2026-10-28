@@ -264,6 +264,12 @@ function getEffectiveLayerState(id) {
     return __layerState[id] !== false;
 }
 
+function isTrackerBlockedLayer(id, state = __layerState) {
+    if (!state.aircraft && !state.naval) return false;
+    return id !== "aircraft" && id !== "naval" && !TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)
+        && !(id === "airspace" && state.aircraft);
+}
+
 function applyTrackerPriority(state) {
     if (!state.aircraft && !state.naval) return state;
     LAYER_DEFS.forEach(({ id }) => {
@@ -439,9 +445,7 @@ function buildAllEnabledState() {
         if (!canUseLayer(layer.id)) return;
         nextState[layer.id] = true;
     });
-    return (!__layerState.aircraft && nextState.aircraft || !__layerState.naval && nextState.naval)
-        ? applyTrackerPriority(nextState)
-        : nextState;
+    return applyTrackerPriority(nextState);
 }
 
 function shouldWarnForLayerTransition(nextState) {
@@ -534,6 +538,7 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
 }
 export function setLayer(id, enabled) {
     if (!getLayerDef(id)) return false;
+    if (enabled && isTrackerBlockedLayer(id)) return false;
 
     if (!canUseLayer(id)) {
         notifyChange(id, false);
@@ -543,9 +548,7 @@ export function setLayer(id, enabled) {
     const previousState = { ...__layerState };
     if (previousState[id] === !!enabled) return previousState[id];
     __layerState[id] = !!enabled;
-    if (enabled && (id === "aircraft" || id === "naval") && !previousState[id]) {
-        applyTrackerPriority(__layerState);
-    }
+    applyTrackerPriority(__layerState);
     saveState();
     notifyStateTransition(previousState, id);
     return __layerState[id];
@@ -560,18 +563,12 @@ export function toggleLayer(id) {
         return false;
     }
 
-    const previousState = { ...__layerState };
-    __layerState[id] = !__layerState[id];
-    if (__layerState[id] && (id === "aircraft" || id === "naval")) {
-        applyTrackerPriority(__layerState);
-    }
-    saveState();
-    notifyStateTransition(previousState, id);
-    return __layerState[id];
+    return setLayer(id, !__layerState[id]);
 }
 
 export async function requestLayerToggle(id) {
     if (!getLayerDef(id)) return false;
+    if (isTrackerBlockedLayer(id)) return false;
 
     const currentlyEnabled = getEffectiveLayerState(id);
     if (currentlyEnabled) {
@@ -708,11 +705,13 @@ function requestDerivedLayerDependencyApproval(targetId = "", missingLayers = []
 }
 
 function activateDerivedLayerWithDependencies(targetId = "", missingLayers = [], container) {
+    if (isTrackerBlockedLayer(targetId)) return false;
     missingLayers.forEach((layer) => {
-        if (!layer?.id || !canUseLayer(layer.id)) return;
+        if (!layer?.id || !canUseLayer(layer.id) || isTrackerBlockedLayer(layer.id)) return;
         __layerState[layer.id] = true;
     });
     __layerState[targetId] = true;
+    applyTrackerPriority(__layerState);
 
     saveState();
     syncAllLayerItemStates(container);
@@ -763,6 +762,8 @@ function notifyChange(id, val, changedIds = null) {
     if (container) {
         if (id === "*") {
             syncAllLayerItemStates(container);
+        } else if (id === "aircraft" || id === "naval") {
+            syncAllLayerItemStates(container);
         } else {
             const item = container.querySelector(`[data-layer="${id}"]`);
             if (item) syncLayerItemState(item, id);
@@ -782,7 +783,10 @@ function notifyChange(id, val, changedIds = null) {
 function syncLayerItemState(item, id) {
     const def = getLayerDef(id);
     const enabled = getEffectiveLayerState(id);
-    const locked = !!def?.premium && !canUseLayer(id);
+    const blocked = isTrackerBlockedLayer(id);
+    const locked = (!!def?.premium && !canUseLayer(id)) || blocked;
+    item.setAttribute("tabindex", blocked ? "-1" : "0");
+    item.setAttribute("title", blocked ? "Disable Air and Naval Trackers to enable this layer" : def?.description || def?.label || "");
 
     item.classList.toggle("is-on", enabled);
     item.classList.toggle("is-locked", locked);
@@ -838,9 +842,7 @@ function setAllLayers(enabled, container) {
         if (!canUseLayer(l.id)) return;
         __layerState[l.id] = !!enabled;
     });
-    if (enabled && ((!previousState.aircraft && __layerState.aircraft) || (!previousState.naval && __layerState.naval))) {
-        applyTrackerPriority(__layerState);
-    }
+    applyTrackerPriority(__layerState);
 
     saveState();
     syncAllLayerItemStates(container);
@@ -877,9 +879,7 @@ function setSectionLayers(sectionId, enabled, container) {
         if (!canUseLayer(id)) return;
         __layerState[id] = !!enabled;
     });
-    if (enabled && ((!previousState.aircraft && __layerState.aircraft) || (!previousState.naval && __layerState.naval))) {
-        applyTrackerPriority(__layerState);
-    }
+    applyTrackerPriority(__layerState);
     saveState();
     syncAllLayerItemStates(container);
     notifyChange("*", !!enabled);
@@ -923,14 +923,15 @@ function renderTextStack(value = "") {
 }
 
 function renderLayerRow(layer) {
-    const locked = layer.premium && !canUseLayer(layer.id);
+    const blocked = isTrackerBlockedLayer(layer.id);
+    const locked = (layer.premium && !canUseLayer(layer.id)) || blocked;
     return `
         <div class="wz-layer-item${getEffectiveLayerState(layer.id) ? " is-on" : ""}${layer.premium ? " is-premium" : ""}${locked ? " is-locked" : ""}"
              data-layer="${layer.id}"
              aria-disabled="${locked ? "true" : "false"}"
              data-locked="${locked ? "true" : "false"}"
              role="button"
-             tabindex="0"
+             tabindex="${blocked ? "-1" : "0"}"
              title="${layer.description || layer.label}">
             <span class="wz-layer-icon static-icon ${getLayerIconClass(layer)}" style="color:${layer.color}" aria-hidden="true"></span>
             <span class="wz-layer-copy">
@@ -974,6 +975,7 @@ function getRenderedSections() {
 function bindLayerItem(container, item) {
     const handleToggle = async () => {
         const id = item.dataset.layer;
+        if (isTrackerBlockedLayer(id)) return;
         const currentlyEnabled = getEffectiveLayerState(id);
         let newVal = currentlyEnabled;
 
