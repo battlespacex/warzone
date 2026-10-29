@@ -1,0 +1,3 @@
+﻿import {chromium} from '../apps/worker/node_modules/playwright/index.mjs';import readline from 'node:readline';import fs from 'node:fs/promises';
+const b=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-precise-memory-info']});const p=await b.newPage({viewport:{width:1920,height:1080}});p.setDefaultTimeout(5000);console.log('READY');
+for await(const line of readline.createInterface({input:process.stdin})){try{if(line==='exit'){await b.close();break;}const result=await new Function('p','b','fs',`return (async()=>{${line}})()`)(p,b,fs);console.log(JSON.stringify(result??'done'));}catch(e){console.log(JSON.stringify({error:e.message}));}}

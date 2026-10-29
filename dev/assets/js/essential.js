@@ -333,6 +333,9 @@ let __lastRawWidgetSignature = null;
 let __lastFeedSignature = null;
 let __lastHeavyWidgetSignature = null;
 let __lastFeedDataSignature = null;
+let __incomingEventUiFrame = 0;
+let __incomingEventUiBatchDepth = 0;
+const __incomingEventUiIds = new Set();
 let __feedVisibleCount = 12;
 let __feedControlsBound = false;
 let __intelWireFilterControlsBound = false;
@@ -8865,8 +8868,7 @@ export function triggerWarzoneAlert({ title, location, level = "high", playSound
         sound: playSound,
     });
 }
-function flashFeedCard(eventId) {
-    const card = document.querySelector(`[data-event-id="${eventId}"]`);
+function flashFeedCard(eventId, card = document.querySelector(`[data-event-id="${eventId}"]`)) {
     if (!card) return;
     card.classList.add("is-flash");
     setTimeout(() => card.classList.remove("is-flash"), 1200);
@@ -9955,9 +9957,14 @@ async function pollLatestEvents(options = {}) {
             }
             return;
         }
-        regionRows
-            .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at))
-            .forEach(handleIncomingEvent);
+        const incomingRegionId = String(getActiveRegion?.()?.id || "");
+        await applyIncomingEventBatch(
+            regionRows.sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at)),
+            () => requestSeq === __pollRequestSeq && !isDocumentHidden() &&
+                String(getActiveRegion?.()?.id || "") === incomingRegionId
+        );
+        if (requestSeq !== __pollRequestSeq || isDocumentHidden() ||
+            String(getActiveRegion?.()?.id || "") !== incomingRegionId) return;
         const newest = regionRows[regionRows.length - 1];
         if (newest?.occurred_at) {
             __lastSeenOccurredAt = newest.occurred_at;
@@ -10157,6 +10164,54 @@ function estimateSirenOrigin(event) {
         origin_label: "Unknown Origin",
     };
 }
+function requestIncomingEventUiRefresh(eventId) {
+    if (eventId != null) __incomingEventUiIds.add(eventId);
+    if (__incomingEventUiBatchDepth || __incomingEventUiFrame || !__incomingEventUiIds.size) return;
+    __incomingEventUiFrame = requestAnimationFrame(() => {
+        __incomingEventUiFrame = 0;
+        if (__incomingEventUiBatchDepth) return;
+        const ids = [...__incomingEventUiIds];
+        __incomingEventUiIds.clear();
+        if (isDocumentHidden() || shouldSuspendMapWork()) return;
+        renderAll(__eventsCache, { replaceAllCache: false });
+        const cardsById = new Map();
+        document.querySelectorAll("[data-event-id]").forEach((card) => {
+            const id = String(card.dataset.eventId || "");
+            if (!cardsById.has(id)) cardsById.set(id, card);
+        });
+        ids.forEach((id) => {
+            const card = cardsById.get(String(id));
+            if (card) flashFeedCard(id, card);
+        });
+        syncNewsTickerForCurrentMode();
+        if (__viewportScoped) {
+            __lastViewportKey = "";
+            scheduleViewportFetch(180);
+        }
+    });
+}
+async function applyIncomingEventBatch(events, shouldContinue = () => true) {
+    __incomingEventUiBatchDepth += 1;
+    let sliceStartedAt = performance.now();
+    try {
+        for (const event of events) {
+            if (!shouldContinue()) return;
+            handleIncomingEvent(event);
+            if (performance.now() - sliceStartedAt >= 4) {
+                await new Promise(requestAnimationFrame);
+                sliceStartedAt = performance.now();
+            }
+        }
+    } finally {
+        __incomingEventUiBatchDepth -= 1;
+        if (!__incomingEventUiBatchDepth) {
+            __allEventsCache = trimSortedEventList(__allEventsCache, EVENT_CACHE_MAX_ITEMS);
+            __eventsCache = trimSortedEventList(__eventsCache, EVENT_CACHE_MAX_ITEMS);
+            if (__viewportScoped) __visibleEventsCache = trimSortedEventList(__visibleEventsCache, EVENT_VISIBLE_CACHE_MAX_ITEMS);
+            requestIncomingEventUiRefresh();
+        }
+    }
+}
 export function handleIncomingEvent(event) {
     let normalized = normalizeEvent(event);
     normalized = resolveStrikeGeometry(normalized);
@@ -10169,7 +10224,7 @@ export function handleIncomingEvent(event) {
         __allEventsCache.splice(allEventsMatch, 1);
     }
     __allEventsCache.unshift(normalized);
-    __allEventsCache = trimSortedEventList(__allEventsCache, EVENT_CACHE_MAX_ITEMS);
+    if (!__incomingEventUiBatchDepth) __allEventsCache = trimSortedEventList(__allEventsCache, EVENT_CACHE_MAX_ITEMS);
     const inRegion = isEventInsideActiveRegion(normalized);
     if (!inRegion) {
         debouncedRenderFeed();
@@ -10186,20 +10241,14 @@ export function handleIncomingEvent(event) {
     } else {
         __eventsCache.unshift(normalized);
     }
-    __eventsCache = trimSortedEventList(__eventsCache, EVENT_CACHE_MAX_ITEMS);
-    if (__viewportScoped) {
+    if (!__incomingEventUiBatchDepth) __eventsCache = trimSortedEventList(__eventsCache, EVENT_CACHE_MAX_ITEMS);
+    if (__viewportScoped && !__incomingEventUiBatchDepth) {
         __visibleEventsCache = trimSortedEventList(__visibleEventsCache, EVENT_VISIBLE_CACHE_MAX_ITEMS);
     }
     if (shouldSuspendMapWork()) {
         return;
     }
-    renderAll(__eventsCache, { replaceAllCache: false });
-    flashFeedCard(normalized.id);
-    syncNewsTickerForCurrentMode();
-    if (__viewportScoped) {
-        __lastViewportKey = "";
-        scheduleViewportFetch(180);
-    }
+    requestIncomingEventUiRefresh(normalized.id);
     const globe = window.__warzoneViewer?.__warzone;
     const layerOk = isOperationalMapEvent(normalized) && isEventVisible(normalized);
     if (isNavalSignalEvent(normalized)) {
