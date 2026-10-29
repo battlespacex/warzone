@@ -166,7 +166,7 @@ test("aircraft hard lock keeps its reticle centered and couples camera motion to
 
   assert.doesNotMatch(source, /setLiveTrackHardLockInternal\(true\);\s*bindFocusGuideTracking\(\);/);
   assert.match(source, /focusedTrackAdvanced[\s\S]*?syncFocusedTrackCamera\(\{ motionFrame: true \}\)/);
-  assert.match(source, /Position interpolation runs every frame; only camera follow is capped/);
+  assert.match(source, /if \(options\?\.motionFrame === true\) translateFocusedTrackCamera\(viewer, position\)/);
   assert.match(source, /const forceCameraSync = forceLifecycleSync \|\| forceVisualRefresh/);
   assert.doesNotMatch(source, /forceCameraSync\s*=\s*[^;]*motionFrame/);
   assert.match(source, /function getFocusVisualAnchorScreenPosition[\s\S]*?__liveTrackHardLockEnabled[\s\S]*?getViewerCenterScreenPosition\(viewer\)[\s\S]*?const trackScreenPosition/);

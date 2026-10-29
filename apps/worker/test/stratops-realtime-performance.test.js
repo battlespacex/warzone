@@ -328,6 +328,7 @@ test("aircraft history seeds first entities before yielding the remaining rows",
 test("aircraft motion frames do not bypass the 20 Hz camera cap", async () => {
     const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");
     const viewer = { scene: { mode: 3 }, entities: { getById: () => ({}) }, camera: {} };
+    let translations = 0;
     const syncCamera = vm.runInNewContext(`${fn(aircraft, "syncFocusedTrackCamera")}; syncFocusedTrackCamera`, {
         window: { __warzoneViewer: viewer }, Cesium: { SceneMode: { SCENE3D: 3 } },
         __liveTrackReplayState: { selectedTrackKey: "A", mode: "focus" },
@@ -335,9 +336,11 @@ test("aircraft motion frames do not bypass the 20 Hz camera cap", async () => {
         __liveTrackUserCameraInteracting: false, __liveTrackLastFocusCameraSyncAt: 100,
         LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ: 20,
         getPositionCartesian: () => ({}), performance: { now: () => 120 },
+        translateFocusedTrackCamera: () => { translations++; },
         getCssNumber: () => 20, clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
     });
     assert.doesNotThrow(() => syncCamera({ motionFrame: true }));
+    assert.equal(translations, 1, "lightweight translation follows motion before the expensive camera cap");
 });
 test("existing focused route does not rebuild geometry on network history receipt", async () => {
     const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");

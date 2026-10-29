@@ -114,12 +114,15 @@
 
     
     .secondary-content {
-        position: relative !important;
+position: relative !important;
         width: 100%;
         height: 100%;
         padding: 0;
-                margin: 0;
+        margin: 0;
         box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
      }
 
 
@@ -283,9 +286,6 @@ position: absolute !important;
             transform: translateY(-50%) scale(0.96) !important;
             pointer-events: none !important;
         }
-        .warzone-panel--floating:not(.wz-is-hidden) {
-            transform: translateY(-50%) !important;
-        }
         .warzone-panel--floating .panel-head {
             /* transform: none !important; */
             cursor: default !important;
@@ -306,6 +306,15 @@ position: absolute !important;
 
 
 
+    .wz-altitude-readout {
+font-size: var(--text-sm);
+        bottom: 8rem;
+        text-align: center;
+        right: auto;
+        left: auto;
+        width: 100%;
+        gap: 0.7rem;
+    }
 
 
 
@@ -504,11 +513,6 @@ position: absolute !important;
         --warzone-close-resolution-scale: 1;
     }
 
-    .wz-altitude-readout {
-        font-size: var(--text-sm);
-        letter-spacing: 0.5rem;
-        gap: 0.3rem;
-    }
     
     .warzone-region-bar,
     .warzone-top-tabs,

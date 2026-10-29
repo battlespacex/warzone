@@ -24,6 +24,9 @@ const LIVE_TRACK_BILLBOARD_CACHE_MAX_ITEMS = 160;
 let __liveTrackFocusSmoothedTarget = null;
 const __liveTrackFocusSmoothedTargetScratch = new Cesium.Cartesian3();
 let __liveTrackLastFocusCameraTarget = null;
+let __liveTrackFocusMotionAnchor = null;
+const __liveTrackFocusWorldDelta = new Cesium.Cartesian3();
+const __liveTrackFocusLocalDelta = new Cesium.Cartesian3();
 let __liveTrackLastFocusCameraHeadingDeg = Number.NaN;
 let __liveTrackLastFocusCameraPitchDeg = Number.NaN;
 let __liveTrackLastFocusCameraRangeMeters = Number.NaN;
@@ -4018,6 +4021,7 @@ function hideLiveTrackFocusVisuals() {
     }
     __liveTrackFocusSmoothedTarget = null;
     __liveTrackLastFocusCameraTarget = null;
+    __liveTrackFocusMotionAnchor = null;
     __liveTrackLastFocusCameraHeadingDeg = Number.NaN;
     __liveTrackLastFocusCameraPitchDeg = Number.NaN;
     __liveTrackLastFocusCameraRangeMeters = Number.NaN;
@@ -5098,10 +5102,18 @@ function syncFocusedTrackCameraOrientationFromViewer(position, options = {}) {
         }
     }
 }
+function translateFocusedTrackCamera(viewer, position) {
+    if (!__liveTrackFocusMotionAnchor || !__liveTrackFocusSmoothedTarget) return;
+    Cesium.Cartesian3.subtract(position, __liveTrackFocusMotionAnchor, __liveTrackFocusWorldDelta);
+    Cesium.Matrix4.multiplyByPointAsVector(viewer.camera.inverseTransform, __liveTrackFocusWorldDelta, __liveTrackFocusLocalDelta);
+    Cesium.Cartesian3.add(viewer.camera.position, __liveTrackFocusLocalDelta, viewer.camera.position);
+    Cesium.Cartesian3.add(__liveTrackFocusSmoothedTarget, __liveTrackFocusWorldDelta, __liveTrackFocusSmoothedTarget);
+    Cesium.Cartesian3.clone(position, __liveTrackFocusMotionAnchor);
+}
 function syncFocusedTrackCamera(options = {}) {
     const forceLifecycleSync = options?.lifecycleResume === true;
     const forceVisualRefresh = options?.visualRefresh === true;
-    // Position interpolation runs every frame; only camera follow is capped.
+    // Position translation runs every frame; camera transform rebasing is capped.
     // Bypassing this cap on motion frames causes lookAt/tile churn at RAF speed.
     const forceCameraSync = forceLifecycleSync || forceVisualRefresh;
     const viewer = window.__warzoneViewer;
@@ -5127,6 +5139,9 @@ function syncFocusedTrackCamera(options = {}) {
     }
 
     const now = performance.now();
+    // Follow the same rendered position every motion frame. Keep expensive
+    // lookAt/orientation/visual refresh work on the existing capped schedule.
+    if (options?.motionFrame === true) translateFocusedTrackCamera(viewer, position);
 
     const cameraSyncHz = clamp(
         getCssNumber("--warzone-live-aircraft-focus-camera-sync-hz", LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ),
@@ -5217,6 +5232,9 @@ function syncFocusedTrackCamera(options = {}) {
                 Cesium.Math.toRadians(__liveTrackFocusPitchDeg),
                 cameraRange
             )
+        );
+        __liveTrackFocusMotionAnchor = Cesium.Cartesian3.clone(
+            position, __liveTrackFocusMotionAnchor || new Cesium.Cartesian3()
         );
         __liveTrackLastFocusCameraSyncAt = now;
         __liveTrackLastFocusCameraTarget = Cesium.Cartesian3.clone(
@@ -8506,15 +8524,13 @@ function applyLiveTrackUpdate(track, options = {}) {
         options.onTelemetryResult?.({ status: "stale" });
         return;
     }
-    const hasPredictedVisualPosition = entity?.__liveTrackMotionState?.phase === "prediction" ||
-        entity?.__liveTrackMotionState?.phase === "prediction_hold";
-    if (telemetryUpdate === "insignificant" && (!hasPredictedVisualPosition ||
-        sourceTimestamp === Number(entity?.__lastSourceTimestamp || 0))) {
+    if (telemetryUpdate === "insignificant") {
+        // A newer heartbeat timestamp is not a new positional fix. Keep the
+        // current interpolation/prediction and its bounded deadline intact.
         refreshLiveTrackLiveness(entity, track, sourceTimestamp);
         options.onTelemetryResult?.({ status: "insignificant", candidate: track, sourceTimestamp });
         return;
     }
-    if (telemetryUpdate === "insignificant") telemetryUpdate = "accept";
 
     const resolvedHeadingDeg = getTrackResolvedHeading(track);
     const registryEntry = forceVisualRefresh || options.validatedVisualState === true
@@ -8677,7 +8693,12 @@ function applyLiveTrackUpdate(track, options = {}) {
         });
     }
     applyLiveTrackFocusVisibility(track.track_key);
-    if (isFocusedTrackKey(track.track_key)) requestFocusedTrackIsolationRefresh();
+    if (isFocusedTrackKey(track.track_key)) {
+        // animateTrackTo can advance the previous motion at receipt time,
+        // before the next RAF. Keep that rendered pose and camera atomic too.
+        syncFocusedTrackCamera({ motionFrame: true });
+        requestFocusedTrackIsolationRefresh();
+    }
     wakeLiveTrackRenderAfterAssetUpdate();
     return entity;
 }
