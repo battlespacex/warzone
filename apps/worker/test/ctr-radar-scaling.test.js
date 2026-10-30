@@ -10,13 +10,17 @@ const implementation = source.slice(start, source.indexOf("\n}", start) + 2);
 const defaults = Object.fromEntries([...css.matchAll(/(--warzone-(?:aircraft-|naval-)?ctr-radar-[\w-]+):\s*([\d.]+);/g)]
     .map(([, key, value]) => [key, Number(value)]));
 
-test("independent CTR extents scale both radii once without changing grid spacing or styling", () => {
+test("independent CTR extents scale both radii once with bounded grid spacing", () => {
     const values = { ...defaults }, state = { hasFocusPosition: true, profile: "aircraft" };
     const context = vm.createContext({ getContourOverlayState: () => state,
         getContourFocusProfile: () => state.profile, numberVar: (key, fallback) => values[key] ?? fallback });
     vm.runInContext(implementation, context);
     for (let cycle = 0; cycle < 30; cycle++) for (const [profile, factor, inner, outer, spacing] of [
-        ["aircraft", 1.5, 225, 450, 50], ["naval", 0.5, 750, 1500, 500],
+        ["aircraft", defaults["--warzone-aircraft-ctr-radar-extent-scale"],
+            150 * defaults["--warzone-aircraft-ctr-radar-extent-scale"],
+            300 * defaults["--warzone-aircraft-ctr-radar-extent-scale"],
+            Math.max(300 * defaults["--warzone-aircraft-ctr-radar-extent-scale"] / 32, 50)],
+        ["naval", 0.5, 750, 1500, 500],
     ]) {
         state.profile = profile;
         const config = context.getFocusedCtrRadarConfig({});
@@ -27,12 +31,13 @@ test("independent CTR extents scale both radii once without changing grid spacin
         const previous = context.getFocusedCtrRadarConfig({});
         assert.equal(config.innerRadius / previous.innerRadius, factor);
         assert.equal(config.outerRadius / previous.outerRadius, factor);
-        assert.equal(config.spacing, previous.spacing);
+        assert.equal(config.spacing, Math.max(config.outerRadius / 32, previous.spacing));
         values[`--warzone-${profile}-ctr-radar-extent-scale`] = factor;
     }
     values["--warzone-aircraft-ctr-radar-inner-radius"] = 200;
     state.profile = "aircraft";
-    assert.equal(context.getFocusedCtrRadarConfig({}).innerRadius, 300);
+    assert.equal(context.getFocusedCtrRadarConfig({}).innerRadius,
+        200 * defaults["--warzone-aircraft-ctr-radar-extent-scale"]);
     state.profile = "naval";
     assert.equal(context.getFocusedCtrRadarConfig({}).innerRadius, 750);
     values["--warzone-naval-ctr-radar-scale"] = 2;

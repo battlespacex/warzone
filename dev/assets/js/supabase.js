@@ -325,7 +325,7 @@ export const api = {
     async getOperationalReports(type = "daily", scopeType = "global") {
         const reportType = String(type || "daily").trim().toLowerCase();
         const params = new URLSearchParams({
-            type: reportType === "weekly" ? "weekly" : "daily",
+            type: ["daily", "weekly", "72hour"].includes(reportType) ? reportType : "daily",
             scope_type: scopeType || "global",
         });
         if (isLocalhost) {
@@ -361,7 +361,7 @@ export const api = {
     async getLatestOperationalReport(type = "daily", scopeType = "global") {
         const reportType = String(type || "daily").trim().toLowerCase();
         const params = new URLSearchParams({
-            type: reportType === "weekly" ? "weekly" : "daily",
+            type: ["daily", "weekly", "72hour"].includes(reportType) ? reportType : "daily",
             scope_type: scopeType || "global",
         });
         const res = await fetch(`${REPORTS_API_BASE}/stratops/reports/latest?${params.toString()}`);

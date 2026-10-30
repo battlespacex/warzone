@@ -9,7 +9,7 @@ import {
 
 const REPORT_VERSION = "2026-07-stratops-report-v2";
 const NORMALIZATION_VERSION = "event-normalizer-current";
-const VALID_REPORT_TYPES = new Set(["daily", "weekly"]);
+const VALID_REPORT_TYPES = new Set(["daily", "weekly", "72hour"]);
 const VALID_SCOPE_TYPES = new Set(["global", "region", "country", "aoi"]);
 const HIGH_SEVERITIES = new Set(["high", "critical"]);
 const TRACK_BOUNDARY_GRACE_MINUTES = 15;
@@ -393,25 +393,26 @@ async function fetchPagedRows(buildQuery, { pageSize = 1000, maxRows = 8000 } = 
     if (error) throw error;
     const page = Array.isArray(data) ? data : [];
     rows.push(...page);
-    if (page.length < pageSize) break;
+    if (page.length < pageSize) return rows;
   }
-  return rows;
+  throw new Error(`Reporting source exceeded its ${maxRows}-row safety bound; refusing a truncated report`);
 }
 
-async function fetchEventsForDay(supabase, dateKey, scope) {
-  const { startIso, endIso } = getDayRange(dateKey);
+async function fetchEventsForDay(supabase, dateKey, scope, period = getDayRange(dateKey)) {
+  const { startIso, endIso } = period;
   const data = await fetchPagedRows(() => applyGeneralEventDeliveryFilters(
     supabase
       .from("events")
       .select("id, created_at, occurred_at, category, subcategory, title, summary, source_name, source_url, location_label, country_code, severity, confidence, lat, lon, report_type, weapon_type, source_count, airspace_status, cyber_status, fir_code, tags, priority_score, dedupe_key, metadata")
       .gte("occurred_at", startIso)
       .lt("occurred_at", endIso)
-  ).order("occurred_at", { ascending: false }).order("id", { ascending: true }));
+  ).order("occurred_at", { ascending: false }).order("id", { ascending: true }),
+    { maxRows: Date.parse(endIso) - Date.parse(startIso) > 86400000 ? 30000 : 8000 });
   return data;
 }
 
-async function fetchConflictIntelligenceForDay(supabase, dateKey) {
-  const { startIso, endIso } = getDayRange(dateKey);
+async function fetchConflictIntelligenceForDay(supabase, dateKey, period = getDayRange(dateKey)) {
+  const { startIso, endIso } = period;
   const selection = "id, source_id, source_name, source_type, source_category, title, summary, url, guid, published_at, fetched_at, region, country, lat, lon, category, confidence_score, is_conflict_relevant, raw";
   const published = await fetchPagedRows(() => supabase
     .from("conflict_feed_items")
@@ -420,7 +421,7 @@ async function fetchConflictIntelligenceForDay(supabase, dateKey) {
     .gte("published_at", startIso)
     .lt("published_at", endIso)
     .order("published_at", { ascending: false })
-    .order("id", { ascending: true }));
+    .order("id", { ascending: true }), { maxRows: 30000 });
   const fetchedWithoutPublishTime = await fetchPagedRows(() => supabase
     .from("conflict_feed_items")
     .select(selection)
@@ -429,7 +430,7 @@ async function fetchConflictIntelligenceForDay(supabase, dateKey) {
     .gte("fetched_at", startIso)
     .lt("fetched_at", endIso)
     .order("fetched_at", { ascending: false })
-    .order("id", { ascending: true }));
+    .order("id", { ascending: true }), { maxRows: 30000 });
   const unique = new Map();
   [...published, ...fetchedWithoutPublishTime].forEach((item) => {
     const key = item.id || item.url || item.guid;
@@ -438,9 +439,9 @@ async function fetchConflictIntelligenceForDay(supabase, dateKey) {
   return [...unique.values()];
 }
 
-async function fetchTracksForDay(supabase, dateKey) {
-  const { startIso, endIso } = getDayRange(dateKey);
-  const trackWindowEndIso = new Date(Date.parse(endIso) + TRACK_BOUNDARY_GRACE_MINUTES * 60000).toISOString();
+async function fetchTracksForDay(supabase, dateKey, period = getDayRange(dateKey), strict = false, sourceFailures = []) {
+  const { startIso, endIso } = period;
+  const trackWindowEndIso = strict ? endIso : new Date(Date.parse(endIso) + TRACK_BOUNDARY_GRACE_MINUTES * 60000).toISOString();
   try {
     const tracks = await fetchPagedRows(() => supabase
       .from("tracks")
@@ -448,7 +449,7 @@ async function fetchTracksForDay(supabase, dateKey) {
       .gte("updated_at", startIso)
       .lt("updated_at", trackWindowEndIso)
       .order("updated_at", { ascending: false })
-      .order("id", { ascending: true }));
+      .order("id", { ascending: true }), { maxRows: strict ? 100000 : 8000 });
     const [aircraftHistory, navalHistory] = await Promise.all([
       fetchPagedRows(() => supabase
         .from("aircraft_tracks_log")
@@ -456,14 +457,20 @@ async function fetchTracksForDay(supabase, dateKey) {
         .gte("last_seen_at", startIso)
         .lt("last_seen_at", trackWindowEndIso)
         .order("last_seen_at", { ascending: false })
-        .order("track_key", { ascending: true })).catch(() => []),
+        .order("track_key", { ascending: true })).catch((error) => {
+          if (strict) sourceFailures.push({ source: "aircraft_tracks_log", error: String(error.message || error).slice(0, 200) });
+          return [];
+        }),
       fetchPagedRows(() => supabase
         .from("naval_tracks_log")
         .select("mmsi, created_at, last_seen_at")
         .gte("last_seen_at", startIso)
         .lt("last_seen_at", trackWindowEndIso)
         .order("last_seen_at", { ascending: false })
-        .order("mmsi", { ascending: true })).catch(() => []),
+        .order("mmsi", { ascending: true })).catch((error) => {
+          if (strict) sourceFailures.push({ source: "naval_tracks_log", error: String(error.message || error).slice(0, 200) });
+          return [];
+        }),
     ]);
     const historyByTrackKey = new Map();
     aircraftHistory.forEach((row) => historyByTrackKey.set(String(row.track_key), {
@@ -481,12 +488,13 @@ async function fetchTracksForDay(supabase, dateKey) {
         ...track,
         metadata: {
           ...(track.metadata && typeof track.metadata === "object" ? track.metadata : {}),
-          first_observed: history.first_observed,
-          last_observed: history.last_observed,
+          first_observed: strict && Date.parse(history.first_observed) < Date.parse(startIso) ? startIso : history.first_observed,
+          last_observed: strict && Date.parse(history.last_observed) >= Date.parse(endIso) ? endIso : history.last_observed,
         },
       };
     });
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return [];
   }
 }
@@ -506,8 +514,14 @@ async function fetchPreviousSnapshot(supabase, dateKey, scopeKey) {
   }
 }
 
-async function countAlerts(supabase, dateKey) {
-  const { startIso, endIso } = getDayRange(dateKey);
+async function countAlerts(supabase, dateKey, period = getDayRange(dateKey), strict = false) {
+  const { startIso, endIso } = period;
+  if (strict) {
+    const { count, error } = await supabase.from("active_alerts").select("id", { count: "exact", head: true })
+      .gte("updated_at", startIso).lt("updated_at", endIso);
+    if (error) throw error;
+    return Number(count || 0);
+  }
   return safeCount(
     supabase
       .from("active_alerts")
@@ -517,8 +531,14 @@ async function countAlerts(supabase, dateKey) {
   );
 }
 
-async function countSatellite(supabase, dateKey) {
-  const { startIso, endIso } = getDayRange(dateKey);
+async function countSatellite(supabase, dateKey, period = getDayRange(dateKey), strict = false) {
+  const { startIso, endIso } = period;
+  if (strict) {
+    const { count, error } = await supabase.from("event_satellite_observations").select("id", { count: "exact", head: true })
+      .eq("status", "available").gte("acquisition_time", startIso).lt("acquisition_time", endIso);
+    if (error) throw error;
+    return Number(count || 0);
+  }
   return safeCount(
     supabase
       .from("event_satellite_observations")
@@ -527,6 +547,27 @@ async function countSatellite(supabase, dateKey) {
       .gte("updated_at", startIso)
       .lt("updated_at", endIso)
   );
+}
+
+async function fetchStatusSignalsForPeriod(supabase, period) {
+  const rows = await fetchPagedRows(() => supabase.from("status_feed_items")
+    .select("id, guid, source_name, source_type, source_category, title, summary, url, published_at, fetched_at, region, country, category, severity, confidence_score, raw")
+    .eq("is_status_relevant", true)
+    .gte("published_at", period.startIso)
+    .lt("published_at", period.endIso)
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: true }), { maxRows: 10000 });
+  const unique = new Map();
+  rows.forEach((row) => {
+    if (row.raw?.status_signal?.kind === "vulnerability") return;
+    const key = String(row.guid || row.url || row.id || "");
+    if (!key || unique.has(key)) return;
+    unique.set(key, {
+      ...row, id: `status:${row.id}`, source_category: row.source_category || "status",
+      is_conflict_relevant: true,
+    });
+  });
+  return [...unique.values()];
 }
 
 async function fetchSatellitePreviewForEvents(supabase, eventIds = []) {
@@ -559,6 +600,8 @@ async function fetchSatellitePreviewForEvents(supabase, eventIds = []) {
 
 function buildSnapshotPayload({
   dateKey,
+  period = getDayRange(dateKey),
+  reportType = "daily",
   scope,
   events,
   intelligence = [],
@@ -567,8 +610,9 @@ function buildSnapshotPayload({
   counts,
   satellitePreview = null,
   config = readReportingConfig(),
+  sourceHealth = {},
 }) {
-  const { startIso, endIso } = getDayRange(dateKey);
+  const { startIso, endIso } = period;
   const reporting = buildReportingFoundation({
     dateKey,
     windowStartIso: startIso,
@@ -582,13 +626,16 @@ function buildSnapshotPayload({
     counts,
     satellitePreview,
     s3Prefix: config.s3Prefix,
+    reportType,
   });
+  reporting.snapshotData.source_health = sourceHealth;
+  if (reportType === "72hour") reporting.snapshotData.report_content.source_health = sourceHealth;
   const scopedEvents = reporting.operationalItems;
   reporting.snapshotData.report_content.methodology_metrics.telemetry_selection_window = {
     start: startIso,
     end: endIso,
     boundary_grace_minutes: TRACK_BOUNDARY_GRACE_MINUTES,
-    reason: "Preserves latest-row telemetry across the scheduled 00:12 UTC snapshot boundary.",
+    reason: reportType === "daily" ? "Preserves latest-row telemetry across the scheduled 00:12 UTC snapshot boundary." : "Uses the exact closed 72-hour UTC window.",
   };
   const categoryTotals = countBy(scopedEvents, "category");
   const severityTotals = countBy(scopedEvents, "severity");
@@ -621,12 +668,16 @@ function buildSnapshotPayload({
     aircraftTotal: counts.aircraft_total,
     navalTotal: counts.naval_total,
   });
+  if (reportType === "72hour" && Object.values(sourceHealth).some((source) => source?.status === "unavailable")) {
+    reporting.snapshotData.report_content.executive_summary = `${reporting.snapshotData.report_content.executive_summary || generatedSummary} Optional sources were unavailable; their activity cannot be inferred from zero counts.`;
+  }
   const generatedAt = nowIso();
   reporting.manifest.generated_at = generatedAt;
   return {
     snapshot_key: reporting.snapshotKey,
     snapshot_version: SNAPSHOT_SCHEMA_VERSION,
     snapshot_date: dateKey,
+    report_type: reportType,
     window_start: startIso,
     window_end: endIso,
     generated_at: generatedAt,
@@ -670,9 +721,11 @@ function buildSnapshotPayload({
     map_snapshot_reference: null,
     satellite_summary: {
       available_count: counts.satellite_total,
-      summary: counts.satellite_total
-        ? `${counts.satellite_total} satellite observation record${counts.satellite_total === 1 ? "" : "s"} were available in the contextual imagery table for this period.`
-        : "No satellite observation records were available for this period.",
+      summary: sourceHealth.satellite_observations?.status === "unavailable"
+        ? "Satellite observation source was unavailable; activity cannot be assessed."
+        : counts.satellite_total
+          ? `${counts.satellite_total} satellite observation record${counts.satellite_total === 1 ? "" : "s"} were available in the contextual imagery table for this period.`
+          : "No satellite observation records were available for this period.",
       preview_image_url: cleanText(satellitePreview?.image_url, ""),
       preview_event_id: cleanText(satellitePreview?.event_id, ""),
       acquisition_time: cleanText(satellitePreview?.acquisition_time, ""),
@@ -733,6 +786,51 @@ async function generateDailySnapshot({ supabase, dateKey = getPreviousUtcDateKey
     config,
   }));
   return snapshot;
+}
+
+async function generate72HourSnapshot({ supabase, period, scope = {}, config = readReportingConfig() } = {}) {
+  if (!period?.startIso || !period?.endIso || Date.parse(period.endIso) - Date.parse(period.startIso) !== 72 * 60 * 60 * 1000) {
+    throw new Error("A fixed 72-hour UTC period is required");
+  }
+  const dateKey = period.startIso.slice(0, 10);
+  const normalizedScope = normalizeScope(scope);
+  const sourceFailures = [];
+  const [events, intelligence, tracks, alertsResult, satelliteResult, statusResult] = await Promise.all([
+    fetchEventsForDay(supabase, dateKey, normalizedScope, period),
+    fetchConflictIntelligenceForDay(supabase, dateKey, period),
+    fetchTracksForDay(supabase, dateKey, period, true, sourceFailures),
+    countAlerts(supabase, dateKey, period, true).then((value) => ({ value }), (error) => ({ error })),
+    countSatellite(supabase, dateKey, period, true).then((value) => ({ value }), (error) => ({ error })),
+    fetchStatusSignalsForPeriod(supabase, period).then((rows) => ({ rows }), (error) => ({ error })),
+  ]);
+  const sourceHealth = {
+    events: { status: "available", count: events.length },
+    conflict_feed_items: { status: "available", count: intelligence.length },
+    tracks: { status: "available", count: tracks.length },
+    active_alerts: alertsResult.error ? { status: "unavailable", error: String(alertsResult.error.message).slice(0, 200) } : { status: "available", count: alertsResult.value },
+    satellite_observations: satelliteResult.error ? { status: "unavailable", error: String(satelliteResult.error.message).slice(0, 200) } : { status: "available", count: satelliteResult.value },
+    status_feed_items: statusResult.error ? { status: "unavailable", error: String(statusResult.error.message).slice(0, 200) } : { status: "available", count: statusResult.rows.length },
+  };
+  sourceFailures.forEach(({ source, error }) => { sourceHealth[source] = { status: "unavailable", error }; });
+  const scopedTracks = tracks.filter((track) => eventMatchesScope(track, normalizedScope));
+  const counts = {
+    aircraft_total: scopedTracks.filter((track) => track.track_type === "aircraft").length,
+    naval_total: scopedTracks.filter((track) => track.track_type === "naval").length,
+    alerts_total: alertsResult.value ?? null,
+    satellite_total: satelliteResult.value ?? null,
+  };
+  const payload = buildSnapshotPayload({
+    dateKey, period, reportType: "72hour", scope: normalizedScope, events,
+    intelligence: [...intelligence, ...(statusResult.rows || [])], tracks,
+    previousSnapshot: null, counts, satellitePreview: null, config, sourceHealth,
+  });
+  payload.report_manifest.selected_capture_targets = [];
+  payload.report_manifest.capture_requirements = [];
+  payload.report_manifest.selected_images = [];
+  payload.snapshot_data.report_content.operational_imagery_targets = [];
+  payload.snapshot_data.report_content.methodology_metrics.telemetry_selection_window.boundary_grace_minutes = 0;
+  payload.satellite_summary.preview_image_url = "";
+  return upsertSnapshot(supabase, payload);
 }
 
 function buildDailyReportBody(snapshot) {
@@ -839,14 +937,14 @@ function createLegacyPublisherDisabledError(reportKey = "") {
   );
 }
 
-async function upsertReportRecord({ supabase, reportType, dateKey, scope, body, snapshotIds }) {
+async function upsertReportRecord({ supabase, reportType, dateKey, scope, body, snapshotIds, period: explicitPeriod, attemptCount }) {
   const reportKey = getReportKey({ reportType, dateKey, scope });
-  const period = reportType === "daily"
+  const period = explicitPeriod || (reportType === "daily"
     ? getDayRange(dateKey)
     : {
         startIso: `${addUtcDays(dateKey, -6)}T00:00:00.000Z`,
         endIso: `${addUtcDays(dateKey, 1)}T00:00:00.000Z`,
-      };
+      });
   const payload = {
     report_key: reportKey,
     report_type: reportType,
@@ -864,6 +962,7 @@ async function upsertReportRecord({ supabase, reportType, dateKey, scope, body, 
     normalization_version: NORMALIZATION_VERSION,
     updated_at: nowIso(),
   };
+  if (reportType === "72hour") payload.attempt_count = Number(attemptCount || 1);
   const { data, error } = await supabase
     .from("operational_reports")
     .upsert(payload, { onConflict: "report_key" })
@@ -934,6 +1033,7 @@ function resetInFlightReportGenerationsForTests() {
 
 const __reportingServiceTestUtils = {
   buildSnapshotPayload,
+  fetchPagedRows,
   fetchTracksForDay,
   getDayRange,
   resetInFlightReportGenerationsForTests,
@@ -947,6 +1047,7 @@ async function ensureOperationalReport({ supabase, reportType = "daily", dateKey
   if (type === "weekly") {
     return ensureWeeklyReport({ supabase, dateKey: dateKey || getPreviousUtcDateKey(), scope, config, force });
   }
+  if (type === "72hour") throw new Error("72-hour reports are generated only by the worker scheduler");
   return ensureDailyReport({ supabase, dateKey: dateKey || getPreviousUtcDateKey(), scope, config, force });
 }
 
@@ -1047,6 +1148,7 @@ export {
   ensureOperationalReport,
   ensureWeeklyReport,
   generateDailySnapshot,
+  generate72HourSnapshot,
   generateScheduledReports,
   generateScheduledSnapshots,
   getDayRange,

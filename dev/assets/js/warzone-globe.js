@@ -6028,6 +6028,8 @@ function setContourGridLayerVisible(viewer, visible) {
         ensureContourGridPrimitive(viewer, center, { force: true });
     } else if (state?.gridPrimitive) {
         state.gridPrimitive.show = false;
+        if (state.gridDrawPrimitive) state.gridDrawPrimitive.show = false;
+        if (state.gridDrawPending) state.gridDrawPending.primitive.show = false;
         if (state.gridPrimitive.__surfaceFitFrame) cancelAnimationFrame(state.gridPrimitive.__surfaceFitFrame);
         state.gridPrimitive.__surfaceFitFrame = 0;
         state.gridPrimitive.__surfaceFitAt = -Infinity;
@@ -6097,6 +6099,8 @@ function getContourOverlayState(viewer) {
             lastBuiltAt: 0,
             hasVisibleContours: false,
             gridPrimitive: null,
+            gridDrawPrimitive: null,
+            gridDrawPending: null,
             gridCenterLon: Number.NaN,
             gridCenterLat: Number.NaN,
             gridRadiusMeters: 0,
@@ -6122,12 +6126,14 @@ function applyContourLayerState(viewer) {
     }
     if (state?.gridPrimitive) {
         state.gridPrimitive.show = viewer?.__contourGridLayerVisible === true;
+        if (state.gridDrawPrimitive) state.gridDrawPrimitive.show = state.gridPrimitive.show;
+        if (state.gridDrawPending) state.gridDrawPending.primitive.show = state.gridPrimitive.show;
         raiseContourGridPrimitive(viewer);
     }
 }
 function raiseContourGridPrimitive(viewer) {
     const state = getContourOverlayState(viewer);
-    const primitive = state?.gridPrimitive;
+    const primitive = state?.gridDrawPrimitive || state?.gridPrimitive;
     if (!primitive || !viewer?.scene?.primitives?.raiseToTop) return false;
     try {
         viewer.scene.primitives.raiseToTop(primitive);
@@ -6913,19 +6919,84 @@ function getContourLevels(minHeight, maxHeight, area = null) {
     }
     return levels;
 }
+function createContourGridDrawPrimitive(viewer, collection) {
+    const state = getContourOverlayState(viewer);
+    if (!state || state.gridPrimitive !== collection || !viewer?.scene?.primitives) return;
+    const baseMatrix = Cesium.Matrix4.clone(collection.modelMatrix);
+    const baseInverse = Cesium.Matrix4.inverseTransformation(baseMatrix, new Cesium.Matrix4());
+    // Cesium's polyline worker needs world coordinates, while the draw command
+    // needs a movable local frame. The inverse base cancels the initial frame;
+    // later center changes update only Primitive.modelMatrix, not GPU vertices.
+    const instances = [];
+    for (let index = 0; index < collection.length; index += 1) {
+        const line = collection.get(index);
+        instances.push(new Cesium.GeometryInstance({
+            geometry: new Cesium.PolylineGeometry({
+                positions: line.positions.map(point => Cesium.Matrix4.multiplyByPoint(baseMatrix, point, new Cesium.Cartesian3())),
+                width: line.width,
+                vertexFormat: Cesium.PolylineColorAppearance.VERTEX_FORMAT,
+            }),
+            modelMatrix: baseInverse,
+            attributes: {
+                color: Cesium.ColorGeometryInstanceAttribute.fromColor(line.material.uniforms.color),
+            },
+        }));
+    }
+    if (!instances.length) return;
+    if (state.gridDrawPending) {
+        state.gridDrawPending.removeListener?.();
+        viewer.scene.primitives.remove(state.gridDrawPending.primitive);
+        state.gridDrawPending = null;
+    }
+    const draw = viewer.scene.primitives.add(new Cesium.Primitive({
+        geometryInstances: instances,
+        appearance: new Cesium.PolylineColorAppearance({ translucent: true }),
+        modelMatrix: baseMatrix,
+        asynchronous: true,
+        allowPicking: false,
+    }));
+    draw.__gridBaseInverse = baseInverse;
+    const initial = !state.gridDrawPrimitive;
+    draw.show = viewer.__contourGridLayerVisible === true;
+    if (initial) state.gridDrawPrimitive = draw;
+    const pending = { primitive: draw, removeListener: null };
+    state.gridDrawPending = pending;
+    pending.removeListener = viewer.scene.postRender.addEventListener(() => {
+        if (state.gridDrawPending !== pending || !draw.ready) return;
+        updateContourGridDrawMatrix(draw, collection.modelMatrix);
+        draw.show = viewer.__contourGridLayerVisible === true;
+        if (!initial) viewer.scene.primitives.remove(state.gridDrawPrimitive);
+        state.gridDrawPrimitive = draw;
+        state.gridDrawPending = null;
+        pending.removeListener?.();
+        viewer.scene.requestRender?.();
+    });
+    viewer.scene.requestRender?.();
+}
+function updateContourGridDrawMatrix(draw, centerMatrix) {
+    if (!draw?.ready || !draw.__gridBaseInverse) return;
+    draw.modelMatrix = Cesium.Matrix4.multiplyTransformation(
+        centerMatrix, draw.__gridBaseInverse, draw.modelMatrix
+    );
+}
 function destroyContourGridPrimitive(viewer) {
     const state = getContourOverlayState(viewer);
     const primitive = state?.gridPrimitive;
     if (primitive) {
         if (primitive.__surfaceFitFrame) cancelAnimationFrame(primitive.__surfaceFitFrame);
         primitive.__surfaceTileListener?.();
-        try {
-            viewer?.scene?.primitives?.remove?.(primitive);
-        } catch { }
+        try { primitive.destroy?.(); } catch { }
     }
+    if (state?.gridDrawPending) {
+        state.gridDrawPending.removeListener?.();
+        viewer?.scene?.primitives?.remove?.(state.gridDrawPending.primitive);
+    }
+    if (state?.gridDrawPrimitive) viewer?.scene?.primitives?.remove?.(state.gridDrawPrimitive);
     state.gridPrimitive = null;
+    state.gridDrawPrimitive = null;
+    state.gridDrawPending = null;
 }
-function updateContourGridPrimitiveCenter(viewer, position = null) {
+function updateContourGridPrimitiveCenter(viewer, position = null, options = {}) {
     const state = getContourOverlayState(viewer);
     const primitive = state?.gridPrimitive;
     const lon = Number(position?.lon ?? state?.gridCenterLon ?? state?.centerLon);
@@ -6936,13 +7007,20 @@ function updateContourGridPrimitiveCenter(viewer, position = null) {
     const heightOffset = Math.max(0, numberVar("--warzone-contour-grid-height-offset", 1));
     // Radar is surface geometry: target altitude must never enter its transform.
     state.gridCenterHeight = 0;
-    primitive.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
+    const modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
         Cesium.Cartesian3.fromDegrees(lon, lat, heightOffset)
     );
-    if (state.hasFocusPosition === true) fitContourGridToSurface(viewer, primitive);
-    primitive.show = viewer.__contourGridLayerVisible === true;
-    raiseContourGridPrimitive(viewer);
-    viewer.scene?.requestRender?.();
+    primitive.modelMatrix = modelMatrix;
+    updateContourGridDrawMatrix(state.gridDrawPrimitive, modelMatrix);
+    if (state.gridDrawPending) updateContourGridDrawMatrix(state.gridDrawPending.primitive, modelMatrix);
+    if (options.transformOnly !== true) {
+        if (state.hasFocusPosition === true) fitContourGridToSurface(viewer, primitive);
+        primitive.show = viewer.__contourGridLayerVisible === true;
+        if (state.gridDrawPrimitive) state.gridDrawPrimitive.show = primitive.show;
+        if (state.gridDrawPending) state.gridDrawPending.primitive.show = primitive.show;
+        raiseContourGridPrimitive(viewer);
+        viewer.scene?.requestRender?.();
+    }
     return true;
 }
 function fitContourGridToSurface(viewer, primitive) {
@@ -7001,7 +7079,10 @@ function fitContourGridToSurface(viewer, primitive) {
             }
             yield;
         }
-        if (changed) line.positions = positions;
+        if (changed) {
+            line.positions = positions;
+            primitive.__surfaceGeometryChanged = true;
+        }
       }
     }
     const iterator = vertices();
@@ -7017,12 +7098,18 @@ function fitContourGridToSurface(viewer, primitive) {
         primitive.__surfaceMaxSliceMs = Math.max(primitive.__surfaceMaxSliceMs || 0, performance.now() - started);
         viewer.scene?.requestRender?.();
         if (!result.done) primitive.__surfaceFitFrame = requestAnimationFrame(process);
-        else if (!Cesium.Cartesian3.equals(center,
-            Cesium.Matrix4.getTranslation(primitive.modelMatrix, new Cesium.Cartesian3()))) {
-            // Movement during a yielded fit must not leave heights from the old
-            // geographic footprint as the final state once the target stops.
-            primitive.__surfaceFitCenter = null;
-            fitContourGridToSurface(viewer, primitive);
+        else {
+            if (primitive.__surfaceGeometryChanged) {
+                primitive.__surfaceGeometryChanged = false;
+                createContourGridDrawPrimitive(viewer, primitive);
+            }
+            if (!Cesium.Cartesian3.equals(center,
+                Cesium.Matrix4.getTranslation(primitive.modelMatrix, new Cesium.Cartesian3()))) {
+                // Movement during a yielded fit must not leave heights from the old
+                // geographic footprint as the final state once the target stops.
+                primitive.__surfaceFitCenter = null;
+                fitContourGridToSurface(viewer, primitive);
+            }
         }
     };
     primitive.__surfaceFitted = true;
@@ -7193,8 +7280,9 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     }
     state.gridIntervalMeters = intervalMeters;
     state.gridRadiusMeters = radius;
-    state.gridPrimitive = viewer.scene.primitives.add(collection);
+    state.gridPrimitive = collection;
     updateContourGridPrimitiveCenter(viewer, center);
+    createContourGridDrawPrimitive(viewer, collection);
     raiseContourGridPrimitive(viewer);
     return Number(collection.length || 0);
 }
@@ -7453,6 +7541,8 @@ async function buildContourOverlay(viewer, options = {}) {
             }, { force: options.force === true })
             : 0;
         if (state.gridPrimitive) state.gridPrimitive.show = gridVisible;
+        if (state.gridDrawPrimitive) state.gridDrawPrimitive.show = gridVisible;
+        if (state.gridDrawPending) state.gridDrawPending.primitive.show = gridVisible;
         if (!contourVisible) {
             dataSource.entities.removeAll();
             dataSource.show = false;
@@ -7683,7 +7773,7 @@ function clearContourFocusPosition(viewer) {
     clearContourOverlayDeferred(viewer);
 }
 
-function setContourGridCenter(viewer, position = null) {
+function setContourGridCenter(viewer, position = null, options = {}) {
     const state = getContourOverlayState(viewer);
     if (!state) return false;
     const lon = Number(position?.lon);
@@ -7696,7 +7786,7 @@ function setContourGridCenter(viewer, position = null) {
         ensureContourGridPrimitive(viewer, { lon, lat, height: state.gridCenterHeight });
         return !!state.gridPrimitive;
     }
-    return updateContourGridPrimitiveCenter(viewer, { lon, lat, height: state.gridCenterHeight });
+    return updateContourGridPrimitiveCenter(viewer, { lon, lat, height: state.gridCenterHeight }, options);
 }
 function refreshContourFromViewport(viewer, options = {}) {
     const state = getContourOverlayState(viewer);
@@ -8977,8 +9067,8 @@ export async function initWarzoneGlobe(options = {}) {
         isContourGridVisible() {
             return viewer.__contourGridLayerVisible === true;
         },
-        setContourGridCenter(position) {
-            return setContourGridCenter(viewer, position);
+        setContourGridCenter(position, options = {}) {
+            return setContourGridCenter(viewer, position, options);
         },
         enableFocusedTerrain() {
             return enableFocusedTerrain(viewer);

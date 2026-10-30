@@ -87,6 +87,7 @@ import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { generateScheduledReports } from "../../shared/reporting-service.js";
 import { generateScheduledDailyPipelines } from "./reporting-pipeline-service.js";
+import { run72HourReportingCheck, validate72HourConfig } from "./reporting-72hour-scheduler.js";
 import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
 import {
     cleanDisplayText,
@@ -4749,6 +4750,19 @@ function startReportingLoop() {
         cron.schedule(REPORTING_CONFIG.snapshotCron, () => {
             runDailyReportingPipelineCycle();
         }, { timezone: "UTC" });
+    }
+    if (REPORTING_CONFIG.hour72?.enabled) {
+        try {
+            validate72HourConfig(REPORTING_CONFIG);
+            if (!cron.validate(REPORTING_CONFIG.hour72.checkCron)) throw new Error("Invalid REPORTING_72H_CHECK_CRON");
+            const run72HourCheck = () => run72HourReportingCheck({ supabase, config: REPORTING_CONFIG, logger: console })
+                .catch((error) => console.error("[reports:72hour] scheduler check failed:", error?.message || error));
+            console.log(`[reports:72hour] check cron "${REPORTING_CONFIG.hour72.checkCron}"; startup catch-up enabled`);
+            run72HourCheck();
+            cron.schedule(REPORTING_CONFIG.hour72.checkCron, run72HourCheck, { timezone: "UTC" });
+        } catch (error) {
+            console.error("[reports:72hour] invalid scheduler configuration:", error?.message || error);
+        }
     }
     if (REPORTING_CONFIG.scheduleEnabled === true && REPORTING_CONFIG.weeklyEnabled === true) {
         console.log(`[reports] legacy weekly cron "${REPORTING_CONFIG.weeklyCron}"`);

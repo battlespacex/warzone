@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { readdir, readFile, stat, writeFile } from "fs/promises";
+import { readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import { basename, relative, resolve } from "path";
 import { DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS, readReportingConfig } from "../../shared/reporting-config.js";
 import { buildReportObjectKeys, buildSnapshotKey } from "../../shared/reporting-snapshot.js";
@@ -7,6 +7,7 @@ import { s3DeleteObject, s3PutObject } from "../../shared/reporting-s3.js";
 import {
   REPORT_VERSION,
   generateDailySnapshot,
+  generate72HourSnapshot,
   getPreviousUtcDateKey,
   getScheduledScopes,
   getScopeKey,
@@ -30,6 +31,7 @@ const PIPELINE_STAGES = Object.freeze({
   SNAPSHOT: "SNAPSHOT",
   INTELLIGENCE: "INTELLIGENCE",
   CAPTURE: "CAPTURE",
+  IMAGE_FREE: "IMAGE_FREE",
   HTML: "HTML",
   PDF: "PDF",
   UPLOAD: "UPLOAD",
@@ -42,7 +44,11 @@ function nowIso() {
 }
 
 function cleanError(error) {
-  return String(error?.message || error || "Report pipeline failed").replace(/\s+/g, " ").trim().slice(0, 500);
+  return String(error?.message || error || "Report pipeline failed")
+    .replace(/https?:\/\/[^\s]+/gi, (url) => url.split("?")[0])
+    .replace(/\b(token|secret|password|api[_-]?key|authorization)\s*[:=]\s*[^,\s]+/gi, "$1=[REDACTED]")
+    .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/\s+/g, " ").trim().slice(0, 500);
 }
 
 function normalizeStorageKey(value = "") {
@@ -63,6 +69,7 @@ function getCanonicalReportObjectKeys(snapshot = {}, config = readReportingConfi
     prefix: config.s3Prefix || "reports",
     dateKey,
     scope,
+    reportType: snapshot.report_type || snapshot.snapshot_data?.report_type || "daily",
   });
   return Object.fromEntries(Object.entries(keys).map(([key, value]) => [key, normalizeStorageKey(value)]));
 }
@@ -225,7 +232,7 @@ function buildPublishableManifest(manifest = {}) {
   };
 }
 
-async function uploadReportArtifacts({ snapshot, outputDirectory, config, uploadObject = s3PutObject }) {
+async function uploadReportArtifacts({ snapshot, outputDirectory, config, uploadObject = s3PutObject, includeImages = true }) {
   assertCanonicalManifestObjectKeys(snapshot, config);
   const objectKeys = snapshot.report_manifest?.object_keys || {};
   for (const key of ["report_html", "report_json", "manifest_json", "report_pdf", "images_prefix"]) {
@@ -247,13 +254,15 @@ async function uploadReportArtifacts({ snapshot, outputDirectory, config, upload
   }
   const imagesDirectory = resolve(outputDirectory, "images");
   let imageNames = [];
-  try {
-    imageNames = (await readdir(imagesDirectory, { withFileTypes: true }))
-      .filter((entry) => entry.isFile() && /\.(?:jpe?g|png|webp)$/i.test(entry.name))
-      .map((entry) => entry.name)
-      .sort();
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
+  if (includeImages) {
+    try {
+      imageNames = (await readdir(imagesDirectory, { withFileTypes: true }))
+        .filter((entry) => entry.isFile() && /\.(?:jpe?g|png|webp)$/i.test(entry.name))
+        .map((entry) => entry.name)
+        .sort();
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
   }
   uploads.images = [];
   for (const filename of imageNames) {
@@ -269,11 +278,22 @@ async function uploadReportArtifacts({ snapshot, outputDirectory, config, upload
   return uploads;
 }
 
-async function persistOperationalReportAvailable({ supabase, report, snapshot, model, manifest, publication, config, canonicalRequired = true }) {
+async function persistOperationalReportAvailable({ supabase, report, snapshot, model, manifest, publication, config, canonicalRequired = true, lease = null }) {
   if (canonicalRequired) assertCanonicalReportPublication({ snapshot, publication, config });
-  const publishedRetentionDays = Math.max(1, Number(config.publishedRetentionDays || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
+  const publishedRetentionDays = Math.max(1, Number((lease ? config.hour72?.publishedRetentionDays : config.publishedRetentionDays) || DEFAULT_PUBLISHED_REPORT_RETENTION_DAYS));
   const expiresAt = new Date(Date.now() + publishedRetentionDays * 24 * 60 * 60 * 1000).toISOString();
   const downloadToken = crypto.randomBytes(24).toString("hex");
+  if (lease) {
+    const { data, error } = await supabase.rpc("complete_operational_72hour_job", {
+      p_job_key: lease.jobKey, p_owner: lease.owner, p_token: lease.token, p_report_id: report.id,
+      p_report_body: { ...model, pipeline: { stage: PIPELINE_STAGES.COMPLETE, snapshot_key: snapshot.snapshot_key, manifest } },
+      p_pdf_url: publication.url, p_pdf_storage_key: publication.storageKey,
+      p_pdf_etag: publication.etag || null, p_download_token: downloadToken, p_expires_at: expiresAt,
+    });
+    if (error) throw error;
+    if (!data) throw new Error("72-hour report lease was lost before publication");
+    return data;
+  }
   const { data, error } = await supabase
     .from("operational_reports")
     .update({
@@ -433,32 +453,43 @@ async function runDailyReportPipeline({
   localOnly = false,
   allowIncompleteCaptures = false,
   uploadObject = s3PutObject,
+  reportType = "daily",
+  period = null,
+  lease = null,
 } = {}) {
   if (!supabase) throw new Error("Supabase client is required for reporting");
   const normalizedScope = normalizeScope(scope);
   const scopeKey = getScopeKey(normalizedScope);
-  const reportKey = `daily:${dateKey}:${scopeKey}`;
-  const snapshotKey = buildSnapshotKey(dateKey, scopeKey);
+  const is72Hour = reportType === "72hour";
+  if (is72Hour && (!period || !lease)) throw new Error("72-hour publication requires an owned period lease");
+  const reportKey = `${reportType}:${dateKey}:${scopeKey}`;
+  const snapshotKey = buildSnapshotKey(dateKey, scopeKey, undefined, reportType);
   return withPipelineLock(reportKey, async () => {
     const startedAt = Date.now();
     let stage = PIPELINE_STAGES.PENDING;
     let snapshot = null;
     let report = null;
     try {
+      await lease?.assertOwner();
       stage = PIPELINE_STAGES.SNAPSHOT;
       snapshot = force ? null : await loadSnapshot(supabase, snapshotKey);
-      if (!snapshot) snapshot = await generateDailySnapshot({ supabase, dateKey, scope: normalizedScope, config });
+      if (!snapshot) snapshot = is72Hour
+        ? await generate72HourSnapshot({ supabase, period, scope: normalizedScope, config })
+        : await generateDailySnapshot({ supabase, dateKey, scope: normalizedScope, config });
+      await lease?.assertOwner();
       logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt, details: `snapshot_count=1 reused=${!force}` });
 
       stage = PIPELINE_STAGES.INTELLIGENCE;
       const initialModel = snapshot.snapshot_data?.report_content || {};
       report = await upsertReportRecord({
         supabase,
-        reportType: "daily",
+        reportType,
         dateKey,
         scope: normalizedScope,
         body: { ...initialModel, pipeline: { stage } },
         snapshotIds: [snapshot.snapshot_id].filter(Boolean),
+        period: is72Hour ? period : undefined,
+        attemptCount: lease?.attempt,
       });
       logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt });
 
@@ -471,17 +502,18 @@ async function runDailyReportPipeline({
         && snapshot.report_manifest?.pdf?.status === "READY"
         && snapshot.report_manifest?.html?.status === "READY"
         && Number(snapshot.report_manifest?.pdf?.failed_image_count || 0) === 0
-        && (skipCapture || buildCaptureDescriptors(snapshot, {
+        && (skipCapture || is72Hour || buildCaptureDescriptors(snapshot, {
           maxImages: config.capture.maxImages, s3Prefix: config.s3Prefix, format: config.capture.format,
         }).every((descriptor) => (snapshot.report_manifest?.capture_results || [])
           .some((capture) => capture.capture_id === descriptor.capture_id && capture.status === "READY")));
 
       if (!retryUploadOnly) {
-        stage = PIPELINE_STAGES.CAPTURE;
-        const requiredCaptures = skipCapture ? [] : buildCaptureDescriptors(snapshot, {
+        await lease?.assertOwner();
+        stage = is72Hour ? PIPELINE_STAGES.IMAGE_FREE : PIPELINE_STAGES.CAPTURE;
+        const requiredCaptures = skipCapture || is72Hour ? [] : buildCaptureDescriptors(snapshot, {
           maxImages: config.capture.maxImages, s3Prefix: config.s3Prefix, format: config.capture.format,
         });
-        if (!skipCapture && config.capture?.enabled) {
+        if (!skipCapture && !is72Hour && config.capture?.enabled) {
           const captureConfig = localOnly || skipUpload
             ? { ...config, aws: { ...config.aws, bucket: "" } }
             : config;
@@ -492,7 +524,7 @@ async function runDailyReportPipeline({
           requiredCaptures,
           captureResults: snapshot.report_manifest?.capture_results,
           captureEnabled: config.capture?.enabled,
-          allowIncompleteCaptures,
+          allowIncompleteCaptures: is72Hour || allowIncompleteCaptures,
         });
         if (captureReadiness.incomplete) {
           logger.warn?.(
@@ -504,6 +536,7 @@ async function runDailyReportPipeline({
         logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt, details: `capture_ready=${captureSummary.ready} capture_failed=${captureSummary.failed}` });
 
         stage = PIPELINE_STAGES.HTML;
+        await lease?.assertOwner();
         const renderResult = await renderSnapshotReport({
           supabase,
           snapshotKey,
@@ -514,6 +547,7 @@ async function runDailyReportPipeline({
         logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt, details: `html_status=READY path=${basename(renderResult.report_html)}` });
 
         stage = PIPELINE_STAGES.PDF;
+        await lease?.assertOwner();
         const pdfResult = await generateSnapshotPdf({ supabase, snapshotKey, config });
         snapshot = await loadSnapshot(supabase, snapshotKey);
         logStage(logger, { reportKey, dateKey, scopeKey, stage, startedAt, details: `page_count=${pdfResult.page_count} pdf_size=${pdfResult.size_bytes}` });
@@ -524,6 +558,7 @@ async function runDailyReportPipeline({
       const reportJsonPath = resolve(outputDirectory, "report.json");
       const model = JSON.parse(await readFile(reportJsonPath, "utf8"));
       stage = PIPELINE_STAGES.UPLOAD;
+      await lease?.assertOwner();
       let uploads = null;
       let publication;
       if (localOnly || skipUpload) {
@@ -536,7 +571,7 @@ async function runDailyReportPipeline({
         };
       } else {
         if (!config.aws?.bucket) throw new Error("AWS_S3_BUCKET is required unless --local-only or --skip-upload is used");
-        uploads = await uploadReportArtifacts({ snapshot, outputDirectory, config, uploadObject });
+        uploads = await uploadReportArtifacts({ snapshot, outputDirectory, config, uploadObject, includeImages: !is72Hour });
         publication = uploads.reportPdf;
       }
 
@@ -569,6 +604,7 @@ async function runDailyReportPipeline({
         if (uploads.manifestJson?.localPath) throw new Error("Remote upload unavailable for manifest.json");
       }
       await persistSnapshotManifest(supabase, snapshotKey, completeManifest);
+      await lease?.assertOwner();
       const availableReport = await persistOperationalReportAvailable({
         supabase,
         report,
@@ -578,8 +614,9 @@ async function runDailyReportPipeline({
         publication,
         config,
         canonicalRequired: !(localOnly || skipUpload),
+        lease,
       });
-      const publishedRetention = localOnly || skipUpload
+      const publishedRetention = is72Hour || localOnly || skipUpload
         ? { ok: true, skipped: true, reason: "local_publication" }
         : await cleanupPublishedDailyReports({
             supabase,
@@ -596,6 +633,10 @@ async function runDailyReportPipeline({
         startedAt,
         details: `capture_ready=${captureSummary.ready} capture_failed=${captureSummary.failed} page_count=${completeManifest.pdf?.page_count || 0} pdf_size=${completeManifest.pdf?.size_bytes || 0} s3_key=${localOnly || skipUpload ? "local-only" : publication.storageKey}`,
       });
+      if (is72Hour && !(localOnly || skipUpload)) {
+        await rm(outputDirectory, { recursive: true, force: true }).catch((cleanupError) =>
+          logger.warn?.(`[reports:72hour] local artifact cleanup failed report=${reportKey} error=${cleanError(cleanupError)}`));
+      }
       return {
         ok: true,
         report_key: reportKey,
@@ -627,7 +668,8 @@ async function runDailyReportPipeline({
         const outputDirectory = __reportingRenderTestUtils.getReportOutputDirectory(snapshot);
         await writeFile(resolve(outputDirectory, "manifest.json"), `${JSON.stringify(failedManifest, null, 2)}\n`, "utf8").catch(() => null);
       }
-      await markOperationalReportFailed(supabase, report, stage, error).catch(() => null);
+      if (!is72Hour) await markOperationalReportFailed(supabase, report, stage, error).catch(() => null);
+      if (is72Hour) error.pipelineStage = stage;
       throw error;
     }
   });

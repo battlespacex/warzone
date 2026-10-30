@@ -18,6 +18,7 @@ function extract(name) {
 }
 const implementation = ["cssVar", "numberVar", "boolVar", "colorFromCssVar", "lerp", "clamp01",
   "getContourOverlayState", "getContourFocusProfile", "smoothContourFade", "raiseContourGridPrimitive",
+  "updateContourGridDrawMatrix", "createContourGridDrawPrimitive",
   "destroyContourGridPrimitive", "fitContourGridToSurface", "updateContourGridPrimitiveCenter", "chooseOperationalGridIntervalMeters",
   "getFocusedCtrRadarConfig", "addContourGridRing", "ensureContourGridPrimitive", "setContourGridCenter",
 ].map(extract).join("\n");
@@ -59,7 +60,7 @@ test("real Cesium surface CTR renders at low-altitude Focus and follows elevated
   await page.evaluate(() => {
     const canvas = document.getElementById("globe");
     canvas.width = innerWidth; canvas.height = innerHeight;
-    const scene = new Cesium.Scene({ canvas, contextOptions: { webgl: { preserveDrawingBuffer: true } } });
+    const scene = new Cesium.Scene({ canvas, scene3DOnly: true, contextOptions: { webgl: { preserveDrawingBuffer: true } } });
     scene.globe = new Cesium.Globe();
     scene.globe.baseColor = Cesium.Color.fromCssColorString("#080d15");
     window.testViewer = { scene, __contourGridLayerVisible: true };
@@ -92,6 +93,7 @@ test("real Cesium surface CTR renders at low-altitude Focus and follows elevated
         } };
         aim();
         const extentVariable = `--warzone-${profile}-ctr-radar-extent-scale`;
+        const configuredExtentScale = numberVar(extentVariable, 1);
         document.documentElement.style.setProperty(extentVariable, '1');
         ensureContourGridPrimitive(viewer, center);
         const baseConfig = getFocusedCtrRadarConfig(viewer);
@@ -99,7 +101,9 @@ test("real Cesium surface CTR renders at low-altitude Focus and follows elevated
         const baseRadii = baseRings.map(line => Math.hypot(line.positions[0].x, line.positions[0].y));
         const baseColors = baseRings.map(line => line.material.uniforms.color.toCssColorString());
         document.documentElement.style.removeProperty(extentVariable);
-        ensureContourGridPrimitive(viewer, center); await draw();
+        ensureContourGridPrimitive(viewer, center);
+        for (let frame = 0; frame < 120 && !state.gridDrawPrimitive?.ready; frame++) await draw(1);
+        await draw();
         const primitive = state.gridPrimitive;
         const rings = Array.from({ length: primitive.length }, (_, i) => primitive.get(i)).filter(line => line.positions.length > 2);
         const points = rings.flatMap(ring => ring.positions.map(local => {
@@ -120,19 +124,20 @@ test("real Cesium surface CTR renders at low-altitude Focus and follows elevated
         return { profile, width: viewport.width, ringCount: rings.length, complete, redPixels,
           radiusRatios: rings.map((line, i) => Math.hypot(line.positions[0].x, line.positions[0].y) / baseRadii[i]),
           colorsUnchanged: rings.every((line, i) => line.material.uniforms.color.toCssColorString() === baseColors[i]),
-          spacingUnchanged: getFocusedCtrRadarConfig(viewer).spacing === baseConfig.spacing,
+          spacingBounded: getFocusedCtrRadarConfig(viewer).spacing ===
+            Math.max(getFocusedCtrRadarConfig(viewer).outerRadius / 32, baseConfig.spacing),
           minHeight: Math.min(...vertexHeights), maxHeight: Math.max(...vertexHeights), firstPoint: points[0],
           gridLines: primitive.length - rings.length, reused: primitive === state.gridPrimitive,
           lonError: Math.abs(Cesium.Math.toDegrees(geographic.longitude) - center.lon),
           altitudeError: Math.abs(geographic.height - 1),
-          range, config: getFocusedCtrRadarConfig(viewer), ringWidths: rings.map(line => line.width) };
+          range, config: getFocusedCtrRadarConfig(viewer), ringWidths: rings.map(line => line.width), configuredExtentScale };
       }, { profile, viewport });
       assert.equal(result.ringCount, 2, JSON.stringify(result));
       // Report aircraft viewport clipping without changing its explicitly fixed
       // camera or reducing the newly requested geographic extent to hide it.
       if (profile === "naval") assert.equal(result.complete, true, JSON.stringify(result));
-      assert.deepEqual(result.radiusRatios, profile === "aircraft" ? [1.5, 1.5] : [0.5, 0.5]);
-      assert.equal(result.colorsUnchanged && result.spacingUnchanged, true);
+      assert.deepEqual(result.radiusRatios, [result.configuredExtentScale, result.configuredExtentScale]);
+      assert.equal(result.colorsUnchanged && result.spacingBounded, true);
       assert.ok(result.redPixels > 100, JSON.stringify(result));
       assert.ok(result.gridLines > 0);
       assert.equal(result.reused, true);
@@ -151,7 +156,9 @@ test("real Cesium surface CTR renders at low-altitude Focus and follows elevated
       state.hasFocusPosition = true; state.focusProfile = profile;
       ensureContourGridPrimitive(viewer, { lon: 50, lat: 26, height: 12000 });
       const primitive = state.gridPrimitive;
-      const expected = profile === 'aircraft' ? 450 : 1500;
+      const expected = profile === 'aircraft'
+        ? 300 * numberVar('--warzone-aircraft-ctr-radar-extent-scale', 1)
+        : 3000 * numberVar('--warzone-naval-ctr-radar-extent-scale', 1);
       if (getFocusedCtrRadarConfig(viewer).outerRadius !== expected) return false;
       for (let repeat = 0; repeat < 3; repeat++) ensureContourGridPrimitive(viewer, { lon: 50, lat: 26, height: 12000 });
       if (state.gridPrimitive !== primitive || viewer.scene.primitives.length !== 1) return false;
@@ -302,7 +309,8 @@ test("real Cesium surface CTR renders at low-altitude Focus and follows elevated
   assert.deepEqual(tuning.ringWidths, [3, 3, 3]);
   assert.ok(tuning.gridWidths.includes(2));
   assert.equal(tuning.config.spacing, 125);
-  assert.equal(tuning.aircraftConfig.outerRadius, 450);
+  assert.equal(tuning.aircraftConfig.outerRadius,
+    300 * Number(css.match(/--warzone-aircraft-ctr-radar-extent-scale:\s*([\d.]+);/)?.[1] || 1));
   assert.equal(errors.length, 0, errors.join("\n"));
   const sharedTuning = await page.evaluate(() => {
     const viewer = window.testViewer, state = getContourOverlayState(viewer);

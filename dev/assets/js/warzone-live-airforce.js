@@ -5130,6 +5130,16 @@ function syncFocusedTrackCamera(options = {}) {
     const position = getPositionCartesian(entity);
     if (!position) return;
 
+    // Keep the retained ground grid on the same interpolated motion frame as
+    // the aircraft. The slower contour/terrain refresh remains unchanged.
+    if (options?.motionFrame === true && viewer.__warzone?.isContourGridVisible?.() === true) {
+        const groundPoint = Cesium.Cartographic.fromCartesian(position);
+        if (groundPoint) viewer.__warzone.setContourGridCenter?.({
+            lon: Cesium.Math.toDegrees(groundPoint.longitude),
+            lat: Cesium.Math.toDegrees(groundPoint.latitude),
+        }, { transformOnly: true });
+    }
+
     if (__liveTrackIsCameraFlying || !__liveTrackHardLockEnabled) {
         return;
     }

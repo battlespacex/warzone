@@ -68,7 +68,10 @@ function formatDateKey(value) {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : cleanText(value).slice(0, 10);
 }
 
-function formatReportingPeriod(windowStart, windowEnd) {
+function formatReportingPeriod(windowStart, windowEnd, reportType = "daily") {
+  if (reportType === "72hour" && windowStart && windowEnd) {
+    return `${formatDateTime(windowStart)} THROUGH ${formatDateTime(windowEnd)}`;
+  }
   const start = formatDateKey(windowStart);
   const end = formatDateKey(windowEnd);
   return start && end ? `${start} TO ${end}` : start || end || "REPORTING PERIOD UNAVAILABLE";
@@ -294,6 +297,8 @@ function normalizeAsset(asset = {}, images = []) {
     variant: stripFeedJunk(asset.variant) || null,
     role: cleanText(asset.role, "UNSPECIFIED").replace(/_/g, " "),
     operator: stripFeedJunk(asset.operator) || null,
+    source_name: stripFeedJunk(asset.source_name) || null,
+    source_verification: cleanText(asset.source_verification) || null,
     country: stripFeedJunk(asset.country) || null,
     latitude: finiteNumber(asset.latitude),
     longitude: finiteNumber(asset.longitude),
@@ -370,14 +375,16 @@ function buildReportRenderModel(snapshot = {}, { localImageNames = new Set() } =
   const scope = asObject(snapshotData.scope);
   const windowStart = cleanText(snapshot.window_start || snapshotData.window?.start);
   const windowEnd = cleanText(snapshot.window_end || snapshotData.window?.end);
+  const reportType = cleanText(snapshot.report_type || snapshotData.report_type, "daily");
   return {
+    report_type: reportType,
     render_version: REPORT_HTML_RENDER_VERSION,
     report_id: cleanText(manifest.report_id || snapshot.snapshot_key),
     snapshot_key: cleanText(snapshot.snapshot_key || snapshotData.snapshot_key),
     snapshot_version: finiteNumber(snapshot.snapshot_version || snapshotData.snapshot_schema_version) || 1,
     report_date: cleanText(snapshot.snapshot_date || snapshotData.report_date),
     window: { start: windowStart, end: windowEnd, timezone: "UTC" },
-    period: formatReportingPeriod(windowStart, windowEnd),
+    period: formatReportingPeriod(windowStart, windowEnd, reportType),
     scope: {
       type: cleanText(snapshot.scope_type || scope.type, "global"),
       key: cleanText(snapshot.scope_key || scope.key, "global"),
@@ -404,6 +411,7 @@ function buildReportRenderModel(snapshot = {}, { localImageNames = new Set() } =
       verification_distribution: asObject(snapshotData.aggregates?.by_verification_state),
       source_class_distribution: asObject(snapshotData.aggregates?.by_source_class),
     },
+    source_health: asObject(snapshotData.source_health),
     cross_domain_assessment: asArray(content.cross_domain_assessment).map((item) => ({
       id: cleanText(item?.id),
       related_domains: asArray(item?.related_domains).map((value) => cleanText(value)).filter(Boolean),
@@ -499,6 +507,8 @@ function renderAssetDetails(asset) {
   if (asset.heading_deg !== null) rows.push(["Heading", `${formatNumber(asset.heading_deg)} deg`]);
   if (asset.squawk) rows.push(["Squawk", asset.squawk]);
   if (asset.operator) rows.push(["Operator", asset.operator]);
+  if (asset.source_name) rows.push(["Source", asset.source_name]);
+  if (asset.source_verification) rows.push(["Source verification", asset.source_verification]);
   if (asset.country) rows.push(["Country", asset.country]);
   if (asset.theater) rows.push(["Theater", asset.theater]);
   if (asset.first_observed) rows.push(["First observed", formatDateTime(asset.first_observed)]);
@@ -563,9 +573,13 @@ function renderOutlook(model) {
 
 function renderMethodology(model) {
   const methodology = model.methodology;
+  const health = Object.entries(asObject(model.source_health));
+  const sourceStatus = health.length
+    ? `<p>Source availability: ${health.map(([name, entry]) => `${escapeHtml(name.replace(/_/g, " "))}: ${entry?.status === "unavailable" ? "unavailable; count unknown" : `${formatNumber(entry?.count)} records`}`).join("; ")}. Missing sources do not imply zero activity.</p>`
+    : "";
   const precision = Object.entries(asObject(methodology.location_precision_distribution)).map(([key, value]) => `${key}: ${value}`).join(", ") || "not available";
   const verification = Object.entries(asObject(methodology.verification_distribution)).map(([key, value]) => `${key}: ${value}`).join(", ") || "not available";
-  return `<div class="pagination-block"><article class="report-text-panel"><h2>SOURCE METHODOLOGY</h2><p>StratOps considered ${formatNumber(methodology.report_item_total)} report items: ${formatNumber(methodology.operational_event_total)} operational incidents and ${formatNumber(methodology.broader_intelligence_total)} broader intelligence items, grouped into ${formatNumber(methodology.independent_source_family_count)} independent source families. Raw report counts remain separate from independent corroboration. Location precision was preserved without fabricating point coordinates. Distribution: ${escapeHtml(precision)}. Verification states: ${escapeHtml(verification)}. Reporting window: ${escapeHtml(model.period)} UTC.</p></article></div>`;
+  return `<div class="pagination-block"><article class="report-text-panel"><h2>SOURCE METHODOLOGY</h2><p>StratOps considered ${formatNumber(methodology.report_item_total)} report items: ${formatNumber(methodology.operational_event_total)} operational incidents and ${formatNumber(methodology.broader_intelligence_total)} broader intelligence items, grouped into ${formatNumber(methodology.independent_source_family_count)} independent source families. Raw report counts remain separate from independent corroboration. Location precision was preserved without fabricating point coordinates. Distribution: ${escapeHtml(precision)}. Verification states: ${escapeHtml(verification)}. Reporting window: ${escapeHtml(model.period)} UTC.</p>${sourceStatus}</article></div>`;
 }
 
 function renderReportSource(model) {
@@ -589,7 +603,11 @@ function renderReportHtml({ templateHtml, templateCss, model } = {}) {
   const css = String(templateCss || "").replace(/\.\.\/\.\.\/assets\//g, "/assets/");
   if (!html || !css) throw new Error("Report template HTML and CSS are required");
   html = html.replace(/\.\.\/\.\.\/assets\//g, "/assets/");
-  html = replaceRequired(html, /<title>[\s\S]*?<\/title>/, `<title>StratOps Operational Intelligence Report - ${escapeHtml(model.report_date)}</title>`, "document title");
+  html = replaceRequired(html, /<title>[\s\S]*?<\/title>/, `<title>StratOps ${model.report_type === "72hour" ? "72-Hour Operational Report" : "Operational Intelligence Report"} - ${escapeHtml(model.report_date)}</title>`, "document title");
+  if (model.report_type === "72hour") {
+    html = replaceRequired(html, /(<h1 class="cover-title">)[\s\S]*?(<\/h1>)/,
+      '$1<span>72-HOUR</span><span>OPERATIONAL</span><span>REPORT</span>$2', "72-hour cover title");
+  }
   html = replaceRequired(html, /<link href="\.\/reports\.css" rel="stylesheet">/, `<style data-report-template-css>\n${css}\n</style>`, "stylesheet link");
   html = replaceRequired(html, /<body[^>]*>/, `<body data-report-template="stratops-operational-intelligence" data-report-image-base="images" data-report-render-version="${escapeHtml(model.render_version)}">`, "body");
   html = replaceRequired(html, /(<span class="date-strip__text">)[\s\S]*?(<\/span>)/, `$1\n              ${escapeHtml(model.period)}\n            $2`, "cover period");
