@@ -905,7 +905,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const backdrop = getBackdrop();
         if (!backdrop) return;
         const anyVisible = Array.from(document.querySelectorAll(".warzone-widget[data-widget-id]"))
-            .some((widget) => !widget.classList.contains("wz-is-hidden"));
+            .some((widget) => !widget.classList.contains("wz-is-hidden") && !widget.classList.contains("is-collapsed"));
         backdrop.hidden = !anyVisible;
     }
     function isWidgetVisible(widget) {
@@ -1235,6 +1235,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 content.style.height = `${endHeight}px`;
                 content.style.opacity = "1";
             }
+            updateBackdrop();
         });
         content.addEventListener("transitionend", (e) => {
             if (e.propertyName !== "height") return;

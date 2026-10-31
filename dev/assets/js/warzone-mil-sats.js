@@ -959,6 +959,8 @@ function getOrbitalWidget() {
 function showOrbitalWidget({ expand = false } = {}) {
     const widget = getOrbitalWidget();
     if (!widget) return;
+    if (window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches
+        && window.__showWarzoneWidget?.("orbital")) return;
     widget.classList.remove("wz-is-hidden");
     if (expand) {
         widget.classList.remove("is-collapsed");
@@ -1147,7 +1149,7 @@ function showFocusCard(record) {
     if (note) {
         note.textContent = "Position is propagated from public orbital elements and is not a direct sensor detection. Classification, mission, and operational status may be incomplete or inferred.";
     }
-    showOrbitalWidget({ expand: true });
+    showOrbitalWidget({ expand: !window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches });
     card.hidden = false;
     card.classList.remove("is-focus-arriving");
     void card.offsetWidth;
@@ -1443,7 +1445,9 @@ function buildOptions(records, getter) {
 function updateControlsOptions() {
     const controls = ensureControls();
     if (!controls) return;
-    showOrbitalWidget({ expand: state.enabled });
+    if (!window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches) {
+        showOrbitalWidget({ expand: state.enabled });
+    }
     setStatusText(state.loading
         ? "Loading"
         : `${state.visibleRecords.length}/${state.records.length} public orbital estimates`);
@@ -1899,6 +1903,13 @@ function commitSatelliteSelection(id = "", options = {}) {
         }
         viewer.scene.requestRender?.();
         return false;
+    }
+
+    if (window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches) {
+        const widget = getOrbitalWidget();
+        if (widget && !widget.classList.contains("is-collapsed")) {
+            widget.querySelector("[data-panel-collapse]")?.click();
+        }
     }
 
     // Smoothly approach the satellite in a slightly angled 3D view.

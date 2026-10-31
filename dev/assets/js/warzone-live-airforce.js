@@ -2804,6 +2804,13 @@ const LIVE_TRACK_TRAINER_SPECIAL_OPERATIONAL_PATTERNS = [
     /\bHAWKEYE\b/i,
 ];
 const LIVE_TRACK_TRAINER_PLATFORM_PATTERNS = [
+    /\bT[-\s]?44A?\b/i,
+    /\bC[-\s]?12V\b/i,
+    /\bF[-\s]?5N\b/i,
+    /\bT[-\s]?41(?:[A-D])?\b/i,
+    /\bMESCALERO\b/i,
+    /\bDG[-\s]?1000S?\b/i,
+    /\bTG[-\s]?16A\b/i,
     /\b(?:AERO\s+)?L-?(?:29|39|59)\b/i,
     /\bDELFIN\b/i,
     /\bALBATROS\b/i,
@@ -2883,9 +2890,6 @@ function resolveTrackSubtype(track = {}) {
     const raw = String(track.subcategory || track.subtype || metadata.role || "")
         .trim()
         .toLowerCase();
-    if (raw && !["military", "aircraft", "unknown"].includes(raw)) {
-        return raw;
-    }
     const haystack = [
         track.type_code,
         metadata.type_code,
@@ -2905,6 +2909,8 @@ function resolveTrackSubtype(track = {}) {
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
+    if (isExcludedTrainerAircraftText(haystack)) return "trainer";
+    if (raw && !["military", "aircraft", "unknown"].includes(raw)) return raw;
     if (LIVE_TRACK_SPECIAL_ISR_COMMAND_PATTERNS.some((pattern) => pattern.test(haystack))) return "isr";
     if (LIVE_AIRCRAFT_FALCON_EXECUTIVE_PATTERNS.some((pattern) => pattern.test(haystack))) return "vip";
     if (LIVE_AIRCRAFT_CASA_HC144_PATROL_PATTERNS.some((pattern) => pattern.test(haystack))) return "recon";
@@ -2917,7 +2923,6 @@ function resolveTrackSubtype(track = {}) {
     if (/(helicopter|rotary|rotorcraft|black hawk|blackhawk|apache|chinook|osprey|seahawk|super stallion|king stallion|lakota|agusta|sikorsky|leonardo|aw-139\b|aw139\b|aw-119\b|aw119\b|th-73\b|th73\b|uh-72\b|uh72\b|uh-60\b|uh60\b|hh-60\b|hh60\b|mh-60\b|mh60\b|h-60\b|h60\b|ch-47\b|ch47\b|ch-53\b|ch53\b|v-22\b|v22\b|mi-8\b|mi8\b|mi-17\b|mi17\b|mi-24\b|mi24\b|mi-28(?:nm|n)?\b|mi28(?:nm|n)?\b|mi-35\b|mi35\b|ka-27\b|ka27\b|ka-50\b|ka50\b|hokum\b|ka-52\b|ka52\b)/.test(haystack)) return "helicopter";
     if (/(bomber|b-1\b|b1\b|b-2\b|b2\b|b-52\b|b52\b|su-34\b|su34\b|tu-22m3\b|tu22m3\b|tu-95\b|tu95\b|tu-160\b|tu160\b|h-6\b|h6\b|ac-130\b|ac130\b|spectre|spooky)/.test(haystack)) return "bomber";
     if (/(uav\b|drone\b|ucav\b|reaper\b|predator\b|mq-9\b|mq9\b|rq-4\b|rq4\b|tb2\b|bayraktar\b|heron\b|hermes\b)/.test(haystack)) return "uav";
-    if (isExcludedTrainerAircraftText(haystack)) return "trainer";
     if (/(fighter\b|interceptor\b|multirole\b|hornet\b|super hornet\b|strike eagle\b|raptor\b|lightning ii\b|warthog\b|typhoon\b|eurofighter\b|rafale\b|gripen\b|mirage\b|tomcat\b|f-15\b|f15\b|f-16\b|f16\b|f-18\b|f18\b|fa-18\b|f\/a-18\b|f-22\b|f22\b|f-35\b|f35\b|a-10\b|a10\b|su-27\b|su27\b|su-30\b|su30\b|su-35\b|su35\b|mig-29\b|mig29\b|mig-31\b|mig31\b|j-10\b|j10\b|j-16\b|j16\b|j-20\b|j20\b|tejas\b|jf-17\b|jf17\b)/.test(haystack)) return "fighter";
     if (raw && !["military", "aircraft", "unknown"].includes(raw)) return raw;
     return "aircraft";

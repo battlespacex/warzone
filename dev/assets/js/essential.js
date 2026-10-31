@@ -3696,10 +3696,14 @@ const REGION_COUNTRY_HINTS = {
     middle_east: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Iraq", "Iran", "Saudi Arabia", "United Arab Emirates", "Yemen", "Qatar", "Bahrain", "Oman", "Kuwait", "Turkey", "Egypt"],
     levant: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Cyprus", "Turkey", "Egypt"],
     ukraine: ["Ukraine", "Russia", "Belarus", "Poland", "Romania", "Moldova", "Lithuania", "Latvia", "Estonia"],
+    central_asia: ["Kazakhstan", "Kyrgyzstan", "Tajikistan", "Turkmenistan", "Uzbekistan", "Afghanistan", "Pakistan", "Iran"],
     south_asia: ["Pakistan", "India", "Afghanistan", "China", "Bangladesh", "Sri Lanka", "Nepal"],
     europe: ["Ukraine", "Russia", "Poland", "Romania", "Germany", "France", "United Kingdom", "Belarus", "Lithuania", "Latvia", "Estonia"],
     north_america: ["United States", "Canada", "Mexico", "Greenland"],
+    latin_america: ["Mexico", "Guatemala", "Belize", "Honduras", "El Salvador", "Nicaragua", "Costa Rica", "Panama", "Cuba", "Haiti", "Dominican Republic", "Jamaica"],
+    south_america: ["Colombia", "Venezuela", "Guyana", "Suriname", "Ecuador", "Peru", "Bolivia", "Brazil", "Paraguay", "Chile", "Argentina", "Uruguay"],
     east_asia: ["China", "Taiwan", "North Korea", "South Korea", "Japan", "Philippines", "Vietnam"],
+    oceania: ["Australia", "New Zealand", "Papua New Guinea", "Fiji", "Solomon Islands", "Vanuatu", "Samoa", "Tonga"],
     africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "DR Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
 };
 const COUNTRY_NAME_ALIASES = {
@@ -6105,7 +6109,10 @@ function statusPriority(status) {
 function rankCountryRows(events, type, max = 10) {
     const scopedEvents = Array.isArray(events) ? events : [];
     const statusEvents = getStatusScopedEvents(scopedEvents, type);
+    const regionId = getActiveRegion?.()?.id || "global";
+    const regionalCountries = regionId === "global" ? [] : (REGION_COUNTRY_HINTS[regionId] || []);
     const countryCandidates = [...new Set([
+        ...regionalCountries,
         ...deriveFocusCountries(scopedEvents, Math.max(max, 24)),
         ...statusEvents.map((event) => getEventResolvedCountry(event)),
     ].map(normalizeCountryName).filter(Boolean))];
@@ -6121,13 +6128,13 @@ function rankCountryRows(events, type, max = 10) {
                 priority: statusPriority(status),
             };
         })
-        .filter((row) => row.priority > 0 || row.relatedCount > 0)
+        .filter((row) => regionalCountries.length > 0 || row.priority > 0 || row.relatedCount > 0)
         .sort((a, b) => {
             if (b.priority !== a.priority) return b.priority - a.priority;
             if (b.relatedCount !== a.relatedCount) return b.relatedCount - a.relatedCount;
             return a.label.localeCompare(b.label);
         });
-    return rows.slice(0, max);
+    return regionalCountries.length ? rows : rows.slice(0, max);
 }
 function renderStatusFeedRows(container, domain) {
     const region = getActiveRegion?.();
@@ -6181,7 +6188,7 @@ function renderCyberStatus(events) {
         const label = status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
-                <span>${row.label}</span>
+                <span>${escapeHtml(row.label)}</span>
                 <strong class="status-pill status-pill--${status}">${label}</strong>
             </div>
         `;
@@ -6218,7 +6225,7 @@ function renderAirspaceStatus(events) {
         const label = status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
-                <span>${row.label}</span>
+                <span>${escapeHtml(row.label)}</span>
                 <strong class="status-pill status-pill--${status}">${label}</strong>
             </div>
         `;

@@ -62,6 +62,8 @@ test("tracker priority writes unrelated OFF states once and keeps the globe", (t
   assert.equal(layers.isLayerEnabled("terrain"), true);
   assert.equal(layers.isLayerEnabled("aircraft"), true);
   assert.equal(layers.isLayerEnabled("naval"), false);
+  assert.equal(layers.setLayer("aoi", true), true);
+  assert.equal(layers.isLayerEnabled("aoi"), true);
   assert.equal(items.get("aircraft").classList.contains("is-on"), true);
   assert.equal(JSON.parse(stored.get("wz_layer_state")).alerts, false);
   t.diagnostic(`enabled layers: ${before} before, ${layers.LAYER_DEFS.filter(({ id }) => layers.isLayerEnabled(id)).length} after`);
@@ -70,6 +72,7 @@ test("tracker priority writes unrelated OFF states once and keeps the globe", (t
 test("both trackers coexist and incompatible layers stay blocked until both trackers are OFF", () => {
   fresh();
   layers.setLayer("aircraft", true);
+  layers.setLayer("aoi", true);
   layers.setLayer("alerts", true);
   layers.setLayer("orbital-assets", true);
   layers.setLayer("gnss", true);
@@ -79,6 +82,7 @@ test("both trackers coexist and incompatible layers stay blocked until both trac
   layers.toggleLayer("naval");
   assert.equal(layers.isLayerEnabled("aircraft"), true);
   assert.equal(layers.isLayerEnabled("naval"), true);
+  assert.equal(layers.isLayerEnabled("aoi"), true);
   assert.equal(layers.isLayerEnabled("airspace"), true);
   assert.equal(layers.isLayerEnabled("orbital-assets"), false);
   assert.equal(layers.isLayerEnabled("gnss"), false);
@@ -92,6 +96,9 @@ test("both trackers coexist and incompatible layers stay blocked until both trac
   assert.equal(layers.isLayerEnabled("orbital-assets"), false);
   layers.setLayer("naval", false);
   assert.equal(items.get("orbital-assets").classList.contains("is-locked"), false);
+  assert.equal(layers.isLayerEnabled("alerts"), true);
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+  assert.equal(layers.isLayerEnabled("aoi"), true);
   layers.setLayer("orbital-assets", true);
   assert.equal(layers.isLayerEnabled("orbital-assets"), true);
 });
@@ -110,7 +117,7 @@ test("repeated tracker cycles emit one notification per action without state lea
     assert.equal(layers.isLayerEnabled("alerts"), false);
     layers.setLayer("naval", false);
     assert.equal(layers.isLayerEnabled("naval"), false);
-    assert.equal(layers.isLayerEnabled("alerts"), false);
+    assert.equal(layers.isLayerEnabled("alerts"), true);
   }
   assert.equal(layers.isLayerEnabled("aircraft"), false);
 });

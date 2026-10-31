@@ -618,6 +618,13 @@ const TRAINER_AIRCRAFT_SPECIAL_OPERATIONAL_PATTERNS = [
     /\bHAWKEYE\b/i,
 ];
 const TRAINER_AIRCRAFT_PLATFORM_PATTERNS = [
+    /\bT[-\s]?44A?\b/i,
+    /\bC[-\s]?12V\b/i,
+    /\bF[-\s]?5N\b/i,
+    /\bT[-\s]?41(?:[A-D])?\b/i,
+    /\bMESCALERO\b/i,
+    /\bDG[-\s]?1000S?\b/i,
+    /\bTG[-\s]?16A\b/i,
     /\b(?:AERO\s+)?L-?(?:29|39|59)\b/i,
     /\bDELFIN\b/i,
     /\bALBATROS\b/i,

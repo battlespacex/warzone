@@ -72,11 +72,13 @@ export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
     "country-borders": false,
 });
 const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
+    "aoi",
     "terrain",
     "map-labels",
     "region-plate",
     "country-borders",
 ]);
+let __trackerPriorityBaseline = null;
 let __layerWarningPending = false;
 const LAYER_SECTIONS = [
     {
@@ -280,6 +282,21 @@ function applyTrackerPriority(state) {
     state.terrain = true;
     return state;
 }
+function reconcileTrackerPriority(previousState) {
+    const wasTracking = previousState.aircraft || previousState.naval;
+    const isTracking = __layerState.aircraft || __layerState.naval;
+    if (!wasTracking && isTracking) {
+        __trackerPriorityBaseline = { ...previousState };
+    } else if (wasTracking && !isTracking) {
+        const baseline = __trackerPriorityBaseline || DASHBOARD_DEFAULT_LAYER_STATE;
+        LAYER_DEFS.forEach(({ id }) => {
+            if (id === "aircraft" || id === "naval" || TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)) return;
+            __layerState[id] = baseline[id] === true;
+        });
+        __trackerPriorityBaseline = null;
+    }
+    applyTrackerPriority(__layerState);
+}
 
 function notifyStateTransition(previousState, id) {
     const changedIds = LAYER_DEFS.map(({ id: layerId }) => layerId)
@@ -299,6 +316,7 @@ function loadState() {
     LAYER_DEFS.forEach((layer) => {
         __layerState[layer.id] = DASHBOARD_DEFAULT_LAYER_STATE[layer.id] === true;
     });
+    __trackerPriorityBaseline = null;
 
     __layerStateLoaded = true;
 }
@@ -548,7 +566,7 @@ export function setLayer(id, enabled) {
     const previousState = { ...__layerState };
     if (previousState[id] === !!enabled) return previousState[id];
     __layerState[id] = !!enabled;
-    applyTrackerPriority(__layerState);
+    reconcileTrackerPriority(previousState);
     saveState();
     notifyStateTransition(previousState, id);
     return __layerState[id];
@@ -842,7 +860,7 @@ function setAllLayers(enabled, container) {
         if (!canUseLayer(l.id)) return;
         __layerState[l.id] = !!enabled;
     });
-    applyTrackerPriority(__layerState);
+    reconcileTrackerPriority(previousState);
 
     saveState();
     syncAllLayerItemStates(container);
@@ -879,7 +897,7 @@ function setSectionLayers(sectionId, enabled, container) {
         if (!canUseLayer(id)) return;
         __layerState[id] = !!enabled;
     });
-    applyTrackerPriority(__layerState);
+    reconcileTrackerPriority(previousState);
     saveState();
     syncAllLayerItemStates(container);
     notifyChange("*", !!enabled);
