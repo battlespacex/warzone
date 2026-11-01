@@ -197,6 +197,98 @@ test("realtime entry point queues and preserves existing filters and interpolati
     assert.match(fn(essential, "requestAircraftMovementsWidgetRender"),
         /if \(__aircraftWidgetRenderTimer\) \{\s*if \(requestedDelay !== 0\) return;/);
 });
+test("aircraft channel filters naval writes without losing deletes or duplicating subscriptions", async () => {
+    const essential = await read("../../../dev/assets/js/essential.js");
+    const channels = new Set();
+    const received = [];
+    let enabled = true;
+    const supabase = {
+        realtime: {},
+        channel(name) {
+            const channel = {
+                name, bindings: [],
+                on(type, options, callback) { this.bindings.push({ type, options, callback }); return this; },
+                subscribe() { channels.add(this); return this; },
+                unsubscribe() { channels.delete(this); },
+            };
+            return channel;
+        },
+        removeChannel(channel) { channels.delete(channel); },
+    };
+    const context = vm.createContext({
+        supabase, console,
+        __tracksRealtimeQueue: { clear() {} },
+        isAircraftTrackingFeatureEnabled: () => true,
+        isLayerEnabled: () => enabled,
+        isDocumentHidden: () => false,
+        installRealtimeSocketDiagnostics() {},
+        instrumentRealtimeCallback: (_, callback) => callback,
+        enqueueTracksRealtimePayload: (change) => received.push(change),
+        markTrackerPerf() {},
+        recordRealtimeChannelError() {},
+    });
+    vm.runInContext(`let __tracksRealtimeChannel = null; ${fn(essential, "startTracksRealtimeChannel")}; ${fn(essential, "stopTracksRealtimeChannel")}`, context);
+    context.startTracksRealtimeChannel();
+    context.startTracksRealtimeChannel();
+    assert.equal(channels.size, 1);
+    const channel = [...channels][0];
+    assert.deepEqual(channel.bindings.map(({ options }) => options.event), ["INSERT", "UPDATE", "DELETE"]);
+    assert.equal(channel.bindings[0].options.filter, "track_type=eq.aircraft");
+    assert.equal(channel.bindings[1].options.filter, "track_type=eq.aircraft");
+    assert.equal(channel.bindings[2].options.filter, undefined);
+    assert.ok(channel.bindings.every(({ callback }) => callback === channel.bindings[0].callback));
+    channel.bindings[0].callback({ eventType: "INSERT", new: { track_key: "air-1" } });
+    channel.bindings[1].callback({ eventType: "UPDATE", new: { track_key: "air-1" } });
+    channel.bindings[2].callback({ eventType: "DELETE", old: { track_key: "air-1" } });
+    assert.equal(received.length, 3);
+    // Same synthetic input under the old wildcard and new server-side filter.
+    let oldDelivered = 0;
+    for (let i = 0; i < 1000; i += 1) {
+        for (const track_type of ["aircraft", "naval"]) {
+            oldDelivered += 1;
+            for (const binding of channel.bindings) {
+                if (binding.options.event === "UPDATE" &&
+                    (!binding.options.filter || binding.options.filter === `track_type=eq.${track_type}`)) {
+                    binding.callback({ eventType: "UPDATE", new: { track_key: `${track_type}-${i}`, track_type } });
+                }
+            }
+        }
+    }
+    assert.equal(oldDelivered, 2000);
+    assert.equal(received.length - 3, 1000, "the filtered aircraft subscriber never receives naval updates");
+    enabled = false;
+    context.stopTracksRealtimeChannel();
+    assert.equal(channels.size, 0);
+    enabled = true;
+    context.startTracksRealtimeChannel();
+    assert.equal(channels.size, 1);
+    context.stopTracksRealtimeChannel();
+});
+test("events channel excludes only discarded flight-tracking updates", async () => {
+    const realtime = await read("../../../dev/assets/js/warzone-realtime.js");
+    const essential = await read("../../../dev/assets/js/essential.js");
+    assert.match(fn(essential, "handleIncomingEvent"), /if \(isAircraftTelemetryEvent\(normalized\)\) return;/);
+    const received = [];
+    const bindings = [];
+    const channel = {
+        on(type, options, callback) { bindings.push({ type, options, callback }); return this; },
+        subscribe() { return this; },
+    };
+    const context = vm.createContext({
+        supabase: { realtime: {}, channel: () => channel },
+        installRealtimeSocketDiagnostics() {},
+        instrumentRealtimeCallback: (_, callback) => callback,
+        handleIncomingEvent: (event) => received.push(event),
+    });
+    vm.runInContext(fn(realtime, "subscribeToLiveEvents"), context);
+    assert.equal(await context.subscribeToLiveEvents(), channel);
+    assert.deepEqual(bindings.map(({ options }) => options.event), ["INSERT", "UPDATE"]);
+    assert.ok(bindings.every(({ options }) => options.filter === "report_type=isdistinct.flight_tracking"));
+    assert.ok(bindings.every(({ callback }) => callback === bindings[0].callback));
+    bindings[0].callback({ eventType: "INSERT", new: { id: "alert", report_type: null } });
+    bindings[1].callback({ eventType: "UPDATE", new: { id: "naval", report_type: "signal" } });
+    assert.deepEqual(received.map(({ id }) => id), ["alert", "naval"]);
+});
 test("coalesced telemetry forces final render and still rejects older source time", async () => {
     const aircraft = await read("../../../dev/assets/js/warzone-live-airforce.js");
     const context = {

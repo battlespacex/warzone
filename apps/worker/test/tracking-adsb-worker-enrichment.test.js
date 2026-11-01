@@ -59,6 +59,59 @@ function persistenceCapture() {
 
 const quietLogger = { log() {}, warn() {}, error() {} };
 
+test("repeated identical aircraft observation still writes track and history but not another event", async () => {
+    resetProviderHealth();
+    const provider = {
+        ...liveMilitaryProvider(),
+        async fetchObservations() {
+            return { observations: [{
+                source: "adsb_lol", provider: "adsb_lol", observed_at: "2026-08-27T12:00:00.000Z",
+                icao24: "ae9037", latitude: 40, longitude: -70, altitude_ft: 25000,
+                speed_kts: 420, military_hint: true, provider_military_flag: true,
+            }], diagnostics: { fetched: 1, normalized: 1, valid: 1 } };
+        },
+    };
+    const capture = persistenceCapture();
+    for (const now of ["2026-08-27T12:00:00Z", "2026-08-27T12:00:05Z"]) {
+        await runAdsbWorker({ providers: [provider], persistence: capture.persistence,
+            logger: quietLogger, now: Date.parse(now) });
+    }
+    assert.deepEqual(capture.batches.events.map((batch) => batch.length), [1, 0]);
+    assert.deepEqual(capture.batches.tracks.map((batch) => batch.length), [1, 1]);
+    assert.deepEqual(capture.batches.history.map((batch) => batch.length), [1, 1]);
+    assert.equal(capture.batches.tracks[0][0].occurred_at, capture.batches.tracks[1][0].occurred_at);
+});
+
+test("new aircraft source time and position update tracking while a new identity creates an event", async () => {
+    resetProviderHealth();
+    let observation = {
+        source: "adsb_lol", provider: "adsb_lol", observed_at: "2026-08-27T12:00:00.000Z",
+        icao24: "ae9038", latitude: 40, longitude: -70, altitude_ft: 25000,
+        speed_kts: 420, military_hint: true, provider_military_flag: true,
+    };
+    const provider = {
+        ...liveMilitaryProvider(),
+        async fetchObservations() {
+            return { observations: [{ ...observation }], diagnostics: { fetched: 1, normalized: 1, valid: 1 } };
+        },
+    };
+    const capture = persistenceCapture();
+    for (const [now, patch] of [
+        ["2026-08-27T12:00:00Z", {}],
+        ["2026-08-27T12:00:05Z", { observed_at: "2026-08-27T12:00:05.000Z", latitude: 40.1 }],
+        ["2026-08-27T12:00:10Z", { icao24: "ae9039", observed_at: "2026-08-27T12:00:10.000Z" }],
+    ]) {
+        observation = { ...observation, ...patch };
+        await runAdsbWorker({ providers: [provider], persistence: capture.persistence,
+            logger: quietLogger, now: Date.parse(now) });
+    }
+    assert.deepEqual(capture.batches.events.map((rows) => rows.length), [1, 0, 1]);
+    assert.notEqual(capture.batches.tracks[0][0].occurred_at, capture.batches.tracks[1][0].occurred_at);
+    assert.notEqual(capture.batches.tracks[0][0].lat, capture.batches.tracks[1][0].lat);
+    assert.equal(capture.batches.history[1][0].lat, capture.batches.tracks[1][0].lat);
+    assert.equal(capture.batches.events[2][0].source_key, "adsb-ae9039");
+});
+
 test("aircraft worker enriches one military track with SkyLink without duplicating persistence", async () => {
     resetProviderHealth();
     let skyLinkCalls = 0;

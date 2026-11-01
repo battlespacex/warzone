@@ -217,6 +217,7 @@ test("aircraft OFF releases picking, focus inputs and camera callbacks; ON is id
     LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ: 20, LIVE_TRACK_LABEL_ZOOM_HEIGHT_MAX: 65000,
     isLayerEnabled: () => false, isFocusSelectionActive: () => false, getFocusedTrackKey: () => "",
     ensureLiveTrackOverlayRoot: noop, syncFocusedTrackOverlayModeButtons: noop,
+    refreshFocusedAircraftModelScale: noop,
     getAssetFocusController: () => ({ registerTask: (key, fn) => tasks.set(key, fn), removeTask: (key) => tasks.delete(key), requestFrame: noop }),
     purgeLiveTrackRenderEntities: noop, requestWarzoneRenderBatched: noop,
     unbindLiveTrackRuntime: noop, hideTrackHover: noop, hideRouteOriginHover: noop, hideTrackHoverGuide: noop,

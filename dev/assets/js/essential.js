@@ -7668,12 +7668,24 @@ function startTracksRealtimeChannel() {
     if (!isLayerEnabled("aircraft")) return;
     if (isDocumentHidden()) return;
     installRealtimeSocketDiagnostics(supabase.realtime);
+    const onTrackChange = instrumentRealtimeCallback("tracks-live", enqueueTracksRealtimePayload);
     const channel = supabase
         .channel("tracks-live")
         .on(
             "postgres_changes",
-            { event: "*", schema: "public", table: "tracks" },
-            instrumentRealtimeCallback("tracks-live", enqueueTracksRealtimePayload)
+            { event: "INSERT", schema: "public", table: "tracks", filter: "track_type=eq.aircraft" },
+            onTrackChange
+        )
+        .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "tracks", filter: "track_type=eq.aircraft" },
+            onTrackChange
+        )
+        .on(
+            "postgres_changes",
+            // DELETE payloads contain only the primary key; Supabase cannot filter them by track_type.
+            { event: "DELETE", schema: "public", table: "tracks" },
+            onTrackChange
         )
         .subscribe((status, err) => {
             if (status === "SUBSCRIBED") markTrackerPerf("aircraft", "realtime subscription ready");
