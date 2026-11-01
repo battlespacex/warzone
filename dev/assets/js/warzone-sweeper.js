@@ -11,6 +11,11 @@ let __sweeperTicker = false;
 let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
+let __radarSourceEvents = [];
+let __removeCameraChanged = null;
+let __removeCameraMoveEnd = null;
+let __restoreGeneration = 0;
+let __restorePending = false;
 let __sweeperLastTimestamp = null;
 let __sweeperFrameCount = 0;
 const __sweeperStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -232,6 +237,39 @@ function getCameraHeight(viewer) {
 function shouldRenderSweepers(viewer) {
     return getCameraHeight(viewer) <= SWEEPER_RENDER.maxHeight;
 }
+function syncSweeperCameraVisibility() {
+    const viewer = __radarViewer;
+    if (!viewer) return;
+    const visible = shouldRenderSweepers(viewer);
+    if (visible && !__radarItems.length && __radarSourceEvents.length) {
+        if (__restorePending) return;
+        const generation = ++__restoreGeneration;
+        __restorePending = true;
+        queueMicrotask(() => {
+            if (generation !== __restoreGeneration || __radarViewer !== viewer) return;
+            __restorePending = false;
+            if (shouldRenderSweepers(viewer)) renderSweepers(viewer, __radarSourceEvents);
+        });
+        return;
+    }
+    if (!__radarItems.length || __sweeperPrimitives.every((primitive) => primitive.show === visible)) return;
+    __sweeperPrimitives.forEach((primitive) => { primitive.show = visible; });
+    if (visible) {
+        startSweeperTicker();
+        updateRadarLabels();
+    } else {
+        clearTicker();
+        __radarItems.forEach((item) => {
+            if (item.labelEl) item.labelEl.style.opacity = "0";
+            item.labelOpacity = "0";
+        });
+    }
+    requestSharedSceneRender();
+}
+function watchSweeperCamera(viewer) {
+    __removeCameraChanged = viewer.camera?.changed?.addEventListener(syncSweeperCameraVisibility) || null;
+    __removeCameraMoveEnd = viewer.camera?.moveEnd?.addEventListener(syncSweeperCameraVisibility) || null;
+}
 export function buildRadarSweepStops(widthDeg = 64, {
     minAlpha = 0.02,
     midAlpha = 0.14,
@@ -422,7 +460,7 @@ function runSweeperTick(ts) {
     __sweeperFrameCount += 1;
     __sweeperUpdateCount += 1;
     if (!shouldRenderSweepers(viewer)) {
-        clearSweepers(viewer);
+        syncSweeperCameraVisibility();
         return false;
     }
     __radarItems.forEach((item) => {
@@ -573,6 +611,12 @@ function selectRadarCandidates(events = [], maxCount = 3, maxOverlap = 0.50) {
 export function clearSweepers(viewer) {
     const hadVisuals = __sweeperEntities.length > 0 || __sweeperPrimitives.length > 0 || __radarLabels.length > 0;
     clearTicker();
+    __restoreGeneration += 1;
+    __restorePending = false;
+    __removeCameraChanged?.();
+    __removeCameraMoveEnd?.();
+    __removeCameraChanged = null;
+    __removeCameraMoveEnd = null;
     __sweeperEntities.forEach((entity) => {
         try { viewer?.entities?.remove(entity); } catch { }
     });
@@ -582,6 +626,7 @@ export function clearSweepers(viewer) {
     __sweeperEntities = [];
     __sweeperPrimitives = [];
     __radarItems = [];
+    __radarSourceEvents = [];
     __radarLabels.forEach((el) => {
         try { el.remove(); } catch { }
     });
@@ -607,10 +652,6 @@ export function getSweeperDiagnostics() {
 export function renderSweepers(viewer, events = []) {
     if (!viewer) return;
     clearSweepers(viewer);
-    if (!shouldRenderSweepers(viewer)) {
-        requestSharedSceneRender();
-        return;
-    }
     const candidates = selectRadarCandidates(
         events,
         SWEEPER_RENDER.maxCount,
@@ -621,6 +662,9 @@ export function renderSweepers(viewer, events = []) {
         return;
     }
     __radarViewer = viewer;
+    __radarSourceEvents = events;
+    watchSweeperCamera(viewer);
+    if (!shouldRenderSweepers(viewer)) return;
     __radarItems = [];
     if (viewer.entities?.suspendEvents) viewer.entities.suspendEvents();
     candidates.forEach((candidate, index) => {
