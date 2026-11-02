@@ -1,4 +1,4 @@
-﻿// File Path: /assets/js/warzone-globe.js
+// File Path: /assets/js/warzone-globe.js
 import * as Cesium from "cesium";
 import { setDataSourceActive } from "./warzone-data-source-lifecycle.js";
 import {
@@ -11,6 +11,7 @@ import { isStratOpsFeatureEnabled } from "./stratops-feature-config.js";
 import { resetWarzoneCameraReference } from "./warzone-asset-focus-controller.js";
 import { installFocusImageryRefinementPolicy, readTileRefinementSnapshot } from "./warzone-imagery-refinement.js";
 import { getRealtimeStats } from "./warzone-realtime-performance.js";
+import { createTacticalAnnotationManager } from "./warzone-tactical-annotations.js";
 import {
     buildSpatialEventClusters,
     classifyEventDomain,
@@ -8055,6 +8056,7 @@ function clearOneMissileTrack(viewer, missileId) {
         stopMissileAlertSound(viewer);
         track.alertSoundActive = false;
     }
+    for (const id of track.annotationIds || []) track.annotationManager?.remove(id);
     for (const entity of track.entities || []) {
         try {
             viewer.entities.remove(entity);
@@ -8422,12 +8424,7 @@ function fadeOutMissileTrack(viewer, missileId, durationMs = 1800) {
             activeTrack.impactMarker.label.fillColor = impactColor.withAlpha(fade);
             activeTrack.impactMarker.label.outlineColor = Cesium.Color.BLACK.withAlpha(fade);
         }
-        if (activeTrack.launchMarker?.billboard) {
-            activeTrack.launchMarker.billboard.color = Cesium.Color.WHITE.withAlpha(fade);
-        }
-        if (activeTrack.impactMarker?.billboard) {
-            activeTrack.impactMarker.billboard.color = Cesium.Color.WHITE.withAlpha(fade);
-        }
+        activeTrack.annotationManager?.setOpacity?.(activeTrack.annotationIds, fade);
         viewer.scene.requestRender();
         if (t < 1) {
             activeTrack.fadeFrame = requestAnimationFrame(step);
@@ -8512,6 +8509,8 @@ function animateMissileTrack(viewer, event) {
         segmentPositions: [],
         launchMarker: null,
         impactMarker: null,
+        annotationManager: null,
+        annotationIds: [],
         lineBaseColor: Cesium.Color.fromCssColorString(cssVar("--warzone-missile-line-color", "#ff2a2a")),
         lastImpactCart: null,
         warningOuter: null,
@@ -8525,9 +8524,11 @@ function animateMissileTrack(viewer, event) {
     viewer.__warzoneMissileOrder.push(missileId);
     enforceMissileCap(viewer);
     createMissileSegmentEntities(viewer, track, positions);
-    const launchLabel = createTacticalStrikeLabel(event.origin_label || "Launch", cssVar("--warzone-missile-launch-color", "#ff2a2a"));
+    const annotationManager = createTacticalAnnotationManager(viewer, Cesium);
+    track.annotationManager = annotationManager;
+    const launchPosition = Cesium.Cartesian3.fromDegrees(originLon, originLat);
     const launchMarker = viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(originLon, originLat),
+        position: launchPosition,
         point: {
             pixelSize: 10,
             color: launchColor,
@@ -8535,21 +8536,12 @@ function animateMissileTrack(viewer, event) {
             outlineWidth: 2,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        billboard: {
-            image: launchLabel.image,
-            width: launchLabel.width,
-            height: launchLabel.height,
-            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            pixelOffset: new Cesium.Cartesian2(0, -14),
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
     });
     track.entities.push(launchMarker);
     track.launchMarker = launchMarker;
-    const impactLabel = createTacticalStrikeLabel(event.impact_label || event.location_label || "Impact", cssVar("--warzone-missile-impact-color", "#ff2a2a"));
+    const impactPosition = Cesium.Cartesian3.fromDegrees(impactLon, impactLat, numberVar("--warzone-impact-marker-height", 4000));
     const impactMarker = viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(impactLon, impactLat, numberVar("--warzone-impact-marker-height", 4000)),
+        position: impactPosition,
         point: {
             pixelSize: 7,
             color: impactColor.withAlpha(0.98),
@@ -8557,18 +8549,17 @@ function animateMissileTrack(viewer, event) {
             outlineWidth: 1,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        billboard: {
-            image: impactLabel.image,
-            width: impactLabel.width,
-            height: impactLabel.height,
-            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            pixelOffset: new Cesium.Cartesian2(0, -16),
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
     });
     track.entities.push(impactMarker);
     track.impactMarker = impactMarker;
+    const launchAnnotationId = `${missileId}:origin`;
+    const impactAnnotationId = `${missileId}:impact`;
+    track.annotationIds.push(launchAnnotationId, impactAnnotationId);
+    const order = viewer.__warzoneMissileOrder.length;
+    annotationManager.add(launchAnnotationId, launchPosition, event.origin_label || "Launch",
+        cssVar("--warzone-missile-launch-color", "#ff2a2a"), order * 2 + 1);
+    annotationManager.add(impactAnnotationId, impactPosition, event.impact_label || event.location_label || "Impact",
+        cssVar("--warzone-missile-impact-color", "#ff2a2a"), order * 2);
     makeIncomingWarningEntity(viewer, missileId, event, impactLon, impactLat);
     const launchFx = makeLaunchFlashEntity(viewer, missileId, originLon, originLat, launchColor);
     track.entities.push(...launchFx);

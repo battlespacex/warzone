@@ -50,6 +50,7 @@ const state = {
     panelObserver: null,
     suppressNextClick: false,
     hiddenForModal: false,
+    previousCameraEnableInputs: null,
 };
 
 export function initWarzoneAoiLens(viewer) {
@@ -64,6 +65,7 @@ export function initWarzoneAoiLens(viewer) {
     syncToolbarAvailability();
     window.__warzoneAoiLens = {
         activate,
+        isInputActive: () => state.active || state.drawing || state.editing,
         clear: clearAoi,
         close,
         setEnabled,
@@ -129,6 +131,17 @@ function activate() {
     activateEnabledAoi();
 }
 
+function syncAoiCameraInputPriority() {
+    const controller = state.viewer?.scene?.screenSpaceCameraController;
+    if (!controller) return;
+    if (state.active || state.drawing || state.editing) {
+        if (state.previousCameraEnableInputs === null) state.previousCameraEnableInputs = controller.enableInputs;
+        controller.enableInputs = false;
+    } else if (state.previousCameraEnableInputs !== null) {
+        controller.enableInputs = state.previousCameraEnableInputs;
+        state.previousCameraEnableInputs = null;
+    }
+}
 function activateEnabledAoi() {
     if (!state.viewer) return;
     state.enabled = true;
@@ -136,11 +149,12 @@ function activateEnabledAoi() {
     const aboutModal = document.getElementById?.("wz-about-modal");
     state.hiddenForModal = Boolean(aboutModal && !aboutModal.hidden);
     bindCanvasDrawing();
-    bindFocusDismiss();
+    bindFocusInputPriority();
     bindModalVisibility();
     showPanel();
     applyDataSourceVisibility();
     state.active = true;
+    syncAoiCameraInputPriority();
     state.drawing = false;
     state.editing = false;
     state.start = null;
@@ -165,6 +179,7 @@ function clearAoi({ keepPanel = true } = {}) {
     state.active = false;
     state.drawing = false;
     state.editing = false;
+    syncAoiCameraInputPriority();
     state.pointerId = null;
     state.start = null;
     state.current = null;
@@ -188,7 +203,8 @@ function clearAoi({ keepPanel = true } = {}) {
 }
 
 function close() {
-    if (window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches) {
+    if (window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches
+        && !state.active && !state.drawing && !state.editing) {
         hidePanel();
         return;
     }
@@ -307,6 +323,7 @@ async function onPointerUp(event) {
         return;
     }
     state.active = false;
+    syncAoiCameraInputPriority();
     state.polygon = polygon;
     setButtonState(false);
     document.body.classList.remove("is-aoi-lens-active");
@@ -353,10 +370,10 @@ function onKeyDown(event) {
     close();
 }
 
-function bindFocusDismiss() {
-    if (state.focusDismissBound) return;
-    state.focusDismissBound = true;
-    document.addEventListener("wz:aircraft-track-selected", handleAoiFocusDismiss);
+function bindFocusInputPriority() {
+    if (state.focusInputBound) return;
+    state.focusInputBound = true;
+    document.addEventListener("wz:asset-focus-changed", syncAoiCameraInputPriority);
 }
 
 function bindModalVisibility() {
@@ -366,9 +383,6 @@ function bindModalVisibility() {
     document.addEventListener("fullscreenchange", scheduleAoiPanelRestore, true);
 }
 
-function handleAoiFocusDismiss(event) {
-    if (String(event?.detail?.mode || "") === "focus") close();
-}
 
 function handleAoiModalVisibility(event) {
     if (String(event?.detail?.modalId || "") !== "wz-about-modal") return;
@@ -386,10 +400,10 @@ function scheduleAoiPanelRestore() {
 }
 
 function unbindAoiVisibility() {
-    document.removeEventListener("wz:aircraft-track-selected", handleAoiFocusDismiss);
+    document.removeEventListener("wz:asset-focus-changed", syncAoiCameraInputPriority);
     document.removeEventListener("wz:ui-modal-visibility", handleAoiModalVisibility);
     document.removeEventListener("fullscreenchange", scheduleAoiPanelRestore, true);
-    state.focusDismissBound = false;
+    state.focusInputBound = false;
     state.visibilityBound = false;
     window.clearTimeout(state.restoreTimer);
     state.restoreTimer = 0;

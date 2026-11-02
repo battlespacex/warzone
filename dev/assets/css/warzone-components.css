@@ -3828,6 +3828,58 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 /* #endregion =========== */
+/* Screen-space missile callouts remain tied to their Cesium geographic markers. */
+.wz-tactical-annotation-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.wz-tactical-annotation {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: max-content;
+    max-width: min(28rem, calc(100% - 2rem));
+    padding: .65rem 1rem;
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
+    border-left: 3px solid var(--wz-tactical-accent);
+    clip-path: var(--clippath-shape-1);
+    font-family: var(--heading-font);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+    z-index: 1;
+    will-change: transform;
+}
+
+.wz-tactical-annotation--description {
+    max-width: min(32rem, calc(100% - 2rem));
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 600;
+}
+
+.wz-tactical-annotation__leader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 1px;
+    background: var(--wz-tactical-accent);
+    opacity: .8;
+    transform-origin: left center;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.wz-tactical-annotation__leader[hidden] { display: none; }
+
 /* #region =========== WIDGET - CRITICALITY COLOR PILLS =========== */
 .status-list {
     display: grid;
@@ -3836,6 +3888,100 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     transition: 320ms ease;
 }
 
+/* Cyber reports use existing StratOps clipping on both cards and expanded copy. */
+#cyber-status-list .wz-status-report {
+    min-width: 0;
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
+    clip-path: var(--clippath-shape-1);
+}
+
+.wz-status-report details,
+.wz-status-report summary { min-width: 0; }
+
+.wz-status-report summary {
+    display: grid;
+    gap: .6rem;
+    padding: 1rem 1.2rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.wz-status-report summary::-webkit-details-marker { display: none; }
+
+.wz-status-report__head,
+.wz-status-report__meta {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .8rem;
+    min-width: 0;
+}
+
+.wz-status-report__head strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: var(--text-sm);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.wz-status-report details[open] .wz-status-report__head strong { display: block; }
+
+.wz-status-report .status-pill {
+    min-width: 0;
+    height: auto;
+    min-height: 2.2rem;
+    flex: 0 0 auto;
+    padding: .3rem .6rem;
+    font-size: var(--text-xs);
+}
+
+.wz-status-report__preview {
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+.wz-status-report details[open] .wz-status-report__preview { display: none; }
+
+.wz-status-report__meta {
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.wz-status-report__meta time { flex: 0 0 auto; text-align: right; }
+
+.wz-status-report__full {
+    margin: 0 .8rem .6rem;
+    padding: .8rem;
+    background: var(--color-bg-header);
+    clip-path: var(--clippath-shape-3);
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.wz-status-report__source {
+    display: inline-block;
+    max-width: calc(100% - 2.4rem);
+    margin: 0 1.2rem 1rem;
+    color: var(--color-teal-glow);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
 #cyber-status-list[hidden],
 #airspace-status-list[hidden],
 #wz-aircraft-panel[hidden],

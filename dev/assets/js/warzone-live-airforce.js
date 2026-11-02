@@ -3920,6 +3920,7 @@ function applyFocusCameraControllerLock(enabled = false) {
     }
     controller.enableTilt = true;
     controller.enableLook = true;
+    if (window.__warzoneAoiLens?.isInputActive?.()) controller.enableInputs = false;
 }
 function setLiveTrackHardLockInternal(enabled = false, options = {}) {
     const canLock = isFocusSelectionActive();
@@ -4082,7 +4083,7 @@ function bindFocusInteractionTracking(viewer) {
     if (!canvas) return;
     __liveTrackFocusInputBound = true;
     const markManualIntent = (event) => {
-        if (!isFocusSelectionActive()) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !isFocusSelectionActive()) return;
         if (__liveTrackHardLockEnabled) {
             __liveTrackManualCameraIntent = false;
             return;
@@ -4104,7 +4105,7 @@ function bindFocusInteractionTracking(viewer) {
         event.stopImmediatePropagation?.();
     };
     const startFocusOrbitMotion = (event) => {
-        if (!isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
         if (Number(event?.button) !== 0) return;
         if (__liveTrackCtrlTiltDragState?.active) return;
         stopFocusPointerEvent(event);
@@ -4124,7 +4125,7 @@ function bindFocusInteractionTracking(viewer) {
         requestWarzoneRender();
     };
     const updateFocusOrbitMotion = (event) => {
-        if (!__liveTrackCtrlTiltDragState || !isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !__liveTrackCtrlTiltDragState || !isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
         if (
             __liveTrackCtrlTiltDragState.pointerId !== undefined &&
             event?.pointerId !== undefined &&
@@ -4167,7 +4168,7 @@ function bindFocusInteractionTracking(viewer) {
         __liveTrackCtrlTiltDragState = null;
     };
     const handleFocusWheel = (event) => {
-        if (!isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !isFocusSelectionActive() || !__liveTrackHardLockEnabled) return;
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
@@ -5145,7 +5146,7 @@ function syncFocusedTrackCamera(options = {}) {
         }, { transformOnly: true });
     }
 
-    if (__liveTrackIsCameraFlying || !__liveTrackHardLockEnabled) {
+    if (window.__warzoneAoiLens?.isInputActive?.() || __liveTrackIsCameraFlying || !__liveTrackHardLockEnabled) {
         return;
     }
 

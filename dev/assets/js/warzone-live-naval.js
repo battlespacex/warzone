@@ -2484,6 +2484,7 @@ function resolveNavalFocusCameraRange() {
 function syncFocusedNavalCamera(options = {}) {
     const viewer = window.__warzoneViewer;
     if (!viewer || viewer.scene?.mode !== Cesium.SceneMode.SCENE3D || !__navalState.selectedKey) return;
+    if (window.__warzoneAoiLens?.isInputActive?.()) return;
     if (__navalState.isCameraFlying && options?.force !== true) return;
     const now = performance.now();
     const cameraSyncHz = clamp(
@@ -2553,7 +2554,7 @@ function bindNavalFocusInteraction(viewer) {
     if (!canvas) return;
 
     const startOrbit = (event) => {
-        if (!__navalState.selectedKey || Number(event?.button) !== 0) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !__navalState.selectedKey || Number(event?.button) !== 0) return;
         stopNavalPointerEvent(event);
         try {
             if (event?.pointerId !== undefined) canvas.setPointerCapture?.(event.pointerId);
@@ -2567,7 +2568,7 @@ function bindNavalFocusInteraction(viewer) {
     };
     const updateOrbit = (event) => {
         const drag = __navalState.focusDragState;
-        if (!drag || !__navalState.selectedKey) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !drag || !__navalState.selectedKey) return;
         if (
             drag.pointerId !== undefined &&
             event?.pointerId !== undefined &&
@@ -2602,7 +2603,7 @@ function bindNavalFocusInteraction(viewer) {
         __navalState.focusDragState = null;
     };
     const handleWheel = (event) => {
-        if (!__navalState.selectedKey) return;
+        if (window.__warzoneAoiLens?.isInputActive?.() || !__navalState.selectedKey) return;
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();

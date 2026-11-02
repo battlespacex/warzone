@@ -79,6 +79,9 @@ const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
     "country-borders",
 ]);
 let __trackerPriorityBaseline = null;
+// This snapshot is temporary and never replaces the user's current layer preferences.
+let __orbitalIsolationBaseline = null;
+const ORBITAL_BASE_LAYER_IDS = new Set(["map-labels", "country-borders"]);
 let __layerWarningPending = false;
 const LAYER_SECTIONS = [
     {
@@ -268,8 +271,37 @@ function getEffectiveLayerState(id) {
 
 function isTrackerBlockedLayer(id, state = __layerState) {
     if (!state.aircraft && !state.naval) return false;
-    return id !== "aircraft" && id !== "naval" && !TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)
+    // Orbital mode can intentionally replace tracker priority for one session.
+    return id !== "aircraft" && id !== "naval" && id !== "orbital-assets"
+        && !TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)
         && !(id === "airspace" && state.aircraft);
+}
+
+function isOrbitalBlockedLayer(id, state = __layerState) {
+    return state["orbital-assets"] === true
+        && id !== "orbital-assets" && id !== "aircraft" && id !== "naval"
+        && !ORBITAL_BASE_LAYER_IDS.has(id);
+}
+
+function applyOrbitalIsolation(previousState) {
+    if (!__orbitalIsolationBaseline) __orbitalIsolationBaseline = { ...previousState };
+    LAYER_DEFS.forEach(({ id }) => {
+        if (id !== "orbital-assets" && id !== "terrain" && !ORBITAL_BASE_LAYER_IDS.has(id)) {
+            __layerState[id] = false;
+        }
+    });
+    __layerState.terrain = true;
+}
+
+function restoreOrbitalIsolation() {
+    const baseline = __orbitalIsolationBaseline;
+    if (!baseline) return;
+    LAYER_DEFS.forEach(({ id }) => {
+        if (id === "orbital-assets" || ORBITAL_BASE_LAYER_IDS.has(id)) return;
+        __layerState[id] = baseline[id] === true;
+    });
+    __layerState["orbital-assets"] = false;
+    __orbitalIsolationBaseline = null;
 }
 
 function applyTrackerPriority(state) {
@@ -317,6 +349,7 @@ function loadState() {
         __layerState[layer.id] = DASHBOARD_DEFAULT_LAYER_STATE[layer.id] === true;
     });
     __trackerPriorityBaseline = null;
+    __orbitalIsolationBaseline = null;
 
     __layerStateLoaded = true;
 }
@@ -444,6 +477,13 @@ function buildSingleToggleState(id, enabled) {
         ...__layerState,
         [id]: !!enabled,
     };
+    if (enabled && id === "orbital-assets") {
+        LAYER_DEFS.forEach(({ id: layerId }) => {
+            if (layerId !== "orbital-assets" && layerId !== "terrain" && !ORBITAL_BASE_LAYER_IDS.has(layerId)) state[layerId] = false;
+        });
+        state.terrain = true;
+        return state;
+    }
     return enabled && (id === "aircraft" || id === "naval")
         ? applyTrackerPriority(state)
         : state;
@@ -556,17 +596,27 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
 }
 export function setLayer(id, enabled) {
     if (!getLayerDef(id)) return false;
-    if (enabled && isTrackerBlockedLayer(id)) return false;
+    if (enabled && (isTrackerBlockedLayer(id) || isOrbitalBlockedLayer(id))) return false;
+    if (!enabled && id === "terrain" && __layerState["orbital-assets"]) return false;
 
-    if (!canUseLayer(id)) {
+    if (enabled && !canUseLayer(id)) {
         notifyChange(id, false);
         return false;
     }
 
     const previousState = { ...__layerState };
     if (previousState[id] === !!enabled) return previousState[id];
+    if (enabled && (id === "aircraft" || id === "naval") && previousState["orbital-assets"]) {
+        restoreOrbitalIsolation();
+    }
+    const previousTrackerState = { ...__layerState };
     __layerState[id] = !!enabled;
-    reconcileTrackerPriority(previousState);
+    if (id === "orbital-assets") {
+        if (enabled) applyOrbitalIsolation(previousState);
+        else restoreOrbitalIsolation();
+    } else {
+        reconcileTrackerPriority(previousTrackerState);
+    }
     saveState();
     notifyStateTransition(previousState, id);
     return __layerState[id];
@@ -586,7 +636,7 @@ export function toggleLayer(id) {
 
 export async function requestLayerToggle(id) {
     if (!getLayerDef(id)) return false;
-    if (isTrackerBlockedLayer(id)) return false;
+    if (isTrackerBlockedLayer(id) || isOrbitalBlockedLayer(id)) return false;
 
     const currentlyEnabled = getEffectiveLayerState(id);
     if (currentlyEnabled) {
@@ -723,9 +773,9 @@ function requestDerivedLayerDependencyApproval(targetId = "", missingLayers = []
 }
 
 function activateDerivedLayerWithDependencies(targetId = "", missingLayers = [], container) {
-    if (isTrackerBlockedLayer(targetId)) return false;
+    if (isTrackerBlockedLayer(targetId) || isOrbitalBlockedLayer(targetId)) return false;
     missingLayers.forEach((layer) => {
-        if (!layer?.id || !canUseLayer(layer.id) || isTrackerBlockedLayer(layer.id)) return;
+        if (!layer?.id || !canUseLayer(layer.id) || isTrackerBlockedLayer(layer.id) || isOrbitalBlockedLayer(layer.id)) return;
         __layerState[layer.id] = true;
     });
     __layerState[targetId] = true;
@@ -801,10 +851,10 @@ function notifyChange(id, val, changedIds = null) {
 function syncLayerItemState(item, id) {
     const def = getLayerDef(id);
     const enabled = getEffectiveLayerState(id);
-    const blocked = isTrackerBlockedLayer(id);
+    const blocked = isTrackerBlockedLayer(id) || isOrbitalBlockedLayer(id);
     const locked = (!!def?.premium && !canUseLayer(id)) || blocked;
     item.setAttribute("tabindex", blocked ? "-1" : "0");
-    item.setAttribute("title", blocked ? "Disable Air and Naval Trackers to enable this layer" : def?.description || def?.label || "");
+    item.setAttribute("title", blocked ? (__layerState["orbital-assets"] ? "Disable Orbital Intelligence to enable this layer" : "Disable Air and Naval Trackers to enable this layer") : def?.description || def?.label || "");
 
     item.classList.toggle("is-on", enabled);
     item.classList.toggle("is-locked", locked);
@@ -856,11 +906,14 @@ function updateLayerSummary(container) {
 
 function setAllLayers(enabled, container) {
     const previousState = { ...__layerState };
+    if (__layerState["orbital-assets"]) restoreOrbitalIsolation();
+    const previousTrackerState = { ...__layerState };
     PANEL_LAYER_DEFS.forEach((l) => {
         if (!canUseLayer(l.id)) return;
         __layerState[l.id] = !!enabled;
     });
-    reconcileTrackerPriority(previousState);
+    reconcileTrackerPriority(previousTrackerState);
+    if (__layerState["orbital-assets"]) applyOrbitalIsolation(__layerState);
 
     saveState();
     syncAllLayerItemStates(container);
@@ -893,11 +946,15 @@ function syncAllSectionToggleStates(container) {
 
 function setSectionLayers(sectionId, enabled, container) {
     const previousState = { ...__layerState };
+    if (__layerState["orbital-assets"] && sectionId !== "space-intelligence") restoreOrbitalIsolation();
+    const previousTrackerState = { ...__layerState };
     getSectionLayerIds(sectionId).forEach((id) => {
         if (!canUseLayer(id)) return;
         __layerState[id] = !!enabled;
     });
-    reconcileTrackerPriority(previousState);
+    if (__layerState["orbital-assets"]) applyOrbitalIsolation(previousTrackerState);
+    else if (previousTrackerState["orbital-assets"]) restoreOrbitalIsolation();
+    else reconcileTrackerPriority(previousTrackerState);
     saveState();
     syncAllLayerItemStates(container);
     notifyChange("*", !!enabled);
@@ -905,6 +962,7 @@ function setSectionLayers(sectionId, enabled, container) {
 }
 
 export function refreshLayerAccessUi() {
+    if (__layerState["orbital-assets"] && !canUseLayer("orbital-assets")) setLayer("orbital-assets", false);
     const container = document.getElementById("wz-layer-panel");
     if (!container) return;
 
@@ -941,7 +999,7 @@ function renderTextStack(value = "") {
 }
 
 function renderLayerRow(layer) {
-    const blocked = isTrackerBlockedLayer(layer.id);
+    const blocked = isTrackerBlockedLayer(layer.id) || isOrbitalBlockedLayer(layer.id);
     const locked = (layer.premium && !canUseLayer(layer.id)) || blocked;
     return `
         <div class="wz-layer-item${getEffectiveLayerState(layer.id) ? " is-on" : ""}${layer.premium ? " is-premium" : ""}${locked ? " is-locked" : ""}"

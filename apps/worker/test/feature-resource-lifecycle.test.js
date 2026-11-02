@@ -157,13 +157,34 @@ async function aoiHarness() {
     "clearAoi", "closeEnabledAoi", "setEnabled", "renderSummary"], {
     state, window: win, document: { body }, isLayerEnabled: () => false,
     showPanel: noop, hidePanel: noop, setPanelBody: noop, setButtonState: noop, applyDataSourceVisibility: noop,
-    bindFocusDismiss: noop, bindModalVisibility: noop, unbindAoiVisibility: noop,
+    bindFocusInputPriority: noop, syncAoiCameraInputPriority: noop, bindModalVisibility: noop, unbindAoiVisibility: noop,
     onPointerDown: () => { callbacks += 1; }, onPointerMove: () => { callbacks += 1; },
     onPointerUp: noop, onPointerCancel: noop, onCanvasClick: noop, onKeyDown: noop,
     renderSummaryHtml: () => "completed", buildSummary: async () => ({}),
   });
   return { c, state, canvas, win, callbacks: () => callbacks };
 }
+
+test("AOI owns camera input during Focus and restores it after drawing", async () => {
+  const document = new Events();
+  const controller = { enableInputs: true };
+  const state = { active: false, drawing: false, editing: false, previousCameraEnableInputs: null,
+    viewer: { scene: { screenSpaceCameraController: controller } }, focusInputBound: false };
+  const c = await functions("warzone-aoi-lens.js", ["syncAoiCameraInputPriority", "bindFocusInputPriority"], { state, document });
+  c.bindFocusInputPriority();
+  c.bindFocusInputPriority();
+  assert.equal(document.count, 1);
+  state.active = true;
+  c.syncAoiCameraInputPriority();
+  assert.equal(controller.enableInputs, false);
+  controller.enableInputs = true; // Focus transition tries to resume camera input.
+  document.fire("wz:asset-focus-changed", {});
+  assert.equal(controller.enableInputs, false);
+  state.active = false;
+  c.syncAoiCameraInputPriority();
+  assert.equal(controller.enableInputs, true);
+  assert.equal(state.previousCameraEnableInputs, null);
+});
 
 test("AOI OFF detaches drawing inputs and ON restores exactly one set", async (t) => {
   const h = await aoiHarness();

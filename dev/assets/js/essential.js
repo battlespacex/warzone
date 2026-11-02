@@ -6154,6 +6154,24 @@ function renderStatusFeedRows(container, domain) {
         let link = "";
         try { const url = new URL(item.source_url); if (["https:", "http:"].includes(url.protocol)) link = url.href; } catch { /* Invalid public URL is not linked. */ }
         const attribution = `${item.source_name} | ${item.published_at} | ${item.coverage}${stale ? ` | Last retrieved ${item.fetched_at}` : ""}`;
+        if (domain === "cyber") {
+            const published = new Date(item.published_at || "");
+            const publishedText = Number.isFinite(published.getTime())
+                ? published.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                : "Date unavailable";
+            const summary = String(item.summary || "").trim();
+            return `<article class="wz-status-report" title="${escapeHtml(attribution)}">
+                <details>
+                    <summary>
+                        <span class="wz-status-report__head"><strong>${escapeHtml(item.title)}</strong><span class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${escapeHtml(label)}</span></span>
+                        ${summary ? `<span class="wz-status-report__preview">${escapeHtml(summary)}</span>` : ""}
+                        <span class="wz-status-report__meta"><span>${escapeHtml(item.source_name || "Source unavailable")}</span><time datetime="${escapeHtml(item.published_at || "")}">${escapeHtml(publishedText)}</time></span>
+                    </summary>
+                    ${summary ? `<p class="wz-status-report__full">${escapeHtml(summary)}</p>` : ""}
+                    ${link ? `<a class="wz-status-report__source" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open original source</a>` : ""}
+                </details>
+            </article>`;
+        }
         return `<div class="status-row" title="${escapeHtml(attribution)}"><span><a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a><br><small>${escapeHtml(attribution)}</small></span><strong class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${label}</strong></div>`;
     }).join("");
     container.insertAdjacentHTML("beforeend", markup);
