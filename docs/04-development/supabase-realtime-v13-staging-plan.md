@@ -4,13 +4,23 @@ Status: **proposal only** for Laptop B (`C:\DX\warzone-recovery`). No SQL migrat
 
 ## Schema gate before any database write
 
-The user-run production catalog check reports that all four tracking tables exist, relevant unique indexes are present, no non-internal triggers exist, all four use DEFAULT replica identity, and only `public.events` and `public.tracks` belong to `supabase_realtime`. Full index and constraint definitions were truncated in the screenshots. Export the `pg_indexes.indexdef` and `pg_get_constraintdef` results from the read-only queries in [the V1.2 SQL proposal](./supabase-realtime-v12-proposed-migration.sql) as text or CSV. Verify specifically that the AIS `events.dedupe_key` conflict target is a valid, non-partial, single-column unique index; review the other writer conflict targets too. Repeat the catalog queries in staging and compare definitions with production. **Stop** if any definition differs or any trigger has appeared.
+The user-run production catalog check reports that all four tracking tables exist, no non-internal triggers exist, all four use DEFAULT replica identity, and only `public.events` and `public.tracks` belong to `supabase_realtime`. The complete CSV exports confirm a single-column unique constraint/index on `events.dedupe_key` and `naval_tracks_log.mmsi`, a unique index on `events.source_key` and `aircraft_tracks_log.track_key`, and a unique constraint/index on `tracks.track_key`. These match the worker's five conflict targets. `events.dedupe_key` also has a second unique btree index on the same column; this proposal does not drop either one. The CSV definitions do not show index `indisvalid`/`indisready` flags. Repeat the catalog queries in [the V1.2 SQL proposal](./supabase-realtime-v12-proposed-migration.sql), including the added validity query, in staging and compare definitions with production. **Stop** if any required index is invalid/not ready, any definition differs, or any trigger has appeared.
+
+| Worker conflict target | Exported production definition |
+| --- | --- |
+| AIS `events.dedupe_key` | `events_dedupe_key_key`: `UNIQUE (dedupe_key)` constraint and btree index; `events_dedupe_key_idx`: a second unique btree index on the same column |
+| ADS-B `events.source_key` | `events_source_key_unique`: unique btree index on `source_key` |
+| `tracks.track_key` | `tracks_track_key_key`: `UNIQUE (track_key)` constraint and btree index |
+| `aircraft_tracks_log.track_key` | `aircraft_tracks_log_track_key_uidx`: unique btree index on `track_key` |
+| `naval_tracks_log.mmsi` | `naval_tracks_log_mmsi_key`: `UNIQUE (mmsi)` constraint and btree index |
+
+The additional nonunique `idx_naval_mmsi` index also covers `mmsi`; index cleanup is outside this Realtime change and requires a separate usage review.
 
 ## Candidate migration
 
 Use the guarded, still-commented `BEFORE UPDATE` trigger proposal in the V1.2 SQL file as the staging candidate. It returns `NULL` only when an existing AIS `signal` event's entire `NEW` row is not distinct from `OLD`. This prevents a row UPDATE and its Postgres Changes notification for an exact replay. It retains INSERT, DELETE, and every UPDATE that changes source time, position, metadata, attribution, status, or another column. The function has no external call, timer, cache, or new table. The five-second poll remains unchanged. `tracks` and both history tables keep their current writes because their ingestion-time heartbeat fields support active-state, API, and pruning behavior. The database still receives the UPSERT request and conflict check; this proposal saves redundant row updates and Realtime deliveries, not all database work.
 
-Keep the proposal commented until the complete index definitions are reviewed. After explicit approval, create an executable staging migration from that reviewed text, with its schema guard and a separate rollback file. Do not run this proposal against production.
+The complete production index definitions have now been reviewed. Keep the proposal commented until explicit approval for staging database changes; then create an executable staging migration from the reviewed text, with its schema guard and a separate rollback file. Do not run this proposal against production.
 
 ## Staging sequence and pass conditions
 

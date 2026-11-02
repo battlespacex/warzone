@@ -3,9 +3,12 @@
 -- staging tests, explicit approval, and a coordinated worker/frontend release.
 -- The Supabase REST OpenAPI response does not expose unique indexes, triggers,
 -- publication membership, or the effects of existing trigger functions.
--- User-run production SQL reports relevant unique indexes, no non-internal
--- triggers, DEFAULT replica identity, and only events/tracks in Realtime.
--- Exact index/constraint definitions still require text or CSV review.
+-- User-run production SQL reports no non-internal triggers, DEFAULT replica
+-- identity, and only events/tracks in Realtime. Complete CSV exports confirm
+-- a non-partial single-column UNIQUE(dedupe_key) constraint/index on events,
+-- plus unique source_key, tracks.track_key, aircraft history track_key, and
+-- naval history mmsi indexes. events.dedupe_key has a second unique index;
+-- this proposal does not alter or remove either index.
 
 -- 1. Verify actual columns and defaults.
 SELECT c.relname AS table_name, a.attname AS column_name,
@@ -35,6 +38,19 @@ FROM pg_indexes
 WHERE schemaname = 'public'
   AND tablename IN ('events', 'tracks', 'aircraft_tracks_log', 'naval_tracks_log')
 ORDER BY tablename, indexname;
+
+-- Index definitions alone do not show readiness/validity; verify both in staging.
+SELECT t.relname AS table_name, ix.relname AS index_name,
+       x.indisunique AS is_unique, x.indisvalid AS is_valid,
+       x.indisready AS is_ready, x.indpred IS NULL AS is_nonpartial,
+       pg_get_indexdef(ix.oid) AS index_definition
+FROM pg_index x
+JOIN pg_class t ON t.oid = x.indrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN pg_class ix ON ix.oid = x.indexrelid
+WHERE n.nspname = 'public'
+  AND t.relname IN ('events', 'tracks', 'aircraft_tracks_log', 'naval_tracks_log')
+ORDER BY t.relname, ix.relname;
 
 -- 3. Review all non-internal row and statement triggers before changing UPSERTs.
 -- In particular, an INSERT trigger may run even on an INSERT ... ON CONFLICT path.
