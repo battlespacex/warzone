@@ -185,7 +185,8 @@ const LIVE_TRACK_TAIL_OFFSET_BY_SUBTYPE = {
 const LIVE_TRACK_NORMAL_MAX_TRAIL_POINTS = 30;
 const LIVE_TRACK_FOCUSED_MAX_TRAIL_POINTS = 600;
 const LIVE_TRACK_TRAIL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const LIVE_TRACK_CURRENT_FLIGHT_GAP_MS = 45 * 60 * 1000;
+// Do not draw an unobserved path across a prolonged ADS-B interruption.
+const LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS = 2 * 60 * 1000;
 const LIVE_TRACK_TRAIL_RENDER_HEIGHT_MAX = 420000;
 const LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS = 80;
 const LIVE_TRACK_TRAIL_ALTITUDE_OFFSET_METERS = 0;
@@ -4343,6 +4344,7 @@ function sanitizeFocusedRouteHistoryPoints(points = [], track = {}) {
     for (const point of ordered) {
         const previous = jumpFiltered[jumpFiltered.length - 1];
         if (previous) {
+            if (Number(point.ts || 0) <= Number(previous.ts || 0)) continue;
             const movedMeters = getHistoryPointDistanceMeters(previous, point, track);
             const dtMs = Math.max(0, Number(point.ts || 0) - Number(previous.ts || 0));
             if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
@@ -4351,18 +4353,9 @@ function sanitizeFocusedRouteHistoryPoints(points = [], track = {}) {
         }
         jumpFiltered.push(point);
     }
-    if (jumpFiltered.length < 3) return jumpFiltered;
-    const spikeFiltered = [jumpFiltered[0]];
-    for (let index = 1; index < jumpFiltered.length - 1; index += 1) {
-        const previous = spikeFiltered[spikeFiltered.length - 1];
-        const point = jumpFiltered[index];
-        const next = jumpFiltered[index + 1];
-        if (!isFocusedRoutePointSpike(previous, point, next, track)) {
-            spikeFiltered.push(point);
-        }
-    }
-    spikeFiltered.push(jumpFiltered[jumpFiltered.length - 1]);
-    return spikeFiltered;
+    // A large detour may be a real turn. Only the time/speed check above can
+    // reject an observation; never replace a recorded bend with a shortcut.
+    return jumpFiltered;
 }
 function appendTrackHistoryPoint(trackKey, track = {}) {
     if (!trackKey) return;
@@ -4397,12 +4390,16 @@ function appendTrackHistoryPoint(trackKey, track = {}) {
             );
             const movedMeters = getCartesianDistanceMeters(previousCartesian, nextCartesian);
             const dtMs = Math.max(0, Number(point.ts || 0) - Number(previousPoint.ts || 0));
-            if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
+            if (point.ts <= Number(previousPoint.ts || 0)) {
+                return;
+            } else if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
                 entry.path_history = pruneHistoryPoints(history, trackKey);
                 entry.last_seen_at = point.ts;
                 return;
             } else if (movedMeters < minTrailDistanceMeters) {
-                history[history.length - 1] = point;
+                // A tiny new observation does not move a previously drawn vertex.
+                entry.last_seen_at = point.ts;
+                return;
             } else {
                 history.push(point);
             }
@@ -6736,6 +6733,7 @@ function getTrackVisualState(trackKey) {
             rollDeg: 0,
             pendingHeadingDeg: null,
             pendingHeadingCount: 0,
+            lastBankObservationTs: 0,
             initialized: false,
         };
         __liveTrackVisualState.set(trackKey, state);
@@ -6745,7 +6743,7 @@ function getTrackVisualState(trackKey) {
 function getTrackAttitude(track, resolvedHeadingDeg) {
     const state = getTrackVisualState(track.track_key);
     let targetHeadingDeg = normalizeDegrees(resolvedHeadingDeg);
-    // Keep live models level by default; enable via root.css only when desired.
+    // Visual roll is estimated from accepted turns; it is not ADS-B attitude.
     const dynamicBankEnabled = getCssNumber("--warzone-live-aircraft-model-dynamic-bank-enabled", 0) >= 0.5;
     const dynamicPitchEnabled = getCssNumber("--warzone-live-aircraft-model-dynamic-pitch-enabled", 0) >= 0.5;
     if (!state.initialized) {
@@ -6781,15 +6779,26 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
     state.headingDeg = targetHeadingDeg;
     if (dynamicBankEnabled) {
         const bankFactor = getCssNumber("--warzone-live-aircraft-model-bank-factor", -1.2);
-        const bankMaxDeg = Math.max(0, getCssNumber("--warzone-live-aircraft-model-bank-max-deg", 18));
+        const bankMaxDeg = Math.max(0, getSubtypeCssNumber(
+            "--warzone-live-aircraft-model-bank-max-deg", resolveTrackSubtype(track), 18
+        ));
         const bankDeadbandDeg = Math.max(0, getCssNumber("--warzone-live-aircraft-model-bank-deadband-deg", 0.75));
         const bankSmoothing = clamp(getCssNumber("--warzone-live-aircraft-model-bank-smoothing", 0.24), 0.02, 1);
         const bankReturnSmoothing = clamp(getCssNumber("--warzone-live-aircraft-model-bank-return-smoothing", 0.16), 0.02, 1);
-        const targetRollDeg = Math.abs(headingDeltaDeg) <= bankDeadbandDeg
-            ? 0
-            : clamp(headingDeltaDeg * bankFactor, -bankMaxDeg, bankMaxDeg);
+        const rawObservationTs = getTrackSourceTimestamp(track);
+        const observationTs = rawObservationTs < 1e11 ? rawObservationTs * 1000 : rawObservationTs;
+        const elapsedSec = (observationTs - state.lastBankObservationTs) / 1000;
+        const speedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? getTrackMetadata(track).speed_kts);
+        const supportedTurn = state.lastBankObservationTs > 0 && elapsedSec >= 1 &&
+            elapsedSec <= 60 && Number.isFinite(speedKts) && speedKts >= LIVE_TRACK_MIN_PREDICTION_SPEED_KTS &&
+            Math.abs(headingDeltaDeg) > bankDeadbandDeg;
+        const turnRateRadPerSec = supportedTurn ? (headingDeltaDeg / elapsedSec) * Math.PI / 180 : 0;
+        const estimatedRollDeg = Math.atan((speedKts * 0.514444 * turnRateRadPerSec) / 9.81) * 180 / Math.PI;
+        const targetRollDeg = supportedTurn
+            ? clamp(estimatedRollDeg * bankFactor, -bankMaxDeg, bankMaxDeg) : 0;
         const rollSmoothing = targetRollDeg === 0 ? bankReturnSmoothing : bankSmoothing;
         state.rollDeg = state.rollDeg + ((targetRollDeg - state.rollDeg) * rollSmoothing);
+        if (observationTs > state.lastBankObservationTs) state.lastBankObservationTs = observationTs;
     } else {
         state.rollDeg = 0;
     }
@@ -6883,7 +6892,9 @@ function updateTrackTrailPositionsCache(trackKey, trailEntries = []) {
     const rawPositions = trail
         .map((entry) => entry?.position || null)
         .filter(Boolean);
-    const positions = smoothTrackTrailPositions(rawPositions);
+    // Preserve accepted observations. Smoothing and straight-line simplification
+    // moved or discarded older vertices when the aircraft turned.
+    const positions = rawPositions;
     __liveTrackTrailPositionsCache.set(trackKey, {
         lastTs,
         length: trail.length,
@@ -7138,7 +7149,7 @@ function commitTrackTrailPosition(trackKey, track = {}, newPosition) {
             ts: now,
         });
     }
-    trail = sanitizeTrailSpikeEntries(trimTrailEntries(trail, trackKey));
+    trail = trimTrailEntries(trail, trackKey);
     __liveTrackTrails.set(trackKey, trail);
     updateTrackTrailPositionsCache(trackKey, trail);
 }
@@ -7197,7 +7208,7 @@ function selectCurrentFlightHistoryPoints(points = []) {
     for (let index = ordered.length - 2; index >= 0; index -= 1) {
         const point = ordered[index];
         const next = ordered[index + 1];
-        if (next.ts - point.ts > LIVE_TRACK_CURRENT_FLIGHT_GAP_MS) break;
+        if (next.ts - point.ts > LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS) break;
         startIndex = index;
         if (point.on_ground && !next.on_ground) break;
     }
@@ -7221,12 +7232,17 @@ function sanitizeSeedTrailEntries(entries = [], track = {}) {
         const movedMeters = getCartesianDistanceMeters(previous.position, next.position);
         if (!Number.isFinite(movedMeters)) continue;
         const dtMs = Math.max(0, Number(next.ts) - Number(previous.ts));
+        if (dtMs === 0 || dtMs > LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS) {
+            sanitized.length = 0;
+            sanitized.push(next);
+            continue;
+        }
         if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
             continue;
         }
         sanitized.push(next);
     }
-    return sanitizeTrailSpikeEntries(sanitized);
+    return sanitized;
 }
 function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
     const sortedEntries = (Array.isArray(historyPoints) ? historyPoints : [])
@@ -7863,13 +7879,14 @@ function updateLiveTrackPredictionFrame(entity, motion, now) {
         motion.currentCartesian || new Cesium.Cartesian3()
     );
     setLiveTrackPositionValue(entity, motion.currentCartesian);
+    const currentRollDeg = Number(motion.endRollDeg || 0) * Math.max(0, 1 - elapsedMs / 3000);
     if (entity.model) {
         motion.currentOrientation = buildTrackOrientationAtCartesian(
             motion.track || {},
             motion.currentCartesian,
             prediction.trackHeadingDeg,
             Number(motion.endPitchDeg || 0),
-            Number(motion.endRollDeg || 0),
+            currentRollDeg,
             motion.currentOrientation
         );
         setLiveTrackOrientationValue(entity, motion.currentOrientation);
@@ -7878,6 +7895,7 @@ function updateLiveTrackPredictionFrame(entity, motion, now) {
         setLiveTrackBillboardRotationValue(entity, getLiveTrackBillboardRotationRadians(prediction.trackHeadingDeg));
     }
     entity.__currentHeadingDeg = prediction.trackHeadingDeg;
+    entity.__currentRollDeg = currentRollDeg;
     __liveTrackPredictionDiagnostics.maxPredictionDurationMs = Math.max(
         __liveTrackPredictionDiagnostics.maxPredictionDurationMs,
         elapsedMs
@@ -7885,6 +7903,8 @@ function updateLiveTrackPredictionFrame(entity, motion, now) {
     if (now < Number(prediction.endsAt || 0)) return true;
     if (motion.phase !== "prediction_hold") {
         motion.phase = "prediction_hold";
+        const visualState = __liveTrackVisualState.get(trackKey);
+        if (visualState) visualState.rollDeg = 0;
         logLiveTrackPrediction("end", trackKey, { reason: "max_duration", predictionDuration: elapsedMs });
     }
     return false;
@@ -7944,6 +7964,9 @@ function updateLiveTrackMotionFrame(entity, now = performance.now()) {
     entity.__currentPitchDeg = Number(motion.endPitchDeg || 0);
     entity.__currentRollDeg = Number(motion.endRollDeg || 0);
     entity.__liveTrackLastCommittedSourceTimestamp = Number(motion.sourceTimestamp || 0);
+    // Commit the reached observation before prediction begins. Prediction must
+    // never become a recorded trail waypoint.
+    pushTrackTrailPointFromCartesian(String(entity.__trackKey || ""), motion.track || {}, motion.endCartesian, motion.endHeadingDeg);
     if (motion.prediction?.eligible && now < Number(motion.prediction.endsAt || 0)) {
         return updateLiveTrackPredictionFrame(entity, motion, now);
     }
@@ -8109,6 +8132,14 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         requestWarzoneRenderBatched();
     };
     if (!startCartesian) {
+        commitPosition(nextCartesian);
+        return;
+    }
+    if (sourceGapMs > LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS) {
+        if (trackKey) {
+            __liveTrackTrails.delete(trackKey);
+            __liveTrackTrailPositionsCache.delete(trackKey);
+        }
         commitPosition(nextCartesian);
         return;
     }

@@ -118,7 +118,7 @@ test("aircraft turns toward the newest movement segment by the shortest bounded 
     startRollDeg: 21,
     endRollDeg: 0,
   });
-  assert.match(css, /--warzone-live-aircraft-model-dynamic-bank-enabled:\s*0/);
+  assert.match(css, /--warzone-live-aircraft-model-dynamic-bank-enabled:\s*1/);
 });
 
 test("aircraft heading follows its rendered position to the API target", () => {
@@ -256,7 +256,7 @@ test("trail seeding excludes API coordinates the aircraft has not reached", () =
 
 test("full aircraft trail keeps only the deduplicated current flight session", () => {
   const context = vm.createContext({
-    LIVE_TRACK_CURRENT_FLIGHT_GAP_MS: 45 * 60 * 1000,
+    LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS: 2 * 60 * 1000,
     normalizeDegrees: (value) => ((value % 360) + 360) % 360,
     Map,
   });
