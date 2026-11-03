@@ -484,8 +484,8 @@ function renderPopupContent(cell = {}) {
         <div class="wz-widget-milbase wz-widget-gnss" itemscope itemtype="https://schema.org/Place">
             <header class="wz-widget-header">
                 <div class="wz-widget-kicker">
-                    <span class="wz-gnss-popup__dot wz-gnss-popup__dot--${severity}" aria-hidden="true"></span>
-                    <span class="wz-widget-title">GNSS Interference Intelligence</span>
+                    <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-popup__dot--${severity}" aria-hidden="true"></span>
+                    <span class="wz-widget-title">GNSS Intelligence</span>
                 </div>
                 <div class="wz-widget-header-actions">
                     <button type="button" class="static-icon" data-widget-close aria-label="Close GNSS panel">
