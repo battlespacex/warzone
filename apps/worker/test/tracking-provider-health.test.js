@@ -208,6 +208,7 @@ test("aircraft provider priority accepts the documented adsb_exchange name", () 
         "airplanes_live",
         "adsb_one",
         "adsbx",
+        "adsb_fi",
         "plane_alert_db",
         "skylink",
     ]);
