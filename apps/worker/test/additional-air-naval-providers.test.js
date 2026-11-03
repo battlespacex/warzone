@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeKystverketFeature, createKystverketProvider } from "../src/tracking/naval/providers/kystverket.js";
 import { createAdsbFiProvider } from "../src/tracking/aircraft/providers/adsb-fi.js";
+import { createBarentsWatchProvider, normalizeBarentsWatchVessel } from "../src/tracking/naval/providers/barentswatch.js";
 import { createAircraftProviders } from "../src/tracking/aircraft/registry.js";
 import { createNavalProviders } from "../src/tracking/naval/registry.js";
 
@@ -39,4 +40,21 @@ test("both registries default to disabled new sources", () => {
     assert.equal(aircraft.find(p => p.id === "adsb_fi").enabled, false);
     const naval = createNavalProviders({});
     assert.equal(naval.find(p => p.id === "kystverket").enabled, false);
+});
+
+test("BarentsWatch latest vessel observations normalize without assuming military identity", () => {
+    const row = normalizeBarentsWatchVessel({
+        mmsi: 257011940, name: "BALDER", latitude: 69.543985, longitude: 17.769428,
+        speedOverGround: 0, courseOverGround: 356.7, msgtime: "2026-11-03T11:55:00Z"
+    }, { now });
+    assert.equal(row.mmsi, "257011940");
+    assert.equal(row.source, "barentswatch");
+    assert.equal(row.latitude, 69.543985);
+    assert.equal(row.military_hint, false);
+});
+test("BarentsWatch requires configured OAuth credentials and enforces 10 minute polling", () => {
+    assert.equal(createBarentsWatchProvider({ enabled: true }).enabled, false);
+    const p = createBarentsWatchProvider({ enabled: true, clientId: "test", clientSecret: "test", minimumIntervalMs: 1000 });
+    assert.equal(p.enabled, true);
+    assert.equal(p.minimumIntervalMs, 600000);
 });
