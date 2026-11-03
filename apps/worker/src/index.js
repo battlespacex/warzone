@@ -4536,6 +4536,16 @@ async function processFeed(feed) {
  * Worker loop
  * -------------------------------------- */
 async function runWorker() {
+    return runLockedWorkerJob("general-cycle", async () => {
+        const startedAt = Date.now();
+        try {
+            return await runWorkerCycle();
+        } finally {
+            console.log(`[worker] general cycle duration_ms=${Date.now() - startedAt}`);
+        }
+    });
+}
+async function runWorkerCycle() {
     const adsbFeed = sources.feeds.find(f => f.type === "adsb-opensky");
     const aisFeed = sources.feeds.find(f => f.type === "ais-stream");
     const activeFeeds = toArray(sources.feeds).filter((feed) =>

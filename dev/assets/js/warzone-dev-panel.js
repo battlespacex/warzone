@@ -3858,7 +3858,7 @@ function ensureAircraftTunerUI() {
         "color:#fff",
         "z-index:999999",
         "font:12px/1.4 Arial,sans-serif",
-        "border-radius:8px",
+        "border-radius:0",
         "display:none"
     ].join(";");
 
@@ -4302,7 +4302,7 @@ function ensureNavalTunerUI() {
         "color:#fff",
         "z-index:999998",
         "font:12px/1.4 Arial,sans-serif",
-        "border-radius:8px",
+        "border-radius:0",
         "display:none"
     ].join(";");
     panel.innerHTML = `

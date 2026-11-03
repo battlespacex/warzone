@@ -426,8 +426,9 @@ body.is-ui-modal-open .wz-radar-label-layer {
 .wz-defcon {
     display: flex;
     align-items: center;
+    height: 3rem;
     gap: 0.5rem;
-    padding: .7rem 1rem;
+    padding: .6rem 1.2rem;
     font-family: var(--heading-font);
     clip-path: var(--clippath-shape-3);
 }

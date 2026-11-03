@@ -48,6 +48,44 @@ function fresh() {
   notifications.length = 0;
 }
 
+test("startup preserves ordinary choices but never restores tracker priority", () => {
+  stored.delete("wz_layer_state");
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+  assert.equal(layers.isLayerEnabled("aircraft"), false);
+
+  stored.set("wz_layer_state", JSON.stringify({ strikes: false, alerts: false, terrain: true }));
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("strikes"), false);
+  assert.equal(layers.isLayerEnabled("alerts"), false);
+
+  stored.set("wz_layer_state", JSON.stringify({ aircraft: true, alerts: true, aoi: true, terrain: true }));
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("aircraft"), false);
+  assert.equal(layers.isLayerEnabled("naval"), false);
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+  assert.equal(layers.isLayerEnabled("alerts"), true);
+  assert.equal(JSON.parse(stored.get("wz_layer_state")).aircraft, false);
+
+  stored.set("wz_layer_state", JSON.stringify({ naval: true, strikes: false }));
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("naval"), false);
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+});
+
+test("premium status defaults remain entitlement gated", () => {
+  fresh();
+  assert.equal(layers.isLayerEnabled("airspace"), true);
+  assert.equal(layers.isLayerEnabled("cyber"), true);
+  window.__stratopsAuthState.isAuthenticated = false;
+  try {
+    assert.equal(layers.isLayerEnabled("airspace"), false);
+    assert.equal(layers.isLayerEnabled("cyber"), false);
+  } finally {
+    window.__stratopsAuthState.isAuthenticated = true;
+  }
+});
+
 test("tracker priority writes unrelated OFF states once and keeps the globe", (t) => {
   fresh();
   const before = layers.LAYER_DEFS.filter(({ id }) => layers.isLayerEnabled(id)).length;

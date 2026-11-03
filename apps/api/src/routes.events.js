@@ -3,6 +3,7 @@ import { query } from "./db.js";
 import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
+import { getGpsInterferenceSnapshot, selectGpsInterferenceRegion } from "./gnss-gpsinterference.js";
 import { toPublicStatusSignal } from "../../shared/status-signal-policy.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents } from "./satellite-context.js";
@@ -59,7 +60,7 @@ const AIRCRAFT_FOCUSED_HISTORY_LIMIT = 1200;
 const DEFAULT_INTEL_FEED_LIMIT = 120;
 const MAX_INTEL_FEED_LIMIT = 300;
 const DEFAULT_GNSS_CELL_LIMIT = 240;
-const MAX_GNSS_CELL_LIMIT = 600;
+const MAX_GNSS_CELL_LIMIT = 12_000;
 const DEFAULT_PUBLIC_API_BASE_URL = "https://api.battlespacex.com/";
 
 function clamp(value, min, max) {
@@ -354,6 +355,52 @@ export function createAircraftHistoryHandler({
             });
         } catch {
             return res.status(500).json({ error: "Aircraft history lookup failed" });
+        }
+    };
+}
+
+export function createGnssInterferenceHandler({
+    getSnapshot = getGpsInterferenceSnapshot,
+    selectRegion = selectGpsInterferenceRegion,
+    getFallback = getPublicGnssInterferenceCells,
+    getFallbackClient = getSupabase,
+} = {}) {
+    return async (req, res) => {
+        try {
+            const requestedLimit = Number(req.query.limit);
+            const limit = Number.isFinite(requestedLimit)
+                ? clamp(Math.floor(requestedLimit), 12, MAX_GNSS_CELL_LIMIT)
+                : DEFAULT_GNSS_CELL_LIMIT;
+            const date = typeof req.query.date === "string" ? req.query.date : "latest";
+            if (date !== "latest") {
+                const parsed = new Date(`${date}T00:00:00Z`);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime())
+                    || parsed.toISOString().slice(0, 10) !== date
+                    || date > new Date().toISOString().slice(0, 10)) {
+                    return res.status(400).json({ error: "Invalid GNSS date" });
+                }
+            }
+            const keys = ["minLat", "maxLat", "minLon", "maxLon"];
+            const hasBounds = keys.every((key) => typeof req.query[key] === "string" && req.query[key].trim() !== "");
+            const bounds = hasBounds ? Object.fromEntries(keys.map((key) => [key, Number(req.query[key])])) : null;
+            if (bounds && (!Object.values(bounds).every(Number.isFinite)
+                || bounds.minLat > bounds.maxLat || bounds.minLon > bounds.maxLon
+                || bounds.minLat < -90 || bounds.maxLat > 90
+                || bounds.minLon < -180 || bounds.maxLon > 180)) {
+                return res.status(400).json({ error: "Invalid GNSS bounds" });
+            }
+            const snapshot = await getSnapshot(date);
+            if (snapshot) return res.json(selectRegion(snapshot, { bounds, limit }));
+            if (date !== "latest") return res.json({
+                cells: [], sourceMode: "unavailable", liveAvailable: false,
+                sourceHealth: "unavailable", message: "Historical GNSS data is unavailable from the provider.",
+            });
+            const fallback = await getFallback({ supabase: getFallbackClient(), limit });
+            return res.json({ ...fallback, sourceHealth: fallback.cells?.length ? "degraded" : "unavailable",
+                message: fallback.cells?.length ? "Primary GNSS source unavailable; showing existing records."
+                    : "GNSS providers are unavailable; an empty map does not establish absence of interference." });
+        } catch {
+            return res.status(500).json({ error: "Failed" });
         }
     };
 }
@@ -666,21 +713,8 @@ export function eventsRouter({ broadcast }) {
     });
 
     // ── GNSS jamming cells (sanitized public payload) ─────────
-    router.get("/gnss-interference", async (req, res) => {
-        try {
-            const requestedLimit = Number(req.query.limit);
-            const limit = Number.isFinite(requestedLimit)
-                ? clamp(Math.floor(requestedLimit), 12, MAX_GNSS_CELL_LIMIT)
-                : DEFAULT_GNSS_CELL_LIMIT;
-            const payload = await getPublicGnssInterferenceCells({
-                supabase: getSupabase(),
-                limit,
-            });
-            res.json(payload);
-        } catch {
-            res.status(500).json({ error: "Failed" });
-        }
-    });
+    // Server-side shared cache prevents a provider request for each browser.
+    router.get("/gnss-interference", createGnssInterferenceHandler());
 
     // Full event enrichment is loaded only when a user opens a marker detail.
     router.get("/:id", createEventDetailHandler());

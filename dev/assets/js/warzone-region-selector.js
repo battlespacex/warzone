@@ -1409,6 +1409,7 @@ function showRegionModal(viewer, instant = false, options = {}) {
     let confirmBtn = oldConfirm;
     const oldBack = document.getElementById("wz-region-back");
     let backBtn = oldBack;
+    const closeBtn = document.getElementById("wz-region-close");
 
     if (oldConfirm) {
         const newConfirm = oldConfirm.cloneNode(true);
@@ -1448,6 +1449,12 @@ function showRegionModal(viewer, instant = false, options = {}) {
         backBtn.style.display = isManualMode ? "none" : "";
         backBtn.disabled = isManualMode;
         backBtn.setAttribute("aria-hidden", isManualMode ? "true" : "false");
+    }
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            if (mode !== "manual" || overlay.classList.contains("is-closing")) return;
+            closeRegionModal(overlay);
+        };
     }
 
     overlay.classList.remove("is-closing");

@@ -863,6 +863,42 @@ module.exports = (env, argv) => {
                             }
                             res.sendFile(path.resolve(PROD_DIR, "pages/report.html"));
                         });
+                        // GNSS V4 uses the same cached provider service as the API when no local API is running.
+                        // The generic proxy otherwise falls through to the older production GNSS route.
+                        devServer.app.get("/api/events/gnss-interference", async (req, res) => {
+                            try {
+                                const { pathToFileURL } = require("node:url");
+                                const moduleUrl = pathToFileURL(path.join(ROOT_DIR, "apps/api/src/gnss-gpsinterference.js")).href;
+                                const { getGpsInterferenceSnapshot, selectGpsInterferenceRegion } = await import(moduleUrl);
+                                const date = typeof req.query.date === "string" ? req.query.date : "latest";
+                                if (date !== "latest") {
+                                    const parsed = new Date(`${date}T00:00:00Z`);
+                                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime())
+                                        || parsed.toISOString().slice(0, 10) !== date
+                                        || date > new Date().toISOString().slice(0, 10)) {
+                                        return res.status(400).json({ error: "Invalid GNSS date" });
+                                    }
+                                }
+                                const keys = ["minLat", "maxLat", "minLon", "maxLon"];
+                                const hasBounds = keys.every((key) => typeof req.query[key] === "string" && req.query[key].trim());
+                                const bounds = hasBounds ? Object.fromEntries(keys.map((key) => [key, Number(req.query[key])])) : null;
+                                if (bounds && (!Object.values(bounds).every(Number.isFinite)
+                                    || bounds.minLat > bounds.maxLat || bounds.minLon > bounds.maxLon
+                                    || bounds.minLat < -90 || bounds.maxLat > 90
+                                    || bounds.minLon < -180 || bounds.maxLon > 180)) {
+                                    return res.status(400).json({ error: "Invalid GNSS bounds" });
+                                }
+                                const limit = Math.max(12, Math.min(12_000, Math.floor(Number(req.query.limit) || 12_000)));
+                                const snapshot = await getGpsInterferenceSnapshot(date);
+                                res.set("Cache-Control", "no-store");
+                                return res.json(snapshot
+                                    ? selectGpsInterferenceRegion(snapshot, { bounds, limit })
+                                    : { cells: [], sourceMode: "unavailable", sourceHealth: "unavailable",
+                                        liveAvailable: false, message: "GNSS provider is unavailable; an empty map does not establish no interference." });
+                            } catch {
+                                return res.status(502).json({ error: "GNSS provider unavailable" });
+                            }
+                        });
                         devServer.app.all("/api/*", handleApiProxy);
 
                         return middlewares;

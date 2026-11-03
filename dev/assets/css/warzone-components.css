@@ -1011,7 +1011,7 @@
     gap: .7rem;
     display: flex;
     flex-direction: column;
-    clip-path: var(--clippath-shape-4);
+    clip-path: var(--clippath-shape-1);
 }
 
 .wz-event-popup__title {
@@ -1177,7 +1177,7 @@
     text-align: left;
     color: var(--color-text-heading);
     cursor: pointer;
-    clip-path: var(--clippath-shape-4);
+    clip-path: var(--clippath-shape-1);
 }
 
 .wz-event-popup-related__item:hover,
@@ -1565,7 +1565,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 3.2rem;
+    min-height: 3rem;
     padding: 0 1.2rem;
     color: var(--color-text-heading);
     background: var(--color-bg-row);
@@ -1665,7 +1665,7 @@
     background: var(--color-bg-dark);
     color: var(--color-text-heading);
     box-shadow: var(--widget-shadow);
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
     pointer-events: none;
     backdrop-filter: blur(.2rem);
 }
@@ -2418,6 +2418,7 @@ body.is-map-layers-open .wz-map-layers-pane {
     margin: 0;
     color: var(--color-text-heading);
     font-size: var(--text-lg);
+    line-height: var(--text-lg);
     text-transform: uppercase;
 }
 
@@ -2553,7 +2554,7 @@ body.is-map-layers-open .wz-map-layers-pane {
     text-transform: uppercase;
     background: var(--color-teal-hover);
     margin-bottom: .5rem;
-    clip-path: var(--clippath-2);
+    clip-path: var(--clippath-3);
 }
 
 .wz-layer-toggle {
@@ -3106,9 +3107,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 
 .wz-pre-entry-showcase__item .static-icon {
-    width: 3.2rem;
-    height: 3.2rem;
-    min-width: 3.2rem;
+    width: 3rem;
+    height: 3rem;
+    min-width: 3rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3321,7 +3322,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 
 .wz-modal header p {
-    margin: 1rem 0 0;
+    margin: .7rem 0 0;
     color: var(--color-text-dim);
 }
 
@@ -3730,6 +3731,16 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     height: auto;
 }
 
+.is-pre-entry .wz-region.wz-modal .wz-close-modal { 
+    display: none; 
+}
+
+.wz-region.wz-modal .wz-header-title {
+    flex-direction: column;
+    gap: 0;
+    align-items: flex-start;
+}
+
 .wz-region-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3745,7 +3756,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 .wz-region-grid .btn-secondary {
     background: var(--color-bg-row);
     max-width: 100%;
-    height: 5.5rem;
+    height: 5rem;
     position: relative;
     color: var(--color-white);
     padding: 0 2rem
@@ -3803,7 +3814,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     min-height: 8rem;
     padding: 1rem;
     background: var(--color-bg-row);
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
     gap: .2rem;
 }
 
@@ -4006,7 +4017,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     padding: 0 0.3rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .status-pill--closed,
@@ -4059,7 +4070,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     filter: var(--widget-shadow);
     backdrop-filter: blur(.2rem);
     visibility: visible;
-    border-radius: .2rem
+    border-radius: 0
 }
 
 .panel-container {
@@ -4489,7 +4500,7 @@ UNUSED CANDIDATE END */
     padding: 0 0.3rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .wz-aircraft-badge.is-active {
@@ -4523,7 +4534,7 @@ UNUSED CANDIDATE END */
     opacity: 0;
     transform: translate(-50%, 0);
     transition: opacity .18s ease, border-color .18s ease;
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .wz-aircraft-focus-panel.is-visible {
@@ -4574,7 +4585,7 @@ UNUSED CANDIDATE END */
     border: 0;
     background: var(--color-teal);
     color: var(--color-white);
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .wz-aircraft-focus-panel__unfocus:hover {
@@ -6550,6 +6561,10 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     height: 2rem;
 }
 
+.wz-widget-header .wz-widget-kicker .wz-widget-title {
+    padding-top: .4rem;
+}
+
 .wz-widget-header-actions {
     display: flex;
     align-items: center;
@@ -6582,6 +6597,12 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     border-radius: 50%;
     flex-shrink: 0;
 }
+
+.wz-gnss-popup__dot--low { background: var(--gnss-legend-fill-low, var(--gnss-cell-fill-low)); }
+.wz-gnss-popup__dot--medium { background: var(--gnss-legend-fill-medium, var(--gnss-cell-fill-medium)); }
+.wz-gnss-popup__dot--high { background: var(--gnss-legend-fill-high, var(--gnss-cell-fill-high)); }
+.wz-gnss-popup__dot--severe { background: var(--gnss-legend-fill-severe, var(--gnss-cell-fill-severe)); }
+.wz-gnss-popup__dot--unknown { background: var(--gnss-legend-fill-unknown, var(--gnss-cell-fill-unknown)); }
 
 .milbase-panel__dot {
     display: inline-block;

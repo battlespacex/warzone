@@ -51,21 +51,21 @@ export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
     drones: true,
     airstrikes: true,
     aircraft: false,
-    airspace: false,
+    airspace: true,
     naval: false,
     "military-bases": false,
     gnss: false,
-    ranges: true,
-    sweepers: true,
+    ranges: false,
+    sweepers: false,
     alerts: true,
-    cyber: false,
+    cyber: true,
     thermal: true,
     recon: true,
     seismic: true,
     hotspots: true,
     aoi: false,
     "orbital-assets": false,
-    "satellite-imagery": true,
+    "satellite-imagery": false,
     terrain: true,
     "map-labels": false,
     "region-plate": false,
@@ -243,9 +243,6 @@ function isDevInspectionEnvironment() {
 }
 
 function canUseLayer(id) {
-    // Layers required ON for every dashboard entry must render identically for
-    // authenticated and anonymous users. Other premium layers keep their gate.
-    if (DASHBOARD_DEFAULT_LAYER_STATE[id] === true) return true;
     if (!isPremiumLayer(id)) return true;
     if (DEV_INSPECTION_LAYER_IDS.has(id) && isDevInspectionEnvironment()) return true;
     return hasPremiumAccess();
@@ -343,19 +340,34 @@ function notifyStateTransition(previousState, id) {
 function loadState() {
     if (__layerStateLoaded) return;
 
-    // Dashboard-entry defaults are authoritative. Persisted values are written
-    // for current-session consumers but are never restored on initialization.
     LAYER_DEFS.forEach((layer) => {
         __layerState[layer.id] = DASHBOARD_DEFAULT_LAYER_STATE[layer.id] === true;
     });
     __trackerPriorityBaseline = null;
     __orbitalIsolationBaseline = null;
-
     __layerStateLoaded = true;
 }
 
 export function hydrateLayerStateFromStorage() {
     loadState();
+}
+
+export function restoreLayerStateForStartup() {
+    let saved = null;
+    try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) saved = parsed;
+    } catch { }
+    __layerStateLoaded = false;
+    loadState();
+    // A saved tracker-priority snapshot has unrelated layers switched off.
+    // Start the next session with the operational defaults and both trackers off.
+    if (saved && saved.aircraft !== true && saved.naval !== true) {
+        LAYER_DEFS.forEach(({ id }) => {
+            if (typeof saved[id] === "boolean") __layerState[id] = saved[id];
+        });
+    }
+    saveState();
 }
 
 export function resetLayerStateForFreshLoad() {

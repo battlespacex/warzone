@@ -201,3 +201,23 @@ test("military classifier rejects civilian traffic and accepts configured known 
     assert.equal(qualifyMilitaryVessel({ name: "NAVY BLUE", shipType: 70 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
     assert.equal(qualifyMilitaryVessel({ name: "IRIS", shipType: "Towing" }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
 });
+
+
+test("cached default military identifiers refresh when configuration changes", () => {
+    const previous = process.env.NAVAL_KNOWN_MILITARY_MMSI;
+    const vessel = { mmsi: "399999991", name: "CONTACT", shipType: 0 };
+    try {
+        process.env.NAVAL_KNOWN_MILITARY_MMSI = "399999991";
+        assert.equal(qualifyMilitaryVessel(vessel).reason, "known_military_mmsi");
+        process.env.NAVAL_KNOWN_MILITARY_MMSI = "399999992";
+        assert.equal(qualifyMilitaryVessel(vessel).accepted, false);
+        assert.equal(qualifyMilitaryVessel(vessel, {
+            knownMilitaryMmsi: new Set(["399999991"]),
+            knownMilitaryImo: new Set(),
+            knownMilitaryCallsigns: new Set(),
+        }).accepted, true);
+    } finally {
+        if (previous === undefined) delete process.env.NAVAL_KNOWN_MILITARY_MMSI;
+        else process.env.NAVAL_KNOWN_MILITARY_MMSI = previous;
+    }
+});

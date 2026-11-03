@@ -126,6 +126,7 @@ let __gnssInterferenceMeta = {
 let __gnssInterferenceLoadingPromise = null;
 let __gnssInterferenceController = null;
 let __gnssInterferenceLastLoadedAt = 0;
+let __gnssObservationDate = "latest";
 let __statusEventsLastLoadedAt = 0;
 let __alertAudio = null;
 let __assetFocusUiSignature = "";
@@ -4063,17 +4064,38 @@ function normalizeGnssCell(cell = {}) {
         severity: String(cell.severity || "unknown").toLowerCase(),
         affectedPercent: Math.max(0, Math.min(100, Number(cell.affectedPercent ?? cell.affected_percent) || 0)),
         sampleCount: Math.max(0, Math.round(Number(cell.sampleCount ?? cell.sample_count) || 0)),
+        affectedAircraftCount: Number.isFinite(Number(cell.affectedAircraftCount)) ? Number(cell.affectedAircraftCount) : null,
+        observationPeriod: cell.observationPeriod || "",
+        detectionLimitations: cell.detectionLimitations || "",
         confidence: String(cell.confidence || "low").toLowerCase(),
         country: cell.country || "Unresolved location",
         region: cell.region || "Global",
         sourceLabel: cell.sourceLabel || "GNSS Jamming Monitor",
+        classification: cell.classification || "",
+        sourceUrl: cell.sourceUrl || "",
         observedAt: cell.observedAt || cell.observed_at || cell.updatedAt || cell.updated_at || "",
         updatedAt: cell.updatedAt || cell.updated_at || cell.observedAt || cell.observed_at || "",
         isDemo: cell.isDemo === true || cell.is_demo === true,
     };
 }
 function getScopedGnssInterferenceCells(cells = __gnssInterferenceCellsCache) {
-    return Array.isArray(cells) ? cells.slice() : [];
+    if (!Array.isArray(cells)) return [];
+    const bounds = getRegionRequestBounds(getActiveRegion?.());
+    if (!bounds) return cells.slice();
+    return cells.filter((cell) => {
+        const polygon = Array.isArray(cell.polygon) && cell.polygon.length ? cell.polygon : [cell];
+        let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        for (const point of polygon) {
+            const lat = Number(point.lat), lon = Number(point.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+            minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+            minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+        }
+        const longitudeOverlaps = maxLon - minLon > 180
+            ? bounds.maxLon >= maxLon || bounds.minLon <= minLon
+            : maxLon >= bounds.minLon && minLon <= bounds.maxLon;
+        return maxLat >= bounds.minLat && minLat <= bounds.maxLat && longitudeOverlaps;
+    });
 }
 function syncGnssInterferenceLayer() {
     const viewer = window.__warzoneViewer;
@@ -4092,7 +4114,22 @@ function syncGnssInterferenceLayer() {
         liveAvailable: __gnssInterferenceMeta.liveAvailable === true,
         tableAvailable: __gnssInterferenceMeta.tableAvailable === true,
         message: __gnssInterferenceMeta.message || "",
+        totalCells: __gnssInterferenceMeta.totalCells,
+        severityCounts: __gnssInterferenceMeta.severityCounts,
+        truncated: __gnssInterferenceMeta.truncated,
+        sourceHealth: __gnssInterferenceMeta.sourceHealth,
+        sourceLabel: __gnssInterferenceMeta.sourceLabel,
+        sourceUrl: __gnssInterferenceMeta.sourceUrl,
+        observationPeriod: __gnssInterferenceMeta.observationPeriod,
     });
+}
+function selectGnssObservationDate(date) {
+    __gnssObservationDate = date || "latest";
+    stopGnssInterferenceRefresh();
+    __gnssInterferenceLastLoadedAt = 0;
+    __gnssInterferenceCellsCache = [];
+    syncGnssInterferenceLayer();
+    if (isLayerEnabled("gnss")) void refreshGnssInterferenceCells({ force: true });
 }
 async function refreshGnssInterferenceCells({ force = false } = {}) {
     if (!isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
@@ -4103,7 +4140,7 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
         : GNSS_LAYER_REFRESH_MS;
     if (
         !force &&
-        __gnssInterferenceCellsCache.length &&
+        __gnssInterferenceLastLoadedAt &&
         (now - __gnssInterferenceLastLoadedAt) < refreshWindowMs
     ) {
         syncGnssInterferenceLayer();
@@ -4111,7 +4148,10 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
     }
     const controller = new AbortController();
     __gnssInterferenceController = controller;
-    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells({ signal: controller.signal })
+    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells({
+        signal: controller.signal, bounds: getRegionRequestBounds(getActiveRegion?.()),
+        date: __gnssObservationDate,
+    })
         .then(({ data, error, meta }) => {
             if (controller.signal.aborted || __gnssInterferenceController !== controller || !isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
             if (error) return __gnssInterferenceCellsCache;
@@ -4125,6 +4165,13 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
                 liveAvailable: meta?.liveAvailable === true,
                 tableAvailable: meta?.tableAvailable === true,
                 message: meta?.message || "",
+                totalCells: meta?.totalCells ?? __gnssInterferenceCellsCache.length,
+                severityCounts: meta?.severityCounts || null,
+                truncated: meta?.truncated === true,
+                sourceHealth: meta?.sourceHealth || "unavailable",
+                sourceLabel: meta?.sourceLabel || "",
+                sourceUrl: meta?.sourceUrl || "",
+                observationPeriod: meta?.observationPeriod || "",
             };
             __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();
@@ -9436,6 +9483,13 @@ async function initializeWarzoneAppOnce() {
         markTrackerPerf("naval", "tracker enabled");
         requestNavalWidgetRender(0);
     }
+    // GNSS is optional and begins independently of the map-events request.
+    const gnssRefreshPromise = isLayerEnabled("gnss")
+        ? refreshGnssInterferenceCells({ force: true }).catch((error) => {
+            console.warn("Initial GNSS refresh failed:", error);
+            return __gnssInterferenceCellsCache;
+        })
+        : Promise.resolve(__gnssInterferenceCellsCache);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for events
 
@@ -9480,12 +9534,7 @@ async function initializeWarzoneAppOnce() {
                 if (!isRequestAbortError(error)) console.warn("Initial status refresh failed:", error);
                 return __statusEventsCache;
             });
-        const gnssRefreshPromise = isLayerEnabled("gnss")
-            ? refreshGnssInterferenceCells({ force: true }).catch((error) => {
-                console.warn("Initial GNSS refresh failed:", error);
-                return __gnssInterferenceCellsCache;
-            })
-            : Promise.resolve(__gnssInterferenceCellsCache);
+
         __viewportScoped = false;
         markStartupPerformance("stratops-map-events-render-start");
         markStartupPerformance("stratops-events-render-start");
@@ -9533,6 +9582,14 @@ async function initializeWarzoneAppOnce() {
             window.__militaryTracks = __militaryTracks;
         }
         {
+            document.getElementById("wz-gnss-period")?.addEventListener("change", (event) => {
+                selectGnssObservationDate(event.target.value);
+            });
+            document.getElementById("wz-gnss-latest")?.addEventListener("click", () => {
+                const dateInput = document.getElementById("wz-gnss-period");
+                if (dateInput) dateInput.value = "";
+                selectGnssObservationDate("latest");
+            });
             onRegionChange(() => {
                 window.__warzoneViewer?.__warzone?.setRaisedRegionVisible?.(
                     isLayerEnabled("region-plate"),
@@ -9575,7 +9632,10 @@ async function initializeWarzoneAppOnce() {
                         ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                         : []
                 );
+                stopGnssInterferenceRefresh();
+                __gnssInterferenceLastLoadedAt = 0;
                 syncGnssInterferenceLayer();
+                if (isLayerEnabled("gnss")) void refreshGnssInterferenceCells({ force: true });
                 syncFocusAwareBackgroundLoops();
                 scheduleViewportFetch(60);
                 requestAircraftMovementsWidgetRender(0);
@@ -9595,9 +9655,6 @@ async function initializeWarzoneAppOnce() {
                             ? data.map((row) => normalizeEvent(row)).filter(Boolean)
                             : [];
                         await refreshStatusEvents();
-                        if (isLayerEnabled("gnss")) {
-                            await refreshGnssInterferenceCells({ force: true });
-                        }
                         renderAll(mergeMapBootstrapWithRealtime(freshEvents, requestedRegion));
                         syncNewsTickerForCurrentMode();
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });

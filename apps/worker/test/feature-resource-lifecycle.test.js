@@ -354,6 +354,7 @@ test("GNSS OFF aborts, deduplicates refreshes and rejects stale completion", asy
     __gnssInterferenceCellsCache: [], __gnssInterferenceMeta: {}, __gnssInterferenceLastLoadedAt: 0,
     GNSS_LAYER_REFRESH_MS: 30000, FOCUS_MODE_GNSS_REFRESH_MS: 60000,
     isLayerEnabled: () => enabled, shouldDeferBackgroundMapWork: () => false,
+    getActiveRegion: () => ({ id: "test" }), getRegionRequestBounds: () => null, __gnssObservationDate: "latest",
     clearGnssInterferenceLayer: noop, renderGnssInterferenceLayer: noop,
     getScopedGnssInterferenceCells: () => [],
     normalizeGnssCell: (row) => { calculations += 1; return row; },
@@ -376,6 +377,23 @@ test("GNSS OFF aborts, deduplicates refreshes and rejects stale completion", asy
   requests[1].resolve({ data: [{ id: "current" }], meta: {} });
   await Promise.all([current, duplicate]);
   assert.equal(c.__gnssInterferenceCellsCache[0].id, "current");
+});
+
+test("GNSS Latest Available clears historical state and reloads latest cells", async () => {
+  let stopped = 0, synced = 0, requested = 0;
+  const c = await functions("essential.js", ["selectGnssObservationDate"], {
+    __gnssObservationDate: "2026-10-20", __gnssInterferenceLastLoadedAt: 100,
+    __gnssInterferenceCellsCache: [{ id: "old" }],
+    stopGnssInterferenceRefresh: () => { stopped++; },
+    syncGnssInterferenceLayer: () => { synced++; },
+    isLayerEnabled: () => true,
+    refreshGnssInterferenceCells: () => { requested++; },
+  });
+  c.selectGnssObservationDate("");
+  assert.equal(c.__gnssObservationDate, "latest");
+  assert.equal(c.__gnssInterferenceLastLoadedAt, 0);
+  assert.equal(c.__gnssInterferenceCellsCache.length, 0);
+  assert.deepEqual([stopped, synced, requested], [1, 1, 1]);
 });
 
 async function dataSourceRuntime() {
@@ -590,4 +608,17 @@ test("aircraft and GNSS API adapters forward cancellation without changing legac
   context.supabase = { from: () => query };
   await method("getAircraftTracks")({ signal: controller.signal });
   assert.equal(query.signal, controller.signal);
+});
+
+
+test("GNSS region scoping retains edge-overlapping cells and excludes old-region fallback", async () => {
+  const bounds={minLat:20,maxLat:30,minLon:40,maxLon:50};
+  const c=await functions("essential.js",["getScopedGnssInterferenceCells"],{
+    getActiveRegion:()=>({id:"test"}),getRegionRequestBounds:()=>bounds,
+  });
+  const cells=[{id:"inside",lat:25,lon:45},
+    {id:"edge",lat:19,lon:45,polygon:[{lat:19,lon:45},{lat:21,lon:45}]},
+    {id:"other",lat:55,lon:75},
+    {id:"date-line",lat:10,lon:180,polygon:[{lat:10,lon:179.9},{lat:10,lon:-179.9}]}];
+  assert.deepEqual(Array.from(c.getScopedGnssInterferenceCells(cells),cell=>cell.id),["inside","edge"]);
 });

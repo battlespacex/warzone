@@ -191,7 +191,7 @@ test("CTR loads and scopes airbase highlights independently from the military-ba
   assert.doesNotMatch(bases, /const shouldShow = __state\.visible && !__state\.authGated && __state\.ctrHighlightsVisible/);
 });
 
-test("every dashboard entry applies the authoritative map-layer defaults before widget initialization", async () => {
+test("dashboard defaults apply to first entry while saved layer choices survive startup", async () => {
   const layers = await readSource("../../../dev/assets/js/warzone-layers.js");
   const boot = await readSource("../../../dev/assets/js/warzone-boot.js");
   const regionSelector = await readSource("../../../dev/assets/js/warzone-region-selector.js");
@@ -202,21 +202,21 @@ test("every dashboard entry applies the authoritative map-layer defaults before 
     drones: true,
     airstrikes: true,
     aircraft: false,
-    airspace: false,
+    airspace: true,
     naval: false,
     "military-bases": false,
     gnss: false,
-    ranges: true,
-    sweepers: true,
+    ranges: false,
+    sweepers: false,
     alerts: true,
-    cyber: false,
+    cyber: true,
     thermal: true,
     recon: true,
     seismic: true,
     hotspots: true,
     aoi: false,
     "orbital-assets": false,
-    "satellite-imagery": true,
+    "satellite-imagery": false,
     terrain: true,
     "map-labels": false,
     "region-plate": false,
@@ -234,8 +234,9 @@ test("every dashboard entry applies the authoritative map-layer defaults before 
   const loadStateBody = layers.match(/function loadState\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
   assert.doesNotMatch(loadStateBody, /localStorage|getItem|saved/);
   assert.match(loadStateBody, /DASHBOARD_DEFAULT_LAYER_STATE\[layer\.id\] === true/);
-  assert.match(layers, /if \(DASHBOARD_DEFAULT_LAYER_STATE\[id\] === true\) return true/);
-  assert.match(boot, /resetLayerStateForFreshLoad\(\);\s*loadWidgetState\(\);/);
+  assert.doesNotMatch(layers, /if \(DASHBOARD_DEFAULT_LAYER_STATE\[id\] === true\) return true/);
+  assert.match(boot, /restoreLayerStateForStartup\(\);\s*loadWidgetState\(\);/);
+  assert.match(layers, /export function restoreLayerStateForStartup\(\)/);
   assert.match(regionSelector, /setBorderLayersVisible\?\.\(\s*isLayerEnabled\("country-borders"\)/);
   assert.doesNotMatch(regionSelector, /localStorage\.getItem\("wz_layer_state"\)/);
 });
