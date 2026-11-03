@@ -11,6 +11,14 @@ import {
   shouldAttemptSource,
 } from "../src/source-health.js";
 
+test("enabled sources remain unknown until a real fetch completes", () => {
+  resetSourceHealth();
+  const source = { id: "untested-feed", enabled: true };
+  assert.equal(getSourceHealth(source).status, "unknown");
+  assert.equal(getSourceHealth(source).last_success, null);
+  assert.equal(shouldAttemptSource(source), true);
+});
+
 test("disabled sources preserve their reason and are not attempted", () => {
   const source = { id: "dead-feed", enabled: false, disabled_reason: "verified_404" };
   assert.equal(getSourceHealth(source).status, "disabled");

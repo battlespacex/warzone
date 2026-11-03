@@ -65,8 +65,8 @@ function getSourceHealth(source = {}) {
     };
   }
   return healthBySource.get(sourceKey(source)) || {
-    status: SOURCE_HEALTH_STATES.HEALTHY,
-    reason: null,
+    status: SOURCE_HEALTH_STATES.UNKNOWN,
+    reason: "not_yet_checked",
     consecutive_failures: 0,
     last_success: null,
     last_failure: null,

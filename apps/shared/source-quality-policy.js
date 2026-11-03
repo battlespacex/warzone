@@ -30,6 +30,7 @@ const CORROBORATION_STATES = Object.freeze({
 });
 
 const SOURCE_HEALTH_STATES = Object.freeze({
+  UNKNOWN: "unknown",
   HEALTHY: "healthy",
   FAILING: "failing",
   STALE: "stale",

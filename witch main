@@ -1,0 +1,18 @@
+ apps/worker/test/aircraft-trajectory-turns.test.js | 79 [32m+++++++++++++++++++++[m
+ apps/worker/test/focused-asset-geometry.test.js    |  4 [32m+[m[31m-[m
+ dev/assets/css/root.css                            | 13 [32m+++[m[31m-[m
+ dev/assets/css/warzone-map.css                     |  4 [32m+[m[31m-[m
+ dev/assets/js/warzone-live-airforce.js             | 81 [32m+++++++++++++++[m[31m-------[m
+ production/assets/css/style.4bccde50.css           |  1 [32m+[m
+ production/assets/css/style.5db3e999.css           |  1 [32m+[m
+ production/assets/css/style.ecb2a841.css           |  3 [32m+[m
+ production/assets/js/411.bundle.09c4d050.js        |  1 [32m+[m
+ production/assets/js/411.bundle.78051c5f.js        |  1 [31m-[m
+ .../js/{bundle.39bb2e51.js => bundle.da8c1dcd.js}  |  2 [32m+[m[31m-[m
+ ...pture.fbffaa17.js => reportCapture.29c838ee.js} |  2 [32m+[m[31m-[m
+ production/pages/index.html                        |  2 [32m+[m[31m-[m
+ production/pages/poster.html                       |  2 [32m+[m[31m-[m
+ production/pages/report-capture.html               |  2 [32m+[m[31m-[m
+ production/pages/report-pdf-viewer.html            |  2 [32m+[m[31m-[m
+ production/poster/index.html                       |  2 [32m+[m[31m-[m
+ 17 files changed, 162 insertions(+), 40 deletions(-)
