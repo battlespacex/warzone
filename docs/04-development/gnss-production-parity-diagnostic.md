@@ -8,6 +8,22 @@
 - Frontend: `dev/assets/js/warzone-gnss.js` renders `sourceMode: gpsinterference` observations using Cesium.
 - Screenshots alone **cannot** establish whether the difference is deployment version, routing, CDN cache, server egress, missing config or entitlement.
 
+## Production evidence from the EC2 PowerShell screenshots
+- The production checkout is on `main` and reports **1 local commit ahead and 10 remote commits behind** `origin/main`; do not use a blind `git pull`.
+- `apps/api/src/gnss-gpsinterference.js` is **absent** on EC2, although it exists on the current repository main branch. This confirms missing GNSS provider code in the production checkout.
+- EC2 `apps/api/src/routes.events.js` registers `/gnss-interference` with the legacy inline route and imports `getPublicGnssInterferenceCells`. Current main uses `createGnssInterferenceHandler` with the GPSInterference provider and the public cells function only as fallback.
+- The EC2 API response exposes `sourceMode: live`, with the requested V3 metadata fields empty. The API process is online, not necessarily current.
+- The tested production public URL in the screenshot is `https://stratops.battlespacex.com/api/events/gnss-interference`. The browser Network panel remains authoritative for the actual request.
+- The `localhost:3000` and `localhost:8080` checks were executed on the EC2 server, not the working local development machine.
+- The screenshots show untracked `generated/reports/daily/global/2026-11-01/` and `index.html`. Preserve both.
+
+## Safe Git reconciliation (no automatic deployment)
+1. On EC2 run `git fetch origin`, `git status`, `git log --oneline origin/main..HEAD`, and `git diff --name-status HEAD..origin/main`. Fetch does not modify the working tree.
+2. Create a preservation ref with `git branch backup/ec2-before-gnss-sync HEAD` (use a unique name if it already exists). Copy the untracked reports and `index.html` to a safe location outside the repository before any merge.
+3. Prefer integrating the reviewed PR into `origin/main` in GitHub, then use a separate staging checkout/worktree to run the tests and review conflicts. Do not overwrite the running checkout or assume `git pull` is conflict-free.
+4. Reconcile the server-only commit by review or cherry-pick as appropriate, without discarding it. If you choose an in-place merge after backups, use `git merge origin/main` and resolve conflicts deliberately; it must not silently overwrite untracked files.
+5. Check the exact PM2 `warzone-api` cwd and start command before a controlled deployment. Merging Git alone does not restart or update the running Node process.
+
 ## Changes in this PR
 - GNSS API returns `X-StratOps-GNSS-API-Version: gpsinterference-v3`. If absent on production, inspect routing/deployment before assuming the new handler is deployed.
 - GNSS API returns `Cache-Control: no-store, max-age=0` to avoid caching an old empty GNSS response.
@@ -20,7 +36,7 @@ Use identical parameters locally and in production. These bounds are a North Ame
 
 ```powershell
 $path = "/events/gnss-interference?date=latest&minLat=15&maxLat=75&minLon=-170&maxLon=-50&limit=12000"
-$prod = Invoke-WebRequest -Uri ("https://api.battlespacex.com" + $path) -Headers @{ "Cache-Control" = "no-cache" } -UseBasicParsing
+$prod = Invoke-WebRequest -Uri ("https://stratops.battlespacex.com/api" + $path) -Headers @{ "Cache-Control" = "no-cache" } -UseBasicParsing
 $prod.StatusCode
 $prod.Headers["X-StratOps-GNSS-API-Version"]
 $prod.Headers["Cache-Control"]
