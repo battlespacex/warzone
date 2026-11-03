@@ -1,6 +1,7 @@
 import { createAisStreamProvider } from "./providers/aisstream.js";
 import { createAisHubProvider } from "./providers/aishub.js";
 import { createFintrafficProvider } from "./providers/fintraffic.js";
+import { createKystverketProvider } from "./providers/kystverket.js";
 import { createMarinePlanProvider } from "./providers/marineplan.js";
 import { createMarineTrafficProvider } from "./providers/marinetraffic.js";
 import { createOpenAisProvider } from "./providers/openais.js";
@@ -22,7 +23,7 @@ function priorityMap(value, defaults) {
 }
 
 export function createNavalProviders(env = process.env, dependencies = {}) {
-    const priority = priorityMap(env.NAVAL_PROVIDER_PRIORITY, ["aisstream", "fintraffic", "vesselapi", "openais", "marineplan", "aishub", "spire", "marinetraffic", "vesselfinder"]);
+    const priority = priorityMap(env.NAVAL_PROVIDER_PRIORITY, ["aisstream", "fintraffic", "kystverket", "vesselapi", "openais", "marineplan", "aishub", "spire", "marinetraffic", "vesselfinder"]);
     const providers = [
         createAisStreamProvider({
             enabled: envEnabled(env.AISSTREAM_ENABLED, true),
@@ -47,6 +48,12 @@ export function createNavalProviders(env = process.env, dependencies = {}) {
             reconnectMaxMs: Number(env.FINTRAFFIC_RECONNECT_MAX_MS) || 60_000,
             connectImpl: dependencies.mqttConnect,
             logger: dependencies.logger,
+        }),
+        createKystverketProvider({
+            enabled: envEnabled(env.KYSTVERKET_ENABLED, false),
+            baseUrl: env.KYSTVERKET_BASE_URL,
+            minimumIntervalMs: Number(env.KYSTVERKET_MINIMUM_INTERVAL_MS) || 900_000,
+            fetchImpl: dependencies.fetchImpl,
         }),
         createVesselApiProvider({
             enabled: envEnabled(env.VESSELAPI_ENABLED, false),
