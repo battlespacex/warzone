@@ -153,7 +153,7 @@ test("VesselAPI persistent state preserves the five-hour ceiling across provider
         logger: { log() {}, warn() {} },
     };
     const firstProvider = createVesselApiProvider(options);
-    const started = Date.parse("2026-08-13T12:00:00Z");
+    const started = Date.parse(new Date().toISOString().slice(0, 7) + "-15T12:00:00Z");
     await firstProvider.fetchObservations({ mmsis: ["368926275"], now: started });
     const recreatedProvider = createVesselApiProvider(options);
     const blocked = await recreatedProvider.fetchObservations({ mmsis: ["368000001"], now: started + 60_000 });

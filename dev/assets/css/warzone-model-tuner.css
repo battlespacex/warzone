@@ -9,7 +9,7 @@
     box-sizing: border-box;
     padding: 12px;
     border: 1px solid rgba(31, 226, 232, 0.5);
-    border-radius: 4px;
+    border-radius: 0;
     background: rgba(6, 13, 22, 0.96);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
     color: #d8f9ff;
@@ -57,7 +57,7 @@
 .wz-model-tuner textarea {
     box-sizing: border-box;
     border: 1px solid rgba(115, 153, 173, 0.52);
-    border-radius: 2px;
+    border-radius: 0;
     background: #101c2a;
     color: #e7fbff;
     font: inherit;

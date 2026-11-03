@@ -12,12 +12,14 @@ const GNSS_FALLBACK_COLORS = {
         low: "rgba(76, 255, 118, 0.28)",
         medium: "rgba(255, 220, 82, 0.32)",
         high: "rgba(255, 78, 78, 0.36)",
+        severe: "rgba(151, 79, 211, 0.4)",
         unknown: "rgba(160, 170, 180, 0.22)",
     },
     outline: {
         low: "rgba(76, 255, 118, 0.35)",
         medium: "rgba(255, 220, 82, 0.38)",
         high: "rgba(255, 78, 78, 0.42)",
+        severe: "rgba(170, 104, 233, 0.48)",
         unknown: "rgba(160, 170, 180, 0.25)",
     },
 };
@@ -34,6 +36,13 @@ const __gnssState = {
     handler: null,
     demoMode: false,
     trackingViewer: null,
+    groundPrimitives: [],
+    batchGeneration: 0,
+    sourceMode: "",
+    showHexagons: true,
+    severityFilter: "all",
+    lastInput: null,
+    controlsBound: false,
 };
 
 function cssNumber(name, fallback) {
@@ -61,16 +70,18 @@ function readGnssTokens() {
         markerScaleFarDistance: Math.max(10_000, cssNumber("--gnss-marker-scale-far-distance-m", 8000000)),
         markerScaleFarValue: clamp(cssNumber("--gnss-marker-scale-far-value", 1.65), 0.3, 4),
         fill: {
-            low: cssColor("--gnss-cell-fill-low", "rgba(76, 255, 118, 0.28)"),
-            medium: cssColor("--gnss-cell-fill-medium", "rgba(255, 220, 82, 0.32)"),
-            high: cssColor("--gnss-cell-fill-high", "rgba(255, 78, 78, 0.36)"),
-            unknown: cssColor("--gnss-cell-fill-unknown", "rgba(160, 170, 180, 0.22)"),
+            low: cssColor("--gnss-cell-fill-low", "rgba(13, 233, 79, 0.2)"),
+            medium: cssColor("--gnss-cell-fill-medium", "rgba(252, 255, 77, 0.2)"),
+            high: cssColor("--gnss-cell-fill-high", "rgba(138, 67, 254, 0.2)"),
+            severe: cssColor("--gnss-cell-fill-severe", "rgba(14, 127, 255, 0.2)"),
+            unknown: cssColor("--gnss-cell-fill-unknown", "rgba(100, 114, 133, 0.2)"),
         },
         outline: {
-            low: cssColor("--gnss-cell-outline-low", "rgba(76, 255, 118, 0.35)"),
-            medium: cssColor("--gnss-cell-outline-medium", "rgba(255, 220, 82, 0.38)"),
-            high: cssColor("--gnss-cell-outline-high", "rgba(255, 78, 78, 0.42)"),
-            unknown: cssColor("--gnss-cell-outline-unknown", "rgba(160, 170, 180, 0.25)"),
+            low: cssColor("--gnss-cell-outline-low", "rgba(13, 233, 79, 0.1)"),
+            medium: cssColor("--gnss-cell-outline-medium", "rgba(252, 255, 77, 0.1)"),
+            high: cssColor("--gnss-cell-outline-high", "rgba(138, 67, 254, 0.1)"),
+            severe: cssColor("--gnss-cell-outline-severe", "rgba(14, 127, 255, 0.1)"),
+            unknown: cssColor("--gnss-cell-outline-unknown", "rgba(100, 114, 133, 0.1)"),
         },
     };
     tokens.signature = JSON.stringify(tokens);
@@ -79,7 +90,7 @@ function readGnssTokens() {
 
 function normalizeSeverity(value = "") {
     const severity = String(value || "").toLowerCase();
-    if (["low", "medium", "high", "unknown"].includes(severity)) return severity;
+    if (["low", "medium", "high", "severe", "unknown"].includes(severity)) return severity;
     if (severity === "critical") return "high";
     return "unknown";
 }
@@ -461,51 +472,45 @@ function ensurePopupTracking(viewer) {
     viewer.scene.postRender.addEventListener(updateActiveGnssPanelPosition);
 }
 
-function renderPopupContent(cell = {}, tokens) {
-    const severityLabel = titleCase(normalizeSeverity(cell.severity));
-    const confidenceLabel = titleCase(normalizeConfidence(cell.confidence));
+function renderPopupContent(cell = {}) {
+    const severity = normalizeSeverity(cell.severity);
+    const severityLabel = titleCase(severity);
     const affected = `${Number(cell.affectedPercent || 0).toFixed(1)}%`;
     const sampleCount = Math.max(0, Number(cell.sampleCount || 0));
-    const color = getSeverityOutlineColor(tokens, cell.severity).toCssColorString();
+    const affectedCount = cell.affectedAircraftCount != null && Number.isFinite(Number(cell.affectedAircraftCount))
+        ? String(cell.affectedAircraftCount) : "Not reported";
     const sourceLabel = cell.sourceLabel || "GNSS Jamming Monitor";
     return `
         <div class="wz-widget-milbase wz-widget-gnss" itemscope itemtype="https://schema.org/Place">
             <header class="wz-widget-header">
                 <div class="wz-widget-kicker">
-                    <span class="wz-gnss-popup__dot" style="background:${escapeHtml(color)}" aria-hidden="true"></span>
-                    <span>GNSS Jamming ${cell.isDemo ? "Staged" : "Live"}</span>
+                    <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-popup__dot--${severity}" aria-hidden="true"></span>
+                    <span class="wz-widget-title">GNSS Intelligence</span>
                 </div>
                 <div class="wz-widget-header-actions">
-                    <button
-                        type="button"
-                        class="static-icon"
-                        data-widget-close
-                        aria-label="Close GNSS Jamming panel">
+                    <button type="button" class="static-icon" data-widget-close aria-label="Close GNSS panel">
                         <span class="stratops-ico-close-1" aria-hidden="true"></span>
                     </button>
                 </div>
             </header>
             <section class="wz-widget-body">
-                <p class="sr-only">
-                    GNSS Jamming panel showing severity, affected aircraft percentage, sample count, confidence, region, and coordinates.
-                </p>
-                <h3>${escapeHtml(`${severityLabel} GNSS Jamming`)}</h3>
+                <h3>${escapeHtml(cell.classification || "Observed GNSS degradation")} - ${escapeHtml(severityLabel)}</h3>
                 <ul class="wz-widget-data-list">
                     <li><strong>Affected aircraft</strong><span>${escapeHtml(affected)}</span></li>
-                    <li><strong>Samples</strong><span>${escapeHtml(String(sampleCount))}</span></li>
-                    <li><strong>Confidence</strong><span>${escapeHtml(confidenceLabel)}</span></li>
-                    <li><strong>Region</strong><span>${escapeHtml(cell.region || "Global")}</span></li>
-                    <li><strong>Country</strong><span>${escapeHtml(cell.country || "Unresolved location")}</span></li>
-                    <li><strong>Updated</strong><span>${escapeHtml(formatRelativeTimestamp(cell.updatedAt || cell.observedAt))}</span></li>
+                    <li><strong>Observed aircraft</strong><span>${escapeHtml(String(sampleCount))}</span></li>
+                    <li><strong>Affected count</strong><span>${escapeHtml(affectedCount)}</span></li>
+                    <li><strong>Observation period</strong><span>${escapeHtml(cell.observationPeriod || "Not reported")}</span></li>
+                    <li><strong>Freshness</strong><span>${escapeHtml(formatRelativeTimestamp(cell.updatedAt || cell.observedAt))}</span></li>
                     <li><strong>Coordinates</strong><span>${escapeHtml(formatCoordinate(cell.lat))}, ${escapeHtml(formatCoordinate(cell.lon))}</span></li>
                     <li><strong>Source</strong><span>${escapeHtml(sourceLabel)}</span></li>
+                    <li><strong>Limitations</strong><span>${escapeHtml(cell.detectionLimitations || "Aircraft accuracy reports are indirect evidence; jammer location is unknown.")}</span></li>
                 </ul>
             </section>
         </div>
     `;
 }
 
-function showGnssPanel(viewer, entity, screenPosition = null, tokens = readGnssTokens()) {
+function showGnssPanel(viewer, entity, screenPosition = null) {
     if (!viewer || !entity?.__gnssCell) return;
     closeActiveGnssPanel();
 
@@ -515,7 +520,7 @@ function showGnssPanel(viewer, entity, screenPosition = null, tokens = readGnssT
     panel.setAttribute("aria-modal", "false");
     panel.setAttribute("tabindex", "-1");
     panel.style.cssText = "position:fixed; width:28rem; max-width:calc(100vw - 1rem); z-index:900; opacity:0; transform:translate3d(0, 0, 0); pointer-events:none; transition:opacity 160ms ease;";
-    panel.innerHTML = renderPopupContent(entity.__gnssCell, tokens);
+    panel.innerHTML = renderPopupContent(entity.__gnssCell);
     document.body.appendChild(panel);
     panel.__wzPanelSize = {
         width: panel.offsetWidth || 448,
@@ -568,7 +573,7 @@ function applyEntityVisualState(entity, hovered = false) {
 function findPickedGnssEntity(viewer, position) {
     const picked = position ? viewer.scene.pick(position) : null;
     const entity = picked?.id;
-    if (entity?.properties?.[GNSS_ENTITY_PROP_KEY]?.getValue?.() === true) {
+    if (entity?.__gnssCell || entity?.properties?.[GNSS_ENTITY_PROP_KEY]?.getValue?.() === true) {
         return entity;
     }
     return null;
@@ -614,7 +619,7 @@ function bindPicking(viewer) {
         }
         __gnssState.hoverEntity = entity;
         applyEntityVisualState(entity, true);
-        showGnssPanel(viewer, entity, movement.position, readGnssTokens());
+        showGnssPanel(viewer, entity, movement.position);
         viewer.container.style.cursor = "pointer";
         viewer.scene.requestRender?.();
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -686,56 +691,178 @@ function upsertEntities(viewer, cells = [], tokens) {
     });
 }
 
+function clearGroundPrimitives(viewer) {
+    __gnssState.batchGeneration += 1;
+    const collection = viewer?.scene?.groundPrimitives;
+    if (collection) for (const primitive of __gnssState.groundPrimitives) collection.remove(primitive);
+    __gnssState.groundPrimitives = [];
+    __gnssState.cellsById.clear();
+}
+
+function renderGroundBatches(viewer, cells, tokens) {
+    clearGroundPrimitives(viewer);
+    const collection = viewer.scene.groundPrimitives;
+    const generation = __gnssState.batchGeneration;
+    let cursor = 0;
+    const nextBatch = () => {
+        if (generation !== __gnssState.batchGeneration || !__gnssState.visible) return;
+        const instances = [];
+        const outlines = [];
+        const end = Math.min(cursor + 200, cells.length);
+        for (; cursor < end; cursor += 1) {
+            const cell = cells[cursor];
+            const points = buildHexagonBoundary(cell, tokens.sizeKm);
+            if (points.length < 3) continue;
+            const color = getSeverityColors(tokens, cell.severity).fill;
+            const id = { id: `gnss-cell-${cell.id}`, __gnssCell: cell,
+                position: Cesium.Cartesian3.fromDegrees(cell.lon, cell.lat) };
+            __gnssState.cellsById.set(id.id, id);
+            const positions = Cesium.Cartesian3.fromDegreesArray(points.flatMap((point) => [point.lon, point.lat]));
+            if (tokens.outlineWidth > 0) {
+                outlines.push(new Cesium.GeometryInstance({
+                    geometry: new Cesium.GroundPolylineGeometry({
+                        positions,
+                        loop: true,
+                        width: tokens.outlineWidth,
+                    }),
+                    attributes: {
+                        color: Cesium.ColorGeometryInstanceAttribute.fromColor(
+                            getSeverityOutlineColor(tokens, cell.severity)
+                        ),
+                    },
+                }));
+            }
+            instances.push(new Cesium.GeometryInstance({
+                geometry: new Cesium.PolygonGeometry({
+                    polygonHierarchy: new Cesium.PolygonHierarchy(
+                        positions
+                    ),
+                    vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
+                }),
+                attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(color) },
+                id,
+            }));
+        }
+        if (instances.length) {
+            const primitive = collection.add(new Cesium.GroundPrimitive({
+                geometryInstances: instances,
+                appearance: new Cesium.PerInstanceColorAppearance({
+                    flat: true,
+                    translucent: true,
+                    closed: false
+                }),
+                classificationType: Cesium.ClassificationType.TERRAIN,
+                asynchronous: true,
+                allowPicking: true,
+                releaseGeometryInstances: true,
+            }));
+
+            __gnssState.groundPrimitives.push(primitive);
+
+            if (outlines.length > 0) {
+                const border = collection.add(new Cesium.GroundPolylinePrimitive({
+                    geometryInstances: outlines,
+                    appearance: new Cesium.PolylineColorAppearance({
+                        translucent: true
+                    }),
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                    asynchronous: true,
+                    allowPicking: false,
+                    releaseGeometryInstances: true,
+                }));
+
+                __gnssState.groundPrimitives.push(border);
+            }
+
+            viewer.scene.requestRender?.();
+        }
+        if (cursor < cells.length) requestAnimationFrame(nextBatch);
+    };
+    requestAnimationFrame(nextBatch);
+}
+
+function bindGnssControls(viewer) {
+    if (__gnssState.controlsBound) return;
+    const show = document.getElementById("wz-gnss-show-hexagons");
+    const severity = document.getElementById("wz-gnss-severity");
+    if (!show || !severity) return;
+    __gnssState.controlsBound = true;
+    show.addEventListener("change", () => {
+        __gnssState.showHexagons = show.checked;
+        if (__gnssState.lastInput) renderGnssInterferenceLayer(viewer, ...__gnssState.lastInput);
+    });
+    severity.addEventListener("change", () => {
+        __gnssState.severityFilter = severity.value;
+        if (__gnssState.lastInput) renderGnssInterferenceLayer(viewer, ...__gnssState.lastInput);
+    });
+}
+
 export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
-    const {
-        visible = true,
-        demoMode = false,
-        updatedAt = "",
-        liveAvailable = false,
-        tableAvailable = false,
-        message = "",
-    } = options;
     if (!viewer) return;
+    __gnssState.lastInput = [cells, options];
+    bindGnssControls(viewer);
     bindPicking(viewer);
     const tokens = readGnssTokens();
-    const signature = computeCellSignature(cells);
-    const layerEnabled = visible === true;
-    const cellCount = Array.isArray(cells) ? cells.length : 0;
-    const showCells = layerEnabled && cellCount > 0;
-    const dataSource = ensureDataSource(viewer);
-    __gnssState.demoMode = demoMode === true;
-
-    if (
-        signature !== __gnssState.signature ||
-        tokens.signature !== __gnssState.styleSignature
-    ) {
-        upsertEntities(viewer, Array.isArray(cells) ? cells : [], tokens);
+    const sourceMode = options.sourceMode || "unavailable";
+    const isPrimary = sourceMode === "gpsinterference";
+    const allCells = Array.isArray(cells) ? cells : [];
+    const selected = __gnssState.severityFilter === "all" ? allCells
+        : allCells.filter((cell) => normalizeSeverity(cell.severity) === __gnssState.severityFilter);
+    const layerEnabled = options.visible === true;
+    const showCells = layerEnabled && __gnssState.showHexagons && selected.length > 0;
+    const signature = computeCellSignature(selected) + ":" + sourceMode + ":" + __gnssState.showHexagons;
+    __gnssState.demoMode = options.demoMode === true;
+    if (signature !== __gnssState.signature || tokens.signature !== __gnssState.styleSignature) {
+        clearGroundPrimitives(viewer);
+        if (isPrimary) {
+            if (__gnssState.dataSource) {
+                __gnssState.dataSource.entities.removeAll();
+                setDataSourceActive(viewer, __gnssState.dataSource, false);
+            }
+        } else {
+            upsertEntities(viewer, selected, tokens);
+        }
         __gnssState.signature = signature;
         __gnssState.styleSignature = tokens.signature;
+        __gnssState.sourceMode = sourceMode;
     }
-
-    setDataSourceActive(viewer, dataSource, layerEnabled);
-    dataSource.show = showCells;
     __gnssState.visible = showCells;
-    if (!showCells) {
-        closeActiveGnssPanel();
-        clearHighlight();
-        hideTooltip();
+    if (isPrimary) {
+        if (showCells && !__gnssState.groundPrimitives.length) renderGroundBatches(viewer, selected, tokens);
+        if (!showCells) clearGroundPrimitives(viewer);
+    } else if (__gnssState.dataSource) {
+        setDataSourceActive(viewer, __gnssState.dataSource, layerEnabled);
+        __gnssState.dataSource.show = showCells;
     }
-    const statusText = buildLegendStatus({
-        cellCount,
-        demoMode,
-        updatedAt,
-        liveAvailable,
-        tableAvailable,
-        message,
-    });
-    const statusTone = demoMode ? "demo" : (showCells ? "live" : "warning");
-    setLegendVisible(layerEnabled, { demoMode, statusText, statusTone });
+    if (!showCells) { closeActiveGnssPanel(); clearHighlight(); hideTooltip(); }
+    const count = options.totalCells ?? allCells.length;
+    const updated = options.updatedAt ? ` Updated ${formatRelativeTimestamp(options.updatedAt)}.` : "";
+    const displayedCount = __gnssState.showHexagons ? selected.length : 0;
+    const filterLabel = __gnssState.severityFilter === "all" ? "all severities" : __gnssState.severityFilter;
+    const statusText = options.message || (count
+        ? `${count} regional cells observed; ${displayedCount} displayed (${filterLabel}).${updated}${options.truncated ? " Map display bounded; counts include all cells." : ""}`
+        : sourceMode === "gpsinterference" ? "No observations in this region; coverage may be insufficient."
+            : buildLegendStatus({ cellCount: 0, ...options }));
+    setLegendVisible(layerEnabled, { demoMode: options.demoMode, statusText,
+        statusTone: options.sourceHealth === "Available" && showCells ? "live" : "Warning" });
+    const counts = options.severityCounts || allCells.reduce((acc, cell) => {
+        const key = normalizeSeverity(cell.severity);
+        acc[key] = (acc[key] || 0) + 1; return acc;
+    }, {});
+    for (const key of ["low", "medium", "high", "severe"]) {
+        const el = document.getElementById(`wz-gnss-count-${key}`);
+        if (el) el.textContent = String(counts[key] || 0);
+    }
+    const period = document.getElementById("wz-gnss-observation-period");
+    if (period) period.textContent = options.observationPeriod || "Unknown observation date";
+    const health = document.getElementById("wz-gnss-source-health");
+    if (health) health.textContent = options.sourceHealth || "Unavailable";
     viewer.scene.requestRender?.();
 }
 
 export function clearGnssInterferenceLayer(viewer) {
+    clearGroundPrimitives(viewer);
+    __gnssState.lastInput = null;
     if (__gnssState.dataSource) {
         __gnssState.dataSource.entities.removeAll();
         __gnssState.dataSource.show = false;

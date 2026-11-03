@@ -126,6 +126,7 @@ let __gnssInterferenceMeta = {
 let __gnssInterferenceLoadingPromise = null;
 let __gnssInterferenceController = null;
 let __gnssInterferenceLastLoadedAt = 0;
+let __gnssObservationDate = "latest";
 let __statusEventsLastLoadedAt = 0;
 let __alertAudio = null;
 let __assetFocusUiSignature = "";
@@ -3696,10 +3697,14 @@ const REGION_COUNTRY_HINTS = {
     middle_east: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Iraq", "Iran", "Saudi Arabia", "United Arab Emirates", "Yemen", "Qatar", "Bahrain", "Oman", "Kuwait", "Turkey", "Egypt"],
     levant: ["Israel", "Palestine", "Lebanon", "Syria", "Jordan", "Cyprus", "Turkey", "Egypt"],
     ukraine: ["Ukraine", "Russia", "Belarus", "Poland", "Romania", "Moldova", "Lithuania", "Latvia", "Estonia"],
+    central_asia: ["Kazakhstan", "Kyrgyzstan", "Tajikistan", "Turkmenistan", "Uzbekistan", "Afghanistan", "Pakistan", "Iran"],
     south_asia: ["Pakistan", "India", "Afghanistan", "China", "Bangladesh", "Sri Lanka", "Nepal"],
     europe: ["Ukraine", "Russia", "Poland", "Romania", "Germany", "France", "United Kingdom", "Belarus", "Lithuania", "Latvia", "Estonia"],
     north_america: ["United States", "Canada", "Mexico", "Greenland"],
+    latin_america: ["Mexico", "Guatemala", "Belize", "Honduras", "El Salvador", "Nicaragua", "Costa Rica", "Panama", "Cuba", "Haiti", "Dominican Republic", "Jamaica"],
+    south_america: ["Colombia", "Venezuela", "Guyana", "Suriname", "Ecuador", "Peru", "Bolivia", "Brazil", "Paraguay", "Chile", "Argentina", "Uruguay"],
     east_asia: ["China", "Taiwan", "North Korea", "South Korea", "Japan", "Philippines", "Vietnam"],
+    oceania: ["Australia", "New Zealand", "Papua New Guinea", "Fiji", "Solomon Islands", "Vanuatu", "Samoa", "Tonga"],
     africa: ["Sudan", "South Sudan", "Ethiopia", "Somalia", "DR Congo", "Mali", "Niger", "Burkina Faso", "Libya"],
 };
 const COUNTRY_NAME_ALIASES = {
@@ -4059,17 +4064,38 @@ function normalizeGnssCell(cell = {}) {
         severity: String(cell.severity || "unknown").toLowerCase(),
         affectedPercent: Math.max(0, Math.min(100, Number(cell.affectedPercent ?? cell.affected_percent) || 0)),
         sampleCount: Math.max(0, Math.round(Number(cell.sampleCount ?? cell.sample_count) || 0)),
+        affectedAircraftCount: Number.isFinite(Number(cell.affectedAircraftCount)) ? Number(cell.affectedAircraftCount) : null,
+        observationPeriod: cell.observationPeriod || "",
+        detectionLimitations: cell.detectionLimitations || "",
         confidence: String(cell.confidence || "low").toLowerCase(),
         country: cell.country || "Unresolved location",
         region: cell.region || "Global",
         sourceLabel: cell.sourceLabel || "GNSS Jamming Monitor",
+        classification: cell.classification || "",
+        sourceUrl: cell.sourceUrl || "",
         observedAt: cell.observedAt || cell.observed_at || cell.updatedAt || cell.updated_at || "",
         updatedAt: cell.updatedAt || cell.updated_at || cell.observedAt || cell.observed_at || "",
         isDemo: cell.isDemo === true || cell.is_demo === true,
     };
 }
 function getScopedGnssInterferenceCells(cells = __gnssInterferenceCellsCache) {
-    return Array.isArray(cells) ? cells.slice() : [];
+    if (!Array.isArray(cells)) return [];
+    const bounds = getRegionRequestBounds(getActiveRegion?.());
+    if (!bounds) return cells.slice();
+    return cells.filter((cell) => {
+        const polygon = Array.isArray(cell.polygon) && cell.polygon.length ? cell.polygon : [cell];
+        let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        for (const point of polygon) {
+            const lat = Number(point.lat), lon = Number(point.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+            minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+            minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+        }
+        const longitudeOverlaps = maxLon - minLon > 180
+            ? bounds.maxLon >= maxLon || bounds.minLon <= minLon
+            : maxLon >= bounds.minLon && minLon <= bounds.maxLon;
+        return maxLat >= bounds.minLat && minLat <= bounds.maxLat && longitudeOverlaps;
+    });
 }
 function syncGnssInterferenceLayer() {
     const viewer = window.__warzoneViewer;
@@ -4088,7 +4114,22 @@ function syncGnssInterferenceLayer() {
         liveAvailable: __gnssInterferenceMeta.liveAvailable === true,
         tableAvailable: __gnssInterferenceMeta.tableAvailable === true,
         message: __gnssInterferenceMeta.message || "",
+        totalCells: __gnssInterferenceMeta.totalCells,
+        severityCounts: __gnssInterferenceMeta.severityCounts,
+        truncated: __gnssInterferenceMeta.truncated,
+        sourceHealth: __gnssInterferenceMeta.sourceHealth,
+        sourceLabel: __gnssInterferenceMeta.sourceLabel,
+        sourceUrl: __gnssInterferenceMeta.sourceUrl,
+        observationPeriod: __gnssInterferenceMeta.observationPeriod,
     });
+}
+function selectGnssObservationDate(date) {
+    __gnssObservationDate = date || "latest";
+    stopGnssInterferenceRefresh();
+    __gnssInterferenceLastLoadedAt = 0;
+    __gnssInterferenceCellsCache = [];
+    syncGnssInterferenceLayer();
+    if (isLayerEnabled("gnss")) void refreshGnssInterferenceCells({ force: true });
 }
 async function refreshGnssInterferenceCells({ force = false } = {}) {
     if (!isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
@@ -4099,7 +4140,7 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
         : GNSS_LAYER_REFRESH_MS;
     if (
         !force &&
-        __gnssInterferenceCellsCache.length &&
+        __gnssInterferenceLastLoadedAt &&
         (now - __gnssInterferenceLastLoadedAt) < refreshWindowMs
     ) {
         syncGnssInterferenceLayer();
@@ -4107,7 +4148,10 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
     }
     const controller = new AbortController();
     __gnssInterferenceController = controller;
-    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells({ signal: controller.signal })
+    __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells({
+        signal: controller.signal, bounds: getRegionRequestBounds(getActiveRegion?.()),
+        date: __gnssObservationDate,
+    })
         .then(({ data, error, meta }) => {
             if (controller.signal.aborted || __gnssInterferenceController !== controller || !isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
             if (error) return __gnssInterferenceCellsCache;
@@ -4121,6 +4165,13 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
                 liveAvailable: meta?.liveAvailable === true,
                 tableAvailable: meta?.tableAvailable === true,
                 message: meta?.message || "",
+                totalCells: meta?.totalCells ?? __gnssInterferenceCellsCache.length,
+                severityCounts: meta?.severityCounts || null,
+                truncated: meta?.truncated === true,
+                sourceHealth: meta?.sourceHealth || "unavailable",
+                sourceLabel: meta?.sourceLabel || "",
+                sourceUrl: meta?.sourceUrl || "",
+                observationPeriod: meta?.observationPeriod || "",
             };
             __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();
@@ -6105,7 +6156,10 @@ function statusPriority(status) {
 function rankCountryRows(events, type, max = 10) {
     const scopedEvents = Array.isArray(events) ? events : [];
     const statusEvents = getStatusScopedEvents(scopedEvents, type);
+    const regionId = getActiveRegion?.()?.id || "global";
+    const regionalCountries = regionId === "global" ? [] : (REGION_COUNTRY_HINTS[regionId] || []);
     const countryCandidates = [...new Set([
+        ...regionalCountries,
         ...deriveFocusCountries(scopedEvents, Math.max(max, 24)),
         ...statusEvents.map((event) => getEventResolvedCountry(event)),
     ].map(normalizeCountryName).filter(Boolean))];
@@ -6121,13 +6175,13 @@ function rankCountryRows(events, type, max = 10) {
                 priority: statusPriority(status),
             };
         })
-        .filter((row) => row.priority > 0 || row.relatedCount > 0)
+        .filter((row) => regionalCountries.length > 0 || row.priority > 0 || row.relatedCount > 0)
         .sort((a, b) => {
             if (b.priority !== a.priority) return b.priority - a.priority;
             if (b.relatedCount !== a.relatedCount) return b.relatedCount - a.relatedCount;
             return a.label.localeCompare(b.label);
         });
-    return rows.slice(0, max);
+    return regionalCountries.length ? rows : rows.slice(0, max);
 }
 function renderStatusFeedRows(container, domain) {
     const region = getActiveRegion?.();
@@ -6147,6 +6201,24 @@ function renderStatusFeedRows(container, domain) {
         let link = "";
         try { const url = new URL(item.source_url); if (["https:", "http:"].includes(url.protocol)) link = url.href; } catch { /* Invalid public URL is not linked. */ }
         const attribution = `${item.source_name} | ${item.published_at} | ${item.coverage}${stale ? ` | Last retrieved ${item.fetched_at}` : ""}`;
+        if (domain === "cyber") {
+            const published = new Date(item.published_at || "");
+            const publishedText = Number.isFinite(published.getTime())
+                ? published.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                : "Date unavailable";
+            const summary = String(item.summary || "").trim();
+            return `<article class="wz-status-report" title="${escapeHtml(attribution)}">
+                <details>
+                    <summary>
+                        <span class="wz-status-report__head"><strong>${escapeHtml(item.title)}</strong><span class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${escapeHtml(label)}</span></span>
+                        ${summary ? `<span class="wz-status-report__preview">${escapeHtml(summary)}</span>` : ""}
+                        <span class="wz-status-report__meta"><span>${escapeHtml(item.source_name || "Source unavailable")}</span><time datetime="${escapeHtml(item.published_at || "")}">${escapeHtml(publishedText)}</time></span>
+                    </summary>
+                    ${summary ? `<p class="wz-status-report__full">${escapeHtml(summary)}</p>` : ""}
+                    ${link ? `<a class="wz-status-report__source" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open original source</a>` : ""}
+                </details>
+            </article>`;
+        }
         return `<div class="status-row" title="${escapeHtml(attribution)}"><span><a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a><br><small>${escapeHtml(attribution)}</small></span><strong class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${label}</strong></div>`;
     }).join("");
     container.insertAdjacentHTML("beforeend", markup);
@@ -6181,7 +6253,7 @@ function renderCyberStatus(events) {
         const label = status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
-                <span>${row.label}</span>
+                <span>${escapeHtml(row.label)}</span>
                 <strong class="status-pill status-pill--${status}">${label}</strong>
             </div>
         `;
@@ -6218,7 +6290,7 @@ function renderAirspaceStatus(events) {
         const label = status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
-                <span>${row.label}</span>
+                <span>${escapeHtml(row.label)}</span>
                 <strong class="status-pill status-pill--${status}">${label}</strong>
             </div>
         `;
@@ -7661,12 +7733,24 @@ function startTracksRealtimeChannel() {
     if (!isLayerEnabled("aircraft")) return;
     if (isDocumentHidden()) return;
     installRealtimeSocketDiagnostics(supabase.realtime);
+    const onTrackChange = instrumentRealtimeCallback("tracks-live", enqueueTracksRealtimePayload);
     const channel = supabase
         .channel("tracks-live")
         .on(
             "postgres_changes",
-            { event: "*", schema: "public", table: "tracks" },
-            instrumentRealtimeCallback("tracks-live", enqueueTracksRealtimePayload)
+            { event: "INSERT", schema: "public", table: "tracks", filter: "track_type=eq.aircraft" },
+            onTrackChange
+        )
+        .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "tracks", filter: "track_type=eq.aircraft" },
+            onTrackChange
+        )
+        .on(
+            "postgres_changes",
+            // DELETE payloads contain only the primary key; Supabase cannot filter them by track_type.
+            { event: "DELETE", schema: "public", table: "tracks" },
+            onTrackChange
         )
         .subscribe((status, err) => {
             if (status === "SUBSCRIBED") markTrackerPerf("aircraft", "realtime subscription ready");
@@ -9399,6 +9483,13 @@ async function initializeWarzoneAppOnce() {
         markTrackerPerf("naval", "tracker enabled");
         requestNavalWidgetRender(0);
     }
+    // GNSS is optional and begins independently of the map-events request.
+    const gnssRefreshPromise = isLayerEnabled("gnss")
+        ? refreshGnssInterferenceCells({ force: true }).catch((error) => {
+            console.warn("Initial GNSS refresh failed:", error);
+            return __gnssInterferenceCellsCache;
+        })
+        : Promise.resolve(__gnssInterferenceCellsCache);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for events
 
@@ -9443,12 +9534,7 @@ async function initializeWarzoneAppOnce() {
                 if (!isRequestAbortError(error)) console.warn("Initial status refresh failed:", error);
                 return __statusEventsCache;
             });
-        const gnssRefreshPromise = isLayerEnabled("gnss")
-            ? refreshGnssInterferenceCells({ force: true }).catch((error) => {
-                console.warn("Initial GNSS refresh failed:", error);
-                return __gnssInterferenceCellsCache;
-            })
-            : Promise.resolve(__gnssInterferenceCellsCache);
+
         __viewportScoped = false;
         markStartupPerformance("stratops-map-events-render-start");
         markStartupPerformance("stratops-events-render-start");
@@ -9496,6 +9582,14 @@ async function initializeWarzoneAppOnce() {
             window.__militaryTracks = __militaryTracks;
         }
         {
+            document.getElementById("wz-gnss-period")?.addEventListener("change", (event) => {
+                selectGnssObservationDate(event.target.value);
+            });
+            document.getElementById("wz-gnss-latest")?.addEventListener("click", () => {
+                const dateInput = document.getElementById("wz-gnss-period");
+                if (dateInput) dateInput.value = "";
+                selectGnssObservationDate("latest");
+            });
             onRegionChange(() => {
                 window.__warzoneViewer?.__warzone?.setRaisedRegionVisible?.(
                     isLayerEnabled("region-plate"),
@@ -9538,7 +9632,10 @@ async function initializeWarzoneAppOnce() {
                         ? applyHotspotFilters(__eventsCache, { respectRegion: true })
                         : []
                 );
+                stopGnssInterferenceRefresh();
+                __gnssInterferenceLastLoadedAt = 0;
                 syncGnssInterferenceLayer();
+                if (isLayerEnabled("gnss")) void refreshGnssInterferenceCells({ force: true });
                 syncFocusAwareBackgroundLoops();
                 scheduleViewportFetch(60);
                 requestAircraftMovementsWidgetRender(0);
@@ -9558,9 +9655,6 @@ async function initializeWarzoneAppOnce() {
                             ? data.map((row) => normalizeEvent(row)).filter(Boolean)
                             : [];
                         await refreshStatusEvents();
-                        if (isLayerEnabled("gnss")) {
-                            await refreshGnssInterferenceCells({ force: true });
-                        }
                         renderAll(mergeMapBootstrapWithRealtime(freshEvents, requestedRegion));
                         syncNewsTickerForCurrentMode();
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
@@ -11986,27 +12080,31 @@ const __operationalReportsState = {
     selectedReport: null,
     selectedReportId: "",
     loadSequence: 0,
+    historySequence: 0,
     loadTimer: 0,
     previousFocus: null,
     inertEntries: [],
     cameraInputsEnabled: null,
     previewResizeObserver: null,
+    previewReportType: "",
 };
 const OPERATIONAL_REPORT_MOBILE_BREAKPOINT = 768;
 const OPERATIONAL_REPORT_DESKTOP_VIEWPORT_WIDTH = 1024;
 
-function isOperationalReportHtmlPreviewEnabled() {
-    return isStratOpsFeatureEnabled("reports.htmlPreview", false);
+function isOperationalReportHtmlPreviewEnabled(report = null) {
+    const reportType = report?.report_type ?? __operationalReportsState.previewReportType;
+    return reportType === "72hour"
+        || isStratOpsFeatureEnabled("reports.htmlPreview", false);
 }
 
 function getOperationalReportPreviewUrl(report = {}) {
-    return isOperationalReportHtmlPreviewEnabled()
+    return isOperationalReportHtmlPreviewEnabled(report)
         ? api.getOperationalReportHtmlUrl(report)
         : api.getOperationalReportViewerUrl(report);
 }
 
 function getOperationalReportFrameUrl(report = {}, previewUrl = "") {
-    if (isOperationalReportHtmlPreviewEnabled()) return previewUrl;
+    if (isOperationalReportHtmlPreviewEnabled(report)) return previewUrl;
     const viewerUrl = new URL("/pages/report-pdf-viewer.html", window.location.origin);
     viewerUrl.searchParams.set("file", previewUrl);
     const downloadUrl = api.getOperationalReportDownloadUrl(report);
@@ -12054,6 +12152,9 @@ function formatOperationalReportDate(value = "") {
 }
 
 function formatOperationalReportPeriod(report = {}) {
+    if (report.report_type === "72hour" && report.period_start && report.period_end) {
+        return `${report.period_start} through ${report.period_end}`;
+    }
     const start = formatOperationalReportDate(report.period_start);
     const end = formatOperationalReportDate(report.period_end);
     return [start, end].filter(Boolean).join(" - ");
@@ -12061,7 +12162,7 @@ function formatOperationalReportPeriod(report = {}) {
 
 function getOperationalReportFilename(report = {}) {
     const reportDate = String(report.report_date || report.period_start || "").match(/\d{4}-\d{2}-\d{2}/)?.[0];
-    return `StratOps-Operational-Intelligence-Briefing-${reportDate || "latest"}.pdf`;
+    return `StratOps-${report.report_type === "72hour" ? "72-Hour-Operational-Report" : "Operational-Intelligence-Briefing"}-${reportDate || "latest"}.pdf`;
 }
 
 function setOperationalReportDownloadState(report = null, htmlReady = false) {
@@ -12140,7 +12241,7 @@ function stopOperationalReportPreviewLayout() {
     }
 }
 
-async function canLoadOperationalReportPreview(previewUrl, sequence) {
+async function canLoadOperationalReportPreview(previewUrl, sequence, report = {}) {
     let parsed;
     try {
         parsed = new URL(previewUrl, window.location.href);
@@ -12148,7 +12249,7 @@ async function canLoadOperationalReportPreview(previewUrl, sequence) {
         return false;
     }
     if (parsed.origin !== window.location.origin) return true;
-    const expectedContentType = isOperationalReportHtmlPreviewEnabled() ? "text/html" : "application/pdf";
+    const expectedContentType = isOperationalReportHtmlPreviewEnabled(report) ? "text/html" : "application/pdf";
     try {
         const response = await fetch(parsed.href, {
             method: "HEAD",
@@ -12172,6 +12273,7 @@ async function openOperationalReportViewer(report = {}) {
     const previewUrl = getOperationalReportPreviewUrl(report);
     const frameUrl = previewUrl ? getOperationalReportFrameUrl(report, previewUrl) : "";
     const sequence = ++__operationalReportsState.loadSequence;
+    __operationalReportsState.previewReportType = report.report_type || "";
     __operationalReportsState.selectedReport = null;
     __operationalReportsState.selectedReportId = String(report.id || "");
     setOperationalReportDownloadState(null, false);
@@ -12184,7 +12286,7 @@ async function openOperationalReportViewer(report = {}) {
         return;
     }
 
-    if (!(await canLoadOperationalReportPreview(previewUrl, sequence))) {
+    if (!(await canLoadOperationalReportPreview(previewUrl, sequence, report))) {
         if (sequence !== __operationalReportsState.loadSequence) return;
         if (loader) loader.hidden = true;
         setOperationalReportPeriod(report, false);
@@ -12236,7 +12338,9 @@ function populateOperationalReportSelector(reports = []) {
     available.forEach((report, index) => {
         const option = document.createElement("option");
         option.value = String(report.id || "");
-        const label = String(report.display_label || formatOperationalReportDate(report.period_start) || "Operational report");
+        const label = report.report_type === "72hour"
+            ? formatOperationalReportPeriod(report)
+            : String(report.display_label || formatOperationalReportDate(report.period_start) || "Operational report");
         option.textContent = index === 0 ? `Latest - ${label}` : label;
         select.appendChild(option);
     });
@@ -12245,23 +12349,26 @@ function populateOperationalReportSelector(reports = []) {
 }
 
 async function loadOperationalReportHistory() {
+    const requestSequence = ++__operationalReportsState.historySequence;
     resetOperationalReportViewer();
     setOperationalReportDownloadState(null, false);
     try {
-        const { data } = await api.getOperationalReports("daily", "global");
-        if (!__operationalReportsState.isOpen) return;
+        const type = document.getElementById("wz-operational-reports-type")?.value || "72hour";
+        const { data } = await api.getOperationalReports(type, "global");
+        if (!__operationalReportsState.isOpen || requestSequence !== __operationalReportsState.historySequence) return;
         const reports = populateOperationalReportSelector(Array.isArray(data) ? data : []);
         __operationalReportsState.availableReports = reports;
         if (!reports.length) {
             const loader = document.getElementById("wz-operational-report-loader");
             if (loader) loader.hidden = true;
-            setReportsStatus("REPORT UNAVAILABLE\nNo completed daily briefing is available.", true);
+            setReportsStatus(`REPORT UNAVAILABLE\nNo completed ${type === "72hour" ? "72-hour operational report" : `${type} briefing`} is available.`, true);
             return;
         }
         const select = document.getElementById("wz-operational-reports-select");
         if (select) select.value = String(reports[0].id || "");
         openOperationalReportViewer(reports[0]);
     } catch (error) {
+        if (requestSequence !== __operationalReportsState.historySequence) return;
         console.warn("[reports] report history lookup failed:", error);
         const loader = document.getElementById("wz-operational-report-loader");
         if (loader) loader.hidden = true;
@@ -12424,6 +12531,9 @@ function initOperationalReportsModal() {
         const reportId = String(event.currentTarget?.value || "");
         const report = __operationalReportsState.availableReports.find((item) => String(item.id || "") === reportId);
         if (report) openOperationalReportViewer(report);
+    });
+    document.getElementById("wz-operational-reports-type")?.addEventListener("change", () => {
+        loadOperationalReportHistory();
     });
     document.getElementById("dock-reports")?.addEventListener("click", openOperationalReportsModal);
     document.getElementById("wz-mobile-reports")?.addEventListener("click", () => {

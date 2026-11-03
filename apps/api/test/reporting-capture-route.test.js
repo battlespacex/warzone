@@ -29,6 +29,26 @@ test("internal report capture authorization requires an exact bearer token", () 
   assert.equal(__stratopsRouteTestUtils.isAuthorizedCaptureRequest(requestWithAuthorization(`Bearer ${expected}`), ""), false);
 });
 
+test("72-hour reports have distinct validation, storage, labels and publication-based access", () => {
+  const helpers = __stratopsRouteTestUtils;
+  assert.equal(helpers.normalizeReportType("72hour"), "72hour");
+  assert.equal(helpers.normalizeReportType("unknown"), null);
+  const report = {
+    id: "period-1", report_type: "72hour", scope_type: "global", scope_label: "Global",
+    period_start: "2026-01-01T00:00:00.000Z", period_end: "2026-01-04T00:00:00.000Z",
+    status: "available", report_version: "2026-07-stratops-report-v2",
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    pdf_storage_key: "reports/72hour/global/2026-01-01/report.pdf", download_token: "token",
+  };
+  assert.equal(helpers.isReportInsidePublicRetention(report), true);
+  assert.equal(helpers.getReportDownloadFilename(report), "StratOps-72-Hour-Operational-Report-2026-01-01.pdf");
+  const publicReport = helpers.toPublicHistoryReport(requestForOrigin(), report);
+  assert.match(publicReport.display_label, /72-hour operational report/);
+  assert.match(publicReport.html_url, /reports\/72hour\/global\/2026-01-01\/report\.html$/);
+  assert.equal(helpers.isReportInsidePublicRetention({ ...report, status: "failed" }), false);
+  assert.equal(helpers.isReportInsidePublicRetention({ ...report, expires_at: "2026-01-05T00:00:00.000Z" }), false);
+});
+
 test("published reports expose the HTML artifact beside the existing PDF", () => {
   const report = { pdf_storage_key: "reports/daily/global/2026-08-08/report.pdf" };
   const req = requestForOrigin();

@@ -1,0 +1,40 @@
+# Supabase Realtime V1.3 staging validation plan
+
+Status: **proposal only** for Laptop B (`C:\DX\warzone-recovery`). No SQL migration, worker release, production deployment, or billing change has been executed.
+
+## Schema gate before any database write
+
+The user-run production catalog check reports that all four tracking tables exist, no non-internal triggers exist, all four use DEFAULT replica identity, and only `public.events` and `public.tracks` belong to `supabase_realtime`. The complete CSV exports confirm a single-column unique constraint/index on `events.dedupe_key` and `naval_tracks_log.mmsi`, a unique index on `events.source_key` and `aircraft_tracks_log.track_key`, and a unique constraint/index on `tracks.track_key`. These match the worker's five conflict targets. `events.dedupe_key` also has a second unique btree index on the same column; this proposal does not drop either one. The CSV definitions do not show index `indisvalid`/`indisready` flags. Repeat the catalog queries in [the V1.2 SQL proposal](./supabase-realtime-v12-proposed-migration.sql), including the added validity query, in staging and compare definitions with production. **Stop** if any required index is invalid/not ready, any definition differs, or any trigger has appeared.
+
+| Worker conflict target | Exported production definition |
+| --- | --- |
+| AIS `events.dedupe_key` | `events_dedupe_key_key`: `UNIQUE (dedupe_key)` constraint and btree index; `events_dedupe_key_idx`: a second unique btree index on the same column |
+| ADS-B `events.source_key` | `events_source_key_unique`: unique btree index on `source_key` |
+| `tracks.track_key` | `tracks_track_key_key`: `UNIQUE (track_key)` constraint and btree index |
+| `aircraft_tracks_log.track_key` | `aircraft_tracks_log_track_key_uidx`: unique btree index on `track_key` |
+| `naval_tracks_log.mmsi` | `naval_tracks_log_mmsi_key`: `UNIQUE (mmsi)` constraint and btree index |
+
+The additional nonunique `idx_naval_mmsi` index also covers `mmsi`; index cleanup is outside this Realtime change and requires a separate usage review.
+
+## Candidate migration
+
+Use the guarded, still-commented `BEFORE UPDATE` trigger proposal in the V1.2 SQL file as the staging candidate. It returns `NULL` only when an existing AIS `signal` event's entire `NEW` row is not distinct from `OLD`. This prevents a row UPDATE and its Postgres Changes notification for an exact replay. It retains INSERT, DELETE, and every UPDATE that changes source time, position, metadata, attribution, status, or another column. The function has no external call, timer, cache, or new table. The five-second poll remains unchanged. `tracks` and both history tables keep their current writes because their ingestion-time heartbeat fields support active-state, API, and pruning behavior. The database still receives the UPSERT request and conflict check; this proposal saves redundant row updates and Realtime deliveries, not all database work.
+
+The complete production index definitions have now been reviewed. Keep the proposal commented until explicit approval for staging database changes; then create an executable staging migration from the reviewed text, with its schema guard and a separate rollback file. Do not run this proposal against production.
+
+## Staging sequence and pass conditions
+
+1. **Baseline on a schema-matched staging project:** record the four tables' schema, indexes, triggers, publication membership, and replica identity. Use isolated synthetic AIS and ADS-B identifiers. Capture database INSERT/UPDATE/DELETE deltas, one test client's Postgres Changes messages, worker UPSERT attempts, per-cycle latency, and `tracks.updated_at`/history `last_seen_at`. Realtime subscription and workers must use staging credentials only.
+2. **Identical workload:** replay 84 distinct vessels for four five-second cycles, matching the shape of the read-only production sample. Baseline expectation for initially absent vessels is 84 event INSERTs plus 252 event UPDATEs. After installing the candidate in staging, require 84 event INSERTs and **zero** identical event row UPDATEs or event UPDATE messages. Track/history writes and their heartbeat values must match baseline. For existing identical rows, require zero event UPDATEs. Record actual counters; these figures are fixture expectations, not production savings.
+3. **Meaningful changes:** replay unchanged coordinates with a newer source `occurred_at`; changed latitude/longitude; heading/speed; source attribution or metadata; vessel name/class; and status. Each changed event must UPDATE once and reach the event subscriber once. New identities must INSERT once. A same-time exact replay must not UPDATE. Verify source times do not advance when the provider replays old observations.
+4. **Isolation and lifecycle:** repeat an unrelated `signal`, an ADS-B `flight_tracking` event, another operational report type, and an event DELETE. All must keep legacy behavior. Run two concurrent workers against one vessel key and check no duplicate row, lost newer observation, or failed UPSERT. Exercise an error/rollback and recovery cycle. Confirm no unexpected statement-trigger side effect or changed worker error rate.
+5. **Application checks:** run Aircraft and Naval Tracker together; switch regions, layers, Focus, and CTR. Verify naval movement and 90-second missing-contact grace, the 45-minute source-stale purge, aircraft eight-minute history-active window, aircraft history retrieval, AOI, intelligence alerts, operational reports, and satellite layers. No stale contact may be kept alive solely by a repeated old AIS payload, and a genuinely new observation must remain visible promptly.
+6. **Load and release gate:** compare identical 100-, 500-, and 1,000-vessel batches at the unchanged five-second cadence. Report per-cycle p50/p95 duration, row-update deltas, Realtime deliveries per connected client, database CPU/WAL where available, and errors. Reject the migration if legitimate changed-event delivery or freshness differs from baseline, if poll cycles begin skipping, or if performance materially worsens. Use comparable clients and workload in every comparison.
+
+The existing worker tests cover payload identity and changed source time, position, and metadata; they do **not** test the proposed PostgreSQL trigger. Staging database and authenticated browser results must be reported separately. The previous read-only production observation saw 336 naval event UPDATE deliveries in 20 seconds, including 252 exact repeats after the first observed update per key. That is a short candidate sample for this client stream, not an after measurement or monthly billing projection.
+
+## Release, monitoring, rollback
+
+After staging passes and the user approves production execution, take a fresh production schema/trigger/publication snapshot; apply only the reviewed trigger/function in one transaction; keep polling and worker binaries unchanged. Compare an equivalent pre/post interval for event row updates, event Realtime messages per client, track/history heartbeat freshness, API failures, worker cycle duration, and concurrent connection count. Review Supabase's actual billing-cycle Realtime Messages report before making any claim about the four-million target.
+
+If any legitimate update is suppressed, an error appears, or freshness degrades, drop only the new trigger and function using the reviewed rollback in the V1.2 SQL proposal. No data rewrite or polling-interval change is required. Confirm event delivery returns to baseline. This plan authorizes no database action by itself.

@@ -238,7 +238,7 @@ function getScopePath(snapshot = {}) {
 function buildReportImageDirectory(snapshot = {}) {
   const dateKey = cleanText(snapshot.snapshot_date || snapshot.snapshot_data?.report_date).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new Error("Invalid snapshot date for report image path");
-  return `daily/${getScopePath(snapshot)}/${dateKey}/images`;
+  return `${snapshot.report_type || snapshot.snapshot_data?.report_type || "daily"}/${getScopePath(snapshot)}/${dateKey}/images`;
 }
 
 function buildCaptureDescriptors(snapshot = {}, { maxImages = 8, s3Prefix = "reports", format = "jpeg" } = {}) {

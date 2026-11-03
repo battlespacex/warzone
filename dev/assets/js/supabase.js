@@ -55,7 +55,7 @@ const MAP_EVENTS_SELECT_COLUMNS = [
 ].join(", ");
 const EVENTS_SINCE_LIMIT = 200;
 const INTEL_FEED_LIMIT = 120;
-const GNSS_CELL_LIMIT = 240;
+const GNSS_CELL_LIMIT = 12_000;
 const AIRCRAFT_HISTORY_WINDOW_HOURS = 72;
 const AIRCRAFT_HISTORY_WINDOW_MS = AIRCRAFT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const AIRCRAFT_HISTORY_LIMIT = 1000;
@@ -288,9 +288,13 @@ export const api = {
         return { data: json.items || [], error: null };
     },
 
-    async getGnssInterferenceCells({ signal } = {}) {
+    async getGnssInterferenceCells({ signal, bounds, date = "latest" } = {}) {
         try {
-            const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?limit=${GNSS_CELL_LIMIT}`, { signal });
+            const params = new URLSearchParams({ limit: String(GNSS_CELL_LIMIT), date });
+            if (bounds) for (const key of ["minLat", "maxLat", "minLon", "maxLon"]) {
+                if (Number.isFinite(bounds[key])) params.set(key, String(bounds[key]));
+            }
+            const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?${params}`, { signal });
             const json = await readJsonResponse(res, "GNSS Jamming fetch");
             return {
                 data: json.cells || [],
@@ -302,6 +306,13 @@ export const api = {
                     liveAvailable: json.liveAvailable === true,
                     tableAvailable: json.tableAvailable === true,
                     message: json.message || "",
+                    totalCells: json.totalCells ?? (json.cells || []).length,
+                    severityCounts: json.severityCounts || null,
+                    truncated: json.truncated === true,
+                    sourceHealth: json.sourceHealth || "unavailable",
+                    sourceLabel: json.sourceLabel || "",
+                    sourceUrl: json.sourceUrl || "",
+                    observationPeriod: json.observationPeriod || "",
                 },
             };
         } catch (error) {
@@ -325,7 +336,7 @@ export const api = {
     async getOperationalReports(type = "daily", scopeType = "global") {
         const reportType = String(type || "daily").trim().toLowerCase();
         const params = new URLSearchParams({
-            type: reportType === "weekly" ? "weekly" : "daily",
+            type: ["daily", "weekly", "72hour"].includes(reportType) ? reportType : "daily",
             scope_type: scopeType || "global",
         });
         if (isLocalhost) {
@@ -361,7 +372,7 @@ export const api = {
     async getLatestOperationalReport(type = "daily", scopeType = "global") {
         const reportType = String(type || "daily").trim().toLowerCase();
         const params = new URLSearchParams({
-            type: reportType === "weekly" ? "weekly" : "daily",
+            type: ["daily", "weekly", "72hour"].includes(reportType) ? reportType : "daily",
             scope_type: scopeType || "global",
         });
         const res = await fetch(`${REPORTS_API_BASE}/stratops/reports/latest?${params.toString()}`);

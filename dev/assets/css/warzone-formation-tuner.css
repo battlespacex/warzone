@@ -6,7 +6,7 @@
     min-height: 32px;
     padding: 6px 11px;
     border: 1px solid rgba(31, 226, 232, 0.65);
-    border-radius: 2px;
+    border-radius: 0;
     background: rgba(6, 13, 22, 0.94);
     color: #20dfe6;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);

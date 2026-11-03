@@ -1011,7 +1011,7 @@
     gap: .7rem;
     display: flex;
     flex-direction: column;
-    clip-path: var(--clippath-shape-4);
+    clip-path: var(--clippath-shape-1);
 }
 
 .wz-event-popup__title {
@@ -1177,7 +1177,7 @@
     text-align: left;
     color: var(--color-text-heading);
     cursor: pointer;
-    clip-path: var(--clippath-shape-4);
+    clip-path: var(--clippath-shape-1);
 }
 
 .wz-event-popup-related__item:hover,
@@ -1565,7 +1565,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 3.2rem;
+    min-height: 3rem;
     padding: 0 1.2rem;
     color: var(--color-text-heading);
     background: var(--color-bg-row);
@@ -1665,7 +1665,7 @@
     background: var(--color-bg-dark);
     color: var(--color-text-heading);
     box-shadow: var(--widget-shadow);
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
     pointer-events: none;
     backdrop-filter: blur(.2rem);
 }
@@ -2418,6 +2418,7 @@ body.is-map-layers-open .wz-map-layers-pane {
     margin: 0;
     color: var(--color-text-heading);
     font-size: var(--text-lg);
+    line-height: var(--text-lg);
     text-transform: uppercase;
 }
 
@@ -2553,7 +2554,7 @@ body.is-map-layers-open .wz-map-layers-pane {
     text-transform: uppercase;
     background: var(--color-teal-hover);
     margin-bottom: .5rem;
-    clip-path: var(--clippath-2);
+    clip-path: var(--clippath-3);
 }
 
 .wz-layer-toggle {
@@ -3106,9 +3107,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 
 .wz-pre-entry-showcase__item .static-icon {
-    width: 3.2rem;
-    height: 3.2rem;
-    min-width: 3.2rem;
+    width: 3rem;
+    height: 3rem;
+    min-width: 3rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3321,7 +3322,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 
 
 .wz-modal header p {
-    margin: 1rem 0 0;
+    margin: .7rem 0 0;
     color: var(--color-text-dim);
 }
 
@@ -3730,6 +3731,16 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     height: auto;
 }
 
+.is-pre-entry .wz-region.wz-modal .wz-close-modal { 
+    display: none; 
+}
+
+.wz-region.wz-modal .wz-header-title {
+    flex-direction: column;
+    gap: 0;
+    align-items: flex-start;
+}
+
 .wz-region-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3745,7 +3756,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 .wz-region-grid .btn-secondary {
     background: var(--color-bg-row);
     max-width: 100%;
-    height: 5.5rem;
+    height: 5rem;
     position: relative;
     color: var(--color-white);
     padding: 0 2rem
@@ -3803,7 +3814,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     min-height: 8rem;
     padding: 1rem;
     background: var(--color-bg-row);
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
     gap: .2rem;
 }
 
@@ -3828,6 +3839,58 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 /* #endregion =========== */
+/* Screen-space missile callouts remain tied to their Cesium geographic markers. */
+.wz-tactical-annotation-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.wz-tactical-annotation {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: max-content;
+    max-width: min(28rem, calc(100% - 2rem));
+    padding: .65rem 1rem;
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
+    border-left: 3px solid var(--wz-tactical-accent);
+    clip-path: var(--clippath-shape-1);
+    font-family: var(--heading-font);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+    z-index: 1;
+    will-change: transform;
+}
+
+.wz-tactical-annotation--description {
+    max-width: min(32rem, calc(100% - 2rem));
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 600;
+}
+
+.wz-tactical-annotation__leader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 1px;
+    background: var(--wz-tactical-accent);
+    opacity: .8;
+    transform-origin: left center;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.wz-tactical-annotation__leader[hidden] { display: none; }
+
 /* #region =========== WIDGET - CRITICALITY COLOR PILLS =========== */
 .status-list {
     display: grid;
@@ -3836,6 +3899,100 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     transition: 320ms ease;
 }
 
+/* Cyber reports use existing StratOps clipping on both cards and expanded copy. */
+#cyber-status-list .wz-status-report {
+    min-width: 0;
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
+    clip-path: var(--clippath-shape-1);
+}
+
+.wz-status-report details,
+.wz-status-report summary { min-width: 0; }
+
+.wz-status-report summary {
+    display: grid;
+    gap: .6rem;
+    padding: 1rem 1.2rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.wz-status-report summary::-webkit-details-marker { display: none; }
+
+.wz-status-report__head,
+.wz-status-report__meta {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .8rem;
+    min-width: 0;
+}
+
+.wz-status-report__head strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: var(--text-sm);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.wz-status-report details[open] .wz-status-report__head strong { display: block; }
+
+.wz-status-report .status-pill {
+    min-width: 0;
+    height: auto;
+    min-height: 2.2rem;
+    flex: 0 0 auto;
+    padding: .3rem .6rem;
+    font-size: var(--text-xs);
+}
+
+.wz-status-report__preview {
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+.wz-status-report details[open] .wz-status-report__preview { display: none; }
+
+.wz-status-report__meta {
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.wz-status-report__meta time { flex: 0 0 auto; text-align: right; }
+
+.wz-status-report__full {
+    margin: 0 .8rem .6rem;
+    padding: .8rem;
+    background: var(--color-bg-header);
+    clip-path: var(--clippath-shape-3);
+    color: var(--color-text-dim);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.wz-status-report__source {
+    display: inline-block;
+    max-width: calc(100% - 2.4rem);
+    margin: 0 1.2rem 1rem;
+    color: var(--color-teal-glow);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
 #cyber-status-list[hidden],
 #airspace-status-list[hidden],
 #wz-aircraft-panel[hidden],
@@ -3860,7 +4017,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     padding: 0 0.3rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .status-pill--closed,
@@ -3913,7 +4070,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     filter: var(--widget-shadow);
     backdrop-filter: blur(.2rem);
     visibility: visible;
-    border-radius: .2rem
+    border-radius: 0
 }
 
 .panel-container {
@@ -4044,16 +4201,15 @@ UNUSED CANDIDATE END */
     font-family: var(--heading-font);
     color: var(--color-text-heading);
     align-items: center;
-    padding: .7rem 1.4rem;
+    padding: 0;
     position: relative;
-    clip-path: var(--clippath-shape-3);
-    background: var(--color-magenta-glow);
 }
 
 .escalation-meter .static-icon {
     height: 4.5rem;
     width: 4.5rem;
     font-size: var(--icon-xxl);
+    color: var(--color-magenta-glow);
 }
 
 .escalation-meter small {
@@ -4343,7 +4499,7 @@ UNUSED CANDIDATE END */
     padding: 0 0.3rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .wz-aircraft-badge.is-active {
@@ -4377,7 +4533,7 @@ UNUSED CANDIDATE END */
     opacity: 0;
     transform: translate(-50%, 0);
     transition: opacity .18s ease, border-color .18s ease;
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .wz-aircraft-focus-panel.is-visible {
@@ -4428,7 +4584,7 @@ UNUSED CANDIDATE END */
     border: 0;
     background: var(--color-teal);
     color: var(--color-white);
-    clip-path: var(--clippath-shape-5);
+    clip-path: var(--clippath-shape-4);
 }
 
 .wz-aircraft-focus-panel__unfocus:hover {
@@ -6399,9 +6555,13 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 }
 
 .wz-widget-header .wz-widget-kicker .static-icon {
-    font-size: var(--icon-lg);
-    width: 1rem;
-    height: 2rem;
+    font-size: var(--icon-md);
+    width: 1.5rem;
+    height: 1.5rem;;
+}
+
+.wz-widget-header .wz-widget-kicker .wz-widget-title {
+    padding-top: .4rem;
 }
 
 .wz-widget-header-actions {
@@ -6436,6 +6596,12 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     border-radius: 50%;
     flex-shrink: 0;
 }
+
+.wz-gnss-popup__dot--low { color: var(--gnss-legend-fill-low); }
+.wz-gnss-popup__dot--medium { color: var(--gnss-legend-fill-medium); }
+.wz-gnss-popup__dot--high { color: var(--gnss-legend-fill-high); }
+.wz-gnss-popup__dot--severe { color: var(--gnss-legend-fill-severe); }
+.wz-gnss-popup__dot--unknown { color: var(--gnss-legend-fill-unknown); }
 
 .milbase-panel__dot {
     display: inline-block;

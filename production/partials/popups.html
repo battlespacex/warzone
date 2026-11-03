@@ -630,8 +630,15 @@
             <div class="wz-modal-box wz-max-modal">
                 <div class="wz-modal-inner">
                     <header>
-                        <h2 id="wz-region-title">Select Region</h2>
-                        <p id="wz-region-sub">Choose an initial theater to begin monitoring.</p>
+                        <span class="wz-header-title">
+                            <h2 id="wz-region-title">Select Region</h2>
+                            <p id="wz-region-sub">
+                                Choose an initial theater to begin monitoring.
+                            </p>
+                        </span>
+                        <span class="wz-close-modal">
+                            <button type="button" class="static-icon stratops-ico-close-1" id="wz-region-close" aria-label="Close region dialog"></button>
+                        </span>
                     </header>
                     <section class="wz-region-grid" id="wz-region-modal-grid" role="listbox"
                         aria-label="Available monitoring regions"></section>
@@ -1245,6 +1252,16 @@
                         </p>
                     </span>
                     <span class="wz-operational-reports__controls" role="toolbar" aria-label="Report controls">
+                        <label class="wz-operational-reports__selector" for="wz-operational-reports-type">
+                            <span class="wz-title">Report Type</span>
+                            <span class="wz-selector" role="toolbar" aria-label="Report controls">
+                                <select id="wz-operational-reports-type" class="wz--dropdown" aria-label="Select report type">
+                                    <option value="72hour">72-hour operational report</option>
+                                    <option value="daily">Daily briefing</option>
+                                    <option value="weekly">Weekly briefing</option>
+                                </select>
+                            </span>
+                        </label>
                         <label class="wz-operational-reports__selector" for="wz-operational-reports-select">
                             <span class="wz-title">Select Report</span>
                             <span class="wz-selector" role="toolbar" aria-label="Report controls">

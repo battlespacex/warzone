@@ -157,13 +157,34 @@ async function aoiHarness() {
     "clearAoi", "closeEnabledAoi", "setEnabled", "renderSummary"], {
     state, window: win, document: { body }, isLayerEnabled: () => false,
     showPanel: noop, hidePanel: noop, setPanelBody: noop, setButtonState: noop, applyDataSourceVisibility: noop,
-    bindFocusDismiss: noop, bindModalVisibility: noop, unbindAoiVisibility: noop,
+    bindFocusInputPriority: noop, syncAoiCameraInputPriority: noop, bindModalVisibility: noop, unbindAoiVisibility: noop,
     onPointerDown: () => { callbacks += 1; }, onPointerMove: () => { callbacks += 1; },
     onPointerUp: noop, onPointerCancel: noop, onCanvasClick: noop, onKeyDown: noop,
     renderSummaryHtml: () => "completed", buildSummary: async () => ({}),
   });
   return { c, state, canvas, win, callbacks: () => callbacks };
 }
+
+test("AOI owns camera input during Focus and restores it after drawing", async () => {
+  const document = new Events();
+  const controller = { enableInputs: true };
+  const state = { active: false, drawing: false, editing: false, previousCameraEnableInputs: null,
+    viewer: { scene: { screenSpaceCameraController: controller } }, focusInputBound: false };
+  const c = await functions("warzone-aoi-lens.js", ["syncAoiCameraInputPriority", "bindFocusInputPriority"], { state, document });
+  c.bindFocusInputPriority();
+  c.bindFocusInputPriority();
+  assert.equal(document.count, 1);
+  state.active = true;
+  c.syncAoiCameraInputPriority();
+  assert.equal(controller.enableInputs, false);
+  controller.enableInputs = true; // Focus transition tries to resume camera input.
+  document.fire("wz:asset-focus-changed", {});
+  assert.equal(controller.enableInputs, false);
+  state.active = false;
+  c.syncAoiCameraInputPriority();
+  assert.equal(controller.enableInputs, true);
+  assert.equal(state.previousCameraEnableInputs, null);
+});
 
 test("AOI OFF detaches drawing inputs and ON restores exactly one set", async (t) => {
   const h = await aoiHarness();
@@ -217,6 +238,7 @@ test("aircraft OFF releases picking, focus inputs and camera callbacks; ON is id
     LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ: 20, LIVE_TRACK_LABEL_ZOOM_HEIGHT_MAX: 65000,
     isLayerEnabled: () => false, isFocusSelectionActive: () => false, getFocusedTrackKey: () => "",
     ensureLiveTrackOverlayRoot: noop, syncFocusedTrackOverlayModeButtons: noop,
+    refreshFocusedAircraftModelScale: noop,
     getAssetFocusController: () => ({ registerTask: (key, fn) => tasks.set(key, fn), removeTask: (key) => tasks.delete(key), requestFrame: noop }),
     purgeLiveTrackRenderEntities: noop, requestWarzoneRenderBatched: noop,
     unbindLiveTrackRuntime: noop, hideTrackHover: noop, hideRouteOriginHover: noop, hideTrackHoverGuide: noop,
@@ -332,6 +354,7 @@ test("GNSS OFF aborts, deduplicates refreshes and rejects stale completion", asy
     __gnssInterferenceCellsCache: [], __gnssInterferenceMeta: {}, __gnssInterferenceLastLoadedAt: 0,
     GNSS_LAYER_REFRESH_MS: 30000, FOCUS_MODE_GNSS_REFRESH_MS: 60000,
     isLayerEnabled: () => enabled, shouldDeferBackgroundMapWork: () => false,
+    getActiveRegion: () => ({ id: "test" }), getRegionRequestBounds: () => null, __gnssObservationDate: "latest",
     clearGnssInterferenceLayer: noop, renderGnssInterferenceLayer: noop,
     getScopedGnssInterferenceCells: () => [],
     normalizeGnssCell: (row) => { calculations += 1; return row; },
@@ -354,6 +377,23 @@ test("GNSS OFF aborts, deduplicates refreshes and rejects stale completion", asy
   requests[1].resolve({ data: [{ id: "current" }], meta: {} });
   await Promise.all([current, duplicate]);
   assert.equal(c.__gnssInterferenceCellsCache[0].id, "current");
+});
+
+test("GNSS Latest Available clears historical state and reloads latest cells", async () => {
+  let stopped = 0, synced = 0, requested = 0;
+  const c = await functions("essential.js", ["selectGnssObservationDate"], {
+    __gnssObservationDate: "2026-10-20", __gnssInterferenceLastLoadedAt: 100,
+    __gnssInterferenceCellsCache: [{ id: "old" }],
+    stopGnssInterferenceRefresh: () => { stopped++; },
+    syncGnssInterferenceLayer: () => { synced++; },
+    isLayerEnabled: () => true,
+    refreshGnssInterferenceCells: () => { requested++; },
+  });
+  c.selectGnssObservationDate("");
+  assert.equal(c.__gnssObservationDate, "latest");
+  assert.equal(c.__gnssInterferenceLastLoadedAt, 0);
+  assert.equal(c.__gnssInterferenceCellsCache.length, 0);
+  assert.deepEqual([stopped, synced, requested], [1, 1, 1]);
 });
 
 async function dataSourceRuntime() {
@@ -568,4 +608,17 @@ test("aircraft and GNSS API adapters forward cancellation without changing legac
   context.supabase = { from: () => query };
   await method("getAircraftTracks")({ signal: controller.signal });
   assert.equal(query.signal, controller.signal);
+});
+
+
+test("GNSS region scoping retains edge-overlapping cells and excludes old-region fallback", async () => {
+  const bounds={minLat:20,maxLat:30,minLon:40,maxLon:50};
+  const c=await functions("essential.js",["getScopedGnssInterferenceCells"],{
+    getActiveRegion:()=>({id:"test"}),getRegionRequestBounds:()=>bounds,
+  });
+  const cells=[{id:"inside",lat:25,lon:45},
+    {id:"edge",lat:19,lon:45,polygon:[{lat:19,lon:45},{lat:21,lon:45}]},
+    {id:"other",lat:55,lon:75},
+    {id:"date-line",lat:10,lon:180,polygon:[{lat:10,lon:179.9},{lat:10,lon:-179.9}]}];
+  assert.deepEqual(Array.from(c.getScopedGnssInterferenceCells(cells),cell=>cell.id),["inside","edge"]);
 });

@@ -264,11 +264,31 @@ function classifyVessel(name, shipType, callSign = "") {
     return "naval";
 }
 
-export function qualifyMilitaryVessel(vessel, {
-    knownMilitaryMmsi = identifierSet(process.env.NAVAL_KNOWN_MILITARY_MMSI),
-    knownMilitaryImo = identifierSet(process.env.NAVAL_KNOWN_MILITARY_IMO),
-    knownMilitaryCallsigns = callsignSet(process.env.NAVAL_KNOWN_MILITARY_CALLSIGNS),
-} = {}) {
+let knownMilitaryIdentifierCache = null;
+function defaultKnownMilitaryIdentifiers() {
+    const mmsi = process.env.NAVAL_KNOWN_MILITARY_MMSI;
+    const imo = process.env.NAVAL_KNOWN_MILITARY_IMO;
+    const callsigns = process.env.NAVAL_KNOWN_MILITARY_CALLSIGNS;
+    if (!knownMilitaryIdentifierCache || knownMilitaryIdentifierCache.mmsi !== mmsi
+        || knownMilitaryIdentifierCache.imo !== imo || knownMilitaryIdentifierCache.callsigns !== callsigns) {
+        knownMilitaryIdentifierCache = {
+            mmsi, imo, callsigns,
+            knownMilitaryMmsi: identifierSet(mmsi),
+            knownMilitaryImo: identifierSet(imo),
+            knownMilitaryCallsigns: callsignSet(callsigns),
+        };
+    }
+    return knownMilitaryIdentifierCache;
+}
+
+export function qualifyMilitaryVessel(vessel, options = {}) {
+    const defaults = options.knownMilitaryMmsi === undefined || options.knownMilitaryImo === undefined
+        || options.knownMilitaryCallsigns === undefined ? defaultKnownMilitaryIdentifiers() : null;
+    const {
+        knownMilitaryMmsi = defaults.knownMilitaryMmsi,
+        knownMilitaryImo = defaults.knownMilitaryImo,
+        knownMilitaryCallsigns = defaults.knownMilitaryCallsigns,
+    } = options;
     if (isKnownNonOperationalNavalContact(vessel)) return { accepted: false, reason: "non_operational" };
     if (knownMilitaryMmsi.has(String(vessel.mmsi || ""))) return { accepted: true, reason: "known_military_mmsi" };
     if (knownMilitaryImo.has(String(vessel.imoNumber || ""))) return { accepted: true, reason: "known_military_imo" };
@@ -511,6 +531,7 @@ export async function runAisWorker(options = {}) {
     const providers = ownsProviders ? createNavalProviders() : options.providers;
     const persistence = options.persistence || defaultPersistence;
     const logger = options.logger || console;
+    const qualificationOptions = defaultKnownMilitaryIdentifiers();
     for (const provider of providers) {
         if (provider.enabled !== false) continue;
         if (reportedDisabledProviders.has(provider.id) && options.reportProviderStates !== true) continue;
@@ -529,7 +550,7 @@ export async function runAisWorker(options = {}) {
     const providerDiagnostics = {};
     let observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
         providerDiagnostics[provider.id] = diagnostics || {};
-        const providerMilitary = items.map(toLegacyVessel).filter((vessel) => isMilitaryVessel(vessel)).length;
+        const providerMilitary = items.map(toLegacyVessel).filter((vessel) => isMilitaryVessel(vessel, qualificationOptions)).length;
         if (provider.id === "aisstream") {
             aisStreamDiagnostics = diagnostics || {};
             if (diagnostics?.connected) logger.log?.("[ais:aisstream] CONNECTED");
@@ -553,7 +574,7 @@ export async function runAisWorker(options = {}) {
         const lookupCandidate = observations
             .filter((item) => item.source !== provider.id && item.mmsi && !cachedMmsi.has(item.mmsi))
             .map((item) => ({ item, vessel: toLegacyVessel(item) }))
-            .find(({ vessel }) => isMilitaryVessel(vessel))?.item;
+            .find(({ vessel }) => isMilitaryVessel(vessel, qualificationOptions))?.item;
         if (!lookupCandidate) {
             if (cached.length) logger.log?.(`[ais:${provider.id}] cache_hits=${cached.length}`);
             else if (options.reportProviderStates === true) logger.log?.(`[ais:${provider.id}] DEGRADED idle_no_enrichment_candidate`);
@@ -589,7 +610,7 @@ export async function runAisWorker(options = {}) {
     const military = [];
     for (const observation of canonical) {
         const vessel = toLegacyVessel(observation);
-        const qualification = qualifyMilitaryVessel(vessel);
+        const qualification = qualifyMilitaryVessel(vessel, qualificationOptions);
         qualificationCounts[qualification.reason] = (qualificationCounts[qualification.reason] || 0) + 1;
         if (qualification.accepted) military.push(vessel);
     }

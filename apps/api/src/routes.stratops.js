@@ -165,7 +165,7 @@ async function hasPublishedReportFiles(req, report = {}) {
         .replace(/^\/+/, "");
 
     const isCanonical =
-        /^reports\/daily\/(?:global|(?:region|country|aoi)\/[a-z0-9][a-z0-9-]*)\/\d{4}-\d{2}-\d{2}\/report\.pdf$/i
+        /^reports\/(?:daily|72hour)\/(?:global|(?:region|country|aoi)\/[a-z0-9][a-z0-9-]*)\/\d{4}-\d{2}-\d{2}\/report\.pdf$/i
             .test(storageKey);
 
     if (!isCanonical) return false;
@@ -238,6 +238,7 @@ function getReportDate(report = {}) {
 }
 
 function formatPublicReportLabel(report = {}) {
+    if (report.report_type === "72hour") return `72-hour operational report: ${report.period_start} through ${report.period_end}`;
     const reportDate = getReportDate(report);
     if (!reportDate) return "Operational report";
     const date = new Date(`${reportDate}T00:00:00.000Z`);
@@ -268,6 +269,7 @@ function toPublicHistoryReport(req, report = {}, { isLatest = false } = {}) {
         display_label: formatPublicReportLabel(report),
         is_latest: Boolean(isLatest),
         generated_at: report.created_at,
+        published_at: report.published_at || null,
         updated_at: report.updated_at,
         expires_at: report.expires_at,
         html_available: Boolean(htmlUrl),
@@ -301,6 +303,7 @@ function toPublicApiReport(req, report = {}) {
     const reportUrl = getPublicReportAssetUrl(req, report) || publicReport.public_url;
     return {
         ...publicReport,
+        published_at: report.published_at || null,
         html_url: getPublicReportHtmlUrl(req, report),
         preview_url: getPublicReportAccessUrl(req, report, "preview"),
         public_url: reportUrl,
@@ -343,13 +346,16 @@ function getSupabase() {
 
 function getReportDownloadFilename(report = {}) {
     const dateKey = getReportDate(report) || "latest";
-    return `StratOps-Operational-Intelligence-Briefing-${dateKey}.pdf`;
+    return `StratOps-${report.report_type === "72hour" ? "72-Hour-Operational-Report" : "Operational-Intelligence-Briefing"}-${dateKey}.pdf`;
 }
 
 function isReportInsidePublicRetention(report = {}, config = readReportingConfig()) {
-    if (!["available", "expired"].includes(String(report.status || ""))) return false;
+    if (String(report.status || "") !== "available") return false;
     if (String(report.report_version || "") !== REPORT_VERSION) return false;
-    const cutoff = Date.parse(getPublicReportHistoryCutoffIso(config.publishedRetentionDays));
+    if (!Number.isFinite(Date.parse(report.expires_at || "")) || Date.parse(report.expires_at || "") <= Date.now()) return false;
+    if (report.report_type === "72hour") return true;
+    const retentionDays = report.report_type === "72hour" ? config.hour72.publishedRetentionDays : config.publishedRetentionDays;
+    const cutoff = Date.parse(getPublicReportHistoryCutoffIso(retentionDays));
     const periodStart = Date.parse(report.period_start || "");
     return Number.isFinite(cutoff) && Number.isFinite(periodStart) && periodStart >= cutoff;
 }
@@ -404,7 +410,7 @@ async function getAuthorizedReportForAccess(req) {
     if (!id || !token) return { status: 403, report: null };
     const { data, error } = await getSupabase()
         .from("operational_reports")
-        .select("id, status, report_version, period_start, pdf_url, pdf_storage_key, download_token")
+        .select("id, status, report_type, report_version, period_start, expires_at, pdf_url, pdf_storage_key, download_token")
         .eq("id", id)
         .eq("download_token", token)
         .maybeSingle();
@@ -433,6 +439,7 @@ const __stratopsRouteTestUtils = {
     getReportDownloadFilename,
     isReportInsidePublicRetention,
     setReportPdfResponseHeaders,
+    normalizeReportType,
 };
 
 function clamp(value, min, max) {
@@ -441,7 +448,7 @@ function clamp(value, min, max) {
 
 function normalizeReportType(value = "") {
     const type = String(value || "daily").trim().toLowerCase();
-    return type === "weekly" ? "weekly" : "daily";
+    return ["daily", "weekly", "72hour"].includes(type) ? type : null;
 }
 
 function normalizeReportScope(body = {}, query = {}) {
@@ -568,22 +575,24 @@ export function stratopsRouter() {
             const config = readReportingConfig();
             const requestedLimit = Number(req.query.limit);
             const limit = Number.isFinite(requestedLimit)
-                ? clamp(Math.floor(requestedLimit), 1, config.publicHistoryDays)
-                : config.publicHistoryDays;
+                ? clamp(Math.floor(requestedLimit), 1, req.query.type === "72hour" ? config.hour72.publishedRetentionDays : config.publicHistoryDays)
+                : (req.query.type === "72hour" ? config.hour72.publishedRetentionDays : config.publicHistoryDays);
             const reportType = normalizeReportType(req.query.type);
+            if (!reportType) return res.status(400).json({ error: "Unsupported report type" });
             const scope = normalizeReportScope({}, req.query || {});
             const scopeKey = getReportScopeKey(scope);
-            const retentionCutoff = getPublicReportHistoryCutoffIso(config.publishedRetentionDays);
-            const { data, error } = await getSupabase()
+            const retentionCutoff = getPublicReportHistoryCutoffIso(reportType === "72hour" ? config.hour72.publishedRetentionDays : config.publishedRetentionDays);
+            let query = getSupabase()
                 .from("operational_reports")
-                .select("id, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, report_body, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at")
+                .select("id, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, report_body, report_version, download_token, pdf_url, pdf_storage_key, expires_at, published_at, created_at, updated_at")
                 .eq("report_type", reportType)
                 .eq("scope_key", scopeKey)
                 .eq("report_version", REPORT_VERSION)
-                .in("status", ["available", "expired"])
-                .gte("period_start", retentionCutoff)
-                .order("period_start", { ascending: false })
-                .limit(Math.min(50, limit * 3));
+                .eq("status", "available")
+                .gt("expires_at", new Date().toISOString());
+            if (reportType !== "72hour") query = query.gte("period_start", retentionCutoff);
+            const { data, error } = await query.order("period_start", { ascending: false })
+                .limit(Math.min(365, limit * 3));
             if (error) return res.status(500).json({ error: "Failed" });
 const checkedReports = await Promise.all(
     (data || []).map(async (report) => {
@@ -601,7 +610,7 @@ const reports = selectRecentPublishedReports(
 );
 
 res.set("Cache-Control", "private, no-store, max-age=0");
-res.json({ reports, history_limit: config.publicHistoryDays });
+res.json({ reports, history_limit: reportType === "72hour" ? config.hour72.publishedRetentionDays : config.publicHistoryDays });
         } catch (error) {
             console.error("[stratops] report list failed:", error);
             res.status(500).json({ error: "Failed" });
@@ -615,6 +624,8 @@ res.json({ reports, history_limit: config.publicHistoryDays });
                 return res.status(503).json({ error: "Reporting is disabled." });
             }
             const reportType = normalizeReportType(req.body?.type || req.body?.report_type);
+            if (!reportType) return res.status(400).json({ error: "Unsupported report type" });
+            if (reportType === "72hour") return res.status(405).json({ error: "72-hour reports are generated by the worker scheduler" });
             const dateKey = String(req.body?.date || req.body?.snapshot_date || getPreviousUtcDateKey()).slice(0, 10);
             const scope = normalizeReportScope(req.body || {}, req.query || {});
             const report = await ensureOperationalReport({
@@ -636,6 +647,7 @@ res.json({ reports, history_limit: config.publicHistoryDays });
     router.get("/reports/latest", async (req, res) => {
         try {
             const reportType = normalizeReportType(req.query.type);
+            if (!reportType) return res.status(400).json({ error: "Unsupported report type" });
             const scope = normalizeReportScope({}, req.query || {});
             const scopeKey = getReportScopeKey(scope);
             const cacheKey = `${reportType}:${scopeKey}`;
@@ -643,7 +655,7 @@ res.json({ reports, history_limit: config.publicHistoryDays });
             if (cached) return res.json(cached);
 
             const supabase = getSupabase();
-            const commonColumns = "id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_body, report_version, download_token, pdf_url, pdf_storage_key, expires_at, created_at, updated_at";
+            const commonColumns = "id, report_key, report_type, scope_type, scope_value, scope_label, period_start, period_end, status, generated_summary, report_body, report_version, download_token, pdf_url, pdf_storage_key, expires_at, published_at, created_at, updated_at";
             const now = new Date().toISOString();
             const available = await supabase
                 .from("operational_reports")

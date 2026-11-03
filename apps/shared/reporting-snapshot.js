@@ -422,12 +422,12 @@ function getScopePath(scope = {}) {
   return `${type}/${slugify(scope.value || scope.label)}`;
 }
 
-function buildSnapshotKey(dateKey, scopeKey, version = SNAPSHOT_SCHEMA_VERSION) {
-  return `daily:${dateKey}:${scopeKey}:v${version}`;
+function buildSnapshotKey(dateKey, scopeKey, version = SNAPSHOT_SCHEMA_VERSION, reportType = "daily") {
+  return `${reportType}:${dateKey}:${scopeKey}:v${version}`;
 }
 
-function buildReportObjectKeys({ prefix = "reports", dateKey, scope = {} } = {}) {
-  const base = `${String(prefix || "reports").replace(/^\/+|\/+$/g, "")}/daily/${getScopePath(scope)}/${dateKey}`;
+function buildReportObjectKeys({ prefix = "reports", dateKey, scope = {}, reportType = "daily" } = {}) {
+  const base = `${String(prefix || "reports").replace(/^\/+|\/+$/g, "")}/${reportType}/${getScopePath(scope)}/${dateKey}`;
   return {
     base,
     report_json: `${base}/report.json`,
@@ -451,6 +451,7 @@ function buildReportingFoundation({
   counts = {},
   satellitePreview = null,
   s3Prefix = "reports",
+  reportType = "daily",
 } = {}) {
   const items = buildReportSnapshotItems(events, intelligence, { windowEndIso })
     .filter((item) => reportItemMatchesScope(item, scope));
@@ -462,11 +463,12 @@ function buildReportingFoundation({
   const clusters = buildClusterSummaries(operationalItems, windowEndIso);
   const theaters = buildTheaterSummaries(items, clusters);
   const families = new Set(items.flatMap((item) => item.independent_source_families || []).filter(Boolean));
-  const snapshotKey = buildSnapshotKey(dateKey, scopeKey);
-  const objectKeys = buildReportObjectKeys({ prefix: s3Prefix, dateKey, scope });
+  const snapshotKey = buildSnapshotKey(dateKey, scopeKey, SNAPSHOT_SCHEMA_VERSION, reportType);
+  const objectKeys = buildReportObjectKeys({ prefix: s3Prefix, dateKey, scope, reportType });
   const snapshotData = {
     snapshot_schema_version: SNAPSHOT_SCHEMA_VERSION,
     snapshot_key: snapshotKey,
+    report_type: reportType,
     report_date: dateKey,
     window: { start: windowStartIso, end: windowEndIso, timezone: "UTC" },
     scope: { type: scope.type, key: scopeKey, value: scope.value || null, label: scope.label },

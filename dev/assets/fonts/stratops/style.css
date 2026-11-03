@@ -24,7 +24,12 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
+.stratops-ico-dock-intel-1:before {
+  content: "\e94e";
+}
+.stratops-ico-assets-gnss-1:before {
+  content: "\e94f";
+}
 .stratops-ico-hexa-1:before {
   content: "\e93f";
 }

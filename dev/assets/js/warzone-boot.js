@@ -5,7 +5,7 @@ import {
     getStratOpsWidgetFeaturePath,
     isStratOpsFeatureEnabled,
 } from "./stratops-feature-config.js";
-import { resetLayerStateForFreshLoad } from "./warzone-layers.js";
+import { restoreLayerStateForStartup } from "./warzone-layers.js";
 
 let __siteLoaderHideTimer = 0;
 let __siteLoaderHardStopTimer = 0;
@@ -201,16 +201,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const DEFAULT_WIDGET_VISIBILITY = {
         counter: true,
         layers: true,
-        escalation: false,
+        escalation: true,
         aircraft: false,
         naval: false,
         orbital: false,
         feed: false,
         airspace: true,
-        cyber: false,
+        cyber: true,
         aoi: false,
     };
-    let hasLoadedWidgetState = false;
     const MAP_LAYERS_PANE_ID = "wz-map-layers-pane";
     function getMapLayersPane() {
         return document.getElementById(MAP_LAYERS_PANE_ID);
@@ -289,8 +288,14 @@ document.addEventListener("DOMContentLoaded", () => {
         syncWidgetChrome();
         requestMapLayersResizeBurst(480);
     }
+    const MAP_LAYERS_PREFERENCE_KEY = "wz_map_layers_open";
+    function saveMapLayersPanePreference(open) {
+        try { localStorage.setItem(MAP_LAYERS_PREFERENCE_KEY, String(Boolean(open))); } catch { }
+    }
     function toggleMapLayersPane() {
-        setMapLayersPaneOpen(!isMapLayersOpen());
+        const open = !isMapLayersOpen();
+        setMapLayersPaneOpen(open);
+        saveMapLayersPanePreference(open);
     }
     function bindMapLayersPane() {
         const pane = getMapLayersPane();
@@ -298,6 +303,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pane.dataset.paneBound = "true";
         pane.querySelector("[data-map-layers-close]")?.addEventListener("click", () => {
             setMapLayersPaneOpen(false);
+            saveMapLayersPanePreference(false);
         });
         document.addEventListener("keydown", (event) => {
             if (event.key !== "Escape" || !isMapLayersOpen()) return;
@@ -305,6 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!active || !pane.contains(active)) return;
             event.preventDefault();
             setMapLayersPaneOpen(false);
+            saveMapLayersPanePreference(false);
         });
         const globeEl = document.getElementById("warzone-globe");
         if (globeEl && typeof ResizeObserver === "function") {
@@ -905,7 +912,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const backdrop = getBackdrop();
         if (!backdrop) return;
         const anyVisible = Array.from(document.querySelectorAll(".warzone-widget[data-widget-id]"))
-            .some((widget) => !widget.classList.contains("wz-is-hidden"));
+            .some((widget) => !widget.classList.contains("wz-is-hidden") && !widget.classList.contains("is-collapsed"));
         backdrop.hidden = !anyVisible;
     }
     function isWidgetVisible(widget) {
@@ -986,17 +993,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const shouldMigrateLayout = savedVersion !== WZ_WIDGET_LAYOUT_VERSION;
         const effectiveState = { ...DEFAULT_WIDGET_VISIBILITY, ...(saved || {}) };
         effectiveState.aoi = false;
-        if (!hasLoadedWidgetState) {
-            effectiveState.aircraft = false;
-            effectiveState.naval = false;
-            effectiveState.orbital = false;
-            try {
-                localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(effectiveState));
-            } catch { }
-        }
         if (shouldMigrateLayout) {
-            // Keep existing widget preferences, but migrate Airspace to open-by-default once.
-            effectiveState.airspace = true;
+            // Fill a missing Airspace preference without reopening a widget the user closed.
+            if (typeof saved?.airspace !== "boolean") effectiveState.airspace = true;
             try {
                 localStorage.setItem(WZ_WIDGET_KEY, JSON.stringify(effectiveState));
                 localStorage.setItem(WZ_WIDGET_LAYOUT_VERSION_KEY, WZ_WIDGET_LAYOUT_VERSION);
@@ -1011,7 +1010,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             widget.classList.toggle("wz-is-hidden", !visible);
         });
-        hasLoadedWidgetState = true;
     }
     function syncSeparator() {
         const sep = document.querySelector(".wz-dock__sep");
@@ -1129,12 +1127,18 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.documentElement.classList.add("wz-no-transitions");
     applyStratOpsFeatureVisibility();
-    resetLayerStateForFreshLoad();
+    restoreLayerStateForStartup();
     loadWidgetState();
     bindMapLayersPane();
+    document.addEventListener("wz:app-entered", () => {
+        if (!isMobileLayout() && isDockWidgetFeatureEnabled("layers")) {
+            let savedOpen = null;
+            try { savedOpen = localStorage.getItem(MAP_LAYERS_PREFERENCE_KEY); } catch { }
+            setMapLayersPaneOpen(savedOpen !== "false");
+        }
+    });
     syncWidgetChrome();
     const widgetObserver = new MutationObserver(() => {
-        saveWidgetState();
         syncWidgetChrome();
     });
     document.querySelectorAll(".warzone-widget[data-widget-id]").forEach((widget) => {
@@ -1235,6 +1239,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 content.style.height = `${endHeight}px`;
                 content.style.opacity = "1";
             }
+            updateBackdrop();
         });
         content.addEventListener("transitionend", (e) => {
             if (e.propertyName !== "height") return;

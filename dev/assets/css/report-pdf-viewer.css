@@ -103,7 +103,7 @@ position: relative;
 }
 
 .report-pdf-control {
-    min-width: 3.2rem;
+    min-width: 3rem;
     padding: 0 .8rem;
     cursor: pointer;
 }
@@ -295,8 +295,8 @@ position: relative;
 
 .report-pdf-loading img {
     display: block;
-    width: 7.2rem;
-    height: 7.2rem;
+    width: 20rem;
+    height: 20rem;
     margin: 0 auto 1rem;
     object-fit: contain;
 }

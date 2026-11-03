@@ -195,9 +195,6 @@ position: relative !important;
 .wz-pre-entry-showcase__header p { width: 100%;  max-width: 100%;  }
 
 
-
-
-
     .warzone-logo {
         pointer-events: auto;
         padding: 0;
@@ -294,14 +291,8 @@ position: absolute !important;
         max-height: var(--wz-mobile-widget-content-maxh) !important;
         overflow-y: auto;
     }
-    .warzone-panel--floating:not(.wz-is-hidden) .panel-content {
-        height: auto !important;
-        opacity: 1 !important;
+    .warzone-panel--floating:not(.wz-is-hidden):not(.is-collapsed) .panel-content {
         visibility: visible;
-    }
-
-    .warzone-panel--floating [data-panel-collapse] {
-        display: none !important;
     }
 
 
@@ -474,7 +465,7 @@ font-size: var(--text-sm);
     .top-tab {
         font-size: 1.1rem;
         padding: 0 0.8rem;
-        min-height: 3.2rem;
+        min-height: 3rem;
     }
 }
 /* #endregion */
@@ -503,6 +494,10 @@ font-size: var(--text-sm);
         transform: translateY(0) scale(1) !important;
     }
 }
+.wz-orbital-mobile-close {
+    display: none !important;
+}
+
 @media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
     :root {
         --wz-mobile-widget-content-maxh: min(56dvh, calc(100dvh - 18rem));
@@ -539,9 +534,9 @@ font-size: var(--text-sm);
          display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 3.2rem;
-        min-width: 3.2rem !important;
-        max-width: 3.2rem;
+        width: 3rem;
+        min-width: 3rem !important;
+        max-width: 3rem;
         padding: 0;
         gap: 0;
     }
@@ -908,22 +903,21 @@ font-size: var(--text-sm);
     }
 }
 
+/* 3440px and wider */
+@media screen and (max-width: 1920px) {
+     html { font-size: 61.5%}
+}
 
+    
 /* 2560px and wider */
 @media screen and (min-width: 2560px) {
-    /* html { font-size: 70.5% ;} */
+    html { font-size: 78.5% ;}
 }
 
 /* 3440px and wider */
 @media screen and (min-width: 3440px) {
-     html { font-size: 70.5% ;}
+     html { font-size: 66.5%}
 }
-
-
-
-
-
-
 
 
 /* 1. Standard Mobile Devices (360px to 414px) */
@@ -943,5 +937,29 @@ font-size: var(--text-sm);
 @media (min-width: 768px) {
     .hidden-on-web {
         display: none !important;
+    }
+}
+
+@media (max-width: 1024px) and (orientation: portrait), (max-width: 768px) {
+    .wz-widget-backdrop[hidden] {
+        display: none !important;
+    }
+    .warzone-widget.warzone-panel--floating {
+        max-width: calc(100vw - 2rem) !important;
+        max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem) !important;
+    }
+    .warzone-widget.warzone-panel--floating.is-collapsed .panel-content {
+        height: 0 !important;
+        max-height: 0 !important;
+        opacity: 0 !important;
+        visibility: hidden;
+        overflow: hidden;
+        pointer-events: none;
+    }
+    .warzone-widget.warzone-panel--floating [data-panel-collapse] {
+        display: inline-flex !important;
+    }
+    .wz-orbital-mobile-close {
+        display: inline-flex !important;
     }
 }

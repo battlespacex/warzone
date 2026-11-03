@@ -240,6 +240,8 @@ function normalizeTrack(track = {}, roleInfo = {}, context = {}, score = 0, reas
     variant: cleanText(metadata.model_name, "") || null,
     role: roleInfo.role,
     operator: cleanText(metadata.operator || track.operator, "") || null,
+    source_name: cleanText(track.source_name, "") || null,
+    source_verification: cleanText(metadata.verification_state || metadata.verification, "") || null,
     country: cleanText(track.country || metadata.country, "") || null,
     latitude: point?.lat ?? null,
     longitude: point?.lon ?? null,

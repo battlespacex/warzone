@@ -48,6 +48,44 @@ function fresh() {
   notifications.length = 0;
 }
 
+test("startup preserves ordinary choices but never restores tracker priority", () => {
+  stored.delete("wz_layer_state");
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+  assert.equal(layers.isLayerEnabled("aircraft"), false);
+
+  stored.set("wz_layer_state", JSON.stringify({ strikes: false, alerts: false, terrain: true }));
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("strikes"), false);
+  assert.equal(layers.isLayerEnabled("alerts"), false);
+
+  stored.set("wz_layer_state", JSON.stringify({ aircraft: true, alerts: true, aoi: true, terrain: true }));
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("aircraft"), false);
+  assert.equal(layers.isLayerEnabled("naval"), false);
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+  assert.equal(layers.isLayerEnabled("alerts"), true);
+  assert.equal(JSON.parse(stored.get("wz_layer_state")).aircraft, false);
+
+  stored.set("wz_layer_state", JSON.stringify({ naval: true, strikes: false }));
+  layers.restoreLayerStateForStartup();
+  assert.equal(layers.isLayerEnabled("naval"), false);
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+});
+
+test("premium status defaults remain entitlement gated", () => {
+  fresh();
+  assert.equal(layers.isLayerEnabled("airspace"), true);
+  assert.equal(layers.isLayerEnabled("cyber"), true);
+  window.__stratopsAuthState.isAuthenticated = false;
+  try {
+    assert.equal(layers.isLayerEnabled("airspace"), false);
+    assert.equal(layers.isLayerEnabled("cyber"), false);
+  } finally {
+    window.__stratopsAuthState.isAuthenticated = true;
+  }
+});
+
 test("tracker priority writes unrelated OFF states once and keeps the globe", (t) => {
   fresh();
   const before = layers.LAYER_DEFS.filter(({ id }) => layers.isLayerEnabled(id)).length;
@@ -62,6 +100,8 @@ test("tracker priority writes unrelated OFF states once and keeps the globe", (t
   assert.equal(layers.isLayerEnabled("terrain"), true);
   assert.equal(layers.isLayerEnabled("aircraft"), true);
   assert.equal(layers.isLayerEnabled("naval"), false);
+  assert.equal(layers.setLayer("aoi", true), true);
+  assert.equal(layers.isLayerEnabled("aoi"), true);
   assert.equal(items.get("aircraft").classList.contains("is-on"), true);
   assert.equal(JSON.parse(stored.get("wz_layer_state")).alerts, false);
   t.diagnostic(`enabled layers: ${before} before, ${layers.LAYER_DEFS.filter(({ id }) => layers.isLayerEnabled(id)).length} after`);
@@ -70,30 +110,44 @@ test("tracker priority writes unrelated OFF states once and keeps the globe", (t
 test("both trackers coexist and incompatible layers stay blocked until both trackers are OFF", () => {
   fresh();
   layers.setLayer("aircraft", true);
+  layers.setLayer("aoi", true);
   layers.setLayer("alerts", true);
-  layers.setLayer("orbital-assets", true);
   layers.setLayer("gnss", true);
   layers.setLayer("airspace", true);
-  assert.equal(layers.isLayerEnabled("orbital-assets"), false);
-  assert.equal(items.get("orbital-assets").classList.contains("is-locked"), true);
   layers.toggleLayer("naval");
   assert.equal(layers.isLayerEnabled("aircraft"), true);
   assert.equal(layers.isLayerEnabled("naval"), true);
+  assert.equal(layers.isLayerEnabled("aoi"), true);
   assert.equal(layers.isLayerEnabled("airspace"), true);
-  assert.equal(layers.isLayerEnabled("orbital-assets"), false);
   assert.equal(layers.isLayerEnabled("gnss"), false);
   assert.equal(layers.isLayerEnabled("alerts"), false);
-  layers.setLayer("orbital-assets", true);
-  assert.equal(layers.isLayerEnabled("orbital-assets"), false);
   layers.setLayer("aircraft", false);
   assert.equal(layers.isLayerEnabled("naval"), true);
   assert.equal(layers.isLayerEnabled("airspace"), false);
   assert.equal(layers.setLayer("cyber", true), false);
-  assert.equal(layers.isLayerEnabled("orbital-assets"), false);
   layers.setLayer("naval", false);
-  assert.equal(items.get("orbital-assets").classList.contains("is-locked"), false);
-  layers.setLayer("orbital-assets", true);
-  assert.equal(layers.isLayerEnabled("orbital-assets"), true);
+  assert.equal(layers.isLayerEnabled("alerts"), true);
+  assert.equal(layers.isLayerEnabled("strikes"), true);
+  assert.equal(layers.isLayerEnabled("aoi"), true);
+});
+
+test("Orbital temporarily isolates trackers and restores the exact prior layer state", () => {
+  fresh();
+  layers.setLayer("aircraft", true);
+  layers.setLayer("aoi", true);
+  layers.setLayer("map-labels", false);
+  const before = Object.fromEntries(layers.LAYER_DEFS.map(({ id }) => [id, layers.isLayerEnabled(id)]));
+  for (let cycle = 0; cycle < 5; cycle += 1) {
+    assert.equal(layers.setLayer("orbital-assets", true), true);
+    assert.equal(layers.isLayerEnabled("orbital-assets"), true);
+    assert.equal(layers.isLayerEnabled("aircraft"), false);
+    assert.equal(layers.isLayerEnabled("aoi"), false);
+    assert.equal(layers.isLayerEnabled("terrain"), true);
+    assert.equal(layers.setLayer("cyber", true), false);
+    assert.equal(layers.setLayer("orbital-assets", false), false);
+    const after = Object.fromEntries(layers.LAYER_DEFS.map(({ id }) => [id, layers.isLayerEnabled(id)]));
+    assert.deepEqual(after, before);
+  }
 });
 
 test("repeated tracker cycles emit one notification per action without state leaks", () => {
@@ -110,7 +164,7 @@ test("repeated tracker cycles emit one notification per action without state lea
     assert.equal(layers.isLayerEnabled("alerts"), false);
     layers.setLayer("naval", false);
     assert.equal(layers.isLayerEnabled("naval"), false);
-    assert.equal(layers.isLayerEnabled("alerts"), false);
+    assert.equal(layers.isLayerEnabled("alerts"), true);
   }
   assert.equal(layers.isLayerEnabled("aircraft"), false);
 });

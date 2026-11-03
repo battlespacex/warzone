@@ -34,6 +34,63 @@ function navalProvider(id, offset = 0) {
     };
 }
 
+test("repeated identical naval observation writes event, track, and history each cycle", async () => {
+    resetProviderHealth();
+    const batches = { events: [], tracks: [], history: [] };
+    const persistence = {
+        async upsertEvents(rows) { batches.events.push(rows); },
+        async upsertTracks(rows) { batches.tracks.push(rows); return rows.length; },
+        async upsertHistory(rows) { batches.history.push(rows); },
+        async endAliases() {},
+    };
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+        await runAisWorker({ providers: [navalProvider("aisstream")], persistence,
+            logger: { log() {}, warn() {} } });
+    }
+    assert.deepEqual(batches.events.map((batch) => batch.length), [1, 1]);
+    assert.deepEqual(batches.tracks.map((batch) => batch.length), [1, 1]);
+    assert.deepEqual(batches.history.map((batch) => batch.length), [1, 1]);
+    assert.deepEqual(batches.events[0][0], batches.events[1][0]);
+    assert.equal(batches.events[0][0].occurred_at, batches.events[1][0].occurred_at);
+    assert.equal(batches.tracks[0][0].occurred_at, batches.tracks[1][0].occurred_at);
+});
+
+test("new source time, movement and identity metadata change the naval event payload", async () => {
+    resetProviderHealth();
+    const provider = navalProvider("aisstream");
+    const fetchOriginal = provider.fetchObservations;
+    let patch = {};
+    provider.fetchObservations = async () => {
+        const batch = await fetchOriginal();
+        return { ...batch, observations: [{ ...batch.observations[0], ...patch }] };
+    };
+    const batches = { events: [], tracks: [], history: [] };
+    const persistence = {
+        async upsertEvents(rows) { batches.events.push(rows); },
+        async upsertTracks(rows) { batches.tracks.push(rows); return rows.length; },
+        async upsertHistory(rows) { batches.history.push(rows); },
+        async endAliases() {},
+    };
+    for (const change of [
+        {},
+        { observed_at: "2026-08-13T12:00:05Z" },
+        { observed_at: "2026-08-13T12:00:10Z", latitude: 36.01 },
+        { observed_at: "2026-08-13T12:00:10Z", latitude: 36.01, vessel_name: "USS RENAMED" },
+    ]) {
+        patch = change;
+        await runAisWorker({ providers: [provider], persistence, logger: { log() {}, warn() {} } });
+    }
+    const events = batches.events.map(([row]) => row);
+    assert.equal(events.length, 4);
+    assert.notEqual(events[0].occurred_at, events[1].occurred_at);
+    assert.equal(events[0].lat, events[1].lat);
+    assert.notEqual(events[1].lat, events[2].lat);
+    assert.equal(events[2].occurred_at, events[3].occurred_at);
+    assert.notEqual(events[2].title, events[3].title);
+    assert.equal(batches.tracks[2][0].lat, events[2].lat);
+    assert.equal(batches.history[2][0].lat, events[2].lat);
+});
+
 test("five-provider vessel produces one canonical Supabase track upsert", async () => {
     resetProviderHealth();
     const providers = ["aisstream", "aishub", "spire", "marinetraffic", "vesselfinder"].map(navalProvider);
@@ -143,4 +200,24 @@ test("military classifier rejects civilian traffic and accepts configured known 
     );
     assert.equal(qualifyMilitaryVessel({ name: "NAVY BLUE", shipType: 70 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
     assert.equal(qualifyMilitaryVessel({ name: "IRIS", shipType: "Towing" }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
+});
+
+
+test("cached default military identifiers refresh when configuration changes", () => {
+    const previous = process.env.NAVAL_KNOWN_MILITARY_MMSI;
+    const vessel = { mmsi: "399999991", name: "CONTACT", shipType: 0 };
+    try {
+        process.env.NAVAL_KNOWN_MILITARY_MMSI = "399999991";
+        assert.equal(qualifyMilitaryVessel(vessel).reason, "known_military_mmsi");
+        process.env.NAVAL_KNOWN_MILITARY_MMSI = "399999992";
+        assert.equal(qualifyMilitaryVessel(vessel).accepted, false);
+        assert.equal(qualifyMilitaryVessel(vessel, {
+            knownMilitaryMmsi: new Set(["399999991"]),
+            knownMilitaryImo: new Set(),
+            knownMilitaryCallsigns: new Set(),
+        }).accepted, true);
+    } finally {
+        if (previous === undefined) delete process.env.NAVAL_KNOWN_MILITARY_MMSI;
+        else process.env.NAVAL_KNOWN_MILITARY_MMSI = previous;
+    }
 });

@@ -377,6 +377,13 @@
                                 title="Collapse widget">
                             <span class="stratops-ico-top-1" aria-hidden="true"></span>
                         </button>
+                        <button type="button"
+                                class="static-icon wz-orbital-mobile-close"
+                                data-widget-close
+                                aria-label="Hide orbital satellite intelligence widget"
+                                title="Hide widget">
+                            <span class="stratops-ico-close-1" aria-hidden="true"></span>
+                        </button>
                     </div>
                 </div>
                 <div class="panel-content">
@@ -454,12 +461,125 @@
                     </div>
                 </div>
                 <div class="panel-content">
-                    <div class="wz-gnss-panel__body">
-                        <div id="wz-gnss-legend-status" class="wz-gnss-legend__status" hidden></div>
-                        <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--low"></span><span>Low: 0-2%</span></div>
-                        <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--medium"></span><span>Medium: 2-10%</span></div>
-                        <div class="wz-gnss-legend__row"><span class="wz-gnss-legend__swatch wz-gnss-legend__swatch--high"></span><span>High: &gt;10%</span></div>
-                    </div>
+                    <section class="wz-gnss-panel__body"
+                            aria-label="GNSS Jamming and Interference Monitoring">
+
+                        <!-- GNSS Status -->
+                        <div id="wz-gnss-legend-status"
+                            class="wz-gnss-legend__status"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            hidden></div>
+
+                        <!-- GNSS Interference Severity Statistics -->
+                        <section class="wz-gnss-legend-box"
+                                aria-label="GNSS interference severity statistics">
+
+                            <div class="wz-gnss-legend__row">
+                                <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--low"
+                                    aria-hidden="true"></span>
+                                <span>Low: &lt;3%</span>
+                                <strong id="wz-gnss-count-low" aria-label="Low interference cells">0</strong>
+                            </div>
+
+                            <div class="wz-gnss-legend__row">
+                                <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--medium"
+                                    aria-hidden="true"></span>
+                                <span>Moderate: 3–10%</span>
+                                <strong id="wz-gnss-count-medium" aria-label="Moderate interference cells">0</strong>
+                            </div>
+
+                            <div class="wz-gnss-legend__row">
+                                <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--high"
+                                    aria-hidden="true"></span>
+                                <span>High: &gt;10–50%</span>
+                                <strong id="wz-gnss-count-high" aria-label="High interference cells">0</strong>
+                            </div>
+
+                            <div class="wz-gnss-legend__row">
+                                <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--severe"
+                                    aria-hidden="true"></span>
+                                <span>Severe: &gt;50%</span>
+                                <strong id="wz-gnss-count-severe" aria-label="Severe interference cells">0</strong>
+                            </div>
+
+                            <!-- Hexagonal Map Overlay Toggle -->
+                            <label class="wz-check" for="wz-gnss-show-hexagons">
+                                <input id="wz-gnss-show-hexagons"
+                                    type="checkbox"
+                                    checked>
+                                <span>Show Hexagons</span>
+                            </label>
+
+                        </section>
+
+                        <!-- GNSS Severity Filter -->
+                        <div>
+                            <label for="wz-gnss-severity">Interference Severity</label>
+                            <span class="wz-selector">
+                                <select id="wz-gnss-severity"
+                                        class="wz--dropdown"
+                                        aria-label="Filter GNSS interference by severity">
+                                    <option value="all">All</option>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Moderate</option>
+                                    <option value="high">High</option>
+                                    <option value="severe">Severe</option>
+                                </select>
+                            </span>
+                        </div>
+
+                        <!-- Historical GNSS Observation Filter -->
+                        <div>
+                            <label for="wz-gnss-period">Observation Date</label>
+                            <input id="wz-gnss-period"
+                                class="wz--input"
+                                type="date"
+                                aria-label="Select historical GNSS interference observation date; clear for latest">
+                        </div>
+
+                        <!-- Latest GNSS Data -->
+                        <button id="wz-gnss-latest"
+                                type="button"
+                                class="btn-secondary white"
+                                aria-label="Load latest available GNSS interference observations">
+                            <span aria-hidden="true"></span>
+                            Latest Available
+                        </button>
+
+                        <!-- Data Freshness and Source Health -->
+                        <section class="wz-gnss-legend-box"
+                                aria-label="GNSS observation period and source availability">
+
+                            <div class="wz-gnss-legend__row">
+                                <span>Observation Period</span>
+                                <strong id="wz-gnss-observation-period">Unknown</strong>
+                            </div>
+
+                            <div class="wz-gnss-legend__row">
+                                <span>Source Health</span>
+                                <strong id="wz-gnss-source-health">Unavailable</strong>
+                            </div>
+
+                        </section>
+
+                        <!-- Source Attribution and Detection Limitations -->
+                        <p class="wz-gnss-legend__note">
+                            GNSS interference monitoring data:
+                            <a href="https://gpsinterference.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="GPSInterference.com GNSS interference data source">
+                                GPSInterference.com
+                            </a>
+                            / adsb.lol.
+                            Aircraft navigation accuracy degradation may indicate GNSS interference
+                            but does not independently confirm GPS jamming or spoofing.
+                            No independent spoofing verification is currently available.
+                        </p>
+
+                    </section>
                 </div>
             </div>
         </aside>

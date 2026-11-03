@@ -57,6 +57,7 @@ function readReportingConfig(env = process.env) {
   const dailyEnabled = readBooleanEnv(env.REPORTING_DAILY_ENABLED, true);
   const weeklyEnabled = readBooleanEnv(env.REPORTING_WEEKLY_ENABLED, false);
   const captureEnabled = readBooleanEnv(env.REPORTING_CAPTURE_ENABLED, false);
+  const hour72Enabled = readBooleanEnv(env.REPORTING_72H_ENABLED, false);
   return {
     enabled,
     apiEnabled,
@@ -64,6 +65,20 @@ function readReportingConfig(env = process.env) {
     snapshotEnabled,
     dailyEnabled,
     weeklyEnabled,
+    hour72: {
+      enabled: hour72Enabled,
+      checkCron: String(env.REPORTING_72H_CHECK_CRON || "*/30 * * * *").trim(),
+      anchorUtc: String(env.REPORTING_72H_ANCHOR_UTC || "2026-01-01T00:00:00.000Z").trim(),
+      catchupStartUtc: String(env.REPORTING_72H_CATCHUP_START_UTC || "").trim(),
+      maxPerRun: Math.round(readNumberEnv(env.REPORTING_72H_MAX_CATCHUP_PER_RUN, 2, { min: 1, max: 20 })),
+      retryLimit: Math.round(readNumberEnv(env.REPORTING_72H_RETRY_LIMIT, 5, { min: 1, max: 20 })),
+      retryDelayMinutes: Math.round(readNumberEnv(env.REPORTING_72H_RETRY_DELAY_MINUTES, 30, { min: 5, max: 1440 })),
+      leaseMinutes: Math.round(readNumberEnv(env.REPORTING_72H_LEASE_MINUTES, 20, { min: 5, max: 120 })),
+      renewalMinutes: Math.round(readNumberEnv(env.REPORTING_72H_RENEWAL_MINUTES, 5, { min: 1, max: 30 })),
+      publishedRetentionDays: Math.round(readNumberEnv(env.REPORTING_72H_PUBLISHED_RETENTION_DAYS, 30, { min: 14, max: 365 })),
+      s3RetentionDays: Math.round(readNumberEnv(env.REPORTING_72H_S3_RETENTION_DAYS, 35, { min: 14, max: 400 })),
+      scopes: String(env.REPORTING_72H_SCOPES || "global").split(",").map((value) => value.trim()).filter(Boolean),
+    },
     dailyCron: String(env.REPORTING_DAILY_CRON || "18 0 * * *").trim(),
     weeklyCron: String(env.REPORTING_WEEKLY_CRON || "42 0 * * 1").trim(),
     snapshotCron: String(env.REPORTING_SNAPSHOT_CRON || "12 0 * * *").trim(),
@@ -136,6 +151,7 @@ function getReportingConfigStatus(config = readReportingConfig()) {
     reportStorageReady: reportStorageRequired && missing.length === 0,
     dailyEnabled: config.dailyEnabled,
     weeklyEnabled: config.weeklyEnabled,
+    hour72Enabled: config.hour72?.enabled === true,
     captureEnabled: config.capture?.enabled === true,
     ready: config.snapshotEnabled || (reportStorageRequired && missing.length === 0),
     missing,

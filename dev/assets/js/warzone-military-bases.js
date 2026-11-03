@@ -557,7 +557,7 @@ function showBasePanel(base, sx, sy, entity = null) {
                 <span class="static-icon ${escapeHTML(iconClass)}"
                     style="color:${escapeHTML(tc)}"
                     aria-hidden="true"></span>
-                <span >${escapeHTML(tl)}</span>
+                <span class="wz-widget-title">${escapeHTML(tl)}</span>
             </div>
             <div class="wz-widget-header-actions">
                 <button

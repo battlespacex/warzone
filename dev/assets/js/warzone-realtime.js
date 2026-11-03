@@ -11,22 +11,34 @@ let __sirenBroadcastStopPromise = null;
 let __sirenLayerListenerBound = false;
 export async function subscribeToLiveEvents() {
     installRealtimeSocketDiagnostics(supabase.realtime);
+    const onEventChange = instrumentRealtimeCallback("events-live", (payload) => {
+        const eventType = String(payload.eventType || payload.event || "").toUpperCase();
+        if (eventType === "DELETE") return;
+        const row = payload.new || payload.old;
+        if (!row) return;
+        handleIncomingEvent(row);
+    });
     return supabase
         .channel("events-live")
         .on(
             "postgres_changes",
             {
-                event: "*",
+                event: "INSERT",
                 schema: "public",
                 table: "events",
+                filter: "report_type=isdistinct.flight_tracking",
             },
-            instrumentRealtimeCallback("events-live", (payload) => {
-                const eventType = String(payload.eventType || payload.event || "").toUpperCase();
-                if (eventType === "DELETE") return;
-                const row = payload.new || payload.old;
-                if (!row) return;
-                handleIncomingEvent(row);
-            })
+            onEventChange
+        )
+        .on(
+            "postgres_changes",
+            {
+                event: "UPDATE",
+                schema: "public",
+                table: "events",
+                filter: "report_type=isdistinct.flight_tracking",
+            },
+            onEventChange
         )
         .subscribe();
 }

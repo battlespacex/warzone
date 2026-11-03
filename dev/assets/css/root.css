@@ -156,12 +156,8 @@
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
     --clippath-shape-3: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
-    --clippath-shape-4: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
-    --clippath-shape-5: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
-    --clippath-shape-6: polygon(100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0% 100%, 0 0, 0% 0%);
-    --clippath-shape-7: polygon(100% 0, 100% calc(100% - 2.3rem), calc(100% - 2.3rem) 100%, 0% 100%, 0 0, 0% 0%);
+    --clippath-shape-4: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
 }   
-
 /* #endregion =========== */
 /* #region =========== Event Type Colors =========== */
 :root {
@@ -205,17 +201,34 @@
 }
 
 /* #endregion =========== */
+
 /* #region =========== GNSS Interference =========== */
 :root {
     --gnss-cell-size-km: 28;
-    --gnss-cell-fill-low: var(--color-green-overlay);
+    /* --gnss-cell-fill-low: var(--color-green-overlay);
     --gnss-cell-fill-medium: var(--color-yellow-overlay);
     --gnss-cell-fill-high: var(--color-red-overlay);
-    --gnss-cell-fill-unknown: rgba(69 80 94 / 30%);
-    --gnss-cell-outline-low: var(--color-green-glow);
-    --gnss-cell-outline-medium: var(--color-yellow);
-    --gnss-cell-outline-high: var(--color-red-glow);
-    --gnss-cell-outline-unknown: var(--color-gray-glow);
+        --gnss-cell-fill-severe: rgba(151 79 211 / 40%);
+    --gnss-cell-fill-unknown: rgba(69 80 94 / 30%);*/
+
+    --gnss-cell-fill-low: rgba(13, 233, 79, 0.2);
+    --gnss-cell-fill-medium:rgba(252, 255, 77, 0.2);
+    --gnss-cell-fill-high: rgba(138, 67, 254, 0.2);
+    --gnss-cell-fill-severe: rgba(14, 127, 255, 0.2);
+    --gnss-cell-fill-unknown: rgba(100, 114, 133, 0.2);
+
+    --gnss-cell-outline-low: rgba(13, 233, 79, 0.1);
+    --gnss-cell-outline-medium:rgba(252, 255, 77, 0.1);
+    --gnss-cell-outline-high: rgba(138, 67, 254, 0.1);
+    --gnss-cell-outline-severe: rgba(14, 127, 255, 0.1);
+    --gnss-cell-outline-unknown: rgba(100, 114, 133, 0.1);
+
+    --gnss-legend-fill-low: rgba(13, 233, 79, 0.8);
+    --gnss-legend-fill-medium:rgba(252, 255, 77, 0.8);
+    --gnss-legend-fill-high: rgba(138, 67, 254, 0.8);
+    --gnss-legend-fill-severe: rgba(14, 127, 255, 0.8);
+    --gnss-legend-fill-unknown: rgba(100, 114, 133, 0.8);
+
     --gnss-cell-outline-width: 1;
     --gnss-cell-hover-opacity-boost: 0.14;
     --gnss-cell-height-offset: 80;
@@ -1252,7 +1265,7 @@
     --warzone-ctr-radar-ring-count: 2;
     --warzone-ctr-radar-scale: 1;
     /* Extent only: scale circles/grid boundary, not spacing or line widths. */
-    --warzone-aircraft-ctr-radar-extent-scale: 1.5;
+    --warzone-aircraft-ctr-radar-extent-scale: 7.5;
     --warzone-naval-ctr-radar-extent-scale: 0.5;
     --warzone-naval-ctr-radar-inner-radius: 1500;
     --warzone-naval-ctr-radar-outer-radius: 3000;
@@ -1388,34 +1401,35 @@
  */
 @media (min-width: 2560px) {
     :root {
+        /* Aircraft model sizes */
         --warzone-live-aircraft-model-focused-size-fighter: 3;
         --warzone-live-aircraft-model-focused-size-transport: 3;
         --warzone-live-aircraft-model-focused-size-bomber: 3;
         --warzone-live-aircraft-model-focused-size-tanker: 3;
         --warzone-live-aircraft-model-focused-size-recon: 3;
         --warzone-live-aircraft-model-focused-size-awacs: 3;
-        --warzone-live-aircraft-model-focused-size-helicopter: 3;
+        --warzone-live-aircraft-model-focused-size-helicopter: 4;
         --warzone-live-aircraft-model-focused-size-vip: 3;
-        --warzone-live-aircraft-model-focused-size-drone: 3;
+        --warzone-live-aircraft-model-focused-size-drone: 4;
 
-
-        --warzone-live-naval-model-focused-size-carrier: 6.5;
-        --warzone-live-naval-model-focused-size-amphibious: 6.5;
-        --warzone-live-naval-model-focused-size-cruiser: 6.5;
-        --warzone-live-naval-model-focused-size-destroyer: 6.5;
-        --warzone-live-naval-model-focused-size-frigate: 6.5;
-        --warzone-live-naval-model-focused-size-corvette: 6.5;
-        --warzone-live-naval-model-focused-size-intelligence: 6.5;
-        --warzone-live-naval-model-focused-size-ssbn: 6.5;
-        --warzone-live-naval-model-focused-size-ssn: 6.5;
-        --warzone-live-naval-model-focused-size-ssk: 6.5;
-        --warzone-live-naval-model-focused-size-aip_submarine: 6.5;
-        --warzone-live-naval-model-focused-size-submarine: 6.5;
-        --warzone-live-naval-model-focused-size-missile_boat: 6.5;
-        --warzone-live-naval-model-focused-size-patrol: 6.5;
-        --warzone-live-naval-model-focused-size-logistics: 6.5;
-        --warzone-live-naval-model-focused-size-minesweeper: 6.5;
-        --warzone-live-naval-model-focused-size-naval: 6.5;
+        /* Naval model sizes */
+        --warzone-live-naval-model-focused-size-carrier: 3;
+        --warzone-live-naval-model-focused-size-amphibious: 3;
+        --warzone-live-naval-model-focused-size-cruiser: 3;
+        --warzone-live-naval-model-focused-size-destroyer: 3;
+        --warzone-live-naval-model-focused-size-frigate: 3;
+        --warzone-live-naval-model-focused-size-corvette: 3;
+        --warzone-live-naval-model-focused-size-intelligence: 3;
+        --warzone-live-naval-model-focused-size-ssbn: 3;
+        --warzone-live-naval-model-focused-size-ssn: 3;
+        --warzone-live-naval-model-focused-size-ssk: 3;
+        --warzone-live-naval-model-focused-size-aip_submarine: 3;
+        --warzone-live-naval-model-focused-size-submarine: 3;
+        --warzone-live-naval-model-focused-size-missile_boat: 3;
+        --warzone-live-naval-model-focused-size-patrol: 3;
+        --warzone-live-naval-model-focused-size-logistics: 3;
+        --warzone-live-naval-model-focused-size-minesweeper: 3;
+        --warzone-live-naval-model-focused-size-naval: 3;
     }
 }
 
