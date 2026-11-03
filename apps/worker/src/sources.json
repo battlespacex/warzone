@@ -494,7 +494,7 @@
       "name": "IODA Internet Outages",
       "parser": "network-ioda",
       "enabled": true,
-      "url": "https://api.ioda.inetintel.cc.gatech.edu/v2/",
+      "url": "https://api.ioda.inetintel.cc.gatech.edu/v2/outages/events",
       "category": "network",
       "tags": [
         "network",
