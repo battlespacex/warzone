@@ -1,6 +1,8 @@
 -- StratOps secure RLS target migration
 -- STAGING ONLY until frontend JWT integration, approved memberships, and Realtime tests pass.
--- Requires Supabase Auth identities: public.stratops_access.user_id = auth.users.id.
+-- Requires trusted verified JWT with role=authenticated and UUID sub.
+-- Existing BattlespaceX WebSecurity cookies DO NOT constitute a Supabase JWT.
+-- For external OIDC identities, store the UUID sub in stratops_access.user_id.
 -- Requires deliberate opt-in via SET LOCAL stratops.approved_auth_rollout = 'yes' in same transaction.
 -- This migration DOES NOT provision users or change the existing login system.
 BEGIN;
@@ -13,7 +15,7 @@ BEGIN
 END $$;
 
 CREATE TABLE IF NOT EXISTS public.stratops_access (
- user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+ user_id uuid PRIMARY KEY,
  enabled boolean NOT NULL DEFAULT false,
  created_at timestamptz NOT NULL DEFAULT now()
 );
