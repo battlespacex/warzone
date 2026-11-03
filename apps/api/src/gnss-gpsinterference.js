@@ -77,7 +77,7 @@ export function selectGpsInterferenceRegion(snapshot, { bounds = null, limit = M
     };
 }
 
-export function createGpsInterferenceService({ fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
+export function createGpsInterferenceService({ fetchImpl = globalThis.fetch, now = () => Date.now(), onError = (event) => console.warn("[gnss-provider]", event) } = {}) {
     const cache = new Map();
     const pending = new Map();
     const retryAt = new Map();
@@ -119,7 +119,10 @@ export function createGpsInterferenceService({ fetchImpl = globalThis.fetch, now
                 while (cache.size > 2) cache.delete(cache.keys().next().value);
                 retryAt.delete(key);
                 return snapshot;
-            } catch {
+            } catch (error) {
+                // One sanitized diagnostic per failed fetch; retry cooldown prevents log storms.
+                // Do not log credentials, request headers or full provider payloads.
+                onError?.({ date: key, reason: error?.name === "AbortError" ? "timeout" : String(error?.message || "provider_error").slice(0, 120), cached: Boolean(cached) });
                 retryAt.set(key, now() + FAILURE_COOLDOWN_MS);
                 return cached ? { ...cached.snapshot, stale: true } : null;
             } finally { pending.delete(key); }
