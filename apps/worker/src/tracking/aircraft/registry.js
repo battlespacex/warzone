@@ -1,6 +1,7 @@
 import { createAdsbLolProvider } from "./providers/adsb-lol.js";
 import { createAirplanesLiveProvider } from "./providers/airplanes-live.js";
 import { createAdsbOneProvider } from "./providers/adsb-one.js";
+import { createAdsbFiProvider } from "./providers/adsb-fi.js";
 import { createAdsbExchangeProvider } from "./providers/adsb-exchange.js";
 import { createOpenSkyProvider } from "./providers/opensky.js";
 import { createPlaneAlertMilitaryDatabase } from "./providers/plane-alert-db.js";
@@ -22,7 +23,7 @@ function priorityMap(value, defaults) {
 }
 
 export function createAircraftProviders(env = process.env, dependencies = {}) {
-    const priority = priorityMap(env.AIRCRAFT_PROVIDER_PRIORITY, ["adsb_lol", "opensky", "airplanes_live", "adsb_one", "adsbx", "plane_alert_db", "skylink"]);
+    const priority = priorityMap(env.AIRCRAFT_PROVIDER_PRIORITY, ["adsb_lol", "opensky", "airplanes_live", "adsb_one", "adsb_fi", "adsbx", "plane_alert_db", "skylink"]);
     const providers = [
         createAdsbLolProvider({
             enabled: envEnabled(env.ADSB_LOL_ENABLED, true),
@@ -39,6 +40,12 @@ export function createAircraftProviders(env = process.env, dependencies = {}) {
         createAdsbOneProvider({
             enabled: envEnabled(env.ADSB_ONE_ENABLED ?? env.ADSBONE_ENABLED, true),
             baseUrl: env.ADSB_ONE_BASE_URL || env.ADSBONE_BASE_URL,
+            fetchImpl: dependencies.fetchImpl,
+        }),
+        createAdsbFiProvider({
+            enabled: envEnabled(env.ADSB_FI_ENABLED, false),
+            licenseApproved: envEnabled(env.ADSB_FI_LICENSE_APPROVED, false),
+            baseUrl: env.ADSB_FI_BASE_URL,
             fetchImpl: dependencies.fetchImpl,
         }),
         createAdsbExchangeProvider({
