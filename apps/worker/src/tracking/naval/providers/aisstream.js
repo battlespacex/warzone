@@ -12,6 +12,7 @@ const GLOBAL_BOX = [[[-90, -180], [90, 180]]];
 const DEFAULT_CACHE_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_CACHE_MAX_ENTRIES = 50_000;
 const DEFAULT_IDLE_TIMEOUT_MS = 60 * 1000;
+const IDLE_RECONNECT_STEPS_MS = [60_000, 300_000, 900_000, 1_800_000, 3_600_000];
 const POSITION_MESSAGE_TYPES = new Set([
     "PositionReport",
     "StandardClassBPositionReport",
@@ -176,8 +177,8 @@ export function processAisStreamMessage(message, {
 }
 
 function createSocket(url, allowInsecureTls, webSocketFactory) {
-    if (webSocketFactory) return webSocketFactory(url, { rejectUnauthorized: !allowInsecureTls });
-    return allowInsecureTls ? new WebSocket(url, { rejectUnauthorized: false }) : new WebSocket(url);
+    const options = { perMessageDeflate: true, rejectUnauthorized: !allowInsecureTls };
+    return webSocketFactory ? webSocketFactory(url, options) : new WebSocket(url, options);
 }
 
 function delay(milliseconds) {
@@ -198,13 +199,14 @@ export function createAisStreamProvider({
     logger = console,
     now = Date.now,
     delayImpl = delay,
+    random = Math.random,
 } = {}) {
     const requested = enabled === true;
-    const configured = Boolean(requested && apiKey);
+    const configured = Boolean(requested && String(apiKey || "").trim());
     const boxes = configured ? normalizeAisStreamBoundingBoxes(boundingBoxes) : GLOBAL_BOX;
     const cache = stateByMmsi;
     const observations = new Map();
-    const counters = { received: 0, position: 0, static: 0 };
+    const counters = { frames: 0, received: 0, position: 0, static: 0 };
     let socket = null;
     let connecting = null;
     let connected = false;
@@ -213,6 +215,10 @@ export function createAisStreamProvider({
     let shuttingDown = false;
     let subscriptionErrorLogged = "";
     let lastActivityAt = null;
+    let subscriptionConfirmed = false;
+    let compressionEnabled = null;
+    let silentReconnects = 0;
+    let nextReconnectAt = 0;
 
     const connectOnce = (insecure = false) => new Promise((resolve, reject) => {
         const candidate = createSocket(baseUrl || DEFAULT_URL, insecure, webSocketFactory);
@@ -225,17 +231,31 @@ export function createAisStreamProvider({
             socket = candidate;
             connected = true;
             lastActivityAt = Number(now());
-            candidate.send(JSON.stringify({ APIKey: apiKey, BoundingBoxes: boxes, FilterMessageTypes: FILTER_MESSAGE_TYPES }));
-            resolve();
+            subscriptionConfirmed = false;
+            compressionEnabled = null;
+            try {
+                candidate.send(JSON.stringify({ APIKey: String(apiKey).trim(), BoundingBoxes: boxes, FilterMessageTypes: FILTER_MESSAGE_TYPES }));
+                resolve();
+            } catch (error) {
+                connected = false;
+                socket = null;
+                try { candidate.close(); } catch { /* failed socket is discarded */ }
+                reject(error);
+            }
         });
         candidate.on("message", (raw) => {
-            lastActivityAt = Number(now());
-            counters.received += 1;
+            counters.frames += 1;
             let message;
             try {
                 message = JSON.parse(raw.toString());
             } catch (error) {
                 logger?.warn?.(`[ais:aisstream] INVALID_MESSAGE ${error.message}`);
+                return;
+            }
+            if (message?.MessageType === "SubscriptionConfirmation") {
+                subscriptionConfirmed = true;
+                compressionEnabled = message?.Message?.CompressionEnabled === true;
+                logger?.log?.(`[ais:aisstream] SUBSCRIBED compression=${compressionEnabled ? "enabled" : "disabled"}`);
                 return;
             }
             const parsed = processAisStreamMessage(message, { cache, cacheTtlMs, cacheMaxEntries });
@@ -253,11 +273,24 @@ export function createAisStreamProvider({
                 try { candidate.close(); } catch { /* provider health owns retry cadence */ }
                 return;
             }
+            if (parsed.kind === "ignored" || parsed.kind === "other") return;
+            lastActivityAt = Number(now());
+            silentReconnects = 0;
+            nextReconnectAt = 0;
+            counters.received += 1;
             if (parsed.kind === "position") counters.position += 1;
             if (parsed.kind === "static") counters.static += 1;
             if (parsed.observation) observations.set(parsed.mmsi, parsed.observation);
         });
-        candidate.on("error", failBeforeOpen);
+        candidate.on("error", (error) => {
+            if (!opened) {
+                failBeforeOpen(error);
+                return;
+            }
+            subscriptionError = error;
+            connected = false;
+            try { candidate.close(); } catch { /* retry on a later cycle */ }
+        });
         candidate.on("close", () => {
             if (socket === candidate) {
                 socket = null;
@@ -302,7 +335,11 @@ export function createAisStreamProvider({
         connected = false;
         firstSnapshot = true;
         lastActivityAt = null;
-        logger?.warn?.(`[ais:aisstream] IDLE reconnecting after ${Math.round(timeout / 1000)}s without messages`);
+        const step = IDLE_RECONNECT_STEPS_MS[Math.min(silentReconnects, IDLE_RECONNECT_STEPS_MS.length - 1)];
+        silentReconnects += 1;
+        const sample = Math.max(0, Math.min(1, Number(random()) || 0));
+        nextReconnectAt = currentTime + Math.round(step * (0.9 + sample * 0.2));
+        logger?.warn?.(`[ais:aisstream] IDLE no AIS messages for ${Math.round(timeout / 1000)}s; reconnect after backoff`);
         try { staleSocket.close(); } catch { /* reconnect below */ }
         return true;
     };
@@ -310,18 +347,32 @@ export function createAisStreamProvider({
     return {
         id: "aisstream",
         enabled: configured,
-        disabledReason: requested && !apiKey ? "MISSING_CREDENTIALS" : "DISABLED_BY_CONFIG",
+        disabledReason: requested && !configured ? "MISSING_CREDENTIALS" : "DISABLED_BY_CONFIG",
         minimumIntervalMs: 0,
         async fetchObservations() {
             const baseline = { ...counters };
             subscriptionError = null;
             reconnectIfIdle();
+            if (Number(now()) < nextReconnectAt) {
+                return { observations: [], diagnostics: {
+                    connected: false, subscription_confirmed: false,
+                    compression_enabled: compressionEnabled, reconnect_backoff: true,
+                    received: 0, position: 0, static: 0, candidates: 0,
+                } };
+            }
+            if (shuttingDown) throw new Error("AISStream provider is shut down");
             await ensureConnected();
             if (firstSnapshot) {
                 firstSnapshot = false;
                 await delayImpl(Math.max(100, Number(diagnosticWindowMs) || 15_000));
             }
             if (subscriptionError) throw subscriptionError;
+            if (!subscriptionConfirmed) {
+                try { socket?.close(); } catch { /* reconnect on the next eligible cycle */ }
+                const error = new Error("AISStream subscription was not confirmed");
+                error.code = "AISSTREAM_NO_CONFIRMATION";
+                throw error;
+            }
             if (!connected) {
                 const error = new Error("AISStream socket disconnected");
                 error.code = "AISSTREAM_DISCONNECTED";
@@ -337,6 +388,9 @@ export function createAisStreamProvider({
                 observations: items,
                 diagnostics: {
                     connected,
+                    subscription_confirmed: subscriptionConfirmed,
+                    compression_enabled: compressionEnabled,
+                    frames: counters.frames - baseline.frames,
                     received: counters.received - baseline.received,
                     position: counters.position - baseline.position,
                     static: counters.static - baseline.static,
@@ -350,6 +404,7 @@ export function createAisStreamProvider({
             connected = false;
             try { socket?.close(); } catch { /* ignore controlled shutdown errors */ }
             socket = null;
+            subscriptionConfirmed = false;
         },
     };
 }

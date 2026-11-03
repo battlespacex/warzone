@@ -3,6 +3,7 @@ import * as Cesium from "cesium";
 import { createTrackUpdateQueue, instrumentRealtimeCallback, installRealtimeSocketDiagnostics, recordRealtimeChannelError, recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
+import { getNavalContactStatus, matchesNavalContactStatus } from "../../../apps/shared/naval-contact-lifecycle.js";
 import { updateNewsTicker, updateDefcon } from "./warzone-ui.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
@@ -58,6 +59,7 @@ import {
 import {
     upsertNavalVessel,
     clearNavalVessel,
+    clearNavalSelection,
     renderNavalTrackerWidget,
     getAllNavalSnapshots,
     setNavalLayerVisible,
@@ -326,6 +328,7 @@ function markTrackerPerf(kind, stage, details = null) {
 }
 let __navalWidgetScopeFilter = "region";
 let __navalWidgetSubtypeFilter = "all";
+let __navalWidgetStatusFilter = "recent";
 let __navalWidgetPage = 1;
 let __navalSubtypeOptionsKey = "";
 let __navalGlobeFilterSignature = "";
@@ -3471,11 +3474,14 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const vessels = __navalWidgetSubtypeFilter && __navalWidgetSubtypeFilter !== "all"
             ? scopedVessels.filter((vessel) => normalizeNavalSubtype(vessel.subcategory) === __navalWidgetSubtypeFilter)
             : scopedVessels;
+        const statusVessels = vessels.filter((vessel) => matchesNavalContactStatus(
+            getNavalContactStatus(vessel.last_seen_at), __navalWidgetStatusFilter
+        ));
         syncNavalGlobeVisibilityFilter();
-        updateNavalWidgetTitleCount(vessels.length, highValueVessels.length);
+        updateNavalWidgetTitleCount(statusVessels.length, highValueVessels.length);
         notifyHighValueAssets("naval", highValueVessels);
         renderNavalTrackerWidget({
-            vessels,
+            vessels: statusVessels,
             visibleCount: LIVE_NAVAL_WIDGET_MAX_ITEMS * __navalWidgetPage,
             pageSize: LIVE_NAVAL_WIDGET_MAX_ITEMS,
             emptyMessage: __navalInitialRequestPending
@@ -3484,7 +3490,7 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
                     ? `No ${formatNavalSubtypeLabel(__navalWidgetSubtypeFilter)} contacts in selected region`
                     : "No naval contacts in selected region",
         });
-        if (vessels.length) markTrackerPerf("naval", "first tracker row rendered");
+        if (statusVessels.length) markTrackerPerf("naval", "first tracker row rendered");
     }, getLiveWidgetRenderDelay(delay));
 }
 function syncNavalSignals(events = []) {
@@ -3509,12 +3515,7 @@ function syncNavalSignals(events = []) {
         .filter(Boolean)
         .sort()
         .join("|") || "__empty__";
-    const activeKeys = new Set(navalEvents.map((event) => getNavalTrackKey(event)).filter(Boolean));
-    const hasExpiredMissingContact = getAllNavalSnapshots().some((entry) =>
-        !activeKeys.has(String(entry?.track_key || "")) &&
-        Date.now() - Number(entry?.received_at || 0) >= 90_000
-    );
-    if (signature === __lastNavalSignalsSyncKey && !hasExpiredMissingContact) {
+    if (signature === __lastNavalSignalsSyncKey) {
         return;
     }
     __lastNavalSignalsSyncKey = signature;
@@ -3524,23 +3525,6 @@ function syncNavalSignals(events = []) {
         markTrackerPerf("naval", "first valid naval track");
         if (upsertNavalVessel(event)) markTrackerPerf("naval", "first Cesium entity ready");
     });
-    getAllNavalSnapshots().forEach((entry) => {
-        const key = String(entry?.track_key || "");
-        if (!key || activeKeys.has(key)) return;
-        if (Date.now() - Number(entry.received_at || 0) < 90_000) return;
-        clearNavalVessel(key);
-    });
-    requestNavalWidgetRender(0);
-}
-function clearAllNavalSignals() {
-    const snapshots = getAllNavalSnapshots();
-    snapshots.forEach((entry) => {
-        const key = String(entry?.track_key || "");
-        if (!key) return;
-        clearNavalVessel(key);
-    });
-    __lastNavalSignalsSyncKey = "__empty__";
-    __navalSubtypeOptionsKey = "";
     requestNavalWidgetRender(0);
 }
 function normalizeEvent(event = {}) {
@@ -8156,12 +8140,13 @@ function syncAircraftGlobeVisibilityFilter() {
 }
 function syncNavalGlobeVisibilityFilter() {
     const subtype = normalizeNavalSubtype(String(__navalWidgetSubtypeFilter || "all")) || "all";
-    const signature = `${subtype}|${getActiveRegion?.()?.id || "global"}`;
+    const signature = `${subtype}|${__navalWidgetStatusFilter}|${getActiveRegion?.()?.id || "global"}|${Math.floor(Date.now() / 60_000)}`;
     if (__navalGlobeFilterSignature === signature) return;
     __navalGlobeFilterSignature = signature;
     setNavalVisibilityFilter((vessel) => (
         isTrackerItemVisibleInScope(vessel, "region") &&
-        (subtype === "all" || normalizeNavalSubtype(vessel.subcategory) === subtype)
+        (subtype === "all" || normalizeNavalSubtype(vessel.subcategory) === subtype) &&
+        matchesNavalContactStatus(getNavalContactStatus(vessel.last_seen_at), __navalWidgetStatusFilter)
     ));
 }
 function prioritizeSelectedAircraftWidgetItem(items = [], trackKey = "") {
@@ -8815,6 +8800,8 @@ function bindAircraftMovementsWidget() {
     __aircraftWidgetBound = true;
     syncTrackerSubtypeOptions(document.getElementById("wz-aircraft-filter-subtype"), getAircraftSubtypeOptions(), __aircraftWidgetSubtypeFilter, formatAircraftSubtypeLabel);
     syncTrackerSubtypeOptions(document.getElementById("wz-naval-filter-subtype"), getNavalSubtypeOptions(), __navalWidgetSubtypeFilter, formatNavalSubtypeLabel);
+    const navalStatusSelect = document.getElementById("wz-naval-filter-status");
+    if (navalStatusSelect) navalStatusSelect.value = __navalWidgetStatusFilter;
     bindManualAircraftSearch();
     bindFocusedAircraftTrailHistory();
     document.addEventListener("click", (event) => {
@@ -8893,6 +8880,14 @@ function bindAircraftMovementsWidget() {
         const navalSubtypeSelect = event.target.closest("#wz-naval-filter-subtype");
         if (navalSubtypeSelect && navalWidgetEnabled) {
             __navalWidgetSubtypeFilter = normalizeNavalSubtype(String(navalSubtypeSelect.value || "all")) || "all";
+            __navalWidgetPage = 1;
+            syncNavalGlobeVisibilityFilter();
+            requestNavalWidgetRender(0);
+            return;
+        }
+        const navalStatusSelect = event.target.closest("#wz-naval-filter-status");
+        if (navalStatusSelect && navalWidgetEnabled) {
+            __navalWidgetStatusFilter = String(navalStatusSelect.value || "recent");
             __navalWidgetPage = 1;
             syncNavalGlobeVisibilityFilter();
             requestNavalWidgetRender(0);
@@ -9608,7 +9603,10 @@ async function initializeWarzoneAppOnce() {
                 __visibleEventsCache = trimSortedEventList(__eventsCache, EVENT_VISIBLE_CACHE_MAX_ITEMS);
                 clearAllLiveTracks();
                 clearLiveTrackSelection();
-                clearAllNavalSignals();
+                clearNavalSelection();
+                __lastNavalSignalsSyncKey = "__empty__";
+                __navalGlobeFilterSignature = "";
+                syncNavalGlobeVisibilityFilter();
                 __aircraftHistoryCache = [];
                 __aircraftHistoryLastLoadedAt = 0;
                 __aircraftSubtypeOptionsKey = "";

@@ -496,10 +496,10 @@ function renderPopupContent(cell = {}) {
             <section class="wz-widget-body">
                 <h3>${escapeHtml(cell.classification || "Observed GNSS degradation")} - ${escapeHtml(severityLabel)}</h3>
                 <ul class="wz-widget-data-list">
-                    <li><strong>Affected aircraft</strong><span>${escapeHtml(affected)}</span></li>
-                    <li><strong>Observed aircraft</strong><span>${escapeHtml(String(sampleCount))}</span></li>
-                    <li><strong>Affected count</strong><span>${escapeHtml(affectedCount)}</span></li>
-                    <li><strong>Observation period</strong><span>${escapeHtml(cell.observationPeriod || "Not reported")}</span></li>
+                    <li><strong>Affected Aircraft</strong><span>${escapeHtml(affected)}</span></li>
+                    <li><strong>Observed Aircraft</strong><span>${escapeHtml(String(sampleCount))}</span></li>
+                    <li><strong>Affected Count</strong><span>${escapeHtml(affectedCount)}</span></li>
+                    <li><strong>Observation Period</strong><span>${escapeHtml(cell.observationPeriod || "Not reported")}</span></li>
                     <li><strong>Freshness</strong><span>${escapeHtml(formatRelativeTimestamp(cell.updatedAt || cell.observedAt))}</span></li>
                     <li><strong>Coordinates</strong><span>${escapeHtml(formatCoordinate(cell.lat))}, ${escapeHtml(formatCoordinate(cell.lon))}</span></li>
                     <li><strong>Source</strong><span>${escapeHtml(sourceLabel)}</span></li>

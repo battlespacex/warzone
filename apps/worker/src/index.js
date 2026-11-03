@@ -4593,7 +4593,7 @@ async function runWorkerCycle() {
             livePollEnabled: NAVAL_LIVE_POLL_CONFIG.enabled,
             feedEnabled: aisFeed?.enabled !== false,
         })
-            ? runLockedWorkerJob("naval-fallback", () => runAisWorker())
+            ? runLockedWorkerJob("naval-fallback", () => runAisWorker({ providers: navalProviders }))
             : Promise.resolve(),
         runFeedGroup("status", statusFeeds, { concurrency: 2 }),
         runFeedGroup("gdelt", gdeltFeeds, { concurrency: 1, timeoutMs: 30_000 }),

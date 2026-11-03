@@ -355,6 +355,20 @@
                                     </select>
                                 </span>
                             </label>
+                            <label class="wz-aircraft-type-filter">
+                                <span class="sr-only">Filter naval contacts by last received time</span>
+                                <span class="wz-selector">
+                                    <select aria-label="Filter naval contacts by last received time" class="wz--dropdown" id="wz-naval-filter-status">
+                                        <option value="recent">Recent contacts</option>
+                                        <option value="live">Live</option>
+                                        <option value="delayed">Delayed</option>
+                                        <option value="last_known">Last known</option>
+                                        <option value="historical">Historical</option>
+                                        <option value="archived">Archived</option>
+                                        <option value="all">All contact states</option>
+                                    </select>
+                                </span>
+                            </label>
                         </div>
                         <div id="wz-naval-panel-list" class="wz-aircraft-panel" aria-live="polite"></div>
                     </div>

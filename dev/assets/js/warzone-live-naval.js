@@ -7,6 +7,7 @@
 //  - Click → short-lived X-lines targeting reticle
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
+import { getNavalContactStatus } from "../../../apps/shared/naval-contact-lifecycle.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
 import { startLiveAssetHoverPulse, stopLiveAssetHoverPulse } from "./warzone-live-asset-hover-pulse.js";
@@ -22,6 +23,7 @@ const __navalState = {
     renderEnabled: false,
     visibilityFilter: null,
     reconcileFrame: 0,
+    reconcileQueueFrame: 0,
     reconcileGeneration: 0,
     createdCount: 0,
     destroyedCount: 0,
@@ -85,9 +87,8 @@ const NAVAL_RENDER_MODE = Object.freeze({
 const NAVAL_MODEL_DEFAULT_MAX_ACTIVE = 14;
 const NAVAL_MODEL_DEFAULT_ZOOM_HEIGHT = 280000;
 const NAVAL_CHAR_FALLBACK_DEFAULT_COUNT = 80;
-const NAVAL_CONTACT_STALE_MS = 45 * 60 * 1000;
 let __navalGlbMaterialShader = null;
-const NAVAL_CONTACT_MAX_ITEMS = 320;
+const NAVAL_RENDER_MAX_ITEMS = 320;
 const NAVAL_ICON_CACHE_MAX_ITEMS = 128;
 const NAVAL_NON_OPERATIONAL_PATTERNS = [
     /\bCV[-\s]?0?9\b/i, // USS Essex (CV-9), decommissioned in 1969.
@@ -485,30 +486,18 @@ function isKnownNonOperationalNavalContact(data = {}) {
     return NAVAL_NON_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(identityAndStatus));
 }
 function purgeInvalidNavalContacts() {
-    const staleCutoff = Date.now() - NAVAL_CONTACT_STALE_MS;
     const purgeKeys = [];
     for (const [trackKey, entry] of __navalState.vessels.entries()) {
         const data = entry?.data || {};
-        const seenAt = Number(data.last_seen_at || entry?.entity?.__navalLastSeenAt || 0);
-        const stale = Number.isFinite(seenAt) && seenAt > 0 && seenAt < staleCutoff;
         if (
             isProbablyAircraftContact(data) ||
             isKnownNonOperationalNavalContact(data) ||
-            !hasNavalTelemetrySignature(data) ||
-            stale
+            !hasNavalTelemetrySignature(data)
         ) {
             purgeKeys.push(trackKey);
         }
     }
     purgeKeys.forEach((trackKey) => clearNavalVessel(trackKey));
-    const overflow = __navalState.vessels.size - NAVAL_CONTACT_MAX_ITEMS;
-    if (overflow > 0) {
-        const sorted = Array.from(__navalState.vessels.entries())
-            .sort((a, b) => Number(b?.[1]?.data?.last_seen_at || 0) - Number(a?.[1]?.data?.last_seen_at || 0));
-        for (let i = NAVAL_CONTACT_MAX_ITEMS; i < sorted.length; i += 1) {
-            clearNavalVessel(sorted[i][0]);
-        }
-    }
 }
 function normalizeAffiliationText(value = "") {
     const clean = normalizeText(value);
@@ -693,6 +682,7 @@ function resolveNavalLastSeenAt(event = {}, metadata = {}) {
         metadata.time,
         event.updated_at,
         metadata.updated_at,
+        event.created_at,
     ];
     for (const candidate of candidates) {
         if (candidate === null || candidate === undefined || candidate === "") continue;
@@ -704,7 +694,7 @@ function resolveNavalLastSeenAt(event = {}, metadata = {}) {
             return ms;
         }
     }
-    return Date.now();
+    return 0;
 }
 function resolveNavalDisplayDetails(event = {}, metadata = {}, resolvedSubtype = "naval", hintText = "") {
     const objectSources = [
@@ -1694,8 +1684,10 @@ function buildNavalBillboardVisual(vessel = {}, mode = NAVAL_RENDER_MODE.PNG) {
     const image = resolveNavalBillboardImage(vessel, mode);
     if (!image) return null;
     const dimensions = getNavalBillboardDimensions(mode);
+    const status = getNavalContactStatus(vessel.last_seen_at);
     return {
         image,
+        color: status === "LIVE" ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.58),
         scale: mode === NAVAL_RENDER_MODE.PNG && dimensions ? 1 : getNavalBillboardScale(mode),
         width: dimensions?.width,
         height: dimensions?.height,
@@ -1775,6 +1767,7 @@ function applyNavalBillboardVisual(entity, vessel = {}, mode = NAVAL_RENDER_MODE
     } else {
         entity.billboard.show = true;
         entity.billboard.image = visual.image;
+        entity.billboard.color = visual.color;
         entity.billboard.scale = visual.scale;
         entity.billboard.width = visual.width;
         entity.billboard.height = visual.height;
@@ -1856,14 +1849,15 @@ function transformNavalLabelText(text = "", labelStyle = {}) {
 }
 function buildNavalLabel(vessel = {}, trackKey = "") {
     const labelStyle = getNavalLabelStyleConfig();
+    const status = getNavalContactStatus(vessel.last_seen_at);
     const isFocused = String(__navalState.selectedKey || "") === String(trackKey || "");
     const horizontalOrigin = isFocused
         ? Cesium.HorizontalOrigin.RIGHT
         : getNavalLabelHorizontalOrigin(labelStyle.align);
     return {
         text: isFocused
-            ? getFocusedNavalLabelText(vessel, labelStyle)
-            : transformNavalLabelText(getNavalDisplayName(vessel) || getNavalSubtypeLabel(vessel.subcategory) || "Naval", labelStyle),
+            ? `${getFocusedNavalLabelText(vessel, labelStyle)}${status === "LIVE" ? "" : `\n${status}`}`
+            : transformNavalLabelText(`${getNavalDisplayName(vessel) || getNavalSubtypeLabel(vessel.subcategory) || "Naval"}${status === "LIVE" ? "" : ` · ${status}`}`, labelStyle),
         show: new Cesium.CallbackProperty(() => shouldShowNavalLabel(trackKey), false),
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, labelStyle.maxDistance),
         font: labelStyle.font,
@@ -1877,7 +1871,7 @@ function buildNavalLabel(vessel = {}, trackKey = "") {
             isFocused ? labelStyle.focusOffsetY : 0,
             isFocused ? labelStyle.focusOffsetZ : 0
         ),
-        fillColor: Cesium.Color.fromCssColorString(labelStyle.fill).withAlpha(0.98),
+        fillColor: Cesium.Color.fromCssColorString(labelStyle.fill).withAlpha(status === "LIVE" ? 0.98 : 0.68),
         showBackground: true,
         backgroundColor: Cesium.Color.fromCssColorString(labelStyle.background),
         backgroundPadding: new Cesium.Cartesian2(labelStyle.paddingX, labelStyle.paddingY),
@@ -2314,7 +2308,7 @@ function emitNavalFocusChanged() {
     }));
 }
 
-function clearNavalSelection() {
+export function clearNavalSelection() {
     const previousKey = __navalState.selectedKey;
     ++__navalMapModeGeneration;
     const activeFocus = getAssetFocusController().getState();
@@ -2884,6 +2878,11 @@ function mergeNavalVesselData(existing = {}, incoming = {}) {
     merged.flag_country = normalizeCountryName(keepFirstText(incoming.flag_country, existing.flag_country));
     merged.country = normalizeCountryName(keepFirstText(incoming.country, existing.country));
     merged.operator = keepFirstText(incoming.operator, existing.operator);
+    merged.source_name = keepFirstText(incoming.source_name, existing.source_name);
+    const firstSeen = [existing.first_seen_at, incoming.first_seen_at]
+        .map((value) => Date.parse(value))
+        .filter((value) => Number.isFinite(value) && value > 0);
+    merged.first_seen_at = firstSeen.length ? new Date(Math.min(...firstSeen)).toISOString() : "";
     merged.last_seen_at = Number(incoming.last_seen_at || existing.last_seen_at || 0);
     return merged;
 }
@@ -3160,7 +3159,6 @@ function unbindNavalRuntime(viewer) {
 // ─── Public: upsert vessel (called from essential.js event handler) ───────────
 export function upsertNavalVessel(event) {
     const viewer = window.__warzoneViewer;
-    if (!viewer) return;
     if (
         isProbablyAircraftContact(event) ||
         isKnownNonOperationalNavalContact(event) ||
@@ -3290,6 +3288,7 @@ export function upsertNavalVessel(event) {
         heading_deg: toFiniteNumber(headingDeg, 0),
         speed_kts: Number.isFinite(speedKts) ? speedKts : null,
         mmsi,
+        imo: normalizeText(pickFirstNavalText(sourceObjects, ["imo", "imo_number", "imoNumber"])),
         callsign,
         hull_number: hullNumber,
         flag_country: flagCountry,
@@ -3300,6 +3299,8 @@ export function upsertNavalVessel(event) {
         occurred_at: normalizeText(event.occurred_at || metadata.occurred_at || ""),
         updated_at: normalizeText(event.updated_at || metadata.updated_at || ""),
         last_seen_at: lastSeenAt,
+        first_seen_at: normalizeText(event.first_seen_at || metadata.first_seen_at || event.created_at || ""),
+        source_name: normalizeText(event.source_name || metadata.source_name || ""),
         received_at: Date.now(),
         metadata,
     };
@@ -3313,7 +3314,8 @@ export function upsertNavalVessel(event) {
     const nextVessel = existing?.data
         ? mergeNavalVesselData(existing.data, vessel)
         : vessel;
-    if (!__navalState.renderEnabled || !matchesNavalVisibilityFilter(trackKey, nextVessel)) {
+    if (!viewer || !__navalState.renderEnabled || !matchesNavalVisibilityFilter(trackKey, nextVessel) ||
+        (__navalState.vessels.size >= NAVAL_RENDER_MAX_ITEMS && !existing?.entity)) {
         const retainedEntity = existing?.entity || null;
         if (retainedEntity) {
             unregisterAnimationTask(retainedEntity.__navalAnimationTaskKey || `naval:${trackKey}`);
@@ -3340,6 +3342,8 @@ export function upsertNavalVessel(event) {
             __navalState.vessels.set(trackKey, { entity, data: nextVessel });
         }
     }
+
+    if (__navalState.vessels.size > NAVAL_RENDER_MAX_ITEMS) queueNavalRenderReconcile();
 
     requestNavalRenderBatched();
     dispatchNavalRegistryUpdate();
@@ -3419,8 +3423,18 @@ function matchesNavalVisibilityFilter(trackKey = "", vessel = {}) {
 
 function cancelNavalRenderReconcile() {
     __navalState.reconcileGeneration += 1;
+    if (__navalState.reconcileQueueFrame) cancelAnimationFrame(__navalState.reconcileQueueFrame);
+    __navalState.reconcileQueueFrame = 0;
     if (__navalState.reconcileFrame) cancelAnimationFrame(__navalState.reconcileFrame);
     __navalState.reconcileFrame = 0;
+}
+
+function queueNavalRenderReconcile() {
+    if (__navalState.reconcileQueueFrame) return;
+    __navalState.reconcileQueueFrame = requestAnimationFrame(() => {
+        __navalState.reconcileQueueFrame = 0;
+        scheduleNavalRenderReconcile();
+    });
 }
 
 function scheduleNavalRenderReconcile() {
@@ -3429,6 +3443,15 @@ function scheduleNavalRenderReconcile() {
     if (!viewer || !__navalState.renderEnabled) return false;
     const generation = __navalState.reconcileGeneration;
     const keys = Array.from(__navalState.vessels.keys());
+    const admitted = new Set(keys.filter((key) => {
+        const data = __navalState.vessels.get(key)?.data;
+        return data && matchesNavalVisibilityFilter(key, data);
+    }).sort((a, b) => {
+        if (a === __navalState.selectedKey) return -1;
+        if (b === __navalState.selectedKey) return 1;
+        return Number(__navalState.vessels.get(b)?.data?.last_seen_at || 0) -
+            Number(__navalState.vessels.get(a)?.data?.last_seen_at || 0);
+    }).slice(0, NAVAL_RENDER_MAX_ITEMS));
     let index = 0;
     const processChunk = () => {
         if (generation !== __navalState.reconcileGeneration || !__navalState.renderEnabled ||
@@ -3440,7 +3463,7 @@ function scheduleNavalRenderReconcile() {
             const entry = __navalState.vessels.get(trackKey);
             if (!entry?.data) continue;
             entry.entity = viewer.entities.getById(`naval-${trackKey}`) || null;
-            const shouldShow = matchesNavalVisibilityFilter(trackKey, entry.data);
+            const shouldShow = admitted.has(trackKey);
             if (!shouldShow) {
                 if (entry.entity) {
                     unregisterAnimationTask(entry.entity.__navalAnimationTaskKey || `naval:${trackKey}`);
@@ -3603,10 +3626,15 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     const headingLabel = formatNavalHeading(vessel.heading_deg);
     const coordLabel = getNavalCoordinatesLabel(vessel);
     const timeLabel = formatNavalTimeAgo(vessel.last_seen_at);
+    const status = getNavalContactStatus(vessel.last_seen_at);
+    const lastSeen = Number(vessel.last_seen_at);
+    const exactTime = Number.isFinite(lastSeen) && lastSeen > 0
+        ? new Date(lastSeen).toISOString() : "Time unknown";
+    const provenance = `${status} · Last received ${exactTime} · ${String(vessel.source_name || "Source unknown")}`;
     const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
     const isFocusDisabled = isNavalFocusBlocked(vessel.track_key);
     const renderSignature = [name, detailLabel, affiliationLabel, speedLabel, headingLabel,
-        coordLabel, timeLabel, Boolean(isSelected), isFocusDisabled].join("\u001f");
+        coordLabel, timeLabel, provenance, Boolean(isSelected), isFocusDisabled].join("\u001f");
     if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4) return;
     card.className = `wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
@@ -3661,6 +3689,13 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     titleEl = card.querySelector(".wz-aircraft-item__title");
     timeEl = card.querySelector(".wz-aircraft-item__time");
     actionBtn = card.querySelector(".wz-aircraft-action");
+    let provenanceEl = foot.querySelector(".wz-naval-item__provenance");
+    if (!provenanceEl) {
+        provenanceEl = document.createElement("span");
+        provenanceEl.className = "wz-naval-item__provenance";
+        foot.insertBefore(provenanceEl, actionBtn);
+    }
+    provenanceEl.textContent = provenance;
     card.querySelector(".wz-aircraft-badge")?.remove();
 
     let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");
@@ -3676,6 +3711,9 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
         statusWrap.appendChild(statusIcon);
         titleEl.appendChild(statusWrap);
     }
+    statusWrap.classList.toggle("is-active", status === "LIVE");
+    statusWrap.classList.toggle("is-ended", status !== "LIVE");
+    statusWrap.title = status;
     if (!titleText) {
         titleText = document.createElement("span");
         titleText.className = "wz-aircraft-title__text";

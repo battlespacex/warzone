@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildNavalTrack, qualifyMilitaryVessel, runAisWorker } from "../src/ais-worker.js";
+import { buildNavalTrack, qualifyMilitaryVessel, runAisWorker, selectChangedNavalWrites } from "../src/ais-worker.js";
 import { resetProviderHealth } from "../src/tracking/provider-health.js";
 
 function navalProvider(id, offset = 0) {
@@ -53,6 +53,27 @@ test("repeated identical naval observation writes event, track, and history each
     assert.deepEqual(batches.events[0][0], batches.events[1][0]);
     assert.equal(batches.events[0][0].occurred_at, batches.events[1][0].occurred_at);
     assert.equal(batches.tracks[0][0].occurred_at, batches.tracks[1][0].occurred_at);
+});
+
+test("unchanged naval rows are skipped while position, timestamp and identity changes persist", () => {
+    const committed = new Map();
+    const makeRows = (observedAt, lat, name) => {
+        const event = { dedupe_key: "ais-368123456", occurred_at: observedAt, lat, title: name };
+        const track = { track_key: "ais-368123456", occurred_at: observedAt, updated_at: observedAt, lat, metadata: { mmsi: "368123456" } };
+        const history = { mmsi: "368123456", last_seen_at: observedAt, lat, vessel_name: name };
+        return [[event], [track], [history]];
+    };
+    const first = selectChangedNavalWrites(...makeRows("2026-08-13T12:00:00Z", 36, "USS EXAMPLE"), committed);
+    assert.equal(first.tracks.length, 1);
+    committed.set(...first.signatures[0]);
+    assert.equal(selectChangedNavalWrites(...makeRows("2026-08-13T12:00:00Z", 36, "USS EXAMPLE"), committed).tracks.length, 0);
+    for (const rows of [
+        makeRows("2026-08-13T12:00:05Z", 36, "USS EXAMPLE"),
+        makeRows("2026-08-13T12:00:00Z", 36.1, "USS EXAMPLE"),
+        makeRows("2026-08-13T12:00:00Z", 36, "USS RENAMED"),
+    ]) {
+        assert.equal(selectChangedNavalWrites(...rows, committed).tracks.length, 1);
+    }
 });
 
 test("new source time, movement and identity metadata change the naval event payload", async () => {
@@ -152,6 +173,8 @@ test("naval history persistence uses the numeric AIS ship type code", async () =
         logger: { log() {}, warn() {} },
     });
     assert.equal(historyRows[0].ship_type, 35);
+    assert.equal(historyRows[0].last_seen_at, "2026-08-13T12:00:00Z");
+    assert.equal(Object.hasOwn(historyRows[0], "created_at"), false);
 });
 
 test("later MMSI reconciles and ends an earlier IMO-only temporary track", async () => {

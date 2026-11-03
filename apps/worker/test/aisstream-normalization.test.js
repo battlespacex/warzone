@@ -57,15 +57,21 @@ test("AISStream reconnects a socket that stays open but stops receiving messages
         diagnosticWindowMs: 1,
         idleTimeoutMs: 5_000,
         now: () => currentTime,
+        random: () => 0.5,
         delayImpl: async () => { },
         webSocketFactory: () => {
             const socket = new EventEmitter();
             socket.closeCount = 0;
-            socket.send = () => socket.emit("message", Buffer.from(JSON.stringify({
-                MessageType: "PositionReport",
-                MetaData: { MMSI: 123456789, ShipName: "USS TEST", time_utc: new Date(currentTime).toISOString() },
-                Message: { PositionReport: { Latitude: 40, Longitude: -70, Sog: 12, Cog: 91 } },
-            })));
+            socket.send = () => {
+                socket.emit("message", Buffer.from(JSON.stringify({
+                    MessageType: "SubscriptionConfirmation", Message: { CompressionEnabled: true },
+                })));
+                socket.emit("message", Buffer.from(JSON.stringify({
+                    MessageType: "PositionReport",
+                    MetaData: { MMSI: 123456789, ShipName: "USS TEST", time_utc: new Date(currentTime).toISOString() },
+                    Message: { PositionReport: { Latitude: 40, Longitude: -70, Sog: 12, Cog: 91 } },
+                })));
+            };
             socket.close = () => {
                 socket.closeCount += 1;
                 socket.emit("close");
@@ -79,17 +85,47 @@ test("AISStream reconnects a socket that stays open but stops receiving messages
 
     const first = await provider.fetchObservations();
     assert.equal(first.observations.length, 1);
+    assert.equal(first.diagnostics.subscription_confirmed, true);
+    assert.equal(first.diagnostics.compression_enabled, true);
+    assert.equal(first.diagnostics.received, 1);
+    assert.equal(first.diagnostics.frames, 2);
     assert.equal(sockets.length, 1);
 
     currentTime += 5_001;
     const second = await provider.fetchObservations();
-    assert.equal(second.observations.length, 1);
-    assert.equal(sockets.length, 2);
+    assert.equal(second.observations.length, 0);
+    assert.equal(second.diagnostics.reconnect_backoff, true);
+    assert.equal(sockets.length, 1);
     assert.equal(sockets[0].closeCount, 1);
-    assert.deepEqual(warnings, ["[ais:aisstream] IDLE reconnecting after 5s without messages"]);
+    assert.deepEqual(warnings, ["[ais:aisstream] IDLE no AIS messages for 5s; reconnect after backoff"]);
+
+    currentTime += 60_000;
+    const third = await provider.fetchObservations();
+    assert.equal(third.observations.length, 1);
+    assert.equal(sockets.length, 2);
 
     provider.shutdown();
     resetAisStreamCache();
+});
+
+test("AISStream requests compression and rejects an unconfirmed subscription", async () => {
+    let socketOptions;
+    const socket = new EventEmitter();
+    socket.send = () => {};
+    socket.close = () => socket.emit("close");
+    const provider = createAisStreamProvider({
+        enabled: true, apiKey: "test-key", diagnosticWindowMs: 1,
+        delayImpl: async () => {},
+        webSocketFactory: (_url, options) => {
+            socketOptions = options;
+            setImmediate(() => socket.emit("open"));
+            return socket;
+        },
+    });
+    await assert.rejects(provider.fetchObservations(), { code: "AISSTREAM_NO_CONFIRMATION" });
+    assert.equal(socketOptions.perMessageDeflate, true);
+    assert.equal(socketOptions.rejectUnauthorized, true);
+    provider.shutdown();
 });
 
 for (const messageType of [

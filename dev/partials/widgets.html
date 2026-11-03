@@ -355,6 +355,20 @@
                                     </select>
                                 </span>
                             </label>
+                            <label class="wz-aircraft-type-filter">
+                                <span class="sr-only">Filter naval contacts by last received time</span>
+                                <span class="wz-selector">
+                                    <select aria-label="Filter naval contacts by last received time" class="wz--dropdown" id="wz-naval-filter-status">
+                                        <option value="recent">Recent contacts</option>
+                                        <option value="live">Live</option>
+                                        <option value="delayed">Delayed</option>
+                                        <option value="last_known">Last known</option>
+                                        <option value="historical">Historical</option>
+                                        <option value="archived">Archived</option>
+                                        <option value="all">All contact states</option>
+                                    </select>
+                                </span>
+                            </label>
                         </div>
                         <div id="wz-naval-panel-list" class="wz-aircraft-panel" aria-live="polite"></div>
                     </div>
@@ -503,19 +517,18 @@
                                 <span>Severe: &gt;50%</span>
                                 <strong id="wz-gnss-count-severe" aria-label="Severe interference cells">0</strong>
                             </div>
-
-                            <!-- Hexagonal Map Overlay Toggle -->
-                            <label class="wz-check" for="wz-gnss-show-hexagons">
-                                <input id="wz-gnss-show-hexagons"
-                                    type="checkbox"
-                                    checked>
-                                <span>Show Hexagons</span>
-                            </label>
-
                         </section>
 
+                        <!-- Hexagonal Map Overlay Toggle -->
+                        <label class="wz-check" for="wz-gnss-show-hexagons">
+                            <input id="wz-gnss-show-hexagons"
+                                type="checkbox"
+                                checked>
+                            <span>Show Hexagons</span>
+                        </label>
+
                         <!-- GNSS Severity Filter -->
-                        <div>
+                        <div class="wz-form-fieldbox">
                             <label for="wz-gnss-severity">Interference Severity</label>
                             <span class="wz-selector">
                                 <select id="wz-gnss-severity"
@@ -531,7 +544,7 @@
                         </div>
 
                         <!-- Historical GNSS Observation Filter -->
-                        <div>
+                          <div class="wz-form-fieldbox">
                             <label for="wz-gnss-period">Observation Date</label>
                             <input id="wz-gnss-period"
                                 class="wz--input"

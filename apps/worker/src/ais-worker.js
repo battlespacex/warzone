@@ -396,7 +396,7 @@ export function buildNavalTrack(vessel) {
         country: country || null,
         status: "active",
         occurred_at: vessel.observedAt || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        updated_at: vessel.observedAt || new Date().toISOString(),
         metadata: {
             mmsi,
             vessel_name: name || null,
@@ -427,8 +427,7 @@ function buildNavalTrackHistoryRow(vessel) {
         speed_kts: Number.isFinite(speed) ? Number(speed) : null,
         heading_deg: Number.isFinite(heading) ? Number(heading) : null,
         status: "active",
-        last_seen_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
+        last_seen_at: vessel.observedAt || new Date().toISOString(),
     };
 }
 
@@ -443,6 +442,7 @@ async function upsertNavalEvents(events) {
 
     if (error) {
         console.error("[ais] Supabase upsert error:", error.message);
+        throw error;
     } else {
         console.log(`[ais] Upserted ${events.length} naval vessel events`);
     }
@@ -455,7 +455,7 @@ async function upsertNavalTracks(tracks) {
         .upsert(tracks, { onConflict: "track_key", ignoreDuplicates: false });
     if (error) {
         console.error("[ais] Naval tracks upsert error:", error.message);
-        return 0;
+        throw error;
     } else {
         console.log(`[ais] Upserted ${tracks.length} naval tracks`);
         return tracks.length;
@@ -469,6 +469,7 @@ async function upsertNavalTrackHistory(rows) {
         .upsert(rows, { onConflict: "mmsi", ignoreDuplicates: false });
     if (error) {
         console.error("[ais] Naval history upsert error:", error.message);
+        throw error;
     } else {
         console.log(`[ais] Upserted ${rows.length} naval history rows`);
     }
@@ -518,6 +519,23 @@ function toLegacyVessel(observation) {
 
 const temporaryTrackByImo = new Map();
 const reportedDisabledProviders = new Set();
+const committedNavalWrites = new Map();
+
+export function selectChangedNavalWrites(events, tracks, historyRows, committed = new Map()) {
+    const historyByMmsi = new Map(historyRows.map((row) => [String(row.mmsi), row]));
+    const selected = { events: [], tracks: [], history: [], signatures: [] };
+    tracks.forEach((track, index) => {
+        const event = events[index];
+        const history = historyByMmsi.get(String(track.metadata?.mmsi || ""));
+        const signature = JSON.stringify([event, track, history || null]);
+        if (committed.get(track.track_key) === signature) return;
+        selected.events.push(event);
+        selected.tracks.push(track);
+        if (history) selected.history.push(history);
+        selected.signatures.push([track.track_key, signature]);
+    });
+    return selected;
+}
 
 const defaultPersistence = Object.freeze({
     upsertEvents: upsertNavalEvents,
@@ -635,9 +653,19 @@ export async function runAisWorker(options = {}) {
         temporaryTrackByImo.delete(imo);
     }
     await persistence.endAliases?.([...new Set(aliasesToEnd)]);
-    await persistence.upsertEvents(events);
-    const upserted = await persistence.upsertTracks(tracks);
-    await persistence.upsertHistory(historyRows);
+    const writes = persistence === defaultPersistence
+        ? selectChangedNavalWrites(events, tracks, historyRows, committedNavalWrites)
+        : { events, tracks, history: historyRows, signatures: [] };
+    await persistence.upsertEvents(writes.events);
+    const upserted = await persistence.upsertTracks(writes.tracks);
+    await persistence.upsertHistory(writes.history);
+    for (const [key, signature] of writes.signatures) {
+        committedNavalWrites.delete(key);
+        committedNavalWrites.set(key, signature);
+    }
+    while (committedNavalWrites.size > 50_000) {
+        committedNavalWrites.delete(committedNavalWrites.keys().next().value);
+    }
     logger.log?.(`[ais] candidates=${canonical.length} military=${military.length} canonical=${military.length} corroborated=${corroborated} upserted=${upserted}`);
 
     return {

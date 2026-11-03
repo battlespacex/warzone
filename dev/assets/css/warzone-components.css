@@ -4654,6 +4654,14 @@ UNUSED CANDIDATE END */
     gap: .5rem;
 }
 
+.wz-naval-item__provenance {
+    flex: 1;
+    min-width: 0;
+    color: var(--color-text-dim);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+}
+
 .wz-aircraft-lock-btn {
     min-width: 9rem;
     color: var(--color-text-dim);
@@ -6557,7 +6565,10 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 .wz-widget-header .wz-widget-kicker .static-icon {
     font-size: var(--icon-md);
     width: 1.5rem;
-    height: 1.5rem;;
+    height: 1.5rem;
+    min-height: 1.5rem;
+    min-width: 1.5rem;
+    line-height: 1.5rem;
 }
 
 .wz-widget-header .wz-widget-kicker .wz-widget-title {
