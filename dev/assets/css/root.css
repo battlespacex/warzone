@@ -1402,34 +1402,34 @@
 @media (min-width: 2560px) {
     :root {
         /* Aircraft model sizes */
-        --warzone-live-aircraft-model-focused-size-fighter: 7;
-        --warzone-live-aircraft-model-focused-size-transport: 6;
-        --warzone-live-aircraft-model-focused-size-bomber: 6;
-        --warzone-live-aircraft-model-focused-size-tanker: 6;
-        --warzone-live-aircraft-model-focused-size-recon: 6;
-        --warzone-live-aircraft-model-focused-size-awacs: 6;
-        --warzone-live-aircraft-model-focused-size-helicopter: 7;
-        --warzone-live-aircraft-model-focused-size-vip: 7;
-        --warzone-live-aircraft-model-focused-size-drone: 7;
+        --warzone-live-aircraft-model-focused-size-fighter: 3;
+        --warzone-live-aircraft-model-focused-size-transport: 3;
+        --warzone-live-aircraft-model-focused-size-bomber: 3;
+        --warzone-live-aircraft-model-focused-size-tanker: 3;
+        --warzone-live-aircraft-model-focused-size-recon: 3;
+        --warzone-live-aircraft-model-focused-size-awacs: 3;
+        --warzone-live-aircraft-model-focused-size-helicopter: 4;
+        --warzone-live-aircraft-model-focused-size-vip: 3;
+        --warzone-live-aircraft-model-focused-size-drone: 4;
 
         /* Naval model sizes */
-        --warzone-live-naval-model-focused-size-carrier: 7;
-        --warzone-live-naval-model-focused-size-amphibious: 7;
-        --warzone-live-naval-model-focused-size-cruiser: 7;
-        --warzone-live-naval-model-focused-size-destroyer: 7;
-        --warzone-live-naval-model-focused-size-frigate: 7;
-        --warzone-live-naval-model-focused-size-corvette: 7;
-        --warzone-live-naval-model-focused-size-intelligence: 7;
-        --warzone-live-naval-model-focused-size-ssbn: 7;
-        --warzone-live-naval-model-focused-size-ssn: 7;
-        --warzone-live-naval-model-focused-size-ssk: 7;
-        --warzone-live-naval-model-focused-size-aip_submarine: 7;
-        --warzone-live-naval-model-focused-size-submarine: 7;
-        --warzone-live-naval-model-focused-size-missile_boat: 7;
-        --warzone-live-naval-model-focused-size-patrol: 7;
-        --warzone-live-naval-model-focused-size-logistics: 7;
-        --warzone-live-naval-model-focused-size-minesweeper: 7;
-        --warzone-live-naval-model-focused-size-naval: 7;
+        --warzone-live-naval-model-focused-size-carrier: 3;
+        --warzone-live-naval-model-focused-size-amphibious: 3;
+        --warzone-live-naval-model-focused-size-cruiser: 3;
+        --warzone-live-naval-model-focused-size-destroyer: 3;
+        --warzone-live-naval-model-focused-size-frigate: 3;
+        --warzone-live-naval-model-focused-size-corvette: 3;
+        --warzone-live-naval-model-focused-size-intelligence: 3;
+        --warzone-live-naval-model-focused-size-ssbn: 3;
+        --warzone-live-naval-model-focused-size-ssn: 3;
+        --warzone-live-naval-model-focused-size-ssk: 3;
+        --warzone-live-naval-model-focused-size-aip_submarine: 3;
+        --warzone-live-naval-model-focused-size-submarine: 3;
+        --warzone-live-naval-model-focused-size-missile_boat: 3;
+        --warzone-live-naval-model-focused-size-patrol: 3;
+        --warzone-live-naval-model-focused-size-logistics: 3;
+        --warzone-live-naval-model-focused-size-minesweeper: 3;
+        --warzone-live-naval-model-focused-size-naval: 3;
     }
 }
 
