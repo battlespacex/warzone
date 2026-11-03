@@ -379,7 +379,7 @@ body.wz-pre-entry-active .warzone-map-credits {
 }
 
 body.wz-pre-entry-complete .warzone-map-credits {
-    opacity: 0.8;
+    opacity: 0.4;
 }
 body.wz-basemap-selfhosted .warzone-map-credits {
     opacity: 1;
@@ -566,7 +566,7 @@ UNUSED CANDIDATE END */
 
 .wz-widget-data-list li {
     display: grid;
-    grid-template-columns: 50% 1fr;
+    grid-template-columns: 4% 1fr;
     column-gap: 1rem;
     align-items: start;
     min-width: 0;
