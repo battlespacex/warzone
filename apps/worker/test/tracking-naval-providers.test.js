@@ -70,7 +70,7 @@ test("all naval providers are disabled cleanly when credentials are absent", () 
         MARINETRAFFIC_ENABLED: "true",
         VESSELFINDER_ENABLED: "true",
     });
-    assert.deepEqual(providers.map((provider) => provider.id), ["aisstream", "fintraffic", "vesselapi", "openais", "marineplan", "aishub", "spire", "marinetraffic", "vesselfinder"]);
+    assert.deepEqual(providers.map((provider) => provider.id), ["aisstream", "fintraffic", "kystverket", "barentswatch", "vesselapi", "openais", "marineplan", "aishub", "spire", "marinetraffic", "vesselfinder"]);
     assert.ok(providers.every((provider) => provider.enabled === false));
 });
 
