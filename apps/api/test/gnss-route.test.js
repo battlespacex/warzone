@@ -5,6 +5,8 @@ import { createGnssInterferenceHandler } from "../src/routes.events.js";
 function response() {
     return {
         statusCode: 200,
+        headers: {},
+        set(name, value) { this.headers[name.toLowerCase()] = value; return this; },
         status(code) { this.statusCode = code; return this; },
         json(body) { this.body = body; return this; },
     };
@@ -58,4 +60,16 @@ test("GNSS latest falls back only when provider is unavailable and labels empty 
     assert.equal(res.body.cells.length, 0);
     assert.equal(res.body.sourceHealth, "unavailable");
     assert.match(res.body.message, /does not establish absence/);
+});
+
+
+test("GNSS API marks responses to identify deployed handler and prevent stale CDN cache", async () => {
+    const handler = createGnssInterferenceHandler({
+        getSnapshot: async () => ({ cells: [{ id: "hex-1" }] }),
+        selectRegion: (snapshot) => ({ cells: snapshot.cells, sourceMode: "gpsinterference" }),
+    });
+    const res = response();
+    await handler({ query: {} }, res);
+    assert.equal(res.headers["x-stratops-gnss-api-version"], "gpsinterference-v3");
+    assert.equal(res.headers["cache-control"], "no-store, max-age=0");
 });

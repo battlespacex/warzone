@@ -59,3 +59,17 @@ test("GNSS date-line hexagon is not counted in unrelated longitude ranges", () =
     assert.equal(selectGpsInterferenceRegion(snapshot, { bounds: { minLat: 0, maxLat: 20, minLon: 28, maxLon: 65 } }).totalCells, 0);
     assert.equal(selectGpsInterferenceRegion(snapshot, { bounds: { minLat: 0, maxLat: 20, minLon: 150, maxLon: 180 } }).totalCells, 1);
 });
+
+test("GNSS provider reports one bounded failure diagnostic during cooldown", async () => {
+    const errors = [];
+    let calls = 0;
+    const get = createGpsInterferenceService({
+        now: () => 0,
+        fetchImpl: async () => { calls++; throw new Error("provider offline"); },
+        onError: (event) => errors.push(event),
+    });
+    assert.equal(await get(), null);
+    assert.equal(await get(), null);
+    assert.equal(calls, 1);
+    assert.deepEqual(errors, [{ date: "latest", reason: "provider offline", cached: false }]);
+});

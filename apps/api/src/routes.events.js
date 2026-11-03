@@ -366,6 +366,10 @@ export function createGnssInterferenceHandler({
     getFallbackClient = getSupabase,
 } = {}) {
     return async (req, res) => {
+        // CDN/browser caches must not retain empty or outdated GNSS API results.
+        // The marker distinguishes this handler from a stale production deployment.
+        res.set?.("Cache-Control", "no-store, max-age=0");
+        res.set?.("X-StratOps-GNSS-API-Version", "gpsinterference-v3");
         try {
             const requestedLimit = Number(req.query.limit);
             const limit = Number.isFinite(requestedLimit)
