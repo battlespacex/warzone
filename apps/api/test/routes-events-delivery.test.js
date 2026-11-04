@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { buildGeneralEventsQuery } from "../src/routes.events.js";
 import {
     MAP_EVENT_HISTORY_WINDOW_HOURS,
+    applyPublicNavalSignalQueryFilter,
+    isArchivedNavalSignal,
     isMapEventHistoricallyRelevant,
 } from "../../shared/map-event-policy.js";
 
@@ -44,11 +46,25 @@ test("general events exclude aircraft telemetry before ordering and limiting", (
         .filter((index) => index >= 0);
 
     assert.equal(MAP_EVENT_HISTORY_WINDOW_HOURS, 168);
-    assert.equal(filterIndexes.length, 3);
+    assert.equal(filterIndexes.length, 4);
     assert.ok(filterIndexes.every((index) => index < orderIndex));
     assert.ok(filterIndexes.every((index) => index < limitIndex));
     assert.match(recorder.calls[filterIndexes[0]][1], /flight_tracking/);
     assert.match(recorder.calls[filterIndexes[1]][1], /ads-b/);
+});
+
+test("public event query limits AIS signals to the current 24-hour position window", () => {
+    const recorder = createQueryRecorder();
+    const now = Date.parse("2026-11-03T12:00:00.000Z");
+    applyPublicNavalSignalQueryFilter(recorder.supabase.from("events"), now);
+    const filter = recorder.calls.find(([name]) => name === "or")?.[1];
+    assert.match(filter, /2026-11-02T12:00:00.000Z/);
+    assert.match(filter, /source_key\.not\.like\.ais-\*/);
+    assert.match(filter, /dedupe_key\.not\.like\.ais-\*/);
+    assert.equal(isArchivedNavalSignal({ report_type: "signal", source_key: "ais-123", occurred_at: "2026-11-02T11:59:59Z" }, now), true);
+    assert.equal(isArchivedNavalSignal({ report_type: "signal", source_key: "ais-123", occurred_at: "2026-11-02T12:00:00Z" }, now), false);
+    assert.equal(isArchivedNavalSignal({ report_type: "signal", source_key: "ais-123" }, now), true);
+    assert.equal(isArchivedNavalSignal({ report_type: "signal", source_key: "other", occurred_at: "2020-01-01" }, now), false);
 });
 
 test("three-to-seven-day events require retained operational relevance", () => {

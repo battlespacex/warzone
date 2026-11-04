@@ -59,6 +59,7 @@ import {
 import {
     upsertNavalVessel,
     clearNavalVessel,
+    clearPrivateNavalHistory,
     clearNavalSelection,
     renderNavalTrackerWidget,
     getAllNavalSnapshots,
@@ -330,6 +331,15 @@ let __navalWidgetScopeFilter = "region";
 let __navalWidgetSubtypeFilter = "all";
 let __navalWidgetStatusFilter = "recent";
 let __navalWidgetPage = 1;
+let __navalHistorySearch = "";
+let __navalHistoryRequest = null;
+let __navalHistoryGeneration = 0;
+let __navalHistoryLoadedKey = "";
+let __navalHistoryOffset = 0;
+let __navalHistoryHasMore = false;
+let __navalHistoryMessage = "";
+let __navalHistoryPathEntity = null;
+let __navalHistoryPathGeneration = 0;
 let __navalSubtypeOptionsKey = "";
 let __navalGlobeFilterSignature = "";
 let __lastStatusWidgetSignature = null;
@@ -3454,6 +3464,129 @@ function isNavalSignalEvent(event = {}) {
     if (sourceName.includes("ais") || sourceName.includes("vessel") || sourceName.includes("naval")) return true;
     return category === "military" && /warship|vessel|frigate|destroyer|carrier|submarine|ssbn|ssn|ssk|aip|cruiser|amphibious|missile boat|patrol ship|naval|intelligence|sigint|elint|tracking|surveillance|replenishment|oiler|auxiliary/.test(title);
 }
+function cancelNavalHistoryRequest({ clear = false } = {}) {
+    ++__navalHistoryGeneration;
+    __navalHistoryRequest?.abort();
+    __navalHistoryRequest = null;
+    if (clear) {
+        clearNavalHistoryPath();
+        clearPrivateNavalHistory();
+        __navalHistoryLoadedKey = "";
+        __navalHistoryOffset = 0;
+        __navalHistoryHasMore = false;
+        __navalHistoryMessage = "";
+    }
+}
+function clearNavalHistoryPath() {
+    ++__navalHistoryPathGeneration;
+    if (__navalHistoryPathEntity) {
+        window.__warzoneViewer?.entities.remove(__navalHistoryPathEntity);
+        __navalHistoryPathEntity = null;
+    }
+}
+async function showFocusedNavalHistoryPath(trackKey) {
+    clearNavalHistoryPath();
+    if (!trackKey || !isLayerEnabled("naval")) return;
+    const asset = getAllNavalSnapshots().find((item) => item.track_key === trackKey);
+    if (!asset?.history_asset_key) return;
+    const generation = __navalHistoryPathGeneration;
+    try {
+        const points = await api.getNavalPositionHistory(asset.history_asset_key);
+        if (generation !== __navalHistoryPathGeneration || !isLayerEnabled("naval")) return;
+        const viewer = window.__warzoneViewer;
+        if (!viewer || points.length < 2) return;
+        const positions = points.slice().reverse()
+            .filter((point) => Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lon)))
+            .map((point) => Cesium.Cartesian3.fromDegrees(Number(point.lon), Number(point.lat), 20));
+        if (positions.length < 2) return;
+        __navalHistoryPathEntity = viewer.entities.add({
+            polyline: { positions, width: 2, material: Cesium.Color.CYAN.withAlpha(0.55) },
+        });
+        viewer.scene.requestRender();
+    } catch {
+        // A failed premium history request must not interrupt live naval Focus.
+    }
+}
+function navalHistoryEventFromAsset(asset) {
+    const identity = asset.mmsi || (asset.imo ? `imo-${asset.imo}` : asset.asset_key);
+    return {
+        dedupe_key: `ais-${identity}`,
+        source_key: `ais-${identity}`,
+        category: "military",
+        subcategory: asset.vessel_class || "naval",
+        title: asset.vessel_name || asset.callsign || identity,
+        lat: asset.lat,
+        lon: asset.lon,
+        occurred_at: asset.last_seen_at,
+        last_seen_at: asset.last_seen_at,
+        first_seen_at: asset.first_seen_at,
+        source_name: asset.source_name,
+        source_confidence: asset.source_confidence,
+        qualification_level: asset.qualification_level,
+        qualification_reason: asset.qualification_reason,
+        __privateNavalHistory: true,
+        metadata: {
+            history_asset_key: asset.asset_key,
+            mmsi: asset.mmsi,
+            imo: asset.imo,
+            call_sign: asset.callsign,
+            vessel_name: asset.vessel_name,
+            vessel_class: asset.vessel_class,
+            operator: asset.operator,
+            country: asset.country,
+            aliases: asset.aliases,
+            speed_kts: asset.speed_kts,
+            heading_deg: asset.heading_deg,
+        },
+    };
+}
+async function refreshPrivateNavalHistory({ append = false } = {}) {
+    const status = __navalWidgetStatusFilter;
+    const search = __navalHistorySearch;
+    const needsHistory = ["historical", "archived", "all"].includes(status) || search.length >= 2;
+    if (!isNavalTrackingFeatureEnabled() || !isLayerEnabled("naval") || !needsHistory) {
+        cancelNavalHistoryRequest({ clear: true });
+        requestNavalWidgetRender(0);
+        return;
+    }
+    const region = getMapEventsRegionRequest();
+    if (!region && !search) return;
+    const key = `${region?.id || "global"}|${status}|${search}`;
+    if (append && (!__navalHistoryHasMore || key !== __navalHistoryLoadedKey)) return;
+    if (!append && key === __navalHistoryLoadedKey) return;
+    cancelNavalHistoryRequest({ clear: !append });
+    const generation = __navalHistoryGeneration;
+    const controller = new AbortController();
+    __navalHistoryRequest = controller;
+    __navalHistoryMessage = "Loading naval history…";
+    requestNavalWidgetRender(0);
+    try {
+        const result = await api.getNavalHistory(region, {
+            status, search, offset: append ? __navalHistoryOffset : 0,
+            limit: 200, signal: controller.signal,
+        });
+        if (generation !== __navalHistoryGeneration) return;
+        const assets = Array.isArray(result.assets) ? result.assets : [];
+        for (let index = 0; index < assets.length; index += 24) {
+            if (generation !== __navalHistoryGeneration) return;
+            assets.slice(index, index + 24).forEach((asset) => upsertNavalVessel(navalHistoryEventFromAsset(asset)));
+            if (index + 24 < assets.length) await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+        if (generation !== __navalHistoryGeneration) return;
+        __navalHistoryOffset += assets.length;
+        __navalHistoryHasMore = result.meta?.has_more === true;
+        __navalHistoryLoadedKey = key;
+        __navalHistoryMessage = "";
+    } catch (error) {
+        if (generation !== __navalHistoryGeneration || controller.signal.aborted) return;
+        __navalHistoryMessage = String(error?.message || "Naval history is unavailable");
+    } finally {
+        if (generation === __navalHistoryGeneration) {
+            __navalHistoryRequest = null;
+            requestNavalWidgetRender(0);
+        }
+    }
+}
 function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
     if (__navalWidgetRenderTimer) {
         if (delay !== 0) return;
@@ -3465,8 +3598,12 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const navalSubtypeSelect = document.getElementById("wz-naval-filter-subtype");
         __navalWidgetScopeFilter = "region";
         const allVessels = isLayerEnabled("naval") ? getAllNavalSnapshots() : [];
+        const search = __navalHistorySearch.toLowerCase();
         const scopedVessels = allVessels
-            .filter((vessel) => isTrackerItemVisibleInScope(vessel, __navalWidgetScopeFilter));
+            .filter((vessel) => isTrackerItemVisibleInScope(vessel, __navalWidgetScopeFilter))
+            .filter((vessel) => !search || [vessel.mmsi, vessel.imo, vessel.callsign,
+                vessel.vessel_name, vessel.operator, ...(vessel.aliases || [])]
+                .some((value) => String(value || "").toLowerCase().includes(search)));
         const highValueVessels = isHighValueAssetDetectionEnabled()
             ? scopedVessels.filter((vessel) => getHighValueNavalMeta(vessel))
             : [];
@@ -3488,8 +3625,12 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
                 ? "Loading naval tracks…"
                 : __navalWidgetSubtypeFilter !== "all"
                     ? `No ${formatNavalSubtypeLabel(__navalWidgetSubtypeFilter)} contacts in selected region`
-                    : "No naval contacts in selected region",
+                    : __navalHistoryMessage || "No naval contacts in selected region",
         });
+        const moreHistory = document.getElementById("wz-naval-history-more");
+        if (moreHistory) moreHistory.hidden = !__navalHistoryHasMore;
+        const historyMessage = document.getElementById("wz-naval-history-message");
+        if (historyMessage) historyMessage.textContent = __navalHistoryMessage;
         if (statusVessels.length) markTrackerPerf("naval", "first tracker row rendered");
     }, getLiveWidgetRenderDelay(delay));
 }
@@ -8821,6 +8962,10 @@ function bindAircraftMovementsWidget() {
             requestNavalWidgetRender(0);
             return;
         }
+        if (event.target.closest("#wz-naval-history-more") && navalWidgetEnabled) {
+            void refreshPrivateNavalHistory({ append: true });
+            return;
+        }
         const actionBtn = event.target.closest("[data-track-action]");
         if (actionBtn && aircraftWidgetEnabled) {
             if (actionBtn.disabled || actionBtn.getAttribute("aria-disabled") === "true") return;
@@ -8891,6 +9036,15 @@ function bindAircraftMovementsWidget() {
             __navalWidgetPage = 1;
             syncNavalGlobeVisibilityFilter();
             requestNavalWidgetRender(0);
+            void refreshPrivateNavalHistory();
+            return;
+        }
+        const navalHistorySearch = event.target.closest("#wz-naval-history-search");
+        if (navalHistorySearch && navalWidgetEnabled) {
+            __navalHistorySearch = String(navalHistorySearch.value || "").trim();
+            __navalWidgetPage = 1;
+            requestNavalWidgetRender(0);
+            void refreshPrivateNavalHistory();
             return;
         }
     });
@@ -8922,6 +9076,7 @@ function bindAircraftMovementsWidget() {
     });
     document.addEventListener("wz:naval-track-selected", (event) => {
         if (event.detail?.trackKey) window.__showWarzoneWidget?.("naval");
+        void showFocusedNavalHistoryPath(String(event.detail?.trackKey || ""));
         if (navalWidgetEnabled) requestNavalWidgetRender();
     });
     document.addEventListener("wz:asset-focus-changed", (event) => {
@@ -9638,6 +9793,7 @@ async function initializeWarzoneAppOnce() {
                 scheduleViewportFetch(60);
                 requestAircraftMovementsWidgetRender(0);
                 requestNavalWidgetRender(0);
+                void refreshPrivateNavalHistory();
                 const reloadSeq = ++__regionReloadSeq;
                 const requestedRegion = getActiveRegion?.();
                 const requestedRegionId = String(requestedRegion?.id || "");
@@ -9891,10 +10047,12 @@ async function initializeWarzoneAppOnce() {
                 if (navalEnabled && id === "naval") markTrackerPerf("naval", "tracker enabled");
                 __militaryTracks?.setEnabled?.(navalEnabled);
                 if (!navalEnabled) {
+                    cancelNavalHistoryRequest({ clear: true });
                     setNavalLayerVisible(false);
                 } else {
                     setNavalLayerVisible(true);
                     syncNavalSignals(applyAllFilters(__eventsCache).filter(isNavalSignalEvent));
+                    void refreshPrivateNavalHistory();
                 }
             }
             if (id === "*") {
@@ -10799,6 +10957,10 @@ function getBackgroundAuthBases() {
 }
 
 function applyResolvedAuthState(isAuthenticated, user = null, resolvedBase = null) {
+    if (!isAuthenticated && window.__stratopsAuthState?.isAuthenticated) {
+        cancelNavalHistoryRequest({ clear: true });
+        requestNavalWidgetRender(0);
+    }
     window.__stratopsResolvedAuthBase = resolvedBase || null;
     window.__stratopsAuthState = {
         isAuthenticated: !!isAuthenticated,

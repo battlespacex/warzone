@@ -624,4 +624,38 @@ export const api = {
             meta: result.meta || { source: "aircraft_tracks_log", count: 0 },
         };
     },
+    async getNavalHistory(region = {}, options = {}) {
+        if (!API_BASE) throw new Error("Naval history API unavailable");
+        const params = new URLSearchParams({
+            status: String(options.status || "all"),
+            limit: String(options.limit || 200),
+            offset: String(options.offset || 0),
+        });
+        const bounds = region?.bounds;
+        if (bounds) {
+            params.set("min_lat", String(bounds.minLat));
+            params.set("max_lat", String(bounds.maxLat));
+            params.set("min_lon", String(bounds.minLon));
+            params.set("max_lon", String(bounds.maxLon));
+        }
+        if (options.search) params.set("search", String(options.search));
+        const response = await fetch(`${API_BASE}/events/naval/history?${params}`, {
+            credentials: "include", cache: "no-store", signal: options.signal,
+            headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new Error(response.status === 401 || response.status === 403
+            ? "Premium sign-in is required for naval history"
+            : "Naval history is unavailable");
+        return response.json();
+    },
+    async getNavalPositionHistory(assetKey, options = {}) {
+        if (!API_BASE) throw new Error("Naval history API unavailable");
+        const response = await fetch(`${API_BASE}/events/naval/history/${encodeURIComponent(assetKey)}/positions`, {
+            credentials: "include", cache: "no-store", signal: options.signal,
+            headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new Error("Naval position history is unavailable");
+        const result = await response.json();
+        return Array.isArray(result.points) ? result.points : [];
+    },
 };

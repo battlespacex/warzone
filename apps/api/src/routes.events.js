@@ -8,10 +8,14 @@ import { toPublicStatusSignal } from "../../shared/status-signal-policy.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents } from "./satellite-context.js";
 import { toPublicEvent, toPublicMapEvent } from "./public-event-normalizer.js";
+import { authorizeNavalHistory } from "./naval-history-access.js";
+import { NAVAL_CONTACT_AGE_MS } from "../../shared/naval-contact-lifecycle.js";
 import {
     MAP_EVENT_HISTORY_WINDOW_HOURS,
     applyGeneralEventDeliveryFilters,
     applyMapEventHistoricalQueryFilter,
+    applyPublicNavalSignalQueryFilter,
+    isArchivedNavalSignal,
 } from "../../shared/map-event-policy.js";
 import {
     getAircraftIdentifierAliases,
@@ -160,6 +164,7 @@ export function buildGeneralEventsQuery(supabase, options = {}) {
     }
     eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
     eventsQuery = applyMapEventHistoricalQueryFilter(eventsQuery, { now: options.now });
+    eventsQuery = applyPublicNavalSignalQueryFilter(eventsQuery, options.now);
     return eventsQuery
         .order("occurred_at", { ascending: false })
         .limit(options.limit);
@@ -193,6 +198,7 @@ export function parseMapEventsRequest(queryParams = {}, now = Date.now()) {
     return {
         regionId,
         bounds,
+        now,
         windowHours,
         limit,
         cutoffIso: new Date(now - (windowHours * 60 * 60 * 1000)).toISOString(),
@@ -210,6 +216,7 @@ export function buildMapEventsQuery(supabase, options = {}) {
         .gte("lon", bounds.minLon)
         .lte("lon", bounds.maxLon);
     eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+    eventsQuery = applyPublicNavalSignalQueryFilter(eventsQuery, options.now);
     return eventsQuery
         .order("is_breaking", { ascending: false })
         .order("priority_score", { ascending: false, nullsFirst: false })
@@ -235,7 +242,7 @@ export function createMapEventsHandler({
             if (error) return res.status(500).json({ error: "Failed" });
 
             const serializationStartedAt = clock();
-            const eventsWithSatellite = await attachSatellite(supabase, data || []);
+            const eventsWithSatellite = await attachSatellite(supabase, (data || []).filter((event) => !isArchivedNavalSignal(event, requestStartedAt)));
             const events = eventsWithSatellite.map(toPublicMapEvent);
             const payload = JSON.stringify({
                 events,
@@ -285,7 +292,7 @@ export function createEventDetailHandler({
                 .eq("id", eventId)
                 .maybeSingle();
             if (error) return res.status(500).json({ error: "Failed" });
-            if (!data) return res.status(404).json({ error: "Not found" });
+            if (!data || isArchivedNavalSignal(data)) return res.status(404).json({ error: "Not found" });
             const mediaBaseUrl = getPublicMediaBaseUrl(req);
             const [eventWithSatellite] = await attachSatellite(supabase, [data]);
             const [eventWithMedia] = await attachMedia(supabase, [eventWithSatellite], { mediaBaseUrl });
@@ -355,6 +362,75 @@ export function createAircraftHistoryHandler({
             });
         } catch {
             return res.status(500).json({ error: "Aircraft history lookup failed" });
+        }
+    };
+}
+
+export function createNavalHistoryHandler({
+    getSupabaseClient = getSupabase,
+    authorize = authorizeNavalHistory,
+    clock = () => Date.now(),
+} = {}) {
+    return async (req, res) => {
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        const access = await authorize(req, { getSupabaseClient });
+        if (!access.allowed) return res.status(access.status).json({ error: "Naval history unavailable" });
+        const bounds = readMapBounds(req.query);
+        const search = String(req.query.search || "").trim();
+        if ((search && !/^[\p{L}\p{N} ._-]{2,64}$/u.test(search)) || (!bounds && !search)) {
+            return res.status(400).json({ error: "Valid region bounds or search are required" });
+        }
+        const status = String(req.query.status || "all").toLowerCase();
+        if (!["all", "recent", "live", "delayed", "last_known", "historical", "archived"].includes(status)) {
+            return res.status(400).json({ error: "Invalid contact status" });
+        }
+        const limit = clamp(Math.floor(Number(req.query.limit) || 100), 1, 200);
+        const offset = clamp(Math.floor(Number(req.query.offset) || 0), 0, 100_000);
+        const before = (age) => new Date(clock() - age).toISOString();
+        try {
+            let dbQuery = getSupabaseClient().from("naval_asset_history")
+                .select("asset_key, mmsi, imo, callsign, vessel_name, vessel_class, operator, country, aliases, first_seen_at, last_seen_at, lat, lon, speed_kts, heading_deg, source_name, source_confidence, qualification_level, qualification_reason")
+                .gte("lat", bounds?.minLat ?? -90).lte("lat", bounds?.maxLat ?? 90)
+                .gte("lon", bounds?.minLon ?? -180).lte("lon", bounds?.maxLon ?? 180);
+            if (search) dbQuery = dbQuery.ilike("search_text", `%${search}%`);
+            if (status === "recent") dbQuery = dbQuery.gte("last_seen_at", before(NAVAL_CONTACT_AGE_MS.LAST_KNOWN));
+            else if (status === "live") dbQuery = dbQuery.gte("last_seen_at", before(NAVAL_CONTACT_AGE_MS.LIVE));
+            else if (status === "delayed") dbQuery = dbQuery.lt("last_seen_at", before(NAVAL_CONTACT_AGE_MS.LIVE)).gte("last_seen_at", before(NAVAL_CONTACT_AGE_MS.DELAYED));
+            else if (status === "last_known") dbQuery = dbQuery.lt("last_seen_at", before(NAVAL_CONTACT_AGE_MS.DELAYED)).gte("last_seen_at", before(NAVAL_CONTACT_AGE_MS.LAST_KNOWN));
+            else if (status === "historical") dbQuery = dbQuery.lt("last_seen_at", before(NAVAL_CONTACT_AGE_MS.LAST_KNOWN)).gte("last_seen_at", before(NAVAL_CONTACT_AGE_MS.HISTORICAL));
+            else if (status === "archived") dbQuery = dbQuery.lt("last_seen_at", before(NAVAL_CONTACT_AGE_MS.HISTORICAL));
+            const { data, error } = await dbQuery.order("last_seen_at", { ascending: false })
+                .range(offset, offset + limit - 1);
+            if (error) return res.status(503).json({ error: "Naval history unavailable" });
+            return res.json({ assets: data || [], meta: { offset, limit, has_more: (data || []).length === limit } });
+        } catch {
+            return res.status(503).json({ error: "Naval history unavailable" });
+        }
+    };
+}
+
+export function createNavalPositionHistoryHandler({
+    getSupabaseClient = getSupabase,
+    authorize = authorizeNavalHistory,
+} = {}) {
+    return async (req, res) => {
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        const access = await authorize(req, { getSupabaseClient });
+        if (!access.allowed) return res.status(access.status).json({ error: "Naval history unavailable" });
+        const assetKey = String(req.params.assetKey || "").trim();
+        if (!/^[a-z0-9:_-]{2,80}$/i.test(assetKey)) return res.status(400).json({ error: "Invalid asset" });
+        try {
+            const { data, error } = await getSupabaseClient().from("naval_position_history")
+                .select("observed_at, lat, lon, speed_kts, heading_deg, source_name, source_confidence")
+                .eq("asset_key", assetKey)
+                .order("observed_at", { ascending: false })
+                .limit(1000);
+            if (error) return res.status(503).json({ error: "Naval history unavailable" });
+            return res.json({ points: data || [] });
+        } catch {
+            return res.status(503).json({ error: "Naval history unavailable" });
         }
     };
 }
@@ -430,7 +506,7 @@ export function eventsRouter({ broadcast }) {
             });
             if (error) return res.status(500).json({ error: "Failed" });
             const mediaBaseUrl = getPublicMediaBaseUrl(req);
-            const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
+            const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, (data || []).filter((event) => !isArchivedNavalSignal(event)));
             const eventsWithMedia = await attachEventMediaToEvents(supabase, eventsWithSatellite, { mediaBaseUrl });
             const events = eventsWithMedia.map(toPublicEvent);
             res.json({ events });
@@ -455,7 +531,7 @@ export function eventsRouter({ broadcast }) {
             });
             if (error) return res.status(500).json({ error: "Failed" });
             const mediaBaseUrl = getPublicMediaBaseUrl(req);
-            const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, data || []);
+            const eventsWithSatellite = await attachSatelliteContextToEvents(supabase, (data || []).filter((event) => !isArchivedNavalSignal(event)));
             const eventsWithMedia = await attachEventMediaToEvents(supabase, eventsWithSatellite, { mediaBaseUrl });
             const events = eventsWithMedia.map(toPublicEvent);
             res.json({ events });
@@ -578,6 +654,8 @@ export function eventsRouter({ broadcast }) {
         }
     });
     router.get("/aircraft/:identifier/history", createAircraftHistoryHandler());
+    router.get("/naval/history/:assetKey/positions", createNavalPositionHistoryHandler());
+    router.get("/naval/history", createNavalHistoryHandler());
     router.get("/aircraft", async (req, res) => {
         try {
             const supabase = getSupabase();

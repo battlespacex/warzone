@@ -11,6 +11,22 @@ const GENERAL_EVENT_REPORT_TYPE_FILTER =
   "report_type.is.null,report_type.not.in.(flight_tracking,aircraft_telemetry,aircraft_tracking)";
 const GENERAL_EVENT_SOURCE_FILTER =
   "source_name.is.null,and(source_name.not.ilike.*ads-b*,source_name.not.ilike.*airplanes.live*,source_name.not.ilike.*opensky*)";
+const PUBLIC_NAVAL_POSITION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function isArchivedNavalSignal(event = {}, now = Date.now()) {
+  const isAis = event.report_type === "signal" &&
+    (String(event.source_key || "").startsWith("ais-") || String(event.dedupe_key || "").startsWith("ais-"));
+  if (!isAis) return false;
+  const observedAt = Date.parse(event.occurred_at || "");
+  return !Number.isFinite(observedAt) || observedAt < now - PUBLIC_NAVAL_POSITION_WINDOW_MS;
+}
+
+function applyPublicNavalSignalQueryFilter(query, now = Date.now()) {
+  const cutoff = new Date(now - PUBLIC_NAVAL_POSITION_WINDOW_MS).toISOString();
+  return query.or(
+    `occurred_at.gte.${cutoff},report_type.neq.signal,and(or(source_key.is.null,source_key.not.like.ais-*),or(dedupe_key.is.null,dedupe_key.not.like.ais-*))`
+  );
+}
 
 function getEventTimestampMs(event = {}) {
   const value = event.occurred_at || event.occurredAt || event.published_at || event.publishedAt;
@@ -93,8 +109,11 @@ export {
   MAP_EVENT_HISTORICAL_MIN_SOURCE_COUNT,
   MAP_EVENT_HISTORY_WINDOW_HOURS,
   MAP_EVENT_HISTORY_WINDOW_MS,
+  PUBLIC_NAVAL_POSITION_WINDOW_MS,
   applyGeneralEventDeliveryFilters,
   applyMapEventHistoricalQueryFilter,
+  applyPublicNavalSignalQueryFilter,
   buildMapEventHistoricalQueryFilter,
+  isArchivedNavalSignal,
   isMapEventHistoricallyRelevant,
 };

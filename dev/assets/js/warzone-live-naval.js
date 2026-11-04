@@ -3301,12 +3301,30 @@ export function upsertNavalVessel(event) {
         last_seen_at: lastSeenAt,
         first_seen_at: normalizeText(event.first_seen_at || metadata.first_seen_at || event.created_at || ""),
         source_name: normalizeText(event.source_name || metadata.source_name || ""),
+        source_confidence: Number(event.source_confidence ?? metadata.source_confidence ?? 0),
+        qualification_level: normalizeText(event.qualification_level || metadata.qualification_level || ""),
+        qualification_reason: normalizeText(event.qualification_reason || metadata.qualification_reason || ""),
+        aliases: Array.isArray(metadata.aliases) ? metadata.aliases : [],
+        history_asset_key: normalizeText(metadata.history_asset_key || ""),
+        private_history_only: event.__privateNavalHistory === true,
         received_at: Date.now(),
         metadata,
     };
 
     if (!isValidCoordinatePair(vessel.lat, vessel.lon)) {
         return;
+    }
+
+    if (event.__privateNavalHistory === true && vessel.imo) {
+        const olderKeys = [];
+        for (const [otherKey, other] of __navalState.vessels) {
+            if (otherKey === trackKey || other?.data?.imo !== vessel.imo) continue;
+            if (Number(other.data.last_seen_at) >= Number(vessel.last_seen_at)) {
+                return other.entity || null;
+            }
+            olderKeys.push(otherKey);
+        }
+        olderKeys.forEach(clearNavalVessel);
     }
 
     const existing = __navalState.vessels.get(trackKey);
@@ -3365,6 +3383,12 @@ export function clearNavalVessel(trackKey) {
     }
     if (__navalState.selectedKey === trackKey) clearNavalSelection();
     requestNavalRenderBatched();
+}
+
+export function clearPrivateNavalHistory() {
+    for (const [trackKey, entry] of __navalState.vessels) {
+        if (entry?.data?.private_history_only) clearNavalVessel(trackKey);
+    }
 }
 
 // ─── Public: get all vessel snapshots (for widget) ────────────────────────────
@@ -3631,10 +3655,13 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     const exactTime = Number.isFinite(lastSeen) && lastSeen > 0
         ? new Date(lastSeen).toISOString() : "Time unknown";
     const provenance = `${status} · Last received ${exactTime} · ${String(vessel.source_name || "Source unknown")}`;
+    const historyDetails = vessel.history_asset_key
+        ? `First detected ${vessel.first_seen_at || "Unknown"} · ${vessel.qualification_level || "Unverified"} · Confidence ${vessel.source_confidence ?? "Unknown"} · Aliases: ${(vessel.aliases || []).join(", ") || "None"}`
+        : "";
     const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
     const isFocusDisabled = isNavalFocusBlocked(vessel.track_key);
     const renderSignature = [name, detailLabel, affiliationLabel, speedLabel, headingLabel,
-        coordLabel, timeLabel, provenance, Boolean(isSelected), isFocusDisabled].join("\u001f");
+        coordLabel, timeLabel, provenance, historyDetails, Boolean(isSelected), isFocusDisabled].join("\u001f");
     if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4) return;
     card.className = `wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
@@ -3696,6 +3723,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
         foot.insertBefore(provenanceEl, actionBtn);
     }
     provenanceEl.textContent = provenance;
+    provenanceEl.title = historyDetails;
     card.querySelector(".wz-aircraft-badge")?.remove();
 
     let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");

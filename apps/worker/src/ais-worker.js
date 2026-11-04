@@ -10,6 +10,7 @@ import { supabase } from "./supabase.js";
 import { mergeNavalObservations } from "./tracking/merge.js";
 import { runConfiguredProviders } from "./tracking/provider-health.js";
 import { createNavalProviders } from "./tracking/naval/registry.js";
+import { persistPrivateNavalHistory } from "./naval-private-history.js";
 
 // ─── Naval vessel name patterns ───────────────────────────────────────────────
 
@@ -520,6 +521,16 @@ function toLegacyVessel(observation) {
 const temporaryTrackByImo = new Map();
 const reportedDisabledProviders = new Set();
 const committedNavalWrites = new Map();
+const committedPrivateNavalWrites = new Map();
+
+function privateHistorySignature(vessel) {
+    return JSON.stringify([
+        vessel.mmsi, vessel.imoNumber, vessel.callSign, vessel.name, vessel.operator,
+        vessel.country, vessel.vesselClass, vessel.lat, vessel.lon, vessel.speed,
+        vessel.heading, vessel.observedAt, vessel.sourceConfidence,
+        vessel.lastSourceObservations, vessel.qualificationReason,
+    ]);
+}
 
 export function selectChangedNavalWrites(events, tracks, historyRows, committed = new Map()) {
     const historyByMmsi = new Map(historyRows.map((row) => [String(row.mmsi), row]));
@@ -630,7 +641,11 @@ export async function runAisWorker(options = {}) {
         const vessel = toLegacyVessel(observation);
         const qualification = qualifyMilitaryVessel(vessel, qualificationOptions);
         qualificationCounts[qualification.reason] = (qualificationCounts[qualification.reason] || 0) + 1;
-        if (qualification.accepted) military.push(vessel);
+        if (qualification.accepted) military.push({
+            ...vessel,
+            qualificationReason: qualification.reason,
+            vesselClass: classifyVessel(vessel.name, vessel.shipType, vessel.callSign),
+        });
     }
     const corroborated = military.filter((vessel) => vessel.sourceCount > 1).length;
     const validPosition = observations.filter((item) => item.latitude != null && item.longitude != null && Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))).length;
@@ -659,6 +674,25 @@ export async function runAisWorker(options = {}) {
     await persistence.upsertEvents(writes.events);
     const upserted = await persistence.upsertTracks(writes.tracks);
     await persistence.upsertHistory(writes.history);
+    let privateHistory = null;
+    if (options.privateHistoryEnabled ?? process.env.NAVAL_PRIVATE_HISTORY_ENABLED === "true") {
+        const cache = options.privateHistoryCache || committedPrivateNavalWrites;
+        const pending = military.filter((vessel) =>
+            cache.get(vessel.trackIdentity) !== privateHistorySignature(vessel));
+        if (pending.length) {
+            try {
+                privateHistory = await (options.persistPrivateHistory || persistPrivateNavalHistory)(pending);
+                for (const vessel of pending) {
+                    cache.delete(vessel.trackIdentity);
+                    cache.set(vessel.trackIdentity, privateHistorySignature(vessel));
+                }
+                while (cache.size > 50_000) cache.delete(cache.keys().next().value);
+            } catch (error) {
+                privateHistory = { error: true };
+                logger.error?.(`[ais] Private naval history write failed: ${error?.message || error}`);
+            }
+        }
+    }
     for (const [key, signature] of writes.signatures) {
         committedNavalWrites.delete(key);
         committedNavalWrites.set(key, signature);
@@ -676,6 +710,7 @@ export async function runAisWorker(options = {}) {
         canonical: military.length,
         corroborated,
         upserted,
+        private_history: privateHistory,
         qualification: qualificationCounts,
         aisstream: aisStreamDiagnostics,
         providers: providerDiagnostics,

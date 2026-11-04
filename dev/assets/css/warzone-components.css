@@ -5573,9 +5573,6 @@ body.wz-intel-wire-detail-open {
     animation: none !important;
 }
 
-.warzone-panel--floating .panel-body,
-.warzone-panel--floating .feed-list {}
-
 /* #endregion =========== */
 /* #region =========== KEYFRAMES / ANIMATIONS =========== */
 @keyframes wzhs-in {
