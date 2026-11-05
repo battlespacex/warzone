@@ -259,7 +259,7 @@ function renderTooltipContent(cell = {}) {
         `<div class="wz-gnss-tooltip__row"><span>Confidence</span><strong>${confidenceLabel.charAt(0).toUpperCase()}${confidenceLabel.slice(1)}</strong></div>`,
         `<div class="wz-gnss-tooltip__row"><span>Region</span><strong>${cell.region || "Global"}</strong></div>`,
         `<div class="wz-gnss-tooltip__row"><span>Updated</span><strong>${formatRelativeTimestamp(cell.updatedAt || cell.observedAt)}</strong></div>`,
-        `<div class="wz-gnss-tooltip__source">Source: ${cell.sourceLabel || "GNSS Jamming Monitor"}</div>`,
+        //`<div class="wz-gnss-tooltip__source">Source: ${cell.sourceLabel || "GNSS Jamming Monitor"}</div>`,
         cell.isDemo ? `<div class="wz-gnss-tooltip__mode">Staged demo layer</div>` : "",
     ].filter(Boolean).join("");
 }
@@ -479,7 +479,7 @@ function renderPopupContent(cell = {}) {
     const sampleCount = Math.max(0, Number(cell.sampleCount || 0));
     const affectedCount = cell.affectedAircraftCount != null && Number.isFinite(Number(cell.affectedAircraftCount))
         ? String(cell.affectedAircraftCount) : "Not reported";
-    const sourceLabel = cell.sourceLabel || "GNSS Jamming Monitor";
+    //const sourceLabel = cell.sourceLabel || "GNSS Jamming Monitor";
     return `
         <div class="wz-widget-milbase wz-widget-gnss" itemscope itemtype="https://schema.org/Place">
             <header class="wz-widget-header">
@@ -502,7 +502,6 @@ function renderPopupContent(cell = {}) {
                     <li><strong>Observation Period</strong><span>${escapeHtml(cell.observationPeriod || "Not reported")}</span></li>
                     <li><strong>Freshness</strong><span>${escapeHtml(formatRelativeTimestamp(cell.updatedAt || cell.observedAt))}</span></li>
                     <li><strong>Coordinates</strong><span>${escapeHtml(formatCoordinate(cell.lat))}, ${escapeHtml(formatCoordinate(cell.lon))}</span></li>
-                    <li><strong>Source</strong><span>${escapeHtml(sourceLabel)}</span></li>
                     <li><strong>Limitations</strong><span>${escapeHtml(cell.detectionLimitations || "Aircraft accuracy reports are indirect evidence; jammer location is unknown.")}</span></li>
                 </ul>
             </section>
@@ -675,7 +674,7 @@ function upsertEntities(viewer, cells = [], tokens) {
                 confidence: normalizeConfidence(cell.confidence),
                 country: String(cell.country || ""),
                 region: String(cell.region || ""),
-                source_label: String(cell.sourceLabel || "GNSS Jamming Monitor"),
+                //source_label: String(cell.sourceLabel || "GNSS Jamming Monitor"),
                 observed_at: String(cell.observedAt || ""),
                 updated_at: String(cell.updatedAt || ""),
                 is_demo: cell.isDemo === true,
