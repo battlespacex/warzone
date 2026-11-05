@@ -987,7 +987,7 @@
 /* #endregion =========== */
 /* #region =========== LIVE FIGHTER =========== */
 :root {
-    --warzone-live-track-color: rgb(0 255 92);
+    --warzone-live-track-color: var(--color-green-glow);
     --warzone-live-track-opacity: 0.8;
     --warzone-live-track-width: 4.1;
     --warzone-live-focus-route-width: 4.56;
@@ -1040,14 +1040,13 @@
     --warzone-live-label-depth-test-disable-distance: 0;
 
     /* Naval: model sizing */
-    --warzone-live-naval-render-mode-default: img;
+    --warzone-live-naval-render-mode-default: glb;
     --warzone-live-naval-render-mode-focused: glb;
     --warzone-live-naval-model-auto-enabled: 0;
     --warzone-live-naval-model-scale: 1.2;
     --warzone-live-naval-model-min-pixel-size: 82;
     --warzone-live-naval-model-max-scale: 160;
     --warzone-live-naval-model-max-scale-focused: 220;
-    /* Focused naval GLBs use authored model proportions; categories can be tuned independently. */
     --warzone-live-naval-model-focused-size: 6.5;
     --warzone-live-naval-model-focused-min-pixel-size: 0;
 
@@ -1055,9 +1054,8 @@
     --warzone-live-naval-model-max-active: 6;
     --warzone-live-naval-model-max-zoom-height: 320000;
     --warzone-live-naval-model-auto-radius: 200000;
-    /* Produces about 7,000 ft camera altitude at the configured -58deg pitch. */
     --warzone-live-naval-focused-distance: 2216;
-    /* CTR-only framing range: keeps the existing 11.25 km ground grid in view. */
+
     --warzone-live-naval-ctr-focused-distance: 24000;
     --warzone-live-naval-focus-camera-pitch: -58;
     --warzone-live-naval-focus-camera-sync-hz: 20;
@@ -1075,10 +1073,12 @@
     --warzone-live-naval-label-max-chars: 24;
     --warzone-live-naval-label-align: center;
     --warzone-live-naval-label-uppercase: 1;
+
     /* Naval: unfocused category colors */
     --warzone-live-naval-color-carrier: var(--color-blue-glow);
     --warzone-live-naval-color-ship: var(--color-white);
     --warzone-live-naval-color-sub: var(--color-purple);
+
     /* Naval: icon glyph fallback */
     --warzone-live-naval-icon-char: "◊";
     --warzone-live-naval-icon-color: var(--color-blue-glow);
@@ -1086,6 +1086,7 @@
     --warzone-live-naval-icon-glow-color: var(--color-blue-glow);
     --warzone-live-naval-icon-font-size: 26;
     --warzone-live-naval-arrow-size: 50;
+
     /* Legacy fallback only; prefer --warzone-live-naval-arrow-size for non-focused naval symbols. */
     --warzone-live-naval-icon-size-factor: 1.1;
 
@@ -1105,11 +1106,11 @@
     --warzone-live-asset-hover-pulse-easing: ease-in-out;
 
     /* Aircraft render mode controls: auto | img | glb | char */
-    --warzone-live-aircraft-render-mode-default: img;
+    --warzone-live-aircraft-render-mode-default: glb;
     --warzone-live-aircraft-render-mode-focused: glb;
     --warzone-live-aircraft-model-scale: 1;
     --warzone-live-aircraft-model-airborne-scale: 1;
-    --warzone-live-aircraft-model-ground-scale: 0.8;
+    --warzone-live-aircraft-model-ground-scale: 0.4;
     --warzone-live-aircraft-model-scale-zoom-in: 1;
     --warzone-live-aircraft-model-scale-zoom-out: 1;
     --warzone-live-aircraft-model-zoom-near-height: 8000;
@@ -1117,10 +1118,9 @@
 
     /* Focused GLB size tuning shared by every aircraft model. */
     --warzone-live-aircraft-model-focused-size: 3;
-
-    --warzone-live-aircraft-model-min-pixel-size: 0;
-    --warzone-live-aircraft-model-focused-min-pixel-size: 0;
-    --warzone-live-aircraft-model-max-scale: 1000;
+    --warzone-live-aircraft-model-min-pixel-size: 48;
+    --warzone-live-aircraft-model-focused-min-pixel-size: 48;
+    --warzone-live-aircraft-model-max-scale: 3000;
 
 
     --warzone-live-aircraft-model-alpha: 1;
@@ -1204,6 +1204,7 @@
     --warzone-live-naval-contour-min-alpha: var(--warzone-live-contour-min-alpha);
     --warzone-live-naval-contour-major-every: var(--warzone-live-contour-major-every);
     --warzone-live-naval-contour-major-width-scale: var(--warzone-live-contour-major-width-scale);
+
     --warzone-focus-airstrip-outline-color: var(--color-magenta-glow);
     --warzone-focus-airstrip-outline-alpha: 0.8;
     --warzone-focus-airstrip-outline-width: 2.4;
@@ -1249,9 +1250,7 @@
     --warzone-live-aircraft-arrow-stroke: rgba(6, 14, 22, 0.92);
     --warzone-live-aircraft-arrow-glow: rgba(96, 99, 99, 0.2);
     --warzone-live-aircraft-arrow-heading-offset-deg: 0;
-
     --warzone-live-aircraft-focus-camera-follow-ease: 1;
-
 
     /* Focused Asset Config */
     --warzone-contour-line-width: 1.8;
@@ -1326,8 +1325,7 @@
     --warzone-contour-dem-url: "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 }
 
-
-        /*
+/*
  * STANDARD FOCUSED AIRCRAFT & NAVAL SIZES
  * Edit this group independently for browser viewports 1920px wide and below.
  */

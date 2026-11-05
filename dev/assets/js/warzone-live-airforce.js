@@ -2265,7 +2265,37 @@ function scheduleAircraftFocusTerrainDisable(viewer, delayMs = 0) {
     }, Math.max(0, Number(delayMs) || 0));
 }
 function resolveAircraftRenderMode(track = {}, modelUri = "") {
-    if (track.__manualAircraftOverride === true) return LIVE_TRACK_RENDER_MODE.MODEL;
+    if (track.__manualAircraftOverride === true) {
+        return modelUri
+            ? LIVE_TRACK_RENDER_MODE.MODEL
+            : LIVE_TRACK_RENDER_MODE.PNG;
+    }
+
+    // Explicit CSS rendering settings take priority over track metadata.
+    const cssSelectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
+    const cssThisTrackKey = String(track.track_key || "");
+    const cssIsSelected = Boolean(cssSelectedTrackKey && cssSelectedTrackKey === cssThisTrackKey);
+
+    const cssMode = normalizeAircraftRenderMode(
+        getCssText(
+            cssIsSelected
+                ? "--warzone-live-aircraft-render-mode-focused"
+                : "--warzone-live-aircraft-render-mode-default",
+            ""
+        )
+    );
+
+    if (cssMode === LIVE_TRACK_RENDER_MODE.MODEL) {
+        return modelUri
+            ? LIVE_TRACK_RENDER_MODE.MODEL
+            : LIVE_TRACK_RENDER_MODE.PNG;
+    }
+
+    if (cssMode === LIVE_TRACK_RENDER_MODE.PNG ||
+        cssMode === LIVE_TRACK_RENDER_MODE.CHAR ||
+        cssMode === LIVE_TRACK_RENDER_MODE.POINT) {
+        return cssMode;
+    }
     const policy = getAircraftVisualPolicy();
     const forceProductionPng = shouldForceProductionAircraftPngMode();
     const metadata = getTrackMetadata(track);
@@ -8359,7 +8389,12 @@ function isLiveAircraftModelCodeAvailable(modelCode = "") {
     return Boolean(modelUri && !__liveAircraftFailedModelUris.has(modelUri));
 }
 function resolveFocusedAircraftFallbackModelCode(track = {}, excludedCodes = []) {
-    if (!isTrackInFocusVisualContext(track)) return "";
+    if (
+        !isTrackInFocusVisualContext(track) &&
+        normalizeAircraftRenderMode(
+            getCssText("--warzone-live-aircraft-render-mode-default", "")
+        ) !== LIVE_TRACK_RENDER_MODE.MODEL
+    ) return "";
     if (resolveExactAircraftModelAssetKey(track)) return "";
     const excluded = new Set(excludedCodes.map((value) => normalizeAircraftAssetKey(value)).filter(Boolean));
     const subtype = normalizeAircraftCategoryRole(resolveTrackSubtype(track));
