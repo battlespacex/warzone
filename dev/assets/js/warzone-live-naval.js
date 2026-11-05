@@ -3663,39 +3663,39 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     const renderSignature = [name, detailLabel, affiliationLabel, speedLabel, headingLabel,
         coordLabel, timeLabel, provenance, historyDetails, Boolean(isSelected), isFocusDisabled].join("\u001f");
     if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4) return;
-    card.className = `wz-aircraft-item wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
+    card.className = `wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
     card.style.cursor = isFocusDisabled ? "default" : "pointer";
 
-    let top = card.querySelector(".wz-aircraft-item__top");
-    let titleEl = card.querySelector(".wz-aircraft-item__title");
-    let timeEl = card.querySelector(".wz-aircraft-item__time");
-    let meta = card.querySelector(".wz-aircraft-item__meta");
-    let stats = card.querySelector(".wz-aircraft-item__stats");
-    let foot = card.querySelector(".wz-aircraft-item__foot");
-    let actionBtn = card.querySelector(".wz-aircraft-action");
+    let top = card.querySelector(".wz-naval-item__top");
+    let titleEl = card.querySelector(".wz-naval-item__title");
+    let timeEl = card.querySelector(".wz-naval-item__time");
+    let meta = card.querySelector(".wz-naval-item__meta");
+    let stats = card.querySelector(".wz-naval-item__stats");
+    let foot = card.querySelector(".wz-naval-item__foot");
+    let actionBtn = card.querySelector(".wz-naval-action");
 
     if (!top) {
         top = document.createElement("div");
-        top.className = "wz-aircraft-item__top";
+        top.className = "wz-naval-item__top";
         titleEl = document.createElement("strong");
-        titleEl.className = "wz-aircraft-item__title";
+        titleEl.className = "wz-naval-item__title";
         timeEl = document.createElement("span");
-        timeEl.className = "wz-aircraft-item__time";
+        timeEl.className = "wz-naval-item__time";
         top.appendChild(titleEl);
         top.appendChild(timeEl);
         card.appendChild(top);
     }
     if (!meta) {
         meta = document.createElement("div");
-        meta.className = "wz-aircraft-item__meta";
+        meta.className = "wz-naval-item__meta";
         meta.appendChild(document.createElement("span"));
         meta.appendChild(document.createElement("span"));
         card.appendChild(meta);
     }
     if (!stats) {
         stats = document.createElement("div");
-        stats.className = "wz-aircraft-item__stats";
+        stats.className = "wz-naval-item__stats";
         stats.appendChild(document.createElement("span"));
         stats.appendChild(document.createElement("span"));
         stats.appendChild(document.createElement("span"));
@@ -3703,19 +3703,19 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     }
     if (!foot) {
         foot = document.createElement("div");
-        foot.className = "wz-aircraft-item__foot";
+        foot.className = "wz-naval-item__foot";
         actionBtn = document.createElement("button");
         actionBtn.type = "button";
-        actionBtn.className = "wz-aircraft-action btn-primary";
+        actionBtn.className = "wz-naval-action btn-primary";
         actionBtn.appendChild(document.createElement("span"));
         actionBtn.appendChild(document.createTextNode(""));
         foot.appendChild(actionBtn);
         card.appendChild(foot);
     }
 
-    titleEl = card.querySelector(".wz-aircraft-item__title");
-    timeEl = card.querySelector(".wz-aircraft-item__time");
-    actionBtn = card.querySelector(".wz-aircraft-action");
+    titleEl = card.querySelector(".wz-naval-item__title");
+    timeEl = card.querySelector(".wz-naval-item__time");
+    actionBtn = card.querySelector(".wz-naval-action");
     let provenanceEl = foot.querySelector(".wz-naval-item__provenance");
     if (!provenanceEl) {
         provenanceEl = document.createElement("span");
@@ -3726,15 +3726,15 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     provenanceEl.title = historyDetails;
     card.querySelector(".wz-aircraft-badge")?.remove();
 
-    let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");
-    let statusIcon = statusWrap?.querySelector(".stratops-ico-status-1") || null;
-    let titleText = titleEl.querySelector(".wz-aircraft-title__text");
+    let statusWrap = titleEl.querySelector(".wz-naval-title__status");
+    let statusIcon = statusWrap?.querySelector(".static-icon.stratops-ico-status-1") || null;
+    let titleText = titleEl.querySelector(".wz-naval-title__text");
     if (!statusWrap) {
         statusWrap = document.createElement("span");
-        statusWrap.className = "wz-aircraft-title__status is-active";
+        statusWrap.className = "wz-naval-title__status is-active";
         statusWrap.setAttribute("aria-hidden", "true");
         statusIcon = document.createElement("span");
-        statusIcon.className = "stratops-ico-status-1";
+        statusIcon.className = "static-icon stratops-ico-status-1";
         statusIcon.setAttribute("aria-hidden", "true");
         statusWrap.appendChild(statusIcon);
         titleEl.appendChild(statusWrap);
@@ -3744,7 +3744,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     statusWrap.title = status;
     if (!titleText) {
         titleText = document.createElement("span");
-        titleText.className = "wz-aircraft-title__text";
+        titleText.className = "wz-naval-title__text";
         titleEl.appendChild(titleText);
     }
     titleText.textContent = String(name || "Unknown Vessel").toUpperCase();

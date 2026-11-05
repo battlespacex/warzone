@@ -3,7 +3,7 @@ import { query } from "./db.js";
 import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
-import { getGpsInterferenceSnapshot, selectGpsInterferenceRegion } from "./gnss-gpsinterference.js";
+import { getGpsInterferenceSnapshot, getRollingGpsInterferenceSnapshot, selectGpsInterferenceRegion } from "./gnss-gpsinterference.js";
 import { toPublicStatusSignal } from "../../shared/status-signal-policy.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents } from "./satellite-context.js";
@@ -448,7 +448,8 @@ export function createGnssInterferenceHandler({
                 ? clamp(Math.floor(requestedLimit), 12, MAX_GNSS_CELL_LIMIT)
                 : DEFAULT_GNSS_CELL_LIMIT;
             const date = typeof req.query.date === "string" ? req.query.date : "latest";
-            if (date !== "latest") {
+            const rollingPeriod = ["24h", "48h", "72h"].includes(date);
+            if (date !== "latest" && !rollingPeriod) {
                 const parsed = new Date(`${date}T00:00:00Z`);
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime())
                     || parsed.toISOString().slice(0, 10) !== date
@@ -465,7 +466,9 @@ export function createGnssInterferenceHandler({
                 || bounds.minLon < -180 || bounds.maxLon > 180)) {
                 return res.status(400).json({ error: "Invalid GNSS bounds" });
             }
-            const snapshot = await getSnapshot(date);
+            const snapshot = rollingPeriod
+                ? await getRollingGpsInterferenceSnapshot(date, { getSnapshot })
+                : await getSnapshot(date);
             if (snapshot) return res.json(selectRegion(snapshot, { bounds, limit }));
             if (date !== "latest") return res.json({
                 cells: [], sourceMode: "unavailable", liveAvailable: false,

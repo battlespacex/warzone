@@ -307,6 +307,11 @@ font-size: var(--text-sm);
         gap: 0.7rem;
     }
 
+    .wz-reset-orientation {
+        left: 1.5rem;
+        bottom: 12rem;
+    }
+
 
 
 
@@ -534,9 +539,9 @@ font-size: var(--text-sm);
          display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 3rem;
-        min-width: 3rem !important;
-        max-width: 3rem;
+        width: 3.2rem;
+        min-width: 3.2rem !important;
+        max-width: 3.2rem;
         padding: 0;
         gap: 0;
     }

@@ -82,12 +82,12 @@
     --font-mono: "JetBrains Mono", "Share Tech Mono", monospace;
     /* Coordinates, raw data, code */
     --font-icon: "stratops-icon-font", system-ui, sans-serif;
-    --text-xs: 1rem;
-    --text-sm: 1.2rem;
-    --text-base: 1.3rem;
-    --text-lg: 1.6rem;
-    --text-xl: 2.4rem;
-    --text-xxl: 3.4rem;
+    --text-xs: 1.05rem;
+    --text-sm: 1.15rem;
+    --text-base: 1.25rem;
+    --text-lg: 1.5rem;
+    --text-xl: 2.3rem;
+    --text-xxl: 3.2rem;
     --text-xxxl: 4.5rem;
     --text-heading-weight: 700;
     --text-base-weight: 500;
@@ -1272,8 +1272,8 @@
     --warzone-ctr-radar-ring-count: 2;
     --warzone-ctr-radar-scale: 1;
     /* Extent only: scale circles/grid boundary, not spacing or line widths. */
-    --warzone-aircraft-ctr-radar-extent-scale: 7.5;
-    --warzone-naval-ctr-radar-extent-scale: 0.5;
+    --warzone-aircraft-ctr-radar-extent-scale: 35;
+    --warzone-naval-ctr-radar-extent-scale: 1;
     --warzone-naval-ctr-radar-inner-radius: 1500;
     --warzone-naval-ctr-radar-outer-radius: 3000;
     --warzone-naval-ctr-radar-grid-spacing: 500;
@@ -1409,34 +1409,34 @@
 @media (min-width: 2560px) {
     :root {
         /* Aircraft model sizes */
-        --warzone-live-aircraft-model-focused-size-fighter: 3;
-        --warzone-live-aircraft-model-focused-size-transport: 3;
-        --warzone-live-aircraft-model-focused-size-bomber: 3;
-        --warzone-live-aircraft-model-focused-size-tanker: 3;
-        --warzone-live-aircraft-model-focused-size-recon: 3;
-        --warzone-live-aircraft-model-focused-size-awacs: 3;
-        --warzone-live-aircraft-model-focused-size-helicopter: 4;
-        --warzone-live-aircraft-model-focused-size-vip: 3;
-        --warzone-live-aircraft-model-focused-size-drone: 4;
+        --warzone-live-aircraft-model-focused-size-fighter: 5;
+        --warzone-live-aircraft-model-focused-size-transport: 5;
+        --warzone-live-aircraft-model-focused-size-bomber: 5;
+        --warzone-live-aircraft-model-focused-size-tanker: 5;
+        --warzone-live-aircraft-model-focused-size-recon: 5;
+        --warzone-live-aircraft-model-focused-size-awacs: 5;
+        --warzone-live-aircraft-model-focused-size-helicopter: 5;
+        --warzone-live-aircraft-model-focused-size-vip: 5;
+        --warzone-live-aircraft-model-focused-size-drone: 5;
 
         /* Naval model sizes */
-        --warzone-live-naval-model-focused-size-carrier: 3;
-        --warzone-live-naval-model-focused-size-amphibious: 3;
-        --warzone-live-naval-model-focused-size-cruiser: 3;
-        --warzone-live-naval-model-focused-size-destroyer: 3;
-        --warzone-live-naval-model-focused-size-frigate: 3;
-        --warzone-live-naval-model-focused-size-corvette: 3;
-        --warzone-live-naval-model-focused-size-intelligence: 3;
-        --warzone-live-naval-model-focused-size-ssbn: 3;
-        --warzone-live-naval-model-focused-size-ssn: 3;
-        --warzone-live-naval-model-focused-size-ssk: 3;
-        --warzone-live-naval-model-focused-size-aip_submarine: 3;
-        --warzone-live-naval-model-focused-size-submarine: 3;
-        --warzone-live-naval-model-focused-size-missile_boat: 3;
-        --warzone-live-naval-model-focused-size-patrol: 3;
-        --warzone-live-naval-model-focused-size-logistics: 3;
-        --warzone-live-naval-model-focused-size-minesweeper: 3;
-        --warzone-live-naval-model-focused-size-naval: 3;
+        --warzone-live-naval-model-focused-size-carrier: 5;
+        --warzone-live-naval-model-focused-size-amphibious: 5;
+        --warzone-live-naval-model-focused-size-cruiser: 5;
+        --warzone-live-naval-model-focused-size-destroyer: 5;
+        --warzone-live-naval-model-focused-size-frigate: 5;
+        --warzone-live-naval-model-focused-size-corvette: 5;
+        --warzone-live-naval-model-focused-size-intelligence: 5;
+        --warzone-live-naval-model-focused-size-ssbn: 5;
+        --warzone-live-naval-model-focused-size-ssn: 5;
+        --warzone-live-naval-model-focused-size-ssk: 5;
+        --warzone-live-naval-model-focused-size-aip_submarine: 5;
+        --warzone-live-naval-model-focused-size-submarine: 5;
+        --warzone-live-naval-model-focused-size-missile_boat: 5;
+        --warzone-live-naval-model-focused-size-patrol: 5;
+        --warzone-live-naval-model-focused-size-logistics: 5;
+        --warzone-live-naval-model-focused-size-minesweeper: 5;
+        --warzone-live-naval-model-focused-size-naval: 5;
     }
 }
 
@@ -1519,7 +1519,7 @@
 :root {
     /* Scene & Satellites */
     --warzone-start-lon: 40.4;
-    --warzone-start-lat: 12.4;
+    --warzone-start-lat: 11.4;
     --warzone-start-height: 5200000;
     --warzone-start-heading: 0;
     --warzone-start-pitch: -74;
@@ -1552,7 +1552,7 @@
     --wz-startup-oman-carrier-pitch: 0;
     --wz-startup-oman-carrier-roll: 0;
     --wz-startup-oman-carrier-scale: 1.00;
-    --wz-startup-oman-carrier-min-px: 70;
+    --wz-startup-oman-carrier-min-px: 90;
     --wz-startup-oman-carrier-max-scale: 4991;
     --wz-startup-oman-carrier-visible: 1;
     /* Oman Frigate 1 */
@@ -1563,7 +1563,7 @@
     --wz-startup-oman-frigate-1-pitch: 0;
     --wz-startup-oman-frigate-1-roll: 0;
     --wz-startup-oman-frigate-1-scale: 1.00;
-    --wz-startup-oman-frigate-1-min-px: 42;
+    --wz-startup-oman-frigate-1-min-px: 50;
     --wz-startup-oman-frigate-1-max-scale: 5000;
     --wz-startup-oman-frigate-1-visible: 1;
     /* Oman Frigate 2 */
@@ -1574,7 +1574,7 @@
     --wz-startup-oman-frigate-2-pitch: 0;
     --wz-startup-oman-frigate-2-roll: 0;
     --wz-startup-oman-frigate-2-scale: 1.00;
-    --wz-startup-oman-frigate-2-min-px: 42;
+    --wz-startup-oman-frigate-2-min-px: 50;
     --wz-startup-oman-frigate-2-max-scale: 5000;
     --wz-startup-oman-frigate-2-visible: 1;
     /* Cyprus Carrier */
@@ -1601,7 +1601,7 @@
     --wz-startup-awacs-pitch: 0;
     --wz-startup-awacs-roll: 0;
     --wz-startup-awacs-scale: 1.00;
-    --wz-startup-awacs-min-px: 80;
+    --wz-startup-awacs-min-px: 100;
     --wz-startup-awacs-max-scale: 5000;
     --wz-startup-awacs-visible: 1;
     /* Global Hawk */
@@ -1617,7 +1617,7 @@
     --wz-startup-globalhawk-pitch: 0;
     --wz-startup-globalhawk-roll: 0;
     --wz-startup-globalhawk-scale: 1;
-    --wz-startup-globalhawk-min-px: 74;
+    --wz-startup-globalhawk-min-px: 90;
     --wz-startup-globalhawk-max-scale: 5000;
     --wz-startup-globalhawk-visible: 1;
     /* F22 Lead */

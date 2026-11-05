@@ -103,7 +103,7 @@ const DEFAULT_STRATOPS_FEATURES = {
         intro: true,
         preEntryShowcase: true,
         // true: show the mobile entry warning; false: allow the normal mobile site flow.
-        mobileWarning: false,
+        mobileWarning: true,
         authentication: true,
         billing: true,
         realtimeEvents: true,
@@ -119,6 +119,17 @@ const DEFAULT_STRATOPS_FEATURES = {
         adaptivePerformanceGuard: true,
         devPanel: false,
         entrySceneTuner: false,
+    },
+    developer: {
+        formationTuner: false,
+        aircraftTracker: false,
+        scenarioControls: false,
+        fictionalAlerts: false,
+        missileStrikes: false,
+        aircraftSimulation: false,
+        navalSimulation: false,
+        satelliteControls: false,
+        environmentControls: false,
     },
 };
 
@@ -233,15 +244,29 @@ function readPath(source, path) {
         .reduce((cursor, part) => (cursor && Object.prototype.hasOwnProperty.call(cursor, part) ? cursor[part] : undefined), source);
 }
 
-const configuredFeatures = isPlainObject(window.STRATOPS_FEATURES)
-    ? mergeFeatureDefaults(DEFAULT_STRATOPS_FEATURES, window.STRATOPS_FEATURES)
+const isLocalDeveloperBuild = __STRATOPS_DEV_TOOLS__ === true &&
+    ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(window.location.hostname || "").toLowerCase());
+const localDefaults = isLocalDeveloperBuild
+    ? mergeFeatureDefaults(DEFAULT_STRATOPS_FEATURES, {
+        system: { devPanel: true },
+        developer: Object.fromEntries(Object.keys(DEFAULT_STRATOPS_FEATURES.developer).map((key) => [key, true])),
+    })
     : DEFAULT_STRATOPS_FEATURES;
+const configuredFeatures = isPlainObject(window.STRATOPS_FEATURES)
+    ? mergeFeatureDefaults(localDefaults, window.STRATOPS_FEATURES)
+    : localDefaults;
 
 window.STRATOPS_FEATURES = configuredFeatures;
 
 export function isStratOpsFeatureEnabled(path, fallback = true) {
     const value = readPath(window.STRATOPS_FEATURES, path);
     return value === undefined ? Boolean(fallback) : value !== false;
+}
+
+export function isLocalDeveloperFeatureEnabled(feature = "") {
+    return isLocalDeveloperBuild &&
+        isStratOpsFeatureEnabled("system.devPanel", false) &&
+        (!feature || isStratOpsFeatureEnabled(`developer.${feature}`, false));
 }
 
 export function getStratOpsLayerFeaturePath(layerId = "") {

@@ -1,7 +1,7 @@
 // File Path: /assets/js/warzone-aoi-lens.js
 import * as Cesium from "cesium";
 import { setDataSourceActive } from "./warzone-data-source-lifecycle.js";
-import { getAllLiveTrackSnapshots } from "./warzone-live-airforce.js";
+import { beginFocusedAircraftAoiFreeze, endFocusedAircraftAoiFreeze, getAllLiveTrackSnapshots, getLiveTrackSelection } from "./warzone-live-airforce.js";
 import { getAllNavalSnapshots } from "./warzone-live-naval.js";
 import { isEventVisible, isLayerEnabled, setLayer } from "./warzone-layers.js";
 import { hasTrustedMapCoordinates } from "../../../apps/shared/event-location-policy.js";
@@ -51,6 +51,10 @@ const state = {
     suppressNextClick: false,
     hiddenForModal: false,
     previousCameraEnableInputs: null,
+    aircraftFreezeTimer: 0,
+    aircraftFreezeStartedAt: 0,
+    aircraftFreezeTrackKey: "",
+    aircraftFreezeGeneration: 0,
 };
 
 export function initWarzoneAoiLens(viewer) {
@@ -66,6 +70,7 @@ export function initWarzoneAoiLens(viewer) {
     window.__warzoneAoiLens = {
         activate,
         isInputActive: () => state.active || state.drawing || state.editing,
+        isDrawingGesture: () => state.drawing || state.editing,
         clear: clearAoi,
         close,
         setEnabled,
@@ -142,6 +147,52 @@ function syncAoiCameraInputPriority() {
         state.previousCameraEnableInputs = null;
     }
 }
+function stopAoiAircraftFreeze({ resume = true } = {}) {
+    window.clearTimeout?.(state.aircraftFreezeTimer);
+    state.aircraftFreezeTimer = 0;
+    state.aircraftFreezeStartedAt = 0;
+    state.aircraftFreezeGeneration += 1;
+    if (state.aircraftFreezeTrackKey) endFocusedAircraftAoiFreeze({ resume });
+    state.aircraftFreezeTrackKey = "";
+}
+function startAoiAircraftFreeze({ gesture = false } = {}) {
+    const trackKey = beginFocusedAircraftAoiFreeze();
+    if (!trackKey) {
+        stopAoiAircraftFreeze({ resume: false });
+        return;
+    }
+    if (state.aircraftFreezeTrackKey !== trackKey) state.aircraftFreezeStartedAt = Date.now();
+    state.aircraftFreezeTrackKey = trackKey;
+    const elapsed = Date.now() - state.aircraftFreezeStartedAt;
+    const remainingMs = Math.max(0, Math.min(gesture ? 4000 : 3000, 4000 - elapsed));
+    window.clearTimeout?.(state.aircraftFreezeTimer);
+    const generation = ++state.aircraftFreezeGeneration;
+    state.aircraftFreezeTimer = window.setTimeout(() => {
+        if (generation !== state.aircraftFreezeGeneration) return;
+        state.aircraftFreezeTimer = 0;
+        if (state.drawing || state.editing) {
+            try { state.viewer?.scene?.canvas?.releasePointerCapture?.(state.pointerId); } catch { }
+            state.drawing = false;
+            state.editing = false;
+            state.pointerId = null;
+            state.start = null;
+            state.current = null;
+            document.body.classList.remove("is-aoi-drawing");
+            if (state.polygon.length) drawSelection(state.polygon);
+            else drawPreview([]);
+            syncAoiCameraInputPriority();
+        }
+        stopAoiAircraftFreeze();
+    }, remainingMs);
+}
+function syncAoiFocusState() {
+    syncAoiCameraInputPriority();
+    if (!state.aircraftFreezeTrackKey) return;
+    const selection = getLiveTrackSelection();
+    if (selection.track_key !== state.aircraftFreezeTrackKey || selection.mode !== "focus") {
+        stopAoiAircraftFreeze({ resume: false });
+    }
+}
 function activateEnabledAoi() {
     if (!state.viewer) return;
     state.enabled = true;
@@ -162,6 +213,7 @@ function activateEnabledAoi() {
     state.pointerId = null;
     state.armedVertexIndex = -1;
     state.editVertexIndex = -1;
+    startAoiAircraftFreeze();
     document.body.classList.add("is-aoi-lens-active");
     setButtonState(true);
     setPanelBody(`
@@ -175,6 +227,7 @@ function activateEnabledAoi() {
 }
 
 function clearAoi({ keepPanel = true } = {}) {
+    stopAoiAircraftFreeze();
     state.scanGeneration += 1;
     state.active = false;
     state.drawing = false;
@@ -243,6 +296,7 @@ function onPointerDown(event) {
                 state.editVertexIndex = vertexIndex;
                 state.pointerId = event.pointerId;
                 state.current = point;
+                startAoiAircraftFreeze({ gesture: true });
                 document.body.classList.add("is-aoi-drawing");
                 event.target?.setPointerCapture?.(event.pointerId);
                 consumePointerEvent(event);
@@ -271,6 +325,7 @@ function onPointerDown(event) {
     state.pointerId = event.pointerId;
     state.start = point;
     state.current = point;
+    startAoiAircraftFreeze({ gesture: true });
     document.body.classList.add("is-aoi-drawing");
     event.target?.setPointerCapture?.(event.pointerId);
     consumePointerEvent(event);
@@ -302,6 +357,7 @@ async function onPointerUp(event) {
         consumePointerEvent(event);
         event.target?.releasePointerCapture?.(event.pointerId);
         state.editing = false;
+        stopAoiAircraftFreeze();
         state.pointerId = null;
         document.body.classList.remove("is-aoi-drawing");
         drawSelection(state.polygon);
@@ -314,6 +370,7 @@ async function onPointerUp(event) {
     const end = pickLonLat(event) || state.current;
     state.current = end;
     state.drawing = false;
+    stopAoiAircraftFreeze();
     state.pointerId = null;
     document.body.classList.remove("is-aoi-drawing");
     const polygon = rectangleToPolygon(state.start, state.current);
@@ -336,6 +393,7 @@ function onPointerCancel(event) {
     if ((state.drawing || state.editing) && event.pointerId === state.pointerId) {
         state.drawing = false;
         state.editing = false;
+        stopAoiAircraftFreeze();
         state.pointerId = null;
         document.body.classList.remove("is-aoi-drawing");
         consumePointerEvent(event);
@@ -344,6 +402,7 @@ function onPointerCancel(event) {
     }
     if (!state.drawing || event.pointerId !== state.pointerId) return;
     state.drawing = false;
+    stopAoiAircraftFreeze();
     state.pointerId = null;
     document.body.classList.remove("is-aoi-drawing");
     consumePointerEvent(event);
@@ -364,6 +423,7 @@ function onKeyDown(event) {
         state.armedVertexIndex = -1;
         state.editVertexIndex = -1;
         state.editing = false;
+        stopAoiAircraftFreeze();
         drawSelection(state.polygon);
         return;
     }
@@ -373,7 +433,8 @@ function onKeyDown(event) {
 function bindFocusInputPriority() {
     if (state.focusInputBound) return;
     state.focusInputBound = true;
-    document.addEventListener("wz:asset-focus-changed", syncAoiCameraInputPriority);
+    document.addEventListener("wz:asset-focus-changed", syncAoiFocusState);
+    document.addEventListener("wz:aircraft-track-selected", syncAoiFocusState);
 }
 
 function bindModalVisibility() {
@@ -400,7 +461,8 @@ function scheduleAoiPanelRestore() {
 }
 
 function unbindAoiVisibility() {
-    document.removeEventListener("wz:asset-focus-changed", syncAoiCameraInputPriority);
+    document.removeEventListener("wz:asset-focus-changed", syncAoiFocusState);
+    document.removeEventListener("wz:aircraft-track-selected", syncAoiFocusState);
     document.removeEventListener("wz:ui-modal-visibility", handleAoiModalVisibility);
     document.removeEventListener("fullscreenchange", scheduleAoiPanelRestore, true);
     state.focusInputBound = false;

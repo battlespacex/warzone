@@ -2,9 +2,9 @@
 import "../css/warzone-dev-panel.css";
 import * as Cesium from "cesium";
 import {
-    handleIncomingEvent,
     openSatelliteImageryViewer,
     setDevEventPopupInspectionFrozen,
+    stopDeveloperAircraftSearch,
     triggerWarzoneAlert
 } from "./essential.js";
 import { isLayerEnabled, setLayer } from "./warzone-layers.js";
@@ -24,6 +24,7 @@ import {
 import { clearNavalVessel, refreshNavalVisualStyles, setNavalModelHeadingOffset, upsertNavalVessel } from "./warzone-live-naval.js";
 import { setSirenAlertDevPreviewActive, showSirenAlert } from "./warzone-siren-alert.js";
 import { setStickyAlertDevPreviewActive, showStickyAlert } from "./warzone-sticky-alert.js";
+import { isLocalDeveloperFeatureEnabled } from "./stratops-feature-config.js";
 const ENABLE_ALERT_UI_DEV_PREVIEW = true; // TEMPORARY: remove with the isolated alert-preview block and controls.
 const DEV_ALERT_UI_PREVIEW_ID = "dev-alert-ui-preview";
 const DEV_ALERT_UI_PREVIEW_TIME = "2026-08-14T13:20:00.000Z";
@@ -619,12 +620,24 @@ function getQuickAircraftTrackKey(event = {}) {
     const sourceKey = normalizeDevTrackKey(event.source_key || event.id || event.subcategory || "aircraft");
     return `dev-quick-${sourceKey}`;
 }
+const __devPanelSimulationKeys = new Set();
+const __devPanelNavalKeys = new Set();
+const __devPanelEventKeys = new Set();
+const __devPanelPendingSimulationStarts = new Map();
+let __devPanelOpen = false;
+let __devPanelGeneration = 0;
 function restartDevSimulation(config, logLabel = "") {
-    if (!config?.track_key) return;
+    if (!__devPanelOpen || !config?.track_key) return;
+    __devPanelSimulationKeys.add(config.track_key);
+    window.clearTimeout(__devPanelPendingSimulationStarts.get(config.track_key));
     stopDevTrackSimulation(config.track_key);
-    setTimeout(() => {
-        startDevTrackSimulation(config);
+    const generation = __devPanelGeneration;
+    const timer = window.setTimeout(() => {
+        __devPanelPendingSimulationStarts.delete(config.track_key);
+        if (__devPanelOpen && generation === __devPanelGeneration &&
+            __devPanelSimulationKeys.has(config.track_key)) startDevTrackSimulation(config);
     }, 40);
+    __devPanelPendingSimulationStarts.set(config.track_key, timer);
     if (logLabel) {
         devLog(logLabel);
     }
@@ -669,19 +682,25 @@ function flyToBomberFormationArea() {
     });
 }
 function startBomberFormationDemo() {
+    const generation = __devPanelGeneration;
     BOMBER_FORMATION_ROUTES.forEach((route, index) => {
         window.setTimeout(() => {
+            if (!__devPanelOpen || generation !== __devPanelGeneration) return;
             restartDevSimulation(route, index === 0 ? "Bomber formation started: Nevada range" : "");
         }, index * 80);
     });
     window.setTimeout(() => {
+        if (!__devPanelOpen || generation !== __devPanelGeneration) return;
         showBomberFormationHighValueDemo();
         flyToBomberFormationArea();
     }, 350);
 }
 function clearBomberFormationDemo() {
     BOMBER_FORMATION_TRACK_KEYS.forEach((trackKey) => {
+        window.clearTimeout(__devPanelPendingSimulationStarts.get(trackKey));
+        __devPanelPendingSimulationStarts.delete(trackKey);
         stopDevTrackSimulation(trackKey);
+        __devPanelSimulationKeys.delete(trackKey);
     });
     devLog("Bomber formation cleared");
 }
@@ -951,7 +970,15 @@ function buildQuickAircraftSimulationConfig(event, trackKey) {
         loop: true,
     };
 }
+function getDevTestEventFeature(key) {
+    if (/^(missile_|drone_|airstrike$)/.test(key)) return "missileStrikes";
+    if (key.startsWith("siren_")) return "fictionalAlerts";
+    if (key.startsWith("aircraft_")) return "aircraftSimulation";
+    if (key.startsWith("ship_")) return "navalSimulation";
+    return "scenarioControls";
+}
 function fireTestEvent(key) {
+    if (!__devPanelOpen || !isLocalDeveloperFeatureEnabled(getDevTestEventFeature(key))) return;
     const template = TEST_EVENTS[key];
     if (!template) return;
     const event = {
@@ -960,8 +987,11 @@ function fireTestEvent(key) {
         occurred_at: new Date().toISOString(),
     };
     const globe = window.__warzoneViewer?.__warzone;
-    handleIncomingEvent(event);
-    if (isStrikeLikeEvent(event)) {
+    if (!key.startsWith("aircraft_") && !key.startsWith("ship_")) {
+        globe?.addEvent?.({ ...event, source_name: "DEV PANEL SIMULATION" });
+        __devPanelEventKeys.add(event.id);
+    }
+    if (isStrikeLikeEvent(event) && isLocalDeveloperFeatureEnabled("fictionalAlerts")) {
         const impactLabel = String(
             event.impact_label || event.location_label || "IMPACT ZONE"
         ).toUpperCase();
@@ -985,6 +1015,23 @@ function fireTestEvent(key) {
         });
         globe?.highlightAlertRegion?.(event);
         devLog(`Alert: ${event.title}`);
+        return;
+    }
+    if (key.startsWith("ship_")) {
+        const trackKey = getQuickAircraftTrackKey(event);
+        upsertNavalVessel({
+            ...event,
+            id: trackKey,
+            source_key: trackKey,
+            dedupe_key: trackKey,
+            source_name: "DEV PANEL SIMULATION",
+            heading_deg: Number(event.metadata?.heading || 0),
+            speed_kts: Number(event.metadata?.speed_kts || 0),
+            updated_at: event.occurred_at,
+            metadata: { ...event.metadata, track_key: trackKey, simulation: "developer-panel" },
+        });
+        __devPanelNavalKeys.add(trackKey);
+        devLog(`NAVAL SIMULATION: ${event.title}`);
         return;
     }
     if (event.category === "military") {
@@ -1040,6 +1087,9 @@ function initDevSimulatorControls() {
             return;
         }
         stopDevTrackSimulation(trackKey);
+        window.clearTimeout(__devPanelPendingSimulationStarts.get(trackKey));
+        __devPanelPendingSimulationStarts.delete(trackKey);
+        __devPanelSimulationKeys.delete(trackKey);
         devLog(`Simulator stopped: ${trackKey}`);
     });
     applyDevSimPreset("fighter");
@@ -1395,7 +1445,7 @@ function getDevAlertUiPreviewEvent() {
 
 function syncDevAlertUiPreviewControls() {
     const root = document.getElementById("wz-dev-alert-preview-controls");
-    const label = document.querySelector('.wz-dev-label[data-wz-dev-section="alert-ui-preview"]');
+    const label = document.querySelector('.wz-dev-label[data-wz-dev-section~="alert-ui-preview"]');
     if (!ENABLE_ALERT_UI_DEV_PREVIEW) {
         root?.remove();
         label?.remove();
@@ -2136,15 +2186,17 @@ function setDevStaticTunerSelection(next = "aircraft") {
     refreshLiveAssetVisualsNow();
 }
 function syncDevStaticTunerSelectedControls(section = document.getElementById("wz-dev-section-select")?.value || "") {
+    const activeSection = section === "aircraft" ? "live-aircraft" :
+        section === "naval" ? "live-naval" : section === "environment" ? "live-glb" : section;
     document.querySelectorAll("[data-live-tuner-selected]").forEach((el) => {
-        if (!section) {
+        if (!activeSection) {
             el.hidden = false;
             return;
         }
         const scope = el.getAttribute("data-live-tuner-selected");
         const sections = String(el.getAttribute("data-wz-dev-subsection") || "").split(/\s+/).filter(Boolean);
-        const sectionHidden = section && !sections.includes(section);
-        const selectionHidden = section === "live-asset-tuner" && scope !== __devStaticTunerSelected;
+        const sectionHidden = !sections.includes(activeSection);
+        const selectionHidden = activeSection === "live-asset-tuner" && scope !== __devStaticTunerSelected;
         el.hidden = sectionHidden || selectionHidden;
     });
 }
@@ -2193,6 +2245,10 @@ function spawnDevStaticTunerAssets(options = {}) {
 }
 function clearDevStaticTunerAssets() {
     const viewer = window.__warzoneViewer;
+    if (__devStaticTunerHandler) {
+        __devStaticTunerHandler.destroy();
+        __devStaticTunerHandler = null;
+    }
     clearLiveTrack(DEV_STATIC_TUNER_AIRCRAFT_KEY);
     clearNavalVessel(DEV_STATIC_TUNER_NAVAL_KEY);
     clearDevStaticTunerMarkers(viewer);
@@ -2803,17 +2859,35 @@ function initDevVisualInspectionControls() {
 }
 
 const DEV_PANEL_SECTIONS = [
-    ...(ENABLE_ALERT_UI_DEV_PREVIEW ? [{ value: "alert-ui-preview", label: "Alert UI Preview" }] : []),
-    { value: "visual-inspection", label: "Visual Component Inspection" },
-    { value: "event-hotspots", label: "Event Markers / Hotspots" },
-    { value: "live-aircraft", label: "Live Aircraft Settings" },
-    { value: "live-naval", label: "Live Naval Settings" },
-    { value: "live-glb", label: "Shared GLB / Lighting" },
-    { value: "live-asset-tuner", label: "Live Asset Tuner" },
-    { value: "map-performance", label: "Map Performance Layers" },
-    { value: "region-selector", label: "Region Selector" },
-    { value: "general-debug", label: "General Debug" },
+    { value: "aircraft", label: "Aircraft" },
+    { value: "naval", label: "Naval" },
+    { value: "satellites", label: "Satellites" },
+    { value: "scenarios", label: "Scenarios" },
+    { value: "strikes", label: "Strikes" },
+    { value: "alerts", label: "Alerts" },
+    { value: "environment", label: "Environment" },
 ];
+const DEV_SECTION_ALIASES = {
+    aircraft: ["aircraft", "live-aircraft", "live-asset-tuner"],
+    naval: ["naval", "live-naval", "live-asset-tuner"],
+    satellites: ["satellites"],
+    scenarios: ["scenarios", "event-hotspots", "general-debug"],
+    strikes: ["strikes"],
+    alerts: ["alerts", "alert-ui-preview"],
+    environment: ["environment", "visual-inspection", "map-performance", "region-selector", "live-glb"],
+};
+const DEV_SECTION_FEATURES = {
+    aircraft: ["aircraftTracker", "formationTuner", "aircraftSimulation", "environmentControls"],
+    naval: ["navalSimulation", "formationTuner", "environmentControls"],
+    satellites: ["satelliteControls"],
+    scenarios: ["scenarioControls"],
+    strikes: ["missileStrikes"],
+    alerts: ["fictionalAlerts"],
+    environment: ["environmentControls"],
+};
+function isDevSectionEnabled(section) {
+    return (DEV_SECTION_FEATURES[section] || []).some(isLocalDeveloperFeatureEnabled);
+}
 
 function getDevPanelElementSections(element) {
     return String(element?.dataset?.wzDevSection || "general-debug").split(/\s+/).filter(Boolean);
@@ -2837,36 +2911,44 @@ function annotateDevPanelSections() {
     }
     const liveBlock = document.querySelector(".wz-dev-live-asset-block");
     if (liveBlock) {
-        liveBlock.dataset.wzDevSection = "live-aircraft live-naval live-glb live-asset-tuner";
+        liveBlock.dataset.wzDevSection = "aircraft naval environment live-aircraft live-naval live-glb live-asset-tuner";
     }
     const mapLayerControls = document.getElementById("wz-dev-map-layer-controls");
     if (mapLayerControls) {
-        mapLayerControls.dataset.wzDevSection = "map-performance";
+        mapLayerControls.dataset.wzDevSection = "environment map-performance";
         const previous = mapLayerControls.previousElementSibling;
         if (previous?.classList?.contains("wz-dev-label")) {
-            previous.dataset.wzDevSection = "map-performance";
+            previous.dataset.wzDevSection = "environment map-performance";
         }
     }
     const eventUiTuner = document.getElementById("wz-dev-event-ui-tuner");
     if (eventUiTuner) {
-        eventUiTuner.dataset.wzDevSection = "event-hotspots";
+        eventUiTuner.dataset.wzDevSection = "scenarios event-hotspots";
         const previous = eventUiTuner.previousElementSibling;
         if (previous?.classList?.contains("wz-dev-label")) {
-            previous.dataset.wzDevSection = "event-hotspots";
+            previous.dataset.wzDevSection = "scenarios event-hotspots";
         }
     }
 }
-function applyDevPanelSectionFilter(section = "general-debug") {
-    const selected = DEV_PANEL_SECTIONS.some((item) => item.value === section) ? section : "general-debug";
+function applyDevPanelSectionFilter(section = "aircraft") {
+    const selected = DEV_PANEL_SECTIONS.some((item) => item.value === section && isDevSectionEnabled(section))
+        ? section : DEV_PANEL_SECTIONS.find((item) => isDevSectionEnabled(item.value))?.value || "aircraft";
+    const visibleSections = DEV_SECTION_ALIASES[selected] || [selected];
     annotateDevPanelSections();
     document.querySelectorAll("#wz-dev-body .wz-dev-grid > *").forEach((child) => {
-        child.hidden = !getDevPanelElementSections(child).includes(selected);
+        child.hidden = Boolean(child.dataset.wzDevFeature && !isLocalDeveloperFeatureEnabled(child.dataset.wzDevFeature)) ||
+            !getDevPanelElementSections(child).some((name) => visibleSections.includes(name));
+    });
+    document.querySelectorAll("#wz-dev-body [data-wz-dev-feature]").forEach((child) => {
+        if (child.classList.contains("wz-dev-accordion")) return;
+        child.hidden = !isLocalDeveloperFeatureEnabled(child.dataset.wzDevFeature);
     });
     document.querySelectorAll("[data-wz-dev-subsection]").forEach((child) => {
         const sections = String(child.getAttribute("data-wz-dev-subsection") || "").split(/\s+/).filter(Boolean);
-        child.hidden = !sections.includes(selected);
+        child.hidden = !sections.some((name) => visibleSections.includes(name));
     });
-    syncDevStaticTunerSelectedControls(selected);
+    syncDevStaticTunerSelectedControls(selected === "aircraft" ? "live-aircraft" :
+        selected === "naval" ? "live-naval" : selected === "environment" ? "live-glb" : selected);
     const select = document.getElementById("wz-dev-section-select");
     if (select && select.value !== selected) select.value = selected;
 }
@@ -2882,10 +2964,14 @@ function initDevPanelSectionFilter() {
         </select>`;
     grid.insertAdjacentElement("beforebegin", selector);
     const select = document.getElementById("wz-dev-section-select");
+    DEV_PANEL_SECTIONS.forEach((item) => {
+        const option = select?.querySelector(`option[value="${item.value}"]`);
+        if (option) option.disabled = !isDevSectionEnabled(item.value);
+    });
     select?.addEventListener("change", () => {
         applyDevPanelSectionFilter(select.value);
     });
-    applyDevPanelSectionFilter("visual-inspection");
+    applyDevPanelSectionFilter("aircraft");
 }
 
 function getDevMapApi() {
@@ -3219,7 +3305,7 @@ export function showFullDevPanel() {
         child.hidden = false;
     });
     initDevPanelSectionFilter();
-    applyDevPanelSectionFilter(document.getElementById("wz-dev-section-select")?.value || "event-hotspots");
+    applyDevPanelSectionFilter(document.getElementById("wz-dev-section-select")?.value || "aircraft");
 }
 
 function closeDevSharedModal(modal, callback) {
@@ -3345,10 +3431,11 @@ function initDevPanelAccordions() {
         String(section).split(/\s+/).filter(Boolean).forEach((item) => existing.add(item));
         currentDetails.dataset.wzDevSection = Array.from(existing).join(" ");
     };
-    const startSection = (title = "Dev Section", open = false, section = "general-debug") => {
+    const startSection = (title = "Dev Section", open = false, section = "general-debug", feature = "") => {
         const details = document.createElement("details");
         details.className = "wz-dev-accordion";
         details.dataset.wzDevSection = section;
+        if (feature) details.dataset.wzDevFeature = feature;
         if (open) details.open = true;
         const summary = document.createElement("summary");
         summary.className = "wz-dev-accordion__summary";
@@ -3365,11 +3452,12 @@ function initDevPanelAccordions() {
     grid.innerHTML = "";
     children.forEach((child) => {
         if (child.classList?.contains("wz-dev-label")) {
-            startSection(child.textContent.trim() || "Dev Section", sectionIndex === 0, child.dataset.wzDevSection || "general-debug");
+            startSection(child.textContent.trim() || "Dev Section", sectionIndex === 0,
+                child.dataset.wzDevSection || "general-debug", child.dataset.wzDevFeature || "");
             return;
         }
         if (child.classList?.contains("wz-dev-live-asset-block")) {
-            const details = startSection("LIVE ASSET TUNER", false);
+            const details = startSection("LIVE ASSET TUNER", false, "aircraft naval environment", "environmentControls");
             details.dataset.wzDevSection = child.dataset.wzDevSection || "";
             currentContent.appendChild(child);
             return;
@@ -3380,45 +3468,55 @@ function initDevPanelAccordions() {
     });
 }
 export function initDevPanel() {
-    const isLocal =
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1" ||
-        window.location.hostname === "" ||
-        window.location.hostname.includes("staging") ||
-        window.location.search.includes("devpanel=1") ||
-        localStorage.getItem("wz_dev") === "1";
+    if (!isLocalDeveloperFeatureEnabled() || !window.__warzoneViewer ||
+        document.body.classList.contains("wz-pre-entry-active")) return;
     const panel = document.getElementById("wz-dev-panel");
-    if (!panel) {
-        console.warn("[DevPanel] #wz-dev-panel not found — ensure partials/popups.html is loaded.");
-        return;
-    }
+    if (!panel || panel.dataset.devBound === "1") return;
+    panel.dataset.devBound = "1";
+    const body = document.getElementById("wz-dev-body");
+    const toggle = document.getElementById("wz-dev-toggle");
+    const setOpen = (open) => {
+        if (body) body.hidden = !open;
+        toggle?.setAttribute("aria-expanded", String(open));
+        if (__devPanelOpen && !open) {
+            __devPanelGeneration += 1;
+            __devPanelPendingSimulationStarts.forEach((timer) => window.clearTimeout(timer));
+            __devPanelPendingSimulationStarts.clear();
+            stopDeveloperAircraftSearch();
+            __devPanelSimulationKeys.forEach((key) => stopDevTrackSimulation(key));
+            __devPanelSimulationKeys.clear();
+            __devPanelNavalKeys.forEach((key) => clearNavalVessel(key));
+            __devPanelNavalKeys.clear();
+            __devPanelEventKeys.forEach((key) => window.__warzoneViewer?.__warzone?.removeEvent?.(key));
+            __devPanelEventKeys.clear();
+            window.__warzoneFormationDevTuner?.clearAll?.();
+            closeDevAlertUiPreview();
+            if (__devEventUiPreviewVisible) closeDevEventUiPreview(false);
+            if (__devStaticTunerEnabled) clearDevStaticTunerAssets();
+            window.__hotspotLayer?.clearDevInspectionPreview?.();
+        }
+        __devPanelOpen = open;
+    };
     document.addEventListener("keydown", (e) => {
         if (e.ctrlKey && e.shiftKey && (e.key === "`" || e.key === "~" || e.code === "Backquote")) {
             e.preventDefault();
-            if (panel.hidden) {
-                panel.hidden = false;
-                localStorage.setItem("wz_dev", "1");
-                devLog("Dev panel unlocked via keyboard shortcut");
-                console.log("[dev] Warzone dev panel activated — Ctrl+Shift+` pressed");
-            } else {
-                const body = document.getElementById("wz-dev-body");
-                if (body) body.hidden = !body.hidden;
-            }
+            setOpen(body?.hidden === true);
         }
     });
-    if (!isLocal) return;
     panel.hidden = false;
-    initDevMapLayerControls();
-    document.getElementById("wz-dev-toggle")?.addEventListener("click", () => {
-        const body = document.getElementById("wz-dev-body");
-        if (body) body.hidden = !body.hidden;
+    if (isLocalDeveloperFeatureEnabled("environmentControls")) initDevMapLayerControls();
+    toggle?.addEventListener("click", () => setOpen(body?.hidden === true));
+    document.getElementById("wz-dev-close")?.addEventListener("click", () => {
+        setOpen(false);
+        toggle?.focus();
     });
     document.querySelectorAll(".wz-dev-btn[data-event]").forEach((btn) => {
+        if (!isLocalDeveloperFeatureEnabled(getDevTestEventFeature(btn.dataset.event))) return;
         btn.addEventListener("click", () => {
             fireTestEvent(btn.dataset.event);
         });
     });
-    document.querySelectorAll(".wz-dev-btn[data-siren]").forEach((btn) => {
+    if (isLocalDeveloperFeatureEnabled("fictionalAlerts")) document.querySelectorAll(".wz-dev-btn[data-siren]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const level = btn.dataset.siren;
             const titles = {
@@ -3446,7 +3544,7 @@ export function initDevPanel() {
         iran: { lat: 32.4, lon: 53.7, severity: "critical", label: "Iran" },
         ukraine: { lat: 49.0, lon: 32.0, severity: "high", label: "Ukraine" },
     };
-    document.querySelectorAll(".wz-dev-btn[data-highlight]").forEach((btn) => {
+    if (isLocalDeveloperFeatureEnabled("scenarioControls")) document.querySelectorAll(".wz-dev-btn[data-highlight]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.highlight;
             const globe = window.__warzoneViewer?.__warzone;
@@ -3470,7 +3568,7 @@ export function initDevPanel() {
             devLog(`Pulse highlight: ${loc.label} [${loc.severity}]`);
         });
     });
-    document.querySelectorAll(".wz-dev-btn[data-track-route]").forEach((btn) => {
+    if (isLocalDeveloperFeatureEnabled("aircraftSimulation")) document.querySelectorAll(".wz-dev-btn[data-track-route]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.trackRoute;
             const route = TEST_TRACK_ROUTES[key];
@@ -3478,14 +3576,17 @@ export function initDevPanel() {
             restartDevSimulation(route, `Route sim started: ${route.title}`);
         });
     });
-    document.querySelectorAll(".wz-dev-btn[data-track-stop]").forEach((btn) => {
+    if (isLocalDeveloperFeatureEnabled("aircraftSimulation")) document.querySelectorAll(".wz-dev-btn[data-track-stop]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const key = btn.dataset.trackStop || "dev-track-fighter-1";
             stopDevTrackSimulation(key);
+            window.clearTimeout(__devPanelPendingSimulationStarts.get(key));
+            __devPanelPendingSimulationStarts.delete(key);
+            __devPanelSimulationKeys.delete(key);
             devLog(`Route sim stopped: ${key}`);
         });
     });
-    document.querySelectorAll(".wz-dev-btn[data-bomber-formation]").forEach((btn) => {
+    if (isLocalDeveloperFeatureEnabled("aircraftSimulation")) document.querySelectorAll(".wz-dev-btn[data-bomber-formation]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const action = btn.dataset.bomberFormation;
             if (action === "clear") {
@@ -3495,49 +3596,56 @@ export function initDevPanel() {
             startBomberFormationDemo();
         });
     });
-    document.getElementById("wz-dev-fire-all")?.addEventListener("click", () => {
+    if (isLocalDeveloperFeatureEnabled("scenarioControls")) document.getElementById("wz-dev-fire-all")?.addEventListener("click", () => {
         let delay = 0;
-        Object.keys(TEST_EVENTS).forEach((key) => {
-            setTimeout(() => fireTestEvent(key), delay);
+        const keys = Object.keys(TEST_EVENTS).filter((key) => isLocalDeveloperFeatureEnabled(getDevTestEventFeature(key)));
+        const generation = __devPanelGeneration;
+        keys.forEach((key) => {
+            setTimeout(() => {
+                if (generation === __devPanelGeneration) fireTestEvent(key);
+            }, delay);
             delay += 800;
         });
-        devLog(`Firing all ${Object.keys(TEST_EVENTS).length} test events...`);
+        devLog(`Firing all ${keys.length} enabled test events...`);
     });
     document.getElementById("wz-dev-clear")?.addEventListener("click", () => {
         const log = document.getElementById("wz-dev-log");
         if (log) log.innerHTML = "";
     });
-    document.getElementById("wz-dev-open-performance-warning")?.addEventListener("click", () => {
+    if (isLocalDeveloperFeatureEnabled("environmentControls")) document.getElementById("wz-dev-open-performance-warning")?.addEventListener("click", () => {
         if (openDevPerformanceWarningModal()) {
             devLog("Opened performance popup");
         }
     });
-    document.getElementById("wz-dev-open-layer-warning")?.addEventListener("click", () => {
+    if (isLocalDeveloperFeatureEnabled("environmentControls")) document.getElementById("wz-dev-open-layer-warning")?.addEventListener("click", () => {
         if (openDevLayerWarningModal()) {
             devLog("Opened warning popup");
         }
     });
-    document.getElementById("wz-dev-open-global-alert")?.addEventListener("click", () => {
+    if (isLocalDeveloperFeatureEnabled("fictionalAlerts")) document.getElementById("wz-dev-open-global-alert")?.addEventListener("click", () => {
         if (openDevGlobalAlertPreview()) {
             devLog("Opened global alert preview");
         }
     });
-    document.getElementById("wz-dev-open-event-popup")?.addEventListener("click", () => {
+    if (isLocalDeveloperFeatureEnabled("scenarioControls")) document.getElementById("wz-dev-open-event-popup")?.addEventListener("click", () => {
         openDevEventUiPreview();
     });
-    initDevSimulatorControls();
-    initDevAlertUiPreviewControls();
-    initMapTunerControls();
-    initDevEventUiTunerControls();
-    initDevVisualInspectionControls();
-    initDevOrbitalUiTunerControls();
-    initDevStartupSceneTunerControls();
-    initIntroStartupSceneTunerControls();
-    initLiveAssetTunerControls();
+    if (isLocalDeveloperFeatureEnabled("aircraftSimulation")) initDevSimulatorControls();
+    if (isLocalDeveloperFeatureEnabled("fictionalAlerts")) initDevAlertUiPreviewControls();
+    if (isLocalDeveloperFeatureEnabled("environmentControls")) initMapTunerControls();
+    if (isLocalDeveloperFeatureEnabled("scenarioControls")) initDevEventUiTunerControls();
+    if (isLocalDeveloperFeatureEnabled("environmentControls")) initDevVisualInspectionControls();
+    if (isLocalDeveloperFeatureEnabled("satelliteControls")) initDevOrbitalUiTunerControls();
+    if (isLocalDeveloperFeatureEnabled("environmentControls")) {
+        initDevStartupSceneTunerControls();
+        initIntroStartupSceneTunerControls();
+        initLiveAssetTunerControls();
+    }
     annotateDevPanelSections();
     initDevPanelAccordions();
     initDevPanelSectionFilter();
     showFullDevPanel();
+    setOpen(true);
     devLog("Dev panel ready");
 }
 

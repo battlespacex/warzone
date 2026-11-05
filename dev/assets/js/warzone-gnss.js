@@ -9,18 +9,18 @@ const GNSS_LEGEND_STATUS_ID = "wz-gnss-legend-status";
 const GNSS_ENTITY_PROP_KEY = "isGnssCell";
 const GNSS_FALLBACK_COLORS = {
     fill: {
-        low: "rgba(76, 255, 118, 0.28)",
-        medium: "rgba(255, 220, 82, 0.32)",
-        high: "rgba(255, 78, 78, 0.36)",
-        severe: "rgba(151, 79, 211, 0.4)",
-        unknown: "rgba(160, 170, 180, 0.22)",
+        low: "rgba(13, 233, 79, 0.3)",
+        medium: "rgba(252, 255, 77, 0.3)",
+        high: "rgba(138, 67, 254, 0.3)",
+        severe: "rgba(14, 127, 255, 0.3)",
+        unknown: "rgba(100, 114, 133, 0.3)",
     },
     outline: {
-        low: "rgba(76, 255, 118, 0.35)",
-        medium: "rgba(255, 220, 82, 0.38)",
-        high: "rgba(255, 78, 78, 0.42)",
-        severe: "rgba(170, 104, 233, 0.48)",
-        unknown: "rgba(160, 170, 180, 0.25)",
+        low: "rgba(13, 233, 79, 0.3)",
+        medium: "rgba(252, 255, 77, 0.3)",
+        high: "rgba(138, 67, 254, 0.3)",
+        severe: "rgba(14, 127, 255, 0.3)",
+        unknown: "rgba(100, 114, 133, 0.3)",
     },
 };
 

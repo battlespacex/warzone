@@ -283,7 +283,8 @@ async function getGnssCellsFromStatusFeed({ supabase = null, limit = DEFAULT_LIM
         .in("category", ["gps_jamming", "gps_spoofing", "gnss_interference"])
         .not("lat", "is", null)
         .not("lon", "is", null)
-        .gte("fetched_at", cutoffIso)
+        .not("published_at", "is", null)
+        .gte("published_at", cutoffIso)
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("fetched_at", { ascending: false })
         .limit(boundedLimit);
@@ -300,7 +301,7 @@ async function getGnssCellsFromStatusFeed({ supabase = null, limit = DEFAULT_LIM
             confidence: Number(row.confidence_score || 0) >= 70 ? "high" : "medium",
             country: row.country,
             region: row.region,
-            observed_at: row.published_at || row.fetched_at,
+            observed_at: row.published_at,
             updated_at: row.fetched_at || row.published_at,
             source_label: row.source_name || "GNSS Status Feed",
             is_demo: false,
@@ -346,8 +347,9 @@ export async function getPublicGnssInterferenceCells({ supabase = null, limit = 
             .from("gnss_interference_cells")
             .select("id, cell_id, grid_id, lat, lon, polygon, cell_boundary, severity, affected_percent, sample_count, confidence, country, region, observed_at, updated_at, is_demo, is_public, is_active")
             .neq("severity", "unknown")
-            .gte("updated_at", cutoffIso)
-            .order("updated_at", { ascending: false, nullsFirst: false })
+            .not("observed_at", "is", null)
+            .gte("observed_at", cutoffIso)
+            .order("observed_at", { ascending: false, nullsFirst: false })
             .limit(boundedLimit);
 
         if (!error && Array.isArray(data)) {

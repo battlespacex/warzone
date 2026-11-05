@@ -158,6 +158,7 @@ async function aoiHarness() {
     state, window: win, document: { body }, isLayerEnabled: () => false,
     showPanel: noop, hidePanel: noop, setPanelBody: noop, setButtonState: noop, applyDataSourceVisibility: noop,
     bindFocusInputPriority: noop, syncAoiCameraInputPriority: noop, bindModalVisibility: noop, unbindAoiVisibility: noop,
+    startAoiAircraftFreeze: noop, stopAoiAircraftFreeze: noop,
     onPointerDown: () => { callbacks += 1; }, onPointerMove: () => { callbacks += 1; },
     onPointerUp: noop, onPointerCancel: noop, onCanvasClick: noop, onKeyDown: noop,
     renderSummaryHtml: () => "completed", buildSummary: async () => ({}),
@@ -170,10 +171,10 @@ test("AOI owns camera input during Focus and restores it after drawing", async (
   const controller = { enableInputs: true };
   const state = { active: false, drawing: false, editing: false, previousCameraEnableInputs: null,
     viewer: { scene: { screenSpaceCameraController: controller } }, focusInputBound: false };
-  const c = await functions("warzone-aoi-lens.js", ["syncAoiCameraInputPriority", "bindFocusInputPriority"], { state, document });
+  const c = await functions("warzone-aoi-lens.js", ["syncAoiCameraInputPriority", "syncAoiFocusState", "bindFocusInputPriority"], { state, document });
   c.bindFocusInputPriority();
   c.bindFocusInputPriority();
-  assert.equal(document.count, 1);
+  assert.equal(document.count, 2);
   state.active = true;
   c.syncAoiCameraInputPriority();
   assert.equal(controller.enableInputs, false);
@@ -184,6 +185,197 @@ test("AOI owns camera input during Focus and restores it after drawing", async (
   c.syncAoiCameraInputPriority();
   assert.equal(controller.enableInputs, true);
   assert.equal(state.previousCameraEnableInputs, null);
+});
+
+test("AOI aircraft freeze expires after idle or four seconds of drawing and old timers cannot resume a new attempt", async () => {
+  let now = 1000, nextTimer = 0, resumes = 0, previews = 0, focusMode = "focus", lastResume = null;
+  const timers = new Map();
+  const fire = (id) => { const timer = timers.get(id); timers.delete(id); timer.fn(); };
+  const window = { setTimeout(fn, ms) { timers.set(++nextTimer, { fn, ms }); return nextTimer; },
+    clearTimeout(id) { timers.delete(id); } };
+  const state = { aircraftFreezeTimer: 0, aircraftFreezeStartedAt: 0,
+    aircraftFreezeTrackKey: "", aircraftFreezeGeneration: 0, drawing: false, editing: false,
+    pointerId: null, polygon: [], viewer: { scene: { canvas: { releasePointerCapture: noop } } } };
+  const c = await functions("warzone-aoi-lens.js", ["startAoiAircraftFreeze", "stopAoiAircraftFreeze", "syncAoiFocusState"], {
+    state, window, Date: { now: () => now }, document: { body: { classList: { remove: noop } } },
+    beginFocusedAircraftAoiFreeze: () => "aircraft-a",
+    endFocusedAircraftAoiFreeze: (options) => { resumes++; lastResume = options.resume; },
+    drawPreview: () => { previews++; }, syncAoiCameraInputPriority: noop,
+    getLiveTrackSelection: () => ({ track_key: "aircraft-a", mode: focusMode }),
+  });
+  c.startAoiAircraftFreeze();
+  assert.equal(timers.get(1).ms, 3000);
+  const obsolete = timers.get(1).fn;
+  now = 2000; state.drawing = true; state.pointerId = 7;
+  c.startAoiAircraftFreeze({ gesture: true });
+  assert.equal(timers.has(1), false);
+  assert.equal(timers.get(2).ms, 3000);
+  obsolete();
+  assert.equal(resumes, 0);
+  fire(2);
+  assert.equal(state.drawing, false);
+  assert.equal(state.pointerId, null);
+  assert.equal(previews, 1);
+  assert.equal(resumes, 1);
+  now = 6000;
+  c.startAoiAircraftFreeze();
+  assert.equal(timers.get(3).ms, 3000);
+  fire(3);
+  assert.equal(resumes, 2);
+  assert.equal(state.aircraftFreezeTrackKey, "");
+  now = 10000;
+  c.startAoiAircraftFreeze();
+  focusMode = "replay";
+  c.syncAoiFocusState();
+  assert.equal(resumes, 3);
+  assert.equal(lastResume, false);
+  assert.equal(timers.size, 0);
+});
+
+test("AOI rectangle drawing and corner resizing still complete scans around the visual pause", async () => {
+  const scans = [], freezes = [];
+  const state = { active: true, polygon: [], armedVertexIndex: -1, editVertexIndex: -1,
+    drawing: false, editing: false, pointerId: null, start: null, current: null };
+  const event = (pointerId, point) => ({ button: 0, pointerId, point,
+    target: { setPointerCapture: noop, releasePointerCapture: noop } });
+  const c = await functions("warzone-aoi-lens.js", ["onPointerDown", "onPointerMove", "onPointerUp"], {
+    state, document: { body: { classList: { add: noop, remove: noop } } },
+    pickLonLat: (e) => e.point, pickVertexIndex: () => 0,
+    rectangleToPolygon: (a, b) => [a, b, a, b],
+    moveRectangleVertex: (polygon, _index, point) => [point, ...polygon.slice(1)],
+    isDrawablePolygon: () => true, drawPreview: noop, drawSelection: noop,
+    consumePointerEvent: noop, setPanelBody: noop, setButtonState: noop,
+    syncAoiCameraInputPriority: noop,
+    startAoiAircraftFreeze: () => freezes.push("start"),
+    stopAoiAircraftFreeze: () => freezes.push("stop"),
+    renderSummary: async (polygon) => { scans.push(polygon.slice()); },
+  });
+  c.onPointerDown(event(1, { lat: 1, lon: 1 }));
+  c.onPointerMove(event(1, { lat: 2, lon: 2 }));
+  await c.onPointerUp(event(1, { lat: 3, lon: 3 }));
+  assert.equal(state.active, false);
+  assert.equal(scans.length, 1);
+  assert.deepEqual(freezes, ["start", "stop"]);
+  c.onPointerDown(event(2, { lat: 3, lon: 3 }));
+  c.onPointerDown(event(2, { lat: 3, lon: 3 }));
+  c.onPointerMove(event(2, { lat: 4, lon: 4 }));
+  await c.onPointerUp(event(2, { lat: 4, lon: 4 }));
+  assert.equal(scans.length, 2);
+  assert.deepEqual(freezes, ["start", "stop", "start", "stop"]);
+});
+
+test("focused AOI freeze holds only the rendered aircraft and resumes its latest accepted target", async () => {
+  const entity = { position: { x: 1 }, __liveTrackMotionState: {
+    startCartesian: { x: 1 }, endCartesian: { x: 2 }, track: { lon: 1, lat: 2 }, sourceTimestamp: 1,
+  } };
+  let resumed = null, cameraSyncs = 0;
+  const viewer = { entities: { getById: () => entity }, scene: { requestRender: noop } };
+  const replay = { selectedTrackKey: "aircraft-a", mode: "focus" };
+  const registry = new Map();
+  const c = await functions("warzone-live-airforce.js", ["beginFocusedAircraftAoiFreeze",
+    "endFocusedAircraftAoiFreeze", "updateLiveTrackMotionFrame"], {
+    window: { __warzoneViewer: viewer }, __liveTrackReplayState: replay, __liveTrackAoiFreeze: null,
+    __liveTrackActiveMotionEntities: new Set([entity]), __liveTrackRegistry: registry,
+    __liveTrackLastFocusCameraSyncAt: 10,
+    getPositionCartesian: (value) => value?.position,
+    getTrackRenderAltitudeMeters: () => 100,
+    animateTrackTo: (...args) => { resumed = args; },
+    syncFocusedTrackCamera: () => { cameraSyncs++; }, performance: { now: () => 100 },
+  });
+  assert.equal(c.beginFocusedAircraftAoiFreeze(), "aircraft-a");
+  assert.equal(c.updateLiveTrackMotionFrame(entity, 200), true);
+  assert.equal(entity.position.x, 1);
+  c.__liveTrackAoiFreeze.latest = { track: { lon: 3, lat: 4 }, sourceTimestamp: 300 };
+  c.endFocusedAircraftAoiFreeze();
+  assert.equal(resumed[2], 3);
+  assert.equal(resumed[3], 4);
+  assert.equal(resumed[5], 300);
+  assert.equal(resumed[7].aoiResume, true);
+  assert.equal(cameraSyncs, 1);
+  assert.equal(replay.selectedTrackKey, "aircraft-a");
+  assert.equal(replay.mode, "focus");
+  c.beginFocusedAircraftAoiFreeze();
+  c.__liveTrackAoiFreeze.latest = { track: { lon: 3, lat: 4 }, sourceTimestamp: 300 };
+  registry.set("aircraft-a", { lon: 6, lat: 5, source_timestamp: 400, active: true });
+  c.endFocusedAircraftAoiFreeze();
+  assert.equal(resumed[2], 6);
+  assert.equal(resumed[3], 5);
+  assert.equal(resumed[5], 400);
+  assert.equal(cameraSyncs, 2);
+});
+
+test("AOI armed mode keeps aircraft camera follow alive and drawing pauses only the gesture", async () => {
+  let drawing = false, translations = 0;
+  const viewer = { scene: { mode: 3 }, entities: { getById: () => ({}) }, __warzone: { isContourGridVisible: () => false } };
+  const c = await functions("warzone-live-airforce.js", ["syncFocusedTrackCamera"], {
+    window: { __warzoneViewer: viewer, __warzoneAoiLens: { isDrawingGesture: () => drawing } },
+    Cesium: { SceneMode: { SCENE3D: 3 } },
+    __liveTrackReplayState: { selectedTrackKey: "same-aircraft", mode: "focus" },
+    __liveTrackHardLockEnabled: true, __liveTrackIsCameraFlying: false,
+    __liveTrackUserCameraInteracting: false, __liveTrackCtrlTiltDragState: null,
+    __liveTrackAoiFreeze: null,
+    __liveTrackLastFocusCameraSyncAt: 1000, LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ: 30,
+    getPositionCartesian: () => ({}), translateFocusedTrackCamera: () => { translations++; },
+    getCssNumber: () => 30, clamp: (value) => value, performance: { now: () => 1001 },
+  });
+  for (const mode of ["CTR", "TER", "3D"]) {
+    c.__liveTrackReplayState.focusView = mode;
+    c.syncFocusedTrackCamera({ motionFrame: true });
+  }
+  assert.equal(translations, 3);
+  c.__liveTrackAoiFreeze = { trackKey: "same-aircraft" };
+  for (const mode of ["CTR", "TER", "3D"]) {
+    c.__liveTrackReplayState.focusView = mode;
+    c.syncFocusedTrackCamera({ motionFrame: true });
+  }
+  assert.equal(translations, 3);
+  c.__liveTrackAoiFreeze = null;
+  drawing = true;
+  c.syncFocusedTrackCamera({ motionFrame: true });
+  assert.equal(translations, 3);
+  drawing = false;
+  c.syncFocusedTrackCamera({ motionFrame: true });
+  assert.equal(translations, 4);
+  assert.equal(c.__liveTrackReplayState.selectedTrackKey, "same-aircraft");
+});
+
+test("orientation reset is shown only for unfocused rotation and preserves the picked center and range", async () => {
+  const button = new Events(); button.hidden = true;
+  const changed = new Events(), ended = new Events(), doc = new Events();
+  const center = { id: "view-center" };
+  let flight = null;
+  const camera = { heading: 0, roll: 0, pitch: -0.8, positionWC: { id: "position" },
+    changed, moveEnd: ended, getPickRay: () => ({}),
+    flyToBoundingSphere: (sphere, options) => { flight = { sphere, options }; },
+  };
+  const viewer = { camera, scene: { canvas: { clientWidth: 800, clientHeight: 600 },
+    globe: { pick: () => center, ellipsoid: {} } } };
+  const window = { __warzoneViewer: viewer, __warzoneFocusDiagnostics: { state: "inactive" } };
+  const c = await functions("warzone-ui.js", ["bindOrientationResetControl"], {
+    window, document: Object.assign(doc, { getElementById: () => button }), __orientationResetBound: false,
+    Cesium: { Cartesian2: class { constructor(x, y) { this.x = x; this.y = y; } },
+      Cartesian3: { distance: () => 1234 }, BoundingSphere: class { constructor(center) { this.center = center; } },
+      HeadingPitchRange: class { constructor(heading, pitch, range) { Object.assign(this, { heading, pitch, range }); } } },
+  });
+  c.bindOrientationResetControl();
+  assert.equal(button.hidden, true);
+  camera.heading = 1;
+  changed.fire("cesium");
+  assert.equal(button.hidden, false);
+  window.__warzoneFocusDiagnostics.state = "active";
+  doc.fire("wz:asset-focus-changed");
+  assert.equal(button.hidden, true);
+  window.__warzoneFocusDiagnostics.state = "inactive";
+  doc.fire("wz:asset-focus-changed");
+  button.fire("click");
+  assert.equal(flight.sphere.center, center);
+  assert.equal(flight.options.offset.heading, 0);
+  assert.equal(flight.options.offset.range, 1234);
+  assert.equal(flight.options.duration, 0.8);
+  flight.options.complete();
+  assert.equal(button.hidden, false);
+  c.bindOrientationResetControl();
+  assert.equal(button.count, 1);
 });
 
 test("AOI OFF detaches drawing inputs and ON restores exactly one set", async (t) => {
@@ -354,7 +546,7 @@ test("GNSS OFF aborts, deduplicates refreshes and rejects stale completion", asy
     __gnssInterferenceCellsCache: [], __gnssInterferenceMeta: {}, __gnssInterferenceLastLoadedAt: 0,
     GNSS_LAYER_REFRESH_MS: 30000, FOCUS_MODE_GNSS_REFRESH_MS: 60000,
     isLayerEnabled: () => enabled, shouldDeferBackgroundMapWork: () => false,
-    getActiveRegion: () => ({ id: "test" }), getRegionRequestBounds: () => null, __gnssObservationDate: "latest",
+    getActiveRegion: () => ({ id: "test" }), getRegionRequestBounds: () => null, __gnssObservationPeriod: "72h",
     clearGnssInterferenceLayer: noop, renderGnssInterferenceLayer: noop,
     getScopedGnssInterferenceCells: () => [],
     normalizeGnssCell: (row) => { calculations += 1; return row; },
@@ -379,21 +571,57 @@ test("GNSS OFF aborts, deduplicates refreshes and rejects stale completion", asy
   assert.equal(c.__gnssInterferenceCellsCache[0].id, "current");
 });
 
-test("GNSS Latest Available clears historical state and reloads latest cells", async () => {
+test("GNSS period change cancels stale requests and reloads the selected window", async () => {
   let stopped = 0, synced = 0, requested = 0;
-  const c = await functions("essential.js", ["selectGnssObservationDate"], {
-    __gnssObservationDate: "2026-10-20", __gnssInterferenceLastLoadedAt: 100,
+  const c = await functions("essential.js", ["selectGnssObservationPeriod"], {
+    __gnssObservationPeriod: "72h", __gnssInterferenceLastLoadedAt: 100,
     __gnssInterferenceCellsCache: [{ id: "old" }],
     stopGnssInterferenceRefresh: () => { stopped++; },
     syncGnssInterferenceLayer: () => { synced++; },
     isLayerEnabled: () => true,
     refreshGnssInterferenceCells: () => { requested++; },
   });
-  c.selectGnssObservationDate("");
-  assert.equal(c.__gnssObservationDate, "latest");
+  c.selectGnssObservationPeriod("24h");
+  assert.equal(c.__gnssObservationPeriod, "24h");
   assert.equal(c.__gnssInterferenceLastLoadedAt, 0);
   assert.equal(c.__gnssInterferenceCellsCache.length, 0);
   assert.deepEqual([stopped, synced, requested], [1, 1, 1]);
+  c.selectGnssObservationPeriod("invalid");
+  assert.deepEqual([stopped, synced, requested], [1, 1, 1]);
+});
+
+test("GNSS 24h to 48h to 72h to 24h replaces the map without accepting stale results", async () => {
+  const requests = [], rendered = [];
+  const c = await functions("essential.js", ["getScopedGnssInterferenceCells", "syncGnssInterferenceLayer",
+    "selectGnssObservationPeriod", "refreshGnssInterferenceCells", "stopGnssInterferenceRefresh"], {
+    window: { __warzoneViewer: {} }, __gnssObservationPeriod: "72h",
+    __gnssInterferenceController: null, __gnssInterferenceLoadingPromise: null,
+    __gnssInterferenceCellsCache: [], __gnssInterferenceMeta: {}, __gnssInterferenceLastLoadedAt: 0,
+    GNSS_LAYER_REFRESH_MS: 30000, FOCUS_MODE_GNSS_REFRESH_MS: 60000,
+    isLayerEnabled: () => true, shouldDeferBackgroundMapWork: () => false,
+    getActiveRegion: () => null, getRegionRequestBounds: () => null,
+    clearGnssInterferenceLayer: noop, renderGnssInterferenceLayer: (_viewer, cells) => rendered.push(cells.map((cell) => cell.id)),
+    normalizeGnssCell: (row) => row,
+    api: { getGnssInterferenceCells: (options) => {
+      const d = deferred(); requests.push({ ...d, period: options.date, signal: options.signal }); return d.promise;
+    } },
+  });
+  for (const period of ["24h", "48h", "72h"]) c.selectGnssObservationPeriod(period);
+  assert.deepEqual(requests.map((request) => request.period), ["24h", "48h", "72h"]);
+  assert.equal(requests[0].signal.aborted, true);
+  assert.equal(requests[1].signal.aborted, true);
+  requests[2].resolve({ data: [{ id: "current-72" }], meta: { observationPeriod: "Last 72h / 1 UTC day" } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(rendered.at(-1), ["current-72"]);
+  c.selectGnssObservationPeriod("24h");
+  assert.deepEqual(requests.map((request) => request.period), ["24h", "48h", "72h", "24h"]);
+  requests[0].resolve({ data: [{ id: "old-24" }], meta: {} });
+  requests[1].resolve({ data: [{ id: "old-48" }], meta: {} });
+  requests[3].resolve({ data: [], meta: { observationPeriod: "Last 24h / 0 UTC days" } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(rendered.at(-1), []);
+  assert.equal(c.__gnssInterferenceMeta.observationPeriod, "Last 24h / 0 UTC days");
+  assert.ok(!rendered.some((cells) => cells.includes("old-24") || cells.includes("old-48")));
 });
 
 async function dataSourceRuntime() {

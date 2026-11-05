@@ -1,23 +1,28 @@
 <!-- ── DEV TEST PANEL (inlined here because partials need template engine) ── -->
-<!-- Activate: localhost auto-shows · ?devpanel=1 in URL · Ctrl+Shift+` anywhere -->
+<!-- Local development only: mounted after operational map entry. -->
 <div id="wz-dev-panel" class="wz-dev-panel" hidden>
-    <button type="button" id="wz-dev-toggle" class="wz-dev-toggle">DEV</button>
+    <button type="button" id="wz-dev-toggle" class="wz-dev-toggle" aria-controls="wz-dev-body" aria-expanded="false">DEV</button>
     <div id="wz-dev-body" class="wz-dev-body" hidden>
-        <div class="wz-dev-heading">DEV TEST PANEL - LOCAL ONLY</div>
+        <div class="wz-dev-heading"><span>DEVELOPER CONTROL PANEL</span><button type="button" id="wz-dev-close" class="wz-dev-action" aria-label="Close developer control panel">Close</button></div>
         <div class="wz-dev-grid">
-            <div class="wz-dev-label">MISSILE / STRIKE</div>
+            <div class="wz-dev-label" data-wz-dev-section="aircraft" data-wz-dev-feature="aircraftTracker">LIVE AIRCRAFT LOOKUP</div>
+            <div id="wz-dev-aircraft-search-slot" class="wz-dev-map-tuner" data-wz-dev-section="aircraft"></div>
+            <div class="wz-dev-label" data-wz-dev-section="aircraft naval" data-wz-dev-feature="formationTuner">FORMATION TUNER</div>
+            <div id="wz-dev-formation-slot" data-wz-dev-section="aircraft naval"></div>
+
+            <div class="wz-dev-label" data-wz-dev-section="strikes" data-wz-dev-feature="missileStrikes">MISSILE / STRIKE</div>
             <button type="button" class="wz-dev-btn" data-event="missile_iran_israel" style="--c:#ff0753">Missile - Iran to Israel</button>
             <button type="button" class="wz-dev-btn" data-event="missile_russia_ukraine" style="--c:#ff0753">Missile - Russia to Ukraine</button>
             <button type="button" class="wz-dev-btn" data-event="drone_kamikaze" style="--c:#ff6a00">Drone Strike (Shahed)</button>
             <button type="button" class="wz-dev-btn" data-event="airstrike" style="--c:#ff6a00">Air Strike (IAF)</button>
 
-            <div class="wz-dev-label">SIRENS / ALERTS</div>
+            <div class="wz-dev-label" data-wz-dev-section="alerts" data-wz-dev-feature="fictionalAlerts">SIRENS / ALERTS</div>
             <button type="button" class="wz-dev-btn" data-siren="red" style="--c:#d42020">RED - Sirens (Israel)</button>
             <button type="button" class="wz-dev-btn" data-siren="orange" style="--c:#d45a00">ORANGE - Sirens (Lebanon)</button>
             <button type="button" class="wz-dev-btn" data-siren="yellow" style="--c:#b88000">YELLOW - Incoming Warning</button>
 
-            <div class="wz-dev-label" data-wz-dev-section="alert-ui-preview">ALERT UI PREVIEW</div>
-            <div id="wz-dev-alert-preview-controls" class="wz-dev-map-tuner wz-dev-inspection" data-wz-dev-section="alert-ui-preview">
+            <div class="wz-dev-label" data-wz-dev-section="alerts alert-ui-preview" data-wz-dev-feature="fictionalAlerts">ALERT UI PREVIEW</div>
+            <div id="wz-dev-alert-preview-controls" class="wz-dev-map-tuner wz-dev-inspection" data-wz-dev-section="alerts alert-ui-preview">
                 <section class="wz-dev-inspection__group" aria-labelledby="wz-dev-alert-preview-title">
                     <div class="wz-dev-inspection__head">
                         <strong id="wz-dev-alert-preview-title">ALERT UI PREVIEW</strong>
@@ -31,25 +36,25 @@
                 </section>
             </div>
 
-            <div class="wz-dev-label">PULSE HIGHLIGHT</div>
+            <div class="wz-dev-label" data-wz-dev-section="scenarios" data-wz-dev-feature="scenarioControls">PULSE HIGHLIGHT</div>
             <button type="button" class="wz-dev-btn" data-highlight="israel" style="--c:#ff2a2a">Israel (Critical)</button>
             <button type="button" class="wz-dev-btn" data-highlight="uae" style="--c:#ff2a2a">UAE (High)</button>
             <button type="button" class="wz-dev-btn" data-highlight="iran" style="--c:#ff2a2a">Iran (Critical)</button>
             <button type="button" class="wz-dev-btn" data-highlight="ukraine" style="--c:#ff2a2a">Ukraine (High)</button>
             <button type="button" class="wz-dev-btn" data-highlight="clear" style="--c:#444">Clear Highlight</button>
 
-            <div class="wz-dev-label">QUICK AIR PRESETS</div>
+            <div class="wz-dev-label" data-wz-dev-section="aircraft" data-wz-dev-feature="aircraftSimulation">QUICK AIR PRESETS</div>
             <button type="button" class="wz-dev-btn" data-event="aircraft_fighter" style="--c:#56d80e">Fighter - F-35I (IAF)</button>
             <button type="button" class="wz-dev-btn" data-event="aircraft_awacs" style="--c:#ffd24d">AWACS E-3 (NATO)</button>
             <button type="button" class="wz-dev-btn" data-event="aircraft_recon" style="--c:#ff6a00">Recon RC-135 (USAF)</button>
             <button type="button" class="wz-dev-btn" data-event="aircraft_tanker" style="--c:#00d8b2">Tanker KC-135 (USAF)</button>
 
-            <div class="wz-dev-label">NAVAL</div>
+            <div class="wz-dev-label" data-wz-dev-section="naval" data-wz-dev-feature="navalSimulation">NAVAL</div>
             <button type="button" class="wz-dev-btn" data-event="ship_carrier" style="--c:#ff2a2a">Carrier - USS Gerald R Ford</button>
             <button type="button" class="wz-dev-btn" data-event="ship_destroyer" style="--c:#9b7bff">Destroyer - Arleigh Burke</button>
             <button type="button" class="wz-dev-btn" data-event="ship_russian" style="--c:#ff6a00">Frigate - Gorshkov</button>
 
-            <div class="wz-dev-label">QUICK ROUTE TESTS</div>
+            <div class="wz-dev-label" data-wz-dev-section="aircraft" data-wz-dev-feature="aircraftSimulation">QUICK ROUTE TESTS</div>
             <button type="button" class="wz-dev-btn" data-track-route="fighter_orbit_right">Aircraft Orbit Right</button>
             <button type="button" class="wz-dev-btn" data-track-route="fighter_orbit_left">Aircraft Orbit Left</button>
             <button type="button" class="wz-dev-btn" data-track-route="fighter_turn_test">Aircraft Turn Test</button>
@@ -61,7 +66,7 @@
             <button type="button" class="wz-dev-btn" data-bomber-formation="clear">Clear Bomber Formation</button>
 
 
-            <div class="wz-dev-label">LIVE ASSET SIMULATOR</div>
+            <div class="wz-dev-label" data-wz-dev-section="aircraft" data-wz-dev-feature="aircraftSimulation">LIVE ASSET SIMULATOR</div>
             <div class="wz-dev-sim">
                 <div class="wz-dev-form-grid">
                     <label class="wz-dev-field">
@@ -161,11 +166,11 @@
                 </div>
             </div>
 
-            <div class="wz-dev-label">OTHER</div>
+            <div class="wz-dev-label" data-wz-dev-section="scenarios" data-wz-dev-feature="scenarioControls">OTHER</div>
             <button type="button" class="wz-dev-btn" data-event="cyber" style="--c:#9b7bff">Cyber - Iran</button>
             <button type="button" class="wz-dev-btn" data-event="thermal" style="--c:#ff7a00">Thermal - Syria</button>
 
-            <div class="wz-dev-label">MAP COLOR TUNER</div>
+            <div class="wz-dev-label" data-wz-dev-section="environment" data-wz-dev-feature="environmentControls">MAP COLOR TUNER</div>
             <div class="wz-dev-map-tuner" id="wz-dev-map-tuner">
                 <label class="wz-dev-map-row">
                     <span>Saturation</span>
@@ -250,16 +255,16 @@
                 </label>
             </div>
 
-            <div class="wz-dev-label">AIRCRAFT CALIBRATION</div>
+            <div class="wz-dev-label" data-wz-dev-section="aircraft" data-wz-dev-feature="environmentControls">AIRCRAFT CALIBRATION</div>
             <button type="button" id="wz-dev-aircraft-calibrate" class="warzone-btn">
                 Aircraft Calibration Mode
             </button>
-            <div class="wz-dev-label">NAVAL CALIBRATION</div>
+            <div class="wz-dev-label" data-wz-dev-section="naval" data-wz-dev-feature="environmentControls">NAVAL CALIBRATION</div>
             <button type="button" id="wz-dev-naval-calibrate" class="warzone-btn">
                 Naval Calibration Mode
             </button>
 
-            <div class="wz-dev-label" data-wz-dev-section="visual-inspection">VISUAL COMPONENT INSPECTION</div>
+            <div class="wz-dev-label" data-wz-dev-section="visual-inspection environment" data-wz-dev-feature="environmentControls">VISUAL COMPONENT INSPECTION</div>
             <div id="wz-dev-visual-inspection" class="wz-dev-map-tuner wz-dev-inspection" data-wz-dev-section="visual-inspection">
                 <section class="wz-dev-inspection__group" aria-labelledby="wz-dev-map-visuals-title">
                     <div class="wz-dev-inspection__head">
@@ -312,15 +317,15 @@
                 </section>
             </div>
 
-            <div class="wz-dev-label">POPUPS</div>
+            <div class="wz-dev-label" data-wz-dev-section="alerts" data-wz-dev-feature="fictionalAlerts">POPUPS</div>
             <div class="wz-dev-actions">
-                <button type="button" id="wz-dev-open-event-popup" class="wz-dev-action wz-dev-action--fire">Event Marker + Popup</button>
+                <button type="button" id="wz-dev-open-event-popup" class="wz-dev-action wz-dev-action--fire" data-wz-dev-feature="scenarioControls">Event Marker + Popup</button>
                 <button type="button" id="wz-dev-open-global-alert" class="wz-dev-action wz-dev-action--fire">Global Alert Preview</button>
-                <button type="button" id="wz-dev-open-performance-warning" class="wz-dev-action">Performance Popup</button>
-                <button type="button" id="wz-dev-open-layer-warning" class="wz-dev-action">Warning Popup</button>
+                <button type="button" id="wz-dev-open-performance-warning" class="wz-dev-action" data-wz-dev-feature="environmentControls">Performance Popup</button>
+                <button type="button" id="wz-dev-open-layer-warning" class="wz-dev-action" data-wz-dev-feature="environmentControls">Warning Popup</button>
             </div>
 
-            <div class="wz-dev-label">EVENT MARKER / POPUP TUNER</div>
+            <div class="wz-dev-label" data-wz-dev-section="scenarios event-hotspots" data-wz-dev-feature="scenarioControls">EVENT MARKER / POPUP TUNER</div>
             <div class="wz-dev-map-tuner" id="wz-dev-event-ui-tuner">
                 <div class="wz-dev-form-grid">
                     <label class="wz-dev-field">
@@ -376,7 +381,7 @@
                 </label>
             </div>
 
-            <div class="wz-dev-label">ORBITAL ASSET TUNER</div>
+            <div class="wz-dev-label" data-wz-dev-section="satellites" data-wz-dev-feature="satelliteControls">ORBITAL ASSET TUNER</div>
             <div class="wz-dev-map-tuner" id="wz-dev-orbital-ui-tuner">
                 <label class="wz-dev-map-row">
                     <span>Footprint Outline Width</span>
@@ -434,7 +439,7 @@
                 </label>
             </div>
 
-            <div class="wz-dev-label" data-wz-dev-startup-only="1">STARTUP SCENE TUNER</div>
+            <div class="wz-dev-label" data-wz-dev-section="environment" data-wz-dev-feature="environmentControls" data-wz-dev-startup-only="1">STARTUP SCENE TUNER</div>
             <div class="wz-dev-map-tuner" id="wz-dev-startup-scene-tuner" data-wz-dev-startup-only="1">
                 <label class="wz-dev-map-row">
                     <span>Start Longitude</span>
@@ -497,6 +502,7 @@
                 </label>
             </div>
 
+            <div class="wz-dev-label" data-wz-dev-section="scenarios" data-wz-dev-feature="scenarioControls">SCENARIO ACTIONS</div>
             <div class="wz-dev-actions">
                 <button type="button" id="wz-dev-fire-all" class="wz-dev-action wz-dev-action--fire">FIRE ALL</button>
                 <button type="button" id="wz-dev-clear" class="wz-dev-action wz-dev-action--clear">CLEAR LOG</button>

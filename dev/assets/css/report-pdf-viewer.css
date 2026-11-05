@@ -79,7 +79,7 @@ position: relative;
 .report-pdf-toolbar input,
 .report-pdf-toolbar select {
     box-sizing: border-box;
-    height: 3rem;
+    height: 3.2rem;
     border-radius: 0;
     background: transparent;
     color: var(--color-white-slate);

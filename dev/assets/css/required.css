@@ -188,11 +188,10 @@ h5,
     letter-spacing: .05rem;
 }
 
-p,
-label {
+p, label {
     margin: 0;
     font-size: var(--text-base);
-    line-height: 1.9rem
+    line-height: 1.7rem
 }
 
 p {
@@ -344,13 +343,12 @@ button label {
 .btn-primary .static-icon,
 .btn-secondary .static-icon {
     font-size: var(--icon-lg);
-    height: 3rem;
+    height: 3.2rem;
     padding-right: .5rem;
     margin-left: -.8rem;
 }
 
-.btn-primary,
-.btn-secondary {
+.btn-primary, .btn-secondary {
     font-weight: 600;
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -359,10 +357,10 @@ button label {
     text-align: center;
     min-width: 8rem !important;
     max-width: fit-content;
-    height: 3rem;
+    height: 3.2rem;
     transition: .2s ease, opacity 220ms ease;
     position: relative;
-    padding: 0.3rem 1.5rem 0;
+    padding: 0.2rem 1.5rem 0;
     opacity: 1;
     box-sizing: border-box;
     cursor: pointer;
@@ -653,15 +651,44 @@ button.pressed {
     white-space: nowrap;
 }
 
-.wz--dropdown option {
-    display: block;
-    position: static;
-    overflow: visible;
-    white-space: normal;
-    text-overflow: clip;
-    color: #eef0f5 !important;
-    background-color: #151b25 !important;
+/* 1. Opt Chrome and Chromium browsers into fully stylable selects */
+.wz--dropdown,
+.wz--dropdown::picker(select) {
+    appearance: base-select;
 }
+
+.wz--dropdown::picker-icon {
+    display: none !important;
+    appearance: none;
+}
+
+
+select option::checkmark {
+    font-family: "stratops-icon-font";
+    content: "\e900" / "";
+    color: var(--color-teal-glow);
+    font-size: 1.8rem;
+    line-height: 2rem;
+}
+
+
+.wz--dropdown option {
+    font-family: var(--text-font) !important;
+    font-size: var(--text-base) !important;
+    font-weight: 400 !important;
+    color: var(--text-color-heading) !important;
+    background-color: var(--color-bg-dark) !important;
+    padding: .8rem 1rem;
+    line-height: 1.4rem;
+}
+
+/* 3. Style the hover/focus state (Chrome needs this specified when using base-select) */
+.wz--dropdown option:hover,
+.wz--dropdown option:checked {
+background-color: var(--color-bg) !important;
+}
+
+
 
 .wz-selector {
     position: relative;
@@ -678,6 +705,46 @@ button.pressed {
     align-items: center;
     gap: 1rem;
     transition: opacity .35s ease, transform .35s ease;
+}
+
+.wz--calender-input {
+    position: relative;
+    width: 100%;
+}
+
+.wz--calender-input .wz--input {
+    width: 100%;
+    padding-right: 3rem;
+}
+
+.wz--calender-input::after {
+    content: "\e953";
+    font-family: var(--font-icon);
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 3rem;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-white);
+    font-size: var(--icon-md);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.wz--calender-input input::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    cursor: pointer;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 3rem;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    z-index: 2;
 }
 
 .warzone-region-bar.is-region-prompt-visible,
@@ -715,9 +782,9 @@ button.pressed {
     position: absolute;
     top: 0;
     right: 0;
-    width: 3rem;
-    height: 3rem;
-    line-height: 3rem;
+    width: 3.2rem;
+    height: 3.2rem;
+    line-height: 3.2rem;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -735,17 +802,17 @@ button.pressed {
 
 .wz--dropdown {
     color-scheme: dark;
-    height: 3rem;
+    height: 3.2rem;
     line-height: 2.4rem;
     width: 100%;
     max-width: 100%;
     min-width: 100%;
-    padding: .4rem 3.5rem 0 1rem;
+    padding: .3rem 3.5rem 0 .7rem;
     cursor: pointer;
 }
 
 .wz--input {
-    height: 3rem;
+    height: 3.2rem;
     line-height: 24rem;
     width: 100%;
     max-width: 24rem;
@@ -1231,8 +1298,8 @@ body.show-loader .site-loader {
     z-index: 200;
     top: 2rem;
     right: 2rem;
-    width: 3rem;
-    height: 3rem;
+    width: 3.2rem;
+    height: 3.2rem;
     cursor: pointer;
     border: 0;
     background: transparent;

@@ -77,6 +77,7 @@ import {
 import {
     applyStratOpsFeatureVisibility,
     isStratOpsFeatureEnabled,
+    isLocalDeveloperFeatureEnabled,
 } from "./stratops-feature-config.js";
 import { initPreEntryShowcase } from "./pre-entry-showcase.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
@@ -129,7 +130,7 @@ let __gnssInterferenceMeta = {
 let __gnssInterferenceLoadingPromise = null;
 let __gnssInterferenceController = null;
 let __gnssInterferenceLastLoadedAt = 0;
-let __gnssObservationDate = "latest";
+let __gnssObservationPeriod = "72h";
 let __statusEventsLastLoadedAt = 0;
 let __alertAudio = null;
 let __assetFocusUiSignature = "";
@@ -3223,12 +3224,9 @@ function bindGlobeEventPopup() {
 }
 
 function isDevInspectionEnvironment() {
-    if (import.meta.env?.DEV === true) return true;
     const hostname = String(window.location?.hostname || "").toLowerCase();
-    return hostname === "localhost"
-        || hostname === "127.0.0.1"
-        || hostname === ""
-        || hostname.includes("staging");
+    return __STRATOPS_DEV_TOOLS__ === true &&
+        ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname);
 }
 
 export function setDevEventPopupInspectionFrozen(frozen = false) {
@@ -4248,11 +4246,18 @@ function syncGnssInterferenceLayer() {
         observationPeriod: __gnssInterferenceMeta.observationPeriod,
     });
 }
-function selectGnssObservationDate(date) {
-    __gnssObservationDate = date || "latest";
+function selectGnssObservationPeriod(period) {
+    if (!["24h", "48h", "72h"].includes(period)) return;
+    __gnssObservationPeriod = period;
     stopGnssInterferenceRefresh();
     __gnssInterferenceLastLoadedAt = 0;
     __gnssInterferenceCellsCache = [];
+    __gnssInterferenceMeta = {
+        sourceMode: "unavailable", sourceHealth: "Loading", liveAvailable: false,
+        observationPeriod: `Last ${period.slice(0, -1)} hours`,
+        message: `Loading GNSS observations for the last ${period.slice(0, -1)} hours.`,
+        totalCells: 0, severityCounts: null,
+    };
     syncGnssInterferenceLayer();
     if (isLayerEnabled("gnss")) void refreshGnssInterferenceCells({ force: true });
 }
@@ -4275,11 +4280,11 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
     __gnssInterferenceController = controller;
     __gnssInterferenceLoadingPromise = api.getGnssInterferenceCells({
         signal: controller.signal, bounds: getRegionRequestBounds(getActiveRegion?.()),
-        date: __gnssObservationDate,
+        date: __gnssObservationPeriod,
     })
         .then(({ data, error, meta }) => {
             if (controller.signal.aborted || __gnssInterferenceController !== controller || !isLayerEnabled("gnss")) return __gnssInterferenceCellsCache;
-            if (error) return __gnssInterferenceCellsCache;
+            if (error) throw error;
             __gnssInterferenceCellsCache = Array.isArray(data)
                 ? data.map((row) => normalizeGnssCell(row)).filter(Boolean)
                 : [];
@@ -4296,7 +4301,7 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
                 sourceHealth: meta?.sourceHealth || "unavailable",
                 sourceLabel: meta?.sourceLabel || "",
                 sourceUrl: meta?.sourceUrl || "",
-                observationPeriod: meta?.observationPeriod || "",
+                observationPeriod: meta?.observationPeriod || `Last ${__gnssObservationPeriod.slice(0, -1)} hours`,
             };
             __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();
@@ -4311,7 +4316,9 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
                 liveAvailable: false,
                 tableAvailable: true,
                 message: err?.message || "GNSS Jamming endpoint is unavailable.",
+                observationPeriod: `Last ${__gnssObservationPeriod.slice(0, -1)} hours`,
             };
+            __gnssInterferenceCellsCache = [];
             __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();
             return __gnssInterferenceCellsCache;
@@ -8549,13 +8556,13 @@ function updateAircraftWidgetCard(card, track, selection) {
     timeEl = card.querySelector(".wz-aircraft-item__time");
     actionBtn = card.querySelector(".wz-aircraft-action");
     let statusWrap = titleEl.querySelector(".wz-aircraft-title__status");
-    let statusIcon = statusWrap?.querySelector(".stratops-ico-assets-air-1") || null;
+    let statusIcon = statusWrap?.querySelector(".static-icon.stratops-ico-assets-air-1") || null;
     let titleText = titleEl.querySelector(".wz-aircraft-title__text");
     if (!statusWrap) {
         statusWrap = document.createElement("span");
         statusWrap.className = "wz-aircraft-title__status";
         statusIcon = document.createElement("span");
-        statusIcon.className = "stratops-ico-assets-air-1";
+        statusIcon.className = "static-icon stratops-ico-assets-air-1";
         statusIcon.setAttribute("aria-hidden", "true");
         statusWrap.appendChild(statusIcon);
         titleEl.appendChild(statusWrap);
@@ -8728,6 +8735,9 @@ function stopManualAircraftSearch({ clearSelection = false } = {}) {
     setManualAircraftSearchStatus("");
     requestAircraftMovementsWidgetRender(0);
 }
+export function stopDeveloperAircraftSearch() {
+    if (isLocalDeveloperFeatureEnabled("aircraftTracker")) stopManualAircraftSearch();
+}
 function findExistingManualAircraftMatch(identifier, track = null) {
     const requestedIcao = normalizeManualAircraftIdentifier(track?.icao24);
     const requestedIdentifier = normalizeManualAircraftIdentifier(identifier);
@@ -8845,16 +8855,13 @@ async function searchManualAircraft(identifier) {
     }
 }
 function bindManualAircraftSearch() {
+    if (!isLocalDeveloperFeatureEnabled("aircraftTracker")) return;
     const form = document.getElementById("wz-aircraft-debug-search-form");
-    if (!form) return;
-    if (isLocalHostName(window.location.hostname)) {
-        const commandBar = document.querySelector(".warzone-commandbar");
-        if (commandBar) {
-            commandBar.appendChild(form);
-            form.classList.add("is-local-visible");
-            form.hidden = false;
-        }
-    }
+    const slot = document.getElementById("wz-dev-aircraft-search-slot");
+    if (!form || !slot || form.dataset.devBound === "1") return;
+    slot.appendChild(form);
+    form.hidden = false;
+    form.dataset.devBound = "1";
     form.addEventListener("submit", (event) => {
         event.preventDefault();
         const input = document.getElementById("wz-aircraft-debug-search");
@@ -8943,7 +8950,6 @@ function bindAircraftMovementsWidget() {
     syncTrackerSubtypeOptions(document.getElementById("wz-naval-filter-subtype"), getNavalSubtypeOptions(), __navalWidgetSubtypeFilter, formatNavalSubtypeLabel);
     const navalStatusSelect = document.getElementById("wz-naval-filter-status");
     if (navalStatusSelect) navalStatusSelect.value = __navalWidgetStatusFilter;
-    bindManualAircraftSearch();
     bindFocusedAircraftTrailHistory();
     document.addEventListener("click", (event) => {
         const loadMoreBtn = event.target.closest("[data-aircraft-load-more]");
@@ -9733,12 +9739,11 @@ async function initializeWarzoneAppOnce() {
         }
         {
             document.getElementById("wz-gnss-period")?.addEventListener("change", (event) => {
-                selectGnssObservationDate(event.target.value);
+                selectGnssObservationPeriod(event.target.value);
             });
             document.getElementById("wz-gnss-latest")?.addEventListener("click", () => {
-                const dateInput = document.getElementById("wz-gnss-period");
-                if (dateInput) dateInput.value = "";
-                selectGnssObservationDate("latest");
+                const periodInput = document.getElementById("wz-gnss-period");
+                selectGnssObservationPeriod(periodInput?.value || "72h");
             });
             onRegionChange(() => {
                 window.__warzoneViewer?.__warzone?.setRaisedRegionVisible?.(
@@ -13128,14 +13133,18 @@ export function schedulePostEntryActions(viewer) {
     if (__postEntryActionsScheduled) return;
     __postEntryActionsScheduled = true;
     applyStratOpsFeatureVisibility();
-    if (__STRATOPS_DEV_TOOLS__) {
-        if (isDevInspectionEnvironment()) {
-            import("./warzone-formation-tuner.js")
-                .then((module) => module.initFormationDevTuner?.(viewer))
-                .catch((error) => {
-                    console.warn("Formation dev tuner failed to initialize:", error);
-                });
-        }
+    if (__STRATOPS_DEV_TOOLS__ && isLocalDeveloperFeatureEnabled()) {
+        import("./pre-entry-dev-panel.js")
+            .then((module) => module.initLocalDevPanelOnly())
+            .then(async (panel) => {
+                if (!panel) return;
+                if (isLocalDeveloperFeatureEnabled("aircraftTracker")) bindManualAircraftSearch();
+                if (isLocalDeveloperFeatureEnabled("formationTuner")) {
+                    const formation = await import("./warzone-formation-tuner.js");
+                    formation.initFormationDevTuner?.(viewer, panel.querySelector("#wz-dev-formation-slot"));
+                }
+            })
+            .catch((error) => console.warn("Local developer panel failed to initialize:", error));
     }
     if (isStratOpsFeatureEnabled("system.authentication") || isStratOpsFeatureEnabled("header.login")) {
         stratopsCheckAuth().then((isAuth) => {

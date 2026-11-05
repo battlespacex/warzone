@@ -66,14 +66,57 @@ export function selectGpsInterferenceRegion(snapshot, { bounds = null, limit = M
     const selected = regionCells.length > boundedLimit
         ? regionCells.slice().sort((a, b) => rank[a.severity] - rank[b.severity] || a.cellId.localeCompare(b.cellId)).slice(0, boundedLimit)
         : regionCells;
+    const message = snapshot.message || (snapshot.stale ? "Showing the last cached GNSS observation; provider refresh is unavailable." : "");
+    const capMessage = selected.length < regionCells.length
+        ? `Map display bounded to ${selected.length} of ${regionCells.length} regional cells; severity counts include all regional cells.` : "";
     return {
         cells: selected, totalCells: regionCells.length, severityCounts,
         truncated: selected.length < regionCells.length,
         updatedAt: snapshot.updatedAt, observationPeriod: snapshot.observationPeriod,
-        sourceMode: "gpsinterference", sourceHealth: snapshot.stale ? "stale" : "Available",
+        coverageHours: snapshot.coverageHours,
+        sourceMode: "gpsinterference", sourceHealth: snapshot.sourceHealth || (snapshot.stale ? "stale" : "Available"),
         sourceLabel: SOURCE_LABEL, sourceUrl: "https://gpsinterference.com/docs",
-        demoMode: false, liveAvailable: !snapshot.stale, tableAvailable: false,
-        message: snapshot.stale ? "Showing the last cached GNSS observation; provider refresh is unavailable." : "",
+        demoMode: false, liveAvailable: !snapshot.stale && snapshot.sourceHealth !== "unavailable", tableAvailable: false,
+        message: [message, capMessage].filter(Boolean).join(" "),
+    };
+}
+
+const DAY_MS = 86_400_000;
+const ROLLING_PERIOD_HOURS = { "24h": 24, "48h": 48, "72h": 72 };
+
+// The provider publishes whole UTC flight days, without timestamps for individual hexes.
+// A day crossing the rolling cutoff cannot be counted as a precise observation.
+export async function getRollingGpsInterferenceSnapshot(period, { getSnapshot = getGpsInterferenceSnapshot, now = () => Date.now() } = {}) {
+    const hours = ROLLING_PERIOD_HOURS[period];
+    if (!hours) throw new Error("Invalid GNSS observation period");
+    const end = now();
+    const start = end - hours * 3_600_000;
+    const todayStart = Math.floor(end / DAY_MS) * DAY_MS;
+    const firstDay = Math.ceil(start / DAY_MS) * DAY_MS;
+    const dates = [];
+    for (let day = firstDay; day < todayStart; day += DAY_MS) dates.push(new Date(day).toISOString().slice(0, 10));
+    const snapshots = await Promise.all(dates.map((date) => getSnapshot(date)));
+    const latestByCell = new Map();
+    let coverageHours = 0;
+    let stale = false;
+    let updatedAt = null;
+    snapshots.forEach((snapshot, index) => {
+        if (!snapshot || snapshot.observationPeriod !== dates[index] || snapshot.windowMinutes !== 1440 || snapshot.complete === false) return;
+        coverageHours += 24;
+        stale ||= snapshot.stale === true;
+        updatedAt = snapshot.updatedAt || updatedAt;
+        for (const cell of snapshot.cells) latestByCell.set(cell.cellId, cell);
+    });
+    const unavailable = coverageHours === 0;
+    const partial = coverageHours < hours;
+    return {
+        cells: [...latestByCell.values()], updatedAt, stale,
+        observationPeriod: `Last ${hours}h / ${coverageHours / 24} UTC day${coverageHours === 24 ? "" : "s"}`,
+        sourceHealth: unavailable ? "unavailable" : stale ? "stale" : partial ? "partial" : "Available",
+        message: unavailable
+            ? `No full UTC flight-day summary is available entirely inside the last ${hours} hours. Overlapping daily summaries cannot be split into precise rolling observations because the provider supplies no per-hexagon timestamps.`
+            : `${partial ? "Partial" : "Full"} daily-summary coverage: ${coverageHours / 24} full UTC day${coverageHours === 24 ? "" : "s"} inside the last ${hours} hours. This is not continuous per-hexagon observation coverage; the latest summary per hexagon is shown.${stale ? " A cached summary is shown because provider refresh failed." : ""}`,
+        coverageHours, requestedPeriod: period,
     };
 }
 
@@ -114,7 +157,8 @@ export function createGpsInterferenceService({ fetchImpl = globalThis.fetch, now
                     seen.add(cell.cellId);
                     cells.push(cell);
                 }
-                const snapshot = { cells, updatedAt, observationPeriod, stale: false };
+                const snapshot = { cells, updatedAt, observationPeriod, stale: false,
+                    windowMinutes: Number(payload.window_minutes), complete: payload.complete !== false };
                 cache.set(key, { snapshot, expiresAt: now() + (date === "latest" ? CACHE_MS : 86_400_000) });
                 while (cache.size > 2) cache.delete(cache.keys().next().value);
                 retryAt.delete(key);

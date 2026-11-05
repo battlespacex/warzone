@@ -32,8 +32,9 @@ test("GNSS provider hexagons use cancellable batched ground primitives and prese
   const groundPrimitives={add(value){primitives.push(value);return value;},remove(value){const index=primitives.indexOf(value);if(index>=0)primitives.splice(index,1);return index>=0;}};
   const viewer={dataSources:new Cesium.DataSourceCollection(),isDestroyed:()=>false,
     scene:{groundPrimitives,requestRender(){}},container:{style:{}}};
+  const legend=new Map(["low","medium","high","severe"].map(key=>[`wz-gnss-count-${key}`,{textContent:""}]));
   const context=vm.createContext({Cesium,setDataSourceActive,requestAnimationFrame:(fn)=>frames.push(fn),
-    window:{},document:{getElementById:()=>null,querySelector:()=>null}});
+    window:{},document:{getElementById:(id)=>legend.get(id)||null,querySelector:()=>null}});
   vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/export /g,''),context);
   vm.runInContext('bindPicking=()=>{};closeActiveGnssPanel=()=>{};clearHighlight=()=>{};hideTooltip=()=>{};setLegendVisible=()=>{};',context);
   const polygon=[{lat:26,lon:50},{lat:26.1,lon:50.1},{lat:26.2,lon:50.1},
@@ -67,4 +68,12 @@ test("GNSS provider hexagons use cancellable batched ground primitives and prese
   context.clearGnssInterferenceLayer(viewer);
   while(frames.length)frames.shift()();
   assert.equal(primitives.length,0);
+  for(const [period,periodCells,expected] of [["24h",[],0],["48h",[],0],["72h",cells,2],["24h",[],0]]){
+    context.renderGnssInterferenceLayer(viewer,periodCells,{visible:true,sourceMode:"gpsinterference",
+      observationPeriod:period,severityCounts:{low:0,medium:0,high:expected?1:0,severe:expected?1:0}});
+    while(frames.length)frames.shift()();
+    assert.equal(context.getGnssDiagnostics().activeCellEntities,expected,period);
+    assert.equal(Number(legend.get("wz-gnss-count-high").textContent),expected?1:0,period);
+    assert.equal(Number(legend.get("wz-gnss-count-severe").textContent),expected?1:0,period);
+  }
 });

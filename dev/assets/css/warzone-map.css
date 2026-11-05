@@ -166,8 +166,8 @@ color: var(--color-teal-glow);
 .wz-aoi-group em {
     display: inline-flex;
     align-items: center;
-    gap: .35rem;
-    padding: .45rem .65rem;
+    gap: .5rem;
+    padding: .5rem .5rem;
     background: rgba(69,80,94,0.48);
     color: var(--color-white-slate);
     font-style: normal;
@@ -570,7 +570,7 @@ UNUSED CANDIDATE END */
 
 .wz-gnss-legend__note { 
     margin: 0;
-    padding: .7rem 1rem;
+    padding: .9rem 1rem;
     background: var(--color-bg-row);
     font-size: var(--text-xs);
     line-height: var(--text-lg);

@@ -1,7 +1,9 @@
 ﻿// File Path: /assets/js/warzone-ui.js
+import * as Cesium from "cesium";
 import { initTheaterPanel } from "./warzone-theater-panel.js";
 let __altitudeReadoutBound = false;
 let __warzoneUiBound = false;
+let __orientationResetBound = false;
 
 export function bindWarzoneUi() {
     if (__warzoneUiBound) return;
@@ -11,10 +13,57 @@ export function bindWarzoneUi() {
     initTheaterPanel();
     startUtcClock();
     startAltitudeReadout();
+    bindOrientationResetControl();
     bindGlobeSurfaceControls();
 }
 
-export function attachWarzoneUiViewer() { startAltitudeReadout(); }
+export function attachWarzoneUiViewer() {
+    startAltitudeReadout();
+    bindOrientationResetControl();
+}
+
+function bindOrientationResetControl() {
+    if (__orientationResetBound) return;
+    const viewer = window.__warzoneViewer;
+    const button = document.getElementById("wz-reset-orientation");
+    const camera = viewer?.camera;
+    if (!button || !camera) return;
+    __orientationResetBound = true;
+    let resetting = false;
+    const update = () => {
+        const focus = window.__warzoneFocusDiagnostics;
+        const focusActive = Boolean(focus && focus.state !== "inactive");
+        const heading = Math.atan2(Math.sin(camera.heading), Math.cos(camera.heading));
+        const roll = Math.atan2(Math.sin(camera.roll), Math.cos(camera.roll));
+        button.hidden = resetting || focusActive || Boolean(viewer.trackedEntity)
+            || (Math.abs(heading) < 0.02 && Math.abs(roll) < 0.02);
+    };
+    button.addEventListener("click", () => {
+        update();
+        if (button.hidden || resetting) return;
+        const canvas = viewer.scene.canvas;
+        const middle = new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2);
+        const ray = camera.getPickRay(middle);
+        const center = (ray && viewer.scene.globe?.pick(ray, viewer.scene))
+            || camera.pickEllipsoid(middle, viewer.scene.globe?.ellipsoid);
+        if (!center) return;
+        const range = Cesium.Cartesian3.distance(camera.positionWC, center);
+        if (!Number.isFinite(range) || range <= 0) return;
+        resetting = true;
+        update();
+        const finish = () => { resetting = false; update(); };
+        camera.flyToBoundingSphere(new Cesium.BoundingSphere(center, 0), {
+            duration: 0.8,
+            offset: new Cesium.HeadingPitchRange(0, Math.min(-0.02, camera.pitch), range),
+            complete: finish,
+            cancel: finish,
+        });
+    });
+    camera.changed?.addEventListener?.(update);
+    camera.moveEnd?.addEventListener?.(update);
+    document.addEventListener("wz:asset-focus-changed", update);
+    update();
+}
 
 function bindTopViews() {
     const tabs = document.querySelectorAll(".top-tab");

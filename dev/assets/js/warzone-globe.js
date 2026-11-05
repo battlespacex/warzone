@@ -8753,6 +8753,54 @@ function labelCesiumCredits(creditsEl) {
     const observer = new MutationObserver(applyLabels);
     observer.observe(creditsEl, { childList: true, subtree: true });
 }
+// The recording page uses the original scene helpers without operational viewer listeners.
+export function initWarzoneIntroGlobe() {
+    const globeEl = document.getElementById("warzone-globe");
+    if (!globeEl) return null;
+    const cesiumCreditsEl = getCesiumCreditContainer(globeEl);
+    const viewer = new Cesium.Viewer(globeEl, {
+        animation: false,
+        timeline: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        fullscreenButton: false,
+        infoBox: false,
+        selectionIndicator: false,
+        shouldAnimate: false,
+        sceneMode: Cesium.SceneMode.SCENE3D,
+        scene3DOnly: true,
+        requestRenderMode: true,
+        contextOptions: { webgl: { antialias: true, powerPreference: "high-performance" } },
+        skyAtmosphere: false,
+        terrain: undefined,
+        creditContainer: cesiumCreditsEl,
+        imageryProvider: false,
+    });
+    viewer.__terrainVisible = true;
+    viewer.__warzoneMapStyle = getInitialMapStyle();
+    viewer.__warzoneActiveBasemapProvider = "";
+    viewer.__warzoneEntryMapImageryVisible = numberVar("--wz-entry-show-map-imagery", 1) !== 0;
+    viewer.__borderLayersVisible = false;
+    viewer.__borderLayersLoaded = false;
+    viewer.__borderEntities = [];
+    viewer.__warzoneFlatTerrainProvider = viewer.terrainProvider;
+    applyMapStyleState(viewer, viewer.__warzoneMapStyle, { source: "intro" });
+    applyViewerStyle(viewer);
+    setInitialCamera(viewer);
+    viewer.__warzone = {
+        startStartupRotation: () => startStartupGlobeRotation(viewer),
+        stopStartupRotation: () => stopStartupGlobeRotation(viewer),
+        setEntryMapImageryVisible: (visible) => setEntryMapImageryVisible(viewer, visible),
+        setBorderLayersVisible: (visible, options = {}) => setBorderLayersVisible(viewer, visible, options),
+    };
+    viewer.__warzoneImageryReadyPromise = setEntryMapImageryVisible(viewer, viewer.__warzoneEntryMapImageryVisible);
+    void initConfiguredTerrain(viewer);
+    return viewer;
+}
+
 export async function initWarzoneGlobe(options = {}) {
     const globeEl = document.getElementById("warzone-globe");
     const creditsEl = document.getElementById("warzone-map-credits");

@@ -32,6 +32,7 @@ test("aircraft motion frames advance the grounded CTR grid without terrain fits 
         },
         window: { __warzoneViewer: viewer },
         __liveTrackReplayState: { selectedTrackKey: "sample", mode: "focus" },
+        __liveTrackAoiFreeze: null,
         __liveTrackIsCameraFlying: true,
         __liveTrackHardLockEnabled: false,
         getPositionCartesian: () => context.currentPosition,
@@ -65,6 +66,12 @@ test("aircraft motion frames advance the grounded CTR grid without terrain fits 
     assert.equal(raises, 0);
     assert.equal(renderRequests, 0);
     assert.equal(cameraChanges, 0);
+    const frozenGrid = state.gridPrimitive.modelMatrix;
+    context.__liveTrackAoiFreeze = { trackKey: "sample" };
+    context.currentPosition = { longitude: 60, latitude: 30, height: 14000 };
+    context.syncFocusedTrackCamera({ motionFrame: true });
+    assert.equal(state.gridPrimitive.modelMatrix, frozenGrid, "AOI freeze keeps the drawing surface still");
+    context.__liveTrackAoiFreeze = null;
     context.setContourGridCenter(viewer, { lon: 50, lat: 26 });
     assert.equal(fits, 1, "normal refresh still fits the grid to terrain");
     assert.equal(raises, 1);

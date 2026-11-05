@@ -395,7 +395,7 @@ body.poster-generator-page {
 }
 
 .poster-generator-page #creditPanel input[type="text"] {
-    min-height: 3rem;
+    min-height: 3.2rem;
 }
 
 .poster-generator-page .font-library-status {

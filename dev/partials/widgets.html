@@ -341,13 +341,13 @@
                 </div>
                 <div class="panel-content">
                     <div class="wz-lock-overlay" aria-label="Sign in required">
-                        <p>Sign in to access live military naval tracking</p>
+                        <p>Sign in to access live naval tracking</p>
                         <button type="button" class="btn-primary" onclick="window.__openLoginModal?.()"><span aria-hidden="true"></span>Sign In</button>
                     </div>
                     <div class="wz-widget-layer-off-state" data-widget-layer-state aria-live="polite">Naval layer is off</div>
                     <div class="wz-widget-layer-content">
-                        <div class="wz-aircraft-toolbar">
-                            <label class="wz-aircraft-type-filter">
+                        <div class="wz-naval-toolbar">
+                            <label class="wz-naval-type-filter">
                                 <span class="sr-only">Filter naval contacts by type</span>
                                 <span class="wz-selector">
                                     <select aria-label="Filter naval contacts by type" class="wz--dropdown" id="wz-naval-filter-subtype">
@@ -355,7 +355,7 @@
                                     </select>
                                 </span>
                             </label>
-                            <label class="wz-aircraft-type-filter">
+                            <label class="wz-naval-type-filter">
                                 <span class="sr-only">Filter naval contacts by last received time</span>
                                 <span class="wz-selector">
                                     <select aria-label="Filter naval contacts by last received time" class="wz--dropdown" id="wz-naval-filter-status">
@@ -370,14 +370,14 @@
                                 </span>
                             </label>
                         </div>
-                        <div class="wz-aircraft-toolbar">
+                        <div class="wz-naval-toolbar">
                             <label class="wz-aircraft-type-filter">
                                 <span class="sr-only">Search naval asset history by name, callsign, MMSI or IMO</span>
                                 <input id="wz-naval-history-search" class="wz--dropdown" type="search" maxlength="64"
                                        placeholder="Search naval history" aria-label="Search naval asset history">
                             </label>
                         </div>
-                        <div id="wz-naval-panel-list" class="wz-aircraft-panel" aria-live="polite"></div>
+                        <div id="wz-naval-panel-list" class="wz-naval-panel" aria-live="polite"></div>
                         <p id="wz-naval-history-message" role="status" aria-live="polite"></p>
                         <button id="wz-naval-history-more" class="btn-secondary" type="button" hidden>Load more history</button>
                     </div>
@@ -496,13 +496,12 @@
                             hidden></div>
 
                         <!-- GNSS Interference Severity Statistics -->
-                        <section class="wz-gnss-legend-box"
-                                aria-label="GNSS interference severity statistics">
+                        <section class="wz-gnss-legend-box" aria-label="GNSS interference severity statistics">
 
                             <div class="wz-gnss-legend__row">
                                 <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--low"
                                     aria-hidden="true"></span>
-                                <span>Low: &lt;3%</span>
+                                <span>Low: &lt; 3%</span>
                                 <strong id="wz-gnss-count-low" aria-label="Low interference cells">0</strong>
                             </div>
 
@@ -516,14 +515,14 @@
                             <div class="wz-gnss-legend__row">
                                 <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--high"
                                     aria-hidden="true"></span>
-                                <span>High: &gt;10–50%</span>
+                                <span>High: &gt; 10–50%</span>
                                 <strong id="wz-gnss-count-high" aria-label="High interference cells">0</strong>
                             </div>
 
                             <div class="wz-gnss-legend__row">
                                 <span class="static-icon stratops-ico-assets-gnss-1 wz-gnss-legend__swatch--severe"
                                     aria-hidden="true"></span>
-                                <span>Severe: &gt;50%</span>
+                                <span>Severe: &gt; 50%</span>
                                 <strong id="wz-gnss-count-severe" aria-label="Severe interference cells">0</strong>
                             </div>
                         </section>
@@ -552,22 +551,22 @@
                             </span>
                         </div>
 
-                        <!-- Historical GNSS Observation Filter -->
-                          <div class="wz-form-fieldbox">
-                            <label for="wz-gnss-period">Observation Date</label>
-                            <input id="wz-gnss-period"
-                                class="wz--input"
-                                type="date"
-                                aria-label="Select historical GNSS interference observation date; clear for latest">
+                        <!-- GNSS Observation Period Filter -->
+                        <div class="wz-form-fieldbox">
+                            <label for="wz-gnss-period">Observation Period</label>
+                            <span class="wz-selector">
+                                <select id="wz-gnss-period" class="wz--dropdown">
+                                    <option value="24h">Last 24 Hours</option>
+                                    <option value="48h">Last 48 Hours</option>
+                                    <option value="72h" selected>Last 72 Hours</option>
+                                </select>
+                            </span>
                         </div>
 
-                        <!-- Latest GNSS Data -->
-                        <button id="wz-gnss-latest"
-                                type="button"
-                                class="btn-secondary white"
-                                aria-label="Load latest available GNSS interference observations">
+                        <!-- Refresh selected GNSS period -->
+                        <button id="wz-gnss-latest" type="button" class="btn-secondary white" aria-label="Refresh selected GNSS observation period">
                             <span aria-hidden="true"></span>
-                            Latest Available
+                            Refresh Period
                         </button>
 
                         <!-- Data Freshness and Source Health -->

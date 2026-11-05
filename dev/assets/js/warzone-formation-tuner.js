@@ -11,6 +11,7 @@ import {
     upsertNavalVessel,
 } from "./warzone-live-naval.js";
 import { isLayerEnabled, setLayer } from "./warzone-layers.js";
+import { isLocalDeveloperFeatureEnabled } from "./stratops-feature-config.js";
 
 const UPDATE_INTERVAL_MS = 250;
 const KNOT_TO_METERS_PER_SECOND = 0.514444;
@@ -527,15 +528,19 @@ function bindPanel() {
     });
 }
 
-export function initFormationDevTuner(viewer = window.__warzoneViewer) {
-    if (!viewer || document.getElementById("wz-formation-tuner")) return Boolean(viewer);
-    document.body.insertAdjacentHTML("beforeend", buildPanelMarkup());
+export function initFormationDevTuner(viewer = window.__warzoneViewer, container = document.getElementById("wz-dev-formation-slot")) {
+    if (!isLocalDeveloperFeatureEnabled("formationTuner") || !viewer || !container) return false;
+    if (document.getElementById("wz-formation-tuner")) return true;
+    container.insertAdjacentHTML("beforeend", buildPanelMarkup());
     FORMATION_KEYS.forEach(getRuntimeState);
     bindPanel();
     syncPanel();
     window.__warzoneFormationDevTuner = Object.freeze({
         activate: activateFormation,
         clear: clearFormation,
+        clearAll: () => FORMATION_KEYS.forEach((key) => {
+            if (getRuntimeState(key).active) clearFormation(key);
+        }),
         focus: focusFormation,
         getPresetKeys: () => FORMATION_KEYS.slice(),
     });

@@ -157,6 +157,7 @@ module.exports = (env, argv) => {
                 path.resolve(DEV_DIR, "assets/js/index.js")] : path.resolve(DEV_DIR, "assets/js/index.js"),
             reportCapture: path.resolve(DEV_DIR, "assets/js/report-capture.js"),
             reportPdfViewer: path.resolve(DEV_DIR, "assets/js/report-pdf-viewer.js"),
+            ...(isDev ? { intro: path.resolve(DEV_DIR, "assets/js/warzone-intro.js") } : {}),
         },
 
         output: {
@@ -397,6 +398,14 @@ module.exports = (env, argv) => {
                 chunks: ["reportPdfViewer"],
                 scriptLoading: "defer",
             }),
+
+            ...(isDev ? [new HtmlWebpackPlugin({
+                filename: "pages/intro.html",
+                template: path.resolve(DEV_DIR, "pages/intro.html"),
+                inject: "body",
+                chunks: ["intro"],
+                scriptLoading: "defer",
+            })] : []),
 
             new HtmlWebpackPlugin({
                 filename: "pages/poster.html",
@@ -869,9 +878,10 @@ module.exports = (env, argv) => {
                             try {
                                 const { pathToFileURL } = require("node:url");
                                 const moduleUrl = pathToFileURL(path.join(ROOT_DIR, "apps/api/src/gnss-gpsinterference.js")).href;
-                                const { getGpsInterferenceSnapshot, selectGpsInterferenceRegion } = await import(moduleUrl);
+                                const { getGpsInterferenceSnapshot, getRollingGpsInterferenceSnapshot, selectGpsInterferenceRegion } = await import(moduleUrl);
                                 const date = typeof req.query.date === "string" ? req.query.date : "latest";
-                                if (date !== "latest") {
+                                const rollingPeriod = ["24h", "48h", "72h"].includes(date);
+                                if (date !== "latest" && !rollingPeriod) {
                                     const parsed = new Date(`${date}T00:00:00Z`);
                                     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime())
                                         || parsed.toISOString().slice(0, 10) !== date
@@ -889,7 +899,9 @@ module.exports = (env, argv) => {
                                     return res.status(400).json({ error: "Invalid GNSS bounds" });
                                 }
                                 const limit = Math.max(12, Math.min(12_000, Math.floor(Number(req.query.limit) || 12_000)));
-                                const snapshot = await getGpsInterferenceSnapshot(date);
+                                const snapshot = rollingPeriod
+                                    ? await getRollingGpsInterferenceSnapshot(date)
+                                    : await getGpsInterferenceSnapshot(date);
                                 res.set("Cache-Control", "no-store");
                                 return res.json(snapshot
                                     ? selectGpsInterferenceRegion(snapshot, { bounds, limit })
