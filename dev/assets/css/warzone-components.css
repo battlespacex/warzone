@@ -6558,6 +6558,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     width: 28rem;
     max-width: calc(100vw - 28rem);
     height: auto;
+    max-height: 40vh;
     isolation: isolate;
     pointer-events: auto;
     transform: translateY(0) scale(1);
@@ -6574,6 +6575,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     width: 28rem;
     max-width: calc(100vw - 1rem);
     height: auto;
+    max-height: 40vh;
     isolation: isolate;
     pointer-events: auto;
     transform: translateY(0) scale(1);
@@ -6726,20 +6728,39 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 }
 
 .wz-reset-orientation {
-    position: fixed;
-    left: 2.5rem;
-    bottom: 8rem;
+position: fixed;
+    right: 2.5rem;
+    top: 50%;
     z-index: 5;
-    width: 3.2rem;
-    height: 3.2rem;
-    color: var(--color-teal-glow);
-    background: var(--color-bg-dark);
-    border: 1px solid var(--color-teal);
+    width: 5rem;
+    height: 5rem;
+    line-height: 5rem;
+    /* color: var(--color-magenta-glow); */
+    /* background: var(--color-bg-dark); */
     cursor: pointer;
+    border-radius: 50%;
+    font-size: 5.5rem;
+    z-index: 200;
+transform-origin: center center;
+    animation: autoRotateCycle 8s linear infinite;
 }
 
 .wz-reset-orientation[hidden] {
     display: none !important;
+}
+
+@keyframes autoRotateCycle {
+    0%, 37.5% {
+        transform: rotate(0deg);
+    }
+
+    75% {
+        transform: rotate(720deg);
+    }
+
+    75.01%, 100% {
+        transform: rotate(720deg);
+    }
 }
 
 .wz-altitude-readout__line--ft,

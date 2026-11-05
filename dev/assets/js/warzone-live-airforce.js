@@ -4177,8 +4177,10 @@ function bindFocusInteractionTracking(viewer) {
         const wheelDeltaFactor = getLiveTrackFocusWheelDeltaFactor(event);
         if (wheelDeltaFactor === 0) return;
         const zoomStepMeters = getLiveTrackFocusWheelZoomStepMeters();
-        const zoomDelta = zoomStepMeters * wheelDeltaFactor;
-        const nextRange = Number(__liveTrackFocusTargetRangeMeters || __liveTrackFocusRangeMeters || __liveTrackFocusBaseRangeMeters) + zoomDelta;
+        const referenceRange = getLiveTrackFocusCameraRangeMeters();
+        const zoomRate = clamp(Math.log1p(zoomStepMeters / referenceRange), 0.01, 0.18);
+        const currentRange = Number(__liveTrackFocusTargetRangeMeters || __liveTrackFocusRangeMeters || __liveTrackFocusBaseRangeMeters);
+        const nextRange = currentRange * Math.exp(wheelDeltaFactor * zoomRate);
         if (!handleAircraftFocusRangeChange(nextRange)) return;
         __liveTrackUserCameraInteracting = false;
         __liveTrackLastFocusCameraSyncAt = 0;

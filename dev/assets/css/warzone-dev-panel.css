@@ -28,6 +28,7 @@
     cursor: pointer;
     background: #111;
     border: 0.2rem solid var(--color-border-gray);
+    opacity: 0;
 }
 
 .wz-dev-toggle:hover {

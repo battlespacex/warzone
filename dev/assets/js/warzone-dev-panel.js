@@ -1853,7 +1853,7 @@ function initStartupSceneTunerControls({
     const updateOutput = () => {
         if (output) output.value = buildDevStartupSceneBlock(prefix);
     };
-    const applyCssValue = (def, nextValue, source = "") => {
+    const applyCssValue = (def, nextValue, source = "", preview = true) => {
         const entry = controls.get(def.key);
         if (!entry) return;
         const formatted = formatDevMapValue(nextValue, def);
@@ -1861,9 +1861,9 @@ function initStartupSceneTunerControls({
         if (source !== "input") entry.input.value = formatted;
         root.style.setProperty(def.cssVar, formatted);
         updateOutput();
-        refreshStartupScenePreview();
+        if (preview) refreshStartupScenePreview();
     };
-    const applyConfigValue = (def, nextValue, source = "") => {
+    const applyConfigValue = (def, nextValue, source = "", preview = true) => {
         const entry = controls.get(def.key);
         if (!entry) return;
         const formatted = formatDevMapValue(nextValue, def);
@@ -1872,15 +1872,15 @@ function initStartupSceneTunerControls({
         window.__stratopsConfig = window.__stratopsConfig || {};
         window.__stratopsConfig[def.path] = Number(formatted);
         updateOutput();
-        refreshStartupScenePreview();
+        if (preview) refreshStartupScenePreview();
     };
-    const loadCurrentValues = () => {
+    const loadCurrentValues = (preview = true) => {
         DEV_STARTUP_SCENE_CSS_FIELDS.forEach((def) => {
-            applyCssValue(def, getRootCssNumber(def.cssVar, def.fallback));
+            applyCssValue(def, getRootCssNumber(def.cssVar, def.fallback), "", preview);
         });
         DEV_STARTUP_SCENE_CONFIG_FIELDS.forEach((def) => {
             const current = Number(window.__stratopsConfig?.[def.path]);
-            applyConfigValue(def, Number.isFinite(current) ? current : def.fallback);
+            applyConfigValue(def, Number.isFinite(current) ? current : def.fallback, "", preview);
         });
         updateOutput();
     };
@@ -1916,7 +1916,7 @@ function initStartupSceneTunerControls({
         showCopyButtonFeedback(event.currentTarget, ok);
         devLog(ok ? "Copied startup scene values" : "Copy blocked; select and copy manually");
     });
-    loadCurrentValues();
+    loadCurrentValues(false);
     if (revealWhenBound) {
         tunerRoot.closest("#wz-intro-startup-tuner-slot")?.removeAttribute("hidden");
     }

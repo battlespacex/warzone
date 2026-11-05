@@ -6,6 +6,7 @@ import { initWarzoneIntroGlobe } from "./warzone-globe.js";
 import { initWarzoneStartupDemoAssets, setWarzoneStartupDemoAssetsEnabled } from "./warzone-startup-demo-assets.js";
 import { initWarzoneStartupMilSats, setWarzoneStartupMilSatsDemoEnabled } from "./warzone-startup-mil-sats.js";
 import { initIntroStartupSceneTuner, destroyIntroStartupSceneTuner } from "./warzone-startup-scene-tuner.js";
+import { initIntroGnssCoverage, destroyIntroGnssCoverage } from "./warzone-intro-gnss.js";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 let viewer = null;
@@ -53,6 +54,7 @@ function cleanup() {
     tunerStyle = null;
     setWarzoneStartupDemoAssetsEnabled(false);
     setWarzoneStartupMilSatsDemoEnabled(false);
+    destroyIntroGnssCoverage();
     viewer?.__warzone?.stopStartupRotation?.();
     if (viewer && !viewer.isDestroyed()) viewer.destroy();
     window.__warzoneViewer = null;
@@ -94,6 +96,7 @@ async function start() {
     if (cleanedUp) return;
     initWarzoneStartupMilSats(viewer);
     initWarzoneStartupDemoAssets(viewer);
+    initIntroGnssCoverage(viewer);
     initIntroStartupSceneTuner();
     viewer.__warzone.startStartupRotation();
     document.addEventListener("keydown", handleTunerShortcut);

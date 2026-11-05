@@ -6,9 +6,13 @@
     <meta name="robots" content="noindex, nofollow">
     <title>StratOps Startup Scene Recording</title>
     <style>
+        :root { --wz-intro-gnss-enabled: 1; --wz-intro-gnss-density: 100; --wz-intro-gnss-size: 100; }
         html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #02050b; }
         #warzone-globe { position: fixed; inset: 0; }
         #wz-intro-startup-scene-tuner .wz-startup-tuner__header { opacity: 1; }
+        #wz-intro-startup-scene-tuner .wz-startup-tuner__field-label--percent { display: flex; justify-content: space-between; gap: 0.6rem; }
+        #wz-intro-startup-scene-tuner .wz-startup-tuner__field-controls--toggle { grid-template-columns: minmax(0, 1fr); }
+        #wz-intro-startup-scene-tuner .wz-startup-tuner__field-controls--toggle button[aria-checked="true"] { border-color: var(--color-teal-glow); }
         #intro-error { position: fixed; left: 1rem; bottom: 1rem; z-index: 50; color: white; font: 14px sans-serif; }
     </style>
 </head>

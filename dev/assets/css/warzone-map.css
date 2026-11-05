@@ -289,16 +289,16 @@ display: flex;
     height: 2rem;
 }
 
-.wz-gnss-legend__swatch--low {
+.wz-gnss-legend__swatch--low.static-icon {
     color: var(--gnss-legend-fill-low);
 }
-.wz-gnss-legend__swatch--medium {
+.wz-gnss-legend__swatch--medium.static-icon {
     color: var(--gnss-legend-fill-medium);
 }
-.wz-gnss-legend__swatch--high {
+.wz-gnss-legend__swatch--high.static-icon {
     color: var(--gnss-legend-fill-high);
 }
-.wz-gnss-legend__swatch--severe { 
+.wz-gnss-legend__swatch--severe.static-icon { 
     color: var(--gnss-legend-fill-severe);
  }
 

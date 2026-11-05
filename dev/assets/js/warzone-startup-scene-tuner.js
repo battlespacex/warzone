@@ -1,5 +1,6 @@
 import "../css/warzone-dev-panel.css";
 import * as Cesium from "cesium";
+import { setIntroGnssDensity, setIntroGnssEnabled, setIntroGnssSize } from "./warzone-intro-gnss.js";
 
 const SCENE_FIELDS = Object.freeze([
     { label: "Camera longitude", cssVar: "--warzone-start-lon", min: -180, max: 180, step: 0.1, fallback: 40.4 },
@@ -26,6 +27,9 @@ const SCENE_FIELDS = Object.freeze([
     { label: "Show air assets 1/0", cssVar: "--wz-entry-show-air-assets", min: 0, max: 1, step: 1, fallback: 1 },
     { label: "Show map imagery 1/0", cssVar: "--wz-entry-show-map-imagery", min: 0, max: 1, step: 1, fallback: 1 },
     { label: "Show country borders 1/0", cssVar: "--wz-entry-show-borders", min: 0, max: 1, step: 1, fallback: 0 },
+    { label: "GNSS Hexa", cssVar: "--wz-intro-gnss-enabled", min: 0, max: 1, step: 1, fallback: 1, toggle: true },
+    { label: "GNSS Hexagon Density", cssVar: "--wz-intro-gnss-density", min: 0, max: 100, step: 1, fallback: 100, percent: true },
+    { label: "GNSS Hexagon Size", cssVar: "--wz-intro-gnss-size", min: 25, max: 200, step: 1, fallback: 100, percent: true },
 ]);
 
 const STATIC_FIELD_TEMPLATE = Object.freeze([
@@ -477,6 +481,15 @@ function applyStartupGlobeSpeed() {
 
 function refreshPreview(groupId = tunerState.currentGroupId, changedCssVar = "") {
     if (groupId === "scene") {
+        if (!changedCssVar || changedCssVar === "--wz-intro-gnss-enabled") {
+            setIntroGnssEnabled(getRootCssNumber("--wz-intro-gnss-enabled", 1));
+        }
+        if (!changedCssVar || changedCssVar === "--wz-intro-gnss-density") {
+            setIntroGnssDensity(getRootCssNumber("--wz-intro-gnss-density", 100));
+        }
+        if (!changedCssVar || changedCssVar === "--wz-intro-gnss-size") {
+            setIntroGnssSize(getRootCssNumber("--wz-intro-gnss-size", 100));
+        }
         if (!changedCssVar || ENTRY_LAYER_SWITCH_CSS_VARS.has(changedCssVar)) {
             applyEntryLayerSwitches(changedCssVar);
         }
@@ -587,15 +600,47 @@ function renderFields() {
     fieldsRoot.replaceChildren();
 
     group.fields.forEach((field) => {
-        const row = document.createElement("label");
+        const row = document.createElement(field.toggle ? "div" : "label");
         row.className = "wz-startup-tuner__field";
 
         const title = document.createElement("span");
         title.className = "wz-startup-tuner__field-label";
-        title.textContent = field.label;
+        const percentValue = field.percent ? document.createElement("span") : null;
+        if (percentValue) {
+            title.classList.add("wz-startup-tuner__field-label--percent");
+            title.append(document.createTextNode(field.label), percentValue);
+        } else {
+            title.textContent = field.label;
+        }
 
         const controls = document.createElement("span");
         controls.className = "wz-startup-tuner__field-controls";
+
+        if (field.toggle) {
+            controls.classList.add("wz-startup-tuner__field-controls--toggle");
+            const button = document.createElement("button");
+            button.type = "button";
+            button.setAttribute("role", "switch");
+            button.setAttribute("aria-label", field.label);
+            const showState = (enabled) => {
+                button.textContent = enabled ? "On" : "Off";
+                button.setAttribute("aria-checked", String(enabled));
+            };
+            showState(getRootCssNumber(field.cssVar, field.fallback) !== 0);
+            button.addEventListener("click", () => {
+                const enabled = button.getAttribute("aria-checked") !== "true";
+                document.documentElement.style.setProperty(field.cssVar, enabled ? "1" : "0");
+                tunerState.touchedCssVars.add(field.cssVar);
+                showState(enabled);
+                refreshPreview(group.id, field.cssVar);
+                syncOutput(false);
+                setStatus(`${field.label}: ${enabled ? "On" : "Off"}`);
+            });
+            controls.appendChild(button);
+            row.append(title, controls);
+            fieldsRoot.appendChild(row);
+            return;
+        }
 
         const range = document.createElement("input");
         range.type = "range";
@@ -614,11 +659,14 @@ function renderFields() {
         const value = formatValue(getRootCssNumber(field.cssVar, field.fallback), field);
         range.value = value;
         number.value = value;
+        if (percentValue) percentValue.textContent = `${value}%`;
 
         const apply = (nextValue, source) => {
-            const formatted = formatValue(nextValue, field);
+            const boundedValue = field.percent ? Math.max(field.min, Math.min(field.max, Number(nextValue))) : nextValue;
+            const formatted = formatValue(boundedValue, field);
             if (source !== "range") range.value = formatted;
             if (source !== "number") number.value = formatted;
+            if (percentValue) percentValue.textContent = `${formatted}%`;
             document.documentElement.style.setProperty(field.cssVar, formatted);
             tunerState.touchedCssVars.add(field.cssVar);
             refreshPreview(group.id, field.cssVar);

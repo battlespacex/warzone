@@ -56,6 +56,8 @@ const REGION_SUBREGION_MATCH = {
     latin_america: new Set(["CENTRAL AMERICA", "CARIBBEAN"]),
 };
 let __regionFlyLoaderTimer = 0;
+let __regionFlyGeneration = 0;
+let __cancelPendingRegionFly = null;
 let __activeRegion = getRegionById("middle_east");
 let __activeLens = "live";
 let __onChangeCallbacks = [];
@@ -945,6 +947,9 @@ export function flyToRegion(viewer, region, options = {}) {
     if (window.__warzoneDashboardIntroActive === true && options?.source !== "startup") {
         return Promise.resolve(false);
     }
+    const generation = ++__regionFlyGeneration;
+    __cancelPendingRegionFly?.();
+    __cancelPendingRegionFly = null;
     const showLoader = options?.showLoader === true;
     const requestedDuration = Number(options?.duration);
     const duration = Number.isFinite(requestedDuration)
@@ -963,6 +968,12 @@ export function flyToRegion(viewer, region, options = {}) {
         const finalizeTransition = (success = true) => {
             if (finalized) return;
             finalized = true;
+            if (generation !== __regionFlyGeneration) {
+                if (showLoader) window.SiteLoader?.stop?.();
+                resolve(false);
+                return;
+            }
+            __cancelPendingRegionFly = null;
             __regionTransitionInFlight = false;
             if (__regionFlyLoaderTimer) {
                 clearTimeout(__regionFlyLoaderTimer);
@@ -991,6 +1002,7 @@ export function flyToRegion(viewer, region, options = {}) {
             }
             resolve(success);
         };
+        __cancelPendingRegionFly = () => finalizeTransition(false);
         if (showLoader) {
             window.SiteLoader?.start?.();
         }

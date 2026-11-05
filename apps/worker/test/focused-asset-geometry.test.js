@@ -11,17 +11,18 @@ function section(source, name, next) {
   return source.slice(source.indexOf(`function ${name}(`), source.indexOf(`function ${next}(`));
 }
 
-test("focused naval CTR uses configurable 1.5/3 km rings and a ground-curved grid", () => {
-  const state = { hasFocusPosition: true };
+test("focused naval CTR keeps its rings while aircraft CTR adds an outer glow", () => {
+  const state = { hasFocusPosition: true, focusProfile: "naval" };
+  let focusProfile = "naval";
   class Cartesian3 { constructor(x, y, z) { Object.assign(this, { x, y, z }); } }
   class PolylineCollection { constructor() { this.lines = []; } add(line) { this.lines.push(line); } }
   const context = vm.createContext({
     Cesium: { Cartesian3, PolylineCollection, Material: { fromType: (_, options) => options }, Math: { toRadians: (value) => value * Math.PI / 180 } },
-    getContourOverlayState: () => state, getContourFocusProfile: () => "naval",
+    getContourOverlayState: () => state, getContourFocusProfile: () => focusProfile,
     boolVar: () => true, numberVar: (key, fallback) => ({ "--warzone-naval-ctr-radar-inner-radius": 1500, "--warzone-naval-ctr-radar-outer-radius": 3000, "--warzone-naval-ctr-radar-grid-spacing": 500, "--warzone-contour-grid-ring-width": 1.5 }[key] ?? fallback),
     colorFromCssVar: () => ({ withAlpha: (alpha) => alpha }), cssVar: (_, fallback) => fallback,
     clamp01: (value) => value, lerp: (a, b, t) => a + (b - a) * t, smoothContourFade: (t) => t,
-    chooseOperationalGridIntervalMeters: () => 5000, updateContourGridPrimitiveCenter() {}, raiseContourGridPrimitive() {},
+    chooseOperationalGridIntervalMeters: () => 5000, updateContourGridPrimitiveCenter() {}, raiseContourGridPrimitive() {}, createContourGridDrawPrimitive() {},
     addContourGridRing(collection, radius, options) { collection.lines.push({ radius, ...options }); },
   });
   vm.runInContext(section(globe, "getFocusedCtrRadarConfig", "addContourGridRing"), context);
@@ -38,19 +39,33 @@ test("focused naval CTR uses configurable 1.5/3 km rings and a ground-curved gri
   assert.match(css, /--warzone-contour-grid-height-offset:\s*1/);
   assert.match(css, /--warzone-live-naval-ctr-focused-distance:\s*24000/);
   assert.match(naval, /setNavalFocusRangeMeters\(getNavalCtrFocusedDistanceMeters\(\), \{ immediate: true \}\)/);
+
+  focusProfile = "aircraft";
+  state.focusProfile = "aircraft";
+  state.gridPrimitive = null;
+  context.ensureContourGridPrimitive({ scene: { primitives: { add: (value) => value } } });
+  const aircraftOuterRings = state.gridPrimitive.lines.filter((line) => line.radius === 300);
+  assert.equal(aircraftOuterRings.length, 2);
+  assert.equal(aircraftOuterRings[0].glow, true);
+  assert.ok(aircraftOuterRings[0].width > aircraftOuterRings[1].width);
+  assert.ok(aircraftOuterRings[1].color >= 0.9);
 });
 
 test("CTR ring vertices use the ground curvature supplied by the grid", () => {
   class Cartesian3 { constructor(x, y, z) { Object.assign(this, { x, y, z }); } }
   const lines = [];
   const context = vm.createContext({
-    Cesium: { Cartesian3, Material: { fromType: (_, options) => options }, Color: { WHITE: { withAlpha: () => null } } },
+    Cesium: { Cartesian3, Material: { fromType: (type, options) => ({ type, ...options }) }, Color: { WHITE: { withAlpha: () => null } } },
     numberVar: (_, fallback) => fallback,
   });
   vm.runInContext(section(globe, "addContourGridRing", "ensureContourGridPrimitive"), context);
   context.addContourGridRing({ add: (line) => lines.push(line) }, 100, { getHeight: () => -4 });
   assert.equal(lines.length, 1);
   assert.equal(lines[0].positions.every((position) => position.z === -4), true);
+  context.addContourGridRing({ add: (line) => lines.push(line) }, 100, { getHeight: () => -4, glow: true, width: 10 });
+  assert.equal(lines[1].material.type, "PolylineGlow");
+  assert.equal(lines[1].width, 10);
+  assert.equal(lines[1].positions.every((position) => position.z === -4), true);
 });
 
 test("aircraft orientation follows meaningful movement but ignores position jitter", () => {

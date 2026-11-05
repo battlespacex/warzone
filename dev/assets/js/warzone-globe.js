@@ -7156,9 +7156,10 @@ function addContourGridRing(collection, radiusMeters, options = {}) {
     }
     collection.add({
         positions,
-        width: Math.max(0.4, Math.min(5, Number(options.width || 1.4))),
-        material: Cesium.Material.fromType("Color", {
+        width: Math.max(0.4, Math.min(options.glow ? 16 : 5, Number(options.width || 1.4))),
+        material: Cesium.Material.fromType(options.glow ? "PolylineGlow" : "Color", {
             color: options.color || Cesium.Color.WHITE.withAlpha(0.35),
+            ...(options.glow ? { glowPower: 0.3 } : {}),
         }),
     });
     return 1;
@@ -7190,6 +7191,7 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
     const ringAlpha = clamp01(numberVar("--warzone-contour-grid-ring-alpha", Math.max(majorAlpha, 0.42)));
     const innerRingAlpha = clamp01(numberVar("--warzone-contour-grid-ring-inner-alpha", Math.max(alpha, 0.28)));
     const innerRingScale = Math.max(0.15, Math.min(0.95, numberVar("--warzone-contour-grid-ring-inner-scale", 0.58)));
+    const aircraftFocusRing = state.hasFocusPosition === true && state.focusProfile === "aircraft";
     const majorEvery = Math.max(2, Math.round(numberVar("--warzone-contour-grid-major-every", 4)));
     const centerLatitude = Cesium.Math.toRadians(Number(center?.lat ?? state.gridCenterLat ?? state.centerLat) || 0);
     const flattening = 1 / 298.257223563;
@@ -7253,11 +7255,28 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
         addSegmentedLine(x, false, col % majorEvery === 0);
     }
     if (boolVar("--warzone-contour-grid-ring-enabled", true) === true) {
+        const addOuterRing = () => {
+            if (aircraftFocusRing) addContourGridRing(collection, radius, {
+                width: Math.max(8, ringWidth * 7),
+                color: ringColor.withAlpha(0.28),
+                glow: true,
+                getHeight: getGroundHeight,
+            });
+            addContourGridRing(collection, radius, {
+                width: ringWidth,
+                color: ringColor.withAlpha(aircraftFocusRing ? Math.max(ringAlpha, 0.9) : ringAlpha),
+                getHeight: getGroundHeight,
+            });
+        };
         if (radar) {
             for (let ring = 0; ring < radar.ringCount; ring += 1) {
+                if (ring === radar.ringCount - 1) {
+                    addOuterRing();
+                    continue;
+                }
                 addContourGridRing(collection, lerp(radar.innerRadius, radius, ring / (radar.ringCount - 1)), {
                     width: ringWidth,
-                    color: ringColor.withAlpha(ring === radar.ringCount - 1 ? ringAlpha : innerRingAlpha),
+                    color: ringColor.withAlpha(innerRingAlpha),
                     getHeight: getGroundHeight,
                 });
             }
@@ -7272,11 +7291,7 @@ function ensureContourGridPrimitive(viewer, center = null, options = {}) {
                 color: ringColor.withAlpha(innerRingAlpha),
                 getHeight: getGroundHeight,
             });
-            addContourGridRing(collection, radius, {
-                width: ringWidth,
-                color: ringColor.withAlpha(ringAlpha),
-                getHeight: getGroundHeight,
-            });
+            addOuterRing();
         }
     }
     state.gridIntervalMeters = intervalMeters;
