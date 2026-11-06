@@ -10,6 +10,7 @@ const SCENE_FIELDS = Object.freeze([
     { label: "Camera pitch", cssVar: "--warzone-start-pitch", min: -89, max: -20, step: 1, fallback: -74 },
     { label: "Camera roll", cssVar: "--warzone-start-roll", min: -180, max: 180, step: 1, fallback: 0 },
     { label: "Globe rotation", cssVar: "--warzone-startup-rotation-speed", min: 0.01, max: 2, step: 0.01, fallback: 0.52 },
+    { label: "Decorative satellite speed", cssVar: "--wz-startup-satellite-speed", min: 0, max: 2, step: 0.01, fallback: 0.15 },
     { label: "Satellite update ms", cssVar: "--warzone-startup-sat-update-ms", min: 80, max: 500, step: 10, fallback: 160 },
     { label: "Satellite minimum latitude", cssVar: "--wz-startup-sat-min-lat", min: -90, max: 90, step: 1, fallback: 0 },
     { label: "Satellite maximum latitude", cssVar: "--wz-startup-sat-max-lat", min: -90, max: 90, step: 1, fallback: 60 },
