@@ -52,10 +52,13 @@ function readSettings() {
 
 function makeTrailTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = 512;
+    canvas.width = 1024;
     canvas.height = 160;
     const ctx = canvas.getContext("2d");
-    // Head is near the RIGHT edge; the tail fades smoothly to the LEFT.
+    // The brightest tip sits at the exact center of this image.
+    // The right half remains transparent; Cesium rotates around the anchor.
+    ctx.translate(36, 0);
+    // The tail fades smoothly into the left half.
     // Blurred envelope and tapered interior are continuous, not polyline segments.
     const gradient = ctx.createLinearGradient(10, 0, 475, 0);
     gradient.addColorStop(0, "rgba(255,255,255,0)");
@@ -160,8 +163,8 @@ export function createStartupSatelliteVapor(viewer) {
             id: group.satDef.id,
             trail: billboards.add({
                 show: false, image: trailTexture, position,
-                // Anchor the tapered tip at the satellite itself, even while rotating.
-                horizontalOrigin: Cesium.HorizontalOrigin.RIGHT,
+                // Texture tip and rotation center share the satellite anchor.
+                horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
                 verticalOrigin: Cesium.VerticalOrigin.CENTER,
                 width: 1, height: 1, color: Cesium.Color.WHITE,
             }),
@@ -206,12 +209,12 @@ export function createStartupSatelliteVapor(viewer) {
             smoothstep(clamp(progress / 0.20, 0, 1));
         const tailHeight = clamp(settings.width / metersPerPixel, 3, 48) *
             (1.4 + settings.blur * 0.65 + settings.spread * 0.3);
-        // With RIGHT origin, the trail's leading edge stays attached to the
-        // same projected satellite position as the flash, at every angle.
+        // Both sprites use the identical satellite world-space anchor.
         item.trail.position = position;
         item.trail.pixelOffset = Cesium.Cartesian2.ZERO;
         item.trail.rotation = Math.atan2(-uy, ux);
-        item.trail.width = Math.max(1, length);
+        // The right half is transparent; visible tail length remains length.
+        item.trail.width = Math.max(1, length * 2);
         item.trail.height = Math.max(1, tailHeight);
         const tint = Cesium.Color.fromBytes(settings.red, settings.green, settings.blue);
         item.trail.color = tint.withAlpha(clamp(
