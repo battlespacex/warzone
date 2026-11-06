@@ -187,10 +187,9 @@ function refreshScale() {
 
 function getRotationDegPerSec() {
     if (window.__stratopsConfig?.milSatsRotation === false) return 0;
-    const globeSpeed = Math.max(0.01, Math.min(getCssNumber("--warzone-startup-rotation-speed", 0.52), 0.75));
-    const speed = Number(window.__stratopsConfig?.milSatsRotationSpeed);
-    const speedRatio = Number.isFinite(speed) && speed > 0 ? Math.max(0.2, speed / 5) : 1;
-    return globeSpeed * speedRatio * 1.18;
+    // Independent decorative satellite speed in degrees/second.
+    // Never read globe rotation or operational satellite speed settings here.
+    return Math.max(0, Math.min(getCssNumber("--wz-startup-satellite-speed", 0.15), 2));
 }
 
 function getStartupSatUpdateIntervalMs() {
