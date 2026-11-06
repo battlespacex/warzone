@@ -1,209 +1,295 @@
 import * as Cesium from "cesium";
 
-// Decorative pre-entry effect only. Uses the existing satellite postRender loop.
-const defaults = {
-    enabled: 1, count: 2, density: 35, size: 1.5, length: 45,
-    opacity: 40, spread: 30, duration: 2, delay: 5, fade: 3,
-    red: 245, green: 248, blue: 255,
+// Cinematic visual only: attached exclusively to the decorative entry-scene satellites.
+// Uses the existing postRender callback, without changing satellite motion or the Cesium viewer.
+const FIELDS = {
+    enabled: ["--wz-startup-vapor-enabled", 1],
+    count: ["--wz-startup-vapor-active-count", 2],
+    duration: ["--wz-startup-vapor-duration", 2],
+    delay: ["--wz-startup-vapor-cycle-delay", 5],
+    length: ["--wz-startup-vapor-length", 180000],
+    width: ["--wz-startup-vapor-width", 26000],
+    headSize: ["--wz-startup-vapor-head-size", 18000],
+    coreOpacity: ["--wz-startup-vapor-core-opacity", 0.95],
+    tailOpacity: ["--wz-startup-vapor-tail-opacity", 0.62],
+    glowOpacity: ["--wz-startup-vapor-glow-opacity", 0.35],
+    blur: ["--wz-startup-vapor-blur-strength", 1.8],
+    flash: ["--wz-startup-vapor-flash-strength", 1],
+    fadePower: ["--wz-startup-vapor-fade-power", 1.6],
+    spread: ["--wz-startup-vapor-spread", 0.18],
+    jitter: ["--wz-startup-vapor-jitter", 0.08],
+    red: ["--wz-startup-vapor-color-r", 255],
+    green: ["--wz-startup-vapor-color-g", 245],
+    blue: ["--wz-startup-vapor-color-b", 220],
 };
-const cssNames = {
-    enabled: "--wz-startup-vapor-enabled",
-    count: "--wz-startup-vapor-satellites",
-    density: "--wz-startup-vapor-density",
-    size: "--wz-startup-vapor-size",
-    length: "--wz-startup-vapor-length",
-    opacity: "--wz-startup-vapor-opacity",
-    spread: "--wz-startup-vapor-spread",
-    duration: "--wz-startup-vapor-duration",
-    delay: "--wz-startup-vapor-delay",
-    fade: "--wz-startup-vapor-fade",
-    red: "--wz-startup-vapor-red",
-    green: "--wz-startup-vapor-green",
-    blue: "--wz-startup-vapor-blue",
-};
-const limit = (value, low, high) => Math.max(low, Math.min(high, value));
+const SEGMENTS = 12;
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+const smoothstep = (t) => t * t * (3 - 2 * t);
 
-function readSettings() {
-    const style = getComputedStyle(document.documentElement);
+function getSettings() {
+    const css = getComputedStyle(document.documentElement);
     const settings = {};
-    for (const [key, cssVar] of Object.entries(cssNames)) {
-        const raw = style.getPropertyValue(cssVar).trim();
-        const value = raw === "" ? defaults[key] : Number(raw);
-        settings[key] = Number.isFinite(value) ? value : defaults[key];
+    for (const [key, [name, fallback]] of Object.entries(FIELDS)) {
+        // Number('2s') is NaN; parseFloat works for duration values in root.css.
+        const value = parseFloat(css.getPropertyValue(name).trim());
+        settings[key] = Number.isFinite(value) ? value : fallback;
     }
-    settings.count = Math.round(limit(settings.count, 1, 5));
-    settings.density = limit(settings.density, 0, 100);
-    settings.opacity = limit(settings.opacity, 0, 100);
-    settings.fade = limit(settings.fade, 0.5, 8);
-    settings.duration = limit(settings.duration, 0.5, 5);
-    settings.delay = limit(settings.delay, 1, 15);
-    settings.size = limit(settings.size, 0.1, 5);
-    settings.length = limit(settings.length, 0, 100);
-    settings.spread = limit(settings.spread, 0, 100);
+    settings.count = Math.round(clamp(settings.count, 1, 5));
+    settings.duration = clamp(settings.duration, 0.2, 10);
+    settings.delay = clamp(settings.delay, 0.2, 30);
+    settings.length = clamp(settings.length, 0, 2000000);
+    settings.width = clamp(settings.width, 0, 250000);
+    settings.headSize = clamp(settings.headSize, 0, 200000);
+    for (const key of ["coreOpacity", "tailOpacity", "glowOpacity"]) {
+        settings[key] = clamp(settings[key], 0, 1);
+    }
+    settings.blur = clamp(settings.blur, 0, 6);
+    settings.flash = clamp(settings.flash, 0, 5);
+    settings.fadePower = clamp(settings.fadePower, 0.2, 5);
+    settings.spread = clamp(settings.spread, 0, 1);
+    settings.jitter = clamp(settings.jitter, 0, 1);
+    for (const key of ["red", "green", "blue"]) settings[key] = clamp(settings[key], 0, 255);
     return settings;
 }
 
-function createSoftTexture() {
+function makeHeadTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 64;
+    canvas.width = canvas.height = 128;
     const ctx = canvas.getContext("2d");
-    const gradient = ctx.createRadialGradient(32, 32, 1, 32, 32, 32);
-    gradient.addColorStop(0, "rgba(255,255,255,0.68)");
-    gradient.addColorStop(0.27, "rgba(255,255,255,0.34)");
-    gradient.addColorStop(0.65, "rgba(255,255,255,0.09)");
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255,255,255,1)");
+    gradient.addColorStop(0.07, "rgba(255,255,255,0.98)");
+    gradient.addColorStop(0.17, "rgba(255,255,255,0.6)");
+    gradient.addColorStop(0.38, "rgba(255,255,255,0.17)");
+    gradient.addColorStop(0.75, "rgba(255,255,255,0.02)");
     gradient.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillRect(0, 0, 128, 128);
     return canvas;
 }
 
 export function createStartupSatelliteVapor(viewer) {
-    const collection = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
-    const texture = createSoftTexture();
-    const particles = [];
+    const scene = viewer.scene;
+    const trails = scene.primitives.add(new Cesium.PolylineCollection());
+    const heads = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
+    const texture = makeHeadTexture();
+    const active = [];
     const recent = new Set();
-    let selected = [];
-    let settings = readSettings();
-    let settingsAt = -Infinity;
-    let previousAt = null;
-    let phaseEndsAt = 0;
-    let emitting = false;
+    const previousPositions = new Map();
+    let phase = "idle";
+    let phaseStart = 0;
+    let nextPhaseAt = 0;
+    let settings = getSettings();
+    let settingsReadAt = -Infinity;
     let disposed = false;
 
-    function clearParticles() {
-        for (const particle of particles) collection.remove(particle.billboard);
-        particles.length = 0;
+    function removeTrail(trail) {
+        for (const segment of trail.segments) {
+            trails.remove(segment.core);
+            trails.remove(segment.glow);
+        }
+        heads.remove(trail.head);
     }
 
-    function chooseSatellites(groups) {
-        const width = viewer.scene.canvas.clientWidth;
-        const height = viewer.scene.canvas.clientHeight;
+    function clear() {
+        for (const trail of active) removeTrail(trail);
+        active.length = 0;
+    }
+
+    function select(groups) {
+        const width = scene.canvas.clientWidth;
+        const height = scene.canvas.clientHeight;
         const visible = groups.filter((group) => {
-            if (!group.entity?.show) return false;
-            const position = group.entity.position?.getValue?.(Cesium.JulianDate.now());
-            if (!position) return false;
-            const point = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, position);
-            return point && point.x >= 0 && point.x <= width && point.y >= 0 && point.y <= height;
+            const position = group.entity?.position?.getValue?.(Cesium.JulianDate.now());
+            if (!position || group.entity.show === false) return false;
+            const screen = Cesium.SceneTransforms.worldToWindowCoordinates(scene, position);
+            return screen && screen.x >= 0 && screen.x <= width && screen.y >= 0 && screen.y <= height;
         });
-        const fresh = visible.filter((group) => !recent.has(group.satDef.id));
-        const pool = fresh.length >= settings.count ? fresh : visible;
-        const randomized = [...pool].sort(() => Math.random() - 0.5);
-        selected = randomized.slice(0, settings.count);
+        const newCandidates = visible.filter((group) => !recent.has(group.satDef.id));
+        const pool = newCandidates.length >= settings.count ? newCandidates : visible;
+        // Fisher-Yates shuffle, so different satellites get selected on each cycle.
+        const randomized = [...pool];
+        for (let i = randomized.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [randomized[i], randomized[j]] = [randomized[j], randomized[i]];
+        }
+        const selected = randomized.slice(0, settings.count);
         recent.clear();
         selected.forEach((group) => recent.add(group.satDef.id));
+        return selected;
     }
 
-    function spawn(group, dt) {
-        const current = group.entity?.position?.getValue?.(Cesium.JulianDate.now());
-        if (!current || !group.vaporPreviousPosition) return;
-        const velocity = Cesium.Cartesian3.subtract(current, group.vaporPreviousPosition, new Cesium.Cartesian3());
-        if (Cesium.Cartesian3.magnitudeSquared(velocity) < 0.001) return;
-        const backward = Cesium.Cartesian3.negate(
-            Cesium.Cartesian3.normalize(velocity, new Cesium.Cartesian3()),
-            new Cesium.Cartesian3()
-        );
-        const amount = Math.min(5, Math.floor(dt * (4 + settings.density * 0.45) + Math.random()));
-        for (let i = 0; i < amount && particles.length < 150; i++) {
-            const distance = (15000 + Math.random() * 50000) * (settings.length / 45);
-            const anchor = Cesium.Cartesian3.add(
-                current, Cesium.Cartesian3.multiplyByScalar(backward, distance, new Cesium.Cartesian3()),
+    function makeTrail(group) {
+        const segments = [];
+        for (let i = 0; i < SEGMENTS; i++) {
+            const glow = trails.add({
+                show: false,
+                positions: [Cesium.Cartesian3.ZERO, Cesium.Cartesian3.ZERO],
+                width: 2,
+                material: Cesium.Material.fromType("PolylineGlow", {
+                    color: Cesium.Color.WHITE.withAlpha(0),
+                    glowPower: 0.45,
+                    taperPower: 1,
+                }),
+            });
+            const core = trails.add({
+                show: false,
+                positions: [Cesium.Cartesian3.ZERO, Cesium.Cartesian3.ZERO],
+                width: 1,
+                material: Cesium.Material.fromType("Color", {
+                    color: Cesium.Color.WHITE.withAlpha(0),
+                }),
+            });
+            segments.push({ glow, core });
+        }
+        const head = heads.add({
+            show: false,
+            image: texture,
+            position: Cesium.Cartesian3.ZERO,
+            width: 1,
+            height: 1,
+            color: Cesium.Color.WHITE,
+        });
+        return { id: group.satDef.id, segments, head, direction: null, seed: Math.random() * 100 };
+    }
+
+    function paint(trail, position, direction, progress, time) {
+        const opacity = smoothstep(clamp(progress / 0.12, 0, 1)) *
+            Math.pow(1 - smoothstep(clamp((progress - 0.54) / 0.46, 0, 1)), settings.fadePower);
+        if (opacity <= 0.001 || settings.length <= 0) {
+            for (const segment of trail.segments) {
+                segment.core.show = false;
+                segment.glow.show = false;
+            }
+            trail.head.show = false;
+            return;
+        }
+
+        const rgb = Cesium.Color.fromBytes(settings.red, settings.green, settings.blue);
+        const travel = Cesium.Cartesian3.negate(direction, new Cesium.Cartesian3());
+        // The globe-relative tangent perpendicular is stable when the camera rotates.
+        let side = Cesium.Cartesian3.cross(position, travel, new Cesium.Cartesian3());
+        if (Cesium.Cartesian3.magnitudeSquared(side) < 0.00001) {
+            side = Cesium.Cartesian3.cross(Cesium.Cartesian3.UNIT_Z, travel, side);
+        }
+        Cesium.Cartesian3.normalize(side, side);
+        const points = [];
+        const growingLength = settings.length * smoothstep(clamp(progress / 0.18, 0, 1));
+        for (let i = 0; i <= SEGMENTS; i++) {
+            const t = i / SEGMENTS;
+            const base = Cesium.Cartesian3.add(
+                position,
+                Cesium.Cartesian3.multiplyByScalar(travel, growingLength * t, new Cesium.Cartesian3()),
                 new Cesium.Cartesian3()
             );
-            const drift = new Cesium.Cartesian3(
-                (Math.random() - 0.5) * settings.spread * 900,
-                (Math.random() - 0.5) * settings.spread * 900,
-                (Math.random() - 0.5) * settings.spread * 900
-            );
-            const billboard = collection.add({
-                position: anchor,
-                image: texture,
-                width: 24 * settings.size,
-                height: 24 * settings.size,
-                color: Cesium.Color.WHITE.withAlpha(0),
-                disableDepthTestDistance: 0,
-            });
-            particles.push({
-                billboard, anchor, drift, age: 0,
-                lifetime: settings.fade * (0.75 + Math.random() * 0.5),
-                radius: 0.7 + Math.random() * 0.8,
-            });
+            // Small coherent displacement, never independent dots or smoke particles.
+            const wobble = (Math.sin(t * 8 + trail.seed + time * 0.006) * 0.55 +
+                Math.sin(t * 17 - trail.seed + time * 0.003) * 0.25);
+            const sideways = (settings.spread * t * t * settings.width * 0.6) +
+                (wobble * settings.jitter * settings.width * t);
+            points.push(Cesium.Cartesian3.add(
+                base, Cesium.Cartesian3.multiplyByScalar(side, sideways, new Cesium.Cartesian3()),
+                new Cesium.Cartesian3()
+            ));
         }
+
+        // Screen-space line widths remain visually useful at different camera distances.
+        const distance = Cesium.Cartesian3.distance(scene.camera.positionWC, position);
+        const metersPerPixel = Math.max(1, distance * scene.camera.frustum.fovy / Math.max(1, scene.canvas.clientHeight));
+        const basePixels = clamp(settings.width / metersPerPixel, 1, 26);
+        const tint = rgb;
+        for (let i = 0; i < SEGMENTS; i++) {
+            const segment = trail.segments[i];
+            const t = (i + 0.5) / SEGMENTS;
+            const taper = Math.pow(1 - t, 1.4);
+            const fade = Math.pow(1 - t, settings.fadePower);
+            const coreAlpha = clamp(opacity * settings.tailOpacity * fade, 0, 1);
+            const glowAlpha = clamp(opacity * settings.glowOpacity * fade, 0, 1);
+            const positions = [points[i], points[i + 1]];
+            segment.core.positions = positions;
+            segment.glow.positions = positions;
+            segment.core.width = Math.max(1, basePixels * taper * 0.35);
+            segment.glow.width = Math.max(1, basePixels * (1.5 + settings.blur * 1.4) * taper);
+            segment.core.material.uniforms.color = tint.withAlpha(coreAlpha);
+            segment.glow.material.uniforms.color = tint.withAlpha(glowAlpha);
+            segment.glow.material.uniforms.glowPower = clamp(0.2 + settings.blur * 0.13, 0.05, 0.95);
+            segment.core.show = coreAlpha > 0.005;
+            segment.glow.show = glowAlpha > 0.005;
+        }
+        const flashEnvelope = 1 + settings.flash * Math.exp(-progress * 17);
+        const headPixels = clamp(settings.headSize / metersPerPixel, 3, 55);
+        trail.head.position = position;
+        trail.head.width = headPixels * (1 + settings.blur * 0.55) * flashEnvelope;
+        trail.head.height = trail.head.width;
+        trail.head.color = tint.withAlpha(clamp(opacity * settings.coreOpacity, 0, 1));
+        trail.head.show = settings.headSize > 0;
     }
 
     function update(groups, now) {
         if (disposed) return;
-        if (now - settingsAt > 100) {
-            settings = readSettings();
-            settingsAt = now;
+        if (now - settingsReadAt >= 100) {
+            settings = getSettings();
+            settingsReadAt = now;
         }
-        const dt = previousAt === null ? 0 : limit((now - previousAt) / 1000, 0, 0.05);
-        previousAt = now;
-        if (!settings.enabled || !settings.density || !settings.opacity) {
-            if (particles.length) clearParticles();
-            emitting = false;
-            selected = [];
-            phaseEndsAt = now + settings.delay * 1000;
-            groups.forEach((group) => {
-                group.vaporPreviousPosition = group.entity?.position?.getValue?.(Cesium.JulianDate.now())?.clone();
-            });
-            return;
-        }
-        if (!phaseEndsAt) phaseEndsAt = now + 800;
-        if (now >= phaseEndsAt) {
-            if (emitting) {
-                emitting = false;
-                selected = [];
-                phaseEndsAt = now + settings.delay * 1000;
-            } else {
-                chooseSatellites(groups);
-                emitting = selected.length > 0;
-                phaseEndsAt = now + (emitting ? settings.duration * 1000 : 1000);
-            }
-        }
-        const activeIds = new Set(selected.map((group) => group.satDef.id));
+        const positions = new Map();
         for (const group of groups) {
-            if (emitting && activeIds.has(group.satDef.id) && dt > 0) spawn(group, dt);
-            group.vaporPreviousPosition = group.entity?.position?.getValue?.(Cesium.JulianDate.now())?.clone();
+            const position = group.entity?.position?.getValue?.(Cesium.JulianDate.now());
+            if (position) positions.set(group.satDef.id, position);
         }
-        for (let i = particles.length - 1; i >= 0; i--) {
-            const particle = particles[i];
-            particle.age += dt;
-            const progress = particle.age / particle.lifetime;
-            if (progress >= 1) {
-                collection.remove(particle.billboard);
-                particles.splice(i, 1);
-                continue;
+        if (settings.enabled === 0 || settings.length === 0) {
+            clear();
+            phase = "idle";
+            nextPhaseAt = now + settings.delay * 1000;
+        } else if (phase === "idle" && now >= nextPhaseAt) {
+            clear();
+            for (const group of select(groups)) active.push(makeTrail(group));
+            if (active.length) {
+                phase = "burst";
+                phaseStart = now;
+                nextPhaseAt = now + settings.duration * 1000;
+            } else {
+                nextPhaseAt = now + 1000;
             }
-            particle.billboard.position = Cesium.Cartesian3.add(
-                particle.anchor,
-                Cesium.Cartesian3.multiplyByScalar(particle.drift, progress, new Cesium.Cartesian3()),
-                new Cesium.Cartesian3()
-            );
-            const pixels = 24 * settings.size * particle.radius * (1 + progress * 1.8);
-            particle.billboard.width = pixels;
-            particle.billboard.height = pixels;
-            particle.billboard.color = Cesium.Color.fromBytes(
-                settings.red, settings.green, settings.blue,
-                Math.round(255 * (settings.opacity / 100) * Math.pow(1 - progress, 1.6))
-            );
+        } else if (phase === "burst") {
+            const progress = clamp((now - phaseStart) / (settings.duration * 1000), 0, 1);
+            for (const trail of active) {
+                const position = positions.get(trail.id);
+                const previous = previousPositions.get(trail.id);
+                if (!position) continue;
+                if (previous) {
+                    const step = Cesium.Cartesian3.subtract(position, previous, new Cesium.Cartesian3());
+                    if (Cesium.Cartesian3.magnitudeSquared(step) > 0.01) {
+                        trail.direction = Cesium.Cartesian3.normalize(step, step);
+                    }
+                }
+                if (trail.direction) paint(trail, position, trail.direction, progress, now);
+            }
+            if (now >= nextPhaseAt) {
+                clear();
+                phase = "idle";
+                nextPhaseAt = now + settings.delay * 1000;
+            }
         }
+        previousPositions.clear();
+        for (const [id, position] of positions) previousPositions.set(id, Cesium.Cartesian3.clone(position));
     }
 
     return {
         update,
         reset() {
-            clearParticles();
-            selected = [];
+            clear();
             recent.clear();
-            previousAt = null;
-            phaseEndsAt = 0;
-            emitting = false;
+            previousPositions.clear();
+            phase = "idle";
+            nextPhaseAt = 0;
         },
         destroy() {
             if (disposed) return;
             disposed = true;
-            clearParticles();
-            viewer.scene.primitives.remove(collection);
+            clear();
+            previousPositions.clear();
+            scene.primitives.remove(trails);
+            scene.primitives.remove(heads);
         },
     };
 }
