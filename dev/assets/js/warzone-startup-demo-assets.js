@@ -359,6 +359,25 @@ function getPathBankDegrees(asset, progress, pointFactory, dtSeconds = 0, entry 
     const headingB = bearingDegrees(p1, p2);
     const turnDelta = signedHeadingDeltaDeg(headingA, headingB);
     const deadZone = Math.max(0, getCssNumber("--wz-startup-air-bank-deadzone", 0.04));
+    // B-2 bombers should roll gently, not snap between full bank angles
+    // when tiny heading variations cross the turn dead zone.
+    if (asset?.id === "b2-1" || asset?.id === "b2-2") {
+        const maxBank = Math.max(0, Math.min(30, getCssNumber("--wz-startup-b2-bank-max-deg", 8)));
+        const turnScale = Math.max(0.01, getCssNumber("--wz-startup-b2-bank-turn-scale", 0.35));
+        const desired = Math.max(-maxBank, Math.min(maxBank,
+            (Math.abs(turnDelta) <= deadZone ? 0 : turnDelta / turnScale * maxBank)
+        ));
+        if (!entry) return desired;
+        if (!(dtSeconds > 0)) return Number(entry.bank || 0);
+        const smoothing = Math.max(0.05, Math.min(3, getCssNumber("--wz-startup-b2-bank-smoothing", 0.55)));
+        const maxRate = Math.max(0.1, Math.min(30, getCssNumber("--wz-startup-b2-bank-rate-deg-sec", 5)));
+        const previous = Number(entry.bank || 0);
+        const eased = (desired - previous) * (1 - Math.exp(-smoothing * dtSeconds));
+        const maxStep = maxRate * dtSeconds;
+        entry.bank = previous + Math.max(-maxStep, Math.min(maxStep, eased));
+        return entry.bank;
+    }
+
     const targetBank = Math.abs(turnDelta) <= deadZone ? 0 : Math.sign(turnDelta) * bankLimit;
 
     if (!entry || !(dtSeconds > 0)) return targetBank;
