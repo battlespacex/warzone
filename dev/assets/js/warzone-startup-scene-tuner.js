@@ -436,6 +436,12 @@ function getRootCssNumber(name, fallback) {
     return Number.isFinite(value) ? value : fallback;
 }
 
+function getTunerFieldNumber(field) {
+    if (!field.unit) return getRootCssNumber(field.cssVar, field.fallback);
+    const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(field.cssVar).trim());
+    return Number.isFinite(value) ? value : field.fallback;
+}
+
 function getRootCssFlag(name, fallback = 1) {
     return getRootCssNumber(name, fallback) !== 0;
 }
@@ -586,8 +592,8 @@ function buildCssBlock(groups = [currentGroup()]) {
     groups.forEach((group) => {
         lines.push(`    /* ${group.label} */`);
         group.fields.forEach((field) => {
-            const value = getRootCssNumber(field.cssVar, field.fallback);
-            lines.push(`    ${field.cssVar}: ${formatValue(value, field)};`);
+            const value = getTunerFieldNumber(field);
+            lines.push(`    ${field.cssVar}: ${formatValue(value, field)}${field.unit || ""};`);
         });
     });
     lines.push("}");
@@ -678,7 +684,7 @@ function renderFields() {
         number.step = String(field.step);
         number.setAttribute("aria-label", field.label);
 
-        const value = formatValue(getRootCssNumber(field.cssVar, field.fallback), field);
+        const value = formatValue(getTunerFieldNumber(field), field);
         range.value = value;
         number.value = value;
         if (percentValue) percentValue.textContent = `${value}%`;
@@ -689,7 +695,7 @@ function renderFields() {
             if (source !== "range") range.value = formatted;
             if (source !== "number") number.value = formatted;
             if (percentValue) percentValue.textContent = `${formatted}%`;
-            document.documentElement.style.setProperty(field.cssVar, formatted);
+            document.documentElement.style.setProperty(field.cssVar, `${formatted}${field.unit || ""}`);
             tunerState.touchedCssVars.add(field.cssVar);
             refreshPreview(group.id, field.cssVar);
             syncOutput(false);
