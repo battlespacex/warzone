@@ -1547,7 +1547,7 @@
 
         /* Scene & Satellites */
     /* Scene & Satellites */
-    --warzone-start-lon: 33.6;
+    /* --warzone-start-lon: 33.6;
     --warzone-start-lat: 9;
     --warzone-start-height: 6100000;
     --warzone-start-heading: 0;
@@ -1573,7 +1573,97 @@
     --wz-entry-show-borders: 0;
     --wz-intro-gnss-enabled: 1;
     --wz-intro-gnss-density: 100;
+    --wz-intro-gnss-size: 100; */
+
+
+ /* TITLED 2 */
+    /* --warzone-start-lon: 33.0;
+    --warzone-start-lat: -5.2;
+    --warzone-start-height: 6050000;
+    --warzone-start-heading: 6;
+    --warzone-start-pitch: -62;
+    --warzone-start-roll: 0;
+    --warzone-startup-rotation-speed: 2.00;
+    --warzone-startup-sat-update-ms: 140;
+    --wz-startup-sat-min-lat: 90;
+    --wz-startup-sat-max-lat: -90;
+    --wz-startup-demo-update-ms: 0;
+    --wz-startup-air-bank-deg: -14;
+    --wz-startup-air-bank-smoothing: 0.65;
+    --wz-startup-b2-world-speed: 0.014;
+    --wz-startup-f22-back-distance: 90;
+    --wz-startup-f22-side-distance: 80;
+    --warzone-satellite-model-scale: 2300;
+    --warzone-mil-sat-min-px: 30;
+    --warzone-mil-sat-max-scale: 320000;
+    --wz-entry-show-satellites: 1;
+    --wz-entry-show-naval-assets: 1;
+    --wz-entry-show-air-assets: 1;
+    --wz-entry-show-map-imagery: 1;
+    --wz-entry-show-borders: 0;
+    --wz-intro-gnss-enabled: 1;
+    --wz-intro-gnss-density: 100;
+    --wz-intro-gnss-size: 100; */
+
+        /* TITLED */
+    --warzone-start-lon: 35.8;
+    --warzone-start-lat: -0.9;
+    --warzone-start-height: 4050000;
+    --warzone-start-heading: 20;
+    --warzone-start-pitch: -56;
+    --warzone-start-roll: 0;
+    --warzone-startup-rotation-speed: 2.00;
+    --warzone-startup-sat-update-ms: 140;
+    --wz-startup-sat-min-lat: 90;
+    --wz-startup-sat-max-lat: -90;
+    --wz-startup-demo-update-ms: 0;
+    --wz-startup-air-bank-deg: -20;
+    --wz-startup-air-bank-smoothing: 3.70;
+    --wz-startup-b2-world-speed: 0.009;
+    --wz-startup-f22-back-distance: 90;
+    --wz-startup-f22-side-distance: 80;
+    --warzone-satellite-model-scale: 2300;
+    --warzone-mil-sat-min-px: 30;
+    --warzone-mil-sat-max-scale: 320000;
+    --wz-entry-show-satellites: 1;
+    --wz-entry-show-naval-assets: 1;
+    --wz-entry-show-air-assets: 1;
+    --wz-entry-show-map-imagery: 1;
+    --wz-entry-show-borders: 0;
+    --wz-intro-gnss-enabled: 1;
+    --wz-intro-gnss-density: 100;
     --wz-intro-gnss-size: 100;
+
+      /* BEST */
+    /* --warzone-start-lon: 33.6;
+    --warzone-start-lat: 19.0;
+    --warzone-start-height: 23000000;
+    --warzone-start-heading: 0;
+    --warzone-start-pitch: -85;
+    --warzone-start-roll: 0;
+    --warzone-startup-rotation-speed: 2.00;
+    --warzone-startup-sat-update-ms: 100;
+    --wz-startup-sat-min-lat: 0;
+    --wz-startup-sat-max-lat: 60;
+    --wz-startup-demo-update-ms: 0;
+    --wz-startup-air-bank-deg: -14;
+    --wz-startup-air-bank-smoothing: 0.65;
+    --wz-startup-b2-world-speed: 0.014;
+    --wz-startup-f22-back-distance: 90;
+    --wz-startup-f22-side-distance: 80;
+    --warzone-satellite-model-scale: 2200;
+    --warzone-mil-sat-min-px: 30;
+    --warzone-mil-sat-max-scale: 320000;
+    --wz-entry-show-satellites: 1;
+    --wz-entry-show-naval-assets: 1;
+    --wz-entry-show-air-assets: 1;
+    --wz-entry-show-map-imagery: 1;
+    --wz-entry-show-borders: 0;
+    --wz-intro-gnss-enabled: 1;
+    --wz-intro-gnss-density: 100;
+    --wz-intro-gnss-size: 100; */
+
+
     /* Oman Carrier */
     --wz-startup-oman-carrier-lon: 63.8;
     --wz-startup-oman-carrier-lat: 18.6;
@@ -1838,12 +1928,12 @@
     --wz-startup-b2-1-loop-width-km: 520;
     --wz-startup-b2-1-altitude: 210000;
     --wz-startup-b2-1-speed: 0.008;
-    --wz-startup-b2-1-phase: 0.00;
+    --wz-startup-b2-1-phase: 0.43;
     --wz-startup-b2-1-heading-offset: 90;
     --wz-startup-b2-1-pitch: 0;
     --wz-startup-b2-1-roll: 0;
     --wz-startup-b2-1-scale: 1;
-    --wz-startup-b2-1-min-px: 80;
+    --wz-startup-b2-1-min-px: 125;
     --wz-startup-b2-1-max-scale: 9000;
     --wz-startup-b2-1-visible: 1;
     /* B-2 Spirit Trail */
@@ -1854,12 +1944,12 @@
     --wz-startup-b2-2-loop-width-km: 520;
     --wz-startup-b2-2-altitude: 210000;
     --wz-startup-b2-2-speed: 0.008;
-    --wz-startup-b2-2-phase: 0.00;
+    --wz-startup-b2-2-phase: 0.43;
     --wz-startup-b2-2-heading-offset: 90;
     --wz-startup-b2-2-pitch: 0;
     --wz-startup-b2-2-roll: 0;
     --wz-startup-b2-2-scale: 1;
-    --wz-startup-b2-2-min-px: 80;
+    --wz-startup-b2-2-min-px: 125;
     --wz-startup-b2-2-max-scale: 9000;
     --wz-startup-b2-2-visible: 1;
     /* KC-135 Refueler */
@@ -1870,12 +1960,12 @@
     --wz-startup-kc135-1-loop-width-km: 520;
     --wz-startup-kc135-1-altitude: 205000;
     --wz-startup-kc135-1-speed: 0.008;
-    --wz-startup-kc135-1-phase: 0.00;
+    --wz-startup-kc135-1-phase: 0.43;
     --wz-startup-kc135-1-heading-offset: 90;
     --wz-startup-kc135-1-pitch: 0;
     --wz-startup-kc135-1-roll: 0;
     --wz-startup-kc135-1-scale: 1;
-    --wz-startup-kc135-1-min-px: 90;
+    --wz-startup-kc135-1-min-px: 140;
     --wz-startup-kc135-1-max-scale: 11000;
     --wz-startup-kc135-1-visible: 1;
     /* B-52 Lead */
