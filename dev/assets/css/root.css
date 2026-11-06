@@ -510,7 +510,7 @@
     --warzone-start-heading: 0;
     --warzone-start-pitch: -74;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 0.45;
+    --warzone-startup-rotation-speed: 2.00;
     --warzone-startup-sat-update-ms: 260;
 }
 
@@ -1612,8 +1612,8 @@
     --warzone-start-heading: 20;
     --warzone-start-pitch: -56;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 2.00;
     --warzone-startup-sat-update-ms: 140;
+    --wz-startup-satellite-speed: 0.15;
     --wz-startup-sat-min-lat: 90;
     --wz-startup-sat-max-lat: -90;
     --wz-startup-demo-update-ms: 0;
@@ -2061,12 +2061,7 @@
   --wz-startup-vapor-width: 26000;
   --wz-startup-vapor-head-size: 18000;
 
-  --wz-startup-vapor-core-opacity: 0.95;
-  --wz-startup-vapor-tail-opacity: 0.62;
-  --wz-startup-vapor-glow-opacity: 0.35;
 
-  --wz-startup-vapor-blur-strength: 1.8;
-  --wz-startup-vapor-flash-strength: 1.0;
   --wz-startup-vapor-fade-power: 1.6;
 
   --wz-startup-vapor-spread: 0.18;
@@ -2075,4 +2070,11 @@
   --wz-startup-vapor-color-r: 255;
   --wz-startup-vapor-color-g: 245;
   --wz-startup-vapor-color-b: 220;
+
+
+  --wz-startup-vapor-blur-strength: 3.5;
+--wz-startup-vapor-glow-opacity: 0.55;
+--wz-startup-vapor-core-opacity: 0.65;
+--wz-startup-vapor-tail-opacity: 0.45;
+--wz-startup-vapor-flash-strength: 0.7;
 }
