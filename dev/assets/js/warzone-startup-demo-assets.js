@@ -325,6 +325,18 @@ function getFormationOffset(asset, point, headingDeg) {
     return offsetFormationHeading(point.lon, point.lat, headingDeg, backKm, sideKm);
 }
 
+// One consistent, frame-rate-independent response for every decorative aircraft.
+function smoothEntryBank(entry, targetBank, dtSeconds, maxRate = Infinity) {
+    if (!entry) return targetBank;
+    if (!(dtSeconds > 0)) return Number(entry.bank || 0);
+    const smoothing = Math.max(0.01, Math.min(6, getCssNumber("--wz-startup-air-bank-smoothing", 0.55)));
+    const previous = Number(entry.bank || 0);
+    const eased = (targetBank - previous) * (1 - Math.exp(-smoothing * dtSeconds));
+    const maxStep = maxRate * dtSeconds;
+    entry.bank = previous + Math.max(-maxStep, Math.min(maxStep, eased));
+    return entry.bank;
+}
+
 function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
     const bankLimit = getCssNumber("--wz-startup-air-bank-deg", 24);
     if (!Number.isFinite(bankLimit) || bankLimit === 0) return 0;
@@ -341,10 +353,7 @@ function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
 
     if (!entry || !(dtSeconds > 0)) return targetBank;
 
-    const smoothing = Math.max(0.05, Math.min(getCssNumber("--wz-startup-air-bank-smoothing", 1.2), 6));
-    const factor = 1 - Math.exp(-smoothing * Math.max(0, dtSeconds));
-    entry.bank = Number(entry.bank || 0) + (targetBank - Number(entry.bank || 0)) * factor;
-    return entry.bank;
+    return smoothEntryBank(entry, targetBank, dtSeconds);
 }
 
 function getPathBankDegrees(asset, progress, pointFactory, dtSeconds = 0, entry = null) {
@@ -369,23 +378,15 @@ function getPathBankDegrees(asset, progress, pointFactory, dtSeconds = 0, entry 
         ));
         if (!entry) return desired;
         if (!(dtSeconds > 0)) return Number(entry.bank || 0);
-        const smoothing = Math.max(0.05, Math.min(3, getCssNumber("--wz-startup-b2-bank-smoothing", 0.55)));
         const maxRate = Math.max(0.1, Math.min(30, getCssNumber("--wz-startup-b2-bank-rate-deg-sec", 5)));
-        const previous = Number(entry.bank || 0);
-        const eased = (desired - previous) * (1 - Math.exp(-smoothing * dtSeconds));
-        const maxStep = maxRate * dtSeconds;
-        entry.bank = previous + Math.max(-maxStep, Math.min(maxStep, eased));
-        return entry.bank;
+        return smoothEntryBank(entry, desired, dtSeconds, maxRate);
     }
 
     const targetBank = Math.abs(turnDelta) <= deadZone ? 0 : Math.sign(turnDelta) * bankLimit;
 
     if (!entry || !(dtSeconds > 0)) return targetBank;
 
-    const smoothing = Math.max(0.01, Math.min(getCssNumber("--wz-startup-air-bank-smoothing", 0.18), 1));
-    const factor = Math.min(1, Math.max(smoothing, dtSeconds * 8));
-    entry.bank = Number(entry.bank || 0) + (targetBank - Number(entry.bank || 0)) * factor;
-    return entry.bank;
+    return smoothEntryBank(entry, targetBank, dtSeconds);
 }
 
 function updateMovingEntity(asset, entry, dtSeconds = 0) {
