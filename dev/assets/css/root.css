@@ -1618,7 +1618,7 @@
     --wz-startup-sat-max-lat: -90;
     --wz-startup-demo-update-ms: 0;
     --wz-startup-air-bank-deg: -20;
-    --wz-startup-air-bank-smoothing: 3.70;
+    --wz-startup-air-bank-smoothing: 0.30;
     --wz-startup-b2-world-speed: 0.009;
     --wz-startup-f22-back-distance: 90;
     --wz-startup-f22-side-distance: 80;
@@ -2051,30 +2051,21 @@
 }
 
 :root {
-    
-  --wz-startup-vapor-enabled: 1;
-
-  --wz-startup-vapor-active-count: 7;
-  --wz-startup-vapor-duration: 7s;
-
-  --wz-startup-vapor-cycle-delay: 3s;
-  --wz-startup-vapor-width: 26000;
-  --wz-startup-vapor-head-size: 18000;
-
-
-  --wz-startup-vapor-fade-power: 1.6;
-
-  --wz-startup-vapor-spread: 0.1;
-  --wz-startup-vapor-jitter: 0.08;
-
-  --wz-startup-vapor-color-r: 255;
-  --wz-startup-vapor-color-g: 245;
-  --wz-startup-vapor-color-b: 220;
-
-
-  --wz-startup-vapor-blur-strength: 3.5;
---wz-startup-vapor-glow-opacity: 0.55;
---wz-startup-vapor-core-opacity: 0.65;
---wz-startup-vapor-tail-opacity: 0.45;
---wz-startup-vapor-flash-strength: 0.7;
+      --wz-startup-vapor-enabled: 1;
+    --wz-startup-vapor-head-size: 22000;
+    --wz-startup-vapor-core-opacity: 0.80;
+    --wz-startup-vapor-tail-opacity: 0.60;
+    --wz-startup-vapor-glow-opacity: 0.65;
+    --wz-startup-vapor-flash-strength: 1.5;
+    --wz-startup-vapor-blur-strength: 4;
+    --wz-startup-vapor-active-count: 7;
+    --wz-startup-vapor-duration: 7s;
+    --wz-startup-vapor-cycle-delay: 3s;
+    --wz-startup-vapor-width: 32000;
+    --wz-startup-vapor-fade-power: 1.6;
+    --wz-startup-vapor-spread: 0.1;
+    --wz-startup-vapor-jitter: 0.08;
+    --wz-startup-vapor-color-r: 255;
+    --wz-startup-vapor-color-g: 245;
+    --wz-startup-vapor-color-b: 220;
 }
