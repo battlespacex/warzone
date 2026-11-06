@@ -1,8 +1,8 @@
 import * as Cesium from "cesium";
 
-// Cinematic visual only: attached exclusively to the decorative entry-scene satellites.
-// Uses the existing postRender callback, without changing satellite motion or the Cesium viewer.
-const FIELDS = {
+// Entry-scene decorative satellites only. Two feathered textures replace all
+// segmented polyline geometry, eliminating the hard white/glittery artifacts.
+const CSS = {
     enabled: ["--wz-startup-vapor-enabled", 1],
     count: ["--wz-startup-vapor-active-count", 2],
     duration: ["--wz-startup-vapor-duration", 2],
@@ -22,274 +22,262 @@ const FIELDS = {
     green: ["--wz-startup-vapor-color-g", 245],
     blue: ["--wz-startup-vapor-color-b", 220],
 };
-const SEGMENTS = 12;
-const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const smoothstep = (t) => t * t * (3 - 2 * t);
 
-function getSettings() {
-    const css = getComputedStyle(document.documentElement);
-    const settings = {};
-    for (const [key, [name, fallback]] of Object.entries(FIELDS)) {
-        // Number('2s') is NaN; parseFloat works for duration values in root.css.
-        const value = parseFloat(css.getPropertyValue(name).trim());
-        settings[key] = Number.isFinite(value) ? value : fallback;
+function readSettings() {
+    const style = getComputedStyle(document.documentElement);
+    const out = {};
+    for (const [key, [name, fallback]] of Object.entries(CSS)) {
+        const value = parseFloat(style.getPropertyValue(name).trim());
+        out[key] = Number.isFinite(value) ? value : fallback;
     }
-    settings.count = Math.round(clamp(settings.count, 1, 5));
-    settings.duration = clamp(settings.duration, 0.2, 10);
-    settings.delay = clamp(settings.delay, 0.2, 30);
-    settings.length = clamp(settings.length, 0, 2000000);
-    settings.width = clamp(settings.width, 0, 250000);
-    settings.headSize = clamp(settings.headSize, 0, 200000);
+    out.count = Math.round(clamp(out.count, 1, 5));
+    out.duration = clamp(out.duration, 0.2, 10);
+    out.delay = clamp(out.delay, 0.2, 30);
+    out.length = clamp(out.length, 0, 2000000);
+    out.width = clamp(out.width, 0, 250000);
+    out.headSize = clamp(out.headSize, 0, 200000);
+    out.blur = clamp(out.blur, 0, 6);
+    out.flash = clamp(out.flash, 0, 5);
+    out.fadePower = clamp(out.fadePower, 0.2, 5);
+    out.spread = clamp(out.spread, 0, 1);
+    out.jitter = clamp(out.jitter, 0, 1);
     for (const key of ["coreOpacity", "tailOpacity", "glowOpacity"]) {
-        settings[key] = clamp(settings[key], 0, 1);
+        out[key] = clamp(out[key], 0, 1);
     }
-    settings.blur = clamp(settings.blur, 0, 6);
-    settings.flash = clamp(settings.flash, 0, 5);
-    settings.fadePower = clamp(settings.fadePower, 0.2, 5);
-    settings.spread = clamp(settings.spread, 0, 1);
-    settings.jitter = clamp(settings.jitter, 0, 1);
-    for (const key of ["red", "green", "blue"]) settings[key] = clamp(settings[key], 0, 255);
-    return settings;
+    for (const key of ["red", "green", "blue"]) out[key] = clamp(out[key], 0, 255);
+    return out;
 }
 
-function makeHeadTexture() {
+function makeTrailTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 160;
+    const ctx = canvas.getContext("2d");
+    // Head is near the RIGHT edge; the tail fades smoothly to the LEFT.
+    // Blurred envelope and tapered interior are continuous, not polyline segments.
+    const gradient = ctx.createLinearGradient(10, 0, 475, 0);
+    gradient.addColorStop(0, "rgba(255,255,255,0)");
+    gradient.addColorStop(0.24, "rgba(255,255,255,0.035)");
+    gradient.addColorStop(0.56, "rgba(255,255,255,0.13)");
+    gradient.addColorStop(0.79, "rgba(255,255,255,0.34)");
+    gradient.addColorStop(0.96, "rgba(255,255,255,0.82)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save();
+    ctx.filter = "blur(15px)";
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(10, 80);
+    ctx.bezierCurveTo(140, 72, 290, 34, 470, 74);
+    ctx.quadraticCurveTo(482, 80, 470, 86);
+    ctx.bezierCurveTo(290, 126, 140, 88, 10, 80);
+    ctx.fill();
+    ctx.restore();
+
+    const core = ctx.createLinearGradient(30, 0, 476, 0);
+    core.addColorStop(0, "rgba(255,255,255,0)");
+    core.addColorStop(0.40, "rgba(255,255,255,0.035)");
+    core.addColorStop(0.70, "rgba(255,255,255,0.2)");
+    core.addColorStop(0.89, "rgba(255,255,255,0.54)");
+    core.addColorStop(0.99, "rgba(255,255,255,0.85)");
+    core.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save();
+    ctx.filter = "blur(5px)";
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.moveTo(30, 80);
+    ctx.bezierCurveTo(240, 77, 380, 69, 475, 77);
+    ctx.lineTo(475, 83);
+    ctx.bezierCurveTo(380, 91, 240, 83, 30, 80);
+    ctx.fill();
+    ctx.restore();
+    return canvas;
+}
+
+function makeFlashTexture() {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 128;
     const ctx = canvas.getContext("2d");
-    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, "rgba(255,255,255,1)");
-    gradient.addColorStop(0.07, "rgba(255,255,255,0.98)");
-    gradient.addColorStop(0.17, "rgba(255,255,255,0.6)");
-    gradient.addColorStop(0.38, "rgba(255,255,255,0.17)");
-    gradient.addColorStop(0.75, "rgba(255,255,255,0.02)");
-    gradient.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = gradient;
+    const glow = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    glow.addColorStop(0, "rgba(255,255,255,1)");
+    glow.addColorStop(0.08, "rgba(255,255,255,0.9)");
+    glow.addColorStop(0.25, "rgba(255,255,255,0.32)");
+    glow.addColorStop(0.60, "rgba(255,255,255,0.04)");
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = glow;
     ctx.fillRect(0, 0, 128, 128);
     return canvas;
 }
 
 export function createStartupSatelliteVapor(viewer) {
     const scene = viewer.scene;
-    const trails = scene.primitives.add(new Cesium.PolylineCollection());
-    const heads = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
-    const texture = makeHeadTexture();
+    const billboards = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
+    const trailTexture = makeTrailTexture();
+    const flashTexture = makeFlashTexture();
     const active = [];
-    const recent = new Set();
-    const previousPositions = new Map();
-    let phase = "idle";
-    let phaseStart = 0;
-    let nextPhaseAt = 0;
-    let settings = getSettings();
+    const previousIds = new Set();
+    let settings = readSettings();
     let settingsReadAt = -Infinity;
+    let phase = "idle";
+    let burstAt = 0;
+    let phaseEndsAt = 0;
     let disposed = false;
 
-    function removeTrail(trail) {
-        for (const segment of trail.segments) {
-            trails.remove(segment.core);
-            trails.remove(segment.glow);
-        }
-        heads.remove(trail.head);
-    }
-
     function clear() {
-        for (const trail of active) removeTrail(trail);
+        for (const item of active) {
+            billboards.remove(item.trail);
+            billboards.remove(item.flash);
+        }
         active.length = 0;
     }
 
     function select(groups) {
-        const width = scene.canvas.clientWidth;
-        const height = scene.canvas.clientHeight;
+        const { clientWidth, clientHeight } = scene.canvas;
         const visible = groups.filter((group) => {
             const position = group.entity?.position?.getValue?.(Cesium.JulianDate.now());
             if (!position || group.entity.show === false) return false;
             const screen = Cesium.SceneTransforms.worldToWindowCoordinates(scene, position);
-            return screen && screen.x >= 0 && screen.x <= width && screen.y >= 0 && screen.y <= height;
+            return screen && screen.x >= 0 && screen.x <= clientWidth &&
+                screen.y >= 0 && screen.y <= clientHeight;
         });
-        const newCandidates = visible.filter((group) => !recent.has(group.satDef.id));
-        const pool = newCandidates.length >= settings.count ? newCandidates : visible;
-        // Fisher-Yates shuffle, so different satellites get selected on each cycle.
-        const randomized = [...pool];
-        for (let i = randomized.length - 1; i > 0; i--) {
+        const fresh = visible.filter((group) => !previousIds.has(group.satDef.id));
+        const pool = fresh.length >= settings.count ? fresh : visible;
+        const shuffled = [...pool];
+        for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [randomized[i], randomized[j]] = [randomized[j], randomized[i]];
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        const selected = randomized.slice(0, settings.count);
-        recent.clear();
-        selected.forEach((group) => recent.add(group.satDef.id));
-        return selected;
+        const chosen = shuffled.slice(0, settings.count);
+        previousIds.clear();
+        chosen.forEach((group) => previousIds.add(group.satDef.id));
+        return chosen;
     }
 
-    function makeTrail(group) {
-        const segments = [];
-        for (let i = 0; i < SEGMENTS; i++) {
-            const glow = trails.add({
-                show: false,
-                positions: [Cesium.Cartesian3.ZERO, Cesium.Cartesian3.ZERO],
-                width: 2,
-                material: Cesium.Material.fromType("PolylineGlow", {
-                    color: Cesium.Color.WHITE.withAlpha(0),
-                    glowPower: 0.45,
-                    taperPower: 1,
-                }),
-            });
-            const core = trails.add({
-                show: false,
-                positions: [Cesium.Cartesian3.ZERO, Cesium.Cartesian3.ZERO],
-                width: 1,
-                material: Cesium.Material.fromType("Color", {
-                    color: Cesium.Color.WHITE.withAlpha(0),
-                }),
-            });
-            segments.push({ glow, core });
-        }
-        const head = heads.add({
-            show: false,
-            image: texture,
-            position: Cesium.Cartesian3.ZERO,
-            width: 1,
-            height: 1,
-            color: Cesium.Color.WHITE,
+    function add(group) {
+        const position = group.entity.position.getValue(Cesium.JulianDate.now());
+        active.push({
+            id: group.satDef.id,
+            trail: billboards.add({
+                show: false, image: trailTexture, position,
+                width: 1, height: 1, color: Cesium.Color.WHITE,
+            }),
+            flash: billboards.add({
+                show: false, image: flashTexture, position,
+                width: 1, height: 1, color: Cesium.Color.WHITE,
+            }),
         });
-        return { id: group.satDef.id, segments, head, direction: null, seed: Math.random() * 100 };
     }
 
-    function paint(trail, position, direction, progress, time) {
-        const opacity = smoothstep(clamp(progress / 0.12, 0, 1)) *
-            Math.pow(1 - smoothstep(clamp((progress - 0.54) / 0.46, 0, 1)), settings.fadePower);
-        if (opacity <= 0.001 || settings.length <= 0) {
-            for (const segment of trail.segments) {
-                segment.core.show = false;
-                segment.glow.show = false;
-            }
-            trail.head.show = false;
+    function draw(item, group, progress) {
+        const position = group.entity?.position?.getValue?.(Cesium.JulianDate.now());
+        if (!position) {
+            item.trail.show = false;
+            item.flash.show = false;
             return;
         }
-
-        const rgb = Cesium.Color.fromBytes(settings.red, settings.green, settings.blue);
-        const travel = Cesium.Cartesian3.negate(direction, new Cesium.Cartesian3());
-        // The globe-relative tangent perpendicular is stable when the camera rotates.
-        let side = Cesium.Cartesian3.cross(position, travel, new Cesium.Cartesian3());
-        if (Cesium.Cartesian3.magnitudeSquared(side) < 0.00001) {
-            side = Cesium.Cartesian3.cross(Cesium.Cartesian3.UNIT_Z, travel, side);
-        }
-        Cesium.Cartesian3.normalize(side, side);
-        const points = [];
-        const growingLength = settings.length * smoothstep(clamp(progress / 0.18, 0, 1));
-        for (let i = 0; i <= SEGMENTS; i++) {
-            const t = i / SEGMENTS;
-            const base = Cesium.Cartesian3.add(
-                position,
-                Cesium.Cartesian3.multiplyByScalar(travel, growingLength * t, new Cesium.Cartesian3()),
-                new Cesium.Cartesian3()
-            );
-            // Small coherent displacement, never independent dots or smoke particles.
-            const wobble = (Math.sin(t * 8 + trail.seed + time * 0.006) * 0.55 +
-                Math.sin(t * 17 - trail.seed + time * 0.003) * 0.25);
-            const sideways = (settings.spread * t * t * settings.width * 0.6) +
-                (wobble * settings.jitter * settings.width * t);
-            points.push(Cesium.Cartesian3.add(
-                base, Cesium.Cartesian3.multiplyByScalar(side, sideways, new Cesium.Cartesian3()),
-                new Cesium.Cartesian3()
-            ));
-        }
-
-        // Screen-space line widths remain visually useful at different camera distances.
+        const coords = Cesium.Cartographic.fromCartesian(position);
+        const ahead = Cesium.Cartesian3.fromRadians(
+            coords.longitude - Cesium.Math.toRadians(0.3), coords.latitude, coords.height
+        );
+        const screen = Cesium.SceneTransforms.worldToWindowCoordinates(scene, position);
+        const forwardScreen = Cesium.SceneTransforms.worldToWindowCoordinates(scene, ahead);
+        if (!screen || !forwardScreen) return;
+        const dx = forwardScreen.x - screen.x;
+        const dy = forwardScreen.y - screen.y;
+        const magnitude = Math.hypot(dx, dy);
+        if (magnitude < 0.01) return;
+        const ux = dx / magnitude;
+        const uy = dy / magnitude;
         const distance = Cesium.Cartesian3.distance(scene.camera.positionWC, position);
-        const metersPerPixel = Math.max(1, distance * scene.camera.frustum.fovy / Math.max(1, scene.canvas.clientHeight));
-        const basePixels = clamp(settings.width / metersPerPixel, 1, 26);
-        const tint = rgb;
-        for (let i = 0; i < SEGMENTS; i++) {
-            const segment = trail.segments[i];
-            const t = (i + 0.5) / SEGMENTS;
-            const taper = Math.pow(1 - t, 1.4);
-            const fade = Math.pow(1 - t, settings.fadePower);
-            const coreAlpha = clamp(opacity * settings.tailOpacity * fade, 0, 1);
-            const glowAlpha = clamp(opacity * settings.glowOpacity * fade, 0, 1);
-            const positions = [points[i], points[i + 1]];
-            segment.core.positions = positions;
-            segment.glow.positions = positions;
-            segment.core.width = Math.max(1, basePixels * taper * 0.35);
-            segment.glow.width = Math.max(1, basePixels * (1.5 + settings.blur * 1.4) * taper);
-            segment.core.material.uniforms.color = tint.withAlpha(coreAlpha);
-            segment.glow.material.uniforms.color = tint.withAlpha(glowAlpha);
-            segment.glow.material.uniforms.glowPower = clamp(0.2 + settings.blur * 0.13, 0.05, 0.95);
-            segment.core.show = coreAlpha > 0.005;
-            segment.glow.show = glowAlpha > 0.005;
-        }
-        const flashEnvelope = 1 + settings.flash * Math.exp(-progress * 17);
-        const headPixels = clamp(settings.headSize / metersPerPixel, 3, 55);
-        trail.head.position = position;
-        trail.head.width = headPixels * (1 + settings.blur * 0.55) * flashEnvelope;
-        trail.head.height = trail.head.width;
-        trail.head.color = tint.withAlpha(clamp(opacity * settings.coreOpacity, 0, 1));
-        trail.head.show = settings.headSize > 0;
+        const frustum = scene.camera.frustum;
+        const fovY = Number(frustum.fovy) || Cesium.Math.toRadians(60);
+        const metersPerPixel = Math.max(1, (2 * distance * Math.tan(fovY / 2)) /
+            Math.max(1, scene.canvas.clientHeight));
+        const appearing = smoothstep(clamp(progress / 0.14, 0, 1));
+        const disappearing = Math.pow(1 - smoothstep(clamp((progress - 0.50) / 0.50, 0, 1)),
+            settings.fadePower);
+        const envelope = appearing * disappearing;
+        const flashBoost = 1 + settings.flash * Math.exp(-progress * 15);
+        const length = clamp(settings.length / metersPerPixel, 8, 320) *
+            smoothstep(clamp(progress / 0.20, 0, 1));
+        const tailHeight = clamp(settings.width / metersPerPixel, 3, 48) *
+            (1.4 + settings.blur * 0.65 + settings.spread * 0.3);
+        // The texture's bright tip is at ~92% of its width. Offset the
+        // center backward from the satellite to keep the tip near the model.
+        const offset = length * 0.42;
+        item.trail.position = position;
+        item.trail.pixelOffset = new Cesium.Cartesian2(-ux * offset, uy * offset);
+        item.trail.rotation = Math.atan2(-uy, ux);
+        item.trail.width = Math.max(1, length);
+        item.trail.height = Math.max(1, tailHeight);
+        const tint = Cesium.Color.fromBytes(settings.red, settings.green, settings.blue);
+        item.trail.color = tint.withAlpha(clamp(
+            envelope * settings.tailOpacity * (0.8 + settings.glowOpacity * 0.8), 0, 1
+        ));
+        item.trail.show = envelope > 0.005 && settings.length > 0;
+
+        const headSize = clamp(settings.headSize / metersPerPixel, 3, 70) *
+            (1 + settings.blur * 0.35) * (1 + settings.flash * 0.30);
+        item.flash.position = position;
+        item.flash.width = headSize;
+        item.flash.height = headSize;
+        item.flash.color = tint.withAlpha(clamp(envelope * settings.coreOpacity * flashBoost, 0, 1));
+        item.flash.show = envelope > 0.005 && settings.headSize > 0;
     }
 
     function update(groups, now) {
         if (disposed) return;
         if (now - settingsReadAt >= 100) {
-            settings = getSettings();
+            settings = readSettings();
             settingsReadAt = now;
         }
-        const positions = new Map();
-        for (const group of groups) {
-            const position = group.entity?.position?.getValue?.(Cesium.JulianDate.now());
-            if (position) positions.set(group.satDef.id, position);
-        }
-        if (settings.enabled === 0 || settings.length === 0) {
+        if (settings.enabled === 0 || settings.length <= 0) {
             clear();
             phase = "idle";
-            nextPhaseAt = now + settings.delay * 1000;
-        } else if (phase === "idle" && now >= nextPhaseAt) {
+            phaseEndsAt = now + settings.delay * 1000;
+            return;
+        }
+        if (phase === "idle" && now >= phaseEndsAt) {
             clear();
-            for (const group of select(groups)) active.push(makeTrail(group));
+            const chosen = select(groups);
+            chosen.forEach(add);
             if (active.length) {
                 phase = "burst";
-                phaseStart = now;
-                nextPhaseAt = now + settings.duration * 1000;
+                burstAt = now;
+                phaseEndsAt = now + settings.duration * 1000;
             } else {
-                nextPhaseAt = now + 1000;
-            }
-        } else if (phase === "burst") {
-            const progress = clamp((now - phaseStart) / (settings.duration * 1000), 0, 1);
-            for (const trail of active) {
-                const position = positions.get(trail.id);
-                const previous = previousPositions.get(trail.id);
-                if (!position) continue;
-                if (previous) {
-                    const step = Cesium.Cartesian3.subtract(position, previous, new Cesium.Cartesian3());
-                    if (Cesium.Cartesian3.magnitudeSquared(step) > 0.01) {
-                        trail.direction = Cesium.Cartesian3.normalize(step, step);
-                    }
-                }
-                if (trail.direction) paint(trail, position, trail.direction, progress, now);
-            }
-            if (now >= nextPhaseAt) {
-                clear();
-                phase = "idle";
-                nextPhaseAt = now + settings.delay * 1000;
+                phaseEndsAt = now + 1000;
             }
         }
-        previousPositions.clear();
-        for (const [id, position] of positions) previousPositions.set(id, Cesium.Cartesian3.clone(position));
+        if (phase === "burst") {
+            const progress = clamp((now - burstAt) / (settings.duration * 1000), 0, 1);
+            const lookup = new Map(groups.map((group) => [group.satDef.id, group]));
+            for (const item of active) {
+                const group = lookup.get(item.id);
+                if (group) draw(item, group, progress);
+            }
+            if (now >= phaseEndsAt) {
+                clear();
+                phase = "idle";
+                phaseEndsAt = now + settings.delay * 1000;
+            }
+        }
     }
 
     return {
         update,
         reset() {
             clear();
-            recent.clear();
-            previousPositions.clear();
+            previousIds.clear();
             phase = "idle";
-            nextPhaseAt = 0;
+            phaseEndsAt = 0;
         },
         destroy() {
             if (disposed) return;
             disposed = true;
             clear();
-            previousPositions.clear();
-            scene.primitives.remove(trails);
-            scene.primitives.remove(heads);
+            scene.primitives.remove(billboards);
         },
     };
 }
