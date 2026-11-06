@@ -357,36 +357,42 @@ function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
 }
 
 function getPathBankDegrees(asset, progress, pointFactory, dtSeconds = 0, entry = null) {
-    const bankLimit = getCssNumber("--wz-startup-air-bank-deg", 24);
-    if (!Number.isFinite(bankLimit) || bankLimit === 0) return 0;
-
-    const probe = Math.max(0.00035, Math.min(0.0025, getCssNumber("--wz-startup-air-bank-probe", 0.00075)));
-    const p0 = pointFactory(progress);
-    const p1 = pointFactory(progress + probe);
-    const p2 = pointFactory(progress + (probe * 2));
-    const headingA = bearingDegrees(p0, p1);
-    const headingB = bearingDegrees(p1, p2);
-    const turnDelta = signedHeadingDeltaDeg(headingA, headingB);
-    const deadZone = Math.max(0, getCssNumber("--wz-startup-air-bank-deadzone", 0.04));
-    // B-2 bombers should roll gently, not snap between full bank angles
-    // when tiny heading variations cross the turn dead zone.
-    if (asset?.id === "b2-1" || asset?.id === "b2-2") {
-        const maxBank = Math.max(0, Math.min(30, getCssNumber("--wz-startup-b2-bank-max-deg", 8)));
-        const turnScale = Math.max(0.01, getCssNumber("--wz-startup-b2-bank-turn-scale", 0.35));
-        const desired = Math.max(-maxBank, Math.min(maxBank,
-            (Math.abs(turnDelta) <= deadZone ? 0 : turnDelta / turnScale * maxBank)
-        ));
-        if (!entry) return desired;
-        if (!(dtSeconds > 0)) return Number(entry.bank || 0);
-        const maxRate = Math.max(0.1, Math.min(30, getCssNumber("--wz-startup-b2-bank-rate-deg-sec", 5)));
-        return smoothEntryBank(entry, desired, dtSeconds, maxRate);
+    const bankLimit = Math.abs(getCssNumber("--wz-startup-air-bank-deg", 24));
+    const isB2 = asset?.id === "b2-1" || asset?.id === "b2-2";
+    const maxBank = isB2
+        ? Math.min(bankLimit, Math.max(0, getCssNumber("--wz-startup-b2-bank-max-deg", 8)))
+        : bankLimit;
+    if (!(maxBank > 0)) {
+        if (entry) entry.bank = 0;
+        return 0;
     }
 
-    const targetBank = Math.abs(turnDelta) <= deadZone ? 0 : Math.sign(turnDelta) * bankLimit;
+    // The old probe (0.00075 of the orbit) was so short that meaningful
+    // turns often fell inside the heading dead zone, leaving wings level.
+    // Look ahead across a larger route section to detect actual curvature.
+    const probe = Math.max(0.002, Math.min(
+        0.025, getCssNumber("--wz-startup-air-bank-probe", 0.01)
+    ));
+    const before = pointFactory(progress - probe);
+    const center = pointFactory(progress);
+    const after = pointFactory(progress + probe);
+    const headingBefore = bearingDegrees(before, center);
+    const headingAfter = bearingDegrees(center, after);
+    const turnDelta = signedHeadingDeltaDeg(headingBefore, headingAfter);
+    const deadZone = Math.max(0, getCssNumber("--wz-startup-air-bank-deadzone", 0.04));
 
-    if (!entry || !(dtSeconds > 0)) return targetBank;
-
-    return smoothEntryBank(entry, targetBank, dtSeconds);
+    // Convert curvature continuously to bank angle, rather than jumping
+    // between -maxBank, 0 and +maxBank for tiny heading variations.
+    const sensitivity = isB2
+        ? Math.max(0.01, getCssNumber("--wz-startup-b2-bank-turn-scale", 0.35))
+        : Math.max(0.05, getCssNumber("--wz-startup-air-bank-turn-scale", 1));
+    const effectiveTurn = Math.sign(turnDelta) *
+        Math.max(0, Math.abs(turnDelta) - deadZone);
+    const targetBank = maxBank * Math.tanh(effectiveTurn / sensitivity);
+    const maxRate = isB2
+        ? Math.max(0.1, Math.min(30, getCssNumber("--wz-startup-b2-bank-rate-deg-sec", 5)))
+        : Infinity;
+    return smoothEntryBank(entry, targetBank, dtSeconds, maxRate);
 }
 
 function updateMovingEntity(asset, entry, dtSeconds = 0) {
