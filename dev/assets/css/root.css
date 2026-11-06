@@ -1617,7 +1617,6 @@
     --wz-startup-sat-min-lat: 90;
     --wz-startup-sat-max-lat: -90;
     --wz-startup-demo-update-ms: 0;
-    --wz-startup-air-bank-deg: 50;
     --wz-startup-air-bank-smoothing: 1;
     --wz-startup-b2-world-speed: 0.009;
     --wz-startup-f22-back-distance: 90;
@@ -1633,6 +1632,35 @@
     --wz-intro-gnss-enabled: 1;
     --wz-intro-gnss-density: 100;
     --wz-intro-gnss-size: 100;
+
+
+
+    --wz-startup-air-bank-deg: 50;
+
+    /* F-22 Formation */
+    --wz-startup-f22-1-bank-deg: 32;
+    --wz-startup-f22-2-bank-deg: 32;
+    --wz-startup-f22-3-bank-deg: 32;
+
+    /* B-2 Spirit */
+    --wz-startup-b2-1-bank-deg: 8;
+    --wz-startup-b2-2-bank-deg: 8;
+
+    /* KC-135 */
+    --wz-startup-kc135-1-bank-deg: 10;
+
+    /* Bombers */
+    --wz-startup-b52-1-bank-deg: 12;
+    --wz-startup-b52-2-bank-deg: 12;
+    --wz-startup-b1-1-bank-deg: 24;
+
+    /* Surveillance */
+    --wz-startup-awacs-bank-deg: 9;
+    --wz-startup-globalhawk-bank-deg: 12;
+
+    /* Transport */
+    --wz-startup-c5-1-bank-deg: 8;
+    --wz-startup-c17-1-bank-deg: 12;
 
       /* BEST */
     /* --warzone-start-lon: 33.6;
