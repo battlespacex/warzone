@@ -1745,7 +1745,7 @@
     --wz-startup-f22-1-start-lat: 38.0;
     --wz-startup-f22-1-end-lon: 145.0;
     --wz-startup-f22-1-end-lat: 32.0;
-    --wz-startup-f22-1-loop-width-km: 220;
+    --wz-startup-f22-1-loop-width-km: 320;
     --wz-startup-f22-1-altitude: 180000;
     --wz-startup-f22-1-speed: 0.020;
     --wz-startup-f22-1-phase: 0.00;
@@ -1777,7 +1777,7 @@
     --wz-startup-f22-3-start-lat: 38.0;
     --wz-startup-f22-3-end-lon: 145.0;
     --wz-startup-f22-3-end-lat: 32.0;
-    --wz-startup-f22-3-loop-width-km: 320;
+    --wz-startup-f22-3-loop-width-km: 220;
     --wz-startup-f22-3-altitude: 180000;
     --wz-startup-f22-3-speed: 0.020;
     --wz-startup-f22-3-phase: 0.00;
@@ -1796,7 +1796,7 @@
     --wz-startup-china-carrier-pitch: 0;
     --wz-startup-china-carrier-roll: 0;
     --wz-startup-china-carrier-scale: 1.00;
-    --wz-startup-china-carrier-min-px: 70;
+    --wz-startup-china-carrier-min-px: 90;
     --wz-startup-china-carrier-max-scale: 5000;
     --wz-startup-china-carrier-visible: 1;
     /* China ISR Vessel */
@@ -1807,7 +1807,7 @@
     --wz-startup-china-isr-pitch: 0;
     --wz-startup-china-isr-roll: 0;
     --wz-startup-china-isr-scale: 1.00;
-    --wz-startup-china-isr-min-px: 54;
+    --wz-startup-china-isr-min-px: 65;
     --wz-startup-china-isr-max-scale: 5000;
     --wz-startup-china-isr-visible: 1;
     /* China Submarine SSN */
@@ -1926,7 +1926,7 @@
     --wz-startup-b2-1-end-lon: 160.0;
     --wz-startup-b2-1-end-lat: 22.0;
     --wz-startup-b2-1-loop-width-km: 520;
-    --wz-startup-b2-1-altitude: 210000;
+    --wz-startup-b2-1-altitude: 315000;
     --wz-startup-b2-1-speed: 0.008;
     --wz-startup-b2-1-phase: 0.43;
     --wz-startup-b2-1-heading-offset: 90;
@@ -1942,7 +1942,7 @@
     --wz-startup-b2-2-end-lon: 160.0;
     --wz-startup-b2-2-end-lat: 22.0;
     --wz-startup-b2-2-loop-width-km: 520;
-    --wz-startup-b2-2-altitude: 210000;
+    --wz-startup-b2-2-altitude: 310000;
     --wz-startup-b2-2-speed: 0.008;
     --wz-startup-b2-2-phase: 0.43;
     --wz-startup-b2-2-heading-offset: 90;
@@ -1958,7 +1958,7 @@
     --wz-startup-kc135-1-end-lon: 160.0;
     --wz-startup-kc135-1-end-lat: 20.0;
     --wz-startup-kc135-1-loop-width-km: 520;
-    --wz-startup-kc135-1-altitude: 205000;
+    --wz-startup-kc135-1-altitude: 305000;
     --wz-startup-kc135-1-speed: 0.008;
     --wz-startup-kc135-1-phase: 0.43;
     --wz-startup-kc135-1-heading-offset: 90;
