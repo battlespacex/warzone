@@ -189,7 +189,8 @@ function getRotationDegPerSec() {
     if (window.__stratopsConfig?.milSatsRotation === false) return 0;
     // Independent decorative satellite speed in degrees/second.
     // Never read globe rotation or operational satellite speed settings here.
-    return Math.max(0, Math.min(getCssNumber("--wz-startup-satellite-speed", 0.15), 2));
+    const configured = Number(getCssVar("--wz-startup-satellite-speed", "0.15"));
+    return Math.max(0, Math.min(Number.isFinite(configured) ? configured : 0.15, 2));
 }
 
 function getStartupSatUpdateIntervalMs() {
