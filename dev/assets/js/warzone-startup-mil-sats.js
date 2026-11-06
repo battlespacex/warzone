@@ -1,4 +1,5 @@
 import * as Cesium from "cesium";
+import { createStartupSatelliteVapor } from "./warzone-startup-satellite-vapor.js";
 import {
     getSatelliteModelHeadingDeg,
     getSatelliteModelPitchDeg,
@@ -55,6 +56,7 @@ const startupDemoState = {
     paused: false,
     groups: [],
     frameListener: null,
+    vapor: null,
     lastFrameTime: 0,
     lastUpdateTime: 0,
 };
@@ -146,6 +148,7 @@ function removeEntity(entity) {
 }
 
 function rebuildStartupSatellites() {
+    startupDemoState.vapor?.reset();
     if (!isStartupSatelliteLayerEnabled()) {
         stopDemo();
         return;
@@ -195,6 +198,8 @@ function getStartupSatUpdateIntervalMs() {
 }
 
 function stopDemo() {
+    startupDemoState.vapor?.destroy();
+    startupDemoState.vapor = null;
     if (startupDemoState.frameListener && startupDemoState.viewer?.scene) {
         startupDemoState.viewer.scene.postRender.removeEventListener(startupDemoState.frameListener);
     }
@@ -254,6 +259,7 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
         entity: createEntity(startupDemoState.viewer, satDef),
     }));
     refreshScale();
+    startupDemoState.vapor = createStartupSatelliteVapor(startupDemoState.viewer);
     startupDemoState.frameListener = () => {
         if (!startupDemoState.enabled || !startupDemoState.viewer) return;
         if (document.hidden) return;
@@ -283,6 +289,7 @@ export function setWarzoneStartupMilSatsDemoEnabled(enabled) {
             group.entity.position = position;
             group.entity.orientation = createOrientation(position, group.satDef);
         });
+        startupDemoState.vapor?.update(startupDemoState.groups, now);
         startupDemoState.viewer.scene.requestRender?.();
     };
     startupDemoState.viewer.scene.postRender.addEventListener(startupDemoState.frameListener);

@@ -32,6 +32,22 @@ const SCENE_FIELDS = Object.freeze([
     { label: "GNSS Hexagon Size", cssVar: "--wz-intro-gnss-size", min: 25, max: 200, step: 1, fallback: 100, percent: true },
 ]);
 
+const VAPOR_FIELDS = Object.freeze([
+    { label: "Enable vapor trails", cssVar: "--wz-startup-vapor-enabled", min: 0, max: 1, step: 1, fallback: 1, toggle: true },
+    { label: "Active satellites", cssVar: "--wz-startup-vapor-satellites", min: 1, max: 5, step: 1, fallback: 2 },
+    { label: "Vapor density", cssVar: "--wz-startup-vapor-density", min: 0, max: 100, step: 1, fallback: 35, percent: true },
+    { label: "Vapor size", cssVar: "--wz-startup-vapor-size", min: 0.1, max: 5, step: 0.1, fallback: 1.5 },
+    { label: "Trail length", cssVar: "--wz-startup-vapor-length", min: 0, max: 100, step: 1, fallback: 45 },
+    { label: "Vapor opacity", cssVar: "--wz-startup-vapor-opacity", min: 0, max: 100, step: 1, fallback: 40, percent: true },
+    { label: "Vapor spread", cssVar: "--wz-startup-vapor-spread", min: 0, max: 100, step: 1, fallback: 30 },
+    { label: "Emission duration (s)", cssVar: "--wz-startup-vapor-duration", min: 0.5, max: 5, step: 0.1, fallback: 2 },
+    { label: "Cycle delay (s)", cssVar: "--wz-startup-vapor-delay", min: 1, max: 15, step: 0.5, fallback: 5 },
+    { label: "Fade duration (s)", cssVar: "--wz-startup-vapor-fade", min: 0.5, max: 8, step: 0.5, fallback: 3 },
+    { label: "Vapor red", cssVar: "--wz-startup-vapor-red", min: 0, max: 255, step: 1, fallback: 245 },
+    { label: "Vapor green", cssVar: "--wz-startup-vapor-green", min: 0, max: 255, step: 1, fallback: 248 },
+    { label: "Vapor blue", cssVar: "--wz-startup-vapor-blue", min: 0, max: 255, step: 1, fallback: 255 },
+]);
+
 const STATIC_FIELD_TEMPLATE = Object.freeze([
     { key: "lon", label: "Longitude", min: -180, max: 180, step: 0.1 },
     { key: "lat", label: "Latitude", min: -85, max: 85, step: 0.1 },
@@ -73,6 +89,7 @@ function buildAssetFields(prefix, template, fallbacks) {
 
 const GROUPS = Object.freeze([
     { id: "scene", label: "Scene & Satellites", fields: SCENE_FIELDS },
+    { id: "vapor", label: "Satellite Vapor Trails", fields: VAPOR_FIELDS },
     {
         id: "oman-carrier",
         label: "Oman Carrier",
