@@ -33,19 +33,24 @@ const SCENE_FIELDS = Object.freeze([
 ]);
 
 const VAPOR_FIELDS = Object.freeze([
-    { label: "Enable vapor trails", cssVar: "--wz-startup-vapor-enabled", min: 0, max: 1, step: 1, fallback: 1, toggle: true },
-    { label: "Active satellites", cssVar: "--wz-startup-vapor-satellites", min: 1, max: 5, step: 1, fallback: 2 },
-    { label: "Vapor density", cssVar: "--wz-startup-vapor-density", min: 0, max: 100, step: 1, fallback: 35, percent: true },
-    { label: "Vapor size", cssVar: "--wz-startup-vapor-size", min: 0.1, max: 5, step: 0.1, fallback: 1.5 },
-    { label: "Trail length", cssVar: "--wz-startup-vapor-length", min: 0, max: 100, step: 1, fallback: 45 },
-    { label: "Vapor opacity", cssVar: "--wz-startup-vapor-opacity", min: 0, max: 100, step: 1, fallback: 40, percent: true },
-    { label: "Vapor spread", cssVar: "--wz-startup-vapor-spread", min: 0, max: 100, step: 1, fallback: 30 },
-    { label: "Emission duration (s)", cssVar: "--wz-startup-vapor-duration", min: 0.5, max: 5, step: 0.1, fallback: 2 },
-    { label: "Cycle delay (s)", cssVar: "--wz-startup-vapor-delay", min: 1, max: 15, step: 0.5, fallback: 5 },
-    { label: "Fade duration (s)", cssVar: "--wz-startup-vapor-fade", min: 0.5, max: 8, step: 0.5, fallback: 3 },
-    { label: "Vapor red", cssVar: "--wz-startup-vapor-red", min: 0, max: 255, step: 1, fallback: 245 },
-    { label: "Vapor green", cssVar: "--wz-startup-vapor-green", min: 0, max: 255, step: 1, fallback: 248 },
-    { label: "Vapor blue", cssVar: "--wz-startup-vapor-blue", min: 0, max: 255, step: 1, fallback: 255 },
+    { label: "Enable flash trails", cssVar: "--wz-startup-vapor-enabled", min: 0, max: 1, step: 1, fallback: 1, toggle: true },
+    { label: "Active satellites", cssVar: "--wz-startup-vapor-active-count", min: 1, max: 5, step: 1, fallback: 2 },
+    { label: "Burst duration (s)", cssVar: "--wz-startup-vapor-duration", min: 0.2, max: 10, step: 0.1, fallback: 2, unit: "s" },
+    { label: "Cycle delay (s)", cssVar: "--wz-startup-vapor-cycle-delay", min: 0.2, max: 30, step: 0.5, fallback: 5, unit: "s" },
+    { label: "Trail length (m)", cssVar: "--wz-startup-vapor-length", min: 0, max: 2000000, step: 10000, fallback: 180000 },
+    { label: "Trail width (m)", cssVar: "--wz-startup-vapor-width", min: 0, max: 250000, step: 1000, fallback: 26000 },
+    { label: "Head size (m)", cssVar: "--wz-startup-vapor-head-size", min: 0, max: 200000, step: 1000, fallback: 18000 },
+    { label: "Core opacity", cssVar: "--wz-startup-vapor-core-opacity", min: 0, max: 1, step: 0.05, fallback: 0.95 },
+    { label: "Tail opacity", cssVar: "--wz-startup-vapor-tail-opacity", min: 0, max: 1, step: 0.05, fallback: 0.62 },
+    { label: "Glow opacity", cssVar: "--wz-startup-vapor-glow-opacity", min: 0, max: 1, step: 0.05, fallback: 0.35 },
+    { label: "Blur strength", cssVar: "--wz-startup-vapor-blur-strength", min: 0, max: 6, step: 0.1, fallback: 1.8 },
+    { label: "Flash strength", cssVar: "--wz-startup-vapor-flash-strength", min: 0, max: 5, step: 0.1, fallback: 1 },
+    { label: "Fade power", cssVar: "--wz-startup-vapor-fade-power", min: 0.2, max: 5, step: 0.1, fallback: 1.6 },
+    { label: "Spread", cssVar: "--wz-startup-vapor-spread", min: 0, max: 1, step: 0.02, fallback: 0.18 },
+    { label: "Jitter", cssVar: "--wz-startup-vapor-jitter", min: 0, max: 1, step: 0.02, fallback: 0.08 },
+    { label: "Color red", cssVar: "--wz-startup-vapor-color-r", min: 0, max: 255, step: 1, fallback: 255 },
+    { label: "Color green", cssVar: "--wz-startup-vapor-color-g", min: 0, max: 255, step: 1, fallback: 245 },
+    { label: "Color blue", cssVar: "--wz-startup-vapor-color-b", min: 0, max: 255, step: 1, fallback: 220 },
 ]);
 
 const STATIC_FIELD_TEMPLATE = Object.freeze([
