@@ -15,9 +15,9 @@ const REGIONS = [
 const SEVERITY_SEQUENCE = ["low", "low", "medium", "low", "high", "low", "medium", "low", "low", "low"];
 const MAJOR_FIELD_SCALE = 2.3;
 const BATCH_SIZE = 200;
-const REVEAL_INTERVAL_MS = 16;
+const REVEAL_INTERVAL_MS = 7;
 const REVEAL_BATCH_SIZE = 16;
-const FADE_MS = 260;
+const FADE_MS = 100;
 
 let introGnss = null;
 
@@ -311,7 +311,7 @@ function planCycleWave(state) {
             second.nextSeverity = first.severity;
             for (const cell of [first, second]) {
                 cell.colorStart = now + Math.random() * spread;
-                cell.colorDuration = 600 + Math.random() * 3600;
+                cell.colorDuration = 300 + Math.random() * 3600;
                 cell.colorBlend = 0;
             }
         }
@@ -319,7 +319,7 @@ function planCycleWave(state) {
     state.cycleCoverage = next;
     state.cycleWave += 1;
     state.viewer.scene.requestRender();
-    return spread + longestFade + 1200 + Math.random() * 3000;
+    return spread + longestFade + 900 + Math.random() * 3000;
 }
 
 function scheduleCycle(state, remaining = 8000 + Math.random() * 6000) {
