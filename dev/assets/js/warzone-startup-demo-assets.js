@@ -337,9 +337,40 @@ function smoothEntryBank(entry, targetBank, dtSeconds, maxRate = Infinity) {
     return entry.bank;
 }
 
+// Suggested cinematic bank limits for each pre-entry aircraft. Every value can
+// be overridden independently with --wz-startup-<asset-id>-bank-deg in root.css.
+// General --wz-startup-air-bank-deg remains a fallback for unspecified assets.
+const ENTRY_BANK_PRESETS = Object.freeze({
+    awacs: 9,
+    globalhawk: 12,
+    "f22-1": 32,
+    "f22-2": 32,
+    "f22-3": 32,
+    "b2-1": 8,
+    "b2-2": 8,
+    "kc135-1": 10,
+    "b52-1": 12,
+    "b52-2": 12,
+    "b1-1": 24,
+    "c5-1": 8,
+    "c17-1": 12,
+});
+
+function getEntryBankLimit(asset) {
+    const globalLimit = Math.abs(getCssNumber("--wz-startup-air-bank-deg", 24));
+    const preset = ENTRY_BANK_PRESETS[asset?.id] ?? globalLimit;
+    const b2Fallback = (asset?.id === "b2-1" || asset?.id === "b2-2")
+        ? getCssNumber("--wz-startup-b2-bank-max-deg", preset)
+        : preset;
+    // Positive degrees specify magnitude; turning direction is automatic.
+    return Math.max(0, Math.min(65, Math.abs(
+        getAssetNumber(asset, "bank-deg", b2Fallback)
+    )));
+}
+
 function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
-    const bankLimit = getCssNumber("--wz-startup-air-bank-deg", 24);
-    if (!Number.isFinite(bankLimit) || bankLimit === 0) return 0;
+    const bankLimit = getEntryBankLimit(asset);
+    if (bankLimit === 0) return 0;
 
     const probe = Math.max(0.00035, Math.min(0.0025, getCssNumber("--wz-startup-air-bank-probe", 0.00075)));
     const p0 = pointOnRacetrack(route, progress);
@@ -359,11 +390,8 @@ function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
 }
 
 function getPathBankDegrees(asset, progress, pointFactory, dtSeconds = 0, entry = null) {
-    const bankLimit = Math.abs(getCssNumber("--wz-startup-air-bank-deg", 24));
+    const maxBank = getEntryBankLimit(asset);
     const isB2 = asset?.id === "b2-1" || asset?.id === "b2-2";
-    const maxBank = isB2
-        ? Math.min(bankLimit, Math.max(0, getCssNumber("--wz-startup-b2-bank-max-deg", 8)))
-        : bankLimit;
     if (!(maxBank > 0)) {
         if (entry) entry.bank = 0;
         return 0;
