@@ -92,6 +92,7 @@ function buildCells(sizeKm) {
         cells.forEach((cell, order) => {
             cell.order = order;
             cell.severity = SEVERITY_SEQUENCE[order % SEVERITY_SEQUENCE.length];
+            cell.initialSeverity = cell.severity;
             cell.position = Cesium.Cartesian3.fromDegrees(cell.lon, cell.lat);
             cell.direction = Cesium.Cartesian3.normalize(cell.position, new Cesium.Cartesian3());
             cell.opacity = 0;
@@ -395,6 +396,53 @@ function tick(state) {
     if (reveals < REVEAL_BATCH_SIZE) state.lastReveal = now;
     state.lastTick = now;
     if (fading || pendingVisible || pendingCycle || state.pendingSize?.built) state.viewer.scene.requestRender();
+}
+
+/**
+ * Rewind decorative GNSS reveal without rebuilding Cesium geometry.
+ * Preserves current enabled/density/size settings, including tuner changes.
+ */
+export function restartIntroGnssCoverage() {
+    const state = introGnss;
+    if (!state || state.destroyed || state.viewer.isDestroyed()) return false;
+
+    // Cancel the previous coverage-wave timer before scheduling a fresh cycle.
+    clearTimeout(state.cycleTimer);
+    state.cycleTimer = 0;
+    state.cycleDeadline = 0;
+    state.cycleCoverage = 1;
+    state.cycleWave = 0;
+    state.cycleRemaining = 8000 + Math.random() * 6000;
+
+    const now = performance.now();
+    state.lastTick = now;
+    state.lastReveal = now;
+
+    for (const cell of state.cells) {
+        // Immediately hide any already-rendered geometry, then reveal it again
+        // through the existing batch-limited postRender loop.
+        if (cell.opacity > 0 && cell.fillPrimitive?.ready &&
+            (!cell.outlinePrimitive || cell.outlinePrimitive.ready)) {
+            setOpacity(state, cell, 0);
+        }
+        cell.opacity = 0;
+        cell.revealed = false;
+        cell.cycleHidden = false;
+        cell.cyclePendingHidden = false;
+        cell.cycleStart = 0;
+        cell.cycleFadeMs = 0;
+        cell.severity = cell.initialSeverity ?? cell.severity;
+        cell.nextSeverity = null;
+        cell.colorStart = 0;
+        cell.colorDuration = 0;
+        cell.colorBlend = 0;
+    }
+
+    // The build may still be in progress during an early R press.
+    // It is already scheduled, so don't create a second build loop.
+    if (state.initialComplete) scheduleCycle(state, state.cycleRemaining);
+    state.viewer.scene.requestRender();
+    return true;
 }
 
 export function setIntroGnssDensity(value) {

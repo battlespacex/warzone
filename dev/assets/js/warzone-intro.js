@@ -6,13 +6,23 @@ import { initWarzoneIntroGlobe } from "./warzone-globe.js";
 import { initWarzoneStartupDemoAssets, setWarzoneStartupDemoAssetsEnabled } from "./warzone-startup-demo-assets.js";
 import { initWarzoneStartupMilSats, setWarzoneStartupMilSatsDemoEnabled } from "./warzone-startup-mil-sats.js";
 import { initIntroStartupSceneTuner, destroyIntroStartupSceneTuner } from "./warzone-startup-scene-tuner.js";
-import { initIntroGnssCoverage, destroyIntroGnssCoverage } from "./warzone-intro-gnss.js";
+import {
+    initIntroGnssCoverage,
+    destroyIntroGnssCoverage,
+    restartIntroGnssCoverage,
+    setIntroGnssEnabled
+} from "./warzone-intro-gnss.js";
+
+const GNSS_START_DELAY_MS = 5000; // 5 seconds
+let gnssStartTimer = null;
+let gnssRestartTimer = null;
 
 const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 let viewer = null;
 let cleanedUp = false;
 let tunerPanel = null;
 let tunerStyle = null;
+let initialCameraView = null;
 
 async function mountOriginalTuner() {
     const [panelResponse, stylesResponse] = await Promise.all([
@@ -33,6 +43,52 @@ async function mountOriginalTuner() {
     document.body.appendChild(tunerPanel);
 }
 
+// In-place camera restart preserves browser fullscreen.
+function restartIntroAnimations() {
+    if (cleanedUp || !viewer || viewer.isDestroyed() || !initialCameraView) return;
+
+    viewer.__warzone?.stopStartupRotation?.();
+    viewer.camera.cancelFlight();
+    viewer.camera.setView({
+        destination: initialCameraView.destination.clone(),
+        orientation: {
+            direction: initialCameraView.direction.clone(),
+            up: initialCameraView.up.clone(),
+        },
+    });
+    viewer.__warzone?.startStartupRotation?.();
+    // Cancel any previous GNSS restart timer
+    clearTimeout(gnssRestartTimer);
+
+    // Reset and hide GNSS immediately
+    restartIntroGnssCoverage();
+    setIntroGnssEnabled(0);
+
+    // Restart GNSS reveal after 5 seconds
+    gnssRestartTimer = setTimeout(() => {
+        gnssRestartTimer = null;
+
+        if (cleanedUp || !viewer || viewer.isDestroyed()) return;
+
+        const enabled = getComputedStyle(document.documentElement)
+            .getPropertyValue("--wz-intro-gnss-enabled")
+            .trim();
+
+        setIntroGnssEnabled(enabled === "" ? 1 : Number(enabled));
+    }, 5000);
+    viewer.scene.requestRender();
+}
+
+function handleIntroRestartShortcut(event) {
+    if (event.key.toLowerCase() !== "r" || event.repeat ||
+        event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.target instanceof Element &&
+        event.target.closest("input, textarea, select, [contenteditable='true']")) return;
+
+    event.preventDefault();
+    restartIntroAnimations();
+}
+
 function handleTunerShortcut(event) {
     if (event.key.toLowerCase() !== "t" || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
     if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable='true']")) return;
@@ -45,21 +101,45 @@ function handleTunerShortcut(event) {
 function cleanup() {
     if (cleanedUp) return;
     cleanedUp = true;
+
     window.removeEventListener("pagehide", cleanup);
     document.removeEventListener("keydown", handleTunerShortcut);
+    document.removeEventListener("keydown", handleIntroRestartShortcut);
+
     destroyIntroStartupSceneTuner();
+
     tunerPanel?.remove();
     tunerStyle?.remove();
     tunerPanel = null;
     tunerStyle = null;
+
     setWarzoneStartupDemoAssetsEnabled(false);
     setWarzoneStartupMilSatsDemoEnabled(false);
+
+    // Cancel pending GNSS start and restart timers
+    window.clearTimeout(gnssStartTimer);
+    gnssStartTimer = null;
+
+    window.clearTimeout(gnssRestartTimer);
+    gnssRestartTimer = null;
+
+    // Destroy GNSS coverage
     destroyIntroGnssCoverage();
+
+    // Stop globe rotation and destroy viewer
     viewer?.__warzone?.stopStartupRotation?.();
-    if (viewer && !viewer.isDestroyed()) viewer.destroy();
+
+    if (viewer && !viewer.isDestroyed()) {
+        viewer.destroy();
+    }
+
     window.__warzoneViewer = null;
     viewer = null;
-    if (window.__warzoneIntroCleanup === cleanup) window.__warzoneIntroCleanup = null;
+    initialCameraView = null;
+
+    if (window.__warzoneIntroCleanup === cleanup) {
+        window.__warzoneIntroCleanup = null;
+    }
 }
 
 async function start() {
@@ -84,6 +164,11 @@ async function start() {
     viewer = initWarzoneIntroGlobe();
     if (!viewer) throw new Error("Startup Cesium globe container is unavailable");
     window.__warzoneViewer = viewer;
+    initialCameraView = {
+        destination: viewer.camera.positionWC.clone(),
+        direction: viewer.camera.directionWC.clone(),
+        up: viewer.camera.upWC.clone(),
+    };
 
     await mountOriginalTuner();
     if (cleanedUp) return;
@@ -96,10 +181,17 @@ async function start() {
     if (cleanedUp) return;
     initWarzoneStartupMilSats(viewer);
     initWarzoneStartupDemoAssets(viewer);
-    initIntroGnssCoverage(viewer);
+    gnssStartTimer = window.setTimeout(() => {
+        gnssStartTimer = null;
+
+        if (cleanedUp || !viewer || viewer.isDestroyed()) return;
+
+        initIntroGnssCoverage(viewer);
+    }, GNSS_START_DELAY_MS);
     initIntroStartupSceneTuner();
     viewer.__warzone.startStartupRotation();
     document.addEventListener("keydown", handleTunerShortcut);
+    document.addEventListener("keydown", handleIntroRestartShortcut);
     viewer.scene.requestRender();
 }
 

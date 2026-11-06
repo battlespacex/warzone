@@ -1541,22 +1541,26 @@
     --wz-entry-show-naval-assets: 1;
     --wz-entry-show-air-assets: 1;
     --wz-entry-show-map-imagery: 1;
-    --wz-entry-show-borders: 0; */
+    --wz-entry-show-borders: 0; 
+
+
+
         /* Scene & Satellites */
-    --warzone-start-lon: 28.9;
-    --warzone-start-lat: 11.4;
-    --warzone-start-height: 4500000;
+    /* Scene & Satellites */
+    --warzone-start-lon: 33.6;
+    --warzone-start-lat: 9;
+    --warzone-start-height: 6100000;
     --warzone-start-heading: 0;
     --warzone-start-pitch: -70;
     --warzone-start-roll: 0;
-    --warzone-startup-rotation-speed: 1.89;
-    --warzone-startup-sat-update-ms: 150;
+    --warzone-startup-rotation-speed: 2.00;
+    --warzone-startup-sat-update-ms: 100;
     --wz-startup-sat-min-lat: 0;
     --wz-startup-sat-max-lat: 60;
-    --wz-startup-demo-update-ms: 140;
+    --wz-startup-demo-update-ms: 0;
     --wz-startup-air-bank-deg: -14;
     --wz-startup-air-bank-smoothing: 0.65;
-    --wz-startup-b2-world-speed: 0.021;
+    --wz-startup-b2-world-speed: 0.014;
     --wz-startup-f22-back-distance: 90;
     --wz-startup-f22-side-distance: 80;
     --warzone-satellite-model-scale: 2200;
