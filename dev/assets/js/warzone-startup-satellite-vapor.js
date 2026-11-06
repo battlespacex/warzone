@@ -160,6 +160,9 @@ export function createStartupSatelliteVapor(viewer) {
             id: group.satDef.id,
             trail: billboards.add({
                 show: false, image: trailTexture, position,
+                // Anchor the tapered tip at the satellite itself, even while rotating.
+                horizontalOrigin: Cesium.HorizontalOrigin.RIGHT,
+                verticalOrigin: Cesium.VerticalOrigin.CENTER,
                 width: 1, height: 1, color: Cesium.Color.WHITE,
             }),
             flash: billboards.add({
@@ -203,11 +206,10 @@ export function createStartupSatelliteVapor(viewer) {
             smoothstep(clamp(progress / 0.20, 0, 1));
         const tailHeight = clamp(settings.width / metersPerPixel, 3, 48) *
             (1.4 + settings.blur * 0.65 + settings.spread * 0.3);
-        // The texture's bright tip is at ~92% of its width. Offset the
-        // center backward from the satellite to keep the tip near the model.
-        const offset = length * 0.42;
+        // With RIGHT origin, the trail's leading edge stays attached to the
+        // same projected satellite position as the flash, at every angle.
         item.trail.position = position;
-        item.trail.pixelOffset = new Cesium.Cartesian2(-ux * offset, uy * offset);
+        item.trail.pixelOffset = Cesium.Cartesian2.ZERO;
         item.trail.rotation = Math.atan2(-uy, ux);
         item.trail.width = Math.max(1, length);
         item.trail.height = Math.max(1, tailHeight);
