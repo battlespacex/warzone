@@ -2051,20 +2051,20 @@
 }
 
 :root {
+    
   --wz-startup-vapor-enabled: 1;
-  --wz-startup-vapor-active-count: 2;
 
-  --wz-startup-vapor-duration: 2s;
-  --wz-startup-vapor-cycle-delay: 5s;
+  --wz-startup-vapor-active-count: 7;
+  --wz-startup-vapor-duration: 7s;
 
-  --wz-startup-vapor-length: 180000;
+  --wz-startup-vapor-cycle-delay: 3s;
   --wz-startup-vapor-width: 26000;
   --wz-startup-vapor-head-size: 18000;
 
 
   --wz-startup-vapor-fade-power: 1.6;
 
-  --wz-startup-vapor-spread: 0.18;
+  --wz-startup-vapor-spread: 0.1;
   --wz-startup-vapor-jitter: 0.08;
 
   --wz-startup-vapor-color-r: 255;
