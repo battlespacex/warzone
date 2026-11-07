@@ -1604,25 +1604,26 @@
     --wz-intro-gnss-enabled: 1;
     --wz-intro-gnss-density: 100;
     --wz-intro-gnss-size: 100; */
-
-        /* TITLED */
+    /* Scene & Satellites */
     --warzone-start-lon: 33.8;
-    --warzone-start-lat: 3;
-    --warzone-start-height: 4050000;
-    --warzone-start-heading: 15;
+    --warzone-start-lat: -0.6;
+    --warzone-start-height: 4700000;
+    --warzone-start-heading: 10;
     --warzone-start-pitch: -58;
     --warzone-start-roll: 0;
-    --warzone-startup-sat-update-ms: 140;
+    --warzone-startup-rotation-speed: 2.00;
     --wz-startup-satellite-speed: 0.15;
+    --warzone-startup-sat-update-ms: 120;
     --wz-startup-sat-min-lat: 90;
     --wz-startup-sat-max-lat: -90;
     --wz-startup-demo-update-ms: 0;
-    --wz-startup-air-bank-smoothing: 1;
+    --wz-startup-air-bank-deg: 50;
+    --wz-startup-air-bank-smoothing: 1.00;
     --wz-startup-b2-world-speed: 0.009;
     --wz-startup-f22-back-distance: 90;
     --wz-startup-f22-side-distance: 80;
-    --warzone-satellite-model-scale: 2300;
-    --warzone-mil-sat-min-px: 30;
+    --warzone-satellite-model-scale: 2400;
+    --warzone-mil-sat-min-px: 15;
     --warzone-mil-sat-max-scale: 320000;
     --wz-entry-show-satellites: 1;
     --wz-entry-show-naval-assets: 1;
@@ -1634,31 +1635,23 @@
     --wz-intro-gnss-size: 100;
 
 
-
-    --wz-startup-air-bank-deg: 50;
-
     /* F-22 Formation */
     --wz-startup-f22-1-bank-deg: 32;
     --wz-startup-f22-2-bank-deg: 32;
     --wz-startup-f22-3-bank-deg: 32;
 
-    /* B-2 Spirit */
-    --wz-startup-b2-1-bank-deg: 8;
-    --wz-startup-b2-2-bank-deg: 8;
+    --wz-startup-b2-1-bank-deg: 10;
+    --wz-startup-b2-2-bank-deg: 10;
 
-    /* KC-135 */
     --wz-startup-kc135-1-bank-deg: 10;
 
-    /* Bombers */
     --wz-startup-b52-1-bank-deg: 12;
     --wz-startup-b52-2-bank-deg: 12;
     --wz-startup-b1-1-bank-deg: 24;
 
-    /* Surveillance */
-    --wz-startup-awacs-bank-deg: 9;
+    --wz-startup-awacs-bank-deg: 15;
     --wz-startup-globalhawk-bank-deg: 12;
 
-    /* Transport */
     --wz-startup-c5-1-bank-deg: 8;
     --wz-startup-c17-1-bank-deg: 12;
 
@@ -1749,7 +1742,7 @@
     --wz-startup-awacs-pitch: 0;
     --wz-startup-awacs-roll: 0;
     --wz-startup-awacs-scale: 1.00;
-    --wz-startup-awacs-min-px: 130;
+    --wz-startup-awacs-min-px: 110;
     --wz-startup-awacs-max-scale: 5000;
     --wz-startup-awacs-visible: 1;
     /* Global Hawk */
@@ -1765,7 +1758,7 @@
     --wz-startup-globalhawk-pitch: 0;
     --wz-startup-globalhawk-roll: 0;
     --wz-startup-globalhawk-scale: 1;
-    --wz-startup-globalhawk-min-px: 90;
+    --wz-startup-globalhawk-min-px: 100;
     --wz-startup-globalhawk-max-scale: 5000;
     --wz-startup-globalhawk-visible: 1;
     /* F22 Lead */
@@ -1775,13 +1768,13 @@
     --wz-startup-f22-1-end-lat: 32.0;
     --wz-startup-f22-1-loop-width-km: 320;
     --wz-startup-f22-1-altitude: 180000;
-    --wz-startup-f22-1-speed: 0.020;
+    --wz-startup-f22-1-speed: 0.030;
     --wz-startup-f22-1-phase: 0.00;
     --wz-startup-f22-1-heading-offset: 90;
     --wz-startup-f22-1-pitch: 0;
     --wz-startup-f22-1-roll: 0;
     --wz-startup-f22-1-scale: 1;
-    --wz-startup-f22-1-min-px: 64;
+    --wz-startup-f22-1-min-px: 50;
     --wz-startup-f22-1-max-scale: 8000;
     --wz-startup-f22-1-visible: 1;
     /* F22 Wing 1 */
@@ -1791,13 +1784,13 @@
     --wz-startup-f22-2-end-lat: 32.0;
     --wz-startup-f22-2-loop-width-km: 270;
     --wz-startup-f22-2-altitude: 180000;
-    --wz-startup-f22-2-speed: 0.020;
+    --wz-startup-f22-2-speed: 0.030;
     --wz-startup-f22-2-phase: 0.00;
     --wz-startup-f22-2-heading-offset: 90;
     --wz-startup-f22-2-pitch: 0;
     --wz-startup-f22-2-roll: 0;
     --wz-startup-f22-2-scale: 1;
-    --wz-startup-f22-2-min-px: 64;
+    --wz-startup-f22-2-min-px: 50;
     --wz-startup-f22-2-max-scale: 8000;
     --wz-startup-f22-2-visible: 1;
     /* F22 Wing 2 */
@@ -1807,13 +1800,13 @@
     --wz-startup-f22-3-end-lat: 32.0;
     --wz-startup-f22-3-loop-width-km: 220;
     --wz-startup-f22-3-altitude: 180000;
-    --wz-startup-f22-3-speed: 0.020;
+    --wz-startup-f22-3-speed: 0.030;
     --wz-startup-f22-3-phase: 0.00;
     --wz-startup-f22-3-heading-offset: 90;
     --wz-startup-f22-3-pitch: 0;
     --wz-startup-f22-3-roll: 0;
     --wz-startup-f22-3-scale: 1;
-    --wz-startup-f22-3-min-px: 64;
+    --wz-startup-f22-3-min-px: 50;
     --wz-startup-f22-3-max-scale: 8000;
     --wz-startup-f22-3-visible: 1;
     /* China Carrier Fujian */
@@ -1961,7 +1954,7 @@
     --wz-startup-b2-1-pitch: 0;
     --wz-startup-b2-1-roll: 0;
     --wz-startup-b2-1-scale: 1;
-    --wz-startup-b2-1-min-px: 105;
+    --wz-startup-b2-1-min-px: 90;
     --wz-startup-b2-1-max-scale: 9000;
     --wz-startup-b2-1-visible: 1;
     /* B-2 Spirit Trail */
@@ -1977,7 +1970,7 @@
     --wz-startup-b2-2-pitch: 0;
     --wz-startup-b2-2-roll: 0;
     --wz-startup-b2-2-scale: 1;
-    --wz-startup-b2-2-min-px: 105;
+    --wz-startup-b2-2-min-px: 90;
     --wz-startup-b2-2-max-scale: 9000;
     --wz-startup-b2-2-visible: 1;
     /* KC-135 Refueler */
@@ -1993,7 +1986,7 @@
     --wz-startup-kc135-1-pitch: 0;
     --wz-startup-kc135-1-roll: 0;
     --wz-startup-kc135-1-scale: 1;
-    --wz-startup-kc135-1-min-px: 120;
+    --wz-startup-kc135-1-min-px: 110;
     --wz-startup-kc135-1-max-scale: 11000;
     --wz-startup-kc135-1-visible: 1;
     /* B-52 Lead */
@@ -2041,7 +2034,7 @@
     --wz-startup-b1-1-pitch: 0;
     --wz-startup-b1-1-roll: 0;
     --wz-startup-b1-1-scale: 1;
-    --wz-startup-b1-1-min-px: 74;
+    --wz-startup-b1-1-min-px: 80;
     --wz-startup-b1-1-max-scale: 9000;
     --wz-startup-b1-1-visible: 1;
     /* C-5 Galaxy */
@@ -2057,7 +2050,7 @@
     --wz-startup-c5-1-pitch: 0;
     --wz-startup-c5-1-roll: 0;
     --wz-startup-c5-1-scale: 1;
-    --wz-startup-c5-1-min-px: 70;
+    --wz-startup-c5-1-min-px: 80;
     --wz-startup-c5-1-max-scale: 9000;
     --wz-startup-c5-1-visible: 1;
     /* C-17 Globemaster */
@@ -2073,13 +2066,11 @@
     --wz-startup-c17-1-pitch: 0;
     --wz-startup-c17-1-roll: 0;
     --wz-startup-c17-1-scale: 1;
-    --wz-startup-c17-1-min-px: 70;
+    --wz-startup-c17-1-min-px: 80;
     --wz-startup-c17-1-max-scale: 9000;
     --wz-startup-c17-1-visible: 1;
-}
 
-:root {
-      --wz-startup-vapor-enabled: 1;
+    --wz-startup-vapor-enabled: 1;
     --wz-startup-vapor-head-size: 22000;
     --wz-startup-vapor-core-opacity: 0.80;
     --wz-startup-vapor-tail-opacity: 0.60;
