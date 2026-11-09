@@ -75,6 +75,7 @@ import { createNavalProviders } from "./tracking/naval/registry.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
+import { buildIodaQuery, parseIodaCountryOutages } from "./ioda-outage-adapter.js";
 import {
     formatSourceFailure,
     recordSourceFailure,
@@ -4223,27 +4224,37 @@ async function processCloudflareRadarFeed(feed) {
     }
 }
 async function processIodaFeed(feed) {
+    // Country-level detections only. Keep one bounded request per existing worker cycle;
+    // do not turn individual ASN or region alerts into invented map coordinates.
     const response = await axios.get(feed.url, {
         timeout: 20000,
+        params: buildIodaQuery(),
         headers: {
             Accept: "application/json",
             "User-Agent": "warzone-worker/1.0"
         }
     });
-    const results =
-        toArray(response.data?.results).length ? response.data.results :
-            toArray(response.data?.events).length ? response.data.events :
-                toArray(response.data?.data).length ? response.data.data :
-                    toArray(response.data);
-    for (const item of results.slice(0, 25)) {
-        const mapped = mapIodaOutage(item);
-        const event = await finalizeNetworkEvent(mapped, feed, {
+    const outages = parseIodaCountryOutages(response.data);
+    for (const outage of outages) {
+        const baseEvent = {
+            title: `Internet connectivity disruption reported in ${outage.countryName}`,
+            summary: `IODA ${outage.datasource} outage signal in ${outage.countryName}.` +
+                (outage.score === null ? "" : ` Provider score: ${outage.score}.`),
+            occurred_at: outage.startedAt,
+            location_label: outage.countryName,
+            // IODA score is provider-specific; don't misrepresent it as measured damage.
+            severity: "medium",
+            tags: uniqueTags(["ioda", "internet-outage", outage.datasource]),
+            dedupe_key: outage.dedupeKey
+        };
+        const event = await finalizeNetworkEvent(baseEvent, feed, {
             report_type: "internet_outage",
-            source_url: item?.url || feed.url,
-            country_code: item?.countryCode || item?.country_code || ""
+            source_url: outage.url,
+            country_code: outage.countryCode
         });
         if (!event) continue;
         await upsertNetworkStatusAlert(event);
+        if (!shouldPersistStatusEventHistory(event)) continue;
         await insertEventIfValid(event);
     }
 }
