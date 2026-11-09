@@ -2821,7 +2821,6 @@ function renderEventPopupRelatedEvents(host, detail = {}) {
                             ${location ? `<span class="wz-event-popup-related__meta">${escapeHtml(location)}</span>` : `<span></span>`}
                             ${time ? `<span class="wz-event-popup-related__meta">${escapeHtml(formatTime(time))}</span>` : ""}
                         </div>
-                        ${source ? `<p class="wz-event-popup-related__meta">${escapeHtml(source)}</p>` : ""}
                     </button>
                 `;
     }).join("")}

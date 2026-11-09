@@ -966,22 +966,26 @@
 /* #endregion */
 /* #region =========== Radar Sweeper =========== */
 :root {
-    --radar-color: var(--color-teal-glow);
-    --radar-ring-color: var(--color-teal-glow);
-    --radar-fill-color: var(--color-teal);
-    --radar-fill-opacity: 0;
-    --radar-inner-ring-opacity: 0;
-    --radar-ring-opacity: 0.7;
-    --radar-ring-outer-opacity: 0.8;
+    --radar-color: var(--color-green-glow);
+    --radar-ring-color: var(--color-green-glow);
+    --radar-fill-color: var(--color-green);
+    --radar-inner-ring-opacity: 0.5;
+    --radar-ring-opacity: 0.5;
+    --radar-ring-outer-opacity: 0.5;
     --radar-ring-width: 2.2;
+
+    /* Radar rotating beam */
     --radar-sweep-opacity-min: 0;
-    --radar-sweep-opacity-mid: 0.22;
-    --radar-sweep-opacity-max: 0.62;
-    --radar-sweep-width: 72;
-    --radar-sweep-leading-edge-width: 1.8;
-    --radar-sweep-speed: 1;
+    --radar-sweep-opacity-mid: 0;
+    --radar-sweep-opacity-max: 0.75;
+    --radar-sweep-width: 140;
+    --radar-sweep-leading-edge-width: 1.2;
+    --radar-fill-opacity: 0.3;
+
+    --radar-sweep-speed: 2;
     --radar-center-size: 4;
-    --radar-center-glow: 2;
+    --radar-center-glow: 6;
+    --radar-fill-opacity: 0;
 }
 
 /* #endregion =========== */

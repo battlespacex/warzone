@@ -3744,6 +3744,7 @@ function getEntityPropertyValue(entity, key, fallback = "") {
 }
 function isEventMarkerEntity(entity) {
     if (!entity) return false;
+    if (getEntityPropertyValue(entity, "isSamRadarAnnotation", false)) return false;
     const isEventOutline = !!getEntityPropertyValue(entity, "isEventOutline", false);
     const isEventFill = !!getEntityPropertyValue(entity, "isEventFill", false);
     if (isEventOutline || isEventFill) return false;

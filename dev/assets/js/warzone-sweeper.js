@@ -12,6 +12,10 @@ let __radarViewer = null;
 let __radarItems = [];
 let __radarLabels = [];
 let __radarSourceEvents = [];
+let __activeSamRadarItem = null;
+let __samPointerStart = null;
+let __removeSamRadarInteractions = null;
+const __dismissedSamRadarIds = new Set();
 let __removeCameraChanged = null;
 let __removeCameraMoveEnd = null;
 let __restoreGeneration = 0;
@@ -81,7 +85,7 @@ function readRadarVisualTokens(fallbackColor = RADAR_FALLBACK_COLOR) {
         sweepOpacityMin: clamp(cssNumber("--radar-sweep-opacity-min", 0.02), 0, 1),
         sweepOpacityMid: clamp(cssNumber("--radar-sweep-opacity-mid", 0.14), 0, 1),
         sweepOpacityMax: clamp(cssNumber("--radar-sweep-opacity-max", 0.42), 0, 1),
-        sweepWidthDeg: clamp(cssNumber("--radar-sweep-width", 64), 45, 80),
+        sweepWidthDeg: clamp(cssNumber("--radar-sweep-width", 64), 10, 180),
         sweepLeadingEdgeDeg: clamp(cssNumber("--radar-sweep-leading-edge-width", 1.4), 0.5, 3),
         sweepSpeed: clamp(cssNumber("--radar-sweep-speed", 1), 0.1, 3),
         centerSize: clamp(cssNumber("--radar-center-size", 4), 2, 10),
@@ -276,7 +280,7 @@ export function buildRadarSweepStops(widthDeg = 64, {
     maxAlpha = 0.42,
     leadingEdgeDeg = 1.4,
 } = {}) {
-    const width = clamp(Number(widthDeg) || 64, 45, 80);
+    const width = clamp(Number(widthDeg) || 64, 10, 180);
     const min = clamp(Number(minAlpha) || 0, 0, 1);
     const mid = clamp(Number(midAlpha) || 0, min, 1);
     const max = clamp(Number(maxAlpha) || 0, mid, 1);
@@ -332,15 +336,26 @@ function ensureRadarSweepMaterialRegistered() {
                         sweepWidth + angularFeather,
                         trail
                     );
-                    float strength = 1.0 - clamp(trail / max(sweepWidth, 0.0001), 0.0, 1.0);
-                    float fadedAlpha = strength < 0.58
-                        ? mix(minAlpha, midAlpha, smoothstep(0.0, 0.58, strength))
-                        : mix(midAlpha, maxAlpha, smoothstep(0.58, 1.0, strength));
-                    float edgeAlpha = (1.0 - smoothstep(0.0, max(leadingEdgeWidth, 0.0001), trail)) * maxAlpha;
+                    float strength = 1.0 - clamp(
+                        trail / max(sweepWidth, 0.0001),
+                        0.0,
+                        1.0
+                    );
+
+                    // The beam fades smoothly to fully transparent at its trailing edge.
+                    float trailFade = pow(smoothstep(0.0, 1.0, strength), 1.8);
+
+                    // Retain the narrow, bright leading edge.
+                    float edgeAlpha = (
+                        1.0 - smoothstep(0.0, max(leadingEdgeWidth, 0.0001), trail)
+                    ) * maxAlpha;
+
                     float radialFeather = max(fwidth(radius) * 2.5, 0.004);
                     float radialMask = smoothstep(0.0, 0.05, radius)
-                        * (1.0 - smoothstep(1.0 - radialFeather, 1.0, radius));
-                    float sweepAlpha = max(fadedAlpha * inSweep, edgeAlpha) * radialMask;
+                        * (1.0 - smoothstep(0.90, 1.0, radius));
+                    float sweepAlpha = max(maxAlpha * trailFade * inSweep, edgeAlpha)
+                        * radialMask;
+
                     float discMask = 1.0 - smoothstep(1.0 - radialFeather, 1.0, radius);
                     float fillAlpha = fillOpacity * discMask;
 
@@ -485,17 +500,161 @@ function startSweeperTicker() {
 function ensureRadarLabelLayer() {
     return document.getElementById("wz-radar-label-layer");
 }
-function createRadarLabel(text = "") {
+function createRadarLabel(text = "", samDetails = null) {
     const layer = ensureRadarLabelLayer();
     if (!layer) return null;
     const el = document.createElement("div");
-    el.className = "wz-radar-label";
-    el.innerHTML = `<span class="wz-radar-label__text"></span>`;
-    const textEl = el.querySelector(".wz-radar-label__text");
-    if (textEl) textEl.textContent = text;
+    if (samDetails) {
+        const { event, preset, overlayId, lat, lon } = samDetails;
+        const detailId = `wz-sam-radar-details-${overlayId}`;
+        el.className = "wz-sam-radar-card";
+        el.innerHTML = `
+            <div class="wz-sam-radar-card__surface">
+                <header class="wz-sam-radar-card__summary">
+                    <div class="wz-sam-radar-card__kicker">
+                        <span class="wz-sam-radar-card__category">Radar Intelligence</span>
+                        <strong class="wz-sam-radar-card__title">Sam Radar</strong>
+                        <span class="wz-sam-radar-card__meta">Simulated Surface-to-Air Coverage </span>
+                    </div>
+                    <div class="wz-widget-header-actions">
+                        <button type="button"
+                            class="static-icon wz-sam-radar-card__toggle"
+                            aria-expanded="false"
+                            aria-label="Expand SAM radar information" >
+                            <span class="stratops-ico-top-1" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </header>
+                <div class="wz-sam-radar-card__details" id="${detailId}" aria-hidden="true" inert>
+                    <p class="wz-sam-radar-card__description">Simulated radar coverage placed at a source event's coordinates. This does not identify a physical radar or report live detections.</p>
+                    <dl class="wz-sam-radar-card__data">
+                        <div><dt>System Type</dt><dd>Simulated air-defense radar sweep</dd></div>
+                        <div><dt>Data Basis</dt><dd>Source event coordinates</dd></div>
+                        <div><dt>Coverage</dt><dd data-sam-coverage></dd></div>
+                        <div><dt>Detection Status</dt><dd>No live radar detections</dd></div>
+                        <div><dt>Event Location</dt><dd data-sam-location></dd></div>
+                    </dl>
+                </div>
+            </div>`;
+        el.querySelector(".wz-sam-radar-card__toggle").setAttribute("aria-controls", detailId);
+        el.querySelector("[data-sam-coverage]").textContent =
+            `${Math.round(preset.radius / 1000)} km display radius (configured preset)`;
+        const location = String(event?.location_label || event?.impact_label || event?.country || "").trim();
+        el.querySelector("[data-sam-location]").textContent = location
+            ? `${location} (event coordinates)`
+            : `${lat.toFixed(3)}°, ${lon.toFixed(3)}° (event coordinates)`;
+        // const sourceName = String(event?.source_name || parseEventMetadata(event)?.source_name || "").trim();
+        // const sourceUrl = resolveOverlaySourceUrl(event);
+        // const sourceEl = el.querySelector("[data-sam-source]");
+        //if (sourceUrl) {
+        //    const link = document.createElement("a");
+        //    link.href = sourceUrl;
+         //   link.target = "_blank";
+         //   link.rel = "noopener noreferrer";
+        //    link.textContent = sourceName || "View event source";
+        //    sourceEl.appendChild(link);
+        //} else {
+        //    sourceEl.textContent = sourceName || "Source not available";
+        //}
+        el.hidden = __dismissedSamRadarIds.has(overlayId);
+    } else {
+        el.className = "wz-radar-label";
+        el.setAttribute("aria-hidden", "true");
+        el.innerHTML = `<span class="wz-radar-label__text"></span>`;
+        el.querySelector(".wz-radar-label__text").textContent = text;
+    }
     layer.appendChild(el);
     __radarLabels.push(el);
     return el;
+}
+function setSamRadarExpanded(item, expanded) {
+    if (!item?.isSamRadar || !item.labelEl) return;
+    if (expanded && __activeSamRadarItem && __activeSamRadarItem !== item) {
+        setSamRadarExpanded(__activeSamRadarItem, false);
+    }
+    const card = item.labelEl;
+    const toggle = card.querySelector(".wz-sam-radar-card__toggle");
+    const details = card.querySelector(".wz-sam-radar-card__details");
+    if (expanded) {
+        card.hidden = false;
+        __dismissedSamRadarIds.delete(item.overlayId);
+    }
+    card.classList.toggle("is-expanded", expanded);
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.setAttribute("aria-label", `${expanded ? "Collapse" : "Expand"} SAM radar information`);
+    details.setAttribute("aria-hidden", String(!expanded));
+    details.inert = !expanded;
+    if (expanded) __activeSamRadarItem = item;
+    else if (__activeSamRadarItem === item) __activeSamRadarItem = null;
+}
+function collapseActiveSamRadar() {
+    if (__activeSamRadarItem) setSamRadarExpanded(__activeSamRadarItem, false);
+}
+function bindSamRadarCard(item) {
+    const card = item.labelEl;
+    card.querySelector(".wz-sam-radar-card__toggle").addEventListener("click", () => {
+        setSamRadarExpanded(item, __activeSamRadarItem !== item);
+        updateRadarLabels();
+    });
+    card.querySelector(".wz-sam-radar-card__summary").addEventListener("click", (event) => {
+        if (event.target.closest("button")) return;
+        setSamRadarExpanded(item, __activeSamRadarItem !== item);
+        updateRadarLabels();
+    });
+}
+function bindSamRadarInteractions(viewer) {
+    if (__removeSamRadarInteractions) return;
+    const onPointerDown = (event) => {
+        __samPointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    };
+    const onPointerCancel = () => { __samPointerStart = null; };
+    const onPointerUp = (event) => {
+        const start = __samPointerStart;
+        __samPointerStart = null;
+        if (!start || start.id !== event.pointerId || event.button !== 0 ||
+            Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
+        if (event.target?.closest?.(".wz-sam-radar-card")) return;
+        const canvas = viewer.scene?.canvas;
+        if (event.target === canvas) {
+            const rect = canvas.getBoundingClientRect();
+            try {
+                const picked = viewer.scene.pick(new Cesium.Cartesian2(
+                    event.clientX - rect.left, event.clientY - rect.top
+                ));
+                const pickedId = String(picked?.id?.id || picked?.id || "");
+                const item = __radarItems.find((radar) => radar.isSamRadar &&
+                    (pickedId === `${radar.overlayId}-center` || pickedId === `${radar.overlayId}-sweep`));
+                if (item) {
+                    setSamRadarExpanded(item, true);
+                    updateRadarLabels();
+                    item.labelEl.querySelector(".wz-sam-radar-card__toggle").focus({ preventScroll: true });
+                    return;
+                }
+            } catch { }
+        }
+        collapseActiveSamRadar();
+    };
+    const onKeyDown = (event) => {
+        if (event.key === "Escape" && __activeSamRadarItem) {
+            const toggle = __activeSamRadarItem.labelEl.querySelector(".wz-sam-radar-card__toggle");
+            collapseActiveSamRadar();
+            toggle.focus({ preventScroll: true });
+        }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointercancel", onPointerCancel, true);
+    document.addEventListener("pointerup", onPointerUp, true);
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("wz:event-marker-selected", collapseActiveSamRadar);
+    document.addEventListener("wz:satellite-imagery-selected", collapseActiveSamRadar);
+    __removeSamRadarInteractions = () => {
+        document.removeEventListener("pointerdown", onPointerDown, true);
+        document.removeEventListener("pointercancel", onPointerCancel, true);
+        document.removeEventListener("pointerup", onPointerUp, true);
+        document.removeEventListener("keydown", onKeyDown);
+        document.removeEventListener("wz:event-marker-selected", collapseActiveSamRadar);
+        document.removeEventListener("wz:satellite-imagery-selected", collapseActiveSamRadar);
+    };
 }
 function getRadarScreenPosition(viewer, lon, lat) {
     try {
@@ -514,20 +673,63 @@ function updateRadarLabels() {
     const canvas = __radarViewer.scene?.canvas;
     const canvasWidth = Number(canvas?.clientWidth || canvas?.width || 0);
     const canvasHeight = Number(canvas?.clientHeight || canvas?.height || 0);
+    const occluder = __radarItems.some((item) => item.isSamRadar) &&
+        __radarViewer.scene?.globe?.ellipsoid && __radarViewer.camera?.positionWC
+        ? new Cesium.EllipsoidalOccluder(
+            __radarViewer.scene.globe.ellipsoid, __radarViewer.camera.positionWC
+        ) : null;
     __radarItems.forEach((item) => {
         if (!item?.labelEl) return;
         const p = getRadarScreenPosition(__radarViewer, item.lon, item.lat);
-        const visible = p && p.x >= 0 && p.y >= 0 && p.x <= canvasWidth && p.y <= canvasHeight;
+        const visible = p && p.x >= 0 && p.y >= 0 && p.x <= canvasWidth && p.y <= canvasHeight &&
+            (!item.isSamRadar || !occluder || occluder.isPointVisible(
+                Cesium.Cartesian3.fromDegrees(item.lon, item.lat, SWEEPER_RENDER.overlayHeight)
+            ));
         const opacity = visible ? "1" : "0";
         if (item.labelOpacity !== opacity) {
             item.labelEl.style.opacity = opacity;
             item.labelOpacity = opacity;
         }
+        const visibility = visible ? "visible" : "hidden";
+        if (item.labelVisibility !== visibility) {
+            item.labelEl.style.visibility = visibility;
+            item.labelVisibility = visibility;
+        }
         if (!visible) {
+            if (__activeSamRadarItem === item) setSamRadarExpanded(item, false);
             return;
         }
-        const left = `${p.x}px`;
-        const top = `${p.y}px`;
+        if (item.labelEl.hidden) return;
+        let labelX = p.x;
+        let labelY = p.y;
+        if (item.isSamRadar) {
+            const width = item.labelEl.offsetWidth;
+            const height = item.labelEl.offsetHeight;
+            const margin = 10;
+            const gap = 18;
+            labelX = p.x + gap;
+            if (labelX + width > canvasWidth - margin) labelX = p.x - width - gap;
+            labelX = clamp(labelX, margin, Math.max(margin, canvasWidth - width - margin));
+            const summary = item.labelEl.querySelector(
+                ".wz-sam-radar-card__summary"
+            );
+            const details = item.labelEl.querySelector(
+                ".wz-sam-radar-card__details"
+            );
+
+            const expandedHeight =
+                (summary?.offsetHeight || 0) +
+                (details?.scrollHeight || 0) +
+                24;
+            labelY = clamp(
+                p.y + gap,
+                margin,
+                Math.max(margin, canvasHeight - expandedHeight - margin)
+            );
+        }
+        const left = `${labelX}px`;
+        const top = `${labelY}px`;
+
         if (item.labelLeft !== left) {
             item.labelEl.style.left = left;
             item.labelLeft = left;
@@ -611,6 +813,10 @@ function selectRadarCandidates(events = [], maxCount = 3, maxOverlap = 0.50) {
 export function clearSweepers(viewer) {
     const hadVisuals = __sweeperEntities.length > 0 || __sweeperPrimitives.length > 0 || __radarLabels.length > 0;
     clearTicker();
+    __removeSamRadarInteractions?.();
+    __removeSamRadarInteractions = null;
+    __activeSamRadarItem = null;
+    __samPointerStart = null;
     __restoreGeneration += 1;
     __restorePending = false;
     __removeCameraChanged?.();
@@ -657,6 +863,13 @@ export function renderSweepers(viewer, events = []) {
         SWEEPER_RENDER.maxCount,
         SWEEPER_RENDER.maxOverlap
     );
+    const currentSamIds = new Set(candidates.map((candidate, index) =>
+        candidate.preset.label === "SAM Radar"
+            ? makeOverlayEntityId("sweeper", candidate.event, index) : null
+    ).filter(Boolean));
+    for (const id of __dismissedSamRadarIds) {
+        if (!currentSamIds.has(id)) __dismissedSamRadarIds.delete(id);
+    }
     if (!candidates.length) {
         requestSharedSceneRender();
         return;
@@ -675,6 +888,8 @@ export function renderSweepers(viewer, events = []) {
         const base = Cesium.Color.fromCssColorString(visualTokens.color) || Cesium.Color.fromCssColorString(RADAR_FALLBACK_COLOR);
         const overlayId = makeOverlayEntityId("sweeper", candidate.event, index);
         const popupProps = buildOverlayPopupProperties(candidate.event, overlayId);
+        const isSamRadar = preset.label === "SAM Radar";
+        if (isSamRadar) popupProps.isSamRadarAnnotation = true;
         const state = {
             heading: 320 + (index * 40)
         };
@@ -702,22 +917,28 @@ export function renderSweepers(viewer, events = []) {
             },
             properties: { ...popupProps },
         });
-        const labelEl = createRadarLabel(preset.label || "Radar Coverage");
+        const labelEl = createRadarLabel(preset.label || "Radar Coverage", isSamRadar
+            ? { event: candidate.event, preset, overlayId, lat, lon } : null);
         __sweeperEntities.push(
             centerDot
         );
         __sweeperPrimitives.push(sweepBeam.primitive);
-        __radarItems.push({
+        const item = {
             lat,
             lon,
+            overlayId,
+            isSamRadar,
             preset,
             visualTokens,
             state,
             sweepMaterial: sweepBeam.material,
             labelEl
-        });
+        };
+        __radarItems.push(item);
+        if (isSamRadar && labelEl) bindSamRadarCard(item);
     });
     if (viewer.entities?.resumeEvents) viewer.entities.resumeEvents();
+    if (__radarItems.some((item) => item.isSamRadar && item.labelEl)) bindSamRadarInteractions(viewer);
     startSweeperTicker();
     updateRadarLabels();
     requestSharedSceneRender();
