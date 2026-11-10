@@ -1,6 +1,7 @@
 import { isExcludedTrainerAircraftText } from "../../../apps/shared/aircraft-trainer-exclusions.js";
 // File Path: /assets/js/warzone-live-airforce.js
 import * as Cesium from "cesium";
+import { getAircraftTelemetry, renderAircraftTelemetry } from "./warzone-aircraft-telemetry.js";
 import { recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { isLayerEnabled } from "./warzone-layers.js";
@@ -4569,6 +4570,21 @@ function ensureLiveTrackOverlayRoot(viewer) {
     focusPanel.style.padding = "1rem";
     focusPanel.setAttribute("aria-label", "Focused aircraft map controls");
 
+    const title = document.createElement("div");
+    title.className = "wz-aircraft-focus-panel__title";
+
+
+
+    const metrics = document.createElement("div");
+    metrics.className = "wz-aircraft-focus-panel__metrics";
+    metrics.dataset.aircraftFocusMetrics = "1";
+
+
+
+
+
+    focusPanel.append(title, metrics);
+
     const controls = document.createElement("div");
     controls.className = "wz-aircraft-focus-panel__controls";
 
@@ -4926,6 +4942,23 @@ function syncLiveTrackFocusOverlay() {
         }
     }
     syncFocusedTrackOverlayModeButtons();
+    const focusedTrack = __liveTrackRegistry.get(selectedTrackKey);
+    const focusPanel = root.querySelector(".wz-aircraft-focus-panel");
+    if (focusedTrack && focusPanel) {
+        const telemetry = getAircraftTelemetry(focusedTrack);
+        const title = focusPanel.querySelector(".wz-aircraft-focus-panel__title");
+        const titleText = `${focusedTrack.model_name || focusedTrack.type_code || "Aircraft"} · ${telemetry.callsign || "N/A"}`;
+        if (title.textContent !== titleText) title.textContent = titleText;
+    renderAircraftTelemetry(
+    focusPanel.querySelector("[data-aircraft-focus-metrics]"),
+    [
+        ["Ground speed", telemetry.speedLabel],
+        ["Altitude", telemetry.altitudeLabel]
+    ],
+    true
+);
+
+    }
     const screen = getFocusVisualAnchorScreenPosition(viewer, selectedTrackKey);
     if (!screen) {
         root.classList.remove("is-visible");
@@ -4934,6 +4967,29 @@ function syncLiveTrackFocusOverlay() {
         __liveTrackOverlayLastX = Number.NaN;
         __liveTrackOverlayLastY = Number.NaN;
         return;
+    }
+    if (focusPanel) {
+        const width = viewer.scene.canvas.clientWidth;
+        const height = viewer.scene.canvas.clientHeight;
+
+
+
+
+
+
+
+        const layoutKey = `${width}:${height}:` +
+            (focusPanel.querySelector("[data-aircraft-focus-metrics]")
+                ?.dataset.telemetrySignature || "");
+        if (focusPanel.__telemetryLayoutKey !== layoutKey) {
+            focusPanel.__telemetryWidth = focusPanel.offsetWidth;
+            focusPanel.__telemetryHeight = focusPanel.offsetHeight;
+            focusPanel.__telemetryLayoutKey = layoutKey;
+        }
+        const left = `${Math.max(focusPanel.__telemetryWidth / 2 + 8, Math.min(screen.x, width - focusPanel.__telemetryWidth / 2 - 8)) - screen.x}px`;
+        const top = `${Math.max(8 - screen.y, Math.min(126, height - screen.y - focusPanel.__telemetryHeight - 8))}px`;
+        if (focusPanel.style.left !== left) focusPanel.style.left = left;
+        if (focusPanel.style.top !== top) focusPanel.style.top = top;
     }
     if (!__liveTrackOverlayLastVisible) {
         root.style.display = "block";

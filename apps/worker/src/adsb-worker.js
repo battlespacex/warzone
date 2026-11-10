@@ -538,6 +538,14 @@ function toLegacyAircraft(observation) {
         sourceDisagreements: observation.source_disagreements || 0,
         metadataSources: Array.isArray(observation.metadata_sources) ? observation.metadata_sources : [],
         observedAt: observation.observed_at,
+        telemetry: {
+            source: observation.source, observed_at: observation.observed_at,
+            altitude_ft: observation.altitude_ft, altitude_geom_ft: observation.altitude_geom_ft,
+            speed_kts: observation.speed_kts, track_deg: observation.track_deg,
+            true_heading_deg: observation.true_heading_deg, mag_heading_deg: observation.mag_heading_deg,
+            baro_rate_fpm: observation.baro_rate_fpm, geom_rate_fpm: observation.geom_rate_fpm,
+            vertical_rate_fpm: observation.vertical_rate_fpm, operator: observation.operator || "",
+        },
     };
 }
 
@@ -626,6 +634,7 @@ function buildAdsbEvent(a) {
             role,
             altitude_ft: a.altFt,
             altitude_geom_ft: a.geomAltFt,
+            telemetry: a.telemetry,
             speed_kts: a.speedKt,
             heading: a.heading,
             vertical_rate_fpm: a.verticalRateFpm,
@@ -686,6 +695,7 @@ function buildAdsbTrack(a) {
             altitude_ft: a.altFt,
             altitude_geom_ft: a.geomAltFt,
             speed_kts: a.speedKt,
+            telemetry: a.telemetry,
             heading: a.heading,
             vertical_rate_fpm: a.verticalRateFpm,
             squawk: a.squawk || null,

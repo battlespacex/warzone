@@ -158,7 +158,7 @@ test("AISStream keeps static identity until a position arrives", () => {
 
     const positionResult = processAisStreamMessage({
         MessageType: "PositionReport",
-        MetaData: { MMSI: 123456789 },
+        MetaData: { MMSI: 123456789, time_utc: "2026-08-13T12:00:10Z" },
         Message: { PositionReport: { Latitude: 51.5, Longitude: -0.1, Sog: 12, TrueHeading: 90 } },
     }, { now: Date.parse("2026-08-13T12:00:10Z"), cache });
 
@@ -177,7 +177,7 @@ test("AISStream static data survives short windows and bounded TTL pruning", () 
     }, { now: started, cache, cacheTtlMs: 30 * 60_000 });
     const joined = processAisStreamMessage({
         MessageType: "StandardClassBPositionReport",
-        MetaData: { MMSI: 987654321 },
+        MetaData: { MMSI: 987654321, time_utc: "2026-08-13T12:01:00Z" },
         Message: { StandardClassBPositionReport: { Latitude: 41, Longitude: -71 } },
     }, { now: started + 60_000, cache, cacheTtlMs: 30 * 60_000 });
     assert.equal(joined.observation.vessel_name, "USS CACHE");

@@ -10,8 +10,15 @@ if (args.length && !(args.length === 1 && args[0] === "--cleanup") &&
     !(args.length === 2 && args[0] === "--out-dir" && args[1])) {
     throw new Error("Usage: node scripts/build-cesium-compact.cjs [--out-dir <directory> | --cleanup]");
 }
+const { MANIFEST, readManifest, listFiles, sha256 } = require("./cesium-assets.cjs");
+const buildDir = path.join(root, "production");
+const manifest = args[0] === "--out-dir" ? null : readManifest(buildDir);
+if (manifest && args[0] !== "--cleanup" && manifest.variant !== "compact") {
+    throw new Error("Use npm run build:cesium-compact; refusing to overwrite a standard immutable Cesium release");
+}
+const releaseDir = manifest ? path.join(buildDir, manifest.baseUrl.slice(1)) : null;
 const outputDir = args[0] === "--out-dir"
-    ? path.resolve(args[1]) : path.join(root, "production/assets/cesium/Workers");
+    ? path.resolve(args[1]) : path.join(releaseDir, "Workers");
 if (args[0] === "--cleanup") {
     const entry = fs.readFileSync(path.join(outputDir, "createGeometry.js"), "utf8");
     if (entry.includes("cesium-geometry-shared.")) {
@@ -93,4 +100,11 @@ webpack(config, (error, stats) => {
     }
     console.info(`Compact Cesium workers: ${scripts.length} JavaScript files, ` +
         `${scripts.reduce((sum, name) => sum + fs.statSync(path.join(outputDir, name)).size, 0)} bytes in ${outputDir}`);
+    if (manifest) {
+        manifest.files = listFiles(releaseDir).map((relative) => {
+            const bytes = fs.readFileSync(path.join(releaseDir, relative));
+            return { path: relative, bytes: bytes.length, sha256: sha256(bytes) };
+        });
+        fs.writeFileSync(path.join(buildDir, MANIFEST), JSON.stringify(manifest, null, 2) + "\n");
+    }
 });

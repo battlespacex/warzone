@@ -1,4 +1,5 @@
 import * as Cesium from "cesium";
+import { createOperationalGnssReveal } from "./warzone-gnss-reveal.js";
 import { setDataSourceActive } from "./warzone-data-source-lifecycle.js";
 
 const GNSS_LAYER_NAME = "warzone-gnss-interference";
@@ -37,6 +38,12 @@ const __gnssState = {
     demoMode: false,
     trackingViewer: null,
     groundPrimitives: [],
+    groundBuild: null,
+    reveal: null,
+    groundViewer: null,
+    cameraCleanup: null,
+    cameraMoving: false,
+    settledRegion: "",
     batchGeneration: 0,
     sourceMode: "",
     showHexagons: true,
@@ -690,7 +697,53 @@ function upsertEntities(viewer, cells = [], tokens) {
     });
 }
 
+function bindGnssCamera(viewer) {
+    if (__gnssState.groundViewer === viewer) return;
+    __gnssState.cameraCleanup?.();
+    if (__gnssState.groundViewer) clearGroundPrimitives(__gnssState.groundViewer);
+    __gnssState.groundViewer = viewer;
+    __gnssState.cameraMoving = false;
+    __gnssState.settledRegion = "";
+    const start = () => { __gnssState.cameraMoving = true; };
+    const end = () => { __gnssState.cameraMoving = false; };
+    const settled = (event) => {
+        __gnssState.settledRegion = event.detail?.region?.id || "global";
+        viewer.scene.requestRender?.();
+    };
+    viewer.camera?.moveStart?.addEventListener(start);
+    viewer.camera?.moveEnd?.addEventListener(end);
+    document.addEventListener?.("wz:region-camera-settled", settled);
+    __gnssState.cameraCleanup = () => {
+        viewer.camera?.moveStart?.removeEventListener(start);
+        viewer.camera?.moveEnd?.removeEventListener(end);
+        document.removeEventListener?.("wz:region-camera-settled", settled);
+    };
+}
+
+function pauseGroundBuild() {
+    const job = __gnssState.groundBuild;
+    if (!job) return;
+    job.ticket++;
+    if (job.frame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(job.frame);
+    job.frame = null;
+}
+
+function scheduleGroundBuild() {
+    const job = __gnssState.groundBuild;
+    if (!job || job.done || job.frame !== null || !__gnssState.visible) return;
+    const ticket = ++job.ticket;
+    job.frame = requestAnimationFrame(() => {
+        if (ticket !== job.ticket) return;
+        job.frame = null;
+        job.nextBatch();
+    });
+}
+
 function clearGroundPrimitives(viewer) {
+    pauseGroundBuild();
+    __gnssState.groundBuild = null;
+    __gnssState.reveal?.dispose();
+    __gnssState.reveal = null;
     __gnssState.batchGeneration += 1;
     const collection = viewer?.scene?.groundPrimitives;
     if (collection) for (const primitive of __gnssState.groundPrimitives) collection.remove(primitive);
@@ -698,15 +751,26 @@ function clearGroundPrimitives(viewer) {
     __gnssState.cellsById.clear();
 }
 
-function renderGroundBatches(viewer, cells, tokens) {
+function renderGroundBatches(viewer, cells, tokens, options) {
     clearGroundPrimitives(viewer);
     const collection = viewer.scene.groundPrimitives;
     const generation = __gnssState.batchGeneration;
     let cursor = 0;
+    const reveal = createOperationalGnssReveal(viewer, {
+        total: cells.length,
+        cameraSettled: () => !__gnssState.cameraMoving && (!options.regionId
+            || __gnssState.settledRegion === options.regionId),
+        warn: (message) => console.warn(message),
+    });
+    __gnssState.reveal = reveal;
+    const job = { frame: null, ticket: 0, done: false, nextBatch: null };
+    __gnssState.groundBuild = job;
     const nextBatch = () => {
         if (generation !== __gnssState.batchGeneration || !__gnssState.visible) return;
+        if (viewer.isDestroyed?.()) { pauseGroundBuild(); reveal.dispose(); return; }
         const instances = [];
         const outlines = [];
+        const records = [];
         const end = Math.min(cursor + 200, cells.length);
         for (; cursor < end; cursor += 1) {
             const cell = cells[cursor];
@@ -717,6 +781,8 @@ function renderGroundBatches(viewer, cells, tokens) {
                 position: Cesium.Cartesian3.fromDegrees(cell.lon, cell.lat) };
             __gnssState.cellsById.set(id.id, id);
             const positions = Cesium.Cartesian3.fromDegreesArray(points.flatMap((point) => [point.lon, point.lat]));
+            const outlineId = `gnss-outline-${cell.id}`;
+            records.push({ fillId: id, outlineId });
             if (tokens.outlineWidth > 0) {
                 outlines.push(new Cesium.GeometryInstance({
                     geometry: new Cesium.GroundPolylineGeometry({
@@ -724,7 +790,9 @@ function renderGroundBatches(viewer, cells, tokens) {
                         loop: true,
                         width: tokens.outlineWidth,
                     }),
+                    id: outlineId,
                     attributes: {
+                        show: new Cesium.ShowGeometryInstanceAttribute(reveal.initialShow),
                         color: Cesium.ColorGeometryInstanceAttribute.fromColor(
                             getSeverityOutlineColor(tokens, cell.severity)
                         ),
@@ -738,7 +806,8 @@ function renderGroundBatches(viewer, cells, tokens) {
                     ),
                     vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
                 }),
-                attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(color) },
+                attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
+                    show: new Cesium.ShowGeometryInstanceAttribute(reveal.initialShow) },
                 id,
             }));
         }
@@ -758,8 +827,9 @@ function renderGroundBatches(viewer, cells, tokens) {
 
             __gnssState.groundPrimitives.push(primitive);
 
+            let border = null;
             if (outlines.length > 0) {
-                const border = collection.add(new Cesium.GroundPolylinePrimitive({
+                border = collection.add(new Cesium.GroundPolylinePrimitive({
                     geometryInstances: outlines,
                     appearance: new Cesium.PolylineColorAppearance({
                         translucent: true
@@ -773,11 +843,14 @@ function renderGroundBatches(viewer, cells, tokens) {
                 __gnssState.groundPrimitives.push(border);
             }
 
+            reveal.addBatch(primitive, border, records);
             viewer.scene.requestRender?.();
         }
-        if (cursor < cells.length) requestAnimationFrame(nextBatch);
+        if (cursor < cells.length) scheduleGroundBuild();
+        else { job.done = true; reveal.seal(); }
     };
-    requestAnimationFrame(nextBatch);
+    job.nextBatch = nextBatch;
+    scheduleGroundBuild();
 }
 
 function bindGnssControls(viewer) {
@@ -797,7 +870,8 @@ function bindGnssControls(viewer) {
 }
 
 export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
-    if (!viewer) return;
+    if (!viewer || viewer.isDestroyed?.()) return;
+    bindGnssCamera(viewer);
     __gnssState.lastInput = [cells, options];
     bindGnssControls(viewer);
     bindPicking(viewer);
@@ -809,7 +883,8 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
         : allCells.filter((cell) => normalizeSeverity(cell.severity) === __gnssState.severityFilter);
     const layerEnabled = options.visible === true;
     const showCells = layerEnabled && __gnssState.showHexagons && selected.length > 0;
-    const signature = computeCellSignature(selected) + ":" + sourceMode + ":" + __gnssState.showHexagons;
+    const signature = computeCellSignature(selected) + ":" + sourceMode
+        + (isPrimary ? `:${options.regionId || ""}:${options.observationKey || ""}` : `:${__gnssState.showHexagons}`);
     __gnssState.demoMode = options.demoMode === true;
     if (signature !== __gnssState.signature || tokens.signature !== __gnssState.styleSignature) {
         clearGroundPrimitives(viewer);
@@ -827,8 +902,9 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
     }
     __gnssState.visible = showCells;
     if (isPrimary) {
-        if (showCells && !__gnssState.groundPrimitives.length) renderGroundBatches(viewer, selected, tokens);
-        if (!showCells) clearGroundPrimitives(viewer);
+        if (showCells && !__gnssState.groundBuild) renderGroundBatches(viewer, selected, tokens, options);
+        __gnssState.reveal?.setVisible(showCells);
+        if (showCells) scheduleGroundBuild(); else pauseGroundBuild();
     } else if (__gnssState.dataSource) {
         setDataSourceActive(viewer, __gnssState.dataSource, layerEnabled);
         __gnssState.dataSource.show = showCells;
@@ -859,17 +935,25 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
     viewer.scene.requestRender?.();
 }
 
-export function clearGnssInterferenceLayer(viewer) {
-    clearGroundPrimitives(viewer);
-    __gnssState.lastInput = null;
+export function clearGnssInterferenceLayer(viewer, { retainGeometry = false } = {}) {
+    const retain = retainGeometry && __gnssState.sourceMode === "gpsinterference";
+    if (retain) {
+        pauseGroundBuild();
+        __gnssState.reveal?.setVisible(false);
+    } else {
+        clearGroundPrimitives(viewer);
+        __gnssState.lastInput = null;
+        __gnssState.cameraCleanup?.();
+        __gnssState.cameraCleanup = null;
+        __gnssState.groundViewer = null;
+    }
     if (__gnssState.dataSource) {
         __gnssState.dataSource.entities.removeAll();
         __gnssState.dataSource.show = false;
         setDataSourceActive(viewer, __gnssState.dataSource, false);
     }
-    __gnssState.signature = "";
+    if (!retain) __gnssState.signature = "";
     __gnssState.visible = false;
-    __gnssState.cellsById.clear();
     closeActiveGnssPanel();
     clearHighlight();
     hideTooltip();
@@ -890,7 +974,10 @@ export function clearGnssInterferenceLayer(viewer) {
 export function getGnssDiagnostics() {
     return Object.freeze({
         visible: __gnssState.visible,
-        activeCellEntities: __gnssState.cellsById.size,
+        groundPrimitiveCount: __gnssState.groundPrimitives.length,
+        reveal: __gnssState.reveal?.diagnostics() || null,
+        activeCellEntities: __gnssState.visible ? __gnssState.cellsById.size : 0,
+        cachedCellRecords: __gnssState.cellsById.size,
         dataSourceActive: Boolean(__gnssState.dataSource),
         pickingHandlerActive: Boolean(__gnssState.handler),
         popupTrackingListenerActive: Boolean(__gnssState.trackingViewer),

@@ -8,6 +8,7 @@
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
 import { getNavalContactStatus } from "../../../apps/shared/naval-contact-lifecycle.js";
+import { resolveNavalIdentity, selectVerifiedNavalModel } from "../../../apps/shared/naval-identity.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 import { showFocusDriftWarningModal, closeFocusDriftWarningModal } from "./warzone-live-airforce.js";
 import { startLiveAssetHoverPulse, stopLiveAssetHoverPulse } from "./warzone-live-asset-hover-pulse.js";
@@ -38,6 +39,8 @@ const __navalState = {
     clickBound: false,
     clickHandler: null,
     selectedKey: null,
+    previousCameraView: null,
+    collapsedDetailsKey: "",
     isCameraFlying: false,
     focusWarningActive: false,
     focusInputBound: false,
@@ -95,11 +98,12 @@ const NAVAL_NON_OPERATIONAL_PATTERNS = [
     /\b(?:DECOMMISSIONED|RETIRED|MUSEUM(?:\s+SHIP)?|PRESERVED|SCRAPPED|STRICKEN|DISPOSED)\b/i,
 ];
 const NAVAL_MODEL_BASE_PATH = "/assets/images/models/sea";
-const NAVAL_MODEL_DEFAULT_ASSET_KEY = "Vessel-Frigate";
+const NAVAL_MODEL_DEFAULT_ASSET_KEY = "Neutral";
 const LIVE_NAVAL_ICON_BASE_PATH = "/assets/images/live";
-const LIVE_NAVAL_ICON_DEFAULT_CODE = "Vessel-Frigate";
+const LIVE_NAVAL_ICON_DEFAULT_CODE = "Neutral";
 const NAVAL_ASSET_FILES = Object.freeze({
-    Boat: Object.freeze({ category: "small_vessel", model: "Vessel-Frigate.glb", icon: "live-naval-ns-1.png" }),
+    Neutral: Object.freeze({ category: "unknown", model: null, icon: null }),
+    Boat: Object.freeze({ category: "small_vessel", model: null, icon: "live-naval-ns-1.png" }),
     "Carrier-US": Object.freeze({ category: "carrier", model: "Carrier-US.glb", icon: "live-naval-ac-us-1.png" }),
     "Carrier-France": Object.freeze({ category: "carrier", model: "Carrier-France.glb", icon: "live-naval-ac-fr-1.png" }),
     "Carrier-Fujian": Object.freeze({ category: "carrier", model: "Carrier-Fujian.glb", icon: "live-naval-ac-cn-1.png" }),
@@ -626,11 +630,9 @@ function resolveVesselAffiliation({ operator = "", country = "", hintText = "" }
     if (cleanOperator && cleanCountry) {
         return { operator: cleanOperator, country: cleanCountry };
     }
-    const inferred = inferNavalOperatorFromText(hintText);
-    const inferredCountry = normalizeCountryName(inferred.country || "");
     return {
-        operator: cleanOperator || inferred.operator || "",
-        country: cleanCountry || inferredCountry || "",
+        operator: cleanOperator,
+        country: cleanCountry,
     };
 }
 function getNestedFieldValue(source = {}, keyPath = "") {
@@ -680,9 +682,6 @@ function resolveNavalLastSeenAt(event = {}, metadata = {}) {
         metadata.occurred_at,
         metadata.timestamp,
         metadata.time,
-        event.updated_at,
-        metadata.updated_at,
-        event.created_at,
     ];
     for (const candidate of candidates) {
         if (candidate === null || candidate === undefined || candidate === "") continue;
@@ -1062,68 +1061,7 @@ function resolveNavalCountryDefaultAssetKey(context = {}) {
     return match?.assetKey || "";
 }
 function resolveNavalAssetKey(vessel = {}) {
-    const metadata = getNavalMetadata(vessel);
-    const explicitCode = normalizeText(
-        vessel.asset_key ||
-        metadata.asset_key ||
-        vessel.model_code ||
-        metadata.model_code ||
-        metadata.modelCode ||
-        ""
-    );
-    const explicitAssetKey = normalizeNavalAssetKey(explicitCode);
-    if (explicitAssetKey) return explicitAssetKey;
-
-    const context = buildLiveNavalIconContext(vessel);
-    const exactAssetKey = normalizeNavalAssetKey(resolveExactNavalIconCode(context));
-    if (exactAssetKey) return exactAssetKey;
-
-    const subtype = String(context.subtype || "").trim().toLowerCase();
-    const haystack = String(context.haystack || "");
-    if (
-        subtype === "carrier" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_FIXED_WING_CARRIER_PATTERNS)
-    ) {
-        return normalizeNavalAssetKey(resolveFixedWingCarrierIconCode(context)) || "Carrier-Russian";
-    }
-    if (
-        subtype === "amphibious" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_AMPHIBIOUS_CARRIER_PATTERNS)
-    ) {
-        return "Carrier-LHD";
-    }
-    if (
-        ["submarine", "ssbn", "ssn"].includes(subtype) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_SUBMARINE_PATTERNS)
-    ) {
-        return "Submarine-SSN";
-    }
-    if (["ssk", "aip_submarine"].includes(subtype)) return "Submarine-API";
-    if (
-        subtype === "intelligence" ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_INTELLIGENCE_PATTERNS)
-    ) {
-        return "Vessel-ISR";
-    }
-    if (
-        ["cruiser", "destroyer", "frigate", "corvette", "logistics"].includes(subtype) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_LARGE_SURFACE_PATTERNS) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_REPLENISHMENT_PATTERNS)
-    ) {
-        return "Vessel-Frigate";
-    }
-    if (
-        ["missile_boat", "patrol", "minesweeper"].includes(subtype) ||
-        hasAnyNavalPattern(haystack, LIVE_NAVAL_SMALL_SURFACE_PATTERNS)
-    ) {
-        return "Boat";
-    }
-
-    return (
-        normalizeNavalAssetKey(resolveNavalCountryDefaultAssetKey(context)) ||
-        NAVAL_ASSET_KEY_BY_SUBTYPE[subtype] ||
-        NAVAL_MODEL_DEFAULT_ASSET_KEY
-    );
+    return selectVerifiedNavalModel(resolveNavalIdentity(vessel)) || NAVAL_MODEL_DEFAULT_ASSET_KEY;
 }
 function resolveLiveNavalIconCode(vessel = {}) {
     const trackCacheKey = String(vessel.track_key || "").trim();
@@ -1390,6 +1328,7 @@ export function getNavalModelDescriptor(vessel = {}) {
     const modelCode = resolveNavalAssetKey(vessel);
     return {
         model_code: modelCode,
+        representation: modelCode === "Neutral" ? "neutral-marker" : "representative-category",
         model_family: String(modelCode || "").split("-")[0] || "NAVAL",
         model_uri: resolveNavalModelUri(vessel),
         subtype: normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval",
@@ -1446,11 +1385,7 @@ function getNavalFocusedCssNumber(baseVarName, vessel = {}, fallback) {
     return getCssNumber(`${baseVarName}-${category}`, getCssNumber(baseVarName, fallback));
 }
 function getFocusedNavalModelScale(vessel = {}) {
-    return clamp(
-        getNavalFocusedCssNumber("--warzone-live-naval-model-focused-size", vessel, 130),
-        1,
-        4000
-    );
+    return getNavalModelScale(vessel);
 }
 function refreshFocusedNavalModelScale() {
     const entry = __navalState.vessels.get(__navalState.selectedKey);
@@ -1459,32 +1394,19 @@ function refreshFocusedNavalModelScale() {
     requestNavalRenderBatched();
 }
 function getNavalModelScale(vessel = {}) {
-    if (isFocusedNavalVessel(vessel)) return getFocusedNavalModelScale(vessel);
-    return clamp(
-        getCssNumber("--warzone-live-naval-model-scale", 35),
-        1,
-        4000
-    );
+    const identity = resolveNavalIdentity(vessel);
+    // Native Z extents in metres after the GLB node transforms, inspected locally.
+    const lengths = { "Carrier-US": 41.16168, "Carrier-France": 36.17915, "Carrier-Fujian": 39.00145,
+        "Carrier-HMS": 38.95408, "Carrier-Russian": 35.99406, "Carrier-LHD": 33.6988,
+        "Vessel-Frigate": 31.90354, "Vessel-Zumwalt": 32.32765 };
+    const nativeLength = lengths[selectVerifiedNavalModel(identity)];
+    return nativeLength && identity.length_m ? identity.length_m / nativeLength : 1;
 }
 function getNavalModelMinPixelSize(vessel = {}) {
-    const focused = isFocusedNavalVessel(vessel);
-    return clamp(
-        getCssNumber(
-            focused ? "--warzone-live-naval-model-focused-min-pixel-size" : "--warzone-live-naval-model-min-pixel-size",
-            getCssNumber("--warzone-live-naval-model-min-pixel-size", 64)
-        ),
-        0,
-        600
-    );
+    return 0; // Do not inflate small vessels to kilometre-scale hulls.
 }
 function getNavalModelMaxScale(vessel = {}) {
-    return Math.max(
-        getCssNumber(
-            isFocusedNavalVessel(vessel) ? "--warzone-live-naval-model-max-scale-focused" : "--warzone-live-naval-model-max-scale",
-            getCssNumber("--warzone-live-naval-model-max-scale", 160)
-        ),
-        getNavalModelScale(vessel)
-    );
+    return getNavalModelScale(vessel);
 }
 function getNavalModelHeadingOffsetDeg(vessel = {}) {
     const subtype = normalizeNavalSubtypeKey(vessel.subcategory || "naval") || "naval";
@@ -1643,6 +1565,7 @@ function shouldUseFocusedContextNavalModel(vessel = {}) {
     return getFocusedNavalContextModelPriorityRank(vessel, radiusMeters) < maxActive;
 }
 function resolveNavalRenderMode(vessel = {}) {
+    if (!resolveNavalModelUri(vessel)) return NAVAL_RENDER_MODE.PNG;
     const metadata = vessel?.metadata && typeof vessel.metadata === "object" ? vessel.metadata : {};
     const explicitMode = normalizeNavalRenderMode(
         vessel.render_mode ||
@@ -1714,7 +1637,7 @@ function applyNavalModelVisual(entity, vessel = {}) {
             lightColor: modelQuality.lightColor,
             maximumScreenSpaceError: modelQuality.maximumScreenSpaceError,
             shadows: modelQuality.shadows,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            heightReference: Cesium.HeightReference.NONE,
             runAnimations: false,
             clampAnimations: false,
         };
@@ -1723,7 +1646,7 @@ function applyNavalModelVisual(entity, vessel = {}) {
         entity.model.scale = getNavalModelScale(vessel);
         entity.model.minimumPixelSize = getNavalModelMinPixelSize(vessel);
         entity.model.maximumScale = getNavalModelMaxScale(vessel);
-        entity.model.heightReference = Cesium.HeightReference.CLAMP_TO_GROUND;
+        entity.model.heightReference = Cesium.HeightReference.NONE;
     }
     applyLiveGlbModelQuality(entity.model, vessel);
     entity.model.show = true;
@@ -1786,11 +1709,11 @@ function applyNavalBillboardVisual(entity, vessel = {}, mode = NAVAL_RENDER_MODE
 }
 function applyNavalVisual(entity, vessel = {}) {
     const renderMode = resolveNavalRenderMode(vessel);
-    if (renderMode !== NAVAL_RENDER_MODE.MODEL && shouldUseNavalBillboards()) {
+    if (renderMode !== NAVAL_RENDER_MODE.MODEL && (shouldUseNavalBillboards() || !resolveNavalModelUri(vessel))) {
         const didApplyBillboard = applyNavalBillboardVisual(entity, vessel, renderMode);
         if (didApplyBillboard) return;
     }
-    applyNavalModelVisual(entity, vessel);
+    if (resolveNavalModelUri(vessel)) applyNavalModelVisual(entity, vessel);
 }
 function requestNavalRenderBatched() {
     requestSharedSceneRender();
@@ -2308,13 +2231,19 @@ function emitNavalFocusChanged() {
     }));
 }
 
-export function clearNavalSelection() {
+export function clearNavalSelection({ resetCamera = false, duration = 1.15 } = {}) {
     const previousKey = __navalState.selectedKey;
+    const viewer = window.__warzoneViewer;
+    const previousView = __navalState.previousCameraView;
+    const previousPosition = getEntityPosition(__navalState.vessels.get(previousKey)?.entity);
+    __navalState.previousCameraView = null;
     ++__navalMapModeGeneration;
     const activeFocus = getAssetFocusController().getState();
     const ownsMapModes = Boolean(previousKey) && (!activeFocus.assetType ||
         (activeFocus.assetType === "naval" && activeFocus.assetId === previousKey));
     __navalState.selectedKey = null;
+    __navalState.isCameraFlying = false;
+    __navalState.collapsedDetailsKey = "";
     hideNavalHoverLabel();
     __navalState.focusDragState = null;
     __navalState.focusRangeMeters = NAVAL_FOCUS_CAMERA_RANGE_METERS;
@@ -2327,6 +2256,7 @@ export function clearNavalSelection() {
     setNavalFocusedZoomLock(false);
     const focusController = getAssetFocusController();
     if (previousKey && focusController.isActiveAsset(previousKey, "naval")) {
+        viewer?.camera?.cancelFlight?.();
         focusController.exitFocus("naval-clear");
     }
     closeFocusDriftWarningModal();
@@ -2358,6 +2288,23 @@ export function clearNavalSelection() {
     } catch { }
     emitNavalFocusChanged();
     dispatchNavalRegistryUpdate();
+    if (resetCamera && previousKey && ownsMapModes && viewer && !viewer.isDestroyed?.()) {
+        const generation = focusController.getGeneration();
+        const finish = () => {
+            if (!focusController.isCurrent(generation)) return;
+            __navalState.isCameraFlying = false;
+            requestNavalRenderBatched();
+        };
+        if (previousView && viewer.camera.flyTo) {
+            viewer.camera.flyTo({ destination: previousView.position,
+                orientation: { direction: previousView.direction, up: previousView.up }, duration,
+                complete: finish, cancel: finish });
+        } else if (previousPosition) {
+            viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(previousPosition, 1), {
+                duration, offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-89.5),
+                    Math.max(56000, getNavalFocusedDistanceMeters() + 18000)), complete: finish, cancel: finish });
+        }
+    }
 }
 function getNavalFocusWarningRangeMeters() {
     return clamp(
@@ -2637,7 +2584,7 @@ function showNavalFocusWarning() {
         },
         onUnfocus: () => {
             __navalState.focusWarningActive = false;
-            clearNavalSelection();
+            clearNavalSelection({ resetCamera: true });
         },
     });
     if (!shown) {
@@ -2665,7 +2612,13 @@ export function focusNavalVessel(trackKey, options = {}) {
     const targetPosition = entry.entity.position?.getValue?.(Cesium.JulianDate.now());
     if (!targetPosition) return false;
 
+    if (!__navalState.selectedKey && viewer.camera.positionWC && viewer.camera.directionWC && viewer.camera.upWC) {
+        __navalState.previousCameraView = { position: Cesium.Cartesian3.clone(viewer.camera.positionWC),
+            direction: Cesium.Cartesian3.clone(viewer.camera.directionWC), up: Cesium.Cartesian3.clone(viewer.camera.upWC) };
+    }
+
     __navalState.selectedKey = trackKey;
+    __navalState.collapsedDetailsKey = "";
     __navalState.lastFocusCameraSyncAt = 0;
     __navalState.lastFocusCameraTarget = null;
     __navalState.lastFocusCameraHeadingDeg = Number.NaN;
@@ -2752,12 +2705,14 @@ function formatNavalCoord(value) {
     return Number.isFinite(num) ? `${num.toFixed(4)}°` : "—";
 }
 function formatNavalHeading(value) {
+    if (value === null || value === undefined || value === "") return "HDG —";
     const heading = Number(value);
     if (!Number.isFinite(heading)) return "HDG —";
     const normalized = ((heading % 360) + 360) % 360;
     return `HDG ${Math.round(normalized)}°`;
 }
 function formatNavalSpeed(value) {
+    if (value === null || value === undefined || value === "") return "N/A";
     const speed = Number(value);
     return Number.isFinite(speed) ? `${speed.toFixed(0)} kt` : "— kt";
 }
@@ -2839,17 +2794,22 @@ function getNavalWidgetDetailLabel(vessel = {}) {
     return typeLabel || "Naval";
 }
 function getNavalWidgetCountryOperatorLabel(vessel = {}) {
-    const country = normalizeText(vessel.country || vessel.flag_country || "");
-    const operator = normalizeText(vessel.operator || "");
-    if (country && operator && operator.toLowerCase().includes(country.toLowerCase())) {
-        return operator;
-    }
-    if (country && operator) {
-        return `${country} • ${operator}`;
-    }
-    if (operator) return operator;
-    if (country) return `${country} Navy`;
-    return "Unknown Navy";
+    return resolveNavalIdentity(vessel).naval_force || "Unverified affiliation";
+}
+function applyResolvedNavalIdentity(vessel) {
+    const identity = resolveNavalIdentity(vessel);
+    vessel.naval_identity = identity;
+    vessel.verification_status = identity.verification_status;
+    vessel.military_status = identity.military_status;
+    vessel.operator = identity.operator;
+    vessel.naval_force = identity.naval_force;
+    vessel.country = vessel.flag_country = identity.flag_state;
+    if (identity.vessel_name) vessel.platform_name = vessel.vessel_name = identity.vessel_name;
+    vessel.subcategory = identity.category === "unknown" ? "naval" : identity.category;
+    vessel.type_label = identity.category === "unknown" ? "Unknown vessel type" : identity.category.replace(/_/g, " ");
+    vessel.class_name = vessel.vessel_class = identity.ship_class;
+    vessel.subclass_name = vessel.variant_name = vessel.version_name = "";
+    return vessel;
 }
 function mergeNavalVesselData(existing = {}, incoming = {}) {
     const merged = {
@@ -2884,14 +2844,16 @@ function mergeNavalVesselData(existing = {}, incoming = {}) {
         .filter((value) => Number.isFinite(value) && value > 0);
     merged.first_seen_at = firstSeen.length ? new Date(Math.min(...firstSeen)).toISOString() : "";
     merged.last_seen_at = Number(incoming.last_seen_at || existing.last_seen_at || 0);
-    return merged;
+    return applyResolvedNavalIdentity(merged);
 }
 
 function isNavalPositionUpdateAccepted(existing, incoming) {
     if (!isValidCoordinatePair(incoming.lat, incoming.lon)) return false;
     if (!existing) return true;
     if (existing.mmsi && incoming.mmsi && existing.mmsi !== incoming.mmsi) return false;
+    if (existing.imo && incoming.imo && existing.imo !== incoming.imo) return false;
     const elapsedMs = Number(incoming.last_seen_at) - Number(existing.last_seen_at);
+    if (elapsedMs === 0) return incoming.lat === existing.lat && incoming.lon === existing.lon;
     if (!(elapsedMs > 0)) return false;
     // Great-circle distance handles the date line and polar positions correctly.
     const radians = Math.PI / 180;
@@ -3240,7 +3202,7 @@ export function upsertNavalVessel(event) {
         "courseDeg",
         "cog",
         "track",
-    ], 0);
+    ], Number.NaN);
     const speedKts = pickFirstNavalNumber(sourceObjects, [
         "speed_kts",
         "speed_knots",
@@ -3285,7 +3247,7 @@ export function upsertNavalVessel(event) {
         vessel_class: normalizeText(displayDetails.class_name || metadata.vessel_class || metadata.ship_class || getNavalSubtypeLabel(displayDetails.subtype || resolvedSubtype)),
         lat: telemetryCoords.lat,
         lon: telemetryCoords.lon,
-        heading_deg: toFiniteNumber(headingDeg, 0),
+        heading_deg: Number.isFinite(headingDeg) && headingDeg >= 0 && headingDeg < 360 ? headingDeg : null,
         speed_kts: Number.isFinite(speedKts) ? speedKts : null,
         mmsi,
         imo: normalizeText(pickFirstNavalText(sourceObjects, ["imo", "imo_number", "imoNumber"])),
@@ -3311,6 +3273,15 @@ export function upsertNavalVessel(event) {
         metadata,
     };
 
+    const identity = resolveNavalIdentity(vessel);
+    if (identity.military_status === "commercial") {
+        // Remove stale name-qualified contacts from the military tracker without deleting source data.
+        clearNavalVessel(trackKey);
+        return;
+    }
+    vessel.platform_name = vessel.vessel_name = identity.vessel_name || normalizeText(metadata.vessel_name) || vesselName;
+    applyResolvedNavalIdentity(vessel);
+
     if (!isValidCoordinatePair(vessel.lat, vessel.lon)) {
         return;
     }
@@ -3319,7 +3290,8 @@ export function upsertNavalVessel(event) {
         const olderKeys = [];
         for (const [otherKey, other] of __navalState.vessels) {
             if (otherKey === trackKey || other?.data?.imo !== vessel.imo) continue;
-            if (Number(other.data.last_seen_at) >= Number(vessel.last_seen_at)) {
+        if (other.data.mmsi && vessel.mmsi && other.data.mmsi !== vessel.mmsi) continue;
+        if (Number(other.data.last_seen_at) >= Number(vessel.last_seen_at)) {
                 return other.entity || null;
             }
             olderKeys.push(otherKey);
@@ -3658,11 +3630,16 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     const historyDetails = vessel.history_asset_key
         ? `First detected ${vessel.first_seen_at || "Unknown"} · ${vessel.qualification_level || "Unverified"} · Confidence ${vessel.source_confidence ?? "Unknown"} · Aliases: ${(vessel.aliases || []).join(", ") || "None"}`
         : "";
-    const isSelected = selectedKey && selectedKey === String(vessel.track_key || "");
+    const isSelected = Boolean(selectedKey && selectedKey === String(vessel.track_key || ""));
     const isFocusDisabled = isNavalFocusBlocked(vessel.track_key);
+    const expanded = isSelected && __navalState.collapsedDetailsKey !== String(vessel.track_key || "");
     const renderSignature = [name, detailLabel, affiliationLabel, speedLabel, headingLabel,
-        coordLabel, timeLabel, provenance, historyDetails, Boolean(isSelected), isFocusDisabled].join("\u001f");
-    if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4) return;
+        coordLabel, timeLabel, provenance, historyDetails, isSelected, isFocusDisabled, expanded,
+        vessel.mmsi, vessel.imo, vessel.callsign, vessel.flag_country, vessel.operator,
+        vessel.verification_status, vessel.military_status, vessel.naval_force,
+        vessel.naval_identity?.source, vessel.naval_identity?.verified_at,
+        vessel.source_name, vessel.last_seen_at, vessel.lat, vessel.lon].join("\u001f");
+    if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4 && card.querySelector(".wz-naval-action")) return;
     card.className = `wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
     card.style.cursor = isFocusDisabled ? "default" : "pointer";
@@ -3704,26 +3681,21 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     if (!foot) {
         foot = document.createElement("div");
         foot.className = "wz-naval-item__foot";
+        card.appendChild(foot);
+    }
+    if (!actionBtn) {
         actionBtn = document.createElement("button");
         actionBtn.type = "button";
         actionBtn.className = "wz-naval-action btn-primary";
         actionBtn.appendChild(document.createElement("span"));
         actionBtn.appendChild(document.createTextNode(""));
         foot.appendChild(actionBtn);
-        card.appendChild(foot);
     }
 
     titleEl = card.querySelector(".wz-naval-item__title");
     timeEl = card.querySelector(".wz-naval-item__time");
     actionBtn = card.querySelector(".wz-naval-action");
-    let provenanceEl = foot.querySelector(".wz-naval-item__provenance");
-    if (!provenanceEl) {
-        provenanceEl = document.createElement("span");
-        provenanceEl.className = "wz-naval-item__provenance";
-        foot.insertBefore(provenanceEl, actionBtn);
-    }
-    provenanceEl.textContent = provenance;
-    provenanceEl.title = historyDetails;
+    foot.querySelector(".wz-naval-item__provenance")?.remove();
     card.querySelector(".wz-aircraft-badge")?.remove();
 
     let statusWrap = titleEl.querySelector(".wz-naval-title__status");
@@ -3752,30 +3724,115 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
 
     const metaSpans = meta.querySelectorAll("span");
     if (metaSpans[0]) {
-        metaSpans[0].dataset.label = "CATEGORY";
+        metaSpans[0].dataset.label = "Category";
         metaSpans[0].textContent = detailLabel;
     }
     if (metaSpans[1]) {
-        metaSpans[1].dataset.label = "FORCE";
+        metaSpans[1].dataset.label = "Force";
         metaSpans[1].textContent = affiliationLabel;
     }
     const statSpans = stats.querySelectorAll("span");
     if (statSpans[0]) {
-        statSpans[0].dataset.label = "SPEED";
+        statSpans[0].dataset.label = "Speed";
         statSpans[0].textContent = String(speedLabel || "").toUpperCase();
     }
     if (statSpans[1]) {
-        statSpans[1].dataset.label = "HEADING";
+        statSpans[1].dataset.label = "Heading";
         statSpans[1].textContent = String(headingLabel || "").toUpperCase();
     }
     if (statSpans[2]) {
-        statSpans[2].dataset.label = "POSITION";
+        statSpans[2].dataset.label = "Position";
         statSpans[2].textContent = String(coordLabel || "").toUpperCase();
     }
 
+
+    // Full AIS details live inside the focused vessel card, not on the globe.
+    let details = card.querySelector(".wz-naval-technical-details");
+    if (!details) {
+        details = document.createElement("div");
+        details.className = "wz-naval-technical-details";
+        card.insertBefore(details, foot);
+    }
+    details.hidden = !expanded;
+    details.style.display = expanded ? "flex" : "none";
+    if (expanded) {
+        details.replaceChildren();
+        const safeValue = (value, suffix = "") =>
+            value === null || value === undefined || String(value).trim() === ""
+                ? "N/A" : `${String(value)}${suffix}`;
+
+        const addSection = (heading, fields) => {
+            const section = document.createElement("section");
+            const headingEl = document.createElement("h4");
+            headingEl.textContent = heading;
+            const grid = document.createElement("dl");
+            grid.className = "wz-naval-details-grid";
+            fields.forEach(([label, value]) => {
+                const cell = document.createElement("div");
+                cell.className = "wz-naval-details-item";
+
+                const key = document.createElement("dt");
+                key.textContent = label;
+
+                const val = document.createElement("dd");
+                val.textContent = safeValue(value);
+
+                cell.append(key, val);
+                grid.appendChild(cell);
+            });
+            section.append(headingEl, grid);
+            details.appendChild(section);
+        };
+
+        const sourceMetadata = vessel.metadata || {};
+        const navStatus = sourceMetadata.nav_status ?? sourceMetadata.navigation_status ??
+            sourceMetadata.navigationStatus ?? "";
+        const course = sourceMetadata.course_deg ?? sourceMetadata.course ??
+            sourceMetadata.cog ?? "";
+        addSection("Vessel Identification", [
+            ["Name", name], ["MMSI", vessel.mmsi],
+            ["IMO", vessel.imo], ["Callsign", vessel.callsign],
+            ["Category / type", detailLabel], ["Ship class", vessel.vessel_class || "Unverified"],
+            ["Flag", vessel.flag_country || vessel.country],
+            ["Operator", vessel.operator || "Unverified"], ["Naval force", vessel.naval_force || "Unverified"],
+            ["Military status", vessel.military_status || "Unknown"], ["Hull number", vessel.hull_number],
+            ["3D representation", resolveNavalModelUri(vessel) ? "Representative category model" : "Neutral marker"],
+        ]);
+        addSection("Navigation", [
+            ["Speed over ground", speedLabel], ["Heading", headingLabel],
+            ["Course over ground", course], ["Navigation status", navStatus],
+            ["Position", coordLabel], ["Last position", exactTime],
+        ]);
+        addSection("Source & Status", [
+            ["Source", vessel.source_name],
+            ["Verification", vessel.verification_status || "Unverified"],
+            ["Identity source", vessel.naval_identity?.source || "Unverified"],
+            ["Identity checked", vessel.naval_identity?.verified_at || "N/A"],
+            ["Contact state", status],
+            ["Last received", vessel.received_at ? new Date(vessel.received_at).toISOString() : "N/A"],
+        ]);
+    }
+
+
+
+
+    let collapse = foot.querySelector("[data-naval-details-toggle]");
+    if (!collapse) {
+        collapse = document.createElement("button");
+        collapse.type = "button";
+        collapse.className = "btn-secondary white";
+        foot.appendChild(collapse);
+    }
+    collapse.dataset.navalDetailsToggle = String(vessel.track_key || "");
+    collapse.hidden = !isSelected;
+    collapse.style.display = isSelected ? "" : "none";
+    collapse.textContent = expanded ? "Collapse" : "Expand";
+    collapse.setAttribute("aria-expanded", String(expanded));
     actionBtn.disabled = isFocusDisabled;
     actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");
     actionBtn.classList.toggle("is-focus-disabled", isFocusDisabled);
+    actionBtn.hidden = isFocusDisabled && !isSelected;
+    actionBtn.style.display = actionBtn.hidden ? "none" : "";
     actionBtn.dataset.navalTrackToggle = String(vessel.track_key || "");
     const actionIcon = actionBtn.querySelector("span") || document.createElement("span");
     if (!actionIcon.parentNode) {
@@ -3783,7 +3840,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
         actionBtn.appendChild(document.createTextNode(""));
     }
     actionIcon.setAttribute("aria-hidden", "true");
-    const actionLabel = isSelected ? "Unlock" : "Focus";
+    const actionLabel = isSelected ? "Unfocus" : "Focus";
     if (!actionIcon.nextSibling) {
         actionBtn.appendChild(document.createTextNode(actionLabel));
     } else {
@@ -3849,11 +3906,27 @@ export function renderNavalTrackerWidget(options = {}) {
         let card = existingCardMap.get(vesselKey) || null;
         if (!card) {
             card = document.createElement("article");
-            card.addEventListener("click", () => {
+            card.addEventListener("click", (event) => {
                 const trackKey = String(card.dataset.trackKey || "");
-                if (isNavalFocusBlocked(trackKey)) return;
-                if (__navalState.selectedKey && String(__navalState.selectedKey) === trackKey) {
-                    clearNavalSelection();
+                const detailsToggle = event.target.closest("[data-naval-details-toggle]");
+                if (detailsToggle && card.contains(detailsToggle)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (String(__navalState.selectedKey || "") !== trackKey) return;
+                    __navalState.collapsedDetailsKey =
+                        __navalState.collapsedDetailsKey === trackKey ? "" : trackKey;
+                    const latest = __navalState.vessels.get(trackKey)?.data || vessel;
+                    updateNavalWidgetCard(card, latest, trackKey);
+                    return;
+                }
+                // Clicking the card background no longer changes the camera focus.
+                const actionButton = event.target.closest(".wz-naval-action");
+                if (!actionButton || !card.contains(actionButton)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (actionButton.disabled || isNavalFocusBlocked(trackKey)) return;
+                if (String(__navalState.selectedKey || "") === trackKey) {
+                    clearNavalSelection({ resetCamera: true });
                 } else {
                     window.__navalFocusVessel?.(trackKey);
                 }

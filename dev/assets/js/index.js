@@ -1,4 +1,4 @@
-﻿// File Path: /assets/js/index.js
+// File Path: /assets/js/index.js
 import "../css/style.css";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import {
@@ -29,7 +29,8 @@ const isLocalDevHost =
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "::1" ||
     window.location.hostname === "[::1]";
-const STRATOPS_API_BASE = isLocalDevHost ? "/api" : "https://api.battlespacex.com";
+const STRATOPS_API_BASE = (typeof STRATOPS_API_BASE_URL === "string" && STRATOPS_API_BASE_URL)
+    || (isLocalDevHost ? "/api" : "https://api.battlespacex.com");
 const compiledTacticalMapBaseUrl = typeof STRATOPS_TACTICAL_MAP_BASE_URL === "undefined" ? "" : STRATOPS_TACTICAL_MAP_BASE_URL;
 const localTacticalMapBaseUrl = "/assets/map/tactical/v1";
 
@@ -107,7 +108,7 @@ window.__stratopsConfig = {
         minimumClassificationConfidence: "unconfirmed",
     },
     milSatsRotation: true,
-    milSatsRotationSpeed: 5, 
+    milSatsRotationSpeed: 5,
     startupMilSatsDemo: true,
     billing: {
         enabled: false,

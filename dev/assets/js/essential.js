@@ -1,6 +1,7 @@
 import { isExcludedTrainerAircraftText } from "../../../apps/shared/aircraft-trainer-exclusions.js";
 // File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
+import { aircraftTelemetryNumber, getAircraftTelemetry, renderAircraftTelemetry } from "./warzone-aircraft-telemetry.js";
 import { createTrackUpdateQueue, instrumentRealtimeCallback, installRealtimeSocketDiagnostics, recordRealtimeChannelError, recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { initSmoothHomeAnchors } from "./home-anchors.js";
 import { supabase, api } from "./supabase.js";
@@ -190,6 +191,7 @@ let __foregroundRenderModeRestoreTimer = 0;
 let __widgetLayerControlsBound = false;
 let __aircraftLayerChangeReady = false;
 let __aircraftWidgetBound = false;
+let __aircraftCollapsedDetailsKey = "";
 let __aircraftWidgetFilter = "active";
 let __aircraftWidgetSubtypeFilter = "all";
 const AIRCRAFT_WIDGET_SUBTYPES = Object.freeze([
@@ -333,7 +335,6 @@ let __navalWidgetScopeFilter = "region";
 let __navalWidgetSubtypeFilter = "all";
 let __navalWidgetStatusFilter = "recent";
 let __navalWidgetPage = 1;
-let __navalHistorySearch = "";
 let __navalHistoryRequest = null;
 let __navalHistoryGeneration = 0;
 let __navalHistoryLoadedKey = "";
@@ -3540,16 +3541,15 @@ function navalHistoryEventFromAsset(asset) {
 }
 async function refreshPrivateNavalHistory({ append = false } = {}) {
     const status = __navalWidgetStatusFilter;
-    const search = __navalHistorySearch;
-    const needsHistory = ["historical", "archived", "all"].includes(status) || search.length >= 2;
+    const needsHistory = ["historical", "archived", "all"].includes(status);
     if (!isNavalTrackingFeatureEnabled() || !isLayerEnabled("naval") || !needsHistory) {
         cancelNavalHistoryRequest({ clear: true });
         requestNavalWidgetRender(0);
         return;
     }
     const region = getMapEventsRegionRequest();
-    if (!region && !search) return;
-    const key = `${region?.id || "global"}|${status}|${search}`;
+    if (!region) return;
+    const key = `${region.id || "global"}|${status}`;
     if (append && (!__navalHistoryHasMore || key !== __navalHistoryLoadedKey)) return;
     if (!append && key === __navalHistoryLoadedKey) return;
     cancelNavalHistoryRequest({ clear: !append });
@@ -3560,7 +3560,7 @@ async function refreshPrivateNavalHistory({ append = false } = {}) {
     requestNavalWidgetRender(0);
     try {
         const result = await api.getNavalHistory(region, {
-            status, search, offset: append ? __navalHistoryOffset : 0,
+            status, offset: append ? __navalHistoryOffset : 0,
             limit: 200, signal: controller.signal,
         });
         if (generation !== __navalHistoryGeneration) return;
@@ -3596,12 +3596,8 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const navalSubtypeSelect = document.getElementById("wz-naval-filter-subtype");
         __navalWidgetScopeFilter = "region";
         const allVessels = isLayerEnabled("naval") ? getAllNavalSnapshots() : [];
-        const search = __navalHistorySearch.toLowerCase();
-        const scopedVessels = allVessels
-            .filter((vessel) => isTrackerItemVisibleInScope(vessel, __navalWidgetScopeFilter))
-            .filter((vessel) => !search || [vessel.mmsi, vessel.imo, vessel.callsign,
-                vessel.vessel_name, vessel.operator, ...(vessel.aliases || [])]
-                .some((value) => String(value || "").toLowerCase().includes(search)));
+        const regionVessels = allVessels.filter((vessel) => isTrackerItemVisibleInScope(vessel, __navalWidgetScopeFilter));
+        const scopedVessels = regionVessels;
         const highValueVessels = isHighValueAssetDetectionEnabled()
             ? scopedVessels.filter((vessel) => getHighValueNavalMeta(vessel))
             : [];
@@ -3612,6 +3608,20 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
         const statusVessels = vessels.filter((vessel) => matchesNavalContactStatus(
             getNavalContactStatus(vessel.last_seen_at), __navalWidgetStatusFilter
         ));
+        if (typeof __STRATOPS_DEV_TOOLS__ !== "undefined" && __STRATOPS_DEV_TOOLS__) {
+            const states = {};
+            for (const vessel of regionVessels) {
+                const state = getNavalContactStatus(vessel.last_seen_at);
+                states[state] = (states[state] || 0) + 1;
+            }
+            window.__stratopsNavalFilterDiagnostics = {
+                region: getActiveRegion?.()?.id || "global", filter: __navalWidgetStatusFilter,
+                contacts: allVessels.length, contacts_in_region: regionVessels.length,
+                excluded_by_region: allVessels.length - regionVessels.length,
+                excluded_by_type: scopedVessels.length - vessels.length,
+                excluded_by_state: vessels.length - statusVessels.length, displayed: statusVessels.length, states,
+            };
+        }
         syncNavalGlobeVisibilityFilter();
         updateNavalWidgetTitleCount(statusVessels.length, highValueVessels.length);
         notifyHighValueAssets("naval", highValueVessels);
@@ -3623,12 +3633,10 @@ function requestNavalWidgetRender(delay = NAVAL_WIDGET_RENDER_THROTTLE_MS) {
                 ? "Loading naval tracks…"
                 : __navalWidgetSubtypeFilter !== "all"
                     ? `No ${formatNavalSubtypeLabel(__navalWidgetSubtypeFilter)} contacts in selected region`
-                    : __navalHistoryMessage || "No naval contacts in selected region",
+                    : __navalHistoryMessage || (regionVessels.length
+                        ? "No AIS contacts match the selected contact-state filters"
+                        : "No AIS observations in selected region; coverage may be unavailable"),
         });
-        const moreHistory = document.getElementById("wz-naval-history-more");
-        if (moreHistory) moreHistory.hidden = !__navalHistoryHasMore;
-        const historyMessage = document.getElementById("wz-naval-history-message");
-        if (historyMessage) historyMessage.textContent = __navalHistoryMessage;
         if (statusVessels.length) markTrackerPerf("naval", "first tracker row rendered");
     }, getLiveWidgetRenderDelay(delay));
 }
@@ -4225,12 +4233,14 @@ function syncGnssInterferenceLayer() {
     if (!viewer) return;
     if (!isLayerEnabled("gnss")) {
         stopGnssInterferenceRefresh();
-        clearGnssInterferenceLayer(viewer);
+        clearGnssInterferenceLayer(viewer, { retainGeometry: true });
         return;
     }
     const scopedCells = getScopedGnssInterferenceCells();
     renderGnssInterferenceLayer(viewer, scopedCells, {
         visible: true,
+        regionId: getActiveRegion?.()?.id || "global",
+        observationKey: __gnssObservationPeriod,
         demoMode: __gnssInterferenceMeta.demoMode === true,
         updatedAt: __gnssInterferenceMeta.updatedAt || null,
         sourceMode: __gnssInterferenceMeta.sourceMode || "unavailable",
@@ -7464,15 +7474,16 @@ function normalizeAircraftHistoryRow(row = {}) {
         region: String(row.region || ""),
         lat: Number(row.lat),
         lon: Number(row.lon),
-        altitude_ft: Number(row.altitude_ft ?? metadata.altitude_ft ?? 0),
-        speed_kts: Number(row.speed_kts ?? metadata.speed_kts ?? 0),
-        heading_deg: Number(row.heading_deg ?? metadata.heading ?? 0),
+        altitude_ft: aircraftTelemetryNumber(row.altitude_ft ?? metadata.altitude_ft),
+        speed_kts: aircraftTelemetryNumber(row.speed_kts ?? metadata.speed_kts),
+        heading_deg: aircraftTelemetryNumber(row.heading_deg ?? metadata.heading),
         active,
         ended_at: endedAt,
         last_seen_at: Number.isFinite(lastSeenAt) ? lastSeenAt : Date.now(),
         occurred_at: row.occurred_at || row.updated_at || row.created_at || row.last_seen_at || new Date().toISOString(),
         metadata,
         __source: "tracks-db",
+        updated_at: row.updated_at || null,
     };
 }
 function normalizeAircraftHistoryRowsProgressively(rows = [], { signal } = {}) {
@@ -8374,7 +8385,7 @@ function ensureAircraftWidgetEmptyState(container, hasItems, message = "No aircr
 function getAircraftWidgetActionLabel(track, selection) {
     const isSelected = selection.track_key === track.track_key;
     return track.active
-        ? (isSelected ? "Unlock" : "Focus")
+        ? (isSelected ? "Unfocus" : "Focus")
         : (isSelected ? "Hide" : "Replay");
 }
 function getAircraftWidgetTimeLabel(track) {
@@ -8385,19 +8396,21 @@ function getAircraftWidgetTimeLabel(track) {
 function updateAircraftWidgetCard(card, track, selection) {
     if (!card || !track) return;
     const detailLabel = getAircraftWidgetDetailLabel(track);
-    const affiliationLabel = getAircraftWidgetForceLabel(track);
+    const telemetry = getAircraftTelemetry(track);
+    const affiliationLabel = [telemetry.operator, telemetry.country].filter(Boolean).join(" / ") || "Unavailable";
     const title = getAircraftDisplayTitle(track);
     const isSelected = selection.track_key === track.track_key;
-    const isFocusDisabled = track.active && !getAssetFocusController().canEnterFocus({
+    const isFocusDisabled = !getAssetFocusController().canEnterFocus({
         assetType: "aircraft",
         assetId: track.track_key,
     });
     const statusLabel = getAircraftWidgetStatusLabel(track);
     const timeLabel = getAircraftWidgetTimeLabel(track);
     const actionLabel = getAircraftWidgetActionLabel(track, selection);
-    const altitudeLabel = formatAircraftAltitude(track.altitude_ft);
-    const speedLabel = formatAircraftSpeed(track.speed_kts);
-    const headingLabel = `HDG ${Math.round(Number(track.heading_deg || 0))}°`;
+    const altitudeLabel = telemetry.altitudeLabel;
+    const speedLabel = telemetry.speedLabel;
+    const headingLabel = telemetry.direction;
+    const expanded = isSelected && selection.mode === "focus" && __aircraftCollapsedDetailsKey !== track.track_key;
     const action = track.active
         ? (isSelected ? "unlock" : "focus")
         : (isSelected ? "hide" : "replay");
@@ -8415,6 +8428,7 @@ function updateAircraftWidgetCard(card, track, selection) {
         headingLabel,
         action,
         actionLabel,
+        expanded, JSON.stringify(telemetry.fields),
     ].join("\u001f");
     if (
         card.dataset.renderSignature === renderSignature &&
@@ -8498,11 +8512,11 @@ function updateAircraftWidgetCard(card, track, selection) {
     timeEl.textContent = String(timeLabel || "").toUpperCase();
     const metaSpans = meta.querySelectorAll("span");
     if (metaSpans[0]) {
-        metaSpans[0].dataset.label = "TYPE";
+        metaSpans[0].dataset.label = "Type";
         metaSpans[0].textContent = String(detailLabel || "").toUpperCase();
     }
     if (metaSpans[1]) {
-        metaSpans[1].dataset.label = "FORCE";
+        metaSpans[1].dataset.label = "Operator";
         metaSpans[1].textContent = String(affiliationLabel || "").toUpperCase();
     }
     const statSpans = stats.querySelectorAll("span");
@@ -8511,18 +8525,42 @@ function updateAircraftWidgetCard(card, track, selection) {
         statSpans[0].textContent = String(altitudeLabel || "").toUpperCase();
     }
     if (statSpans[1]) {
-        statSpans[1].dataset.label = "SPEED";
+        statSpans[1].dataset.label = "Speed";
         statSpans[1].textContent = String(speedLabel || "").toUpperCase();
     }
     if (statSpans[2]) {
-        statSpans[2].dataset.label = "HEADING";
+        statSpans[2].dataset.label = "Direction";
         statSpans[2].textContent = String(headingLabel || "").toUpperCase();
     }
     actionBtn.dataset.trackAction = action;
+    let details = card.querySelector(".wz-aircraft-technical-details");
+    if (!details) {
+        details = document.createElement("div");
+        details.className = "wz-aircraft-item__stats wz-aircraft-technical-details";
+        card.insertBefore(details, foot);
+    }
+    details.hidden = !expanded;
+    details.style.display = expanded ? "" : "none";
+    if (expanded) renderAircraftTelemetry(details, telemetry.fields);
+    let collapse = foot.querySelector("[data-aircraft-details-toggle]");
+    if (!collapse) {
+        collapse = document.createElement("button"); collapse.type = "button";
+        collapse.className = "btn-secondary white"; foot.appendChild(collapse);
+    }
+    collapse.dataset.aircraftDetailsToggle = track.track_key;
+    const showDetailsToggle = isSelected && selection.mode === "focus";
+    collapse.hidden = !showDetailsToggle;
+    // Some StratOps button CSS overrides the browser's [hidden] rule.
+    collapse.style.display = showDetailsToggle ? "" : "none";
+    collapse.textContent = expanded ? "Collapse" : "Expand";
+    collapse.setAttribute("aria-expanded", String(expanded));
     actionBtn.dataset.trackToggle = String(track.track_key || "");
     actionBtn.disabled = isFocusDisabled;
     actionBtn.setAttribute("aria-disabled", isFocusDisabled ? "true" : "false");
     actionBtn.classList.toggle("is-focus-disabled", isFocusDisabled);
+    // Only the focused aircraft has an action while a global focus is active.
+    actionBtn.hidden = isFocusDisabled && !isSelected;
+    actionBtn.style.display = actionBtn.hidden ? "none" : "";
     const actionIcon = actionBtn.querySelector("span") || document.createElement("span");
     if (!actionIcon.parentNode) {
         actionBtn.appendChild(actionIcon);
@@ -8853,6 +8891,7 @@ function bindFocusedAircraftTrailHistory() {
     document.addEventListener("wz:aircraft-track-selected", (event) => {
         const trackKey = String(event.detail?.trackKey || "");
         const mode = String(event.detail?.mode || "");
+        __aircraftCollapsedDetailsKey = "";
         if (mode !== "focus" || !trackKey) {
             cancelFocusedAircraftTrailHistory();
             return;
@@ -8872,6 +8911,16 @@ function bindAircraftMovementsWidget() {
     if (navalStatusSelect) navalStatusSelect.value = __navalWidgetStatusFilter;
     bindFocusedAircraftTrailHistory();
     document.addEventListener("click", (event) => {
+        const detailToggle = event.target.closest("[data-aircraft-details-toggle]");
+        if (detailToggle && aircraftWidgetEnabled) {
+            event.preventDefault(); event.stopPropagation();
+            const key = String(detailToggle.dataset.aircraftDetailsToggle || "");
+            const selection = getLiveTrackSelection();
+            if (selection.mode !== "focus" || selection.track_key !== key) return;
+            __aircraftCollapsedDetailsKey = __aircraftCollapsedDetailsKey === key ? "" : key;
+            requestAircraftMovementsWidgetRender(0);
+            return;
+        }
         const loadMoreBtn = event.target.closest("[data-aircraft-load-more]");
         if (loadMoreBtn && aircraftWidgetEnabled) {
             event.preventDefault();
@@ -8886,10 +8935,6 @@ function bindAircraftMovementsWidget() {
             event.stopPropagation();
             __navalWidgetPage += 1;
             requestNavalWidgetRender(0);
-            return;
-        }
-        if (event.target.closest("#wz-naval-history-more") && navalWidgetEnabled) {
-            void refreshPrivateNavalHistory({ append: true });
             return;
         }
         const actionBtn = event.target.closest("[data-track-action]");
@@ -8958,17 +9003,10 @@ function bindAircraftMovementsWidget() {
         }
         const navalStatusSelect = event.target.closest("#wz-naval-filter-status");
         if (navalStatusSelect && navalWidgetEnabled) {
-            __navalWidgetStatusFilter = String(navalStatusSelect.value || "recent");
+            const status = String(navalStatusSelect.value || "recent");
+            __navalWidgetStatusFilter = ["recent", "live", "delayed", "last_known"].includes(status) ? status : "recent";
             __navalWidgetPage = 1;
             syncNavalGlobeVisibilityFilter();
-            requestNavalWidgetRender(0);
-            void refreshPrivateNavalHistory();
-            return;
-        }
-        const navalHistorySearch = event.target.closest("#wz-naval-history-search");
-        if (navalHistorySearch && navalWidgetEnabled) {
-            __navalHistorySearch = String(navalHistorySearch.value || "").trim();
-            __navalWidgetPage = 1;
             requestNavalWidgetRender(0);
             void refreshPrivateNavalHistory();
             return;
@@ -12204,6 +12242,14 @@ function setReportsStatus(message = "", isError = false) {
     status.textContent = message;
     status.hidden = !message;
     status.classList.toggle("is-error", Boolean(isError));
+    // Status is inside the loader: hiding its parent also hid every failure/empty state.
+    const loader = document.getElementById("wz-operational-report-loader");
+    if (message && loader) loader.hidden = false;
+    const spinner = loader?.querySelector(".wz-operational-report-loader__gif");
+    if (spinner) {
+        spinner.hidden = Boolean(message);
+        spinner.style.display = message ? "none" : "";
+    }
 }
 
 function resetOperationalReportViewer() {
@@ -12430,16 +12476,27 @@ function populateOperationalReportSelector(reports = []) {
         select.appendChild(option);
     });
     select.disabled = available.length === 0;
+    if (!available.length) select.appendChild(new Option("No reports available", ""));
     return available;
 }
 
 async function loadOperationalReportHistory() {
     const requestSequence = ++__operationalReportsState.historySequence;
+    __operationalReportsState.loadSequence += 1;
+    __operationalReportsState.selectedReport = null;
+    __operationalReportsState.selectedReportId = "";
+    __operationalReportsState.availableReports = [];
     resetOperationalReportViewer();
     setOperationalReportDownloadState(null, false);
+    const select = document.getElementById("wz-operational-reports-select");
+    if (select) {
+        select.disabled = true;
+        select.replaceChildren(new Option("Loading reports...", ""));
+    }
     try {
         const type = document.getElementById("wz-operational-reports-type")?.value || "72hour";
-        const { data } = await api.getOperationalReports(type, "global");
+        const { data, error } = await api.getOperationalReports(type, "global");
+        if (error) throw error;
         if (!__operationalReportsState.isOpen || requestSequence !== __operationalReportsState.historySequence) return;
         const reports = populateOperationalReportSelector(Array.isArray(data) ? data : []);
         __operationalReportsState.availableReports = reports;
@@ -12453,11 +12510,20 @@ async function loadOperationalReportHistory() {
         if (select) select.value = String(reports[0].id || "");
         openOperationalReportViewer(reports[0]);
     } catch (error) {
-        if (requestSequence !== __operationalReportsState.historySequence) return;
+        if (!__operationalReportsState.isOpen || requestSequence !== __operationalReportsState.historySequence) return;
         console.warn("[reports] report history lookup failed:", error);
         const loader = document.getElementById("wz-operational-report-loader");
         if (loader) loader.hidden = true;
-        setReportsStatus("REPORT UNAVAILABLE\nUnable to load recent briefings.", true);
+        if (select) {
+            select.disabled = true;
+            select.replaceChildren(new Option("Unable to load reports", ""));
+        }
+        const unauthorized = error?.status === 401 || /\(401\)/.test(String(error?.message || ""));
+        const forbidden = error?.status === 403 || /\(403\)/.test(String(error?.message || ""));
+        setReportsStatus(unauthorized
+            ? "SIGN IN REQUIRED\nSign in to access operational reports."
+            : forbidden ? "ACCESS REQUIRED\nYour account cannot access these operational reports."
+                : "REPORT UNAVAILABLE\nUnable to load recent briefings. Try selecting the report type again.", true);
     }
 }
 

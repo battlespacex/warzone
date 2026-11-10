@@ -85,6 +85,7 @@ export function normalizeOpenSkyState(state, { now = Date.now() } = {}) {
         on_ground: Boolean(state?.[8]),
         speed_kts: velocityMs == null ? null : velocityMs * METERS_PER_SECOND_TO_KNOTS,
         heading_deg: numberOrNull(state?.[10]),
+        track_deg: numberOrNull(state?.[10]),
         vertical_rate_fpm: verticalRateMs == null ? null : verticalRateMs * METERS_PER_SECOND_TO_FEET_PER_MINUTE,
         squawk: String(state?.[14] || "").trim(),
         spi: Boolean(state?.[15]),

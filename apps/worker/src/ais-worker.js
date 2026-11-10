@@ -11,6 +11,7 @@ import { mergeNavalObservations } from "./tracking/merge.js";
 import { runConfiguredProviders } from "./tracking/provider-health.js";
 import { createNavalProviders } from "./tracking/naval/registry.js";
 import { persistPrivateNavalHistory } from "./naval-private-history.js";
+import { resolveNavalIdentity } from "../../shared/naval-identity.js";
 
 // ─── Naval vessel name patterns ───────────────────────────────────────────────
 
@@ -270,10 +271,14 @@ function defaultKnownMilitaryIdentifiers() {
     const mmsi = process.env.NAVAL_KNOWN_MILITARY_MMSI;
     const imo = process.env.NAVAL_KNOWN_MILITARY_IMO;
     const callsigns = process.env.NAVAL_KNOWN_MILITARY_CALLSIGNS;
+    const registry = process.env.NAVAL_VERIFIED_IDENTITIES_JSON || "[]";
     if (!knownMilitaryIdentifierCache || knownMilitaryIdentifierCache.mmsi !== mmsi
-        || knownMilitaryIdentifierCache.imo !== imo || knownMilitaryIdentifierCache.callsigns !== callsigns) {
+        || knownMilitaryIdentifierCache.imo !== imo || knownMilitaryIdentifierCache.callsigns !== callsigns
+        || knownMilitaryIdentifierCache.registry !== registry) {
+        const verifiedIdentities = JSON.parse(registry);
+        if (!Array.isArray(verifiedIdentities)) throw new Error("NAVAL_VERIFIED_IDENTITIES_JSON must be an array");
         knownMilitaryIdentifierCache = {
-            mmsi, imo, callsigns,
+            mmsi, imo, callsigns, registry, verifiedIdentities,
             knownMilitaryMmsi: identifierSet(mmsi),
             knownMilitaryImo: identifierSet(imo),
             knownMilitaryCallsigns: callsignSet(callsigns),
@@ -291,20 +296,24 @@ export function qualifyMilitaryVessel(vessel, options = {}) {
         knownMilitaryCallsigns = defaults.knownMilitaryCallsigns,
     } = options;
     if (isKnownNonOperationalNavalContact(vessel)) return { accepted: false, reason: "non_operational" };
+    const identity = resolveNavalIdentity(vessel, { records: options.verifiedIdentities
+        || defaultKnownMilitaryIdentifiers().verifiedIdentities, trustEmbedded: false });
+    if (identity.verification_status === "conflict") return { accepted: false, reason: "identity_conflict", identity };
+    if (identity.verification_status === "verified") return {
+        accepted: identity.military_status === "military", reason: identity.military_status === "military"
+            ? "verified_identity" : "rejected_civilian", identity,
+    };
+    // A configured whitelist is an operator assertion, not a name-derived registry.
+    // Commercial AIS evidence still requires an explicit verified identity to override it.
+    if (identity.military_status === "commercial") return { accepted: false, reason: "rejected_civilian" };
     if (knownMilitaryMmsi.has(String(vessel.mmsi || ""))) return { accepted: true, reason: "known_military_mmsi" };
     if (knownMilitaryImo.has(String(vessel.imoNumber || ""))) return { accepted: true, reason: "known_military_imo" };
     if (knownMilitaryCallsigns.has(String(vessel.callSign || "").trim().toUpperCase())) return { accepted: true, reason: "known_military_callsign" };
-    const hasCivilianIdentity = isCivilianVesselName(`${vessel.name || ""} ${vessel.shipType || ""}`, vessel.callSign);
-    const hasMilitaryIdentity = isMilitaryVesselName(vessel.name, vessel.callSign)
-        || isMilitaryVesselName(vessel.shipType)
-        || isMilitaryVesselName(vessel.operator);
-    if (hasCivilianIdentity && !hasMilitaryIdentity) {
-        return { accepted: false, reason: "rejected_civilian" };
-    }
-    if (hasMilitaryIdentity) return { accepted: true, reason: "military_name_match" };
+    // Retain reported military candidates without upgrading AIS type/flags to verified ownership.
     if (vessel.providerMilitaryFlag === true) return { accepted: true, reason: "provider_military_flag" };
-    if (isMilitaryShipType(vessel.shipType) && !hasCivilianIdentity) return { accepted: true, reason: "military_ship_type" };
-    return { accepted: false, reason: "rejected_civilian" };
+    if (isMilitaryShipType(vessel.shipType)) return { accepted: true, reason: "military_ship_type" };
+    if (isMilitaryVesselName(vessel.name, vessel.callSign)) return { accepted: true, reason: "unverified_name_hint" };
+    return { accepted: false, reason: "unverified_identity" };
 }
 
 export function isMilitaryVessel(vessel, options) {
@@ -317,16 +326,27 @@ function navalSourceName(vessel) {
     const providers = new Set((vessel.lastSourceObservations || []).map((item) => item.provider));
     if (providers.size > 1) return "Multi-source AIS";
     if (providers.has("fintraffic")) return "Fintraffic / Digitraffic";
-    return "AIS / AISStream.io";
+    if (providers.has("aisstream")) return "AIS / AISStream.io";
+    return [...providers][0] || "AIS source unspecified";
+}
+
+function navalIdentityMetadata(vessel) {
+    const identity = vessel.identity || resolveNavalIdentity(vessel, { trustEmbedded: false });
+    return { identity_verification: identity.identity_verification, military_status: identity.military_status,
+        verification_status: identity.verification_status, identity_conflicts: identity.conflicts,
+        operator: identity.operator || null, naval_force: identity.naval_force || null,
+        ship_class: identity.ship_class || null, flag_country: identity.flag_state || vessel.country || null,
+        observed_at: vessel.observedAt || null, qualification_reason: vessel.qualificationReason || "unverified_identity",
+        qualification_level: identity.verification_status === "verified" ? "confirmed" : "probable" };
 }
 
 function buildNavalEvent(vessel) {
     const { mmsi, name, shipType, lat, lon, speed, heading, country, callSign, imoNumber } = vessel;
-    const subcat = classifyVessel(name, shipType, callSign);
+    const subcat = vessel.identity?.category && vessel.identity.category !== "unknown" ? vessel.identity.category : "naval";
     const speedKt = Number.isFinite(speed) ? speed.toFixed(1) : null;
 
     const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;
-    const displayName = `${subcat.toUpperCase()} ${vesselLabel}`;
+    const displayName = `${subcat === "naval" ? "UNVERIFIED CONTACT" : subcat.toUpperCase()} ${vesselLabel}`;
 
     const title = country
         ? `${displayName} — ${country}`
@@ -347,7 +367,7 @@ function buildNavalEvent(vessel) {
         dedupe_key: `ais-${vessel.trackIdentity}`,
         source_key: `ais-${vessel.trackIdentity}`,
         source_name: navalSourceName(vessel),
-        category: "military",
+        category: vessel.identity?.military_status === "military" ? "military" : "unverified",
         subcategory: subcat,
         title,
         summary,
@@ -355,9 +375,10 @@ function buildNavalEvent(vessel) {
         lon,
         severity: "medium",   // TEXT — valid value
         confidence: 75,          // INTEGER — was "high" (string) which caused the upsert error
-        occurred_at: vessel.observedAt || new Date().toISOString(),
+        occurred_at: vessel.observedAt || null,
         report_type: "signal",
         metadata: {
+            ...navalIdentityMetadata(vessel),
             mmsi,
             vessel_name: name || null,
             ship_type: shipType || null,
@@ -378,13 +399,13 @@ function buildNavalEvent(vessel) {
 
 export function buildNavalTrack(vessel) {
     const { mmsi, name, shipType, lat, lon, speed, heading, country, callSign, imoNumber } = vessel;
-    const vesselClass = classifyVessel(name, shipType, callSign);
+    const vesselClass = vessel.identity?.category && vessel.identity.category !== "unknown" ? vessel.identity.category : "naval";
     const vesselLabel = name || callSign || `Military Vessel MMSI:${mmsi}`;
 
     return {
         track_key: `ais-${vessel.trackIdentity}`,
         track_type: "naval",
-        category: "military",
+        category: vessel.identity?.military_status === "military" ? "military" : "unverified",
         subcategory: vesselClass,
         source_name: navalSourceName(vessel),
         title: country ? `${vesselLabel} — ${country}` : vesselLabel,
@@ -396,9 +417,10 @@ export function buildNavalTrack(vessel) {
         region: null,
         country: country || null,
         status: "active",
-        occurred_at: vessel.observedAt || new Date().toISOString(),
-        updated_at: vessel.observedAt || new Date().toISOString(),
+        occurred_at: vessel.observedAt || null,
+        updated_at: vessel.observedAt || null,
         metadata: {
+            ...navalIdentityMetadata(vessel),
             mmsi,
             vessel_name: name || null,
             ship_type: shipType ?? null,
@@ -422,13 +444,13 @@ function buildNavalTrackHistoryRow(vessel) {
         mmsi,
         vessel_name: name || callSign || `Military Vessel MMSI:${mmsi}`,
         ship_type: Number.isFinite(shipTypeCode) ? Math.round(shipTypeCode) : null,
-        vessel_class: classifyVessel(name, shipType, callSign),
+        vessel_class: vessel.vesselClass || "naval",
         lat,
         lon,
         speed_kts: Number.isFinite(speed) ? Number(speed) : null,
         heading_deg: Number.isFinite(heading) ? Number(heading) : null,
         status: "active",
-        last_seen_at: vessel.observedAt || new Date().toISOString(),
+        last_seen_at: vessel.observedAt || null,
     };
 }
 
@@ -509,6 +531,7 @@ function toLegacyVessel(observation) {
         navStatus: observation.nav_status || "",
         operatingStatus: observation.operating_status || "",
         operator: observation.operator || "",
+        metadata: observation.metadata || {},
         sourceCount: observation.source_count || 1,
         corroboration: observation.corroboration || "single-source",
         sourceConfidence: observation.source_confidence || 60,
@@ -641,10 +664,15 @@ export async function runAisWorker(options = {}) {
         const vessel = toLegacyVessel(observation);
         const qualification = qualifyMilitaryVessel(vessel, qualificationOptions);
         qualificationCounts[qualification.reason] = (qualificationCounts[qualification.reason] || 0) + 1;
+        if (qualification.reason === "identity_conflict") logger.warn?.(`[ais] identity_conflict mmsi=${vessel.mmsi || "unknown"}`);
         if (qualification.accepted) military.push({
             ...vessel,
+            name: qualification.identity?.vessel_name || vessel.name,
+            operator: qualification.identity?.operator || "",
+            country: qualification.identity?.flag_state || vessel.country,
             qualificationReason: qualification.reason,
-            vesselClass: classifyVessel(vessel.name, vessel.shipType, vessel.callSign),
+            identity: qualification.identity || resolveNavalIdentity(vessel, { trustEmbedded: false }),
+            vesselClass: qualification.identity?.category === "unknown" ? "naval" : qualification.identity?.category || "naval",
         });
     }
     const corroborated = military.filter((vessel) => vessel.sourceCount > 1).length;

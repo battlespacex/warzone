@@ -137,7 +137,7 @@ export function processAisStreamMessage(message, {
     pruneAisStreamCache(cache, now, cacheTtlMs, cacheMaxEntries);
     const previous = cache.get(mmsi) || {};
     const update = isPosition ? positionFields(body, meta) : staticFields(body, meta);
-    const messageObservedAt = navalObservedAt(meta.time_utc ?? meta.TimeUTC ?? meta.timestamp, now);
+    const messageObservedAt = navalObservedAt(meta.time_utc ?? meta.TimeUTC ?? meta.timestamp, NaN);
     const next = {
         ...previous,
         ...update,
@@ -219,11 +219,16 @@ export function createAisStreamProvider({
     let compressionEnabled = null;
     let silentReconnects = 0;
     let nextReconnectAt = 0;
+    let connectionAttempts = 0;
+    let lastProviderError = null;
+    let lastMessageAt = null;
 
     const connectOnce = (insecure = false) => new Promise((resolve, reject) => {
+        connectionAttempts += 1;
         const candidate = createSocket(baseUrl || DEFAULT_URL, insecure, webSocketFactory);
         let opened = false;
         const failBeforeOpen = (error) => {
+            lastProviderError = String(error?.message || error).split(String(apiKey)).join("[redacted]").slice(0, 400);
             if (!opened) reject(error);
         };
         candidate.on("open", () => {
@@ -260,6 +265,7 @@ export function createAisStreamProvider({
             }
             const parsed = processAisStreamMessage(message, { cache, cacheTtlMs, cacheMaxEntries });
             if (parsed.kind === "error") {
+                lastProviderError = String(parsed.error).split(String(apiKey)).join("[redacted]").slice(0, 400);
                 const error = new Error(`AISStream subscription error: ${parsed.error}`);
                 error.code = "AISSTREAM_SUBSCRIPTION_ERROR";
                 error.status = 400;
@@ -278,11 +284,13 @@ export function createAisStreamProvider({
             silentReconnects = 0;
             nextReconnectAt = 0;
             counters.received += 1;
+            lastMessageAt = Number(now());
             if (parsed.kind === "position") counters.position += 1;
             if (parsed.kind === "static") counters.static += 1;
             if (parsed.observation) observations.set(parsed.mmsi, parsed.observation);
         });
         candidate.on("error", (error) => {
+            lastProviderError = String(error?.message || error).split(String(apiKey)).join("[redacted]").slice(0, 400);
             if (!opened) {
                 failBeforeOpen(error);
                 return;
@@ -349,6 +357,15 @@ export function createAisStreamProvider({
         enabled: configured,
         disabledReason: requested && !configured ? "MISSING_CREDENTIALS" : "DISABLED_BY_CONFIG",
         minimumIntervalMs: 0,
+        getDiagnostics() {
+            return { connected, subscription_confirmed: subscriptionConfirmed, compression_enabled: compressionEnabled,
+                frames: counters.frames, messages_received: counters.received, position_messages: counters.position,
+                valid_positions: [...observations.values()].filter((item) => item.latitude != null && item.longitude != null).length,
+                cached_contacts: observations.size,
+                last_message_at: lastMessageAt == null ? null : new Date(lastMessageAt).toISOString(),
+                last_error: lastProviderError, reconnection_attempts: Math.max(0, connectionAttempts - 1),
+                next_reconnect_at: nextReconnectAt ? new Date(nextReconnectAt).toISOString() : null };
+        },
         async fetchObservations() {
             const baseline = { ...counters };
             subscriptionError = null;

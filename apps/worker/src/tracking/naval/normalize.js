@@ -20,7 +20,8 @@ export function navalObservedAt(value, fallback = Date.now()) {
         if (Number.isFinite(date.getTime())) return date.toISOString();
     }
     const parsed = Date.parse(navalText(value));
-    return new Date(Number.isFinite(parsed) ? parsed : fallback).toISOString();
+    const date = new Date(Number.isFinite(parsed) ? parsed : fallback);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
 export function navalValue(row, ...keys) {
@@ -50,7 +51,7 @@ export function normalizeNavalObservation(provider, values = {}, { now = Date.no
         domain: "naval",
         source: provider,
         provider,
-        observed_at: navalObservedAt(values.observed_at, now),
+        observed_at: values.observed_at == null || values.observed_at === "" ? null : navalObservedAt(values.observed_at, NaN),
         mmsi: navalDigits(values.mmsi),
         imo: navalDigits(values.imo),
         vessel_name: navalText(values.vessel_name),

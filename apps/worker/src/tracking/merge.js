@@ -81,7 +81,8 @@ function mergeGroup(observations, { domain, freshnessMs, maxSpeedKts, fields, id
     const recent = observations.filter((item) => newestAt - timestamp(item.observed_at) <= freshnessMs);
     const usable = recent.length ? recent : observations;
     const ordered = [...usable].sort((a, b) => timestamp(b.observed_at) - timestamp(a.observed_at) || a.priority - b.priority);
-    const { position, disagreements } = choosePosition(ordered, maxSpeedKts);
+    const { position, disagreements } = choosePosition(domain === "naval"
+        ? ordered.filter((item) => timestamp(item.observed_at) > 0) : ordered, maxSpeedKts);
     if (!position) return null;
     const merged = { ...position };
     for (const field of fields) {
@@ -197,8 +198,7 @@ export function mergeNavalObservations(observations, options = {}) {
     });
     for (const item of ungrouped) {
         const candidates = [...groups.entries()].filter(([, group]) => group.some((candidate) => {
-            const identityMatches = (item.callsign && item.callsign === candidate.callsign)
-                || (item.vessel_name && item.vessel_name.toUpperCase() === String(candidate.vessel_name || "").toUpperCase());
+            const identityMatches = item.callsign && item.callsign === candidate.callsign;
             return identityMatches && haversineKm(item, candidate) <= 5 && isPlausiblePair(item, candidate, maxSpeedKts);
         }));
         if (candidates.length === 1) candidates[0][1].push(item);
@@ -216,6 +216,12 @@ export function mergeNavalObservations(observations, options = {}) {
                         .sort((a, b) => b.priority - a.priority)
                         .map((item) => item.metadata || {})
                 );
+                const imos = new Set(group.map((item) => item.imo).filter(Boolean));
+                if (imos.size > 1) {
+                    merged.imo = "";
+                    merged.metadata.identity_conflicts = ["imo_conflict"];
+                    delete merged.metadata.identity_verification;
+                }
             }
             return merged;
         })

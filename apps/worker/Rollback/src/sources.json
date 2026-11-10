@@ -26,7 +26,16 @@
         "war_translated",
         "ourwarstoday",
         "sitreports",
-        "wfwitness"
+        "wfwitness",
+        "Middle_East_WarLeaks",
+        "YemeniMilitary",
+        "southfronteng",
+        "rageintel",
+        "LebanonOSINT",
+        "warmonitors",
+        "Global_OSINT44",
+        "warpointupdates",
+        "AMK_Mapping"
       ],
       "limit": 30,
       "category": "military",
@@ -51,7 +60,10 @@
         "mmirlb",
         "i20028843",
         "EurasianChoice",
-        "israelwarroom"
+        "israelwarroom",
+        "manniefabian",
+        "idfofficial",
+        "clashreportnews"
       ],
       "limit": 20,
       "category": "military",
@@ -73,7 +85,9 @@
         "china3army",
         "farsivoa",
         "euronewspe",
-        "intelslava"
+        "intelslava",
+        "warradar_live",
+        "nexta_live_english"
       ],
       "limit": 15,
       "category": "military",

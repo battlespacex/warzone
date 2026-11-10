@@ -43,7 +43,7 @@ export function normalizeFintrafficObservation(mmsi, location = {}, metadata = {
         reference_d_m: navalNumber(metadata.refD),
     };
     return normalizeNavalObservation("fintraffic", {
-        observed_at: location.time ?? location.timestamp ?? now,
+        observed_at: location.time ?? location.timestamp ?? null,
         mmsi,
         imo: metadata.imo,
         callsign: metadata.callSign ?? metadata.callsign,
@@ -202,6 +202,12 @@ export function createFintrafficProvider({
         enabled: configured,
         disabledReason: enabled !== true ? "DISABLED_BY_CONFIG" : "MISSING_BASE_URL",
         minimumIntervalMs: 0,
+        getDiagnostics() {
+            return { connected, messages_received: counters.received, position_messages: counters.location,
+                valid_positions: [...cache.values()].filter((entry) => validNavalCoordinates(entry.observation?.latitude, entry.observation?.longitude)).length,
+                cached_contacts: cache.size, last_message_at: lastMessageAt, last_error: lastError,
+                reconnection_attempts: reconnectCount };
+        },
         async fetchObservations() {
             const baseline = { ...counters };
             await waitForConnection();

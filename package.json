@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "build": "webpack --mode production",
-    "build:cesium-compact": "npm run build && node scripts/build-cesium-compact.cjs",
+    "build:cesium-compact": "webpack --mode production --env cesiumCompact=true && node scripts/build-cesium-compact.cjs",
     "build:cesium-rollback": "npm run build && node scripts/build-cesium-compact.cjs --cleanup",
     "deploy:frontend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-production.ps1",
+    "test:cesium-delivery": "node --test --test-isolation=none scripts/tests/cesium-assets.test.cjs scripts/tests/gnss-concurrency.test.cjs scripts/tests/gnss-load-test.test.cjs",
     "test:api": "npm test --prefix apps/api",
     "test:worker": "npm test --prefix apps/worker",
     "serve": "node server.js"

@@ -1,21 +1,24 @@
 param(
-    [Parameter(Mandatory = $true)][string]$Bucket,
-    [Parameter(Mandatory = $true)][string]$DistributionId,
+    [string]$Bucket,
+    [string]$DistributionId,
     [string]$Profile,
-    [string]$PublicBaseUrl = 'https://stratops.battlespacex.com',
+    [string]$PublicBaseUrl,
+    [ValidateSet('staging', 'production')][string]$TargetEnvironment,
+    [string]$BuildDirectory = 'production',
     [switch]$SkipBuild,
+    [switch]$ValidateOnly,
     [switch]$Execute
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ValidateOnly -and $Execute) { throw '-ValidateOnly and -Execute cannot be combined.' }
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$production = Join-Path $root 'production'
+$production = [IO.Path]::GetFullPath((Join-Path $root $BuildDirectory))
 $posterOutputs = @(
     (Join-Path $production 'poster\index.html'),
     (Join-Path $production 'pages\poster.html')
 )
 $profileArgs = if ($Profile) { @('--profile', $Profile) } else { @() }
-$dryRunArgs = if ($Execute) { @() } else { @('--dryrun') }
 $immutableCache = 'public, max-age=31536000, immutable'
 $shortCache = 'public, max-age=300'
 $htmlCache = 'no-cache, no-store, must-revalidate'
@@ -23,10 +26,64 @@ $htmlCache = 'no-cache, no-store, must-revalidate'
 function Invoke-Aws {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
+    if ($ValidateOnly) { throw 'AWS calls are forbidden in ValidateOnly mode.' }
+    $operation = $Arguments[0] + ' ' + $Arguments[1]
+    if ($operation -in @('s3 sync', 's3 cp', 'cloudfront create-invalidation')) {
+        if (-not $Execute) {
+            Write-Host "Planned (requires -Execute): aws $($profileArgs -join ' ') $($Arguments -join ' ')"
+            return
+        }
+        if ($Arguments -contains '--delete') { throw 'Deleting retained release assets is forbidden.' }
+    } elseif ($operation -notin @('cloudfront get-distribution', 'cloudfront wait')) {
+        throw "Unreviewed AWS operation: $operation"
+    }
     & aws @profileArgs @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "AWS CLI failed: aws $($Arguments -join ' ')"
     }
+}
+
+function Assert-DeploymentTarget {
+    if (-not $TargetEnvironment -or -not $Profile -or -not $PublicBaseUrl -or
+        $Bucket -notmatch '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' -or $DistributionId -notmatch '^[A-Z0-9]+$') {
+        throw 'Specify an explicit TargetEnvironment, Profile, PublicBaseUrl, Bucket and DistributionId (also for dry runs).'
+    }
+    $site = [uri]$PublicBaseUrl
+    if (-not $site.IsAbsoluteUri -or $site.Scheme -ne 'https' -or $site.Port -ne 443 -or
+        $site.AbsolutePath -ne '/' -or $site.UserInfo -or $site.Query -or $site.Fragment) {
+        throw 'PublicBaseUrl must be an HTTPS site origin.'
+    }
+    if ($TargetEnvironment -eq 'staging' -and
+        ($site.Host -eq 'stratops.battlespacex.com' -or $DistributionId -eq 'E2EFV9935XX3MV')) {
+        throw 'Staging cannot target the known production hostname or distribution.'
+    }
+    $result = (Invoke-Aws -Arguments @('cloudfront', 'get-distribution', '--id', $DistributionId, '--output', 'json')) | ConvertFrom-Json
+    $distribution = $result.Distribution
+    $config = $distribution.DistributionConfig
+    if ($distribution.Id -ne $DistributionId -or $site.Host -notin (@($config.Aliases.Items) + @($distribution.DomainName))) {
+        throw 'PublicBaseUrl does not belong to the selected distribution.'
+    }
+    if ($TargetEnvironment -eq 'staging' -and 'stratops.battlespacex.com' -in @($config.Aliases.Items)) {
+        throw 'Staging cannot use a distribution with the production alias.'
+    }
+    # Resolve ordered cache behaviors for every uploaded file, not just the default origin.
+    $paths = @(Get-ChildItem -LiteralPath $production -File -Recurse | ForEach-Object {
+        $_.FullName.Substring($production.Length + 1).Replace('\', '/')
+    }) + @('', 'poster', 'poster/')
+    foreach ($path in $paths) {
+        $behavior = $config.DefaultCacheBehavior
+        foreach ($candidate in @($config.CacheBehaviors.Items)) {
+            if (-not $candidate) { continue }
+            $pattern = '^' + [regex]::Escape($candidate.PathPattern.TrimStart('/')).Replace('\*', '.*').Replace('\?', '.') + '$'
+            if ($path -cmatch $pattern) { $behavior = $candidate; break }
+        }
+        $origin = @($config.Origins.Items | Where-Object { $_.Id -eq $behavior.TargetOriginId })
+        $bucketPattern = '^' + [regex]::Escape($Bucket) + '\.s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com(?:\.cn)?$'
+        if ($origin.Count -ne 1 -or -not $origin[0].S3OriginConfig -or $origin[0].DomainName -notmatch $bucketPattern -or $origin[0].OriginPath) {
+            throw "Selected bucket is not the direct S3 origin for /$path (origin paths/groups/custom origins require separate review)."
+        }
+    }
+    Write-Host "Validated $TargetEnvironment target: $Bucket / $DistributionId / $($site.Host), profile $Profile"
 }
 
 function Get-PosterAssetReferences {
@@ -48,7 +105,7 @@ function Get-AsyncJavaScriptReferences {
     return Get-ChildItem -LiteralPath $javascriptRoot -Recurse -File -Filter '*.js' |
         Where-Object { $_.Name -match '^\d+\.bundle\.[0-9a-f]{8}\.js$' } |
         ForEach-Object {
-            $relativePath = [IO.Path]::GetRelativePath($production, $_.FullName).Replace('\', '/')
+            $relativePath = 'assets/js/' + $_.FullName.Substring($javascriptRoot.Length + 1).Replace('\', '/')
             "/$relativePath"
         } |
         Sort-Object -Unique
@@ -163,11 +220,8 @@ function Assert-LivePoster {
     Write-Host "Verified $($asyncReferences.Count) live asynchronous JavaScript chunks, including $posterChunkReference."
 }
 
-if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
-    throw 'AWS CLI is required for frontend deployment.'
-}
-
-if (-not $SkipBuild) {
+if (-not $SkipBuild -and -not $ValidateOnly) {
+    if ($BuildDirectory -ne 'production') { throw 'Use -SkipBuild with a prebuilt custom BuildDirectory.' }
     & npm run build
     if ($LASTEXITCODE -ne 0) {
         throw 'Production build failed.'
@@ -175,53 +229,85 @@ if (-not $SkipBuild) {
 }
 
 Assert-PosterBuild
+& node (Join-Path $PSScriptRoot 'frontend-assets.cjs') --verify $production
+if ($LASTEXITCODE -ne 0) { throw 'Application asset build integrity verification failed.' }
+& node (Join-Path $PSScriptRoot 'cesium-assets.cjs') --verify $production
+if ($LASTEXITCODE -ne 0) { throw 'Cesium build integrity verification failed.' }
+$cesiumManifest = Get-Content -LiteralPath (Join-Path $production 'cesium-assets.json') -Raw | ConvertFrom-Json
+if ($cesiumManifest.variant -ne 'standard') {
+    throw 'Compact Cesium is experimental. The normal deployment script accepts only standard releases.'
+}
+if ($ValidateOnly) { Write-Host 'Validated frontend and complete Cesium release; no build or AWS requests made.'; return }
+if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
+    throw 'AWS CLI is required for frontend deployment.'
+}
+Assert-DeploymentTarget
+
+# A release directory is immutable. Keep previous releases for existing sessions and rollback.
+$cesiumReleasePath = Join-Path $production $cesiumManifest.baseUrl.TrimStart('/')
+Invoke-Aws -Arguments (@(
+    's3', 'sync', $cesiumReleasePath, "s3://$Bucket$($cesiumManifest.baseUrl)/",
+    '--cache-control', $immutableCache, '--only-show-errors'
+))
+if ($Execute) {
+    # Fail before publishing HTML if even one vendor asset is unavailable or has wrong bytes/headers.
+    & node (Join-Path $PSScriptRoot 'cesium-assets.cjs') --verify-live $production $PublicBaseUrl
+    if ($LASTEXITCODE -ne 0) { throw 'Live Cesium release verification failed; new HTML has not been published.' }
+}
 
 # Upload content-addressed CSS and JavaScript before publishing HTML that references it.
 Invoke-Aws -Arguments (@(
     's3', 'sync', (Join-Path $production 'assets\css'), "s3://$Bucket/assets/css/",
     '--cache-control', $immutableCache, '--only-show-errors'
-) + $dryRunArgs)
+))
 Invoke-Aws -Arguments (@(
     's3', 'sync', (Join-Path $production 'assets\js'), "s3://$Bucket/assets/js/",
     '--cache-control', $immutableCache, '--only-show-errors'
-) + $dryRunArgs)
+))
 
 # Non-hashed assets use a short cache so updates remain recoverable without renaming files.
 Invoke-Aws -Arguments (@(
     's3', 'sync', (Join-Path $production 'assets'), "s3://$Bucket/assets/",
-    '--exclude', 'css/*', '--exclude', 'js/*',
+    '--exclude', 'css/*', '--exclude', 'js/*', '--exclude', 'cesium/*',
     '--cache-control', $shortCache, '--only-show-errors'
-) + $dryRunArgs)
+))
 Invoke-Aws -Arguments (@(
     's3', 'sync', $production, "s3://$Bucket/",
-    '--exclude', 'assets/*', '--exclude', '*.html',
+    '--exclude', 'assets/*', '--exclude', '*.html', '--exclude', 'cesium-assets.json',
     '--cache-control', $shortCache, '--only-show-errors'
-) + $dryRunArgs)
+))
+
+if ($Execute) {
+    & node (Join-Path $PSScriptRoot 'frontend-assets.cjs') --verify-live $production $PublicBaseUrl
+    if ($LASTEXITCODE -ne 0) { throw 'Live application asset verification failed; new HTML has not been published.' }
+}
 
 # Publish HTML last. Do not use --delete: old hashed assets must survive cached HTML.
 Invoke-Aws -Arguments (@(
+    's3', 'cp', (Join-Path $production 'cesium-assets.json'), "s3://$Bucket/cesium-assets.json",
+    '--content-type', 'application/json', '--cache-control', $htmlCache, '--only-show-errors'
+))
+Invoke-Aws -Arguments (@(
     's3', 'sync', $production, "s3://$Bucket/",
-    '--exclude', '*', '--include', '*.html',
+    '--exclude', '*', '--include', '*.html', '--exclude', 'assets/*',
     '--content-type', 'text/html; charset=utf-8',
     '--cache-control', $htmlCache, '--only-show-errors'
-) + $dryRunArgs)
+))
 
 if (-not $Execute) {
     Write-Host 'Dry run complete. Add -Execute after reviewing the planned uploads.'
-    exit 0
+    return
 }
 
 $assetPaths = @(
     @(Get-PosterAssetReferences -HtmlPath $posterOutputs[0]) +
     @(Get-AsyncJavaScriptReferences)
 ) | Sort-Object -Unique
-$invalidationPaths = @('/poster', '/poster/', '/poster/index.html', '/pages/poster.html') + $assetPaths
-$invalidationId = & aws @profileArgs cloudfront create-invalidation `
-    --distribution-id $DistributionId `
-    --paths @invalidationPaths `
-    --query 'Invalidation.Id' `
-    --output text
-if ($LASTEXITCODE -ne 0 -or -not $invalidationId) {
+$invalidationPaths = @('/', '/pages/index.html', '/cesium-assets.json', '/poster', '/poster/', '/poster/index.html', '/pages/poster.html') + $assetPaths
+$invalidationId = Invoke-Aws -Arguments (@(
+    'cloudfront', 'create-invalidation', '--distribution-id', $DistributionId, '--paths'
+) + $invalidationPaths + @('--query', 'Invalidation.Id', '--output', 'text'))
+if (-not $invalidationId) {
     throw 'CloudFront invalidation creation failed.'
 }
 

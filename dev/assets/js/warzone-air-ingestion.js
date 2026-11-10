@@ -352,7 +352,7 @@ function normalizeAirplanesLiveRecord(record = {}) {
         String(record.alt_baro || "").trim().toLowerCase() === "ground" ||
         record.on_ground === true ||
         record.ground === true;
-    const parsedAltitudeFeet = Number(record.alt_baro);
+    const parsedAltitudeFeet = record.alt_baro == null || record.alt_baro === "" ? Number.NaN : Number(record.alt_baro);
     const altitudeFeet = onGround
         ? 0
         : (Number.isFinite(parsedAltitudeFeet) ? parsedAltitudeFeet : null);
@@ -391,6 +391,18 @@ function normalizeAirplanesLiveRecord(record = {}) {
         timestamp: nowMs(),
         metadata: {
             icao: normalizeString(record.hex || "").toLowerCase(),
+            telemetry: {
+                source: "ADS-B / adsb.lol", operator: normalizeString(record.ownOp || ""),
+                altitude_ft: altitudeFeet,
+                altitude_geom_ft: record.alt_geom == null ? null : asFiniteNumber(record.alt_geom, null),
+                speed_kts: record.gs == null ? null : asFiniteNumber(record.gs, null),
+                track_deg: record.track == null ? null : asFiniteNumber(record.track, null),
+                true_heading_deg: record.true_heading == null ? null : asFiniteNumber(record.true_heading, null),
+                mag_heading_deg: record.mag_heading == null ? null : asFiniteNumber(record.mag_heading, null),
+                baro_rate_fpm: record.baro_rate == null ? null : asFiniteNumber(record.baro_rate, null),
+                geom_rate_fpm: record.geom_rate == null ? null : asFiniteNumber(record.geom_rate, null),
+                observed_at: record.seen_pos == null ? null : new Date(nowMs() - Math.max(0, asFiniteNumber(record.seen_pos, 0)) * 1000).toISOString(),
+            },
             callsign,
             type: normalizeString(record.t || record.type || ""),
             registration,

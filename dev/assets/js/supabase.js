@@ -28,11 +28,12 @@ const isLocalhost = window.location.hostname === "localhost" ||
 
 const LOCAL_PROXY_API_BASE = "/api";
 const CONFIG_API_BASE = window.__stratopsConfig?.apiBase || "";
-const API_BASE = CONFIG_API_BASE || (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
+const COMPILED_API_BASE = (typeof STRATOPS_API_BASE_URL === "string" && STRATOPS_API_BASE_URL) || "";
+const API_BASE = CONFIG_API_BASE || COMPILED_API_BASE || (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
 const INTEL_FEED_API_BASE =
     window.__stratopsConfig?.intelFeedApiBase ||
     window.__stratopsConfig?.apiBase ||
-    (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
+    API_BASE;
 const GNSS_API_BASE =
     window.__stratopsConfig?.gnssApiBase ||
     window.__stratopsConfig?.apiBase ||
@@ -40,7 +41,7 @@ const GNSS_API_BASE =
 const REPORTS_API_BASE =
     window.__stratopsConfig?.reportsApiBase ||
     window.__stratopsConfig?.apiBase ||
-    (isLocalhost ? LOCAL_PROXY_API_BASE : "https://api.battlespacex.com");
+    API_BASE;
 const EVENTS_HISTORY_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;

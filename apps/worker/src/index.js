@@ -72,6 +72,7 @@ import {
     shouldRunNavalInGeneralCycle,
 } from "./naval-live-poller.js";
 import { createNavalProviders } from "./tracking/naval/registry.js";
+import { canReadNavalDiagnostics, navalProviderDiagnostics } from "./naval-diagnostics.js";
 import { startOrefPoller, handleIsraelWarRoomMessage } from "./warzone-siren-poller.js";
 import { runConflictFeedSync } from "./conflict-feed-runner.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
@@ -142,7 +143,15 @@ async function syncSourceRegistryFromConfig() {
     console.log(`[sources] Synced ${rows.length} configured sources into source_registry`);
 }
 const PORT = process.env.PORT || 3000;
+let readNavalDiagnostics = () => ({ status: "starting" });
 http.createServer((req, res) => {
+    if (req.url === "/diagnostics/ais") {
+        if (!canReadNavalDiagnostics(process.env, req.socket.remoteAddress)) {
+            res.writeHead(404); res.end(); return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+        res.end(JSON.stringify(readNavalDiagnostics())); return;
+    }
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("warzone worker running");
 }).listen(PORT);
@@ -4713,6 +4722,7 @@ const aircraftLivePoller = createAircraftLivePoller({
 });
 const navalFeedEnabled = sources.feeds.find((feed) => feed.type === "ais-stream")?.enabled !== false;
 const navalProviders = createNavalProviders();
+readNavalDiagnostics = () => ({ captured_at: new Date().toISOString(), providers: navalProviderDiagnostics(navalProviders) });
 const navalLivePoller = createNavalLivePoller({
     enabled: NAVAL_LIVE_POLL_CONFIG.enabled && navalFeedEnabled,
     tickMs: NAVAL_LIVE_POLL_CONFIG.tickMs,

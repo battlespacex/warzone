@@ -72,6 +72,7 @@ async function captureShot(viewer, buttons = [], options = {}) {
 
 async function composeCaptureBlob(viewer) {
     const output = await copyNextSceneFrame(viewer);
+    assertCaptureReadable(output, "map imagery");
     const width = output.width;
     const height = output.height;
     const ctx = output.getContext("2d");
@@ -79,6 +80,7 @@ async function composeCaptureBlob(viewer) {
     await waitForOverlayFrame();
     await drawOperationalOverlayLayers(ctx, output, viewer.scene.canvas);
     await drawBranding(ctx, width, height);
+    assertCaptureReadable(output, "branding");
     return new Promise((resolve, reject) => {
         try {
             output.toBlob((blob) => {
@@ -86,9 +88,24 @@ async function composeCaptureBlob(viewer) {
                 else reject(new Error("Browser returned an empty capture image."));
             }, "image/png", 1);
         } catch (error) {
-            reject(error);
+            reject(captureStageError(error, "PNG export"));
         }
     });
+}
+
+function captureStageError(error, stage) {
+    const failure = new Error(`Capture failed at ${stage}: ${error?.message || "unknown error"}`, { cause: error });
+    failure.name = error?.name || "Error";
+    failure.captureStage = stage;
+    return failure;
+}
+
+function assertCaptureReadable(canvas, stage) {
+    try {
+        canvas.getContext("2d").getImageData(0, 0, 1, 1);
+    } catch (error) {
+        throw captureStageError(error, stage);
+    }
 }
 
 function waitForOverlayFrame() {
@@ -115,8 +132,10 @@ async function drawOperationalOverlayLayers(ctx, output, sourceCanvas) {
                 rect.width * scaleX,
                 rect.height * scaleY
             );
+            assertCaptureReadable(output, selector);
         } catch (error) {
-            console.warn(`Capture Shot could not composite ${selector}:`, error);
+            // Do not report success with required operational overlays silently missing.
+            throw captureStageError(error, selector);
         }
     }
 }
@@ -147,15 +166,15 @@ function rasterizeDomLayer(layer, rect) {
     wrapper.appendChild(clone);
     const serialized = new XMLSerializer().serializeToString(wrapper);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(rect.width)}" height="${Math.ceil(rect.height)}" viewBox="0 0 ${rect.width} ${rect.height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    // A serialized SVG data URL avoids foreignObject/blob canvas-taint differences
+    // between browsers. External resources remain subject to normal SVG/CORS restrictions.
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     return new Promise((resolve, reject) => {
         const image = new Image();
         image.onload = () => {
-            URL.revokeObjectURL(url);
             resolve(image);
         };
         image.onerror = () => {
-            URL.revokeObjectURL(url);
             reject(new Error("Operational overlay rasterization failed."));
         };
         image.src = url;
@@ -188,7 +207,7 @@ function copyNextSceneFrame(viewer) {
         let removePostRender = null;
         const timeoutId = window.setTimeout(() => {
             removePostRender?.();
-            reject(new Error("Timed out waiting for the map frame."));
+            reject(captureStageError(new Error("Timed out waiting for the map frame."), "map frame"));
         }, 2500);
         removePostRender = scene.postRender.addEventListener(() => {
             try {
@@ -207,7 +226,7 @@ function copyNextSceneFrame(viewer) {
             } catch (error) {
                 window.clearTimeout(timeoutId);
                 removePostRender?.();
-                reject(error);
+                reject(captureStageError(error, "map frame"));
             }
         });
         scene.requestRender?.();
@@ -242,12 +261,12 @@ function drawImageContain(ctx, image, x, y, width, height, alpha = 1) {
 }
 
 function loadImage(src) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const image = new Image();
         image.crossOrigin = "anonymous";
         image.decoding = "async";
         image.onload = () => resolve(image);
-        image.onerror = () => resolve(null);
+        image.onerror = () => reject(captureStageError(new Error(`Unable to load ${src}`), "branding"));
         image.src = src;
     });
 }
@@ -308,9 +327,11 @@ function isLikelyMobile() {
 
 function getCaptureErrorMessage(error) {
     if (error?.name === "SecurityError") {
-        return "Capture blocked by browser canvas security. A visible map tile, imagery layer, or asset is not CORS-readable.";
+        return `Capture blocked by browser canvas security at ${error.captureStage || "image export"}. The browser could not export that layer. Check its imagery or asset CORS configuration; no layers were removed.`;
     }
-    return "Capture Shot failed. Try again after the map finishes loading.";
+    return error?.captureStage
+        ? `Capture Shot failed at ${error.captureStage}. No complete image was saved. Try again after the map finishes loading.`
+        : "Capture Shot failed. Try again after the map finishes loading.";
 }
 
 function closeMobileMenu() {

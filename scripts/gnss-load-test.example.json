@@ -1,0 +1,22 @@
+{
+  "baseUrl": "https://stratops-staging.battlespacex.com/",
+  "counts": [1],
+  "flow": "scripts/gnss-staging-flow.cjs",
+  "outputDirectory": ".generated/gnss-load-results",
+  "channel": "chrome",
+  "headless": true,
+  "timeoutMs": 90000,
+  "observeMs": 10000,
+  "storageStates": [],
+  "entrySteps": [
+    { "action": "click", "selector": "#wz-pre-entry-enter" },
+    { "action": "check", "selector": "#intro-disclaimer-check" },
+    { "action": "click", "selector": "#wz-intro-accept" }
+  ],
+  "regionSteps": [
+    { "action": "click", "selector": "#wz-region-modal [data-region=\"middle_east\"]" },
+    { "action": "click", "selector": "#wz-region-confirm" }
+  ],
+  "layerPanelSteps": [],
+  "otherFeatureSteps": []
+}

@@ -21,6 +21,9 @@ module.exports = (env, argv) => {
     const TerserPlugin = isDev ? null : require("terser-webpack-plugin");
     const CssMinimizerPlugin = isDev ? null : require("css-minimizer-webpack-plugin");
     const devOnlyModulePattern = /^\.\/warzone-formation-tuner\.js$/;
+    const cesiumAssets = isDev ? null : require("./scripts/cesium-assets.cjs");
+    const cesiumRelease = isDev ? null : cesiumAssets.getCesiumRelease(__dirname,
+        env?.cesiumCompact ? "compact" : "standard");
 
     // Load .env.local for dev, .env.production for prod
     const envFile = isDev ? ".env.local" : ".env.production";
@@ -54,6 +57,13 @@ module.exports = (env, argv) => {
             return false;
         }
     };
+    const apiBaseUrl = String(envVars.STRATOPS_API_BASE_URL || process.env.STRATOPS_API_BASE_URL || "").trim().replace(/\/+$/, "");
+    if (apiBaseUrl && (!isPublicHttpsUrl(apiBaseUrl) || (() => {
+        const url = new URL(apiBaseUrl);
+        return Boolean(url.username || url.password || url.search || url.hash);
+    })())) {
+        throw new Error("STRATOPS_API_BASE_URL must be a public HTTPS base URL without credentials, query or fragment");
+    }
     const mapUrlAllowed = isDev || isPublicHttpsUrl(requestedMapBaseUrl);
     const tacticalMapUrlAllowed = isDev || isPublicHttpsUrl(requestedTacticalMapBaseUrl);
     const terrainUrlAllowed = isDev || isPublicHttpsUrl(requestedTerrainBaseUrl);
@@ -262,8 +272,9 @@ module.exports = (env, argv) => {
                 },
             }] : []),
             new webpack.DefinePlugin({
-                CESIUM_BASE_URL: JSON.stringify("/assets/cesium"),
+                CESIUM_BASE_URL: JSON.stringify(cesiumRelease?.baseUrl || "/assets/cesium"),
                 CESIUM_ION_TOKEN: JSON.stringify(cesiumToken),
+                STRATOPS_API_BASE_URL: JSON.stringify(apiBaseUrl),
                 STRATOPS_BASEMAP_PROVIDER: JSON.stringify(basemapProvider),
                 STRATOPS_ENABLE_GOOGLE_MAP: JSON.stringify(enableGoogleMap),
                 STRATOPS_ENABLE_TACTICAL_MAP: JSON.stringify(enableTacticalMap),
@@ -275,6 +286,7 @@ module.exports = (env, argv) => {
                 STRATOPS_PERF_EMPTY_GLOBE: JSON.stringify(perfEmptyGlobe),
                 __STRATOPS_DEV_TOOLS__: JSON.stringify(isDev),
             }),
+            ...(!isDev ? [new cesiumAssets.CesiumAssetManifestPlugin(cesiumRelease)] : []),
 
             ...(!isDev
                 ? [
@@ -301,7 +313,8 @@ module.exports = (env, argv) => {
                 patterns: [
                     {
                         from: path.resolve(ROOT_DIR, "node_modules/cesium/Build/Cesium"),
-                        to: path.resolve(PROD_DIR, "assets/cesium"),
+                        to: path.resolve(PROD_DIR, cesiumRelease.baseUrl.slice(1)),
+                        toType: "dir",
                         noErrorOnMissing: false,
                     },
                     {
@@ -374,7 +387,7 @@ module.exports = (env, argv) => {
                         to: path.resolve(PROD_DIR, "assets/fonts"),
                         noErrorOnMissing: true,
                         globOptions: {
-                            ignore: ["**/*.css", "**/*.json"],
+                            ignore: ["**/*.json"],
                         },
                     },
                     {
@@ -912,6 +925,16 @@ module.exports = (env, argv) => {
                             }
                         });
                         devServer.app.all("/api/*", handleApiProxy);
+                        devServer.app.get("/__warzone/naval-diagnostics", async (_req, res) => {
+                            try {
+                                const target = new URL(process.env.STRATOPS_AIS_DIAGNOSTICS_URL || "http://127.0.0.1:3000/diagnostics/ais");
+                                if (!["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)
+                                    || target.protocol !== "http:" || target.username || target.password) throw new Error("Local worker URL required");
+                                const response = await fetch(target, { signal: AbortSignal.timeout(3000) });
+                                res.set("Cache-Control", "no-store");
+                                res.status(response.status).type("application/json").send(await response.text());
+                            } catch { res.status(503).json({ error: "Local AIS worker diagnostics unavailable" }); }
+                        });
 
                         return middlewares;
                     },

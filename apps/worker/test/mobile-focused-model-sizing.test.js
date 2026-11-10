@@ -9,6 +9,8 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 const css = fs.readFileSync(path.join(root, "dev/assets/css/root.css"), "utf8");
 const air = fs.readFileSync(path.join(root, "dev/assets/js/warzone-live-airforce.js"), "utf8");
 const naval = fs.readFileSync(path.join(root, "dev/assets/js/warzone-live-naval.js"), "utf8");
+const identity = fs.readFileSync(path.join(root, "apps/shared/naval-identity.js"), "utf8").replace(/^export /gm, "");
+const carrierScale = 330 / 41.16168;
 const aircraft = { fighter: 9, transport: 7, bomber: 7, tanker: 7, recon: 7, awacs: 7, helicopter: 10, vip: 8, drone: 8 };
 const vessels = ["carrier", "amphibious", "cruiser", "destroyer", "frigate", "corvette", "intelligence", "ssbn",
     "ssn", "ssk", "aip_submarine", "submarine", "missile_boat", "patrol", "logistics", "minesweeper", "naval"];
@@ -50,19 +52,25 @@ test("Chrome resolves all focused categories across mobile, desktop, fallback an
         const requestNavalRenderBatched = () => renders++;
         const getAircraftFocusedSizingCategory = record => record.category;
         const getNavalFocusedSizingCategory = record => record.category;
+        ${identity}
+        const verifiedCarrier = { mmsi: '999000001', metadata: { identity_verification: {
+            status: 'verified', source: 'browser test fixture', verified_at: '2026-11-01',
+            identifiers: { mmsi: '999000001' }, military_status: 'military', category: 'carrier',
+            naval_force: 'US Navy', ship_class: 'Fixture carrier', length_m: 330
+        } } };
         window.__warzoneViewer = { entities: new Cesium.EntityCollection() };
         ${["getCssNumber", "getAircraftFocusedCssNumber", "getFocusedAircraftModelScale", "refreshFocusedAircraftModelScale"].map(n => extract(air, n)).join("\n")}
-        ${["getNavalFocusedCssNumber", "getFocusedNavalModelScale", "refreshFocusedNavalModelScale"].map(n => extract(naval, n)).join("\n")}
+        ${["getNavalModelScale", "getFocusedNavalModelScale", "refreshFocusedNavalModelScale"].map(n => extract(naval, n)).join("\n")}
         const airEntity = window.__warzoneViewer.entities.add({ id: 'track-test', model: { scale: 1 } });
         const seaEntity = window.__warzoneViewer.entities.add({ id: 'naval-test', model: { scale: 1 } });
         const airModel = airEntity.model, seaModel = seaEntity.model;
         __liveTrackRegistry.set('test', { category: 'fighter' });
-        __navalState.vessels.set('test', { entity: seaEntity, data: { category: 'carrier' } });
+        __navalState.vessels.set('test', { entity: seaEntity, data: verifiedCarrier });
         window.addEventListener('resize', refreshFocusedAircraftModelScale);
         window.addEventListener('resize', refreshFocusedNavalModelScale);
         window.readSizes = (airCategories, navalCategories) => ({
             air: Object.fromEntries(airCategories.map(category => [category, getFocusedAircraftModelScale({ category })])),
-            naval: Object.fromEntries(navalCategories.map(category => [category, getFocusedNavalModelScale({ category })])),
+            naval: Object.fromEntries(navalCategories.map(category => [category, getFocusedNavalModelScale(category === 'carrier' ? verifiedCarrier : { category })])),
         });
         window.focusDomain = domain => { focusedAir = domain === 'aircraft' ? 'test' : '';
             __navalState.selectedKey = domain === 'naval' ? 'test' : '';
@@ -79,8 +87,7 @@ test("Chrome resolves all focused categories across mobile, desktop, fallback an
         const actual = await sizes();
         assert.deepEqual(actual.air, width >= 2560 ? Object.fromEntries(Object.keys(aircraft).map(k => [k, 3]))
             : width <= 1920 ? aircraft : fallback.air, `aircraft at ${width}px`);
-        assert.deepEqual(actual.naval, width >= 2560 ? Object.fromEntries(vessels.map(k => [k, 6.5]))
-            : width <= 1920 ? Object.fromEntries(vessels.map(k => [k, 8])) : fallback.naval, `naval at ${width}px`);
+        assert.deepEqual(actual.naval, Object.fromEntries(vessels.map(k => [k, k === 'carrier' ? carrierScale : 1])), `physical naval scale at ${width}px`);
     }
     // Distinct mobile-only overrides prove the independent tier, category, and domain cascade.
     await page.addStyleTag({ content: `@media (max-width: 767px) { :root {
@@ -92,13 +99,13 @@ test("Chrome resolves all focused categories across mobile, desktop, fallback an
         for (const width of [768, 767, 768, 430, 767, 768]) {
             await page.setViewportSize({ width, height: width === 430 ? 390 : 1000 });
             await page.waitForFunction(([d, expected]) => window.modelState()[d === 'aircraft' ? 'air' : 'naval'] === expected,
-                [domain, width < 768 ? (domain === "aircraft" ? 19 : 18) : (domain === "aircraft" ? 9 : 8)]);
+                [domain, domain === "naval" ? carrierScale : width < 768 ? 19 : 9]);
             const state = await page.evaluate(() => window.modelState());
             assert.equal(state.sameModels, true);
             assert.equal(state.count, 2);
             const actual = await sizes();
             assert.equal(actual.air.transport, 7);
-            assert.equal(actual.naval.destroyer, 8);
+            assert.equal(actual.naval.destroyer, 1);
         }
     }
     assert.deepEqual(errors, []);

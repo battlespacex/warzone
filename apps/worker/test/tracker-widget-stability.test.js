@@ -12,6 +12,8 @@ const baseline = process.env.STRATOPS_WIDGET_BASELINE === "1";
 const read = file => baseline ? execFileSync("git", ["show", `HEAD:${file}`], { cwd: root, encoding: "utf8", maxBuffer: 8e6 })
     : fs.readFileSync(path.join(root, file), "utf8");
 const essential = read("dev/assets/js/essential.js"), naval = read("dev/assets/js/warzone-live-naval.js");
+const aircraftTelemetry = baseline ? "" : fs.readFileSync(path.join(root, "dev/assets/js/warzone-aircraft-telemetry.js"), "utf8")
+    .replace(/^export \{[^\n]+\};\r?\n/gm, "").replace(/export /g, "");
 function fn(source, name) {
     const start = source.indexOf(`function ${name}(`);
     assert.ok(start >= 0, name);
@@ -67,6 +69,8 @@ test("tracker controls and keyed rows stay stable under live updates", { timeout
     await page.addScriptTag({ content: `
       let records = { air: [], naval: [] }, selection = { track_key: '', mode: '' };
       let __aircraftWidgetFilter = 'active', __aircraftWidgetSubtypeFilter = 'all', __aircraftWidgetScopeFilter = 'region';
+      let __aircraftCollapsedDetailsKey = '';
+      ${aircraftTelemetry}
       let __aircraftWidgetCountryFilter = 'all', __aircraftGlobeFilterSignature = '', __navalGlobeFilterSignature = '';
       let __aircraftSubtypeOptionsKey = '', __navalSubtypeOptionsKey = '', __navalWidgetSubtypeFilter = 'all', __navalWidgetScopeFilter = 'region';
       let __aircraftWidgetPage = 1, __navalWidgetPage = 1, __navalWidgetRenderTimer = 0;

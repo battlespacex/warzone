@@ -215,7 +215,7 @@ test("military classifier rejects civilian traffic and accepts configured known 
     );
     assert.deepEqual(
         qualifyMilitaryVessel({ mmsi: "", name: "USS EXAMPLE", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }),
-        { accepted: true, reason: "military_name_match" }
+        { accepted: true, reason: "unverified_name_hint" }
     );
     assert.deepEqual(
         qualifyMilitaryVessel({ mmsi: "", name: "CONTACT", callSign: "NATO1", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set(["NATO1"]) }),

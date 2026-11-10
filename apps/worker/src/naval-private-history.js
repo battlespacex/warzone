@@ -72,9 +72,8 @@ export function buildPrivateNavalHistoryRows(vessels = [], existing = []) {
             heading_deg: newest ? vessel.heading : previous.heading_deg,
             source_name: newest ? sourceName(vessel) : previous.source_name,
             source_confidence: newest ? Number(vessel.sourceConfidence || 0) : previous.source_confidence,
-            qualification_level: previous?.qualification_level === "confirmed" ||
-                !["military_ship_type", "provider_military_flag"].includes(vessel.qualificationReason)
-                ? "confirmed" : "probable",
+            qualification_level: ["verified_identity"]
+                .includes(vessel.qualificationReason) ? "confirmed" : "probable",
             qualification_reason: newest ? (vessel.qualificationReason || "unknown")
                 : (previous.qualification_reason || "unknown"),
             search_text: [mmsi, imo, vessel.callSign, vessel.name, ...aliases]
