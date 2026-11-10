@@ -38,7 +38,7 @@ test("tracker toggles do not synchronously resync unrelated globe events", () =>
     assert.match(exempt, /"naval"/);
 });
 
-test("aircraft and naval focus start the camera before route, model, and contour work", () => {
+test("aircraft focus remains deferred while naval GLB is assigned before flight and contour work stays deferred", () => {
     const airFocus = functionSource(aircraft, "focusLiveTrack", "export function clearLiveTrackSelection");
     assert.ok(airFocus.indexOf("startFocusFlight();") < airFocus.indexOf("syncFocusedRouteEntity(trackKey);"));
     assert.match(airFocus, /complete: \(\) => finishFocusFlight\(true\)/);
@@ -51,7 +51,10 @@ test("aircraft and naval focus start the camera before route, model, and contour
     assert.match(finishFocusFlight, /refreshLiveTrackVisualMode\(trackKey\)/);
     assert.doesNotMatch(airFocus.slice(airFocus.indexOf("setLiveTrackHardLockInternal(true);")), /refreshLiveTrackVisualMode\(trackKey\)/);
     const navalFocus = functionSource(naval, "focusNavalVessel", "function escapeNavalHtml");
-    assert.ok(navalFocus.indexOf("viewer.camera.flyToBoundingSphere") < navalFocus.indexOf("applyNavalVisual(entry.entity, entry.data);"));
+    assert.ok(navalFocus.indexOf("applyNavalVisual(entry.entity, entry.data);") < navalFocus.indexOf("viewer.camera.flyToBoundingSphere"),
+        "the selected GLB is assigned before the focus flight");
+    assert.ok(navalFocus.indexOf("viewer.camera.flyToBoundingSphere") < navalFocus.lastIndexOf("applyNavalVisual(entry.entity, entry.data);"),
+        "the wider visual refresh remains deferred");
     assert.ok(navalFocus.indexOf("viewer.camera.flyToBoundingSphere") < navalFocus.indexOf("syncNavalContourCenter(trackKey);"));
 });
 

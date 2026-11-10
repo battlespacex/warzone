@@ -2105,6 +2105,11 @@ export function getWarzoneMilSatsFocusDiagnostics() {
     });
 }
 
+export function clearWarzoneMilSatsSelection() {
+    if (!state.selectedId && !state.focusPendingId) return false;
+    return selectSatellite("", { flyOut: false });
+}
+
 export function initWarzoneMilSats(viewer) {
     if (viewer && state.viewer === viewer) return;
     mergeConfig();

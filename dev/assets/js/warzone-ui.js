@@ -1,6 +1,11 @@
 ﻿// File Path: /assets/js/warzone-ui.js
 import * as Cesium from "cesium";
 import { initTheaterPanel } from "./warzone-theater-panel.js";
+import { getActiveRegion, flyToRegion } from "./warzone-region-selector.js";
+import { clearLiveTrackSelection, getLiveTrackSelection } from "./warzone-live-airforce.js";
+import { clearNavalSelection, getNavalDiagnostics } from "./warzone-live-naval.js";
+import { clearWarzoneMilSatsSelection } from "./warzone-mil-sats.js";
+import { getAssetFocusController, resetWarzoneCameraReference } from "./warzone-asset-focus-controller.js";
 let __altitudeReadoutBound = false;
 let __warzoneUiBound = false;
 let __orientationResetBound = false;
@@ -31,37 +36,41 @@ function bindOrientationResetControl() {
     __orientationResetBound = true;
     let resetting = false;
     const update = () => {
-        const focus = window.__warzoneFocusDiagnostics;
-        const focusActive = Boolean(focus && focus.state !== "inactive");
-        const heading = Math.atan2(Math.sin(camera.heading), Math.cos(camera.heading));
-        const roll = Math.atan2(Math.sin(camera.roll), Math.cos(camera.roll));
-        button.hidden = resetting || focusActive || Boolean(viewer.trackedEntity)
-            || (Math.abs(heading) < 0.02 && Math.abs(roll) < 0.02);
+        button.hidden = resetting || document.body?.classList?.contains("is-pre-entry") === true || !getActiveRegion();
     };
     button.addEventListener("click", () => {
         update();
         if (button.hidden || resetting) return;
-        const canvas = viewer.scene.canvas;
-        const middle = new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2);
-        const ray = camera.getPickRay(middle);
-        const center = (ray && viewer.scene.globe?.pick(ray, viewer.scene))
-            || camera.pickEllipsoid(middle, viewer.scene.globe?.ellipsoid);
-        if (!center) return;
-        const range = Cesium.Cartesian3.distance(camera.positionWC, center);
-        if (!Number.isFinite(range) || range <= 0) return;
+        const region = getActiveRegion();
+        if (!region) return;
         resetting = true;
         update();
         const finish = () => { resetting = false; update(); };
-        camera.flyToBoundingSphere(new Cesium.BoundingSphere(center, 0), {
-            duration: 0.8,
-            offset: new Cesium.HeadingPitchRange(0, Math.min(-0.02, camera.pitch), range),
-            complete: finish,
-            cancel: finish,
-        });
+        try {
+            // Release only focus state. The individual Unfocus flights must not race the region reset.
+            const controller = getAssetFocusController();
+            const focus = controller.getState();
+            if (getLiveTrackSelection().track_key || focus.assetType === "aircraft") {
+                clearLiveTrackSelection({ resetCamera: false });
+            }
+            if (getNavalDiagnostics().selectedNavalId || focus.assetType === "naval") {
+                clearNavalSelection({ resetCamera: false });
+            }
+            clearWarzoneMilSatsSelection();
+            if (controller.getState().state !== "inactive") controller.exitFocus("region-map-reset");
+            resetWarzoneCameraReference(viewer, { clearSelection: true });
+            Promise.resolve(flyToRegion(viewer, region, {
+                source: "map-reset", duration: 1.2, showLoader: false,
+            })).then(finish, (error) => { console.warn("[map-reset] region flight failed", error); finish(); });
+        } catch (error) {
+            console.warn("[map-reset] reset failed", error);
+            finish();
+        }
     });
     camera.changed?.addEventListener?.(update);
     camera.moveEnd?.addEventListener?.(update);
     document.addEventListener("wz:asset-focus-changed", update);
+    document.addEventListener("wz:region-camera-settled", update);
     update();
 }
 

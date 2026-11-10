@@ -339,43 +339,57 @@ test("AOI armed mode keeps aircraft camera follow alive and drawing pauses only 
   assert.equal(c.__liveTrackReplayState.selectedTrackKey, "same-aircraft");
 });
 
-test("orientation reset is shown only for unfocused rotation and preserves the picked center and range", async () => {
-  const button = new Events(); button.hidden = true;
-  const changed = new Events(), ended = new Events(), doc = new Events();
-  const center = { id: "view-center" };
-  let flight = null;
-  const camera = { heading: 0, roll: 0, pitch: -0.8, positionWC: { id: "position" },
-    changed, moveEnd: ended, getPickRay: () => ({}),
-    flyToBoundingSphere: (sphere, options) => { flight = { sphere, options }; },
-  };
-  const viewer = { camera, scene: { canvas: { clientWidth: 800, clientHeight: 600 },
-    globe: { pick: () => center, ellipsoid: {} } } };
-  const window = { __warzoneViewer: viewer, __warzoneFocusDiagnostics: { state: "inactive" } };
+test("map reset clears focus without competing flights and restores the same selected region", async () => {
+  const button = new Events(), changed = new Events(), ended = new Events(), doc = new Events();
+  let region = { id: "north-america", bounds: { minLon: -130, maxLon: -60, minLat: 10, maxLat: 65 } };
+  let finishFlight, preEntry = false, resets = 0, selected = true;
+  const flights = [], cleared = [];
+  const records = new Map([["naval-a", { position: "retained" }]]);
+  const camera = { heading: 0, roll: 0, changed, moveEnd: ended };
+  const viewer = { camera, trackedEntity: {}, selectedEntity: {}, scene: {}, records };
+  const window = { __warzoneViewer: viewer, __warzoneFocusDiagnostics: { state: "active" } };
   const c = await functions("warzone-ui.js", ["bindOrientationResetControl"], {
-    window, document: Object.assign(doc, { getElementById: () => button }), __orientationResetBound: false,
-    Cesium: { Cartesian2: class { constructor(x, y) { this.x = x; this.y = y; } },
-      Cartesian3: { distance: () => 1234 }, BoundingSphere: class { constructor(center) { this.center = center; } },
-      HeadingPitchRange: class { constructor(heading, pitch, range) { Object.assign(this, { heading, pitch, range }); } } },
+    window, document: Object.assign(doc, { getElementById: () => button,
+      body: { classList: { contains: () => preEntry } } }), __orientationResetBound: false,
+    getActiveRegion: () => region,
+    getLiveTrackSelection: () => ({ track_key: selected ? "air-a" : "" }),
+    getNavalDiagnostics: () => ({ selectedNavalId: selected ? "naval-a" : "" }),
+    clearLiveTrackSelection: options => { assert.equal(options.resetCamera, false); cleared.push("air"); },
+    clearNavalSelection: options => { assert.equal(options.resetCamera, false); cleared.push("naval"); },
+    clearWarzoneMilSatsSelection: () => cleared.push("satellite"),
+    getAssetFocusController: () => ({ getState: () => ({ state: selected ? "active" : "inactive" }), exitFocus: () => cleared.push("focus") }),
+    resetWarzoneCameraReference: (target, options) => {
+      assert.equal(target, viewer); assert.equal(options.clearSelection, true);
+      viewer.trackedEntity = undefined; viewer.selectedEntity = undefined; resets++;
+    },
+    flyToRegion: (target, selected, options) => {
+      assert.equal(target, viewer); assert.equal(selected, region); assert.equal(options.showLoader, false);
+      flights.push(selected.id); return new Promise(resolve => { finishFlight = resolve; });
+    },
   });
   c.bindOrientationResetControl();
-  assert.equal(button.hidden, true);
-  camera.heading = 1;
-  changed.fire("cesium");
-  assert.equal(button.hidden, false);
-  window.__warzoneFocusDiagnostics.state = "active";
-  doc.fire("wz:asset-focus-changed");
-  assert.equal(button.hidden, true);
-  window.__warzoneFocusDiagnostics.state = "inactive";
-  doc.fire("wz:asset-focus-changed");
+  assert.equal(button.hidden, false, "reset is available during focus and at north-up orientation");
+  for (const id of ["north-america", "middle-east", "south-asia"]) {
+    region = { ...region, id };
+    const before = flights.length;
+    button.fire("click"); button.fire("click");
+    assert.equal(flights.length, before + 1, "one flight, no competing Unfocus or double click");
+    assert.equal(flights.at(-1), id); assert.equal(region.id, id);
+    assert.equal(button.hidden, true);
+    finishFlight(true); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(button.hidden, false);
+    assert.equal(records.size, 1); assert.equal(records.get("naval-a").position, "retained");
+  }
+  assert.equal(viewer.trackedEntity, undefined); assert.equal(viewer.selectedEntity, undefined);
+  assert.equal(resets, 3); assert.equal(cleared.length, 12);
+  selected = false;
   button.fire("click");
-  assert.equal(flight.sphere.center, center);
-  assert.equal(flight.options.offset.heading, 0);
-  assert.equal(flight.options.offset.range, 1234);
-  assert.equal(flight.options.duration, 0.8);
-  flight.options.complete();
-  assert.equal(button.hidden, false);
-  c.bindOrientationResetControl();
-  assert.equal(button.count, 1);
+  assert.equal(cleared.filter(value => value === "air" || value === "naval").length, 6,
+    "without a selected asset do not run Unfocus routines that change map layers");
+  finishFlight(true); await new Promise(resolve => setImmediate(resolve));
+  preEntry = true; doc.fire("wz:asset-focus-changed");
+  button.fire("click"); assert.equal(flights.length, 4);
+  c.bindOrientationResetControl(); assert.equal(button.count, 1);
 });
 
 test("AOI OFF detaches drawing inputs and ON restores exactly one set", async (t) => {

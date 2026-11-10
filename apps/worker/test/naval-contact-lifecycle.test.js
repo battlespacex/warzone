@@ -60,6 +60,10 @@ test("Cesium admission caps rendered vessels without deleting retained records",
         cancelAnimationFrame() {},
         performance: { now: () => 0 },
         matchesNavalVisibilityFilter: () => true,
+        getCssNumber: (_name, fallback) => fallback,
+        getNavalTrackCameraDistanceMeters: () => Infinity,
+        updateNavalRenderStatus() {},
+        removeNavalRenderEntity() {},
         createVesselEntity: (_viewer, data) => {
             const id = `naval-${[...vessels].find(([, entry]) => entry.data === data)[0]}`;
             const entity = { id }; rendered.set(id, entity); return entity;
@@ -67,6 +71,7 @@ test("Cesium admission caps rendered vessels without deleting retained records",
         updateVesselEntity() {}, unregisterAnimationTask() {}, requestNavalRenderBatched() {},
     });
     vm.runInContext(sourceFunction("cancelNavalRenderReconcile") + "\n" +
+        sourceFunction("getNavalRenderAdmission") + "\n" +
         sourceFunction("scheduleNavalRenderReconcile"), context);
     context.scheduleNavalRenderReconcile();
     while (frames.length) frames.shift()();

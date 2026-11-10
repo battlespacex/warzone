@@ -4651,7 +4651,6 @@ UNUSED CANDIDATE END */
     padding: 1rem 1.5rem 1.5rem;
     position: relative;
     gap: .5rem;
-    background: var(--color-bg-row);
 }
 
 .wz-aircraft-item:before, .wz-naval-item:before {
@@ -4768,6 +4767,7 @@ UNUSED CANDIDATE END */
     font-weight: 600;
     transition: opacity 0.25s ease, transform 0.2s ease, background-color 0.2s ease;
     will-change: opacity, transform;
+    margin-top: 1rem;
 }
 
 .wz-aircraft-focus-panel, .wz-naval-focus-panel {
@@ -4910,7 +4910,6 @@ UNUSED CANDIDATE END */
     justify-content: flex-end;
     align-items: flex-end;
     gap: 1rem;
-    margin-top: 1rem;
 }
 
 

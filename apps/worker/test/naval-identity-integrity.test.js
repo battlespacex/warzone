@@ -33,12 +33,13 @@ test("HMS JUSTICE is commercial towing despite HMS, Royal Navy and an explicit c
     assert.equal(resolveNavalIdentity(justice, { records: [commercial] }).operator, "Centerline Logistics");
 });
 
-test("verified carrier and Zumwalt destroyer receive compatible models; other categories stay honest markers", () => {
+test("verified categories select compatible specialized models while unmapped categories stay generic", () => {
     for (const [r, model] of [[record(), "Carrier-US"],
         [record({ category: "destroyer", ship_class: "Zumwalt class", length_m: 190 }), "Vessel-Zumwalt"]]) {
         assert.equal(selectVerifiedNavalModel(resolveNavalIdentity(vessel(r))), model);
     }
-    for (const category of ["tug", "patrol", "cruiser", "corvette", "submarine", "landing_ship", "auxiliary", "logistics", "unknown"]) {
+    assert.equal(selectVerifiedNavalModel(resolveNavalIdentity(vessel(record({ category: "submarine" })))), "Submarine-SSN");
+    for (const category of ["tug", "patrol", "cruiser", "corvette", "landing_ship", "auxiliary", "logistics", "unknown"]) {
         assert.equal(selectVerifiedNavalModel(resolveNavalIdentity(vessel(record({ category })))), "", category);
     }
     assert.equal(selectVerifiedNavalModel(resolveNavalIdentity(vessel(record({ category: "destroyer", ship_class: "Other class" })))), "");
@@ -124,7 +125,9 @@ function frontend() {
     const viewer = { camera, isDestroyed: () => false, entities: { getById: (id) => entries.get(id) },
         scene: { requestRender() {} }, __warzone: {} };
     const context = vm.createContext({ Cesium, resolveNavalIdentity, selectVerifiedNavalModel, console,
-        window: { __warzoneViewer: viewer }, document: {}, performance, requestAnimationFrame: (fn) => frames.push(fn),
+        window: { __warzoneViewer: viewer }, document: { getElementById: () => null, body: { classList: { contains: () => false } } },
+        getActiveRegion: () => ({ id: "global" }), flyToRegion: () => {},
+        performance, requestAnimationFrame: (fn) => frames.push(fn),
         getAssetFocusController: () => controller });
     vm.runInContext(source.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
     vm.runInContext(`getCssNumber=(_name, fallback)=>fallback;
@@ -140,7 +143,8 @@ function frontend() {
 test("frontend ignores explicit carrier codes and has no country-default warship fallback", () => {
     const { context } = frontend();
     assert.equal(context.resolveNavalAssetKey({ ...justice, model_code: "Carrier-HMS" }), "Neutral");
-    assert.equal(context.resolveNavalModelUri(justice), "");
+    assert.equal(context.resolveNavalModelUri(justice), "/assets/images/models/sea/Vessel-Frigate.glb");
+    assert.equal(context.getNavalModelDescriptor(justice).representation, "generic-vessel-placeholder");
     for (const country of ["United States", "United Kingdom", "China", "India", "Russia"]) {
         assert.equal(context.resolveNavalAssetKey({ country, subcategory: "naval" }), "Neutral");
     }
@@ -148,14 +152,16 @@ test("frontend ignores explicit carrier codes and has no country-default warship
     assert.equal(context.resolveNavalLastSeenAt({ updated_at: observed }), 0);
 });
 
-test("verified model dimensions are independent of focused UI scaling and pixel inflation", () => {
+test("CSS sizes control normal and focused models while verified dimensions bound the base scale", () => {
     const { context } = frontend();
     const v = vessel(record());
     assert.equal(context.resolveNavalAssetKey(v), "Carrier-US");
+    assert.equal(context.getNavalModelScale(v), 1.2);
+    assert.equal(context.getFocusedNavalModelScale(v), 6.5);
+    assert.equal(context.getNavalModelMinPixelSize(v), 82);
+    assert.equal(context.getNavalModelMaxScale(v), 160);
+    vm.runInContext('getCssNumber=(_name,fallback)=>_name.includes("model-scale")?100:fallback', context);
     assert.ok(Math.abs(context.getNavalModelScale(v) * 41.16168 - 330) < .001);
-    assert.equal(context.getNavalModelScale(v), context.getFocusedNavalModelScale(v));
-    assert.equal(context.getNavalModelMinPixelSize(v), 0);
-    assert.equal(context.getNavalModelMaxScale(v), context.getNavalModelScale(v));
     assert.ok(source.includes("heightReference: Cesium.HeightReference.NONE"));
 });
 
@@ -181,9 +187,13 @@ test("naval user Unfocus restores the saved view, clears focus and guards obsole
     assert.equal(h.flights.length, count, "region/layer cleanup must not fly back");
 });
 
-test("neutral admission retains hundreds of records without creating GLBs or independent polls", () => {
+test("unknown GLB fallback never upgrades identity or requires another model selector", () => {
     const { context } = frontend();
-    for (let i = 0; i < 400; i++) assert.equal(context.resolveNavalModelUri({ mmsi: `999${String(i).padStart(6, "0")}`, country: "United States" }), "");
+    for (let i = 0; i < 400; i++) {
+        const value = { mmsi: `999${String(i).padStart(6, "0")}`, country: "United States" };
+        assert.equal(context.resolveNavalModelUri(value), "/assets/images/models/sea/Vessel-Frigate.glb");
+        assert.equal(resolveNavalIdentity(value).military_status, "unknown");
+    }
     assert.equal((source.match(/function resolveNavalAssetKey\(/g) || []).length, 1);
 });
 

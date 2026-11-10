@@ -1463,9 +1463,17 @@ function showRegionModal(viewer, instant = false, options = {}) {
         backBtn.setAttribute("aria-hidden", isManualMode ? "true" : "false");
     }
     if (closeBtn) {
+        // Initial region selection is mandatory: never expose a dismiss control.
+        // After entering StratOps, the manually opened selector can be cancelled.
+        const canDismiss = mode === "manual" && document.body?.classList.contains("is-app-active");
+        closeBtn.hidden = !canDismiss;
+        closeBtn.style.display = canDismiss ? "" : "none";
+        closeBtn.setAttribute("aria-hidden", canDismiss ? "false" : "true");
+        closeBtn.tabIndex = canDismiss ? 0 : -1;
         closeBtn.onclick = () => {
-            if (mode !== "manual" || overlay.classList.contains("is-closing")) return;
+            if (!canDismiss || overlay.classList.contains("is-closing")) return;
             closeRegionModal(overlay);
+            options?.onCancel?.();
         };
     }
 

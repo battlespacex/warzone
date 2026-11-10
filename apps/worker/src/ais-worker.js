@@ -323,11 +323,11 @@ export function isMilitaryVessel(vessel, options) {
 // ─── Supabase upsert ──────────────────────────────────────────────────────────
 
 function navalSourceName(vessel) {
-    const providers = new Set((vessel.lastSourceObservations || []).map((item) => item.provider));
-    if (providers.size > 1) return "Multi-source AIS";
-    if (providers.has("fintraffic")) return "Fintraffic / Digitraffic";
-    if (providers.has("aisstream")) return "AIS / AISStream.io";
-    return [...providers][0] || "AIS source unspecified";
+    const providers = [...new Set((vessel.lastSourceObservations || [])
+        .map((item) => String(item?.provider || item?.source || "").trim().toLowerCase())
+        .filter(Boolean))];
+    const labels = { fintraffic: "Fintraffic / Digitraffic", aisstream: "AISStream" };
+    return providers.map((provider) => labels[provider] || provider).join(", ") || "Unknown source";
 }
 
 function navalIdentityMetadata(vessel) {

@@ -1044,9 +1044,15 @@
     --warzone-live-label-depth-test-disable-distance: 0;
 
     /* Naval: model sizing */
+    /* Naval contacts always use GLB. Legacy auto/zoom/radius switches do not select PNG.
+       model-max-active caps visible regional GLBs; a focused contact always has priority.
+       Scale is an asset-unit multiplier (bounded by verified length when known).
+       Pixel goals are CSS pixels, converted to Cesium drawing-buffer pixels for DPR/resolutionScale.
+       maximumScale bounds distant enlargement. Responsive overrides below apply.
+       auto-enabled/max-zoom-height/auto-radius are legacy and ignored in GLB-only mode. */
     --warzone-live-naval-render-mode-default: glb;
     --warzone-live-naval-render-mode-focused: glb;
-    --warzone-live-naval-model-auto-enabled: 0;
+    --warzone-live-naval-model-auto-enabled: 1;
     --warzone-live-naval-model-scale: 1.2;
     --warzone-live-naval-model-min-pixel-size: 82;
     --warzone-live-naval-model-max-scale: 160;

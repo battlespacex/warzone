@@ -69,13 +69,15 @@ export function resolveNavalIdentity(vessel = {}, { records = [], trustEmbedded 
     };
 }
 
-// Existing GLBs are specific silhouettes. Missing categories stay markers rather
-// than borrowing a frigate/carrier. Names and arbitrary model_code never qualify.
+// Only verified identity selects specialized silhouettes. The frontend's generic
+// GLB fallback is a visual placeholder and never grants vessel class or affiliation.
 export function selectVerifiedNavalModel(identity) {
-    if (identity?.verification_status !== "verified" || identity.military_status !== "military" || !identity.length_m) return "";
+    if (identity?.verification_status !== "verified" || identity.military_status !== "military") return "";
     const shipClass = identity.ship_class.toLowerCase();
     if (identity.category === "destroyer" && /\bzumwalt\b/.test(shipClass)) return "Vessel-Zumwalt";
-    if (identity.category === "frigate" && shipClass) return "Vessel-Frigate";
+    if (identity.category === "frigate") return "Vessel-Frigate";
+    if (identity.category === "intelligence") return "Vessel-ISR";
+    if (identity.category === "submarine") return "Submarine-SSN";
     if (identity.category === "carrier") {
         const force = identity.naval_force.toLowerCase();
         if (force === "us navy") return "Carrier-US";

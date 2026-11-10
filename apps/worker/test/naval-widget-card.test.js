@@ -47,6 +47,8 @@ function harness() {
         formatNavalTimeAgo: () => 'Now', getNavalContactStatus: () => 'LIVE', resolveNavalModelUri: () => '',
         isNavalFocusBlocked: () => context.blocked,
     });
+    const providerStart = source.indexOf('function getNavalObservationProviderLabel(');
+    if (providerStart >= 0) vm.runInContext(source.slice(providerStart, source.indexOf('\n}', providerStart) + 2), context);
     vm.runInContext(source.slice(start, source.indexOf('\n}', start) + 2), context);
     const vessel = { track_key: 'test-vessel', vessel_name: 'Test vessel', last_seen_at: Date.parse('2026-11-10T12:00:00Z'), lat: 30, lon: 40 };
     return { context, vessel, card: new Element('article') };

@@ -53,14 +53,19 @@ test("Chrome resolves all focused categories across mobile, desktop, fallback an
         const getAircraftFocusedSizingCategory = record => record.category;
         const getNavalFocusedSizingCategory = record => record.category;
         ${identity}
-        const verifiedCarrier = { mmsi: '999000001', metadata: { identity_verification: {
+        const verifiedCarrier = { track_key: 'test', category: 'carrier', mmsi: '999000001', metadata: { identity_verification: {
             status: 'verified', source: 'browser test fixture', verified_at: '2026-11-01',
             identifiers: { mmsi: '999000001' }, military_status: 'military', category: 'carrier',
             naval_force: 'US Navy', ship_class: 'Fixture carrier', length_m: 330
         } } };
         window.__warzoneViewer = { entities: new Cesium.EntityCollection() };
         ${["getCssNumber", "getAircraftFocusedCssNumber", "getFocusedAircraftModelScale", "refreshFocusedAircraftModelScale"].map(n => extract(air, n)).join("\n")}
-        ${["getNavalModelScale", "getFocusedNavalModelScale", "refreshFocusedNavalModelScale"].map(n => extract(naval, n)).join("\n")}
+        const isFocusedNavalVessel = record => Boolean(record.track_key && record.track_key === __navalState.selectedKey);
+        const resolveNavalAssetKey = record => selectVerifiedNavalModel(resolveNavalIdentity(record)) || 'Neutral';
+        const queueNavalViewRefresh = () => requestAnimationFrame(() => {
+            if (__navalState.selectedKey) seaModel.scale = getNavalModelScale(verifiedCarrier);
+        });
+        ${["getNavalModelScale", "getNavalFocusedCssNumber", "getFocusedNavalModelScale", "refreshFocusedNavalModelScale"].map(n => extract(naval, n)).join("\n")}
         const airEntity = window.__warzoneViewer.entities.add({ id: 'track-test', model: { scale: 1 } });
         const seaEntity = window.__warzoneViewer.entities.add({ id: 'naval-test', model: { scale: 1 } });
         const airModel = airEntity.model, seaModel = seaEntity.model;
@@ -82,12 +87,13 @@ test("Chrome resolves all focused categories across mobile, desktop, fallback an
     const sizes = () => page.evaluate(([a, n]) => window.readSizes(a, n), [Object.keys(aircraft), vessels]);
     await page.setViewportSize({ width: 2200, height: 1000 });
     const fallback = await sizes();
-    for (const width of [390, 430, 767, 768, 1280, 1920, 2200, 2560, 3440, 3840]) {
-        await page.setViewportSize({ width, height: 1000 });
+    for (const [width, height] of [[390,844],[430,932],[767,1000],[768,1024],[1024,768],[1366,768],[1920,1080],[2200,1000],[2560,1440],[3440,1440],[3840,2160]]) {
+        await page.setViewportSize({ width, height });
         const actual = await sizes();
         assert.deepEqual(actual.air, width >= 2560 ? Object.fromEntries(Object.keys(aircraft).map(k => [k, 3]))
             : width <= 1920 ? aircraft : fallback.air, `aircraft at ${width}px`);
-        assert.deepEqual(actual.naval, Object.fromEntries(vessels.map(k => [k, k === 'carrier' ? carrierScale : 1])), `physical naval scale at ${width}px`);
+        assert.deepEqual(actual.naval, width >= 2560 ? Object.fromEntries(vessels.map(k => [k, 6.5]))
+            : width <= 1920 ? Object.fromEntries(vessels.map(k => [k, 8])) : fallback.naval, `CSS naval scale at ${width}px`);
     }
     // Distinct mobile-only overrides prove the independent tier, category, and domain cascade.
     await page.addStyleTag({ content: `@media (max-width: 767px) { :root {
@@ -99,13 +105,13 @@ test("Chrome resolves all focused categories across mobile, desktop, fallback an
         for (const width of [768, 767, 768, 430, 767, 768]) {
             await page.setViewportSize({ width, height: width === 430 ? 390 : 1000 });
             await page.waitForFunction(([d, expected]) => window.modelState()[d === 'aircraft' ? 'air' : 'naval'] === expected,
-                [domain, domain === "naval" ? carrierScale : width < 768 ? 19 : 9]);
+                [domain, domain === "naval" ? Math.min(carrierScale, width < 768 ? 18 : 8) : width < 768 ? 19 : 9]);
             const state = await page.evaluate(() => window.modelState());
             assert.equal(state.sameModels, true);
             assert.equal(state.count, 2);
             const actual = await sizes();
             assert.equal(actual.air.transport, 7);
-            assert.equal(actual.naval.destroyer, 1);
+            assert.equal(actual.naval.destroyer, 8);
         }
     }
     assert.deepEqual(errors, []);
