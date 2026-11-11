@@ -1045,7 +1045,7 @@
 
     /* Naval: model sizing */
     /* Naval contacts always use GLB. Legacy auto/zoom/radius switches do not select PNG.
-       model-max-active caps visible regional GLBs; a focused contact always has priority.
+       All eligible regional contacts receive GLBs; creation is chunked rather than capped.
        Scale is an asset-unit multiplier (bounded by verified length when known).
        Pixel goals are CSS pixels, converted to Cesium drawing-buffer pixels for DPR/resolutionScale.
        maximumScale bounds distant enlargement. Responsive overrides below apply.
@@ -1058,13 +1058,15 @@
     --warzone-live-naval-model-max-scale: 160;
     --warzone-live-naval-model-max-scale-focused: 220;
     --warzone-live-naval-model-focused-size: 6.5;
-    --warzone-live-naval-model-focused-min-pixel-size: 0;
+    --warzone-live-naval-model-focused-min-pixel-size: var(--warzone-live-naval-model-min-pixel-size);
 
     --warzone-live-naval-model-heading-offset-default: 180;
-    --warzone-live-naval-model-max-active: 6;
+    --warzone-live-naval-model-max-active: 6; /* Legacy; no longer omits eligible GLBs. */
     --warzone-live-naval-model-max-zoom-height: 320000;
     --warzone-live-naval-model-auto-radius: 200000;
     --warzone-live-naval-focused-distance: 2216;
+    /* Initial approach: 2216 + two normal 5000-metre zoom-out steps. Closest zoom stays 2216. */
+    --warzone-live-naval-focus-initial-distance: 12216;
 
     --warzone-live-naval-ctr-focused-distance: 24000;
     --warzone-live-naval-focus-camera-pitch: -58;

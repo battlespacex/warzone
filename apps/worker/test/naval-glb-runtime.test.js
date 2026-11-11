@@ -23,16 +23,17 @@ class Events {
 
 function harness() {
     const frames = new Map(), animations = new Map(), tasks = new Map(), warnings = [], flights = [];
-    let frameId = 0, generation = 0, selected = "", renderRequests = 0;
+    let frameId = 0, generation = 0, selected = "", renderRequests = 0, styleReads = 0;
     let region = { id: "test", bounds: { minLat: 20, maxLat: 40, minLon: 40, maxLon: 60 } };
     const css = new Map(Object.entries({
         "--warzone-live-naval-model-max-active": "6", "--warzone-live-naval-model-scale": "1.2",
         "--warzone-live-naval-model-focused-size": "6.5", "--warzone-live-naval-model-min-pixel-size": "82",
-        "--warzone-live-naval-model-focused-min-pixel-size": "0", "--warzone-live-naval-model-max-scale": "160",
+        "--warzone-live-naval-model-focused-min-pixel-size": "82", "--warzone-live-naval-model-max-scale": "160",
         "--warzone-live-naval-model-max-scale-focused": "220",
         "--warzone-live-naval-focused-distance": "2216",
+        "--warzone-live-naval-focus-initial-distance": "12216",
     }));
-    const style = { getPropertyValue: (name) => css.get(name) || "" };
+    const style = { getPropertyValue: (name) => { styleReads++; return css.get(name) || ""; } };
     const camera = { positionWC: Cesium.Cartesian3.fromDegrees(50, 30, 500000),
         directionWC: new Cesium.Cartesian3(0, 1, 0), upWC: new Cesium.Cartesian3(0, 0, 1),
         positionCartographic: { height: 500000 }, moveStart: new Signal(), moveEnd: new Signal(), changed: new Signal(),
@@ -78,22 +79,23 @@ function harness() {
         }
         return calls;
     }
-    function add(index, lon = 49 + index * .01, lat = 30) {
-        context.upsertNavalVessel({ dedupe_key: `ais-${index}`, title: `CONTACT ${index}`, lat, lon,
+    function add(index, lon = 49 + index * .01, lat = 30, metadata = {}) {
+        return context.upsertNavalVessel({ dedupe_key: `ais-${index}`, title: `CONTACT ${index}`, lat, lon,
             source_name: "AIS fixture", occurred_at: "2026-11-10T12:00:00Z",
             metadata: { mmsi: `999${String(index).padStart(6, "0")}`, ship_type: 35, vessel_name: `CONTACT ${index}`,
-                sources: [{ provider: "aisstream" }] } });
+                sources: [{ provider: "aisstream" }], ...metadata } });
     }
     return { context, viewer, window, document, css, frames, animations, tasks, warnings, flights, status, add, drain,
         get renderRequests() { return renderRequests; }, region(value) { region = value; },
+        get styleReads() { return styleReads; }, resetStyleReads() { styleReads = 0; },
         state: vm.runInContext("__navalState", context) };
 }
 
-test("all admitted overview and focused contacts have real ModelGraphics; budget overflow never becomes billboards", () => {
+test("every eligible overview and focused contact has ModelGraphics without an omission budget", () => {
     const h = harness(); h.context.setNavalLayerVisible(true);
     for (let i = 0; i < 12; i++) h.add(i);
     h.drain();
-    assert.equal(h.viewer.entities.values.length, 6);
+    assert.equal(h.viewer.entities.values.length, 12);
     assert.equal(h.state.vessels.size, 12);
     for (const entity of h.viewer.entities.values) {
         assert.ok(entity.model instanceof Cesium.ModelGraphics); assert.equal(entity.billboard, undefined);
@@ -103,28 +105,28 @@ test("all admitted overview and focused contacts have real ModelGraphics; budget
         assert.equal(entity.model.heightReference.getValue(), Cesium.HeightReference.NONE);
         assert.equal(entity.__navalData.military_status, "unknown"); assert.equal(entity.__navalData.vessel_class, "");
     }
-    assert.equal(h.status.hidden, false); assert.match(h.status.textContent, /6 of 12/);
-    const omitted = [...h.state.vessels].find(([, entry]) => !entry.entity)[0];
-    assert.equal(h.context.focusNavalVessel(omitted), true);
-    assert.equal(h.viewer.entities.values.length, 6);
-    const focused = h.state.vessels.get(omitted).entity;
+    assert.equal(h.status.hidden, true); assert.match(h.status.textContent, /12 of 12/);
+    assert.equal(h.context.focusNavalVessel("ais-0"), true);
+    assert.equal(h.viewer.entities.values.length, 12);
+    const focused = h.state.vessels.get("ais-0").entity;
     assert.ok(focused.model); assert.equal(focused.billboard, undefined);
-    assert.equal(focused.model.scale.getValue(), 6.5); assert.equal(focused.model.minimumPixelSize.getValue(), 0);
+    assert.equal(focused.model.scale.getValue(), 6.5); assert.equal(focused.model.minimumPixelSize.getValue(), 82);
     assert.equal(focused.model.maximumScale.getValue(), 220);
-    assert.equal(h.flights.at(-1).offset.range, 2216);
+    assert.equal(h.flights.at(-1).offset.range, 12216);
+    assert.equal(h.context.getNavalModelTunerFocusConfig().minRange, 2216);
     h.css.set("--warzone-live-naval-model-max-active", "0");
     h.viewer.camera.changed.fire(); h.drain();
-    assert.equal(h.viewer.entities.values.length, 1, "focus has priority even with zero overview slots");
-    assert.equal(h.viewer.entities.values[0], focused);
+    assert.equal(h.viewer.entities.values.length, 12, "legacy budget cannot omit regional models");
+    assert.equal(h.state.vessels.get("ais-0").entity, focused);
 });
 
-test("explicit style refresh updates the GLB budget without requiring a camera click", () => {
+test("explicit style refresh cannot restore the obsolete GLB omission budget", () => {
     const h = harness(); h.context.setNavalLayerVisible(true);
     for (let i = 0; i < 10; i++) h.add(i);
-    h.drain(); assert.equal(h.viewer.entities.values.length, 6);
+    h.drain(); assert.equal(h.viewer.entities.values.length, 10);
     h.css.set("--warzone-live-naval-model-max-active", "9");
     h.context.refreshNavalVisualStyles(); h.drain();
-    assert.equal(h.viewer.entities.values.length, 9);
+    assert.equal(h.viewer.entities.values.length, 10);
     assert.equal(h.state.vessels.size, 10);
     assert.ok(h.viewer.entities.values.every((entity) => entity.model && !entity.billboard));
 });
@@ -159,9 +161,11 @@ test("zoom, pan and CSS resize update without map clicks, duplicate listeners or
     h.drain();
     const original = [...h.viewer.entities.values];
     const created = h.state.createdCount;
+    h.resetStyleReads();
     h.viewer.camera.positionCartographic.height = 12000000;
     for (let i = 0; i < 20; i++) h.viewer.camera.changed.fire();
-    assert.equal(h.frames.size, 1, "camera burst coalesces");
+    assert.equal(h.frames.size, 0, "camera movement delegates distance sizing to Cesium without a fleet scan");
+    assert.equal(h.styleReads, 0);
     h.drain();
     assert.deepEqual(h.viewer.entities.values, original); assert.equal(h.state.createdCount, created);
     h.css.set("--warzone-live-naval-model-scale", "2.3"); h.css.set("--warzone-live-naval-model-min-pixel-size", "96");
@@ -171,8 +175,8 @@ test("zoom, pan and CSS resize update without map clicks, duplicate listeners or
     }
     h.viewer.camera.positionWC = Cesium.Cartesian3.fromDegrees(48, 30, 10000);
     h.viewer.camera.moveStart.fire(); h.viewer.camera.changed.fire(); h.viewer.camera.moveEnd.fire(); h.drain();
-    assert.equal(h.viewer.entities.values.length, 6);
-    assert.ok(h.state.admittedKeys.has("ais-0"), "panning changes nearest contact admission without a click");
+    assert.equal(h.viewer.entities.values.length, 10);
+    assert.ok(h.state.admittedKeys.has("ais-0"), "panning retains geographically eligible contacts");
     assert.ok(h.viewer.entities.values.every((entity) => entity.model && !entity.billboard));
     assert.equal(h.viewer.camera.changed.listeners.size, 1);
     assert.equal(h.window.events.get("resize").listeners.size, 1);
@@ -183,7 +187,7 @@ test("zoom, pan and CSS resize update without map clicks, duplicate listeners or
     assert.equal(h.context.focusNavalVessel("ais-0"), false, "cached rows cannot bypass layer OFF");
     assert.equal(h.viewer.entities.values.length, 0);
     h.context.setNavalLayerVisible(true); h.drain();
-    assert.equal(h.viewer.entities.values.length, 6); assert.equal(h.viewer.camera.changed.listeners.size, 1);
+    assert.equal(h.viewer.entities.values.length, 10); assert.equal(h.viewer.camera.changed.listeners.size, 1);
 });
 
 test("region changes remove only rendering/focus, keep observations and enforce date-line bounds", () => {
@@ -226,7 +230,134 @@ test("failed model request diagnostics identify the exact GLB and never add a re
     const failure = h.context.getNavalDiagnostics().modelFailures[0];
     assert.ok(failure.uri.endsWith("Vessel-Frigate.glb")); assert.equal(failure.status, 404);
     assert.equal(h.warnings.length, 1); assert.equal(h.viewer.entities.values[0].model, model);
+    assert.equal(h.status.hidden, false); assert.match(h.status.textContent, /request failure/);
     assert.equal(h.viewer.entities.values[0].billboard, undefined);
+});
+
+test("146 fixture inputs reconcile to 144 valid records and all 140 regional GLBs, including stationary contacts", () => {
+    const h = harness(); h.context.setNavalLayerVisible(true);
+    for (let i = 0; i < 140; i++) h.add(i, 49 + i * .01, 30, { speed_knots: 0, heading_deg: 90 });
+    for (let i = 140; i < 144; i++) h.add(i, 70);
+    h.add(144, 200); h.add(145, 50, 95); h.drain();
+    const diagnostics = h.context.getNavalDiagnostics();
+    assert.equal(h.state.vessels.size, 144);
+    assert.equal(diagnostics.regionalEligibleContacts, 140);
+    assert.equal(diagnostics.assignedGlbEntities, 140);
+    assert.equal(diagnostics.budgetOmittedContacts, 0);
+    assert.equal(diagnostics.loadedGlbModels, null, "ModelGraphics is not proof of GPU readiness");
+    assert.equal(h.viewer.entities.values.length, 140);
+    for (let i = 0; i < 140; i++) {
+        const entry = h.state.vessels.get(`ais-${i}`);
+        assert.equal(entry.data.speed_kts, 0);
+        assert.equal(entry.data.heading_deg, 90);
+        assert.ok(entry.entity.show && entry.entity.model.show.getValue());
+        assert.ok(entry.entity.model.uri.getValue().url.endsWith(".glb"));
+        const location = Cesium.Cartographic.fromCartesian(entry.entity.position.getValue(Cesium.JulianDate.now()));
+        assert.ok(Math.abs(Cesium.Math.toDegrees(location.longitude) - (49 + i * .01)) < 1e-9);
+        assert.ok(Math.abs(Cesium.Math.toDegrees(location.latitude) - 30) < 1e-9);
+    }
+    h.region({ id: "global" });
+    assert.equal(h.context.isNavalInSelectedRegion({ lat: null, lon: null }), false);
+    assert.equal(h.context.isNavalInSelectedRegion({ lat: 95, lon: 50 }), false);
+    h.context.setNavalLayerVisible(false); h.drain();
+    assert.equal(h.viewer.entities.values.length, 0); assert.equal(h.frames.size, 0);
+});
+
+test("tab return and repeated ON synchronization preserve the focused entity/model and camera ownership", () => {
+    const h = harness(); h.context.setNavalLayerVisible(true); h.add(0); h.add(1); h.drain();
+    h.context.focusNavalVessel("ais-0"); h.drain();
+    const entry = h.state.vessels.get("ais-0"), entity = entry.entity, model = entity.model;
+    const created = h.state.createdCount, flights = h.flights.length;
+    const camera = Cesium.Cartesian3.clone(h.viewer.camera.positionWC);
+    h.document.hidden = true; h.document.fire("visibilitychange");
+    assert.equal(h.frames.size, 0);
+    h.document.hidden = false; h.document.fire("visibilitychange"); h.drain();
+    for (let i = 0; i < 5; i++) { h.context.setNavalLayerVisible(true); h.drain(); }
+    assert.equal(entry.entity, entity); assert.equal(entity.model, model); assert.equal(entity.show, true);
+    assert.equal(h.state.selectedKey, "ais-0"); assert.equal(h.state.createdCount, created);
+    assert.equal(h.state.destroyedCount, 0); assert.equal(h.flights.length, flights);
+    assert.deepEqual(h.viewer.camera.positionWC, camera);
+    assert.equal(h.document.events.get("visibilitychange").listeners.size, 1);
+    h.viewer.useDefaultRenderLoop = false;
+    h.document.fire("visibilitychange"); h.drain();
+    assert.equal(h.viewer.useDefaultRenderLoop, false, "a fatal loop is never force-restarted");
+    h.context.setNavalLayerVisible(false); h.drain();
+    assert.equal(h.document.events.get("visibilitychange").listeners.size, 0);
+});
+
+test("tab recovery repairs only missing GLBs and restores hidden entities without replacing healthy models", () => {
+    const h = harness(); h.context.setNavalLayerVisible(true); h.add(0); h.add(1); h.drain();
+    const healthy = h.state.vessels.get("ais-0").entity;
+    const missing = h.state.vessels.get("ais-1").entity;
+    healthy.show = false; h.viewer.entities.remove(missing);
+    const created = h.state.createdCount;
+    h.document.fire("visibilitychange"); h.drain();
+    assert.equal(h.state.vessels.get("ais-0").entity, healthy); assert.equal(healthy.show, true);
+    assert.notEqual(h.state.vessels.get("ais-1").entity, missing);
+    assert.equal(h.state.createdCount, created + 1); assert.equal(h.viewer.entities.values.length, 2);
+});
+
+test("rapid focus switching and Unfocus restore normal sizes without losing entities", () => {
+    const h = harness(); h.context.setNavalLayerVisible(true); h.add(0); h.add(1); h.drain();
+    const first = h.state.vessels.get("ais-0").entity, second = h.state.vessels.get("ais-1").entity;
+    h.context.focusNavalVessel("ais-0");
+    assert.equal(first.model.scale.getValue(), 6.5);
+    h.context.focusNavalVessel("ais-1");
+    assert.equal(first.model.scale.getValue(), 1.2); assert.equal(second.model.scale.getValue(), 6.5);
+    assert.equal(first.model.minimumPixelSize.getValue(), second.model.minimumPixelSize.getValue());
+    h.context.clearNavalSelection(); h.drain();
+    assert.equal(second.model.scale.getValue(), 1.2); assert.equal(first.show && second.show, true);
+    assert.equal(h.viewer.entities.values.length, 2);
+});
+
+test("legitimate moving observations reuse the focused GLB and preserve heading interpolation", () => {
+    const h = harness(); h.context.setNavalLayerVisible(true);
+    h.viewer.camera.positionCartographic.height = 1000;
+    h.add(0, 50, 30, { heading_deg: 90, speed_kts: 10 }); h.drain();
+    h.context.focusNavalVessel("ais-0"); h.drain();
+    const entity = h.state.vessels.get("ais-0").entity, model = entity.model;
+    h.context.upsertNavalVessel({ dedupe_key: "ais-0", lat: 30, lon: 50.002,
+        source_name: "AIS fixture", occurred_at: "2026-11-10T12:02:00Z",
+        metadata: { mmsi: "999000000", ship_type: 35, heading_deg: 110, speed_kts: 10,
+            vessel_name: "CONTACT 0", sources: [{ provider: "aisstream" }] } });
+    h.drain();
+    assert.equal(h.state.vessels.get("ais-0").entity, entity);
+    assert.equal(entity.model, model); assert.equal(h.viewer.entities.values.length, 1);
+    const motion = entity.__navalMotionState;
+    assert.ok(motion); assert.equal(h.animations.size, 1);
+    const tick = h.animations.get("naval:ais-0");
+    assert.equal(tick(motion.startTime + motion.duration / 2), true);
+    assert.ok(Math.abs(entity.__navalHeadingDeg - 100) < 1e-9);
+    assert.equal(tick(motion.startTime + motion.duration), false);
+    h.animations.delete("naval:ais-0"); // Shared scheduler removes completed tasks.
+    const position = Cesium.Cartographic.fromCartesian(entity.position.getValue(Cesium.JulianDate.now()));
+    assert.ok(Math.abs(Cesium.Math.toDegrees(position.longitude) - 50.002) < 1e-9);
+    assert.ok(Math.abs(Cesium.Math.toDegrees(position.latitude) - 30) < 1e-9);
+    assert.equal(entity.__navalHeadingDeg, 110);
+    assert.equal(h.state.selectedKey, "ais-0"); assert.equal(entity.show, true);
+    h.context.setNavalLayerVisible(false); h.drain();
+    assert.equal(h.animations.size, 0); assert.equal(h.tasks.size, 0);
+});
+
+test("existing widget hide/show controls preserve naval GLBs and focus", () => {
+    const h = harness(); h.context.setNavalLayerVisible(true); h.add(0); h.drain();
+    h.context.focusNavalVessel("ais-0"); h.drain();
+    const entity = h.state.vessels.get("ais-0").entity, model = entity.model, flights = h.flights.length;
+    const boot = fs.readFileSync(new URL("../../../dev/assets/js/warzone-boot.js", import.meta.url), "utf8");
+    vm.runInContext("isMobileLayout=()=>false;updateBackdrop=()=>{};", h.context);
+    for (const name of ["hideWidget", "showWidget"]) {
+        const start = boot.indexOf(`    function ${name}(`);
+        assert.ok(start >= 0);
+        vm.runInContext(boot.slice(start, boot.indexOf("\n    function ", start + 1)), h.context);
+    }
+    const classes = new Set();
+    const widget = { dataset: { widgetId: "naval" }, querySelector: () => null,
+        classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) } };
+    h.context.hideWidget(widget); assert.equal(classes.has("wz-is-hidden"), true);
+    h.context.showWidget(widget); h.drain(); assert.equal(classes.has("wz-is-hidden"), false);
+    assert.equal(h.state.vessels.get("ais-0").entity, entity); assert.equal(entity.model, model);
+    assert.equal(entity.show, true); assert.equal(h.state.selectedKey, "ais-0");
+    assert.equal(h.flights.length, flights); assert.equal(h.viewer.entities.values.length, 1);
 });
 
 test("initial region selection cannot be dismissed; later cancellation preserves the selected region", () => {

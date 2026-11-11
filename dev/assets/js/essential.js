@@ -85,6 +85,7 @@ import { initPreEntryShowcase } from "./pre-entry-showcase.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
 let __warzoneMilSatsModulePromise = null;
 let __warzoneMilSatsInitialized = false;
+let __warzoneMilSatsEnableGeneration = 0;
 function loadWarzoneMilSatsModule() {
     if (!__warzoneMilSatsModulePromise) {
         __warzoneMilSatsModulePromise = import("./warzone-mil-sats.js")
@@ -97,12 +98,14 @@ function loadWarzoneMilSatsModule() {
 }
 function setWarzoneMilSatsEnabledDeferred(enabled) {
     const shouldEnable = enabled !== false;
+    const generation = ++__warzoneMilSatsEnableGeneration;
     if (!shouldEnable && !__warzoneMilSatsModulePromise) {
         return Promise.resolve();
     }
     return loadWarzoneMilSatsModule()
         .then((module) => {
-            if (!module) return;
+            if (!module || generation !== __warzoneMilSatsEnableGeneration ||
+                (!shouldEnable && !__warzoneMilSatsInitialized)) return;
             if (!__warzoneMilSatsInitialized) {
                 module.initWarzoneMilSats?.(window.__warzoneViewer || null);
                 __warzoneMilSatsInitialized = true;
@@ -9900,8 +9903,8 @@ async function initializeWarzoneAppOnce() {
             const changedAt = Date.now();
             const changedIds = id === "*" ? changedLayerIds || LAYER_DEFS.map((layer) => layer.id) : [id];
             const layerChanged = (layerId) => changedIds.includes(layerId);
-            if ((layerChanged("airspace") || layerChanged("cyber")) &&
-                (isLayerEnabled("airspace") || isLayerEnabled("cyber"))) {
+            if ((layerChanged("airspace") && isLayerEnabled("airspace")) ||
+                (layerChanged("cyber") && isLayerEnabled("cyber"))) {
                 void refreshStatusEvents().then(() => debouncedRenderUI(__eventsCache))
                     .catch(error => console.warn("Status refresh unavailable:", error?.name || "Error"));
             }
@@ -10028,7 +10031,10 @@ async function initializeWarzoneAppOnce() {
                 if (layerChanged("map-labels")) globe?.setMapLabelsLayerVisible?.(isLayerEnabled("map-labels"));
                 if (layerChanged("region-plate")) globe?.setRaisedRegionVisible?.(isLayerEnabled("region-plate"), getActiveRegion?.());
                 if (layerChanged("country-borders")) globe?.setBorderLayersVisible?.(isLayerEnabled("country-borders"), { duration: 180 });
-                if (layerChanged("gnss")) syncGnssInterferenceLayer();
+                if (layerChanged("gnss")) {
+                    if (isLayerEnabled("gnss")) void refreshGnssInterferenceCells();
+                    else syncGnssInterferenceLayer();
+                }
             }
             if (id === "*" && changedLayerIds) {
                 changedIds.forEach((layerId) => syncImmediateEventLayerVisibility(globe, layerId));

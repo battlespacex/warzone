@@ -78,11 +78,10 @@ const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
     "region-plate",
     "country-borders",
 ]);
-let __trackerPriorityBaseline = null;
-// This snapshot is temporary and never replaces the user's current layer preferences.
-let __orbitalIsolationBaseline = null;
 const ORBITAL_BASE_LAYER_IDS = new Set(["map-labels", "country-borders"]);
 let __layerWarningPending = false;
+let __layerStateGeneration = 0;
+let __startupLayerStateRestored = false;
 const LAYER_SECTIONS = [
     {
         id: "kinetic-activity",
@@ -281,7 +280,6 @@ function isOrbitalBlockedLayer(id, state = __layerState) {
 }
 
 function applyOrbitalIsolation(previousState) {
-    if (!__orbitalIsolationBaseline) __orbitalIsolationBaseline = { ...previousState };
     LAYER_DEFS.forEach(({ id }) => {
         if (id !== "orbital-assets" && id !== "terrain" && !ORBITAL_BASE_LAYER_IDS.has(id)) {
             __layerState[id] = false;
@@ -291,14 +289,13 @@ function applyOrbitalIsolation(previousState) {
 }
 
 function restoreOrbitalIsolation() {
-    const baseline = __orbitalIsolationBaseline;
-    if (!baseline) return;
+    restoreDefaultLayers();
+}
+
+function restoreDefaultLayers() {
     LAYER_DEFS.forEach(({ id }) => {
-        if (id === "orbital-assets" || ORBITAL_BASE_LAYER_IDS.has(id)) return;
-        __layerState[id] = baseline[id] === true;
+        __layerState[id] = DASHBOARD_DEFAULT_LAYER_STATE[id] === true && canUseLayer(id);
     });
-    __layerState["orbital-assets"] = false;
-    __orbitalIsolationBaseline = null;
 }
 
 function applyTrackerPriority(state) {
@@ -314,15 +311,8 @@ function applyTrackerPriority(state) {
 function reconcileTrackerPriority(previousState) {
     const wasTracking = previousState.aircraft || previousState.naval;
     const isTracking = __layerState.aircraft || __layerState.naval;
-    if (!wasTracking && isTracking) {
-        __trackerPriorityBaseline = { ...previousState };
-    } else if (wasTracking && !isTracking) {
-        const baseline = __trackerPriorityBaseline || DASHBOARD_DEFAULT_LAYER_STATE;
-        LAYER_DEFS.forEach(({ id }) => {
-            if (id === "aircraft" || id === "naval" || TRACKER_ISOLATION_BASE_LAYER_IDS.has(id)) return;
-            __layerState[id] = baseline[id] === true;
-        });
-        __trackerPriorityBaseline = null;
+    if (wasTracking && !isTracking && !__layerState["orbital-assets"]) {
+        restoreDefaultLayers();
     }
     applyTrackerPriority(__layerState);
 }
@@ -343,8 +333,7 @@ function loadState() {
     LAYER_DEFS.forEach((layer) => {
         __layerState[layer.id] = DASHBOARD_DEFAULT_LAYER_STATE[layer.id] === true;
     });
-    __trackerPriorityBaseline = null;
-    __orbitalIsolationBaseline = null;
+    __layerStateGeneration += 1;
     __layerStateLoaded = true;
 }
 
@@ -353,21 +342,9 @@ export function hydrateLayerStateFromStorage() {
 }
 
 export function restoreLayerStateForStartup() {
-    let saved = null;
-    try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) saved = parsed;
-    } catch { }
-    __layerStateLoaded = false;
-    loadState();
-    // A saved tracker-priority snapshot has unrelated layers switched off.
-    // Start the next session with the operational defaults and both trackers off.
-    if (saved && saved.aircraft !== true && saved.naval !== true) {
-        LAYER_DEFS.forEach(({ id }) => {
-            if (typeof saved[id] === "boolean") __layerState[id] = saved[id];
-        });
-    }
-    saveState();
+    if (__startupLayerStateRestored) return;
+    __startupLayerStateRestored = true;
+    resetLayerStateForFreshLoad();
 }
 
 export function resetLayerStateForFreshLoad() {
@@ -524,14 +501,17 @@ function shouldWarnForLayerTransition(nextState) {
     return nextCount > PERFORMANCE_WARNING_LIMIT && nextCount > currentCount;
 }
 
-function openSharedModal(modal) {
+function openSharedModal(modal, callback) {
     if (!modal) return;
     if (typeof window.__warzoneOpenSharedModal === "function") {
-        window.__warzoneOpenSharedModal(modal);
+        window.__warzoneOpenSharedModal(modal, callback);
         return;
     }
     modal.hidden = false;
-    requestAnimationFrame(() => modal.classList.add("is-visible"));
+    requestAnimationFrame(() => {
+        modal.classList.add("is-visible");
+        callback?.();
+    });
 }
 
 function closeSharedModal(modal, callback) {
@@ -552,7 +532,7 @@ function closeSharedModal(modal, callback) {
 
 function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount = 0 } = {}) {
     const modal = document.getElementById("wz-layer-warning-modal");
-    if (!modal) return Promise.resolve(true);
+    if (!modal) return Promise.resolve(mode !== "tracker");
     if (__layerWarningPending) return Promise.resolve(false);
     __layerWarningPending = true;
 
@@ -564,24 +544,37 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
     const confirmBtn = document.getElementById("wz-layer-warning-confirm");
     const pendingDef = getLayerDef(pendingId);
     const nextLabel = pendingDef?.label || "additional layer";
+    const trackerLabel = pendingId === "aircraft" ? "Aircraft Tracking"
+        : pendingId === "naval" ? "Naval Tracking" : "Orbital Intelligence";
+    const activityLabel = pendingId === "aircraft" ? "live aircraft activity"
+        : pendingId === "naval" ? "naval activity" : "satellite tracking";
+    const previousFocus = document.activeElement;
+    const setButtonLabel = (button, label) => {
+        if (!button) return;
+        const text = Array.from(button.childNodes || []).find((node) => node.nodeType === 3 && node.textContent.trim());
+        if (text) text.textContent = ` ${label} `;
+        else button.textContent = label;
+    };
+    setButtonLabel(backBtn, mode === "tracker" ? "Cancel" : "Back");
+    setButtonLabel(confirmBtn, mode === "tracker" ? `Enable ${trackerLabel}` : "Understood");
 
     if (titleEl) {
         titleEl.textContent = mode === "tracker"
-            ? "Enable Live Tracking?"
+            ? `Enable ${trackerLabel}?`
             : mode === "all"
                 ? "Maximum Sensor Loadout"
                 : "High-Load Layer Activation";
     }
     if (summaryEl) {
         summaryEl.textContent = mode === "tracker"
-            ? `Enabling ${nextLabel} will turn off other active map layers. Air Tracker and Naval Tracker can remain active together. Do you want to continue?`
+            ? `Enabling ${trackerLabel} will temporarily disable other map layers to prioritize ${activityLabel}. Your default map layers will be restored automatically when ${trackerLabel} is turned off.`
             : mode === "all"
                 ? "Activating the full multi-domain stack will increase render load and can slow battlespace responsiveness across the globe."
                 : `Enabling ${nextLabel} will raise the live stack to ${nextCount} active layers and can slow tactical map performance.`;
     }
     if (detailEl) {
         detailEl.textContent = mode === "tracker"
-            ? "Continue to enable live tracking and disable only incompatible layers. Cancel preserves the current layer state."
+            ? "If another tracking system remains active, default layers return when the final tracking system is turned off."
             : "Heavy radar envelopes, sweeper sectors, hotspot labels, and dense event overlays increase processing load. Proceed only if you want the expanded operational picture despite the slower response time.";
     }
 
@@ -593,17 +586,34 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
             closeBtn?.removeEventListener("click", handleCancel);
             backBtn?.removeEventListener("click", handleCancel);
             confirmBtn?.removeEventListener("click", handleApprove);
+            document.removeEventListener("keydown", handleKeydown, true);
             closeSharedModal(modal, () => {
                 __layerWarningPending = false;
+                previousFocus?.focus?.();
                 resolve(approved);
             });
         };
         const handleCancel = () => finish(false);
         const handleApprove = () => finish(true);
+        const handleKeydown = (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                handleCancel();
+            } else if (event.key === "Tab") {
+                const controls = [closeBtn, backBtn, confirmBtn].filter((control) => control && !control.disabled);
+                const index = controls.indexOf(document.activeElement);
+                if (controls.length && (index < 0 || (event.shiftKey ? index === 0 : index === controls.length - 1))) {
+                    event.preventDefault();
+                    controls[event.shiftKey ? controls.length - 1 : 0]?.focus?.();
+                }
+            }
+        };
         closeBtn?.addEventListener("click", handleCancel);
         backBtn?.addEventListener("click", handleCancel);
         confirmBtn?.addEventListener("click", handleApprove);
-        openSharedModal(modal);
+        document.addEventListener("keydown", handleKeydown, true);
+        openSharedModal(modal, () => { if (!settled) backBtn?.focus?.(); });
     });
 }
 export function setLayer(id, enabled) {
@@ -648,6 +658,7 @@ export function toggleLayer(id) {
 
 export async function requestLayerToggle(id) {
     if (!getLayerDef(id)) return false;
+    if (__layerWarningPending) return false;
     if (isTrackerBlockedLayer(id) || isOrbitalBlockedLayer(id)) return false;
 
     const currentlyEnabled = getEffectiveLayerState(id);
@@ -661,16 +672,17 @@ export async function requestLayerToggle(id) {
         return false;
     }
 
-    const incompatibleLayerIds = getTrackerIncompatibleActiveLayerIds(id);
-    if (incompatibleLayerIds.length) {
+    const generation = __layerStateGeneration;
+    const isTracker = id === "aircraft" || id === "naval" || id === "orbital-assets";
+    if (isTracker) {
         const approved = await requestPerformanceApproval({ mode: "tracker", pendingId: id });
         if (!approved) {
-            notifyChange(id, false);
             return false;
         }
+        if (generation !== __layerStateGeneration || !canUseLayer(id)) return false;
     }
     const nextState = buildSingleToggleState(id, true);
-    if (shouldWarnForLayerTransition(nextState)) {
+    if (!isTracker && shouldWarnForLayerTransition(nextState)) {
         const approved = await requestPerformanceApproval({
             mode: "toggle",
             pendingId: id,
@@ -681,7 +693,7 @@ export async function requestLayerToggle(id) {
             return false;
         }
     }
-
+    if (generation !== __layerStateGeneration) return false;
     return setLayer(id, true);
 }
 
@@ -827,6 +839,7 @@ export function onLayerChange(cb) {
 }
 
 function notifyChange(id, val, changedIds = null) {
+    __layerStateGeneration += 1;
     if (id === "*") {
         LAYER_DEFS.filter((l) => l.uiOnly).forEach((l) => {
             syncUiOnlyLayerToWidget(l.id, getEffectiveLayerState(l.id));
@@ -842,7 +855,7 @@ function notifyChange(id, val, changedIds = null) {
     if (container) {
         if (id === "*") {
             syncAllLayerItemStates(container);
-        } else if (id === "aircraft" || id === "naval") {
+        } else if (id === "aircraft" || id === "naval" || id === "orbital-assets") {
             syncAllLayerItemStates(container);
         } else {
             const item = container.querySelector(`[data-layer="${id}"]`);
@@ -1063,7 +1076,14 @@ function getRenderedSections() {
 function bindLayerItem(container, item) {
     const handleToggle = async () => {
         const id = item.dataset.layer;
-        if (isTrackerBlockedLayer(id)) return;
+        if (__layerWarningPending) return;
+        if (id === "aircraft" || id === "naval" || id === "orbital-assets") {
+            await requestLayerToggle(id);
+            syncAllLayerItemStates(container);
+            updateBulkToggleState(container);
+            return;
+        }
+        if (isTrackerBlockedLayer(id) || isOrbitalBlockedLayer(id)) return;
         const currentlyEnabled = getEffectiveLayerState(id);
         let newVal = currentlyEnabled;
 
@@ -1176,11 +1196,19 @@ export function initLayerPanel() {
     });
 
     container.querySelectorAll("[data-layer-section-toggle]").forEach((button) => {
-        button.addEventListener("click", (event) => {
+        button.addEventListener("click", async (event) => {
             event.stopPropagation();
+            if (__layerWarningPending) return;
             const sectionId = button.getAttribute("data-layer-section-toggle") || "";
             const layerIds = getSectionLayerIds(sectionId).filter(canUseLayer);
             const allOn = layerIds.length > 0 && layerIds.every(getEffectiveLayerState);
+            if (!allOn) {
+                const generation = __layerStateGeneration;
+                for (const id of layerIds.filter((id) => ["aircraft", "naval", "orbital-assets"].includes(id) && !getEffectiveLayerState(id))) {
+                    if (!await requestPerformanceApproval({ mode: "tracker", pendingId: id }) ||
+                        generation !== __layerStateGeneration || !canUseLayer(id)) return;
+                }
+            }
             setSectionLayers(sectionId, !allOn, container);
         });
     });

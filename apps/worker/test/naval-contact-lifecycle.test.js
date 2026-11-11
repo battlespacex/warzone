@@ -45,7 +45,7 @@ test("naval validation retains 400 old verified contacts while removing invalid 
     assert.equal(vessels.has("aircraft"), false);
 });
 
-test("Cesium admission caps rendered vessels without deleting retained records", () => {
+test("Cesium admission renders all eligible vessels beyond the former hard ceiling", () => {
     const vessels = new Map(Array.from({ length: 400 }, (_, index) => [
         `ais-${index}`, { data: { last_seen_at: index + 1 } },
     ]));
@@ -76,7 +76,7 @@ test("Cesium admission caps rendered vessels without deleting retained records",
     context.scheduleNavalRenderReconcile();
     while (frames.length) frames.shift()();
     assert.equal(vessels.size, 400);
-    assert.equal(rendered.size, 320);
+    assert.equal(rendered.size, 400);
     assert.equal(rendered.has("naval-ais-0"), true, "focused old contact stays eligible");
-    assert.equal(rendered.has("naval-ais-1"), false, "oldest nonfocused contact is not rendered");
+    assert.equal(rendered.has("naval-ais-1"), true, "old nonfocused contacts remain renderable");
 });

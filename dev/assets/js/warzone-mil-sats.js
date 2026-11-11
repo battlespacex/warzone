@@ -239,25 +239,32 @@ function createStartupDemoOrientation(position, sat = {}) {
     return Cesium.Quaternion.fromRotationMatrix(final);
 }
 
-function createSatelliteModelOrientation(position) {
+const satelliteOrientationScratch = {
+    enu: new Cesium.Matrix4(),
+    base: new Cesium.Matrix3(),
+    hpr: new Cesium.Matrix3(),
+    final: new Cesium.Matrix3(),
+    angles: new Cesium.HeadingPitchRoll(),
+};
+
+function createSatelliteModelOrientation(position, result) {
     if (!position) return undefined;
-    const enu = Cesium.Transforms.eastNorthUpToFixedFrame(position);
-    const base = Cesium.Matrix4.getMatrix3(enu, new Cesium.Matrix3());
-    const hpr = Cesium.Matrix3.fromHeadingPitchRoll(
-        new Cesium.HeadingPitchRoll(
-            Cesium.Math.toRadians(getSatelliteModelHeadingDeg(0)),
-            Cesium.Math.toRadians(getSatelliteModelPitchDeg(-150)),
-            Cesium.Math.toRadians(getSatelliteModelRollDeg(-15))
-        )
-    );
-    const final = Cesium.Matrix3.multiply(base, hpr, new Cesium.Matrix3());
-    return Cesium.Quaternion.fromRotationMatrix(final);
+    const scratch = satelliteOrientationScratch;
+    const enu = Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, scratch.enu);
+    const base = Cesium.Matrix4.getMatrix3(enu, scratch.base);
+    scratch.angles.heading = Cesium.Math.toRadians(getSatelliteModelHeadingDeg(0));
+    scratch.angles.pitch = Cesium.Math.toRadians(getSatelliteModelPitchDeg(-150));
+    scratch.angles.roll = Cesium.Math.toRadians(getSatelliteModelRollDeg(-15));
+    const hpr = Cesium.Matrix3.fromHeadingPitchRoll(scratch.angles, scratch.hpr);
+    const final = Cesium.Matrix3.multiply(base, hpr, scratch.final);
+    return Cesium.Quaternion.fromRotationMatrix(final, result);
 }
 
 function createSatelliteModelOrientationProperty(positionProperty) {
-    return new Cesium.CallbackProperty((time) => {
-        const position = positionProperty?.getValue?.(time);
-        return position ? createSatelliteModelOrientation(position) : undefined;
+    const positionScratch = new Cesium.Cartesian3();
+    return new Cesium.CallbackProperty((time, result) => {
+        const position = positionProperty?.getValue?.(time, positionScratch);
+        return position ? createSatelliteModelOrientation(position, result) : undefined;
     }, false);
 }
 
@@ -2040,7 +2047,6 @@ export function setWarzoneMilSatsEnabled(enabled) {
     }
     if (state.enabled) {
         ensureHandler();
-        updateDefaultEntities();
         updateControlsOptions();
         return;
     }
