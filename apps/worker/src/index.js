@@ -4722,11 +4722,24 @@ const aircraftLivePoller = createAircraftLivePoller({
 });
 const navalFeedEnabled = sources.feeds.find((feed) => feed.type === "ais-stream")?.enabled !== false;
 const navalProviders = createNavalProviders();
-readNavalDiagnostics = () => ({ captured_at: new Date().toISOString(), providers: navalProviderDiagnostics(navalProviders) });
+let lastNavalCycle = null;
+readNavalDiagnostics = () => ({ captured_at: new Date().toISOString(), providers: navalProviderDiagnostics(navalProviders), last_cycle: lastNavalCycle });
+async function runDiagnosedNavalCycle() {
+    try {
+        const result = await runAisWorker({ providers: navalProviders });
+        lastNavalCycle = { completed_at: new Date().toISOString(), raw: result.raw,
+            valid_position: result.valid_position, accepted: result.military,
+            qualification: result.qualification, upserted_tracks: result.upserted, failed: false };
+        return result;
+    } catch (error) {
+        lastNavalCycle = { failed: true, completed_at: new Date().toISOString() };
+        throw error;
+    }
+}
 const navalLivePoller = createNavalLivePoller({
     enabled: NAVAL_LIVE_POLL_CONFIG.enabled && navalFeedEnabled,
     tickMs: NAVAL_LIVE_POLL_CONFIG.tickMs,
-    runCycle: () => runAisWorker({ providers: navalProviders }),
+    runCycle: runDiagnosedNavalCycle,
 });
 // ── Pikud HaOref real-time siren poller (1.5s interval) ──────────────────────
 // Runs independently of the 5-min cron — sidetracks into warzone-siren-poller.js

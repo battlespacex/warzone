@@ -96,14 +96,46 @@ test("focus expands one keyed card; Collapse and a different selection preserve 
     assert.equal(card.querySelector(".wz-aircraft-technical-details").hidden, true);
     context.updateAircraftWidgetCard(card, track, { track_key: "one", mode: "focus" });
     assert.equal(card.querySelector(".wz-aircraft-technical-details").hidden, false);
+    const details = card.querySelector(".wz-aircraft-technical-details");
+    assert.equal(details.style.display, "grid", "expanded details override the stylesheet's display:none");
+    assert.equal(details.querySelectorAll(".wz-aircraft-focus-panel__metric-label").length, 19);
+    assert.match(details.textContent, /CallsignTEST01/);
+    assert.match(details.textContent, /Ground speed220 kt/);
+    track.metadata.telemetry.speed_kts = 230;
+    context.updateAircraftWidgetCard(card, track, { track_key: "one", mode: "focus" });
+    assert.equal(card.querySelector(".wz-aircraft-technical-details"), details);
+    assert.match(details.textContent, /Ground speed230 kt/);
+    const firstMetric = details.firstChild;
+    context.updateAircraftWidgetCard(card, track, { track_key: "one", mode: "focus" });
+    assert.equal(details.firstChild, firstMetric, "unchanged telemetry reuses its detail DOM");
+    details.style.display = "";
+    context.updateAircraftWidgetCard(card, track, { track_key: "one", mode: "focus" });
+    assert.equal(details.style.display, "grid", "same-signature refresh repairs the missing display state");
+    card.removeChild(details);
+    context.updateAircraftWidgetCard(card, track, { track_key: "one", mode: "focus" });
+    assert.equal(card.querySelector(".wz-aircraft-technical-details").style.display, "grid");
     const action = card.querySelector(".wz-aircraft-action");
     assert.equal(action.dataset.trackAction, "unlock");
     vm.runInContext('__aircraftCollapsedDetailsKey="one"', context);
     context.updateAircraftWidgetCard(card, track, { track_key: "one", mode: "focus" });
     assert.equal(card.querySelector(".wz-aircraft-technical-details").hidden, true);
+    assert.equal(card.querySelector(".wz-aircraft-technical-details").style.display, "none");
     assert.equal(card.querySelector(".wz-aircraft-action"), action);
     context.updateAircraftWidgetCard(card, track, { track_key: "two", mode: "focus" });
     assert.equal(action.dataset.trackAction, "focus");
+});
+
+test("telemetry rendering changes plain fields into labelled fields without stale cache reuse", () => {
+    const source = fs.readFileSync(new URL("../../../dev/assets/js/warzone-aircraft-telemetry.js", import.meta.url), "utf8")
+        .replace(/^export \{[^\n]+\};\r?\n/gm, "").replace(/export /g, "");
+    const context = vm.createContext({ document: { createElement: tag => new Element(tag) } });
+    vm.runInContext(source, context);
+    const container = new Element("div"), fields = [["Callsign", "<reported text>"]];
+    context.renderAircraftTelemetry(container, fields, false);
+    assert.equal(container.querySelector(".wz-aircraft-focus-panel__metric-label"), null);
+    context.renderAircraftTelemetry(container, fields, true);
+    assert.equal(container.querySelector(".wz-aircraft-focus-panel__metric-label").textContent, "Callsign");
+    assert.equal(container.querySelector(".wz-aircraft-focus-panel__metric-value").textContent, "<reported text>");
 });
 
 test("AIS diagnostics are loopback/explicit-development only, and opening a socket isn't a successful AIS message", async () => {

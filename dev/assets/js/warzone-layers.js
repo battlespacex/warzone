@@ -406,6 +406,13 @@ export function getEventLayerId(event) {
     const weapon = String(event.weapon_type || "").toLowerCase();
     const subcat = String(event.subcategory || "").toLowerCase();
     const src = String(event.source_name || "").toLowerCase();
+    const metadata = getEventMetadata(event);
+    const trackType = String(event.track_type || metadata.track_type || "").toLowerCase();
+    const aisKey = String(event.dedupe_key || event.source_key || "").toLowerCase();
+    // Routing telemetry is not a claim of verified military identity. Worker
+    // candidates deliberately retain category "unverified".
+    if (trackType === "naval" || (trackType !== "aircraft" && event.report_type === "signal" &&
+        (aisKey.startsWith("ais-") || metadata.mmsi))) return "naval";
 
     if (cat === "alert") return "alerts";
     if (cat === "cyber") return "cyber";

@@ -916,12 +916,12 @@ font-size: var(--text-sm);
     
 /* 2560px and wider */
 @media screen and (min-width: 2560px) {
-    html { font-size: 78.5% ;}
+    html { font-size: 73.5% ;}
 }
 
 /* 3440px and wider */
 @media screen and (min-width: 3440px) {
-     html { font-size: 66.5%}
+     html { font-size: 62.5%}
 }
 
 

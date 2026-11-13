@@ -3714,6 +3714,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 .wz-intro .wz-content[data-pane] p,
 .wz-about .wz-content[data-pane] p {
     margin: 0 0 1rem;
+        color: var(--color-text-dim);
 }
 
 .wz-support-return .wz-modal-body {
@@ -4531,9 +4532,12 @@ UNUSED CANDIDATE END */
     background: var(--color-teal-glow);
 }
 
-.wz-aircraft-type-filter, .wz-naval-type-filter {
-    width: 100%;
+.wz-aircraft-type-filter, .wz-aircraft-type-filter .wz-selector, .wz-naval-type-filter, .wz-naval-type-filter .wz-selector {
+    width: 100% ;
+    max-width: 100% ;
 }
+
+
 
 .wz-aircraft-country, .wz-naval-country {
     position: relative;
@@ -4690,7 +4694,7 @@ UNUSED CANDIDATE END */
 .wz-aircraft-item__stats, .wz-naval-item__stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     background: var(--color-bg-header);
-    padding: 1rem;
+    padding: 1rem 1rem .7rem;
     clip-path: var(--clippath-shape-3);
     margin: .5rem 0 0;
     font-size: var(--text-sm);
@@ -4708,7 +4712,7 @@ UNUSED CANDIDATE END */
 
 .wz-aircraft-item__time, .wz-naval-item__time,
 .wz-aircraft-item__meta, .wz-naval-item__meta,
-.wz-aircraft-item__stats {
+.wz-aircraft-item__stats, .wz-naval-item__stats {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
 }
@@ -4912,9 +4916,7 @@ UNUSED CANDIDATE END */
     gap: 1rem;
 }
 
-
-
-.wz-naval-technical-details {
+.wz-aircraft-technical-details, .wz-naval-technical-details {
     display: none;
     flex-direction: column;
     height: auto;
@@ -4929,6 +4931,23 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-3);
 }
 
+.wz-aircraft-technical-details h3, .wz-naval-technical-details h3 {
+    color: var(--color-text-heading);
+    font-size: var(--text-lg);
+    line-height: 1.8rem;
+}
+
+.wz-aircraft-technical-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+}
+
+.wz-aircraft-technical-details .wz-aircraft-focus-panel__metric-label,
+.wz-aircraft-technical-details .wz-aircraft-focus-panel__metric-value {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 .wz-naval-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4938,6 +4957,9 @@ UNUSED CANDIDATE END */
 
 .wz-naval-details-item {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
 }
 
 .wz-naval-details-item dt, .wz-naval-details-item dd {
@@ -5017,23 +5039,20 @@ UNUSED CANDIDATE END */
 }
 
 
-.wz-aircraft-title__status .static-icon {
-    font-size: var(--icon-lg);
-    width: 2rem;
-    height: 2rem;
-    min-width: 2rem;
-    min-height: 2rem;
-    display: flex;
-    color: var(--color-green-glow)
-}
-
-.wz-naval-title__status .static-icon {
+.wz-aircraft-title__status .static-icon, .wz-naval-title__status .static-icon {
     font-size: var(--icon-md);
     width: 1.5rem;
     height: 1.5rem;
     min-width: 1.5rem;
     min-height: 1.5rem;
     display: flex;
+}
+
+.wz-aircraft-title__status .static-icon {
+    color: var(--color-green-glow)
+}
+
+.wz-naval-title__status .static-icon {
     color: var(--color-purple-slate);
 }
 

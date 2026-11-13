@@ -1,6 +1,7 @@
 import { isExcludedTrainerAircraftText } from "../../../apps/shared/aircraft-trainer-exclusions.js";
 // File Path: /assets/js/warzone-live-airforce.js
 import * as Cesium from "cesium";
+import { readGlbSizing, applyGlbDistanceSizing } from "./warzone-glb-distance-sizing.js";
 import { getAircraftTelemetry, renderAircraftTelemetry } from "./warzone-aircraft-telemetry.js";
 import { recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
@@ -1763,6 +1764,14 @@ function getFocusedAircraftModelScale(track = {}, computedStyle = null) {
     );
 }
 function refreshFocusedAircraftModelScale() {
+    if (Number.isFinite(getCssNumber("--warzone-live-aircraft-model-scale-min", NaN))) {
+        __liveTrackRegistry.forEach((track, key) => {
+            const entity = window.__warzoneViewer?.entities?.getById(`track-${key}`);
+            if (entity?.model) applyLiveTrackModelSizing(entity, track);
+        });
+        requestWarzoneRenderBatched();
+        return;
+    }
     const key = getFocusedTrackKey();
     if (!isFocusedTrackKey(key)) return;
     const entity = window.__warzoneViewer?.entities?.getById(`track-${key}`);
@@ -2476,6 +2485,7 @@ function applyLiveTrackModel(entity, track, modelUri, subtypeScale, subtypeMinPi
         entity.model.maximumScale = entity.__reportCaptureMinimumPixels ? undefined : subtypeMaxScale;
     }
     entity.model.color = Cesium.Color.WHITE.withAlpha(visibility.alpha);
+    applyAircraftDistanceSizing(entity, track);
     entity.model.colorBlendMode = Cesium.ColorBlendMode.MIX;
     entity.model.colorBlendAmount = visibility.whiteness;
     applyLiveGlbModelQuality(entity.model, track);
@@ -2501,6 +2511,11 @@ function applyLiveTrackModelSizing(entity, track = {}) {
     entity.model.scale = getLiveTrackSubtypeScale(track, style.scale);
     entity.model.minimumPixelSize = Math.max(getLiveTrackSubtypeMinPixelSize(track, style.minimumPixelSize), entity.__reportCaptureMinimumPixels || 0);
     entity.model.maximumScale = entity.__reportCaptureMinimumPixels ? undefined : getLiveTrackSubtypeMaxScale(track, style.maximumScale);
+    applyAircraftDistanceSizing(entity, track);
+}
+function applyAircraftDistanceSizing(entity, track) {
+    if (!entity?.model || entity.__reportCaptureMinimumPixels || !Number.isFinite(getCssNumber("--warzone-live-aircraft-model-scale-min", NaN))) return;
+    applyGlbDistanceSizing(entity, readGlbSizing(getCssNumber, "aircraft", getAircraftFocusedSizingCategory(track)), window.__warzoneViewer);
 }
 function getLiveLabelStyleConfig() {
     return {
@@ -3578,10 +3593,12 @@ function getLiveTrackFocusCameraPitchDeg() {
         LIVE_TRACK_FOCUS_CAMERA_PITCH_MAX_DEG
     );
 }
-function getLiveTrackFocusAltitudeOffsetFt(computedStyle = null) {
+function getLiveTrackFocusAltitudeOffsetFt(computedStyle = null, track = {}) {
+    const category = getAircraftFocusedSizingCategory(track);
+    const shared = getCssNumber("--warzone-live-aircraft-focus-altitude-offset-ft", 500, computedStyle);
     return clamp(
-        getCssNumber("--warzone-live-aircraft-focus-altitude-offset-ft", 7000, computedStyle),
-        1000,
+        getCssNumber(`--warzone-live-aircraft-model-focus-altitude-${category}`, shared, computedStyle),
+        1,
         50000
     );
 }
@@ -3647,7 +3664,7 @@ function getAircraftInitialFocusCameraConfig(
     pitchDegrees = getLiveTrackFocusCameraPitchDeg()
 ) {
     const configuredFallbackRangeMeters = getLiveTrackFocusCameraRangeMeters(computedStyle);
-    const altitudeOffsetFt = getLiveTrackFocusAltitudeOffsetFt(computedStyle);
+    const altitudeOffsetFt = getLiveTrackFocusAltitudeOffsetFt(computedStyle, track);
     const pitchRadians = Math.abs(Cesium.Math.toRadians(clamp(
         Number(pitchDegrees),
         LIVE_TRACK_FOCUS_CAMERA_PITCH_MIN_DEG,
@@ -4569,6 +4586,7 @@ function ensureLiveTrackOverlayRoot(viewer) {
     focusPanel.style.top = "126px";
     focusPanel.style.padding = "1rem";
     focusPanel.setAttribute("aria-label", "Focused aircraft map controls");
+
     const title = document.createElement("div");
     title.className = "wz-aircraft-focus-panel__title";
 
@@ -4926,8 +4944,6 @@ function syncLiveTrackFocusOverlay() {
     const selectedTrackKey = String(__liveTrackReplayState.selectedTrackKey || "");
     const isFocusMode = String(__liveTrackReplayState.mode || "") === "focus";
     if (!selectedTrackKey || !isFocusMode) {
-        __focusedAircraftDetailsKey = "";
-        __focusedAircraftDetailsExpanded = false;
         root.classList.remove("is-visible");
         root.style.display = "none";
         __liveTrackOverlayLastVisible = false;
@@ -4943,10 +4959,6 @@ function syncLiveTrackFocusOverlay() {
         }
     }
     syncFocusedTrackOverlayModeButtons();
-    if (__focusedAircraftDetailsKey !== selectedTrackKey) {
-        __focusedAircraftDetailsKey = selectedTrackKey;
-        __focusedAircraftDetailsExpanded = false;
-    }
     const focusedTrack = __liveTrackRegistry.get(selectedTrackKey);
     const focusPanel = root.querySelector(".wz-aircraft-focus-panel");
     if (focusedTrack && focusPanel) {
@@ -8677,6 +8689,7 @@ function applyLiveTrackUpdate(track, options = {}) {
             );
         }
         entity = viewer.entities.add(entitySpec);
+        applyAircraftDistanceSizing(entity, track);
         entity.__trackKey = track.track_key;
         if (track.__manualAircraftOverride === true) entity._isManualAircraftOverride = true;
         entity.__trackPickable = true;

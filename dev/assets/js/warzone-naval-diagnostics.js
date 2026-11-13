@@ -20,5 +20,6 @@ window.__showWarzoneNavalDiagnostics = async () => {
         worker = await response.json();
     } catch (error) { worker = { unavailable: error.message, instruction: "Enable STRATOPS_DEV_DIAGNOSTICS=true on the local worker; no provider session is started by this view." }; }
     dialog.querySelector("pre").textContent = JSON.stringify({ worker, client_filters: window.__stratopsNavalFilterDiagnostics || null,
+        client_delivery: window.__stratopsNavalDeliveryDiagnostics || null,
         client_renderer: window.__getStratOpsPerformanceDiagnostics?.()?.naval || null }, null, 2);
 };

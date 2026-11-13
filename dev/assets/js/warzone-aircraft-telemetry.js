@@ -53,7 +53,7 @@ export function getAircraftTelemetry(track = {}) {
 }
 
 export function renderAircraftTelemetry(container, fields, focusPanel = false) {
-    const signature = JSON.stringify(fields);
+    const signature = JSON.stringify([focusPanel, fields]);
     if (container.dataset.telemetrySignature === signature) return;
     container.dataset.telemetrySignature = signature;
     // Own detail container only; never replaces a shared widget or Cesium parent.

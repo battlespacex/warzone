@@ -7,6 +7,7 @@
 //  - Click → short-lived X-lines targeting reticle
 //  - Naval Tracker widget list with live positions
 import * as Cesium from "cesium";
+import { readGlbSizing, applyGlbDistanceSizing } from "./warzone-glb-distance-sizing.js";
 import { getNavalContactStatus } from "../../../apps/shared/naval-contact-lifecycle.js";
 import { resolveNavalIdentity, selectVerifiedNavalModel } from "../../../apps/shared/naval-identity.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
@@ -22,6 +23,7 @@ import {
 // ─── State ────────────────────────────────────────────────────────────────────
 const __navalState = {
     vessels: new Map(),    // track_key → { entity, data }
+    removalReasons: {},
     renderEnabled: false,
     visibilityFilter: null,
     reconcileFrame: 0,
@@ -511,7 +513,7 @@ function purgeInvalidNavalContacts() {
             purgeKeys.push(trackKey);
         }
     }
-    purgeKeys.forEach((trackKey) => clearNavalVessel(trackKey));
+    purgeKeys.forEach((trackKey) => clearNavalVessel(trackKey, "invalid_or_non_operational"));
 }
 function normalizeAffiliationText(value = "") {
     const clean = normalizeText(value);
@@ -1424,6 +1426,9 @@ function refreshFocusedNavalModelScale() {
 function getNavalModelScale(vessel = {}) {
     const configured = isFocusedNavalVessel(vessel) ? getFocusedNavalModelScale(vessel)
         : clamp(getCssNumber("--warzone-live-naval-model-scale", 1.2), 0.01, 4000);
+    return Math.min(configured, getNavalPhysicalScale(vessel));
+}
+function getNavalPhysicalScale(vessel) {
     const identity = resolveNavalIdentity(vessel);
     const nativeLength = { "Carrier-US": 41.16168, "Carrier-France": 36.17915, "Carrier-Fujian": 39.00145,
         "Carrier-HMS": 38.95408, "Carrier-Russian": 35.99406, "Carrier-LHD": 33.6988,
@@ -1431,7 +1436,7 @@ function getNavalModelScale(vessel = {}) {
         "Submarine-SSN": 27.13099, "Submarine-API": 23.40745 }[resolveNavalAssetKey(vessel)];
     // CSS controls presentation. A verified physical length limits the base scale;
     // distant minimum-pixel enlargement remains explicitly bounded by CSS maximumScale.
-    return identity.length_m && nativeLength ? Math.min(configured, identity.length_m / nativeLength) : configured;
+    return identity.length_m && nativeLength ? identity.length_m / nativeLength : Infinity;
 }
 function getNavalModelMinPixelSize(vessel = {}) {
     const overviewMinimum = getCssNumber("--warzone-live-naval-model-min-pixel-size", 82);
@@ -1678,6 +1683,11 @@ function applyNavalModelVisual(entity, vessel = {}) {
         entity.model.heightReference = Cesium.HeightReference.NONE;
     }
     applyLiveGlbModelQuality(entity.model, vessel);
+    if (Number.isFinite(getCssNumber("--warzone-live-naval-model-scale-min", NaN))) {
+        // Existing verified-length/native-length bound is retained as the
+        // physical baseline; unknown identity never gains invented dimensions.
+        applyGlbDistanceSizing(entity, readGlbSizing(getCssNumber, "naval", getNavalFocusedSizingCategory(vessel), getNavalPhysicalScale(vessel)), window.__warzoneViewer);
+    }
     entity.__navalModelUri = modelUri;
     entity.model.show = true;
     entity.model.runAnimations = false;
@@ -3462,10 +3472,14 @@ export function upsertNavalVessel(event) {
 }
 
 // ─── Public: clear vessel ─────────────────────────────────────────────────────
-export function clearNavalVessel(trackKey) {
+export function clearNavalVessel(trackKey, reason = "explicit") {
     const viewer = window.__warzoneViewer;
     const cacheKey = String(trackKey || "").trim();
     const entry = __navalState.vessels.get(trackKey);
+    if (entry && typeof __STRATOPS_DEV_TOOLS__ !== "undefined" && __STRATOPS_DEV_TOOLS__) {
+        const label = ["invalid_or_non_operational", "private_history_cleared"].includes(reason) ? reason : "explicit";
+        __navalState.removalReasons[label] = (__navalState.removalReasons[label] || 0) + 1;
+    }
     if (entry?.entity) removeNavalRenderEntity(viewer, trackKey, entry);
     __navalState.vessels.delete(trackKey);
     if (cacheKey) {
@@ -3480,7 +3494,7 @@ export function clearNavalVessel(trackKey) {
 
 export function clearPrivateNavalHistory() {
     for (const [trackKey, entry] of __navalState.vessels) {
-        if (entry?.data?.private_history_only) clearNavalVessel(trackKey);
+        if (entry?.data?.private_history_only) clearNavalVessel(trackKey, "private_history_cleared");
     }
 }
 
@@ -3709,6 +3723,7 @@ export function getNavalDiagnostics() {
         orphanedCesiumNavalEntities: Math.max(0, cesiumEntities.length - renderedEntries.length),
         activeNavalAnimations: renderedEntries.filter((entry) => Boolean(entry.entity?.__navalAnimationTaskKey)).length,
         selectedNavalId: String(__navalState.selectedKey || ""),
+        removalReasons: { ...__navalState.removalReasons },
         navalCreatedCount: __navalState.createdCount,
         navalDestroyedCount: __navalState.destroyedCount,
         regionalEligibleContacts: __navalState.eligibleRenderCount,
@@ -3794,7 +3809,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
     if (card.dataset.renderSignature === renderSignature && card.childElementCount >= 4 && card.querySelector(".wz-naval-action")) return;
     card.className = `wz-naval-item ${isSelected ? "is-selected" : ""}${isFocusDisabled ? " is-focus-disabled" : ""}`;
     card.dataset.trackKey = String(vessel.track_key || "");
-    card.style.cursor = isFocusDisabled ? "default" : "pointer";
+    // card.style.cursor = isFocusDisabled ? "default" : "pointer";
 
     let top = card.querySelector(".wz-naval-item__top");
     let titleEl = card.querySelector(".wz-naval-item__title");
@@ -3915,7 +3930,7 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
 
         const addSection = (heading, fields) => {
             const section = document.createElement("section");
-            const headingEl = document.createElement("h4");
+            const headingEl = document.createElement("h3");
             headingEl.textContent = heading;
             const grid = document.createElement("dl");
             grid.className = "wz-naval-details-grid";
@@ -3966,16 +3981,15 @@ function updateNavalWidgetCard(card, vessel, selectedKey = "") {
         ]);
     }
 
-
-
-
     let collapse = foot.querySelector("[data-naval-details-toggle]");
     if (!collapse) {
         collapse = document.createElement("button");
         collapse.type = "button";
         collapse.className = "btn-secondary white";
+        collapse.innerHTML = '<span aria-hidden="true"></span>';
         foot.appendChild(collapse);
     }
+
     collapse.dataset.navalDetailsToggle = String(vessel.track_key || "");
     collapse.hidden = !isSelected;
     collapse.style.display = isSelected ? "" : "none";

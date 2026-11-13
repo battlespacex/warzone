@@ -73,9 +73,9 @@ const CAMERA_FIELDS = Object.freeze({
         Object.freeze({
             key: "focusedAltitudeOffsetFt",
             label: "Global Focused Altitude Offset",
-            variableName: "--warzone-live-aircraft-focus-altitude-offset-ft",
-            fallback: 7000,
-            min: 1000,
+            variableName: "--warzone-live-aircraft-focus-altitude-offset-ft-1",
+            fallback: 500,
+            min: 500,
             max: 50000,
             step: 250,
             unit: "ft",

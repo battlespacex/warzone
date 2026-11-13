@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import * as Cesium from "cesium";
+import { readGlbSizing, applyGlbDistanceSizing } from "../../../dev/assets/js/warzone-glb-distance-sizing.js";
 import { resolveNavalIdentity, selectVerifiedNavalModel } from "../../shared/naval-identity.js";
 import { getNavalContactStatus } from "../../shared/naval-contact-lifecycle.js";
 
@@ -54,7 +55,7 @@ function harness() {
         enterFocus({ assetId }) { selected = assetId; generation++; return true; },
         exitFocus() { selected = ""; generation++; }, requestFrame() {},
         registerTask(name, fn) { tasks.set(name, fn); }, removeTask(name) { tasks.delete(name); } };
-    const context = vm.createContext({ Cesium, resolveNavalIdentity, selectVerifiedNavalModel, getNavalContactStatus,
+    const context = vm.createContext({ Cesium, readGlbSizing, applyGlbDistanceSizing, resolveNavalIdentity, selectVerifiedNavalModel, getNavalContactStatus,
         window, document, getComputedStyle: () => style, performance,
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
         getActiveRegion: () => region, flyToRegion: (_viewer, target) => { flights.push({ region: target.id }); return Promise.resolve(true); },
@@ -118,6 +119,28 @@ test("every eligible overview and focused contact has ModelGraphics without an o
     h.viewer.camera.changed.fire(); h.drain();
     assert.equal(h.viewer.entities.values.length, 12, "legacy budget cannot omit regional models");
     assert.equal(h.state.vessels.get("ais-0").entity, focused);
+});
+
+test("active distance CSS reaches naval ModelGraphics through normal, Focus and Unfocus paths", () => {
+    const h = harness();
+    h.css.set("--warzone-live-naval-model-scale-min", "3");
+    h.css.set("--warzone-live-naval-model-scale-max", "7");
+    h.css.set("--warzone-live-naval-model-min-pixel-size", "16");
+    h.css.set("--warzone-live-glb-scale-transition-ms", "0");
+    h.css.set("--warzone-live-naval-model-focused-size", "20");
+    h.context.setNavalLayerVisible(true); h.add(0); h.drain();
+    const entity = h.state.vessels.get("ais-0").entity, time = Cesium.JulianDate.now();
+    const property = entity.model.scale;
+    const position = entity.position.getValue(time);
+    Cesium.Cartesian3.add(position, new Cesium.Cartesian3(2500,0,0), h.viewer.camera.positionWC);
+    assert.ok(Math.abs(property.getValue(time)-7/3)<1e-9);
+    h.context.focusNavalVessel("ais-0"); h.drain();
+    assert.equal(entity.model.scale, property);
+    assert.ok(Math.abs(property.getValue(time)-7/3)<1e-9);
+    h.context.clearNavalSelection(); h.drain();
+    assert.equal(entity.model.scale, property);
+    Cesium.Cartesian3.add(position, new Cesium.Cartesian3(160000,0,0), h.viewer.camera.positionWC);
+    assert.equal(property.getValue(time), 1);
 });
 
 test("explicit style refresh cannot restore the obsolete GLB omission budget", () => {

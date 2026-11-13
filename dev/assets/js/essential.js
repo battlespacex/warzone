@@ -3263,7 +3263,7 @@ function getNavalTrackKey(event = {}) {
         event.source_key ||
         metadata.track_key ||
         (metadata.mmsi ? `ais-${metadata.mmsi}` : "") ||
-        event.id ||
+        (event.id != null ? `naval-${event.id}` : "") ||
         ""
     ).trim();
 }
@@ -3651,6 +3651,11 @@ function syncNavalSignals(events = []) {
     setNavalLayerVisible(true);
     const navalEvents = events
         .filter((event) => isNavalSignalEvent(event) && isEventVisible(event));
+    if (typeof __STRATOPS_DEV_TOOLS__ !== "undefined" && __STRATOPS_DEV_TOOLS__) {
+        window.__stratopsNavalDeliveryDiagnostics = { captured_at: new Date().toISOString(),
+            supplied: events.length, classified_and_layer_visible: navalEvents.length,
+            retained_before_sync: getAllNavalSnapshots().length };
+    }
     const signature = navalEvents
         .map((event) => {
             const key = String(getNavalTrackKey(event) || "").trim();
@@ -3665,13 +3670,20 @@ function syncNavalSignals(events = []) {
         .filter(Boolean)
         .sort()
         .join("|") || "__empty__";
-    if (signature === __lastNavalSignalsSyncKey) {
+    // A matching API signature does not guarantee the client registry still has
+    // these tracks (for example, after a lifecycle/region refresh). Rehydrate
+    // only missing keys instead of silently skipping the entire batch.
+    const signatureUnchanged = signature === __lastNavalSignalsSyncKey;
+    const knownKeys = signatureUnchanged
+        ? new Set(getAllNavalSnapshots().map((vessel) => String(vessel.track_key || "")))
+        : null;
+    if (signatureUnchanged && navalEvents.every((event) => knownKeys.has(getNavalTrackKey(event)))) {
         return;
     }
     __lastNavalSignalsSyncKey = signature;
     navalEvents.forEach((event) => {
         const key = getNavalTrackKey(event);
-        if (!key) return;
+        if (!key || (knownKeys && knownKeys.has(key))) return;
         markTrackerPerf("naval", "first valid naval track");
         if (upsertNavalVessel(event)) markTrackerPerf("naval", "first Cesium entity ready");
     });
@@ -8438,7 +8450,8 @@ function updateAircraftWidgetCard(card, track, selection) {
         card.querySelector(".wz-aircraft-item__top") &&
         card.querySelector(".wz-aircraft-item__meta") &&
         card.querySelector(".wz-aircraft-item__stats") &&
-        card.querySelector(".wz-aircraft-item__foot")
+        card.querySelector(".wz-aircraft-item__foot") &&
+        card.querySelector(".wz-aircraft-technical-details")?.style.display === (expanded ? "grid" : "none")
     ) {
         return;
     }
@@ -8543,12 +8556,16 @@ function updateAircraftWidgetCard(card, track, selection) {
         card.insertBefore(details, foot);
     }
     details.hidden = !expanded;
-    details.style.display = expanded ? "" : "none";
-    if (expanded) renderAircraftTelemetry(details, telemetry.fields);
+    details.style.display = expanded ? "grid" : "none";
+    if (expanded) renderAircraftTelemetry(details, telemetry.fields, true);
+
     let collapse = foot.querySelector("[data-aircraft-details-toggle]");
     if (!collapse) {
-        collapse = document.createElement("button"); collapse.type = "button";
-        collapse.className = "btn-secondary white"; foot.appendChild(collapse);
+        collapse = document.createElement("button");
+        collapse.type = "button";
+        collapse.className = "btn-secondary white";
+        collapse.innerHTML = '<span aria-hidden="true"></span>';
+        foot.appendChild(collapse);
     }
     collapse.dataset.aircraftDetailsToggle = track.track_key;
     const showDetailsToggle = isSelected && selection.mode === "focus";
@@ -10472,11 +10489,12 @@ export function handleIncomingEvent(event) {
     const layerOk = isOperationalMapEvent(normalized) && isEventVisible(normalized);
     if (isNavalSignalEvent(normalized)) {
         const trackKey = getNavalTrackKey(normalized);
-        if (inRegion && layerOk && isNavalTrackingFeatureEnabled()) {
+        if (inRegion && layerOk && isNavalTrackingFeatureEnabled() && isLayerEnabled("naval")) {
             upsertNavalVessel(normalized);
-        } else if (trackKey) {
-            clearNavalVessel(trackKey);
         }
+        // A region/layer/display exclusion is NOT a deletion instruction.
+        // Existing observations must survive transient event or camera changes;
+        // they remain subject to the normal widget region and freshness filters.
         requestNavalWidgetRender(0);
     } else if (isMilitaryTrackEvent(normalized) && __militaryTracks) {
         if (inRegion && layerOk) __militaryTracks.addTrack(normalized);
