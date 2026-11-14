@@ -1504,7 +1504,6 @@
         --warzone-live-aircraft-focus-altitude-offset-ft-2: 2000;
         --warzone-live-aircraft-focus-altitude-offset-ft-3: 2400;
         
-
     
         /* AIR GLB SIZE — normal and Focus share this curve */
         --warzone-live-aircraft-model-scale-min-fighter: var(--warzone-live-aircraft-model-scale-min);
