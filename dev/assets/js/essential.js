@@ -10,9 +10,8 @@ import { updateNewsTicker, updateDefcon } from "./warzone-ui.js";
 import { createWarzoneHotspotLayer } from "./warzone-hotspots.js";
 import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-siren-alert.js";
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
-import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens, getRegionRequestBounds } from "./warzone-region-selector.js";
+import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens, getRegionRequestBounds, isRegionTransitionInFlight } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage, requestLayerToggle } from "./warzone-layers.js";
-import { initNoticeLayers } from './warzone-notices.js';
 import { renderRanges, clearRanges, getRangeDiagnostics } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers, getSweeperDiagnostics } from "./warzone-sweeper.js";
 import { renderGnssInterferenceLayer, clearGnssInterferenceLayer, getGnssDiagnostics } from "./warzone-gnss.js";
@@ -9569,9 +9568,35 @@ function syncImmediateEventLayerVisibility(globe, id = "") {
     syncOne(LAYER_DEFS.find((layer) => layer.id === id));
 }
 const __attachedOperationalViewers = new WeakSet();
+const __noticeBootstraps = new WeakMap();
+export function initDeferredNoticeLayers(viewer, {
+    load = () => import(/* webpackChunkName: "warzone-notices" */ './warzone-notices.js'),
+    ready = () => document.body.classList.contains('is-app-active') && !isRegionTransitionInFlight(),
+} = {}) {
+    if (!viewer || __noticeBootstraps.has(viewer)) return;
+    let pending=null,module=null,timer=0,failed=false,disposed=false;
+    const ids=['aviation-notam','airspace-tfr','naval-warnings','military-exercises'];
+    const active=()=>ids.some(isLayerEnabled);
+    const detach=()=>{clearTimeout(timer);timer=0;unsubscribe();document.removeEventListener('wz:app-entered',schedule);document.removeEventListener('wz:region-camera-settled',schedule);removeMoveEnd?.();};
+    const initialize=()=>{
+        timer=0;if(disposed||failed||!active()||!ready())return;
+        if(module){module.initNoticeLayers(viewer,{bindFloatingPanel,canRefresh:ready});detach();return;}
+        if(pending)return;
+        pending=load().then(result=>{module=result;pending=null;initialize();}).catch(error=>{pending=null;failed=true;console.warn('Optional notices unavailable:',error?.name||'Error');});
+    };
+    function schedule(){if(disposed||failed||timer||!active()||!ready())return;timer=setTimeout(initialize,0);}
+    const unsubscribe=onLayerChange(id=>{if(id==='*'||ids.includes(id)){if(!active()){clearTimeout(timer);timer=0;}else{failed=false;schedule();}}});
+    document.addEventListener('wz:app-entered',schedule);
+    document.addEventListener('wz:region-camera-settled',schedule);
+    const removeMoveEnd=viewer.camera?.moveEnd?.addEventListener?.(schedule);
+    __noticeBootstraps.set(viewer,()=>{disposed=true;detach();module?.disposeNoticeLayers?.();});
+    schedule();
+}
+
 export function attachWarzoneAppViewer(viewer) {
     if (!viewer || __attachedOperationalViewers.has(viewer)) return;
     __attachedOperationalViewers.add(viewer);
+    initDeferredNoticeLayers(viewer);
     if (!__militaryTracks && isStratOpsFeatureEnabled("tracking.militaryTracks")) {
         __militaryTracks = initMilitaryTracks(viewer);
         __militaryTracks?.setEnabled?.(isNavalTrackingFeatureEnabled() && isLayerEnabled("naval"));
@@ -9925,7 +9950,6 @@ async function initializeWarzoneAppOnce() {
             setWidgetLoading("aircraft", false);
             requestAircraftMovementsWidgetRender(0);
         }
-        initNoticeLayers(window.__warzoneViewer, {bindFloatingPanel});
         onLayerChange((id, enabled, state, changedLayerIds) => {
             if (['aviation-notam','airspace-tfr','naval-warnings','military-exercises'].includes(id)) {
                 window.__warzoneViewer?.scene?.requestRender?.();

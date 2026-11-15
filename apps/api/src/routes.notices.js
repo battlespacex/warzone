@@ -11,11 +11,11 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
     const client=skyspy||createSkySpyClient({enabled:env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true',usageApproved:env.SKYSPY_USAGE_APPROVED==='true',
         baseUrl:env.SKYSPY_BASE_URL,apiKey:env.SKYSPY_API_KEY,allowedHosts:String(env.SKYSPY_ALLOWED_HOSTS||'').split(',')});
     let rows=[],pending=null,until=0,disposed=false,streamStarted=false,streamDirty=false,health={enabled:env.NOTICES_ENABLED==='true',import:'not configured',skyspy:'disabled',rejected:0,lastSuccess:null};
-    const streamed=new Map(),families=new Map();let imported=[];
+    const streamed=new Map(),families=new Map();let imported=[],canonicalRows=null;
     const configured=()=>env.NOTICES_ENABLED==='true'&&Boolean((env.NOTICES_IMPORT_FILE&&env.NOTICES_IMPORT_USAGE_APPROVED==='true')||(env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true'&&env.SKYSPY_USAGE_APPROVED==='true')||providers.some(p=>p.diagnostics().availableForUse));
     const stream=createSkySpyStream({enabled:env.NOTICES_ENABLED==='true'&&env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true'&&env.SKYSPY_STREAM_ENABLED==='true',
         usageApproved:env.SKYSPY_USAGE_APPROVED==='true',baseUrl:env.SKYSPY_BASE_URL,allowedHosts:String(env.SKYSPY_ALLOWED_HOSTS||'').split(','),
-        token:env.SKYSPY_API_KEY,transport:'native',topics:['notams'],createWebSocket,now,onEvent(type,data){streamDirty=true;
+        token:env.SKYSPY_API_KEY,transport:'native',topics:['notams'],createWebSocket,now,onEvent(type,data){streamDirty=true;canonicalRows=null;
             for(const input of (Array.isArray(data?.notams)?data.notams:[data]).slice(0,200))try{const row=skySpyNotice(input,now());streamed.set(row.id,row);}catch{health.rejected++;}
             while(streamed.size>500)streamed.delete(streamed.keys().next().value);}});
     async function refresh() {
@@ -41,11 +41,12 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
                 const records=await provider.fetchNotices();families.set(provider.id,records);next.push(...records);success=true;
             }catch{next.push(...(families.get(provider.id)||[]));}
             const values=deduplicateNotices([...next,...streamed.values()]);
-            if(disposed)return;rows=values.slice(0,5000);health.rejected=rejected;if(success)health.lastSuccess=new Date(now()).toISOString();health.streamDirty=streamDirty;streamDirty=false;until=now()+60000;
+            if(disposed)return;rows=values.slice(0,5000);canonicalRows=streamed.size?null:rows;health.rejected=rejected;if(success)health.lastSuccess=new Date(now()).toISOString();health.streamDirty=streamDirty;streamDirty=false;until=now()+60000;
             health.state=!configured()?'unconfigured':success?'ready':rows.length?'stale':'unavailable';
         })().finally(()=>pending=null);return pending;
     }
-    return {async list(query={}){await refresh();let values=deduplicateNotices([...rows,...streamed.values()]).map(n=>({...n,status:noticeStatus(n,now())}));
+    function currentRows(){return canonicalRows ||= deduplicateNotices([...rows,...streamed.values()]);}
+    return {async list(query={}){await refresh();let values=currentRows().map(n=>({...n,status:noticeStatus(n,now())}));
         if(health.state==='unavailable'){const error=Error('Notice providers unavailable');const statuses=providers.map(p=>p.diagnostics().lastStatus).filter(Boolean);error.status=statuses.length===1?statuses[0]:503;throw error;}
         if(query.layers){const layers=String(query.layers).split(',');if(layers.some(id=>!NOTICE_LAYERS.includes(id)))throw Object.assign(Error('Invalid notice layer'),{status:400});values=values.filter(n=>matchesNoticeLayers(n,layers));}
         if(query.status==='all'){}else if(['active','upcoming','expired','cancelled','superseded','unknown'].includes(query.status))values=values.filter(n=>n.status===query.status);
@@ -60,8 +61,8 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
         return {state:health.state||'unconfigured',notices:values.slice(offset,offset+limit),total:values.length,offset,providers:{...health,commercial:providers.map(p=>({id:p.id,...p.diagnostics()})),skyspyHealth:{...client.diagnostics(),licensing:env.SKYSPY_USAGE_APPROVED==='true'?'approved':'unapproved',authentication:env.SKYSPY_API_KEY?'configured; not live verified':'unconfigured/public mode',coverage:'Configured service scope; not global coverage'},stream:stream.diagnostics(),
             aai:createOfficialNoticeAdapter('aai').diagnostics(),navareaIX:createOfficialNoticeAdapter('navareaIX').diagnostics()},
             active:values.filter(n=>n.status==='active').length,geolocated:values.filter(n=>n.geometry).length,nonGeolocated:values.filter(n=>!n.geometry).length};},
-        async correlate(observation){await refresh();return rows.filter(n=>containsCandidate(n,observation)).slice(0,50).map(n=>correlateObservation(n,observation,now()));},
-        dispose(){disposed=true;stream.stop();streamed.clear();families.clear();rows=[];until=0;}};
+        async correlate(observation){await refresh();return currentRows().filter(n=>containsCandidate(n,observation)).slice(0,50).map(n=>correlateObservation(n,observation,now()));},
+        dispose(){disposed=true;stream.stop();streamed.clear();families.clear();rows=[];canonicalRows=null;until=0;}};
 }
 function containsCandidate(n,o){return n.geometry&&Number.isFinite(o.longitude)&&Number.isFinite(o.latitude)&&intersectsBounds(n,{minLat:o.latitude,maxLat:o.latitude,minLon:o.longitude,maxLon:o.longitude});}
 export function noticesRouter(service=createNoticeService()) {

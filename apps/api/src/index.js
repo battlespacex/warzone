@@ -26,7 +26,6 @@ import { attachWs } from "./ws.js";
 import { eventsRouter } from "./routes.events.js";
 import { stratopsRouter } from "./routes.stratops.js";
 import { satellitesRouter } from "./routes.satellites.js";
-import { noticesRouter, createNoticeService } from "./routes.notices.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -74,9 +73,15 @@ const { broadcast } = attachWs(server);
 app.use("/events", eventsRouter({ broadcast }));
 app.use("/stratops", stratopsRouter());
 app.use("/satellites", satellitesRouter());
-const noticeService = createNoticeService();
-app.use("/notices", noticesRouter(noticeService));
-server.once("close", () => noticeService.dispose());
+let noticeRouterPromise=null,noticeService=null,noticesClosed=false;
+app.use('/notices',(req,res,next)=>{
+    noticeRouterPromise ||= import('./routes.notices.js').then(({noticesRouter,createNoticeService})=>{
+        if(noticesClosed)return null;
+        noticeService=createNoticeService();return noticesRouter(noticeService);
+    }).catch(()=>null);
+    return noticeRouterPromise.then(router=>router&&!noticesClosed?router(req,res,next):res.status(503).json({error:'Notice service unavailable'}));
+});
+server.once("close",()=>{noticesClosed=true;noticeService?.dispose();});
 server.listen(PORT, () => {
     console.log(`Warzone API listening on :${PORT}`);
 });

@@ -890,6 +890,7 @@ export function filterEventsByRegion(events, region) {
     });
 }
 export function getActiveRegion() { return __activeRegion; }
+export function isRegionTransitionInFlight() { return __regionTransitionInFlight; }
 export function getActiveLens() { return __activeLens; }
 export function getRegionRequestBounds(region = __activeRegion) {
     const bounds = getRegionBounds(region) || region?.bounds || null;

@@ -14,6 +14,47 @@ const input={provider:'import',issuer:'FIR1',fir:'FIR1',sourceId:'A0001/26',noti
     isMilitaryRelated:true,effectiveFrom:'2026-11-15T00:00:00Z',effectiveUntil:'2026-11-16T00:00:00Z',geometry:{type:'Point',coordinates:[66,24]}};
 async function listen(app){const server=await new Promise(resolve=>{const value=app.listen(0,'127.0.0.1',()=>resolve(value));});return {url:'http://127.0.0.1:'+server.address().port,close:()=>new Promise(resolve=>server.close(resolve))};}
 const mockService=rows=>createNoticeService({env:{NOTICES_ENABLED:'true',NOTICES_IMPORT_FILE:'fixture',NOTICES_IMPORT_USAGE_APPROVED:'true'},now,readFile:async()=>Buffer.from(JSON.stringify(rows))});
+
+test('notice preview mount is lazy, first requests share initialization and cleanup disposes once',async()=>{
+    let imports=0,creates=0,disposals=0;
+    const app=express(),stop=mountLocalNotices(app,{load:async()=>{imports++;return {noticesRouter,createNoticeService(){creates++;return {list:async()=>({notices:[]}),dispose(){disposals++;}};}};}});
+    app.get('/health',(_q,r)=>r.json({ok:true}));const server=await listen(app);
+    try{assert.equal(imports,0);await fetch(server.url+'/health');assert.equal(imports,0);
+        const responses=await Promise.all(Array.from({length:10},()=>fetch(server.url+'/api/notices')));assert.ok(responses.every(r=>r.status===200));assert.equal(imports,1);assert.equal(creates,1);
+        stop();assert.equal(disposals,1);assert.equal((await fetch(server.url+'/api/notices')).status,503);
+    }finally{await server.close();}
+});
+test('pending lazy notice import cannot create a service after shutdown',async()=>{
+    let finish,started,creates=0;const importing=new Promise(resolve=>{started=resolve;});
+    const app=express(),stop=mountLocalNotices(app,{load:()=>{started();return new Promise(resolve=>{finish=resolve;});}}),server=await listen(app);
+    try{const request=fetch(server.url+'/api/notices');await importing;stop();finish({noticesRouter,createNoticeService(){creates++;return {};}});
+        assert.equal((await request).status,503);assert.equal(creates,0);
+    }finally{await server.close();}
+});
+test('cached canonical notices retain current expiry and cancellation',async()=>{
+    let clock=now(),reads=0;
+    const service=createNoticeService({env:{NOTICES_ENABLED:'true',NOTICES_IMPORT_FILE:'fixture',NOTICES_IMPORT_USAGE_APPROVED:'true'},now:()=>clock,
+        readFile:async()=>{reads++;return Buffer.from(JSON.stringify([{...input,effectiveUntil:new Date(clock+1000).toISOString()},
+            {...input,sourceId:'A0002/26',replacesNoticeId:'A0001/26',isCancellation:true},{...input,sourceId:'A0003/26',effectiveUntil:new Date(clock+1000).toISOString()}]));}});
+    try{const first=await service.list({status:'all'});const repeated=await Promise.all(Array.from({length:20},()=>service.list({status:'all'})));
+        assert.equal(reads,1);assert.ok(repeated.every(r=>JSON.stringify(r.notices)===JSON.stringify(first.notices)));
+        assert.equal(first.notices.find(n=>n.sourceId==='A0001/26').status,'superseded');
+        clock+=2000;const later=await service.list({status:'all'});assert.equal(reads,1);assert.equal(later.notices.find(n=>n.sourceId==='A0002/26').status,'cancelled');assert.equal(later.notices.find(n=>n.sourceId==='A0003/26').status,'expired');
+    }finally{service.dispose();}
+});
+test('cached canonical notices include live stream corrections and retain original 5000 plus stream coverage',async()=>{
+    const socket={on(){},close(){},send(){}};
+    const env={NOTICES_ENABLED:'true',NOTICES_IMPORT_FILE:'fixture',NOTICES_IMPORT_USAGE_APPROVED:'true',SKYSPY_ENABLED:'true',SKYSPY_NOTAMS_ENABLED:'true',SKYSPY_STREAM_ENABLED:'true',
+        SKYSPY_USAGE_APPROVED:'true',SKYSPY_BASE_URL:'https://fixture.example.org',SKYSPY_ALLOWED_HOSTS:'fixture.example.org'};
+    const service=createNoticeService({env,now,providers:[],skyspy:{get:async()=>[],diagnostics:()=>({})},createWebSocket:()=>socket,
+        readFile:async()=>Buffer.from(JSON.stringify(Array.from({length:5000},(_,i)=>({...input,sourceId:`A${String(i+1).padStart(4,'0')}/26`})) ))});
+    try{assert.equal((await service.list({status:'all'})).total,5000);
+        socket.onmessage({data:JSON.stringify({type:'notams:update',data:{...input,sourceId:'A5001/26',rawText:'Stream fixture only'}})});
+        assert.equal((await service.list({status:'all'})).total,5001);
+        socket.onmessage({data:JSON.stringify({type:'notams:update',data:{...input,sourceId:'A5001/26',rawText:'Corrected stream fixture',lastVerifiedAt:now()+1000}})});
+        const result=await service.list({status:'all',offset:5000});assert.equal(result.total,5001);assert.equal(result.notices[0].rawText,'Corrected stream fixture');
+    }finally{service.dispose();}
+});
 test('real HTTP local notice middleware returns populated/empty JSON and preserves service errors',async()=>{
     for(const [service,status,count]of [[mockService([input]),200,1],[mockService([]),200,0],[createNoticeService({env:{}}),200,0],[mockService([{invalid:true}]),503,undefined],[{list:async()=>{throw Object.assign(Error(),{status:403});}},403,undefined]]){
         const app=express();mountLocalNotices(app,{service});app.use((_q,r)=>r.status(404).json({error:'Missing'}));const server=await listen(app);

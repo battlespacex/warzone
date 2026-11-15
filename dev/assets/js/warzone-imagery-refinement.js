@@ -89,7 +89,12 @@ export function installFocusImageryRefinementPolicy(viewer, queueQualitySync) {
         viewer.__warzoneFocusRefinementState = state;
         if (state.phase !== previousPhase) queueQualitySync();
     };
-    const noteInput = () => { inputUntil = performance.now() + 360; sample(true); };
+    const noteInput = () => {
+        inputUntil = performance.now() + 360;
+        // Keep the first input immediate. During an ongoing gesture preUpdate
+        // already samples at 250 ms; raw wheel bursts need not resample poses.
+        if (viewer.__warzoneFocusRefinementState?.userMoving !== true) sample(true);
+    };
     const canvas = viewer.scene.canvas;
     canvas.addEventListener("pointerdown", (event) => { pointers.add(event.pointerId); noteInput(); }, { passive: true });
     const release = (event) => { if (pointers.delete(event.pointerId)) noteInput(); };

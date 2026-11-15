@@ -11,7 +11,7 @@ import {mergeAircraftObservations} from '../src/tracking/merge.js';
 
 const source=fs.readFileSync(new URL('../../../dev/assets/js/warzone-notices.js',import.meta.url),'utf8');
 function harness(fetchImpl){
-    const enabled=new Set(),layerListeners=new Set(),regionListeners=new Set(),timers=new Map(),frames=new Map(),sources=[],panels=[],handlers=[];let seq=0,flights=0;
+    const enabled=new Set(),layerListeners=new Set(),regionListeners=new Set(),timers=new Map(),frames=new Map(),events=new Map(),sources=[],panels=[],handlers=[];let seq=0,flights=0;
     const focus={assetId:''};
     class Element{constructor(tag){this.tag=tag;this.children=[];this.style={};this.selectors=new Map();}setAttribute(){}append(...children){this.children.push(...children);}remove(){const index=panels.indexOf(this);if(index>=0)panels.splice(index,1);}querySelector(selector){if(!this.selectors.has(selector))this.selectors.set(selector,new Element(selector));return this.selectors.get(selector);}}
     class Handler{constructor(){handlers.push(this);}setInputAction(fn){this.click=fn;}destroy(){const index=handlers.indexOf(this);if(index>=0)handlers.splice(index,1);}}
@@ -20,13 +20,42 @@ function harness(fetchImpl){
         NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
         onLayerChange(fn){layerListeners.add(fn);return ()=>layerListeners.delete(fn);},onRegionChange(fn){regionListeners.add(fn);return ()=>regionListeners.delete(fn);},
         isLayerEnabled:id=>enabled.has(id),getActiveRegion:()=>({bounds:{minLat:20,maxLat:30,minLon:60,maxLon:70}}),getAssetFocusController:()=>({getState:()=>focus}),
-        window:{__stratopsConfig:{apiBase:'https://staging.example.org'}},document:{createElement:tag=>new Element(tag),body:{append:el=>panels.push(el)}},navigator:{clipboard:{writeText(){}}},
-        setInterval(fn){timers.set(++seq,fn);return seq;},clearInterval:id=>timers.delete(id),requestAnimationFrame(fn){frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
+        window:{__stratopsConfig:{apiBase:'https://staging.example.org'}},document:{createElement:tag=>new Element(tag),body:{append:el=>panels.push(el)},addEventListener(name,fn){events.set(name,fn);},removeEventListener(name){events.delete(name);}},navigator:{clipboard:{writeText(){}}},
+        setTimeout(fn,delay){fn.delay=delay;timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),requestAnimationFrame(fn){frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
         URLSearchParams,AbortController,fetch:fetchImpl});
     vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
-    return {context,enabled,viewer,sources,panels,handlers,timers,frames,focus,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
+    return {context,enabled,viewer,sources,panels,handlers,timers,frames,events,focus,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
 }
 const n={id:'test:1',sourceId:'001/26',title:'Fixture only',sourceUrl:'https://example.org/notices',noticeType:'notam',isMilitaryRelated:true,status:'active',rawText:'Test fixture',metadata:{},geometry:{type:'Polygon',coordinates:[[[65,24],[66,24],[66,25],[65,24]]]}};
+test('region notice work waits for camera settlement and cancels deferred callbacks on disable',async()=>{
+    let ready=true,calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({notices:[n]})};});
+    h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{canRefresh:()=>ready});await h.settle();assert.equal(calls,1);
+    for(const fn of h.regionListeners)fn();ready=false;assert.equal(calls,1,'region callback does not fetch before flight starts');
+    h.tick();await h.settle();assert.equal(calls,1);assert.equal(h.timers.size,0);
+    ready=true;h.events.get('wz:region-camera-settled')();await h.settle();assert.equal(calls,2);assert.equal(h.sources.length,1);
+    for(const fn of h.regionListeners)fn();h.enabled.clear();h.sync();h.tick();await h.settle();assert.equal(calls,2);
+    h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.timers.size,0);assert.equal(h.frames.size,0);
+});
+test('metadata refresh preserves notice geometry, drag binding, collapsed widget and latest detail values',async()=>{
+    let row=n,binds=0;const h=harness(async()=>({ok:true,json:async()=>({notices:[row],total:1})}));h.enabled.add('aviation-notam');
+    h.context.initNoticeLayers(h.viewer,{bindFloatingPanel:()=>{binds++;}});await h.settle();
+    const entity=h.sources[0].entities.values[0],panel=h.panels[0],before=binds;
+    panel.querySelector('.wz-widget-header-actions').children[0].onclick();
+    row={...n,metadata:{lastUpdated:'new timestamp'},rawText:'Updated original notice'};h.tick();await h.settle();
+    assert.equal(h.sources[0].entities.values[0],entity);assert.equal(h.panels[0],panel);assert.equal(binds,before);assert.equal(panel.querySelector('.wz-widget-body').hidden,true);
+    const button=panel.querySelector('.wz-widget-body').children.find(el=>el.textContent?.startsWith(n.sourceId));button.onclick();
+    assert.ok(h.panels[0].querySelector('ul').children.some(el=>el.children.some(child=>child.textContent==='Updated original notice')));
+    h.context.disposeNoticeLayers();
+});
+test('unconfigured and permanently denied notices stop polling; transient errors have one bounded backoff',async()=>{
+    for(const status of [200,401,403,404,503]){
+        const h=harness(async()=>({ok:status===200,status,json:async()=>({state:'unconfigured',notices:[]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+        assert.equal(h.sources.length,0);assert.equal(h.handlers.length,0);
+        if(status===503){for(const delay of [60000,120000,240000,300000,300000]){assert.equal(h.timers.size,1);assert.equal([...h.timers.values()][0].delay,delay);h.tick();await h.settle();}}
+        else assert.equal(h.timers.size,0);
+        h.context.disposeNoticeLayers();assert.equal(h.timers.size,0);
+    }
+});
 test('notice owner reuses viewer, bounds requests, prevents duplicate init and cleans 25 toggles',async()=>{
     let calls=0;const h=harness(async url=>{calls++;assert.match(url,/minLat=20/);return {ok:true,json:async()=>({notices:[n],total:1})};});
     const unrelated={name:'existing tracker data'};h.sources.push(unrelated);h.context.initNoticeLayers(h.viewer);h.context.initNoticeLayers(h.viewer);
