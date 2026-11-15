@@ -197,6 +197,10 @@ test("dashboard defaults apply to first entry while saved layer choices survive 
   const regionSelector = await readSource("../../../dev/assets/js/warzone-region-selector.js");
 
   const expectedDefaults = {
+    "aviation-notam": false,
+    "airspace-tfr": false,
+    "naval-warnings": false,
+    "military-exercises": false,
     strikes: true,
     missiles: true,
     drones: true,

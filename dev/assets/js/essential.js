@@ -12,6 +12,7 @@ import { showSirenAlert, sirenAlertFromEvent, isSirenEvent } from "./warzone-sir
 import { initMilitaryTracks, isMilitaryTrackEvent } from "./warzone-military-tracks.js";
 import { onRegionChange, filterEventsByRegion, getActiveRegion, getActiveLens, getRegionRequestBounds } from "./warzone-region-selector.js";
 import { initLayerPanel, onLayerChange, isEventVisible, isLayerEnabled, getEventLayerId, LAYER_DEFS, hydrateLayerStateFromStorage, requestLayerToggle } from "./warzone-layers.js";
+import { initNoticeLayers } from './warzone-notices.js';
 import { renderRanges, clearRanges, getRangeDiagnostics } from "./warzone-ranges.js";
 import { renderSweepers, clearSweepers, getSweeperDiagnostics } from "./warzone-sweeper.js";
 import { renderGnssInterferenceLayer, clearGnssInterferenceLayer, getGnssDiagnostics } from "./warzone-gnss.js";
@@ -466,6 +467,7 @@ const IDLE_SUSPEND_LAYER_IDS = LAYER_DEFS
     .map((layer) => layer.id)
     .filter((id) => !IDLE_SUSPEND_EXCLUDED_LAYER_IDS.has(id));
 const GLOBE_EVENT_RESYNC_EXEMPT_LAYER_IDS = new Set([
+    "aviation-notam", "airspace-tfr", "naval-warnings", "military-exercises",
     "aircraft",
     "naval",
     "airspace",
@@ -9923,7 +9925,12 @@ async function initializeWarzoneAppOnce() {
             setWidgetLoading("aircraft", false);
             requestAircraftMovementsWidgetRender(0);
         }
+        initNoticeLayers(window.__warzoneViewer);
         onLayerChange((id, enabled, state, changedLayerIds) => {
+            if (['aviation-notam','airspace-tfr','naval-warnings','military-exercises'].includes(id)) {
+                window.__warzoneViewer?.scene?.requestRender?.();
+                return;
+            }
             const changedAt = Date.now();
             const changedIds = id === "*" ? changedLayerIds || LAYER_DEFS.map((layer) => layer.id) : [id];
             const layerChanged = (layerId) => changedIds.includes(layerId);

@@ -5,6 +5,7 @@ import {
 } from "./stratops-feature-config.js";
 
 const ALL_LAYER_DEFS = [
+    ...['aviation-notam','airspace-tfr','naval-warnings','military-exercises'].map((id,i)=>({id,label:['Aviation NOTAM','Airspace / TFR','Naval Warnings','Military Exercise Areas'][i],description:'Published notices; coverage depends on approved sources',icon:'AREA',color:'#ff7820',uiOnly:true})),
     { id: "strikes", label: "Shelling / Ground Strikes", description: "Artillery, shelling, and uncategorized impact reports", icon: "STK", color: "#ff2a2a" },
     { id: "missiles", label: "Missiles & Rockets", description: "Missile and rocket activity on the map", icon: "MSL", color: "#ff5500" },
     { id: "drones", label: "Drone / UAV Activity", description: "Drone sightings and drone-delivered strike reports", icon: "UAV", color: "#ffcc00" },
@@ -46,6 +47,10 @@ const WZ_WIDGET_KEY = "wz_widget_visibility";
 const WZ_LAYER_LAYOUT_VERSION_KEY = "wz_layer_layout_version";
 const WZ_LAYER_LAYOUT_VERSION = "2026-07-map-layers-pane";
 export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
+    "aviation-notam": false,
+    "airspace-tfr": false,
+    "naval-warnings": false,
+    "military-exercises": false,
     strikes: true,
     missiles: true,
     drones: true,
@@ -72,6 +77,7 @@ export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
     "country-borders": false,
 });
 const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
+    'aviation-notam','airspace-tfr','naval-warnings','military-exercises',
     "gnss",
     "orbital-assets",
     "aoi",
@@ -80,7 +86,7 @@ const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
     "region-plate",
     "country-borders",
 ]);
-const ORBITAL_BASE_LAYER_IDS = new Set(["terrain", "map-labels", "country-borders", "gnss", "aircraft", "naval", "airspace"]);
+const ORBITAL_BASE_LAYER_IDS = new Set(["terrain", "map-labels", "country-borders", "gnss", "aircraft", "naval", "airspace",'aviation-notam','airspace-tfr','naval-warnings','military-exercises']);
 let __layerWarningPending = false;
 let __layerStateGeneration = 0;
 let __startupLayerStateRestored = false;
@@ -103,7 +109,7 @@ const LAYER_SECTIONS = [
     {
         id: "operational-areas",
         title: "Operational Areas",
-        layers: ["hotspots", "aoi"],
+        layers: ["hotspots", "aoi",'aviation-notam','airspace-tfr','naval-warnings','military-exercises'],
     },
     {
         id: "live-operations",
@@ -298,6 +304,7 @@ function restoreOrbitalIsolation() {
 
 function restoreDefaultLayers() {
     const map = { terrain: __layerState.terrain, "country-borders": __layerState["country-borders"] };
+    for (const id of ['aviation-notam','airspace-tfr','naval-warnings','military-exercises']) map[id]=__layerState[id];
     LAYER_DEFS.forEach(({ id }) => {
         __layerState[id] = DASHBOARD_DEFAULT_LAYER_STATE[id] === true && canUseLayer(id);
     });
@@ -854,6 +861,7 @@ function syncUiOnlyLayerToWidget(layerId, enabled) {
 
 export function onLayerChange(cb) {
     __callbacks.push(cb);
+    return () => { const index = __callbacks.indexOf(cb); if (index >= 0) __callbacks.splice(index, 1); };
 }
 
 function notifyChange(id, val, changedIds = null) {

@@ -6847,7 +6847,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     visibility: visible;
 }
 
-#warzone-gnss-panel {
+#warzone-gnss-panel, #warzone-notice-panel {
     display: flex;
     flex-direction: column;
     position: fixed;

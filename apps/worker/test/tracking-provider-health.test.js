@@ -211,5 +211,6 @@ test("aircraft provider priority accepts the documented adsb_exchange name", () 
         "adsb_fi",
         "plane_alert_db",
         "skylink",
+        "skyspy",
     ]);
 });

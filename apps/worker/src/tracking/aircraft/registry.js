@@ -7,6 +7,7 @@ import { createAdsbExchangeProvider } from "./providers/adsb-exchange.js";
 import { createOpenSkyProvider } from "./providers/opensky.js";
 import { createPlaneAlertMilitaryDatabase } from "./providers/plane-alert-db.js";
 import { createSkyLinkProvider } from "./providers/skylink.js";
+import { createSkySpyAircraftProvider } from "./providers/skyspy.js";
 
 function envEnabled(value, fallback = false) {
     if (value == null || value === "") return fallback;
@@ -97,6 +98,7 @@ export function createAircraftProviders(env = process.env, dependencies = {}) {
             fetchImpl: dependencies.skyLinkFetchImpl || dependencies.fetchImpl,
             logger: dependencies.logger,
         }),
+        createSkySpyAircraftProvider({env,fetchImpl:dependencies.fetchImpl,createSocketIO:dependencies.skySpySocketIO}),
     ];
     return providers
         .map((provider) => ({ ...provider, priority: priority.get(provider.id) ?? 999 }))

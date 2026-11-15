@@ -940,7 +940,10 @@ export function setActiveLens(lensId) {
     ensureRegionAllowedForLens();
     notifyScopeChange({ source: "lens" });
 }
-export function onRegionChange(cb) { __onChangeCallbacks.push(cb); }
+export function onRegionChange(cb) {
+    __onChangeCallbacks.push(cb);
+    return () => { const index=__onChangeCallbacks.indexOf(cb); if(index>=0)__onChangeCallbacks.splice(index,1); };
+}
 function notifyChange(region, options = {}) { __activeRegion = region; notifyScopeChange(options); }
 export function flyToRegion(viewer, region, options = {}) {
     if (!viewer || !region) return Promise.resolve(false);

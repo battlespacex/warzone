@@ -26,6 +26,7 @@ import { attachWs } from "./ws.js";
 import { eventsRouter } from "./routes.events.js";
 import { stratopsRouter } from "./routes.stratops.js";
 import { satellitesRouter } from "./routes.satellites.js";
+import { noticesRouter, createNoticeService } from "./routes.notices.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -73,6 +74,9 @@ const { broadcast } = attachWs(server);
 app.use("/events", eventsRouter({ broadcast }));
 app.use("/stratops", stratopsRouter());
 app.use("/satellites", satellitesRouter());
+const noticeService = createNoticeService();
+app.use("/notices", noticesRouter(noticeService));
+server.once("close", () => noticeService.dispose());
 server.listen(PORT, () => {
     console.log(`Warzone API listening on :${PORT}`);
 });
