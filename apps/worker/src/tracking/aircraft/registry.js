@@ -1,4 +1,5 @@
 import { createAdsbLolProvider } from "./providers/adsb-lol.js";
+import fs from "node:fs";
 import { createAirplanesLiveProvider } from "./providers/airplanes-live.js";
 import { createAdsbOneProvider } from "./providers/adsb-one.js";
 import { createAdsbFiProvider } from "./providers/adsb-fi.js";
@@ -22,6 +23,21 @@ function priorityMap(value, defaults) {
     return new Map(ordered.map((id, index) => [id, index]));
 }
 
+function configuredAirplanesLive(env, dependencies) {
+    try {
+        return createAirplanesLiveProvider({ enabled: envEnabled(env.AIRPLANES_LIVE_ENABLED, true),
+            baseUrl: env.AIRPLANES_LIVE_BASE_URL || env.AIRCRAFT_FEED_URL,
+            minimumIntervalMs: Number(env.AIRPLANES_LIVE_MINIMUM_INTERVAL_MS) || 180000,
+            cacheTtlMs: Number(env.AIRPLANES_LIVE_CACHE_TTL_MS) || 180000,
+            timeoutMs: Number(env.AIRPLANES_LIVE_TIMEOUT_MS) || 15000,
+            dailyBudget: Number(env.AIRPLANES_LIVE_DAILY_BUDGET) || 480,
+            openApi: env.AIRPLANES_LIVE_OPENAPI_FILE ? JSON.parse(fs.readFileSync(env.AIRPLANES_LIVE_OPENAPI_FILE,"utf8")) : null,
+            credential: env.AIRPLANES_LIVE_API_KEY || "", fetchImpl: dependencies.fetchImpl });
+    } catch {
+        return { id: "airplanes_live", enabled: false, disabledReason: "INVALID_ACCESS_CONFIGURATION" };
+    }
+}
+
 export function createAircraftProviders(env = process.env, dependencies = {}) {
     const priority = priorityMap(env.AIRCRAFT_PROVIDER_PRIORITY, ["adsb_lol", "opensky", "airplanes_live", "adsb_one", "adsb_fi", "adsbx", "plane_alert_db", "skylink"]);
     const providers = [
@@ -32,11 +48,7 @@ export function createAircraftProviders(env = process.env, dependencies = {}) {
             minimumIntervalMs: Number(env.ADSB_LOL_MINIMUM_INTERVAL_MS) || 3000,
             fetchImpl: dependencies.fetchImpl,
         }),
-        createAirplanesLiveProvider({
-            enabled: envEnabled(env.AIRPLANES_LIVE_ENABLED, true),
-            baseUrl: env.AIRPLANES_LIVE_BASE_URL || env.AIRCRAFT_FEED_URL,
-            fetchImpl: dependencies.fetchImpl,
-        }),
+        configuredAirplanesLive(env, dependencies),
         createAdsbOneProvider({
             enabled: envEnabled(env.ADSB_ONE_ENABLED ?? env.ADSBONE_ENABLED, true),
             baseUrl: env.ADSB_ONE_BASE_URL || env.ADSBONE_BASE_URL,

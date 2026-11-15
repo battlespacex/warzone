@@ -747,7 +747,9 @@ export async function runAdsbWorker(options = {}) {
     }
     const liveProviders = providers.filter((provider) => provider.enrichmentOnly !== true);
     const enrichmentProviders = providers.filter((provider) => provider.enrichmentOnly === true);
-    const providerResults = await runConfiguredProviders("adsb", liveProviders, { logger, now });
+    const providerResults = await runConfiguredProviders("adsb", liveProviders.map(provider => ({ ...provider,
+        fetchObservations: () => provider.fetchObservations({ region: options.region }),
+    })), { logger, now });
     const priority = new Map(providers.map((provider) => [provider.id, provider.priority]));
     const providerDiagnostics = {};
     let observations = providerResults.flatMap(({ provider, observations: items, diagnostics }) => {
