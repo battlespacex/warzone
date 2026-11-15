@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { validateConfig, sanitizeHar, isWorker, isGnssApi } = require("../gnss-load-test.cjs");
+const { validateConfig, sanitizeHar, isWorker, isGnssApi, isGnssRaster } = require("../gnss-load-test.cjs");
 const config = { baseUrl: "https://stratops-staging.battlespacex.com", flow: "flow.cjs", outputDirectory: "output" };
 test("load runner rejects production, credentials and unsupported concurrency", () => {
     for (const baseUrl of ["https://stratops.battlespacex.com", "https://api.battlespacex.com", "https://other.example", "https://user:password@stratops-staging.battlespacex.com"]) {
@@ -29,6 +29,9 @@ test("network classification includes legacy and versioned worker URLs separatel
     assert.ok(isWorker("https://example.test/assets/cesium/releases/release/Workers/createPolygonGeometry.js"));
     assert.ok(isGnssApi("https://example.test/api/events/gnss-interference?date=72h"));
     assert.equal(isWorker("https://example.test/api/events/gnss-interference"), false);
+    assert.ok(isGnssRaster("https://example.test/api/events/gnss-interference/raster/revision/0/1/0.png?filter=all"));
+    assert.ok(isGnssRaster("https://example.test/api/events/gnss-interference/raster/revision/lookup?lon=1&lat=2"));
+    assert.equal(isGnssRaster("https://example.test/api/events/gnss-interference?date=72h"),false);
 });
 
 test("early API adapters and app config use the staging base while retaining production and localhost defaults", () => {

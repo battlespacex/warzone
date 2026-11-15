@@ -4248,7 +4248,10 @@ function syncGnssInterferenceLayer() {
     if (!viewer) return;
     if (!isLayerEnabled("gnss")) {
         stopGnssInterferenceRefresh();
-        clearGnssInterferenceLayer(viewer, { retainGeometry: true });
+        clearGnssInterferenceLayer(viewer);
+        __gnssInterferenceCellsCache = [];
+        __gnssInterferenceMeta = {};
+        __gnssInterferenceLastLoadedAt = 0;
         return;
     }
     const scopedCells = getScopedGnssInterferenceCells();
@@ -4269,6 +4272,9 @@ function syncGnssInterferenceLayer() {
         sourceLabel: __gnssInterferenceMeta.sourceLabel,
         sourceUrl: __gnssInterferenceMeta.sourceUrl,
         observationPeriod: __gnssInterferenceMeta.observationPeriod,
+        raster: __gnssInterferenceMeta.raster,
+        normalizeCell: normalizeGnssCell,
+        onRasterExpired: () => { void refreshGnssInterferenceCells({ force: true }); },
     });
 }
 function selectGnssObservationPeriod(period) {
@@ -4327,6 +4333,7 @@ async function refreshGnssInterferenceCells({ force = false } = {}) {
                 sourceLabel: meta?.sourceLabel || "",
                 sourceUrl: meta?.sourceUrl || "",
                 observationPeriod: meta?.observationPeriod || `Last ${__gnssObservationPeriod.slice(0, -1)} hours`,
+                raster: meta?.raster || null,
             };
             __gnssInterferenceLastLoadedAt = Date.now();
             syncGnssInterferenceLayer();

@@ -56,14 +56,14 @@ function intersectsBounds(cell, bounds) {
         && longitudeOverlaps;
 }
 
-export function selectGpsInterferenceRegion(snapshot, { bounds = null, limit = MAX_REGION_CELLS } = {}) {
+export function selectGpsInterferenceRegion(snapshot, { bounds = null, limit = MAX_REGION_CELLS, includeAll = false } = {}) {
     const regionCells = snapshot.cells.filter((cell) => intersectsBounds(cell, bounds));
     const severityCounts = { low: 0, medium: 0, high: 0, severe: 0 };
-    for (const cell of regionCells) severityCounts[cell.severity] += 1;
+    for (const cell of regionCells) severityCounts[cell.severity] = (severityCounts[cell.severity] || 0) + 1;
     const boundedLimit = Math.max(1, Math.min(MAX_REGION_CELLS, Math.floor(Number(limit) || MAX_REGION_CELLS)));
     // If the bounded response is exceeded, retain the highest-signal cells first.
     const rank = { severe: 0, high: 1, medium: 2, low: 3 };
-    const selected = regionCells.length > boundedLimit
+    const selected = !includeAll && regionCells.length > boundedLimit
         ? regionCells.slice().sort((a, b) => rank[a.severity] - rank[b.severity] || a.cellId.localeCompare(b.cellId)).slice(0, boundedLimit)
         : regionCells;
     const message = snapshot.message || (snapshot.stale ? "Showing the last cached GNSS observation; provider refresh is unavailable." : "");

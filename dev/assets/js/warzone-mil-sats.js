@@ -14,7 +14,7 @@ import {
 } from "./warzone-satellite-models.js";
 import { REGIONS, flyToRegion, getActiveRegion } from "./warzone-region-selector.js";
 import { getAssetFocusController } from "./warzone-asset-focus-controller.js";
-import { requestSharedSceneRender } from "./warzone-animation-scheduler.js";
+import { requestSharedSceneRender, registerAnimationTask, unregisterAnimationTask } from "./warzone-animation-scheduler.js";
 
 const DEFAULT_API_PATH = "https://api.battlespacex.com/satellites/military";
 const EARTH_RADIUS_M = 6371008.8;
@@ -109,6 +109,8 @@ const state = {
     records: [],
     visibleRecords: [],
     entities: new Map(),
+    modelFrame: 0,
+    modelGeneration: 0,
     satrecs: new Map(),
     selectedId: "",
     hoveredId: "",
@@ -179,7 +181,8 @@ function getCssVar(name, fallback) {
 }
 
 function getCssNumber(name, fallback) {
-    const value = Number(getCssVar(name, ""));
+    const raw = getCssVar(name, "").trim();
+    const value = raw === "" ? NaN : Number(raw);
     return Number.isFinite(value) ? value : fallback;
 }
 
@@ -434,15 +437,22 @@ function createSampledPosition(record, now = new Date(), pastMinutes, futureMinu
     const start = -Math.max(0, Number(pastMinutes) || 0) * 60;
     const end = Math.max(0, Number(futureMinutes) || 0) * 60;
     let sampleCount = 0;
+    let lastSampleAt = 0;
     for (let offset = start; offset <= end; offset += sampleIntervalSeconds) {
         const date = new Date(now.getTime() + offset * 1000);
         const point = propagateRecord(record, date);
         if (!point) continue;
         property.addSample(Cesium.JulianDate.fromDate(date), point.position);
         sampleCount += 1;
+        lastSampleAt = date.getTime();
     }
     if (sampleCount < 2) return null;
-    return property;
+    // The shared viewer intentionally pauses its simulation clock. Operational
+    // orbital positions must follow UTC without changing that global clock.
+    const utc = new Cesium.JulianDate();
+    const live = new Cesium.CallbackPositionProperty((_time, result) => property.getValue(Cesium.JulianDate.now(utc), result), false);
+    live.__wzOrbitalSampleUntil = lastSampleAt;
+    return live;
 }
 
 function createPolylinePositions(record, now, pastMinutes, futureMinutes, altitudeMode = "space") {
@@ -1238,7 +1248,7 @@ function makePointEntity(record, positionProperty) {
             scale: getSatelliteModelScale(getCssNumber("--warzone-orbital-model-scale", 170000)),
             minimumPixelSize: getCssNumber("--warzone-orbital-model-min-px", 18),
             maximumScale: getCssNumber("--warzone-orbital-model-max-scale", 260000),
-            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, getCssNumber("--warzone-orbital-max-visible-distance", 26000000)),
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, Number.MAX_VALUE),
             shadows: Cesium.ShadowMode.DISABLED,
         },
         label: {
@@ -1269,10 +1279,16 @@ function removeMissingEntities(nextIds) {
 
 function updateDefaultEntities() {
     if (!state.enabled || !state.viewer) return;
+    if (state.modelFrame) cancelAnimationFrame(state.modelFrame);
+    state.modelFrame = 0;
+    const generation = state.modelGeneration = (state.modelGeneration || 0) + 1;
     const now = new Date();
     const nextIds = new Set();
-    state.visibleRecords.forEach((record) => {
-        const position = createSampledPosition(
+    const records = state.visibleRecords.slice();
+    const update = record => {
+        const existing = state.entities.get(record.id);
+        const cached = existing?.point?.position;
+        const position = existing?.record === record && cached?.__wzOrbitalSampleUntil > now.getTime() + 60_000 ? cached : createSampledPosition(
             record,
             now,
             state.config.defaultSamplePastMinutes,
@@ -1280,11 +1296,13 @@ function updateDefaultEntities() {
         );
         if (!position) return;
         nextIds.add(record.id);
-        const existing = state.entities.get(record.id);
         if (existing?.point) {
             const modelProfile = resolveSatelliteModelProfile(record);
-            existing.point.position = position;
-            existing.point.orientation = createSatelliteModelOrientationProperty(position);
+            if (existing.point.position !== position) {
+                existing.point.position = position;
+                existing.point.orientation = createSatelliteModelOrientationProperty(position);
+            }
+            existing.record = record;
             if (existing.point.model) {
                 existing.point.model.uri = modelProfile.uri;
                 existing.point.model.scale = getSatelliteModelScale(getCssNumber("--warzone-orbital-model-scale", 170000));
@@ -1297,9 +1315,30 @@ function updateDefaultEntities() {
         const point = makePointEntity(record, position);
         point.show = record.id !== state.selectedId;
         state.entities.set(record.id, { record, point });
-    });
-    removeMissingEntities(nextIds);
-    state.viewer.scene.requestRender?.();
+    };
+    const finish = () => {
+        removeMissingEntities(nextIds);
+        if (state.entities.size && !document.hidden) {
+            registerAnimationTask("warzone-operational-orbital-models", () => state.enabled && state.entities.size > 0, { hz: 12 });
+        } else unregisterAnimationTask("warzone-operational-orbital-models");
+        state.viewer.scene.requestRender?.();
+    };
+    if (records.length <= 64) { records.forEach(update); finish(); return; }
+    let index = 0;
+    const chunk = () => {
+        if (!state.enabled || generation !== state.modelGeneration) return;
+        state.modelFrame = 0;
+        const started = performance.now();
+        let processed = 0;
+        while (index < records.length) {
+            update(records[index++]);
+            if (++processed >= 8 || performance.now() - started >= 6) break;
+        }
+        state.viewer.scene.requestRender?.();
+        if (index < records.length) state.modelFrame = requestAnimationFrame(chunk);
+        else finish();
+    };
+    state.modelFrame = requestAnimationFrame(chunk);
 }
 
 function updateVisibleRecords() {
@@ -1953,6 +1992,7 @@ function commitSatelliteSelection(id = "", options = {}) {
 }
 
 function stopTimers() {
+    unregisterAnimationTask("warzone-operational-orbital-models");
     if (state.refreshTimer) clearInterval(state.refreshTimer);
     if (state.visibleTimer) clearInterval(state.visibleTimer);
     state.refreshTimer = null;
@@ -1962,6 +2002,7 @@ function stopTimers() {
 function startTimers() {
     stopTimers();
     if (!state.enabled || document.hidden) return;
+    if (state.entities.size) registerAnimationTask("warzone-operational-orbital-models", () => state.enabled && state.entities.size > 0, { hz: 12 });
     const refreshMs = Math.max(15000, Number(state.config.positionRefreshIntervalMs) || DEFAULT_CONFIG.positionRefreshIntervalMs);
     state.visibleTimer = setInterval(() => {
         if (!state.enabled || document.hidden) return;
@@ -1975,6 +2016,9 @@ function startTimers() {
 }
 
 function cleanupLayer() {
+    state.modelGeneration = (state.modelGeneration || 0) + 1;
+    if (state.modelFrame) cancelAnimationFrame(state.modelFrame);
+    state.modelFrame = 0;
     const focusController = getAssetFocusController();
     if (focusController.isActiveAsset(state.selectedId, "satellite")) {
         focusController.exitFocus("satellite-layer-disabled");
@@ -2072,6 +2116,7 @@ export function getWarzoneMilSatsDiagnostics() {
         registeredSatelliteEntities: state.entities.size + (state.focusEntities?.length || 0),
         activeFocusEntities: state.focusEntities?.length || 0,
         activeSatelliteTimers: Number(Boolean(state.visibleTimer)) + Number(Boolean(state.refreshTimer)),
+        pendingSatelliteModelFrame: Boolean(state.modelFrame),
         loading: state.loading,
         orbitalRequestActive: Boolean(state.fetchController),
         cachedOrbitalRecords: state.records?.length || 0,

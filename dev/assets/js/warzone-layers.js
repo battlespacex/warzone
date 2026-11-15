@@ -72,13 +72,15 @@ export const DASHBOARD_DEFAULT_LAYER_STATE = Object.freeze({
     "country-borders": false,
 });
 const TRACKER_ISOLATION_BASE_LAYER_IDS = new Set([
+    "gnss",
+    "orbital-assets",
     "aoi",
     "terrain",
     "map-labels",
     "region-plate",
     "country-borders",
 ]);
-const ORBITAL_BASE_LAYER_IDS = new Set(["map-labels", "country-borders"]);
+const ORBITAL_BASE_LAYER_IDS = new Set(["terrain", "map-labels", "country-borders", "gnss", "aircraft", "naval", "airspace"]);
 let __layerWarningPending = false;
 let __layerStateGeneration = 0;
 let __startupLayerStateRestored = false;
@@ -285,17 +287,21 @@ function applyOrbitalIsolation(previousState) {
             __layerState[id] = false;
         }
     });
-    __layerState.terrain = true;
 }
 
 function restoreOrbitalIsolation() {
+    const independent = { gnss: __layerState.gnss, aircraft: __layerState.aircraft, naval: __layerState.naval };
     restoreDefaultLayers();
+    Object.assign(__layerState, independent);
+    applyTrackerPriority(__layerState);
 }
 
 function restoreDefaultLayers() {
+    const map = { terrain: __layerState.terrain, "country-borders": __layerState["country-borders"] };
     LAYER_DEFS.forEach(({ id }) => {
         __layerState[id] = DASHBOARD_DEFAULT_LAYER_STATE[id] === true && canUseLayer(id);
     });
+    Object.assign(__layerState, map);
 }
 
 function applyTrackerPriority(state) {
@@ -305,14 +311,22 @@ function applyTrackerPriority(state) {
         if (id === "airspace" && state.aircraft) return;
         state[id] = false;
     });
-    state.terrain = true;
+    return state;
+}
+
+function enforceBasemapBorders(state, changedId = "") {
+    if (state.terrain !== true && state["country-borders"] !== true) {
+        state[changedId === "terrain" ? "country-borders" : "terrain"] = true;
+    }
     return state;
 }
 function reconcileTrackerPriority(previousState) {
     const wasTracking = previousState.aircraft || previousState.naval;
     const isTracking = __layerState.aircraft || __layerState.naval;
     if (wasTracking && !isTracking && !__layerState["orbital-assets"]) {
+        const gnss = __layerState.gnss;
         restoreDefaultLayers();
+        __layerState.gnss = gnss;
     }
     applyTrackerPriority(__layerState);
 }
@@ -354,6 +368,7 @@ export function resetLayerStateForFreshLoad() {
 }
 
 function saveState() {
+    enforceBasemapBorders(__layerState);
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(__layerState));
         localStorage.setItem(WZ_LAYER_LAYOUT_VERSION_KEY, WZ_LAYER_LAYOUT_VERSION);
@@ -477,12 +492,11 @@ function buildSingleToggleState(id, enabled) {
         LAYER_DEFS.forEach(({ id: layerId }) => {
             if (layerId !== "orbital-assets" && layerId !== "terrain" && !ORBITAL_BASE_LAYER_IDS.has(layerId)) state[layerId] = false;
         });
-        state.terrain = true;
-        return state;
+        return enforceBasemapBorders(state, id);
     }
-    return enabled && (id === "aircraft" || id === "naval")
+    return enforceBasemapBorders(enabled && (id === "aircraft" || id === "naval")
         ? applyTrackerPriority(state)
-        : state;
+        : state, id);
 }
 
 function getTrackerIncompatibleActiveLayerIds(id) {
@@ -626,7 +640,6 @@ function requestPerformanceApproval({ mode = "toggle", pendingId = "", nextCount
 export function setLayer(id, enabled) {
     if (!getLayerDef(id)) return false;
     if (enabled && (isTrackerBlockedLayer(id) || isOrbitalBlockedLayer(id))) return false;
-    if (!enabled && id === "terrain" && __layerState["orbital-assets"]) return false;
 
     if (enabled && !canUseLayer(id)) {
         notifyChange(id, false);
@@ -635,11 +648,9 @@ export function setLayer(id, enabled) {
 
     const previousState = { ...__layerState };
     if (previousState[id] === !!enabled) return previousState[id];
-    if (enabled && (id === "aircraft" || id === "naval") && previousState["orbital-assets"]) {
-        restoreOrbitalIsolation();
-    }
     const previousTrackerState = { ...__layerState };
     __layerState[id] = !!enabled;
+    enforceBasemapBorders(__layerState, id);
     if (id === "orbital-assets") {
         if (enabled) applyOrbitalIsolation(previousState);
         else restoreOrbitalIsolation();
@@ -846,6 +857,7 @@ export function onLayerChange(cb) {
 }
 
 function notifyChange(id, val, changedIds = null) {
+    enforceBasemapBorders(__layerState, id);
     __layerStateGeneration += 1;
     if (id === "*") {
         LAYER_DEFS.filter((l) => l.uiOnly).forEach((l) => {
@@ -944,7 +956,7 @@ function setAllLayers(enabled, container) {
         if (!canUseLayer(l.id)) return;
         __layerState[l.id] = !!enabled;
     });
-    reconcileTrackerPriority(previousTrackerState);
+    if (enabled) reconcileTrackerPriority(previousTrackerState);
     if (__layerState["orbital-assets"]) applyOrbitalIsolation(__layerState);
 
     saveState();
@@ -978,7 +990,6 @@ function syncAllSectionToggleStates(container) {
 
 function setSectionLayers(sectionId, enabled, container) {
     const previousState = { ...__layerState };
-    if (__layerState["orbital-assets"] && sectionId !== "space-intelligence") restoreOrbitalIsolation();
     const previousTrackerState = { ...__layerState };
     getSectionLayerIds(sectionId).forEach((id) => {
         if (!canUseLayer(id)) return;

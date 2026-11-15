@@ -4338,7 +4338,7 @@ function suspendCtrImagery(viewer, options = {}) {
     viewer.__satelliteVisible = true;
     viewer.__warzoneGreyedSatelliteVisible = true;
     if (viewer.__imageryBase) {
-        viewer.__imageryBase.show = true;
+        viewer.__imageryBase.show = viewer.__terrainVisible !== false;
         viewer.__imageryBase.alpha = clamp01(numberVar("--warzone-contour-imagery-alpha", 0.58));
         viewer.__imageryBase.brightness = numberVar("--warzone-contour-imagery-brightness", 0.42);
         viewer.__imageryBase.saturation = numberVar("--warzone-contour-imagery-saturation", 0);
@@ -4358,11 +4358,13 @@ function restoreCtrImagery(viewer, options = {}) {
     if (!viewer?.imageryLayers || !viewer.__warzoneCtrImageryState) return false;
     const collection = viewer.imageryLayers;
     const state = viewer.__warzoneCtrImageryState || {};
-    addImageryLayerIfMissing(collection, state.baseLayer, state.baseIndex);
-    addImageryLayerIfMissing(collection, state.labelsLayer, state.labelsIndex);
-    viewer.__imageryBase = state.baseLayer || viewer.__imageryBase || null;
-    viewer.__imageryLabels = state.labelsLayer || viewer.__imageryLabels || null;
-    if (viewer.__imageryBase) {
+    const sameLayers = viewer.__imageryBase === state.baseLayer && viewer.__imageryLabels === state.labelsLayer
+        && !state.baseLayer?.isDestroyed?.() && !state.labelsLayer?.isDestroyed?.();
+    if (sameLayers) {
+        addImageryLayerIfMissing(collection, state.baseLayer, state.baseIndex);
+        addImageryLayerIfMissing(collection, state.labelsLayer, state.labelsIndex);
+    }
+    if (sameLayers && viewer.__imageryBase) {
         viewer.__imageryBase.show = state.baseShow !== false;
         if (Number.isFinite(state.baseAlpha)) viewer.__imageryBase.alpha = state.baseAlpha;
         if (Number.isFinite(state.baseBrightness)) viewer.__imageryBase.brightness = state.baseBrightness;
@@ -4371,14 +4373,15 @@ function restoreCtrImagery(viewer, options = {}) {
         if (Number.isFinite(state.baseGamma)) viewer.__imageryBase.gamma = state.baseGamma;
         if (Number.isFinite(state.baseMaximumAnisotropy)) viewer.__imageryBase.maximumAnisotropy = state.baseMaximumAnisotropy;
     }
-    if (viewer.__imageryLabels) viewer.__imageryLabels.show = state.labelsShow !== false;
-    viewer.__satelliteVisible = options.forceSatellite === true ? true : state.satelliteVisible !== false;
-    viewer.__terrainVisible = state.terrainVisible !== false;
-    viewer.__warzoneGreyedSatelliteVisible = state.greyedSatelliteVisible === true;
+    if (sameLayers && viewer.__imageryLabels) viewer.__imageryLabels.show = state.labelsShow !== false;
+    if (sameLayers) viewer.__satelliteVisible = options.forceSatellite === true ? true : state.satelliteVisible !== false;
+    // Basemap preference may change during CTR; it belongs to the layer controls.
+    if (typeof viewer.__terrainVisible !== "boolean") viewer.__terrainVisible = state.terrainVisible !== false;
+    viewer.__warzoneGreyedSatelliteVisible = sameLayers && state.greyedSatelliteVisible === true;
     viewer.__warzoneCtrImagerySuspended = false;
     viewer.__warzoneCtrImageryThemeActive = false;
     viewer.__warzoneCtrImageryState = null;
-    if (viewer.scene?.globe && state.baseColor) {
+    if (sameLayers && viewer.scene?.globe && state.baseColor) {
         viewer.scene.globe.baseColor = state.baseColor;
     }
     applyRenderedTerrainVisibility(viewer);
@@ -5322,7 +5325,7 @@ function ensureBorderLayersLoaded(viewer) {
 async function addArcGisLayers(viewer) {
     if (!viewer?.imageryLayers) return { baseLayer: null, labelsLayer: null };
     if (viewer.__warzoneEntryMapImageryVisible === false) {
-        viewer.imageryLayers.removeAll();
+        removeOwnedBasemapLayers(viewer);
         viewer.__imageryBase = null;
         viewer.__imageryLabels = null;
         updateMapCredits();
@@ -5330,20 +5333,20 @@ async function addArcGisLayers(viewer) {
     }
 
     const generation = Number(viewer.__warzoneImageryGeneration || 0);
-    viewer.imageryLayers.removeAll();
+    removeOwnedBasemapLayers(viewer);
     const baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
         { enablePickFeatures: false }
     );
     viewer.__warzoneAttachImageryProviderDiagnostics?.(baseProvider);
     if (viewer.__warzoneEntryMapImageryVisible === false || generation !== Number(viewer.__warzoneImageryGeneration || 0)) {
-        viewer.imageryLayers.removeAll();
-        viewer.__imageryBase = null;
-        viewer.__imageryLabels = null;
+        // A newer imagery generation owns the current layers. Do not touch it.
         return { baseLayer: null, labelsLayer: null };
     }
 
-    const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
+    const baseLayer = addBasemapImageryProvider(viewer, baseProvider);
+    viewer.__imageryBase = baseLayer;
+    viewer.__warzoneBasemapLayers = [baseLayer];
     tuneImageryLayer(baseLayer, "--warzone-map");
     let labelsLayer = null;
     if (boolVar("--warzone-places-layer-enabled", false)) {
@@ -5352,9 +5355,14 @@ async function addArcGisLayers(viewer) {
             { enablePickFeatures: false }
         );
         if (viewer.__warzoneEntryMapImageryVisible !== false && generation === Number(viewer.__warzoneImageryGeneration || 0)) {
-            labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
+            labelsLayer = addBasemapImageryProvider(viewer, labelsProvider);
             tuneImageryLayer(labelsLayer, "--warzone-labels");
         }
+    }
+    if (viewer.__warzoneEntryMapImageryVisible === false || generation !== Number(viewer.__warzoneImageryGeneration || 0)) {
+        viewer.imageryLayers.remove(baseLayer, true);
+        if (labelsLayer) viewer.imageryLayers.remove(labelsLayer, true);
+        return { baseLayer: null, labelsLayer: null };
     }
     const show = viewer.__terrainVisible !== false;
     baseLayer.show = show;
@@ -5442,6 +5450,33 @@ function applyMapStyleState(viewer, style, { persist = false, source = "runtime"
     return nextStyle;
 }
 
+function removeOwnedBasemapLayers(viewer) {
+    viewer.__warzoneGoogleRemoveError?.();
+    viewer.__warzoneGoogleRemoveError = null;
+    const layers = new Set([...(viewer.__warzoneBasemapLayers || []), viewer.__imageryBase, viewer.__imageryLabels,
+        viewer.__imageryPilot, viewer.__imageryClose, viewer.__warzoneSelfHostedGlobalLayer, ...(viewer.__imageryDetailLayers || [])].filter(Boolean));
+    removeSelfHostedBasemap(viewer);
+    for (const layer of layers) viewer.imageryLayers.remove(layer, true);
+    viewer.__imageryBase = null;
+    viewer.__imageryLabels = null;
+    viewer.__warzoneBasemapLayers = [];
+}
+
+function basemapInsertionIndex(viewer) {
+    // Keep every independently owned overlay above newly inserted base imagery.
+    const owned = new Set([...(viewer.__warzoneBasemapLayers || []), viewer.__imageryBase, viewer.__imageryLabels,
+        viewer.__imageryPilot, viewer.__imageryClose, ...(viewer.__imageryDetailLayers || [])].filter(Boolean));
+    const collection = viewer.imageryLayers;
+    for (let i = 0; i < collection.length; i++) if (!owned.has(collection.get(i)) && !collection.get(i).__warzoneBasemapOwned) return i;
+    return collection.length;
+}
+
+function addBasemapImageryProvider(viewer, provider) {
+    const layer = viewer.imageryLayers.addImageryProvider(provider, basemapInsertionIndex(viewer));
+    layer.__warzoneBasemapOwned = true;
+    return layer;
+}
+
 function removeSelfHostedBasemap(viewer) {
     viewer.__warzoneResolveFirstImagery?.();
     viewer.__warzoneResolveFirstImagery = null;
@@ -5485,7 +5520,8 @@ function addSelfHostedDetailLayers(viewer, details = [], manifest = {}) {
         const layer = new Cesium.ImageryLayer(provider, {
             minimumTerrainLevel: Math.max(0, Number(manifest.detail?.[index]?.minimumTerrainLevel) || 14),
         });
-        viewer.imageryLayers.add(layer);
+        layer.__warzoneBasemapOwned = true;
+        viewer.imageryLayers.add(layer, basemapInsertionIndex(viewer));
         return layer;
     });
 }
@@ -5535,7 +5571,7 @@ async function initGoogleBasemap(viewer, generation) {
         const provider = await google.createGoogleImageryProvider(apiKey);
         if (generation !== Number(viewer.__warzoneImageryGeneration || 0) ||
             viewer.__warzoneEntryMapImageryVisible === false) return false;
-        viewer.imageryLayers.removeAll();
+        removeOwnedBasemapLayers(viewer);
         viewer.__warzoneGoogleRemoveError?.();
         let failed = false;
         let errors = 0;
@@ -5545,7 +5581,7 @@ async function initGoogleBasemap(viewer, generation) {
             failed = true;
             void fallbackConfiguredBasemap(viewer, generation, "google", "tile_failed");
         });
-        const layer = viewer.imageryLayers.addImageryProvider(provider);
+        const layer = addBasemapImageryProvider(viewer, provider);
         layer.show = viewer.__terrainVisible !== false && viewer.__satelliteVisible !== false;
         viewer.__imageryBase = layer;
         viewer.__imageryLabels = null;
@@ -5615,10 +5651,10 @@ async function initSelfHostedBasemap(viewer, generation) {
                 return result;
             };
         }
-        viewer.__warzoneSelfHostedGlobalLayer = viewer.imageryLayers.addImageryProvider(global);
+        viewer.__warzoneSelfHostedGlobalLayer = addBasemapImageryProvider(viewer, global);
         viewer.__imageryBase = viewer.__warzoneSelfHostedGlobalLayer;
-        viewer.__imageryPilot = viewer.imageryLayers.addImageryProvider(pilot);
-        viewer.__imageryClose = close ? viewer.imageryLayers.addImageryProvider(close) : null;
+        viewer.__imageryPilot = addBasemapImageryProvider(viewer, pilot);
+        viewer.__imageryClose = close ? addBasemapImageryProvider(viewer, close) : null;
         viewer.__imageryDetailLayers = addSelfHostedDetailLayers(viewer, details, manifest);
         viewer.__warzoneBasemapLayers = [viewer.__warzoneSelfHostedGlobalLayer, viewer.__imageryPilot,
             viewer.__imageryClose, ...viewer.__imageryDetailLayers].filter(Boolean);
@@ -5670,9 +5706,9 @@ async function createMapStyleLayerSet(viewer, style) {
         const selfhosted = await import("./warzone-selfhosted-basemap.js");
         const { global, pilot, close, details, providers, manifest } = await selfhosted.createSelfHostedImageryProviders(baseUrl);
         const ready = watchFirstProviderImage(providers);
-        const globalLayer = viewer.imageryLayers.addImageryProvider(global);
-        const pilotLayer = viewer.imageryLayers.addImageryProvider(pilot);
-        const closeLayer = close ? viewer.imageryLayers.addImageryProvider(close) : null;
+        const globalLayer = addBasemapImageryProvider(viewer, global);
+        const pilotLayer = addBasemapImageryProvider(viewer, pilot);
+        const closeLayer = close ? addBasemapImageryProvider(viewer, close) : null;
         const detailLayers = addSelfHostedDetailLayers(viewer, details, manifest);
         for (const layer of [globalLayer, pilotLayer, closeLayer, ...detailLayers].filter(Boolean)) {
             layer.alpha = 0.001;
@@ -5707,10 +5743,10 @@ async function createMapStyleLayerSet(viewer, style) {
         providers.push(labelsProvider);
     }
     const ready = watchFirstProviderImage(providers);
-    const baseLayer = viewer.imageryLayers.addImageryProvider(baseProvider);
+    const baseLayer = addBasemapImageryProvider(viewer, baseProvider);
     tuneImageryLayer(baseLayer, "--warzone-map");
     baseLayer.alpha = 0.001;
-    const labelsLayer = labelsProvider ? viewer.imageryLayers.addImageryProvider(labelsProvider) : null;
+    const labelsLayer = labelsProvider ? addBasemapImageryProvider(viewer, labelsProvider) : null;
     if (labelsLayer) {
         tuneImageryLayer(labelsLayer, "--warzone-labels");
         labelsLayer.alpha = 0.001;
@@ -5947,8 +5983,7 @@ function setEntryMapImageryVisible(viewer, visible) {
     if (!show) {
         viewer.__warzoneGoogleRemoveError?.();
         viewer.__warzoneGoogleRemoveError = null;
-        removeSelfHostedBasemap(viewer);
-        viewer.imageryLayers.removeAll();
+        removeOwnedBasemapLayers(viewer);
         viewer.__imageryBase = null;
         viewer.__imageryLabels = null;
         viewer.__warzoneBasemapLayers = [];
@@ -5960,7 +5995,7 @@ function setEntryMapImageryVisible(viewer, visible) {
     console.info(`[BASEMAP] requested=${requestedProvider}`);
     if (requestedProvider === "tactical") {
         viewer.__warzoneBasemapFallbackEsri = false;
-        viewer.imageryLayers.removeAll();
+        removeOwnedBasemapLayers(viewer);
         viewer.__imageryBase = null;
         viewer.__imageryLabels = null;
         setSelfHostedCreditsVisible(true);
@@ -6282,8 +6317,6 @@ async function enableFocusedTerrain(viewer) {
     if (!terrainProvider || terrainProvider.__warzoneProviderKind === "flat") return false;
     viewer.terrainProvider = terrainProvider;
     viewer.__warzoneFocusedTerrainFallbackFlat = terrainProvider.__warzoneProviderKind === "flat";
-    viewer.__terrainVisible = true;
-    viewer.__satelliteVisible = true;
     if (viewer.scene) {
         const globe = viewer.scene.globe;
         if (globe && !Number.isFinite(viewer.__warzoneFlatTerrainMaximumScreenSpaceError)) {

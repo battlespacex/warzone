@@ -80,7 +80,7 @@ test("tracker confirmation cancel preserves every layer and continue applies iso
   assert.equal(layers.isLayerEnabled("naval"), true);
 });
 
-test("each final tracker OFF restores the exact entry defaults, not an isolated snapshot", () => {
+test("final tracker OFF restores dashboard defaults while preserving the chosen basemap and borders", () => {
   const defaults = vm.runInContext("DASHBOARD_DEFAULT_LAYER_STATE", layers);
   for (const id of ["aircraft", "naval", "orbital-assets"]) {
     layers.resetLayerStateForFreshLoad();
@@ -92,7 +92,7 @@ test("each final tracker OFF restores the exact entry defaults, not an isolated 
       assert.equal(layers.isLayerEnabled("aoi"), true);
     }
     layers.setLayer(id, false);
-    for (const layer of layers.LAYER_DEFS) assert.equal(layers.isLayerEnabled(layer.id), defaults[layer.id], `${id} -> ${layer.id}`);
+    for (const layer of layers.LAYER_DEFS) assert.equal(layers.isLayerEnabled(layer.id), layer.id === "country-borders" ? true : defaults[layer.id], `${id} -> ${layer.id}`);
     assert.equal(layers.setLayer("strikes", false), false);
     assert.equal(layers.setLayer("strikes", true), true, "normal controls are unlocked");
   }
@@ -107,8 +107,10 @@ test("tracker switches publish one coherent isolation state; defaults return onl
     layers.setLayer(id, enabled);
     assert.equal(layers.isLayerEnabled("strikes"), false);
   }
-  assert.equal(layers.isLayerEnabled("orbital-assets"), false);
+  assert.equal(layers.isLayerEnabled("orbital-assets"), true);
   layers.setLayer("aircraft", false);
+  assert.equal(layers.isLayerEnabled("orbital-assets"), true, "tracker OFF preserves independently enabled orbital intelligence");
+  layers.setLayer("orbital-assets", false);
   assert.equal(layers.isLayerEnabled("strikes"), true);
   assert.equal(layers.isLayerEnabled("orbital-assets"), false, "a saved orbital mode must never return");
   assert.equal(transitions.length, 8);

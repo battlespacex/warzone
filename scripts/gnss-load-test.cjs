@@ -5,6 +5,7 @@ const { performance } = require("node:perf_hooks");
 const PRODUCTION_HOSTS = ["stratops.battlespacex.com", "api.battlespacex.com"];
 const isWorker = (url) => /\/assets\/cesium\/(?:releases\/[^/]+\/)?Workers\/[^?]+\.js(?:\?|$)/.test(url);
 const isGnssApi = (url) => /\/events\/gnss-interference(?:\?|$)/.test(url);
+const isGnssRaster = (url) => /\/events\/gnss-interference\/raster\/[^/?]+\//.test(url);
 
 function safeUrl(value) {
     try {
@@ -55,7 +56,7 @@ function createRecorder(context, page) {
         if (isWorker(url)) record.activeWorkerRequests++;
         record.peakConcurrentRequests = Math.max(record.peakConcurrentRequests, record.activeRequests);
         record.requests.push({ url: safeUrl(url), method: request.method(), type: request.resourceType(),
-            startMs: performance.now() - record.started, worker: isWorker(url), gnssApi: isGnssApi(url),
+            startMs: performance.now() - record.started, worker: isWorker(url), gnssApi: isGnssApi(url), gnssRaster: isGnssRaster(url),
             staticAsset: request.resourceType() !== "xhr" && request.resourceType() !== "fetch" });
     });
     context.on("response", (response) => {
@@ -71,6 +72,7 @@ function createRecorder(context, page) {
         if (status === 503 && /LimitExceeded/i.test(headers["x-cache"] || "")) record.limitExceeded503++;
         if (worker && (status >= 400 || (status !== 304 && !/^(application|text)\/(?:x-)?javascript\b/.test(headers["content-type"] || "")))) record.workerHttpFailures++;
         if (gnssApi && status >= 400) record.gnssApiHttpFailures++;
+        if (isGnssRaster(url) && (status >= 400 || (status !== 304 && !(/\.png(?:\?|$)/.test(url) ? /^image\/png\b/ : /^application\/json\b/).test(headers["content-type"] || "")))) record.gnssRasterFailures++;
     });
     context.on("requestfinished", (request) => {
         const record = owners.get(request); if (!record || record.stopped) return;
@@ -84,6 +86,7 @@ function createRecorder(context, page) {
         if (isWorker(request.url())) record.activeWorkerRequests--;
         record.failedRequests.push({ url: safeUrl(request.url()), error: request.failure()?.errorText });
         if (isWorker(request.url())) record.workerNetworkFailures++;
+        if (isGnssRaster(request.url()) && !/ERR_ABORTED|cancelled|canceled/i.test(request.failure()?.errorText || "")) record.gnssRasterFailures++;
     });
     page.on("worker", (worker) => { target()?.workers.push(safeUrl(worker.url())); });
     page.on("pageerror", (error) => { target()?.pageErrors.push(error.message); });
@@ -92,7 +95,7 @@ function createRecorder(context, page) {
         start: () => {
             current = { started: performance.now(), startedUtc: new Date().toISOString(), requests: [], responses: [], workers: [], failedRequests: [], pageErrors: [],
                 http503: 0, cloudfront503: 0, limitExceeded503: 0, workerHttpFailures: 0, workerNetworkFailures: 0,
-                gnssApiHttpFailures: 0, responseBodyBytes: 0, activeRequests: 0, activeWorkerRequests: 0, peakConcurrentRequests: 0 };
+                gnssApiHttpFailures: 0, gnssRasterFailures: 0, responseBodyBytes: 0, activeRequests: 0, activeWorkerRequests: 0, peakConcurrentRequests: 0 };
             return current;
         },
         stop: async () => { await Promise.allSettled(tasks); if (current) current.stopped = true; current = null; },
@@ -203,8 +206,10 @@ async function runScenario(config, flow, count, cache, scenario, chromium) {
     const automatedPass = results.length === count && results.every((r) => !r.error && !r.crashed && r.after?.renderLoop
         && r.after.sameViewer && r.after.canvasCount === 1 && !r.after.hidden && !r.after.renderErrors.length && !r.pageErrors.length
         && r.workerHttpFailures === 0 && r.workerNetworkFailures === 0 && r.activeWorkerRequests === 0 && r.http503 === 0 && r.gnssApiHttpFailures === 0
-        && r.after.diagnostics?.gnss?.visible && r.after.diagnostics.gnss.activeCellEntities > 0
-        && r.requests.some((request) => request.worker) && r.featureChecks?.gnss === true);
+        && r.after.diagnostics?.gnss?.visible && r.gnssRasterFailures === 0
+        && (r.after.diagnostics.gnss.raster ? !r.after.diagnostics.gnss.raster.failed && r.after.diagnostics.gnss.raster.completedTiles > 0
+            : r.after.diagnostics.gnss.activeCellEntities > 0)
+        && r.requests.some((request) => request.worker || request.gnssRaster) && r.featureChecks?.gnss === true);
     const result = { label, count, cache, scenario, automatedPass,
         acceptance: automatedPass ? "pending-visual-and-other-feature-review" : "failed-or-inconclusive",
         blackGlobeIncidents: null, functionalSatelliteRegressions: null, radarRegressions: null,
@@ -218,6 +223,8 @@ async function runScenario(config, flow, count, cache, scenario, chromium) {
     }
     result.metrics = { requests: requests.length, workerRequests: requests.filter((request) => request.worker).length,
         gnssApiRequests: requests.filter((request) => request.gnssApi).length,
+        gnssRasterRequests: requests.filter((request) => request.gnssRaster).length,
+        gnssRasterFailures: results.reduce((sum, session) => sum + (session.gnssRasterFailures || 0), 0),
         peakOneSecondBucketRequests: Math.max(0, ...buckets.values()),
         workerHttpFailures: results.reduce((sum, session) => sum + (session.workerHttpFailures || 0), 0),
         workerNetworkFailures: results.reduce((sum, session) => sum + (session.workerNetworkFailures || 0), 0),
@@ -256,5 +263,5 @@ async function main(args) {
     fs.writeFileSync(path.join(config.outputDirectory, "matrix-results.json"), JSON.stringify({ planned: matrix, completed: summaries }, null, 2));
     if (summaries.length !== matrix.length || summaries.some((result) => !result.automatedPass)) process.exitCode = 1;
 }
-module.exports = { validateConfig, safeUrl, sanitizeHar, isWorker, isGnssApi };
+module.exports = { validateConfig, safeUrl, sanitizeHar, isWorker, isGnssApi, isGnssRaster };
 if (require.main === module) main(process.argv.slice(2)).catch((error) => { console.error(error.message); process.exitCode = 1; });

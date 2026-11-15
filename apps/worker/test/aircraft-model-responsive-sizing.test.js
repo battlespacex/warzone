@@ -26,7 +26,7 @@ test('nearby focused/unfocused GLBs have equal distance sizing across regional v
       applyGlbDistanceSizing(entity,focused,viewer);
       assert.ok(Math.abs(property.getValue(time)-neighbor.model.scale.getValue(time))<1e-5);
       assert.ok(Math.abs(entity.model.minimumPixelSize.getValue(time)-neighbor.model.minimumPixelSize.getValue(time))<1e-3);
-      assert.ok(entity.model.minimumPixelSize.getValue(time)>=40);
+      assert.ok(entity.model.minimumPixelSize.getValue(time)>=normal.minimum);
       assert.equal(entity.model.maximumScale,undefined);
     }
     assert.equal(reads,beforeReads,'no per-frame CSS reads');
@@ -36,7 +36,7 @@ test('nearby focused/unfocused GLBs have equal distance sizing across regional v
     assert.ok(Math.abs(property.getValue(time)-before)<.2,'no focus pop');
     assert.equal(property.getValue(time),before,'legacy focus endpoint is ignored');
     applyGlbDistanceSizing(entity,normal,viewer);
-    assert.ok(Math.abs(property.getValue(time)-5/3)<1e-9);
+    assert.ok(Math.abs(property.getValue(time)-normal.farSize/3)<1e-9);
     assert.equal(entity.model,model);assert.equal(entity.model.scale,property);
   }
 });
@@ -71,11 +71,12 @@ function styleAt(width) {
 }
 test('five CSS tiers drive actual Cesium properties with reversible focus-independent distance sizing', t => {
   const time = C.JulianDate.now();
-  for (const [width, far, near] of [390,768,1920,1921,2559,2560,3839,3840].map(width=>[width,5,10])) for (const [domain, category] of [['aircraft', 'fighter'], ['naval', 'naval']]) {
+  for (const width of [390,768,1920,1921,2559,2560,3839,3840]) for (const [domain, category] of [['aircraft', 'fighter'], ['naval', 'naval']]) {
     const read = styleAt(width),
       config = readGlbSizing(read, domain, category);
-    const override = domain === 'aircraft' && width >= 2560 && width <= 3839 ? 9 : null;
-    const expectedFar = override ?? far, expectedNear = near;
+    const prefix = `--warzone-live-${domain}-model-`;
+    const expectedFar = read(`${prefix}scale-min-${category}`, read(`${prefix}scale-min`, read(`${prefix}scale`, 3)));
+    const expectedNear = read(`${prefix}scale-max-${category}`, read(`${prefix}scale-max`, 7));
     assert.equal(config.farSize, expectedFar);
     assert.equal(config.nearSize, expectedNear);
     const entity = new C.Entity({
@@ -110,8 +111,8 @@ test('five CSS tiers drive actual Cesium properties with reversible focus-indepe
         width,
         domain,
         distance,
-        cssFar: far,
-        cssNear: near,
+        cssFar: expectedFar,
+        cssNear: expectedNear,
         scale,
         minimumPixels: entity.model.minimumPixelSize.getValue(time),
         maximumScale: entity.model.maximumScale?.getValue(time)
@@ -176,9 +177,10 @@ test('aircraft styling installs the distance properties after legacy sizing and 
   context.applyLiveTrackModelSizing(entity, {});
   const property = entity.model.scale,
     time = C.JulianDate.now();
-  assert.ok(Math.abs(property.getValue(time) - 10 / 3) < 1e-9);
+  const expected = readGlbSizing(styleAt(1920), 'aircraft', 'fighter');
+  assert.ok(Math.abs(property.getValue(time) - expected.nearSize / 3) < 1e-9);
   context.applyLiveTrackModelSizing(entity, {});
   assert.equal(entity.model.scale, property);
   viewer.camera.positionWC.x = 160000;
-  assert.equal(property.getValue(time), 5/3);
+  assert.equal(property.getValue(time), expected.farSize/3);
 });

@@ -34,6 +34,9 @@ function global:node {
         (($global:deployTestFailure -eq 'frontend-live' -and $arguments -contains '--verify-live') -or
          ($global:deployTestFailure -eq 'frontend-local' -and $arguments -contains '--verify'))) { $global:LASTEXITCODE = 1 }
     if ($global:deployTestFailure -eq 'cesium-live' -and $arguments[0] -like '*cesium-assets.cjs' -and $arguments -contains '--verify-live') { $global:LASTEXITCODE = 1 }
+    if ($arguments[0] -like '*model-assets.cjs' -and
+        (($global:deployTestFailure -eq 'models-live' -and $arguments -contains '--verify-live') -or
+         ($global:deployTestFailure -eq 'models-local' -and $arguments -contains '--verify'))) { $global:LASTEXITCODE = 1 }
 }
 function global:Invoke-WebRequest {
     param($Uri, [switch]$UseBasicParsing, $TimeoutSec)
@@ -84,7 +87,7 @@ Assert-True ($htmlWrites[0].Arguments[$includeIndex + 1] -eq '--exclude' -and $h
 $htmlIndex = $events.IndexOf($htmlWrites[0])
 $manifestWrites = @(Manifest-Writes)
 Assert-True ($manifestWrites.Count -eq 1) 'Expected one manifest publication'
-foreach ($helper in @('frontend-assets.cjs', 'cesium-assets.cjs')) {
+foreach ($helper in @('frontend-assets.cjs', 'cesium-assets.cjs', 'model-assets.cjs')) {
     $gate = @($events | Where-Object { $_.Kind -eq 'node' -and $_.Arguments[0] -like "*$helper" -and $_.Arguments -contains '--verify-live' })
     Assert-True ($gate.Count -eq 1 -and $events.IndexOf($gate[0]) -lt $htmlIndex) "$helper must gate HTML"
     Assert-True ($events.IndexOf($gate[0]) -lt $events.IndexOf($manifestWrites[0])) "$helper must gate the manifest"
@@ -98,7 +101,7 @@ foreach ($event in @($events | Where-Object Kind -eq 'aws')) {
 }
 Assert-True (@($events | Where-Object { $_.Kind -eq 'aws' -and $_.Arguments -contains 'cesium/*' }).Count -eq 1) 'Legacy Cesium should be excluded'
 $passed++
-foreach ($failure in @('upload', 'frontend-local', 'frontend-live', 'cesium-live')) {
+foreach ($failure in @('upload', 'frontend-local', 'frontend-live', 'cesium-live', 'models-local', 'models-live')) {
     Reset-Fixture
     $global:deployTestFailure = $failure
     Expect-Failure ($base + @{ Execute = $true })

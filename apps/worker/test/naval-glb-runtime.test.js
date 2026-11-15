@@ -213,6 +213,38 @@ test("zoom, pan and CSS resize update without map clicks, duplicate listeners or
     assert.equal(h.viewer.entities.values.length, 10); assert.equal(h.viewer.camera.changed.listeners.size, 1);
 });
 
+test("settled camera refresh avoids model restyling and OFF clears failed GLB resources before restoration",()=>{
+    const h=harness();h.context.setNavalLayerVisible(true);
+    for(let i=0;i<100;i++)h.add(i,48+(i%10)*.1,29+Math.floor(i/10)*.1);
+    h.drain();const before=h.state.createdCount;
+    h.resetStyleReads();
+    for(let i=0;i<10;i++){h.viewer.camera.moveEnd.fire();h.drain();}
+    assert.equal(h.styleReads,0,'settled camera updates do not parse fleet model/label styles');
+    assert.equal(h.state.createdCount,before);
+    h.state.modelFailures.set('fixture.glb',{message:'503'});
+    for(let i=0;i<10;i++){
+        h.context.setNavalLayerVisible(false);h.drain();
+        assert.equal(h.state.modelResources.size,0);assert.equal(h.state.modelFailures.size,0);
+        assert.equal(h.viewer.entities.values.length,0);assert.equal(h.animations.size,0);
+        h.context.setNavalLayerVisible(true);h.drain();
+        assert.equal(h.viewer.entities.values.filter(e=>e.model).length,100);
+    }
+});
+
+test("incoming naval records do not repeatedly restart and starve a dense restoration batch",()=>{
+    const h=harness();h.context.setNavalLayerVisible(true);
+    for(let i=0;i<100;i++)h.add(i);
+    let steps=0;
+    while(!h.state.createdCount){const [id,fn]=h.frames.entries().next().value;h.frames.delete(id);fn();assert.ok(++steps<10);}
+    const generation=h.state.reconcileGeneration;
+    for(let i=100;i<120;i++)h.add(i);
+    assert.equal(h.state.reconcileGeneration,generation,'live data merges into the active batch');
+    h.drain();
+    assert.equal(h.viewer.entities.values.filter(e=>e.model).length,120);
+    assert.equal(h.state.vessels.size,120);
+    assert.equal(h.frames.size,0);assert.equal(h.state.reconcileDirty,false);
+});
+
 test("region changes remove only rendering/focus, keep observations and enforce date-line bounds", () => {
     const h = harness(); h.context.setNavalLayerVisible(true); h.add(1); h.add(2, 70); h.drain();
     assert.equal(h.viewer.entities.values.length, 1);

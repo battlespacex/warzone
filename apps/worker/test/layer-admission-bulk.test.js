@@ -11,11 +11,12 @@ test("bulk, section and delayed dependency restoration never publish incompatibl
     .replace(/export \{[^}]+\};/g,'').replace(/\bexport /g,''),context);
   const panel={querySelectorAll:()=>[],querySelector:()=>null};context.panel=panel;context.conflicts=[];
   vm.runInContext(`resetLayerStateForFreshLoad();setLayer('aircraft',true);setLayer('naval',true);
-    onLayerChange((_id,_enabled,state)=>{if(state.aircraft||state.naval){for(const id of ['gnss','cyber','strikes','hotspots'])if(state[id])conflicts.push(id);}});
+    onLayerChange((_id,_enabled,state)=>{if(state.aircraft||state.naval){for(const id of ['cyber','strikes','hotspots'])if(state[id])conflicts.push(id);}});
     setSectionLayers('infrastructure-disruptions',true,panel);
     setAllLayers(true,panel);
     activateDerivedLayerWithDependencies('hotspots',[{id:'strikes'}],panel);`,context);
-  for(const id of ['gnss','cyber','strikes','hotspots'])assert.equal(context.isLayerEnabled(id),false);
+  for(const id of ['cyber','strikes','hotspots'])assert.equal(context.isLayerEnabled(id),false);
+  assert.equal(context.isLayerEnabled('gnss'),true);
   assert.equal(context.isLayerEnabled('aircraft'),true);assert.equal(context.isLayerEnabled('naval'),true);
   assert.equal(context.conflicts.length,0);
 });

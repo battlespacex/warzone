@@ -1,6 +1,7 @@
 import * as Cesium from "cesium";
 import { createOperationalGnssReveal } from "./warzone-gnss-reveal.js";
 import { setDataSourceActive } from "./warzone-data-source-lifecycle.js";
+import { createGnssRasterLayer } from "./warzone-gnss-raster.js";
 
 const GNSS_LAYER_NAME = "warzone-gnss-interference";
 const GNSS_TOOLTIP_ID = "wz-gnss-tooltip";
@@ -50,6 +51,13 @@ const __gnssState = {
     severityFilter: "all",
     lastInput: null,
     controlsBound: false,
+    controlsCleanup: null,
+    raster: null,
+    rasterError: "",
+    pickGeneration: 0,
+    clickPending: false,
+    rasterSignature: "",
+    expiredRevision: "",
 };
 
 function cssNumber(name, fallback) {
@@ -590,14 +598,32 @@ function bindPicking(viewer) {
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     __gnssState.handler = handler;
 
-    handler.setInputAction((movement) => {
+    const rasterEntity = async (position, immediate = false) => {
+        const adapter = __gnssState.raster;
+        // Give other scene features priority over the ground overlay.
+        if (position && viewer.scene.pick(position)?.id) return null;
+        const cell = await adapter?.pick(position, { immediate });
+        if (!cell || adapter !== __gnssState.raster || !__gnssState.visible) return null;
+        const normalized = __gnssState.lastInput?.[1]?.normalizeCell?.(cell) || cell;
+        const entity = { id: `gnss-cell-${normalized.id}`, __gnssCell: normalized,
+            position: Cesium.Cartesian3.fromDegrees(normalized.lon, normalized.lat) };
+        // Only the current hover and open detail record are retained, not the dataset.
+        for (const id of __gnssState.cellsById.keys()) if (id !== __gnssState.activePanelEntityId) __gnssState.cellsById.delete(id);
+        __gnssState.cellsById.set(entity.id, entity);
+        return entity;
+    };
+    handler.setInputAction(async (movement) => {
+        if (__gnssState.clickPending) return;
+        const generation = ++__gnssState.pickGeneration;
         if (__gnssState.visible !== true) {
             viewer.container.style.cursor = "";
             hideTooltip();
             clearHighlight();
             return;
         }
-        const entity = findPickedGnssEntity(viewer, movement?.endPosition);
+        const entity = __gnssState.raster ? await rasterEntity(movement?.endPosition)
+            : findPickedGnssEntity(viewer, movement?.endPosition);
+        if (!__gnssState.visible || generation !== __gnssState.pickGeneration) return;
         if (!entity) {
             viewer.container.style.cursor = "";
             clearHighlight();
@@ -612,9 +638,15 @@ function bindPicking(viewer) {
         viewer.scene.requestRender?.();
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
-    handler.setInputAction((movement) => {
+    handler.setInputAction(async (movement) => {
         if (__gnssState.visible !== true) return;
-        const entity = findPickedGnssEntity(viewer, movement?.position);
+        const generation = ++__gnssState.pickGeneration;
+        __gnssState.clickPending = true;
+        const entity = __gnssState.raster ? await rasterEntity(movement?.position, true)
+            : findPickedGnssEntity(viewer, movement?.position);
+        if (generation !== __gnssState.pickGeneration) return;
+        __gnssState.clickPending = false;
+        if (!__gnssState.visible) return;
         if (!entity) {
             closeActiveGnssPanel();
             clearHighlight();
@@ -859,34 +891,78 @@ function bindGnssControls(viewer) {
     const severity = document.getElementById("wz-gnss-severity");
     if (!show || !severity) return;
     __gnssState.controlsBound = true;
-    show.addEventListener("change", () => {
+    const onShow = () => {
         __gnssState.showHexagons = show.checked;
         if (__gnssState.lastInput) renderGnssInterferenceLayer(viewer, ...__gnssState.lastInput);
-    });
-    severity.addEventListener("change", () => {
+    };
+    const onSeverity = () => {
         __gnssState.severityFilter = severity.value;
         if (__gnssState.lastInput) renderGnssInterferenceLayer(viewer, ...__gnssState.lastInput);
-    });
+    };
+    show.addEventListener("change", onShow);
+    severity.addEventListener("change", onSeverity);
+    __gnssState.controlsCleanup = () => {
+        show.removeEventListener("change", onShow);
+        severity.removeEventListener("change", onSeverity);
+        __gnssState.controlsBound = false;
+    };
 }
 
 export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
     if (!viewer || viewer.isDestroyed?.()) return;
-    bindGnssCamera(viewer);
+    if (!options.raster) bindGnssCamera(viewer);
     __gnssState.lastInput = [cells, options];
     bindGnssControls(viewer);
     bindPicking(viewer);
     const tokens = readGnssTokens();
     const sourceMode = options.sourceMode || "unavailable";
     const isPrimary = sourceMode === "gpsinterference";
+    const isRaster = Boolean(options.raster);
     const allCells = Array.isArray(cells) ? cells : [];
     const selected = __gnssState.severityFilter === "all" ? allCells
         : allCells.filter((cell) => normalizeSeverity(cell.severity) === __gnssState.severityFilter);
     const layerEnabled = options.visible === true;
-    const showCells = layerEnabled && __gnssState.showHexagons && selected.length > 0;
+    const selectedCount = isRaster ? (__gnssState.severityFilter === "all" ? options.totalCells : options.severityCounts?.[__gnssState.severityFilter]) || 0 : selected.length;
+    const showCells = layerEnabled && __gnssState.showHexagons && selectedCount > 0;
     const signature = computeCellSignature(selected) + ":" + sourceMode
         + (isPrimary ? `:${options.regionId || ""}:${options.observationKey || ""}` : `:${__gnssState.showHexagons}`);
     __gnssState.demoMode = options.demoMode === true;
-    if (signature !== __gnssState.signature || tokens.signature !== __gnssState.styleSignature) {
+    if (isRaster) {
+        __gnssState.cameraCleanup?.(); __gnssState.cameraCleanup = null; __gnssState.groundViewer = null;
+        const rasterSignature = JSON.stringify([options.raster.revision, tokens.signature, __gnssState.severityFilter]);
+        if (__gnssState.rasterSignature !== rasterSignature) {
+            closeActiveGnssPanel(); clearHighlight(); __gnssState.cellsById.clear();
+            __gnssState.rasterError = "";
+            __gnssState.rasterSignature = rasterSignature;
+            ++__gnssState.pickGeneration; __gnssState.clickPending = false;
+        }
+        clearGroundPrimitives(viewer);
+        if (__gnssState.dataSource) {
+            setDataSourceActive(viewer, __gnssState.dataSource, false);
+            __gnssState.dataSource.entities.removeAll();
+            __gnssState.dataSource = null;
+        }
+        if (!__gnssState.raster) __gnssState.raster = createGnssRasterLayer(viewer, { onError: error => {
+            __gnssState.rasterError = `GNSS imagery unavailable (${error.message || "tile request failed"}); toggle GNSS to retry.`;
+            setLegendVisible(true, { statusText: __gnssState.rasterError, statusTone: "Warning" });
+            const input = __gnssState.lastInput?.[1];
+            if (Number(error.statusCode || error.error?.statusCode) === 410 && input?.onRasterExpired
+                && __gnssState.expiredRevision !== input.raster?.revision) {
+                __gnssState.expiredRevision = input.raster.revision;
+                __gnssState.raster?.dispose(); __gnssState.raster = null; __gnssState.rasterSignature = "";
+                // One refresh for this expired revision. Persistent errors never loop.
+                input.onRasterExpired();
+            }
+        } });
+        const palette = kind => ["low", "medium", "high", "severe", "unknown"].map(severity => {
+            const color = resolveSeverityColor(tokens, kind, severity);
+            return [color.red, color.green, color.blue, color.alpha].map(c => Math.round(clamp(c, 0, 1) * 255));
+        });
+        __gnssState.raster.set({ raster: options.raster, show: showCells, filter: __gnssState.severityFilter,
+            style: { fill: palette("fill"), outline: palette("outline"), width: tokens.outlineWidth, size: tokens.sizeKm } });
+        __gnssState.sourceMode = sourceMode;
+    } else if (signature !== __gnssState.signature || tokens.signature !== __gnssState.styleSignature || __gnssState.raster) {
+        __gnssState.raster?.dispose(); __gnssState.raster = null; __gnssState.rasterError = "";
         clearGroundPrimitives(viewer);
         if (isPrimary) {
             if (__gnssState.dataSource) {
@@ -901,7 +977,9 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
         __gnssState.sourceMode = sourceMode;
     }
     __gnssState.visible = showCells;
-    if (isPrimary) {
+    if (isRaster) {
+        // Imagery request scheduling is owned by Cesium, not the polygon build loop.
+    } else if (isPrimary) {
         if (showCells && !__gnssState.groundBuild) renderGroundBatches(viewer, selected, tokens, options);
         __gnssState.reveal?.setVisible(showCells);
         if (showCells) scheduleGroundBuild(); else pauseGroundBuild();
@@ -912,9 +990,9 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
     if (!showCells) { closeActiveGnssPanel(); clearHighlight(); hideTooltip(); }
     const count = options.totalCells ?? allCells.length;
     const updated = options.updatedAt ? ` Updated ${formatRelativeTimestamp(options.updatedAt)}.` : "";
-    const displayedCount = __gnssState.showHexagons ? selected.length : 0;
+    const displayedCount = __gnssState.showHexagons ? selectedCount : 0;
     const filterLabel = __gnssState.severityFilter === "all" ? "all severities" : __gnssState.severityFilter;
-    const statusText = options.message || (count
+    const statusText = __gnssState.rasterError || options.message || (count
         ? `${count} regional cells observed; ${displayedCount} displayed (${filterLabel}).${updated}${options.truncated ? " Map display bounded; counts include all cells." : ""}`
         : sourceMode === "gpsinterference" ? "No observations in this region; coverage may be insufficient."
             : buildLegendStatus({ cellCount: 0, ...options }));
@@ -935,24 +1013,25 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
     viewer.scene.requestRender?.();
 }
 
-export function clearGnssInterferenceLayer(viewer, { retainGeometry = false } = {}) {
-    const retain = retainGeometry && __gnssState.sourceMode === "gpsinterference";
-    if (retain) {
-        pauseGroundBuild();
-        __gnssState.reveal?.setVisible(false);
-    } else {
-        clearGroundPrimitives(viewer);
-        __gnssState.lastInput = null;
-        __gnssState.cameraCleanup?.();
-        __gnssState.cameraCleanup = null;
-        __gnssState.groundViewer = null;
-    }
+export function clearGnssInterferenceLayer(viewer) {
+    ++__gnssState.pickGeneration; __gnssState.clickPending = false; __gnssState.rasterSignature = "";
+    __gnssState.expiredRevision = "";
+    __gnssState.raster?.dispose(); __gnssState.raster = null; __gnssState.rasterError = "";
+    __gnssState.controlsCleanup?.(); __gnssState.controlsCleanup = null;
+    clearGroundPrimitives(viewer);
+    __gnssState.lastInput = null;
+    __gnssState.cameraCleanup?.();
+    __gnssState.cameraCleanup = null;
+    __gnssState.groundViewer = null;
     if (__gnssState.dataSource) {
         __gnssState.dataSource.entities.removeAll();
         __gnssState.dataSource.show = false;
         setDataSourceActive(viewer, __gnssState.dataSource, false);
+        __gnssState.dataSource = null;
     }
-    if (!retain) __gnssState.signature = "";
+    __gnssState.signature = "";
+    __gnssState.styleSignature = "";
+    __gnssState.cellsById.clear();
     __gnssState.visible = false;
     closeActiveGnssPanel();
     clearHighlight();
@@ -974,6 +1053,7 @@ export function clearGnssInterferenceLayer(viewer, { retainGeometry = false } = 
 export function getGnssDiagnostics() {
     return Object.freeze({
         visible: __gnssState.visible,
+        raster: __gnssState.raster?.diagnostics() || null,
         groundPrimitiveCount: __gnssState.groundPrimitives.length,
         reveal: __gnssState.reveal?.diagnostics() || null,
         activeCellEntities: __gnssState.visible ? __gnssState.cellsById.size : 0,

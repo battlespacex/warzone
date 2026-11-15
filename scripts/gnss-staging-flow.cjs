@@ -19,6 +19,7 @@ async function waitForGnss(page) {
     await page.waitForFunction(() => {
         const viewer = window.__warzoneViewer;
         const gnss = window.__getStratOpsPerformanceDiagnostics?.()?.gnss;
+        if (gnss?.raster) return gnss.visible && !gnss.raster.failed && gnss.raster.completedTiles > 0 && viewer.cesiumWidget.useDefaultRenderLoop;
         const primitives = viewer?.scene?.groundPrimitives;
         return gnss?.visible && gnss.activeCellEntities > 0 && viewer.cesiumWidget.useDefaultRenderLoop
             && primitives?.length > 0 && Array.from({ length: primitives.length }, (_, i) => primitives.get(i))
@@ -48,6 +49,7 @@ async function exercise(page, config) {
             const gnss = window.__getStratOpsPerformanceDiagnostics?.()?.gnss;
             if (!gnss) return false;
             if (!gnss.visible) return gnss.activeCellEntities === 0;
+            if (gnss.raster) return !gnss.raster.failed && gnss.raster.completedTiles > 0;
             const primitives = viewer.scene.groundPrimitives;
             return gnss.activeCellEntities > 0 && primitives.length > 0 &&
                 Array.from({ length: primitives.length }, (_, i) => primitives.get(i))
@@ -69,9 +71,9 @@ async function exercise(page, config) {
         if (data.demoMode === true) throw new Error("Staged/fake GNSS data cannot satisfy real-data acceptance");
         const value = await page.locator("#wz-gnss-period").inputValue();
         if (value !== period) throw new Error(`Observation period selection failed: ${period}`);
-        periods.push({ period, sourceMode: data.sourceMode, sourceHealth: data.sourceHealth, cells: data.cells?.length || 0 });
+        periods.push({ period, sourceMode: data.sourceMode, sourceHealth: data.sourceHealth, cells: data.totalCells ?? data.cells?.length ?? 0, raster: data.raster?.revision });
         // 24h may legitimately contain no whole UTC daily summary. Preserve that provider behavior.
-        if (data.cells?.length) await waitForGnss(page);
+        if (data.totalCells || data.cells?.length) await waitForGnss(page);
     }
     await waitForGnss(page); // Require real coverage after restoring 72h.
     // Exercise the existing camera controls, without replacing camera state or viewer.

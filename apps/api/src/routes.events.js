@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getIntelWireMediaAsset, toPublicIntelWireItem } from "./intel-source-sanitizer.js";
 import { getPublicGnssInterferenceCells } from "./gnss-interference-public.js";
 import { getGpsInterferenceSnapshot, getRollingGpsInterferenceSnapshot, selectGpsInterferenceRegion } from "./gnss-gpsinterference.js";
+import { gnssRasterStore, gnssRasterRoutes } from "./gnss-raster.js";
+import { gnssBoundary } from "../../shared/gnss-geometry.js";
 import { toPublicStatusSignal } from "../../shared/status-signal-policy.js";
 import { attachEventMediaToEvents } from "./event-media-context.js";
 import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents } from "./satellite-context.js";
@@ -440,10 +442,16 @@ export function createGnssInterferenceHandler({
     selectRegion = selectGpsInterferenceRegion,
     getFallback = getPublicGnssInterferenceCells,
     getFallbackClient = getSupabase,
+    rasterStore = gnssRasterStore,
 } = {}) {
+    // Share raster preparation between concurrent users, without changing provider
+    // refresh/period semantics. Weak references do not pin additional full datasets.
+    const rasterDescriptors = new Map();
     return async (req, res) => {
         try {
             const requestedLimit = Number(req.query.limit);
+            const raster = req.query.format === "raster";
+            if (raster) res.set?.("Cache-Control", "no-store");
             const limit = Number.isFinite(requestedLimit)
                 ? clamp(Math.floor(requestedLimit), 12, MAX_GNSS_CELL_LIMIT)
                 : DEFAULT_GNSS_CELL_LIMIT;
@@ -466,20 +474,45 @@ export function createGnssInterferenceHandler({
                 || bounds.minLon < -180 || bounds.maxLon > 180)) {
                 return res.status(400).json({ error: "Invalid GNSS bounds" });
             }
+            const representation = async payload => {
+                if (!raster || !payload.cells?.length) return payload;
+                const genuine = payload.cells.filter(cell => cell.isDemo !== true && cell.is_demo !== true)
+                    .map(cell => ({ ...cell, polygon: gnssBoundary(cell) }));
+                if (!genuine.length) return { cells: [], totalCells: 0, demoMode: false, sourceMode: "unavailable", sourceHealth: "unavailable",
+                    liveAvailable: false, message: "No genuine GNSS observations are available." };
+                const { cells, totalCells, severityCounts } = selectGpsInterferenceRegion({ cells: genuine }, { bounds, includeAll: true });
+                return rasterStore.publish({ ...payload, cells, totalCells, severityCounts, demoMode: false });
+            };
             const snapshot = rollingPeriod
                 ? await getRollingGpsInterferenceSnapshot(date, { getSnapshot })
                 : await getSnapshot(date);
-            if (snapshot) return res.json(selectRegion(snapshot, { bounds, limit }));
+            if (snapshot) {
+                if (!raster) return res.json(selectRegion(snapshot, { bounds, limit }));
+                const key = JSON.stringify([date, bounds]);
+                const metadata = JSON.stringify({ ...snapshot, cells: undefined });
+                const cached = rasterDescriptors.get(key);
+                const cachedCells = cached?.cells.deref();
+                if (cached && Date.now() < cached.expires && cached.metadata === metadata
+                    && cachedCells?.length === snapshot.cells.length && cachedCells.every((cell, i) => cell === snapshot.cells[i])) {
+                    return res.json(await cached.result);
+                }
+                const entry = { cells: new WeakRef(snapshot.cells), metadata, expires: Date.now() + 60_000 };
+                entry.result = representation(selectRegion(snapshot, { bounds, limit, includeAll: true }));
+                rasterDescriptors.set(key, entry);
+                while (rasterDescriptors.size > 32) rasterDescriptors.delete(rasterDescriptors.keys().next().value);
+                try { return res.json(await entry.result); }
+                catch (error) { if (rasterDescriptors.get(key) === entry) rasterDescriptors.delete(key); throw error; }
+            }
             if (date !== "latest") return res.json({
                 cells: [], sourceMode: "unavailable", liveAvailable: false,
                 sourceHealth: "unavailable", message: "Historical GNSS data is unavailable from the provider.",
             });
             const fallback = await getFallback({ supabase: getFallbackClient(), limit });
-            return res.json({ ...fallback, sourceHealth: fallback.cells?.length ? "degraded" : "unavailable",
+            return res.json(await representation({ ...fallback, sourceHealth: fallback.cells?.length ? "degraded" : "unavailable",
                 message: fallback.cells?.length ? "Primary GNSS source unavailable; showing existing records."
-                    : "GNSS providers are unavailable; an empty map does not establish absence of interference." });
-        } catch {
-            return res.status(500).json({ error: "Failed" });
+                    : "GNSS providers are unavailable; an empty map does not establish absence of interference." }));
+        } catch (error) {
+            return res.status(error.status || 500).json({ error: error.status ? error.message : "Failed" });
         }
     };
 }
@@ -796,6 +829,7 @@ export function eventsRouter({ broadcast }) {
     // ── GNSS jamming cells (sanitized public payload) ─────────
     // Server-side shared cache prevents a provider request for each browser.
     router.get("/gnss-interference", createGnssInterferenceHandler());
+    gnssRasterRoutes(router);
 
     // Full event enrichment is loaded only when a user opens a marker detail.
     router.get("/:id", createEventDetailHandler());

@@ -3350,8 +3350,7 @@ export function syncLiveTrackRenderPopulation() {
         : null;
     const batchEntityEvents = __liveTrackRegistry.size > 250 &&
         typeof viewer.entities?.suspendEvents === "function";
-    const restoreInChunks = aircraftLayerEnabled && !selectedTrackKey &&
-        batchEntityEvents && __liveTrackEntities.size < __liveTrackRegistry.size / 2;
+    const restoreInChunks = aircraftLayerEnabled && batchEntityEvents;
     const entries = Array.from(__liveTrackRegistry.entries());
     let frame = 0;
     let eventsSuspended = false;
@@ -3376,7 +3375,7 @@ export function syncLiveTrackRenderPopulation() {
         const shouldRender = shouldRenderLiveTrackDataState(safeTrackKey, entry, { focusedPosition });
         const entity = viewer.entities?.getById?.(`track-${safeTrackKey}`);
         if (!shouldRender) {
-            if (aircraftLayerEnabled && entry?.active && entity) {
+            if (aircraftLayerEnabled && entry?.active && entity && safeTrackKey === selectedTrackKey) {
                 entity.show = false;
                 const trailEntity = viewer.entities?.getById?.(`track-trail-${safeTrackKey}`);
                 if (trailEntity) trailEntity.show = false;
@@ -3426,7 +3425,7 @@ export function syncLiveTrackRenderPopulation() {
                 const started = performance.now();
                 while (index < entries.length) {
                     processEntry(entries[index++]);
-                    if (index % 32 === 0 && performance.now() - started >= 6) break;
+                    if (index % 8 === 0 || performance.now() - started >= 6) break;
                 }
                 if (index < entries.length) {
                     frame = requestAnimationFrame(processChunk);
@@ -3434,7 +3433,10 @@ export function syncLiveTrackRenderPopulation() {
                 }
                 finishPopulation();
             } finally {
-                if (!frame) finish();
+                // Publish each bounded chunk. Holding collection events across
+                // every RAF deferred all Cesium model creation into one final burst.
+                try { if (eventsSuspended) viewer.entities.resumeEvents(); }
+                finally { eventsSuspended = false; if (!frame) finish(); }
             }
         };
         frame = requestAnimationFrame(processChunk);
@@ -5308,6 +5310,8 @@ function bindLiveTrackSceneEvent(event, callback) {
 }
 
 function unbindLiveTrackRuntime(viewer) {
+    __liveAircraftFailedModelUris.clear();
+    __liveAircraftModelResourceCache.clear();
     if (!__liveTrackOverlayBound && !__liveTrackClickBound && !__liveTrackRuntimeCleanups.length) return;
     __liveTrackRuntimeCleanups.splice(0).forEach((cleanup) => {
         try { cleanup(); } catch { }
@@ -8382,7 +8386,8 @@ function getLiveAircraftModelUriForCode(modelCode = "") {
 }
 function isLiveAircraftModelCodeAvailable(modelCode = "") {
     const modelUri = getLiveAircraftModelUriForCode(modelCode);
-    return Boolean(modelUri && !__liveAircraftFailedModelUris.has(modelUri));
+    // A transient CDN error is not evidence that an assigned GLB does not exist.
+    return Boolean(modelUri);
 }
 function resolveFocusedAircraftFallbackModelCode(track = {}, excludedCodes = []) {
     if (
@@ -8634,9 +8639,12 @@ function applyLiveTrackUpdate(track, options = {}) {
             isFocusSelectionActive();
         if (entity && isLayerEnabled("aircraft") && registryEntry?.active &&
             !matchesLiveTrackVisibilityFilter(track.track_key, registryEntry)) {
-            entity.show = false;
-            const trailEntity = viewer?.entities?.getById?.(`track-trail-${track.track_key}`);
-            if (trailEntity) trailEntity.show = false;
+            if (!isFocusedTrackKey(track.track_key)) removeLiveTrackRenderState(track.track_key);
+            else {
+                entity.show = false;
+                const trailEntity = viewer?.entities?.getById?.(`track-trail-${track.track_key}`);
+                if (trailEntity) trailEntity.show = false;
+            }
             return null;
         }
         if (!retainFocusedOutOfRangeEntity) {

@@ -29,6 +29,7 @@ const __navalState = {
     reconcileFrame: 0,
     reconcileQueueFrame: 0,
     reconcileGeneration: 0,
+    reconcileDirty: false,
     visualRefreshFrame: 0,
     admittedKeys: new Set(),
     eligibleRenderCount: 0,
@@ -1421,7 +1422,10 @@ function getFocusedNavalModelScale(vessel = {}) {
     return clamp(getNavalFocusedCssNumber("--warzone-live-naval-model-focused-size", vessel, 6.5), 0.01, 4000);
 }
 function refreshFocusedNavalModelScale() {
-    queueNavalViewRefresh();
+    // CSS/media changes require reconfiguration; camera distance is already
+    // evaluated by the model properties and never needs a full visual rebuild.
+    if (!__navalState.renderEnabled) return;
+    scheduleNavalRenderReconcile();
 }
 function getNavalModelScale(vessel = {}) {
     const configured = isFocusedNavalVessel(vessel) ? getFocusedNavalModelScale(vessel)
@@ -1949,7 +1953,10 @@ function animateVesselTo(entity, vessel) {
         return;
     }
     const distanceMeters = Cesium.Cartesian3.distance(startCartesian, nextCartesian);
-    if (sameTarget && distanceMeters <= NAVAL_MIN_ANIM_DISTANCE_METERS) return;
+    if (sameTarget && distanceMeters <= NAVAL_MIN_ANIM_DISTANCE_METERS) {
+        entity.__navalLastSeenAt = Number(vessel.last_seen_at || entity.__navalLastSeenAt || 0);
+        return;
+    }
     const cameraHeight = Number(window.__warzoneViewer?.camera?.positionCartographic?.height || 0);
     const animHeightMax = getNavalLabelStyleConfig().animHeightMax;
     if (
@@ -3534,6 +3541,8 @@ export function setNavalLayerVisible(visible = true) {
         });
         purgeOrphanedNavalRenderEntities(viewer);
         unbindNavalRuntime(viewer);
+        __navalState.modelResources.clear();
+        __navalState.modelFailures.clear();
     } else {
         const viewer = window.__warzoneViewer;
         if (viewer) {
@@ -3557,6 +3566,7 @@ function matchesNavalVisibilityFilter(trackKey = "", vessel = {}) {
 }
 
 function cancelNavalRenderReconcile() {
+    __navalState.reconcileDirty = false;
     __navalState.reconcileGeneration += 1;
     if (__navalState.reconcileQueueFrame) cancelAnimationFrame(__navalState.reconcileQueueFrame);
     __navalState.reconcileQueueFrame = 0;
@@ -3600,6 +3610,8 @@ function queueNavalViewRefresh() {
 }
 
 function queueNavalRenderReconcile() {
+    if (!__navalState.renderEnabled) return;
+    if (__navalState.reconcileFrame) { __navalState.reconcileDirty = true; return; }
     if (__navalState.reconcileQueueFrame) return;
     __navalState.reconcileQueueFrame = requestAnimationFrame(() => {
         __navalState.reconcileQueueFrame = 0;
@@ -3644,13 +3656,13 @@ function scheduleNavalRenderReconcile() {
             } else {
                 entry.entity = createVesselEntity(viewer, entry.data);
             }
-            if (index % 32 === 0 && performance.now() - startedAt >= 6) break;
+            if (index % 8 === 0 || performance.now() - startedAt >= 6) break;
         }
         requestNavalRenderBatched();
         updateNavalRenderStatus();
         if (index < keys.length) {
             __navalState.reconcileFrame = requestAnimationFrame(processChunk);
-        }
+        } else if (__navalState.reconcileDirty) { __navalState.reconcileDirty = false; queueNavalRenderReconcile(); }
     };
     __navalState.reconcileFrame = requestAnimationFrame(processChunk);
     return true;
@@ -3753,8 +3765,11 @@ function refreshNavalViewDependentVisuals() {
         const entry = __navalState.vessels.get(key);
         if (!entry?.entity || !entry.data) continue;
         entry.entity.show = true;
-        applyNavalVisual(entry.entity, entry.data);
-        if (entry.entity.label) applyNavalLabel(entry.entity.label, entry.data, key);
+        if (entry.entity.label) {
+            const show = shouldShowNavalLabel(key);
+            const previous = entry.entity.label.show?.getValue?.() ?? entry.entity.label.show;
+            if (previous !== show) entry.entity.label.show = show;
+        }
     }
     updateNavalRenderStatus();
     if (__navalState.hoverTrackKey) showNavalHoverLabel(__navalState.hoverTrackKey);

@@ -96,6 +96,7 @@ async function orbitalHarness() {
     SATELLITE_FOCUS_TASK_KEYS: { visual: "satellite-visual-motion", camera: "satellite-camera-follow" },
     SATELLITE_FOCUS_VISUAL_HZ: 30, SATELLITE_FOCUS_CAMERA_HZ: 12,
     getAssetFocusController: () => controller, updateFocusedSatelliteVisual: noop, updateSatelliteFocusCamera: noop,
+    registerAnimationTask: (key, fn) => tasks.set(key, fn), unregisterAnimationTask: key => tasks.delete(key),
     fetch: (url, options) => { const d = deferred(); requests.push({ ...d, signal: options.signal }); return d.promise; },
     updateControlsOptions: () => { controls += 1; }, updateVisibleRecords: noop, updateDefaultEntities: noop,
     setStatusText: noop, formatAge: String, mergeConfig: noop, stopStartupDemo: noop,
@@ -138,7 +139,7 @@ test("orbital rapid OFF/ON isolates old completions and restores one runtime", a
   for (let i = 0; i < 20; i += 1) {
     h.c.setWarzoneMilSatsEnabled(true);
     assert.equal(h.time.timers.size, 2);
-    assert.equal(h.tasks.size, 2);
+    assert.equal(h.tasks.size, 2, "an empty orbital dataset does not register a render task");
     h.c.setWarzoneMilSatsEnabled(false);
     assert.equal(h.time.timers.size, 0);
     assert.equal(h.tasks.size, 0);
@@ -439,6 +440,7 @@ test("aircraft OFF releases picking, focus inputs and camera callbacks; ON is id
     __liveTrackRuntimeCleanups: [], __liveTrackOverlayBound: false, __liveTrackFocusInputBound: false, __liveTrackClickBound: false,
     __liveTrackClickHandler: null, __liveTrackRenderReconcileActive: false, __liveTrackRenderReconcileCancel: null,
     __liveTrackRegistry: new Map(), __liveTrackEntities: new Map(),
+    __liveAircraftFailedModelUris: new Set(), __liveAircraftModelResourceCache: new Map(),
     __liveTrackViewRefreshSeq: 0, __liveTrackViewRefreshRaf: 0, __liveTrackInterpolationRenderRaf: 0,
     __liveTrackRenderWakeBurstTimer: 0, __liveTrackCtrlTiltDragState: null,
     LIVE_TRACK_FOCUS_CAMERA_SYNC_HZ: 20, LIVE_TRACK_LABEL_ZOOM_HEIGHT_MAX: 65000,

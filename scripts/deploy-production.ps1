@@ -233,6 +233,8 @@ Assert-PosterBuild
 if ($LASTEXITCODE -ne 0) { throw 'Application asset build integrity verification failed.' }
 & node (Join-Path $PSScriptRoot 'cesium-assets.cjs') --verify $production
 if ($LASTEXITCODE -ne 0) { throw 'Cesium build integrity verification failed.' }
+& node (Join-Path $PSScriptRoot 'model-assets.cjs') --verify $production
+if ($LASTEXITCODE -ne 0) { throw 'GLB model build integrity verification failed.' }
 $cesiumManifest = Get-Content -LiteralPath (Join-Path $production 'cesium-assets.json') -Raw | ConvertFrom-Json
 if ($cesiumManifest.variant -ne 'standard') {
     throw 'Compact Cesium is experimental. The normal deployment script accepts only standard releases.'
@@ -280,6 +282,8 @@ Invoke-Aws -Arguments (@(
 if ($Execute) {
     & node (Join-Path $PSScriptRoot 'frontend-assets.cjs') --verify-live $production $PublicBaseUrl
     if ($LASTEXITCODE -ne 0) { throw 'Live application asset verification failed; new HTML has not been published.' }
+    & node (Join-Path $PSScriptRoot 'model-assets.cjs') --verify-live $production $PublicBaseUrl
+    if ($LASTEXITCODE -ne 0) { throw 'Live GLB model verification failed; new HTML has not been published.' }
 }
 
 # Publish HTML last. Do not use --delete: old hashed assets must survive cached HTML.

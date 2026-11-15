@@ -885,7 +885,16 @@ module.exports = (env, argv) => {
                             }
                             res.sendFile(path.resolve(PROD_DIR, "pages/report.html"));
                         });
-                        // GNSS V4 uses the same cached provider service as the API when no local API is running.
+                        // Local GNSS uses the same raster store and routes as the API.
+                        const { pathToFileURL: gnssPathToFileURL } = require("node:url");
+                        const localGnssRasterModule = import(gnssPathToFileURL(path.join(ROOT_DIR, "apps/api/src/gnss-raster.js")).href);
+                        const localGnssRasterRouter = express.Router();
+                        const localGnssRasterReady = localGnssRasterModule.then(module => module.gnssRasterRoutes(localGnssRasterRouter));
+                        devServer.app.use("/api/events", async (req, res, next) => {
+                            if (!req.path.startsWith("/gnss-interference/raster/")) return next();
+                            try { await localGnssRasterReady; localGnssRasterRouter(req, res, next); }
+                            catch { res.status(503).json({ error: "Local GNSS raster unavailable" }); }
+                        });
                         // The generic proxy otherwise falls through to the older production GNSS route.
                         devServer.app.get("/api/events/gnss-interference", async (req, res) => {
                             try {
@@ -916,10 +925,11 @@ module.exports = (env, argv) => {
                                     ? await getRollingGpsInterferenceSnapshot(date)
                                     : await getGpsInterferenceSnapshot(date);
                                 res.set("Cache-Control", "no-store");
-                                return res.json(snapshot
-                                    ? selectGpsInterferenceRegion(snapshot, { bounds, limit })
-                                    : { cells: [], sourceMode: "unavailable", sourceHealth: "unavailable",
-                                        liveAvailable: false, message: "GNSS provider is unavailable; an empty map does not establish no interference." });
+                                if (!snapshot) return res.json({ cells: [], sourceMode: "unavailable", sourceHealth: "unavailable",
+                                    liveAvailable: false, message: "GNSS provider is unavailable; an empty map does not establish no interference." });
+                                const raster = req.query.format === "raster";
+                                const selected = selectGpsInterferenceRegion(snapshot, { bounds, limit, includeAll: raster });
+                                return res.json(raster ? await (await localGnssRasterModule).gnssRasterStore.publish(selected) : selected);
                             } catch {
                                 return res.status(502).json({ error: "GNSS provider unavailable" });
                             }

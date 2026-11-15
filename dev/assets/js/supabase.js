@@ -291,12 +291,13 @@ export const api = {
 
     async getGnssInterferenceCells({ signal, bounds, date = "latest" } = {}) {
         try {
-            const params = new URLSearchParams({ limit: String(GNSS_CELL_LIMIT), date });
+            const params = new URLSearchParams({ limit: String(GNSS_CELL_LIMIT), date, format: "raster" });
             if (bounds) for (const key of ["minLat", "maxLat", "minLon", "maxLon"]) {
                 if (Number.isFinite(bounds[key])) params.set(key, String(bounds[key]));
             }
             const res = await fetch(`${GNSS_API_BASE}/events/gnss-interference?${params}`, { signal });
             const json = await readJsonResponse(res, "GNSS Jamming fetch");
+            if (json.cells?.length && !json.raster) throw new Error("GNSS raster API is required; update the API before this frontend.");
             return {
                 data: json.cells || [],
                 error: null,
@@ -314,6 +315,11 @@ export const api = {
                     sourceLabel: json.sourceLabel || "",
                     sourceUrl: json.sourceUrl || "",
                     observationPeriod: json.observationPeriod || "",
+                    raster: json.raster ? {
+                        ...json.raster,
+                        tileUrl: `${GNSS_API_BASE}${json.raster.tilePath}`,
+                        lookupUrl: `${GNSS_API_BASE}${json.raster.lookupPath}`,
+                    } : null,
                 },
             };
         } catch (error) {

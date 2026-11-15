@@ -6,17 +6,26 @@ import { fileURLToPath } from "node:url";
 import { once } from "node:events";
 import express from "express";
 import { MeshoptDecoder } from "meshoptimizer";
+import createDracoDecoder from "draco3d/draco_decoder_nodejs.js";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const source = fs.readFileSync(path.join(root, "dev/assets/js/warzone-live-naval.js"), "utf8");
-const models = [...new Set([...source.matchAll(/model: "([^"\n]+\.glb)"/g)].map((match) => match[1]))];
+const assignedNavalModels = [...new Set([...source.matchAll(/model: "([^"\n]+\.glb)"/g)].map((match) => match[1]))];
+function modelFiles(directory, prefix = '') {
+    return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory()
+        ? modelFiles(path.join(directory, entry.name), prefix + entry.name + '/')
+        : entry.name.endsWith('.glb') ? [prefix + entry.name] : []);
+}
+const models = modelFiles(path.join(root, 'dev/assets/images/models'));
 const assetRoot = process.env.STRATOPS_NAVAL_TEST_BUILD
     ? path.resolve(root, process.env.STRATOPS_NAVAL_TEST_BUILD) : path.join(root, "dev");
-const bytes = (name) => fs.readFileSync(path.join(assetRoot, "assets/images/models/sea", name));
+const bytes = (name) => fs.readFileSync(path.join(assetRoot, "assets/images/models", name));
 
-test("all referenced naval GLBs decode with Cesium's Meshopt decoder and retain valid geometry/materials", async () => {
+test("all air, naval and satellite GLBs decode Meshopt and retain valid geometry/materials", async () => {
     await MeshoptDecoder.ready;
-    assert.ok(models.includes("Vessel-Frigate.glb"));
+    const draco = await createDracoDecoder({ wasmBinary: fs.readFileSync(path.join(root, 'node_modules/cesium/Build/Cesium/ThirdParty/draco_decoder.wasm')) });
+    assert.ok(assignedNavalModels.every(file => models.includes('sea/' + file)));
+    assert.ok(models.some(file => file.startsWith('air/')) && models.some(file => file.startsWith('space/')));
     for (const file of models) {
         const data = bytes(file);
         assert.equal(data.readUInt32LE(0), 0x46546c67, file);
@@ -57,30 +66,49 @@ test("all referenced naval GLBs decode with Cesium's Meshopt decoder and retain 
             assert.ok(positions.max.some((value, i) => value > positions.min[i]), file);
             if (primitive.material !== undefined) assert.ok(json.materials[primitive.material], file);
             if (primitive.indices !== undefined) {
+                const compressed = primitive.extensions?.KHR_draco_mesh_compression;
+                if (compressed) {
+                    const view = json.bufferViews[compressed.bufferView], start = view.byteOffset || 0;
+                    const decoder = new draco.Decoder(), input = new draco.DecoderBuffer(), mesh = new draco.Mesh(), face = new draco.DracoInt32Array();
+                    try {
+                        const encoded = buffers[view.buffer].subarray(start, start + view.byteLength);
+                        input.Init(encoded, encoded.length);
+                        const result = decoder.DecodeBufferToMesh(input, mesh);
+                        assert.ok(result.ok(), `${file}: Draco decode failed`);
+                        assert.equal(mesh.num_points(), positions.count, file);
+                        assert.equal(mesh.num_faces() * 3, json.accessors[primitive.indices].count, file);
+                        for (let i = 0; i < mesh.num_faces(); i++) {
+                            decoder.GetFaceFromMesh(mesh, i, face);
+                            for (let j = 0; j < 3; j++) assert.ok(face.GetValue(j) >= 0 && face.GetValue(j) < positions.count, file);
+                        }
+                    } finally { draco.destroy(face); draco.destroy(mesh); draco.destroy(input); draco.destroy(decoder); }
+                    continue;
+                }
                 const indices = json.accessors[primitive.indices], view = json.bufferViews[indices.bufferView];
                 const binaryView = new DataView(buffers[view.buffer].buffer, buffers[view.buffer].byteOffset);
                 assert.ok(indices.count >= 3, file);
-                const size = indices.componentType === 5123 ? 2 : 4;
+                const size = ({ 5121: 1, 5123: 2, 5125: 4 })[indices.componentType];
+                assert.ok(size, file);
                 for (let i = 0; i < indices.count; i++) {
                     const offset = (view.byteOffset || 0) + (indices.byteOffset || 0) + i * size;
-                    const index = size === 2 ? binaryView.getUint16(offset, true) : binaryView.getUint32(offset, true);
+                    const index = size === 1 ? binaryView.getUint8(offset) : size === 2 ? binaryView.getUint16(offset, true) : binaryView.getUint32(offset, true);
                     assert.ok(index < positions.count, `${file} index ${index}`);
                 }
             }
         }
         if (process.env.STRATOPS_NAVAL_TEST_BUILD) {
-            assert.deepEqual(data, fs.readFileSync(path.join(root, "dev/assets/images/models/sea", file)), file);
+            assert.deepEqual(data, fs.readFileSync(path.join(root, "dev/assets/images/models", file)), file);
         }
     }
 });
 
-test("development/build public naval model URLs return the exact GLB bytes and binary MIME", async (t) => {
+test("development/build public air, naval and satellite URLs return exact GLB bytes and binary MIME", async (t) => {
     const app = express(); app.use(express.static(assetRoot));
     const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
     t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
     const origin = `http://127.0.0.1:${server.address().port}`;
     for (const file of models) {
-        const response = await fetch(`${origin}/assets/images/models/sea/${file}`);
+        const response = await fetch(`${origin}/assets/images/models/${file}`);
         assert.equal(response.status, 200, file);
         assert.match(response.headers.get("content-type"), /model\/gltf-binary|application\/octet-stream/, file);
         assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes(file), file);

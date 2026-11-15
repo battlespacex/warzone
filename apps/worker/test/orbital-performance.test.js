@@ -52,7 +52,7 @@ function harness(code = source) {
     filters: { association: "all", country: "all", mission: "all", orbit: "all" },
     focusRuntime: {}, configKey: "", fetchController: null,
   };
-  const tasks = new Map(), timers = new Set(); let timerId = 0;
+  const tasks = new Map(), timers = new Set(), frames = new Map(); let timerId = 0, frameId = 0;
   const angles = { heading: 0, pitch: -150, roll: -15 };
   const context = vm.createContext({ Cesium, state, json2satrec, propagate: (...args) => { counts.propagations += 1; return propagate(...args); },
     gstime, eciToGeodetic, resolveSatelliteModelProfile, Date, Math, EARTH_RADIUS_M: 6371008.8,
@@ -62,11 +62,13 @@ function harness(code = source) {
     clamp: (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value)),
     colorFromCss: () => RealCesium.Color.WHITE, window: {}, document: { hidden: false },
     mergeConfig: noop, updateControlsOptions: noop, fetchOrbitalData: noop, stopStartupDemo: noop,
+    registerAnimationTask: (key, fn) => tasks.set(key, fn), unregisterAnimationTask: key => tasks.delete(key),
     ensureHandler: noop, showOrbitalWidget: noop, ensureControls: noop, stopOrbitalFetch: noop,
     resetSatelliteFocusRuntime: () => { state.focusRuntime = {}; }, destroyHandler: noop,
     hideHoverGuide: noop, hideHoverCard: noop, hideOrbitalWidget: noop,
     getAssetFocusController: () => ({ isActiveAsset: () => false, registerTask: (key, fn) => tasks.set(key, fn), removeTask: key => tasks.delete(key) }),
     setInterval: () => { timers.add(++timerId); return timerId; }, clearInterval: id => timers.delete(id),
+    requestAnimationFrame: fn => { frames.set(++frameId,fn); return frameId; }, cancelAnimationFrame: id => frames.delete(id), performance,
     SATELLITE_FOCUS_TASK_KEYS: { visual: "visual", camera: "camera" }, SATELLITE_FOCUS_VISUAL_HZ: 30, SATELLITE_FOCUS_CAMERA_HZ: 12,
     CONFIDENCE_RANK: { "confirmed-public-classification": 4, "high-confidence-public-association": 3, inferred: 2, unconfirmed: 1 },
     DEFAULT_CONFIG: { positionRefreshIntervalMs: 30000 }, updateFocusedSatelliteVisual: noop, updateSatelliteFocusCamera: noop,
@@ -87,7 +89,7 @@ function harness(code = source) {
   }
   context.updateVisibleRecords = () => { state.visibleRecords = context.chooseVisibleRecords(state.records); context.updateDefaultEntities(); };
   const resetCounts = () => Object.keys(counts).forEach(key => { counts[key] = 0; });
-  return { context, state, counts, resetCounts, angles, tasks, timers };
+  return { context, state, counts, resetCounts, angles, tasks, timers, frames };
 }
 
 test("repeated orbital ON synchronization retains every model and sampled property", () => {
@@ -102,7 +104,35 @@ test("repeated orbital ON synchronization retains every model and sampled proper
     assert.equal(entry.point.position, properties[i][0]); assert.equal(entry.point.orientation, properties[i][1]);
     assert.equal(entry.point.model.uri.getValue(), properties[i][2]);
   });
-  assert.equal(h.tasks.size, 2); assert.equal(h.timers.size, 2);
+  assert.equal(h.tasks.size, 3); assert.equal(h.timers.size, 2);
+});
+
+test("missing orbital CSS uses configured defaults rather than silently converting empty strings to zero",()=>{
+  let value='';const context=vm.createContext({getCssVar:()=>value});
+  const start=source.indexOf('function getCssNumber('),node=parseExpressionAt(source,start,{ecmaVersion:'latest'});
+  vm.runInContext(source.slice(start,node.end),context);
+  assert.equal(context.getCssNumber('--missing-model-scale',170000),170000);
+  value=' ';assert.equal(context.getCssNumber('--missing-minimum',18),18);
+  value='0';assert.equal(context.getCssNumber('--intentional-zero',1),0);
+});
+
+test("operational GLB positions advance in UTC with a frozen viewer time and high orbit models are not distance-clipped", t => {
+  const originalNow = RealCesium.JulianDate.now;
+  let utc = RealCesium.JulianDate.fromIso8601("2026-11-11T00:00:00Z");
+  RealCesium.JulianDate.now = result => RealCesium.JulianDate.clone(utc, result);
+  t.after(() => { RealCesium.JulianDate.now = originalNow; });
+  const h = harness();
+  const position = h.context.createSampledPosition(h.state.records[0], new Date("2026-11-11T00:00:00Z"), 8, 14);
+  const frozen = RealCesium.JulianDate.fromIso8601("2020-01-01T00:00:00Z");
+  const first = position.getValue(frozen);
+  assert.ok(first);
+  utc = RealCesium.JulianDate.addSeconds(utc, 60, new RealCesium.JulianDate());
+  const next = position.getValue(frozen);
+  assert.ok(RealCesium.Cartesian3.distance(first, next) > 1000);
+  const expected = h.context.propagateRecord(h.state.records[0], RealCesium.JulianDate.toDate(utc));
+  assert.ok(RealCesium.Cartesian3.distance(next, expected.position) < 1000);
+  const model = h.context.makePointEntity(h.state.records[0], position).model;
+  assert.equal(model.distanceDisplayCondition.getValue().far, Number.MAX_VALUE);
 });
 
 test("orientation preserves exact math, live CSS angles and the public result-object contract", () => {
@@ -129,9 +159,11 @@ test("orientation preserves exact math, live CSS angles and the public result-ob
 
 test("timed sampling stays fresh and repeated focus geometry / OFF cycles release owned entities and tasks", () => {
   const h = harness();
-  for (let cycle = 0; cycle < 5; cycle++) {
+  for (let cycle = 0; cycle < 10; cycle++) {
     h.context.setWarzoneMilSatsEnabled(true); assert.equal(h.state.viewer.entities.values.length, 45);
     const before = h.state.entities.get("fixture-0").point.position;
+    h.context.updateDefaultEntities(); assert.equal(h.state.entities.get("fixture-0").point.position, before);
+    before.__wzOrbitalSampleUntil = 0;
     h.context.updateDefaultEntities(); assert.notEqual(h.state.entities.get("fixture-0").point.position, before);
     const now = new Date("2026-11-11T00:00:00Z"); const record = h.state.records[0];
     const point = h.context.propagateRecord(record, now);
@@ -156,6 +188,10 @@ test("filters retain the authorized records and restore all 45 GLB model entitie
     assert.match(entry.point.model.uri.getValue(), /\.glb$/);
     assert.equal(entry.point.model.minimumPixelSize.getValue(), 18);
   }
+  h.state.filters.country = "no-matching-country"; h.context.updateVisibleRecords();
+  assert.equal(h.state.entities.size, 0); assert.equal(h.tasks.has("warzone-operational-orbital-models"), false);
+  h.state.filters.country = "all"; h.context.updateVisibleRecords();
+  assert.equal(h.state.entities.size, 45); assert.equal(h.tasks.has("warzone-operational-orbital-models"), true);
 });
 
 test("profile pure orbital work with 45 fixtures; no browser memory or FPS claim", () => {
@@ -177,4 +213,32 @@ test("profile pure orbital work with 45 fixtures; no browser memory or FPS claim
   });
   if (process.env.STRATOPS_ORBITAL_PROFILE_OUTPUT) writeFileSync(process.env.STRATOPS_ORBITAL_PROFILE_OUTPUT,
     JSON.stringify({ note: "Node CPU/math fixtures; not Chrome memory, GPU resources, FPS or network measurements", activation, repeatedOn, orientations, assets }, null, 2));
+});
+
+test("dense 300-satellite population yields construction, reuses warm samples and cancels stale batches on OFF",t=>{
+  const h=harness();
+  const template=h.state.records[0];
+  h.state.records=Array.from({length:300},(_,i)=>({...template,id:`dense-${i}`,noradId:91000+i,
+    omm:{...template.omm,NORAD_CAT_ID:91000+i,RA_OF_ASC_NODE:i%360}}));
+  h.state.config.maximumVisibleSatellites=300;
+  h.context.setWarzoneMilSatsEnabled(true);
+  assert.equal(h.state.entities.size,0);assert.equal(h.frames.size,1);
+  let frames=0,maxChunkMs=0;
+  while(h.frames.size){const [id,fn]=h.frames.entries().next().value;h.frames.delete(id);
+    const before=h.state.entities.size,start=performance.now();fn();maxChunkMs=Math.max(maxChunkMs,performance.now()-start);
+    assert.ok(h.state.entities.size-before<=8);frames++;assert.ok(frames<100);}
+  assert.equal(h.state.entities.size,300);
+  h.resetCounts();h.context.updateDefaultEntities();
+  while(h.frames.size){const [id,fn]=h.frames.entries().next().value;h.frames.delete(id);fn();}
+  assert.equal(h.counts.propagations,0);assert.equal(h.counts.sampledProperties,0);assert.equal(h.counts.orientationProperties,0);
+  h.context.updateDefaultEntities();assert.equal(h.frames.size,1);
+  const stale=h.frames.values().next().value;
+  h.context.setWarzoneMilSatsEnabled(false);
+  assert.equal(h.frames.size,0);assert.equal(h.state.entities.size,0);assert.equal(h.state.viewer.entities.values.length,0);
+  assert.equal(h.tasks.size,0);assert.equal(h.timers.size,0);
+  h.context.setWarzoneMilSatsEnabled(true);stale();
+  assert.equal(h.state.entities.size,0,'a stale batch cannot populate a newly enabled generation');
+  h.context.setWarzoneMilSatsEnabled(false);assert.equal(h.frames.size,0);
+  t.diagnostic(JSON.stringify({fixtureSatellites:300,constructionFrames:frames,maxNodeChunkMs:maxChunkMs,warmPropagations:0,
+    note:'Node CPU fixture, not browser frame time or GPU memory'}));
 });

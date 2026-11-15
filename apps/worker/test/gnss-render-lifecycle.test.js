@@ -24,7 +24,7 @@ test("GNSS real Cesium entities attach once across ON/OFF, updates and region re
   context.clearGnssInterferenceLayer(viewer);assert.equal(viewer.dataSources.length,0);
 });
 
-test("GNSS 12000-cell geometry retains 200-cell batches, hidden instances, metadata and cancellable cache ownership", (t) => {
+test("GNSS compatibility geometry keeps 200-cell batches and destroys them even with legacy retainGeometry", (t) => {
   const minWidth=ContextLimits._minimumAliasedLineWidth, maxWidth=ContextLimits._maximumAliasedLineWidth;
   ContextLimits._minimumAliasedLineWidth=1; ContextLimits._maximumAliasedLineWidth=1;
   t.after(()=>{ContextLimits._minimumAliasedLineWidth=minWidth;ContextLimits._maximumAliasedLineWidth=maxWidth;});
@@ -61,11 +61,14 @@ test("GNSS 12000-cell geometry retains 200-cell batches, hidden instances, metad
   context.renderGnssInterferenceLayer(viewer,cells,options);
   assert.equal(frames.length,1);
   frames.shift()();
-  const first=primitives[0];
+  const discarded=primitives[0];
   context.clearGnssInterferenceLayer(viewer,{retainGeometry:true});
+  assert.equal(discarded.isDestroyed(),true);
+  assert.equal(context.getGnssDiagnostics().cachedCellRecords,0);
   context.renderGnssInterferenceLayer(viewer,cells,options);
   while(frames.length)frames.shift()();
-  assert.equal(primitives[0],first);
+  const first=primitives[0];
+  assert.notEqual(first,discarded);
   assert.equal(primitives.length,120);
   assert.equal(context.getGnssDiagnostics().activeCellEntities,12000);
   assert.equal(context.getGnssDiagnostics().reveal.constructed,12000);
