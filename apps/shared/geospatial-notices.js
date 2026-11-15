@@ -78,7 +78,7 @@ export function normalizeNotice(input,now=Date.now()) {
         lastVerifiedAt:stamp(input.lastVerifiedAt),lastFetchedAt:new Date(now).toISOString(),isMilitaryRelated:input.isMilitaryRelated===true,
         isCancellation:input.isCancellation===true,keywords:Array.isArray(input.keywords)?input.keywords.slice(0,30).map(text):[],
         provenance:{publication:url.href,extraction:text(input.provenance?.extraction||'administrator import'),verification:text(input.provenance?.verification||'unverified')},
-        metadata:{version,estimated:input.metadata?.estimated===true,permanent:input.metadata?.permanent===true,qCode:text(input.metadata?.qCode).slice(0,5),
+        metadata:{version,updatedAt:stamp(input.metadata?.updatedAt),estimated:input.metadata?.estimated===true,permanent:input.metadata?.permanent===true,qCode:text(input.metadata?.qCode).slice(0,5),
             altitudes:{lower:parseAltitude(input.lowerAltitude),upper:parseAltitude(input.upperAltitude)},
             ...(Number.isFinite(input.metadata?.radiusNm)&&input.metadata.radiusNm>0&&input.metadata.radiusNm<=999?{radiusNm:input.metadata.radiusNm}:{})}});
     n.status=noticeStatus(n,now);return n;

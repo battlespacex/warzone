@@ -3142,7 +3142,7 @@ function bindNavalPicking(viewer) {
     __navalState.clickHandler = handler;
 
     // Hover — cursor
-    handler.setInputAction(movement => {
+    const runNavalHover = movement => {
         if (!hasRenderedNavalVessels()) {
             if (!window.__wzBaseHover) {
                 viewer.container.style.cursor = "";
@@ -3162,6 +3162,16 @@ function bindNavalPicking(viewer) {
             viewer.container.style.cursor = "";
             hideNavalHoverGuide();
         }
+    };
+    handler.setInputAction(movement => {
+        if (!movement?.endPosition) return;
+        __navalState.hoverPickPosition = Cesium.Cartesian2.clone(movement.endPosition, __navalState.hoverPickPosition);
+        if (__navalState.hoverPickFrame) return;
+        __navalState.hoverPickFrame = requestAnimationFrame(() => {
+            __navalState.hoverPickFrame = 0;
+            if (!__navalState.clickBound) return;
+            runNavalHover({ endPosition: __navalState.hoverPickPosition });
+        });
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
     // Click
@@ -3225,6 +3235,9 @@ function bindNavalOverlay(viewer) {
 }
 
 function unbindNavalRuntime(viewer) {
+    if (__navalState.hoverPickFrame) cancelAnimationFrame(__navalState.hoverPickFrame);
+    __navalState.hoverPickFrame = 0;
+    __navalState.hoverPickPosition = null;
     if (__navalState.clickHandler) {
         try { __navalState.clickHandler.destroy(); } catch { }
         __navalState.clickHandler = null;

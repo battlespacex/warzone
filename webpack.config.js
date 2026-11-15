@@ -934,6 +934,7 @@ module.exports = (env, argv) => {
                                 return res.status(502).json({ error: "GNSS provider unavailable" });
                             }
                         });
+                        require('./server/local-notices.cjs').mountLocalNotices(devServer.app);
                         devServer.app.all("/api/*", handleApiProxy);
                         devServer.app.get("/__warzone/naval-diagnostics", async (_req, res) => {
                             try {

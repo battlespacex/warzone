@@ -9925,7 +9925,7 @@ async function initializeWarzoneAppOnce() {
             setWidgetLoading("aircraft", false);
             requestAircraftMovementsWidgetRender(0);
         }
-        initNoticeLayers(window.__warzoneViewer);
+        initNoticeLayers(window.__warzoneViewer, {bindFloatingPanel});
         onLayerChange((id, enabled, state, changedLayerIds) => {
             if (['aviation-notam','airspace-tfr','naval-warnings','military-exercises'].includes(id)) {
                 window.__warzoneViewer?.scene?.requestRender?.();
@@ -10545,9 +10545,12 @@ export function handleIncomingEvent(event) {
 }
 function initFloatingPanels() {
     const panels = document.querySelectorAll(".warzone-panel--floating");
-    panels.forEach((panel) => {
-        const head = panel.querySelector(".panel-head");
-        if (!head) return;
+    panels.forEach((panel) => bindFloatingPanel(panel));
+}
+export function bindFloatingPanel(panel, options = {}) {
+        const head = panel.querySelector(options.headerSelector || ".panel-head");
+        if (!head || panel.__floatingDragBound) return () => {};
+        panel.__floatingDragBound = true;
         let dragging = false;
         let activePointerId = null;
         let dragOffsetX = 0;
@@ -10564,6 +10567,7 @@ function initFloatingPanels() {
             panel.style.top = `${pendingTop}px`;
             panel.style.right = "auto";
             panel.style.bottom = "auto";
+            options.onPosition?.({left:pendingLeft,top:pendingTop});
         }
         function queuePanelPosition(left, top) {
             pendingLeft = left;
@@ -10606,18 +10610,18 @@ function initFloatingPanels() {
             if (activePointerId !== null && e.pointerId !== activePointerId) return;
             stopDrag();
         }
-        head.addEventListener("pointerdown", (e) => {
+        const onPointerDown = (e) => {
             if (e.button !== 0) return;
             if (e.target.closest("button,a,input,select,textarea")) return;
             const parent = panel.offsetParent || panel.parentElement;
             if (!parent) return;
-            const parentRect = parent.getBoundingClientRect();
+            const parentRect = options.fixed ? {left:0,top:0} : parent.getBoundingClientRect();
             const panelRect = panel.getBoundingClientRect();
             const currentLeft = panelRect.left - parentRect.left;
             const currentTop = panelRect.top - parentRect.top;
             dragParentRect = parentRect;
-            dragMaxLeft = Math.max(0, parent.clientWidth - panel.offsetWidth);
-            dragMaxTop = Math.max(0, parent.clientHeight - panel.offsetHeight);
+            dragMaxLeft = Math.max(0, (options.fixed ? window.innerWidth : parent.clientWidth) - panel.offsetWidth);
+            dragMaxTop = Math.max(0, (options.fixed ? window.innerHeight : parent.clientHeight) - panel.offsetHeight);
             pendingLeft = currentLeft;
             pendingTop = currentTop;
             applyPanelPosition();
@@ -10632,8 +10636,18 @@ function initFloatingPanels() {
             document.addEventListener("pointercancel", onPointerUp);
             window.addEventListener("blur", stopDrag);
             e.preventDefault();
-        });
-    });
+            if (options.fixed) { e.stopPropagation(); panel.focus?.({preventScroll:true}); }
+        };
+        head.addEventListener("pointerdown", onPointerDown);
+        const onResize = () => {
+            if (!options.fixed) return;
+            const rect=panel.getBoundingClientRect();
+            pendingLeft=Math.max(0,Math.min(rect.left,window.innerWidth-panel.offsetWidth));
+            pendingTop=Math.max(0,Math.min(rect.top,window.innerHeight-panel.offsetHeight));
+            applyPanelPosition();
+        };
+        if(options.fixed) window.addEventListener('resize',onResize);
+        return () => { stopDrag();head.removeEventListener('pointerdown',onPointerDown);window.removeEventListener('resize',onResize);panel.__floatingDragBound=false; };
 }
 export function initGlobal() {
     applyStratOpsFeatureVisibility();

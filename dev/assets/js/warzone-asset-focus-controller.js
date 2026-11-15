@@ -112,9 +112,9 @@ function createAssetFocusController() {
         lastActiveState: FOCUS_STATES.INACTIVE,
     };
     const tasks = new Map();
-    const publish = () => {
+    const publish = (notify = true) => {
         window.__warzoneFocusDiagnostics = createDiagnostics(state, tasks);
-        safeDispatch(window.__warzoneFocusDiagnostics);
+        if (notify) safeDispatch(window.__warzoneFocusDiagnostics);
     };
     const cancelRaf = () => {
         if (!state.raf) return;
@@ -155,7 +155,9 @@ function createAssetFocusController() {
                 console.warn("[asset-focus] scheduled task failed:", key, error);
             }
         });
-        publish();
+        // Frame counters are diagnostics, not lifecycle transitions. Do not invoke
+        // DOM, AOI and imagery lifecycle listeners on every camera-follow tick.
+        publish(false);
         if (state.state === FOCUS_STATES.ACTIVE && tasks.size > 0) {
             state.raf = requestAnimationFrame(tick);
         }

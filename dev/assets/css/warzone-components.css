@@ -4178,11 +4178,13 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 width: 32rem;
 }
 UNUSED CANDIDATE END */
-.warzone-panel--floating:not(.wz-is-hidden) .panel-head {
+.warzone-panel--floating:not(.wz-is-hidden) .panel-head,
+#warzone-notice-panel .wz-widget-header {
     cursor: grab;
 }
 
-.warzone-panel--floating.is-dragging .panel-head {
+.warzone-panel--floating.is-dragging .panel-head,
+#warzone-notice-panel.is-dragging .wz-widget-header {
     cursor: grabbing;
 }
 

@@ -3922,12 +3922,21 @@ function bindEventMarkerPicking(viewer) {
     viewer.__warzoneEventMarkerPickBound = true;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     viewer.__warzoneEventMarkerPickHandler = handler;
+    let hoverFrame = 0;
+    const hoverPosition = new Cesium.Cartesian2();
     handler.setInputAction((movement) => {
-        const picked = safePickEventMarkerScene(viewer, movement?.endPosition);
-        const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
-        const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
-        viewer.scene.canvas.style.cursor = satelliteEntity || eventEntity ? "pointer" : "";
-        viewer.scene.canvas.title = satelliteEntity ? "Satellite Observation - open imagery viewer" : (eventEntity ? "Click event circle for details" : "");
+        if (!movement?.endPosition) return;
+        Cesium.Cartesian2.clone(movement.endPosition, hoverPosition);
+        if (hoverFrame) return;
+        hoverFrame = requestAnimationFrame(() => {
+            hoverFrame = 0;
+            if (viewer.isDestroyed?.()) return;
+            const picked = safePickEventMarkerScene(viewer, hoverPosition);
+            const satelliteEntity = resolvePickedSatelliteImageryMarkerEntity(picked);
+            const eventEntity = resolvePickedEventMarkerEntity(viewer, picked);
+            viewer.scene.canvas.style.cursor = satelliteEntity || eventEntity ? "pointer" : "";
+            viewer.scene.canvas.title = satelliteEntity ? "Satellite Observation - open imagery viewer" : (eventEntity ? "Click event circle for details" : "");
+        });
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     handler.setInputAction((movement) => {
         if (!movement?.position) return;

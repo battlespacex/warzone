@@ -16,7 +16,8 @@ test("event marker picking skips zero-sized Cesium drawing buffers", async () =>
   assert.match(pickingSection, /clientWidth \?\? 0\) > 0/);
   assert.match(pickingSection, /clientHeight \?\? 0\) > 0/);
   assert.match(pickingSection, /try \{\s*return viewer\.scene\.pick\(windowPosition\);\s*\} catch/);
-  assert.match(pickingSection, /safePickEventMarkerScene\(viewer, movement\?\.endPosition\)/);
+  assert.match(pickingSection, /safePickEventMarkerScene\(viewer, hoverPosition\)/);
+  assert.match(pickingSection, /if \(hoverFrame\) return/);
   assert.match(pickingSection, /safePickEventMarkerScene\(viewer, movement\.position\)/);
   assert.doesNotMatch(pickingSection, /viewer\.scene\.pick\(movement\./);
 });

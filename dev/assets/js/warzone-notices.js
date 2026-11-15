@@ -6,24 +6,39 @@ import {getAllNavalSnapshots} from './warzone-live-naval.js';
 import {getActiveRegion,onRegionChange} from './warzone-region-selector.js';
 import {getAssetFocusController} from './warzone-asset-focus-controller.js';
 let owner=null;
-export function initNoticeLayers(viewer) {
+export function initNoticeLayers(viewer, {bindFloatingPanel} = {}) {
     if(!viewer||owner?.viewer===viewer)return;owner?.dispose();
     let source=null,handler=null,timer=null,controller=null,panel=null,selected=null,generation=0,frame=0;
     const records=new Map();
+    let disposeDrag=null,noticePosition=null;
     const appearance=window.__stratopsConfig?.notices||{};
     const alpha=Number.isFinite(appearance.opacity)?Math.max(.01,Math.min(.5,appearance.opacity)):.2;
     const stripes=Number.isFinite(appearance.stripes)?Math.max(2,Math.min(64,appearance.stripes)):16;
     let viewStatus='live',militaryOnly=true,offset=0,total=0;
     const active=()=>NOTICE_LAYERS.some(isLayerEnabled);
     const matches=n=>matchesNoticeLayers(n,NOTICE_LAYERS.filter(isLayerEnabled));
-    function close(){if(selected?.polygon)selected.polygon.outlineColor=Cesium.Color.ORANGE;if(selected?.ellipse)selected.ellipse.outlineColor=Cesium.Color.ORANGE;selected=null;panel?.remove();panel=null;viewer.scene.requestRender();}
-    function details(n,entity){close();selected=entity;if(entity?.polygon)entity.polygon.outlineColor=Cesium.Color.WHITE;if(entity?.ellipse)entity.ellipse.outlineColor=Cesium.Color.WHITE;
+    function close(){disposeDrag?.();disposeDrag=null;if(selected?.polygon)selected.polygon.outlineColor=Cesium.Color.ORANGE;if(selected?.ellipse)selected.ellipse.outlineColor=Cesium.Color.ORANGE;selected=null;panel?.remove();panel=null;viewer.scene.requestRender();}
+    function mountPanel(title){close();
         panel=document.createElement('aside');panel.id='warzone-notice-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Published notice details');
         panel.innerHTML='<div class="wz-widget-milbase"><header class="wz-widget-header"><div class="wz-widget-kicker"><span class="wz-widget-title">Published notice</span></div><div class="wz-widget-header-actions"><button type="button" class="static-icon" aria-label="Close"><span class="stratops-ico-close-1"></span></button></div></header><section class="wz-widget-body"><h3></h3><ul class="wz-widget-data-list"></ul></section></div>';
-        panel.querySelector('button').onclick=close;panel.querySelector('h3').textContent=n.title||n.sourceId;
+        panel.querySelector('button').onclick=close;panel.querySelector('h3').textContent=title;
+        panel.setAttribute('tabindex','-1');document.body.append(panel);
+        const width=panel.offsetWidth||448,height=panel.offsetHeight||260;
+        const maxLeft=Math.max(0,(window.innerWidth||1024)-width),maxTop=Math.max(0,(window.innerHeight||768)-height);
+        panel.style.left=Math.max(0,Math.min(noticePosition?.left??maxLeft-16,maxLeft))+'px';
+        panel.style.top=Math.max(0,Math.min(noticePosition?.top??100,maxTop))+'px';
+        disposeDrag=bindFloatingPanel?.(panel,{headerSelector:'.wz-widget-header',fixed:true,onPosition:position=>{noticePosition=position;}});
+        const collapse=document.createElement('button');collapse.className='static-icon';collapse.setAttribute('aria-label','Collapse notice widget');collapse.setAttribute('aria-expanded','true');
+        collapse.innerHTML='<span class="stratops-ico-top-1" aria-hidden="true"></span>';
+        collapse.onclick=()=>{const body=panel?.querySelector('.wz-widget-body');if(body){body.hidden=!body.hidden;collapse.setAttribute('aria-expanded',String(!body.hidden));collapse.setAttribute('aria-label',body.hidden?'Expand notice widget':'Collapse notice widget');}};
+        panel.querySelector('.wz-widget-header-actions').append(collapse);
+    }
+    function showState(title,message){mountPanel(title);panel.querySelector('ul').hidden=true;const p=document.createElement('p');p.textContent=message;panel.querySelector('.wz-widget-body').append(p);}
+    function details(n,entity){if(!n?.id)return;mountPanel(n.title||n.sourceId);selected=entity;if(entity?.polygon)entity.polygon.outlineColor=Cesium.Color.WHITE;if(entity?.ellipse)entity.ellipse.outlineColor=Cesium.Color.WHITE;
         const list=panel.querySelector('ul');for(const [key,value]of Object.entries({Category:n.noticeType,ID:n.sourceId,Issuer:n.issuer,Country:n.country,Region:n.region,FIR:n.fir,NAVAREA:n.navarea,Activity:n.activityType,Status:n.status,Issued:n.issuedAt,From:n.effectiveFrom,Until:n.effectiveUntil,Schedule:n.schedule,Altitude:[n.lowerAltitude,n.upperAltitude,n.altitudeReference].filter(Boolean).join(' / '),Coordinates:JSON.stringify(n.geometry?.coordinates||null),Radius:n.metadata?.radiusNm?`${n.metadata.radiusNm} NM`:'Not published',Precision:n.geometryAccuracy||'Location unavailable',Confidence:n.geometryConfidence,Verified:n.lastVerifiedAt||'Unverified',Fetched:n.lastFetchedAt,Summary:n.summary,'Original notice':n.rawText,Provenance:n.provenance?.extraction})){
             const li=document.createElement('li'),label=document.createElement('strong'),span=document.createElement('span');label.textContent=key;span.textContent=value||'Unknown';li.append(label,span);list.append(li);}
         const link=document.createElement('a');link.href=n.sourceUrl;link.rel='noopener noreferrer';link.target='_blank';link.textContent='Original source';list.append(link);
+        for(const ref of n.sourceRecords||[]){const li=document.createElement('li'),label=document.createElement('strong'),value=document.createElement('span');label.textContent=ref.provider;value.textContent=ref.rawText;li.append(label,value);list.append(li);}
         const collapse=document.createElement('button');collapse.className='btn-secondary white';collapse.textContent='Collapse';collapse.onclick=()=>{list.hidden=!list.hidden;collapse.textContent=list.hidden?'Expand':'Collapse';};panel.append(collapse);
         if(entity){const focus=document.createElement('button');focus.className='btn-primary';focus.textContent='Focus area';focus.onclick=()=>{if(!viewer.trackedEntity&&!getAssetFocusController().getState().assetId)void viewer.flyTo(entity,{duration:1});};panel.append(focus);}
         const copy=document.createElement('button');copy.className='btn-secondary white';copy.textContent='Copy coordinates';copy.onclick=()=>navigator.clipboard?.writeText(JSON.stringify(n.geometry?.coordinates||null));panel.append(copy);
@@ -36,12 +51,9 @@ export function initNoticeLayers(viewer) {
                 overlap.textContent=`${count} spatial/time overlaps; participation unverified`;
             };panel.append(overlap);
         }
-        document.body.append(panel);
-        // Use the same screen-edge inset as the existing widgets; no CSS declaration changes.
-        panel.style.left='1rem';panel.style.top='10rem';
     }
     function showList(message='Published notices'){
-        details({title:message,rawText:'Published warnings are not observed aircraft or vessel positions.',sourceUrl:'https://skyspy.readme.io/docs/rest-api'});
+        mountPanel(message);
         const body=panel.querySelector('.wz-widget-body');body.querySelector('ul').hidden=true;
         const status=document.createElement('select');status.setAttribute('aria-label','Notice time filter');
         for(const value of ['live','active','upcoming','expired','cancelled','all']){const option=document.createElement('option');option.value=value;option.textContent=value;option.selected=value===viewStatus;status.append(option);}
@@ -53,8 +65,9 @@ export function initNoticeLayers(viewer) {
     function clear(){generation++;controller?.abort();controller=null;if(frame)cancelAnimationFrame(frame);frame=0;clearInterval(timer);timer=null;handler?.destroy();handler=null;close();if(source)viewer.dataSources.remove(source,true);source=null;records.clear();}
     async function refresh(){if(!active()){clear();return;}controller?.abort();controller=new AbortController();const current=++generation;
         if(frame)cancelAnimationFrame(frame);frame=0;
+        if(!source&&!panel)showState('Loading notices','Retrieving published notices for the selected area.');
         try{const bounds=getActiveRegion()?.bounds||{},query=new URLSearchParams({...bounds,limit:'200',offset:String(offset),layers:NOTICE_LAYERS.filter(isLayerEnabled).join(','),status:viewStatus,military:militaryOnly?'related':'all'});const base=window.__stratopsConfig?.apiBase||((typeof STRATOPS_API_BASE_URL==='string'&&STRATOPS_API_BASE_URL)||'https://api.battlespacex.com');
-            const response=await fetch(base.replace(/\/$/,'')+'/notices?'+query,{signal:controller.signal});if(!response.ok)throw Error('Notice feed unavailable');const data=await response.json();if(current!==generation)return;
+            const response=await fetch(base.replace(/\/$/,'')+'/notices?'+query,{signal:controller.signal});if(!response.ok){const error=Error('Notice feed unavailable');error.status=response.status;throw error;}const data=await response.json();if(current!==generation)return;
             if(!source){const candidate=new Cesium.CustomDataSource('published-notices');await viewer.dataSources.add(candidate);if(current!==generation){viewer.dataSources.remove(candidate,true);return;}source=candidate;}
             total=data.total||0;const notices=(data.notices||[]).filter(matches),ids=new Set(notices.map(n=>n.id));for(const entity of source.entities.values.slice())if(!ids.has(entity.id))source.entities.remove(entity);
             for(const id of records.keys())if(!ids.has(id)){if(selected?.id===id)close();records.delete(id);}
@@ -65,8 +78,9 @@ export function initNoticeLayers(viewer) {
                 else if(n.geometry?.type==='Point'){const [lon,lat]=n.geometry.coordinates;source.entities.add({id:n.id,position:Cesium.Cartesian3.fromDegrees(lon,lat),...(n.metadata?.radiusNm?{ellipse:{semiMajorAxis:n.metadata.radiusNm*1852,semiMinorAxis:n.metadata.radiusNm*1852,height:30,material,stRotation:Math.PI/4,outline:true,outlineColor:Cesium.Color.ORANGE}}:{point:{pixelSize:7,color:Cesium.Color.ORANGE}})});}
             }viewer.scene.requestRender();if(index<missing.length)frame=requestAnimationFrame(chunk);};chunk();
             if(!handler){handler=new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(click=>{const entity=viewer.scene.pick(click.position)?.id;const n=entity&&records.get(entity.id);if(n)details(n,entity);},Cesium.ScreenSpaceEventType.LEFT_CLICK);}
-            if(!selected)showList(notices.length?`Published notices (${notices.length}${data.total>200?' of '+data.total:''})`:'No approved notices available');
-        }catch(error){if(error.name!=='AbortError'&&current===generation)details({title:'Notices unavailable',rawText:'Notice source unavailable. Existing trackers remain independent.',sourceUrl:'https://skyspy.readme.io/docs/rest-api'});}}
+            if(!selected){if(data.state==='unconfigured')showState('No permitted provider configured','Configure an approved notice source or administrator import in the backend.');
+                else if(!notices.length)showList('No notices in selected area');else showList(`${data.state==='stale'?'Provider temporarily unavailable; cached notices':'Published notices'} (${notices.length}${data.total>200?' of '+data.total:''})`);}
+        }catch(error){if(error.name!=='AbortError'&&current===generation)showState([401,403].includes(error.status)?'Notice access denied':'Provider temporarily unavailable',`Notice request failed${error.status?' (HTTP '+error.status+')':''}. Existing trackers remain independent.`);}}
     function sync(){offset=0;if(active()){
         // Disabling one notice category must unload it immediately, even if the next request stalls.
         for(const [id,n]of records)if(!matches(n)){if(selected?.id===id)close();source?.entities.removeById(id);records.delete(id);}

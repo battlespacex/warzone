@@ -5,13 +5,14 @@ import WebSocket from 'ws';
 import {normalizeNotice,noticeStatus,intersectsBounds,correlateObservation,matchesNoticeLayers,NOTICE_LAYERS} from '../../shared/geospatial-notices.js';
 import {createSkySpyClient} from '../../shared/skyspy-client.js';
 import {createSkySpyStream} from '../../shared/skyspy-stream.js';
-import {skySpyNotice,createOfficialNoticeAdapter} from '../../shared/notice-providers.js';
+import {skySpyNotice,createOfficialNoticeAdapter,createCommercialNoticeProviders,deduplicateNotices} from '../../shared/notice-providers.js';
 
-export function createNoticeService({env=process.env,readFile=fs.readFile,now=Date.now,skyspy,createWebSocket=(url,protocols)=>new WebSocket(url,protocols,{maxPayload:1e6,handshakeTimeout:15000})}={}) {
+export function createNoticeService({env=process.env,readFile=fs.readFile,now=Date.now,skyspy,providers=createCommercialNoticeProviders(env,{now}),createWebSocket=(url,protocols)=>new WebSocket(url,protocols,{maxPayload:1e6,handshakeTimeout:15000})}={}) {
     const client=skyspy||createSkySpyClient({enabled:env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true',usageApproved:env.SKYSPY_USAGE_APPROVED==='true',
         baseUrl:env.SKYSPY_BASE_URL,apiKey:env.SKYSPY_API_KEY,allowedHosts:String(env.SKYSPY_ALLOWED_HOSTS||'').split(',')});
     let rows=[],pending=null,until=0,disposed=false,streamStarted=false,streamDirty=false,health={enabled:env.NOTICES_ENABLED==='true',import:'not configured',skyspy:'disabled',rejected:0,lastSuccess:null};
-    const streamed=new Map(),families=new Map();
+    const streamed=new Map(),families=new Map();let imported=[];
+    const configured=()=>env.NOTICES_ENABLED==='true'&&Boolean((env.NOTICES_IMPORT_FILE&&env.NOTICES_IMPORT_USAGE_APPROVED==='true')||(env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true'&&env.SKYSPY_USAGE_APPROVED==='true')||providers.some(p=>p.diagnostics().availableForUse));
     const stream=createSkySpyStream({enabled:env.NOTICES_ENABLED==='true'&&env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true'&&env.SKYSPY_STREAM_ENABLED==='true',
         usageApproved:env.SKYSPY_USAGE_APPROVED==='true',baseUrl:env.SKYSPY_BASE_URL,allowedHosts:String(env.SKYSPY_ALLOWED_HOSTS||'').split(','),
         token:env.SKYSPY_API_KEY,transport:'native',topics:['notams'],createWebSocket,now,onEvent(type,data){streamDirty=true;
@@ -25,35 +26,38 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
             if(env.NOTICES_IMPORT_FILE&&env.NOTICES_IMPORT_USAGE_APPROVED==='true')try{
                 const bytes=await readFile(env.NOTICES_IMPORT_FILE);if(bytes.length>5e6)throw Error();
                 const data=JSON.parse(bytes.toString());if(!Array.isArray(data)||data.length>5000)throw Error();
-                for(const row of data)try{next.push(normalizeNotice(row,now()));}catch{rejected++;}health.import='loaded';success=true;
-            }catch{health.import='unavailable';next.push(...rows.filter(n=>n.provider!=='skyspy'));}
+                const parsed=[];for(const row of data)try{parsed.push(normalizeNotice(row,now()));}catch{rejected++;}if(data.length&&!parsed.length)throw Error('Import validation failed');imported=parsed;next.push(...imported);health.import='loaded';success=true;
+            }catch{health.import='unavailable';next.push(...imported);}
             if(env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true')try{
                 let retrieved=0;
                 for(const path of ['/notams/','/notams/tfrs/','/aviation/airspace/'])try{
                     const payload=await client.get(path,path==='/notams/'?{limit:200,active_only:false}:{}),items=Array.isArray(payload)?payload:payload.results||payload.notams||payload.airspace;
                     if(!Array.isArray(items))throw Error('Unverified deployed notice schema');
-                    const normalized=[];for(const row of items.slice(0,200))try{normalized.push(skySpyNotice(row,now()));}catch{rejected++;}families.set(path,normalized);next.push(...normalized);retrieved++;
+                    const normalized=[];for(const row of items.slice(0,200))try{normalized.push(skySpyNotice(row,now()));}catch{rejected++;}if(items.length&&!normalized.length)throw Error('Unverified provider schema');families.set(path,normalized);next.push(...normalized);retrieved++;
                 }catch{next.push(...(families.get(path)||[]));}
                 if(!retrieved)throw Error('No accessible notice family');health.skyspy='retrieved';success=true;
             }catch{health.skyspy='unavailable or unapproved';next.push(...rows.filter(n=>n.provider==='skyspy'));}
-            const dedup=new Map();for(const row of [...next,...streamed.values()])dedup.set(row.id,row);
-            const values=[...dedup.values()];for(const cancel of values.filter(n=>n.replacesNoticeId))for(const old of values)
-                if(old.issuer===cancel.issuer&&old.sourceId===cancel.replacesNoticeId)old.superseded=true;
+            for(const provider of providers)if(provider.diagnostics().availableForUse)try{
+                const records=await provider.fetchNotices();families.set(provider.id,records);next.push(...records);success=true;
+            }catch{next.push(...(families.get(provider.id)||[]));}
+            const values=deduplicateNotices([...next,...streamed.values()]);
             if(disposed)return;rows=values.slice(0,5000);health.rejected=rejected;if(success)health.lastSuccess=new Date(now()).toISOString();health.streamDirty=streamDirty;streamDirty=false;until=now()+60000;
+            health.state=!configured()?'unconfigured':success?'ready':rows.length?'stale':'unavailable';
         })().finally(()=>pending=null);return pending;
     }
-    return {async list(query={}){await refresh();let values=[...new Map([...rows,...streamed.values()].map(n=>[n.id,n])).values()].map(n=>({...n,status:noticeStatus(n,now())}));
-        if(query.layers){const layers=String(query.layers).split(',');if(layers.some(id=>!NOTICE_LAYERS.includes(id)))throw Error('Invalid notice layer');values=values.filter(n=>matchesNoticeLayers(n,layers));}
+    return {async list(query={}){await refresh();let values=deduplicateNotices([...rows,...streamed.values()]).map(n=>({...n,status:noticeStatus(n,now())}));
+        if(health.state==='unavailable'){const error=Error('Notice providers unavailable');const statuses=providers.map(p=>p.diagnostics().lastStatus).filter(Boolean);error.status=statuses.length===1?statuses[0]:503;throw error;}
+        if(query.layers){const layers=String(query.layers).split(',');if(layers.some(id=>!NOTICE_LAYERS.includes(id)))throw Object.assign(Error('Invalid notice layer'),{status:400});values=values.filter(n=>matchesNoticeLayers(n,layers));}
         if(query.status==='all'){}else if(['active','upcoming','expired','cancelled','superseded','unknown'].includes(query.status))values=values.filter(n=>n.status===query.status);
         else values=values.filter(n=>['active','upcoming','unknown'].includes(n.status));
         if(query.military!=='all')values=values.filter(n=>n.isMilitaryRelated);
         if(query.type)values=values.filter(n=>n.noticeType===query.type);
         if(['minLat','maxLat','minLon','maxLon'].some(k=>query[k]!=null)){
             const bounds=Object.fromEntries(['minLat','maxLat','minLon','maxLon'].map(k=>[k,Number(query[k])]));
-            if(!Object.values(bounds).every(Number.isFinite)||bounds.minLat>bounds.maxLat||bounds.minLat< -90||bounds.maxLat>90||Math.abs(bounds.minLon)>180||Math.abs(bounds.maxLon)>180)throw Error('Invalid bounds');
+            if(!Object.values(bounds).every(Number.isFinite)||bounds.minLat>bounds.maxLat||bounds.minLat< -90||bounds.maxLat>90||Math.abs(bounds.minLon)>180||Math.abs(bounds.maxLon)>180)throw Object.assign(Error('Invalid bounds'),{status:400});
             values=values.filter(n=>intersectsBounds(n,bounds));}
         const offset=Math.max(0,Math.floor(Number(query.offset)||0)),limit=Math.max(1,Math.min(200,Math.floor(Number(query.limit)||100)));
-        return {notices:values.slice(offset,offset+limit),total:values.length,offset,providers:{...health,skyspyHealth:client.diagnostics(),stream:stream.diagnostics(),
+        return {state:health.state||'unconfigured',notices:values.slice(offset,offset+limit),total:values.length,offset,providers:{...health,commercial:providers.map(p=>({id:p.id,...p.diagnostics()})),skyspyHealth:{...client.diagnostics(),licensing:env.SKYSPY_USAGE_APPROVED==='true'?'approved':'unapproved',authentication:env.SKYSPY_API_KEY?'configured; not live verified':'unconfigured/public mode',coverage:'Configured service scope; not global coverage'},stream:stream.diagnostics(),
             aai:createOfficialNoticeAdapter('aai').diagnostics(),navareaIX:createOfficialNoticeAdapter('navareaIX').diagnostics()},
             active:values.filter(n=>n.status==='active').length,geolocated:values.filter(n=>n.geometry).length,nonGeolocated:values.filter(n=>!n.geometry).length};},
         async correlate(observation){await refresh();return rows.filter(n=>containsCandidate(n,observation)).slice(0,50).map(n=>correlateObservation(n,observation,now()));},
@@ -63,7 +67,7 @@ function containsCandidate(n,o){return n.geometry&&Number.isFinite(o.longitude)&
 export function noticesRouter(service=createNoticeService()) {
     const router=express.Router();router.get('/',async(req,res)=>{try{const data=await service.list(req.query);const body=JSON.stringify(data),etag='"'+createHash('sha256').update(body).digest('hex')+'"';
         res.set({'ETag':etag,'Cache-Control':'private, max-age=30'});if(req.headers['if-none-match']===etag)return res.status(304).end();res.json(data);
-    }catch{res.status(503).json({error:'Notice service unavailable or invalid query'});}});
+    }catch(error){res.status([400,401,403,404,429,500,502,503,504].includes(error.status)?error.status:503).json({error:'Notice service unavailable or invalid query',state:'unavailable'});}});
     router.get('/overlap',async(req,res)=>{const longitude=Number(req.query.lon),latitude=Number(req.query.lat),observed_at=String(req.query.observed_at||'');
         if(!Number.isFinite(longitude)||!Number.isFinite(latitude)||Math.abs(longitude)>180||Math.abs(latitude)>90||!Number.isFinite(Date.parse(observed_at)))return res.status(400).json({error:'Valid observed longitude, latitude and UTC timestamp required'});
         try{res.set('Cache-Control','private, max-age=30').json({overlaps:(await service.correlate({longitude,latitude,observed_at})).filter(n=>n.geographicOverlap)});}catch{res.status(503).json({error:'Notice service unavailable'});}});

@@ -1,9 +1,13 @@
 ﻿import { defineConfig } from 'vite';
 import jsconfigPaths from 'vite-jsconfig-paths';
 import javascriptObfuscator from 'vite-plugin-javascript-obfuscator';
+import localNotices from './server/local-notices.cjs';
+
+const apiProxy = () => ({ '/api': { target: process.env.API_UPSTREAM_URL || 'http://localhost:8080', changeOrigin: true, rewrite: p => p.replace(/^\/api/, '') } });
 
 export default defineConfig({
     plugins: [
+        {name:'stratops-local-notices',configureServer(server){localNotices.mountLocalNotices(server.middlewares);},configurePreviewServer(server){localNotices.mountLocalNotices(server.middlewares);}},
         jsconfigPaths(),
         javascriptObfuscator({
             options: {
@@ -27,6 +31,8 @@ export default defineConfig({
             },
         }),
     ],
+    server: {proxy:apiProxy()},
+    preview: {proxy:apiProxy()},
     build: {
         sourcemap: false,
         minify: 'terser',

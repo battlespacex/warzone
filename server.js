@@ -136,6 +136,7 @@ app.get("/__warzone/terrain/terrarium/:z/:x/:y.png", async (req, res) => {
 });
 
 app.use("/api", express.json({ limit: "1mb" }));
+if (process.env.NODE_ENV !== "production") require('./server/local-notices.cjs').mountLocalNotices(app);
 app.all("/api/*", async (req, res) => {
     try {
         const upstreamPath = req.originalUrl.replace(/^\/api/, "") || "/";
@@ -293,6 +294,7 @@ app.use((req, res) => shouldRenderVisualNotFound(req)
     ? sendPage(res, "404", 404)
     : sendTypedNotFound(req, res));
 
-app.listen(PORT, () => {
+if (require.main === module) app.listen(PORT, () => {
     console.log(`Warzone server running at http://localhost:${PORT}${BASE}/`);
 });
+module.exports = app;

@@ -39,6 +39,15 @@ test('stale fetch completion after disable cannot restore resources',async()=>{
     let finish;const h=harness(()=>new Promise(resolve=>{finish=resolve;}));h.context.initNoticeLayers(h.viewer);h.enabled.add('aviation-notam');h.sync();h.enabled.clear();h.sync();
     finish({ok:true,json:async()=>({notices:[n]})});await h.settle();assert.equal(h.sources.length,0);assert.equal(h.handlers.length,0);assert.equal(h.panels.length,0);h.context.disposeNoticeLayers();
 });
+test('unconfigured/empty/error states contain no fabricated notice fields and use the drag binder',async()=>{
+    for(const [payload,status,title]of [[{state:'unconfigured',notices:[]},200,'No permitted provider configured'],[{state:'ready',notices:[]},200,'No notices in selected area'],[{},403,'Notice access denied'],[{},503,'Provider temporarily unavailable']]){
+        let binds=0,disposals=0;const h=harness(async()=>({ok:status===200,status,json:async()=>payload}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{bindFloatingPanel:()=>{binds++;return ()=>disposals++;}});await h.settle();
+        assert.equal(h.panels[0].querySelector('h3').textContent,title);assert.equal(h.panels[0].querySelector('ul').children.length,0);assert.ok(binds>=1);
+        const collapse=h.panels[0].querySelector('.wz-widget-header-actions').children[0];collapse.onclick();assert.equal(h.panels[0].querySelector('.wz-widget-body').hidden,true);collapse.onclick();assert.equal(h.panels[0].querySelector('.wz-widget-body').hidden,false);
+        assert.ok(parseFloat(h.panels[0].style.left)>320,'default placement clears a left-side Map Layers panel');
+        h.context.disposeNoticeLayers();assert.equal(disposals,binds);assert.equal(h.panels.length,0);
+    }
+});
 test('notice focus preserves existing shared aircraft/naval focus and never changes models',async()=>{
     const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
     h.handlers[0].click({position:{}});const button=h.panels[0].children.find(el=>el.textContent==='Focus area');assert.ok(button);
