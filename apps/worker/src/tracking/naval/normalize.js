@@ -3,7 +3,8 @@ export function navalText(value) {
 }
 
 export function navalDigits(value) {
-    return navalText(value).replace(/\D/g, "");
+    const id = navalText(value).replace(/^IMO\s+/i, "");
+    return /^\d+$/.test(id) && !/^0+$/.test(id) ? id : "";
 }
 
 export function navalNumber(value) {

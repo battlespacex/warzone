@@ -1,3 +1,5 @@
+import { normalizeIcao24 } from "../../../../../shared/aircraft-identifiers.js";
+
 function numberOrNull(value) {
     if (value === null || value === undefined || value === "") return null;
     const number = Number(value);
@@ -10,7 +12,7 @@ export function normalizeReadsbAircraft(record, { source, militaryHint = false, 
         domain: "aircraft",
         source,
         observed_at: new Date(now - Math.max(0, ageSeconds || 0) * 1000).toISOString(),
-        icao24: String(record.hex || "").replace(/^~/, "").trim().toLowerCase(),
+        icao24: normalizeIcao24(record.hex),
         registration: String(record.r || "").trim(),
         callsign: String(record.flight || "").trim().replace(/\s+/g, ""),
         latitude: numberOrNull(record.lat),

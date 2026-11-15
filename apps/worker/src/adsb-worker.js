@@ -6,8 +6,10 @@
 
 import { supabase } from "./supabase.js";
 import { mergeAircraftObservations, selectAircraftMilitaryCandidates } from "./tracking/merge.js";
-import { runConfiguredProviders } from "./tracking/provider-health.js";
+import { runConfiguredProviders, providerPipelineSnapshot } from "./tracking/provider-health.js";
 import { createAircraftProviders } from "./tracking/aircraft/registry.js";
+import { resolveAircraftIdentity, getAircraftAllocation } from "../../shared/aircraft-identity.js";
+import { normalizeIcao24 } from "../../shared/aircraft-identifiers.js";
 
 // ─── ICAO Type Code → Human Readable Model Name ────────────────────────────
 // ADS-B One returns the ICAO aircraft type designator in the `t` field.
@@ -174,62 +176,14 @@ const ICAO_TYPE_NAMES = {
     "G222": "Alenia G.222",
     "CN235": "CASA CN-235",
     "A400": "Airbus A400M Atlas",
-    "A330": "A330 MRTT",
+    "A330": "Airbus A330",
     "KJ2K": "KJ-2000 (AWACS)",
 };
 
-// ─── ICAO Hex Prefix → Country ──────────────────────────────────────────────
-// Maps the first 3 hex chars of ICAO address to country
-const ICAO_COUNTRY_MAP = [
-    { prefix: "AE", country: "United States", flag: "🇺🇸" },
-    { prefix: "43", country: "United Kingdom", flag: "🇬🇧" },
-    { prefix: "3B", country: "France", flag: "🇫🇷" },
-    { prefix: "3C", country: "Germany", flag: "🇩🇪" },
-    { prefix: "3D", country: "Italy", flag: "🇮🇹" },
-    { prefix: "34", country: "Spain", flag: "🇪🇸" },
-    { prefix: "48", country: "Netherlands", flag: "🇳🇱" },
-    { prefix: "44", country: "Belgium", flag: "🇧🇪" },
-    { prefix: "45", country: "Denmark", flag: "🇩🇰" },
-    { prefix: "47", country: "Norway", flag: "🇳🇴" },
-    { prefix: "4A", country: "Sweden", flag: "🇸🇪" },
-    { prefix: "46", country: "Finland", flag: "🇫🇮" },
-    { prefix: "4B", country: "Turkey", flag: "🇹🇷" },
-    { prefix: "49", country: "Poland", flag: "🇵🇱" },
-    { prefix: "73", country: "Israel", flag: "🇮🇱" },
-    { prefix: "10", country: "Russia", flag: "🇷🇺" },
-    { prefix: "11", country: "Russia", flag: "🇷🇺" },
-    { prefix: "12", country: "Russia", flag: "🇷🇺" },
-    { prefix: "13", country: "Russia", flag: "🇷🇺" },
-    { prefix: "14", country: "Russia", flag: "🇷🇺" },
-    { prefix: "15", country: "Russia", flag: "🇷🇺" },
-    { prefix: "50", country: "Ukraine", flag: "🇺🇦" },
-    { prefix: "76", country: "Pakistan", flag: "🇵🇰" },
-    { prefix: "80", country: "India", flag: "🇮🇳" },
-    { prefix: "81", country: "India", flag: "🇮🇳" },
-    { prefix: "78", country: "China", flag: "🇨🇳" },
-    { prefix: "79", country: "China", flag: "🇨🇳" },
-    { prefix: "7A", country: "China", flag: "🇨🇳" },
-    { prefix: "7B", country: "China", flag: "🇨🇳" },
-    { prefix: "84", country: "Japan", flag: "🇯🇵" },
-    { prefix: "71", country: "South Korea / Saudi Arabia", flag: "🇰🇷" },
-    { prefix: "7C", country: "Australia", flag: "🇦🇺" },
-    { prefix: "C0", country: "Canada", flag: "🇨🇦" },
-    { prefix: "89", country: "UAE", flag: "🇦🇪" },
-    { prefix: "06", country: "Qatar", flag: "🇶🇦" },
-    { prefix: "01", country: "Egypt", flag: "🇪🇬" },
-    { prefix: "70", country: "Iran", flag: "🇮🇷" },
-    { prefix: "74", country: "Saudi Arabia", flag: "🇸🇦" },
-    { prefix: "C8", country: "Brazil", flag: "🇧🇷" },
-    { prefix: "68", country: "South Africa", flag: "🇿🇦" },
-];
-
+// State allocation now uses the shared official-range lookup.
 function getCountryFromIcao(hex) {
-    if (!hex || hex.length < 2) return null;
-    const upper = hex.toUpperCase();
-    // Try 2-char prefix first
-    const match2 = ICAO_COUNTRY_MAP.find(e => upper.startsWith(e.prefix));
-    if (match2) return match2;
-    return null;
+    const allocation = getAircraftAllocation(hex);
+    return allocation ? { ...allocation, flag: [...allocation.iso2].map(c => String.fromCodePoint(c.charCodeAt(0) + 127397)).join("") } : null;
 }
 
 // ─── Aircraft Role Classification ──────────────────────────────────────────
@@ -238,7 +192,7 @@ function getCountryFromIcao(hex) {
 const FIGHTER_CODES = new Set([
     "F16", "F16C", "F16D", "F15", "F15C", "F15D", "F15E", "F18", "F18C", "F18D", "F18E", "F18F",
     "F18S", "F22", "F22A", "F35", "F35A", "F35B", "F35C", "A10", "A10C", "AV8B", "EA18", "F14", "F4",
-    "EUFI", "TYFN", "RAFA", "RAFM", "TORN", "JAS3", "GRIF", "M2K", "M2KN", "M2KC", "F1",
+    "EUFI", "TYFN", "RAFA", "RAFM", "RFAL", "TORN", "JAS3", "GRIF", "M2K", "M2KN", "M2KC", "F1",
     "SU24", "SU25", "SU27", "SU30", "SU33", "SU34", "SU35", "SU57",
     "MIG21", "MIG29", "MIG31", "MIG35", "J10", "J11", "J15", "J16", "J20", "JH7",
     "JF17", "TEJA", "T50", "F5", "F5E", "MIRF", "SB39", "J39",
@@ -270,7 +224,7 @@ const TRANSPORT_CODES = new Set([
 ]);
 
 const HELI_CODES = new Set([
-    "AH64", "AH1", "UH60", "H60", "SH60", "MH60", "CH47", "H47", "V22", "MV22", "CV22",
+    "AH64", "H64", "AH1", "UH60", "H60", "SH60", "MH60", "CH47", "H47", "V22", "MV22", "CV22",
     "CH53", "MH53", "MI8", "MI17", "MI24", "MI25", "MI28", "MI28N", "MI28NM", "MI35", "KA50", "KA52", "KA27", "Z10", "Z19", "SA342",
     "AS532", "EC725", "NH90", "H225", "EC665", "H145",
 ]);
@@ -503,7 +457,7 @@ function toLegacyAircraft(observation) {
         const number = Number(value);
         return Number.isFinite(number) ? number : null;
     };
-    const icao = String(observation.icao24 || "").toLowerCase();
+    const icao = normalizeIcao24(observation.icao24);
     const typeCode = String(observation.aircraft_type || "").toUpperCase();
     const countryInfo = getCountryFromIcao(icao);
     return {
@@ -512,7 +466,7 @@ function toLegacyAircraft(observation) {
         callsign: observation.callsign || "",
         reg: observation.registration || "",
         typeCode,
-        modelName: ICAO_TYPE_NAMES[typeCode] || observation.model || typeCode || null,
+        modelName: observation.model || ICAO_TYPE_NAMES[typeCode] || typeCode || null,
         operator: observation.operator || "",
         country: countryInfo?.country || observation.country || "Unknown",
         flag: countryInfo?.flag || "",
@@ -531,6 +485,7 @@ function toLegacyAircraft(observation) {
         positionAgeSeconds: finiteOrNull(observation.position_age_seconds),
         onGround: Boolean(observation.on_ground),
         militaryHint: Boolean(observation.military_hint),
+        aircraftIdentity: observation.metadata?.aircraft_identity || resolveAircraftIdentity(observation),
         sourceCount: observation.source_count || 1,
         corroboration: observation.corroboration || "single-source",
         sourceConfidence: observation.source_confidence || 60,
@@ -550,9 +505,7 @@ function toLegacyAircraft(observation) {
 }
 
 function isQualifiedMilitaryAircraft(a, role) {
-    if (isLikelyCivilianAirliner(a, role)) return false;
-    if (a.militaryHint) return true;
-    return hasMilitaryAircraftOverride(a, role);
+    return a.aircraftIdentity?.qualified === true;
 }
 
 // ─── Deduplication Cache ────────────────────────────────────────────────────
@@ -625,6 +578,7 @@ function buildAdsbEvent(a) {
         tags: ["adsb", "military", role, a.country].filter(Boolean),
         metadata: {
             icao: a.icao,
+            aircraft_identity: a.aircraftIdentity,
             callsign: a.callsign || null,
             registration: a.reg || null,
             type_code: a.typeCode || null,
@@ -685,6 +639,7 @@ function buildAdsbTrack(a) {
         updated_at: new Date().toISOString(),
         metadata: {
             icao: a.icao,
+            aircraft_identity: a.aircraftIdentity,
             callsign: a.callsign || null,
             registration: a.reg || null,
             type_code: a.typeCode || null,
@@ -864,6 +819,9 @@ export async function runAdsbWorker(options = {}) {
         ground: 0,
         trainer: 0,
         civilian: 0,
+        identity_conflict: 0,
+        possible_military: 0,
+        unqualified: 0,
     };
     for (const a of rawAircraft) {
         const role = classifyAircraft(a.typeCode, a.callsign, a.icao, a.modelName, a.operator);
@@ -896,6 +854,9 @@ export async function runAdsbWorker(options = {}) {
         // and unqualified broad-source observations here.
         if (!isQualifiedMilitaryAircraft(a, role)) {
             dropCounts.civilian += 1;
+            if (a.aircraftIdentity?.conflicts?.length) dropCounts.identity_conflict++;
+            else if (a.aircraftIdentity?.confidence === "possible_military") dropCounts.possible_military++;
+            else dropCounts.unqualified++;
             continue;
         }
 
@@ -912,7 +873,8 @@ export async function runAdsbWorker(options = {}) {
 
     if (!processed.length) {
         logger.log?.(`${label} candidates=${militaryCandidates.length} canonical=0 corroborated=0 upserted=0`);
-        return { provider_count: providers.length, raw: observations.length, candidates: militaryCandidates.length, canonical: 0, corroborated: 0, upserted: 0, providers: providerDiagnostics };
+        return { provider_count: providers.length, raw: observations.length, candidates: militaryCandidates.length, canonical: 0, corroborated: 0, upserted: 0, providers: providerDiagnostics, drops: dropCounts, roles: rawRoleCounts,
+            provider_states: providerPipelineSnapshot("adsb", providers, providerDiagnostics, now) };
     }
 
     const events = eventCandidates.map(buildAdsbEvent);
@@ -939,5 +901,7 @@ export async function runAdsbWorker(options = {}) {
         corroborated,
         upserted,
         providers: providerDiagnostics,
+        drops: dropCounts, roles: roleCounts,
+        provider_states: providerPipelineSnapshot("adsb", providers, providerDiagnostics, now),
     };
 }

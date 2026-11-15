@@ -12,6 +12,13 @@ export function normalizeAircraftIdentifier(value = "") {
     return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
 }
 
+// Full transponder address only. Never pad a truncated address, remove invalid
+// characters, or turn a readsb '~' non-ICAO identifier into a registry key.
+export function normalizeIcao24(value = "") {
+    const text = String(value ?? "").trim().replace(/^0x/i, "").toLowerCase();
+    return /^[0-9a-f]{6}$/.test(text) && text !== "000000" && text !== "ffffff" ? text : "";
+}
+
 export function getAircraftIdentifierCandidates(value = "") {
     const normalized = normalizeAircraftIdentifier(value);
     if (!normalized) return [];

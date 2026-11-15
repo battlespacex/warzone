@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "version": "f7b46dbdeb29ea01c43eca2db21940d60fa7f36e",
+  "source_url": "https://raw.githubusercontent.com/sdr-enthusiasts/plane-alert-db/f7b46dbdeb29ea01c43eca2db21940d60fa7f36e/plane-alert-mil.csv",
+  "imported_at": "2026-11-15T11:24:51.794Z",
+  "license": "ODbL-1.0",
+  "copyright": "SDR-Enthusiasts, Ramon F. Kolb (kx1t), and contributors",
+  "license_url": "https://github.com/sdr-enthusiasts/plane-alert-db/blob/f7b46dbdeb29ea01c43eca2db21940d60fa7f36e/LICENSE",
+  "sha256": "3e619fe9549a01ea58f3d884b1e1c86acbb67d284212fc9879a07c5b52a9c099",
+  "git_blob_sha": "c9a44640aeee5e9bc3856e49af0170148a588224",
+  "validation": {
+    "input_rows": 9856,
+    "valid_ids": 9854,
+    "duplicates": [],
+    "rejected": [
+      {
+        "line": 197,
+        "reason": "invalid_icao24"
+      },
+      {
+        "line": 198,
+        "reason": "invalid_icao24"
+      }
+    ],
+    "conflicting_ids": []
+  }
+}

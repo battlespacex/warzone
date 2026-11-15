@@ -18,11 +18,11 @@ test("plane-alert-db CSV parser handles quoted fields and indexes canonical ICAO
 test("known military ICAO is enriched and classified without replacing good live metadata", async () => {
     const database = createPlaneAlertMilitaryDatabase({ initialCsv: CSV, cacheFile: "" });
     const result = await database.enrichObservations([{
-        source: "opensky", icao24: "AE1234", registration: "LIVE-REG",
+        source: "opensky", icao24: "AE1234", registration: "82-1234",
         latitude: 40, longitude: -70, military_hint: false,
     }]);
     const aircraft = result.observations[0];
-    assert.equal(aircraft.registration, "LIVE-REG");
+    assert.equal(aircraft.registration, "82-1234");
     assert.equal(aircraft.aircraft_type, "C17");
     assert.equal(aircraft.operator, "United States Air Force");
     assert.equal(aircraft.military_hint, true);

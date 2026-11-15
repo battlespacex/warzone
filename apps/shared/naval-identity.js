@@ -1,9 +1,62 @@
+import { maritimeAllocation } from "./maritime-allocations.js";
+import { MILITARY_TAXONOMY } from "./military-taxonomy.js";
 // AIS is an observation, not a naval registry. No name/prefix/country rule here
 // confers military ownership, a ship class or a model identity.
 const text = (value) => String(value ?? "").trim();
-const digits = (value) => text(value).replace(/\D/g, "").replace(/^0+$/, "");
+const digits = (value) => {
+    const id = text(value).replace(/^IMO\s+/i, "");
+    return /^\d+$/.test(id) && !/^0+$/.test(id) ? id : "";
+};
 const categories = new Set(["carrier", "destroyer", "frigate", "corvette", "cruiser", "submarine",
     "amphibious", "landing_ship", "patrol", "auxiliary", "logistics", "minesweeper", "intelligence", "tug"]);
+
+export function validMmsi(value) {
+    return /^\d{9}$/.test(text(value)) && !/^0+$/.test(text(value));
+}
+
+export function validImo(value) {
+    const id = text(value).replace(/^IMO\s*/i, "");
+    return /^[1-9]\d{6}$/.test(id) && [...id.slice(0, 6)].reduce((sum, n, index) => sum + Number(n) * (7 - index), 0) % 10 === Number(id[6]);
+}
+
+export function navalCandidateEvidence(vessel = {}) {
+    const name = text(vessel.vessel_name || vessel.name).toUpperCase();
+    const prefix = MILITARY_TAXONOMY.naval_prefixes.find(row => name.startsWith(row.prefix.toUpperCase() + " "));
+    const reported = reportedNavalCategory(vessel);
+    return { confidence: reported === "commercial" || reported === "tug" ? "unknown" : prefix || Number(vessel.ship_type || vessel.shipType) === 35 ? "candidate" : "unknown",
+        prefix: prefix?.prefix || "", allocation: maritimeAllocation(vessel.mmsi),
+        note: "Reported prefix, type and MID do not verify naval ownership or model identity." };
+}
+
+// Retain all matching records so contradictory evidence is never last-write-wins.
+export function createNavalIdentityRegistry(records = []) {
+    if (!Array.isArray(records)) throw new TypeError("Naval identity registry must be an array");
+    const index = new Map();
+    const validation = { records: records.length, duplicates: 0, rejected: [] };
+    const seen = new Set();
+    for (const [row, record] of records.entries()) {
+        const ids = record?.identifiers || {};
+        const valid = record?.status === "verified" && text(record.source) && Number.isFinite(Date.parse(record.verified_at))
+            && (validMmsi(ids.mmsi) || validImo(ids.imo))
+            && (!ids.imo || validImo(ids.imo)) && (!ids.mmsi || validMmsi(ids.mmsi))
+            && (!record.valid_from || Number.isFinite(Date.parse(record.valid_from)))
+            && (!record.valid_until || Number.isFinite(Date.parse(record.valid_until)));
+        if (!valid) { validation.rejected.push(row); continue; }
+        const signature = JSON.stringify(record);
+        if (seen.has(signature)) { validation.duplicates++; continue; }
+        seen.add(signature);
+        for (const [kind, id] of Object.entries({ mmsi: ids.mmsi, imo: ids.imo })) {
+            if (!id) continue;
+            const key = `${kind}:${id}`;
+            if (!index.has(key)) index.set(key, []);
+            index.get(key).push(record);
+        }
+    }
+    return { validation, lookupCandidates(vessel) {
+        const ids = navalIdentifiers(vessel);
+        return [...new Set([...(index.get(`mmsi:${ids.mmsi}`) || []), ...(index.get(`imo:${ids.imo}`) || [])])];
+    } };
+}
 
 export function navalIdentifiers(vessel = {}) {
     const m = vessel.metadata || {};
@@ -25,14 +78,14 @@ export function resolveNavalIdentity(vessel = {}, { records = [], trustEmbedded 
     const m = vessel.metadata || {};
     const ids = navalIdentifiers(vessel);
     const reported = reportedNavalCategory(vessel);
-    const candidates = [...records];
+    const candidates = typeof records.lookupCandidates === "function" ? records.lookupCandidates(vessel) : [...records];
     if (trustEmbedded && (vessel.identity_verification || m.identity_verification)) {
         candidates.push(vessel.identity_verification || m.identity_verification);
     }
     const anchored = candidates.filter((r) => r && r.status === "verified" && text(r.source)
         && Number.isFinite(Date.parse(r.verified_at)) && r.identifiers
         && ((/^\d{9}$/.test(ids.mmsi) && ids.mmsi === digits(r.identifiers.mmsi))
-            || (/^[1-9]\d{6}$/.test(ids.imo) && ids.imo === digits(r.identifiers.imo))));
+            || (validImo(ids.imo) && ids.imo === digits(r.identifiers.imo))));
     const at = Date.parse(vessel.observedAt || vessel.observed_at || vessel.occurred_at || m.observed_at || "");
     const valid = anchored.filter((r) => (!r.valid_from || (Number.isFinite(at) && at >= Date.parse(r.valid_from)))
         && (!r.valid_until || (Number.isFinite(at) && at <= Date.parse(r.valid_until))));
@@ -66,6 +119,7 @@ export function resolveNavalIdentity(vessel = {}, { records = [], trustEmbedded 
         source: record ? text(record.source) : "", verified_at: record ? record.verified_at : null,
         length_m: record && Number(record.length_m) > 0 && Number(record.length_m) <= 500 ? Number(record.length_m) : null,
         identity_verification: record, conflicts,
+        candidate_evidence: navalCandidateEvidence(vessel),
     };
 }
 

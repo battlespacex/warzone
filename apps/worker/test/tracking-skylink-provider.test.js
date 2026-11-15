@@ -270,6 +270,7 @@ test("SkyLink 429 uses shared provider-health Retry-After backoff", async () => 
 
 test("ICAO24 normalization canonicalizes case and leading zeros", () => {
     assert.equal(normalizeIcao24("Ae1234"), "ae1234");
-    assert.equal(normalizeIcao24("ABC1"), "00abc1");
+    assert.equal(normalizeIcao24("ABC1"), "");
+    assert.equal(normalizeIcao24("00ABC1"), "00abc1");
     assert.equal(normalizeIcao24("not-hex"), "");
 });

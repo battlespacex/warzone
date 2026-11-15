@@ -15,7 +15,7 @@ const justice = { mmsi: "367605850", callsign: "WDH3254", vessel_name: "HMS JUST
     ship_type: "Towing", ship_type_code: 31, observed_at: observed };
 // All military examples are isolated fixtures; no fictional registry is installed in runtime.
 const record = (changes = {}) => ({ status: "verified", source: "test fixture registry", verified_at: "2026-11-01T12:00:00Z",
-    identifiers: { mmsi: "999000001", imo: "9999999", callsign: "FIXTURE" }, military_status: "military",
+    identifiers: { mmsi: "999000001", imo: "9999993", callsign: "FIXTURE" }, military_status: "military",
     vessel_name: "Fixture vessel", operator: "Fixture operator", naval_force: "US Navy", flag_state: "United States",
     category: "carrier", ship_class: "Fixture carrier class", length_m: 330, ...changes });
 const vessel = (r) => ({ ...r.identifiers, observed_at: observed, metadata: { identity_verification: r } });
@@ -78,7 +78,7 @@ test("mismatched identifiers, contradictory registries and expired records canno
 });
 
 const observation = (changes = {}) => ({ provider: "fixture", source: "fixture", priority: 0, observed_at: observed,
-    mmsi: "999000001", imo: "9999999", callsign: "FIXTURE", vessel_name: "SHARED NAME",
+    mmsi: "999000001", imo: "9999993", callsign: "FIXTURE", vessel_name: "SHARED NAME",
     latitude: 30, longitude: 50, ship_type: 35, ...changes });
 
 test("shared names do not merge identities and conflicting IMO values remain explicit", () => {

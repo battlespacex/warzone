@@ -97,6 +97,7 @@ async function orbitalHarness() {
     SATELLITE_FOCUS_VISUAL_HZ: 30, SATELLITE_FOCUS_CAMERA_HZ: 12,
     getAssetFocusController: () => controller, updateFocusedSatelliteVisual: noop, updateSatelliteFocusCamera: noop,
     registerAnimationTask: (key, fn) => tasks.set(key, fn), unregisterAnimationTask: key => tasks.delete(key),
+    orbitalRenderTick: noop, bindOrbitalPerformance: noop,
     fetch: (url, options) => { const d = deferred(); requests.push({ ...d, signal: options.signal }); return d.promise; },
     updateControlsOptions: () => { controls += 1; }, updateVisibleRecords: noop, updateDefaultEntities: noop,
     setStatusText: noop, formatAge: String, mergeConfig: noop, stopStartupDemo: noop,

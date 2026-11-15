@@ -1,3 +1,6 @@
+import { normalizeIcao24 } from "../../../shared/aircraft-identifiers.js";
+import { resolveAircraftIdentity } from "../../../shared/aircraft-identity.js";
+import { navalIdentifiers } from "../../../shared/naval-identity.js";
 const EARTH_RADIUS_KM = 6371;
 
 function numberOrNull(value) {
@@ -30,6 +33,7 @@ export function selectAircraftMilitaryCandidates(observations = []) {
         const icao24 = normalizeIdentity(item?.icao24).toLowerCase();
         return item?.military_hint === true
             || item?.provider_military_flag === true
+            || resolveAircraftIdentity(item).qualified
             || (icao24 && militaryOnlyProviderIcaos.has(icao24));
     });
 }
@@ -137,7 +141,7 @@ export function mergeAircraftObservations(observations, options = {}) {
         provider: String(item.provider || item.source || "").trim().toLowerCase(),
         military_hint: item.military_hint === true || item.provider_military_flag === true,
         provider_military_flag: item.military_hint === true || item.provider_military_flag === true,
-        icao24: normalizeIdentity(item.icao24).toLowerCase(),
+        icao24: normalizeIcao24(item.icao24),
         registration: normalizeIdentity(item.registration),
         callsign: normalizeIdentity(item.callsign),
         priority: Number.isFinite(item.priority) ? item.priority : 999,
@@ -161,6 +165,16 @@ export function mergeAircraftObservations(observations, options = {}) {
             domain: "aircraft", freshnessMs, maxSpeedKts, identity,
             fields: ["icao24", "registration", "callsign", "aircraft_type", "model", "operator", "country", "squawk", "on_ground", "altitude_geom_ft", "vertical_rate_fpm", "adsb_category", "adsb_message_type", "db_flags", "position_source", "position_age_seconds", "metadata_sources"],
         }))
+        .map(item => {
+            if (!item) return item;
+            const group = groups.get(item.identity) || [];
+            const newest = Math.max(...group.map(row => timestamp(row.observed_at)));
+            const identities = group.filter(row => newest - timestamp(row.observed_at) <= freshnessMs)
+                .map(row => row.metadata?.aircraft_identity).filter(Boolean);
+            if (identities.length) item.metadata = { ...item.metadata, aircraft_identity:
+                identities.find(identity => identity.conflicts?.length) || identities.find(identity => identity.evidence?.some(e => e.kind === "exact_icao24")) || identities[0] };
+            return item;
+        })
         .filter(Boolean);
 }
 
@@ -173,8 +187,8 @@ export function mergeNavalObservations(observations, options = {}) {
         provider: String(item.provider || item.source || "").trim().toLowerCase(),
         military_hint: item.military_hint === true || item.provider_military_flag === true,
         provider_military_flag: item.military_hint === true || item.provider_military_flag === true,
-        mmsi: String(item.mmsi || "").replace(/\D/g, ""),
-        imo: String(item.imo || "").replace(/\D/g, ""),
+        mmsi: navalIdentifiers(item).mmsi,
+        imo: navalIdentifiers(item).imo,
         callsign: normalizeIdentity(item.callsign),
         vessel_name: String(item.vessel_name || "").trim(),
         priority: Number.isFinite(item.priority) ? item.priority : 999,

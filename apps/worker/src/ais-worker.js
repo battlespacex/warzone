@@ -8,10 +8,10 @@
 //
 import { supabase } from "./supabase.js";
 import { mergeNavalObservations } from "./tracking/merge.js";
-import { runConfiguredProviders } from "./tracking/provider-health.js";
+import { runConfiguredProviders, providerPipelineSnapshot } from "./tracking/provider-health.js";
 import { createNavalProviders } from "./tracking/naval/registry.js";
 import { persistPrivateNavalHistory } from "./naval-private-history.js";
-import { resolveNavalIdentity } from "../../shared/naval-identity.js";
+import { resolveNavalIdentity, createNavalIdentityRegistry, navalCandidateEvidence, validMmsi, validImo } from "../../shared/naval-identity.js";
 
 // ─── Naval vessel name patterns ───────────────────────────────────────────────
 
@@ -278,7 +278,7 @@ function defaultKnownMilitaryIdentifiers() {
         const verifiedIdentities = JSON.parse(registry);
         if (!Array.isArray(verifiedIdentities)) throw new Error("NAVAL_VERIFIED_IDENTITIES_JSON must be an array");
         knownMilitaryIdentifierCache = {
-            mmsi, imo, callsigns, registry, verifiedIdentities,
+            mmsi, imo, callsigns, registry, verifiedIdentities: createNavalIdentityRegistry(verifiedIdentities),
             knownMilitaryMmsi: identifierSet(mmsi),
             knownMilitaryImo: identifierSet(imo),
             knownMilitaryCallsigns: callsignSet(callsigns),
@@ -288,6 +288,7 @@ function defaultKnownMilitaryIdentifiers() {
 }
 
 export function qualifyMilitaryVessel(vessel, options = {}) {
+    if (!validMmsi(vessel.mmsi) && !validImo(vessel.imoNumber || vessel.imo)) return { accepted: false, reason: "invalid_identifier" };
     const defaults = options.knownMilitaryMmsi === undefined || options.knownMilitaryImo === undefined
         || options.knownMilitaryCallsigns === undefined ? defaultKnownMilitaryIdentifiers() : null;
     const {
@@ -312,7 +313,7 @@ export function qualifyMilitaryVessel(vessel, options = {}) {
     // Retain reported military candidates without upgrading AIS type/flags to verified ownership.
     if (vessel.providerMilitaryFlag === true) return { accepted: true, reason: "provider_military_flag" };
     if (isMilitaryShipType(vessel.shipType)) return { accepted: true, reason: "military_ship_type" };
-    if (isMilitaryVesselName(vessel.name, vessel.callSign)) return { accepted: true, reason: "unverified_name_hint" };
+    if (isMilitaryVesselName(vessel.name, vessel.callSign) || navalCandidateEvidence(vessel).confidence === "candidate") return { accepted: true, reason: "unverified_name_hint" };
     return { accepted: false, reason: "unverified_identity" };
 }
 
@@ -742,6 +743,8 @@ export async function runAisWorker(options = {}) {
         qualification: qualificationCounts,
         aisstream: aisStreamDiagnostics,
         providers: providerDiagnostics,
+        provider_states: providerPipelineSnapshot("ais", providers, providerDiagnostics),
+        registry_validation: qualificationOptions.verifiedIdentities.validation,
     };
 }
 

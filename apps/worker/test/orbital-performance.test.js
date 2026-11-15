@@ -14,7 +14,7 @@ import { resolveSatelliteModelProfile } from "../../../dev/assets/js/warzone-sat
 const source = readFileSync(process.env.STRATOPS_ORBITAL_SOURCE || new URL("../../../dev/assets/js/warzone-mil-sats.js", import.meta.url), "utf8");
 const noop = () => {};
 function harness(code = source) {
-  const counts = { propagations: 0, sampledProperties: 0, orientationProperties: 0, matrix3: 0, matrix4: 0, quaternions: 0 };
+  const counts = { propagations: 0, sampledProperties: 0, orientationProperties: 0, matrix3: 0, matrix4: 0, quaternions: 0, cssReads: 0 };
   const counted = (Type, counter) => new Proxy(Type, {
     construct(target, args) { counts[counter] += 1; return Reflect.construct(target, args); },
     get(target, key) {
@@ -56,13 +56,13 @@ function harness(code = source) {
   const angles = { heading: 0, pitch: -150, roll: -15 };
   const context = vm.createContext({ Cesium, state, json2satrec, propagate: (...args) => { counts.propagations += 1; return propagate(...args); },
     gstime, eciToGeodetic, resolveSatelliteModelProfile, Date, Math, EARTH_RADIUS_M: 6371008.8,
-    getSatelliteModelHeadingDeg: () => angles.heading, getSatelliteModelPitchDeg: () => angles.pitch,
-    getSatelliteModelRollDeg: () => angles.roll, getSatelliteModelScale: value => value, getCssNumber: (_key, value) => value,
+    getSatelliteModelHeadingDeg: () => { counts.cssReads++; return angles.heading; }, getSatelliteModelPitchDeg: () => { counts.cssReads++; return angles.pitch; },
+    getSatelliteModelRollDeg: () => { counts.cssReads++; return angles.roll; }, getSatelliteModelScale: value => value, getCssNumber: (_key, value) => value,
     formatUpper: value => String(value || "").toUpperCase(),
     clamp: (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value)),
     colorFromCss: () => RealCesium.Color.WHITE, window: {}, document: { hidden: false },
     mergeConfig: noop, updateControlsOptions: noop, fetchOrbitalData: noop, stopStartupDemo: noop,
-    registerAnimationTask: (key, fn) => tasks.set(key, fn), unregisterAnimationTask: key => tasks.delete(key),
+    registerAnimationTask: (key, fn) => tasks.set(key, fn), unregisterAnimationTask: key => tasks.delete(key), requestSharedSceneRender: noop,
     ensureHandler: noop, showOrbitalWidget: noop, ensureControls: noop, stopOrbitalFetch: noop,
     resetSatelliteFocusRuntime: () => { state.focusRuntime = {}; }, destroyHandler: noop,
     hideHoverGuide: noop, hideHoverCard: noop, hideOrbitalWidget: noop,
@@ -75,12 +75,13 @@ function harness(code = source) {
   });
   const scratchStart = code.indexOf("const satelliteOrientationScratch =");
   if (scratchStart >= 0) vm.runInContext(code.slice(scratchStart, code.indexOf("\n};", scratchStart) + 3), context);
-  for (const name of ["cleanText", "optionKey", "confidenceRank", "getMinimumConfidenceRank", "getPriorityScore", "matchesFilters", "chooseVisibleRecords",
+  for (const name of ["getOperationalSatelliteAngles", "orbitalMetrics", "orbitalInputBusy", "orbitalRenderTick", "bindOrbitalPerformance", "cleanText", "optionKey", "confidenceRank", "getMinimumConfidenceRank", "getPriorityScore", "matchesFilters", "chooseVisibleRecords",
     "createSatelliteModelOrientation", "createSatelliteModelOrientationProperty", "getSatrec", "propagateRecord",
     "createSampledPosition", "createPolylinePositions", "createFootprintCirclePositions", "makePointEntity", "removeEntity",
     "removeMissingEntities", "updateDefaultEntities", "addFocusEntity", "clearFocusEntities", "addOrbitContext",
     "getOrbitalRenderEntities", "purgeOrbitalRenderEntities", "stopTimers", "startTimers", "installSatelliteFocusTasks", "cleanupLayer", "setWarzoneMilSatsEnabled"]) {
     const start = code.indexOf(`function ${name}(`);
+    if (start < 0) continue; // The same harness can profile the saved baseline source.
     const node = parseExpressionAt(code, start, { ecmaVersion: "latest" });
     vm.runInContext(code.slice(start, node.end), context);
   }
@@ -88,8 +89,13 @@ function harness(code = source) {
     const original = context[name]; context[name] = (...args) => { counts[counter] += 1; return original(...args); };
   }
   context.updateVisibleRecords = () => { state.visibleRecords = context.chooseVisibleRecords(state.records); context.updateDefaultEntities(); };
+  const flush = () => { let guard = 0; while (frames.size) { const [id, fn] = frames.entries().next().value; frames.delete(id); fn(); if (++guard > 1000) throw new Error("Nonterminating orbital batch"); } };
+  for (const name of ["setWarzoneMilSatsEnabled", "updateDefaultEntities"]) {
+    const original = context[name];
+    context[name] = (...args) => { const result = original(...args); if (state.records.length <= 64) flush(); return result; };
+  }
   const resetCounts = () => Object.keys(counts).forEach(key => { counts[key] = 0; });
-  return { context, state, counts, resetCounts, angles, tasks, timers, frames };
+  return { context, state, counts, resetCounts, angles, tasks, timers, frames, flush };
 }
 
 test("repeated orbital ON synchronization retains every model and sampled property", () => {
@@ -141,6 +147,7 @@ test("orientation preserves exact math, live CSS angles and the public result-ob
   const property = h.context.createSatelliteModelOrientationProperty(position);
   for (const [lon, lat, height, heading] of [[-96, 38, 820000, 0], [110, -30, 35786000, 42], [0, 89, 400000, -12]]) {
     h.angles.heading = heading;
+    h.state.orientationCache = null; // Explicit CSS refresh invalidates the operational cache.
     const location = RealCesium.Cartesian3.fromDegrees(lon, lat, height); position.setValue(location);
     const expected = RealCesium.Quaternion.fromRotationMatrix(RealCesium.Matrix3.multiply(
       RealCesium.Matrix4.getMatrix3(RealCesium.Transforms.eastNorthUpToFixedFrame(location), new RealCesium.Matrix3()),
@@ -241,4 +248,65 @@ test("dense 300-satellite population yields construction, reuses warm samples an
   h.context.setWarzoneMilSatsEnabled(false);assert.equal(h.frames.size,0);
   t.diagnostic(JSON.stringify({fixtureSatellites:300,constructionFrames:frames,maxNodeChunkMs:maxChunkMs,warmPropagations:0,
     note:'Node CPU fixture, not browser frame time or GPU memory'}));
+});
+
+test("camera input defers background construction without losing any assets and removes owned input/render listeners", () => {
+  const h=harness(), template=h.state.records[0];
+  h.state.records=Array.from({length:80},(_,i)=>({...template,id:`input-${i}`,noradId:92000+i,omm:{...template.omm,NORAD_CAT_ID:92000+i}}));
+  h.state.config.maximumVisibleSatellites=80;
+  h.context.window=new EventTarget(); h.state.viewer.scene.canvas=new EventTarget();
+  h.state.viewer.scene.postRender=new RealCesium.Event();
+  h.context.setWarzoneMilSatsEnabled(true);
+  h.state.viewer.scene.canvas.dispatchEvent(new Event('pointerdown'));
+  const [id,fn]=h.frames.entries().next().value;h.frames.delete(id);fn();
+  assert.equal(h.state.entities.size,0);assert.equal(h.state.performance.deferredChunks,1);
+  h.context.window.dispatchEvent(new Event('pointerup'));h.state.inputUntil=0;
+  h.flush();assert.equal(h.state.entities.size,80);
+  assert.equal(h.state.viewer.scene.postRender.numberOfListeners,1);
+  h.context.setWarzoneMilSatsEnabled(false);
+  assert.equal(h.state.viewer.scene.postRender.numberOfListeners,0);
+  h.state.viewer.scene.canvas.dispatchEvent(new Event('pointerdown'));
+  assert.equal(h.state.inputDown,false);assert.equal(h.frames.size,0);
+});
+
+test("operational orientation CSS cache expires and explicit invalidation preserves current angles",()=>{
+  if(!source.includes('function getOperationalSatelliteAngles(')) return;
+  let at=0,heading=1,reads=0;const state={};
+  const c=vm.createContext({state,performance:{now:()=>at},getSatelliteModelHeadingDeg:()=>{reads++;return heading;},
+    getSatelliteModelPitchDeg:()=>-150,getSatelliteModelRollDeg:()=>-15});
+  const start=source.indexOf('function getOperationalSatelliteAngles('),node=parseExpressionAt(source,start,{ecmaVersion:'latest'});
+  vm.runInContext(source.slice(start,node.end),c);
+  assert.equal(c.getOperationalSatelliteAngles().heading,1);
+  heading=2;for(let i=0;i<10000;i++)c.getOperationalSatelliteAngles();assert.equal(reads,1);
+  at=251;assert.equal(c.getOperationalSatelliteAngles().heading,2);assert.equal(reads,2);
+  heading=3;state.orientationCache=null;assert.equal(c.getOperationalSatelliteAngles().heading,3);
+});
+
+test("new API objects with unchanged orbital elements retain samples; changed elements rebuild exactly one satellite",()=>{
+  const h=harness();h.context.setWarzoneMilSatsEnabled(true);
+  const positions=[...h.state.entities.values()].map(entry=>entry.point.position);
+  h.state.records=h.state.records.map(record=>({...record,omm:{...record.omm}}));
+  h.resetCounts();h.context.updateVisibleRecords();
+  assert.equal(h.counts.propagations,0);assert.equal(h.counts.sampledProperties,0);
+  [...h.state.entities.values()].forEach((entry,i)=>assert.equal(entry.point.position,positions[i]));
+  h.state.records=h.state.records.map((record,i)=>i?record:{...record,omm:{...record.omm,MEAN_ANOMALY:25}});
+  h.context.updateVisibleRecords();assert.equal(h.counts.sampledProperties,1);assert.ok(h.counts.propagations>0);
+  assert.notEqual(h.state.entities.get('fixture-0').point.position,positions[0]);
+});
+
+test("focus telemetry updates reuse detail rows and do not restart arrival animation or scrolling",()=>{
+  let writes=0,arrivals=0,scrolls=0,offsets=0,altitude=600;
+  const grid={children:[],appendChild(span){span.parentNode=this;this.children.push(span);writes++;}};
+  const card={dataset:{},hidden:true,querySelector:selector=>selector.endsWith('details-grid')?grid:null,
+    classList:{remove(){},add(){arrivals++;}},get offsetWidth(){offsets++;return 100;},closest:()=>({scrollTo(){scrolls++;}})};
+  const c=vm.createContext({ensureFocusCard:()=>card,propagateRecord:()=>({altitudeKm:altitude,speedKmS:7.5}),
+    resolveSatelliteMonitoringRegion:()=>({label:'Fixture'}),formatNumber:(n)=>String(n||0),formatAge:()=>'',
+    cleanText:(v,f)=>String(v??f),showOrbitalWidget(){},state:{data:{}},formatUpper:v=>String(v).toUpperCase(),
+    document:{createElement:()=>({dataset:{},textContent:''})},window:{matchMedia:()=>({matches:false}),requestAnimationFrame:fn=>fn()}});
+  const start=source.indexOf('function showFocusCard('),node=parseExpressionAt(source,start,{ecmaVersion:'latest'});
+  vm.runInContext(source.slice(start,node.end),c);
+  const record={id:'fixture',name:'Fixture',orbital:{}};c.showFocusCard(record);const rows=[...grid.children];
+  altitude=601;c.showFocusCard(record);
+  assert.equal(writes,18);assert.equal(arrivals,1);assert.equal(offsets,1);assert.equal(scrolls,1);
+  assert.equal(grid.children[9].textContent,'601 KM');rows.forEach((row,i)=>assert.equal(grid.children[i],row));
 });

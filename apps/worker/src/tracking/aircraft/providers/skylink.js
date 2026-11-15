@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import fetch from "node-fetch";
 
 import { fetchJson, ProviderRequestError } from "../../http.js";
+import { normalizeIcao24 as normalizeCompleteIcao24 } from "../../../../../shared/aircraft-identifiers.js";
 
 const DEFAULT_BASE_URL = "https://data.skylinkapi.com/v3.1";
 const DEFAULT_MINIMUM_INTERVAL_MS = 60 * 60 * 1000;
@@ -101,9 +102,7 @@ export function createSkyLinkStateStore({ filePath = DEFAULT_CACHE_FILE, initial
 }
 
 export function normalizeIcao24(value) {
-    const clean = String(value || "").trim().replace(/^0x/i, "").toLowerCase();
-    if (!/^[0-9a-f]{4,6}$/.test(clean)) return "";
-    return clean.padStart(6, "0");
+    return normalizeCompleteIcao24(value);
 }
 
 function cleanText(value) {

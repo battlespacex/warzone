@@ -182,3 +182,21 @@ export function resetProviderHealth() {
     healthByProvider.clear();
     inFlightProviders.clear();
 }
+
+// Local snapshot only: no requests, URLs, credentials or fabricated coverage.
+export function providerPipelineSnapshot(domain, providers, details = {}, now = Date.now()) {
+    const scopes = { adsb_lol: "receiver-dependent worldwide", airplanes_live: "receiver-dependent worldwide",
+        adsb_one: "receiver-dependent worldwide", adsb_fi: "receiver-dependent worldwide", adsbx: "receiver-dependent worldwide",
+        opensky: "receiver-dependent worldwide", plane_alert_db: "static identity only; no positions", skylink: "identity enrichment; no guaranteed live coverage",
+        aisstream: "configured subscription bounding boxes", fintraffic: "Finnish/Baltic receiver coverage",
+        kystverket: "Norwegian public AIS coverage", barentswatch: "Norwegian maritime coverage" };
+    return providers.map(provider => {
+        const health = getProviderHealth(domain, provider.id, provider.enabled !== false, now);
+        const diagnostics = details[provider.id] || {};
+        const counters = ["fetched", "normalized", "valid", "received", "position", "static", "unique_mmsi", "matches", "records", "quota_remaining", "calls_this_month"];
+        return { id: provider.id, enabled: provider.enabled !== false, disabled_reason: provider.enabled === false ? provider.disabledReason || "DISABLED_BY_CONFIG" : null,
+            scope: scopes[provider.id] || "provider/account/endpoint dependent; unverified",
+            enrichment_only: provider.enrichmentOnly === true, ...health,
+            ...Object.fromEntries(counters.filter(key => Number.isFinite(diagnostics[key])).map(key => [key, diagnostics[key]])) };
+    });
+}

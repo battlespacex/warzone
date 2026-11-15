@@ -255,9 +255,10 @@ function createSatelliteModelOrientation(position, result) {
     const scratch = satelliteOrientationScratch;
     const enu = Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, scratch.enu);
     const base = Cesium.Matrix4.getMatrix3(enu, scratch.base);
-    scratch.angles.heading = Cesium.Math.toRadians(getSatelliteModelHeadingDeg(0));
-    scratch.angles.pitch = Cesium.Math.toRadians(getSatelliteModelPitchDeg(-150));
-    scratch.angles.roll = Cesium.Math.toRadians(getSatelliteModelRollDeg(-15));
+    const angles = getOperationalSatelliteAngles();
+    scratch.angles.heading = Cesium.Math.toRadians(angles.heading);
+    scratch.angles.pitch = Cesium.Math.toRadians(angles.pitch);
+    scratch.angles.roll = Cesium.Math.toRadians(angles.roll);
     const hpr = Cesium.Matrix3.fromHeadingPitchRoll(scratch.angles, scratch.hpr);
     const final = Cesium.Matrix3.multiply(base, hpr, scratch.final);
     return Cesium.Quaternion.fromRotationMatrix(final, result);
@@ -383,15 +384,77 @@ function getMinimumConfidenceRank() {
 }
 
 function getSatelliteRecord(id = "") {
-    return state.records.find((record) => record.id === id) || null;
+    if (state.recordIndexSource !== state.records) {
+        state.recordIndexSource = state.records;
+        state.recordIndex = new Map(state.records.map(record => [record.id, record]));
+    }
+    return state.recordIndex.get(id) || null;
+}
+
+function orbitalMetrics() {
+    return state.performance || (state.performance = { propagations: 0, sampleBuilds: 0, entityUpdates: 0,
+        widgetRefreshes: 0, regionListRebuilds: 0, renderRequests: 0, deferredChunks: 0,
+        frames: 0, maxFrameIntervalMs: 0, longTasks: 0, longTaskMs: 0, maxChunkMs: 0 });
+}
+
+function getOperationalSatelliteAngles() {
+    const at = performance.now();
+    if (!state.orientationCache || at - state.orientationCache.at >= 250) {
+        state.orientationCache = { at, heading: getSatelliteModelHeadingDeg(0), pitch: getSatelliteModelPitchDeg(-150), roll: getSatelliteModelRollDeg(-15) };
+    }
+    return state.orientationCache;
+}
+
+function orbitalInputBusy() {
+    return state.inputDown === true || performance.now() < (state.inputUntil || 0);
+}
+
+function orbitalRenderTick() {
+    if (state.controlsDirty && !orbitalInputBusy()) updateControlsOptions();
+    return state.enabled && state.entities.size > 0;
+}
+
+function bindOrbitalPerformance() {
+    if (state.performanceCleanup) return;
+    const cleanups = [];
+    const canvas = state.viewer?.scene?.canvas;
+    const down = () => { state.inputDown = true; };
+    const up = () => { state.inputDown = false; state.inputUntil = performance.now() + 120; };
+    const wheel = () => { state.inputUntil = performance.now() + 180; };
+    for (const [target, event, fn] of [[canvas, "pointerdown", down], [window, "pointerup", up],
+        [window, "pointercancel", up], [window, "blur", up], [canvas, "wheel", wheel]]) {
+        target?.addEventListener?.(event, fn, { passive: true });
+        cleanups.push(() => target?.removeEventListener?.(event, fn));
+    }
+    let lastFrame = 0;
+    const removeFrame = state.viewer?.scene?.postRender?.addEventListener?.(() => {
+        const at = performance.now(), metrics = orbitalMetrics();
+        metrics.frames++;
+        if (lastFrame) metrics.maxFrameIntervalMs = Math.max(metrics.maxFrameIntervalMs, at - lastFrame);
+        lastFrame = at;
+    });
+    if (typeof removeFrame === "function") cleanups.push(removeFrame);
+    if (typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
+        const observer = new PerformanceObserver(list => {
+            for (const entry of list.getEntries()) { orbitalMetrics().longTasks++; orbitalMetrics().longTaskMs += entry.duration; }
+        });
+        observer.observe({ type: "longtask", buffered: false });
+        cleanups.push(() => observer.disconnect());
+    }
+    state.performanceCleanup = () => { cleanups.forEach(fn => fn()); state.inputDown = false; state.inputUntil = 0; };
 }
 
 function getSatrec(record) {
     if (!record?.id || !record?.omm) return null;
-    if (state.satrecs.has(record.id)) return state.satrecs.get(record.id);
+    state.elementSignatures ||= new WeakMap();
+    if (!state.elementSignatures.has(record)) state.elementSignatures.set(record, JSON.stringify(record.omm));
+    const signature = state.elementSignatures.get(record);
+    const cached = state.satrecs.get(record.id);
+    if (cached?.__wzElements === signature) return cached;
     try {
         const satrec = json2satrec(record.omm);
         if (!satrec || satrec.error) return null;
+        satrec.__wzElements = signature;
         state.satrecs.set(record.id, satrec);
         return satrec;
     } catch {
@@ -402,6 +465,7 @@ function getSatrec(record) {
 function propagateRecord(record, date = new Date()) {
     const satrec = getSatrec(record);
     if (!satrec) return null;
+    orbitalMetrics().propagations++;
     const pv = propagate(satrec, date);
     if (!pv?.position || !pv?.velocity) return null;
     const gmst = gstime(date);
@@ -428,6 +492,7 @@ function propagateRecord(record, date = new Date()) {
 }
 
 function createSampledPosition(record, now = new Date(), pastMinutes, futureMinutes) {
+    orbitalMetrics().sampleBuilds++;
     const property = new Cesium.SampledPositionProperty();
     property.setInterpolationOptions({
         interpolationDegree: 2,
@@ -555,6 +620,9 @@ function resolveSatelliteMonitoringRegion(point = null) {
 }
 
 function getSatelliteRegionGroups(records = state.visibleRecords) {
+    const bucket = Math.floor(Date.now() / 5000);
+    const active = getActiveRegion?.()?.id || "";
+    if (state.regionCache?.records === records && state.regionCache.bucket === bucket && state.regionCache.active === active) return state.regionCache.groups;
     const groups = new Map();
     const now = new Date();
     (Array.isArray(records) ? records : []).forEach((record) => {
@@ -577,7 +645,7 @@ function getSatelliteRegionGroups(records = state.visibleRecords) {
             .localeCompare(String(b.record?.name || b.record?.noradId || "")));
     });
     const activeRegionId = getActiveRegion?.()?.id || "";
-    return [...groups.values()].sort((a, b) => {
+    const result = [...groups.values()].sort((a, b) => {
         const aCurrent = a.region?.id === activeRegionId ? 1 : 0;
         const bCurrent = b.region?.id === activeRegionId ? 1 : 0;
         if (aCurrent !== bCurrent) return bCurrent - aCurrent;
@@ -585,6 +653,8 @@ function getSatelliteRegionGroups(records = state.visibleRecords) {
         if (b.records.length !== a.records.length) return b.records.length - a.records.length;
         return a.label.localeCompare(b.label);
     });
+    state.regionCache = { records, bucket, active, groups: result };
+    return result;
 }
 
 function renderSatelliteRegionList() {
@@ -598,6 +668,11 @@ function renderSatelliteRegionList() {
         return;
     }
     const groups = getSatelliteRegionGroups(state.visibleRecords);
+    const signature = JSON.stringify([state.loading, state.selectedId, state.focusPendingId, state.focusOwnerSignature,
+        getActiveRegion?.()?.id, groups.map(group => [group.key, group.records.map(({ record }) => [record.id, record.name])])]);
+    if (list.__orbitalSignature === signature) return;
+    list.__orbitalSignature = signature;
+    orbitalMetrics().regionListRebuilds++;
     const mappedCount = groups.reduce((sum, group) => sum + (group.region ? group.records.length : 0), 0);
     meta.textContent = state.loading
         ? "Updating propagated positions"
@@ -1100,7 +1175,7 @@ function ensureFocusCard() {
 }
 
 function hideFocusCard() {
-    if (state.focusCard) state.focusCard.hidden = true;
+    if (state.focusCard) { state.focusCard.hidden = true; delete state.focusCard.dataset.satelliteId; }
 }
 
 function returnToSelectedRegion() {
@@ -1155,12 +1230,12 @@ function showFocusCard(record) {
             ["SOURCE STATUS", state.data?.sourceStatus || "Unknown"],
             ["SOURCE", "CelesTrak public GP elements"],
         ];
-        grid.replaceChildren();
-        items.forEach(([label, value]) => {
-            const span = document.createElement("span");
+        items.forEach(([label, value], index) => {
+            const span = grid.children[index] || document.createElement("span");
             span.dataset.label = label;
-            span.textContent = cleanText(value, "UNKNOWN") || "UNKNOWN";
-            grid.appendChild(span);
+            const text = cleanText(value, "UNKNOWN") || "UNKNOWN";
+            if (span.textContent !== text) span.textContent = text;
+            if (!span.parentNode) grid.appendChild(span);
         });
     }
     if (note) {
@@ -1168,6 +1243,8 @@ function showFocusCard(record) {
     }
     showOrbitalWidget({ expand: !window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches });
     card.hidden = false;
+    if (card.dataset.satelliteId === record.id) return;
+    card.dataset.satelliteId = record.id;
     card.classList.remove("is-focus-arriving");
     void card.offsetWidth;
     card.classList.add("is-focus-arriving");
@@ -1285,16 +1362,20 @@ function updateDefaultEntities() {
     const now = new Date();
     const nextIds = new Set();
     const records = state.visibleRecords.slice();
+    const style = { scale: getSatelliteModelScale(getCssNumber("--warzone-orbital-model-scale", 170000)),
+        minimumPixelSize: getCssNumber("--warzone-orbital-model-min-px", 18), maximumScale: getCssNumber("--warzone-orbital-model-max-scale", 260000) };
     const update = record => {
         const existing = state.entities.get(record.id);
         const cached = existing?.point?.position;
-        const position = existing?.record === record && cached?.__wzOrbitalSampleUntil > now.getTime() + 60_000 ? cached : createSampledPosition(
+        const sameElements = existing?.record === record || (existing?.record?.omm && JSON.stringify(existing.record.omm) === JSON.stringify(record.omm));
+        const position = sameElements && cached?.__wzOrbitalSampleUntil > now.getTime() + 60_000 ? cached : createSampledPosition(
             record,
             now,
             state.config.defaultSamplePastMinutes,
             state.config.defaultSampleFutureMinutes
         );
         if (!position) return;
+        orbitalMetrics().entityUpdates++;
         nextIds.add(record.id);
         if (existing?.point) {
             const modelProfile = resolveSatelliteModelProfile(record);
@@ -1304,10 +1385,11 @@ function updateDefaultEntities() {
             }
             existing.record = record;
             if (existing.point.model) {
-                existing.point.model.uri = modelProfile.uri;
-                existing.point.model.scale = getSatelliteModelScale(getCssNumber("--warzone-orbital-model-scale", 170000));
-                existing.point.model.minimumPixelSize = getCssNumber("--warzone-orbital-model-min-px", 18);
-                existing.point.model.maximumScale = getCssNumber("--warzone-orbital-model-max-scale", 260000);
+                const model = existing.point.model;
+                for (const [key, value] of Object.entries({ uri: modelProfile.uri, ...style })) {
+                    const current = model[key]?.getValue?.() ?? model[key];
+                    if (current !== value) model[key] = value;
+                }
             }
             existing.point.show = record.id !== state.selectedId;
             return;
@@ -1319,22 +1401,26 @@ function updateDefaultEntities() {
     const finish = () => {
         removeMissingEntities(nextIds);
         if (state.entities.size && !document.hidden) {
-            registerAnimationTask("warzone-operational-orbital-models", () => state.enabled && state.entities.size > 0, { hz: 12 });
+            registerAnimationTask("warzone-operational-orbital-models", orbitalRenderTick, { hz: 12 });
         } else unregisterAnimationTask("warzone-operational-orbital-models");
-        state.viewer.scene.requestRender?.();
+        orbitalMetrics().renderRequests++;
+        requestSharedSceneRender();
     };
-    if (records.length <= 64) { records.forEach(update); finish(); return; }
+    if (records.length <= 8 && !orbitalInputBusy()) { records.forEach(update); finish(); return; }
     let index = 0;
     const chunk = () => {
         if (!state.enabled || generation !== state.modelGeneration) return;
         state.modelFrame = 0;
+        if (orbitalInputBusy()) { orbitalMetrics().deferredChunks++; state.modelFrame = requestAnimationFrame(chunk); return; }
         const started = performance.now();
         let processed = 0;
         while (index < records.length) {
             update(records[index++]);
             if (++processed >= 8 || performance.now() - started >= 6) break;
         }
-        state.viewer.scene.requestRender?.();
+        orbitalMetrics().maxChunkMs = Math.max(orbitalMetrics().maxChunkMs, performance.now() - started);
+        orbitalMetrics().renderRequests++;
+        requestSharedSceneRender();
         if (index < records.length) state.modelFrame = requestAnimationFrame(chunk);
         else finish();
     };
@@ -1460,6 +1546,9 @@ function ensureControls() {
 
 function setSelectOptions(select, options, allLabel) {
     if (!select) return;
+    const signature = JSON.stringify(options);
+    if (select.__orbitalSignature === signature) return;
+    select.__orbitalSignature = signature;
     const current = select.value || "all";
     select.replaceChildren();
     const all = document.createElement("option");
@@ -1489,6 +1578,9 @@ function buildOptions(records, getter) {
 }
 
 function updateControlsOptions() {
+    if (orbitalInputBusy()) { state.controlsDirty = true; return; }
+    state.controlsDirty = false;
+    orbitalMetrics().widgetRefreshes++;
     const controls = ensureControls();
     if (!controls) return;
     if (!window.matchMedia?.("(max-width: 1024px) and (orientation: portrait), (max-width: 768px)")?.matches) {
@@ -1533,12 +1625,12 @@ function updateControlsOptions() {
             ["SOURCE", state.data?.sourceStatus || "READY"],
             ["SELECTION", selected ? formatUpper(selected.name || selected.noradId) : "NONE"],
         ];
-        summaryGrid.replaceChildren();
-        items.forEach(([label, value]) => {
-            const span = document.createElement("span");
+        items.forEach(([label, value], index) => {
+            const span = summaryGrid.children[index] || document.createElement("span");
             span.dataset.label = label;
-            span.textContent = cleanText(value, "UNKNOWN") || "UNKNOWN";
-            summaryGrid.appendChild(span);
+            const text = cleanText(value, "UNKNOWN") || "UNKNOWN";
+            if (span.textContent !== text) span.textContent = text;
+            if (!span.parentNode) summaryGrid.appendChild(span);
         });
     }
     if (summaryNote) {
@@ -1568,7 +1660,8 @@ async function fetchOrbitalData() {
         const records = Array.isArray(payload?.satellites) ? payload.satellites : [];
         state.data = payload;
         state.records = records;
-        state.satrecs.clear();
+        const ids = new Set(records.map(record => record.id));
+        for (const id of state.satrecs.keys()) if (!ids.has(id)) state.satrecs.delete(id);
         updateVisibleRecords();
         setStatusText(payload.stale
             ? `Cached public orbital data / ${formatAge(payload.cacheAgeSeconds)} old`
@@ -2002,7 +2095,7 @@ function stopTimers() {
 function startTimers() {
     stopTimers();
     if (!state.enabled || document.hidden) return;
-    if (state.entities.size) registerAnimationTask("warzone-operational-orbital-models", () => state.enabled && state.entities.size > 0, { hz: 12 });
+    if (state.entities.size) registerAnimationTask("warzone-operational-orbital-models", orbitalRenderTick, { hz: 12 });
     const refreshMs = Math.max(15000, Number(state.config.positionRefreshIntervalMs) || DEFAULT_CONFIG.positionRefreshIntervalMs);
     state.visibleTimer = setInterval(() => {
         if (!state.enabled || document.hidden) return;
@@ -2016,6 +2109,14 @@ function startTimers() {
 }
 
 function cleanupLayer() {
+    state.performanceCleanup?.();
+    state.performanceCleanup = null;
+    state.controlsDirty = false;
+    state.recordIndexSource = null;
+    state.recordIndex?.clear();
+    state.elementSignatures = new WeakMap();
+    state.regionCache = null;
+    state.orientationCache = null;
     state.modelGeneration = (state.modelGeneration || 0) + 1;
     if (state.modelFrame) cancelAnimationFrame(state.modelFrame);
     state.modelFrame = 0;
@@ -2096,6 +2197,7 @@ export function setWarzoneMilSatsEnabled(enabled) {
     }
     stopStartupDemo();
     state.enabled = true;
+    bindOrbitalPerformance();
     installSatelliteFocusTasks();
     showOrbitalWidget({ expand: true });
     ensureControls();
@@ -2121,6 +2223,8 @@ export function getWarzoneMilSatsDiagnostics() {
         orbitalRequestActive: Boolean(state.fetchController),
         cachedOrbitalRecords: state.records?.length || 0,
         cachedSatrecs: state.satrecs.size,
+        performance: { ...orbitalMetrics(), inputBusy: orbitalInputBusy(),
+            note: "Render intervals include requestRenderMode idle gaps; long tasks cover the whole page while orbital is enabled." },
         satelliteFocus: getWarzoneMilSatsFocusDiagnostics(),
     });
 }
@@ -2168,7 +2272,7 @@ export function initWarzoneMilSats(viewer) {
     if (state.viewer && state.enabled) installSatelliteFocusTasks();
     window.refreshWarzoneMilSatsScale = () => {
         if (startupDemoState.enabled) refreshStartupDemoScale();
-        if (state.enabled) updateDefaultEntities();
+        if (state.enabled) { state.orientationCache = null; updateDefaultEntities(); }
     };
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);

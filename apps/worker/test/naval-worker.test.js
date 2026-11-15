@@ -188,7 +188,7 @@ test("later MMSI reconciles and ends an earlier IMO-only temporary track", async
     };
     const observation = (source, mmsi) => ({
         domain: "naval", source, provider: source, observed_at: new Date().toISOString(),
-        mmsi, imo: "7654321", vessel_name: "USS RECONCILE", latitude: 36, longitude: -72,
+        mmsi, imo: "7654329", vessel_name: "USS RECONCILE", latitude: 36, longitude: -72,
         ship_type: 35, provider_military_flag: true,
     });
     await runAisWorker({
@@ -201,7 +201,7 @@ test("later MMSI reconciles and ends an earlier IMO-only temporary track", async
         persistence,
         logger: { log() {}, warn() {} },
     });
-    assert.deepEqual(aliases, ["ais-imo-7654321"]);
+    assert.deepEqual(aliases, ["ais-imo-7654329"]);
 });
 
 test("military classifier rejects civilian traffic and accepts configured known MMSI", () => {
@@ -215,10 +215,10 @@ test("military classifier rejects civilian traffic and accepts configured known 
     );
     assert.deepEqual(
         qualifyMilitaryVessel({ mmsi: "", name: "USS EXAMPLE", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }),
-        { accepted: true, reason: "unverified_name_hint" }
+        { accepted: false, reason: "invalid_identifier" }
     );
     assert.deepEqual(
-        qualifyMilitaryVessel({ mmsi: "", name: "CONTACT", callSign: "NATO1", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set(["NATO1"]) }),
+        qualifyMilitaryVessel({ mmsi: "368123457", name: "CONTACT", callSign: "NATO1", shipType: 0 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set(["NATO1"]) }),
         { accepted: true, reason: "known_military_callsign" }
     );
     assert.equal(qualifyMilitaryVessel({ name: "NAVY BLUE", shipType: 70 }, { knownMilitaryMmsi: new Set(), knownMilitaryImo: new Set(), knownMilitaryCallsigns: new Set() }).accepted, false);
