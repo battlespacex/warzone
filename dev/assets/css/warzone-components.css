@@ -7370,3 +7370,30 @@ body:not(.is-operational-report-open) .warzone-view {
 .status-pill--advisory {
     color: var(--color-blue-glow); background: var(--color-bg-row);
 }
+
+#warzone-notice-panel.wz-notice-preview { width: var(--wz-notice-preview-max-width); min-width: min(var(--wz-notice-preview-min-width),calc(100vw - 2rem)); }
+.wz-notice-preview .wz-notice-summary { white-space: pre-line; }
+.wz-notice-capture { position: fixed; z-index: 10000; background: rgba(0,0,0,var(--wz-notice-capture-overlay-opacity)); overflow: hidden; cursor: crosshair; touch-action: none; user-select: none; }
+.wz-notice-capture.has-selection { background: transparent; }
+.wz-notice-capture__selection { position: absolute; box-sizing: border-box; border: var(--wz-notice-capture-border-width) solid var(--wz-notice-capture-border-color); box-shadow: 0 0 0 100vmax rgba(0,0,0,var(--wz-notice-capture-overlay-opacity)); cursor: move; }
+.wz-notice-capture__resize { position: absolute; bottom: -3px; right: -3px; width: 14px; height: 14px; background: var(--wz-notice-capture-border-color); cursor: nwse-resize; }
+.wz-notice-capture__toolbar { position: absolute; bottom: 1rem; left: 1rem; right: 1rem; display: flex; flex-wrap: wrap; gap: .6rem; padding: 1rem; background: var(--color-bg-header); color: var(--color-text-heading); cursor: default; }
+.wz-notice-capture__toolbar span { flex: 1 0 100%; font-size: var(--text-xs); }
+.wz-notice-capture__toolbar button { flex: 1; min-width: 6rem; }
+.wz-notice-preview-leader { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 17; overflow: visible; }
+.wz-notice-preview-leader line { stroke: var(--wz-notice-line-color); stroke-width: var(--wz-notice-line-width); }
+
+/* Measured only during PNG export; never mounted in normal globe interaction. */
+.notam-export { position: fixed; left: -100000px; top: 0; visibility: hidden; pointer-events: none; contain: layout style; font-family: var(--notam-export-font-family); }
+.notam-export, .notam-export * { box-sizing: border-box; margin: 0; border: 0; padding: 0; background: transparent; text-shadow: none; }
+.notam-export img { position: absolute; display: block; object-fit: contain; }
+.notam-export__stratops-logo { width: var(--notam-export-top-logo-width); height: var(--notam-export-top-logo-height); max-height: var(--notam-export-top-logo-max-height); top: var(--notam-export-top-logo-top); left: 50%; transform: translateX(-50%); opacity: var(--notam-export-top-logo-opacity); }
+.notam-export__timestamp { position: absolute; top: var(--notam-export-time-top); right: var(--notam-export-time-right); color: var(--notam-export-time-color); font-size: var(--notam-export-time-size); font-weight: var(--notam-export-time-weight); letter-spacing: var(--notam-export-time-spacing); line-height: var(--notam-export-time-line-height); white-space: nowrap; }
+.notam-export__intelligence { position: absolute; left: var(--notam-export-info-left); bottom: var(--notam-export-info-bottom); width: var(--notam-export-info-width); max-width: calc(100% - var(--notam-export-info-left) - var(--notam-export-bottom-logo-right) - var(--notam-export-bottom-logo-width) - var(--notam-export-info-gap)); display: flex; flex-direction: column; align-items: flex-start; gap: var(--notam-export-info-gap); text-transform: uppercase; }
+.notam-export__identifier { color: var(--notam-export-id-color); font-size: var(--notam-export-id-size); font-weight: var(--notam-export-id-weight); letter-spacing: var(--notam-export-id-spacing); line-height: var(--notam-export-id-line-height); }
+.notam-export__type { background: var(--notam-export-label-bg); color: var(--notam-export-label-color); font-size: var(--notam-export-label-size); font-weight: var(--notam-export-label-weight); line-height: var(--notam-export-label-line-height); letter-spacing: var(--notam-export-label-spacing); padding: var(--notam-export-label-padding); clip-path: var(--notam-export-label-clip); }
+.notam-export__details { width: 100%; margin-top: var(--notam-export-details-gap); color: var(--notam-export-details-color); font-size: var(--notam-export-details-size); font-weight: var(--notam-export-details-weight); line-height: var(--notam-export-details-line-height); letter-spacing: var(--notam-export-details-spacing); overflow-wrap: anywhere; }
+.notam-export__detail, .notam-export__identifier { max-width: 100%; overflow-wrap: anywhere; }
+.notam-export__battlespacex-logo { width: var(--notam-export-bottom-logo-width); height: var(--notam-export-bottom-logo-height); max-height: var(--notam-export-bottom-logo-max-height); right: var(--notam-export-bottom-logo-right); bottom: var(--notam-export-bottom-logo-bottom); opacity: var(--notam-export-bottom-logo-opacity); }
+.notam-export__source { position: absolute; left: var(--notam-export-source-left); bottom: var(--notam-export-source-bottom); max-width: calc(100% - var(--notam-export-source-left) - var(--notam-export-bottom-logo-width) - var(--notam-export-bottom-logo-right)); color: var(--notam-export-source-color); font-size: var(--notam-export-source-size); font-weight: var(--notam-export-source-weight); letter-spacing: var(--notam-export-source-spacing); line-height: 1.4; overflow-wrap: anywhere; }
+.notam-export .notam-export__marker { position: absolute; transform: translate(-50%,-50%); width: var(--notam-export-marker-size); height: var(--notam-export-marker-size); border: var(--notam-export-marker-width) solid var(--notam-export-marker-color); opacity: var(--notam-export-marker-opacity); clip-path: var(--notam-export-marker-clip); }

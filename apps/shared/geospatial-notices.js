@@ -36,6 +36,17 @@ function stamp(value) {
 }
 export function validateGeometry(g) {
     if(!g)return null;
+    if(['MultiPolygon','MultiLineString'].includes(g.type)){
+        if(!Array.isArray(g.coordinates)||!g.coordinates.length||g.coordinates.length>32)throw Error('Invalid multi-area geometry');
+        const type=g.type==='MultiPolygon'?'Polygon':'LineString';
+        const parts=g.coordinates.map(coordinates=>validateGeometry({type,coordinates}));
+        if(parts.reduce((sum,p)=>sum+noticeGeometryPoints(p).length,0)>1000)throw Error('Geometry vertex limit exceeded');
+        return {type:g.type,coordinates:parts.map(p=>p.coordinates)};
+    }
+    if(g.type==='LineString'){
+        if(!Array.isArray(g.coordinates)||g.coordinates.length<2||g.coordinates.length>1000)throw Error('Invalid route geometry');
+        return {type:'LineString',coordinates:g.coordinates.map(p=>validateGeometry({type:'Point',coordinates:p}).coordinates)};
+    }
     if(g.type==='Point') {
         if(!Array.isArray(g.coordinates)||g.coordinates.length!==2||!g.coordinates.every(Number.isFinite)||Math.abs(g.coordinates[0])>180||Math.abs(g.coordinates[1])>90)throw Error('Invalid point');
         return {type:'Point',coordinates:[...g.coordinates]};
@@ -53,6 +64,17 @@ export function validateGeometry(g) {
     if(Math.abs(area)<1e-9)throw Error('Degenerate polygon');
     return {type:'Polygon',coordinates:[ring]};
 }
+export function noticeGeometryParts(geometry){
+    if(!geometry)return [];
+    if(geometry.type==='MultiPolygon')return geometry.coordinates.map(coordinates=>({type:'Polygon',coordinates}));
+    if(geometry.type==='MultiLineString')return geometry.coordinates.map(coordinates=>({type:'LineString',coordinates}));
+    return [geometry];
+}
+export function noticeGeometryPoints(geometry){return noticeGeometryParts(geometry).flatMap(g=>g.type==='Point'?[g.coordinates]:g.type==='Polygon'?g.coordinates[0]:g.coordinates);}
+export function publishedRadiusNm(raw=''){
+    const match=raw.match(/\bRADIUS\s+(\d+(?:\.\d+)?)\s*(NM|NAUTICAL MILES|KM|METRES|METERS)\b/i);
+    return match?+match[1]*(/KM/i.test(match[2])?1000/1852:/MET/i.test(match[2])?1/1852:1):null;
+}
 export function noticeStatus(n,now=Date.now()) {
     if(n.isCancellation)return 'cancelled';if(n.superseded)return 'superseded';
     const start=Date.parse(n.effectiveFrom),end=Date.parse(n.effectiveUntil);
@@ -62,6 +84,12 @@ export function noticeStatus(n,now=Date.now()) {
         const a=+match[1]*60+ +match[2],b=+match[3]*60+ +match[4];if(+match[1]>23||+match[3]>23||+match[2]>59||+match[4]>59)return 'unknown';
         const d=new Date(now),t=d.getUTCHours()*60+d.getUTCMinutes();if(!(a<=b?t>=a&&t<b:t>=a||t<b))return 'upcoming';}
     return 'active';
+}
+export function nextNoticeBoundary(n,now=Date.now()){
+    const boundaries=[Date.parse(n.effectiveFrom),Date.parse(n.effectiveUntil)];
+    const match=String(n.schedule||'').match(/^DAILY\s+(\d{2})(\d{2})-(\d{2})(\d{2})\s*(?:UTC)?$/i);
+    if(match){const date=new Date(now);date.setUTCHours(0,0,0,0);for(const minute of [+match[1]*60+ +match[2],+match[3]*60+ +match[4]]){let at=date.getTime()+minute*60000;if(at<=now)at+=86400000;boundaries.push(at);}}
+    return Math.min(...boundaries.filter(at=>Number.isFinite(at)&&at>now));
 }
 export function normalizeNotice(input,now=Date.now()) {
     if(!input||!text(input.provider)||!text(input.sourceId)||!text(input.issuer))throw Error('Notice requires provider, issuer and source ID');
@@ -80,6 +108,9 @@ export function normalizeNotice(input,now=Date.now()) {
         provenance:{publication:url.href,extraction:text(input.provenance?.extraction||'administrator import'),verification:text(input.provenance?.verification||'unverified')},
         metadata:{version,updatedAt:stamp(input.metadata?.updatedAt),estimated:input.metadata?.estimated===true,permanent:input.metadata?.permanent===true,qCode:text(input.metadata?.qCode).slice(0,5),
             altitudes:{lower:parseAltitude(input.lowerAltitude),upper:parseAltitude(input.upperAltitude)},
+            ...(['published','q-line'].includes(input.metadata?.radiusSource)?{radiusSource:input.metadata.radiusSource}:{}),
+            ...(['low','medium','high','critical'].includes(input.metadata?.severity)?{severity:input.metadata.severity}:{}),
+            ...(Number.isFinite(input.metadata?.corridorWidthMeters)&&input.metadata.corridorWidthMeters>0&&input.metadata.corridorWidthMeters<=100000?{corridorWidthMeters:input.metadata.corridorWidthMeters}:{}),
             ...(Number.isFinite(input.metadata?.radiusNm)&&input.metadata.radiusNm>0&&input.metadata.radiusNm<=999?{radiusNm:input.metadata.radiusNm}:{})}});
     n.status=noticeStatus(n,now);return n;
 }
@@ -100,6 +131,7 @@ export function parseNotam(raw,context) {
     if(center&&!coordinates.length&&+center[2]>0)result.metadata.radiusNm=+center[2];return result;
 }
 export function containsNotice(n,lon,lat) {
+    if(n.geometry?.type==='MultiPolygon')return noticeGeometryParts(n.geometry).some(geometry=>containsNotice({...n,geometry},lon,lat));
     if(n.geometry?.type==='Point'&&n.metadata?.radiusNm){const [x,y]=n.geometry.coordinates,toRad=Math.PI/180;
         const a=Math.sin((lat-y)*toRad/2)**2+Math.cos(y*toRad)*Math.cos(lat*toRad)*Math.sin((lon-x)*toRad/2)**2;
         return 6371008.8*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))<=n.metadata.radiusNm*1852;}
@@ -124,11 +156,12 @@ export function parseMaritimeWarning(raw,context={}) {
     return normalizeNotice({...context,noticeType:context.noticeType||'navarea',sourceId:id[2],navarea:id[1]||context.navarea,
         title:context.title||`Navigational warning ${id[2]}`,rawText:raw,geometry,geometrySource:points.length?'published coordinates':'none',
         geometryAccuracy:points.length?'source stated':'Location unavailable',isCancellation:context.isCancellation===true||Boolean(cancellation),
-        replacesNoticeId:context.replacesNoticeId||cancellation?.[1],metadata:{...context.metadata,...(radiusNm?{radiusNm}:{})}},context.now||Date.now());
+        replacesNoticeId:context.replacesNoticeId||cancellation?.[1],metadata:{...context.metadata,...(radiusNm&&points.length===1?{radiusNm,radiusSource:'published'}:{})}},context.now||Date.now());
 }
 export function intersectsBounds(n,bounds) {
     if(!n.geometry)return true; // Keep unlocated publications in the list, never place them on the globe.
-    const points=n.geometry.type==='Point'?[n.geometry.coordinates]:n.geometry.coordinates[0];
+    if(['MultiPolygon','MultiLineString'].includes(n.geometry.type))return noticeGeometryParts(n.geometry).some(geometry=>intersectsBounds({...n,geometry},bounds));
+    const points=noticeGeometryPoints(n.geometry);
     const longitudes=points.map(p=>p[0]);let min=Math.min(...longitudes),max=Math.max(...longitudes);
     const latRadius=(n.metadata?.radiusNm||0)/60;
     if(Math.max(...points.map(p=>p[1]))+latRadius<bounds.minLat||Math.min(...points.map(p=>p[1]))-latRadius>bounds.maxLat)return false;

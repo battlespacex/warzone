@@ -63,3 +63,10 @@ test('explicit published area variants produce validated polygons; unrelated poi
  const provided={type:'Polygon',coordinates:[[[66,24],[66,25],[67,24],[66,24]]]};
  const n=normalizeNotacNotice({...input,geography:{geojson:provided},text:'BOUNDED BY 240000N0660000E 250000N0670000E 240000N0670000E 250000N0660000E'},at);assert.deepEqual(n.geometry,provided);
 });
+
+test('published circular E-line and structured route/multi-area inputs preserve their geometry provenance',()=>{
+ const circle=normalizeNotacNotice({...input,text:'WITHIN RADIUS 5 NM CENTERED ON 240000N0660000E',geography:{geojson:{type:'Point',coordinates:[60,20]},radius_nm:50}},at);
+ assert.equal(circle.metadata.radiusSource,'published');assert.equal(circle.metadata.radiusNm,5);assert.deepEqual(circle.geometry.coordinates,[66,24]);assert.equal(circle.geometryAccuracy,'source stated');
+ const route=normalizeNotacNotice({...input,geography:{geojson:{type:'LineString',coordinates:[[65,24],[67,26]]}}},at);assert.equal(route.geometry.type,'LineString');assert.match(route.geometrySource,/route/);
+ const multiple=normalizeNotacNotice({...input,geography:{geojson:{type:'MultiPolygon',coordinates:[[[[65,24],[66,24],[66,25],[65,24]]],[[[70,24],[71,24],[71,25],[70,24]]]]}}},at);assert.equal(multiple.geometry.coordinates.length,2);
+});

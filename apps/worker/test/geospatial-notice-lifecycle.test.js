@@ -1,9 +1,10 @@
+import * as RealCesium from 'cesium';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,BoundingSphere,Matrix4} from 'cesium';
-import {NOTICE_LAYERS,matchesNoticeLayers,correlateObservation} from '../../shared/geospatial-notices.js';
+import {NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary} from '../../shared/geospatial-notices.js';
 import {createSkySpyAircraftProvider} from '../src/tracking/aircraft/providers/skyspy.js';
 import {createAircraftProviders} from '../src/tracking/aircraft/registry.js';
 import {createPlaneAlertMilitaryDatabase} from '../src/tracking/aircraft/providers/plane-alert-db.js';
@@ -13,12 +14,12 @@ const source=fs.readFileSync(new URL('../../../dev/assets/js/warzone-notices.js'
 function harness(fetchImpl){
     const enabled=new Set(),layerListeners=new Set(),regionListeners=new Set(),timers=new Map(),frames=new Map(),events=new Map(),sources=[],panels=[],handlers=[];let seq=0,flights=0;
     const focus={assetId:''};
-    class Element{constructor(tag){this.tag=tag;this.children=[];this.style={};this.selectors=new Map();}setAttribute(){}append(...children){this.children.push(...children);}remove(){const index=panels.indexOf(this);if(index>=0)panels.splice(index,1);}querySelector(selector){if(!this.selectors.has(selector))this.selectors.set(selector,new Element(selector));return this.selectors.get(selector);}}
+    class Element{constructor(tag){this.tag=tag;this.children=[];this.style={};this.selectors=new Map();}setAttribute(){}getContext(){return this.context||=( {fillRect(){this.fill=this.fillStyle;},beginPath(){},moveTo(){},lineTo(){},stroke(){}} );}append(...children){this.children.push(...children);}remove(){const index=panels.indexOf(this);if(index>=0)panels.splice(index,1);}querySelector(selector){if(!this.selectors.has(selector))this.selectors.set(selector,new Element(selector));return this.selectors.get(selector);}}
     class Handler{constructor(){handlers.push(this);}setInputAction(fn){this.click=fn;}destroy(){const index=handlers.indexOf(this);if(index>=0)handlers.splice(index,1);}}
     const restores=[];
     const viewer={camera:{positionWC:new Cartesian3(7e6,1,2),directionWC:new Cartesian3(-1,0,0),upWC:new Cartesian3(0,0,1),cancelFlight(){},flyToBoundingSphere(){flights++;},flyTo(view){restores.push(view);}},dataSources:{async add(s){sources.push(s);return s;},remove(s){const index=sources.indexOf(s);if(index>=0)sources.splice(index,1);}},scene:{canvas:{},requestRender(){},pick:()=>({id:sources[0]?.entities.values[0]})},flyTo(){flights++;}};
-    const context=vm.createContext({Cesium:{CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,BoundingSphere,Matrix4,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
-        NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
+    const context=vm.createContext({Cesium:{...RealCesium,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
+        NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
         onLayerChange(fn){layerListeners.add(fn);return ()=>layerListeners.delete(fn);},onRegionChange(fn){regionListeners.add(fn);return ()=>regionListeners.delete(fn);},
         isLayerEnabled:id=>enabled.has(id),getActiveRegion:()=>({bounds:{minLat:20,maxLat:30,minLon:60,maxLon:70}}),getAssetFocusController:()=>({getState:()=>focus}),
         window:{__stratopsConfig:{apiBase:'https://staging.example.org'}},document:{createElement:tag=>new Element(tag),body:{append:el=>panels.push(el)},addEventListener(name,fn){events.set(name,fn);},removeEventListener(name){events.delete(name);}},navigator:{clipboard:{writeText(){}}},
@@ -27,6 +28,7 @@ function harness(fetchImpl){
     vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
     return {context,enabled,viewer,sources,panels,handlers,timers,frames,events,focus,restores,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
 }
+function openMore(h){h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='MORE').onclick();}
 const n={id:'test:1',sourceId:'001/26',title:'Fixture only',sourceUrl:'https://example.org/notices',noticeType:'notam',isMilitaryRelated:true,status:'active',rawText:'Test fixture',metadata:{},geometry:{type:'Polygon',coordinates:[[[65,24],[66,24],[66,25],[65,24]]]}};
 test('restored unconfigured notices stay silent and do not refetch on region entry; explicit user opening remains available',async()=>{
     let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({state:'unconfigured',notices:[]})};});
@@ -91,7 +93,7 @@ test('unconfigured/empty/error states contain no fabricated notice fields and us
 });
 test('notice focus preserves existing shared aircraft/naval focus and never changes models',async()=>{
     const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
-    h.handlers[0].click({position:{}});const button=h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');assert.ok(button);
+    h.handlers[0].click({position:{}});openMore(h);const button=h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');assert.ok(button);
     h.focus.assetId='existing-aircraft';button.onclick();assert.equal(h.flights,0);h.focus.assetId='existing-vessel';button.onclick();assert.equal(h.flights,0);
     h.focus.assetId='';button.onclick();assert.equal(h.flights,1);h.context.disposeNoticeLayers();
 });
@@ -146,14 +148,14 @@ test('NOTAM polygons preserve source rings and CSS line width; Q-line radius def
     const polygon=h.sources[0].entities.getById(n.id),marker=h.sources[0].entities.getById(point.id);
     assert.equal(polygon.polyline.width.getValue(),4);assert.equal(polygon.polygon.hierarchy.getValue().positions.length,4);
     assert.equal(polygon.polygon.height,undefined,'published area uses the terrain-clamped Entity path');assert.equal(polygon.polyline.clampToGround.getValue(),true);
-    assert.equal(polygon.polygon.material.oddColor.getValue().alpha,.12);assert.ok(marker.point);assert.equal(marker.ellipse,undefined);
+    assert.match(polygon.polygon.material.image.getValue().context.fill,/0\.12\)/);assert.ok(marker.point);assert.equal(marker.ellipse,undefined);
     css.set('--wz-notice-line-width','3');css.set('--wz-notice-marker-size','14');h.events.get('wz:notice-style-refresh')();
     assert.equal(h.sources[0].entities.getById(n.id),polygon);assert.equal(polygon.polyline.width.getValue(),3);assert.equal(marker.point.pixelSize.getValue(),14);
     h.context.disposeNoticeLayers();assert.equal(h.events.size,0);
 });
 test('notice popup dismisses outside or Escape but not an inside pointer; releases owned handlers',async()=>{
     const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
-    h.handlers[0].click({position:{x:20,y:20}});assert.equal(h.panels[0].className,'wz-notice-popup');
+    h.handlers[0].click({position:{x:20,y:20}});assert.match(h.panels[0].className,/wz-notice-preview/);
     const panel=h.panels[0];panel.contains=target=>target===panel;
     h.events.get('pointerdown')({type:'pointerdown',target:panel});assert.equal(h.panels.length,1);
     h.events.get('pointerdown')({type:'pointerdown',target:{}});assert.equal(h.panels.length,1);assert.notEqual(h.panels[0].className,'wz-notice-popup');
@@ -184,7 +186,7 @@ test('notice child/group toggles preserve the shared widget and reopen it after 
     h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.frames.size,0);
 });
 test('notice Focus toggles to Unfocus and restores an independent snapshot of the real previous view',async()=>{
-    const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();h.handlers[0].click({position:{}});
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();h.handlers[0].click({position:{}});openMore(h);
     const button=h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');
     const previous=Cartesian3.clone(h.viewer.camera.positionWC);button.onclick();assert.equal(button.textContent,'Unfocus');assert.equal(h.flights,1);
     h.viewer.camera.positionWC.x=999;button.onclick();assert.equal(button.textContent,'Focus area');assert.equal(h.restores.length,1);
@@ -195,7 +197,7 @@ test('notice Focus toggles to Unfocus and restores an independent snapshot of th
 });
 test('region changes and other tracker focus invalidate notice return views without camera theft',async()=>{
     const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
-    const open=()=>{h.handlers[0].click({position:{}});return h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');};
+    const open=()=>{h.handlers[0].click({position:{}});openMore(h);return h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');};
     const button=open();button.onclick();h.focus.assetId='aircraft';h.events.get('wz:asset-focus-changed')();assert.equal(button.textContent,'Focus area');assert.equal(h.restores.length,0);
     h.focus.assetId='';button.onclick();for(const fn of h.regionListeners)fn();assert.equal(h.restores.length,0);h.enabled.clear();h.sync();assert.equal(h.restores.length,0);h.context.disposeNoticeLayers();
 });
@@ -205,6 +207,40 @@ test('notice polygons share immutable style materials and refresh them together 
     const css=new Map();h.context.getComputedStyle=()=>({getPropertyValue:key=>css.get(key)||''});h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
     const [a,b]=h.sources[0].entities.values,old=a.polygon.material;assert.equal(a.polygon.material,b.polygon.material);
     css.set('--wz-notice-fill-opacity','.3');h.events.get('wz:notice-style-refresh')();
-    assert.equal(h.sources[0].entities.getById(a.id),a);assert.equal(a.polygon.material,b.polygon.material);assert.notEqual(a.polygon.material,old);assert.equal(a.polygon.material.oddColor.getValue().alpha,.3);
+    assert.equal(h.sources[0].entities.getById(a.id),a);assert.equal(a.polygon.material,b.polygon.material);assert.notEqual(a.polygon.material,old);assert.match(a.polygon.material.image.getValue().context.fill,/0\.3\)/);
     h.context.disposeNoticeLayers();assert.equal(h.sources.length,0);
+});
+
+test('published circles, multipart areas, routes and real-width corridors render without inventing Q-line areas',async()=>{
+ const rows=[{...n,id:'circle',geometry:{type:'Point',coordinates:[65,24]},metadata:{radiusNm:5,radiusSource:'published'}},
+ {...n,id:'qline',geometry:{type:'Point',coordinates:[66,24]},metadata:{radiusNm:100,radiusSource:'q-line'}},
+ {...n,id:'multi',geometry:{type:'MultiPolygon',coordinates:[n.geometry.coordinates,[[[70,24],[71,24],[71,25],[70,24]]]]}},
+ {...n,id:'route',geometry:{type:'LineString',coordinates:[[65,24],[67,26]]}},
+ {...n,id:'corridor',geometry:{type:'LineString',coordinates:[[65,24],[67,26]]},metadata:{corridorWidthMeters:2000}}];
+ const h=harness(async()=>({ok:true,json:async()=>({notices:rows})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+ assert.equal(h.sources[0].entities.getById('circle').ellipse.semiMajorAxis.getValue(),5*1852);assert.ok(h.sources[0].entities.getById('circle').polyline.positions.getValue().length>8);
+ assert.equal(h.sources[0].entities.getById('qline').ellipse,undefined);assert.ok(h.sources[0].entities.getById('multi::part:1').polygon);
+ assert.equal(h.sources[0].entities.getById('route').polyline.positions.getValue().length,2);assert.equal(h.sources[0].entities.getById('corridor').corridor.width.getValue(),2000);
+ const ids=h.sources[0].entities.values.map(e=>e.id);h.tick();await h.settle();assert.deepEqual(h.sources[0].entities.values.map(e=>e.id),ids);
+ h.enabled.clear();h.sync();assert.equal(h.sources.length,0);h.context.disposeNoticeLayers();assert.equal(h.timers.size,0);
+});
+test('auto preview waits for camera settlement, reuses its DOM, opens MORE and TAKE SHOT, and cancels capture on OFF',async()=>{
+ const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));const moving=new RealCesium.Event(),settled=new RealCesium.Event();
+ h.viewer.camera.moveStart=moving;h.viewer.camera.moveEnd=settled;h.viewer.camera.positionWC=Cartesian3.multiplyByScalar(Cartesian3.fromDegrees(65,24),1.1,new Cartesian3());
+ Object.assign(h.viewer.scene.canvas,{clientWidth:800,clientHeight:600,getBoundingClientRect:()=>({left:0,top:0})});
+ h.context.Cesium.SceneTransforms={worldToWindowCoordinates:()=>({x:400,y:300})};h.context.Cesium.EllipsoidalOccluder=class{isPointVisible(){return true;}};
+ let captures=0,cancelled=0;h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{loadCapture:async()=>({startNoticeCapture(_viewer,notice){assert.equal(notice.id,n.id);captures++;return ()=>cancelled++;}})});await h.settle();
+ const firePreview=()=>{for(const [id,fn]of [...h.timers])if(fn.delay===180){h.timers.delete(id);fn();}};
+ moving.raiseEvent();firePreview();assert.notEqual(h.panels[0].className,'wz-notice-popup wz-notice-preview');settled.raiseEvent();firePreview();assert.match(h.panels[0].className,/wz-notice-preview/);
+ const panel=h.panels[0];moving.raiseEvent();assert.equal(panel.style.display,'none');settled.raiseEvent();firePreview();assert.equal(h.panels[0],panel);assert.equal(panel.style.display,'');
+ const actions=panel.querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions');assert.ok(actions.children.some(el=>el.textContent==='MORE'));actions.children.find(el=>el.textContent==='TAKE SHOT').onclick();await new Promise(resolve=>setImmediate(resolve));assert.equal(captures,1);
+ h.enabled.clear();h.sync();assert.equal(cancelled,1);h.context.disposeNoticeLayers();assert.equal(moving.numberOfListeners,0);assert.equal(settled.numberOfListeners,0);assert.equal(h.timers.size,0);
+});
+test('local expiry removes expired geometry without fetching or resurrecting multipart notices',async()=>{
+ let now=Date.now(),calls=0;const row={...n,id:'expiry',effectiveFrom:new Date(now-1000).toISOString(),effectiveUntil:new Date(now+1000).toISOString(),geometry:{type:'MultiPolygon',coordinates:[n.geometry.coordinates,n.geometry.coordinates]}};
+ const h=harness(async()=>{calls++;return {ok:true,json:async()=>({notices:[row]})};});class Clock extends Date{static now(){return now;}}
+ h.context.Date=Clock;h.context.noticeStatus=notice=>noticeStatus(notice,now);h.context.nextNoticeBoundary=notice=>nextNoticeBoundary(notice,now);
+ h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();assert.equal(h.sources[0].entities.values.length,2);
+ now+=1002;for(const [id,fn]of [...h.timers])if(fn.delay<2000){h.timers.delete(id);fn();}
+ await h.settle();assert.equal(h.sources[0].entities.values.length,0);assert.equal(calls,1);h.context.disposeNoticeLayers();
 });

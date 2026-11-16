@@ -72,7 +72,7 @@ function containsCandidate(n,o){return n.geometry&&Number.isFinite(o.longitude)&
 let sharedNoticeService;
 export function getSharedNoticeService(){return sharedNoticeService ||= createNoticeService();}
 export function toNoticeStatusSignals(notices=[]){return notices.filter(n=>['active','upcoming','unknown'].includes(n.status)).map(n=>{
-    const text=String(n.rawText||n.summary||'').toUpperCase(),area=n.geometry?.type==='Polygon';
+    const text=String(n.rawText||n.summary||'').toUpperCase(),area=['Polygon','MultiPolygon'].includes(n.geometry?.type);
     const published=['published','verified'].includes(n.provenance?.verification)&&Boolean(n.issuer);
     const affirmative=!/\b(?:NOT|CANCELLED|CANCELED|WITHDRAWN|RESUMED)\b/.test(text);
     const impact=area&&affirmative&&/\bAIRSPACE(?: IS| WILL BE)? (?:CLSD|CLOSED)\b/.test(text)?'partial':

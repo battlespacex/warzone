@@ -1,12 +1,12 @@
 import * as Cesium from 'cesium';
 import {onLayerChange,isLayerEnabled} from './warzone-layers.js';
-import {NOTICE_LAYERS,correlateObservation,matchesNoticeLayers} from '../../../apps/shared/geospatial-notices.js';
+import {NOTICE_LAYERS,correlateObservation,matchesNoticeLayers,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary} from '../../../apps/shared/geospatial-notices.js';
 import {getAllLiveTrackSnapshots} from './warzone-live-airforce.js';
 import {getAllNavalSnapshots} from './warzone-live-naval.js';
 import {getActiveRegion,onRegionChange} from './warzone-region-selector.js';
 import {getAssetFocusController} from './warzone-asset-focus-controller.js';
 let owner=null;
-export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,showOnInit=true} = {}) {
+export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,showOnInit=true,loadCapture=()=>import(/* webpackChunkName: "warzone-notice-capture" */ './warzone-notice-capture.js')} = {}) {
     if(!viewer||owner?.viewer===viewer)return;owner?.dispose();
     let source=null,handler=null,timer=null,controller=null,panel=null,selected=null,generation=0,frame=0;
     const records=new Map();
@@ -16,6 +16,8 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     let terminalState=false;
     let disposeDrag=null,noticePosition=null;
     let noticeFocus=null,focusButton=null;
+    let previewMode=false,previewLeader=null,cameraMoving=false,previewTimer=0,expiryTimer=0,captureSequence=0,cancelCapture=null;
+    const entityIds=new Map();
     let layerKey=NOTICE_LAYERS.filter(isLayerEnabled).join(',');
     function unfocusNotice({restore=true}={}){
         const previous=noticeFocus;noticeFocus=null;
@@ -28,7 +30,7 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
         if(viewer.trackedEntity||getAssetFocusController().getState().assetId)return;
         if(noticeFocus?.id===n.id){unfocusNotice();return;}
         const camera=viewer.camera;if(!camera?.positionWC||!camera.directionWC||!camera.upWC)return;
-        const coords=n.geometry?.type==='Polygon'?n.geometry.coordinates.flat():n.geometry?.type==='Point'?[n.geometry.coordinates]:[];
+        const coords=noticeGeometryPoints(n.geometry);
         if(!coords.length)return;
         const sphere=Cesium.BoundingSphere.fromPoints(coords.map(([lon,lat])=>Cesium.Cartesian3.fromDegrees(lon,lat)));
         sphere.radius=Math.max(sphere.radius,n.geometry.type==='Point'?(n.metadata?.radiusNm||0)*1852:0,250);
@@ -43,34 +45,113 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
         const value=(name,fallback)=>css?.getPropertyValue('--wz-notice-'+name)?.trim()||fallback;
         const number=(name,fallback,min,max)=>{const n=Number.parseFloat(value(name,''));return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;};
         const color=(name,fallback)=>Cesium.Color.fromCssColorString(value(name,fallback))||Cesium.Color.ORANGE;
-        return {line:color('line-color','#ff9f1c'),fill:color('fill-color','#ff9f1c'),hatch:color('hatch-color','#ff9f1c'),
+        return {line:color('line-color','#ff9f1c'),fill:color('fill-color','#ff9f1c'),hatch:color('hatch-color','#ff9f1c'),critical:color('critical-color','#ff4d4d'),
             opacity:number('fill-opacity',.07,0,1),hatchOpacity:number('hatch-opacity',.22,0,1),stripes:number('hatch-repeat',32,2,128),
-            width:number('line-width',2,1,10),height:number('height',60,1,1000),point:number('marker-size',9,3,32),enclosures:number('show-radius',0,0,1)===1};
+            width:number('line-width',2,1,10),height:number('height',60,1,1000),point:number('marker-size',9,3,32),enclosures:number('show-radius',0,0,1)===1,previewDistance:number('preview-distance',1800000,1000,20000000),previewDelay:number('preview-delay',180,0,2000),labelDistance:number('label-distance',500000,0,20000000),labelSize:number('label-size',12,8,32),hatchWidth:number('hatch-width',1,.1,12),hatchSpacing:number('hatch-spacing',12,2,64),hatchAngle:number('hatch-angle',45,-180,180)};
     }
     let style=readStyle(),detailOpen=false;
-    let sharedMaterial=null,materialStyle=null;
+    const materialCache=new Map();let materialStyle=null;
+    const noticeColor=n=>['high','critical'].includes(n.metadata?.severity)?style.critical:style.line;
+    const renderKey=n=>JSON.stringify([n.geometry,n.metadata?.radiusNm,n.metadata?.radiusSource,n.metadata?.corridorWidthMeters,n.metadata?.severity,style]);
+    function createHatchMaterial(hatch=style.hatch,fill=style.fill){
+        const image=document.createElement('canvas');image.width=image.height=Math.round(style.hatchSpacing);
+        const ctx=image.getContext('2d');if(!ctx)throw Error('NOTAM hatch canvas is unavailable');
+        ctx.fillStyle=fill.withAlpha(style.opacity).toCssColorString();ctx.fillRect(0,0,image.width,image.height);
+        ctx.strokeStyle=hatch.withAlpha(style.hatchOpacity).toCssColorString();ctx.lineWidth=style.hatchWidth;
+        ctx.beginPath();ctx.moveTo(image.width/2,0);ctx.lineTo(image.width/2,image.height);ctx.stroke();
+        return new Cesium.ImageMaterialProperty({image,transparent:true,repeat:new Cesium.Cartesian2(style.stripes*12/style.hatchSpacing,style.stripes*12/style.hatchSpacing)});
+    }
     function graphics(n){
-        let material;
-        if(n.geometry?.type==='Polygon'||(style.enclosures&&n.geometry?.type==='Point'&&n.metadata?.radiusNm)){
-            if(materialStyle!==style){sharedMaterial=new Cesium.StripeMaterialProperty({evenColor:style.hatch.withAlpha(style.hatchOpacity),oddColor:style.fill.withAlpha(style.opacity),repeat:style.stripes});materialStyle=style;}
-            material=sharedMaterial;
+        let material;const line=noticeColor(n);
+        if(n.geometry?.type==='Polygon'||(n.geometry?.type==='LineString'&&n.metadata?.corridorWidthMeters)||((style.enclosures||n.metadata?.radiusSource==='published')&&n.geometry?.type==='Point'&&n.metadata?.radiusNm)){
+            if(materialStyle!==style){materialCache.clear();materialStyle=style;}
+            const key=line===style.critical?'critical':'default';if(!materialCache.has(key))materialCache.set(key,key==='critical'?createHatchMaterial(line,line):createHatchMaterial());material=materialCache.get(key);
         }
         if(n.geometry?.type==='Polygon'){
             const rings=n.geometry.coordinates,positions=ring=>Cesium.Cartesian3.fromDegreesArray(ring.flat());
-            return {polygon:{hierarchy:new Cesium.PolygonHierarchy(positions(rings[0]),rings.slice(1).map(r=>new Cesium.PolygonHierarchy(positions(r)))),material,stRotation:Math.PI/4,outline:false},
-                polyline:{positions:positions(rings[0]),clampToGround:true,width:style.width,material:style.line}};
+            return {polygon:{hierarchy:new Cesium.PolygonHierarchy(positions(rings[0]),rings.slice(1).map(r=>new Cesium.PolygonHierarchy(positions(r)))),material,stRotation:style.hatchAngle*Math.PI/180,outline:false},
+                polyline:{positions:positions(rings[0]),clampToGround:true,width:style.width,material:line}};
         }
         if(n.geometry?.type==='Point'){
             const [lon,lat]=n.geometry.coordinates;
-            return {position:Cesium.Cartesian3.fromDegrees(lon,lat,style.height),point:{pixelSize:style.point,color:style.line,outlineColor:Cesium.Color.BLACK,outlineWidth:1},
-                ...(style.enclosures&&n.metadata?.radiusNm?{ellipse:{semiMajorAxis:n.metadata.radiusNm*1852,semiMinorAxis:n.metadata.radiusNm*1852,height:style.height,material,outline:true,outlineColor:style.line}}:{})};
+            let boundary;
+            if((style.enclosures||n.metadata?.radiusSource==='published')&&n.metadata?.radiusNm){
+                const geometry=Cesium.EllipseOutlineGeometry.createGeometry(new Cesium.EllipseOutlineGeometry({center:Cesium.Cartesian3.fromDegrees(lon,lat),semiMajorAxis:n.metadata.radiusNm*1852,semiMinorAxis:n.metadata.radiusNm*1852,granularity:Cesium.Math.RADIANS_PER_DEGREE*5}));
+                const values=geometry.attributes.position.values,positions=[];for(let i=0;i<values.length;i+=3)positions.push(Cesium.Cartesian3.fromArray(values,i));positions.push(positions[0]);boundary={positions,clampToGround:true,width:style.width,material:line};
+            }
+            return {position:Cesium.Cartesian3.fromDegrees(lon,lat,style.height),point:{pixelSize:style.point,color:line,outlineColor:Cesium.Color.BLACK,outlineWidth:1},
+                ...(boundary?{ellipse:{semiMajorAxis:n.metadata.radiusNm*1852,semiMinorAxis:n.metadata.radiusNm*1852,material,stRotation:style.hatchAngle*Math.PI/180,outline:false},polyline:boundary}:{})};
         }
+        if(n.geometry?.type==='LineString'){const positions=Cesium.Cartesian3.fromDegreesArray(n.geometry.coordinates.flat());return n.metadata?.corridorWidthMeters?{corridor:{positions,width:n.metadata.corridorWidthMeters,material,outline:true,outlineColor:line}}:{polyline:{positions,width:style.width,material:line,clampToGround:true}};}
         return {};
+    }
+    function anchor(n){
+        const points=noticeGeometryPoints(n.geometry);if(!points.length)return null;
+        const sphere=Cesium.BoundingSphere.fromPoints(points.map(([lon,lat])=>Cesium.Cartesian3.fromDegrees(lon,lat)));
+        return Cesium.Ellipsoid.WGS84.scaleToGeodeticSurface(sphere.center);
+    }
+    function removeNoticeEntities(id){for(const key of entityIds.get(id)||[id])source?.entities.removeById(key);entityIds.delete(id);}
+    function applyNoticeGraphics(n){
+        const ids=[];noticeGeometryParts(n.geometry).forEach((geometry,i)=>{
+            const id=i===0?n.id:n.id+'::part:'+i,part={...n,geometry},next=graphics(part),position=next.position||anchor(part);
+            let entity=source.entities.getById(id);if(!entity)entity=source.entities.add({id});
+            entity.__noticeId=n.id;entity.__noticeColor=noticeColor(n);entity.position=position;
+            for(const key of ['polygon','polyline','corridor','ellipse','point'])entity[key]=next[key];
+            if(i===0&&style.labelDistance>0)entity.label={text:n.sourceId||n.title,font:style.labelSize+'px sans-serif',fillColor:noticeColor(n),outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset:new Cesium.Cartesian2(10,-10),distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0,style.labelDistance)};
+            ids.push(id);
+        });entityIds.set(n.id,ids);
+    }
+    function takeShot(n,entity){const ticket=++captureSequence;cancelCapture?.();loadCapture().then(module=>{
+        if(ticket!==captureSequence||!active())return;
+        cancelCapture=module.startNoticeCapture(viewer,n,{entity,onClose:()=>{cancelCapture=null;}});
+    }).catch(error=>{if(ticket===captureSequence&&active())window.alert?.('TAKE SHOT unavailable: '+error.message);});}
+    function shotButton(host,n,entity){const button=document.createElement('button');button.className='btn-secondary white';button.textContent='TAKE SHOT';button.disabled=!n.geometry;button.title=n.geometry?'Select a screen-space screenshot rectangle':'No published location is available';button.onclick=()=>takeShot(n,entity);host.append(button);}
+    function updatePreviewLeader(position){
+        if(!position||!panel?.getBoundingClientRect||!document.createElementNS)return;
+        if(!previewLeader){previewLeader=document.createElementNS('http://www.w3.org/2000/svg','svg');previewLeader.classList.add('wz-notice-preview-leader');previewLeader.append(document.createElementNS('http://www.w3.org/2000/svg','line'));document.body.append(previewLeader);}
+        const canvas=viewer.scene.canvas.getBoundingClientRect(),rect=panel.getBoundingClientRect(),x=canvas.left+position.x,y=canvas.top+position.y,line=previewLeader.firstElementChild;
+        for(const [key,value]of Object.entries({x1:x,y1:y,x2:Math.max(rect.left,Math.min(rect.right,x)),y2:Math.max(rect.top,Math.min(rect.bottom,y))}))line.setAttribute(key,String(value));
+        previewLeader.style.display='';
+    }
+    function compactPreview(n,entity,position){
+        if(!n)return;const key='preview:'+JSON.stringify([n.id,n.title,n.activityType,n.region,n.fir,currentStatus(n),n.effectiveUntil]);
+        if(previewMode&&panel&&panelKey===key){panel.style.display='';if(position){const rect=viewer.scene.canvas.getBoundingClientRect?.()||{left:0,top:0};panel.style.left=Math.max(8,Math.min(rect.left+position.x+16,(window.innerWidth||1024)-(panel.offsetWidth||280)-8))+'px';panel.style.top=Math.max(8,Math.min(rect.top+position.y+16,(window.innerHeight||768)-(panel.offsetHeight||220)-8))+'px';}updatePreviewLeader(position);return;}
+        widgetRequested=true;mountPanel(n.title||n.sourceId);panelKey=key;detailOpen=true;previewMode=true;selected=entity;panel.className='wz-notice-popup wz-notice-preview';
+        if(position){const rect=viewer.scene.canvas.getBoundingClientRect?.()||{left:0,top:0};panel.style.left=Math.max(8,Math.min(rect.left+position.x+16,(window.innerWidth||1024)-(panel.offsetWidth||280)-8))+'px';panel.style.top=Math.max(8,Math.min(rect.top+position.y+16,(window.innerHeight||768)-(panel.offsetHeight||220)-8))+'px';}
+        const body=panel.querySelector('.wz-widget-body');body.querySelector('ul').hidden=true;
+        const text=document.createElement('p');text.className='wz-notice-summary';
+        text.textContent=[n.activityType||n.noticeType,'STATUS: '+currentStatus(n).toUpperCase(),'AREA: '+(n.region||n.fir||n.country||'Published location'),'VALID UNTIL: '+(n.effectiveUntil||(n.metadata?.permanent?'Permanent':'Not published'))].join('\n');body.append(text);
+        const actions=document.createElement('div');actions.className='wz-notice-actions';const more=document.createElement('button');more.className='btn-primary';more.textContent='MORE';more.onclick=()=>details(records.get(n.id)||n,entity,position);actions.append(more);shotButton(actions,n,entity);body.append(actions);updatePreviewLeader(position);
+    }
+    function currentStatus(n){return n.effectiveFrom?noticeStatus(n):n.status||'unknown';}
+    function schedulePreview(){
+        if(!viewer.scene.canvas.clientWidth||!Cesium.SceneTransforms)return;
+        clearTimeout(previewTimer);previewTimer=setTimeout(()=>{
+            previewTimer=0;if(!active()||!widgetRequested||cameraMoving||interactionBusy()||!canRefresh()||(detailOpen&&!previewMode))return;
+            const canvas=viewer.scene.canvas,camera=viewer.camera;if(!camera?.positionWC)return;
+            const horizon=new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84,camera.positionWC);let best=null;
+            for(const n of records.values())for(const id of entityIds.get(n.id)||[]){const entity=source?.entities.getById(id),point=entity?.position?.getValue?.(Cesium.JulianDate.now());
+                if(!point||entity.show===false||!horizon.isPointVisible(point)||Cesium.Cartesian3.distance(camera.positionWC,point)>style.previewDistance)continue;
+                const screen=Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,point);if(!screen||screen.x<0||screen.y<0||screen.x>canvas.clientWidth||screen.y>canvas.clientHeight)continue;
+                const distance=Math.hypot(screen.x-canvas.clientWidth/2,screen.y-canvas.clientHeight/2);if(!best||distance<best.distance)best={n,entity,screen,distance};
+            }
+            if(best)compactPreview(best.n,best.entity,best.screen);else if(previewMode)dismissDetails();
+        },style.previewDelay);
+    }
+    function scheduleExpiry(){
+        clearTimeout(expiryTimer);expiryTimer=0;let next=Infinity,changed=false;
+        for(const [id,n]of records){const status=currentStatus(n);if(status!==n.status){n.status=status;changed=true;}
+            if(['live','active','upcoming'].includes(viewStatus)&&['expired','cancelled','superseded'].includes(status)){if(noticeFocus?.id===id)unfocusNotice();if((selected?.__noticeId||selected?.id)===id)close();removeNoticeEntities(id);records.delete(id);renderKeys.delete(id);changed=true;continue;}
+            next=Math.min(next,nextNoticeBoundary(n));
+        }
+        if(changed){panelKey='';if(!detailOpen)showList();viewer.scene.requestRender();}
+        if(Number.isFinite(next))expiryTimer=setTimeout(scheduleExpiry,Math.min(2147483647,Math.max(1,next-Date.now()+1)));
     }
     let viewStatus='live',militaryOnly=false,offset=0,total=0;
     const active=()=>NOTICE_LAYERS.some(isLayerEnabled);
     const matches=n=>matchesNoticeLayers(n,NOTICE_LAYERS.filter(isLayerEnabled));
-    function close(){const highlighted=Boolean(selected);disposeDrag?.();disposeDrag=null;if(selected?.polyline)selected.polyline.material=style.line;if(selected?.ellipse)selected.ellipse.outlineColor=style.line;selected=null;focusButton=null;detailOpen=false;panel?.remove();panel=null;panelKey='';if(highlighted)viewer.scene.requestRender();}
+    function close(){const highlighted=Boolean(selected);disposeDrag?.();disposeDrag=null;if(selected?.polyline)selected.polyline.material=selected.__noticeColor||style.line;if(selected?.ellipse)selected.ellipse.outlineColor=style.line;selected=null;focusButton=null;detailOpen=false;previewMode=false;previewLeader?.remove();previewLeader=null;panel?.remove();panel=null;panelKey='';if(highlighted)viewer.scene.requestRender();}
     function dismissDetails(){close();if(widgetRequested&&active())showList();}
     function mountPanel(title){close();
         panel=document.createElement('aside');panel.id='warzone-notice-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Published notice details');
@@ -94,6 +175,7 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
         const brief=document.createElement('p');brief.className='wz-notice-summary';brief.textContent=[n.activityType,n.status,n.country,n.fir,n.effectiveFrom&&'From '+n.effectiveFrom,n.effectiveUntil&&'Until '+n.effectiveUntil,n.summary].filter(Boolean).join(' · ');body.append(brief);
         const disclosure=document.createElement('details'),heading=document.createElement('summary');heading.textContent='Full notice and provenance';disclosure.append(heading,list);body.append(disclosure);
         const actions=document.createElement('div');actions.className='wz-notice-actions';body.append(actions);
+        shotButton(actions,n,entity);
         for(const [key,value]of Object.entries({Category:n.noticeType,ID:n.sourceId,Issuer:n.issuer,Country:n.country,Region:n.region,FIR:n.fir,NAVAREA:n.navarea,Activity:n.activityType,Status:n.status,Issued:n.issuedAt,From:n.effectiveFrom,Until:n.effectiveUntil,Schedule:n.schedule,Altitude:[n.lowerAltitude,n.upperAltitude,n.altitudeReference].filter(Boolean).join(' / '),Coordinates:JSON.stringify(n.geometry?.coordinates||null),Radius:n.metadata?.radiusNm?`${n.metadata.radiusNm} NM`:'Not published',Precision:[n.geometryAccuracy||'Location unavailable',n.metadata?.boundaryError].filter(Boolean).join('; '),Confidence:n.geometryConfidence,Verified:n.lastVerifiedAt||'Unverified',Fetched:n.lastFetchedAt,Summary:n.summary,'Original notice':n.rawText,Provenance:n.provenance?.extraction})){
             const li=document.createElement('li'),label=document.createElement('strong'),span=document.createElement('span');label.textContent=key;span.textContent=value||'Unknown';li.append(label,span);list.append(li);}
         const link=document.createElement('a');link.href=n.sourceUrl;link.rel='noopener noreferrer';link.target='_blank';link.textContent='Original source';list.append(link);
@@ -118,7 +200,7 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
         panelKey=key;
         const body=panel.querySelector('.wz-widget-body');body.querySelector('ul').hidden=true;
         const geometrySummary=document.createElement('p');geometrySummary.className='wz-notice-summary';
-        geometrySummary.textContent=`Published areas: ${[...records.values()].filter(n=>n.geometry?.type==='Polygon').length} · Location-only notices: ${[...records.values()].filter(n=>n.geometry?.type==='Point').length}`;body.append(geometrySummary);
+        geometrySummary.textContent=`Area notices: ${[...records.values()].filter(n=>['Polygon','MultiPolygon'].includes(n.geometry?.type)||n.metadata?.radiusSource==='published'||n.metadata?.corridorWidthMeters).length} · Location-only notices: ${[...records.values()].filter(n=>n.geometry?.type==='Point'&&n.metadata?.radiusSource!=='published').length}`;body.append(geometrySummary);
         const controls=document.createElement('div');controls.className='wz-notice-controls';body.append(controls);
         if(noticeFocus){const unfocus=document.createElement('button');unfocus.className='btn-primary';unfocus.textContent='Unfocus';unfocus.onclick=()=>{unfocusNotice();panelKey='';showList();};controls.append(unfocus);}
         const status=document.createElement('select');status.setAttribute('aria-label','Notice time filter');
@@ -132,12 +214,12 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
             const title=document.createElement('strong');title.textContent=n.sourceId||n.title;
             const badge=document.createElement('span');badge.className='status-pill status-pill--elevated';badge.textContent=n.status||'Unknown';
             const head=document.createElement('div');head.className='wz-notice-card__head';head.append(title,badge);
-            const text=document.createElement('p');text.textContent=[n.country,n.fir,n.activityType,n.geometry?.type==='Polygon'?'Published area boundary':n.geometry?.type==='Point'?'Location only; no valid published area boundary':'Location unavailable'].filter(Boolean).join(' · ');
+            const text=document.createElement('p');text.textContent=[n.country,n.fir,n.activityType,['Polygon','MultiPolygon'].includes(n.geometry?.type)?'Published area boundary':['LineString','MultiLineString'].includes(n.geometry?.type)?(n.metadata?.corridorWidthMeters?'Published corridor':'Published route'):n.metadata?.radiusSource==='published'?'Published circular area':n.geometry?.type==='Point'?'Location only; no valid published area boundary':'Location unavailable'].filter(Boolean).join(' · ');
             const button=document.createElement('button');button.className='btn-secondary white';button.textContent='View notice';button.onclick=()=>details(records.get(n.id)||n,source?.entities.getById(n.id));
             card.append(head,text,button);cards.append(card);
         }
     }
-    function clear(){unfocusNotice();generation++;controller?.abort();controller=null;requestKey='';scenePending=null;clearTimeout(wheelTimer);wheelTimer=0;wheelActive=false;if(frame)cancelAnimationFrame(frame);frame=0;clearTimeout(timer);timer=null;clearTimeout(scopeTimer);scopeTimer=0;scopePending=false;handler?.destroy();handler=null;close();if(source){viewer.dataSources.remove(source,true);viewer.scene.requestRender();}source=null;records.clear();renderKeys.clear();}
+    function clear(){++captureSequence;cancelCapture?.();cancelCapture=null;clearTimeout(previewTimer);previewTimer=0;clearTimeout(expiryTimer);expiryTimer=0;entityIds.clear();unfocusNotice();generation++;controller?.abort();controller=null;requestKey='';scenePending=null;clearTimeout(wheelTimer);wheelTimer=0;wheelActive=false;if(frame)cancelAnimationFrame(frame);frame=0;clearTimeout(timer);timer=null;clearTimeout(scopeTimer);scopeTimer=0;scopePending=false;handler?.destroy();handler=null;close();if(source){viewer.dataSources.remove(source,true);viewer.scene.requestRender();}source=null;records.clear();renderKeys.clear();}
     const interactionBusy=()=>pointerHeld||wheelActive;
     function queueSceneWork(work){scenePending=work;if(interactionBusy()||frame)return;frame=requestAnimationFrame(()=>{frame=0;if(interactionBusy())return;const next=scenePending;scenePending=null;next?.();});}
     async function refresh(){style=readStyle();if(!active()){clear();return;}if(terminalState)return;if(!canRefresh()||interactionBusy()){scopePending=true;return;}scopePending=false;
@@ -154,22 +236,22 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
             retryFailures=0;
             // A response arriving mid-drag must not mutate the scene on the input frame.
             const apply=()=>{if(current!==generation||!source)return;
-            total=data.total||0;const notices=(data.notices||[]).filter(matches),ids=new Set(notices.map(n=>n.id));source.entities.suspendEvents();try{for(const entity of source.entities.values.slice())if(!ids.has(entity.id))source.entities.remove(entity);
-            for(const id of records.keys())if(!ids.has(id)){if(noticeFocus?.id===id)unfocusNotice();if(selected?.id===id)close();records.delete(id);renderKeys.delete(id);}
+            total=data.total||0;const notices=(data.notices||[]).filter(matches).filter(n=>!['live','active','upcoming'].includes(viewStatus)||!['expired','cancelled','superseded'].includes(currentStatus(n))),ids=new Set(notices.map(n=>n.id));source.entities.suspendEvents();try{for(const entity of source.entities.values.slice())if(!ids.has(entity.__noticeId||entity.id))source.entities.remove(entity);
+            for(const id of records.keys())if(!ids.has(id)){if(noticeFocus?.id===id)unfocusNotice();if((selected?.__noticeId||selected?.id)===id)close();records.delete(id);renderKeys.delete(id);entityIds.delete(id);}
             }finally{source.entities.resumeEvents();}
-            const missing=[];source.entities.suspendEvents();try{for(const n of notices){const key=JSON.stringify([n.geometry,n.metadata?.radiusNm,style]);if(renderKeys.has(n.id)&&renderKeys.get(n.id)!==key){if(selected?.id===n.id)close();source.entities.removeById(n.id);}renderKeys.set(n.id,key);records.set(n.id,n);if(n.geometry&&!source.entities.getById(n.id))missing.push(n);}}finally{source.entities.resumeEvents();}let index=0;
+            const missing=[];source.entities.suspendEvents();try{for(const n of notices){const key=renderKey(n);if(renderKeys.has(n.id)&&renderKeys.get(n.id)!==key){if((selected?.__noticeId||selected?.id)===n.id)close();removeNoticeEntities(n.id);}renderKeys.set(n.id,key);records.set(n.id,n);if(n.geometry&&!source.entities.getById(n.id))missing.push(n);}}finally{source.entities.resumeEvents();}let index=0;
             const chunk=()=>{if(current!==generation||!source)return;if(interactionBusy()){queueSceneWork(chunk);return;}const start=performance.now();source.entities.suspendEvents();try{for(let count=0;index<missing.length&&count<8;count++,index++){
-                const n=missing[index];records.set(n.id,n);source.entities.add({id:n.id,...graphics(n)});
+                const n=missing[index];if(['live','active','upcoming'].includes(viewStatus)&&['expired','cancelled','superseded'].includes(currentStatus(n)))continue;records.set(n.id,n);applyNoticeGraphics(n);
                 if(performance.now()-start>=4){index++;break;}
-            }}finally{source.entities.resumeEvents();}if(missing.length)viewer.scene.requestRender();if(index<missing.length)queueSceneWork(chunk);};chunk();
-            if(!handler){handler=new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(click=>{const entity=viewer.scene.pick(click.position)?.id;const n=entity&&records.get(entity.id);if(n)details(n,entity,click.position);else if(detailOpen)dismissDetails();},Cesium.ScreenSpaceEventType.LEFT_CLICK);}
+            }}finally{source.entities.resumeEvents();}if(missing.length)viewer.scene.requestRender();if(index<missing.length)queueSceneWork(chunk);else schedulePreview();};chunk();
+            if(!handler){handler=new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(click=>{const entity=viewer.scene.pick(click.position)?.id;const n=entity&&records.get(entity.__noticeId||entity.id);if(n)compactPreview(n,entity,click.position);else if(detailOpen)dismissDetails();},Cesium.ScreenSpaceEventType.LEFT_CLICK);}
             if(!selected){if(!notices.length)showList('No notices in selected area');else showList(`${data.state==='stale'?'Provider temporarily unavailable; cached notices':'Published notices'} (${notices.length}${data.total>200?' of '+data.total:''}${data.partial?'; partial feed':''})`);}
-            };queueSceneWork(apply);
+            scheduleExpiry();};queueSceneWork(apply);
         }catch(error){if(error.name!=='AbortError'&&current===generation){terminalState=[401,403,404].includes(error.status);pollDelay=terminalState?null:Math.min(300000,60000*2**retryFailures++);showState([401,403].includes(error.status)?'Notice access denied':'Provider temporarily unavailable',`Notice request failed${error.status?' (HTTP '+error.status+')':''}. Existing trackers remain independent.`);}}
         finally{if(current===generation){controller=null;if(active()&&pollDelay!==null)timer=setTimeout(refresh,pollDelay);}}}
     function sync(){offset=0;if(active()){
         // Disabling one notice category must unload it immediately, even if the next request stalls.
-        for(const [id,n]of records)if(!matches(n)){if(noticeFocus?.id===id)unfocusNotice();if(selected?.id===id)close();source?.entities.removeById(id);records.delete(id);renderKeys.delete(id);}
+        for(const [id,n]of records)if(!matches(n)){if(noticeFocus?.id===id)unfocusNotice();if((selected?.__noticeId||selected?.id)===id)close();removeNoticeEntities(id);records.delete(id);renderKeys.delete(id);}
         if(!panel&&widgetRequested)showList('Loading notices');
         viewer.scene.requestRender();retryFailures=0;void refresh();
     }else clear();}
@@ -180,7 +262,7 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     function yieldFocus(){if(viewer.trackedEntity||getAssetFocusController().getState().assetId){const hadFocus=Boolean(noticeFocus);unfocusNotice({restore:false});if(hadFocus&&!detailOpen&&panel){close();showList();}}}
     function releasePointer(){pointerHeld=false;resumeScope();}
     function wheel(event){if(event.target!==viewer.scene.canvas||!active())return;wheelActive=true;clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>{wheelTimer=0;wheelActive=false;resumeScope();},120);}
-    function restyle(){const next=readStyle();if(JSON.stringify(next)===JSON.stringify(style))return;style=next;for(const n of records.values()){const entity=source?.entities.getById(n.id);if(!entity)continue;const next=graphics(n);entity.polygon=next.polygon;entity.polyline=next.polyline;entity.ellipse=next.ellipse;entity.point=next.point;if(next.position)entity.position=next.position;renderKeys.set(n.id,JSON.stringify([n.geometry,n.metadata?.radiusNm,style]));}viewer.scene.requestRender();}
+    function restyle(){const next=readStyle();if(JSON.stringify(next)===JSON.stringify(style))return;style=next;for(const n of records.values()){const entity=source?.entities.getById(n.id);if(!entity)continue;applyNoticeGraphics(n);renderKeys.set(n.id,renderKey(n));}viewer.scene.requestRender();}
     document.addEventListener('pointerdown',dismiss);
     document.addEventListener('wz:asset-focus-changed',yieldFocus);
     document.addEventListener('pointerup',releasePointer);
@@ -191,7 +273,8 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     window.addEventListener?.('resize',restyle);
     document.addEventListener('wz:notice-style-refresh',restyle);
     document.addEventListener('wz:region-camera-settled',resumeScope);
-    const removeMoveEnd=viewer.camera?.moveEnd?.addEventListener?.(resumeScope);
-    owner={viewer,dispose(){clear();unsubscribe?.();unsubscribeRegion?.();document.removeEventListener('pointerdown',dismiss);document.removeEventListener('wz:asset-focus-changed',yieldFocus);document.removeEventListener('pointerup',releasePointer);document.removeEventListener('pointercancel',releasePointer);document.removeEventListener('wheel',wheel);window.removeEventListener?.('blur',releasePointer);document.removeEventListener('keydown',dismiss);window.removeEventListener?.('resize',restyle);document.removeEventListener('wz:notice-style-refresh',restyle);document.removeEventListener('wz:region-camera-settled',resumeScope);removeMoveEnd?.();}};sync();
+    const removeMoveEnd=viewer.camera?.moveEnd?.addEventListener?.(()=>{cameraMoving=false;resumeScope();schedulePreview();});
+    const removeMoveStart=viewer.camera?.moveStart?.addEventListener?.(()=>{cameraMoving=true;clearTimeout(previewTimer);previewTimer=0;if(previewMode&&panel)panel.style.display='none';if(previewLeader)previewLeader.style.display='none';});
+    owner={viewer,dispose(){clear();unsubscribe?.();unsubscribeRegion?.();document.removeEventListener('pointerdown',dismiss);document.removeEventListener('wz:asset-focus-changed',yieldFocus);document.removeEventListener('pointerup',releasePointer);document.removeEventListener('pointercancel',releasePointer);document.removeEventListener('wheel',wheel);window.removeEventListener?.('blur',releasePointer);document.removeEventListener('keydown',dismiss);window.removeEventListener?.('resize',restyle);document.removeEventListener('wz:notice-style-refresh',restyle);document.removeEventListener('wz:region-camera-settled',resumeScope);removeMoveEnd?.();removeMoveStart?.();}};sync();
 }
 export function disposeNoticeLayers(){owner?.dispose();owner=null;}

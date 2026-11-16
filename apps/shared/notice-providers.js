@@ -1,4 +1,4 @@
-import {normalizeNotice,parseNotam,parseCoordinates,validateGeometry} from './geospatial-notices.js';
+import {normalizeNotice,parseNotam,parseCoordinates,validateGeometry,publishedRadiusNm} from './geospatial-notices.js';
 
 export function normalizeNotacNotice(row,now=Date.now()) {
     if(!row?.id || !row.number || !row.text)throw Error('Invalid NOTAC notice');
@@ -9,7 +9,10 @@ export function normalizeNotacNotice(row,now=Date.now()) {
         try{coordinates=parseCoordinates(boundary);}catch{boundaryError='Invalid published boundary coordinates';}
     }
     let geometry=row.geography?.geojson || null;
-    if(geometry?.type!=='Polygon'&&coordinates.length>=3){
+    const radius=publishedRadiusNm(row.text),centers=radius?parseCoordinates(row.text):[];
+    const publishedCircle=radius&&centers.length===1&&(!geometry||geometry.type==='Point');
+    if(publishedCircle&&(!geometry||geometry.type==='Point'))geometry={type:'Point',coordinates:centers[0]};
+    if((!geometry||geometry.type==='Point')&&coordinates.length>=3){
         try{geometry=validateGeometry({type:'Polygon',coordinates:[coordinates]});}catch{boundaryError='Published boundary is invalid or self-intersecting; Q-line location only';}
     }
     const raw=row.raw || row.text;
@@ -18,12 +21,12 @@ export function normalizeNotacNotice(row,now=Date.now()) {
         rawText:raw,title:'NOTAM '+row.number,summary:row.text,country:row.country?.name || row.country?.code || '',region:row.region?.name || '',fir:row.affected_fir,
         issuedAt:row.notam_issued,effectiveFrom:row.effective_start,effectiveUntil:row.effective_end,schedule:row.schedule || '',
         lowerAltitude:row.lower_limit || (row.minimum_fl?'FL'+row.minimum_fl:''),upperAltitude:row.upper_limit || (row.maximum_fl?'FL'+row.maximum_fl:''),
-        geometry,geometrySource:geometry?.type==='Polygon'?'published boundary coordinates':'published Q-line location',geometryAccuracy:geometry?.type==='Point'?'approximate area of influence':'source stated',
+        geometry,geometrySource:['Polygon','MultiPolygon'].includes(geometry?.type)?'published boundary coordinates':['LineString','MultiLineString'].includes(geometry?.type)?'published route coordinates':publishedCircle?'published circle center':'published Q-line location',geometryAccuracy:geometry?.type==='Point'&&!publishedCircle?'approximate area of influence':'source stated',
         isCancellation:row.status==='cancelled' || Boolean(row.record_archived_at) || row.notam_type==='C',
         replacesNoticeId:raw.match(/NOTAM[RC]\s+([A-Z]\d{4}\/\d{2})/)?.[1],
         provenance:{extraction:row.raw?'NOTAC source ICAO text':'NOTAC published E-line; full ICAO text not included',verification:'published'},
         metadata:{updatedAt:row.record_updated_at || row.notam_updated,permanent:row.effective_end===null,
-            ...(geometry?.type==='Point'&&row.geography?.radius_nm>0?{radiusNm:row.geography.radius_nm}:{})}},now);
+            ...(publishedCircle?{radiusNm:radius,radiusSource:'published'}:geometry?.type==='Point'&&row.geography?.radius_nm>0?{radiusNm:row.geography.radius_nm,radiusSource:'q-line'}:{})}},now);
     const type=n.noticeType;classifyPublishedNotice(n);n.noticeType=type;
     if(row.details?.classification?.code==='MIL')n.isMilitaryRelated=true;
     n.metadata.qCode=row.q_code || '';if(boundaryError)n.metadata.boundaryError=boundaryError;return n;

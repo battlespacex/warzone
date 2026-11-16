@@ -100,7 +100,7 @@ function captureStageError(error, stage) {
     return failure;
 }
 
-function assertCaptureReadable(canvas, stage) {
+export function assertCaptureReadable(canvas, stage) {
     try {
         canvas.getContext("2d").getImageData(0, 0, 1, 1);
     } catch (error) {
@@ -196,7 +196,7 @@ function inlineComputedTree(source, clone) {
     });
 }
 
-function copyNextSceneFrame(viewer) {
+export function copyNextSceneFrame(viewer, onFrame) {
     return new Promise((resolve, reject) => {
         const scene = viewer?.scene;
         const sourceCanvas = scene?.canvas;
@@ -220,6 +220,7 @@ function copyNextSceneFrame(viewer) {
                 if (!ctx) throw new Error("Capture canvas is unavailable.");
                 // Copy during postRender while the WebGL framebuffer is still readable.
                 ctx.drawImage(sourceCanvas, 0, 0, width, height);
+                onFrame?.();
                 window.clearTimeout(timeoutId);
                 removePostRender?.();
                 resolve(output);
@@ -260,7 +261,7 @@ function drawImageContain(ctx, image, x, y, width, height, alpha = 1) {
     ctx.restore();
 }
 
-function loadImage(src) {
+export function loadImage(src) {
     return new Promise((resolve, reject) => {
         const image = new Image();
         image.crossOrigin = "anonymous";
@@ -271,7 +272,7 @@ function loadImage(src) {
     });
 }
 
-function canUseSavePicker() {
+export function canUseSavePicker() {
     return typeof window.showSaveFilePicker === "function" &&
         window.isSecureContext === true &&
         !isLikelyMobile();
@@ -293,7 +294,7 @@ async function tryShareCapture(blob, filename) {
     }
 }
 
-function downloadBlob(blob, filename) {
+export function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
