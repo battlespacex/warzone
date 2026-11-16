@@ -6,21 +6,28 @@ import vm from 'node:vm';
 const essential=fs.readFileSync(new URL('../../../dev/assets/js/essential.js',import.meta.url),'utf8');
 const bootstrap=essential.slice(essential.indexOf('const __noticeBootstraps ='),essential.indexOf('export function attachWarzoneAppViewer'));
 function harness(){
-    const enabled=new Set(),listeners=new Set(),events=new Map(),moves=new Set(),timers=new Map();let ready=false,loads=0,inits=0,seq=0,finish;
+    const enabled=new Set(),listeners=new Set(),events=new Map(),moves=new Set(),timers=new Map();let ready=false,loads=0,inits=0,seq=0,finish,lastOptions;
     const viewer={camera:{moveEnd:{addEventListener(fn){moves.add(fn);return ()=>moves.delete(fn);}}}};
     const c=vm.createContext({bindFloatingPanel(){},console:{warn(){}},isLayerEnabled:id=>enabled.has(id),onLayerChange(fn){listeners.add(fn);return ()=>listeners.delete(fn);},
         document:{addEventListener(name,fn){events.set(name,fn);},removeEventListener(name){events.delete(name);}},
         setTimeout(fn){timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id)});
     vm.runInContext(bootstrap.replace('export function','function'),c);
     const options={ready:()=>ready,load:()=>{loads++;return new Promise(resolve=>{finish=resolve;});}};
-    return {c,viewer,options,enabled,listeners,events,moves,timers,setReady(value){ready=value;},get loads(){return loads;},get inits(){return inits;},
+    return {c,viewer,options,enabled,listeners,events,moves,timers,setReady(value){ready=value;},get loads(){return loads;},get inits(){return inits;},get lastOptions(){return lastOptions;},
         init(){c.initDeferredNoticeLayers(viewer,options);},emit(){for(const fn of listeners)fn('*');},event(name){events.get(name)?.();},tick(){const copy=[...timers.values()];timers.clear();for(const fn of copy)fn();},
-        async finish(){finish({initNoticeLayers(){inits++;}});await new Promise(resolve=>setImmediate(resolve));}};
+        async finish(){finish({initNoticeLayers(_viewer,options){inits++;lastOptions=options;}});await new Promise(resolve=>setImmediate(resolve));}};
 }
 test('disabled notice startup and region events perform no imports or initialization',()=>{
     const h=harness();h.setReady(true);h.init();h.init();for(let i=0;i<100;i++){h.emit();h.event('wz:region-camera-settled');h.tick();}
     assert.equal(h.loads,0);assert.equal(h.inits,0);assert.equal(h.timers.size,0);assert.equal(h.listeners.size,1);assert.equal(h.moves.size,1);
     assert.doesNotMatch(essential,/^import .*warzone-notices/m);
+});
+
+test('first group enable opens the notice widget while restored startup flags remain silent',async()=>{
+    const group=harness();group.setReady(true);group.init();group.enabled.add('aviation-notam');group.enabled.add('naval-warnings');group.emit();group.tick();await group.finish();
+    assert.equal(group.inits,1);assert.equal(group.lastOptions.showOnInit,true);
+    const restored=harness();restored.enabled.add('aviation-notam');restored.setReady(true);restored.init();restored.tick();await restored.finish();
+    assert.equal(restored.lastOptions.showOnInit,false);
 });
 test('optional import starts after entry and camera settlement, deduplicates events and never blocks caller',async()=>{
     const h=harness();h.enabled.add('aviation-notam');h.init();h.tick();assert.equal(h.loads,0);

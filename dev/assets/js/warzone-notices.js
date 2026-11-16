@@ -15,6 +15,28 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     let widgetRequested=showOnInit;
     let terminalState=false;
     let disposeDrag=null,noticePosition=null;
+    let noticeFocus=null,focusButton=null;
+    let layerKey=NOTICE_LAYERS.filter(isLayerEnabled).join(',');
+    function unfocusNotice({restore=true}={}){
+        const previous=noticeFocus;noticeFocus=null;
+        if(focusButton)focusButton.textContent='Focus area';
+        if(!restore||!previous||viewer.trackedEntity||getAssetFocusController().getState().assetId)return;
+        viewer.camera.cancelFlight?.();
+        viewer.camera.flyTo({destination:previous.view.position,orientation:{direction:previous.view.direction,up:previous.view.up},endTransform:Cesium.Matrix4.IDENTITY,duration:1});
+    }
+    function focusNotice(n){
+        if(viewer.trackedEntity||getAssetFocusController().getState().assetId)return;
+        if(noticeFocus?.id===n.id){unfocusNotice();return;}
+        const camera=viewer.camera;if(!camera?.positionWC||!camera.directionWC||!camera.upWC)return;
+        const coords=n.geometry?.type==='Polygon'?n.geometry.coordinates.flat():n.geometry?.type==='Point'?[n.geometry.coordinates]:[];
+        if(!coords.length)return;
+        const sphere=Cesium.BoundingSphere.fromPoints(coords.map(([lon,lat])=>Cesium.Cartesian3.fromDegrees(lon,lat)));
+        sphere.radius=Math.max(sphere.radius,n.geometry.type==='Point'?(n.metadata?.radiusNm||0)*1852:0,250);
+        const view=noticeFocus?.view||{position:Cesium.Cartesian3.clone(camera.positionWC),direction:Cesium.Cartesian3.clone(camera.directionWC),up:Cesium.Cartesian3.clone(camera.upWC)};
+        noticeFocus={id:n.id,view};
+        camera.cancelFlight?.();camera.flyToBoundingSphere(sphere,{duration:1});
+        if(focusButton)focusButton.textContent='Unfocus';
+    }
     // Cached presentation tokens: never parse CSS inside the render loop.
     function readStyle(){
         const css=typeof getComputedStyle==='function'?getComputedStyle(document.documentElement):null;
@@ -30,8 +52,8 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
         const material=new Cesium.StripeMaterialProperty({evenColor:style.hatch.withAlpha(style.hatchOpacity),oddColor:style.fill.withAlpha(style.opacity),repeat:style.stripes});
         if(n.geometry?.type==='Polygon'){
             const rings=n.geometry.coordinates,positions=ring=>Cesium.Cartesian3.fromDegreesArray(ring.flat());
-            return {polygon:{hierarchy:new Cesium.PolygonHierarchy(positions(rings[0]),rings.slice(1).map(r=>new Cesium.PolygonHierarchy(positions(r)))),height:style.height,material,stRotation:Math.PI/4,outline:false},
-                polyline:{positions:Cesium.Cartesian3.fromDegreesArrayHeights(rings[0].flatMap(([lon,lat])=>[lon,lat,style.height+1])),width:style.width,material:style.line}};
+            return {polygon:{hierarchy:new Cesium.PolygonHierarchy(positions(rings[0]),rings.slice(1).map(r=>new Cesium.PolygonHierarchy(positions(r)))),material,stRotation:Math.PI/4,outline:false},
+                polyline:{positions:positions(rings[0]),clampToGround:true,width:style.width,material:style.line}};
         }
         if(n.geometry?.type==='Point'){
             const [lon,lat]=n.geometry.coordinates;
@@ -43,11 +65,12 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     let viewStatus='live',militaryOnly=false,offset=0,total=0;
     const active=()=>NOTICE_LAYERS.some(isLayerEnabled);
     const matches=n=>matchesNoticeLayers(n,NOTICE_LAYERS.filter(isLayerEnabled));
-    function close(){const highlighted=Boolean(selected);disposeDrag?.();disposeDrag=null;if(selected?.polyline)selected.polyline.material=style.line;if(selected?.ellipse)selected.ellipse.outlineColor=style.line;selected=null;detailOpen=false;panel?.remove();panel=null;panelKey='';if(highlighted)viewer.scene.requestRender();}
+    function close(){const highlighted=Boolean(selected);disposeDrag?.();disposeDrag=null;if(selected?.polyline)selected.polyline.material=style.line;if(selected?.ellipse)selected.ellipse.outlineColor=style.line;selected=null;focusButton=null;detailOpen=false;panel?.remove();panel=null;panelKey='';if(highlighted)viewer.scene.requestRender();}
+    function dismissDetails(){close();if(widgetRequested&&active())showList();}
     function mountPanel(title){close();
         panel=document.createElement('aside');panel.id='warzone-notice-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Published notice details');
         panel.innerHTML='<div class="wz-widget-milbase"><header class="wz-widget-header"><div class="wz-widget-kicker"><span class="wz-widget-title">Published notice</span></div><div class="wz-widget-header-actions"><button type="button" class="static-icon" aria-label="Close"><span class="stratops-ico-close-1"></span></button></div></header><section class="wz-widget-body"><h3></h3><ul class="wz-widget-data-list"></ul></section></div>';
-        panel.querySelector('button').onclick=()=>{widgetRequested=false;close();};panel.querySelector('h3').textContent=title;
+        panel.querySelector('button').onclick=()=>{if(detailOpen)dismissDetails();else{widgetRequested=false;close();}};panel.querySelector('h3').textContent=title;
         panel.setAttribute('tabindex','-1');document.body.append(panel);
         const width=panel.offsetWidth||448,height=panel.offsetHeight||260;
         const maxLeft=Math.max(0,(window.innerWidth||1024)-width),maxTop=Math.max(0,(window.innerHeight||768)-height);
@@ -70,7 +93,7 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
             const li=document.createElement('li'),label=document.createElement('strong'),span=document.createElement('span');label.textContent=key;span.textContent=value||'Unknown';li.append(label,span);list.append(li);}
         const link=document.createElement('a');link.href=n.sourceUrl;link.rel='noopener noreferrer';link.target='_blank';link.textContent='Original source';list.append(link);
         for(const ref of n.sourceRecords||[]){const li=document.createElement('li'),label=document.createElement('strong'),value=document.createElement('span');label.textContent=ref.provider;value.textContent=ref.rawText;li.append(label,value);list.append(li);}
-        if(entity){const focus=document.createElement('button');focus.className='btn-primary';focus.textContent='Focus area';focus.onclick=()=>{if(!viewer.trackedEntity&&!getAssetFocusController().getState().assetId)void viewer.flyTo(entity,{duration:1});};actions.append(focus);}
+        if(entity){focusButton=document.createElement('button');focusButton.className='btn-primary';focusButton.textContent=noticeFocus?.id===n.id?'Unfocus':'Focus area';focusButton.onclick=()=>focusNotice(n);actions.append(focusButton);}
         const copy=document.createElement('button');copy.className='btn-secondary white';copy.textContent='Copy coordinates';copy.onclick=()=>navigator.clipboard?.writeText(JSON.stringify(n.geometry?.coordinates||null));actions.append(copy);
         if(records.has(n.id)){
             const back=document.createElement('button');back.className='btn-secondary white';back.textContent='Notice list';back.onclick=()=>showList();actions.append(back);
@@ -89,7 +112,10 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
         mountPanel(message);
         panelKey=key;
         const body=panel.querySelector('.wz-widget-body');body.querySelector('ul').hidden=true;
+        const geometrySummary=document.createElement('p');geometrySummary.className='wz-notice-summary';
+        geometrySummary.textContent=`Published areas: ${[...records.values()].filter(n=>n.geometry?.type==='Polygon').length} · Location-only notices: ${[...records.values()].filter(n=>n.geometry?.type==='Point').length}`;body.append(geometrySummary);
         const controls=document.createElement('div');controls.className='wz-notice-controls';body.append(controls);
+        if(noticeFocus){const unfocus=document.createElement('button');unfocus.className='btn-primary';unfocus.textContent='Unfocus';unfocus.onclick=()=>{unfocusNotice();panelKey='';showList();};controls.append(unfocus);}
         const status=document.createElement('select');status.setAttribute('aria-label','Notice time filter');
         for(const value of ['live','active','upcoming','expired','cancelled','all']){const option=document.createElement('option');option.value=value;option.textContent=value;option.selected=value===viewStatus;status.append(option);}
         status.onchange=()=>{viewStatus=status.value;offset=0;void refresh();};controls.append(status);
@@ -101,12 +127,12 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
             const title=document.createElement('strong');title.textContent=n.sourceId||n.title;
             const badge=document.createElement('span');badge.className='status-pill status-pill--elevated';badge.textContent=n.status||'Unknown';
             const head=document.createElement('div');head.className='wz-notice-card__head';head.append(title,badge);
-            const text=document.createElement('p');text.textContent=[n.country,n.fir,n.activityType,n.geometryAccuracy||(!n.geometry?'Location unavailable':'Published boundary')].filter(Boolean).join(' · ');
+            const text=document.createElement('p');text.textContent=[n.country,n.fir,n.activityType,n.geometry?.type==='Polygon'?'Published area boundary':n.geometry?.type==='Point'?'Location only; no valid published area boundary':'Location unavailable'].filter(Boolean).join(' · ');
             const button=document.createElement('button');button.className='btn-secondary white';button.textContent='View notice';button.onclick=()=>details(records.get(n.id)||n,source?.entities.getById(n.id));
             card.append(head,text,button);cards.append(card);
         }
     }
-    function clear(){generation++;controller?.abort();controller=null;requestKey='';scenePending=null;clearTimeout(wheelTimer);wheelTimer=0;wheelActive=false;if(frame)cancelAnimationFrame(frame);frame=0;clearTimeout(timer);timer=null;clearTimeout(scopeTimer);scopeTimer=0;scopePending=false;handler?.destroy();handler=null;close();if(source){viewer.dataSources.remove(source,true);viewer.scene.requestRender();}source=null;records.clear();renderKeys.clear();}
+    function clear(){unfocusNotice();generation++;controller?.abort();controller=null;requestKey='';scenePending=null;clearTimeout(wheelTimer);wheelTimer=0;wheelActive=false;if(frame)cancelAnimationFrame(frame);frame=0;clearTimeout(timer);timer=null;clearTimeout(scopeTimer);scopeTimer=0;scopePending=false;handler?.destroy();handler=null;close();if(source){viewer.dataSources.remove(source,true);viewer.scene.requestRender();}source=null;records.clear();renderKeys.clear();}
     const interactionBusy=()=>pointerHeld||wheelActive;
     function queueSceneWork(work){scenePending=work;if(interactionBusy()||frame)return;frame=requestAnimationFrame(()=>{frame=0;if(interactionBusy())return;const next=scenePending;scenePending=null;next?.();});}
     async function refresh(){style=readStyle();if(!active()){clear();return;}if(terminalState)return;if(!canRefresh()||interactionBusy()){scopePending=true;return;}scopePending=false;
@@ -124,31 +150,34 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
             // A response arriving mid-drag must not mutate the scene on the input frame.
             const apply=()=>{if(current!==generation||!source)return;
             total=data.total||0;const notices=(data.notices||[]).filter(matches),ids=new Set(notices.map(n=>n.id));source.entities.suspendEvents();try{for(const entity of source.entities.values.slice())if(!ids.has(entity.id))source.entities.remove(entity);
-            for(const id of records.keys())if(!ids.has(id)){if(selected?.id===id)close();records.delete(id);renderKeys.delete(id);}
+            for(const id of records.keys())if(!ids.has(id)){if(noticeFocus?.id===id)unfocusNotice();if(selected?.id===id)close();records.delete(id);renderKeys.delete(id);}
             }finally{source.entities.resumeEvents();}
             const missing=[];source.entities.suspendEvents();try{for(const n of notices){const key=JSON.stringify([n.geometry,n.metadata?.radiusNm,style]);if(renderKeys.has(n.id)&&renderKeys.get(n.id)!==key){if(selected?.id===n.id)close();source.entities.removeById(n.id);}renderKeys.set(n.id,key);records.set(n.id,n);if(n.geometry&&!source.entities.getById(n.id))missing.push(n);}}finally{source.entities.resumeEvents();}let index=0;
             const chunk=()=>{if(current!==generation||!source)return;if(interactionBusy()){queueSceneWork(chunk);return;}const start=performance.now();source.entities.suspendEvents();try{for(let count=0;index<missing.length&&count<8;count++,index++){
                 const n=missing[index];records.set(n.id,n);source.entities.add({id:n.id,...graphics(n)});
                 if(performance.now()-start>=4){index++;break;}
             }}finally{source.entities.resumeEvents();}if(missing.length)viewer.scene.requestRender();if(index<missing.length)queueSceneWork(chunk);};chunk();
-            if(!handler){handler=new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(click=>{const entity=viewer.scene.pick(click.position)?.id;const n=entity&&records.get(entity.id);if(n)details(n,entity,click.position);else if(detailOpen){widgetRequested=false;close();}},Cesium.ScreenSpaceEventType.LEFT_CLICK);}
+            if(!handler){handler=new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(click=>{const entity=viewer.scene.pick(click.position)?.id;const n=entity&&records.get(entity.id);if(n)details(n,entity,click.position);else if(detailOpen)dismissDetails();},Cesium.ScreenSpaceEventType.LEFT_CLICK);}
             if(!selected){if(!notices.length)showList('No notices in selected area');else showList(`${data.state==='stale'?'Provider temporarily unavailable; cached notices':'Published notices'} (${notices.length}${data.total>200?' of '+data.total:''}${data.partial?'; partial feed':''})`);}
             };queueSceneWork(apply);
         }catch(error){if(error.name!=='AbortError'&&current===generation){terminalState=[401,403,404].includes(error.status);pollDelay=terminalState?null:Math.min(300000,60000*2**retryFailures++);showState([401,403].includes(error.status)?'Notice access denied':'Provider temporarily unavailable',`Notice request failed${error.status?' (HTTP '+error.status+')':''}. Existing trackers remain independent.`);}}
         finally{if(current===generation){controller=null;if(active()&&pollDelay!==null)timer=setTimeout(refresh,pollDelay);}}}
     function sync(){offset=0;if(active()){
         // Disabling one notice category must unload it immediately, even if the next request stalls.
-        for(const [id,n]of records)if(!matches(n)){if(selected?.id===id)close();source?.entities.removeById(id);records.delete(id);renderKeys.delete(id);}
+        for(const [id,n]of records)if(!matches(n)){if(noticeFocus?.id===id)unfocusNotice();if(selected?.id===id)close();source?.entities.removeById(id);records.delete(id);renderKeys.delete(id);}
+        if(!panel&&widgetRequested)showList('Loading notices');
         viewer.scene.requestRender();retryFailures=0;void refresh();
     }else clear();}
-    const unsubscribe=onLayerChange((id)=>{if(id==='*'||NOTICE_LAYERS.includes(id)){if(id!=='*'&&isLayerEnabled(id)){widgetRequested=true;terminalState=false;}sync();}});
+    const unsubscribe=onLayerChange((id)=>{if(id==='*'||NOTICE_LAYERS.includes(id)){const next=NOTICE_LAYERS.filter(isLayerEnabled).join(',');if(next!==layerKey||(id!=='*'&&isLayerEnabled(id))){widgetRequested=active();terminalState=false;layerKey=next;if(detailOpen)close();}sync();}});
     function resumeScope(){clearTimeout(scopeTimer);scopeTimer=0;if(interactionBusy())return;if(scenePending)queueSceneWork(scenePending);if(scopePending&&active()&&canRefresh()){scopePending=false;void refresh();}}
-    const unsubscribeRegion=onRegionChange(()=>{if(!active()||terminalState)return;generation++;controller?.abort();controller=null;scenePending=null;if(frame)cancelAnimationFrame(frame);frame=0;clearTimeout(timer);timer=null;clearTimeout(scopeTimer);offset=0;scopePending=true;scopeTimer=setTimeout(resumeScope,0);});
-    function dismiss(event){if(event.type==='pointerdown'&&event.target===viewer.scene.canvas)pointerHeld=true;if(detailOpen&&(event.type==='keydown'?event.key==='Escape':!panel?.contains?.(event.target))){widgetRequested=false;close();}}
+    const unsubscribeRegion=onRegionChange(()=>{unfocusNotice({restore:false});if(!active()||terminalState)return;generation++;controller?.abort();controller=null;scenePending=null;if(frame)cancelAnimationFrame(frame);frame=0;clearTimeout(timer);timer=null;clearTimeout(scopeTimer);offset=0;scopePending=true;scopeTimer=setTimeout(resumeScope,0);});
+    function dismiss(event){if(event.type==='pointerdown'&&event.target===viewer.scene.canvas)pointerHeld=true;if(detailOpen&&(event.type==='keydown'?event.key==='Escape':!panel?.contains?.(event.target)))dismissDetails();}
+    function yieldFocus(){if(viewer.trackedEntity||getAssetFocusController().getState().assetId){const hadFocus=Boolean(noticeFocus);unfocusNotice({restore:false});if(hadFocus&&!detailOpen&&panel){close();showList();}}}
     function releasePointer(){pointerHeld=false;resumeScope();}
     function wheel(event){if(event.target!==viewer.scene.canvas||!active())return;wheelActive=true;clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>{wheelTimer=0;wheelActive=false;resumeScope();},120);}
     function restyle(){const next=readStyle();if(JSON.stringify(next)===JSON.stringify(style))return;style=next;for(const n of records.values()){const entity=source?.entities.getById(n.id);if(!entity)continue;const next=graphics(n);entity.polygon=next.polygon;entity.polyline=next.polyline;entity.ellipse=next.ellipse;entity.point=next.point;if(next.position)entity.position=next.position;renderKeys.set(n.id,JSON.stringify([n.geometry,n.metadata?.radiusNm,style]));}viewer.scene.requestRender();}
     document.addEventListener('pointerdown',dismiss);
+    document.addEventListener('wz:asset-focus-changed',yieldFocus);
     document.addEventListener('pointerup',releasePointer);
     document.addEventListener('pointercancel',releasePointer);
     document.addEventListener('wheel',wheel,{passive:true});
@@ -158,6 +187,6 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     document.addEventListener('wz:notice-style-refresh',restyle);
     document.addEventListener('wz:region-camera-settled',resumeScope);
     const removeMoveEnd=viewer.camera?.moveEnd?.addEventListener?.(resumeScope);
-    owner={viewer,dispose(){clear();unsubscribe?.();unsubscribeRegion?.();document.removeEventListener('pointerdown',dismiss);document.removeEventListener('pointerup',releasePointer);document.removeEventListener('pointercancel',releasePointer);document.removeEventListener('wheel',wheel);window.removeEventListener?.('blur',releasePointer);document.removeEventListener('keydown',dismiss);window.removeEventListener?.('resize',restyle);document.removeEventListener('wz:notice-style-refresh',restyle);document.removeEventListener('wz:region-camera-settled',resumeScope);removeMoveEnd?.();}};sync();
+    owner={viewer,dispose(){clear();unsubscribe?.();unsubscribeRegion?.();document.removeEventListener('pointerdown',dismiss);document.removeEventListener('wz:asset-focus-changed',yieldFocus);document.removeEventListener('pointerup',releasePointer);document.removeEventListener('pointercancel',releasePointer);document.removeEventListener('wheel',wheel);window.removeEventListener?.('blur',releasePointer);document.removeEventListener('keydown',dismiss);window.removeEventListener?.('resize',restyle);document.removeEventListener('wz:notice-style-refresh',restyle);document.removeEventListener('wz:region-camera-settled',resumeScope);removeMoveEnd?.();}};sync();
 }
 export function disposeNoticeLayers(){owner?.dispose();owner=null;}

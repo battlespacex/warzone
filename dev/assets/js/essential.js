@@ -9628,6 +9628,7 @@ export function initDeferredNoticeLayers(viewer, {
     if (!viewer || __noticeBootstraps.has(viewer)) return;
     let pending=null,module=null,timer=0,failed=false,disposed=false,requestedOpen=false;
     const ids=['aviation-notam','airspace-tfr','naval-warnings','military-exercises'];
+    let previousNoticeKey=ids.filter(isLayerEnabled).join(',');
     const active=()=>ids.some(isLayerEnabled);
     const detach=()=>{clearTimeout(timer);timer=0;unsubscribe();document.removeEventListener('wz:app-entered',schedule);document.removeEventListener('wz:region-camera-settled',schedule);removeMoveEnd?.();};
     const initialize=()=>{
@@ -9637,7 +9638,7 @@ export function initDeferredNoticeLayers(viewer, {
         pending=load().then(result=>{module=result;pending=null;initialize();}).catch(error=>{pending=null;failed=true;console.warn('Optional notices unavailable:',error?.name||'Error');});
     };
     function schedule(){if(disposed||failed||timer||!active()||!ready())return;timer=setTimeout(initialize,0);}
-    const unsubscribe=onLayerChange(id=>{if(id==='*'||ids.includes(id)){if(!active()){clearTimeout(timer);timer=0;}else{if(id!=='*'&&isLayerEnabled(id))requestedOpen=true;failed=false;schedule();}}});
+    const unsubscribe=onLayerChange(id=>{if(id==='*'||ids.includes(id)){const next=ids.filter(isLayerEnabled).join(',');const changed=next!==previousNoticeKey;previousNoticeKey=next;if(!active()){clearTimeout(timer);timer=0;}else{if(changed||(id!=='*'&&isLayerEnabled(id)))requestedOpen=true;failed=false;schedule();}}});
     document.addEventListener('wz:app-entered',schedule);
     document.addEventListener('wz:region-camera-settled',schedule);
     const removeMoveEnd=viewer.camera?.moveEnd?.addEventListener?.(schedule);
@@ -9759,7 +9760,7 @@ async function initializeWarzoneAppOnce() {
         syncFocusAwareBackgroundLoops();
         syncNewsTickerForCurrentMode();
         setAuthModalRenderBudget(false);
-        syncInitialEventsToGlobe(__eventsCache, { animateTracks: true });
+        syncInitialEventsToGlobe(__eventsCache, { animateTracks: true, syncHotspots: false });
         markStartupPerformance("stratops-events-render-complete");
         markStartupPerformance("stratops-map-events-render-complete");
         measureStartupPerformance(
@@ -9842,7 +9843,7 @@ async function initializeWarzoneAppOnce() {
                 }
                 syncFilteredUi(__eventsCache);
                 syncNewsTickerForCurrentMode();
-                syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
+                syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false, syncHotspots: false });
                 syncHotspotLayerEvents(
                     isLayerEnabled("hotspots")
                         ? applyHotspotFilters(__eventsCache, { respectRegion: true })
@@ -9874,7 +9875,7 @@ async function initializeWarzoneAppOnce() {
                         scheduleStatusRefresh();
                         renderAll(mergeMapBootstrapWithRealtime(freshEvents, requestedRegion));
                         syncNewsTickerForCurrentMode();
-                        syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
+                        syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false, syncHotspots: false });
                         syncHotspotLayerEvents(
                             isLayerEnabled("hotspots")
                                 ? applyHotspotFilters(__eventsCache, { respectRegion: true })

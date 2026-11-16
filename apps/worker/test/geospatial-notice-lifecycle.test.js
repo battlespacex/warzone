@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy} from 'cesium';
+import {CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,BoundingSphere,Matrix4} from 'cesium';
 import {NOTICE_LAYERS,matchesNoticeLayers,correlateObservation} from '../../shared/geospatial-notices.js';
 import {createSkySpyAircraftProvider} from '../src/tracking/aircraft/providers/skyspy.js';
 import {createAircraftProviders} from '../src/tracking/aircraft/registry.js';
@@ -15,8 +15,9 @@ function harness(fetchImpl){
     const focus={assetId:''};
     class Element{constructor(tag){this.tag=tag;this.children=[];this.style={};this.selectors=new Map();}setAttribute(){}append(...children){this.children.push(...children);}remove(){const index=panels.indexOf(this);if(index>=0)panels.splice(index,1);}querySelector(selector){if(!this.selectors.has(selector))this.selectors.set(selector,new Element(selector));return this.selectors.get(selector);}}
     class Handler{constructor(){handlers.push(this);}setInputAction(fn){this.click=fn;}destroy(){const index=handlers.indexOf(this);if(index>=0)handlers.splice(index,1);}}
-    const viewer={dataSources:{async add(s){sources.push(s);return s;},remove(s){const index=sources.indexOf(s);if(index>=0)sources.splice(index,1);}},scene:{canvas:{},requestRender(){},pick:()=>({id:sources[0]?.entities.values[0]})},flyTo(){flights++;}};
-    const context=vm.createContext({Cesium:{CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
+    const restores=[];
+    const viewer={camera:{positionWC:new Cartesian3(7e6,1,2),directionWC:new Cartesian3(-1,0,0),upWC:new Cartesian3(0,0,1),cancelFlight(){},flyToBoundingSphere(){flights++;},flyTo(view){restores.push(view);}},dataSources:{async add(s){sources.push(s);return s;},remove(s){const index=sources.indexOf(s);if(index>=0)sources.splice(index,1);}},scene:{canvas:{},requestRender(){},pick:()=>({id:sources[0]?.entities.values[0]})},flyTo(){flights++;}};
+    const context=vm.createContext({Cesium:{CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,BoundingSphere,Matrix4,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
         NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
         onLayerChange(fn){layerListeners.add(fn);return ()=>layerListeners.delete(fn);},onRegionChange(fn){regionListeners.add(fn);return ()=>regionListeners.delete(fn);},
         isLayerEnabled:id=>enabled.has(id),getActiveRegion:()=>({bounds:{minLat:20,maxLat:30,minLon:60,maxLon:70}}),getAssetFocusController:()=>({getState:()=>focus}),
@@ -24,7 +25,7 @@ function harness(fetchImpl){
         setTimeout(fn,delay){fn.delay=delay;timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),requestAnimationFrame(fn){frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
         performance,URLSearchParams,AbortController,fetch:fetchImpl});
     vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
-    return {context,enabled,viewer,sources,panels,handlers,timers,frames,events,focus,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
+    return {context,enabled,viewer,sources,panels,handlers,timers,frames,events,focus,restores,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
 }
 const n={id:'test:1',sourceId:'001/26',title:'Fixture only',sourceUrl:'https://example.org/notices',noticeType:'notam',isMilitaryRelated:true,status:'active',rawText:'Test fixture',metadata:{},geometry:{type:'Polygon',coordinates:[[[65,24],[66,24],[66,25],[65,24]]]}};
 test('restored unconfigured notices stay silent and do not refetch on region entry; explicit user opening remains available',async()=>{
@@ -144,6 +145,7 @@ test('NOTAM polygons preserve source rings and CSS line width; Q-line radius def
     h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
     const polygon=h.sources[0].entities.getById(n.id),marker=h.sources[0].entities.getById(point.id);
     assert.equal(polygon.polyline.width.getValue(),4);assert.equal(polygon.polygon.hierarchy.getValue().positions.length,4);
+    assert.equal(polygon.polygon.height,undefined,'published area uses the terrain-clamped Entity path');assert.equal(polygon.polyline.clampToGround.getValue(),true);
     assert.equal(polygon.polygon.material.oddColor.getValue().alpha,.12);assert.ok(marker.point);assert.equal(marker.ellipse,undefined);
     css.set('--wz-notice-line-width','3');css.set('--wz-notice-marker-size','14');h.events.get('wz:notice-style-refresh')();
     assert.equal(h.sources[0].entities.getById(n.id),polygon);assert.equal(polygon.polyline.width.getValue(),3);assert.equal(marker.point.pixelSize.getValue(),14);
@@ -154,9 +156,9 @@ test('notice popup dismisses outside or Escape but not an inside pointer; releas
     h.handlers[0].click({position:{x:20,y:20}});assert.equal(h.panels[0].className,'wz-notice-popup');
     const panel=h.panels[0];panel.contains=target=>target===panel;
     h.events.get('pointerdown')({type:'pointerdown',target:panel});assert.equal(h.panels.length,1);
-    h.events.get('pointerdown')({type:'pointerdown',target:{}});assert.equal(h.panels.length,0);
+    h.events.get('pointerdown')({type:'pointerdown',target:{}});assert.equal(h.panels.length,1);assert.notEqual(h.panels[0].className,'wz-notice-popup');
     h.handlers[0].click({position:{}});h.events.get('keydown')({type:'keydown',key:'Enter'});assert.equal(h.panels.length,1);
-    h.events.get('keydown')({type:'keydown',key:'Escape'});assert.equal(h.panels.length,0);
+    h.events.get('keydown')({type:'keydown',key:'Escape'});assert.equal(h.panels.length,1);assert.notEqual(h.panels[0].className,'wz-notice-popup');
     h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.handlers.length,0);assert.equal(h.sources.length,0);
 });
 
@@ -169,4 +171,31 @@ test('duplicate layer notifications share one pending request and a mid-drag res
     h.events.get('wheel')({target:h.viewer.scene.canvas});h.sync();assert.equal(calls,1,'wheel burst defers notice refresh');
     h.enabled.clear();h.sync();h.tick();await h.settle();assert.equal(calls,1);assert.equal(h.sources.length,0);
     h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.frames.size,0);assert.equal(h.timers.size,0);
+});
+
+test('notice child/group toggles preserve the shared widget and reopen it after all OFF',async()=>{
+    const naval={...n,id:'naval:1',noticeType:'navarea'};
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n,naval]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    h.handlers[0].click({position:{}});h.events.get('pointerdown')({type:'pointerdown',target:{}});
+    h.enabled.add('naval-warnings');h.sync();await h.settle();assert.equal(h.panels.length,1);assert.equal(h.sources[0].entities.values.length,2);
+    h.enabled.delete('aviation-notam');h.sync();await h.settle();assert.equal(h.panels.length,1);assert.deepEqual(h.sources[0].entities.values.map(e=>e.id),['naval:1']);
+    h.enabled.clear();h.sync();assert.equal(h.panels.length,0);assert.equal(h.sources.length,0);
+    h.enabled.add('aviation-notam');h.enabled.add('naval-warnings');h.sync();await h.settle();assert.equal(h.panels.length,1);assert.equal(h.sources[0].entities.values.length,2);
+    h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.frames.size,0);
+});
+test('notice Focus toggles to Unfocus and restores an independent snapshot of the real previous view',async()=>{
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();h.handlers[0].click({position:{}});
+    const button=h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');
+    const previous=Cartesian3.clone(h.viewer.camera.positionWC);button.onclick();assert.equal(button.textContent,'Unfocus');assert.equal(h.flights,1);
+    h.viewer.camera.positionWC.x=999;button.onclick();assert.equal(button.textContent,'Focus area');assert.equal(h.restores.length,1);
+    assert.deepEqual(h.restores[0].destination,previous);assert.deepEqual(h.restores[0].orientation.direction,new Cartesian3(-1,0,0));assert.deepEqual(h.restores[0].orientation.up,new Cartesian3(0,0,1));
+    button.onclick();h.events.get('keydown')({type:'keydown',key:'Escape'});
+    const controls=h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-controls');assert.ok(controls.children.some(el=>el.textContent==='Unfocus'));
+    h.enabled.clear();h.sync();assert.equal(h.restores.length,2,'turning off the focused notice restores its previous view');h.context.disposeNoticeLayers();
+});
+test('region changes and other tracker focus invalidate notice return views without camera theft',async()=>{
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    const open=()=>{h.handlers[0].click({position:{}});return h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');};
+    const button=open();button.onclick();h.focus.assetId='aircraft';h.events.get('wz:asset-focus-changed')();assert.equal(button.textContent,'Focus area');assert.equal(h.restores.length,0);
+    h.focus.assetId='';button.onclick();for(const fn of h.regionListeners)fn();assert.equal(h.restores.length,0);h.enabled.clear();h.sync();assert.equal(h.restores.length,0);h.context.disposeNoticeLayers();
 });
