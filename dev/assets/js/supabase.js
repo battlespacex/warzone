@@ -228,6 +228,11 @@ async function getAirspaceStatusesFromSupabase() {
 }
 
 export const api = {
+    async getNavalIntelligence({signal,history=false}={}) {
+        const response=await fetch(`${API_BASE}/naval-intel/events?limit=100&history=${history}`,{credentials:'include',signal,headers:{Accept:'application/json'}});
+        if(!response.ok)throw new Error(`Naval intelligence unavailable (${response.status})`);
+        return response.json();
+    },
     abortPendingRequests(prefix = "") {
         abortPendingApiRequests(prefix);
     },

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "release": "1.143.0-4106863949fcb3b1-standard",
+  "release": "1.143.0-a807d548a0cedded-standard",
   "variant": "standard",
   "cesiumVersion": "1.143.0",
-  "baseUrl": "/assets/cesium/releases/1.143.0-4106863949fcb3b1-standard",
+  "baseUrl": "/assets/cesium/releases/1.143.0-a807d548a0cedded-standard",
   "files": [
     {
       "path": "Assets/approximateTerrainHeights.json",

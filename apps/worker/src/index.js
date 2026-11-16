@@ -66,6 +66,7 @@ import {
     shouldRunAircraftInGeneralCycle,
 } from "./aircraft-live-poller.js";
 import { runAisWorker } from "./ais-worker.js";
+import { createNavalIntelRunner } from './naval-intel/ingest.js';
 import {
     createNavalLivePoller,
     readNavalLivePollConfig,
@@ -4746,11 +4747,15 @@ const navalLivePoller = createNavalLivePoller({
 startOrefPoller();
 aircraftLivePoller.start();
 navalLivePoller.start();
+const navalIntelRunner=createNavalIntelRunner({db:supabase});
+const navalIntelSchedule=cron.schedule('*/5 * * * *',()=>navalIntelRunner.run());
+void navalIntelRunner.run();
 let navalShutdownStarted = false;
 function shutdownNavalSources(signal) {
     if (navalShutdownStarted) return;
     navalShutdownStarted = true;
     navalLivePoller.stop();
+    navalIntelSchedule.stop();
     for (const provider of navalProviders) provider.shutdown?.();
     console.log(`[ais-live] stopped (${signal})`);
     setTimeout(() => process.exit(0), 50);

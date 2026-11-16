@@ -26,6 +26,7 @@ import { attachWs } from "./ws.js";
 import { eventsRouter } from "./routes.events.js";
 import { stratopsRouter } from "./routes.stratops.js";
 import { satellitesRouter } from "./routes.satellites.js";
+import { navalIntelRouter } from './routes.naval-intel.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -66,6 +67,7 @@ const corsOptions = {
 
 app.disable("x-powered-by");
 app.use(cors(corsOptions));
+app.options('/naval-intel/*', cors({...corsOptions,credentials:true}));
 app.options("*", cors(corsOptions));
 app.get("/health", (req, res) => res.json({ ok: true }));
 const server = http.createServer(app);
@@ -73,6 +75,7 @@ const { broadcast } = attachWs(server);
 app.use("/events", eventsRouter({ broadcast }));
 app.use("/stratops", stratopsRouter());
 app.use("/satellites", satellitesRouter());
+app.use('/naval-intel', cors({...corsOptions,credentials:true}), navalIntelRouter());
 let noticeRouterPromise=null,noticeService=null,noticesClosed=false;
 app.use('/notices',(req,res,next)=>{
     noticeRouterPromise ||= import('./routes.notices.js').then(({noticesRouter,getSharedNoticeService})=>{

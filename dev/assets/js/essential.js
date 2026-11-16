@@ -9629,6 +9629,16 @@ function syncImmediateEventLayerVisibility(globe, id = "") {
 }
 const __attachedOperationalViewers = new WeakSet();
 const __noticeBootstraps = new WeakMap();
+const __navalIntelBootstraps = new WeakSet();
+function initDeferredNavalIntelligence(viewer){
+    if(__navalIntelBootstraps.has(viewer))return;__navalIntelBootstraps.add(viewer);
+    let pending=false,loaded=false;
+    const start=()=>{if(loaded||pending||!isNavalTrackingFeatureEnabled()||!isLayerEnabled('naval')||!document.body.classList.contains('is-app-active')||isRegionTransitionInFlight())return;
+        pending=true;import(/* webpackChunkName: "warzone-naval-intel" */ './warzone-naval-intel.js').then(module=>{loaded=true;module.initNavalIntelligence(viewer,{bindFloatingPanel});detach();}).catch(()=>{pending=false;console.warn('Naval intelligence unavailable');});};
+    const off=onLayerChange(id=>{if(id==='naval'||id==='*')start();});
+    const detach=()=>{off();document.removeEventListener('wz:app-entered',start);document.removeEventListener('wz:region-camera-settled',start);};
+    document.addEventListener('wz:app-entered',start);document.addEventListener('wz:region-camera-settled',start);start();
+}
 export function initDeferredNoticeLayers(viewer, {
     load = () => import(/* webpackChunkName: "warzone-notices" */ './warzone-notices.js'),
     ready = () => document.body.classList.contains('is-app-active') && !isRegionTransitionInFlight(),
@@ -9658,6 +9668,7 @@ export function attachWarzoneAppViewer(viewer) {
     if (!viewer || __attachedOperationalViewers.has(viewer)) return;
     __attachedOperationalViewers.add(viewer);
     initDeferredNoticeLayers(viewer);
+    initDeferredNavalIntelligence(viewer);
     document.addEventListener('wz:app-entered', scheduleStatusRefresh);
     document.addEventListener('wz:region-camera-settled', scheduleStatusRefresh);
     if (!__militaryTracks && isStratOpsFeatureEnabled("tracking.militaryTracks")) {

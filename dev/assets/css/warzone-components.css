@@ -7397,3 +7397,11 @@ body:not(.is-operational-report-open) .warzone-view {
 .notam-export__battlespacex-logo { width: var(--notam-export-bottom-logo-width); height: var(--notam-export-bottom-logo-height); max-height: var(--notam-export-bottom-logo-max-height); right: var(--notam-export-bottom-logo-right); bottom: var(--notam-export-bottom-logo-bottom); opacity: var(--notam-export-bottom-logo-opacity); }
 .notam-export__source { position: absolute; left: var(--notam-export-source-left); bottom: var(--notam-export-source-bottom); max-width: calc(100% - var(--notam-export-source-left) - var(--notam-export-bottom-logo-width) - var(--notam-export-bottom-logo-right)); color: var(--notam-export-source-color); font-size: var(--notam-export-source-size); font-weight: var(--notam-export-source-weight); letter-spacing: var(--notam-export-source-spacing); line-height: 1.4; overflow-wrap: anywhere; }
 .notam-export .notam-export__marker { position: absolute; transform: translate(-50%,-50%); width: var(--notam-export-marker-size); height: var(--notam-export-marker-size); border: var(--notam-export-marker-width) solid var(--notam-export-marker-color); opacity: var(--notam-export-marker-opacity); clip-path: var(--notam-export-marker-clip); }
+
+/* Separate reported naval activity panel; live tracker styling remains unchanged. */
+.wz-naval-intel { position: fixed; right: 2rem; top: 12rem; width: min(32rem,calc(100vw - 2rem)); max-height: 55vh; z-index: 18; }
+.wz-naval-intel .wz-widget-milbase { width: 100%; max-height: inherit; }
+.wz-naval-intel .wz-widget-body { overflow-y: auto; padding: 1rem; }
+.wz-naval-intel .wz-notice-card { padding: 1rem; border-bottom: 1px solid var(--color-bg-row); overflow-wrap: anywhere; }
+.wz-naval-intel .wz-notice-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
+.wz-naval-intel a, .wz-naval-intel summary { color: var(--color-teal-glow); }
