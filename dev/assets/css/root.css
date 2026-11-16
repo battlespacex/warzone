@@ -2456,3 +2456,25 @@
     --wz-startup-vapor-color-g: 245;
     --wz-startup-vapor-color-b: 220;
 }
+/* Intelligence presentation: independent country rows and source reports. */
+:root {
+    --wz-status-columns: 1; /* Set 2 for country summary / report columns. */
+    --wz-airspace-reported-color: var(--warzone-airspace-color);
+    --wz-cyber-reported-color: var(--warzone-cyber-color);
+    --wz-status-reported-background: var(--color-bg-row);
+    /* NOTAM: published polygons only; Q-line radii are approximate, hidden by default. */
+    --wz-notice-line-color: #ff9f1c;
+    --wz-notice-line-width: 2; /* Screen pixels, including on Windows. */
+    --wz-notice-fill-color: #ff9f1c;
+    --wz-notice-fill-opacity: 0.07;
+    --wz-notice-hatch-color: #ff9f1c;
+    --wz-notice-hatch-opacity: 0.22;
+    --wz-notice-hatch-repeat: 32;
+    --wz-notice-height: 60; /* Metres above ellipsoid. */
+    --wz-notice-marker-size: 9;
+    --wz-notice-show-radius: 0; /* 1 opts into approximate source radius circles. */
+    --wz-notice-panel-width: 34rem;
+    --wz-notice-popup-width: 32rem;
+    --wz-notice-panel-max-height: 55vh;
+    --wz-cyber-icon-size: 1.8rem;
+}

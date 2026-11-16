@@ -38,7 +38,7 @@ test("real layer notifications restore cached event Entities and imagery after e
   };
   const viewer = { __warzone: globe, scene: { requestRender: () => { calls.renders += 1; } } };
   const context = vm.createContext({ console: { ...console, warn: (...args) => calls.warnings.push(args) }, Date, window: { __stratopsAuthState: { isAuthenticated: true },
-    __warzoneViewer: viewer }, document: { body: { classList: { contains: () => false } },
+    __warzoneViewer: viewer }, document: { body: { classList: { contains: name => name === 'is-app-active' } },
     querySelector: () => null, getElementById: () => null }, localStorage: { getItem: () => null, setItem: noop },
     getStratOpsLayerFeaturePath: () => "", isStratOpsFeatureEnabled: () => true });
   vm.runInContext(layersSource.replace(/^import[\s\S]*?from "[^"]+";\r?\n/m, "")
@@ -72,8 +72,10 @@ test("real layer notifications restore cached event Entities and imagery after e
     makeEventSignature: rows => rows.map(row => row.id).join("|"), getActiveRegion: () => ({ id: "test" }),
     shouldSuspendMapWork: () => false, isDocumentHidden: () => false,
     startEventPollingFallback: noop, stopEventPollingFallback: noop,
+    __statusRefreshTimer: 0, __statusNextRefreshAt: 0, setTimeout,
+    isRegionTransitionInFlight: () => false,
   });
-  installFunctions(context, ["syncIdleSceneState", "syncInitialEventsToGlobe", "syncImmediateEventLayerVisibility"]);
+  installFunctions(context, ["syncIdleSceneState", "syncInitialEventsToGlobe", "syncImmediateEventLayerVisibility", "scheduleStatusRefresh"]);
   const callbackStart = appSource.indexOf("onLayerChange((id, enabled, state, changedLayerIds) => {");
   const callbackEnd = appSource.indexOf("\n        __aircraftLayerChangeReady", callbackStart);
   vm.runInContext(appSource.slice(callbackStart, callbackEnd), context);
@@ -93,8 +95,8 @@ test("real layer notifications restore cached event Entities and imagery after e
     assert.equal(borders.show, true, "a restored eligible control reaches the real application handler");
     context.setLayer("country-borders", false);
   }
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(calls.statuses, 3, "one existing status refresh request per final exit");
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(calls.statuses, 1, "rapid final exits share one deferred status refresh without blocking restoration");
   assert.equal(calls.gnssLoads, 0, "GNSS defaults off; no fabricated restoration fetches");
   assert.ok(calls.renders > 0);
   assert.equal(calls.orbital.at(-1), false);

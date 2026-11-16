@@ -61,7 +61,9 @@ test("operational data and status requests are guarded after first-map readiness
   assert.match(index, /stratops-operational-ready/);
   assert.match(essential, /let __warzoneAppInitPromise = null/);
   assert.match(essential, /export function initWarzoneApp\(\)[\s\S]*?return __warzoneAppInitPromise/);
-  assert.match(essential, /const statusRefreshPromise = refreshStatusEvents\(\)[\s\S]*?markStartupPerformance\("stratops-events-render-start"\)/);
+  assert.match(essential, /scheduleStatusRefresh\(\);[\s\S]*?markStartupPerformance\("stratops-events-render-start"\)/);
+  assert.doesNotMatch(essential, /await refreshStatusEvents\(/);
+  assert.match(essential, /isRegionTransitionInFlight\(\) \|\| shouldSuspendMapWork\(\)/);
   assert.match(essential, /STATUS_REQUEST_TIMEOUT_MS = 8000/);
   assert.match(essential, /api\.getActiveAlerts\(\{ signal: controller\.signal \}\)/);
   assert.match(essential, /api\.getAirspaceStatuses\(\{ signal: controller\.signal \}\)/);

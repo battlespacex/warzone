@@ -103,7 +103,7 @@ const STATUS_SOURCES = [
     region_scope: "global",
     url: "https://radar.cloudflare.com/",
     docs_url: "https://developers.cloudflare.com/radar/",
-    enabled: false,
+    enabled: true,
     requires_env: ["CLOUDFLARE_RADAR_API_KEY"],
     note: "Use documented Cloudflare Radar API with token/API contract; do not scrape the public dashboard because it can return browser-challenge HTML."
   },

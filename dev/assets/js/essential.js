@@ -121,8 +121,13 @@ let __liveRecentEvents = [];
 let __statusEventsCache = [];
 let __statusFeedItemsCache = [];
 let __statusFeedUnavailable = false;
+let __statusFeedLoading = false;
 let __statusRefreshPromise = null;
 let __statusFeedNextRefreshAt = 0;
+let __statusFeedScope = '';
+let __statusRefreshTimer = 0;
+let __statusAlertsCache = [], __statusAirspaceCache = [];
+let __statusNextRefreshAt = 0;
 let __gnssInterferenceCellsCache = [];
 let __gnssInterferenceMeta = {
     demoMode: false,
@@ -3931,7 +3936,13 @@ function normalizeCountryName(value) {
 function countryNameFromCode(value) {
     const code = String(value || "").trim().toLowerCase();
     if (!code) return "";
-    return COUNTRY_NAME_ALIASES[code] || "";
+    if (COUNTRY_NAME_ALIASES[code]) return COUNTRY_NAME_ALIASES[code];
+    if (/^[a-z]{2}$/.test(code) && typeof Intl.DisplayNames === 'function') {
+        const names=countryNameFromCode.displayNames ||= new Intl.DisplayNames(['en'],{type:'region'});
+        const name=names.of(code.toUpperCase());
+        return name && name.toLowerCase()!==code ? normalizeCountryName(name) : '';
+    }
+    return '';
 }
 function inferCountryFromStatusText(...values) {
     const haystack = values
@@ -4128,6 +4139,18 @@ function refreshStatusEvents() {
     }
     return __statusRefreshPromise;
 }
+function scheduleStatusRefresh() {
+    if (__statusRefreshTimer) return;
+    __statusRefreshTimer = setTimeout(() => {
+        __statusRefreshTimer = 0;
+        if (!document.body.classList.contains('is-app-active') || isRegionTransitionInFlight() || shouldSuspendMapWork()) return;
+        void refreshStatusEvents().then(() => {
+            if(__statusFeedScope!==JSON.stringify(getRegionRequestBounds() || null)){__statusFeedNextRefreshAt=0;scheduleStatusRefresh();return;}
+            debouncedRenderUI(__eventsCache);
+        })
+            .catch(error => console.warn('Status refresh unavailable:', error?.name || 'Error'));
+    }, 0);
+}
 async function refreshStatusEventsOnce() {
     const needsStatusEvents =
         isStratOpsFeatureEnabled("alerts.stickyAlerts") ||
@@ -4138,9 +4161,15 @@ async function refreshStatusEventsOnce() {
         isStratOpsFeatureEnabled("mapLayers.cyber");
     if (!needsStatusEvents) {
         __statusEventsCache = [];
+        __statusFeedScope=JSON.stringify(getRegionRequestBounds() || null);
         return __statusEventsCache;
     }
     const now = Date.now();
+    const statusBounds=getRegionRequestBounds();
+    const statusScope=JSON.stringify(statusBounds || null);
+    if(statusScope!==__statusFeedScope){__statusFeedScope=statusScope;__statusFeedNextRefreshAt=0;}
+    if (now < __statusNextRefreshAt &&
+        (!(isLayerEnabled('airspace') || isLayerEnabled('cyber')) || now < __statusFeedNextRefreshAt)) return __statusEventsCache;
     if (
         shouldDeferBackgroundMapWork() &&
         __statusEventsCache.length &&
@@ -4150,46 +4179,45 @@ async function refreshStatusEventsOnce() {
     }
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
+    const refreshStatuses=now>=__statusNextRefreshAt;
     try {
         const results = await Promise.allSettled([
-            api.getActiveAlerts({ signal: controller.signal }),
-            api.getAirspaceStatuses
+            refreshStatuses?api.getActiveAlerts({ signal: controller.signal }):Promise.resolve(null),
+            refreshStatuses && isLayerEnabled('airspace') && api.getAirspaceStatuses
                 ? api.getAirspaceStatuses({ signal: controller.signal })
-                : Promise.resolve({ data: [], error: null }),
+                : Promise.resolve(null),
             (isLayerEnabled("airspace") || isLayerEnabled("cyber")) && now >= __statusFeedNextRefreshAt && api.getStatusFeedItems
-                ? api.getStatusFeedItems({ signal: controller.signal })
+                ? api.getStatusFeedItems({ signal: controller.signal, bounds:statusBounds, includeNotices:isLayerEnabled('airspace') })
                 : Promise.resolve(null)
         ]);
         const feedResult = results[2];
         if (feedResult.status === "fulfilled" && feedResult.value && !feedResult.value.error) {
             __statusFeedItemsCache = feedResult.value.data || [];
             __statusFeedUnavailable = false;
-            __statusFeedNextRefreshAt = now + 15 * 60 * 1000;
+            __statusFeedLoading = feedResult.value.meta?.state==='loading';
+            __statusFeedNextRefreshAt = now + (feedResult.value.meta?.state==='loading'?12000:15 * 60 * 1000);
         } else if (feedResult.status === "rejected" || feedResult.value?.error) {
             __statusFeedUnavailable = true;
+            __statusFeedLoading = false;
             __statusFeedNextRefreshAt = now + 60 * 1000;
         }
         __lastStatusWidgetSignature = null;
-        const statusEvents = [];
         const alertsResult = results[0];
-        const alertsAvailable = alertsResult.status === "fulfilled" && !alertsResult.value?.error;
+        const alertsAvailable = alertsResult.status === "fulfilled" && alertsResult.value && !alertsResult.value.error;
         if (alertsAvailable) {
-            (alertsResult.value?.data || [])
+            __statusAlertsCache = (alertsResult.value?.data || [])
                 .map(normalizeActiveAlertStatusEvent)
-                .filter(Boolean)
-                .forEach((event) => statusEvents.push(event));
+                .filter(Boolean);
         }
         const airspaceResult = results[1];
-        const airspaceAvailable = airspaceResult.status === "fulfilled" && !airspaceResult.value?.error;
+        const airspaceAvailable = airspaceResult.status === "fulfilled" && airspaceResult.value && !airspaceResult.value.error;
         if (airspaceAvailable) {
-            (airspaceResult.value?.data || [])
+            __statusAirspaceCache = (airspaceResult.value.data || [])
                 .map(normalizeAirspaceStatusEvent)
-                .filter(Boolean)
-                .forEach((event) => statusEvents.push(event));
+                .filter(Boolean);
         }
-        if ((alertsAvailable && airspaceAvailable) || (!__statusEventsCache.length && statusEvents.length)) {
-            __statusEventsCache = dedupeStatusEvents(statusEvents);
-        }
+        __statusEventsCache = dedupeStatusEvents([...__statusAlertsCache, ...__statusAirspaceCache]);
+        if(refreshStatuses)__statusNextRefreshAt = now + 60000;
         if (alertsAvailable && airspaceAvailable) {
             __statusEventsLastLoadedAt = now;
         }
@@ -6323,10 +6351,20 @@ function rankCountryRows(events, type, max = 10) {
     const statusEvents = getStatusScopedEvents(scopedEvents, type);
     const regionId = getActiveRegion?.()?.id || "global";
     const regionalCountries = regionId === "global" ? [] : (REGION_COUNTRY_HINTS[regionId] || []);
+    const regionalCountrySet=new Set(regionalCountries.map(normalizeCountryName));
+    const reportsByCountry = new Map();
+    for (const item of __statusFeedItemsCache) {
+        if (item.domain !== type || !item.country || item.kind === 'vulnerability' || !isCurrentStatusReport(item,type)) continue;
+        const country = normalizeCountryName(countryNameFromCode(item.country) || item.country);
+        if(regionalCountrySet.size&&!regionalCountrySet.has(country))continue;
+        const stale = __statusFeedUnavailable || item.stale || Date.now() - Date.parse(item.fetched_at || '') > (type === 'airspace' ? 3600000 : 86400000);
+        if (!reportsByCountry.has(country) || !stale) reportsByCountry.set(country, stale ? 'Stale' : 'Reports');
+    }
     const countryCandidates = [...new Set([
         ...regionalCountries,
         ...deriveFocusCountries(scopedEvents, Math.max(max, 24)),
         ...statusEvents.map((event) => getEventResolvedCountry(event)),
+        ...reportsByCountry.keys(),
     ].map(normalizeCountryName).filter(Boolean))];
     const rows = countryCandidates
         .map((country) => {
@@ -6338,9 +6376,10 @@ function rankCountryRows(events, type, max = 10) {
                 status,
                 relatedCount,
                 priority: statusPriority(status),
+                evidenceLabel: reportsByCountry.get(canonical) || (__statusFeedLoading ? 'Loading' : __statusFeedUnavailable ? 'Unavailable' : ''),
             };
         })
-        .filter((row) => regionalCountries.length > 0 || row.priority > 0 || row.relatedCount > 0)
+        .filter((row) => regionalCountries.length > 0 || row.priority > 0 || row.relatedCount > 0 || reportsByCountry.has(row.label))
         .sort((a, b) => {
             if (b.priority !== a.priority) return b.priority - a.priority;
             if (b.relatedCount !== a.relatedCount) return b.relatedCount - a.relatedCount;
@@ -6348,34 +6387,40 @@ function rankCountryRows(events, type, max = 10) {
         });
     return regionalCountries.length ? rows : rows.slice(0, max);
 }
-function renderStatusFeedRows(container, domain) {
+function isCurrentStatusReport(item,domain){
+    if(item.kind==='published_notice')return ['active','upcoming','unknown'].includes(item.notice_status)&&Date.now()-Date.parse(item.fetched_at || '')<=86400000;
+    const age=Date.now()-Date.parse(item.published_at || '');
+    return Number.isFinite(age)&&age>=-300000&&age<=(item.kind==='vulnerability'?30:domain==='airspace'?1:7)*86400000;
+}
+function renderStatusFeedRows(container, domain, summaryMarkup = null) {
     const region = getActiveRegion?.();
     const whitelist = getRegionCountryWhitelist(region?.id);
     const items = __statusFeedItemsCache.filter(item => {
         if (item.domain !== domain) return false;
-        const age = Date.now() - Date.parse(item.published_at || "");
-        if (!Number.isFinite(age) || age > (item.kind === "vulnerability" ? 30 : domain === "airspace" ? 1 : 7) * 86400000) return false;
+        if(!isCurrentStatusReport(item,domain))return false;
         // Global vulnerability guidance has no incident country; label it as such.
         if (!item.country) return domain === "cyber";
         return !region || region.id === "global" || whitelist.has(normalizeCountryName(countryNameFromCode(item.country) || item.country));
     }).slice(0, 6);
-    if (!items.length) return false;
+    // A country-only view must also replace reports that have expired/disappeared.
     const markup = items.map(item => {
         const stale = __statusFeedUnavailable || item.stale || Date.now() - Date.parse(item.fetched_at || "") > (domain === "airspace" ? 3600000 : 86400000);
-        const label = stale ? "Stale" : item.kind === "vulnerability" ? "Vulnerability advisory" : item.status === "restricted" ? "Airport restriction" : item.status === "advisory" ? "Advisory" : "Reported";
+        const label = stale ? "Stale" : item.kind === "vulnerability" ? "Vulnerability advisory" : item.kind === 'threat_intelligence' ? 'Threat report' : item.status === "restricted" ? "Airport restriction" : item.status === "advisory" ? "Advisory" : "Reported";
         let link = "";
         try { const url = new URL(item.source_url); if (["https:", "http:"].includes(url.protocol)) link = url.href; } catch { /* Invalid public URL is not linked. */ }
         const attribution = `${item.source_name} | ${item.published_at} | ${item.coverage}${stale ? ` | Last retrieved ${item.fetched_at}` : ""}`;
-        if (domain === "cyber") {
+        {
             const published = new Date(item.published_at || "");
+            const formatter = renderStatusFeedRows.dateFormatter ||= new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" });
             const publishedText = Number.isFinite(published.getTime())
-                ? published.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                ? formatter.format(published)
                 : "Date unavailable";
             const summary = String(item.summary || "").trim();
             return `<article class="wz-status-report" title="${escapeHtml(attribution)}">
                 <details>
                     <summary>
-                        <span class="wz-status-report__head"><strong>${escapeHtml(item.title)}</strong><span class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${escapeHtml(label)}</span></span>
+                        <span class="wz-status-report__head"><strong>${domain === "cyber" ? '<img class="wz-cyber-status-icon" src="/assets/images/markers/cyber-status.svg" alt="" /> ' : ""}${escapeHtml(item.title)}</strong><span class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${escapeHtml(label)}</span></span>
+                        ${domain === "cyber" ? `<span class="wz-cyber-status-caption">${escapeHtml(item.country ? countryNameFromCode(item.country) || item.country : "Global advisory")} · ${escapeHtml(label)}</span>` : ""}
                         ${summary ? `<span class="wz-status-report__preview">${escapeHtml(summary)}</span>` : ""}
                         <span class="wz-status-report__meta"><span>${escapeHtml(item.source_name || "Source unavailable")}</span><time datetime="${escapeHtml(item.published_at || "")}">${escapeHtml(publishedText)}</time></span>
                     </summary>
@@ -6384,10 +6429,17 @@ function renderStatusFeedRows(container, domain) {
                 </details>
             </article>`;
         }
-        return `<div class="status-row" title="${escapeHtml(attribution)}"><span><a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a><br><small>${escapeHtml(attribution)}</small></span><strong class="status-pill status-pill--${stale ? "unknown" : "elevated"}">${label}</strong></div>`;
     }).join("");
-    container.insertAdjacentHTML("beforeend", markup);
-    return true;
+    const reports = items.length ? `<div class="wz-status-details" aria-label="Source reports">${markup}</div>` : "";
+    if (summaryMarkup !== null) {
+        const next = summaryMarkup + reports;
+        // Keep expanded disclosures, scroll position and DOM when telemetry did not change these widgets.
+        if (container.__wzStatusMarkup !== next || !container.firstElementChild) {
+            container.innerHTML = next;
+            container.__wzStatusMarkup = next;
+        }
+    } else if (reports) container.insertAdjacentHTML("beforeend", reports);
+    return items.length > 0;
 }
 function renderCyberStatus(events) {
     const container = document.getElementById("cyber-status-list");
@@ -6415,16 +6467,16 @@ function renderCyberStatus(events) {
     }
     const markup = rows.map((row) => {
         const status = String(row.status || "unknown").toLowerCase();
-        const label = status.charAt(0).toUpperCase() + status.slice(1);
+        const pillStatus = status === "unknown" && row.evidenceLabel === "Reports" ? "reported" : status;
+        const label = status === 'unknown' && row.evidenceLabel ? row.evidenceLabel : status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
                 <span>${escapeHtml(row.label)}</span>
-                <strong class="status-pill status-pill--${status}">${label}</strong>
+                <strong class="status-pill status-pill--${pillStatus}">${label}</strong>
             </div>
         `;
     }).join("");
-    container.innerHTML = markup;
-    renderStatusFeedRows(container, "cyber");
+    renderStatusFeedRows(container, "cyber", `<div class="wz-status-summary" aria-label="Country status">${markup}</div>`);
 }
 function renderAirspaceStatus(events) {
     const container = document.getElementById("airspace-status-list");
@@ -6452,16 +6504,16 @@ function renderAirspaceStatus(events) {
     }
     const markup = rows.map((row) => {
         const status = String(row.status || "unknown").toLowerCase();
-        const label = status.charAt(0).toUpperCase() + status.slice(1);
+        const pillStatus = status === "unknown" && row.evidenceLabel === "Reports" ? "reported" : status;
+        const label = status === 'unknown' && row.evidenceLabel ? row.evidenceLabel : status.charAt(0).toUpperCase() + status.slice(1);
         return `
             <div class="status-row">
                 <span>${escapeHtml(row.label)}</span>
-                <strong class="status-pill status-pill--${status}">${label}</strong>
+                <strong class="status-pill status-pill--${pillStatus}">${label}</strong>
             </div>
         `;
     }).join("");
-    container.innerHTML = markup;
-    renderStatusFeedRows(container, "airspace");
+    renderStatusFeedRows(container, "airspace", `<div class="wz-status-summary" aria-label="Country status">${markup}</div>`);
 }
 function renderEscalation(events) {
     const critical = events.filter((e) => e.severity === "critical").length;
@@ -9574,18 +9626,18 @@ export function initDeferredNoticeLayers(viewer, {
     ready = () => document.body.classList.contains('is-app-active') && !isRegionTransitionInFlight(),
 } = {}) {
     if (!viewer || __noticeBootstraps.has(viewer)) return;
-    let pending=null,module=null,timer=0,failed=false,disposed=false;
+    let pending=null,module=null,timer=0,failed=false,disposed=false,requestedOpen=false;
     const ids=['aviation-notam','airspace-tfr','naval-warnings','military-exercises'];
     const active=()=>ids.some(isLayerEnabled);
     const detach=()=>{clearTimeout(timer);timer=0;unsubscribe();document.removeEventListener('wz:app-entered',schedule);document.removeEventListener('wz:region-camera-settled',schedule);removeMoveEnd?.();};
     const initialize=()=>{
         timer=0;if(disposed||failed||!active()||!ready())return;
-        if(module){module.initNoticeLayers(viewer,{bindFloatingPanel,canRefresh:ready});detach();return;}
+        if(module){module.initNoticeLayers(viewer,{bindFloatingPanel,canRefresh:ready,showOnInit:requestedOpen});detach();return;}
         if(pending)return;
         pending=load().then(result=>{module=result;pending=null;initialize();}).catch(error=>{pending=null;failed=true;console.warn('Optional notices unavailable:',error?.name||'Error');});
     };
     function schedule(){if(disposed||failed||timer||!active()||!ready())return;timer=setTimeout(initialize,0);}
-    const unsubscribe=onLayerChange(id=>{if(id==='*'||ids.includes(id)){if(!active()){clearTimeout(timer);timer=0;}else{failed=false;schedule();}}});
+    const unsubscribe=onLayerChange(id=>{if(id==='*'||ids.includes(id)){if(!active()){clearTimeout(timer);timer=0;}else{if(id!=='*'&&isLayerEnabled(id))requestedOpen=true;failed=false;schedule();}}});
     document.addEventListener('wz:app-entered',schedule);
     document.addEventListener('wz:region-camera-settled',schedule);
     const removeMoveEnd=viewer.camera?.moveEnd?.addEventListener?.(schedule);
@@ -9597,6 +9649,8 @@ export function attachWarzoneAppViewer(viewer) {
     if (!viewer || __attachedOperationalViewers.has(viewer)) return;
     __attachedOperationalViewers.add(viewer);
     initDeferredNoticeLayers(viewer);
+    document.addEventListener('wz:app-entered', scheduleStatusRefresh);
+    document.addEventListener('wz:region-camera-settled', scheduleStatusRefresh);
     if (!__militaryTracks && isStratOpsFeatureEnabled("tracking.militaryTracks")) {
         __militaryTracks = initMilitaryTracks(viewer);
         __militaryTracks?.setEnabled?.(isNavalTrackingFeatureEnabled() && isLayerEnabled("naval"));
@@ -9693,15 +9747,7 @@ async function initializeWarzoneAppOnce() {
         markStartupPerformance("stratops-map-events-request-end");
         markStartupPerformance("stratops-map-events-parse-complete");
         markStartupPerformance("stratops-events-loaded");
-        const statusRefreshPromise = refreshStatusEvents()
-            .then((statusEvents) => {
-                syncFilteredUi(__eventsCache);
-                return statusEvents;
-            })
-            .catch((error) => {
-                if (!isRequestAbortError(error)) console.warn("Initial status refresh failed:", error);
-                return __statusEventsCache;
-            });
+        scheduleStatusRefresh();
 
         __viewportScoped = false;
         markStartupPerformance("stratops-map-events-render-start");
@@ -9825,7 +9871,7 @@ async function initializeWarzoneAppOnce() {
                         const freshEvents = Array.isArray(data)
                             ? data.map((row) => normalizeEvent(row)).filter(Boolean)
                             : [];
-                        await refreshStatusEvents();
+                        scheduleStatusRefresh();
                         renderAll(mergeMapBootstrapWithRealtime(freshEvents, requestedRegion));
                         syncNewsTickerForCurrentMode();
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false, updatePerformance: false });
@@ -9960,8 +10006,8 @@ async function initializeWarzoneAppOnce() {
             const layerChanged = (layerId) => changedIds.includes(layerId);
             if ((layerChanged("airspace") && isLayerEnabled("airspace")) ||
                 (layerChanged("cyber") && isLayerEnabled("cyber"))) {
-                void refreshStatusEvents().then(() => debouncedRenderUI(__eventsCache))
-                    .catch(error => console.warn("Status refresh unavailable:", error?.name || "Error"));
+                __statusNextRefreshAt = 0;
+                scheduleStatusRefresh();
             }
             changedIds.forEach((layerId) => {
                 const enabled = isLayerEnabled(layerId);
@@ -10138,7 +10184,7 @@ async function initializeWarzoneAppOnce() {
         __viewportScoped = false;
         scheduleViewportFetch(150);
         syncTracksRealtimeChannel();
-        void Promise.allSettled([statusRefreshPromise, gnssRefreshPromise])
+        void Promise.allSettled([gnssRefreshPromise])
             .then(() => syncGnssInterferenceLayer())
             .catch((error) => console.warn("Optional interference layer refresh failed:", error));
         return events;
@@ -10201,7 +10247,7 @@ async function pollLatestEvents(options = {}) {
                         ? fullData.map((row) => normalizeEvent(row)).filter(Boolean)
                         : [];
                     if (fullEvents.length) {
-                        await refreshStatusEvents();
+                        scheduleStatusRefresh();
                         renderAll(mergeMapBootstrapWithRealtime(fullEvents, refreshRegion));
                         syncInitialEventsToGlobe(__eventsCache, { animateTracks: false });
                         const hotspotSource = __viewportScoped ? __visibleEventsCache : __eventsCache;
@@ -10261,8 +10307,7 @@ export function startEventPollingFallback() {
         if (isDocumentHidden()) return;
         if (shouldSuspendMapWork()) return;
         if ((isLayerEnabled("airspace") || isLayerEnabled("cyber")) && Date.now() >= __statusFeedNextRefreshAt) {
-            void refreshStatusEvents().then(() => debouncedRenderUI(__eventsCache))
-                .catch(error => console.warn("Status refresh unavailable:", error?.name || "Error"));
+            scheduleStatusRefresh();
         }
         pollLatestEvents();
     }, EVENT_POLL_INTERVAL_MS);

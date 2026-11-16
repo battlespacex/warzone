@@ -278,9 +278,13 @@ export const api = {
     },
 
     async getStatusFeedItems(options = {}) {
-        const res = await fetch(`${API_BASE}/events/status-feed`, options);
+        const {bounds,includeNotices,...requestOptions}=options;
+        const query=new URLSearchParams();
+        if(bounds)for(const key of ['minLat','maxLat','minLon','maxLon'])if(Number.isFinite(bounds[key]))query.set(key,String(bounds[key]));
+        if(includeNotices)query.set('include_notices','true');
+        const res = await fetch(`${API_BASE}/events/status-feed${query.size?'?'+query:''}`, requestOptions);
         const json = await readJsonResponse(res, "Status feed fetch");
-        return { data: json.items || [], error: null };
+        return { data: json.items || [], error: null, meta:{state:json.state,refreshAfterMs:json.refreshAfterMs} };
     },
 
     async getIntelFeedItems() {

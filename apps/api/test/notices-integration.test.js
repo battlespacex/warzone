@@ -14,6 +14,15 @@ const input={provider:'import',issuer:'FIR1',fir:'FIR1',sourceId:'A0001/26',noti
     isMilitaryRelated:true,effectiveFrom:'2026-11-15T00:00:00Z',effectiveUntil:'2026-11-16T00:00:00Z',geometry:{type:'Point',coordinates:[66,24]}};
 async function listen(app){const server=await new Promise(resolve=>{const value=app.listen(0,'127.0.0.1',()=>resolve(value));});return {url:'http://127.0.0.1:'+server.address().port,close:()=>new Promise(resolve=>server.close(resolve))};}
 const mockService=rows=>createNoticeService({env:{NOTICES_ENABLED:'true',NOTICES_IMPORT_FILE:'fixture',NOTICES_IMPORT_USAGE_APPROVED:'true'},now,readFile:async()=>Buffer.from(JSON.stringify(rows))});
+test('local status and notice routes share configured backend data and preserve notice scope without upstream connections',async()=>{
+ const date=new Date().toISOString(),notice={...normalizeNotice(input),status:'active',lastFetchedAt:date};let queries=0,disposed=0;
+ const service={list:async query=>{queries++;assert.equal(query.minLat,'20');return {state:'ready',notices:[notice]};}};
+ const row={guid:'fixture-status',title:'Published fixture report',category:'cyber_advisory',country:'PK',url:'https://example.org/report',published_at:date,fetched_at:date,raw:{status_signal:{domain:'cyber',kind:'threat_intelligence',status:'reported'}}};
+ const app=express(),stop=mountLocalNotices(app,{env:{},service,statusCache:{list:async()=>({items:[row],state:'ready',refreshAfterMs:900000}),dispose(){disposed++;}}}),server=await listen(app);
+ try{const response=await fetch(server.url+'/api/events/status-feed?include_notices=true&minLat=20&maxLat=30&minLon=60&maxLon=70');assert.equal(response.status,200);const body=await response.json();assert.equal(body.items.length,2);assert.equal(body.items[0].kind,'threat_intelligence');assert.equal(body.items[1].kind,'published_notice');assert.equal(body.items[1].status,'reported');assert.equal(queries,1);
+   assert.equal((await fetch(server.url+'/api/notices?minLat=20&maxLat=30&minLon=60&maxLon=70')).status,200);assert.equal(queries,2);
+ }finally{stop();await server.close();assert.equal(disposed,1);}
+});
 
 test('notice preview mount is lazy, first requests share initialization and cleanup disposes once',async()=>{
     let imports=0,creates=0,disposals=0;

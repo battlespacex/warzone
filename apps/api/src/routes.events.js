@@ -711,21 +711,27 @@ export function eventsRouter({ broadcast }) {
         }
     });
 
-    router.get("/status-feed", async (_req, res) => {
+    router.get("/status-feed", async (req, res) => {
         try {
             const { data, error } = await getSupabase().from("status_feed_items")
                 .select("id, guid, title, summary, category, source_name, url, published_at, fetched_at, country, region, raw")
                 .eq("is_status_relevant", true)
                 .gte("published_at", new Date(Date.now() - 30 * 86400000).toISOString())
                 .order("published_at", { ascending: false }).limit(300);
-            if (error) return res.status(503).json({ error: "Status sources unavailable" });
+            let noticeItems=[];
+            if(req.query?.include_notices==='true'&&['minLat','maxLat','minLon','maxLon'].every(k=>Number.isFinite(Number(req.query[k])))){
+                try{const {getSharedNoticeService,toNoticeStatusSignals}=await import('./routes.notices.js');
+                    noticeItems=toNoticeStatusSignals((await getSharedNoticeService().list({...req.query,military:'all'})).notices);
+                }catch{/* A notice provider failure must not hide available cyber reports. */}
+            }
+            if (error&&!noticeItems.length) return res.status(503).json({ error: "Status sources unavailable" });
             const seen = new Set();
             const items = (data || []).map(item => toPublicStatusSignal(item)).filter(item => {
                 if (!item || seen.has(item.id)) return false;
                 seen.add(item.id); return true;
             });
             res.setHeader("Cache-Control", "public, max-age=60");
-            res.json({ items });
+            res.json({ items:[...items,...noticeItems] });
         } catch {
             res.status(503).json({ error: "Status sources unavailable" });
         }

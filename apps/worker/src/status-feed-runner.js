@@ -12,11 +12,14 @@ function safeTimestamp(value) {
   return Number.isFinite(time) ? time : 0;
 }
 
-function filterRecentItems(items = [], maxAgeDays = 60) {
-  const threshold = Date.now() - (Math.max(1, Number(maxAgeDays || 60)) * 24 * 60 * 60 * 1000);
+function filterRecentItems(items = [], maxAgeDays = 60, vulnerabilityMaxAgeDays = maxAgeDays) {
+  const now = Date.now();
   return (Array.isArray(items) ? items : []).filter((item) => {
+    const days = item.source_id === 'cisa-kev' && item.raw?.status_signal?.kind === 'vulnerability'
+      ? vulnerabilityMaxAgeDays : maxAgeDays;
+    const threshold = now - Math.max(1, Number(days || 60)) * 86400000;
     const publishedAt = safeTimestamp(item.published_at);
-    return publishedAt >= threshold && publishedAt <= Date.now() + 300000;
+    return publishedAt >= threshold && publishedAt <= now + 300000;
   });
 }
 
@@ -31,8 +34,7 @@ function dedupeStatusItems(items = []) {
   });
 }
 
-async function runStatusFeedFetch(options = {}) {
-  const fetchResult = await fetchAllStatusItems(options);
+export function normalizeStatusFeedItems(input=[],options={}) {
   const minimumScore = Number.isFinite(Number(options.minimumScore))
     ? Number(options.minimumScore)
     : Number.parseInt(String(process.env.STATUS_FEED_MINIMUM_SCORE || DEFAULT_STATUS_MINIMUM_SCORE), 10) || DEFAULT_STATUS_MINIMUM_SCORE;
@@ -40,24 +42,56 @@ async function runStatusFeedFetch(options = {}) {
     ? Number(options.maxAgeDays)
     : Number.parseInt(String(process.env.STATUS_FEED_MAX_AGE_DAYS || DEFAULT_STATUS_MAX_AGE_DAYS), 10) || DEFAULT_STATUS_MAX_AGE_DAYS;
 
-  const recentItems = filterRecentItems(fetchResult.items, maxAgeDays);
+  // Preserve the public advisory contract without overriding an operator's
+  // explicitly configured retention window for this worker.
+  const explicitAge = Number.isFinite(Number(options.maxAgeDays)) || Number(process.env.STATUS_FEED_MAX_AGE_DAYS) > 0;
+  const recentItems = filterRecentItems(input, maxAgeDays, explicitAge ? maxAgeDays : 30);
   const enrichedItems = recentItems.map((item) => enrichStatusItem(item, { minimumScore }));
   const filteredItems = enrichedItems.filter((item) => item.is_status_relevant);
   const rejectedItems = enrichedItems.filter((item) => !item.is_status_relevant);
   const items = dedupeStatusItems(filteredItems);
+  return {items,rejected_items:dedupeStatusItems(rejectedItems),recent_item_count:recentItems.length};
+}
+
+async function runStatusFeedFetch(options = {}) {
+  const fetchResult = await fetchAllStatusItems(options);
+  const normalized=normalizeStatusFeedItems(fetchResult.items,options);
+  const items=normalized.items;
 
   return {
     fetched_at: new Date().toISOString(),
     source_count: fetchResult.source_count,
     failed_source_count: fetchResult.failed_count,
     fetched_item_count: fetchResult.fetched_item_count,
-    recent_item_count: recentItems.length,
+    recent_item_count: normalized.recent_item_count,
     filtered_item_count: items.length,
     total_items: items.length,
     fetch: fetchResult,
-    rejected_items: dedupeStatusItems(rejectedItems),
+    rejected_items: normalized.rejected_items,
     items
   };
+}
+
+// Local API/preview consumers reuse the worker fetcher and normalization policy.
+// A single background refresh serves all clients; no Supabase write is performed.
+export function createStatusFeedCache({env=process.env,fetchStatus=runStatusFeedFetch,now=Date.now}={}) {
+  let pending=null,until=0,rows=[],state='loading',disposed=false;
+  const bySource=new Map();
+  function refresh(){
+    if(disposed||pending||now()<until)return;
+    state=rows.length?'stale':'loading';
+    pending=fetchStatus({env,onSourceResult(result){
+      if(disposed)return;
+      if(result.ok)bySource.set(result.source.id,result.items || []);
+      rows=normalizeStatusFeedItems([...bySource.values()].flat()).items;
+    }}).then(result=>{
+      if(disposed)return;rows=result.items;state=result.failed_source_count?'stale':rows.length?'ready':'empty';until=now()+900000;
+    }).catch(()=>{state='unavailable';until=now()+60000;}).finally(()=>pending=null);
+  }
+  return {async list(){refresh();
+    if(pending&&!rows.length){let timer;await Promise.race([pending,new Promise(resolve=>{timer=setTimeout(resolve,250);})]);clearTimeout(timer);}
+    return {items:rows,state,refreshAfterMs:pending?2000:Math.max(1000,until-now())};
+  },dispose(){disposed=true;rows=[];bySource.clear();}};
 }
 
 async function runStatusFeedSync(options = {}) {

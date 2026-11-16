@@ -71,7 +71,7 @@ test("status widgets filter actual coverage and label unattributed vulnerability
   const context=vm.createContext({__statusFeedItemsCache:[toPublicStatusSignal(parseFaaStatus(xml,faa)[0]),toPublicStatusSignal(parseKevStatus(catalog,kev)[0])],
     __statusFeedUnavailable:false,getActiveRegion:()=>({id:'middle_east'}),getRegionCountryWhitelist:()=>new Set(['Saudi Arabia']),
     normalizeCountryName:x=>x,countryNameFromCode:()=>'',escapeHtml:x=>String(x).replace(/</g,'&lt;'),URL});
-  vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),context);
+  vm.runInContext(source.match(/function isCurrentStatusReport\([^]*?\n}/)[0]+'\n'+source.slice(start,source.indexOf('\n}',start)+2),context);
   let html='';const container={insertAdjacentHTML:(_,markup)=>{html+=markup;}};
   assert.equal(context.renderStatusFeedRows(container,'airspace'),false);
   assert.equal(context.renderStatusFeedRows(container,'cyber'),true);

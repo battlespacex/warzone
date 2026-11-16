@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {CustomDataSource,Color,StripeMaterialProperty,Cartesian3} from 'cesium';
+import {CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy} from 'cesium';
 import {NOTICE_LAYERS,matchesNoticeLayers,correlateObservation} from '../../shared/geospatial-notices.js';
 import {createSkySpyAircraftProvider} from '../src/tracking/aircraft/providers/skyspy.js';
 import {createAircraftProviders} from '../src/tracking/aircraft/registry.js';
@@ -16,17 +16,28 @@ function harness(fetchImpl){
     class Element{constructor(tag){this.tag=tag;this.children=[];this.style={};this.selectors=new Map();}setAttribute(){}append(...children){this.children.push(...children);}remove(){const index=panels.indexOf(this);if(index>=0)panels.splice(index,1);}querySelector(selector){if(!this.selectors.has(selector))this.selectors.set(selector,new Element(selector));return this.selectors.get(selector);}}
     class Handler{constructor(){handlers.push(this);}setInputAction(fn){this.click=fn;}destroy(){const index=handlers.indexOf(this);if(index>=0)handlers.splice(index,1);}}
     const viewer={dataSources:{async add(s){sources.push(s);return s;},remove(s){const index=sources.indexOf(s);if(index>=0)sources.splice(index,1);}},scene:{canvas:{},requestRender(){},pick:()=>({id:sources[0]?.entities.values[0]})},flyTo(){flights++;}};
-    const context=vm.createContext({Cesium:{CustomDataSource,Color,StripeMaterialProperty,Cartesian3,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
+    const context=vm.createContext({Cesium:{CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
         NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
         onLayerChange(fn){layerListeners.add(fn);return ()=>layerListeners.delete(fn);},onRegionChange(fn){regionListeners.add(fn);return ()=>regionListeners.delete(fn);},
         isLayerEnabled:id=>enabled.has(id),getActiveRegion:()=>({bounds:{minLat:20,maxLat:30,minLon:60,maxLon:70}}),getAssetFocusController:()=>({getState:()=>focus}),
         window:{__stratopsConfig:{apiBase:'https://staging.example.org'}},document:{createElement:tag=>new Element(tag),body:{append:el=>panels.push(el)},addEventListener(name,fn){events.set(name,fn);},removeEventListener(name){events.delete(name);}},navigator:{clipboard:{writeText(){}}},
         setTimeout(fn,delay){fn.delay=delay;timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),requestAnimationFrame(fn){frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
-        URLSearchParams,AbortController,fetch:fetchImpl});
+        performance,URLSearchParams,AbortController,fetch:fetchImpl});
     vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
     return {context,enabled,viewer,sources,panels,handlers,timers,frames,events,focus,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
 }
 const n={id:'test:1',sourceId:'001/26',title:'Fixture only',sourceUrl:'https://example.org/notices',noticeType:'notam',isMilitaryRelated:true,status:'active',rawText:'Test fixture',metadata:{},geometry:{type:'Polygon',coordinates:[[[65,24],[66,24],[66,25],[65,24]]]}};
+test('restored unconfigured notices stay silent and do not refetch on region entry; explicit user opening remains available',async()=>{
+    let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({state:'unconfigured',notices:[]})};});
+    h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{showOnInit:false});await h.settle();assert.equal(calls,1);assert.equal(h.panels.length,0);assert.equal(h.sources.length,0);
+    for(let i=0;i<20;i++){for(const fn of h.regionListeners)fn();h.tick();await h.settle();}assert.equal(calls,1);assert.equal(h.timers.size,0);
+    for(const fn of h.layerListeners)fn('aviation-notam');await h.settle();assert.equal(calls,2);assert.equal(h.panels.length,1);assert.equal(h.panels[0].querySelector('h3').textContent,'No permitted provider configured');
+    h.context.disposeNoticeLayers();assert.equal(h.panels.length,0);assert.equal(h.events.size,0);
+});
+test('closing a notice widget survives ordinary refreshes without stopping its valid overlays',async()=>{
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n],total:1})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    h.panels[0].querySelector('button').onclick();assert.equal(h.panels.length,0);h.tick();await h.settle();assert.equal(h.panels.length,0);assert.equal(h.sources[0].entities.values.length,1);h.context.disposeNoticeLayers();
+});
 test('region notice work waits for camera settlement and cancels deferred callbacks on disable',async()=>{
     let ready=true,calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({notices:[n]})};});
     h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{canRefresh:()=>ready});await h.settle();assert.equal(calls,1);
@@ -43,7 +54,7 @@ test('metadata refresh preserves notice geometry, drag binding, collapsed widget
     panel.querySelector('.wz-widget-header-actions').children[0].onclick();
     row={...n,metadata:{lastUpdated:'new timestamp'},rawText:'Updated original notice'};h.tick();await h.settle();
     assert.equal(h.sources[0].entities.values[0],entity);assert.equal(h.panels[0],panel);assert.equal(binds,before);assert.equal(panel.querySelector('.wz-widget-body').hidden,true);
-    const button=panel.querySelector('.wz-widget-body').children.find(el=>el.textContent?.startsWith(n.sourceId));button.onclick();
+    const cards=panel.querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-cards');cards.children[0].children.find(el=>el.textContent==='View notice').onclick();
     assert.ok(h.panels[0].querySelector('ul').children.some(el=>el.children.some(child=>child.textContent==='Updated original notice')));
     h.context.disposeNoticeLayers();
 });
@@ -79,7 +90,7 @@ test('unconfigured/empty/error states contain no fabricated notice fields and us
 });
 test('notice focus preserves existing shared aircraft/naval focus and never changes models',async()=>{
     const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
-    h.handlers[0].click({position:{}});const button=h.panels[0].children.find(el=>el.textContent==='Focus area');assert.ok(button);
+    h.handlers[0].click({position:{}});const button=h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='Focus area');assert.ok(button);
     h.focus.assetId='existing-aircraft';button.onclick();assert.equal(h.flights,0);h.focus.assetId='existing-vessel';button.onclick();assert.equal(h.flights,0);
     h.focus.assetId='';button.onclick();assert.equal(h.flights,1);h.context.disposeNoticeLayers();
 });
@@ -123,4 +134,39 @@ test('SkySpy disabled defaults and 403 source isolation preserve other configure
 });
 test('SkySpy rejects absent/stale source timestamps instead of fabricating fresh observations',async()=>{
     for(const now of [undefined,(at-600000)/1000]){const p=createSkySpyAircraftProvider({env,now:()=>at,fetchImpl:async()=>new Response(JSON.stringify({now,aircraft:[{hex:'AE1234',lat:24,lon:65}]}))});assert.equal((await p.fetchObservations()).observations.length,0);p.dispose();}
+});
+
+test('NOTAM polygons preserve source rings and CSS line width; Q-line radius defaults to a point',async()=>{
+    const point={...n,id:'point:1',geometry:{type:'Point',coordinates:[65,24]},metadata:{radiusNm:300}};
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n,point]})}));
+    const css=new Map([['--wz-notice-line-width','4'],['--wz-notice-fill-opacity','.12']]);
+    h.context.getComputedStyle=()=>({getPropertyValue:key=>css.get(key)||''});
+    h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    const polygon=h.sources[0].entities.getById(n.id),marker=h.sources[0].entities.getById(point.id);
+    assert.equal(polygon.polyline.width.getValue(),4);assert.equal(polygon.polygon.hierarchy.getValue().positions.length,4);
+    assert.equal(polygon.polygon.material.oddColor.getValue().alpha,.12);assert.ok(marker.point);assert.equal(marker.ellipse,undefined);
+    css.set('--wz-notice-line-width','3');css.set('--wz-notice-marker-size','14');h.events.get('wz:notice-style-refresh')();
+    assert.equal(h.sources[0].entities.getById(n.id),polygon);assert.equal(polygon.polyline.width.getValue(),3);assert.equal(marker.point.pixelSize.getValue(),14);
+    h.context.disposeNoticeLayers();assert.equal(h.events.size,0);
+});
+test('notice popup dismisses outside or Escape but not an inside pointer; releases owned handlers',async()=>{
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    h.handlers[0].click({position:{x:20,y:20}});assert.equal(h.panels[0].className,'wz-notice-popup');
+    const panel=h.panels[0];panel.contains=target=>target===panel;
+    h.events.get('pointerdown')({type:'pointerdown',target:panel});assert.equal(h.panels.length,1);
+    h.events.get('pointerdown')({type:'pointerdown',target:{}});assert.equal(h.panels.length,0);
+    h.handlers[0].click({position:{}});h.events.get('keydown')({type:'keydown',key:'Enter'});assert.equal(h.panels.length,1);
+    h.events.get('keydown')({type:'keydown',key:'Escape'});assert.equal(h.panels.length,0);
+    h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.handlers.length,0);assert.equal(h.sources.length,0);
+});
+
+test('duplicate layer notifications share one pending request and a mid-drag response waits for release',async()=>{
+    let calls=0,finish;const h=harness(()=>{calls++;return new Promise(resolve=>finish=resolve);});
+    h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);for(let i=0;i<100;i++)h.sync();assert.equal(calls,1);
+    h.events.get('pointerdown')({type:'pointerdown',target:h.viewer.scene.canvas});finish({ok:true,json:async()=>({notices:[n]})});await h.settle();
+    assert.equal(h.sources[0].entities.values.length,0,'no geometry submitted during held drag');
+    h.events.get('pointerup')({type:'pointerup'});await h.settle();assert.equal(h.sources[0].entities.values.length,1);
+    h.events.get('wheel')({target:h.viewer.scene.canvas});h.sync();assert.equal(calls,1,'wheel burst defers notice refresh');
+    h.enabled.clear();h.sync();h.tick();await h.settle();assert.equal(calls,1);assert.equal(h.sources.length,0);
+    h.context.disposeNoticeLayers();assert.equal(h.events.size,0);assert.equal(h.frames.size,0);assert.equal(h.timers.size,0);
 });

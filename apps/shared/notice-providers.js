@@ -1,4 +1,76 @@
-import {normalizeNotice,parseNotam} from './geospatial-notices.js';
+import {normalizeNotice,parseNotam,parseCoordinates,validateGeometry} from './geospatial-notices.js';
+
+export function normalizeNotacNotice(row,now=Date.now()) {
+    if(!row?.id || !row.number || !row.text)throw Error('Invalid NOTAC notice');
+    // Read an explicitly described boundary, not a collection of unrelated runway/waypoint positions.
+    const boundary=row.text.match(/\b(?:BOUNDED BY(?:\s+(?:COORDS|COORDINATES))?|AREA DEFINED BY|WI(?:THIN)? (?:THE )?AREA(?: DEFINED BY)?|AREA (?:WITH (?:THE )?)?FOLLOWING COORDINATES)\b\s*:?\s*([\s\S]+)/i)?.[1];
+    let coordinates=[],boundaryError='';
+    if(boundary&&!/\b(?:ARC|CIRCLE|CLOCKWISE|AREA\s*\d|AREA [A-Z]\b)\b/i.test(boundary)){
+        try{coordinates=parseCoordinates(boundary);}catch{boundaryError='Invalid published boundary coordinates';}
+    }
+    let geometry=row.geography?.geojson || null;
+    if(geometry?.type!=='Polygon'&&coordinates.length>=3){
+        try{geometry=validateGeometry({type:'Polygon',coordinates:[coordinates]});}catch{boundaryError='Published boundary is invalid or self-intersecting; Q-line location only';}
+    }
+    const raw=row.raw || row.text;
+    const n=normalizeNotice({provider:'notac',issuer:row.affected_fir || row.location_code || row.account_id,sourceId:row.number,
+        sourceUrl:'https://notac.aero/notam/'+encodeURIComponent(row.id)+'/',noticeType:row.category?.code==='TFR'?'tfr':row.category?.code==='AIRSPACE'?'airspace':'notam',
+        rawText:raw,title:'NOTAM '+row.number,summary:row.text,country:row.country?.name || row.country?.code || '',region:row.region?.name || '',fir:row.affected_fir,
+        issuedAt:row.notam_issued,effectiveFrom:row.effective_start,effectiveUntil:row.effective_end,schedule:row.schedule || '',
+        lowerAltitude:row.lower_limit || (row.minimum_fl?'FL'+row.minimum_fl:''),upperAltitude:row.upper_limit || (row.maximum_fl?'FL'+row.maximum_fl:''),
+        geometry,geometrySource:geometry?.type==='Polygon'?'published boundary coordinates':'published Q-line location',geometryAccuracy:geometry?.type==='Point'?'approximate area of influence':'source stated',
+        isCancellation:row.status==='cancelled' || Boolean(row.record_archived_at) || row.notam_type==='C',
+        replacesNoticeId:raw.match(/NOTAM[RC]\s+([A-Z]\d{4}\/\d{2})/)?.[1],
+        provenance:{extraction:row.raw?'NOTAC source ICAO text':'NOTAC published E-line; full ICAO text not included',verification:'published'},
+        metadata:{updatedAt:row.record_updated_at || row.notam_updated,permanent:row.effective_end===null,
+            ...(geometry?.type==='Point'&&row.geography?.radius_nm>0?{radiusNm:row.geography.radius_nm}:{})}},now);
+    const type=n.noticeType;classifyPublishedNotice(n);n.noticeType=type;
+    if(row.details?.classification?.code==='MIL')n.isMilitaryRelated=true;
+    n.metadata.qCode=row.q_code || '';if(boundaryError)n.metadata.boundaryError=boundaryError;return n;
+}
+
+export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
+    const enabled=env.NOTAC_ENABLED==='true',key=env.NOTAC_API_KEY || '',scopes=new Map();
+    let blockedUntil=0,remaining=null,lastStatus=null,lastSuccess=null,daily='',creditMonth='',requests=0,partial=false;
+    const diagnostics=()=>({enabled,availableForUse:enabled&&Boolean(key),authentication:key?'configured':'unconfigured',lastStatus,lastSuccess,partial,
+        coverage:'Requested geographic bounds; incremental pages may be incomplete',creditsRemaining:remaining,nextRetryAt:new Date(blockedUntil).toISOString()});
+    return {id:'notac',diagnostics,async fetchNotices(query={}){
+        if(!enabled||!key)return [];
+        if(['minLon','minLat','maxLon','maxLat'].every(k=>query[k]==null))return [];
+        const values=['minLon','minLat','maxLon','maxLat'].map(k=>Number(query[k]));
+        const bounded=values.every(Number.isFinite)&&Math.abs(values[0])<=180&&Math.abs(values[2])<=180&&values[1]>=-90&&values[3]<=90&&values[1]<=values[3];
+        if(!bounded)throw Error('NOTAC requires explicit geographic bounds');
+        if(values[0]>values[2])return deduplicateNotices((await Promise.all([this.fetchNotices({...query,maxLon:180}),this.fetchNotices({...query,minLon:-180})])).flat());
+        const scope=values.join(',');let state=scopes.get(scope);
+        if(!state){if(scopes.size>=6)scopes.delete(scopes.keys().next().value);state={rows:new Map(),until:0,cursor:null,next:null,pending:null,fetchedAt:0};scopes.set(scope,state);}
+        const valuesFromState=()=>[...state.rows.values()].map(row=>{const n=normalizeNotacNotice(row,now());n.lastFetchedAt=new Date(state.fetchedAt).toISOString();return n;});
+        if(now()<state.until)return valuesFromState();
+        if(state.pending)return state.pending;
+        const day=new Date(now()).toISOString().slice(0,10);if(day!==daily){daily=day;requests=0;}
+        if(day.slice(0,7)!==creditMonth){creditMonth=day.slice(0,7);remaining=null;}
+        if(now()<blockedUntil || remaining!==null&&remaining<3 || requests>=96)throw Error('NOTAC allowance/backoff; cached notices retained');
+        state.pending=(async()=>{const rows=new Map(state.rows);let url=new URL(state.next || 'https://notac.aero/api/v1/notam/delta/');
+            if(!state.next){url.searchParams.set('bbox',scope);if(state.cursor)url.searchParams.set('cursor',state.cursor);}
+            let next=null,cursor=state.cursor;
+            for(let page=0;page<2;page++){
+                if(url.origin!=='https://notac.aero'||url.pathname!=='/api/v1/notam/delta/'||url.username||url.password)throw Error('Invalid NOTAC pagination');
+                if(requests>=96||remaining!==null&&remaining<3)break;requests++;
+                const response=await fetchImpl(url,{headers:{Authorization:'Bearer '+key,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(12000)});
+                lastStatus=response.status;const left=response.headers.get('x-credits-remaining');if(left!==null&&Number.isFinite(Number(left)))remaining=Number(left);
+                if(!response.ok){const retry=Number(response.headers.get('retry-after'));
+                    blockedUntil=response.status===402?Date.UTC(new Date(now()).getUTCFullYear(),new Date(now()).getUTCMonth()+1,1):now()+Math.max([401,403,404].includes(response.status)?86400000:60000,Number.isFinite(retry)?retry*1000:0);
+                    throw Object.assign(Error('NOTAC unavailable'),{status:response.status});}
+                const payload=await response.json();if(!Array.isArray(payload.results)||payload.results.length>200||typeof payload.next_cursor!=='string')throw Error('Invalid NOTAC collection');
+                for(const row of payload.results){if(row.status==='cancelled'||row.record_archived_at){if(rows.has(row.id))rows.set(row.id,{...rows.get(row.id),...row});continue;}normalizeNotacNotice(row,now());rows.set(row.id,row);}
+                cursor=payload.next_cursor;next=payload.next?new URL(payload.next,url).href:null;if(!next)break;url=new URL(next);
+            }
+            while(rows.size>1000)rows.delete(rows.keys().next().value);
+            Object.assign(state,{rows,cursor,next,until:now()+1800000,fetchedAt:now()});partial=Boolean(next);lastSuccess=new Date(now()).toISOString();
+            return valuesFromState();
+        })().catch(error=>{if(blockedUntil<now()+60000)blockedUntil=now()+60000;throw error;}).finally(()=>state.pending=null);
+        return state.pending;
+    }};
+}
 
 function classifyPublishedNotice(n) {
     const text=n.rawText.toUpperCase();
@@ -95,6 +167,7 @@ export function createCommercialNoticeProviders(env={}, {fetchImpl=fetch,now=Dat
                 metadata:{updatedAt:epoch(row.modified),estimated:row.estimation!=null,...(row.radius>0?{radiusNm:row.radius}:{})}},now()));
         }),
         provider('icao','ICAO',null,()=>({}),()=>{},false),provider('dtn','DTN',null,()=>({}),()=>{},false),
+        createNotacProvider(env,{fetchImpl,now}),
     ];
 }
 

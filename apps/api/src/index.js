@@ -75,9 +75,9 @@ app.use("/stratops", stratopsRouter());
 app.use("/satellites", satellitesRouter());
 let noticeRouterPromise=null,noticeService=null,noticesClosed=false;
 app.use('/notices',(req,res,next)=>{
-    noticeRouterPromise ||= import('./routes.notices.js').then(({noticesRouter,createNoticeService})=>{
+    noticeRouterPromise ||= import('./routes.notices.js').then(({noticesRouter,getSharedNoticeService})=>{
         if(noticesClosed)return null;
-        noticeService=createNoticeService();return noticesRouter(noticeService);
+        noticeService=getSharedNoticeService();return noticesRouter(noticeService);
     }).catch(()=>null);
     return noticeRouterPromise.then(router=>router&&!noticesClosed?router(req,res,next):res.status(503).json({error:'Notice service unavailable'}));
 });

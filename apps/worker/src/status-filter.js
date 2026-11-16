@@ -485,9 +485,11 @@ function enrichStatusItem(item = {}, options = {}) {
   // Only the dedicated official adapters produce this structured contract.
   const signal = item.raw?.status_signal;
   if ((item.source_id === "cisa-kev" && signal?.kind === "vulnerability") ||
+      (item.source_id === 'alienvault-otx' && signal?.kind === 'threat_intelligence') ||
+      (['cloudflare-radar','cloudflare-radar-l3','cloudflare-radar-l7'].includes(item.source_id) && ['internet_outage','network_activity'].includes(signal?.kind)) ||
       (item.source_id === "faa-nas-status" && signal?.domain === "airspace")) {
     return { ...item, category: signal.domain === "cyber" ? "cyber_advisory" : "aviation_disruption",
-      severity: "unknown", confidence_score: 95, is_status_relevant: true };
+      severity: "unknown", confidence_score: item.source_id==='alienvault-otx'||item.source_id.startsWith('cloudflare-radar') ? 0 : 95, is_status_relevant: true };
   }
   const minimumScore = Number.isFinite(Number(options.minimumScore))
     ? Number(options.minimumScore)

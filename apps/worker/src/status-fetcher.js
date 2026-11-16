@@ -2,10 +2,11 @@
 
 import Parser from "rss-parser";
 import { getEnabledStatusSources } from "./status-sources.js";
-import { parseFaaStatus, parseKevStatus } from "./official-status-adapters.js";
+import { parseFaaStatus, parseKevStatus, fetchOptionalStatusSource, lookupStatusCountry } from "./official-status-adapters.js";
 import { getSourceHealth, recordSourceFailure, recordSourceSuccess, shouldAttemptSource } from "./source-health.js";
 
 const lastValidBySource = new Map();
+let countryLookupCursor = 0;
 
 const STATUS_USER_AGENT = "StratOps Status Worker/1.0";
 const DEFAULT_STATUS_FETCH_TIMEOUT_MS = 15000;
@@ -81,7 +82,8 @@ async function fetchJson(url, options = {}) {
     ...(options.headers || {})
   };
   const response = await fetch(url, {
-    signal: AbortSignal.timeout(STATUS_FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(Math.min(STATUS_FETCH_TIMEOUT_MS,options.timeoutMs || STATUS_FETCH_TIMEOUT_MS)),
+    redirect: options.redirect || 'follow',
     headers
   });
 
@@ -172,7 +174,8 @@ async function fetchStubSource(source) {
   };
 }
 
-async function fetchSingleStatusSource(source) {
+async function fetchSingleStatusSource(source,options={}) {
+  if(source.enabled===false)return {source,ok:true,skipped:true,items:[],fetched_count:0,count:0};
   const cached = lastValidBySource.get(source.id);
   const cachedResult = (reason) => ({ source, ok: true, cached: true, note: reason,
     health: getSourceHealth(source), fetched_count: cached.items.length, count: cached.items.length,
@@ -187,6 +190,11 @@ async function fetchSingleStatusSource(source) {
 
     let result = null;
     switch (String(source.adapter || source.type || "").toLowerCase()) {
+      case 'cloudflare_radar':
+      case 'cloudflare_radar_aggregate':
+      case 'otx_pulses':
+        result=await fetchOptionalStatusSource(source,fetchJson,options.env || process.env);
+        break;
       case "faa_xml":
       case "cisa_kev": {
         let lastError;
@@ -256,14 +264,30 @@ async function fetchSingleStatusSource(source) {
 }
 
 async function fetchAllStatusItems(options = {}) {
-  const sources = options.sources || getEnabledStatusSources();
+  const env=options.env || process.env;
+  const sources = options.sources || getEnabledStatusSources(env);
   const results = await runWithConcurrency(
     sources,
     options.concurrency || STATUS_FETCH_CONCURRENCY,
-    (source) => fetchSingleStatusSource(source)
+    async source => {const result=await fetchSingleStatusSource(source,options);options.onSourceResult?.(result);return result;}
   );
 
-  const items = results.flatMap((result) => result.items || []);
+  const items = results.flatMap((result) => result.items || []).map(item=>({...item}));
+  // Resolve only codes actually seen in approved observations; no bulk country
+  // mirror, browser requests, or geographic inference from publisher/IP location.
+  const countrySource={id:'restcountries',enabled:true};
+  const resolved=new Map();
+  if(env.RESTCOUNTRIES_ENABLED==='true' && env.RESTCOUNTRIES_API_KEY){
+    const codes=[...new Set(items.map(item=>item.country).filter(code=>/^[A-Z]{2,3}$/.test(code || '')))];
+    const batch=[...codes.slice(countryLookupCursor),...codes.slice(0,countryLookupCursor)].slice(0,8);
+    countryLookupCursor=(countryLookupCursor+batch.length)%Math.max(1,codes.length);
+    await runWithConcurrency(batch,2,async code=>{
+      if(!shouldAttemptSource(countrySource))return;
+      try{const country=await lookupStatusCountry(code,fetchJson,env);if(country)resolved.set(code,country.name);recordSourceSuccess(countrySource,country?1:0);}
+      catch(error){recordSourceFailure(countrySource,error);}
+    });
+    for(const item of items)if(resolved.has(item.country))item.country=resolved.get(item.country);
+  }
 
   return {
     fetched_at: new Date().toISOString(),

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import express from 'express';
+import {createRequire} from 'node:module';
 import { toPublicStatusSignal } from "../../shared/status-signal-policy.js";
 const source=fs.readFileSync(new URL('../src/routes.events.js',import.meta.url),'utf8');
 const start=source.indexOf('    router.get("/status-feed"');
@@ -27,4 +29,21 @@ test('status API uses bounded fresh queries, suppresses duplicates and exposes n
 test('status API reports unavailable instead of fabricating a normal result on database failure',async()=>{
   const {handler,response}=fixture(null,{message:'not exposed'});await handler({},response);
   assert.equal(response.statusCode,503);assert.equal(response.body.error,'Status sources unavailable');
+});
+test('frontend status adapter reaches the real preview proxy and status route over HTTP',async()=>{
+  const require=createRequire(import.meta.url),saved={NODE_ENV:process.env.NODE_ENV,API_UPSTREAM_URL:process.env.API_UPSTREAM_URL};
+  const listen=app=>new Promise(resolve=>{const server=app.listen(0,'127.0.0.1',()=>resolve(server));});
+  const item={guid:'fixture-pulse',title:'Published report fixture',country:'CA',category:'cyber_advisory',url:'https://example.org/report',
+    published_at:new Date().toISOString(),fetched_at:new Date().toISOString(),raw:{status_signal:{domain:'cyber',kind:'threat_intelligence',status:'reported'}}};
+  const data=fixture([item]),backend=express();backend.get('/events/status-feed',data.handler);const upstream=await listen(backend);let preview;
+  try{process.env.NODE_ENV='production';process.env.API_UPSTREAM_URL='http://127.0.0.1:'+upstream.address().port;
+    delete require.cache[require.resolve('../../../server.js')];preview=await listen(require('../../../server.js'));
+    const adapter=fs.readFileSync(new URL('../../../dev/assets/js/supabase.js',import.meta.url),'utf8');
+    const read=adapter.match(/async function readJsonResponse\([^]*?\n}/)[0];
+    const start=adapter.indexOf('    async getStatusFeedItems('),end=adapter.indexOf('    async getIntelFeedItems(',start);
+    const c=vm.createContext({fetch,URLSearchParams,API_BASE:'http://127.0.0.1:'+preview.address().port+'/api'});
+    vm.runInContext(read+'\nconst api={'+adapter.slice(start,end)+'};globalThis.readStatus=api.getStatusFeedItems;',c);
+    const result=await c.readStatus();assert.equal(result.error,null);assert.equal(result.data.length,1);assert.equal(result.data[0].country,'CA');assert.equal(result.data[0].status,'reported');assert.equal('raw' in result.data[0],false);
+  }finally{if(preview)await new Promise(resolve=>preview.close(resolve));await new Promise(resolve=>upstream.close(resolve));
+    for(const [key,value]of Object.entries(saved))if(value===undefined)delete process.env[key];else process.env[key]=value;delete require.cache[require.resolve('../../../server.js')];}
 });

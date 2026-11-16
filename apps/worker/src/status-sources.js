@@ -10,6 +10,7 @@
 // - Cloudflare Radar should use documented API access, not radar.cloudflare.com scraping.
 
 import { normalizeSourceDefinition } from "../../shared/source-quality-policy.js";
+import { getOptionalStatusSources } from './official-status-adapters.js';
 
 const STATUS_SOURCES = [
   {
@@ -163,17 +164,17 @@ const STATUS_SOURCES = [
   }
 ];
 
-function getStatusSources() {
-  return STATUS_SOURCES.map(normalizeSourceDefinition);
+function getStatusSources(env=process.env) {
+  return [...STATUS_SOURCES,...getOptionalStatusSources(env)].map(normalizeSourceDefinition);
 }
 
-function getEnabledStatusSources() {
-  return STATUS_SOURCES.filter((source) => source.enabled === true).map(normalizeSourceDefinition);
+function getEnabledStatusSources(env=process.env) {
+  return getStatusSources(env).filter((source) => source.enabled === true);
 }
 
 function getStatusSourcesByType(type = "") {
   const key = String(type || "").trim().toLowerCase();
-  return STATUS_SOURCES.filter((source) => String(source.type || "").toLowerCase() === key).map(normalizeSourceDefinition);
+  return getStatusSources().filter((source) => String(source.type || "").toLowerCase() === key);
 }
 
 export {

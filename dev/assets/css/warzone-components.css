@@ -7308,3 +7308,47 @@ body:not(.is-operational-report-open) .warzone-view {
 }
 
 /* #endregion */
+
+/* Scoped intelligence widgets; country summaries and report details are siblings. */
+#airspace-status-list, #cyber-status-list {
+    grid-template-columns: repeat(var(--wz-status-columns, 1), minmax(0, 1fr));
+    align-items: start;
+}
+.wz-status-summary, .wz-status-details { display: grid; gap: .7rem; min-width: 0; }
+#airspace-status-list .wz-status-report {
+    min-width: 0; background: var(--color-bg-row); color: var(--color-text-heading);
+    clip-path: var(--clippath-shape-1);
+}
+#airspace-status-list .status-pill--reported { background: var(--wz-airspace-reported-color);  }
+#cyber-status-list .status-pill--reported { background: var(--wz-cyber-reported-color);  }
+.wz-cyber-status-icon { width: var(--wz-cyber-icon-size); height: var(--wz-cyber-icon-size); vertical-align: middle; }
+.wz-cyber-status-caption { color: var(--wz-cyber-reported-color); font-size: var(--text-xs); }
+.wz-status-report__head { flex-wrap: wrap; }
+.wz-status-report__head strong { flex: 1 1 10rem; }
+
+/* Published notice list and compact click popup retain the existing widget shell. */
+#warzone-notice-panel { width: var(--wz-notice-panel-width); max-height: var(--wz-notice-panel-max-height); }
+#warzone-notice-panel.wz-notice-popup { width: var(--wz-notice-popup-width); }
+#warzone-notice-panel .wz-widget-milbase { min-height: 0; max-height: inherit; width: 100%; }
+#warzone-notice-panel .wz-widget-body { min-height: 0; overflow-y: auto; padding: 1.2rem; }
+#warzone-notice-panel .wz-widget-body[hidden] { display: none; }
+#warzone-notice-panel h3 { margin: 0 0 1rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.wz-notice-controls, .wz-notice-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .6rem; margin: 1rem 0; }
+#warzone-notice-panel button:not(.static-icon), .wz-notice-controls select {
+    min-width: 0; max-width: 100%; width: 100%; white-space: normal;
+    font-size: var(--text-xs); padding: .7rem; height: auto; min-height: 3rem;
+}
+.wz-notice-controls select { background: var(--color-bg-row); color: var(--color-text-heading); border: 1px solid var(--color-text-dim); }
+.wz-notice-cards { display: grid; gap: 1rem; }
+.wz-notice-card { padding: 1rem; background: var(--color-bg-row); clip-path: var(--clippath-shape-1); }
+.wz-notice-card__head { display: flex; justify-content: space-between; align-items: start; gap: .5rem; }
+.wz-notice-card__head .status-pill { min-width: 0; height: auto; padding: .3rem .6rem; font-size: var(--text-xs); }
+.wz-notice-card p, .wz-notice-summary { font-size: var(--text-xs); color: var(--color-text-dim); line-height: 1.5; overflow-wrap: anywhere; margin: .8rem 0; }
+#warzone-notice-panel details > summary { cursor: pointer; color: var(--color-teal-glow); font-size: var(--text-xs); padding: .7rem 0; }
+#warzone-notice-panel .wz-widget-data-list li { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: .6rem; overflow-wrap: anywhere; }
+#warzone-notice-panel .wz-widget-data-list { font-size: var(--text-xs); }
+/* Replaceable SVG for genuine geolocated cyber event markers, using existing ownership/picking. */
+.wzhs[data-category="cyber"] .wzhs__icon span::before {
+    content: ""; display: block; width: var(--wz-cyber-icon-size); height: var(--wz-cyber-icon-size);
+    background: url('/assets/images/markers/cyber-status.svg') center / contain no-repeat;
+}
