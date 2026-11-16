@@ -56,6 +56,8 @@ const __gnssState = {
     rasterError: "",
     pickGeneration: 0,
     clickPending: false,
+    hoverFrame: 0,
+    hoverPosition: null,
     rasterSignature: "",
     expiredRevision: "",
 };
@@ -593,10 +595,27 @@ function findPickedGnssEntity(viewer, position) {
     return null;
 }
 
+function cancelGnssHover() {
+    if (__gnssState.hoverFrame) cancelAnimationFrame(__gnssState.hoverFrame);
+    __gnssState.hoverFrame = 0;
+    __gnssState.hoverPosition = null;
+}
+
 function bindPicking(viewer) {
     if (__gnssState.handler) return;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     __gnssState.handler = handler;
+    const buttons = new Set();
+    for (const [down, up] of [['LEFT_DOWN','LEFT_UP'],['RIGHT_DOWN','RIGHT_UP'],['MIDDLE_DOWN','MIDDLE_UP'],['PINCH_START','PINCH_END']]) {
+        if (Cesium.ScreenSpaceEventType[down] === undefined || Cesium.ScreenSpaceEventType[up] === undefined) continue;
+        handler.setInputAction(() => {
+            buttons.add(down); cancelGnssHover();
+            if (!__gnssState.clickPending) {
+                ++__gnssState.pickGeneration; __gnssState.raster?.cancelPick?.();
+            }
+        }, Cesium.ScreenSpaceEventType[down]);
+        handler.setInputAction(() => buttons.delete(down), Cesium.ScreenSpaceEventType[up]);
+    }
 
     const rasterEntity = async (position, immediate = false) => {
         const adapter = __gnssState.raster;
@@ -612,17 +631,20 @@ function bindPicking(viewer) {
         __gnssState.cellsById.set(entity.id, entity);
         return entity;
     };
-    handler.setInputAction(async (movement) => {
-        if (__gnssState.clickPending) return;
-        const generation = ++__gnssState.pickGeneration;
+    const hover = async () => {
+        __gnssState.hoverFrame = 0;
+        const position = __gnssState.hoverPosition;
+        __gnssState.hoverPosition = null;
+        if (__gnssState.clickPending || buttons.size) return;
+        const generation = __gnssState.pickGeneration;
         if (__gnssState.visible !== true) {
             viewer.container.style.cursor = "";
             hideTooltip();
             clearHighlight();
             return;
         }
-        const entity = __gnssState.raster ? await rasterEntity(movement?.endPosition)
-            : findPickedGnssEntity(viewer, movement?.endPosition);
+        const entity = __gnssState.raster ? await rasterEntity(position)
+            : findPickedGnssEntity(viewer, position);
         if (!__gnssState.visible || generation !== __gnssState.pickGeneration) return;
         if (!entity) {
             viewer.container.style.cursor = "";
@@ -636,10 +658,20 @@ function bindPicking(viewer) {
             applyEntityVisualState(entity, true);
         }
         viewer.scene.requestRender?.();
+    };
+    handler.setInputAction((movement) => {
+        if (__gnssState.clickPending || buttons.size || !__gnssState.visible) return;
+        ++__gnssState.pickGeneration;
+        const position = movement?.endPosition;
+        if (!position) return;
+        const pending = __gnssState.hoverPosition ||= { x: 0, y: 0 };
+        pending.x = position.x; pending.y = position.y;
+        if (!__gnssState.hoverFrame) __gnssState.hoverFrame = requestAnimationFrame(hover);
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
     handler.setInputAction(async (movement) => {
         if (__gnssState.visible !== true) return;
+        cancelGnssHover();
         const generation = ++__gnssState.pickGeneration;
         __gnssState.clickPending = true;
         const entity = __gnssState.raster ? await rasterEntity(movement?.position, true)
@@ -1014,6 +1046,7 @@ export function renderGnssInterferenceLayer(viewer, cells = [], options = {}) {
 }
 
 export function clearGnssInterferenceLayer(viewer) {
+    cancelGnssHover();
     ++__gnssState.pickGeneration; __gnssState.clickPending = false; __gnssState.rasterSignature = "";
     __gnssState.expiredRevision = "";
     __gnssState.raster?.dispose(); __gnssState.raster = null; __gnssState.rasterError = "";

@@ -48,8 +48,13 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
             width:number('line-width',2,1,10),height:number('height',60,1,1000),point:number('marker-size',9,3,32),enclosures:number('show-radius',0,0,1)===1};
     }
     let style=readStyle(),detailOpen=false;
+    let sharedMaterial=null,materialStyle=null;
     function graphics(n){
-        const material=new Cesium.StripeMaterialProperty({evenColor:style.hatch.withAlpha(style.hatchOpacity),oddColor:style.fill.withAlpha(style.opacity),repeat:style.stripes});
+        let material;
+        if(n.geometry?.type==='Polygon'||(style.enclosures&&n.geometry?.type==='Point'&&n.metadata?.radiusNm)){
+            if(materialStyle!==style){sharedMaterial=new Cesium.StripeMaterialProperty({evenColor:style.hatch.withAlpha(style.hatchOpacity),oddColor:style.fill.withAlpha(style.opacity),repeat:style.stripes});materialStyle=style;}
+            material=sharedMaterial;
+        }
         if(n.geometry?.type==='Polygon'){
             const rings=n.geometry.coordinates,positions=ring=>Cesium.Cartesian3.fromDegreesArray(ring.flat());
             return {polygon:{hierarchy:new Cesium.PolygonHierarchy(positions(rings[0]),rings.slice(1).map(r=>new Cesium.PolygonHierarchy(positions(r)))),material,stRotation:Math.PI/4,outline:false},
@@ -69,7 +74,7 @@ export function initNoticeLayers(viewer, {bindFloatingPanel,canRefresh=()=>true,
     function dismissDetails(){close();if(widgetRequested&&active())showList();}
     function mountPanel(title){close();
         panel=document.createElement('aside');panel.id='warzone-notice-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Published notice details');
-        panel.innerHTML='<div class="wz-widget-milbase"><header class="wz-widget-header"><div class="wz-widget-kicker"><span class="wz-widget-title">Published notice</span></div><div class="wz-widget-header-actions"><button type="button" class="static-icon" aria-label="Close"><span class="stratops-ico-close-1"></span></button></div></header><section class="wz-widget-body"><h3></h3><ul class="wz-widget-data-list"></ul></section></div>';
+        panel.innerHTML='<div class="wz-widget-milbase"><header class="wz-widget-header"><div class="wz-widget-kicker"><h2 class="wz-widget-title">Published Notice</h2></div><div class="wz-widget-header-actions"><button type="button" class="static-icon" aria-label="Close"><span class="stratops-ico-close-1"></span></button></div></header><section class="wz-widget-body"><h3></h3><ul class="wz-widget-data-list"></ul></section></div>';
         panel.querySelector('button').onclick=()=>{if(detailOpen)dismissDetails();else{widgetRequested=false;close();}};panel.querySelector('h3').textContent=title;
         panel.setAttribute('tabindex','-1');document.body.append(panel);
         const width=panel.offsetWidth||448,height=panel.offsetHeight||260;

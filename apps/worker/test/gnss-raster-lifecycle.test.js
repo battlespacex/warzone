@@ -102,3 +102,10 @@ test('real operational descriptor uses zero ground primitives/geometry jobs and 
     assert.equal(refreshes,1,'persistent expired revisions do not enter a refresh loop');
     h.context.clearGnssInterferenceLayer(h.viewer);
 });
+
+test('drag cancellation stops queued GNSS hover lookup without removing imagery or blocking the next click',async()=>{
+    let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({cell:null})};}),adapter=h.create();adapter.set(config);
+    const layer=h.viewer.imageryLayers.get(1),pending=adapter.pick({x:0,y:0});adapter.cancelPick();
+    assert.equal(await pending,null);assert.equal(calls,0);assert.equal(adapter.diagnostics().pendingPick,false);assert.equal(h.viewer.imageryLayers.get(1),layer);
+    assert.equal(await adapter.pick({x:0,y:0},{immediate:true}),null);assert.equal(calls,1);adapter.dispose();
+});

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import WebSocket from 'ws';
 import {normalizeNotice,noticeStatus,intersectsBounds,correlateObservation,matchesNoticeLayers,NOTICE_LAYERS} from '../../shared/geospatial-notices.js';
+import {assessStatusSignal} from '../../shared/status-signal-policy.js';
 import {createSkySpyClient} from '../../shared/skyspy-client.js';
 import {createSkySpyStream} from '../../shared/skyspy-stream.js';
 import {skySpyNotice,createOfficialNoticeAdapter,createCommercialNoticeProviders,deduplicateNotices} from '../../shared/notice-providers.js';
@@ -70,12 +71,23 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
 function containsCandidate(n,o){return n.geometry&&Number.isFinite(o.longitude)&&Number.isFinite(o.latitude)&&intersectsBounds(n,{minLat:o.latitude,maxLat:o.latitude,minLon:o.longitude,maxLon:o.longitude});}
 let sharedNoticeService;
 export function getSharedNoticeService(){return sharedNoticeService ||= createNoticeService();}
-export function toNoticeStatusSignals(notices=[]){return notices.filter(n=>['active','upcoming','unknown'].includes(n.status)).map(n=>({
+export function toNoticeStatusSignals(notices=[]){return notices.filter(n=>['active','upcoming','unknown'].includes(n.status)).map(n=>{
+    const text=String(n.rawText||n.summary||'').toUpperCase(),area=n.geometry?.type==='Polygon';
+    const published=['published','verified'].includes(n.provenance?.verification)&&Boolean(n.issuer);
+    const affirmative=!/\b(?:NOT|CANCELLED|CANCELED|WITHDRAWN|RESUMED)\b/.test(text);
+    const impact=area&&affirmative&&/\bAIRSPACE(?: IS| WILL BE)? (?:CLSD|CLOSED)\b/.test(text)?'partial':
+        area&&affirmative&&/\b(?:(?:TEMPORARY )?(?:RESTRICTED|PROHIBITED) AREA (?:ACTIVATED|ACTIVE|ESTABLISHED)|AIRSPACE RESTRICTIONS? (?:IN FORCE|IN EFFECT))\b/.test(text)?'restricted':
+        area&&affirmative&&/\b(?:VOLCANIC ASH|RADIOACTIVE CLOUD|AVIATION HAZARD) (?:OBSERVED|REPORTED|PRESENT|CONFIRMED)\b/.test(text)?'hazardous':'advisory';
+    const item={
     id:'notice:'+n.id,domain:'airspace',kind:'published_notice',status:'reported',notice_status:n.status,stale:false,
     title:n.title,summary:n.summary || n.rawText,source_name:n.provider,source_url:n.sourceUrl,country:n.country || null,
     published_at:n.issuedAt,fetched_at:n.lastFetchedAt,coverage:[n.fir,n.region,n.geometryAccuracy].filter(Boolean).join(' | ') || 'Published notice scope',
-    effective_from:n.effectiveFrom,effective_until:n.effectiveUntil
-}));}
+    effective_from:n.effectiveFrom,effective_until:n.effectiveUntil,
+    evidence:{scope:area?'area':'unknown',authoritative:published,verified:published,confidence:published?'high':'unknown',
+        state:'ongoing',impact,permanent:n.metadata?.permanent===true,estimated:n.metadata?.estimated===true,schedule:n.schedule||'',observed_at:n.issuedAt,
+        effective_from:n.effectiveFrom,effective_until:n.effectiveUntil,lower_altitude:n.lowerAltitude,upper_altitude:n.upperAltitude}
+    };item.assessment=assessStatusSignal(item);return item;
+});}
 export function noticesRouter(service=createNoticeService()) {
     const router=express.Router();router.get('/',async(req,res)=>{try{const data=await service.list(req.query);const body=JSON.stringify(data),etag='"'+createHash('sha256').update(body).digest('hex')+'"';
         res.set({'ETag':etag,'Cache-Control':'private, max-age=30'});if(req.headers['if-none-match']===etag)return res.status(304).end();res.json(data);

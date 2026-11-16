@@ -91,21 +91,21 @@
 .wz-aoi-metric,
 .wz-aoi-status,
 .wz-aoi-empty {
-background: var(--color-bg-row);
+    font-size: var(--text-sm);
+    background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
 }
 .wz-aoi-metric {
     display: grid;
     gap: .35rem;
     min-width: 0;
-    padding: 0.8rem 1rem;
+    padding: 1.2rem 1.2rem 1rem;
 }
 
 .wz-aoi-metric span,
 .wz-aoi-group > span {
     color: var(--color-gray-glow);
     font-size: var(--text-sm);
-    text-transform: uppercase;
 }
 .wz-aoi-metric strong {
     overflow: hidden;
@@ -114,7 +114,7 @@ background: var(--color-bg-row);
     white-space: nowrap;
 }
 .wz-aoi-readout {
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     color: var(--color-green-glow);
     line-height: 1.45;
     font-size: var(--text-sm);
@@ -133,7 +133,7 @@ background: var(--color-bg-row);
 .wz-aoi-section__body {
     display: grid;
     gap: 1rem;
-    padding: 1.5rem;
+    padding: 1.2rem 1.2rem 1rem ;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
 }
@@ -143,14 +143,8 @@ background: var(--color-bg-row);
     margin: 0
 }
 
-.wz-aoi-empty {
-    padding: 0.8rem 1rem;
-}
-
-
-
 .wz-aoi-status--scan {
-color: var(--color-teal-glow);
+    color: var(--color-teal-glow);
     animation: wz-aoi-scan-pulse 1.8s ease-in-out infinite;
     background: var(--color-teal-hover);
     padding: 1rem 1rem .8rem;
@@ -238,12 +232,11 @@ display: flex;
     padding: 1.5rem;
 }
 .wz-gnss-legend__status {
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: var(--color-yellow-overlay);
     color: var(--color-yellow-slate);
     line-height: 1.45;
     font-size: var(--text-sm);
-    clip-path: var(--clippath-shape-3)
 }
 .wz-gnss-legend__status[data-tone="warning"] {
     background: var(--color-yellow-overlay);
@@ -261,10 +254,11 @@ display: flex;
     display: flex;
     flex-direction: column;
     gap: .5rem;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
     margin-bottom: .5rem;
+    font-size: var(--text-sm)
 }
 
 .wz-gnss-legend-box .wz-gnss-legend__row {
@@ -569,12 +563,11 @@ UNUSED CANDIDATE END */
  }
 
 .wz-gnss-legend__note { 
+    display: none !important;
     margin: 0;
-    padding: .9rem 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: var(--color-bg-row);
-    font-size: var(--text-xs);
-    line-height: var(--text-lg);
-    letter-spacing: .03rem;
+    font-size: var(--text-sm);
 }
 
 .wz-widget-data-list {

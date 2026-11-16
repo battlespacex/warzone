@@ -199,3 +199,12 @@ test('region changes and other tracker focus invalidate notice return views with
     const button=open();button.onclick();h.focus.assetId='aircraft';h.events.get('wz:asset-focus-changed')();assert.equal(button.textContent,'Focus area');assert.equal(h.restores.length,0);
     h.focus.assetId='';button.onclick();for(const fn of h.regionListeners)fn();assert.equal(h.restores.length,0);h.enabled.clear();h.sync();assert.equal(h.restores.length,0);h.context.disposeNoticeLayers();
 });
+
+test('notice polygons share immutable style materials and refresh them together without recreating entities',async()=>{
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[n,{...n,id:'other'}]})}));
+    const css=new Map();h.context.getComputedStyle=()=>({getPropertyValue:key=>css.get(key)||''});h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    const [a,b]=h.sources[0].entities.values,old=a.polygon.material;assert.equal(a.polygon.material,b.polygon.material);
+    css.set('--wz-notice-fill-opacity','.3');h.events.get('wz:notice-style-refresh')();
+    assert.equal(h.sources[0].entities.getById(a.id),a);assert.equal(a.polygon.material,b.polygon.material);assert.notEqual(a.polygon.material,old);assert.equal(a.polygon.material.oddColor.getValue().alpha,.3);
+    h.context.disposeNoticeLayers();assert.equal(h.sources.length,0);
+});

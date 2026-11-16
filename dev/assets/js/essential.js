@@ -1,4 +1,5 @@
 import { isExcludedTrainerAircraftText } from "../../../apps/shared/aircraft-trainer-exclusions.js";
+import { createCountryStatusClassifier } from "../../../apps/shared/status-signal-policy.js";
 // File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
 import { aircraftTelemetryNumber, getAircraftTelemetry, renderAircraftTelemetry } from "./warzone-aircraft-telemetry.js";
@@ -6346,6 +6347,24 @@ function statusPriority(status) {
             return 0;
     }
 }
+let __countryStatusClassifier=null;
+let __statusAssessmentExpiryTimer=0, __statusAssessmentExpiryAt=Infinity;
+function scheduleStatusAssessmentExpiry(at) {
+    if (!Number.isFinite(at) || at <= Date.now() || at >= __statusAssessmentExpiryAt) return;
+    if (__statusAssessmentExpiryTimer) clearTimeout(__statusAssessmentExpiryTimer);
+    __statusAssessmentExpiryAt=at;
+    __statusAssessmentExpiryTimer=setTimeout(()=>{
+        __statusAssessmentExpiryTimer=0;__statusAssessmentExpiryAt=Infinity;
+        __lastStatusWidgetSignature=null;
+        if(isLayerEnabled('cyber')||isLayerEnabled('airspace'))debouncedRenderUI(__eventsCache);
+    },Math.min(2147483647,Math.max(1,at-Date.now()+1)));
+}
+function classifyCountryIntelligence(country,domain) {
+    __countryStatusClassifier ||= createCountryStatusClassifier(value=>normalizeCountryName(countryNameFromCode(value)||value));
+    const assessment=__countryStatusClassifier(__statusFeedItemsCache,country,domain,Date.now());
+    scheduleStatusAssessmentExpiry(assessment.nextEvaluationAt);
+    return assessment;
+}
 function rankCountryRows(events, type, max = 10) {
     const scopedEvents = Array.isArray(events) ? events : [];
     const statusEvents = getStatusScopedEvents(scopedEvents, type);
@@ -6369,13 +6388,16 @@ function rankCountryRows(events, type, max = 10) {
     const rows = countryCandidates
         .map((country) => {
             const canonical = normalizeCountryName(country);
-            const status = deriveCountryStatus(statusEvents, canonical, type);
+            const assessment = classifyCountryIntelligence(canonical, type);
+            const status = assessment.status;
             const relatedCount = getCountryMatchCount(statusEvents, canonical);
             return {
                 label: canonical,
                 status,
                 relatedCount,
-                priority: statusPriority(status),
+                priority: assessment.priority,
+                assessment,
+                reportCount: assessment.reportCount,
                 evidenceLabel: reportsByCountry.get(canonical) || (__statusFeedLoading ? 'Loading' : __statusFeedUnavailable ? 'Unavailable' : ''),
             };
         })
@@ -6455,24 +6477,17 @@ function renderCyberStatus(events) {
     if (!rows.length) {
         container.replaceChildren();
         if (renderStatusFeedRows(container, "cyber")) return;
-        const aggregate = deriveAggregateStatus(events, "cyber");
-        if (aggregate !== "unknown") {
-            const label = aggregate.charAt(0).toUpperCase() + aggregate.slice(1);
-            const regionLabel = getActiveRegion?.()?.id === "global" ? "Global" : "Current Region";
-            container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
-            return;
-        }
-        container.innerHTML = '<div class="status-row"><span>No current regional cyber reports</span><strong class="status-pill status-pill--unknown">Unavailable</strong></div>';
+        container.innerHTML = '<div class="status-row"><span>No current regional cyber reports</span><strong class="status-pill status-pill--unknown">UNKNOWN</strong></div>';
         return;
     }
     const markup = rows.map((row) => {
         const status = String(row.status || "unknown").toLowerCase();
-        const pillStatus = status === "unknown" && row.evidenceLabel === "Reports" ? "reported" : status;
-        const label = status === 'unknown' && row.evidenceLabel ? row.evidenceLabel : status.charAt(0).toUpperCase() + status.slice(1);
+        const label = status.toUpperCase();
+        const explanation = `${row.assessment?.reason || 'Insufficient evidence'}; scope: ${row.assessment?.scope || 'unknown'}; confidence: ${row.assessment?.confidence || 'unknown'}; ${row.reportCount || 0} reports; collection: ${__statusFeedUnavailable ? 'unavailable' : __statusFeedLoading ? 'loading' : 'available'}`;
         return `
             <div class="status-row">
                 <span>${escapeHtml(row.label)}</span>
-                <strong class="status-pill status-pill--${pillStatus}">${label}</strong>
+                <strong class="status-pill status-pill--${status}" title="${escapeHtml(explanation)}" data-report-count="${row.reportCount || 0}">${label}</strong>
             </div>
         `;
     }).join("");
@@ -6492,24 +6507,17 @@ function renderAirspaceStatus(events) {
     if (!rows.length) {
         container.replaceChildren();
         if (renderStatusFeedRows(container, "airspace")) return;
-        const aggregate = deriveAggregateStatus(events, "airspace");
-        if (aggregate !== "unknown") {
-            const label = aggregate.charAt(0).toUpperCase() + aggregate.slice(1);
-            const regionLabel = getActiveRegion?.()?.id === "global" ? "Global" : "Current Region";
-            container.innerHTML = `<div class="status-row"><span>${regionLabel}</span><strong class="status-pill status-pill--${aggregate}">${label}</strong></div>`;
-            return;
-        }
-        container.innerHTML = '<div class="status-row"><span>No current restrictions confirmed for this region</span><strong class="status-pill status-pill--unknown">Unavailable</strong></div>';
+        container.innerHTML = '<div class="status-row"><span>No current restrictions confirmed for this region</span><strong class="status-pill status-pill--unknown">UNKNOWN</strong></div>';
         return;
     }
     const markup = rows.map((row) => {
         const status = String(row.status || "unknown").toLowerCase();
-        const pillStatus = status === "unknown" && row.evidenceLabel === "Reports" ? "reported" : status;
-        const label = status === 'unknown' && row.evidenceLabel ? row.evidenceLabel : status.charAt(0).toUpperCase() + status.slice(1);
+        const label = status.toUpperCase();
+        const explanation = `${row.assessment?.reason || 'Insufficient evidence'}; scope: ${row.assessment?.scope || 'unknown'}; confidence: ${row.assessment?.confidence || 'unknown'}; ${row.reportCount || 0} reports; collection: ${__statusFeedUnavailable ? 'unavailable' : __statusFeedLoading ? 'loading' : 'available'}`;
         return `
             <div class="status-row">
                 <span>${escapeHtml(row.label)}</span>
-                <strong class="status-pill status-pill--${pillStatus}">${label}</strong>
+                <strong class="status-pill status-pill--${status}" title="${escapeHtml(explanation)}" data-report-count="${row.reportCount || 0}">${label}</strong>
             </div>
         `;
     }).join("");
@@ -6639,7 +6647,7 @@ function renderRecon(events) {
     const focusCountries = deriveFocusCountries(events, 12).map(normalizeCountryName).filter(Boolean);
     if (regionGrid) {
         regionGrid.innerHTML = focusCountries.map((name) => {
-            const status = deriveCountryStatus(events, name, "airspace");
+            const status = classifyCountryIntelligence(name, "airspace").status;
             const firHit = events.find((e) =>
                 eventPlaceText(e).includes(String(name).toLowerCase()) &&
                 e.fir_code

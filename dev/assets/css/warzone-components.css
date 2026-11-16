@@ -810,7 +810,7 @@
     }
 
     .wzhs-activity-stack__entry {
-        padding: 0.8rem 1rem;
+        padding: 1.2rem 1rem .8rem;
     }
 
     .wzhs-activity-stack__entry-copy small {
@@ -1542,7 +1542,7 @@
 .wz-satellite-imagery-viewer__disclaimer {
     margin-top: auto;
     margin-bottom: 1.5rem;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: var(--color-bg-header);
     border-left: .7rem solid var(--color-yellow-glow);
     clip-path: var(--clippath-shape-3);
@@ -3840,7 +3840,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     flex-direction: column;
     width: 100%;
     min-height: 8rem;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-4);
     gap: .2rem;
@@ -4049,6 +4049,8 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 .status-pill--closed,
+.status-pill--active,
+.status-pill--disrupted,
 .status-pill--critical {
     color: var(--criticality-level-ex-cl);
     background: var(--criticality-level-ex-bg);
@@ -4061,12 +4063,15 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     background: var(--criticality-level-hi-bg);
 }
 
+.status-pill--partial,
+.status-pill--hazardous,
 .status-pill--elevated {
     color: var(--criticality-level-med-cl);
     background: var(--criticality-level-med-bg);
 }
 
 .status-pill--normal,
+.status-pill--open,
 .status-pill--minor,
 .status-pill--low {
     color: var(--criticality-level-lo-cl);
@@ -4074,6 +4079,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 .status-pill--unknown,
+.status-pill--recovering,
 .status-pill--medium {
     color: var(--criticality-level-de-cl);
     background: var(--criticality-level-de-bg);
@@ -5481,7 +5487,7 @@ UNUSED CANDIDATE END */
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    padding: 0.8rem 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     color: var(--color-text-heading);
     background: linear-gradient(180deg, transparent, rgba(7, 11, 18, 0.88));
 }
@@ -5697,7 +5703,7 @@ body.wz-intel-wire-detail-open {
 
 @media (max-width: 600px) {
     .wz-intel-wire-detail-modal {
-        padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     }
 
     .wz-intel-wire-detail__box {
@@ -6145,7 +6151,7 @@ body.wz-intel-wire-detail-open {
 
 .wz-donate-modal__note {
     margin: 1rem 0 0;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: var(--color-purple);
     clip-path: var(--clippath-shape-1);
     color: var(--color-text);
@@ -6597,8 +6603,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 .wz-plan-details article {
     display: grid;
     gap: .8rem;
-    align-content: start;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: rgba(255, 255, 255, .035);
 }
 
@@ -6635,7 +6640,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 
 .wz-expert-local-note {
     margin: 0 0 1rem;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     color: var(--color-text);
     background: rgba(0, 217, 178, .08);
     border-left: .3rem solid var(--color-teal);
@@ -6675,7 +6680,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem;
+    padding: 1.2rem 1.2rem 1rem;
     background: rgba(5, 14, 24, .62);
     border: .1rem solid rgba(255, 255, 255, .08);
     clip-path: var(--clippath-shape-2);
@@ -6918,7 +6923,14 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 }
 
 .wz-widget-header .wz-widget-kicker .wz-widget-title {
-    padding-top: .4rem;
+flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--text-base);
+    letter-spacing: 0.1rem;
 }
 
 .wz-widget-header-actions {
@@ -7351,4 +7363,10 @@ body:not(.is-operational-report-open) .warzone-view {
 .wzhs[data-category="cyber"] .wzhs__icon span::before {
     content: ""; display: block; width: var(--wz-cyber-icon-size); height: var(--wz-cyber-icon-size);
     background: url('/assets/images/markers/cyber-status.svg') center / contain no-repeat;
+}
+
+/* Informational intelligence states complement the existing severity palette. */
+.status-pill--monitoring,
+.status-pill--advisory {
+    color: var(--color-blue-glow); background: var(--color-bg-row);
 }

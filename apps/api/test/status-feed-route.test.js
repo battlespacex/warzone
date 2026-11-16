@@ -34,7 +34,7 @@ test('frontend status adapter reaches the real preview proxy and status route ov
   const require=createRequire(import.meta.url),saved={NODE_ENV:process.env.NODE_ENV,API_UPSTREAM_URL:process.env.API_UPSTREAM_URL};
   const listen=app=>new Promise(resolve=>{const server=app.listen(0,'127.0.0.1',()=>resolve(server));});
   const item={guid:'fixture-pulse',title:'Published report fixture',country:'CA',category:'cyber_advisory',url:'https://example.org/report',
-    published_at:new Date().toISOString(),fetched_at:new Date().toISOString(),raw:{status_signal:{domain:'cyber',kind:'threat_intelligence',status:'reported'}}};
+    published_at:new Date().toISOString(),fetched_at:new Date().toISOString(),raw:{status_signal:{domain:'cyber',kind:'threat_intelligence',status:'reported',confidence:'medium'}}};
   const data=fixture([item]),backend=express();backend.get('/events/status-feed',data.handler);const upstream=await listen(backend);let preview;
   try{process.env.NODE_ENV='production';process.env.API_UPSTREAM_URL='http://127.0.0.1:'+upstream.address().port;
     delete require.cache[require.resolve('../../../server.js')];preview=await listen(require('../../../server.js'));
@@ -43,7 +43,7 @@ test('frontend status adapter reaches the real preview proxy and status route ov
     const start=adapter.indexOf('    async getStatusFeedItems('),end=adapter.indexOf('    async getIntelFeedItems(',start);
     const c=vm.createContext({fetch,URLSearchParams,API_BASE:'http://127.0.0.1:'+preview.address().port+'/api'});
     vm.runInContext(read+'\nconst api={'+adapter.slice(start,end)+'};globalThis.readStatus=api.getStatusFeedItems;',c);
-    const result=await c.readStatus();assert.equal(result.error,null);assert.equal(result.data.length,1);assert.equal(result.data[0].country,'CA');assert.equal(result.data[0].status,'reported');assert.equal('raw' in result.data[0],false);
+    const result=await c.readStatus();assert.equal(result.error,null);assert.equal(result.data.length,1);assert.equal(result.data[0].country,'CA');assert.equal(result.data[0].status,'reported');assert.equal(result.data[0].assessment.status,'monitoring');assert.equal('raw' in result.data[0],false);
   }finally{if(preview)await new Promise(resolve=>preview.close(resolve));await new Promise(resolve=>upstream.close(resolve));
     for(const [key,value]of Object.entries(saved))if(value===undefined)delete process.env[key];else process.env[key]=value;delete require.cache[require.resolve('../../../server.js')];}
 });

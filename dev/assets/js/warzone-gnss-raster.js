@@ -91,6 +91,7 @@ export function createGnssRasterLayer(viewer, { onError = () => {}, fetchImpl = 
                 }, immediate ? 0 : 180);
             });
         },
+        cancelPick,
         dispose() {
             disposed = true; cancelPick(); removeLayer(); cells.clear(); config = null; signature = "";
             viewer.scene.requestRender?.();
