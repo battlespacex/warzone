@@ -2,7 +2,8 @@
   "CORSRules": [
     {
       "AllowedOrigins": [
-        "https://stratops.battlespacex.com",
+        "https://app.stratops.space",
+        "https://stratops.space",
         "http://127.0.0.1:4173",
         "http://localhost:4173",
         "http://127.0.0.1:4180"

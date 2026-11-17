@@ -10,7 +10,7 @@ function requestWithAuthorization(value = "") {
   };
 }
 
-function requestForOrigin(origin = "https://stratops.battlespacex.com", prefix = "/api") {
+function requestForOrigin(origin = "https://app.stratops.space/", prefix = "/api") {
   return {
     get(name) {
       const header = String(name).toLowerCase();
@@ -58,7 +58,7 @@ test("published reports expose the HTML artifact beside the existing PDF", () =>
   );
   assert.equal(
     __stratopsRouteTestUtils.getPublicReportHtmlUrl(req, report),
-    "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/report.html"
+    "https://app.stratops.space/reports/daily/global/2026-08-08/report.html"
   );
 });
 

@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {normalizeNavalActivity,sourceAccess} from '../../../shared/naval-intelligence.js';
-import {publicFeeds,readPublicFeed} from './public-feeds.js';
+import {publicFeeds,publicFeedAliases,readPublicFeed} from './public-feeds.js';
+import {publicationPolicies,readPublication,multilingualActivity,hasPublicationRights} from './publications.js';
+import {catalogEndpoints,readNavalCatalog} from './catalogs.js';
+import {licensedFeeds,readLicensedFeed,hasFeedRights} from './licensed-feeds.js';
 export const registry=JSON.parse(fs.readFileSync(new URL('./sources.json',import.meta.url),'utf8').replace(/^\uFEFF/,''));
 const hash=text=>createHash('sha256').update(text).digest('hex');
 export function parseDvids(row){
@@ -12,13 +15,15 @@ export function parseDvids(row){
     const vessel=String(row.title||'').match(/\b(USS|HMS|HMAS|HMNZS|INS|JS|TCG|ROKS|PNS)\s+([\p{L}\d'-]+(?:\s+[\p{L}\d'-]+){0,2})/u);
     const region=text.match(/\b(?:Arabian Sea|South China Sea|East China Sea|Red Sea|Mediterranean Sea|Black Sea|Baltic Sea|Indian Ocean|Pacific Ocean|Atlantic Ocean|Gulf of Aden|Persian Gulf)\b/i)?.[0]||'';
     const vesselName=vessel?.[0]?.split(/\s+(?:Arriv|Depart|Visit|Conduct|Participat|Deploy|Return|Transits?|Sails?|Completes?)\w*\b/i)[0]||'';
-    return {external_id:row.id,title:row.title,summary:row.short_description,source_url:row.url,published_at:row.date_published||row.publishdate,group_name:text.match(/\bCarrier Strike Group\s+\d+\b/i)?.[0]||'',
+    const hull=String(row.title||'').match(/\((CVN|SSN|SSBN|DDG|FFG|LPD|LHD|CG|LCS|LHA)\s*[- ]?\s*(\d{1,4})\)/);
+    return {external_id:row.id,title:row.title,summary:row.short_description,source_url:row.url,published_at:row.date_published||row.publishdate,hull_number:hull?hull[1]+'-'+hull[2]:'',group_name:text.match(/\bCarrier Strike Group\s+\d+\b/i)?.[0]||'',
         // DVIDS date/city/country describe media creation, never a ship observation or position.
         observation_at:null,region,event_type,vessel_name:vesselName,navy_country_iso2:vessel?({USS:'US',HMAS:'AU',HMNZS:'NZ',JS:'JP',TCG:'TR',ROKS:'KR',PNS:'PK',HMS:/British|Royal Navy/i.test(text)?'GB':null,INS:/Indian Navy/i.test(text)?'IN':/Israeli Navy/i.test(text)?'IL':null})[vessel[1]]:null};
 }
 export function createNavalIntelRunner({db,env=process.env,fetchImpl=fetch,now=Date.now,random=Math.random,logger=console}={}){
     let pending=null,next=0,failures=0,providerNext=0;const feedHealth=new Map();
     const approved=String(env.NAVAL_INTEL_APPROVED_SOURCES||'').split(',').map(s=>s.trim());
+    let rights=[];if(env.NAVAL_INTEL_RIGHTS_FILE){try{const text=fs.readFileSync(env.NAVAL_INTEL_RIGHTS_FILE,'utf8');if(text.length>100000)throw Error();const data=JSON.parse(text);if(!Array.isArray(data)||data.length>63)throw Error();rights=data;}catch{logger.warn('[naval-intel] invalid rights file; licensed adapters disabled');}}
     const save=async(table,row)=>{const {error}=await db.from(table).upsert(row);if(error)throw Error('Naval intelligence storage unavailable');};
     async function persist(source,input){
         const row=normalizeNavalActivity(input,source,now()),id=hash(source.id+':'+row.external_id),evidence={source_id:source.id,source_url:row.source_url,published_at:row.published_at,observation_at:row.observation_at,label:row.title};
@@ -37,16 +42,40 @@ export function createNavalIntelRunner({db,env=process.env,fetchImpl=fetch,now=D
         next=now()+Math.max(1800000,Number(env.NAVAL_INTEL_INTERVAL_MS)||3600000);
         let count=0;
         try{
-            for(const original of registry.sources){const source={...original,...(publicFeeds[original.id]||{})};
+            const selected=String(env.NAVAL_INTEL_SOURCE_IDS||'').split(',').map(s=>s.trim()).filter(Boolean);
+            for(const id of [...selected])if(publicFeedAliases[id])selected.push(publicFeedAliases[id]);
+            for(const original of registry.sources){if(selected.length&&!selected.includes(original.id))continue;const source={...original,...(publicFeeds[original.id]||publicationPolicies[original.id]||{})};
                 const access=sourceAccess(source,{key:Boolean(env.DVIDS_API_KEY),approved});
                 const {data:previous,error}=await db.from('naval_source').select('cursor,payload').eq('source_id',source.id).maybeSingle();if(error)throw Error('Naval intelligence migration required');
                 const health=source.id==='API-001'&&access==='ready'&&providerNext>now()?{access_status:'unavailable',last_error:previous?.payload?.last_error,retry_at:new Date(providerNext).toISOString()}:{};
                 await save('naval_source',{source_id:source.id,payload:{...source,last_success:previous?.payload?.last_success||null,access_status:access,...health},cursor:previous?.cursor||null});
+                if(publicFeedAliases[source.id]){await save('naval_source',{source_id:source.id,payload:{...source,access_status:'alias',canonical_source_id:publicFeedAliases[source.id]},cursor:null});continue;}
+                if(licensedFeeds[source.id]){
+                    const grant=rights.find(r=>hasFeedRights(source.id,r));if(!grant)continue;
+                    const state=feedHealth.get(source.id)||{};if(now()<(state.retryAt||0))continue;
+                    try{const rows=await readLicensedFeed(source.id,grant,{fetchImpl});let ingested=0;for(const row of rows){const input=parseDvids(row);if(!input)continue;await persist({...source,commercial_gate:'permission_on_file'},input);ingested++;count++;}
+                        feedHealth.set(source.id,{retryAt:now()+6*3600000});await save('naval_source',{source_id:source.id,payload:{...source,access_status:'ready',permission_reference:grant.permission_reference,last_success:new Date(now()).toISOString(),records_ingested:ingested},cursor:null});
+                    }catch(error){feedHealth.set(source.id,{retryAt:now()+([401,403].includes(error.status)?86400000:Math.max(7200000,(error.retryAfter||0)*1000))});await save('naval_source',{source_id:source.id,payload:{...source,access_status:'unavailable',last_error:error.status||'transport/parser/storage'},cursor:previous?.cursor||null});}
+                    continue;
+                }
+                if(catalogEndpoints[source.id]&&env.NAVAL_INTEL_CATALOG_ENABLED==='true'){
+                    try{const catalog=await readNavalCatalog(source.id,{fetchImpl});await save('naval_source',{source_id:source.id,payload:{...source,access_status:'catalog_only',last_success:new Date(now()).toISOString(),catalog},cursor:null});}
+                    catch(error){await save('naval_source',{source_id:source.id,payload:{...source,access_status:'unavailable',last_error:error.status||'transport/parser'},cursor:null});}continue;
+                }
+                const publicationGrant=rights.find(r=>hasPublicationRights(source.id,r));
+                if(publicationPolicies[source.id]&&(access==='ready'||publicationGrant)){
+                    const state=feedHealth.get(source.id)||{};if(now()<(state.retryAt||0))continue;
+                    try{const result=await readPublication(source,{fetchImpl,grant:publicationGrant});let ingested=0;
+                        for(const item of result.rows){const input=multilingualActivity(item);if(!input)continue;input.summary=source.attribution+' '+input.summary;await persist(publicationGrant?{...source,commercial_gate:'permission_on_file'}:source,input);ingested++;count++;}
+                        for(const url of result.withdrawn||[]){const {data:saved,error}=await db.from('naval_activity').select('*').eq('activity_id',hash(source.id+':'+url)).maybeSingle();if(error)throw Error('Naval intelligence storage unavailable');if(saved)await save('naval_activity',{...saved,checked_at:new Date(now()).toISOString(),payload:{...saved.payload,review_status:'withdrawn'}});}
+                        feedHealth.set(source.id,{retryAt:now()+(Number(source.refreshMs)||6*3600000)});await save('naval_source',{source_id:source.id,payload:{...source,access_status:'ready',last_success:new Date(now()).toISOString(),records_ingested:ingested},cursor:null});
+                    }catch(error){feedHealth.set(source.id,{retryAt:now()+([401,403].includes(error.status)?86400000:7200000)});await save('naval_source',{source_id:source.id,payload:{...source,access_status:'unavailable',last_error:error.status||'transport/parser/storage'},cursor:previous?.cursor||null});logger.warn('[naval-intel] publication isolated',source.id,error.status||'transport/parser/storage');}
+                }
                 if(publicFeeds[source.id]&&access==='ready'){
                     const state=feedHealth.get(source.id)||{};
                     if(now()<(state.retryAt||0))continue;
                     try{const feed=await readPublicFeed(source,{fetchImpl,etag:state.etag,lastModified:state.lastModified});let ingested=0;
-                        for(const item of feed.items){if(!/\b(navy|naval|HMS|submarine|warship|destroyer|frigate)\b/i.test(item.title||'')||/\b(export deal|procurement|contract|scale-up)\b/i.test(item.title||''))continue;const input=parseDvids({id:item.guid||item.id||item.link,title:item.title,short_description:item.contentSnippet||item.summary||'',url:item.link,date_published:item.published||item.pubDate});if(!input)continue;
+                        for(const item of feed.items){if(!/\b(navy|naval|HMS|USS|HMAS|submarine|warship|destroyer|frigate)\b/i.test(item.title||'')||/\b(export deal|procurement|contract|scale-up)\b/i.test(item.title||''))continue;const input=parseDvids({id:item.guid||item.id||item.link,title:item.title,short_description:item.contentSnippet||item.summary||'',url:item.link,date_published:item.published||item.pubDate});if(!input)continue;
                             // Atom updated is not necessarily the article's original publication time.
                             input.summary=source.attribution+' '+input.summary;await persist(source,input);ingested++;count++;}
                         feedHealth.set(source.id,{...state,...feed,items:undefined,retryAt:0,failures:0});await save('naval_source',{source_id:source.id,payload:{...source,access_status:'ready',last_success:new Date(now()).toISOString(),records_ingested:ingested,unchanged:feed.unchanged===true},cursor:previous?.cursor||null});

@@ -37,7 +37,7 @@ $repairArgs = @(
     '--owner', $cesiumRepairOwner,
     '--profile', $cesiumRepairProfile,
     '--distribution', 'E2EFV9935XX3MV',
-    '--origin', 'https://stratops.battlespacex.com',
+    '--origin', 'https://app.stratops.space',
     '--plan', ".generated/cesium-unversioned-repair/reviewed-plan-$cesiumRepairAttempt.json",
     '--backup-dir', ".generated/cesium-unversioned-repair/original-backup-$cesiumRepairAttempt"
 )

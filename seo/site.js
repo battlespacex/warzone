@@ -1,4 +1,4 @@
-const PROD_BASE = "https://stratops.battlespacex.com";
+const PROD_BASE = "https://stratops.space";
 
 module.exports = {
     // Canonical and social metadata must always identify the public site.

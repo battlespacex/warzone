@@ -394,7 +394,7 @@ test("reports include satellite quicklooks from Copernicus, never from our bucke
   const html = renderReportHtml({ templateHtml, templateCss, model });
   assert.ok(html.includes(`src="${url}"`));
   assert.match(html, /Reduced-resolution context, not live imagery/);
-  snapshot.satellite_summary.preview_image_url = "https://stratops.battlespacex.com/copernicus/image.png";
+  snapshot.satellite_summary.preview_image_url = "https://app.stratops.space/copernicus/image.png";
   assert.equal(buildReportRenderModel(snapshot).imagery.some((image) => image.capture_type === "SATELLITE_OBSERVATION"), false);
 });
 

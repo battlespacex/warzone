@@ -13,7 +13,7 @@ test("public intel wire images use publisher URLs without proxying or duplicatin
         }
     };
 
-    const media = buildPublicIntelWireMedia(item, "https://stratops.battlespacex.com/");
+    const media = buildPublicIntelWireMedia(item, "https://app.stratops.space/");
 
     assert.ok(media);
     assert.equal(media.images.length, 1);

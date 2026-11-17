@@ -9,4 +9,4 @@ Disallow: /package.json
 Disallow: /node_modules/
 Disallow: /poster
 
-Sitemap: https://stratops.battlespacex.com/sitemap.xml
+Sitemap: https://stratops.space/sitemap.xml

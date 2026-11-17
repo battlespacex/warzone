@@ -1,6 +1,8 @@
 import Parser from 'rss-parser';
+export const publicFeedAliases={'API-003':'USA-001','PUB-001':'PUB-002','PUB-004':'PUB-005'};
 // Supplemental endpoint review; supplied inventory remains unchanged.
 export const publicFeeds={
+ 'USA-001':{endpoint:'https://www.navy.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1067&max=10',commercial_gate:'us_government_public_information',license_ref:'https://www.navy.mil/Privacy-Policy/',attribution:'Source: U.S. Navy, public information unless otherwise specified; metadata normalized by StratOps.'},
  'UK-001':{url:'https://www.gov.uk/government/organisations/ministry-of-defence',endpoint:'https://www.gov.uk/government/organisations/ministry-of-defence.atom',commercial_gate:'open_government_licence',license_ref:'https://www.gov.uk/help/terms-conditions',attribution:'Contains public sector information licensed under the Open Government Licence v3.0.'}
 };
 export async function readPublicFeed(source,{fetchImpl=fetch,etag,lastModified}={}){

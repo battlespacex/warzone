@@ -2023,7 +2023,7 @@ async function processRssFeed(feed) {
     const response = await axios.get(feed.url, {
         timeout: 18000,
         headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; StratOpsWorker/1.0; +https://stratops.battlespacex.com)",
+            "User-Agent": "Mozilla/5.0 (compatible; StratOpsWorker/1.0; +https://app.stratops.space)",
             "Accept": "application/rss+xml, application/xml, application/atom+xml, text/xml, */*",
             "Cache-Control": "no-cache"
         },

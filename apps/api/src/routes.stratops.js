@@ -39,11 +39,11 @@ function getStripeClient() {
 }
 
 function getStratopsDomain() {
-    return String(process.env.STRATOPS_DOMAIN || "https://stratops.battlespacex.com")
+    return String(process.env.STRATOPS_DOMAIN || "https://app.stratops.space")
         .replace(/\/+$/, "");
 }
 
-const PRODUCTION_REPORT_ORIGIN = "https://stratops.battlespacex.com";
+const PRODUCTION_REPORT_ORIGIN = "https://app.stratops.space";
 const STAGING_REPORT_ORIGIN = "https://stratops-staging.battlespacex.com";
 const PUBLIC_REPORT_ORIGINS = new Set([
     PRODUCTION_REPORT_ORIGIN,

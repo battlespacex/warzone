@@ -1,6 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createNavalIntelService,navalIntelRouter} from '../src/routes.naval-intel.js';
+import {createNavalIntelService,navalIntelRouter,publicNavalSource} from '../src/routes.naval-intel.js';
 const response=()=>({code:200,headers:{},status(n){this.code=n;return this;},set(k,v){this.headers[k]=v;return this;},json(v){this.body=v;return this;}});
+test('source diagnostics never expose private permission references or catalog payloads',()=>{
+ const result=publicNavalSource({id:'PUB-002',name:'Publisher',access_status:'ready',permission_reference:'https://private.invalid/contract?token=fixture',catalog:{private:'fixture'}});assert.equal(result.id,'PUB-002');assert.equal(result.permission_reference,undefined);assert.equal(result.catalog,undefined);
+});
 test('premium authorization fails closed before loading any reports',async()=>{
  let queried=false;const router=navalIntelRouter({service:{database(){queried=true;}},authorize:async()=>({allowed:false,status:403})}),res=response();await router.stack[0].handle({headers:{}},res,()=>{throw Error('must not continue');});assert.equal(res.code,403);assert.equal(queried,false);
 });

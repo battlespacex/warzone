@@ -2,6 +2,10 @@ import express from 'express';
 import {createClient} from '@supabase/supabase-js';
 import {authorizeNavalHistory} from './naval-history-access.js';
 import {selectNavalActivities} from '../../shared/naval-intelligence.js';
+export function publicNavalSource(source={}){
+    // Operator permission documents and catalog payloads stay backend-only.
+    return Object.fromEntries(['id','name','country','category','url','access_status','last_success','last_error','records_ingested','canonical_source_id'].filter(key=>source[key]!==undefined).map(key=>[key,source[key]]));
+}
 export function createNavalIntelService({getDb=()=>createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY),now=Date.now}={}){
     let db,cache=null,expires=0,pending=null;
     const database=()=>db||=getDb();
@@ -10,7 +14,7 @@ export function createNavalIntelService({getDb=()=>createClient(process.env.SUPA
         pending=(async()=>{const since=new Date(now()-90*86400000).toISOString();
             const [events,sources]=await Promise.all([database().from('naval_activity').select('payload').gte('published_at',since).order('published_at',{ascending:false}).limit(1000),database().from('naval_source').select('payload')]);
             if(events.error||sources.error)throw Error('Naval intelligence unavailable');
-            cache={events:events.data.map(r=>r.payload),sources:sources.data.map(r=>r.payload)};expires=now()+60000;return cache;
+            cache={events:events.data.map(r=>r.payload),sources:sources.data.map(r=>publicNavalSource(r.payload))};expires=now()+60000;return cache;
         })().finally(()=>{pending=null;});return pending;
     }
     return {database,snapshot};

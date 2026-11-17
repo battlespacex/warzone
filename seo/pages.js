@@ -6,7 +6,7 @@
         robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
         ogAlt: "StratOps live multi-domain battlespace intelligence platform by BattlespaceX",
         breadcrumbs: [
-            { name: "Home", item: "https://stratops.battlespacex.com/" }
+            { name: "Home", item: "https://app.stratops.space/" }
         ],
         preload: [
             { href: "/assets/images/web/stratops-og-preview.jpg" }
@@ -20,8 +20,8 @@
         robots: "noindex, nofollow",
         ogAlt: "StratOps page not found",
         breadcrumbs: [
-            { name: "Home", item: "https://stratops.battlespacex.com/" },
-            { name: "404", item: "https://stratops.battlespacex.com/404" }
+            { name: "Home", item: "https://app.stratops.space/" },
+            { name: "404", item: "https://app.stratops.space/404" }
         ]
     },
 
@@ -32,8 +32,8 @@
         robots: "noindex, nofollow",
         ogAlt: "StratOps operational intelligence report",
         breadcrumbs: [
-            { name: "Home", item: "https://stratops.battlespacex.com/" },
-            { name: "Reports", item: "https://stratops.battlespacex.com/reports/stratops-report" }
+            { name: "Home", item: "https://app.stratops.spacem/" },
+            { name: "Reports", item: "https://app.stratops.space/reports/stratops-report" }
         ]
     }
 };

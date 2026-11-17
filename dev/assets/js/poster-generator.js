@@ -1318,7 +1318,7 @@ function initializeFontOptions() {
       : loaded.website;
     if (["www.battlespacex.com", "battlespacex.com"].includes(legacyBottomBranding)) {
       normalized.bottomBranding = "battlespacex";
-    } else if (["www.stratops.battlespacex.com", "stratops.battlespacex.com"].includes(legacyBottomBranding)) {
+    } else if (["www.stratops.space", "stratops.space"].includes(legacyBottomBranding)) {
       normalized.bottomBranding = "stratops";
     } else if (["none", "battlespacex", "stratops"].includes(legacyBottomBranding)) {
       normalized.bottomBranding = legacyBottomBranding;

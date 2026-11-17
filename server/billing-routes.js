@@ -64,7 +64,7 @@ function normalizeSupportType(value = "") {
 }
 
 function getStratopsDomain() {
-    return String(process.env.STRATOPS_DOMAIN || "https://stratops.battlespacex.com")
+    return String(process.env.STRATOPS_DOMAIN || "https://stratops.space")
         .replace(/\/+$/, "");
 }
 

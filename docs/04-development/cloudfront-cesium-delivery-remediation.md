@@ -16,7 +16,7 @@ Prepared November 13, 2026, America/Toronto. Source HEAD: `990d9553`. Incident U
 Live URLs use this prefix, with no cache-busting query parameters in the inspected requests:
 
 ```text
-https://stratops.battlespacex.com/assets/cesium/releases/1.143.0-a5a84813c72de745-standard/Workers/
+https://app.stratops.space/assets/cesium/releases/1.143.0-a5a84813c72de745-standard/Workers/
   createPolygonGeometry.js
   createGroundPolylineGeometry.js
   chunk-ML6MR2RA.js
@@ -72,7 +72,7 @@ Origin Cache-Control and CloudFront cache policy solve different problems. Corre
 
 Read-only review first:
 
-1. AWS Console → CloudFront → Distributions → E2EFV9935XX3MV. Confirm alias `stratops.battlespacex.com`, enabled/deployed status and current pricing plan/usage/notifications under the distribution's plan controls. Save configuration/screenshots privately.
+1. AWS Console → CloudFront → Distributions → E2EFV9935XX3MV. Confirm alias `app.stratops.space`, enabled/deployed status and current pricing plan/usage/notifications under the distribution's plan controls. Save configuration/screenshots privately.
 2. Behaviors → winning worker behavior → view details. Record path/order, target origin, protocol/methods, compression, cache-policy ID and TTL/cache-key settings, origin-request policy, response-header policy, function and Lambda associations. Inspect associated policy definitions, not just names. Check response-header removal of Cache-Control.
 3. Origins and S3 → inspect exact worker key and manifest key as above. Record object Cache-Control/Content-Type/ETag and compare served bytes to the saved release manifest. Inspect lifecycle expiration rules: old release directories and hashed bundles must remain available for cached entries/existing sessions.
 4. Monitoring → Requests/5xxErrorRate around November 14 01:05–01:25 UTC (November 13 20:05–20:25 Toronto). Minute aggregates cannot show sub-second concurrency. Use existing logs if present; capture x-edge-result-type, x-edge-detailed-result-type, time, path and request ID where available. Do not enable paid logs/metrics or change WAF rules for this investigation.

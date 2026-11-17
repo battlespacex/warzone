@@ -31,6 +31,8 @@ import { navalIntelRouter } from './routes.naval-intel.js';
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
 const DEFAULT_CORS_ORIGINS = [
+    "https://app.stratops.space.com",
+    "https://stratops.space.com",
     "https://stratops.battlespacex.com",
     "https://stratops-staging.battlespacex.com",
     "http://localhost:3000",
