@@ -1,4 +1,5 @@
 // Public, key-free government feeds. Never infer incident geography from publisher location.
+import {lookupLocalCountry} from '../../shared/country-reference.js';
 function text(value = "") {
   return String(value).replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
@@ -133,6 +134,7 @@ export function fetchOptionalStatusSource(source, fetchJson, env = process.env, 
 
 const countryCache=new Map(),countryPending=new Map();
 export async function lookupStatusCountry(code,fetchJson,env=process.env,now=Date.now()) {
+  const local=lookupLocalCountry(code);if(local)return local;
   if(!/^[A-Z]{2,3}$/.test(code || '') || env.RESTCOUNTRIES_ENABLED!=='true' || !env.RESTCOUNTRIES_API_KEY)return null;
   for(const [key,entry]of countryCache)if(entry.until<=now)countryCache.delete(key);
   const cached=countryCache.get(code);if(cached?.until>now)return cached.value;

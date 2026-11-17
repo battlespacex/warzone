@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
+import {createQuotaFetch} from '../../../shared/provider-quota.js';
 import {normalizeNavalActivity,sourceAccess} from '../../../shared/naval-intelligence.js';
 import {publicFeeds,publicFeedAliases,readPublicFeed} from './public-feeds.js';
 import {publicationPolicies,readPublication,multilingualActivity,hasPublicationRights} from './publications.js';
@@ -21,6 +22,7 @@ export function parseDvids(row){
         observation_at:null,region,event_type,vessel_name:vesselName,navy_country_iso2:vessel?({USS:'US',HMAS:'AU',HMNZS:'NZ',JS:'JP',TCG:'TR',ROKS:'KR',PNS:'PK',HMS:/British|Royal Navy/i.test(text)?'GB':null,INS:/Indian Navy/i.test(text)?'IN':/Israeli Navy/i.test(text)?'IL':null})[vessel[1]]:null};
 }
 export function createNavalIntelRunner({db,env=process.env,fetchImpl=fetch,now=Date.now,random=Math.random,logger=console}={}){
+    fetchImpl=createQuotaFetch({env,fetchImpl,now,context:{manageUnknown:true}});
     let pending=null,next=0,failures=0,providerNext=0;const feedHealth=new Map();
     const approved=String(env.NAVAL_INTEL_APPROVED_SOURCES||'').split(',').map(s=>s.trim());
     let rights=[];if(env.NAVAL_INTEL_RIGHTS_FILE){try{const text=fs.readFileSync(env.NAVAL_INTEL_RIGHTS_FILE,'utf8');if(text.length>100000)throw Error();const data=JSON.parse(text);if(!Array.isArray(data)||data.length>63)throw Error();rights=data;}catch{logger.warn('[naval-intel] invalid rights file; licensed adapters disabled');}}

@@ -1,6 +1,8 @@
 // apps/worker/src/status-fetcher.js
 
 import Parser from "rss-parser";
+import { createQuotaFetch } from "../../shared/provider-quota.js";
+import { lookupLocalCountry } from "../../shared/country-reference.js";
 import { getEnabledStatusSources } from "./status-sources.js";
 import { parseFaaStatus, parseKevStatus, fetchOptionalStatusSource, lookupStatusCountry } from "./official-status-adapters.js";
 import { getSourceHealth, recordSourceFailure, recordSourceSuccess, shouldAttemptSource } from "./source-health.js";
@@ -62,7 +64,7 @@ function cleanHtml(value = "") {
 }
 
 async function fetchText(url) {
-  const response = await fetch(url, {
+  const response = await createQuotaFetch()(url, {
     signal: AbortSignal.timeout(STATUS_FETCH_TIMEOUT_MS),
     headers: {
       "User-Agent": STATUS_USER_AGENT
@@ -81,7 +83,7 @@ async function fetchJson(url, options = {}) {
     "User-Agent": STATUS_USER_AGENT,
     ...(options.headers || {})
   };
-  const response = await fetch(url, {
+  const response = await createQuotaFetch()(url, {
     signal: AbortSignal.timeout(Math.min(STATUS_FETCH_TIMEOUT_MS,options.timeoutMs || STATUS_FETCH_TIMEOUT_MS)),
     redirect: options.redirect || 'follow',
     headers
@@ -273,6 +275,7 @@ async function fetchAllStatusItems(options = {}) {
   );
 
   const items = results.flatMap((result) => result.items || []).map(item=>({...item}));
+  for(const item of items){const local=lookupLocalCountry(item.country);if(local)item.country=local.name;}
   // Resolve only codes actually seen in approved observations; no bulk country
   // mirror, browser requests, or geographic inference from publisher/IP location.
   const countrySource={id:'restcountries',enabled:true};

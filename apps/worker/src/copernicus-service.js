@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { createQuotaFetch } from "../../shared/provider-quota.js";
 import nodeFetch from "node-fetch";
 import { clearCopernicusToken, fetchCopernicusAccessToken } from "./copernicus-auth.js";
 import {
@@ -87,7 +88,11 @@ async function copernicusFetch(config, url, options = {}, { retry401 = true } = 
   const limiter = getRateLimiter(config);
   await limiter.waitTurn();
   const token = await fetchCopernicusAccessToken(config);
-  const response = await getFetch()(url, {
+  const processing=new URL(url).pathname.includes('/process');
+  const quotaFetch = createQuotaFetch({ fetchImpl: getFetch(), context: { provider: 'copernicus', credential: config.clientId, authenticationRetry: true,
+    limits:[{id:'internal-minute',unit:'calls',allowance:config.maxRequestsPerMinute || 20,period:'minute',reserve:0,evidence:'existing Copernicus configuration'},
+      {id:processing?'preview-attempts':'catalog-attempts',unit:'calls',allowance:(processing?config.dailyEventLimit:config.dailyCatalogRequestLimit) || (processing?30:120),period:'day',reserve:0,endpoint:processing?'process':'catalog',evidence:'existing Copernicus configuration; attempts reserved atomically'}] } });
+  const response = await quotaFetch(url, {
     ...options,
     headers: {
       accept: "application/json",
@@ -100,7 +105,7 @@ async function copernicusFetch(config, url, options = {}, { retry401 = true } = 
     clearCopernicusToken();
     const retryToken = await fetchCopernicusAccessToken(config, { force: true });
     await limiter.waitTurn();
-    return getFetch()(url, {
+    return quotaFetch(url, {
       ...options,
       headers: {
         accept: "application/json",

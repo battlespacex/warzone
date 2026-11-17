@@ -50,15 +50,15 @@ test('Radar layer 3/7 target aggregates remain attributed reports, never nationa
     if(layer===7)assert.match(signal.summary,/billing country/);
   }
 });
-test('REST Countries uses bounded authenticated per-code lookup, deduplicates and expires within three days',async()=>{
+test('local country reference resolves codes without spending REST Countries credits, including after restart horizon',async()=>{
   const e={RESTCOUNTRIES_ENABLED:'true',RESTCOUNTRIES_API_KEY:'private-key'};let calls=0;
   const request=async(url,options)=>{calls++;assert.match(url,/\/v5\/codes\.alpha_2\/CA\?response_fields=/);assert.equal(options.headers.Authorization,'Bearer private-key');return {data:{objects:[{names:{common:'Canada'},codes:{alpha_2:'CA',alpha_3:'CAN'}}]}};};
-  const result=await Promise.all([lookupStatusCountry('CA',request,e,at),lookupStatusCountry('CA',request,e,at)]);assert.equal(calls,1);assert.equal(result[0].name,'Canada');
-  await lookupStatusCountry('CA',request,e,at+3*86400000-1);assert.equal(calls,1);await lookupStatusCountry('CA',request,e,at+3*86400000);assert.equal(calls,2);
-  assert.equal(await lookupStatusCountry('US',request,{},at),null);assert.equal(calls,2);
+  const result=await Promise.all([lookupStatusCountry('CA',request,e,at),lookupStatusCountry('CA',request,e,at)]);assert.equal(calls,0);assert.equal(result[0].name,'Canada');
+  await lookupStatusCountry('CA',request,e,at+3*86400000-1);await lookupStatusCountry('CA',request,e,at+3*86400000);assert.equal(calls,0);
+  assert.equal((await lookupStatusCountry('US',request,{},at)).alpha3,'USA');assert.equal(calls,0);
 });
-test('REST Countries uses the explicit alpha-3 property route for three-letter codes',async()=>{
-  const result=await lookupStatusCountry('CAN',async url=>{assert.match(url,/\/v5\/codes\.alpha_3\/CAN\?/);return {data:{objects:[{names:{common:'Canada'},codes:{alpha_2:'CA',alpha_3:'CAN'}}]}};},
+test('country alpha-3 aliases resolve locally',async()=>{
+  const result=await lookupStatusCountry('CAN',async()=>{throw Error('Must not request country API');},
     {RESTCOUNTRIES_ENABLED:'true',RESTCOUNTRIES_API_KEY:'fixture-only-key'},at);
   assert.equal(result.alpha2,'CA');assert.equal(result.alpha3,'CAN');
 });
@@ -66,7 +66,8 @@ test('existing worker health isolates forbidden optional sources and respects Re
   const original=globalThis.fetch,saved={...process.env};resetSourceHealth();Object.assign(process.env,env);let calls=0;
   try{globalThis.fetch=async()=>{calls++;return new Response('',{status:403});};
     const source={...radar,id:radar.id};await fetchSingleStatusSource(source);await fetchSingleStatusSource(source);assert.equal(calls,1);
-    resetSourceHealth();globalThis.fetch=async()=>{calls++;return new Response('',{status:429,headers:{'Retry-After':'120'}});};
+    // A different fixture account isolates the 429 scenario from the durable 403 hold.
+    resetSourceHealth();process.env.CLOUDFLARE_API_TOKEN='fixture-independent-429-account';globalThis.fetch=async()=>{calls++;return new Response('',{status:429,headers:{'Retry-After':'120'}});};
     const failed=await fetchSingleStatusSource(source);await fetchSingleStatusSource(source);assert.equal(calls,2);assert.equal(failed.health.last_status_code,429);assert.ok(Date.parse(failed.health.retry_after)>=at+110000);
   }finally{globalThis.fetch=original;for(const key of Object.keys(env))if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];resetSourceHealth();}
 });

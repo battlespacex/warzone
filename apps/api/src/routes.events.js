@@ -626,13 +626,15 @@ export function eventsRouter({ broadcast }) {
         }))];
         try {
             const responses = await Promise.allSettled(paths.map(async (path) => {
-                const response = await fetch(`${baseUrl}/${path}`, {
+                const { createQuotaFetch } = await import('../../shared/provider-quota.js');
+                const response = await createQuotaFetch()(`${baseUrl}/${path}`, {
                     headers: { Accept: "application/json", "User-Agent": "stratops-warzone/1.0" },
                     signal: AbortSignal.timeout(6000),
                 });
                 if (!response.ok) return [];
                 const data = await response.json();
-                return Array.isArray(data?.ac) ? data.ac : [];
+                const cacheAgeSeconds=Math.max(0,Number(response.headers.get('x-stratops-cache-age-ms')) || 0)/1000;
+                return Array.isArray(data?.ac) ? data.ac.map(row=>({...row,seen_pos:Number(row.seen_pos ?? row.seen ?? Infinity)+cacheAgeSeconds})) : [];
             }));
             const matches = responses.flatMap((result) => result.status === "fulfilled" ? result.value : [])
                 .filter((aircraft) => [String(aircraft.hex || "").replace(/^~/, ""), aircraft.flight, aircraft.r]
@@ -646,6 +648,8 @@ export function eventsRouter({ broadcast }) {
                     Number.isFinite(age) && age <= 90;
             });
             if (!aircraft) {
+                const held=responses.filter(result=>result.status==='rejected'&&result.reason?.code==='QUOTA_HELD');
+                if(held.length){res.setHeader('Retry-After',String(Math.ceil(Math.min(...held.map(result=>result.reason.retryAfterMs))/1000)));return res.status(503).json({error:'Aircraft lookup temporarily unavailable; shared provider budget is reserved for live ingestion'});}
                 if (process.env.NODE_ENV !== "production") {
                     console.info("[AIR SEARCH] result", { identifier, aliases: getAircraftIdentifierAliases(identifier), result: "not_found" });
                 }

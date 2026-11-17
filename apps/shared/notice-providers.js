@@ -1,4 +1,6 @@
 import {normalizeNotice,parseNotam,parseCoordinates,validateGeometry,publishedRadiusNm} from './geospatial-notices.js';
+import {createQuotaFetch,resolveQuotaPolicy} from './provider-quota.js';
+import {getQuotaStore,fingerprint} from './provider-quota-store.js';
 
 export function normalizeNotacNotice(row,now=Date.now()) {
     if(!row?.id || !row.number || !row.text)throw Error('Invalid NOTAC notice');
@@ -33,6 +35,7 @@ export function normalizeNotacNotice(row,now=Date.now()) {
 }
 
 export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
+    const quotaFetch=createQuotaFetch({env,fetchImpl,now});
     const enabled=env.NOTAC_ENABLED==='true',key=env.NOTAC_API_KEY || '',scopes=new Map();
     let blockedUntil=0,remaining=null,lastStatus=null,lastSuccess=null,daily='',creditMonth='',requests=0,partial=false;
     const diagnostics=()=>({enabled,availableForUse:enabled&&Boolean(key),authentication:key?'configured':'unconfigured',lastStatus,lastSuccess,partial,
@@ -52,13 +55,18 @@ export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
         const day=new Date(now()).toISOString().slice(0,10);if(day!==daily){daily=day;requests=0;}
         if(day.slice(0,7)!==creditMonth){creditMonth=day.slice(0,7);remaining=null;}
         if(now()<blockedUntil || remaining!==null&&remaining<3 || requests>=96)throw Error('NOTAC allowance/backoff; cached notices retained');
-        state.pending=(async()=>{const rows=new Map(state.rows);let url=new URL(state.next || 'https://notac.aero/api/v1/notam/delta/');
+        state.pending=(async()=>{
+            const storage=getQuotaStore(env),policy=resolveQuotaPolicy('https://notac.aero/api/v1/notam/delta/',{headers:{Authorization:'Bearer '+key}},env);
+            const stateKey='notac-scope:'+policy.account+':'+fingerprint(scope);
+            const saved=await storage.transact(stateKey,entry=>entry.snapshot || null);
+            if(saved){Object.assign(state,saved,{rows:new Map(saved.rows)});if(now()<state.until)return valuesFromState();}
+            const rows=new Map(state.rows);let url=new URL(state.next || 'https://notac.aero/api/v1/notam/delta/');
             if(!state.next){url.searchParams.set('bbox',scope);if(state.cursor)url.searchParams.set('cursor',state.cursor);}
             let next=null,cursor=state.cursor;
             for(let page=0;page<2;page++){
                 if(url.origin!=='https://notac.aero'||url.pathname!=='/api/v1/notam/delta/'||url.username||url.password)throw Error('Invalid NOTAC pagination');
                 if(requests>=96||remaining!==null&&remaining<3)break;requests++;
-                const response=await fetchImpl(url,{headers:{Authorization:'Bearer '+key,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(12000)});
+                const response=await quotaFetch(url,{headers:{Authorization:'Bearer '+key,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(12000)});
                 lastStatus=response.status;const left=response.headers.get('x-credits-remaining');if(left!==null&&Number.isFinite(Number(left)))remaining=Number(left);
                 if(!response.ok){const retry=Number(response.headers.get('retry-after'));
                     blockedUntil=response.status===402?Date.UTC(new Date(now()).getUTCFullYear(),new Date(now()).getUTCMonth()+1,1):now()+Math.max([401,403,404].includes(response.status)?86400000:60000,Number.isFinite(retry)?retry*1000:0);
@@ -69,6 +77,7 @@ export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
             }
             while(rows.size>1000)rows.delete(rows.keys().next().value);
             Object.assign(state,{rows,cursor,next,until:now()+1800000,fetchedAt:now()});partial=Boolean(next);lastSuccess=new Date(now()).toISOString();
+            await storage.transact(stateKey,entry=>{entry.snapshot={rows:[...rows],cursor,next,until:state.until,fetchedAt:state.fetchedAt};});
             return valuesFromState();
         })().catch(error=>{if(blockedUntil<now()+60000)blockedUntil=now()+60000;throw error;}).finally(()=>state.pending=null);
         return state.pending;
@@ -107,6 +116,7 @@ export function deduplicateNotices(records) {
 }
 
 export function createCommercialNoticeProviders(env={}, {fetchImpl=fetch,now=Date.now}={}) {
+    const quotaFetch=createQuotaFetch({env,fetchImpl,now,context:{manageUnknown:true}});
     function provider(id,prefix,endpoint,query,parse,contract=true) {
         const enabled=env[prefix+'_ENABLED']==='true',approved=env[prefix+'_USAGE_APPROVED']==='true',key=env[prefix+'_API_KEY']||env[prefix+'_ACCESS_TOKEN']||'';
         let next=0,lastSuccess=null,lastStatus=null,pending=null,cache=null,rejected=0,error=null,partial=false,failures=0;
@@ -120,7 +130,7 @@ export function createCommercialNoticeProviders(env={}, {fetchImpl=fetch,now=Dat
                 if(id==='aviation_edge')url.searchParams.set('key',key);
                 const collected=[];let page=0,total=null;
                 do {
-                const response=await fetchImpl(url,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Accept:'application/json',...(id==='autorouter'?{Authorization:'Bearer '+key}:{})}});
+                const response=await quotaFetch(url,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Accept:'application/json',...(id==='autorouter'?{Authorization:'Bearer '+key}:{})}});
                 lastStatus=response.status;if(!response.ok){const header=response.headers.get('retry-after'),seconds=Number(header),retry=Number.isFinite(seconds)?Math.max(0,seconds*1000):Math.max(0,Date.parse(header)-now());
                     next=now()+Math.max([401,403].includes(response.status)?86400000:60000,Number.isFinite(retry)?Math.min(7*86400000,retry):0);throw Error('Notice provider HTTP failure');}
                 if(Number(response.headers.get('content-length'))>5e6)throw Error('Response too large');

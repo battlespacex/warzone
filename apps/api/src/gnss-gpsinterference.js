@@ -1,3 +1,4 @@
+import { createQuotaFetch } from '../../shared/provider-quota.js';
 const SOURCE_URL = "https://api.gpsinterference.com/v1/interference";
 const SOURCE_LABEL = "GPSInterference.com / adsb.lol globe history";
 const CACHE_MS = 60_000; // The provider's latest-map Cache-Control max-age.
@@ -137,7 +138,7 @@ export function createGpsInterferenceService({ fetchImpl = globalThis.fetch, now
                 const timer = setTimeout(() => controller.abort(), 15_000);
                 let raw;
                 try {
-                    const response = await fetchImpl(SOURCE_URL + "/" + encodeURIComponent(date), {
+                    const response = await createQuotaFetch({fetchImpl})(SOURCE_URL + "/" + encodeURIComponent(date), {
                         signal: controller.signal, headers: { accept: "application/json" },
                     });
                     if (!response.ok) throw new Error("GNSS provider HTTP " + response.status);

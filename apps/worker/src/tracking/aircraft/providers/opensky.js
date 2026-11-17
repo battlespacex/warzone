@@ -122,7 +122,8 @@ export function createOpenSkyProvider({
                     const token = await accessToken(clientId, clientSecret, fetchImpl);
                     headers.Authorization = `Bearer ${token}`;
                 }
-                return fetchJson(statesUrl(baseUrl), { headers }, { fetchImpl });
+                return fetchJson(statesUrl(baseUrl), { headers }, { fetchImpl,
+                    quotaContext: { provider: 'opensky', credential: authenticated ? clientId : 'anonymous', authenticationRetry: true } });
             };
             let data;
             try {

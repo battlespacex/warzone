@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { createProviderStreamLease } from "../../../../../shared/provider-stream-lease.js";
 import {
     navalDigits,
     navalNumber,
@@ -222,6 +223,9 @@ export function createAisStreamProvider({
     let connectionAttempts = 0;
     let lastProviderError = null;
     let lastMessageAt = null;
+    const quotaLease = createProviderStreamLease({provider:'aisstream',credential:apiKey || '',close(){
+        connected=false;try{socket?.close();}catch{}socket=null;
+    }});
 
     const connectOnce = (insecure = false) => new Promise((resolve, reject) => {
         connectionAttempts += 1;
@@ -310,6 +314,7 @@ export function createAisStreamProvider({
     });
 
     const ensureConnected = async () => {
+        await quotaLease.renew();
         if (connected && socket) return;
         if (connecting) return connecting;
         connecting = (async () => {
@@ -418,6 +423,7 @@ export function createAisStreamProvider({
         },
         shutdown() {
             shuttingDown = true;
+            void quotaLease.release().catch(error=>logger?.warn?.('[ais:aisstream] quota lease release failed'));
             connected = false;
             try { socket?.close(); } catch { /* ignore controlled shutdown errors */ }
             socket = null;

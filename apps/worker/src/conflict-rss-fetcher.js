@@ -1,4 +1,5 @@
 // apps/worker/src/conflict-rss-fetcher.js
+import { createQuotaFetch } from "../../shared/provider-quota.js";
 
 import Parser from "rss-parser";
 import { getRssSources } from "./conflict-sources.js";
@@ -49,7 +50,7 @@ const RSS_FETCH_CONCURRENCY = Math.max(
 );
 
 async function fetchRssXml(url) {
-  const response = await fetch(url, {
+  const response = await createQuotaFetch()(url, {
     signal: AbortSignal.timeout(RSS_FETCH_TIMEOUT_MS),
     headers: {
       "User-Agent": RSS_USER_AGENT

@@ -161,7 +161,9 @@ export function normalizeSkyLinkAircraftResponse(payload = {}, { requestedIcao24
 
 function headerNumber(headers, names) {
     for (const name of names) {
-        const number = Number(headers?.get?.(name));
+        const raw = headers?.get?.(name);
+        if (raw === null || raw === undefined || raw === "") continue;
+        const number = Number(raw);
         if (Number.isFinite(number)) return number;
     }
     return null;

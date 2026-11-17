@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import mqtt from "mqtt";
+import { createProviderStreamLease } from "../../../../../shared/provider-stream-lease.js";
 
 import { navalDigits, navalNumber, navalText, normalizeNavalObservation, validNavalCoordinates } from "../normalize.js";
 
@@ -99,6 +100,9 @@ export function createFintrafficProvider({
     let reconnectCount = 0;
     let lastMessageAt = null;
     let lastError = null;
+    const quotaLease=createProviderStreamLease({provider:'fintraffic',credential:baseUrl,close(){
+        connected=false;const previous=client;client=null;try{previous?.end?.(true);}catch{}
+    }});
 
     const prune = (now = Date.now()) => {
         for (const [mmsi, entry] of cache.entries()) {
@@ -139,7 +143,7 @@ export function createFintrafficProvider({
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
             reconnectCount += 1;
-            startConnection();
+            void quotaLease.renew().then(()=>startConnection()).catch(()=>scheduleReconnect());
         }, delayMs);
         reconnectTimer.unref?.();
     };
@@ -184,6 +188,7 @@ export function createFintrafficProvider({
     };
 
     const waitForConnection = async () => {
+        await quotaLease.renew();
         startConnection();
         if (connected) return;
         const startedAt = Date.now();
@@ -236,6 +241,7 @@ export function createFintrafficProvider({
         },
         shutdown() {
             stopped = true;
+            void quotaLease.release().catch(()=>logger?.warn?.('[ais:fintraffic] quota lease release failed'));
             connected = false;
             if (reconnectTimer) clearTimeout(reconnectTimer);
             reconnectTimer = null;

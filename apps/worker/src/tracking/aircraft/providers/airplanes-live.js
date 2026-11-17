@@ -24,7 +24,10 @@ export function createAirplanesLiveProvider({ enabled = true, baseUrl = "https:/
         next = at + interval; calls++;
         const task = (async () => {
             try {
-                const data = await fetchJson(site.origin + path, { headers, redirect: "error" }, { fetchImpl, timeoutMs: Math.max(1000,Math.min(60000,Number(timeoutMs)||15000)) });
+                const data = await fetchJson(site.origin + path, { headers, redirect: "error" }, { fetchImpl, quotaNow:now,
+                    quotaContext:{provider:'airplanes_live',credential:credential || undefined,minimumIntervalMs:interval,
+                        limits:[{id:'internal-daily',unit:'calls',allowance:dailyBudget,period:'day',reserve:0,evidence:'existing dailyBudget option'}]},
+                    timeoutMs: Math.max(1000,Math.min(60000,Number(timeoutMs)||15000)) });
                 if (!data || typeof data !== "object" || data.error || (data.msg && data.msg !== "No error")) throw new ProviderRequestError("Invalid provider response", { code: "EBADRESPONSE" });
                 if (path.startsWith('/v2/') && !Array.isArray(data.ac) && !Array.isArray(data.aircraft) && !data.hex) throw new ProviderRequestError("Missing aircraft collection",{code:"EBADRESPONSE"});
                 if (!data.now && (data.ac || data.aircraft)) data.now = at / 1000;

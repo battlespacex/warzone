@@ -12,7 +12,7 @@
     "reports:render": "node src/reporting-render-once.js",
     "reports:pdf": "node src/reporting-pdf-once.js",
     "events:reprocess": "node src/reprocess-recent-events.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --import ../shared/test/provider-quota-isolation.js --test test/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

@@ -52,7 +52,7 @@ test('ingest is single-flight, idempotent and bounded; no-key mode makes zero DV
  const noKey=createNavalIntelRunner({db:dbMock(),env:{},now:()=>now,logger:{info(){},warn(){}},fetchImpl:url=>{assert.ok(String(url).startsWith('https://www.gov.uk/'));return {status:304};}});assert.equal((await noKey.run()).state,'ok');
 });
 test('403 and 429 are isolated, respect backoff and never log secrets or prevent directory sync',async()=>{
- for(const status of [403,429]){let clock=now,requests=0;const db=dbMock(),logs=[],runner=createNavalIntelRunner({db,env:{DVIDS_API_KEY:'secret-fixture'},now:()=>clock,random:()=>0,logger:{info(){},warn(...args){logs.push(args.join(' '));}},fetchImpl:async url=>{if(!String(url).startsWith('https://api.dvidshub.net/'))return {status:304};requests++;return {ok:false,status,headers:{get:()=> '7200'}};}});
+ for(const status of [403,429]){let clock=now,requests=0;const db=dbMock(),logs=[],runner=createNavalIntelRunner({db,env:{DVIDS_API_KEY:'secret-fixture-'+status},now:()=>clock,random:()=>0,logger:{info(){},warn(...args){logs.push(args.join(' '));}},fetchImpl:async url=>{if(!String(url).startsWith('https://api.dvidshub.net/'))return {status:304};requests++;return {ok:false,status,headers:{get:()=> '7200'}};}});
  await runner.run();clock+=3600000;await runner.run();assert.equal(requests,1);assert.equal(db.tables.get('naval_source').size,63);assert.equal(db.tables.get('naval_source').get('API-001').payload.access_status,'unavailable');assert.ok(logs.every(s=>!s.includes('secret-fixture')));
  }
 });

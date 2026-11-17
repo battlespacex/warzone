@@ -73,8 +73,10 @@ test("manual aircraft lookup resolves IATA and ICAO callsign aliases to one exac
             assert.equal(body.track.icao24, "89644d");
             assert.equal(body.track.callsign, "UAE9422");
             assert.deepEqual(body.meta.aliases.sort(), ["EK 9422", "EK9422", "UAE 9422", "UAE9422"]);
-            assert.ok(requestedPaths.includes("/v2/callsign/EK9422"));
-            assert.ok(requestedPaths.includes("/v2/callsign/UAE9422"));
+            if(identifier==='EK9422'){
+                assert.ok(requestedPaths.includes("/v2/callsign/EK9422"));
+                assert.ok(requestedPaths.includes("/v2/callsign/UAE9422"));
+            }else assert.equal(requestedPaths.length,0,'alias search reuses the shared recent response');
         }
     } finally {
         globalThis.fetch = originalFetch;
@@ -108,8 +110,10 @@ test("manual aircraft lookup maps PK739 and PIA739 to the same exact civilian ai
             assert.equal(body.track.icao24, "760abc");
             assert.equal(body.track.callsign, "PIA739");
             assert.deepEqual(body.meta.aliases.sort(), ["PIA 739", "PIA739", "PK 739", "PK739"]);
-            assert.ok(requestedPaths.includes("/v2/callsign/PK739"));
-            assert.ok(requestedPaths.includes("/v2/callsign/PIA739"));
+            if(identifier==='PK739'){
+                assert.ok(requestedPaths.includes("/v2/callsign/PK739"));
+                assert.ok(requestedPaths.includes("/v2/callsign/PIA739"));
+            }else assert.equal(requestedPaths.length,0,'alias search reuses the shared recent response');
         }
     } finally {
         globalThis.fetch = originalFetch;

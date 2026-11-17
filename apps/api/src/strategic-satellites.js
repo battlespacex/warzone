@@ -115,11 +115,12 @@ function createBackoffMs(attempt) {
     return exponential + jitter;
 }
 
-async function readTextLimited(url, { accept, maxBytes, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+async function readTextLimited(url, { accept, maxBytes, timeoutMs = REQUEST_TIMEOUT_MS, onCacheAge } = {}) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const response = await fetch(url, {
+        const { createQuotaFetch } = await import('../../shared/provider-quota.js');
+        const response = await createQuotaFetch()(url, {
             signal: controller.signal,
             headers: {
                 accept: accept || "application/json,text/plain;q=0.8,*/*;q=0.5",
@@ -130,6 +131,7 @@ async function readTextLimited(url, { accept, maxBytes, timeoutMs = REQUEST_TIME
         if (!response.ok) {
             throw new UpstreamStatusError(url, response.status);
         }
+        onCacheAge?.(Math.max(0,Number(response.headers.get('x-stratops-cache-age-ms')) || 0));
         const length = Number(response.headers.get("content-length") || 0);
         if (Number.isFinite(length) && length > maxBytes) {
             throw new Error("CelesTrak response exceeded configured size limit");
@@ -479,8 +481,9 @@ async function fetchSatcatMap() {
 }
 
 async function refreshSatellitePayload({ logger = console } = {}) {
+    let gpCacheAgeMs=0;
     const [records, satcatMap, curated] = await Promise.all([
-        readJsonLimited(CELESTRAK_GP_URL, { maxBytes: GP_MAX_BYTES }),
+        readJsonLimited(CELESTRAK_GP_URL, { maxBytes: GP_MAX_BYTES,onCacheAge:age=>gpCacheAgeMs=age }),
         fetchSatcatMap(),
         readCuratedCatalog(),
     ]);
@@ -496,7 +499,7 @@ async function refreshSatellitePayload({ logger = console } = {}) {
         .filter(Boolean)
         .slice(0, MAX_RESPONSE_RECORDS);
 
-    const fetchedAt = nowIso();
+    const fetchedAt = gpCacheAgeMs ? new Date(Date.now()-gpCacheAgeMs).toISOString() : nowIso();
     const payload = {
         source: "CelesTrak",
         sourceType: "public-orbital-elements",

@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import { createQuotaFetch } from "../../../shared/provider-quota.js";
 
 export class ProviderRequestError extends Error {
     constructor(message, { status = null, retryAfterMs = null, code = null } = {}) {
@@ -19,11 +20,11 @@ function retryAfterMs(response) {
     return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
 }
 
-export async function fetchJson(url, options = {}, { timeoutMs = 25000, fetchImpl = fetch } = {}) {
+export async function fetchJson(url, options = {}, { timeoutMs = 25000, fetchImpl = fetch, quotaContext = {}, quotaNow = Date.now } = {}) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const response = await fetchImpl(url, { ...options, signal: controller.signal });
+        const response = await createQuotaFetch({ fetchImpl, now: quotaNow, context: { manageUnknown: true, ...quotaContext } })(url, { ...options, signal: controller.signal });
         if (!response.ok) {
             const body = await response.text().catch(() => "");
             throw new ProviderRequestError(

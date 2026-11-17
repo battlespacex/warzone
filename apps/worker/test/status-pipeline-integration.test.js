@@ -36,6 +36,6 @@ test('country enrichment leaves canonical cached source records unchanged across
       feedCalls++;return Response.json({incidents:[{id:'fixture:1',title:'Fixture internet outage',CCs:['NZ'],start_time:new Date().toISOString()}]});
     };
     const cold=await fetchAllStatusItems({sources:[source]});assert.equal(cold.items[0].country,'New Zealand');assert.equal(cold.results[0].items[0].country,'NZ');
-    const warm=await fetchAllStatusItems({sources:[source]});assert.equal(warm.items[0].country,'New Zealand');assert.equal(warm.results[0].items[0].country,'NZ');assert.equal(feedCalls,1);assert.equal(metadataCalls,1);
+    const warm=await fetchAllStatusItems({sources:[source]});assert.equal(warm.items[0].country,'New Zealand');assert.equal(warm.results[0].items[0].country,'NZ');assert.equal(feedCalls,1);assert.equal(metadataCalls,0);
   }finally{globalThis.fetch=original;for(const [key,value]of Object.entries(saved))if(value===undefined)delete process.env[key];else process.env[key]=value;}
 });

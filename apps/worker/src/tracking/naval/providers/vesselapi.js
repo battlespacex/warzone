@@ -117,6 +117,7 @@ export function normalizeVesselApiResponse(payload = {}, { requestedMmsi = "", n
 
 function headerNumber(headers, name) {
     const value = headers?.get?.(name);
+    if (value === null || value === undefined || value === "") return null;
     if (String(value || "").toLowerCase() === "unlimited") return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
