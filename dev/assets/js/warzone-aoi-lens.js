@@ -995,7 +995,7 @@ function renderAssets(summary) {
 function renderBases(bases) {
     if (!bases.length) return `<p class="wz-aoi-empty">No known strategic locations inside this AOI.</p>`;
     return `<ul class="wz-aoi-list">${bases.slice(0, 8).map((base) => `
-        <li>${escapeHtml(base.name || "Known location")} <span>${escapeHtml(base.typeLabel || base.type || base.country || "")}</span></li>
+        <li><strong>${escapeHtml(base.name || "Known location")}</strong><span>${escapeHtml(base.typeLabel || base.type || base.country || "")}</span></li>
     `).join("")}</ul>`;
 }
 
