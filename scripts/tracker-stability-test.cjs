@@ -35,7 +35,7 @@ async function execute(config) {
     let started = false, complete = false, currentPhase = '';
     try {
         browser = await chromium.launch({ channel: config.channel || 'chrome', headless: config.headless !== false,
-            args: ['--host-resolver-rules=MAP stratops.battlespacex.com ~NOTFOUND, MAP api.battlespacex.com ~NOTFOUND'] });
+            args: ['--host-resolver-rules=MAP app.stratops.space ~NOTFOUND, MAP stratops.space ~NOTFOUND, MAP www.stratops.space ~NOTFOUND, MAP stratops.battlespacex.com ~NOTFOUND, MAP api.battlespacex.com ~NOTFOUND'] });
         const context = await browser.newContext({ storageState: config.storageStates?.[0] });
         page = await context.newPage(); page.setDefaultTimeout(config.timeoutMs);
         page.on('pageerror', error => pageErrors.push({ phase: currentPhase, message: error.message }));

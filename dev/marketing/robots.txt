@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://stratops.space/sitemap.xml

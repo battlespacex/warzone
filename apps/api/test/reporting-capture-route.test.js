@@ -79,10 +79,10 @@ test("report history payload is sanitized and binds HTML/PDF to the same publica
   const payload = __stratopsRouteTestUtils.toPublicHistoryReport(req, report, { isLatest: true });
   assert.equal(payload.report_date, "2026-08-08");
   assert.equal(payload.is_latest, true);
-  assert.equal(payload.html_url, "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/report.html");
-  assert.equal(payload.preview_url, "https://stratops.battlespacex.com/api/stratops/reports/report-2026-08-08/preview?token=private-token");
-  assert.equal(payload.download_url, "https://stratops.battlespacex.com/api/stratops/reports/report-2026-08-08/download?token=private-token");
-  assert.equal(payload.public_url, "https://stratops.battlespacex.com/reports/daily/global/2026-08-08/report.pdf");
+  assert.equal(payload.html_url, "https://app.stratops.space/reports/daily/global/2026-08-08/report.html");
+  assert.equal(payload.preview_url, "https://app.stratops.space/api/stratops/reports/report-2026-08-08/preview?token=private-token");
+  assert.equal(payload.download_url, "https://app.stratops.space/api/stratops/reports/report-2026-08-08/download?token=private-token");
+  assert.equal(payload.public_url, "https://app.stratops.space/reports/daily/global/2026-08-08/report.pdf");
   assert.equal(payload.status, "available");
   assert.equal(Object.hasOwn(payload, "report_key"), false);
   assert.equal(Object.hasOwn(payload, "download_token"), false);

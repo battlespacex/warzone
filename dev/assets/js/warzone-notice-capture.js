@@ -6,6 +6,37 @@ export function captureRectangle(start,end,width,height){
     const clamp=(v,max)=>Math.max(0,Math.min(max,v));const x1=clamp(start.x,width),x2=clamp(end.x,width),y1=clamp(start.y,height),y2=clamp(end.y,height);
     return {x:Math.min(x1,x2),y:Math.min(y1,y2),width:Math.abs(x2-x1),height:Math.abs(y2-y1)};
 }
+export const NOTICE_CAPTURE_RATIOS=Object.freeze({
+    '1:1':{label:'1:1 – Square',width:1,height:1,minWidth:720,minHeight:720},
+    '16:9':{label:'16:9 – Landscape',width:16,height:9,minWidth:912,minHeight:513},
+    '9:16':{label:'9:16 – Portrait',width:9,height:16,minWidth:513,minHeight:912},
+    custom:{label:'Custom – Freeform',minWidth:512,minHeight:512}
+});
+// Use the actual framebuffer, which already includes Cesium resolutionScale and DPR.
+export function noticeCaptureLimits(canvas,bounds,aspect='custom',maxPixels=16000000){
+    const preset=NOTICE_CAPTURE_RATIOS[aspect];if(!preset)throw Error('Choose a supported capture aspect ratio.');
+    const sx=canvas.width/bounds.width,sy=canvas.height/bounds.height,ratio=Math.min(sx,sy);
+    if(!(Number.isFinite(ratio)&&ratio>0&&Number.isFinite(maxPixels)&&maxPixels>0))throw Error('The map capture resolution is unavailable.');
+    const maxWidth=Math.floor(bounds.width*ratio),maxHeight=Math.floor(bounds.height*ratio);
+    if(maxWidth<preset.minWidth||maxHeight<preset.minHeight||preset.minWidth*preset.minHeight>maxPixels)throw Error(`${preset.label} needs at least ${preset.minWidth} × ${preset.minHeight} exported pixels; this viewport supports ${maxWidth} × ${maxHeight} (limit ${maxPixels.toLocaleString()} pixels). Enlarge the map viewport or choose another ratio.`);
+    return {...preset,ratio,sx,sy,maxWidth,maxHeight,maxPixels};
+}
+export function constrainedNoticeRectangle(start,end,bounds,limits){
+    const {ratio,minWidth,minHeight,maxPixels}=limits;
+    let width=Math.max(minWidth,Math.min(limits.maxWidth,Math.round(Math.abs(end.x-start.x)*ratio))),height=Math.max(minHeight,Math.min(limits.maxHeight,Math.round(Math.abs(end.y-start.y)*ratio)));
+    if(limits.width){
+        const min=Math.ceil(Math.max(minWidth/limits.width,minHeight/limits.height));
+        const max=Math.floor(Math.min(limits.maxWidth/limits.width,limits.maxHeight/limits.height,Math.sqrt(maxPixels/(limits.width*limits.height))));
+        const size=Math.max(min,Math.min(max,Math.round(Math.max(width/limits.width,height/limits.height))));
+        width=size*limits.width;height=size*limits.height;
+    }else if(width*height>maxPixels){
+        const scale=Math.sqrt(maxPixels/(width*height));width=Math.max(minWidth,Math.floor(width*scale));height=Math.max(minHeight,Math.floor(height*scale));
+        width=Math.min(width,Math.floor(maxPixels/minHeight));height=Math.min(height,Math.floor(maxPixels/width));
+    }
+    width/=ratio;height/=ratio;
+    return {x:Math.max(0,Math.min(bounds.width-width,end.x<start.x?start.x-width:start.x)),y:Math.max(0,Math.min(bounds.height-height,end.y<start.y?start.y-height:start.y)),width,height};
+}
+function captureMaxPixels(){return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wz-notice-export-max-pixels'));}
 export function noticeCaptureAnchor(notice){
     const points=noticeGeometryPoints(notice.geometry);if(!points.length)return null;
     if(notice.geometry.type==='Point')return Cesium.Cartesian3.fromDegrees(...points[0]);
@@ -23,7 +54,8 @@ function exportComponent(notice,logos,capturedAt,width,height,anchor){
     const css=getComputedStyle(document.documentElement),number=name=>parseFloat(css.getPropertyValue(name));
     const minWidth=number('--notam-export-layout-min-width'),minHeight=number('--notam-export-layout-min-height');
     if(!(minWidth>0&&minHeight>0))throw Error('NOTAM export stylesheet is unavailable.');
-    const scale=Math.min(1,width/minWidth,height/minHeight);
+    // Composition uses exported pixels. Keep the editable CSS typography readable.
+    const scale=1;
     Object.assign(root.style,{width:width/scale+'px',height:height/scale+'px'});
     const add=(name,text,parent=root)=>{const el=document.createElement('div');el.className='notam-export__'+name;if(text!==undefined){el.textContent=text;el.setAttribute('data-export-text','');}parent.append(el);return el;};
     const top=document.createElement('img');top.className='notam-export__stratops-logo';top.src=logos[0].src;top.alt='StratOps';root.append(top);
@@ -48,6 +80,14 @@ export async function paintNoticeExport(ctx,notice,logos,capturedAt,width,height
     try{
         await Promise.all(images.map(image=>image.decode()));await document.fonts?.ready;
         const origin=root.getBoundingClientRect(),nodes=[...root.querySelectorAll('[data-export-text], img, .notam-export__marker')];
+        const overlaps=(a,b)=>a.left<b.right-.5&&a.right>b.left+.5&&a.top<b.bottom-.5&&a.bottom>b.top+.5;
+        const timestamp=nodes.find(el=>el.className==='notam-export__timestamp'),logo=images[0],gap=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--notam-export-info-gap'))||4;
+        // Narrow exports need a second header row, without shrinking either element.
+        if(overlaps(timestamp.getBoundingClientRect(),logo.getBoundingClientRect()))timestamp.style.top=logo.getBoundingClientRect().bottom-origin.top+gap+'px';
+        const source=nodes.find(el=>el.className==='notam-export__source'),info=[...root.children].find(el=>el.className==='notam-export__intelligence');
+        if(overlaps(source.getBoundingClientRect(),info.getBoundingClientRect()))info.style.bottom=origin.bottom-source.getBoundingClientRect().top+gap+'px';
+        const content=nodes.filter(el=>el.className!=='notam-export__marker');
+        for(let i=0;i<content.length;i++)for(let j=i+1;j<content.length;j++)if(overlaps(content[i].getBoundingClientRect(),content[j].getBoundingClientRect()))throw Error('Notice text and branding need more room. Enlarge the capture rectangle or adjust the export CSS margins.');
         ctx.save();ctx.scale(scale*pixelRatio,scale*pixelRatio);
         for(const el of nodes){const css=getComputedStyle(el),rect=el.getBoundingClientRect(),box={x:rect.left-origin.left,y:rect.top-origin.top,width:rect.width,height:rect.height};
             if(el.className!=='notam-export__marker'&&(box.x<-.5||box.y<-.5||box.x+box.width>origin.width+.5||box.y+box.height>origin.height+.5))throw Error('Export styling exceeds the selection. Adjust export margins or sizes.');
@@ -70,22 +110,24 @@ export async function paintNoticeExport(ctx,notice,logos,capturedAt,width,height
         }ctx.restore();
     }finally{root.remove();}
 }
-export async function composeNoticeCapture(viewer,notice,selection,{entity=null,now=null}={}){
+export async function composeNoticeCapture(viewer,notice,selection,{entity=null,now=null,aspect='custom'}={}){
     let capturedAt=now||new Date();
     const canvas=viewer.scene.canvas,rect=canvas.getBoundingClientRect();
     if(!selection||![selection.x,selection.y,selection.width,selection.height].every(Number.isFinite))throw Error('Draw a valid screenshot rectangle.');
-    if(selection.width<220||selection.height<180)throw Error('Select at least 220 × 180 screen pixels.');
     if(viewer.scene.globe?.tilesLoaded===false)throw Error('Map imagery is still loading. Wait before saving.');
     if(['expired','cancelled','superseded'].includes(noticeStatus(notice,capturedAt.getTime())))throw Error('This notice is no longer current. Refresh notices before capturing it.');
-    const sx=canvas.width/rect.width,sy=canvas.height/rect.height;
+    const {sx,sy,ratio,minWidth,minHeight,maxPixels}=noticeCaptureLimits(canvas,rect,aspect,captureMaxPixels());
     if(!(sx>0&&sy>0)||selection.x<0||selection.y<0||selection.x+selection.width>rect.width+.5||selection.y+selection.height>rect.height+.5)throw Error('The viewport changed. Redraw the selection.');
-    const ratio=Math.min(sx,sy),width=Math.round(selection.width*ratio),height=Math.round(selection.height*ratio);
-    const maxPixels=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wz-notice-export-max-pixels'));
-    if(!Number.isFinite(maxPixels)||width*height>maxPixels)throw Error('Selection exceeds the export pixel limit. Select a smaller region.');
+    const width=Math.round(selection.width*ratio),height=Math.round(selection.height*ratio),preset=NOTICE_CAPTURE_RATIOS[aspect];
+    if(width<minWidth||height<minHeight)throw Error(`Select at least ${minWidth} × ${minHeight} exported pixels.`);
+    if(preset.width&&(width*preset.height!==height*preset.width||Math.abs(selection.width/selection.height-preset.width/preset.height)>1e-8))throw Error('The selection no longer matches the chosen aspect ratio. Reset the rectangle.');
+    if(width*height>maxPixels)throw Error('Selection exceeds the export pixel limit. Select a smaller region.');
+    const frameWidth=canvas.width,frameHeight=canvas.height;
     const logos=await Promise.all([loadImage('/assets/images/web/logo-stratops-battlespacex.svg'),loadImage('/assets/images/web/Battlespacex-full-logo.svg')]);
     if(logos.some(logo=>!logo))throw Error('Capture branding could not be loaded.');
     let projected;
     const frame=await copyNextSceneFrame(viewer,()=>{
+        const current=canvas.getBoundingClientRect();if(canvas.width!==frameWidth||canvas.height!==frameHeight||current.width!==rect.width||current.height!==rect.height||current.left!==rect.left||current.top!==rect.top)throw Error('The map capture resolution changed. Reset the rectangle before saving.');
         capturedAt=now||new Date();if(['expired','cancelled','superseded'].includes(noticeStatus(notice,capturedAt.getTime())))throw Error('Notice expired before the capture frame.');
         if(entity&&viewer.dataSourceDisplay?.getBoundingSphere){const state=viewer.dataSourceDisplay.getBoundingSphere(entity,false,new Cesium.BoundingSphere());if(state!==Cesium.BoundingSphereState.DONE)throw Error('Notice geometry is not ready. Wait before saving.');}
         const anchor=entity?.position?.getValue?.(Cesium.JulianDate.now())||noticeCaptureAnchor(notice);projected=anchor&&Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,anchor);
@@ -95,8 +137,8 @@ export async function composeNoticeCapture(viewer,notice,selection,{entity=null,
     if(!projected||projected.x<selection.x||projected.y<selection.y||projected.x>selection.x+selection.width||projected.y>selection.y+selection.height)throw Error('Include the selected notice location inside the screenshot rectangle.');
     const output=document.createElement('canvas');output.width=width;output.height=height;const ctx=output.getContext('2d');if(!ctx)throw Error('Canvas export is unavailable.');
     ctx.drawImage(frame,selection.x*sx,selection.y*sy,selection.width*sx,selection.height*sy,0,0,width,height);
-    const anchor={x:projected.x-selection.x,y:projected.y-selection.y};
-    await paintNoticeExport(ctx,notice,logos,capturedAt,selection.width,selection.height,anchor,ratio);
+    const anchor={x:(projected.x-selection.x)*ratio,y:(projected.y-selection.y)*ratio};
+    await paintNoticeExport(ctx,notice,logos,capturedAt,width,height,anchor,1);
     assertCaptureReadable(output,'NOTAM annotations and branding');
     return new Promise((resolve,reject)=>{output.toBlob(blob=>blob?resolve(blob):reject(Error('PNG encoding failed; no image was saved.')),'image/png');});
 }
@@ -109,28 +151,63 @@ export function startNoticeCapture(viewer,notice,{entity=null,onClose=()=>{}}={}
     const selectionBox=document.createElement('div');selectionBox.className='wz-notice-capture__selection';selectionBox.hidden=true;
     const resize=document.createElement('span');resize.className='wz-notice-capture__resize';selectionBox.append(resize);overlay.append(selectionBox);
     const toolbar=document.createElement('div');toolbar.className='wz-notice-capture__toolbar';
-    const status=document.createElement('span');status.textContent='Drag a rectangle containing the notice. Move or resize it, or DRAW again.';status.setAttribute('aria-live','polite');toolbar.append(status);
-    let selection=null,gesture=null,pointer=null,draw=true,closed=false,saving=false;
+    const status=document.createElement('span');status.setAttribute('aria-live','polite');toolbar.append(status);
+    const aspects=document.createElement('select');aspects.setAttribute('aria-label','Capture aspect ratio');
+    for(const [value,preset]of Object.entries(NOTICE_CAPTURE_RATIOS)){const option=document.createElement('option');option.value=value;option.textContent=preset.label;aspects.append(option);}aspects.value='1:1';toolbar.append(aspects);
+    let selection=null,gesture=null,pointer=null,draw=false,closed=false,saving=false,limits=null,limitation='',message='',obstacles=[];
+    const previousFocus=document.activeElement;
     const buttons={};for(const label of ['DRAW','RESET','CANCEL','SAVE AS']){const b=document.createElement('button');b.type='button';b.className='btn-secondary white';b.textContent=label;buttons[label]=b;toolbar.append(b);}
     buttons['SAVE AS'].disabled=true;overlay.append(toolbar);document.body.append(overlay);
     const point=e=>({x:Math.max(0,Math.min(bounds.width,e.clientX-bounds.left)),y:Math.max(0,Math.min(bounds.height,e.clientY-bounds.top))});
-    function render(){selectionBox.hidden=!selection;overlay.classList.toggle('has-selection',Boolean(selection));buttons.DRAW.disabled=saving;buttons.RESET.disabled=saving;buttons['SAVE AS'].disabled=saving||!selection||selection.width<220||selection.height<180;if(selection)Object.assign(selectionBox.style,{left:selection.x+'px',top:selection.y+'px',width:selection.width+'px',height:selection.height+'px'});}
-    function cancel(){if(closed)return;closed=true;overlay.remove();document.removeEventListener('keydown',escape,true);window.removeEventListener('resize',cancel);if(controller)controller.enableInputs=previous;activeCancel=null;onClose();}
-    function escape(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();cancel();}}
-    overlay.addEventListener('pointerdown',e=>{e.stopPropagation();if(saving||e.target.closest?.('button')||e.target===status||e.button>0)return;e.preventDefault();pointer=e.pointerId;overlay.setPointerCapture?.(pointer);const p=point(e);
-      gesture={start:p,original:selection&&{...selection},mode:e.target===resize?'resize':!draw&&e.target===selectionBox?'move':'draw'};if(gesture.mode==='draw')selection=captureRectangle(p,p,bounds.width,bounds.height);render();});
+    function blockers(){return [...document.querySelectorAll('#wz-map-layers-pane, #warzone-notice-panel, .wz-dock, .wz-header')].filter(el=>el.getAttribute('aria-hidden')!=='true'&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden').map(el=>{const r=el.getBoundingClientRect();return {x:Math.max(0,r.left-bounds.left-8),y:Math.max(0,r.top-bounds.top-8),right:Math.min(bounds.width,r.right-bounds.left+8),bottom:Math.min(bounds.height,r.bottom-bounds.top+8)};}).filter(r=>r.right>r.x&&r.bottom>r.y);}
+    function defaultSelection(){
+        const minimum=constrainedNoticeRectangle({x:0,y:0},{x:0,y:0},bounds,limits);
+        let spaces=[{x:0,y:0,width:bounds.width,height:bounds.height}];
+        for(const b of obstacles)spaces=spaces.flatMap(r=>{
+            const right=r.x+r.width,bottom=r.y+r.height;if(b.right<=r.x||b.x>=right||b.bottom<=r.y||b.y>=bottom)return [r];
+            return [{...r,width:b.x-r.x},{...r,x:b.right,width:right-b.right},{...r,height:b.y-r.y},{...r,y:b.bottom,height:bottom-b.bottom}].filter(s=>s.width>=minimum.width&&s.height>=minimum.height);
+        });
+        const space=spaces.sort((a,b)=>b.width*b.height-a.width*a.height)[0]||{x:0,y:0,width:bounds.width,height:bounds.height};
+        return {...minimum,x:space.x+(space.width-minimum.width)/2,y:space.y+(space.height-minimum.height)/2};
+    }
+    function positionToolbar(){
+        const {width,height}=toolbar.getBoundingClientRect(),gap=12,pad=Math.min(8,bounds.width/2,bounds.height/2);
+        const clamp=(v,max)=>Math.max(pad,Math.min(Math.max(pad,max-pad),v));
+        const x=selection?selection.x+(selection.width-width)/2:(bounds.width-width)/2;
+        const below=selection?selection.y+selection.height+gap:pad,above=selection?selection.y-height-gap:pad;
+        const candidates=[{x:clamp(x,bounds.width-width),y:below},{x:clamp(x,bounds.width-width),y:above}];
+        const fits=p=>p.y>=pad&&p.y+height<=bounds.height-pad&&!obstacles.some(b=>p.x<b.right&&p.x+width>b.x&&p.y<b.bottom&&p.y+height>b.y);
+        const placed=candidates.find(fits)||{x:candidates[0].x,y:clamp(above,bounds.height-height)};
+        Object.assign(toolbar.style,{left:placed.x+'px',top:placed.y+'px'});
+    }
+    function render(){
+        selectionBox.hidden=!selection;overlay.classList.toggle('has-selection',Boolean(selection));overlay.classList.toggle('is-drawing',draw);
+        aspects.disabled=saving;buttons.DRAW.disabled=saving||!limits;buttons.RESET.disabled=saving;buttons['SAVE AS'].disabled=saving||!selection||!limits;
+        buttons.DRAW.textContent=draw?'RESIZE':'DRAW';
+        if(selection)Object.assign(selectionBox.style,{left:selection.x+'px',top:selection.y+'px',width:selection.width+'px',height:selection.height+'px'});
+        const size=selection?`${Math.round(selection.width*limits.ratio)} × ${Math.round(selection.height*limits.ratio)} px`:'',minimum=limits?`Minimum ${limits.minWidth} × ${limits.minHeight}`:'';
+        const text=limitation||message||`${size} · ${minimum}${selection&&(Math.round(selection.width*limits.ratio)===limits.minWidth||Math.round(selection.height*limits.ratio)===limits.minHeight)?' (minimum reached)':''}. ${draw?'Drag to draw; Escape restores selection.':'Move or resize; include the notice.'}`;
+        if(status.textContent!==text)status.textContent=text;positionToolbar();
+    }
+    function finishGesture(restore=false){if(gesture&&restore)selection=gesture.original;gesture=null;const id=pointer;pointer=null;if(id!==null&&overlay.hasPointerCapture?.(id))overlay.releasePointerCapture(id);}
+    function reset(){finishGesture();draw=false;message='';limitation='';try{limits=noticeCaptureLimits(canvas,bounds,aspects.value,captureMaxPixels());obstacles=blockers();selection=defaultSelection();}catch(error){limits=null;selection=null;limitation=error.message;}render();}
+    function cancel(){if(closed)return;closed=true;finishGesture();overlay.remove();document.removeEventListener('keydown',escape,true);window.removeEventListener('resize',cancel);if(controller)controller.enableInputs=previous;activeCancel=null;previousFocus?.focus?.({preventScroll:true});onClose();}
+    function escape(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(gesture||draw){finishGesture(true);draw=false;message='';render();}else cancel();}}
+    overlay.addEventListener('pointerdown',e=>{e.stopPropagation();if(saving||!limits||gesture||e.button>0)return;e.preventDefault();pointer=e.pointerId;overlay.setPointerCapture?.(pointer);const p=point(e);message='';
+      gesture={start:p,original:selection&&{...selection},mode:e.target===resize?'resize':!draw&&e.target===selectionBox?'move':'draw'};if(gesture.mode==='draw')selection=constrainedNoticeRectangle(p,p,bounds,limits);render();});
     overlay.addEventListener('pointermove',e=>{e.stopPropagation();if(saving||!gesture||e.pointerId!==pointer)return;e.preventDefault();const p=point(e),g=gesture;
       if(g.mode==='move'){selection={...g.original,x:Math.max(0,Math.min(bounds.width-g.original.width,g.original.x+p.x-g.start.x)),y:Math.max(0,Math.min(bounds.height-g.original.height,g.original.y+p.y-g.start.y))};}
-      else selection=captureRectangle(g.mode==='resize'?{x:g.original.x,y:g.original.y}:g.start,p,bounds.width,bounds.height);render();});
-    const up=e=>{e.stopPropagation();if(e.pointerId!==pointer)return;gesture=null;draw=false;overlay.releasePointerCapture?.(pointer);pointer=null;render();};
+      else selection=constrainedNoticeRectangle(g.mode==='resize'?{x:g.original.x,y:g.original.y}:g.start,p,bounds,limits);render();});
+    const up=e=>{e.stopPropagation();if(e.pointerId!==pointer)return;finishGesture(e.type==='pointercancel');draw=false;render();};
     overlay.addEventListener('pointerup',up);overlay.addEventListener('pointercancel',up);
     toolbar.addEventListener('pointerdown',e=>e.stopPropagation());toolbar.addEventListener('click',e=>e.stopPropagation());
-    buttons.DRAW.onclick=()=>{draw=true;status.textContent='Drag to draw a new screenshot rectangle.';};
-    buttons.RESET.onclick=()=>{selection=null;gesture=null;draw=true;render();};buttons.CANCEL.onclick=cancel;
-    buttons['SAVE AS'].onclick=async()=>{if(saving||buttons['SAVE AS'].disabled)return;let handle=null;const chosen={...selection},now=new Date(),filename='StratOps_NOTAM_'+now.toISOString().slice(0,10)+'_'+now.toISOString().slice(11,19).replaceAll(':','')+'Z.png';
+    aspects.onchange=()=>{reset();if(limits&&aspects.value==='custom'){draw=true;render();}};
+    buttons.DRAW.onclick=()=>{finishGesture(true);draw=!draw;message='';render();};
+    buttons.RESET.onclick=reset;buttons.CANCEL.onclick=cancel;
+    buttons['SAVE AS'].onclick=async()=>{if(saving||gesture||buttons['SAVE AS'].disabled)return;let handle=null;const chosen={...selection},aspect=aspects.value,now=new Date(),filename='StratOps_NOTAM_'+now.toISOString().slice(0,10)+'_'+now.toISOString().slice(11,19).replaceAll(':','')+'Z.png';
       saving=true;render();try{if(canUseSavePicker())handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'PNG image',accept:{'image/png':['.png']}}]});
-        const blob=await composeNoticeCapture(viewer,notice,chosen,{entity});if(closed)return;
+        if(closed)return;const blob=await composeNoticeCapture(viewer,notice,chosen,{entity,aspect});if(closed)return;
         if(handle){const writer=await handle.createWritable();await writer.write(blob);await writer.close();}else downloadBlob(blob,filename);cancel();
-      }catch(error){if(!closed&&error.name!=='AbortError')status.textContent='Capture failed: '+error.message+' No complete image was saved.';}finally{saving=false;if(!closed)render();}};
-    document.addEventListener('keydown',escape,true);window.addEventListener('resize',cancel);activeCancel=cancel;return cancel;
+      }catch(error){if(!closed&&error.name!=='AbortError')message='Capture failed: '+error.message+' No complete image was saved.';}finally{saving=false;if(!closed)render();}};
+    document.addEventListener('keydown',escape,true);window.addEventListener('resize',cancel);activeCancel=cancel;reset();aspects.focus?.({preventScroll:true});return cancel;
 }

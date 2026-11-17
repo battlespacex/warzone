@@ -1,7 +1,7 @@
-const PROD_BASE = "https://stratops.space";
+const PROD_BASE = require('../apps/shared/stratops-domains.json').portalOrigin;
 
 module.exports = {
-    // Canonical and social metadata must always identify the public site.
+    // This metadata belongs to the operational portal. Marketing has a separate build.
     // Webpack's --mode flag does not set process.env.NODE_ENV for this module.
     baseUrl: PROD_BASE,
     siteName: "StratOps | BattlespaceX",

@@ -628,7 +628,8 @@ if (isPosterGeneratorPage) {
         window.SiteLoader?.forceHide?.();
 
         if (isStratOpsFeatureEnabled("system.intro")) {
-            initStratopsIntro();
+            // Open the existing capabilities/consent gate directly; no viewer or auth restart.
+            initStratopsIntro({ skipPreEntryShowcase: true });
         } else {
             window.__warzoneShowRegionModal?.();
         }

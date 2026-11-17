@@ -3,6 +3,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
 const require = createRequire(import.meta.url);
+const domains = require('../../shared/stratops-domains.json');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const envFileName = process.env.NODE_ENV === "production" ? ".env.production" : ".env.local";
@@ -31,9 +32,8 @@ import { navalIntelRouter } from './routes.naval-intel.js';
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
 const DEFAULT_CORS_ORIGINS = [
-    "https://app.stratops.space.com",
-    "https://stratops.space.com",
-    "https://stratops.battlespacex.com",
+    domains.portalOrigin,
+    domains.publicOrigin,
     "https://stratops-staging.battlespacex.com",
     "http://localhost:3000",
     "http://localhost:3001",

@@ -64,7 +64,7 @@ function normalizeSupportType(value = "") {
 }
 
 function getStratopsDomain() {
-    return String(process.env.STRATOPS_DOMAIN || "https://stratops.space")
+    return String(process.env.STRATOPS_DOMAIN || require('../apps/shared/stratops-domains.json').portalOrigin)
         .replace(/\/+$/, "");
 }
 

@@ -107,13 +107,16 @@ foreach ($failure in @('upload', 'frontend-local', 'frontend-live', 'cesium-live
     Expect-Failure ($base + @{ Execute = $true })
     $passed++
 }
-foreach ($badTarget in @('production-id', 'production-host', 'production-alias', 'alias', 'bucket', 'behavior', 'origin-path', 'missing-target', 'missing-profile')) {
+foreach ($badTarget in @('production-id', 'production-host', 'production-alias', 'new-production-host', 'new-production-alias', 'public-production-host', 'alias', 'bucket', 'behavior', 'origin-path', 'missing-target', 'missing-profile')) {
     Reset-Fixture
     $parameters = $base.Clone(); $parameters.Execute = $true
     switch ($badTarget) {
         'production-id' { $parameters.DistributionId = 'E2EFV9935XX3MV' }
         'production-host' { $parameters.PublicBaseUrl = 'https://stratops.battlespacex.com' }
         'production-alias' { $global:deployTestDistribution.Distribution.DistributionConfig.Aliases.Items += 'stratops.battlespacex.com' }
+        'new-production-host' { $parameters.PublicBaseUrl = 'https://app.stratops.space' }
+        'new-production-alias' { $global:deployTestDistribution.Distribution.DistributionConfig.Aliases.Items += 'app.stratops.space' }
+        'public-production-host' { $parameters.PublicBaseUrl = 'https://stratops.space' }
         'alias' { $global:deployTestDistribution.Distribution.DistributionConfig.Aliases.Items = @('other.example.test') }
         'bucket' { $global:deployTestDistribution.Distribution.DistributionConfig.Origins.Items[0].DomainName = 'production-bucket.s3.amazonaws.com' }
         'behavior' { $global:deployTestDistribution.Distribution.DistributionConfig.CacheBehaviors.Items = @(@{ PathPattern = '/assets/js/*'; TargetOriginId = 'unreviewed-origin' }) }

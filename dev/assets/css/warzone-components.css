@@ -4185,12 +4185,12 @@ width: 32rem;
 }
 UNUSED CANDIDATE END */
 .warzone-panel--floating:not(.wz-is-hidden) .panel-head,
-#warzone-notice-panel .wz-widget-header {
+:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-header {
     cursor: grab;
 }
 
 .warzone-panel--floating.is-dragging .panel-head,
-#warzone-notice-panel.is-dragging .wz-widget-header {
+:is(#warzone-notice-panel,#warzone-notice-popup).is-dragging .wz-widget-header {
     cursor: grabbing;
 }
 
@@ -6854,7 +6854,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     visibility: visible;
 }
 
-#warzone-gnss-panel, #warzone-notice-panel {
+#warzone-gnss-panel, :is(#warzone-notice-panel,#warzone-notice-popup) {
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -7339,14 +7339,14 @@ body:not(.is-operational-report-open) .warzone-view {
 .wz-status-report__head strong { flex: 1 1 10rem; }
 
 /* Published notice list and compact click popup retain the existing widget shell. */
-#warzone-notice-panel { width: var(--wz-notice-panel-width); max-height: var(--wz-notice-panel-max-height); }
-#warzone-notice-panel.wz-notice-popup { width: var(--wz-notice-popup-width); }
-#warzone-notice-panel .wz-widget-milbase { min-height: 0; max-height: inherit; width: 100%; }
-#warzone-notice-panel .wz-widget-body { min-height: 0; overflow-y: auto; padding: 1.2rem; }
-#warzone-notice-panel .wz-widget-body[hidden] { display: none; }
-#warzone-notice-panel h3 { margin: 0 0 1rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
+:is(#warzone-notice-panel,#warzone-notice-popup) { width: var(--wz-notice-panel-width); max-height: var(--wz-notice-panel-max-height); }
+:is(#warzone-notice-panel,#warzone-notice-popup).wz-notice-popup { width: var(--wz-notice-popup-width); }
+:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-milbase { min-height: 0; max-height: inherit; width: 100%; }
+:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-body { min-height: 0; overflow-y: auto; padding: 1.2rem; }
+:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-body[hidden] { display: none; }
+:is(#warzone-notice-panel,#warzone-notice-popup) h3 { margin: 0 0 1rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .wz-notice-controls, .wz-notice-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .6rem; margin: 1rem 0; }
-#warzone-notice-panel button:not(.static-icon), .wz-notice-controls select {
+:is(#warzone-notice-panel,#warzone-notice-popup) button:not(.static-icon), .wz-notice-controls select {
     min-width: 0; max-width: 100%; width: 100%; white-space: normal;
     font-size: var(--text-xs); padding: .7rem; height: auto; min-height: 3rem;
 }
@@ -7356,9 +7356,9 @@ body:not(.is-operational-report-open) .warzone-view {
 .wz-notice-card__head { display: flex; justify-content: space-between; align-items: start; gap: .5rem; }
 .wz-notice-card__head .status-pill { min-width: 0; height: auto; padding: .3rem .6rem; font-size: var(--text-xs); }
 .wz-notice-card p, .wz-notice-summary { font-size: var(--text-xs); color: var(--color-text-dim); line-height: 1.5; overflow-wrap: anywhere; margin: .8rem 0; }
-#warzone-notice-panel details > summary { cursor: pointer; color: var(--color-teal-glow); font-size: var(--text-xs); padding: .7rem 0; }
-#warzone-notice-panel .wz-widget-data-list li { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: .6rem; overflow-wrap: anywhere; }
-#warzone-notice-panel .wz-widget-data-list { font-size: var(--text-xs); }
+:is(#warzone-notice-panel,#warzone-notice-popup) details > summary { cursor: pointer; color: var(--color-teal-glow); font-size: var(--text-xs); padding: .7rem 0; }
+:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-data-list li { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: .6rem; overflow-wrap: anywhere; }
+:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-data-list { font-size: var(--text-xs); }
 /* Replaceable SVG for genuine geolocated cyber event markers, using existing ownership/picking. */
 .wzhs[data-category="cyber"] .wzhs__icon span::before {
     content: ""; display: block; width: var(--wz-cyber-icon-size); height: var(--wz-cyber-icon-size);
@@ -7371,15 +7371,17 @@ body:not(.is-operational-report-open) .warzone-view {
     color: var(--color-blue-glow); background: var(--color-bg-row);
 }
 
-#warzone-notice-panel.wz-notice-preview { width: var(--wz-notice-preview-max-width); min-width: min(var(--wz-notice-preview-min-width),calc(100vw - 2rem)); }
+:is(#warzone-notice-panel,#warzone-notice-popup).wz-notice-preview { width: var(--wz-notice-preview-max-width); min-width: min(var(--wz-notice-preview-min-width),calc(100vw - 2rem)); }
 .wz-notice-preview .wz-notice-summary { white-space: pre-line; }
 .wz-notice-capture { position: fixed; z-index: 10000; background: rgba(0,0,0,var(--wz-notice-capture-overlay-opacity)); overflow: hidden; cursor: crosshair; touch-action: none; user-select: none; }
 .wz-notice-capture.has-selection { background: transparent; }
 .wz-notice-capture__selection { position: absolute; box-sizing: border-box; border: var(--wz-notice-capture-border-width) solid var(--wz-notice-capture-border-color); box-shadow: 0 0 0 100vmax rgba(0,0,0,var(--wz-notice-capture-overlay-opacity)); cursor: move; }
 .wz-notice-capture__resize { position: absolute; bottom: -3px; right: -3px; width: 14px; height: 14px; background: var(--wz-notice-capture-border-color); cursor: nwse-resize; }
-.wz-notice-capture__toolbar { position: absolute; bottom: 1rem; left: 1rem; right: 1rem; display: flex; flex-wrap: wrap; gap: .6rem; padding: 1rem; background: var(--color-bg-header); color: var(--color-text-heading); cursor: default; }
+.wz-notice-capture__toolbar { position: absolute; width: max-content; max-width: min(58rem,calc(100% - 2rem)); box-sizing: border-box; max-height: calc(100% - 2rem); overflow-y: auto; display: flex; flex-wrap: wrap; gap: .6rem; padding: 1rem; background: var(--color-bg-header); color: var(--color-text-heading); cursor: default; }
 .wz-notice-capture__toolbar span { flex: 1 0 100%; font-size: var(--text-xs); }
 .wz-notice-capture__toolbar button { flex: 1; min-width: 6rem; }
+.wz-notice-capture__toolbar select { min-width: 0; max-width: 100%; font-size: var(--text-xs); padding: .7rem; background: var(--color-bg-row); color: var(--color-text-heading); border: 1px solid var(--color-text-dim); }
+.wz-notice-capture.is-drawing .wz-notice-capture__selection { cursor: crosshair; }
 .wz-notice-preview-leader { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 17; overflow: visible; }
 .wz-notice-preview-leader line { stroke: var(--wz-notice-line-color); stroke-width: var(--wz-notice-line-width); }
 
@@ -7405,3 +7407,9 @@ body:not(.is-operational-report-open) .warzone-view {
 .wz-naval-intel .wz-notice-card { padding: 1rem; border-bottom: 1px solid var(--color-bg-row); overflow-wrap: anywhere; }
 .wz-naval-intel .wz-notice-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
 .wz-naval-intel a, .wz-naval-intel summary { color: var(--color-teal-glow); }
+
+/* NOTAM selection retains the floating widget while its geographic popup is open. */
+#warzone-notice-panel { transition: opacity 200ms ease, visibility 200ms ease; }
+#warzone-notice-panel[aria-hidden="true"] { opacity: 0; visibility: hidden; pointer-events: none; }
+#warzone-notice-popup { position: fixed; z-index: 19; user-select: text; }
+#warzone-notice-popup .wz-widget-header { cursor: default; touch-action: auto; }

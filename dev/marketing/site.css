@@ -1,0 +1,726 @@
+@font-face {
+    font-family: "Chakra Petch";
+    src: url('/assets/chakra-semibold.ttf') format('truetype');
+    font-weight: 600;
+    font-display: swap
+}
+
+  :root {
+    --clippath-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
+    --clippath-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
+    --clippath-3: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
+    --clippath-4: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
+}   
+
+.stratops-public {
+    --public-bg: #080b0e;
+    --public-rule: #ffffff24;
+    margin: 0;
+    background: var(--public-bg);
+    color: var(--color-white);
+    font: 16px/1.65 var(--text-font);
+    overflow-wrap: anywhere;
+    color-scheme: dark
+}
+
+.stratops-public * {
+    box-sizing: border-box
+}
+
+.stratops-public h1,
+.stratops-public h2,
+.stratops-public h3,
+.stratops-public p {
+    margin: 0
+}
+
+.stratops-public a {
+    color: inherit;
+    text-decoration: none
+}
+
+.stratops-public button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer
+}
+
+.stratops-public img {
+    display: block;
+    max-width: 100%;
+    height: auto
+}
+
+.stratops-public :focus-visible {
+    outline: 2px solid var(--color-teal-glow);
+    outline-offset: 5px
+}
+
+.stratops-public [hidden] {
+    display: none !important
+}
+
+.stratops-public h1,
+.stratops-public h2,
+.stratops-public h3 {
+    font-family: var(--heading-font);
+    line-height: 1;
+    letter-spacing: .2rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.stratops-public h2 {
+    font-size: clamp(2.5rem, 5.5vw, 6rem)
+}
+
+.stratops-public p+p {
+    margin-top: 1.3rem
+}
+
+.stratops-public p {
+    max-width: 65ch
+}
+
+.stratops-public h2+p {
+    margin-top: 2rem
+}
+
+.stratops-public h3 {
+    font-size: clamp(1.5rem, 2vw, 2.2rem);
+    letter-spacing: -.02em
+}
+
+.stratops-public .public-eyebrow {
+    font: 500 1rem / 1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: .25rem;
+    color: var(--color-teal-glow);
+    margin-bottom: 2rem;
+}
+
+.public-skip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateY(-150%);
+    background: #fff;
+    color: #000 !important;
+    padding: 1rem;
+    z-index: 100
+}
+
+.public-skip:focus {
+    transform: none
+}
+
+.public-header {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 2rem 4vw;
+    border-bottom: 1px solid var(--public-rule)
+}
+
+.public-brand {
+    width: clamp(145px, 17vw, 220px);
+    flex-shrink: 0
+}
+
+.public-header nav {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    font-size: .8rem
+}
+
+.public-menu {
+    display: none;
+    background: none;
+    border: 1px solid var(--public-rule);
+    padding: .65rem .9rem;
+    min-height: 44px
+}
+
+.public-hero {
+    position: relative;
+    min-height: 850px;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 11rem 6vw 0;
+    isolation: isolate
+}
+
+.public-film,
+.public-hero-shade {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    object-fit: cover;
+    object-position: center
+}
+
+.public-hero-shade {
+    z-index: -1;
+    background: linear-gradient(90deg, #04080cdd, #04080c20), linear-gradient(0deg, #080b0e, transparent 80%)
+}
+
+.stratops-public h1 {
+    font-size: clamp(3rem, 6vw, 8rem);
+    font-weight: 650;
+    letter-spacing: -.055em;
+    line-height: .9;
+    letter-spacing: .5rem;
+}
+
+.stratops-public h1 span,
+.public-finale h2 span {
+    color: var(--color-white-slate)
+}
+
+.stratops-public .public-lead {
+    font-size: clamp(1.05rem, 0.8vw, 1rem);
+    color: var(--color-white-slate);
+    line-height: 1.35;
+    letter-spacing: .03rem;
+}
+
+.public-hero .public-lead {
+    max-width: 700px;
+    margin-top: 2rem
+}
+
+.public-actions {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin: 2.5rem 0 4rem
+}
+
+.public-cta {
+    display: inline-flex;
+    justify-content: space-between;
+    gap: 2.5rem;
+    align-items: center;
+    background: var(--color-teal-glow);
+    color: #061115 !important;
+    padding: 1rem 1.4rem;
+    font-size: .75rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    font-weight: 700;
+    min-height: 48px;
+    clip-path: var(--clippath-3);
+}
+
+.public-cta:hover {
+    background: #eef0f5
+}
+
+.public-cta--small {
+    padding: .75rem 1rem;
+    gap: 1.25rem
+}
+
+.public-link {
+    border-bottom: 1px solid var(--public-rule);
+    padding: .8rem 0;
+    display: inline-block;
+    font-size: .8rem
+}
+
+.public-hero-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid var(--public-rule);
+    padding: 1.4rem 0;
+    font: .65rem/1.5 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: .1em
+}
+
+.public-hero-footer button {
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--public-rule);
+    font: inherit;
+    padding: .5rem
+}
+
+.public-section {
+    padding: 7rem 6vw;
+    border-bottom: 1px solid var(--public-rule)
+}
+
+.public-intro {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 5vw
+}
+
+.public-intro h2 {
+    margin-bottom: 2rem
+}
+
+.public-section-head {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 5vw;
+    margin-bottom: 4rem
+}
+
+.public-domain-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* border-left: 1px solid var(--public-rule); */
+    /* border-top: 1px solid var(--public-rule); */
+    gap: 1rem;
+}
+
+.public-domain-grid article {
+    padding: 2rem;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    clip-path: var(--clippath-shape-1);
+}
+
+.public-domain-grid article:nth-child(1),
+.public-domain-grid article:nth-child(6) {
+    background: #142327
+}
+
+.public-domain-number {
+    font: .65rem var(--font-mono);
+    color: var(--color-text-dim)
+}
+
+.public-domain-grid p {
+    font-size: .9rem;
+    color: var(--color-white-slate)
+}
+
+.public-domain-grid a {
+    font-size: .75rem;
+    color: var(--color-teal-glow);
+    margin-top: auto
+}
+
+.public-showcase {
+    position: relative;
+    min-height: 650px;
+    display: flex;
+    align-items: flex-end;
+    padding: 6vw;
+    isolation: isolate;
+    overflow: hidden
+}
+
+.public-showcase>img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: -2;
+    opacity: .5
+}
+
+.public-showcase:after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(0deg, #080b0e, transparent)
+}
+
+.public-showcase p {
+    margin-top: 1.5rem;
+    max-width: 450px
+}
+
+.public-operational {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7vw
+}
+
+.public-operation-list article {
+    display: flex;
+    gap: 2rem;
+    padding: 2rem 0;
+    border-top: 1px solid var(--public-rule)
+}
+
+.public-operation-list article>span {
+    font: .7rem var(--font-mono);
+    color: var(--color-teal-glow)
+}
+
+.public-operation-list p {
+    margin-top: 1rem;
+    color: var(--color-white-slate)
+}
+
+.public-workflow {
+    background: #10171c
+}
+
+.public-workflow ol {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding: 0;
+    margin: 4rem 0 2rem;
+    border-top: 1px solid var(--public-rule)
+}
+
+.public-workflow li {
+    padding: 2rem .5rem;
+    border-right: 1px solid var(--public-rule);
+    font-size: .9rem;
+    text-transform: uppercase
+}
+
+.public-workflow b {
+    display: block;
+    color: var(--color-teal-glow);
+    font: .7rem var(--font-mono);
+    margin-bottom: 1rem
+}
+
+.public-technology>div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7vw;
+    margin-top: 3rem
+}
+
+.public-tools-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 6vw;
+    margin-top: 4rem
+}
+
+.public-tool-controls {
+    display: flex;
+    flex-direction: column
+}
+
+.public-tool-controls button {
+    display: flex;
+    justify-content: space-between;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--public-rule);
+    padding: 1.4rem .5rem;
+    font-size: 1rem
+}
+
+.public-tool-controls button[aria-selected=true] {
+    color: var(--color-teal-glow)
+}
+
+.public-tool-panel {
+    padding: 3rem;
+    background: linear-gradient(135deg, #14272a, #10161c);
+    min-height: 370px;
+    clip-path: var(--clippath-1);
+}
+
+.public-tool-panel h3 {
+    font-size: clamp(2rem, 3vw, 3rem);
+    margin: .5rem 0 1.5rem;
+    letter-spacing: .2rem;
+    text-transform: uppercase;
+}
+
+.public-tool-panel p {
+    color: var(--color-white-slate)
+}
+
+.public-audience {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem 5vw
+}
+
+.public-audience h2 {
+    grid-column: 2
+}
+
+.public-audience ul {
+    grid-column: 2;
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    color: var(--color-white-slate)
+}
+
+.public-transparency {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7vw
+}
+
+.public-transparency details {
+    border-top: 1px solid var(--public-rule);
+    padding: 1.5rem 0
+}
+
+.public-transparency summary {
+    cursor: pointer;
+    font-size: 1.15rem
+}
+
+.public-transparency details p {
+    color: var(--color-white-slate);
+    font-size: .9rem;
+    margin-top: 1rem
+}
+
+.public-access .public-lead {
+    margin: 2rem 0
+}
+
+.public-access .public-cta {
+    margin-top: 2rem
+}
+
+.public-finale {
+    padding-top: 10rem;
+    padding-bottom: 10rem;
+    background: linear-gradient(120deg, #152426, #080b0e)
+}
+
+.public-finale h2 {
+    font-size: clamp(3rem, 7.5vw, 9rem);
+    margin-bottom: 3rem
+}
+
+.public-footer {
+    padding: 4rem 6vw 2rem;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 3rem
+}
+
+.public-footer nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+    gap: 1rem;
+    font-size: .85rem
+}
+
+.public-footer>div p {
+    font-size: .85rem;
+    margin-top: 1.5rem;
+    color: var(--color-white-slate)
+}
+
+.public-footer .public-footer-note {
+    grid-column: 1/-1;
+    max-width: none;
+    font-size: .7rem;
+    color: var(--color-text-dim);
+    border-top: 1px solid var(--public-rule);
+    padding-top: 2rem
+}
+
+@media(min-width:1921px) {
+
+    .public-section,
+    .public-hero,
+    .public-footer {
+        padding-left: max(6vw, calc((100vw - 1800px)/2));
+        padding-right: max(6vw, calc((100vw - 1800px)/2))
+    }
+}
+
+@media(max-width:1100px) {
+    .public-header nav {
+        gap: 1rem
+    }
+
+    .public-domain-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .public-domain-grid article {
+        min-height: 260px
+    }
+
+    .public-intro,
+    .public-section-head {
+        grid-template-columns: 1fr 2.5fr
+    }
+
+    .public-workflow ol {
+        grid-template-columns: repeat(3, minmax(0, 1fr))
+    }
+
+    .public-workflow li {
+        border-bottom: 1px solid var(--public-rule)
+    }
+}
+
+@media(max-width:800px) {
+    .public-header {
+        padding: 1rem 5vw
+    }
+
+    .public-menu {
+        display: block
+    }
+
+    .public-header nav {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+        background: #10171c;
+        padding: 1.5rem 5vw;
+        border-bottom: 1px solid var(--public-rule)
+    }
+
+    .public-header nav.is-open {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch
+    }
+
+    .public-header nav a {
+        padding: .6rem;
+        min-height: 44px
+    }
+
+    .public-header nav .public-cta {
+        padding: 1rem
+    }
+
+    .public-hero {
+        padding: 10rem 6vw 0;
+        min-height: 800px;
+        min-height: 100svh
+    }
+
+    .public-section {
+        padding: 4rem 6vw
+    }
+
+    .public-intro,
+    .public-section-head,
+    .public-operational,
+    .public-technology>div,
+    .public-tools-layout,
+    .public-transparency {
+        grid-template-columns: 1fr;
+        gap: 2.5rem
+    }
+
+    .public-section-head {
+        margin-bottom: 2.5rem
+    }
+
+    .public-showcase {
+        min-height: 500px
+    }
+
+    .public-audience {
+        display: block
+    }
+
+    .public-audience h2 {
+        margin-bottom: 2rem
+    }
+
+    .public-audience ul {
+        font-size: .9rem
+    }
+
+    .public-footer {
+        grid-template-columns: 1fr
+    }
+
+    .public-hero-footer>span:last-child {
+        display: none
+    }
+
+    .public-finale {
+        padding-top: 6rem;
+        padding-bottom: 6rem
+    }
+}
+
+@media(max-width:430px) {
+    .public-domain-grid {
+        grid-template-columns: 1fr
+    }
+
+    .public-domain-grid article {
+        min-height: 0;
+        padding: 1.8rem
+    }
+
+    .public-tool-panel {
+        padding: 1.6rem
+    }
+
+    .public-workflow ol {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .public-actions {
+        align-items: stretch;
+        flex-direction: column;
+        gap: .8rem
+    }
+
+    .public-actions .public-cta {
+        width: 100%
+    }
+
+    .public-footer nav {
+        grid-template-columns: 1fr
+    }
+
+    .public-audience ul {
+        grid-template-columns: 1fr
+    }
+
+    .public-hero-footer {
+        flex-wrap: wrap
+    }
+
+    .stratops-public h1 {
+        font-size: clamp(2.55rem, 11.5vw, 3.2rem)
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+    .stratops-public * {
+        scroll-behavior: auto !important;
+        animation: none !important;
+        transition: none !important
+    }
+}

@@ -54,7 +54,7 @@ function Assert-DeploymentTarget {
         throw 'PublicBaseUrl must be an HTTPS site origin.'
     }
     if ($TargetEnvironment -eq 'staging' -and
-        ($site.Host -eq 'stratops.battlespacex.com' -or $DistributionId -eq 'E2EFV9935XX3MV')) {
+        ($site.Host -in @('app.stratops.space', 'stratops.space', 'www.stratops.space', 'stratops.battlespacex.com') -or $DistributionId -eq 'E2EFV9935XX3MV')) {
         throw 'Staging cannot target the known production hostname or distribution.'
     }
     $result = (Invoke-Aws -Arguments @('cloudfront', 'get-distribution', '--id', $DistributionId, '--output', 'json')) | ConvertFrom-Json
@@ -63,7 +63,7 @@ function Assert-DeploymentTarget {
     if ($distribution.Id -ne $DistributionId -or $site.Host -notin (@($config.Aliases.Items) + @($distribution.DomainName))) {
         throw 'PublicBaseUrl does not belong to the selected distribution.'
     }
-    if ($TargetEnvironment -eq 'staging' -and 'stratops.battlespacex.com' -in @($config.Aliases.Items)) {
+    if ($TargetEnvironment -eq 'staging' -and @($config.Aliases.Items | Where-Object { $_ -in @('app.stratops.space', 'stratops.space', 'www.stratops.space', 'stratops.battlespacex.com') }).Count -gt 0) {
         throw 'Staging cannot use a distribution with the production alias.'
     }
     # Resolve ordered cache behaviors for every uploaded file, not just the default origin.

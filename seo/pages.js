@@ -3,7 +3,7 @@
         path: "/",
         title: "StratOps | Real-Time Multi-Domain Battlespace Intelligence",
         description: "StratOps by BattlespaceX unifies warzone OSINT, conflict intel and military tracking in a real-time 3D battlespace: air, land, sea, space and cyberspace.",
-        robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+        robots: "noindex, nofollow",
         ogAlt: "StratOps live multi-domain battlespace intelligence platform by BattlespaceX",
         breadcrumbs: [
             { name: "Home", item: "https://app.stratops.space/" }
@@ -32,7 +32,7 @@
         robots: "noindex, nofollow",
         ogAlt: "StratOps operational intelligence report",
         breadcrumbs: [
-            { name: "Home", item: "https://app.stratops.spacem/" },
+            { name: "Home", item: "https://app.stratops.space/" },
             { name: "Reports", item: "https://app.stratops.space/reports/stratops-report" }
         ]
     }

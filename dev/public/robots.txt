@@ -9,4 +9,6 @@ Disallow: /package.json
 Disallow: /node_modules/
 Disallow: /poster
 
-Sitemap: https://stratops.space/sitemap.xml
+# Operational portal. The public website publishes its own sitemap on stratops.space.
+Disallow: /api/
+Disallow: /reports/

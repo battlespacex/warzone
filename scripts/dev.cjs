@@ -22,7 +22,14 @@ console.info("[dev-timing] environment-ready=" + (Date.now() - Number(process.en
 
 // Run the installed CLI in this process: normal Ctrl+C/exit handling and extra
 // npm run dev -- ... arguments, without a shell wrapper or duplicate Node server.
-const cli = require.resolve("webpack-cli/bin/cli.js", { paths: [projectRoot] });
-process.chdir(projectRoot);
-process.argv = [process.execPath, cli, "serve", "--mode", "development", ...process.argv.slice(2)];
-require(cli);
+if (process.argv[2] === "--site") {
+    require("./dev-site.cjs").run(projectRoot, process.argv.slice(3)).catch(error => {
+        console.error("[dev-site] " + error.message);
+        process.exitCode = 1;
+    });
+} else {
+    const cli = require.resolve("webpack-cli/bin/cli.js", { paths: [projectRoot] });
+    process.chdir(projectRoot);
+    process.argv = [process.execPath, cli, "serve", "--mode", "development", ...process.argv.slice(2)];
+    require(cli);
+}

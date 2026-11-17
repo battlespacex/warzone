@@ -2,7 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { performance } = require("node:perf_hooks");
-const PRODUCTION_HOSTS = ["app.stratops.space", "api.battlespacex.com"];
+const PRODUCTION_HOSTS = ["app.stratops.space", "stratops.space", "www.stratops.space", "stratops.battlespacex.com", "api.battlespacex.com"];
 const isWorker = (url) => /\/assets\/cesium\/(?:releases\/[^/]+\/)?Workers\/[^?]+\.js(?:\?|$)/.test(url);
 const isGnssApi = (url) => /\/events\/gnss-interference(?:\?|$)/.test(url);
 const isGnssRaster = (url) => /\/events\/gnss-interference\/raster\/[^/?]+\//.test(url);

@@ -11841,6 +11841,7 @@ export function initStratopsIntro(options = {}) {
     if (!skipPreEntryShowcase && isStratOpsFeatureEnabled("system.preEntryShowcase")) {
         initPreEntryShowcase({ onEnter: openEntryIntroModal });
     } else if (openImmediately) {
+        document.body.classList.add("wz-pre-entry-complete");
         openEntryIntroModal();
     }
 }
