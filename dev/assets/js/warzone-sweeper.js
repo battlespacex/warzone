@@ -858,6 +858,13 @@ export function getSweeperDiagnostics() {
 export function renderSweepers(viewer, events = []) {
     if (!viewer) return;
     clearSweepers(viewer);
+    // Opt-in, reversible diagnostic: bypass only radar sweeper geometry/labels.
+    // Does not affect GNSS, real satellites, or any other Cesium overlay.
+    // To test locally, append ?diagNoSweep=1 to the page URL.
+    if (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("diagNoSweep") === "1") {
+        return;
+    }
     const candidates = selectRadarCandidates(
         events,
         SWEEPER_RENDER.maxCount,
